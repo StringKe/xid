@@ -32,7 +32,7 @@
     "@xid-kit/types": "workspace:*"
   },
   "devDependencies": {
-    "@sveltejs/kit": "^2.65.0",
+    "@sveltejs/kit": "^2.69.1",
     "@xid-kit/backend": "workspace:*",
     "svelte": "^5.0.0",
     "typescript": "catalog:",
