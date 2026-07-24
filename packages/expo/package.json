@@ -34,7 +34,7 @@
     "@types/react-dom": "catalog:",
     "expo": "^56.0.9",
     "expo-secure-store": "^56.0.4",
-    "expo-web-browser": "^56.0.5",
+    "expo-web-browser": "^57.0.2",
     "jsdom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
