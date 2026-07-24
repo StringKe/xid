@@ -80,15 +80,15 @@
     "smoke:production:mfa-sms": "vitest run tests/production/smoke-production-mfa-sms.test.mjs"
   },
   "devDependencies": {
-    "@lingui/cli": "^6.2.0",
-    "@lingui/conf": "^6.2.0",
-    "@lingui/format-po": "^6.2.0",
+    "@lingui/cli": "^6.6.0",
+    "@lingui/conf": "^6.6.0",
+    "@lingui/format-po": "^6.6.0",
     "@vitest/coverage-v8": "catalog:",
-    "turbo": "^2.10.4",
+    "turbo": "^2.10.6",
     "typescript": "^6.0.3",
-    "vite-plus": "^0.2.4",
+    "vite-plus": "^0.2.6",
     "vitest": "catalog:",
-    "wrangler": "^4.110.0"
+    "wrangler": "^4.114.0"
   },
   "engines": {
     "node": ">=22.12.0"

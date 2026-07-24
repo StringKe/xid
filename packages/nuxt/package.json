@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@xid-kit/crypto": "workspace:*",
-    "nuxt": "^4.4.8",
+    "nuxt": "^4.5.0",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "vue": "catalog:"
