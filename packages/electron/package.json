@@ -47,7 +47,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "electron": "^42.0.0",
+    "electron": "^43.2.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
