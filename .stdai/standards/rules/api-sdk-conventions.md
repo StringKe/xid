@@ -1,0 +1,52 @@
+---
+type: rules
+name: api-sdk-conventions
+description: Management API REST 约定(/v1/、cursor 分页、sk_live_)+ 结构化错误 XidAPIError + SDK networkless 验证
+priority: normal
+applyTo:
+  - 'apps/server/worker/**/admin/**/*.ts'
+  - 'apps/server/worker/**/v1/**/*.ts'
+  - 'packages/core/**/*.ts'
+  - 'packages/backend/**/*.ts'
+  - 'packages/react/**/*.tsx'
+targets: [claude-code, codex]
+---
+
+# 开发者体验:Management API / SDK / Webhook
+
+对标 Clerk(DX 业界标杆)。详见 `docs/design/06-developer-experience.md`。
+
+## Management API(REST)
+
+- 版本化:URL `/v1/` 前缀。
+- 认证:Secret Key(`Authorization: Bearer sk_live_xxx`)+ M2M Token(服务间 `POST /oauth/token`)。
+- 分页:cursor + offset/limit(最大 100/page)。
+- 限速:metadata PATCH 10/10s/user,bulk invitations 50/hour。
+- 资源:users / organizations / memberships / invitations / sessions / applications / connections(SSO)/ directories(SCIM)/ roles / permissions / emailAddresses / phoneNumbers / allowlistIdentifiers / oauthApplications / redirectUrls / webhooks / apiKeys / billing。
+
+## SDK 分层
+
+```
+@xid-kit/core      浏览器核心(登录态/token/用户组织信息/调用)
+@xid-kit/backend   服务端核心(Cloudflare Workers 原生,networkless JWT 验证)
+框架层         @xid-kit/react(重点)、@xid-kit/nextjs;@xid-kit/vue / @xid-kit/svelte / vanilla 后续
+```
+
+- `getToken()` 返回 short-lived JWT(建议 60s),配 `jwtKey`(JWKS 公钥)实现 networkless 验证(Edge 关键,无需请求 API,适合冷启动)。
+- 后端验证:`authenticateRequest(request, options)`(检查 Authorization header 或 cookie,验证 JWT 签名/exp/azp);`verifyToken(token, options)`(低层,传 jwtKey 跳过网络);`verifyWebhook(request, options)`(HMAC 签名验证)。
+
+## 结构化错误
+
+`XidAPIError`,字段 `code` / `message` / `longMessage` / `meta.paramName`(精确映射表单字段)。错误 message 带 locale(走 lingui,见 i18n-lingui rule)。
+
+## Webhook 与事件
+
+- 事件命名 `<object>.<action>`(参考 WorkOS 细粒度):user.created/updated/deleted、session._、organization._、organizationMembership._、organizationInvitation._、organizationDomain._、authentication._、connection._、dsync._、role/permission._、email/sms.created、billing._。
+- 投递走 Cloudflare Queues 解耦,**不阻塞登录链路**。
+- 签名验证:payload 含 svix-id/svix-timestamp/svix-signature,HMAC-SHA256,5min 时间窗防重放。
+- 重试:指数退避,失败自动重试,死信入 D1;支持手动重放(按消息/时间区间)。
+- Events API:有序不可变事件流 + cursor 分页(主动拉取,可靠同步)。
+
+## 本地开发
+
+dev 实例(`pk_test_`),localhost 免证书(HTTPS 代理),testing tokens 绕过 bot 检测。

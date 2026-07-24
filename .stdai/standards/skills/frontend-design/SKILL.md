@@ -1,0 +1,57 @@
+---
+type: skills
+name: frontend-design
+description: 构建或重构 XID 前端界面(Hosted UI / console / landing / SDK 组件)时的设计执行规范,在既有 --xid-* 设计系统内产出非模板化界面,避开可识别的 AI 味模式
+when_to_use: 新建页面或组件、重构界面布局、写 UI 文案、用户反馈界面"像 AI 做的"或"太模板"时
+allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]
+metadata:
+  category: frontend
+  stack: react-stylex
+---
+
+# 前端设计:XID 反 AI 味执行规范
+
+LLM 前端输出会收敛到训练语料的统计中位数(Tailwind / shadcn / Vercel 模板的均值),表现为可识别的"AI 味"。XID 已有完整设计系统,本 skill **不管选字体选色**(tokens 已定:Inter Variable + 蓝紫 ink 身份色 + 三层品牌运行时覆盖,见 `apps/server/src/styles/tokens.stylex.ts`),管的是剩下三件事:**布局不落模板、层级用系统表达、文案像人写的**。
+
+## 1. 设计输入优先级(写码前确认)
+
+1. 有设计稿(claude.ai/design 导出或 `docs/design/` 章节):像素级对稿,不自由发挥。设计稿里的字形 / 符号 / 数值是设计真相,保持原样。
+2. 无稿但有同类既有界面:沿用其布局语法与密度,保持产品内一致性优先于单页独特性。
+3. 全新界面且无参照:先输出 5 行 design brief(用途与用户 / 布局语法 / 密度策略 / 动效时机 / 与相邻页面的关系)再写码,不默认落地页模板。
+
+## 2. 用系统表达,禁止逃逸
+
+- 颜色 / 圆角 / 阴影 / 字体一律 `tokens['--xid-*']`(landing 用 `lx`);禁止字面 oklch / hex 进组件 -- 品牌运行时覆盖与 darkTheme 全靠 var 翻转,字面值在 dark 或白标租户下就是色彩事故。例外仅"双态恒定深色"场景(code 面板),且必须落在 `landing-palette.ts` / `landing-theme.stylex.ts` 这类集中定义处。
+- 层级靠中性阶(bg < sidebar < muted,surface 浮起)加字号 / 字重表达,不靠到处加边框加阴影加底色;一个面板最多一层强调。
+- display 大字号配低字重(<= 650),让字号做功而不是字重;标题行高 1.06-1.2,正文 1.5-1.65。
+- dark / light 由 tokens + darkTheme 自动翻转(挂 documentElement,见 `lib/theme.tsx`),组件不写 `prefers-color-scheme` 颜色分支;状态样式用 StyleX 条件值,不用后代选择器。
+- 动效复用 `Reveal`(staggered 入场 + prefers-reduced-motion 降级);一次编排好的入场胜过散落的微交互;新 keyframes 必须模块级 const。
+
+## 3. 反模板(出现任意一条即返工)
+
+布局:
+
+- 居中 hero + H1 上方胶囊 badge 的组合
+- 三列等宽"图标在顶"feature 卡;1-2-3 编号步骤条;stat 数字横幅
+- hero -> features -> testimonials -> pricing -> FAQ 骨架照搬
+- 全页清一色垂直居中堆叠:至少一处非对称 / 跨列 / 打破网格的构图
+
+组件:
+
+- radius-lg + shadow-lg + 大 padding 的万能卡片包一切
+- 彩色左边框卡片;勾形图标配淡色圆底;五星评价行;渐变 "Most popular" 价格 pill
+- emoji 当图标(图标走 `landing-icons` / 既有 Icon 体系)
+- 大面积彩色 glow / 彩色 box-shadow;不承载信息的装饰性渐变
+
+文案(英文源文案,一律经 lingui macro,见 i18n-lingui rule):
+
+- 禁 Empower / Unlock / Transform / Supercharge / Seamless 式开头
+- 禁两个抽象名词拼接的标题与 "Built for modern teams" 式不指向具体事实的空话
+- 每屏至少一个具体数字或具体名词;宣称口径不得越过 `docs/protocols/` 的支持级别(seo.test 与 protocols:source-map 门禁会拦)
+
+## 4. 交付前自查
+
+1. 对照第 3 节逐条核对,命中 >= 2 条直接返工,不询问。
+2. 删掉所有回答不了"为什么存在"的装饰;英文源文案朗读一遍,不像真人写的就重写。
+3. light 与 dark 两态都过一遍;新文案走 lingui extract -> 翻译 -> compile(lingui-i18n skill)。
+4. 门禁:`vp check` + `pnpm run i18n:audit`;动了首页宣称再跑 `pnpm run seo:audit`。

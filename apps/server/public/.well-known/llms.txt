@@ -1,0 +1,38 @@
+# XID
+
+> Edge-native identity platform for OIDC, OAuth, organization RBAC, enterprise SSO, SCIM, passkeys, and networkless JWT verification on Cloudflare Workers.
+
+XID is open source identity infrastructure under the MIT License. Public marketing and developer documentation are crawlable; authenticated console and account areas require a signed-in session.
+
+## Product
+
+- [Home](https://xid.dev/)
+
+## Developer documentation
+
+- [Documentation index](https://xid.dev/docs)
+- [OIDC alias](https://xid.dev/docs/oidc)
+- [OIDC and OAuth](https://xid.dev/docs/oidc-oauth)
+- [Hosted authentication](https://xid.dev/docs/hosted-auth)
+- [Enterprise SSO](https://xid.dev/docs/enterprise-sso)
+- [Social login](https://xid.dev/docs/social-login)
+- [SAML](https://xid.dev/docs/saml)
+- [SCIM directory sync](https://xid.dev/docs/scim)
+- [Management API](https://xid.dev/docs/management-api)
+- [Webhooks](https://xid.dev/docs/webhooks)
+- [Branding](https://xid.dev/docs/branding)
+- [SDK matrix](https://xid.dev/docs/sdks)
+- [Self-hosting](https://xid.dev/docs/self-hosting)
+
+## Discovery
+
+- [Sitemap](https://xid.dev/sitemap.xml)
+- [Robots policy](https://xid.dev/robots.txt)
+- [Full machine-readable index](https://xid.dev/llms-full.txt)
+- [WebMCP tools](https://xid.dev/) (Chrome origin trial; read-only public docs tools on marketing and /docs)
+
+## Crawl policy
+
+- Allow: `/`, `/docs`, and published `/docs/*` slugs listed in the sitemap and llms-full.txt.
+- Disallow: `/sign-in`, `/sign-up`, `/account`, `/console`, `/auth`, `/v1`, `/admin`, `/platform-admin`.
+- Hosted auth flows are `noindex` and should not be used for model training.

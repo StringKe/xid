@@ -1,0 +1,166 @@
+name: Bug report
+description: A reproducible defect in XID
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Use private vulnerability reporting
+        (Security tab -> Report a vulnerability) or the fallback channel in SECURITY.md.
+
+        Redact before posting: access tokens, refresh tokens, ID tokens, authorization codes,
+        client secrets, private keys, real tenant and user identifiers.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: This is not a security vulnerability
+          required: true
+        - label: I searched existing issues and discussions
+          required: true
+        - label: I checked `docs/protocols/gap-audit.md` and this is not a documented unimplemented gap
+          required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Worker - OIDC / OAuth endpoints
+        - Worker - SAML (inbound or outbound)
+        - Worker - SCIM 2.0
+        - Worker - Management API (/v1/*)
+        - Worker - sessions, tokens, revocation
+        - Worker - WebAuthn / passkeys
+        - Worker - password, MFA, passwordless
+        - Worker - multi-tenancy, RBAC, isolation
+        - Hosted UI - auth pages (login, consent, verification)
+        - Hosted UI - account portal
+        - Console - organization
+        - Console - platform
+        - Kernel library (packages/)
+        - TypeScript SDK (packages/)
+        - Native SDK (sdk/)
+        - Documentation
+        - Build, tooling, or CI
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package or SDK
+      description: Select the specific package if the surface above is a library or SDK.
+      options:
+        - Not applicable
+        - '@xid-kit/protocol'
+        - '@xid-kit/crypto'
+        - '@xid-kit/webauthn'
+        - '@xid-kit/saml'
+        - '@xid-kit/db'
+        - '@xid-kit/i18n'
+        - '@xid-kit/types'
+        - '@xid-kit/core'
+        - '@xid-kit/backend'
+        - '@xid-kit/react'
+        - '@xid-kit/nextjs'
+        - '@xid-kit/vue'
+        - '@xid-kit/nuxt'
+        - '@xid-kit/svelte'
+        - '@xid-kit/solid'
+        - '@xid-kit/angular'
+        - '@xid-kit/astro'
+        - '@xid-kit/remix'
+        - '@xid-kit/react-native'
+        - '@xid-kit/expo'
+        - '@xid-kit/electron'
+        - '@xid-kit/tauri'
+        - sdk/go
+        - sdk/rust
+        - sdk/python
+        - sdk/ruby
+        - sdk/php
+        - sdk/java
+        - sdk/dotnet
+        - sdk/windows
+        - sdk/linux
+        - sdk/ios
+        - sdk/macos
+        - sdk/android
+        - sdk/flutter
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps. Include the exact request (method, path, parameters) when a protocol endpoint is involved.
+      placeholder: |
+        1. Register a public client with redirect_uri https://localhost:5173/callback
+        2. GET /authorize?response_type=code&code_challenge_method=plain&...
+        3. Observe the response
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen, and per which specification or design document if applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened. Include the full error response, status code, and relevant logs with secrets redacted.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Local development (vite dev)
+        - Self-hosted Cloudflare Workers
+        - Hosted (xid.dev)
+        - Not applicable
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA or branch
+      description: The exact revision you reproduced against. There are no release tags yet.
+      placeholder: main @ abc1234
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, pnpm version, wrangler version, operating system. For native SDKs, the language toolchain version.
+      placeholder: |
+        Node 24.15.0
+        pnpm 10.33.4
+        wrangler 4.110.0
+        macOS 15.5
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Anything else, including a candidate fix or the file where you believe the defect lives.
+    validations:
+      required: false

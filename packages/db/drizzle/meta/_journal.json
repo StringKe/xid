@@ -1,0 +1,251 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1780329165289,
+      "tag": "0000_friendly_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1780334804381,
+      "tag": "0001_closed_frightful_four",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780335233908,
+      "tag": "0002_huge_terror",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1780394893259,
+      "tag": "0003_soft_delete_account_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1780395621288,
+      "tag": "0004_ambitious_masked_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780396796321,
+      "tag": "0005_amazing_bloodstorm",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1780403599615,
+      "tag": "0006_oauth_grant_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1780442300000,
+      "tag": "0007_users_active_identifier_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1780505925363,
+      "tag": "0008_aspiring_reaper",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1780510000000,
+      "tag": "0009_primary_email_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1780630739362,
+      "tag": "0010_password_reuse_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1780827406730,
+      "tag": "0011_session_auth_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1780827708130,
+      "tag": "0012_refresh_auth_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1780828534674,
+      "tag": "0013_refresh_resource_indicator",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1780834089512,
+      "tag": "0014_access_token_revocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1780835520000,
+      "tag": "0015_authorization_code_dpop_jkt",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1780859940000,
+      "tag": "0016_rar_authorization_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780934300000,
+      "tag": "0017_scim_targets",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1781020000000,
+      "tag": "0018_passkey_enterprise_attestation",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1781100000000,
+      "tag": "0020_saml_sp_org_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1781366400000,
+      "tag": "0021_concurrency_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1781370000000,
+      "tag": "0022_authorization_code_replay",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1783956881000,
+      "tag": "0023_notification_delivery_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1783956882000,
+      "tag": "0024_dead_letter_message_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1783956883000,
+      "tag": "0025_audit_delivery_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1783956884000,
+      "tag": "0026_notification_delivery_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1783956885000,
+      "tag": "0027_active_verification_credential",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1783961793000,
+      "tag": "0028_access_token_issuances",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1783961794000,
+      "tag": "0029_credential_cardinality",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1783961795000,
+      "tag": "0030_metering_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1784193618000,
+      "tag": "0031_db_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1784196423000,
+      "tag": "0032_db_pagination_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1784367836000,
+      "tag": "0033_ttl_policy_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1784374299456,
+      "tag": "0034_applications_ttl_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1784403175000,
+      "tag": "0035_oauth_session_id",
+      "breakpoints": true
+    }
+  ]
+}

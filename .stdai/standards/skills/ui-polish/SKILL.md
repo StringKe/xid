@@ -1,0 +1,122 @@
+---
+type: skills
+name: ui-polish
+description: XID 界面细节与动效打磨的完整执行规范(基于 impeccable 方法论本地化)。覆盖对位/间距/排版/色彩对比/交互态/微交互/动效编排/文案/边缘态/响应式/性能十二维,按 brand(landing/docs)与 product(Hosted UI/console)双 register 分流
+when_to_use: 用户反馈"细节没处理到位"、界面收尾打磨、补交互态、加或调动效、对位与间距修正、上线前最后一遍质量过查时
+allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]
+metadata:
+  category: frontend
+  stack: react-stylex
+---
+
+# UI 细节与动效打磨:XID 完整执行规范
+
+与 frontend-design skill 的分工:那边管**新界面的布局设计**(反模板/设计输入),本 skill 管**已实现界面的细节收口**。打磨是最后一步:功能不完整的界面先补功能,不打磨半成品。
+
+## 0. Register 判定(动手前第一件事)
+
+按 surface 分流,两套预算不混用:
+
+|             | brand(landing / docs / 营销面)              | product(Hosted UI / account / console)        |
+| ----------- | ------------------------------------------- | --------------------------------------------- |
+| 槽位        | 设计即产品,要一次"排练好的"签名动效         | 设计服务任务,动效只传达状态                   |
+| 动效预算    | 入场编排允许 500-800ms,一页一个 hero moment | 一律 150-250ms,禁止页面加载编排               |
+| 排版        | 流体 clamp,大字号低字重                     | 固定 rem 阶,1.125-1.2 步距,一族字体走天下     |
+| 色彩        | 允许 Committed(品牌色占面)                  | Restrained 是地板:accent 只给主操作/选中/状态 |
+| 密度        | 呼吸感优先                                  | 密度即价值,表格行多是常态                     |
+| gutter 口径 | clamp(1.25rem, 3vw, 4.5rem)                 | clamp(1rem, 2.5vw, 4rem)                      |
+
+## 1. 硬指标(数值红线,违反即修)
+
+对比度:
+
+- 正文 >= 4.5:1,大字(>=18px 或粗体 >=14px) >= 3:1,placeholder 同样 4.5:1
+- 最常见失败:tinted 浅底上的中灰正文。接近线就向 ink 端加深,"浅灰显高级"是错觉
+- 彩色底上禁灰字:用同色相深一档,或文字色的透明度
+
+排版:
+
+- display clamp 上限 <= 6rem;display 字距下限 >= -0.04em(更紧字符会贴住)
+- tracking 尺寸相关,禁全局一个值:display/标题按字号梯度负 tracking(-0.01em 至 -0.04em,字号越大越紧),正文 0,小字号(<1rem)禁负 tracking;mono microlabel 的正 tracking 是品牌例外
+- 标题 text-wrap: balance,长段 text-wrap: pretty;正文行高 1.5-1.65,标题 1.04-1.2
+- 全大写只给 <=4 词的短标签(XID 的 mono microlabel 即此类),正文禁全大写
+- 暗底浅字行高 +0.05-0.1(浅字视觉变轻,需要更多气口)
+
+层级与 z-index:
+
+- 语义化 z 阶(dropdown -> sticky -> backdrop -> modal -> toast -> tooltip),禁 999/9999 拍脑袋值
+
+## 2. 动效体系(animate 维)
+
+时长表(100/300/500 规则):
+
+| 时长      | 用途     | 例                            |
+| --------- | -------- | ----------------------------- |
+| 100-150ms | 即时反馈 | 按压、toggle、颜色变化        |
+| 200-300ms | 状态切换 | 菜单展开、tooltip、hover、tab |
+| 300-500ms | 布局变化 | 折叠面板、modal、drawer       |
+| 500-800ms | 入场编排 | 仅 brand 面的 hero/页面入场   |
+
+弹簧物理(motion 库,统一原语在 `apps/server/src/lib/motion/`):
+
+- 预设:`springDefault`(bounce 0,0.4s,绝大多数 UI)/ `springSnappy`(0.3s,弹出层)/ `springPress`(0.25s,按压)/ `springMomentum`(bounce 0.2,仅拖甩手势)
+- 可中断原则:手势驱动与可交互过渡用 motion spring(从当前值续播,随时反向);纯状态切换可留 CSS transition;Reveal 入场体系保留
+- 按压即时反馈:可交互元素 `:active` scale(0.97) 100ms(pointer-down 即反馈,不等 release)
+- 弹出层(popover/drawer/dialog):AnimatePresence + popoverMotion,transform-origin 锚定触发元素,进出同路径
+- reduced-motion:`AppMotionConfig reducedMotion="user"` 全局兜底 + styles.css 0.01ms 兜底,transform/layout 动画自动降级 crossfade
+
+- 缓动只用 ease-out 指数族:quart cubic-bezier(0.25,1,0.5,1) / quint (0.22,1,0.36,1) / expo (0.16,1,0.3,1)。**禁装饰性 bounce/elastic CSS 缓动**(过时且抢戏);手势动量场景允许 spring bounce <= 0.2(springMomentum)
+- 退场时长 = 入场的 ~75%
+- 列表 stagger 合法(animation-delay: calc(var(--i) \* 50ms)),总时长封顶 500ms;**整节滚动浮现到处复制是 AI 反射**,每个 reveal 要配得上它揭示的内容
+- reveal 必须增强"默认已可见"的内容:禁止把内容可见性押在 class 触发的过渡上(headless/隐藏 tab 下永不触发,区块白屏)
+- 动效材料不只 transform/opacity:blur / backdrop-filter / clip-path / mask / shadow 在小面积、验证流畅的前提下都是合法材料;禁随意动画 layout 属性(width/height/top/left/margin),要重排用 grid-template-rows 或 FLIP
+- will-change 只挂已知昂贵的动画(hover 或 .animating 类),禁全局预挂
+- 滚动触发一律 IntersectionObserver,触发一次后 unobserve
+- **prefers-reduced-motion 不可选**:每个动画都要降级(crossfade 或瞬时);XID 全局兜底在 styles.css,组件级新动画自查一遍
+- 感知性能:微交互目标 <80ms(感知即时阈值);乐观更新只给低风险操作(点赞/收藏),支付与破坏性操作禁用
+- XID 工程位:入场复用 `Reveal`(IO + reduced-motion 已接好);新 keyframes 模块级 const;StyleX 条件值表达状态,禁后代选择器
+
+## 3. 交互态完备(每个可交互元素八态)
+
+default / hover / focus-visible / active / disabled / loading / error / success。
+缺态 = 体验破洞,不是"以后再补"。XID 注意:
+
+- focus-visible 走全局 outline(accent 2px),组件禁自行 outline:none 不给替代
+- loading 用 Skeleton(与真实行等高,防 CLS),内容中央转圈是懒
+- 异步按钮要 disabled + 进行中文案或 Spinner(currentColor 自适应)
+- ConfirmDialog 已有,破坏性操作不要再发明新确认形态
+
+## 4. 细节清单(polish 十二维,逐维过)
+
+1. 对位与间距:全部走间距阶,无 13px 这类孤值;图标与文字光学对齐(几何居中常需 1px 偏移);开格栅覆盖层查对齐
+2. 信息架构:同等概念权重 = 同等视觉权重;多步操作的"形状"(modal vs 整页/内联 vs 路由/blur 保存 vs 显式提交)与邻近功能一致;命名同一名词不换称呼
+3. 排版:同类元素同字号字重;孤行寡字(balance/pretty)处理;数字 tabular-nums
+4. 色彩:全 tokens 禁字面色(品牌覆盖与 darkTheme 靠 var 翻转);同色同义,light/dark 两态都过
+5. 微交互:状态变化都有过渡(时长表),同一缓动家族
+6. 文案:同物同名;标点风格统一(标签不加句号,句子加);按钮=动词+宾语;链接文本可独立成意;英文源经 lingui macro,新文案走 extract->翻译->compile(lingui-i18n skill)
+7. 图标:同族同尺寸(landing-icons / ui Icon 体系),禁 emoji 代图标
+8. 表单:label 接线(Field 的 aria 链)、必填指示、校验时机统一(blur vs submit 选一)、tab 序合理
+9. 边缘态:loading / empty(教用户而非"空空如也") / error(给恢复路径) / 超长内容(截断或折行策略) / 无数据
+10. 响应式:全断点过(360/768/1280/宽屏);触控目标 >= 44x44;移动端正文 >= 14px;无横向滚动
+11. 性能:无 CLS(图片定宽高/骨架等高);昂贵效果限定小区域;60fps 实测
+12. 代码:删 console.log/死代码/无引用样式;一次性实现换共享组件(Section/SectionRow/MetricsBand/DataTable);新孤值评估是否该进 tokens
+
+## 5. 禁令(absolute bans,XID 适配版)
+
+- 侧条边框(border-left/right > 1px 作彩色强调)
+- 渐变文字(background-clip: text)
+- 装饰性玻璃拟态;repeating-linear-gradient 条纹背景
+- 英雄数字模板(大数字+小标签+渐变点缀的 SaaS 套路);等大卡片网格无限重复
+- 1px 边框 + >=16px 大模糊阴影同挂一个元素("幽灵卡");卡片圆角 > 16px
+- 手绘风 SVG 涂鸦;装饰性 bounce/elastic CSS 缓动(动量手势 spring bounce <= 0.2 合法)
+- 文字溢出容器(每个断点实测标题,溢出就降 clamp 上限)
+- 文案禁 Empower/Unlock/Transform/Seamless 族与 em dash;禁"不只是 X,更是 Y"句式连用
+- **XID 豁免**:mono microlabel + slash 分节符是已确立的品牌系统(设计稿口径),不算"每节 eyebrow"反射;Inter Variable 是 tokens 锁定字体,不适用字体 reflex-reject;在此系统内禁再叠加第二种 eyebrow/编号形式
+
+## 6. 工作流
+
+1. 判 register(第 0 节),读对应预算
+2. 走查实际界面(起 dev + 截图,light/dark 两态,>= 3 个断点),按第 4 节十二维记录问题清单,**逐条标 cosmetic / functional**
+3. functional 先修;按清单逐维修复,同一问题全库 grep 同模式一起修(系统性问题修系统,不修单点)
+4. 自验:重截图对照、`pnpm exec vp check --fix`、相关 vitest、动了文案加 `pnpm run i18n:audit`、动了首页宣称加 `pnpm run seo:audit`
+5. 完成标准:十二维清单各维为空,或剩余项明示为"接受的取舍"并给理由。绝不引用"脚本跑过了"当作打磨完成的证据,浏览器实证才算

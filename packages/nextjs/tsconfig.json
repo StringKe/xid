@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["vitest/globals"],
+    "jsx": "react-jsx",
+    "paths": {
+      "next/server": ["./node_modules/next/dist/server/web/exports/index.d.ts"],
+      "next/cache": ["./node_modules/next/dist/server/web/exports/index.d.ts"],
+      "next/headers": ["./node_modules/next/dist/server/web/exports/index.d.ts"],
+      "react": ["./node_modules/@types/react"]
+    }
+  },
+  "include": ["src"]
+}

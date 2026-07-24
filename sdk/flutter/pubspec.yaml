@@ -1,0 +1,40 @@
+# MIT
+name: xid
+description: XID identity platform Flutter SDK. Hosted Auth + OIDC Authorization Code + PKCE S256.
+version: 0.1.0-alpha
+homepage: https://github.com/StringKe/xid
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # System browser / platform auth session + app link callback
+  flutter_web_auth_2: ^4.0.0
+
+  # Secure storage: Keychain (iOS/macOS), Keystore (Android), libsecret (Linux), DPAPI (Windows)
+  flutter_secure_storage: ^9.2.4
+
+  # PKCE S256: SHA-256 digest
+  crypto: ^3.0.3
+
+  # ES256 ID token signature verification
+  cryptography: ^2.7.0
+
+  # HTTP client
+  http: ^1.2.2
+
+  # base64url encoding without external dependency (dart:convert covers base64, manual url-safe transform)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.9
+
+flutter:
+  # This is a plugin package, no assets or fonts needed at SDK level.

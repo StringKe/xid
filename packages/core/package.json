@@ -1,0 +1,35 @@
+{
+  "name": "@xid-kit/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browser core SDK for XID: session state, token manager, API client and JWT decoding.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/core"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@xid-kit/crypto": "workspace:*",
+    "@xid-kit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

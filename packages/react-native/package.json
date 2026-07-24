@@ -1,0 +1,47 @@
+{
+  "name": "@xid-kit/react-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React Native SDK for XID: native PKCE flow, secure token cache and session manager.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/react-native"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test --passWithNoTests"
+  },
+  "dependencies": {
+    "@xid-kit/core": "workspace:*",
+    "@xid-kit/crypto": "workspace:*",
+    "@xid-kit/protocol": "workspace:*",
+    "@xid-kit/react": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-native": "^0.85.3",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.73"
+  }
+}

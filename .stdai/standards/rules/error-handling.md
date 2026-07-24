@@ -1,0 +1,52 @@
+---
+type: rules
+name: error-handling
+description: 错误处理:不吞错/意外 throw typed AppError + Hono onError/可预期失败用 Result/边界 valibot 校验/不暴露内部错误/异步 no floating promise
+priority: high
+applyTo:
+  - '**/*.ts'
+targets: [claude-code, codex]
+---
+
+# 错误处理
+
+策略:**意外/不可恢复错误 throw,可预期失败用 Result**。
+
+## 不吞错(铁律)
+
+- 禁空 catch、禁 catch 后只 log 不处理、禁 try/catch 吞错继续。
+- 禁用降日志级别 / `@ts-ignore` / `// eslint-disable` 掩盖问题,必须修根因。
+- 不确定根因先分析汇报,不做猜测性修复。
+
+## throw:意外 / 不可恢复
+
+- 用 typed 错误类 `AppError`(`apps/server/worker/lib/errors.ts`):持 `code`(XidErrorCode)+ 可选 `meta` / `longMessage` / `cause`,HTTP status 按 code 映射,可用 `httpStatus` 覆盖。
+- Hono 全局 `app.onError` 统一捕获 -> 映射为 `XidAPIError` 响应(见 api-sdk-conventions rule)。
+- 保留 cause 链(`new AppError('...', { cause: err })`),不丢原始错误。
+
+## Result:可预期失败(失败是正常流程)
+
+- 输入校验、查找未命中、业务规则拒绝等"预期内失败"用判别联合,不走异常:
+  ```ts
+  type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }
+  ```
+- 调用方显式处理 `ok` 分支,类型强制不遗漏。
+- 不用 Result 包裹真正的意外(那些 throw)。
+
+## 边界校验
+
+- 外部输入(请求 body/query/header、OAuth 回调、SCIM payload、外部 IdP 响应、webhook)一律 **valibot 校验**后才进内核;内部模块间信任类型。
+- worker 统一走 `apps/server/worker/lib/validate.ts`:`readJsonBody` 读 JSON(坏 JSON 不抛 500)、`validateBody` / `validateQuery` 做形状校验;schema 用 valibot 定义,常用原子 schema(emailSchema / uuidSchema 等)复用该文件导出,不各域自建。
+- 校验失败映射 `validation_failed`(422)+ `meta.paramName`(首个 issue 的 dot path),精确映射回表单字段,不抛裸异常给客户端。
+- 协议域保持各自错误格式,经域适配器分流:凭证类端点(登录/验证码/token)用 `validateCredentialBody`,凭证字段失败按模糊码响应(枚举防护),非凭证字段按 validation_failed;OAuth 子域(introspect/revoke/device/register)用 `validateOAuthInput`,失败回 invalid_request。
+
+## 不暴露内部(沿用 anti-abuse)
+
+- 客户端错误信息模糊化、统一(枚举防护);内部细节(栈/SQL/路径)只进审计/日志,不进响应。
+- 错误文案走 lingui(`XidAPIError.message` 用 `i18n._()`,见 i18n-lingui rule)。
+
+## 异步
+
+- **no floating promise**:每个 Promise 必须 await 或显式 void;fire-and-forget 用 `c.executionCtx.waitUntil(...)`(Workers)。
+- 并发独立任务用 `Promise.all`;有依赖串行 await。
+- 传播 `AbortSignal`;超时用 `AbortSignal.timeout(ms)`。

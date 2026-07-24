@@ -1,0 +1,131 @@
+name: Protocol conformance issue
+description: XID deviates from OIDC, OAuth 2.x, SAML, SCIM, WebAuthn, or a related specification
+labels: ['conformance']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the deviation is from a written specification, not from expected
+        product behavior. A conformance report needs the normative text it violates.
+
+        If the deviation is exploitable, it is a security vulnerability. Do not file it here:
+        use the Security tab -> Report a vulnerability, or the fallback channel in SECURITY.md.
+
+        `docs/protocols/source-map.md` maps protocol requirements to implementation files, and
+        `docs/protocols/gap-audit.md` lists deviations that are already known.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: This deviation is not exploitable as a security vulnerability
+          required: true
+        - label: I checked `docs/protocols/gap-audit.md` and this is not already recorded
+          required: true
+
+  - type: dropdown
+    id: specification
+    attributes:
+      label: Specification family
+      options:
+        - OpenID Connect Core 1.0
+        - OpenID Connect Discovery 1.0
+        - OpenID Connect RP-Initiated Logout / Front-Channel / Back-Channel Logout
+        - OpenID Connect CIBA
+        - OAuth 2.0 (RFC 6749 / RFC 6750)
+        - OAuth 2.1 draft
+        - PKCE (RFC 7636)
+        - Token Introspection (RFC 7662)
+        - Token Revocation (RFC 7009)
+        - Dynamic Client Registration (RFC 7591 / RFC 7592)
+        - Authorization Server Metadata (RFC 8414)
+        - Device Authorization Grant (RFC 8628)
+        - Token Exchange (RFC 8693)
+        - Resource Indicators (RFC 8707)
+        - JAR (RFC 9101) / JARM
+        - PAR (RFC 9126)
+        - DPoP (RFC 9449)
+        - mTLS client authentication (RFC 8705)
+        - JWT / JWS / JWE / JWK (RFC 7515-7519)
+        - FAPI 2.0
+        - SAML 2.0 (Core, Bindings, Profiles) or XML Signature
+        - SCIM 2.0 (RFC 7643 / RFC 7644)
+        - WebAuthn Level 3 / CTAP2
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: citation
+    attributes:
+      label: Specification section
+      description: Document and section, with the requirement level. Link the exact anchor if you have it.
+      placeholder: RFC 6749 Section 4.1.3 (MUST), https://www.rfc-editor.org/rfc/rfc6749#section-4.1.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: normative
+    attributes:
+      label: Normative text
+      description: Quote the MUST, SHALL, or SHOULD clause that XID violates.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: Endpoint or component
+      description: The XID endpoint, message, or code path involved.
+      placeholder: POST /token, grant_type=authorization_code
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Required behavior
+      description: What a conforming implementation must do here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Observed behavior
+      description: What XID does. Include the request and the full response with secrets redacted.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tooling
+    attributes:
+      label: How was this observed?
+      options:
+        - OpenID Foundation conformance suite
+        - Manual request (curl, HTTP client)
+        - A relying party or client library rejected the response
+        - An external IdP or service provider rejected the message
+        - Reading the source
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Test output or trace
+      description: Conformance suite log, request and response pair, or the failing assertion. Redact tokens and secrets.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA or branch
+      placeholder: main @ abc1234
+    validations:
+      required: true

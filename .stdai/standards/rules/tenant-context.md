@@ -1,0 +1,49 @@
+---
+type: rules
+name: tenant-context
+description: TenantContext 是 issuer/签名密钥/RPID/配置的唯一来源,托管默认 issuer 为 instance issuer
+priority: high
+applyTo:
+  - 'apps/server/worker/**/*.ts'
+  - 'packages/protocol/**/*.ts'
+  - 'packages/crypto/**/*.ts'
+  - 'packages/db/**/*.ts'
+targets: [claude-code, codex]
+---
+
+# TenantContext:多租户唯一上下文
+
+核心抽象 TenantContext。一份代码同时跑单租户与多租户,差别只在 TenantContext 如何解析,业务代码无感知。详见 `docs/design/00-overview.md` 第 5 节和第 6.1 节。
+
+## 铁律
+
+- issuer、签名密钥、RPID、租户配置一律从 TenantContext 取。
+- 内核禁止任何**全局单例**的 issuer / 密钥 / 配置直接引用。出现 `const ISSUER = ...` 这类模块级常量持有租户敏感值,即违规。
+- 任何 OIDC/OAuth/WebAuthn/会话逻辑入口必须先拿到 TenantContext,再继续。
+
+## 两种解析模式
+
+- 单租户模式(自托管默认,零配置):TenantContext 是配置驱动的单例。
+- 多租户模式(xid.dev):根域先进入 instance entry context,再通过 instance login resolver / tenant hint / custom host 解析 org context。
+
+同一份代码,模式由部署配置决定,不靠代码剔除 / feature flag 切换。
+
+## TenantContext 至少持有
+
+- `tenantId`
+- `issuer` = 托管默认 instance issuer,例如 `https://xid.dev`;org / tenant context 不得把默认签发方改成 `admin.xid.dev` 或 `app.xid.dev`
+- `rpId` = 具体租户子域或明确绑定 root origin 的 instance-level RPID(WebAuthn,多租户隔离,见 webauthn rule)
+- 当前 active 签名密钥集(多 kid)与 kid
+- 租户级策略覆盖(MFA / 密码 / 会话 / 登录流程,见 02 章 OrgPolicy)
+
+## 域名与 RPID 对应
+
+- instance 根域:`xid.dev` 是默认 OIDC issuer、API base、Hosted Auth base 和 Console base。
+- 业务租户子域:`{tenant}.xid.dev` 可作为 org-scoped UI、branding 或 future custom issuer 入口,但托管默认不作为独立 OIDC issuer。
+- 自定义域名:`auth.customer.com` 走 Cloudflare for SaaS Custom Hostnames,是独立 eTLD+1,RPID 切到该域。
+- 多租户下业务租户 RPID 必须用具体租户子域,**不能设父域**,否则 A 租户用户在 B 租户登录页会看到自己的 passkey,违反隔离与隐私。
+
+## 自定义域名状态机要点(见 00 章 6.2)
+
+- 后台 `POST /custom_hostnames`(ssl.method=txt)后立即把 ownership_verification token 绑定到发起租户账号(防抢注),token 有有效期。
+- 租户删除自定义域名时,后台必须同步 `DELETE /custom_hostnames/{id}` 并通知删 CNAME(防 takeover)。

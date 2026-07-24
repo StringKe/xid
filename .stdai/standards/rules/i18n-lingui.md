@@ -1,0 +1,107 @@
+---
+type: rules
+name: i18n-lingui
+description: 多语言全走 lingui 全套(macro/catalog/po/ICU),覆盖 React SPA(Hosted UI + 管理 console)+ React SDK + Workers API;邮件留 Mustache
+priority: high
+applyTo:
+  - 'apps/server/src/**/*.tsx'
+  - 'apps/server/src/**/*.ts'
+  - 'packages/react/**/*.tsx'
+  - 'packages/i18n/**/*.ts'
+  - 'apps/server/worker/**/errors/**/*.ts'
+  - 'lingui.config.ts'
+targets: [claude-code, codex]
+---
+
+# 多语言:lingui 全套方案
+
+i18n 统一用 lingui。前端是 React SPA(`apps/server/src`),覆盖:Hosted UI(登录/consent/account)+ 管理 console(org/instance)、React SDK 组件、Workers API 错误消息本地化。**事务邮件模板不走 lingui**,仍用 Mustache 子集 + R2 语言包(见 `docs/design/07-platform-operations.md` 第 3 节)。设计源对应 07 章第 4 节 i18n。
+
+## 依赖与版本
+
+```
+@lingui/core              运行时核心(框架无关,可在 Workers 跑)
+@lingui/react             React 绑定(I18nProvider / Trans / useLingui)
+@lingui/cli               extract / compile CLI
+@lingui/conf              defineConfig 类型
+@lingui/format-po         po 目录格式(formatter,v6 必须显式传)
+@lingui/vite-plugin       Vite 集成(.po 导入 + linguiTransformerBabelPreset)
+@lingui/babel-plugin-lingui-macro / @rolldown/plugin-babel   macro 转换(Vite 8)
+```
+
+macro 导入路径(lingui v6,`@lingui/macro` 已移除,不再维护):
+
+- 字符串类:`import { t, msg, plural, select, selectOrdinal, defineMessage } from "@lingui/core/macro"`
+- JSX 类:`import { Trans, useLingui } from "@lingui/react/macro"`
+
+## lingui.config.ts(仓库根)
+
+```ts
+import { defineConfig } from '@lingui/conf'
+import { formatter } from '@lingui/format-po'
+
+export default defineConfig({
+  sourceLocale: 'en',
+  locales: ['en', 'zh-Hans', 'ja', 'ko', 'fr', 'de', 'es', 'pt-BR'],
+  catalogs: [
+    { path: '<rootDir>/packages/i18n/locales/{locale}/messages', include: ['apps', 'packages'] },
+  ],
+  format: formatter({ lineNumbers: false }),
+})
+```
+
+- config 放仓库根,各 app 的 @lingui/vite-plugin 向上搜索到此。
+- locales 用 BCP 47 标签(`zh-Hans` 不是 `zh-CN`,`pt-BR` 不是 `pt`)。
+- v6 移除了 `format: 'po'` 字符串,必须 `formatter()` from `@lingui/format-po`。
+
+## Vite 集成(macro 转换)
+
+server 的 `vite.config.ts`:
+
+```ts
+import react from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
+import { lingui, linguiTransformerBabelPreset } from '@lingui/vite-plugin'
+
+plugins: [react(), cloudflare(), lingui(), babel({ presets: [linguiTransformerBabelPreset()] })]
+```
+
+lingui v6 + Vite 8:macro 经 `@rolldown/plugin-babel` + `linguiTransformerBabelPreset` 转换。**plugin-react 6 不再接受 `babel` 字段**(老写法 `react({ babel: {...} })` 会 TS2353),改用上面的独立 babel plugin。
+
+## 编码约定(铁律)
+
+- **禁止硬编码任何 UI 文案**。所有用户可见字符串走 macro。
+- JSX(SPA 路由组件 / SDK):`<Trans>Sign in to {tenant}</Trans>`,不要拼接字符串。
+- 命令式字符串(toast / alt / aria-label):`const { t } = useLingui(); t\`Email is required\``。
+- 非组件上下文(纯 .ts、Workers handler、API 错误):用 `msg` 定义惰性消息,在有 i18n 实例处用 `i18n._(theMessage)` 渲染。
+- 复数/选择走 ICU,不要手写 if/else:`plural(count, { one: "# device", other: "# devices" })`。
+- 不要给 macro 手写 `id`,让 extract 自动生成(基于源文本 + context 的 hash);需要消歧时用 `msg({ message, context })`。
+
+## 运行时激活
+
+```ts
+import { i18n } from '@lingui/core'
+import { messages } from 'packages/i18n/locales/{locale}/messages' // compile 产物
+
+i18n.load(locale, messages)
+i18n.activate(locale)
+```
+
+- React SPA:`<I18nProvider i18n={i18n}>` 包裹应用根(`apps/server/src/main.tsx`)。
+- Workers API:每请求按 locale `i18n.activate`,`XidAPIError.message` 用 `i18n._()` 渲染(见 api-sdk-conventions rule)。Worker 与浏览器是不同 isolate,各自激活,互不影响。
+
+## locale 检测优先级(07 章)
+
+`?locale=` -> `user.locale` -> `Accept-Language` -> 租户默认 -> `en`。缺失 fallback `en`,**不显示 key 名**。租户可上传自定义语言包覆盖(per-tenant R2 path)实现白标术语替换。
+
+## 工作流
+
+加/改文案后必须 extract + compile,详见 lingui-i18n skill(`.stdai/standards/skills/lingui-i18n/`):
+
+```
+lingui extract     # 扫源码抽取 macro 消息到 .po
+# 翻译 .po(或机翻占位)
+lingui compile     # .po -> 编译产物(.js/.ts),供运行时 import
+```
+
+CI 校验:`lingui extract --fail-on-warning`(有未提取/未翻译消息时失败),compile 产物提交前必须 fresh。

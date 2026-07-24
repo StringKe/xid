@@ -1,0 +1,50 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# 统一第三方依赖版本,各包用 "catalog:" 引用,避免多版本漂移
+catalog:
+  hono: ^4.12.30
+  drizzle-orm: ^0.45.2
+  drizzle-kit: ^0.31.10
+  '@lingui/core': ^6.2.0
+  '@lingui/react': ^6.2.0
+  '@lingui/cli': ^6.2.0
+  '@lingui/vite-plugin': ^6.2.0
+  react: ^19.2.6
+  react-dom: ^19.2.6
+  '@types/react': ^19.2.15
+  '@types/react-dom': ^19.2.3
+  '@tanstack/react-router': ^1.170.10
+  '@tanstack/react-query': ^5.100.14
+  '@tanstack/react-table': ^8.21.3
+  motion: ^12
+  '@noble/hashes': ^1.4.0
+  es-toolkit: ^1.47.0
+  '@cloudflare/vite-plugin': ^1.39.0
+  '@lingui/babel-plugin-lingui-macro': ^6.2.0
+  '@rolldown/plugin-babel': ^0.2.3
+  '@cloudflare/workers-types': ^5.20260708.1
+  wrangler: ^4.110.0
+  vite: ^8.0.16
+  vitest: ^4.1.10
+  valibot: ^1.4.2
+  jsdom: ^29.1.1
+  '@vitest/coverage-v8': ^4.1.10
+
+overrides:
+  turbo-stream: ^3.2.0
+  undici: ^7.28.0
+  typescript: ^6.0.3
+  '@cloudflare/vitest-pool-workers': ^0.16.11
+  '@xmldom/xmldom': ^0.9.10
+  xmldsigjs: ^2.8.7
+  '@stylexjs/stylex': ^0.18.3
+  '@stylexjs/unplugin': ^0.18.3
+  # SDK Wave1 框架包共享版本
+  vue: ^3.5.0
+  solid-js: ^1.9.7
+  rxjs: ^7.8.1
+  '@testing-library/react': ^16.3.0
+  jsdom: ^29.1.1
+  '@types/node': ^22.0.0

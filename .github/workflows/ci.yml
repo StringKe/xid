@@ -1,0 +1,311 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同一分支的连续推送不并行烧配额。push 到 main 不取消(main 的每个 commit 都要有独立结论),
+# PR 上取消旧 run。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # push 事件下 dorny/paths-filter 用 github.event.before 当 base。历史被 squash + force-push 后
+  # 那个 SHA 变成 orphan,action 直接 throw,整个 run 连带失败。push 到 main 是合并后兜底,
+  # 语义上本就该全跑,所以只在 pull_request 上做增量筛选。
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      linux: ${{ steps.filter.outputs.linux }}
+      flutter: ${{ steps.filter.outputs.flutter }}
+      ios: ${{ steps.filter.outputs.ios }}
+      macos: ${{ steps.filter.outputs.macos }}
+      android: ${{ steps.filter.outputs.android }}
+      server: ${{ steps.filter.outputs.server }}
+      dotnet: ${{ steps.filter.outputs.dotnet }}
+      windows: ${{ steps.filter.outputs.windows }}
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # dorny/paths-filter v4.0.2
+      # 每个 filter 只列自己的 sdk 目录 + 本 workflow + 契约测试本体。
+      # sdk/ 下 13 个原生 SDK 对 packages/protocol 等内核包的引用数为 0(仅两处散文注释提到
+      # @xid-kit/backend),NATIVE_SDK_MATRIX 也只跑各 SDK 目录内的自有单测,内核改动不可能
+      # 影响这些 job 的结论。跨语言协议兼容需要的是共享黄金向量,不是把内核路径塞进 filter。
+      - id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706
+        with:
+          filters: |
+            linux: ['sdk/linux/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+            flutter: ['sdk/flutter/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+            ios: ['sdk/ios/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+            macos: ['sdk/macos/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+            android: ['sdk/android/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+            server: ['sdk/go/**', 'sdk/java/**', 'sdk/php/**', 'sdk/python/**', 'sdk/ruby/**', 'sdk/rust/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+            dotnet: ['sdk/dotnet/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+            windows: ['sdk/windows/**', '.github/workflows/ci.yml', 'tests/native-sdk-contract.test.mjs']
+
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  smoke:
+    name: smoke
+    runs-on: ubuntu-latest
+    # smoke 逐个文件起 wrangler dev + Chrome,是全流水线最长的一段。30 分钟能在
+    # dev server 或 Chrome 卡死时早于默认 360 分钟止损。
+    timeout-minutes: 30
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # smoke 的浏览器用例直接 spawn 这个路径,缺失时给出秒级明确失败而不是等 15 分钟超时。
+      - name: Verify headless Chrome
+        run: /usr/bin/google-chrome --version
+      - run: pnpm smoke:l2-l3
+        env:
+          XID_CHROME_PATH: /usr/bin/google-chrome
+
+  native-linux:
+    name: Native SDK contract cargo test
+    needs: changes
+    # always() 必须写:changes 在 push 事件下被 skip,没有 always() 下游会连带 skip。
+    if: >-
+      always() && needs.changes.result != 'failure' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.linux == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # dtolnay/rust-toolchain v1 -- 显式装 toolchain,不靠 runner 镜像预装的 rustc(版本会随镜像漂移)
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+      - run: XID_NATIVE_SDK_PLATFORM=linux node --test tests/native-sdk-contract.test.mjs
+
+  native-flutter:
+    name: Native SDK contract flutter test
+    needs: changes
+    if: >-
+      always() && needs.changes.result != 'failure' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.flutter == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # subosito/flutter-action v2.23.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+      - run: XID_NATIVE_SDK_PLATFORM=flutter node --test tests/native-sdk-contract.test.mjs
+
+  native-ios:
+    name: Native SDK contract swift test
+    needs: changes
+    if: >-
+      always() && needs.changes.result != 'failure' &&
+      (github.event_name != 'pull_request' ||
+      needs.changes.outputs.ios == 'true' || needs.changes.outputs.macos == 'true')
+    runs-on: macos-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [ios, macos]
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: XID_NATIVE_SDK_PLATFORM=${{ matrix.sdk }} node --test tests/native-sdk-contract.test.mjs
+
+  native-android:
+    needs: changes
+    if: >-
+      always() && needs.changes.result != 'failure' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.android == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # actions/setup-java v5.6.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '17'
+      # gradle/actions v6.2.0
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92
+      - run: XID_NATIVE_SDK_PLATFORM=android node --test tests/native-sdk-contract.test.mjs
+
+  native-server:
+    needs: changes
+    if: >-
+      always() && needs.changes.result != 'failure' &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.server == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [go, java, php, python, ruby, rust]
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # actions/setup-go v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        if: matrix.sdk == 'go'
+        with:
+          go-version: '1.22'
+      # actions/setup-java v5.6.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        if: matrix.sdk == 'java'
+        with:
+          distribution: temurin
+          java-version: '17'
+      # actions/setup-python v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        if: matrix.sdk == 'python'
+        with:
+          python-version: '3.12'
+      # shivammathur/setup-php 2.37.2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        if: matrix.sdk == 'php'
+        with:
+          php-version: '8.3'
+      # ruby/setup-ruby v1.321.0
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b
+        if: matrix.sdk == 'ruby'
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: sdk/ruby
+      # dtolnay/rust-toolchain v1 -- toolchain 在该 action 里是 required input,必须显式传
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        if: matrix.sdk == 'rust'
+        with:
+          toolchain: stable
+      - run: XID_NATIVE_SDK_PLATFORM=${{ matrix.sdk }} node --test tests/native-sdk-contract.test.mjs
+
+  native-dotnet:
+    needs: changes
+    if: >-
+      always() && needs.changes.result != 'failure' &&
+      (github.event_name != 'pull_request' ||
+      needs.changes.outputs.dotnet == 'true' || needs.changes.outputs.windows == 'true')
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [dotnet, windows]
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # actions/setup-dotnet v6.0.0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '10.0.x'
+      - run: node --test tests/native-sdk-contract.test.mjs
+        env:
+          XID_NATIVE_SDK_PLATFORM: ${{ matrix.sdk }}
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run security:secret-scan
+
+  # pnpm audit 查实时 advisory DB,同一 commit 今天绿明天红,与被测代码无因果关系。
+  # 拆成独立 job 后照常红/绿(不用 continue-on-error 假装成功),但不进 required checks,
+  # 不阻塞合并。红了当作"去看一眼有没有真需要升的依赖"的信号。
+  dependency-audit:
+    name: dependency audit (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run security:dependencies

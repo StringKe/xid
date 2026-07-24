@@ -1,0 +1,179 @@
+# Dependabot configuration.
+#
+# Scope rationale:
+# - npm and github-actions are weekly. They cover the shipped Worker, the SPA, all @xid-kit/*
+#   packages, and the CI supply chain, so their vulnerability window matters most.
+# - The 13 SDKs under sdk/ are not published to any registry, but they carry real third-party
+#   runtime dependencies (JWT, HTTP, crypto, secure storage). Their updates only need to pass the
+#   CI contract test, so they run monthly and are grouped into a single pull request per ecosystem
+#   to keep noise down.
+# - No maven entry: sdk/java/pom.xml declares an empty <dependencies/> element and pulls in only
+#   the Maven compiler plugin.
+# - No swift entry: sdk/ios and sdk/macos declare `dependencies: []` (Apple system frameworks only)
+#   and have no Package.resolved.
+#
+# Actions in .github/workflows/ci.yml are pinned to commit SHAs. Dependabot understands SHA pins and
+# keeps the version comment in sync. Keep the pinning.
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: 'ci(deps)'
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+
+  - package-ecosystem: cargo
+    directories:
+      - '/sdk/rust'
+      - '/sdk/linux'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      cargo:
+        patterns:
+          - '*'
+
+  - package-ecosystem: gomod
+    directory: '/sdk/go'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      gomod:
+        patterns:
+          - '*'
+
+  - package-ecosystem: pip
+    directory: '/sdk/python'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      pip:
+        patterns:
+          - '*'
+
+  - package-ecosystem: bundler
+    directory: '/sdk/ruby'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      bundler:
+        patterns:
+          - '*'
+
+  - package-ecosystem: composer
+    directory: '/sdk/php'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      composer:
+        patterns:
+          - '*'
+
+  - package-ecosystem: gradle
+    directory: '/sdk/android'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      gradle:
+        patterns:
+          - '*'
+
+  - package-ecosystem: nuget
+    directories:
+      - '/sdk/dotnet'
+      - '/sdk/windows'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      nuget:
+        patterns:
+          - '*'
+
+  - package-ecosystem: pub
+    directory: '/sdk/flutter'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - native-sdk
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      pub:
+        patterns:
+          - '*'

@@ -1,0 +1,45 @@
+{
+  "name": "@xid-kit/nextjs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Next.js SDK for XID: middleware, server helpers and auth header handling on top of @xid-kit/react.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/nextjs"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test --passWithNoTests"
+  },
+  "dependencies": {
+    "@xid-kit/backend": "workspace:*",
+    "@xid-kit/core": "workspace:*",
+    "@xid-kit/crypto": "workspace:*",
+    "@xid-kit/react": "workspace:*",
+    "@xid-kit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "next": "^16.2.7",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0",
+    "react": "^19",
+    "react-dom": "^19"
+  }
+}

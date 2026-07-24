@@ -1,0 +1,99 @@
+---
+type: rules
+name: monorepo-toolchain
+description: monorepo 职责:pnpm 管依赖 / turborepo 唯一跨包编排 / Vite+(vp)管 lint+fmt+test+库打包 / 标准 Vite 管 app 构建
+priority: high
+applyTo:
+  - 'pnpm-workspace.yaml'
+  - 'turbo.json'
+  - 'vite.config.ts'
+  - '**/package.json'
+  - '**/vite.config.ts'
+targets: [claude-code, codex]
+---
+
+# Monorepo 工具链:pnpm + turborepo + Vite+ + 标准 Vite
+
+四个工具,职责不重叠。
+
+## 职责划分(铁律)
+
+| 工具           | 职责                                                                    | 入口                                                    |
+| -------------- | ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| pnpm workspace | 依赖安装、workspace 协议(`workspace:*`)、catalog 统一版本               | `pnpm-workspace.yaml`                                   |
+| turborepo      | **唯一**跨包编排:pipeline、依赖图、缓存(CI)                             | `turbo.json` / `turbo run <task>`                       |
+| Vite+(vp)      | 代码质量 + 库打包:check(Oxlint+Oxfmt+tsgo)、fmt、test(Vitest)、pack(库) | 根 `vite.config.ts`(`vite-plus` defineConfig)           |
+| 标准 Vite      | app 的 dev / build(SPA + Worker)                                        | `apps/server/vite.config.ts`(`@cloudflare/vite-plugin`) |
+
+- 不用 prettier / eslint:lint=Oxlint,fmt=Oxfmt,都由 vp 提供。
+- **app(`apps/server`)的 dev/build 用标准 Vite**(`@vitejs/plugin-react` + `@cloudflare/vite-plugin`),不是 vp dev/build -- Cloudflare SPA+Worker 集成依赖标准 Vite 生态插件。
+- **库包(`packages/*`)的 build 用 `vp pack`**(tsdown);check/test 用 vp。
+- 禁止用 `vp run -r` 作跨包编排入口(那是 turbo 的活)。
+
+## 命令速查
+
+| 动作                | apps/server                                       | 库包 packages/\* | 跨包(turbo)       |
+| ------------------- | ------------------------------------------------- | ---------------- | ----------------- |
+| 装依赖              | `pnpm install`                                    | --               | --                |
+| 开发                | `pnpm --filter @xid-kit/server dev`(vite)         | --               | `turbo run dev`   |
+| 构建                | `pnpm --filter @xid-kit/server build`(vite build) | `vp pack`        | `turbo run build` |
+| 部署                | `wrangler deploy`                                 | --               | --                |
+| 检查(fmt+lint+类型) | `vp check`                                        | `vp check`       | `turbo run check` |
+| 测试                | `vp test`                                         | `vp test`        | `turbo run test`  |
+| 格式化(全仓库)      | `vp fmt`(根)                                      | --               | --                |
+
+turbo 的 check/test **不依赖 build**:内部包用 source 直引(main 指 `src/*.ts`),typecheck 无需先 build。只有 `build`/`pack`/`deploy` 走 `dependsOn: ["^build"]`。
+
+## 脚手架
+
+```bash
+pnpm create cloudflare@latest <name> --framework=react   # SPA + Worker app(apps/server 即此模板)
+```
+
+新库包手写 `package.json`(`main` 指 `src/index.ts`,build 用 `vp pack`)。
+
+## pnpm workspace
+
+```yaml
+# pnpm-workspace.yaml
+packages:
+  - 'apps/*'
+  - 'packages/*'
+onlyBuiltDependencies: [esbuild, workerd, sharp] # pnpm 10 默认忽略 build scripts,显式批准
+catalog:
+  hono: ^4.12
+  drizzle-orm: ^0.45
+  '@lingui/core': ^6.2
+  # ... 其余第三方版本
+```
+
+- 内部包互引用走 `workspace:*`(如 `apps/server` 依赖 `packages/protocol` 写 `"@xid-kit/protocol": "workspace:*"`)。
+- 第三方版本走 catalog 统一,避免漂移。
+
+## Vite+ 质量配置(根 vite.config.ts)
+
+`import { defineConfig } from 'vite-plus'`。根 config 持 lint(Oxlint)/ fmt(Oxfmt)/ test 共享默认,用 `overrides` 按 workspace glob 做 per-package 设置:
+
+```ts
+import { defineConfig } from 'vite-plus'
+
+export default defineConfig({
+  fmt: { singleQuote: true, semi: false },
+  lint: {
+    plugins: ['typescript'],
+    options: { typeAware: true, typeCheck: true },
+    overrides: [
+      { files: ['apps/server/src/**', 'packages/react/**'], plugins: ['typescript', 'react'] },
+      {
+        files: ['apps/server/worker/**', 'packages/protocol/**', 'packages/db/**'],
+        env: { node: true },
+      },
+      { files: ['**/*.test.ts', '**/*.spec.ts'], plugins: ['typescript', 'vitest'] },
+    ],
+  },
+})
+```
+
+- override 设了 `plugins` 即**替换**基础 `lint.plugins`,需列全(如 `["typescript", "react"]`)。
+- glob 从根 `vite.config.ts` 解析,用 workspace 路径(`apps/server/src/**`)。
+- 两个 `vite.config.ts` 不冲突:根的是 vite-plus 质量配置(vp 读),`apps/server/vite.config.ts` 是标准 Vite 构建配置(vite 读)。

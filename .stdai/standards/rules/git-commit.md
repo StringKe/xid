@@ -1,0 +1,32 @@
+---
+type: rules
+name: git-commit
+description: Conventional Commits 1.0.0 提交规范,已推送分支禁止改写历史
+priority: normal
+applyTo:
+  - '**/*'
+targets: [claude-code, codex]
+---
+
+# Git 提交规范
+
+Conventional Commits 1.0.0:`<type>(scope): <description>`
+
+- type:feat / fix / docs / style / refactor / perf / test / build / ci / chore
+- 破坏性变更加 `!`:`feat(api)!: 移除旧接口`
+- 暂存所有相关文件,不私自排除。
+- `.env` / 密钥类文件告知用户,不自作主张提交。
+- 禁止 `Co-Authored-By`、AI 署名。
+
+## 已推送分支禁止改写历史
+
+- 禁止已推送分支 `git commit --amend` + `git push --force` / `--force-with-lease`。
+- 禁止已推送分支 `git rebase` + `git push --force`。
+- 禁止 `git reset --hard <older>` + `git push --force` 到已推送分支。
+- 修补已推送 commit 的唯一方式:追加新 commit + fast-forward push。
+- 唯一例外:本人独占的 WIP 分支,且明确告知用户后才 amend。
+- main / master / 受保护分支永远不允许 force-push。
+
+## stdagent 产物提交
+
+stdagent 生成的 CLAUDE.md / AGENTS.md / .claude/rules/ / .codex/memories/ **应当 git 提交**(不要 .gitignore),让 codereview 与 PR 流程能看到 AI 规则的变更。

@@ -1,0 +1,250 @@
+# XID
+
+An edge-native identity platform that runs as a single Cloudflare Worker. One codebase serves as an
+OIDC/OAuth Identity Provider, a multi-tenant RBAC layer, an enterprise SSO federation endpoint
+(SAML and SCIM), and a passkey-first hosted authentication UI.
+
+[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
+
+## Project status
+
+**Pre-1.0. Do not run this in production yet.** Every capability below is backed by local evidence
+only: unit tests, Workers-runtime integration tests, and browser or protocol-client smoke tests
+against a local build. Nothing has been verified end-to-end against a real external identity
+provider, a real downstream SaaS application, a real social OAuth provider, or real SMS/WhatsApp
+delivery. Evidence tiers (L0 to L4) and per-feature support levels are defined in
+[`docs/protocols/README.md`](docs/protocols/README.md), which is authoritative over any summary
+here. Interfaces, database schema, and package APIs may change without a deprecation period.
+
+## Why XID
+
+Identity requests are latency-critical and globally distributed, yet most identity platforms answer
+them from one region. XID puts the whole authorization server on Cloudflare's edge: token signing
+runs on Web Crypto inside the isolate, session revocation is serialized by a per-user Durable
+Object instead of a central database, and JWKS is cached in KV so relying parties verify tokens
+without a round trip. Multi-tenancy is not an add-on either -- issuer, signing keys, WebAuthn RP ID,
+and policy all resolve from a single `TenantContext`, so the same source tree runs as a zero-config
+single-tenant deployment or a multi-tenant instance, by configuration rather than a build flag.
+
+## Features
+
+**Protocol surface**
+
+- OIDC and OAuth 2.x authorization server: discovery, JWKS, `/authorize`, `/token`, `/userinfo`,
+  `/introspect`, `/revoke`, `/end_session`, `/device_authorization`, `/par`, dynamic client
+  registration (RFC 7591/7592), and CIBA backchannel authentication.
+- Authorization code with mandatory PKCE S256, client credentials, device code, refresh rotation
+  with family replay revocation, and RFC 8693 token exchange. Sender-constrained tokens via DPoP
+  and mTLS; signed request objects (JAR) and signed authorization responses (JARM).
+- Enterprise SSO in both directions: inbound SAML 2.0 SP and OIDC RP federation, outbound SAML 2.0
+  IdP for downstream SaaS, plus LDAP direct bind, WS-Federation, SWA password vaulting, and
+  header-based SSO.
+- SCIM 2.0 Service Provider (Users, Groups, PATCH, filters, sort, bulk, ETag/If-Match) plus
+  outbound provisioning to downstream SaaS targets.
+
+**Authentication**
+
+- Passkeys/WebAuthn as the primary credential: discoverable credentials, mandatory user
+  verification, sign-count clone detection.
+- Passwords hashed with Argon2id plus a server-side pepper held in Workers Secrets; magic links;
+  one-time codes over email, SMS, and WhatsApp; social OAuth as a relying party.
+- MFA with TOTP, SMS, passkey as second factor, and single-use backup codes.
+
+**Platform**
+
+- Organizations, memberships, roles, permissions, invitations, and domain verification.
+- Management API under `/v1/*`, self-service account portal under `/v1/me/*`, instance operator API
+  under `/v1/platform/*`.
+- Append-only audit log with chained SHA-256 hashes, signed webhooks with a dead-letter queue,
+  feature flags, and usage metering.
+- Hosted UI in 8 locales (en, zh-Hans, ja, ko, fr, de, es, pt-BR) with fully translated catalogs.
+
+## Quickstart
+
+### Integrating an application
+
+The `@xid-kit/*` packages are **not published to npm**; they are workspace packages, so using them
+in your own application today means vendoring the source or adding this repository to your
+workspace. The API below is the current public surface. From `@xid-kit/react`:
+
+```tsx
+import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
+
+function App() {
+  return (
+    <XidProvider publishableKey="pk_test_..." apiUrl="https://auth.example.com">
+      <SignedOut>
+        <SignInButton />
+      </SignedOut>
+      <SignedIn>
+        <UserButton />
+      </SignedIn>
+    </XidProvider>
+  )
+}
+```
+
+Inside the provider, `useUser()` returns a discriminated union on `isLoaded` and `isSignedIn`, and
+`useAuth()` exposes `getToken` and `signOut`; organization, session, and API key hooks follow the
+same shape. Server side, `verifyToken` from `@xid-kit/backend` is networkless -- pass the JWKS you
+already hold and nothing leaves the isolate.
+
+```ts
+import { verifyToken } from '@xid-kit/backend'
+
+const result = await verifyToken(accessToken, {
+  jwtKey: jwks, // a JWK, a JWKS, or an imported CryptoKey
+  issuer: 'https://auth.example.com',
+  authorizedParties: ['app_123'],
+})
+
+if (!result.ok) {
+  return new Response('unauthorized', { status: 401 }) // result.error names the failed check
+}
+const userId = result.value.sub
+```
+
+`authenticateRequest(request, options)` wraps the same check for a whole `Request`, and
+`verifyWebhook(request, options)` validates inbound webhook signatures.
+
+### Self-hosting
+
+Requires Node >= 22.12, pnpm 10.33.4, and a Cloudflare Workers Paid account (Durable Objects,
+Queues, and D1 all require it).
+
+```bash
+git clone https://github.com/StringKe/xid.git
+cd xid && pnpm install
+
+# create the resources this Worker binds to
+cd apps/server
+npx wrangler d1 create xid-db
+npx wrangler kv namespace create CACHE
+npx wrangler r2 bucket create xid-storage
+for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-dlq; do
+  npx wrangler queues create "$q"
+done
+```
+
+Then edit `apps/server/wrangler.jsonc` and replace `account_id`, the D1 `database_id`, the KV
+namespace `id`, and the `routes` entries with your own. It still carries the upstream project's
+values, there is no template to copy, and **it will not deploy for you unedited**. The eight
+Durable Object bindings, the Analytics Engine dataset, the `send_email` binding, and the two cron
+triggers are already declared and need no change.
+
+Set the secrets, migrate, deploy, and initialize. Losing `KEK` makes every signing key and stored
+provider credential undecryptable; losing `PEPPER` invalidates every password hash. Back both up
+outside Cloudflare first.
+
+```bash
+openssl rand -base64 32 | npx wrangler secret put KEK
+openssl rand -base64 32 | npx wrangler secret put PEPPER
+npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
+
+npx wrangler d1 migrations apply DB --remote
+npx wrangler deploy
+
+curl -X POST https://<your-domain>/admin/bootstrap \
+  -H 'content-type: application/json' \
+  -H 'X-Bootstrap-Token: <BOOTSTRAP_TOKEN>' \
+  --data '{"primaryDomain":"<your-domain>","mode":"multi_tenant","adminEmail":"<you@example.com>"}'
+```
+
+Bootstrap creates the instance, the default organization, the instance ES256 signing key, and the
+first `instance_manager` user; it refuses to run twice. Full instructions, including local D1
+migration and seeding, are in [`docs/deployment.md`](docs/deployment.md).
+
+### Developing
+
+```bash
+pnpm --filter @xid-kit/server dev   # Vite dev server: Worker and SPA together
+pnpm test                           # Vitest across the workspace
+pnpm run check                      # typecheck, lint, i18n, protocol and coverage gates
+pnpm run build                      # all packages plus the server
+```
+
+`pnpm run check` is the full gate, including two coverage runs; it is not a quick lint. It calls
+`native:verify`, which without `XID_NATIVE_SDK_PLATFORM` set only validates the CI workflow
+contract and needs no native toolchain. GitHub Actions verifies but never deploys; production
+deployment runs from Cloudflare Workers Builds on the repository owner's account. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the per-area workflow.
+
+## Architecture
+
+One Worker holds everything. Hono serves the protocol and management endpoints; the React 19 SPA
+ships as Workers Assets and any non-API path falls back to it, so the Hosted UI, account portal, and
+both consoles deploy as one unit with the token endpoint. State is split by consistency requirement:
+D1 for relational data, Durable Objects for anything needing serialization (WebAuthn challenges,
+OAuth state, PAR, device flow, session revocation, rate limits, audit sequence, metering), KV for
+cached reads, R2 for blobs, Queues for work that must stay off the login path.
+
+```
+apps/server/       The Worker
+  worker/          Hono routes, Durable Objects, queue consumers, cron handlers
+  src/             React SPA: 12 auth pages, 5 account pages, 6 shared console pages,
+                   16 organization console pages, 7 platform console pages
+packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
+sdk/               13 native SDKs
+docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
+tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
+```
+
+The kernel libraries -- `protocol`, `crypto`, `webauthn`, `saml`, `db`, `i18n`, `types` -- are
+internal to the Worker. Cryptographic primitives always come from Web Crypto and XML-DSig is
+delegated to `xmldsigjs`; the protocol and business logic in between are written here.
+
+## Protocol support
+
+Every row maps to files and tests in [`docs/protocols/source-map.md`](docs/protocols/source-map.md).
+
+| Area | Support | Highest evidence | Notes |
+| --- | --- | --- | --- |
+| OAuth 2.x core (code, PKCE S256, client credentials, refresh rotation) | implemented | local protocol client | Implicit and password grants are rejected with negative tests |
+| OIDC core (ID token, userinfo, logout, session management, hybrid) | implemented | local protocol client | Front-channel and back-channel logout profiles included |
+| PAR, DPoP, device flow | implemented | local protocol client | DPoP nonce challenge is not implemented |
+| JAR, JARM, RAR, mTLS, token exchange, DCR, CIBA, OpenID Federation | implemented | Workers runtime integration | JWE, remote request-object fetch, and `form_post.jwt` are not claimed |
+| SAML 2.0 SP (inbound) and IdP (outbound) | implemented | local fake IdP and fake SaaS SP | Not verified against Okta, Entra ID, or Google Workspace |
+| SCIM 2.0 Service Provider and outbound provisioning | implemented | local fake SaaS SCIM | Not verified against a real directory or SaaS target |
+| WebAuthn / passkeys | implemented | Workers runtime integration | Four-step verification with no bypass path |
+| LDAP direct bind, WS-Federation, SWA, header-based SSO | implemented | local harness | Kerberos is documentation only |
+| Social OAuth relying party (Google, GitHub, Microsoft, Apple) | implemented | local fake provider | Not verified with real provider secrets or callbacks |
+| Shared Signals, CAEP, RISC | planned | unit tests | Endpoints return 501 and create no streams |
+| GNAP, UMA, HEART, OID4VP, OID4VCI | stub | unit tests | Route stubs returning 501; not a protocol implementation |
+
+## SDKs
+
+Fifteen TypeScript packages under `packages/`: `core` and `backend` plus framework bindings for
+React, Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo, Electron, and
+Tauri -- all workspace-private and **not published to npm**.
+
+Thirteen native SDKs under `sdk/`: Go, Rust, Python, Ruby, PHP, Java, .NET, Windows, iOS, macOS,
+Linux, Android, and Flutter. **None are published to crates.io, PyPI, Maven Central, RubyGems,
+Packagist, NuGet, CocoaPods, or pub.dev**, and no release pipeline exists for them -- they are
+consumed from source. CI enforces correctness instead: six `native-*` jobs -- three of them matrix
+expanded, covering all thirteen platforms -- run each language's own test suite on every change from
+the contract in `tests/native-sdk-contract.test.mjs`. Run one locally
+with `XID_NATIVE_SDK_PLATFORM=go pnpm run native:verify`; per-platform maturity is in
+[`docs/sdks/platform-matrix.md`](docs/sdks/platform-matrix.md).
+
+## Documentation
+
+Start at [`docs/README.md`](docs/README.md), which routes by reader. Most design and operations
+documents are in Chinese; the protocol matrices and several SDK reference pages are in English.
+
+- Product design, nine chapters: [`docs/design/`](docs/design/README.md)
+- Protocol matrices and gap audit: [`docs/protocols/`](docs/protocols/README.md)
+- HTTP endpoint contracts: [`docs/api-contracts.md`](docs/api-contracts.md)
+- Self-hosting: [`docs/deployment.md`](docs/deployment.md)
+- Standards source-of-truth URLs: [`docs/standards-sources.md`](docs/standards-sources.md)
+
+## Contributing, security, and license
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request; it covers the toolchain,
+the required gates, and the Developer Certificate of Origin sign-off. Participation is governed by
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), and [`SUPPORT.md`](SUPPORT.md) covers questions that
+are not code changes. Do not open a public issue for a vulnerability -- reporting channels, scope,
+and the disclosure timeline are in [`SECURITY.md`](SECURITY.md).
+
+XID is licensed under the MIT License; see [`LICENSE`](LICENSE). You may use, modify, and
+distribute it, including commercially and in closed-source products, as long as you retain the
+copyright notice and the license text.

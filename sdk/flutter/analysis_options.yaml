@@ -1,0 +1,13 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_final_fields
+    - avoid_print
+    - unawaited_futures
+    - cancel_subscriptions
+
+analyzer:
+  errors:
+    invalid_annotation_target: ignore

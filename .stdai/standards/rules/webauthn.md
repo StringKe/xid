@@ -1,0 +1,57 @@
+---
+type: rules
+name: webauthn
+description: WebAuthn 四验证无跳过路径,UV required,residentKey required,sign_count 克隆检测,RPID per-tenant 子域
+priority: high
+applyTo:
+  - 'packages/webauthn/**/*.ts'
+  - 'apps/server/worker/**/passkey/**/*.ts'
+  - 'apps/server/worker/**/webauthn/**/*.ts'
+targets: [claude-code, codex]
+---
+
+# Passkey / WebAuthn
+
+passkey 为主推凭证。详见 `docs/design/01-authentication.md` 第 1 节。
+
+## 四验证(无跳过路径)
+
+注册与登录验证 assertion 时,四项缺一不可:
+
+1. challenge:绑定匿名 session,存 Durable Object,验证后销毁,TTL 5-10min。
+2. origin:校验来源 origin 与租户绑定一致。
+3. rpIdHash:校验与 TenantContext 的 rpId 一致。
+4. signature:用注册时存的公钥验签。
+
+加 UV 强制 + sign_count 克隆检测。禁止任何条件分支跳过其中任一验证。
+
+## 注册/登录参数
+
+- `residentKey: required`,`userVerification: required`,确保 discoverable credentials。
+- 登录用 `navigator.credentials.get` 无需用户名(发现式凭证)。
+- Conditional UI / autofill:username 字段挂 `autocomplete="webauthn"`;调用前先 `isConditionalMediationAvailable()`,不支持时降级按钮触发。
+- attestation 默认 none;租户开 enterprise 时切 indirect 并解析 AAGUID 供事故响应。
+- 每账户上限 N 个 passkey(参考 Clerk 上限 10)。
+
+## RPID(多租户隔离)
+
+- RPID = 具体租户子域(`{tenant}.xid.dev`),从 TenantContext 取,每租户不同,passkey 天然按租户隔离。
+- 多租户下 RPID **不能设父域**,否则 A 租户用户在 B 租户登录页会看到自己的 passkey。
+- 自定义域名(`auth.customer.com`)是独立 eTLD+1,RPID 切到该域;已注册在 `{tenant}.xid.dev` 的 passkey 在新域无法使用,启用自定义域名时**明确提示用户重新注册 passkey**(Auth0/Clerk 同款)。Related Origin Requests(ROR)作后续优化,不进首版。
+
+## sign_count 克隆检测
+
+- 两值均 0(平台同步 passkey 不递增):直接接受。
+- 新值 <= 历史非零值:标记异常**触发风险审查而非直接拒绝**。
+- 按 aaguid 区分固定为 0 的平台 passkey,避免误报。
+- 同步 passkey(BE=1)的 sign_count 可信度低,**不单独作安全门控**。
+
+## 数据模型与安全
+
+- 核心实体 PasskeyCredential(见 08 章):存公钥、aaguid、sign_count、transports、backup 状态、设备名;**私钥永不入库**。
+- Conditional UI 不泄露凭证是否存在(结果为空不报错)。
+- 域名变更前必须迁移或废弃旧 passkey,否则用户锁定。
+
+## passkey 作 MFA
+
+passkey 可作主凭证,也可作 MFA 第二因子(满足 MFA 要求);密码用户登录时提示 progressive enrollment 升级 passkey。

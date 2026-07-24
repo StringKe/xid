@@ -1,0 +1,16 @@
+name: xid_example
+description: XID Flutter SDK usage example.
+version: 1.0.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  xid:
+    path: ../
+
+flutter:
+  uses-material-design: true

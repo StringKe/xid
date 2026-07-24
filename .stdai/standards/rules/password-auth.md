@@ -1,0 +1,55 @@
+---
+type: rules
+name: password-auth
+description: 密码认证 Argon2id 参数/HIBP breach 检测/重置 token 只存哈希/pepper/MFA 因子规范
+priority: high
+applyTo:
+  - 'apps/server/worker/**/password/**/*.ts'
+  - 'apps/server/worker/**/mfa/**/*.ts'
+  - 'apps/server/worker/**/auth/**/*.ts'
+targets: [claude-code, codex]
+---
+
+# 密码认证与 MFA
+
+详见 `docs/design/01-authentication.md` 第 2、5 节。
+
+## 密码哈希
+
+- 主算法 Argon2id,参数 memory=64 MiB / iterations=3(生产)。OWASP 2025 最低 memory=19MiB/iter=2。
+- bcrypt cost=12 仅迁移兼容:存量 bcrypt 读取时**原地迁移**(验证通过后重哈希 Argon2id)。
+- pepper 机制(服务端 secret,与 salt 分开)存 Workers Secrets **不入 DB**,轮换保留旧版本号兼容验证。
+- 超长密码哈希前截断或拒绝(防 bcrypt DoS):最短 12、最长 128。
+
+## 密码策略
+
+- 强度实时校验用 zxcvbn。
+- Breach detection:HIBP k-anonymity API(发 SHA-1 前 5 位)。注册和改密**强制检查**,登录**异步检查不阻断**,标记 pwned 后下次登录提示重置。
+- 密码历史:最近 N 个哈希(默认 5),拒绝重用。
+
+## 密码重置
+
+- HMAC 签名一次性 token,15min 有效。
+- 重置 token **只存哈希(SHA-256)**,token 本身不入 DB,防 DB 泄露后重放。
+- 重置邮件不区分"邮箱不存在"与"已发送"(枚举防护)。
+
+## MFA / 2FA
+
+- TOTP(RFC 6238,30s 步长,时钟偏差容忍 +-1 步);secret AES-256-GCM 加密;绑定时展示 QR,确认一次有效 code 后激活。
+- TOTP 防重放:缓存最近 30s 已用 code(KV TTL=60s),重复拒绝。
+- SMS OTP / Email OTP 作 2FA;passkey 满足 MFA 要求。
+- Backup / recovery codes:10 个,8 字符,每个一次性,HMAC-SHA256 哈希存储,展示一次,重新生成作废旧批次。
+- 强制 MFA 三层继承:platform / tenant / org;开启后新用户进入 `pending_mfa_setup`,完成绑定前 access token scope 受限。
+- Step-up:颁发含 `acr: step-up` 的短期 token(5min),API 网关校验 acr,**独立颁发不复用登录 session token**。
+
+## MFA 安全约束
+
+- SMS **不得作唯一 MFA 因子**(NIST SP 800-63B),需至少配一个更强因子。
+
+## Passwordless(magic link / OTP)
+
+- magic link token = HMAC-SHA256 签名 JWT(sub/exp/jti),15min,单次有效,服务端只存 jti 哈希用于作废。
+- Email OTP:6 位,10min,最多 5 次错误后作废。
+- SMS OTP:6 位,5min,国家白名单(默认 US/CA)。
+- 请求限流:同一邮箱/手机每分钟最多 1 次,每小时最多 5 次。
+- OTP 存 HMAC-SHA256 哈希,验证后立即删。

@@ -1,0 +1,1 @@
+ALTER TABLE `saml_service_providers` ADD `slo_url` text;--> statement-breakpoint

@@ -1,0 +1,34 @@
+{
+  "name": "@xid-kit/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lingui runtime instance and compiled locale catalogs shared by the XID server and SDKs.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/i18n"
+  },
+  "type": "module",
+  "main": "./src/i18n.ts",
+  "types": "./src/i18n.ts",
+  "scripts": {
+    "build": "vp pack src/i18n.ts",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test --passWithNoTests"
+  },
+  "dependencies": {
+    "@lingui/core": "catalog:",
+    "@lingui/react": "catalog:",
+    "@xid-kit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:"
+  }
+}

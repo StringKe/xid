@@ -1,0 +1,42 @@
+---
+type: rules
+name: utils-abstraction
+description: 工具/抽象封装:三次法则才抽/纯函数无副作用/包内 src/utils 优先跨多包才提共享包/Cloudflare bindings 走 gateway 不裸调
+priority: normal
+applyTo:
+  - '**/*.ts'
+  - '**/*.tsx'
+targets: [claude-code, codex]
+---
+
+# 工具封装与抽象
+
+## 何时抽(沿用全局)
+
+- 最简方案优先;单次使用不抽象;**三次相似代码才抽**工具。
+- 不为不存在的场景写抽象 / feature flag / 向后兼容 shim。
+- 过早抽象比重复更糟:重复看得见,错抽象要返工。
+
+## 工具函数原则
+
+- **纯函数优先**:无副作用、确定性、不碰 I/O / 全局 / 时间 / 随机(需要时作参数注入)。
+- 纯函数易测、易组合、可缓存。带副作用(I/O / network)的逻辑与纯逻辑分离。
+- 单一职责:一个工具做一件事;**不做万能 `utils.ts` 大杂烩**。
+
+## 放哪
+
+- 包内私有工具:`packages/<pkg>/src/utils/`(或就近),不对外导出。
+- 跨多包复用(>= 2 包)才提取共享包 `@xid-kit/utils`(纯函数、零运行时依赖)。
+- 不为单包工具建共享包(过度);不把业务逻辑塞进 utils。
+
+## Cloudflare bindings 封装(铁律)
+
+- D1 / KV / R2 / Queues / DO **不在业务代码裸调**,走 gateway / repository 封装:
+  - D1 走 `@xid-kit/db` 的租户查询层(自动注入 tenant_id,见 tenant-isolation rule)。
+  - KV / R2 / Queues 各封装类型化 accessor(key 命名、TTL、序列化集中管理,见 cloudflare-bindings rule 的 key 约定)。
+- 封装让 binding 可 mock(测试)、key 规则集中、防散落裸调。
+
+## 密码学 / 协议(不重复实现)
+
+- 签名 / 验签 / 哈希走 `@xid-kit/crypto`;协议逻辑走 `@xid-kit/protocol`(见 crypto-boundary rule)。
+- WebAuthn 验证走 `@xid-kit/webauthn`;SAML 走 `@xid-kit/saml`。业务代码不重写这些。
