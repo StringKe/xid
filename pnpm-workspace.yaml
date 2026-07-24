@@ -19,7 +19,7 @@ catalog:
   '@tanstack/react-query': ^5.100.14
   '@tanstack/react-table': ^8.21.3
   motion: ^12
-  '@noble/hashes': ^1.4.0
+  '@noble/hashes': ^2.2.0
   es-toolkit: ^1.47.0
   '@cloudflare/vite-plugin': ^1.39.0
   '@lingui/babel-plugin-lingui-macro': ^6.2.0
