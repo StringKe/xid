@@ -1,0 +1,26 @@
+# oxc(oxlint + oxfmt,vite-plus 内置)忽略清单。代码质量只管 ts/tsx/js/json 源码,
+# 不处理以下:设计文档、stdagent 同步产物(改格式会与 sync 输出冲突导致 drift)、
+# 编译/生成产物、i18n compile 产物、依赖。替代被移除的 .prettierignore(项目不用 prettier)。
+
+# 设计真相源(markdown,人工维护)
+docs/
+
+# stdagent 同步产物(由 stdagent sync 机械生成,禁手改;格式由 stdagent 决定)
+.stdai/
+.claude/
+.codex/
+.agents/
+CLAUDE.md
+AGENTS.md
+
+# i18n compile 产物(lingui compile 生成,非手写格式)
+packages/i18n/locales/
+
+# wrangler 生成的运行时类型
+worker-configuration.d.ts
+
+# 编译/构建/缓存产物
+dist/
+build/
+.wrangler/
+.turbo/

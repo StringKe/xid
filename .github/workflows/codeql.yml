@@ -1,0 +1,89 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # 每周一 03:17 UTC。错开整点,避开 GitHub 定时任务高峰导致的排队。
+    - cron: '17 3 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    # Code scanning is a GitHub Advanced Security feature: free on public repositories, paid on
+    # private ones. Running this job on a private repo fails with "Code scanning is not enabled
+    # for this repository" no matter how the workflow is written, so skip instead of reporting a
+    # red cross that no code change can fix. It starts working on its own once the repo is public.
+    if: github.event.repository.visibility == 'public'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 工作流本身:action pin、注入点、过宽 permissions
+          - language: actions
+            build-mode: none
+            runner: ubuntu-latest
+          # 产品主体:Worker 协议端 + React SPA + protocol/crypto/db/webauthn/saml 内核
+          - language: javascript-typescript
+            build-mode: none
+            runner: ubuntu-latest
+          # sdk/go
+          - language: go
+            build-mode: autobuild
+            runner: ubuntu-latest
+          # sdk/python
+          - language: python
+            build-mode: none
+            runner: ubuntu-latest
+          # sdk/ruby
+          - language: ruby
+            build-mode: none
+            runner: ubuntu-latest
+          # sdk/java(maven)+ sdk/android(gradle);build-mode none 免去两套构建系统的编排
+          - language: java-kotlin
+            build-mode: none
+            runner: ubuntu-latest
+          # sdk/dotnet + sdk/windows
+          - language: csharp
+            build-mode: none
+            runner: ubuntu-latest
+          # sdk/ios + sdk/macos;swift 不支持 build-mode none,只能显式构建让 CodeQL 追踪编译器
+          - language: swift
+            build-mode: manual
+            runner: macos-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # github/codeql-action v4.37.3
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build Swift packages
+        if: matrix.build-mode == 'manual' && matrix.language == 'swift'
+        run: |
+          swift build --package-path sdk/ios
+          swift build --package-path sdk/macos
+
+      # github/codeql-action v4.37.3
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
+        with:
+          category: /language:${{ matrix.language }}

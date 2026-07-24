@@ -1,0 +1,50 @@
+{
+  "name": "@xid-kit/remix",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Remix SDK for XID: session helpers and OAuth callback handling.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/remix"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.index.ts"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@xid-kit/backend": "workspace:*",
+    "@xid-kit/core": "workspace:*",
+    "@xid-kit/crypto": "workspace:*",
+    "@xid-kit/react": "workspace:*",
+    "@xid-kit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@remix-run/node": "^2.17.0",
+    "@remix-run/react": "^2.17.0",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@remix-run/node": ">=2.0.0",
+    "@remix-run/react": ">=2.0.0",
+    "react": "^19"
+  }
+}

@@ -1,0 +1,110 @@
+---
+type: references
+name: password-and-mfa-parameters
+description: Exact XID credential parameters - Argon2id cost values and encoded hash format, pepper format, HIBP call shape, password history mechanism, reset token claims and ordering, TOTP / backup code / step-up settings, and OTP and magic link TTLs
+---
+
+# Password and MFA Parameters
+
+Lookup table extracted from the `password-auth` rule. It holds the exact constants, formats, and
+call shapes of the XID credential stack; the rule itself keeps only the judgement calls. Read this
+when writing or reviewing password hashing, password reset, MFA enrollment or verification,
+backup codes, step-up, magic links, or OTP code.
+
+Design source: `docs/design/01-authentication.md` sections 2 and 5. Implementation lives in
+`apps/server/worker/auth/password.ts`, `auth/mfa.ts`, `auth/backup-codes.ts`, `auth/otp.ts`,
+`auth/magic-link.ts`, `me-auth/password-signin.ts`, `me-auth/password-reset.ts`.
+
+## Password hashing
+
+- Argon2id only, via `argon2id` from `@noble/hashes/argon2`. Parameters: `m=65536` (64 MiB),
+  `t=3`, `p=1`, `dkLen=32`, `version=0x13`. The OWASP 2025 floor is m=19 MiB / t=2 -- never go below it.
+- `passwords.algo` is always `argon2id`. `verifyPassword` MUST reject any other algo value, and it
+  MUST still burn one dummy Argon2id hash before returning false so an unknown algo is not
+  distinguishable by timing. There is no bcrypt verifier in the codebase; do not add one without
+  also shipping the rehash-on-successful-login migration path.
+- Encoded hash format: `$argon2id$v=19$m=M,t=T,p=P$<salt-b64url>$<digest-b64url>`. Salt is 16 bytes
+  from `crypto.getRandomValues`.
+- Pepper is a server secret in Workers Secrets (`env.PEPPER`) and MUST NOT reach D1. Format is
+  `v<N>:<base64url>` (bare base64url means version 1). It is prepended to the UTF-8 password before
+  Argon2id, and the version used is persisted in `passwords.pepper_version` so a rotation can tell
+  old rows apart. Verification currently only uses the active pepper -- rotating requires adding
+  old-version verification first.
+- Length bounds: min 12, max 128 (`validatePasswordLength`). `hashPassword` also truncates at 128 as
+  defense in depth against oversized-input DoS.
+
+## Password policy
+
+- The client-side strength meter is a local heuristic scoring 0-4 (length, case mix, digits,
+  symbols) in `apps/server/src/routes/forgot-password/index.tsx`. There is no zxcvbn dependency --
+  do not add one just to render a meter. Strength display is advisory; the enforced gates are
+  length, HIBP, and history.
+- Breach detection: HIBP k-anonymity (`https://api.pwnedpasswords.com/range/<first 5 SHA-1 hex
+  chars>`, with `Add-Padding: true`). MANDATORY and blocking on sign-up, password reset, and
+  password change -- reject with `password_breached`. On sign-in it runs inside
+  `c.executionCtx.waitUntil` and MUST NOT block; a hit only sets `passwords.breached` and
+  `breach_checked_at`. Network failure fails open (returns false).
+- Password history: the last 5 rows of `password_history` plus the current `passwords` row. Reuse is
+  detected through `reuse_tag` = HMAC-SHA256(pepper, truncated password), compared in constant time.
+  Argon2id hashes cannot be compared directly because every hash carries its own salt. On a
+  password change the old hash and its reuse tag move into `password_history` before the new hash is
+  written.
+
+## Password reset
+
+- The reset token is a JWT signed with the TenantContext active signing key (ES256 / RS256 / PS256,
+  the same key set the OIDC issuer publishes), not an HMAC token. Claims: `iss`, `sub`, `jti`,
+  `iat`, `exp`, `purpose: 'password_reset'`, `tenant_id`. TTL 15 min (`PASSWORD_RESET_TTL_MS`).
+- Only `sha256Hex(token)` is stored, in `password_reset_tokens.token_hash`. The token itself never
+  reaches D1, so a database leak cannot be replayed.
+- Consumption is single-use and enforced in the database: the update matches on `token_hash` +
+  `user_id` + `consumed_at IS NULL` + `expires_at > now`, and zero affected rows means replay ->
+  `token_invalid`.
+- Order is load-bearing: verify signature -> length -> HIBP -> history -> user still active ->
+  consume token -> write password. Never consume the token or write the password before the
+  account-status check.
+- `/auth/forgot-password` always returns 200. Unknown email, malformed JSON, and a malformed email
+  shape are indistinguishable (enumeration protection).
+
+## MFA / 2FA
+
+- TOTP: RFC 6238, 30s step (`TOTP_STEP_SEC`), +-1 step drift tolerance, 6 digits, HMAC-SHA1 through
+  `crypto.subtle`. The secret is AES-256-GCM envelope-encrypted with `env.KEK` and stored in
+  `mfa_factors.secret_ciphertext`. Enrollment returns an `otpauth://totp/...` URI for the QR code;
+  the factor stays `pending` until one valid code activates it.
+- TOTP replay protection: a used code is written to KV under a per (tenant, user, factor, code) key
+  with TTL 60s (`TOTP_REPLAY_KV_TTL_SEC`); a second presentation is rejected as `replayed`.
+- MFA second-factor whitelist: TOTP, SMS OTP, backup codes, passkey. Email OTP and WhatsApp OTP are
+  passwordless sign-in methods only and MUST NOT be accepted as MFA factors.
+- Backup codes: 10 codes, 8 characters drawn from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (O/0/I/1
+  excluded), single-use, stored as HMAC-SHA256(pepper, uppercased code), displayed once.
+  Regenerating hard-deletes the previous batch.
+- Enforcement is two-level, not per-user: `org_policies.mfa_policy` overrides `instances.mfa_policy`,
+  values `disabled` / `optional` / `required` (`buildPolicy` in `packages/db/src/tenant-context.ts`).
+  `required` with no usable factor puts the session in `pending_mfa_setup`; an existing factor puts
+  it in `pending_mfa`.
+- A session whose status is not `active` is NOT authenticated. `/authorize` MUST stash the request
+  and redirect a `pending_mfa` / `pending_mfa_setup` session to `/mfa` or `/account/security`, then
+  resume; it MUST NOT issue tokens for it. `prompt=none` is the only exception and falls through to
+  `login_required`.
+- Step-up: `issueStepUpToken` mints a separate HS256 mini-JWT (`typ: 'sut'`) keyed off `env.PEPPER`,
+  5 min lifetime, carrying `acr: 'step-up'`, `sid`, and `method`, delivered in the `__Host-xid.acr`
+  cookie. Never reuse the login session token for step-up.
+
+## Passwordless (magic link / OTP)
+
+- The magic link token is a JWT signed with the tenant active signing key (same key set as the reset
+  token), claims `iss` / `sub` / `jti` / `iat` / `exp` / `purpose: 'magic_link'` / `action` /
+  `tenant_id`, TTL 15 min (`MAGIC_LINK_TTL_MS`), single use. Only `sha256Hex(jti)` is stored in
+  `verification_tokens.token_hash`.
+- Email OTP: 6 digits, 10 min (`OTP_EMAIL_TTL_MS`). SMS / WhatsApp OTP: 6 digits, 5 min
+  (`OTP_PHONE_TTL_MS`). Phone targets are restricted by a dial-prefix allowlist, default `+1`
+  (US/CA).
+- OTPs are generated from `crypto.getRandomValues` reduced mod 1e6. Never `Math.random`.
+- OTP codes are stored as `sha256Hex(code)` in `verification_tokens.code_hash` and compared in
+  constant time. Successful verification sets `consumed_at`; issuing a new OTP for the same
+  (user, channel, purpose) consumes the previous one first, so only one credential is ever live.
+- Maximum 5 wrong attempts (`OTP_MAX_ATTEMPTS`), tracked in `attempt_count`; reaching the cap
+  consumes the token.
+- Send rate limits: 1/min plus 5/hour per recipient, reserved atomically in one RateLimitStore
+  Durable Object call so an hour-window rejection does not burn the minute quota. See anti-abuse rule.

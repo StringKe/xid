@@ -1,0 +1,63 @@
+[package]
+name = "xid-linux"
+version = "0.1.0"
+edition = "2021"
+description = "XID Linux SDK -- Hosted Auth + OIDC Authorization Code + PKCE S256"
+license = "MIT"
+repository = "https://github.com/StringKe/xid"
+keywords = ["oidc", "oauth2", "pkce", "authentication", "identity"]
+categories = ["authentication", "web-programming"]
+
+[lib]
+name = "xid_linux"
+path = "src/lib.rs"
+
+[dependencies]
+# HTTP 客户端,async + TLS
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# JSON 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# URL 解析与构建
+url = "2"
+
+# Base64url 编解码 (PKCE code_challenge)
+base64 = { version = "0.22", features = ["alloc"] }
+
+# SHA-256 (PKCE S256)
+sha2 = "0.10"
+digest = "0.10"
+
+# 随机数生成 (code_verifier, state)
+rand = "0.8"
+
+# 异步运行时
+tokio = { version = "1", features = ["full"] }
+
+# async-trait:使 StorageAdapter trait 可作为 dyn trait 使用
+async-trait = "0.1"
+
+# Linux Secret Service (freedesktop.org D-Bus secret storage)
+# 仅在 secret-service-storage feature 启用时编译,系统需 gnome-keyring 或 kwallet
+secret-service = { version = "3", features = ["rt-tokio-crypto-rust"], optional = true }
+
+# 错误处理
+thiserror = "1"
+
+# JWT 解码 (仅结构解析,签名验证通过 JWKS + jsonwebtoken)
+jsonwebtoken = "9"
+
+# 时间处理 (token 过期检查)
+time = { version = "0.3", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+mockito = "1"
+p256 = { version = "0.13", features = ["pkcs8"] }
+
+[features]
+default = []
+# 启用真实 Secret Service D-Bus 绑定;需桌面环境的 gnome-keyring / kwallet
+secret-service-storage = ["dep:secret-service"]

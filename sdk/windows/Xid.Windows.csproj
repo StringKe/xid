@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      跨平台编译目标:net8.0 基础目标确保在任何 OS 上可构建。
+      Windows 专属实现通过 net8.0-windows10.0.19041.0 TFM 提供,
+      仅在 Windows 构建环境下启用(需 Visual Studio / WindowsAppSDK 构建工具)。
+      Windows 特有 API (WebView2 / DPAPI / WinUI 3) 全部收进接口后面,
+      非 Windows 构建只需接口定义,不依赖任何 Windows 运行时。
+    -->
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net8.0;net8.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('Windows'))">net8.0</TargetFrameworks>
+    <RootNamespace>Xid.Windows</RootNamespace>
+    <AssemblyName>Xid.Windows</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- WinUI 3 仅在 Windows TFM 启用 -->
+    <UseWinUI Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0-windows10.0.19041.0'))">true</UseWinUI>
+
+    <!-- 非 Windows OS 构建 Windows TFM 时的许可 -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <PackageId>Xid.Windows</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>XID Contributors</Authors>
+    <Description>XID Identity Platform - Windows Client SDK. Hosted Auth, OIDC Authorization Code with PKCE S256, DPAPI-backed token storage. Windows-specific APIs (WebView2/DPAPI) are abstracted behind interfaces for cross-platform compilation.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://xid.dev</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/StringKe/xid</RepositoryUrl>
+    <PackageTags>xid;oidc;pkce;windows;identity;authentication</PackageTags>
+    <PackageReleaseNotes>Status: implemented; compiled and unit-tested locally, real IdP round-trip pending.</PackageReleaseNotes>
+
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.4.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- tests/ 子目录不属于主库 -->
+    <Compile Remove="tests/**" />
+    <!-- 允许测试项目访问 internal 类型 -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Xid.Windows.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0-windows10.0.19041.0'))">
+    <!--
+      WindowsAppSDK / WebView2 仅在 Windows TFM 引用。
+      非 Windows 构建不引入这些依赖,跨平台可编译。
+    -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250402001" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3065.39" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

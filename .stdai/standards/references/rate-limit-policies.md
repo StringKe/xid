@@ -1,0 +1,93 @@
+---
+type: references
+name: rate-limit-policies
+description: The XID rate limit threshold table (account, IP, OTP, DCR, org creation), how backoff tiers and reset work, the RateLimitStore call contract, plus the not-yet-built anomaly detection and device trust designs
+---
+
+# Rate Limit Policies, Turnstile, Anomaly Detection, Device Trust
+
+Lookup material extracted from the `anti-abuse` rule. It holds the threshold table, the
+RateLimitStore Durable Object call contract, the Turnstile verification detail, and the two
+designs that are specified but not implemented yet. The rule itself keeps only the enumeration
+protection MUSTs and the fail-closed principle. Read this when adding or changing a rate limit,
+wiring Turnstile onto an endpoint, or starting work on anomaly detection or device trust.
+
+Design source: `docs/design/01-authentication.md` section 7 and
+`docs/design/07-platform-operations.md` section 6. Implementation lives in
+`apps/server/worker/durable-objects/rate-limit-store.ts`, `lib/rate-limit.ts`,
+`lib/verify-rate-limit.ts`, `me-auth/shared.ts`.
+
+## Turnstile
+
+- `verifyTurnstile` (`apps/server/worker/me-auth/shared.ts`) posts to
+  `https://challenges.cloudflare.com/turnstile/v0/siteverify` with a 5s `AbortSignal.timeout`. It
+  sits on the login critical path, so the timeout MUST stay short -- a Cloudflare-side stall must
+  not drag auth P99.
+- When `env.TURNSTILE_SECRET` is unset, verification is skipped (dev/test friendly). When it is set,
+  siteverify is mandatory and MUST NOT be bypassed.
+- Failures raise `captcha_required` / `captcha_failed` only. The remote reason goes into `cause` for
+  server logs, never into the response body.
+- Enforced on: password sign-in and sign-up (`/auth/password`), password reset request
+  (`/auth/forgot-password`), passwordless send and verify. The sign-in page mounts an invisible
+  widget so the challenge costs no layout shift.
+
+## Rate limit policies
+
+All counters live in the RateLimitStore Durable Object (`RATE_LIMITER` binding, DO SQLite storage),
+NOT in KV. Counting has to be strongly consistent and serialized; KV's eventual consistency lets a
+distributed brute force overshoot any threshold. `docs/design/01-authentication.md` section 7 still
+says KV -- the Durable Object is the implementation and the correct choice (see cloudflare-bindings
+rule).
+
+| Policy                       | Window / limit        | Lockout                                    |
+| ---------------------------- | --------------------- | ------------------------------------------ |
+| `ACCOUNT_FAILURE`            | 10 / 15 min           | exponential backoff 5 / 15 / 30 / 60 min   |
+| `IP_FAILURE`                 | 50 / min              | 1 h                                        |
+| `OTP_SEND`                   | 1 / min per recipient | none, natural window expiry                |
+| OTP hourly quota             | 5 / h per recipient   | none, natural window expiry                |
+| `DCR_REGISTER` (RFC 7591)    | 10 / h per IP         | 1 h                                        |
+| Self-service org creation    | 10 / day per user     | none, natural window expiry                |
+
+- Backoff steps escalate per key through a persisted `backoff_count`. `reset(key)` after a
+  successful login clears the count, the lock, and the backoff tier -- all three, or the next
+  failure resumes at the old tier.
+- `enforceVerifyRateLimit` is the single entry point for auth verify endpoints (password, OTP, magic
+  link, passkey, MFA challenge, device activation). It checks the IP dimension first, then the
+  account dimension, and scopes keys per endpoint (`scope`) so failures on one channel do not
+  poison another.
+- Multi-window send quotas (1/min + 5/h) MUST go through the DO `reserve` action in a single call,
+  so an hour-window rejection does not consume the minute quota.
+- The DO `check` action is check-and-increment, not a read. There is no separate pre-check /
+  record-failure pair; call it exactly once per attempt or the counts double.
+- `checkRateLimitStore` fails closed: a non-200 status, a non-JSON body, or a missing `allowed`
+  field raises `server_error`. Never treat DO unavailability as "allowed" -- that would remove all
+  brute-force, OTP-bombing, and DCR-spam protection at once. Keys are sharded by
+  `idFromName(key)`, so one flaky instance affects one account or IP dimension, never every user.
+- `users.lockout_until` is a separate operator-level lockout that the password sign-in path reads;
+  the rate limiter does not write it. Do not conflate the two.
+
+## Anomaly detection
+
+Targets from `docs/design/07-platform-operations.md` section 6. Not implemented yet -- treat this as
+the spec when building it, and do not claim it exists:
+
+- Brute force: 10 failures from one IP within 5 min -> CAPTCHA or temporary ban.
+- Impossible travel: geolocation delta > 1000 km with < 2 h between events -> alert. Computed
+  synchronously in the login worker (GeoIP MMDB in R2, preloaded at startup, < 5 ms); the alert
+  itself is dispatched through a Queue.
+- Device fingerprint change -> new-device notification email.
+
+Live metrics go to Analytics Engine (`env.ANALYTICS.writeDataPoint`). Alerting MUST NOT run inline
+on the login path.
+
+## Device trust
+
+The schema exists (`trusted_devices`: `device_token_hash`, `fingerprint_hash`, `expires_at`,
+`revoked_at`) and `GET /v1/me/trusted-devices` lists active rows with a masked fingerprint. Issuing
+the device token, verifying it, and revoking it are NOT built yet. When building them:
+
+- Issue a signed cookie device token on successful login, 30-day lifetime, and store only its hash.
+- A valid device token may skip or downgrade MFA, controlled by tenant policy.
+- Fingerprint from UA + IP range + Accept-Language + TLS fingerprint. Never rely on a single signal.
+- `device_token_hash` and the raw fingerprint MUST NOT appear in any API response; the list endpoint
+  returns a masked prefix only.

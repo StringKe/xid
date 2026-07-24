@@ -1,0 +1,44 @@
+---
+type: rules
+name: error-handling
+description: Error handling -- never swallow errors, throw typed AppError for the unexpected and let Hono onError map it, return Result for expected failures, validate every boundary with valibot, never leak internals, no floating promises
+priority: high
+applyTo:
+  - '**/*.ts'
+targets: [claude-code, codex]
+---
+
+# Error Handling
+
+Strategy: **throw for unexpected / unrecoverable errors, return `Result` for expected failures**.
+
+## Never Swallow Errors (MUST)
+
+- Never write an empty `catch`, never `catch` and only log, never `try`/`catch` to keep going past a real failure.
+- Never lower a log level, never use `@ts-ignore` / `@ts-expect-error` / `oxlint-disable` / `eslint-disable` to hide a problem. Fix the root cause. Oxlint is the linter here; the six existing `eslint-disable` comments in the tree are narrow `no-var` / `no-require-imports` waivers, not a precedent for silencing real findings.
+- If the root cause is unclear, analyze and report first. Never ship a speculative fix.
+
+## throw vs Result
+
+- Unexpected / unrecoverable: throw the typed `AppError` (`apps/server/worker/lib/errors.ts`) and let the global `app.onError` map it to a `XidAPIError` body. Never put user-facing prose in the throw site -- the message is rendered later by i18n. Keep the cause chain; `cause` is server-side only and MUST NOT reach the client.
+- Expected failures (input validation, lookup misses, business-rule rejections): return the `Result` discriminated union exported from `@xid-kit/types`. Never redeclare it locally, and never wrap a genuinely unexpected failure in it.
+
+## Boundary Validation
+
+- External input (request body/query/header, OAuth callbacks, SCIM payloads, external IdP responses, webhooks) MUST be validated with **valibot** before it reaches the kernel. Internal module boundaries trust their types.
+- Worker code goes through `apps/server/worker/lib/validate.ts`. Never let a raw exception reach the client, and never redefine a schema that module already exports.
+- Protocol domains keep their own error shapes: credential endpoints emit the opaque credential code on credential-field failures (enumeration defense), OAuth endpoints emit RFC-shaped `{ error, error_description }`.
+
+`validate.ts` exports, the reusable atomic schemas, the SSRF and redirect helpers, the `AppError` / `onError` mapping detail, and the credential-versus-OAuth error adapters: reference `boundary-validation-toolkit`. Read it before validating a new input or changing an error response shape.
+
+## Never Leak Internals (Follows anti-abuse)
+
+- Client-facing error messages are opaque and uniform (enumeration defense). Internal detail (stack, SQL, paths, underlying error) goes to logs and audit only, never into a response.
+- Error copy goes through lingui. `onError` renders it with the **request-scoped** i18n instance -- `c.get('i18n')._(errorMessages[code])`, where `errorMessages` comes from `@xid-kit/i18n` (`packages/i18n/src/messages.ts`). Never read the isolate-global current locale (see i18n-lingui rule).
+- If message rendering itself fails, the handler logs server-side and returns a fixed generic English string. It never degrades into exposing the raw error.
+
+## Async
+
+- **No floating promises**: every promise is awaited or explicitly voided. Fire-and-forget uses `c.executionCtx.waitUntil(...)` on Workers. This is NOT machine-enforced -- type-aware Oxlint is disabled in the root `vite.config.ts` (`typeAware: false`), so the rule lives in review plus the `tsc` typecheck task. Treat it as a hard review gate.
+- Run independent work with `Promise.all`; await sequentially only when there is a real dependency.
+- Propagate `AbortSignal`; use `AbortSignal.timeout(ms)` for timeouts on outbound calls.

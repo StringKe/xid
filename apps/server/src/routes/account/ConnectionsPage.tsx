@@ -1,0 +1,254 @@
+// /account/connections:已连接社交账号列表 + 断开操作。
+// 全宽版式:display 标题区 + Section 列表节(自持 gutter + hairline 分节)。
+// 数据层改用 TanStack Query(useSocialConnectionsQuery/useDisconnectSocial);样式全 StyleX。
+// 设计真相源:docs/design/05-users-sessions.md 第 3 节(账户关联与合并)。
+
+import { Trans, useLingui } from '@lingui/react/macro'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
+import * as stylex from '@stylexjs/stylex'
+import { tokens } from '../../styles/tokens.stylex'
+import { Alert, Button, EmptyState, Section, SectionRow, Skeleton } from '../../components/ui'
+import { ConfirmDialog } from './ConfirmDialog'
+import { trackSocialDisconnected } from '../../lib/google-analytics-funnel'
+import { useDisconnectSocial, useSocialConnectionsQuery } from './queries'
+import type { SocialConnection } from './hooks'
+
+const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
+const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
+
+// provider 显示名映射(机器名 -> 人类可读)。
+const PROVIDER_LABELS: Record<string, string> = {
+  google: 'Google',
+  github: 'GitHub',
+  microsoft: 'Microsoft',
+  apple: 'Apple',
+  facebook: 'Facebook',
+  twitter: 'Twitter / X',
+  linkedin: 'LinkedIn',
+  discord: 'Discord',
+}
+
+function providerLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] ?? provider
+}
+
+const styles = stylex.create({
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+  },
+  headerZone: {
+    paddingInline: GUTTER,
+    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
+    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  title: {
+    margin: 0,
+    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
+    fontWeight: 620,
+    lineHeight: 1.05,
+    letterSpacing: '-0.03em',
+    color: tokens['--xid-fg'],
+    textWrap: 'balance',
+  },
+  sectionZone: {
+    paddingInline: GUTTER,
+    paddingBlock: SECTION_PAD,
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  messageZone: {
+    paddingInline: GUTTER,
+    paddingBlock: '1.5rem',
+  },
+  metaText: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: tokens['--xid-muted-foreground'],
+    fontVariantNumeric: 'tabular-nums',
+    overflowWrap: 'anywhere',
+  },
+  errorText: {
+    margin: '0.25rem 0 0',
+    fontSize: '0.8125rem',
+    color: tokens['--xid-danger'],
+  },
+  dangerAction: {
+    color: tokens['--xid-danger'],
+    fontSize: '0.8125rem',
+    flexShrink: 0,
+    transitionProperty: 'color',
+    transitionDuration: '0.12s',
+    transitionTimingFunction: 'ease-out',
+  },
+  skeletonList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  connectionList: {
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+})
+
+export default function ConnectionsPage(): ReactNode {
+  const { t } = useLingui()
+  const { data: connections, isPending, error } = useSocialConnectionsQuery()
+  const disconnectSocial = useDisconnectSocial()
+
+  const connectionList = connections ?? []
+
+  if (isPending) {
+    return (
+      <div {...stylex.props(styles.root)}>
+        <div {...stylex.props(styles.headerZone)}>
+          <h1 {...stylex.props(styles.title)}>
+            <Trans>Connected accounts</Trans>
+          </h1>
+        </div>
+        <div {...stylex.props(styles.sectionZone)}>
+          <div {...stylex.props(styles.skeletonList)}>
+            <Skeleton height="3.5rem" />
+            <Skeleton height="3.5rem" />
+            <Skeleton height="3.5rem" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div {...stylex.props(styles.root)}>
+        <div {...stylex.props(styles.headerZone)}>
+          <h1 {...stylex.props(styles.title)}>
+            <Trans>Connected accounts</Trans>
+          </h1>
+        </div>
+        <div {...stylex.props(styles.messageZone)}>
+          <Alert tone="error" title={<Trans>Failed to load connections</Trans>}>
+            {error.longMessage || error.message || t`Failed to load connections`}
+          </Alert>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div {...stylex.props(styles.root)}>
+      <div {...stylex.props(styles.headerZone)}>
+        <h1 {...stylex.props(styles.title)}>
+          <Trans>Connected accounts</Trans>
+        </h1>
+      </div>
+
+      <div {...stylex.props(styles.sectionZone)}>
+        {connectionList.length === 0 ? (
+          <ConnectionsEmpty />
+        ) : (
+          <Section label={<Trans>Connected accounts</Trans>}>
+            <ul role="list" {...stylex.props(styles.connectionList)}>
+              {connectionList.map((conn) => (
+                <ConnectionItem
+                  key={conn.id}
+                  connection={conn}
+                  disconnectMutate={disconnectSocial.mutateAsync}
+                />
+              ))}
+            </ul>
+          </Section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ConnectionsEmpty(): ReactNode {
+  return (
+    <EmptyState
+      title={<Trans>No social accounts connected</Trans>}
+      description={<Trans>Link an account to enable social sign-in.</Trans>}
+    />
+  )
+}
+
+type ConnectionItemProps = {
+  connection: SocialConnection
+  disconnectMutate: (id: string) => Promise<unknown>
+}
+
+function ConnectionItem({ connection, disconnectMutate }: ConnectionItemProps): ReactNode {
+  const { t } = useLingui()
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const label = providerLabel(connection.provider)
+
+  const handleDisconnect = async (): Promise<void> => {
+    setIsDisconnecting(true)
+    try {
+      await disconnectMutate(connection.id)
+      trackSocialDisconnected(connection.provider)
+      setShowConfirm(false)
+    } catch (err) {
+      const xidErr = err as { message?: string; longMessage?: string }
+      setError(xidErr.longMessage || xidErr.message || t`Failed to disconnect account.`)
+      setShowConfirm(false)
+    } finally {
+      setIsDisconnecting(false)
+    }
+  }
+
+  return (
+    <li>
+      <SectionRow
+        label={label}
+        action={
+          <Button
+            variant="ghost"
+            onClick={() => setShowConfirm(true)}
+            aria-label={t`Disconnect ${label}`}
+            {...stylex.props(styles.dangerAction)}
+          >
+            <Trans>Disconnect</Trans>
+          </Button>
+        }
+      >
+        {connection.email ? <p {...stylex.props(styles.metaText)}>{connection.email}</p> : null}
+        <p {...stylex.props(styles.metaText)}>
+          <Trans>Connected</Trans> {new Date(connection.connectedAt).toLocaleDateString()}
+        </p>
+        {error ? (
+          <p role="alert" {...stylex.props(styles.errorText)}>
+            {error}
+          </p>
+        ) : null}
+      </SectionRow>
+
+      {showConfirm ? (
+        <ConfirmDialog
+          title={<Trans>Disconnect {label}?</Trans>}
+          description={
+            <Trans>
+              This will remove the link between your account and {label}. You will no longer be able
+              to sign in with {label} unless you reconnect it.
+            </Trans>
+          }
+          confirmLabel={<Trans>Disconnect</Trans>}
+          isLoading={isDisconnecting}
+          onConfirm={() => void handleDisconnect()}
+          onCancel={() => setShowConfirm(false)}
+        />
+      ) : null}
+    </li>
+  )
+}

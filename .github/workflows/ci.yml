@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # A force-push that replaces the whole history does not reliably fire the push event, which left
+  # main without a single CI run after the initial squash. Manual dispatch is the way to get a
+  # verdict on a branch whose push event never arrived.
+  workflow_dispatch:
+
+# 同一分支的连续推送不并行烧配额。push 到 main 不取消(main 的每个 commit 都要有独立结论),
+# PR 上取消旧 run。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  smoke:
+    name: smoke
+    # PR 上不跑。smoke 逐个文件起 wrangler dev + Chrome,是全流水线最长的一段,且历史上有多种
+    # flaky 签名(Chrome 进程组回收、CDP 超时、hydration 时序)。把它挂在 PR 上等于让随机数决定
+    # 能不能合并,还要每个 PR 多等 30 分钟。合并后在 main 上兜底,红了人工判读。
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # 30 分钟能在 dev server 或 Chrome 卡死时早于默认 360 分钟止损。
+    timeout-minutes: 30
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # smoke 的浏览器用例直接 spawn 这个路径,缺失时给出秒级明确失败而不是等 15 分钟超时。
+      - name: Verify headless Chrome
+        run: /usr/bin/google-chrome --version
+      - run: pnpm smoke:l2-l3
+        env:
+          XID_CHROME_PATH: /usr/bin/google-chrome
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run security:secret-scan
+
+  # pnpm audit 查实时 advisory DB,同一 commit 今天绿明天红,与被测代码无因果关系。
+  # 独立 job 照常红/绿(不用 continue-on-error 假装成功),但不进 required checks,不阻塞合并。
+  # PR 上不跑:结论既然与这次改动无关,每个 PR 跑一遍就是纯消耗。合并到 main 时跑一次足够发现
+  # "有新 advisory 波及本仓库",红了当作"去看一眼有没有真需要升的依赖"的信号。
+  dependency-audit:
+    name: dependency audit (non-blocking)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # pnpm/action-setup v6.0.9 -- 不传 version,由 package.json 的 packageManager 单一真相源决定
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run security:dependencies

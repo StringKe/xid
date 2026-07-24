@@ -1,0 +1,49 @@
+---
+type: references
+name: oidc-token-and-client-rules
+description: Exact claim sets and lifetimes for ID / access / refresh tokens, the client type matrix, client authentication methods, advertised scopes, and consent persistence semantics
+---
+
+# OIDC token, client, scope and consent detail
+
+Lookup material extracted from the `oidc-oauth` rule. Read it when issuing or validating a token,
+registering or reviewing a client, choosing a scope, or touching consent persistence. Design source
+of truth: `docs/design/03-oidc-oauth.md`.
+
+## Grants and flows
+
+- `authorization_code` + PKCE: PKCE is S256 only, **plain is rejected**; public clients require it unconditionally. Authorization codes are one-time with a 60s TTL.
+- `client_credentials`: confidential clients only; scopes constrained by the client allowlist; M2M never gets a refresh token.
+- `refresh_token`: rotating, with family reuse detection.
+- `device_code` (RFC 8628): `device_code` and `user_code` stored separately in a Durable Object.
+- Token exchange (RFC 8693): impersonation and delegation; `subject_token_type` and `actor_token_type` are limited to access token and ID token.
+- CIBA: implemented as a minimal subset with `poll` delivery only. End-user approval runs through the hosted CIBA activation route.
+- Implicit: **not supported**. Only `code` and `code id_token` are advertised and accepted as response types; the hybrid `code id_token` form requires `nonce`.
+- Resource owner password: **never**, it is removed in OAuth 2.1.
+
+## Tokens
+
+- **ID Token**: always `iss` / `sub` / `aud` / `exp` / `iat`; conditionally `auth_time` / `nonce` / `acr` / `amr` / `at_hash` / `c_hash` / `sid`. AMR vocabulary is `phr` / `pwd` / `otp` / `mfa` / `sms` / `email`, where `phr` (passkey) and `email` are XID-private values and MUST be documented as private, not IANA-registered. Signing algorithm comes from the TenantContext active key, ES256 by default.
+- **Access Token**: always a signed JWT with `typ=at+jwt` (RFC 9068). Claims: `iss` / `sub` / `aud` / `exp` / `iat` / `nbf` / `jti` / `azp` / `scope` / `client_id` / `tenant_id`, plus optional org context, `cnf`, `act`, and RBAC claims. `tenant_id` is always written because the instance signing key is shared across tenants and consumers rely on it to reject cross-tenant validation and introspection. Opaque access tokens are **not implemented**. Default lifetime 1h, configurable 60s to 24h, resolved as client override then tenant token policy then built-in default.
+- **Refresh Token**: every use issues a new token and immediately revokes the old one; reuse of an already-rotated token in the same family revokes the whole family. Defaults are 7d absolute plus 30d idle, whichever comes first; the absolute deadline is inherited on rotation and never extended. Configurable 1-90d absolute and 1-365d idle. Issuance requires the `offline_access` scope and the `refresh_token` grant. **Public clients only get a refresh token when the request is DPoP-bound.**
+- **Custom claims**: configured per client and merged shallowly by the PreAccessTokenHook. Any key that collides with the reserved IANA / OIDC claim set is **rejected outright** rather than silently dropped.
+
+## Clients
+
+| Type                       | PKCE                | Secret                       |
+| -------------------------- | ------------------- | ---------------------------- |
+| confidential (web server)  | optional (S256 if sent) | required                 |
+| public / SPA               | required            | none                         |
+| native / mobile            | required            | none                         |
+| M2M (service account)      | N/A                 | required, or private_key_jwt |
+
+- `redirect_uris` are **matched exactly, wildcards are never allowed**. Native clients may register loopback HTTP and custom-scheme URIs (RFC 8252); fragments are always rejected.
+- `client_secret` is stored hashed, never in plaintext, and compared in constant time.
+- Client authentication methods: `client_secret_basic` / `client_secret_post` / `private_key_jwt` / `tls_client_auth` / `self_signed_tls_client_auth` / `none` (public clients, which then MUST use PKCE).
+- `private_key_jwt` assertions are verified against the client's registered JWKS: `iss` = `sub` = `client_id`, `aud` is the token endpoint or the issuer, `exp` <= now + 5min, and `jti` is one-time.
+
+## Scope and consent
+
+- Advertised scopes: `openid` (required), `profile`, `email`, `phone`, `offline_access`, `organization`. **`address` is deliberately not advertised** because no user data model backs it -- do not add it to discovery without the underlying claims.
+- Custom scopes: registered through the resource server API with an audience URL. A token request passes `resource` (RFC 8707) to select the audience; without it, `aud` falls back to `client_id`.
+- Consent: third-party apps require a consent screen by default. Grants are persisted per `(user_id, client_id, granted_scopes)` and merged on re-consent; an identical scope set passes silently. `prompt=consent` forces the screen again, `prompt=none` requires both an existing session and persisted consent or returns `interaction_required`, and `prompt=login` forces reauthentication.

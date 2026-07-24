@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <RootNamespace>Xid</RootNamespace>
+    <AssemblyName>Xid</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <PackageId>Xid</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>XID Contributors</Authors>
+    <Description>XID Identity Platform - .NET Server SDK. JWT verification, request authentication, and webhook validation.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://xid.dev</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/StringKe/xid</RepositoryUrl>
+    <PackageTags>xid;oidc;jwt;identity;authentication</PackageTags>
+
+    <PackageReleaseNotes>Status: implemented; compiled and unit-tested locally, real IdP round-trip pending.</PackageReleaseNotes>
+
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- tests/ 子目录不属于主库 -->
+    <Compile Remove="tests/**" />
+    <!-- 允许测试项目访问 internal 类型 -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Xid.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- JWT 验证核心库:支持 ES256/RS256/PS256,与 XID 协议约定对齐 -->
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.4.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.4.0" />
+    <!-- IHttpClientBuilder / IHttpClientFactory 位于此包 -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

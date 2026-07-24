@@ -1,0 +1,44 @@
+{
+  "name": "@xid-kit/angular",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Angular SDK for XID: auth service, route guards and sign-in/sign-out components.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/angular"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@xid-kit/core": "workspace:*",
+    "@xid-kit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@angular/common": "22.0.1",
+    "@angular/core": "22.0.1",
+    "@angular/router": "22.0.1",
+    "rxjs": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@angular/common": ">=17.0.0",
+    "@angular/core": ">=17.0.0",
+    "@angular/router": ">=17.0.0",
+    "rxjs": ">=7.0.0"
+  }
+}

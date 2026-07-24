@@ -1,0 +1,47 @@
+---
+type: rules
+name: monorepo-toolchain
+description: 'Monorepo ownership: pnpm owns dependencies, turborepo is the only cross-package orchestrator, Vite+ (vp) owns lint/format/test/library packaging, standard Vite owns app builds'
+priority: high
+applyTo:
+  - 'pnpm-workspace.yaml'
+  - 'turbo.json'
+  - 'vite.config.ts'
+  - '**/package.json'
+  - '**/vite.config.ts'
+targets: [claude-code, codex]
+---
+
+# Monorepo Toolchain: pnpm + turborepo + Vite+ + standard Vite
+
+Four tools, no overlapping responsibilities.
+
+## Ownership (MUST follow)
+
+| Tool           | Owns                                                                     | Entry point                                              |
+| -------------- | ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| pnpm workspace | dependency install, `workspace:*` protocol, catalog version pinning       | `pnpm-workspace.yaml`                                     |
+| turborepo      | **the only** cross-package orchestration: pipeline, dep graph, CI cache   | `turbo.json` / `turbo run <task>`                         |
+| Vite+ (vp)     | code quality and library packaging: `check` (Oxfmt + Oxlint), `fmt`, `test` (Vitest), `pack` (tsdown) | root `vite.config.ts` (`vite-plus` `defineConfig`)        |
+| standard Vite  | app dev / build (SPA + Worker in one project)                            | `apps/server/vite.config.ts` (`@cloudflare/vite-plugin`)  |
+
+- No prettier, no eslint: lint is Oxlint, format is Oxfmt, both shipped inside vp. The repo has no
+  eslint or prettier config file; `.oxlintignore` replaces `.prettierignore`.
+- **`apps/server` dev/build runs standard Vite**, not `vp dev` / `vp build` -- the Cloudflare
+  SPA + Worker integration depends on the standard Vite plugin ecosystem
+  (`@vitejs/plugin-react`, `@cloudflare/vite-plugin`, `@lingui/vite-plugin`, `@stylexjs/unplugin`,
+  plus local plugins under `apps/server/vite-plugins/`).
+- **Library packages (`packages/*`) build with `vp pack`** (tsdown), exposed as their `build` script.
+- Type checking does **not** run inside `vp check`. Both `typeAware` and `typeCheck` are disabled in
+  the root config, so `vp check` is Oxfmt + Oxlint only. Type correctness is a separate turbo
+  `typecheck` task running the official `tsc --noEmit` per package.
+- Never use `vp run -r` as the cross-package orchestration entry point -- that is turbo's job.
+
+## Where the commands live
+
+This rule intentionally carries no command tables. Before running install / dev / build / lint /
+typecheck / test / deploy in any workspace, and before editing `pnpm-workspace.yaml`, the root
+`package.json` `pnpm` key, or the root `vite.config.ts`, read reference
+`toolchain-command-reference`. It holds the per-workspace command matrix, what `pnpm check` chains
+in CI, the turbo task dependency notes, the scaffolding steps for a new package, and the
+`pnpm-workspace.yaml` and root `vite.config.ts` examples.

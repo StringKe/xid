@@ -1,0 +1,34 @@
+name: Dependency Review
+
+on: pull_request
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Review dependency changes
+    # The dependency review API is GitHub Advanced Security: free on public repositories, paid on
+    # private ones. Skip while the repo is private instead of failing every pull request; it starts
+    # working on its own once the repo is public.
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # actions/dependency-review-action v5.0.0
+      # 补 `pnpm audit --prod --audit-level high` 的两个盲区:新引入依赖的许可证,
+      # 以及 dev 依赖树的高危 CVE。仓库是 MIT,copyleft 许可要在 PR 阶段拦下。
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: high
+          deny-licenses: AGPL-1.0-or-later, AGPL-3.0-or-later, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-2.0-or-later, LGPL-3.0-or-later, SSPL-1.0
+          comment-summary-in-pr: never

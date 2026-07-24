@@ -1,0 +1,1 @@
+ALTER TABLE `passkey_credentials` ADD `enterprise_attestation_verified` integer DEFAULT 0 NOT NULL;

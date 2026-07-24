@@ -1,0 +1,152 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "xid",
+  "account_id": "86e4d320a5d69fb54f9721fb219a4902",
+  "main": "worker/index.ts",
+  "routes": [
+    { "pattern": "xid.dev", "custom_domain": true },
+    { "pattern": "*.xid.dev/*", "zone_name": "xid.dev" },
+  ],
+  "compatibility_date": "2025-04-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "persist": true,
+      "head_sampling_rate": 1,
+    },
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "xid-db",
+      "database_id": "149e5997-e684-41d0-b483-afa6948479c3",
+      "migrations_dir": "../../packages/db/drizzle",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "a827c644c20344aaa6c7760d76875122",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "xid-storage",
+    },
+  ],
+  "send_email": [{ "name": "EMAIL" }],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "xid_analytics",
+    },
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "EMAIL_QUEUE", "queue": "xid-email" },
+      { "binding": "WHATSAPP_QUEUE", "queue": "xid-whatsapp" },
+      { "binding": "SMS_QUEUE", "queue": "xid-sms" },
+      { "binding": "AUDIT_QUEUE", "queue": "xid-audit" },
+      { "binding": "WEBHOOK_QUEUE", "queue": "xid-webhook" },
+      { "binding": "METERING_QUEUE", "queue": "xid-metering" },
+    ],
+    "consumers": [
+      {
+        "queue": "xid-email",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-whatsapp",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-sms",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-audit",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-webhook",
+        "max_batch_size": 50,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-metering",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+    ],
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSION_REVOCATION", "class_name": "SessionDO" },
+      { "name": "WEBAUTHN_CHALLENGE", "class_name": "ChallengeStore" },
+      { "name": "OAUTH_STATE", "class_name": "OAuthFlowDO" },
+      { "name": "PAR_STORE", "class_name": "ParStore" },
+      { "name": "DEVICE_FLOW", "class_name": "DeviceFlowStore" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimitStore" },
+      { "name": "AUDIT_SEQ", "class_name": "AuditSeqDO" },
+      { "name": "METERING", "class_name": "MeteringDO" },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SessionDO",
+        "ChallengeStore",
+        "OAuthFlowDO",
+        "ParStore",
+        "DeviceFlowStore",
+        "RateLimitStore",
+        "AuditSeqDO",
+        "MeteringDO",
+      ],
+    },
+  ],
+  "triggers": {
+    "crons": ["0 * * * *", "0 2 * * *"],
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+  },
+  "env": {
+    "staging": {
+      "vars": { "ENVIRONMENT": "staging" },
+    },
+  },
+}

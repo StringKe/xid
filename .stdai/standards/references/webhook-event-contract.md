@@ -1,0 +1,35 @@
+---
+type: references
+name: webhook-event-contract
+description: The exact webhook event names XID emits today, the svix-style signature scheme and replay window, retry and dead-letter behavior, and which chapter-06 webhook features are not implemented
+---
+
+# Webhook and Event Contract
+
+This is the shipped webhook contract for XID, moved out of the `api-sdk-conventions` rule so the
+always-loaded rules stay small. Read it before emitting a new event, before writing or reviewing
+signature verification on either side, when debugging a delivery that failed or went dead, or when
+you are about to promise a webhook feature and need to check whether it exists. Design source:
+`docs/design/06-developer-experience.md` chapter 06.
+
+## Webhooks and Events
+
+- Event naming is `<object>.<action>`. Implemented events include `user.created` / `updated` /
+  `deleted` / `restored` / `banned` / `unbanned` / `deactivated`, `organization.created` / `updated` /
+  `deleted` / `restored` plus dotted sub-events (`organization.auth_policy.updated`,
+  `organization.delivery_channels.updated`, `organization.social_providers.updated`,
+  `organization.outbound_saml_app.created` / `deleted`, `organization.scim_target.created` / `deleted`),
+  `organizationMembership.created` / `updated` / `deleted` / `restored`,
+  `organizationInvitation.created` / `accepted` / `revoked`, and
+  `connection.saml_certificate_renewed`. Chapter 06 lists a wider planned catalog -- emit only names
+  that exist, and add new ones to both places at once.
+- Delivery goes through `WEBHOOK_QUEUE` (`emitWebhookAsync`), decoupled so it **never blocks the login
+  path**. The send is handed to `executionCtx.waitUntil` when available.
+- Signature verification: svix-style headers `svix-id` / `svix-timestamp` / `svix-signature`,
+  HMAC-SHA256 over `${id}.${timestamp}.${body}` with a `whsec_` secret, 5-minute replay window. The
+  signature header may carry several `v1,<sig>` entries so secret rotation stays verifiable.
+- Retries: exponential backoff; state lives in D1 `webhook_deliveries` keyed by `delivery_key`, with
+  exhausted deliveries marked `status = 'dead'`. Queue-level exhaustion also lands in `xid-dlq`.
+- Manual replay (by message or time range) and the pull-based Events API are designed in chapter 06 but
+  NOT implemented. There is no replay endpoint today; the closest read surface is
+  `GET /v1/organizations/:id/audit-events`.

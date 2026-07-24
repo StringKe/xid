@@ -1,0 +1,42 @@
+# GEO / LLM index: https://xid.dev/llms.txt and https://xid.dev/llms-full.txt
+# WebMCP: read-only public docs tools on marketing and /docs (Chrome origin trial)
+
+User-agent: *
+Allow: /$
+Allow: /docs$
+Allow: /docs/oidc$
+Allow: /docs/oauth$
+Allow: /docs/sso$
+Allow: /docs/enterprise$
+Allow: /docs/social$
+Allow: /docs/hosted-auth$
+Allow: /docs/oidc-oauth$
+Allow: /docs/enterprise-sso$
+Allow: /docs/social-login$
+Allow: /docs/saml$
+Allow: /docs/scim$
+Allow: /docs/management-api$
+Allow: /docs/webhooks$
+Allow: /docs/branding$
+Allow: /docs/sdks$
+Allow: /docs/self-hosting$
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /mfa
+Disallow: /verify-email
+Disallow: /consent
+Disallow: /activate
+Disallow: /ciba-activation
+Disallow: /accept-invitation
+Disallow: /create-organization
+Disallow: /select-organization
+Disallow: /account
+Disallow: /console
+Disallow: /auth
+Disallow: /v1
+Disallow: /admin
+Disallow: /platform-admin
+
+Sitemap: https://xid.dev/sitemap.xml

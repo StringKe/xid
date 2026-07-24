@@ -1,0 +1,56 @@
+name: OpenSSF Scorecard
+
+on:
+  branch_protection_rule:
+  push:
+    branches: [main]
+  schedule:
+    # 每周一 04:41 UTC,排在 CodeQL 之后
+    - cron: '41 4 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: Run Scorecard analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # 把 SARIF 写进 code scanning
+      security-events: write
+      # publish_results 用 OIDC 向 OpenSSF API 证明身份,不需要 PAT
+      id-token: write
+      actions: read
+    steps:
+      # actions/checkout v7.0.1
+      # persist-credentials: false 是 Scorecard 的硬性要求,避免 GITHUB_TOKEN 留在 .git/config
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      # ossf/scorecard-action v2.4.4
+      - id: scorecard
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # 公开分数,让 README badge 与 deps.dev 能取到结果。仓库必须是 public。
+          publish_results: true
+
+      # actions/upload-artifact v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 5
+
+      # github/codeql-action v4.37.3
+      - uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
+        with:
+          sarif_file: results.sarif
