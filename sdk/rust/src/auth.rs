@@ -226,10 +226,7 @@ mod tests {
 
     #[test]
     fn cookie_extracted_by_name() {
-        let cookies = vec![
-            h("other_cookie", "value1"),
-            h("__session", "token_value"),
-        ];
+        let cookies = vec![h("other_cookie", "value1"), h("__session", "token_value")];
         assert_eq!(
             extract_cookie(&cookies, "__session"),
             Some("token_value".to_owned())
@@ -303,9 +300,7 @@ pub mod axum_extract {
             let headers: Vec<(String, String)> = parts
                 .headers
                 .iter()
-                .filter_map(|(k, v)| {
-                    Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))
-                })
+                .filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned())))
                 .collect();
             let cookies: Vec<(String, String)> = parts
                 .headers
@@ -358,14 +353,11 @@ pub mod actix_extract {
             let headers: Vec<(String, String)> = req
                 .headers()
                 .iter()
-                .filter_map(|(k, v)| {
-                    Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))
-                })
+                .filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned())))
                 .collect();
             let cookies: Vec<(String, String)> = req
                 .headers()
                 .get_all(actix_web::http::header::COOKIE)
-                .iter()
                 .flat_map(|v| v.to_str().unwrap_or("").split(';'))
                 .filter_map(|pair| {
                     let (name, value) = pair.split_once('=')?;

@@ -82,9 +82,12 @@ catch (TokenVerificationException ex)
         ["svix-signature"] = req.Headers["svix-signature"].ToString(),
     };
 
+    var webhookSecret = Environment.GetEnvironmentVariable("XID_WEBHOOK_SECRET")
+        ?? throw new InvalidOperationException("XID_WEBHOOK_SECRET is required");
+
     try
     {
-        var webhook = xid.VerifyWebhook(body, headers, secret: "whsec_your_secret");
+        var webhook = xid.VerifyWebhook(body, headers, secret: webhookSecret);
         return Results.Ok();
     }
     catch (WebhookVerificationException ex)

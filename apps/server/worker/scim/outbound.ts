@@ -5,6 +5,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import { trimLeadingSlashes, trimTrailingSlashes } from '../../shared/url'
 import { AppError } from '../lib/errors'
 import { readAllById } from '../lib/db-pagination'
 import { filterMembershipsByAssignmentGate, parseAssignmentGate } from '../sso/assignment-gate'
@@ -63,7 +64,7 @@ function secretValue(env: Env, ref: string): string {
 }
 
 function endpoint(target: ScimTarget, path: string): string {
-  return `${target.baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
+  return `${trimTrailingSlashes(target.baseUrl)}/${trimLeadingSlashes(path)}`
 }
 
 async function scimFetch(

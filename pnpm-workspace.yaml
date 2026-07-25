@@ -33,17 +33,23 @@ catalog:
   wrangler: ^4.114.0
 
 overrides:
+  '@esbuild-kit/core-utils>esbuild': 0.25.12
   '@cloudflare/vitest-pool-workers': ^0.16.11
+  '@sveltejs/kit>cookie': 0.7.2
   '@stylexjs/stylex': ^0.18.3
   '@stylexjs/unplugin': ^0.18.3
   '@testing-library/react': ^16.3.0
   '@types/node': ^22.0.0
   '@xmldom/xmldom': ^0.9.10
   jsdom: ^29.1.1
+  'next>postcss': 8.5.18
+  'next>sharp': 0.35.0
+  'nitropack>archiver': 8.0.0
   rxjs: ^7.8.1
   solid-js: ^1.9.7
   turbo-stream: ^3.2.0
   typescript: ^6.0.3
   undici: ^7.28.0
   vue: ^3.5.0
+  'xcode>uuid': 11.1.1
   xmldsigjs: ^2.8.7

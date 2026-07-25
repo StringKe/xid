@@ -3,6 +3,8 @@
 // and keychain persistence for Tauri desktop apps.
 // The client holds no cryptographic keys; PKCE S256 uses Web Crypto in the WebView.
 
+import { trimTrailingSlashes } from '@xid-kit/core'
+
 import { generateBase64UrlRandom, generatePkce } from './pkce'
 import { createMemoryKeychainAdapter } from './keychain'
 import { createSessionStore } from './session-store'
@@ -149,7 +151,7 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
           token_type_hint: 'access_token',
           client_id: clientId,
         })
-        const response = await fetcher(`${issuer.replace(/\/+$/, '')}/revoke`, {
+        const response = await fetcher(`${trimTrailingSlashes(issuer)}/revoke`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: revokeBody.toString(),

@@ -83,5 +83,5 @@ export function makeJwt(payload: Record<string, unknown>): string {
 
 // 浏览器标准 base64url 编码(不依赖 Node Buffer,保持包 DOM-pure)。
 function b64url(obj: unknown): string {
-  return btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
 }

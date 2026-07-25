@@ -47,7 +47,7 @@ export function paginate<T>(
 
 // encodeCursor / decodeCursor: id -> base64url。
 export function encodeCursor(id: string): string {
-  return btoa(id).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return btoa(id).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
 }
 
 export function decodeCursor(cursor: string): string {

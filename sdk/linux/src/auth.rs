@@ -4,9 +4,11 @@ use crate::jwks::JwksCache;
 use crate::pkce::{generate_state, PkceParams};
 use crate::redirect_server::wait_for_callback;
 use crate::session::{Organization, Session, User};
-use crate::storage::{InMemoryStorage, PendingAuthState, StorageAdapter, TokenStorage};
+#[cfg(not(feature = "secret-service-storage"))]
+use crate::storage::InMemoryStorage;
+use crate::storage::{PendingAuthState, StorageAdapter, TokenStorage};
 use crate::token::{
-    IdTokenVerifyOptions, OidcDiscovery, StoredTokens, TokenResponse, verify_id_token,
+    verify_id_token, IdTokenVerifyOptions, OidcDiscovery, StoredTokens, TokenResponse,
 };
 
 use reqwest::Client;
@@ -73,10 +75,7 @@ impl XidClient {
     }
 
     /// 初始化客户端并指定存储适配器。
-    pub fn configure_with_storage(
-        config: XidConfig,
-        storage: TokenStorage,
-    ) -> Result<Self> {
+    pub fn configure_with_storage(config: XidConfig, storage: TokenStorage) -> Result<Self> {
         config.validate()?;
 
         let timeout = Duration::from_secs(config.http_timeout_secs);
@@ -407,12 +406,7 @@ impl XidClient {
             ("code_verifier", code_verifier),
         ];
 
-        let resp = self
-            .http
-            .post(token_endpoint)
-            .form(&params)
-            .send()
-            .await?;
+        let resp = self.http.post(token_endpoint).form(&params).send().await?;
 
         let status = resp.status().as_u16();
         if !resp.status().is_success() {
@@ -426,9 +420,7 @@ impl XidClient {
 
     /// 用 refresh_token 换取新 token (轮换式)
     async fn refresh_tokens(&self, tokens: StoredTokens) -> Result<StoredTokens> {
-        let rt = tokens
-            .refresh_token
-            .ok_or(XidError::SessionExpired)?;
+        let rt = tokens.refresh_token.ok_or(XidError::SessionExpired)?;
 
         let discovery = self.get_discovery().await?;
 
@@ -550,7 +542,7 @@ fn open_browser(url: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::storage::InMemoryStorage;
-    use jsonwebtoken::{encode, EncodingKey, Header, Algorithm};
+    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
     use mockito::Server;
     use serde_json::json;
     use std::sync::Arc;
@@ -566,11 +558,7 @@ mod tests {
         }
     }
 
-    fn sample_id_token(
-        issuer: &str,
-        encoding_key: &EncodingKey,
-        client_id: &str,
-    ) -> String {
+    fn sample_id_token(issuer: &str, encoding_key: &EncodingKey, client_id: &str) -> String {
         let claims = json!({
             "sub": "user_123",
             "iss": issuer,

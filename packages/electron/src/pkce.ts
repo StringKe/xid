@@ -7,6 +7,7 @@
 //           method = S256 (plain is rejected per oidc-oauth rule)
 
 import type { PkceChallenge } from './types'
+import { randomString } from '@xid-kit/crypto'
 
 // Alphabet: unreserved chars per RFC 3986 minus the chars that need special
 // handling; using the same character set as most reference implementations.
@@ -28,12 +29,7 @@ export async function generatePkceChallenge(
 }
 
 function generateVerifier(randomValues: (arr: Uint8Array) => Uint8Array): string {
-  const bytes = randomValues(new Uint8Array(VERIFIER_LENGTH))
-  const chars: string[] = []
-  for (const byte of bytes) {
-    chars.push(VERIFIER_CHARS[byte % VERIFIER_CHARS.length] ?? 'A')
-  }
-  return chars.join('')
+  return randomString(VERIFIER_LENGTH, VERIFIER_CHARS, randomValues)
 }
 
 async function computeS256(subtle: SubtleCrypto, verifier: string): Promise<string> {

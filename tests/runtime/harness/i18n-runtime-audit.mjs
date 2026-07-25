@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { delay, printResult } from '../../production/harness/production-auth.mjs'
+import { trimTrailingSlashes } from '../../helpers/url.mjs'
 
 const CHROME_PATH =
   process.env['XID_CHROME_PATH'] ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -95,7 +96,7 @@ async function waitForHttp(url, name) {
 }
 
 async function withTargetBaseUrl(fn) {
-  if (PROVIDED_BASE_URL) return await fn(PROVIDED_BASE_URL.replace(/\/+$/, ''))
+  if (PROVIDED_BASE_URL) return await fn(trimTrailingSlashes(PROVIDED_BASE_URL))
 
   const port = await freePort()
   const targetBaseUrl = `http://127.0.0.1:${port}`

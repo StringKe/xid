@@ -2,6 +2,8 @@
 // Uses a plain fetch against /token (form-encoded, no cookies).
 // Tauri runs outside the HttpOnly cookie context, so tokens are held in OS keychain.
 
+import { trimTrailingSlashes } from '@xid-kit/core'
+
 export type TokenSet = {
   accessToken: string
   refreshToken: string | null
@@ -90,7 +92,7 @@ export async function refreshAccessToken(input: {
 
 function buildTokenEndpoint(issuer: string): string {
   // The XID server registers the token endpoint at /token (not /oauth/token).
-  return `${issuer.replace(/\/+$/, '')}/token`
+  return `${trimTrailingSlashes(issuer)}/token`
 }
 
 async function parseTokenResponse(response: Response, now: () => number): Promise<TokenSet> {

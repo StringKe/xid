@@ -3,12 +3,13 @@
 import { argon2id } from '@noble/hashes/argon2.js'
 import { spawn } from 'node:child_process'
 import { parseD1Json } from './d1-json.mjs'
+import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 export const DEFAULT_BASE_URL = 'http://localhost:5173'
 export const DEFAULT_PASSWORD = 'LocalL3Protocol123!'
 export const PACKAGE_MANAGER = process.env.XID_L3_PACKAGE_MANAGER ?? 'corepack'
 export const PACKAGE_MANAGER_ARGS = ['pnpm']
-export const baseUrl = (process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
+export const baseUrl = trimTrailingSlashes(process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL)
 export const adminEmail = (process.env.XID_L3_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 export const adminPassword = process.env.XID_L3_ADMIN_PASSWORD ?? DEFAULT_PASSWORD
 export const smokePersistPath = process.env.XID_SMOKE_PERSIST_PATH

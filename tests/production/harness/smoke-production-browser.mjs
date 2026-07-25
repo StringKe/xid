@@ -83,7 +83,7 @@ function delay(ms) {
 
 function base32Decode(value) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-  const normalized = value.toUpperCase().replace(/=+$/g, '')
+  const normalized = value.toUpperCase().replaceAll('=', '')
   let bits = 0
   let current = 0
   const out = []

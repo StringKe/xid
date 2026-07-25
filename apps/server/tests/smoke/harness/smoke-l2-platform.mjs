@@ -2,10 +2,11 @@
 
 import { argon2id } from '@noble/hashes/argon2.js'
 import { parseD1Json } from './d1-json.mjs'
+import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
 const DEFAULT_PASSWORD = 'LocalL2Platform123!'
-const baseUrl = (process.env.XID_L2_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
+const baseUrl = trimTrailingSlashes(process.env.XID_L2_BASE_URL ?? DEFAULT_BASE_URL)
 const adminEmail = (process.env.XID_L2_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 const adminPassword = process.env.XID_L2_ADMIN_PASSWORD ?? DEFAULT_PASSWORD
 const smokePersistPath = process.env.XID_SMOKE_PERSIST_PATH
@@ -28,7 +29,7 @@ function base64UrlEncode(bytes) {
     .toString('base64')
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replace(/=+$/g, '')
+    .replaceAll('=', '')
 }
 
 function decodePepper(raw) {
@@ -56,7 +57,7 @@ function encodeArgon2Hash(digest, salt) {
 
 function base32Decode(value) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-  const normalized = value.toUpperCase().replace(/=+$/g, '')
+  const normalized = value.toUpperCase().replaceAll('=', '')
   let bits = 0
   let current = 0
   const out = []

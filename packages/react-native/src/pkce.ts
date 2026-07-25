@@ -2,6 +2,7 @@
 // 不在 SDK 层重复实现(utils-abstraction 三次法则)。
 
 import { computeS256Challenge, generateCodeVerifier } from '@xid-kit/protocol'
+import { randomString } from '@xid-kit/crypto'
 
 export { base64UrlEncode } from '@xid-kit/crypto'
 
@@ -9,12 +10,7 @@ export { base64UrlEncode } from '@xid-kit/crypto'
 // verifier 固定 64 字符时调用方直接用 createPkceVerifier。
 export function createRandomString(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
-  const bytes = crypto.getRandomValues(new Uint8Array(length))
-  let out = ''
-  for (const b of bytes) {
-    out += chars[b % chars.length]
-  }
-  return out
+  return randomString(length, chars)
 }
 
 // createPkceVerifier:生成符合 RFC 7636 的 code_verifier(43-128 字符,委托 @xid-kit/protocol)。

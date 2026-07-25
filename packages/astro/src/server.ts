@@ -3,6 +3,7 @@
 // currentUser(locals, options):懒加载 /v1/me 完整 User。
 // xidClient(options):server 端 Management API 入口(sk_ 认证)。
 
+import { trimTrailingSlashes } from '@xid-kit/core'
 import type { XidUser } from '@xid-kit/core'
 import type { Result } from '@xid-kit/types'
 
@@ -39,7 +40,7 @@ class XidServerApiClient {
 
   constructor(options: XidServerClientOptions) {
     this.#secretKey = options.secretKey
-    this.#baseUrl = (options.apiUrl ?? 'https://api.xid.dev').replace(/\/+$/, '')
+    this.#baseUrl = trimTrailingSlashes(options.apiUrl ?? 'https://api.xid.dev')
     this.#fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
   }
 

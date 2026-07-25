@@ -1,8 +1,5 @@
 import { isDocsPath, isPublicDocsPath } from '../../../public-docs'
-
-function withoutTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, '')
-}
+import { trimTrailingSlashes } from '../../../shared/url'
 
 function safeDecodePath(pathname: string): string {
   try {
@@ -13,8 +10,8 @@ function safeDecodePath(pathname: string): string {
 }
 
 export function isInternalRepositoryDocsFsPath(pathname: string, docsFsPrefix: string): boolean {
-  const path = withoutTrailingSlash(safeDecodePath(pathname).replace(/^\/%40fs/, '/@fs'))
-  const prefix = withoutTrailingSlash(safeDecodePath(docsFsPrefix).replace(/^\/%40fs/, '/@fs'))
+  const path = trimTrailingSlashes(safeDecodePath(pathname).replace(/^\/%40fs/, '/@fs'))
+  const prefix = trimTrailingSlashes(safeDecodePath(docsFsPrefix).replace(/^\/%40fs/, '/@fs'))
   return path === prefix || path.startsWith(`${prefix}/`)
 }
 

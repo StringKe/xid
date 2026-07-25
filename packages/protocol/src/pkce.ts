@@ -3,7 +3,7 @@
 // 可预期失败返回 Result<true, XidError>,不抛。
 
 import type { XidError, Result } from '@xid-kit/types'
-import { base64UrlEncode } from '@xid-kit/crypto'
+import { base64UrlEncode, randomString } from '@xid-kit/crypto'
 
 const encoder = new TextEncoder()
 
@@ -42,12 +42,7 @@ export async function computeS256Challenge(verifier: string): Promise<string> {
 export function generateCodeVerifier(length: number = 64): string {
   const bounded = Math.min(128, Math.max(43, length))
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
-  const bytes = crypto.getRandomValues(new Uint8Array(bounded))
-  let out = ''
-  for (const b of bytes) {
-    out += chars[b % chars.length]
-  }
-  return out
+  return randomString(bounded, chars)
 }
 
 // 校验 PKCE(9.1 第 6 步)。method=plain 一律拒绝 invalid_request;S256 走 constant-time 比较。

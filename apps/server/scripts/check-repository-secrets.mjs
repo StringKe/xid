@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -114,7 +114,9 @@ export function scanTrackedFiles(scanRoot, options = {}) {
 
   return readTrackedFiles(scanRoot).flatMap((file) => {
     if (allowedFiles.has(file)) return []
-    const rule = findSecretRule(file, readFileSync(join(scanRoot, file), 'utf8'))
+    const path = join(scanRoot, file)
+    if (!existsSync(path)) return []
+    const rule = findSecretRule(file, readFileSync(path, 'utf8'))
     return rule ? [{ file, rule }] : []
   })
 }

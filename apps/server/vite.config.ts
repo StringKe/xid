@@ -12,7 +12,6 @@ import {
 import { getPublicDocsRouteDecision, isDocsPath } from './public-docs'
 import { injectPreloadHintsPlugin } from './vite-plugins/inject-preload-hints'
 import { createSmokeQueueConfig } from './vite-plugins/smoke-queue-config'
-import { stripIndexHtmlCommentsPlugin } from './vite-plugins/strip-index-html-comments'
 
 // React SPA(client)+ Hono Worker(API),@cloudflare/vite-plugin 一个项目构建。
 // lingui macro 经 @rolldown/plugin-babel + linguiTransformerBabelPreset 转换(lingui v6 for Vite 8)。
@@ -63,7 +62,6 @@ export default defineConfig({
     cloudflare(smokeQueueConfig),
     lingui(),
     babel({ presets: [linguiTransformerBabelPreset()] }),
-    stripIndexHtmlCommentsPlugin(),
     injectPreloadHintsPlugin(),
   ],
 })

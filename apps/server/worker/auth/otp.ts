@@ -5,7 +5,7 @@
 // Phone OTP 国家白名单默认 US/CA,租户可扩展(01 章 4)。
 // 枚举防护:邮箱/手机不存在与已发送统一 200 模糊响应。
 
-import { sha256Hex } from '@xid-kit/crypto'
+import { randomString, sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
@@ -55,9 +55,7 @@ export async function reserveOtpSendRateLimit(
 
 // 生成 6 位数字 OTP(crypto.getRandomValues,无模偏差)。
 function generateOtp(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(4))
-  const n = new DataView(bytes.buffer).getUint32(0) % 1_000_000
-  return n.toString().padStart(6, '0')
+  return randomString(6, '0123456789')
 }
 
 // constant-time OTP 比较(防时序侧信道)。

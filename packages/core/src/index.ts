@@ -25,6 +25,8 @@ export { XidNetworkError, makeXidError, isXidErrorShape } from './errors'
 export { decodeTokenClaims, isTokenExpiring } from './jwt-decode'
 export type { DecodedTokenClaims } from './jwt-decode'
 
+export { trimTrailingSlashes } from './url'
+
 // 公开状态契约
 export type {
   XidUser,

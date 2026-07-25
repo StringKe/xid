@@ -15,7 +15,7 @@ export function bufferToB64url(buffer: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buffer)))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
-    .replace(/=+$/, '')
+    .replaceAll('=', '')
 }
 
 // /auth/passkey/verify 请求体(server 据此做四验证)。

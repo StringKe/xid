@@ -66,7 +66,9 @@ match state {
     heading: <Trans>Verify webhook</Trans>,
     code: `use xid::WebhookVerifier;
 
-let verifier = WebhookVerifier::new("whsec_YOUR_SECRET").expect("valid secret");
+let webhook_secret =
+    std::env::var("XID_WEBHOOK_SECRET").expect("XID_WEBHOOK_SECRET is required");
+let verifier = WebhookVerifier::new(&webhook_secret).expect("valid secret");
 
 match verifier.verify_from_headers(headers, body) {
     Ok(()) => {

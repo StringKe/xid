@@ -22,6 +22,7 @@ import type {
   XidUser,
 } from './types'
 import { XidNetworkError, isXidErrorShape } from './errors'
+import { trimTrailingSlashes } from './url'
 
 // worker 颁发的 short-lived JWT 响应(对照 /v1/sessions/token)。
 export type TokenResponse = {
@@ -146,7 +147,7 @@ export class XidApiClient {
 
   constructor(options: { apiUrl?: string; fetcher?: typeof fetch; secretKey?: string }) {
     // 同域默认走相对路径,跨域显式传 apiUrl。去尾斜杠统一拼接。
-    this.#baseUrl = (options.apiUrl ?? '').replace(/\/+$/, '')
+    this.#baseUrl = trimTrailingSlashes(options.apiUrl ?? '')
     this.#fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
     this.#secretKey = options.secretKey ?? null
   }

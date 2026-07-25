@@ -40,7 +40,7 @@ function checkSessionHtml(input: { issuer: string; salt: string; sessionKey: str
     var bytes = new Uint8Array(digest);
     var binary = '';
     for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+    return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replaceAll('=', '');
   }
 
   async function computeOpSessionState(clientId) {

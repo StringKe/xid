@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono'
 import * as v from 'valibot'
-import { base64UrlEncode } from '@xid-kit/crypto'
+import { base64UrlEncode, randomString } from '@xid-kit/crypto'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { authenticateClient } from './lib/client-auth'
@@ -34,12 +34,7 @@ function generateDeviceCode(): string {
 }
 
 function generateUserCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(USER_CODE_LEN))
-  let code = ''
-  for (let i = 0; i < USER_CODE_LEN; i++) {
-    code += USER_CODE_CHARSET[bytes[i]! % USER_CODE_CHARSET.length]
-  }
-  return code
+  return randomString(USER_CODE_LEN, USER_CODE_CHARSET)
 }
 
 function deviceDoStub(env: Env, tenantId: string): DurableObjectStub {
