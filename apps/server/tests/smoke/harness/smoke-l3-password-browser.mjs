@@ -14,7 +14,7 @@ import { Application, Parse, SignedXml, Stringify } from 'xmldsigjs'
 import xpath from 'xpath'
 import { parseD1Json } from './d1-json.mjs'
 import { closeChromeAndRemoveProfile } from './chrome-cleanup.mjs'
-import { buildSamlPostForm } from './saml-post-form.mjs'
+import { createSamlPostPayload, SAML_POST_PAGE } from './saml-post-form.mjs'
 import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
@@ -605,7 +605,12 @@ async function startLocalOidcProvider(expectedClientSecret) {
 
 async function startLocalSamlProvider() {
   let issuer = ''
-  const state = { lastRequest: null, lastRelayState: null, lastAcsUrl: null }
+  const state = {
+    lastRequest: null,
+    lastRelayState: null,
+    lastAcsUrl: null,
+    pendingPostPayload: null,
+  }
 
   const server = createHttpServer(async (req, res) => {
     try {
@@ -641,8 +646,36 @@ async function startLocalSamlProvider() {
           email: samlEmail,
         })
         const samlResponse = base64EncodeString(responseXml)
+        state.pendingPostPayload = createSamlPostPayload({
+          acsUrl,
+          expectedAcsUrl,
+          samlResponse,
+          relayState,
+        })
+        res.writeHead(303, { location: '/saml-post' })
+        res.end()
+        return
+      }
+
+      if (url.pathname === '/saml-post') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-        res.end(buildSamlPostForm({ acsUrl, samlResponse, relayState }))
+        res.end(SAML_POST_PAGE)
+        return
+      }
+
+      if (url.pathname === '/saml-post-payload') {
+        const payload = state.pendingPostPayload
+        state.pendingPostPayload = null
+        if (payload === null) {
+          res.writeHead(404, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ error: 'SAML response unavailable' }))
+          return
+        }
+        res.writeHead(200, {
+          'cache-control': 'no-store',
+          'content-type': 'application/json',
+        })
+        res.end(JSON.stringify(payload))
         return
       }
 

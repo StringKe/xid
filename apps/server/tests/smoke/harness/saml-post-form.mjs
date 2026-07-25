@@ -1,24 +1,37 @@
-export function escapeHtmlAttribute(value) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-}
+export const SAML_POST_PAGE = `<!doctype html>
+<html>
+  <body>
+    <script>
+      void (async () => {
+        const response = await fetch('/saml-post-payload', { cache: 'no-store' })
+        if (!response.ok) {
+          document.body.textContent = 'SAML response unavailable'
+          return
+        }
 
-export function buildSamlPostForm({ acsUrl, samlResponse, relayState }) {
-  const relayInput =
-    relayState === null
-      ? ''
-      : `<input type="hidden" name="RelayState" value="${escapeHtmlAttribute(relayState)}">`
-  return [
-    '<!doctype html><html><body>',
-    `<form method="post" action="${escapeHtmlAttribute(acsUrl)}">`,
-    `<input type="hidden" name="SAMLResponse" value="${escapeHtmlAttribute(samlResponse)}">`,
-    relayInput,
-    '</form>',
-    '<script>document.forms[0].submit()</script>',
-    '</body></html>',
-  ].join('')
+        const payload = await response.json()
+        const form = document.createElement('form')
+        form.method = 'post'
+        form.action = payload.acsUrl
+
+        const addHiddenInput = (name, value) => {
+          const input = document.createElement('input')
+          input.type = 'hidden'
+          input.name = name
+          input.value = value
+          form.append(input)
+        }
+
+        addHiddenInput('SAMLResponse', payload.samlResponse)
+        if (payload.relayState !== null) addHiddenInput('RelayState', payload.relayState)
+        document.body.append(form)
+        form.submit()
+      })()
+    </script>
+  </body>
+</html>`
+
+export function createSamlPostPayload({ acsUrl, expectedAcsUrl, samlResponse, relayState }) {
+  if (acsUrl !== expectedAcsUrl) return null
+  return { acsUrl: expectedAcsUrl, samlResponse, relayState }
 }
