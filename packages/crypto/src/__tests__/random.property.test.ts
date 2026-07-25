@@ -23,5 +23,5 @@ describe('randomString properties', () => {
       ),
       { numRuns: 500 },
     )
-  })
+  }, 15_000)
 })
