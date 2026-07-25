@@ -9,6 +9,10 @@ describe('SAML POST handoff', () => {
     expect(SAML_POST_PAGE).not.toContain('SAMLResponse" value=')
   })
 
+  it('prevents an implicit favicon request from polluting the browser console', () => {
+    expect(SAML_POST_PAGE).toContain('<link rel="icon" href="data:,">')
+  })
+
   it('creates a payload only for the exact expected ACS URL', () => {
     const expectedAcsUrl = 'https://xid.dev/sso/saml/connection/acs'
     const payload = createSamlPostPayload({
