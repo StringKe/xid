@@ -47,7 +47,7 @@ secret-service = { version = "5.1.0", features = ["rt-tokio-crypto-rust"], optio
 thiserror = "1"
 
 # JWT 解码 (仅结构解析,签名验证通过 JWKS + jsonwebtoken)
-jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 
 # 时间处理 (token 过期检查)
 time = { version = "0.3", features = ["serde"] }

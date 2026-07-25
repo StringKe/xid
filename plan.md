@@ -24,7 +24,7 @@
 - 恢复 CodeQL 工作流，使当前提交能够重新扫描。
 - 增加真实的属性测试和 fuzzing CI gate。
 - 替换 Secret Scanning 命中的测试夹具，不改写公开 Git 历史。
-- 通过正常 PR 审批满足 Scorecard Code-Review。
+- solo 仓库不强制独立 review，保留 required checks、线性历史、会话解决和禁止 force push。
 - 对无法由代码立即关闭的治理信号保留可验证说明，不伪造完成状态。
 
 ## Todo List
@@ -35,7 +35,7 @@
 - [x] T4 恢复 CodeQL，增加 fuzzing gate，替换测试密钥夹具。
 - [x] T5 运行格式化、类型、测试、构建、原生 SDK 和依赖审计门禁。
 - [x] T6 创建 DCO 签名提交，推送分支并创建 PR。
-- [~] T7 等待 GitHub 检查和重扫，处理失败并核对全部 70 条告警状态。
+- [~] T7 完成默认分支重扫，修复 Scorecard 和 smoke 新暴露的根因，并核对全部告警状态。
 
 ## 完成定义
 
@@ -49,9 +49,22 @@
 - 34 条 Dependabot 告警关闭。
 - 26 条 CodeQL 告警关闭。
 - 4 条 Secret Scanning 告警以 `used_in_tests` 关闭。
-- Scorecard 的 SAST、Vulnerabilities、Fuzzing、Code-Review 信号关闭。
+- Scorecard 的 SAST、Vulnerabilities、Fuzzing 信号关闭。
+- Scorecard Code-Review 以 solo 仓库不适用为由关闭，不设置独立 review 门禁。
 - Scorecard Maintained 在仓库达到 90 天前保持外部时间约束说明。
 - Scorecard CII-Best-Practices 保持仓库所有者外部登记约束说明。
+
+## 合并后证据
+
+- PR 21 已通过 rebase merge 合并到 `main`，合并提交为 `9c4b3c3fb364c3ee259cdae390f485ffe31a898d`。
+- Dependabot 34 条告警已降为 0。
+- CodeQL 26 条根因告警已降为 0。
+- Secret Scanning 4 条告警已关闭，开放告警为 0。
+- Scorecard SAST 和 Fuzzing 已关闭。
+- Scorecard Code-Review 已按 solo 仓库治理决定以 `won't fix` 关闭。
+- Scorecard Vulnerabilities 仍识别 `RUSTSEC-2023-0071`，根因是两个 Rust SDK 的 `jsonwebtoken -> rsa` 依赖链。
+- 默认分支 smoke 发现本地 SAML IdP 缺少 favicon 声明，严格 browser console gate 因 `/favicon.ico` 404 失败。
+- follow-up 分支正在移除 `rsa` 依赖链并修复 SAML IdP favicon 请求。
 
 ## 状态
 

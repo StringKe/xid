@@ -1,5 +1,8 @@
 export const SAML_POST_PAGE = `<!doctype html>
 <html>
+  <head>
+    <link rel="icon" href="data:,">
+  </head>
   <body>
     <script>
       void (async () => {
