@@ -52,7 +52,7 @@
 - Scorecard 的 SAST、Vulnerabilities、Fuzzing 信号关闭。
 - Scorecard Code-Review 以 solo 仓库不适用为由关闭，不设置独立 review 门禁。
 - Scorecard Maintained 在仓库达到 90 天前保持外部时间约束说明。
-- Scorecard CII-Best-Practices 保持仓库所有者外部登记约束说明。
+- Scorecard CII-Best-Practices 完成 OpenSSF 项目登记，并按 solo 仓库无法达到 Gold 多开发者要求的事实关闭告警。
 
 ## 合并后证据
 
@@ -67,7 +67,12 @@
 - Scorecard 重扫 PASS，SAST、Vulnerabilities、Fuzzing 已关闭，Vulnerabilities 明确报告 0 个现存漏洞：
   https://github.com/StringKe/xid/actions/runs/30165689907
 - Scorecard Code-Review 已按 solo 仓库治理决定以 `won't fix` 关闭。
-- Scorecard 仅保留 2 条外部治理信号：仓库未满 90 天的 Maintained，以及需要仓库所有者登记的 CII-Best-Practices。
+- OpenSSF Best Practices 项目 `13783` 已登记，自动核验完成度为 19%：
+  https://www.bestpractices.dev/en/projects/13783
+- Scorecard 复扫已识别 `badge detected: InProgress`，分数从 0 提升为 2：
+  https://github.com/StringKe/xid/actions/runs/30166410457
+- CII-Best-Practices 只有 Gold 才获得 10 分，Gold 要求多个开发者，不适用于 solo 仓库；告警已按此事实以 `won't fix` 关闭，公开自评继续保留。
+- Scorecard 仅保留仓库未满 90 天的 Maintained 外部时间信号。
 - `main` 不要求独立 review，required checks、线性历史、会话解决和禁止 force push 均保持启用。
 
 ## 状态
