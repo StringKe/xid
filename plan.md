@@ -35,7 +35,7 @@
 - [x] T4 恢复 CodeQL，增加 fuzzing gate，替换测试密钥夹具。
 - [x] T5 运行格式化、类型、测试、构建、原生 SDK 和依赖审计门禁。
 - [x] T6 创建 DCO 签名提交，推送分支并创建 PR。
-- [~] T7 完成默认分支重扫，修复 Scorecard 和 smoke 新暴露的根因，并核对全部告警状态。
+- [x] T7 完成默认分支重扫，修复 Scorecard 和 smoke 新暴露的根因，并核对全部告警状态。
 
 ## 完成定义
 
@@ -57,15 +57,19 @@
 ## 合并后证据
 
 - PR 21 已通过 rebase merge 合并到 `main`，合并提交为 `9c4b3c3fb364c3ee259cdae390f485ffe31a898d`。
+- PR 22 已通过 rebase merge 合并到 `main`，合并提交为 `0c68ee2d036821995e234c1bc970874a381eb2e1`。
 - Dependabot 34 条告警已降为 0。
-- CodeQL 26 条根因告警已降为 0。
+- CodeQL 26 条根因告警已降为 0，默认分支 8 个语言分析全部 PASS：
+  https://github.com/StringKe/xid/actions/runs/30165689902
 - Secret Scanning 4 条告警已关闭，开放告警为 0。
-- Scorecard SAST 和 Fuzzing 已关闭。
+- 默认分支 `check`、`test`、`build`、`security`、依赖审计和 main-only smoke 全部 PASS：
+  https://github.com/StringKe/xid/actions/runs/30165689905
+- Scorecard 重扫 PASS，SAST、Vulnerabilities、Fuzzing 已关闭，Vulnerabilities 明确报告 0 个现存漏洞：
+  https://github.com/StringKe/xid/actions/runs/30165689907
 - Scorecard Code-Review 已按 solo 仓库治理决定以 `won't fix` 关闭。
-- Scorecard Vulnerabilities 仍识别 `RUSTSEC-2023-0071`，根因是两个 Rust SDK 的 `jsonwebtoken -> rsa` 依赖链。
-- 默认分支 smoke 发现本地 SAML IdP 缺少 favicon 声明，严格 browser console gate 因 `/favicon.ico` 404 失败。
-- follow-up 分支正在移除 `rsa` 依赖链并修复 SAML IdP favicon 请求。
+- Scorecard 仅保留 2 条外部治理信号：仓库未满 90 天的 Maintained，以及需要仓库所有者登记的 CII-Best-Practices。
+- `main` 不要求独立 review，required checks、线性历史、会话解决和禁止 force push 均保持启用。
 
 ## 状态
 
-进行中。
+已完成。
