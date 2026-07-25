@@ -43,7 +43,7 @@ overrides:
   '@xmldom/xmldom': ^0.9.10
   jsdom: ^29.1.1
   'next>postcss': 8.5.18
-  'next>sharp': 0.35.0
+  'next>sharp': 0.35.2
   'nitropack>archiver': 8.0.0
   rxjs: ^7.8.1
   solid-js: ^1.9.7
