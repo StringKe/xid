@@ -1,0 +1,55 @@
+---
+type: references
+name: boundary-validation-toolkit
+description: The exported helpers in worker/lib/validate.ts - readJsonBody, validateBody, validateCredentialBody, the reusable atomic valibot schemas, the SSRF and redirect_uri helpers - plus how AppError maps through onError and how credential and OAuth endpoints differ
+---
+
+# Boundary Validation Toolkit and AppError Mapping
+
+Lookup material extracted from the `error-handling` rule. It holds the concrete API surface: how
+`AppError` is constructed and what `onError` does with it, where the canonical `Result` type comes
+from, and every export of `apps/server/worker/lib/validate.ts` including the per-domain error
+adapters. The rule itself keeps the strategy and the never-swallow / never-leak MUSTs. Read this
+before validating a new external input, adding an endpoint, or changing an error response shape.
+
+## AppError construction and onError mapping
+
+- Use the typed error class `AppError` (`apps/server/worker/lib/errors.ts`). It carries a `code` (`XidErrorCode`) plus optional `httpStatus` / `meta` / `longMessage` / `cause`:
+  ```ts
+  throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName } })
+  ```
+- HTTP status defaults from the code via `httpStatusForCode`; pass `httpStatus` only to override. Unlisted codes fall back to 400.
+- `AppError.message` is just the code. The human-readable message is rendered later by i18n -- do not put user-facing prose in the throw site.
+- The global `app.onError` handler (`apps/server/worker/middleware/error.ts`, wired in `apps/server/worker/index.ts`) maps three sources to a `XidAPIError` JSON body (see api-sdk-conventions rule):
+  1. `AppError` -- code, status, `meta`, `longMessage` pass through.
+  2. A structured `XidError` shape (`code` string + `httpStatus` number) that was thrown.
+  3. Anything else -- logged with `console.error`, then flattened to `server_error` / 500 with no detail.
+  Every error response carries `Cache-Control: no-store`.
+- Keep the cause chain (`new AppError(code, { cause: err })`). `cause` is server-side only and MUST NOT reach the client.
+- To turn a `Result` error branch into a thrown response, use `throwXidError(err)` from the same module instead of hand-building an `AppError`.
+
+## The canonical Result type
+
+- Input validation, lookup misses, business-rule rejections and similar expected failures use the discriminated union, not exceptions. The canonical type is exported from `@xid-kit/types` (`packages/types/src/errors.ts`) -- import it, never redeclare it locally:
+  ```ts
+  import type { Result } from '@xid-kit/types'
+  // type Result<T, E = XidError> = { ok: true; value: T } | { ok: false; error: E }
+  ```
+- Callers MUST handle the `ok` branch explicitly; the type makes omission a compile error.
+- Do not wrap genuinely unexpected failures in a `Result` -- those still throw.
+
+## Boundary Validation
+
+- External input (request body/query/header, OAuth callbacks, SCIM payloads, external IdP responses, webhooks) MUST be validated with **valibot** before it reaches the kernel. Internal module boundaries trust their types.
+- Worker code goes through `apps/server/worker/lib/validate.ts`. Exports that matter:
+  - `readJsonBody(c)` -- reads JSON and returns `{ ok: false }` on malformed input so a `SyntaxError` never becomes a 500.
+  - `validateBody(schema, input)` / `validateQuery(schema, query)` -- shape validation.
+  - `validateCredentialBody(schema, input, { code, credentialFields })` -- credential endpoints, see below.
+  - `firstIssuePath(issues)` -- the dot path of the first issue.
+  - Reusable atomic schemas: `emailSchema`, `uuidSchema`, `slugSchema`, `httpsUrlSchema`, `publicHttpsUrlSchema`, `otpCodeSchema`, `paginationQuerySchema`, `ttlSecSchema(min, max)`. Reuse these; do not redefine per domain.
+  - SSRF and redirect helpers: `isPublicHttpsUrl(value)` and `validateRedirectUris(uris, options)` are shared by webhook delivery, IdP metadata, social provider endpoints, DCR and `v1/applications`.
+- Shape failures map to `validation_failed` (422) plus `meta.paramName` (the first issue dot path) so a client can bind the error back to the exact form field. Never let a raw exception reach the client.
+- `@hono/valibot-validator` is deliberately not used: we only need `safeParse` plus our own `AppError` mapping, and we want to own the error contract.
+- Protocol domains keep their own error shapes:
+  - Credential endpoints (sign-in, OTP/magic-link verify, MFA, passkey assertion, password reset) use `validateCredentialBody`. A shape failure on a credential field (`identifier` / `password` / `code` / `assertion`) throws the same opaque code as a wrong credential, so shape errors cannot be used to enumerate accounts. Non-credential fields still return `validation_failed` with `paramName`.
+  - OAuth endpoints (`/introspect`, `/revoke`, `/device_authorization`, `/register`) call `v.safeParse` directly and return `oauthInvalidRequest(c, issues)` or `oauthError(c, { status, error, description })` from `apps/server/worker/oidc/shared.ts`, producing RFC-shaped `{ error, error_description }` bodies rather than the `XidAPIError` shape.

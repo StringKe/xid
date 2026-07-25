@@ -1,0 +1,39 @@
+---
+type: rules
+name: password-auth
+description: Argon2id only, HIBP breach detection, reset / OTP / backup secrets stored as hashes only, pepper never in D1, MFA factor and step-up rules
+priority: high
+applyTo:
+  - 'apps/server/worker/auth/**/*.ts'
+  - 'apps/server/worker/me-auth/**/*.ts'
+  - 'apps/server/worker/me/password.ts'
+  - 'apps/server/worker/me/mfa-factors.ts'
+targets: [claude-code, codex]
+---
+
+# Password Authentication and MFA
+
+Design source `docs/design/01-authentication.md` sections 2 and 5.
+
+## Hard constraints (MUST)
+
+- Argon2id is the only password KDF. Never add a bcrypt verifier without also shipping the
+  rehash-on-successful-login migration. Never drop below the OWASP 2025 floor.
+- The pepper is a Workers Secret and MUST NOT reach D1.
+- HIBP breach detection blocks on sign-up, reset and change; on sign-in it is `waitUntil` only and
+  MUST NOT block.
+- Reset tokens, magic link jti, OTP codes and backup codes are stored as hashes only, are single-use,
+  and are compared in constant time. The raw secret never reaches D1.
+- On password reset the account-status check happens before the token is consumed and before the new
+  password is written. That ordering is load-bearing.
+- Secrets and codes come from `crypto.getRandomValues`. Never `Math.random`.
+- Email OTP and WhatsApp OTP are sign-in methods only and MUST NOT be accepted as MFA factors.
+- SMS MUST NOT be the only enrolled MFA factor (NIST SP 800-63B).
+- A session whose status is not `active` is NOT authenticated. `/authorize` redirects a
+  `pending_mfa` / `pending_mfa_setup` session and MUST NOT issue tokens for it.
+- Step-up uses its own short-lived token bound to a session id -- never reuse the login session
+  token, and reject a step-up token presented against a different `sid`.
+
+Argon2id cost values, hash and pepper formats, HIBP call shape, history mechanism, reset token
+claims, TOTP / backup code / step-up settings, OTP TTLs: reference `password-and-mfa-parameters` --
+the rule states boundaries, the reference holds exact values.

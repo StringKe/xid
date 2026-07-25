@@ -1,0 +1,73 @@
+.stdai/cache/
+.stdai/backups/
+.stdai/logs/
+.stdai/state.json
+
+# dependencies
+node_modules/
+
+# 原生 SDK 构建产物与本地环境(各语言工具链生成,不入库)
+sdk/**/target/
+sdk/**/build/
+sdk/**/.gradle/
+sdk/**/bin/
+sdk/**/obj/
+sdk/**/.build/
+sdk/**/.dart_tool/
+sdk/**/vendor/
+sdk/**/local.properties
+sdk/**/.flutter-plugins-dependencies
+sdk/**/pubspec.lock
+
+# build outputs
+dist/
+build/
+coverage/
+.react-router/
+.turbo/
+*.tsbuildinfo
+
+# cloudflare
+.wrangler/
+.dev.vars
+# wrangler per-environment 本地机密:.dev.vars.local / .dev.vars.production 等。
+# 否定规则必须排在通配之后才生效。
+.dev.vars.*
+!.dev.vars.example
+worker-configuration.d.ts
+.xid/
+
+# 本地 AI 工具个人配置(非 stdagent 产物,不进仓库)
+.grok/
+
+# logs / os
+*.log
+.DS_Store
+
+# 本地预览截图
+.shot/
+
+# env
+.env
+.env.*
+!.env.example
+
+# 密钥与证书材料(SAML 证书轮换、signing key 导出、Android keystore、误拷 SSH 私钥)
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+
+# GeoIP 数据库(设计上存 R2,本地调试落盘的大文件不入库)
+*.mmdb
+
+# 解释器缓存
+__pycache__/
+*.pyc
+.phpunit.result.cache

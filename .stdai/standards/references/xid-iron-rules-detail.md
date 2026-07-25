@@ -1,0 +1,52 @@
+---
+type: references
+name: xid-iron-rules-detail
+description: The long form of each of the eight XID iron rules, with the concrete file paths, table names, and rationale behind each one
+---
+
+# XID Global Iron Rules, Long Form
+
+These are the eight non-negotiable platform-wide constraints of XID, in their full form. The root
+overview (`.stdai/standards/root.md`) keeps a one-line summary of each so the always-loaded rules
+stay small; this file holds the full statement with the concrete file paths, table names, and
+reasoning. Read it when you need to know exactly where a rule is implemented, what its exact wording
+forbids, or why it exists. Rule numbering matches the root overview one for one.
+
+1. **TenantContext is the single source**: issuer, signing keys, RPID, and policy MUST come from
+   TenantContext. The kernel MUST NOT reference any module-level singleton holding an issuer, key,
+   or tenant config. Single-tenant is a config-driven singleton (`instances.mode = 'single_tenant'`);
+   multi-tenant enters an instance entry context at the root domain and then resolves the org context
+   via the instance login resolver, a tenant hint, or a custom hostname. Resolution lives in
+   `packages/db/src/tenant-context.ts` (`resolveTenantContext` and friends).
+2. **Tenant isolation is enforced by injection (P0)**: D1 has no RLS, so isolation is an
+   application-layer control. Every query MUST go through the Drizzle tenant query layer
+   (`createTenantDb` in `packages/db/src/tenant-db.ts`), which injects `WHERE tenant_id = ?` (plus
+   `org_id` for org-scoped entities). Raw SQL bypasses are forbidden. Admin paths are separate and
+   MUST NOT reuse business APIs. Cross-tenant authorization tests are mandatory.
+3. **Crypto boundary**: never implement cryptographic primitives (ECDSA/RSA/AES/SHA/HKDF/random)
+   yourself -- use Web Crypto, plus `@noble/hashes` for Argon2id, which Web Crypto lacks. Protocol
+   and business logic are written in-house. SAML XML-DSig and canonicalization use mature libraries,
+   never hand-rolled code.
+4. **Signing key isolation**: the default issuer signs with a per-instance ES256 key,
+   envelope-encrypted (AES-256-GCM, KEK in Workers Secrets). Plaintext private keys exist only
+   briefly inside the isolate and are NEVER persisted in the clear. `instance_signing_keys` is the
+   only signing key table; a future explicit custom issuer must be designed deliberately and MUST NOT
+   displace the instance issuer as the default signing source.
+5. **Zero protocol shortcuts**: PKCE is S256-only and `plain` is rejected; `redirect_uri` matches
+   exactly with no wildcards; refresh tokens rotate with family revocation; `state`/`nonce` guard
+   against CSRF; authorization codes are single-use; `jti` blocks replay. The four WebAuthn checks
+   (challenge / origin / rpIdHash / signature) have no bypass path.
+6. **All i18n goes through lingui**: the SPA (hosted UI + console), the React SDK, and Workers API
+   error messages MUST NOT hardcode user-visible strings -- use lingui macros (`Trans` / `t` /
+   `plural`) plus catalogs. Transactional email templates stay on the Mustache subset + R2 locale
+   packs (chapter 07) and are out of lingui's scope.
+7. **Enumeration resistance**: every authentication endpoint returns a uniform ambiguous response.
+   Never distinguish "user does not exist" from "wrong password". Response timing is normalized with
+   constant-time comparison plus timing jitter.
+8. **Platform administration is ManagerAssignment, not a parallel system**: bootstrap seeds one
+   default organization and the initial super admin, who administers every org through a
+   platform-layer row in `manager_assignments` with `manager_role = 'instance_manager'` (see
+   `apps/server/worker/admin/bootstrap.ts`). The console is one unified org management UI: the
+   Instance Manager sees everything, an Org Admin sees only their own org. **Do not build a separate
+   admin tenant, admin app, admin API, or admin RBAC** (aligns with chapter 02 Manager Roles and
+   chapter 07 "platform admin and tenant admin live in the same Worker").

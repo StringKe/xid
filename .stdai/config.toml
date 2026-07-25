@@ -1,0 +1,54 @@
+version = '1.0'
+name = 'xid'
+inject = true
+inject_whatis = true
+dry_run = false
+backup = true
+backup_keep = 5
+auto_pull = true
+verbose = false
+
+[targets]
+[targets.aider]
+enabled = false
+convert = true
+
+[targets.antigravity]
+enabled = false
+convert = true
+
+[targets.claude-code]
+enabled = true
+convert = true
+
+[targets.cline]
+enabled = false
+convert = true
+
+[targets.codex]
+enabled = true
+convert = true
+
+[targets.continue-dev]
+enabled = false
+convert = true
+
+[targets.copilot]
+enabled = false
+convert = true
+
+[targets.cursor]
+enabled = false
+convert = true
+
+[targets.gemini]
+enabled = false
+convert = true
+
+[targets.opencode]
+enabled = false
+convert = true
+
+[targets.windsurf]
+enabled = false
+convert = true

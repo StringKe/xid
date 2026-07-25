@@ -1,0 +1,60 @@
+# .dev.vars -- 本地开发用的 Workers Secrets 占位。
+# 复制此文件为 .dev.vars 并填入真实值(.dev.vars 与 .dev.vars.* 已被 .gitignore 忽略,不要提交)。
+# 生产环境用 `wrangler secret put <KEY>` 设置,不提交明文。
+# 名称与 apps/server/worker/env.d.ts 的 Workers Secrets 段一一对应。
+# 见 cloudflare-bindings rule / signing-keys rule / password-auth rule。
+
+# ---- 必填 ----
+
+# 信封加密主密钥 KEK(AES-256-GCM,Base64 编码,256 bit)。
+# 生成:openssl rand -base64 32
+KEK=REPLACE_WITH_BASE64_256BIT_KEY
+
+# 密码 pepper(与 Argon2id salt 分开存储,不入 DB)。
+# 生成:openssl rand -base64 32
+PEPPER=REPLACE_WITH_BASE64_256BIT_KEY
+
+# ---- 可选 ----
+
+# BOOTSTRAP_TOKEN:POST /admin/bootstrap 的门控 token(请求带 X-Bootstrap-Token)。
+# production / staging 必须配置,否则 bootstrap 返回 503。
+# 生成:openssl rand -hex 32
+# BOOTSTRAP_TOKEN=REPLACE_WITH_RANDOM_TOKEN
+
+# Turnstile siteverify secret(防滥用,见 anti-abuse rule)。
+# 未配置时认证端点跳过人机校验,仅适合本地开发。
+# TURNSTILE_SECRET=REPLACE_WITH_TURNSTILE_SECRET
+
+# WebAuthn enterprise attestation 信任根(PEM bundle,见 webauthn rule)。
+# WEBAUTHN_TRUSTED_ROOTS_PEM=REPLACE_WITH_PEM_BUNDLE
+
+# ---- Social OAuth provider 凭证 ----
+# provider secret 不是固定变量名:organization 的 socialProviders 策略里写
+# clientSecretRef,worker 按该名字从 Workers Secrets 读取(见 worker/auth/social-providers.ts)。
+# 下面是约定俗成的命名示例,按实际启用的 provider 增删。
+# GOOGLE_CLIENT_SECRET=REPLACE_WITH_GOOGLE_CLIENT_SECRET
+# GITHUB_CLIENT_SECRET=REPLACE_WITH_GITHUB_CLIENT_SECRET
+# MICROSOFT_CLIENT_SECRET=REPLACE_WITH_MICROSOFT_CLIENT_SECRET
+
+# ---- WhatsApp provider(未配置时 WhatsApp OTP 不可见)----
+# WHATSAPP_PROVIDER=twilio
+# WHATSAPP_FROM=REPLACE_WITH_SENDER
+# WHATSAPP_META_PHONE_NUMBER_ID=REPLACE_WITH_PHONE_NUMBER_ID
+# WHATSAPP_META_ACCESS_TOKEN=REPLACE_ME
+# WHATSAPP_META_API_VERSION=v21.0
+
+# ---- SMS provider(未配置时 SMS OTP 不可见)----
+# SMS_PROVIDER=twilio
+# SMS_FROM=REPLACE_WITH_SENDER
+# TWILIO_ACCOUNT_SID=REPLACE_WITH_TWILIO_ACCOUNT_SID
+# TWILIO_AUTH_TOKEN=REPLACE_ME
+# TWILIO_MESSAGING_SERVICE_SID=REPLACE_WITH_TWILIO_MESSAGING_SERVICE_SID
+# VONAGE_API_KEY=REPLACE_WITH_VONAGE_API_KEY
+# VONAGE_API_SECRET=REPLACE_ME
+# INFOBIP_API_KEY=REPLACE_ME
+# INFOBIP_BASE_URL=https://REPLACE_WITH_INFOBIP_HOST
+# MESSAGEBIRD_ACCESS_KEY=REPLACE_ME
+
+# ---- 说明:不属于 Workers Secrets 的本地测试输入 ----
+# L3 fake IdP 的 SAML 私钥走 shell 环境变量 XID_L3_SAML_IDP_KEY_PKCS8_B64,
+# 不写进 .dev.vars(见 worker/test-harness/fake-idp.ts)。

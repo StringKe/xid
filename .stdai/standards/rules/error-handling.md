@@ -1,0 +1,52 @@
+---
+type: rules
+name: error-handling
+description: Never swallow errors; throw typed AppError and let Hono onError map it, return Result for expected failures, validate boundaries with valibot, never leak internals, no floating promises
+priority: high
+applyTo:
+  - '**/*.ts'
+targets: [claude-code, codex]
+---
+
+# Error Handling
+
+Strategy: **throw for unexpected / unrecoverable, return `Result` for expected failures**.
+
+## MUST
+
+- Never write an empty `catch`, never `catch` and only log, never `try`/`catch` past a real failure.
+- Never lower a log level or use `@ts-ignore` / `@ts-expect-error` / `oxlint-disable` /
+  `eslint-disable` to hide a problem. Fix the root cause; if unclear, report first and never ship a
+  speculative fix.
+- Unexpected: throw the typed `AppError` (`apps/server/worker/lib/errors.ts`) and let global
+  `app.onError` map it. No user-facing prose at the throw site. Keep the cause chain; `cause` is
+  server-side only and MUST NOT reach the client.
+- Expected (validation, lookup misses, business-rule rejections): return the `Result` discriminated
+  union from `@xid-kit/types`. Never redeclare it locally, never wrap a genuine unexpected in it.
+
+## Boundary validation (MUST)
+
+- External input (request body/query/header, OAuth callbacks, SCIM payloads, external IdP responses,
+  webhooks) is validated with **valibot** before reaching the kernel; internal boundaries trust types.
+- Worker code goes through `apps/server/worker/lib/validate.ts`. Never let a raw exception reach the
+  client, never redefine a schema that module already exports.
+- Protocol domains keep their own error shapes: credential endpoints emit the opaque credential code
+  on credential-field failures, OAuth endpoints emit RFC `{ error, error_description }`.
+
+`validate.ts` exports, atomic schemas, SSRF and redirect helpers, the `AppError` / `onError` mapping,
+credential-versus-OAuth adapters: reference `boundary-validation-toolkit` -- read before validating a
+new input or changing an error response shape.
+
+## Never leak internals
+
+- Client-facing messages are opaque and uniform (see anti-abuse rule); stack, SQL, paths and
+  underlying errors go to logs and audit only.
+- Error copy renders with the **request-scoped** lingui instance, never the isolate-global locale.
+  If rendering fails, log and return a fixed generic English string.
+
+## Async
+
+- **No floating promises**: await or explicitly void; fire-and-forget uses
+  `c.executionCtx.waitUntil(...)`. Type-aware Oxlint is off, so this is a hard review gate.
+- `Promise.all` for independent work, sequential await only on a real dependency. Propagate
+  `AbortSignal` and use `AbortSignal.timeout(ms)` on outbound calls.

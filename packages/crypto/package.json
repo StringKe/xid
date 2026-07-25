@@ -1,0 +1,33 @@
+{
+  "name": "@xid-kit/crypto",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Web Crypto wrappers for XID: signing keys, JWT sign and verify, JWKS, envelope encryption and base64url helpers.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/crypto"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@xid-kit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "vitest": "catalog:"
+  }
+}

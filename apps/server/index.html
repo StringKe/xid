@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="origin-trial"
+      content="AwQJO+GulqA9rUZ4ndXF2fkvirbACtMu7uobk+QrJwUr/AyDVTJhlhSArLiiBlfYREF4J4lOdo7CFCcsV5MyYA0AAABueyJvcmlnaW4iOiJodHRwczovL3hpZC5kZXY6NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTc5NDg3MzYwMCwiaXNTdWJkb21haW4iOnRydWUsImlzVGhpcmRQYXJ0eSI6dHJ1ZX0="
+    />
+    <title>XID | Edge identity platform</title>
+    <meta
+      name="description"
+      content="XID is an edge-native identity platform for OIDC, OAuth, organization RBAC, enterprise SSO, SCIM, passkeys, and networkless JWT verification on Cloudflare."
+    />
+    <meta name="robots" content="index,follow" />
+    <meta name="application-name" content="XID" />
+    <meta name="theme-color" content="#111318" />
+    <link rel="canonical" id="xid-page-canonical" href="https://xid.dev/" />
+    <link rel="alternate" hreflang="en" href="https://xid.dev/" />
+    <link rel="alternate" hreflang="zh-Hans" href="https://xid.dev/?locale=zh-Hans" />
+    <link rel="alternate" hreflang="ja" href="https://xid.dev/?locale=ja" />
+    <link rel="alternate" hreflang="ko" href="https://xid.dev/?locale=ko" />
+    <link rel="alternate" hreflang="fr" href="https://xid.dev/?locale=fr" />
+    <link rel="alternate" hreflang="de" href="https://xid.dev/?locale=de" />
+    <link rel="alternate" hreflang="es" href="https://xid.dev/?locale=es" />
+    <link rel="alternate" hreflang="pt-BR" href="https://xid.dev/?locale=pt-BR" />
+    <link rel="alternate" hreflang="x-default" href="https://xid.dev/" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="LLMs.txt" />
+    <link rel="alternate" type="text/plain" href="/llms-full.txt" title="LLMs-full.txt" />
+    <meta property="og:site_name" content="XID" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://xid.dev/" />
+    <meta property="og:title" content="XID | Edge identity platform" />
+    <meta
+      property="og:description"
+      content="OIDC, OAuth, organization RBAC, enterprise SSO, SCIM, passkeys, and networkless JWT verification on Cloudflare."
+    />
+    <meta property="og:image" content="https://xid.dev/brand/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="XID edge identity platform brand card" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="XID | Edge identity platform" />
+    <meta
+      name="twitter:description"
+      content="OIDC, OAuth, organization RBAC, enterprise SSO, SCIM, passkeys, and networkless JWT verification on Cloudflare."
+    />
+    <meta name="twitter:image" content="https://xid.dev/brand/twitter-card.png" />
+    <meta name="twitter:image:alt" content="XID edge identity platform brand card" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://xid.dev/#organization",
+            "name": "XID",
+            "url": "https://xid.dev/",
+            "logo": "https://xid.dev/brand/logo.png"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://xid.dev/#website",
+            "name": "XID",
+            "url": "https://xid.dev/",
+            "publisher": { "@id": "https://xid.dev/#organization" },
+            "inLanguage": ["en", "zh-Hans", "ja", "ko", "fr", "de", "es", "pt-BR"],
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://xid.dev/docs?q={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://xid.dev/#software",
+            "name": "XID",
+            "applicationCategory": "SecurityApplication",
+            "operatingSystem": "Cloudflare Workers",
+            "url": "https://xid.dev/",
+            "image": "https://xid.dev/brand/og.png",
+            "publisher": { "@id": "https://xid.dev/#organization" },
+            "description": "Edge-native identity platform for OIDC, OAuth, organization RBAC, enterprise SSO, SCIM, passkeys, and networkless JWT verification on Cloudflare.",
+            "featureList": [
+              "OIDC and OAuth identity provider",
+              "Organization RBAC",
+              "Inbound enterprise SSO and SCIM",
+              "Downstream SaaS SAML and outbound SCIM local baselines",
+              "SDK matrix across web, mobile, desktop, and server runtimes",
+              "Passkey authentication",
+              "Networkless JWT verification on Cloudflare Workers"
+            ],
+            "offers": {
+              "@type": "Offer",
+              "category": "open source identity platform"
+            }
+          }
+        ]
+      }
+    </script>
+    <style>
+      /* SEO/no-JS 兜底 visually-hidden:保留在 DOM 供非渲染爬虫与无障碍树读取,
+         但 sighted 用户首帧不闪无样式内容(createRoot 渲染时会清空 #root)。
+         必须内联进 head,在任何 bundle 加载前的首帧即生效。 */
+      [data-seo-fallback] {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* 首帧主题兜底:bundle 加载前 html 即有正确底色与 color-scheme,避免 dark 系统白闪。
+         var() 在 ThemeProvider 挂载(darkTheme class / 品牌 inline 变量)后生效,
+         字面 fallback 与 tokens.stylex.ts 的 --xid-bg light/dark 同值。 */
+      html {
+        color-scheme: light;
+        background-color: var(--xid-bg, #fafafc);
+      }
+      html[data-theme='dark'] {
+        color-scheme: dark;
+        background-color: var(--xid-bg, #111318);
+      }
+    </style>
+    <script>
+      // 首帧按系统配色设 data-theme 与浏览器框色;ThemeProvider 挂载后接管维护。
+      ;(function () {
+        var dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        var meta = document.querySelector('meta[name="theme-color"]')
+        if (meta) meta.setAttribute('content', dark ? '#111318' : '#fafafc')
+      })()
+    </script>
+    <script>
+      // 与 JS bundle 并行预取 /v1/edge,landing 探针区块共享(EdgeProbeProvider)。
+      window.__XID_EDGE_PROBE__ = fetch('/v1/edge', { cache: 'no-store' })
+        .then(function (res) {
+          return res.ok ? res.json() : null
+        })
+        .catch(function () {
+          return null
+        })
+    </script>
+    <script>
+      // Google 标记网关(Cloudflare /ts,G-M7Q66DQ8KX):手动注入,控制台关闭自动标记。
+      ;(function () {
+        var host = location.hostname
+        if (host === 'localhost' || host === '127.0.0.1') return
+        if (host !== 'xid.dev' && !host.endsWith('.xid.dev')) return
+
+        window.dataLayer = window.dataLayer || []
+        function gtag() {
+          dataLayer.push(arguments)
+        }
+        window.gtag = gtag
+        gtag('js', new Date())
+        gtag('config', 'G-M7Q66DQ8KX', { send_page_view: false })
+
+        var script = document.createElement('script')
+        script.async = true
+        script.src = '/ts/'
+        document.head.appendChild(script)
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root">
+      <main data-seo-fallback>
+        <h1>XID edge identity platform</h1>
+        <p>
+          XID is an edge-native identity platform for OIDC, OAuth, organization RBAC, enterprise
+          SSO, SCIM, passkeys, and networkless JWT verification on Cloudflare.
+        </p>
+        <nav aria-label="XID technical documentation">
+          <a href="/docs">Developer docs</a>
+          <a href="/docs/hosted-auth">Hosted Auth docs</a>
+          <a href="/docs/oidc">OIDC alias docs</a>
+          <a href="/docs/oidc-oauth">OIDC and OAuth docs</a>
+          <a href="/docs/enterprise-sso">Enterprise SSO docs</a>
+          <a href="/docs/social-login">Social login docs</a>
+          <a href="/docs/saml">SAML docs</a>
+          <a href="/docs/scim">SCIM docs</a>
+          <a href="/docs/management-api">Management API docs</a>
+          <a href="/docs/webhooks">Webhooks docs</a>
+          <a href="/docs/branding">Branding docs</a>
+          <a href="/docs/sdks">SDK docs</a>
+          <a href="/docs/self-hosting">Self-hosting docs</a>
+        </nav>
+      </main>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

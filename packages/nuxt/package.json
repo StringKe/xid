@@ -1,0 +1,43 @@
+{
+  "name": "@xid-kit/nuxt",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Nuxt module for XID: runtime plugin and server middleware on top of @xid-kit/vue.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/nuxt"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@xid-kit/backend": "workspace:*",
+    "@xid-kit/core": "workspace:*",
+    "@xid-kit/types": "workspace:*",
+    "@xid-kit/vue": "workspace:*"
+  },
+  "devDependencies": {
+    "@xid-kit/crypto": "workspace:*",
+    "nuxt": "^4.5.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vue": "catalog:"
+  },
+  "peerDependencies": {
+    "nuxt": ">=3.0.0",
+    "vue": ">=3.3.0"
+  }
+}

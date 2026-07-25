@@ -1,0 +1,30 @@
+# Code owners for XID.
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# The last matching pattern wins. Enforcement requires the branch protection rule
+# "Require review from Code Owners" on main.
+
+# Default owner for everything not matched below.
+*                       @StringKe
+
+# Security-critical kernel libraries: cryptography, protocol correctness, tenant isolation.
+/packages/crypto/       @StringKe
+/packages/protocol/     @StringKe
+/packages/webauthn/     @StringKe
+/packages/saml/         @StringKe
+/packages/db/           @StringKe
+
+# The Worker: every protocol endpoint, Management API, and tenant resolution path.
+/apps/server/worker/    @StringKe
+
+# Supply chain and repository governance.
+/.github/workflows/     @StringKe
+/.github/               @StringKe
+/LICENSE                @StringKe
+/SECURITY.md            @StringKe
+/CONTRIBUTING.md        @StringKe
+/CODE_OF_CONDUCT.md     @StringKe
+
+# Design truth source: behavior changes start here.
+/docs/design/           @StringKe
+/docs/protocols/        @StringKe

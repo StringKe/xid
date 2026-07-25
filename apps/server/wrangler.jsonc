@@ -1,0 +1,166 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "xid",
+  "account_id": "86e4d320a5d69fb54f9721fb219a4902",
+  "main": "worker/index.ts",
+  "routes": [
+    { "pattern": "xid.dev", "custom_domain": true },
+    { "pattern": "*.xid.dev/*", "zone_name": "xid.dev" },
+  ],
+  "compatibility_date": "2025-04-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "persist": true,
+      "head_sampling_rate": 1,
+    },
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "xid-db",
+      "database_id": "149e5997-e684-41d0-b483-afa6948479c3",
+      "migrations_dir": "../../packages/db/drizzle",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "a827c644c20344aaa6c7760d76875122",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "xid-storage",
+    },
+  ],
+  "send_email": [{ "name": "EMAIL" }],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "xid_analytics",
+    },
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "EMAIL_QUEUE", "queue": "xid-email" },
+      { "binding": "WHATSAPP_QUEUE", "queue": "xid-whatsapp" },
+      { "binding": "SMS_QUEUE", "queue": "xid-sms" },
+      { "binding": "AUDIT_QUEUE", "queue": "xid-audit" },
+      { "binding": "WEBHOOK_QUEUE", "queue": "xid-webhook" },
+      { "binding": "METERING_QUEUE", "queue": "xid-metering" },
+    ],
+    "consumers": [
+      {
+        "queue": "xid-email",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-whatsapp",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-sms",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-audit",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-webhook",
+        "max_batch_size": 50,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+      {
+        "queue": "xid-metering",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-dlq",
+      },
+    ],
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSION_REVOCATION", "class_name": "SessionDO" },
+      { "name": "WEBAUTHN_CHALLENGE", "class_name": "ChallengeStore" },
+      { "name": "OAUTH_STATE", "class_name": "OAuthFlowDO" },
+      { "name": "PAR_STORE", "class_name": "ParStore" },
+      { "name": "DEVICE_FLOW", "class_name": "DeviceFlowStore" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimitStore" },
+      { "name": "AUDIT_SEQ", "class_name": "AuditSeqDO" },
+      { "name": "METERING", "class_name": "MeteringDO" },
+    ],
+  },
+  // 重建生产 D1 时不需要、也不能靠这里清 DO 状态。
+  // 不需要:所有 DO 实例名都由 tenantId / userId / 一次性随机值派生(audit-seq:{tenantId}、
+  // metering:{tenantId}、session:{userId}、state:{state}、authz:{tenantId}:{id} 等),
+  // bootstrap 重新 crypto.randomUUID() 出 org / user id 后,旧实例永远不会再被寻址,
+  // 新审计链从空 storage 起,seq 从 1、prev_hash 从 GENESIS 起。
+  // 不能:Delete migration 的前置条件是先把类从 Worker 代码与 durable_objects.bindings 里移除再部署
+  // (https://developers.cloudflare.com/durable-objects/reference/durable-object-class-migrations-legacy/),
+  // 同一次部署里 deleted_classes 删掉再用 new_sqlite_classes 建回同名类是未文档化行为,
+  // 而 "cannot enable a SQLite storage backend on an existing, deployed Durable Object class"
+  // 会让部署直接报错。真需要物理清空只能换类名(旧名进 deleted_classes、新名进 new_sqlite_classes)。
+  // 重建 D1 时为什么不该动 DO,见 docs/deployment.md 的 Wiping and rebuilding a live database 一节。
+  // tag v1 不动还有第二个理由:带新 migration tag 的 Worker 版本无法 versions upload
+  // (DO migration 是原子操作,不支持 gradual deployment),那会直接废掉非生产分支的预检链路。
+  // 已部署的类也不能从 new_sqlite_classes 改成 new_classes,存储后端一旦选定不可迁移。
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SessionDO",
+        "ChallengeStore",
+        "OAuthFlowDO",
+        "ParStore",
+        "DeviceFlowStore",
+        "RateLimitStore",
+        "AuditSeqDO",
+        "MeteringDO",
+      ],
+    },
+  ],
+  "triggers": {
+    "crons": ["0 * * * *", "0 2 * * *"],
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+  },
+  "env": {
+    "staging": {
+      "vars": { "ENVIRONMENT": "staging" },
+    },
+  },
+}

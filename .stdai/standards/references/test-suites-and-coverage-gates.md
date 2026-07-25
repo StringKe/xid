@@ -1,0 +1,35 @@
+---
+type: references
+name: test-suites-and-coverage-gates
+description: How tests run in each XID workspace (vp test, the two apps/server vitest configs, the root .mjs contract gates) and the exact coverage floor numbers for the core and worker gates
+---
+
+# Test Suites and Coverage Gates
+
+Lookup material extracted from the `testing` rule. It holds the per-workspace run commands, the
+test file layout numbers, and the exact coverage floor values. The rule itself keeps the
+conventions and the mandatory-coverage list. Read this when you need to actually run a suite,
+add a test file and are unsure where it goes, or are looking at a coverage gate failure.
+
+## How tests run per workspace
+
+vitest everywhere. How it runs depends on the workspace:
+
+- Library packages (`packages/*`) run `vp test` (Vite+ wrapper around vitest).
+- `apps/server` runs vitest directly with two configs: `vitest run --config vitest.worker.config.ts && vitest run --config vitest.spa.config.ts`.
+- `turbo run test` is the only cross-package entry point.
+- Repository-level gates at the root run vitest against `.mjs` contract tests: `test:key-paths`, `test:quality-gate`, `test:release-contracts`, plus the two coverage gates.
+
+## Layout and naming
+
+- Test files are named `<name>.test.ts`. The dominant layout is a `__tests__/` directory next to the code under test (roughly 247 of 280 TS test files); co-locating beside the source is acceptable for small single-module tests. There are currently no `.spec.ts` files.
+- Use `it()`, not `test()` -- the tree is uniformly `it()`.
+
+## Coverage Gates
+
+Coverage floors exist and are enforced by `pnpm check`; they are regression guards, not targets.
+
+- Core gate (`vitest.coverage-gate.config.ts`, default): `packages/protocol`, `packages/crypto`, `packages/webauthn` at lines 70 / functions 70 / branches 55 / statements 70.
+- Worker gate (`XID_COVERAGE_GATE=worker`): durable objects, queue consumers, the token endpoints and `worker/lib/session.ts` at lines 78 / functions 85 / branches 71 / statements 75.
+
+Thresholds are set 3 to 4 points below the measured value on purpose. Do not raise a threshold to sit flush against the current number -- an unrelated refactor jitter would then turn CI red for no signal.

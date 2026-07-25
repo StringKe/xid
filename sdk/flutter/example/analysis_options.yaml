@@ -1,0 +1,4 @@
+analyzer:
+  errors:
+    # Example apps are not published; path dependencies are intentional.
+    invalid_dependency: ignore

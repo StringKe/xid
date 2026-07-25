@@ -1,0 +1,147 @@
+# SDK Platform Matrix
+
+Chinese version: [../zh-Hans/sdks/platform-matrix.md](../zh-Hans/sdks/platform-matrix.md)
+
+This document answers one question: does XID have an SDK for the language, framework or platform you are about to use, and how mature is it. The reader is a developer evaluating XID or preparing an integration.
+
+The coverage target is the mainstream server runtimes and languages, plus client-side web frameworks, mobile and desktop. Maturity varies a lot. Every row below carries a status, so judge by the status, not by the mere presence of a row.
+
+## Distribution
+
+- `@xid-kit/*` are npm workspace packages published with the repository.
+- The 13 native SDKs under `sdk/` (go, java, rust, php, ruby, python, dotnet, ios, android, macos, windows, linux, flutter) are **not published to any registry**: not crates.io, PyPI, Maven, RubyGems, Packagist, NuGet, CocoaPods or pub.dev. They ship as source inside the repository. CI runs no language toolchain and none of their test suites: `pnpm check` chains `pnpm native:verify`, which only asserts that every platform in the contract matrix of `tests/native-sdk-contract.test.mjs` points at a directory that exists. Running a platform's real suite is a local opt-in (`XID_NATIVE_SDK_PLATFORM=go pnpm native:verify`); see [../deployment.md](../deployment.md). To use one, vendor the source or reference it from a local path as described in its own README.
+
+## Status vocabulary
+
+- `current package`: the repository has the package, the source, a test entry point and the workspace configuration.
+- `implemented`: the toolchain compiles and every unit test is PASS. **The real-IdP round trip (L4) is not verified, so do not treat it as a complete production SDK.**
+- `scaffold`: the repository has a starting skeleton with a minimal package, types, README or sample. **It is not a complete production SDK.** The source exists but the tests have not been validated. Before production use it must compile in the real toolchain and be verified against a real IdP round trip.
+- `planned design`: only the platform design and integration flow exist, with no code skeleton in the repository. (Every platform is currently at least scaffold; this status is reserved for platforms added in future.)
+
+## Server matrix
+
+Server SDKs perform networkless JWT verification, request authentication and webhook verification. They never store a client secret in a public client. Web-standard runtimes (Workers, Node, Bun, Deno) share `@xid-kit/backend` (Web Crypto); other languages use their own native SDK under `sdk/<lang>`.
+
+| Runtime / language | Package or directory | Status          | Test coverage                                | Responsibilities                                     |
+| ------------------ | -------------------- | --------------- | -------------------------------------------- | ---------------------------------------------------- |
+| Cloudflare Workers | `@xid-kit/backend`   | current package | exports plus verify unit tests               | Networkless JWT verify, request auth, webhook verify |
+| Node.js            | `@xid-kit/backend`   | current package | Same as above                                | Same as above (web-standard runtime, Web Crypto)     |
+| Bun                | `@xid-kit/backend`   | current package | Same as above                                | Same as above (web-standard runtime)                 |
+| Deno               | `@xid-kit/backend`   | current package | Same as above                                | Same as above (web-standard runtime)                 |
+| Go                 | `sdk/go`             | implemented     | `go test ./...`                              | Native JWT verify, request auth, webhook verify      |
+| Java               | `sdk/java`           | implemented     | main() self-test (JDK 25, zero dependencies) | Native JWT verify, request auth, webhook verify      |
+| Rust               | `sdk/rust`           | implemented     | `cargo test`                                 | Native JWT verify, request auth, webhook verify      |
+| PHP                | `sdk/php`            | implemented     | `run-tests.php` plus PHPUnit                 | Native JWT verify, request auth, webhook verify      |
+| Ruby               | `sdk/ruby`           | implemented     | minitest (Ruby 2.6, zero dependencies)       | Native JWT verify, request auth, webhook verify      |
+| Python             | `sdk/python`         | implemented     | pytest (Python 3.14, PyJWT + cryptography)   | Native JWT verify, request auth, webhook verify      |
+| .NET               | `sdk/dotnet`         | implemented     | `dotnet test` (net8.0 + net9.0)              | Native JWT verify, request auth, webhook verify      |
+
+### Server gaps
+
+- **PHP**: both PHPUnit and `run-tests.php` pass. JwksCache accepts an injected PSR-18 HTTP client.
+- **Python**: the tests need `httpx`, `PyJWT`, `cryptography` and `pytest-asyncio`. Run `pip install -e ".[dev]"` and then `pytest`.
+- **All server SDKs**: the L4 real-IdP round trip is not verified. Do not treat them as production-ready.
+
+## Client matrix: web frameworks
+
+The framework layer sits on top of `@xid-kit/core` (the browser core) and supplies providers, hooks/composables/stores and prebuilt components. Every `@xid-kit/*` framework package is a current package with a provider, hooks and type exports; the higher-level prebuilt UI components are still evolving.
+
+| Framework          | Package or directory | Status          | Test coverage                                                          | Responsibilities                                                  |
+| ------------------ | -------------------- | --------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Vanilla JS / Web   | `@xid-kit/core`      | current package | -                                                                      | Browser client, session store, token cache, Management API helper |
+| React              | `@xid-kit/react`     | current package | `vp test` exports test PASS; public exports match `docs/sdks/react.md` | Provider, hooks, control components, user UI, organization UI     |
+| Next.js            | `@xid-kit/nextjs`    | current package | -                                                                      | Middleware, App Router helper, Pages Router helper, server auth   |
+| Vue                | `@xid-kit/vue`       | current package | -                                                                      | Plugin, composables, prebuilt components                          |
+| Nuxt               | `@xid-kit/nuxt`      | current package | -                                                                      | Module, server middleware, composables                            |
+| Svelte / SvelteKit | `@xid-kit/svelte`    | current package | -                                                                      | Stores, actions, prebuilt components                              |
+| Angular            | `@xid-kit/angular`   | current package | -                                                                      | Provider, guards, services, components                            |
+| Remix              | `@xid-kit/remix`     | current package | -                                                                      | Loader/action helpers, session integration                        |
+| Astro              | `@xid-kit/astro`     | current package | -                                                                      | Integration, middleware, island components                        |
+| SolidJS            | `@xid-kit/solid`     | current package | -                                                                      | Provider, primitives, components                                  |
+
+## Client matrix: mobile
+
+| Platform         | Package or directory    | Status          | Test coverage                                                     | Responsibilities                                                                         |
+| ---------------- | ----------------------- | --------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| React Native     | `@xid-kit/react-native` | implemented     | Unit tests plus typecheck                                         | Hosted redirect, deep link callback, state-keyed PKCE S256, secure token storage adapter |
+| Expo             | `@xid-kit/expo`         | current package | -                                                                 | Expo Router integration, AuthSession, SecureStore adapter                                |
+| Flutter          | `sdk/flutter`           | implemented     | `flutter test`                                                    | Hosted redirect, state-keyed PKCE S256, secure storage adapter, JWKS signature check     |
+| iOS (Swift)      | `sdk/ios`               | implemented     | `swift test` (compiled on macOS; the Keychain runner needs Xcode) | ASWebAuthenticationSession, Keychain storage, state-keyed PKCE S256                      |
+| Android (Kotlin) | `sdk/android`           | implemented     | `gradle testDebugUnitTest` (JVM unit tests)                       | Custom Tabs, JWKS signature check, RP-initiated logout, Keystore storage, PKCE S256      |
+
+### Mobile gaps
+
+- **iOS**: the tests run on the macOS platform. `ASWebAuthenticationSession`, `UIApplication` and real Keychain behaviour need an iOS simulator or a device. `KeychainTokenStorageTests` depends on a Keychain entitlement, so its result has to be confirmed inside Xcode.
+- **Android**: JVM unit tests only (PKCE, State and InMemoryStorage). `EncryptedSharedPreferences` (Keystore AES-256-GCM), the `CustomTabs` browser session and the App Links callback all need an Android device or emulator. `testInstrumentationRunner` has not been run.
+- **React Native**: TokenCache and BrowserInterface are both injected adapters. Real SecureStore, Keychain, EncryptedSharedPreferences, deep links and the real-IdP round trip need a device or emulator.
+- **Flutter**: the tests do not cover the real platform paths of `flutter_secure_storage` or `flutter_web_auth_2` (only the pure Dart logic in InMemoryStorageAdapter, Pkce and XidSession). Platform channels and the real-IdP round trip need a device or emulator.
+
+## Client matrix: desktop
+
+| Platform | Package or directory | Status          | Test coverage                                                  | Responsibilities                                                     |
+| -------- | -------------------- | --------------- | -------------------------------------------------------------- | -------------------------------------------------------------------- |
+| macOS    | `sdk/macos`          | implemented     | `swift test`                                                   | ASWebAuthenticationSession, Keychain storage, PKCE S256              |
+| Windows  | `sdk/windows`        | implemented     | `dotnet test` (net8.0 cross-platform build, tested on net10.0) | JWKS id token verify, end_session, nonce, WebView2, DPAPI, PKCE S256 |
+| Linux    | `sdk/linux`          | implemented     | `cargo test`                                                   | System browser redirect, JWKS ID token verify, PKCE S256             |
+| Electron | `@xid-kit/electron`  | current package | -                                                              | Main/renderer bridge, safeStorage, loopback/custom scheme callback   |
+| Tauri    | `@xid-kit/tauri`     | current package | -                                                              | Rust backend bridge, OS keychain, PKCE S256                          |
+
+### Desktop gaps
+
+- **macOS**: the Keychain tests run on the local machine. The `ASWebAuthenticationSession` OAuth callback flow needs a running XID server endpoint. The L4 round trip is not verified.
+- **Windows**: the `net8.0` cross-platform target compiles, and JWKS signature verification plus `/end_session` are implemented. The Windows-specific APIs (`WebView2`, `DPAPI`, `WinUI 3`) compile only under the `net8.0-windows10.0.19041.0` TFM and need a Windows build environment to verify. `DpapiTokenStorage` cannot run on a non-Windows system.
+- **Linux**: the `secret-service-storage` feature is not enabled. `SecretServiceStorage` needs a `gnome-keyring` or `kwallet` D-Bus daemon. In a headless environment (CI, no desktop) it falls back to `InMemoryStorage`.
+
+## Shared native contract
+
+All native SDKs use Hosted Auth plus OIDC Authorization Code with PKCE S256. They do not implement SAML, SCIM, Management API business flows, implicit flow, password grant, or client secret storage in public clients.
+
+JS/TS native SDKs (`@xid-kit/react-native`, `@xid-kit/expo`) use a React Provider + hooks model. Non-JS SDKs (iOS, Android, Flutter, macOS) use a configure/signIn/handleRedirect functional API.
+
+JS/TS native common API surface (Provider props / hook returns):
+
+```text
+XidProvider props:
+  publishableKey
+  issuer
+  clientId
+  redirectUri
+  scopes
+  tokenCache       (TokenCache adapter)
+  browser          (BrowserInterface adapter)
+
+useSignIn() returns:
+  signIn(options?)  -> Promise<void>   (builds PKCE authorize URL, opens browser)
+  handleRedirect(url) -> Promise<void> (validates CSRF state, exchanges code, stores tokens)
+  signInState       (idle | pending | complete | cancelled | error)
+
+useSignOut() returns:
+  signOut()         -> Promise<void>
+  signOutState      (idle | pending | complete | error)
+```
+
+Common concepts:
+
+```text
+issuer
+clientId
+redirectUri
+scopes
+codeChallengeMethod=S256
+tokenCache / tokenStorage
+session
+user
+organization
+```
+
+Common adapter interfaces (JS/TS):
+
+```text
+TokenCache:
+  getToken(key)           -> Promise<string | null>
+  saveToken(key, value)   -> Promise<void>
+  deleteToken(key)        -> Promise<void>
+
+BrowserInterface:
+  openAuthSession(url, redirectUri) -> Promise<BrowserResult>
+```

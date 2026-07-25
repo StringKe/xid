@@ -1,0 +1,35 @@
+---
+type: references
+name: helper-placement-guide
+description: Where a new helper belongs in XID - flat topic modules inside a package, worker/lib for worker-wide helpers, @xid-kit/types for cross-package contracts - and how Queues, KV, R2, and TTL constants are accessed
+---
+
+# Helper Placement Guide
+
+Placement material split out of the `utils-abstraction` rule. That rule holds the rule of three and
+the pure-function principles; this file holds the concrete answer to "where does this new helper
+go" plus the access patterns for each Cloudflare binding and the list of packages you must not
+reimplement. Read it before creating a new module, before adding a directory under a package's
+`src/`, before sending to a Queue or reading KV / R2, and before writing anything that touches
+signing, hashing, WebAuthn, or SAML.
+
+## Where Things Live
+
+- Inside a package, helpers are flat topic-named modules directly under `packages/<pkg>/src/`, not a `utils/` subdirectory. Existing shape: `packages/protocol/src/pkce.ts`, `packages/protocol/src/refresh.ts`, `packages/crypto/src/base64url.ts`, `packages/crypto/src/envelope.ts`. Name the module after the concept, not after "utils".
+- Worker-wide shared helpers live in `apps/server/worker/lib/` and are re-exported through `apps/server/worker/lib/index.ts` (session, cookies, locale, errors, validation, TTL constants).
+- Cross-package shared contracts go in `@xid-kit/types` (`packages/types/src/`): `XidError`, `XidErrorCode`, `Result`, `TenantContext`, claims, env and signing types. There is **no** `@xid-kit/utils` package and none should be created without a genuine two-or-more-package need.
+- Never push business logic into a helper module.
+
+## Cloudflare Bindings (MUST)
+
+- **D1 is never touched directly.** All relational access goes through `createTenantDb` from `@xid-kit/db`, which injects the `tenant_id` / `org_id` predicate automatically (see tenant-isolation rule). Raw SQL and unfiltered `db.select().from(...)` are forbidden. This is enforced by `packages/db/src/__tests__/isolation.test.ts`.
+- **Queues**: producers call `c.env.<NAME>_QUEUE.send(...)` directly; type safety comes from the `Queue<T>` declarations in `apps/server/worker/env.d.ts` (`EMAIL_QUEUE`, `WHATSAPP_QUEUE`, `SMS_QUEUE`, `AUDIT_QUEUE`, `WEBHOOK_QUEUE`, `METERING_QUEUE`). Consumers live in `apps/server/worker/queues/`. Add a new message type to `env.d.ts` rather than sending an untyped payload.
+- **KV (`CACHE`) and R2 (`STORAGE`)** are read through `c.env` at the call site. What MUST stay centralized is the surrounding policy, not the call:
+  - TTLs and limits belong in `apps/server/worker/lib/ttl.ts` (`JWKS_CACHE_TTL_SEC`, `DISCOVERY_CACHE_TTL_SEC`, `TOTP_REPLAY_KV_TTL_SEC`, `OTP_PHONE_TTL_MS`, ...). Never inline a magic TTL number at a call site.
+  - Key naming follows the conventions in the cloudflare-bindings rule.
+  - R2 public serving goes through `registerStorageRoutes` in `apps/server/worker/storage.ts`, not ad-hoc object fetches from route handlers.
+
+## Cryptography and Protocol (Do Not Reimplement)
+
+- Signing, verification and hashing go through `@xid-kit/crypto`; protocol logic through `@xid-kit/protocol` (see crypto-boundary rule).
+- WebAuthn verification goes through `@xid-kit/webauthn`; SAML through `@xid-kit/saml`. Application code never reimplements any of these.

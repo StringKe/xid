@@ -1,0 +1,34 @@
+---
+type: rules
+name: monorepo-toolchain
+description: 'Monorepo ownership: pnpm owns dependencies, turborepo is the only cross-package orchestrator, Vite+ (vp) owns lint/format/test/packaging, standard Vite owns app builds'
+priority: high
+applyTo:
+  - 'pnpm-workspace.yaml'
+  - 'turbo.json'
+  - 'vite.config.ts'
+  - '**/package.json'
+  - '**/vite.config.ts'
+targets: [claude-code]
+---
+
+# Monorepo Toolchain
+
+Four tools, no overlap: pnpm owns dependency install, `workspace:*` and catalog pinning; turborepo is
+the **only** cross-package orchestrator; Vite+ (`vp`) owns code quality (`check` = Oxfmt + Oxlint,
+`fmt`, `test`) and library packaging (`pack`); standard Vite owns app dev/build.
+
+## MUST follow
+
+- No prettier, no eslint: lint is Oxlint, format is Oxfmt, both inside vp.
+- **`apps/server` dev/build runs standard Vite**, not `vp dev` / `vp build` -- the Cloudflare
+  SPA + Worker integration depends on the standard Vite plugin ecosystem.
+- **Library packages (`packages/*`) build with `vp pack`**, exposed as their `build` script.
+- Type checking does **not** run inside `vp check` (`typeAware` and `typeCheck` are both off in the
+  root config); it is the separate turbo `typecheck` task running `tsc --noEmit`.
+- Never use `vp run -r` as the cross-package entry point -- that is turbo's job.
+
+This rule intentionally carries no command tables. Before running install / dev / build / lint /
+typecheck / test / deploy in any workspace, or editing `pnpm-workspace.yaml` or the root
+`vite.config.ts`, read reference `toolchain-command-reference`: per-workspace command matrix, what
+`pnpm check` chains in CI, turbo task dependencies, scaffolding a new package, config examples.

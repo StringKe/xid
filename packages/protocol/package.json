@@ -1,0 +1,34 @@
+{
+  "name": "@xid-kit/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "OIDC and OAuth 2 protocol kernel for XID: authorize, token, PKCE S256, refresh rotation, DPoP and discovery.",
+  "homepage": "https://xid.dev",
+  "bugs": {
+    "url": "https://github.com/StringKe/xid/issues"
+  },
+  "license": "MIT",
+  "author": "StringKe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StringKe/xid.git",
+    "directory": "packages/protocol"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@xid-kit/crypto": "workspace:*",
+    "@xid-kit/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "vitest": "catalog:"
+  }
+}

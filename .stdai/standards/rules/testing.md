@@ -1,0 +1,42 @@
+---
+type: rules
+name: testing
+description: vitest conventions - AAA structure, descriptive names, mandatory coverage of protocol / tenant isolation / password / token / enumeration paths, negative paths, no placeholder tests
+priority: normal
+applyTo:
+  - '**/*.test.ts'
+  - '**/*.test.mjs'
+  - '**/*.spec.ts'
+targets: [claude-code]
+---
+
+# Testing Conventions
+
+vitest everywhere; invocation differs per workspace. Per-workspace commands, file layout, contract
+gates, exact coverage floors: reference `test-suites-and-coverage-gates` -- read before running a
+suite or reacting to a coverage gate failure. Coverage floors are regression guards, not targets:
+never raise one flush against the current number.
+
+## Structure
+
+- AAA: Arrange / Act / Assert, separated by blank lines.
+- Names state scenario and expectation: `it('rejects PKCE plain challenge', ...)`, never `it('works')`.
+- One assertion theme per `it`. Share setup with `beforeEach`; never share mutable state.
+
+## Mandatory coverage (security-sensitive paths)
+
+Each already has tests -- extend them, never start a parallel suite.
+
+- Protocol: PKCE S256 enforcement, exact `redirect_uri` matching, refresh rotation plus family
+  revocation on replay, the four WebAuthn checks, `jti` replay defense.
+- Tenant isolation / privilege escalation: org A context against an org B resource MUST assert 403 or
+  404 and MUST NOT leak existence. Anchors `packages/db/src/__tests__/isolation.test.ts` and
+  `apps/server/worker/v1/__tests__/isolation.test.ts`.
+- Password: Argon2id hash and verify, HIBP lookup, single-use reset tokens.
+- Token: issuance and verification, expiry, near-real-time revocation through the Durable Object.
+- Enumeration defense: opaque uniform error responses, constant-time behavior.
+- Boundaries: empty input, oversized input, expiry, concurrency, cloned `sign_count`, clock skew, and
+  the valibot failure path for every untrusted input.
+
+Never write placeholder, pure-type or framework-boilerplate tests, never write a test purely to move
+a coverage number, and do not test third-party library behavior.

@@ -1,0 +1,7 @@
+# 工具版本管理(mise)。本地与 CI 统一锁定 runtime + 包管理器版本,
+# 替代手动 nvm/corepack/setup-node。进项目目录 mise 自动激活;首次 mise install。
+# 不用 prettier/eslint:代码质量走 vite-plus 内置 oxlint(lint)+ oxfmt(format),见根 vite.config.ts。
+
+[tools]
+node = "24.15.0"
+pnpm = "10.33.4"

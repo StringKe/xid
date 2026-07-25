@@ -1,0 +1,35 @@
+---
+type: rules
+name: git-commit
+description: Conventional Commits 1.0.0 message format, mandatory DCO sign-off, and the ban on rewriting pushed history
+priority: normal
+applyTo:
+  - '**/*'
+targets: [claude-code, codex]
+---
+
+# Git Commit Rules
+
+[Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
+`<type>(<scope>): <description>`, types `feat` `fix` `docs` `style` `refactor` `perf` `test` `build`
+`ci` `chore`; breaking changes append `!`.
+
+- Stage every file that belongs to the change. Never silently exclude one.
+- Never commit `.env` files, secrets, real tenant identifiers, tokens, client secrets, or private
+  keys -- tell the user instead of deciding for them.
+- Never add `Co-Authored-By` trailers or any other AI attribution.
+- Every commit MUST carry a `Signed-off-by` trailer matching the author (`git commit -s`); pull
+  requests with unsigned commits are blocked.
+
+## Never rewrite pushed history
+
+- FAIL: `git commit --amend`, `git rebase`, or `git reset --hard <older>` followed by
+  `git push --force` / `--force-with-lease` on a pushed branch.
+- The only way to correct a pushed commit is a new commit plus a fast-forward push.
+- `main` is never force-pushed and nothing is pushed directly to it. Branch first.
+- There is exactly one narrow exception, spelled out in reference `git-workflow-details`. If you have
+  not read it, there is no exception.
+
+DCO mechanics, that exception, and the pre-pull-request command list: reference
+`git-workflow-details`. `stdagent sync` output is tracked on purpose: commit it with the source
+change, never edit or `.gitignore` one -- see reference `stdagent-config-workflow`.

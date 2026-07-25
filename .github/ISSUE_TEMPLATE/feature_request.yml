@@ -1,0 +1,88 @@
+name: Feature request
+description: Propose a capability or a change in behavior
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `docs/design/` is the truth source for product behavior (index: `docs/design/README.md`).
+        A proposal that contradicts a documented decision needs to argue against that decision
+        explicitly, not around it.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and discussions
+          required: true
+        - label: I checked `docs/design/` and `docs/protocols/gap-audit.md` for an existing decision or a planned item
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: The situation that does not work today. Describe the problem, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What XID should do. For protocol features, name the specification and the sections involved.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Worker - OIDC / OAuth endpoints
+        - Worker - SAML (inbound or outbound)
+        - Worker - SCIM 2.0
+        - Worker - Management API (/v1/*)
+        - Worker - sessions, tokens, revocation
+        - Worker - WebAuthn / passkeys
+        - Worker - password, MFA, passwordless
+        - Worker - multi-tenancy, RBAC, isolation
+        - Hosted UI - auth pages
+        - Hosted UI - account portal
+        - Console - organization
+        - Console - platform
+        - Kernel library (packages/)
+        - TypeScript SDK (packages/)
+        - Native SDK (sdk/)
+        - Documentation
+        - Build, tooling, or CI
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Approaches you rejected and why. Include workarounds available today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Compatibility and security impact
+      description: Does this change token contents, session semantics, tenant isolation, or a public SDK API? Is it a breaking change?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to implement this?
+      options:
+        - Yes, I would open a pull request
+        - Yes, with guidance on the approach
+        - 'No'
+    validations:
+      required: true

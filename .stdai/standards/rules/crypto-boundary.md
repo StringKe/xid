@@ -1,0 +1,38 @@
+---
+type: rules
+name: crypto-boundary
+description: Crypto primitives come from Web Crypto and are never hand-written; protocol and business logic are in-house; SAML XML signing uses xmldsigjs
+priority: high
+applyTo:
+  - 'packages/crypto/**/*.ts'
+  - 'packages/protocol/**/*.ts'
+  - 'packages/webauthn/**/*.ts'
+  - 'packages/saml/**/*.ts'
+targets: [claude-code, codex]
+---
+
+# Build-vs-Buy Boundary
+
+Principle: **primitives come from the platform, protocol and business logic are in-house, legacy XML
+signature formats use a mature library.** See `docs/design/00-overview.md` section 4.
+
+## Prohibitions (MUST)
+
+- Never hand-write AES / RSA / ECDSA / SHA / HKDF / random generation. Use `crypto.subtle` and
+  `crypto.getRandomValues`.
+- Never pull in a general-purpose crypto library for core signing or verification. `@noble/hashes` is
+  permitted for Argon2id password hashing only (`apps/server/worker/auth/password.ts`); JWT, JWKS,
+  DPoP, envelope encryption and WebAuthn signature paths MUST stay on Web Crypto.
+- Never write your own XML signature or canonicalization code, and never disable the XSD validator to
+  work around a schema failure (signature wrapping risk).
+
+The five-category matrix (primitives, protocol kernel, password hashing, format codecs, XML
+signatures) with the rationale per category: reference `crypto-build-vs-buy-matrix`. Consult it
+before adding any cryptography-adjacent dependency.
+
+## SAML on Workers (P0 risk)
+
+Workers has no native XML-DSig, C14N or XML parsing, so the library must be pure JS. `xmldsigjs` +
+`@xmldom/xmldom` shipped in `packages/saml`, but it is **not yet validated against a real IdP** --
+do not describe SAML as production-ready. Per-library evaluation, wiring steps and open
+pre-production risks: reference `saml-library-evaluation`.

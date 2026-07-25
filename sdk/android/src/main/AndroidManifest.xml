@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  XID Android SDK - AndroidManifest.xml (library module)
+  MIT
+
+  Integration instructions for the host app:
+  Add an intent-filter to your callback Activity in the app's AndroidManifest.xml.
+  Choose App Links (recommended) or Custom Scheme.
+
+  App Links callback (recommended, requires /.well-known/assetlinks.json on your domain):
+  <activity android:name=".YourCallbackActivity" android:exported="true">
+      <intent-filter android:autoVerify="true">
+          <action android:name="android.intent.action.VIEW" />
+          <category android:name="android.intent.category.DEFAULT" />
+          <category android:name="android.intent.category.BROWSABLE" />
+          <data android:scheme="https"
+                android:host="yourapp.example.com"
+                android:pathPrefix="/auth/callback" />
+      </intent-filter>
+  </activity>
+
+  Custom Scheme callback (no server-side setup needed, less secure):
+  <activity android:name=".YourCallbackActivity" android:exported="true">
+      <intent-filter>
+          <action android:name="android.intent.action.VIEW" />
+          <category android:name="android.intent.category.DEFAULT" />
+          <category android:name="android.intent.category.BROWSABLE" />
+          <data android:scheme="xid.yourapp" android:host="callback" />
+      </intent-filter>
+  </activity>
+
+  Handle the callback in your Activity:
+  override fun onNewIntent(intent: Intent) {
+      super.onNewIntent(intent)
+      intent.data?.let { uri ->
+          lifecycleScope.launch {
+              val session = Xid.handleRedirect(uri.toString())
+          }
+      }
+  }
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- library module: no application tag needed -->
+
+    <!-- Network access: OIDC discovery and token endpoints -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

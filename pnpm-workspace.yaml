@@ -1,0 +1,49 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# 统一第三方依赖版本,各包用 "catalog:" 引用,避免多版本漂移
+catalog:
+  '@cloudflare/vite-plugin': ^1.47.0
+  '@cloudflare/workers-types': ^5.20260724.1
+  '@lingui/babel-plugin-lingui-macro': ^6.6.0
+  '@lingui/cli': ^6.6.0
+  '@lingui/core': ^6.6.0
+  '@lingui/react': ^6.6.0
+  '@lingui/vite-plugin': ^6.6.0
+  '@noble/hashes': ^2.2.0
+  '@rolldown/plugin-babel': ^0.2.3
+  '@tanstack/react-query': ^5.101.4
+  '@tanstack/react-router': ^1.170.18
+  '@tanstack/react-table': ^8.21.3
+  '@types/react': ^19.2.17
+  '@types/react-dom': ^19.2.3
+  '@vitest/coverage-v8': ^4.1.10
+  drizzle-kit: ^0.31.10
+  drizzle-orm: ^0.45.2
+  es-toolkit: ^1.50.0
+  hono: ^4.12.32
+  jsdom: ^29.1.1
+  motion: ^12.42.2
+  react: ^19.2.8
+  react-dom: ^19.2.8
+  valibot: ^1.4.2
+  vite: ^8.1.5
+  vitest: ^4.1.10
+  wrangler: ^4.114.0
+
+overrides:
+  '@cloudflare/vitest-pool-workers': ^0.16.11
+  '@stylexjs/stylex': ^0.18.3
+  '@stylexjs/unplugin': ^0.18.3
+  '@testing-library/react': ^16.3.0
+  '@types/node': ^22.0.0
+  '@xmldom/xmldom': ^0.9.10
+  jsdom: ^29.1.1
+  rxjs: ^7.8.1
+  solid-js: ^1.9.7
+  turbo-stream: ^3.2.0
+  typescript: ^6.0.3
+  undici: ^7.28.0
+  vue: ^3.5.0
+  xmldsigjs: ^2.8.7

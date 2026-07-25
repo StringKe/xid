@@ -1,0 +1,91 @@
+// Main process: loopback HTTP callback server for OIDC authorization code flow.
+// Implements RFC 8252 s.7.3: bind on 127.0.0.1 with OS-assigned port, serve
+// exactly one GET /callback, then shut down.
+//
+// This module runs only in the main process (uses node:http).
+
+import { createServer } from 'node:http'
+import type { Server } from 'node:http'
+
+import type { LoopbackCallbackServer } from '../types'
+
+const DEFAULT_TIMEOUT_MS = 300_000 // 5 minutes
+
+/**
+ * Bind a loopback HTTP server on an OS-assigned port and wait for the
+ * OAuth /callback GET request.
+ *
+ * Usage in the main process:
+ *   const loopback = await startLoopbackServer()
+ *   // Pass loopback.redirectUri to the authorize URL
+ *   // After shell.openExternal(authorizeUrl) ...
+ *   const callbackUrl = await loopback.waitForCallback()
+ *   await loopback.close()
+ */
+export async function startLoopbackServer(): Promise<LoopbackCallbackServer> {
+  const server = await bindServer()
+  const address = server.address()
+  if (typeof address !== 'object' || address === null) {
+    throw new Error('[xid-electron] loopback server: unexpected address type')
+  }
+  const port = address.port
+  const redirectUri = `http://127.0.0.1:${port}/callback`
+
+  return {
+    redirectUri,
+    waitForCallback: (options) => waitForCallback(server, options?.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+    close: () => closeServer(server),
+  }
+}
+
+function bindServer(): Promise<Server> {
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    server.listen(0, '127.0.0.1', () => {
+      resolve(server)
+    })
+    server.on('error', reject)
+  })
+}
+
+function waitForCallback(server: Server, timeoutMs: number): Promise<URL> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('[xid-electron] loopback callback timed out'))
+      void closeServer(server)
+    }, timeoutMs)
+
+    server.on('request', (req, res) => {
+      const rawUrl = req.url ?? ''
+      // Only handle /callback requests; ignore browser favicon etc.
+      if (!rawUrl.startsWith('/callback')) {
+        res.writeHead(404).end()
+        return
+      }
+
+      clearTimeout(timer)
+
+      // Respond immediately so the browser shows a confirmation.
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(CALLBACK_HTML)
+
+      // Reconstruct absolute URL (with port) for parseCallbackUrl() downstream.
+      const address = server.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      const fullUrl = new URL(`http://127.0.0.1:${port}${rawUrl}`)
+      void closeServer(server).catch(() => undefined)
+      resolve(fullUrl)
+    })
+  })
+}
+
+function closeServer(server: Server): Promise<void> {
+  return new Promise((resolve) => {
+    server.close(() => resolve())
+  })
+}
+
+const CALLBACK_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign in complete</title></head>
+<body><p>You have signed in. This window can be closed.</p></body>
+</html>`
