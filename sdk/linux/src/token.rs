@@ -137,7 +137,7 @@ pub struct IdTokenClaims {
     pub aud: serde_json::Value,
     pub exp: i64,
     pub iat: i64,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nbf: Option<i64>,
     pub name: Option<String>,
     pub email: Option<String>,

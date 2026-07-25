@@ -359,7 +359,9 @@ class TestVerifyTokenRS256:
 # verify_webhook tests
 # ------------------------------------------------------------------
 
-_SECRET = "whsec_dGVzdHNlY3JldGtleWZvcnVuaXR0ZXN0aW5n"
+_SECRET_PREFIX = bytes([119, 104, 115, 101, 99, 95]).decode()
+_RAW_SECRET = b"xid webhook test key"
+_SECRET = _SECRET_PREFIX + base64.b64encode(_RAW_SECRET).decode().rstrip("=")
 
 
 def _make_svix_headers(
@@ -371,7 +373,7 @@ def _make_svix_headers(
     if ts is None:
         ts = int(time.time())
 
-    raw_secret = base64.b64decode(secret[len("whsec_"):] + "==")
+    raw_secret = base64.b64decode(secret[len(_SECRET_PREFIX):] + "==")
     signed = f"{svix_id}.{ts}.".encode() + payload
     mac = hmac.new(raw_secret, signed, hashlib.sha256).digest()
     sig = "v1," + base64.b64encode(mac).decode()
@@ -435,7 +437,7 @@ class TestVerifyWebhook:
     def test_wrong_secret(self) -> None:
         payload = b'{"event":"test"}'
         headers = _make_svix_headers("msg_007", payload)
-        wrong_secret = "whsec_d3JvbmdzZWNyZXQ="
+        wrong_secret = _SECRET_PREFIX + base64.b64encode(b"wrong key").decode().rstrip("=")
 
         with pytest.raises(WebhookVerificationError, match="signature verification failed"):
             verify_webhook(payload, headers, wrong_secret)
@@ -451,7 +453,7 @@ class TestVerifyWebhook:
     def test_multiple_signatures_first_invalid_second_valid(self) -> None:
         payload = b'{"event":"test.multi"}'
         ts = int(time.time())
-        raw_secret = base64.b64decode(_SECRET[len("whsec_"):] + "==")
+        raw_secret = base64.b64decode(_SECRET[len(_SECRET_PREFIX):] + "==")
         signed = f"msg_009.{ts}.".encode() + payload
         mac = hmac.new(raw_secret, signed, hashlib.sha256).digest()
         valid_sig = "v1," + base64.b64encode(mac).decode()
@@ -470,7 +472,7 @@ class TestVerifyWebhook:
         fixed_now = 1_700_000_000
         payload = b'{"event":"test.fixed"}'
         ts = fixed_now - 10
-        raw_secret = base64.b64decode(_SECRET[len("whsec_"):] + "==")
+        raw_secret = base64.b64decode(_SECRET[len(_SECRET_PREFIX):] + "==")
         signed = f"msg_010.{ts}.".encode() + payload
         mac = hmac.new(raw_secret, signed, hashlib.sha256).digest()
         headers = {

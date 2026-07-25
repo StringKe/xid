@@ -41,13 +41,13 @@ async-trait = "0.1"
 
 # Linux Secret Service (freedesktop.org D-Bus secret storage)
 # 仅在 secret-service-storage feature 启用时编译,系统需 gnome-keyring 或 kwallet
-secret-service = { version = "3", features = ["rt-tokio-crypto-rust"], optional = true }
+secret-service = { version = "5.1.0", features = ["rt-tokio-crypto-rust"], optional = true }
 
 # 错误处理
 thiserror = "1"
 
 # JWT 解码 (仅结构解析,签名验证通过 JWKS + jsonwebtoken)
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 
 # 时间处理 (token 过期检查)
 time = { version = "0.3", features = ["serde"] }

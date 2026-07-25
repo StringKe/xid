@@ -4,6 +4,7 @@
 // getAuth(req):Pages Router adapter,接受 IncomingMessage/Request。
 // 依赖 React cache(RSC 环境);非 RSC 使用者直接调用 readAuthFromHeaders。
 
+import { trimTrailingSlashes } from '@xid-kit/core'
 import type { XidUser } from '@xid-kit/core'
 import type { Result } from '@xid-kit/types'
 
@@ -78,7 +79,7 @@ class XidServerApiClient {
 
   constructor(options: XidServerClientOptions) {
     this.#secretKey = options.secretKey
-    this.#baseUrl = (options.apiUrl ?? 'https://api.xid.dev').replace(/\/+$/, '')
+    this.#baseUrl = trimTrailingSlashes(options.apiUrl ?? 'https://api.xid.dev')
     this.#fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
   }
 

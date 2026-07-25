@@ -8,12 +8,13 @@ import { setNodeDependencies } from 'xml-core'
 import { Application, Parse, SignedXml } from 'xmldsigjs'
 import xpath from 'xpath'
 import { parseD1Json } from './d1-json.mjs'
+import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
 const DEFAULT_PASSWORD = 'LocalL3Protocol123!'
 const PACKAGE_MANAGER = process.env.XID_L3_PACKAGE_MANAGER ?? 'corepack'
 const PACKAGE_MANAGER_ARGS = ['pnpm']
-const baseUrl = (process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
+const baseUrl = trimTrailingSlashes(process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL)
 const adminEmail = (process.env.XID_L3_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 const adminPassword = process.env.XID_L3_ADMIN_PASSWORD ?? DEFAULT_PASSWORD
 const smokePersistPath = process.env.XID_SMOKE_PERSIST_PATH
@@ -49,7 +50,7 @@ function base64UrlEncode(bytes) {
     .toString('base64')
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replace(/=+$/g, '')
+    .replaceAll('=', '')
 }
 
 function base64UrlEncodeString(value) {
@@ -356,8 +357,9 @@ async function startFakeSaasServer(expectedScimToken) {
       res.writeHead(404, { 'content-type': 'text/plain' })
       res.end('not found')
     } catch (error) {
+      console.error('fake SaaS server request failed', error)
       res.writeHead(500, { 'content-type': 'text/plain' })
-      res.end(error.message)
+      res.end('internal provider error')
     }
   })
   await new Promise((resolve) => {

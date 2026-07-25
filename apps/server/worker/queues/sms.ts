@@ -2,6 +2,7 @@
 // 未配置 provider 时上游策略拒绝;consumer 仍做配置校验,失败落 notification_failures。
 
 import type { SmsProviderName, SmsQueueMessage } from '@xid-kit/types'
+import { trimTrailingSlashes } from '../../shared/url'
 import { TestSmsProvider } from '../test-harness/test-otp'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import {
@@ -127,7 +128,7 @@ export class InfobipSmsProvider implements SmsProvider {
 
   constructor(env: Env) {
     this.apiKey = required(env.INFOBIP_API_KEY, 'infobip_api_key')
-    this.baseUrl = required(env.INFOBIP_BASE_URL, 'infobip_base_url').replace(/\/+$/, '')
+    this.baseUrl = trimTrailingSlashes(required(env.INFOBIP_BASE_URL, 'infobip_base_url'))
     this.from = required(env.SMS_FROM, 'sms_from')
   }
 

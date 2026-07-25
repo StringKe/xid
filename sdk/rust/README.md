@@ -90,7 +90,9 @@ use xid::WebhookVerifier;
 
 fn handle_webhook(headers: Vec<(String, String)>, body: &[u8]) {
     // secret 从 XID console 复制,格式 "whsec_<base64>"
-    let verifier = WebhookVerifier::new("whsec_YOUR_SECRET").expect("valid secret");
+    let webhook_secret =
+        std::env::var("XID_WEBHOOK_SECRET").expect("XID_WEBHOOK_SECRET is required");
+    let verifier = WebhookVerifier::new(&webhook_secret).expect("valid secret");
 
     match verifier.verify_from_headers(headers, body) {
         Ok(()) => {

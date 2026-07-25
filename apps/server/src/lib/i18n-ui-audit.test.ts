@@ -112,6 +112,45 @@ function hasHumanWords(value: string): boolean {
   return /[A-Za-z]{2,}/.test(value) || /[\u3400-\u9fff]/.test(value)
 }
 
+const MACHINE_LIST_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@+:. -'
+
+function isMachineList(value: string): boolean {
+  const parts = value.split(',')
+  if (parts.length < 2) return false
+  return parts.every((part) => {
+    const token = part.trim()
+    if (!token) return false
+    let hasMachineSignal = false
+    for (let index = 0; index < token.length; index++) {
+      const char = token[index] ?? ''
+      if (!MACHINE_LIST_CHARS.includes(char)) return false
+      const code = token.charCodeAt(index)
+      if (
+        (code >= 48 && code <= 57) ||
+        '_@+:.-'.includes(char) ||
+        (index > 0 && code >= 65 && code <= 90)
+      ) {
+        hasMachineSignal = true
+      }
+    }
+    return hasMachineSignal
+  })
+}
+
+function isCamelCaseIdentifier(value: string): boolean {
+  let hasUppercaseBoundary = false
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index)
+    const isUppercase = code >= 65 && code <= 90
+    const isLowercase = code >= 97 && code <= 122
+    if (!isUppercase && !isLowercase) return false
+    if (index > 0 && index < value.length - 1 && isUppercase) {
+      hasUppercaseBoundary = true
+    }
+  }
+  return hasUppercaseBoundary
+}
+
 function isMachineText(value: string): boolean {
   if (ALLOWED_TEXT.has(value)) return true
   if (value.length <= 1) return true
@@ -124,8 +163,8 @@ function isMachineText(value: string): boolean {
   if (/^#[0-9A-Fa-f]{3,8}$/u.test(value)) return true
   if (/^[A-Z0-9_./:+ -]+$/u.test(value) && !/[a-z]/u.test(value)) return true
   if (/^[a-z0-9_.:-]+$/u.test(value)) return true
-  if (/^[A-Za-z0-9_@+:. -]+(?:,\s*[A-Za-z0-9_@+:. -]+)+$/u.test(value)) return true
-  if (/^[A-Za-z]+(?:[A-Z][A-Za-z]+)+$/u.test(value)) return true
+  if (isMachineList(value)) return true
+  if (isCamelCaseIdentifier(value)) return true
   return false
 }
 
@@ -218,4 +257,20 @@ describe('i18n UI coverage', () => {
 
     expect(findings).toEqual([])
   })
+})
+
+describe('machine text classification', () => {
+  it.each(['scope:read, scope:write', 'OAuthClient', 'WebAuthn'])(
+    'accepts structured machine text %s',
+    (value) => {
+      expect(isMachineText(value)).toBe(true)
+    },
+  )
+
+  it.each(['Sign in, create account', 'human readable sentence'])(
+    'does not hide user-visible copy %s',
+    (value) => {
+      expect(isMachineText(value)).toBe(false)
+    },
+  )
 })

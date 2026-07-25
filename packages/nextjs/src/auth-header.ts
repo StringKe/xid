@@ -35,7 +35,7 @@ function base64UrlEncode(input: string): string {
   const bytes = encoder.encode(input)
   let binary = ''
   for (const b of bytes) binary += String.fromCharCode(b)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
 }
 
 function base64UrlDecode(input: string): string {

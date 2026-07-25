@@ -1,3 +1,5 @@
+import { randomString } from '@xid-kit/crypto'
+
 // PKCE 测试向量(见 oidc-oauth rule、RFC7636)。
 // 合法 S256 对用 Web Crypto 真算;plain challenge 拒绝向量为预定义常量。
 // 向量本身由 pkce.test.ts 的自检套件覆盖。
@@ -32,11 +34,7 @@ async function computeS256Challenge(verifier: string): Promise<string> {
 // 生成加密安全 verifier(43-128 字符,unreserved chars)。
 function generateVerifier(length: number = 64): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
-  const bytes = new Uint8Array(length)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes)
-    .map((b) => chars[b % chars.length]!)
-    .join('')
+  return randomString(length, chars)
 }
 
 // 合法 S256 向量:verifier + 对应 challenge。

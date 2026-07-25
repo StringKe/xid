@@ -14,13 +14,15 @@ import { Application, Parse, SignedXml, Stringify } from 'xmldsigjs'
 import xpath from 'xpath'
 import { parseD1Json } from './d1-json.mjs'
 import { closeChromeAndRemoveProfile } from './chrome-cleanup.mjs'
+import { buildSamlPostForm } from './saml-post-form.mjs'
+import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
 const DEFAULT_PASSWORD = 'LocalL3Platform123!'
 const CHROME_PATH =
   process.env.XID_CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
-const baseUrl = (process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
+const baseUrl = trimTrailingSlashes(process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL)
 const adminEmail = (process.env.XID_L3_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 const adminPassword = process.env.XID_L3_ADMIN_PASSWORD ?? DEFAULT_PASSWORD
 const smokePersistPath = process.env.XID_SMOKE_PERSIST_PATH
@@ -73,7 +75,7 @@ function base64UrlEncode(bytes) {
     .toString('base64')
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replace(/=+$/g, '')
+    .replaceAll('=', '')
 }
 
 function base64UrlEncodeString(value) {
@@ -240,7 +242,7 @@ function encodeArgon2Hash(digest, salt) {
 
 function base32Decode(value) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-  const normalized = value.toUpperCase().replace(/=+$/g, '')
+  const normalized = value.toUpperCase().replaceAll('=', '')
   let bits = 0
   let current = 0
   const out = []
@@ -565,8 +567,9 @@ async function startLocalOidcProvider(expectedClientSecret) {
       res.writeHead(404, { 'content-type': 'text/plain' })
       res.end('not found')
     } catch (error) {
+      console.error('local OIDC provider request failed', error)
       res.writeHead(500, { 'content-type': 'text/plain' })
-      res.end(error instanceof Error ? error.message : String(error))
+      res.end('internal provider error')
     }
   })
 
@@ -623,6 +626,12 @@ async function startLocalSamlProvider() {
           res.end('missing ACS URL')
           return
         }
+        const expectedAcsUrl = `${baseUrl}/sso/saml/${samlConnectionId}/acs`
+        if (acsUrl !== expectedAcsUrl) {
+          res.writeHead(400, { 'content-type': 'text/plain' })
+          res.end('invalid ACS URL')
+          return
+        }
         state.lastRequest = requestXml
         state.lastRelayState = relayState
         state.lastAcsUrl = acsUrl
@@ -632,28 +641,17 @@ async function startLocalSamlProvider() {
           email: samlEmail,
         })
         const samlResponse = base64EncodeString(responseXml)
-        const relayInput =
-          relayState === null ? '' : `<input type="hidden" name="RelayState" value="${relayState}">`
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-        res.end(
-          [
-            '<!doctype html><html><body>',
-            `<form method="post" action="${acsUrl}">`,
-            `<input type="hidden" name="SAMLResponse" value="${samlResponse}">`,
-            relayInput,
-            '</form>',
-            '<script>document.forms[0].submit()</script>',
-            '</body></html>',
-          ].join(''),
-        )
+        res.end(buildSamlPostForm({ acsUrl, samlResponse, relayState }))
         return
       }
 
       res.writeHead(404, { 'content-type': 'text/plain' })
       res.end('not found')
     } catch (error) {
+      console.error('local SAML provider request failed', error)
       res.writeHead(500, { 'content-type': 'text/plain' })
-      res.end(error instanceof Error ? error.message : String(error))
+      res.end('internal provider error')
     }
   })
 

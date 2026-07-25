@@ -151,17 +151,6 @@ impl SecretServiceStorage {
             pending_label: format!("xid-linux/{app_name}/pending_auth"),
         }
     }
-
-    /// 连接 Secret Service 并获取已解锁的默认集合
-    async fn open_collection(
-        &self,
-    ) -> Result<secret_service::Collection<'_>> {
-        // NOTE: 此处返回类型受 borrow checker 限制,实际需持有 ss 的所有权。
-        // 以下实现每次操作独立 connect,避免借用问题。
-        Err(XidError::StorageError(
-            "open_collection is a compile-time placeholder; see individual methods".into(),
-        ))
-    }
 }
 
 #[cfg(feature = "secret-service-storage")]
@@ -449,7 +438,10 @@ mod tests {
 
         assert_eq!(loaded.access_token, tokens.access_token);
         assert_eq!(loaded.refresh_token, tokens.refresh_token);
-        assert_eq!(loaded.access_token_expires_at, tokens.access_token_expires_at);
+        assert_eq!(
+            loaded.access_token_expires_at,
+            tokens.access_token_expires_at
+        );
     }
 
     #[tokio::test]

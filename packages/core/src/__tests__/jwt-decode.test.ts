@@ -4,7 +4,7 @@ import { decodeTokenClaims, isTokenExpiring } from '../jwt-decode'
 
 function makeToken(payload: Record<string, unknown>): string {
   const b64url = (obj: unknown): string =>
-    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
   return `${b64url({ alg: 'ES256', kid: 'k1' })}.${b64url(payload)}.${b64url('sig')}`
 }
 

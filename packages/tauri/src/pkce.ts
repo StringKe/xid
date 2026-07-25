@@ -35,5 +35,5 @@ export async function generatePkce(): Promise<PkceChallenge> {
 function encodeBase64Url(bytes: Uint8Array): string {
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '')
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
 }

@@ -7,6 +7,7 @@ import {
   sqlString,
 } from './production-auth.mjs'
 import { PUBLIC_DOC_SLUGS } from '../../../apps/server/public-docs.ts'
+import { llmsFullOk, llmsOk } from './public-content-checks.mjs'
 
 const baseUrl = productionBaseUrl()
 // 这里曾经是第二份独立的 org id 字面量,重建生产库后只改一处就会出现一半 smoke 打新租户、
@@ -220,31 +221,6 @@ function robotsOk(body) {
   return (
     required.every((item) => body.includes(item)) &&
     forbidden.every((item) => !lines.includes(item))
-  )
-}
-
-function llmsOk(body) {
-  return (
-    body.startsWith('# XID') &&
-    body.includes('https://xid.dev/') &&
-    body.includes('https://xid.dev/docs') &&
-    body.includes('https://xid.dev/sitemap.xml') &&
-    body.includes('https://xid.dev/robots.txt') &&
-    body.includes('https://xid.dev/llms-full.txt') &&
-    body.includes('WebMCP tools') &&
-    !body.includes('https://xid.dev/docs/design') &&
-    !body.includes('https://xid.dev/console')
-  )
-}
-
-function llmsFullOk(body) {
-  return (
-    body.startsWith('# XID: full public documentation index') &&
-    body.includes('https://xid.dev/llms.txt') &&
-    body.includes('https://xid.dev/docs/oidc-oauth') &&
-    body.includes('https://xid.dev/docs/sdks/react') &&
-    body.includes('`/docs/oidc` -> `/docs/oidc-oauth`') &&
-    !body.includes('https://xid.dev/docs/design')
   )
 }
 

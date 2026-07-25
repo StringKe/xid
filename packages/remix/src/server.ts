@@ -6,6 +6,7 @@
 // 认证优先级:Authorization: Bearer header -> session cookie token -> XID session storage token。
 // 见 docs/design/06-developer-experience.md SDK 分层、api-sdk-conventions rule。
 
+import { trimTrailingSlashes } from '@xid-kit/core'
 import type { XidUser } from '@xid-kit/core'
 import type { Result } from '@xid-kit/types'
 
@@ -134,7 +135,7 @@ class XidServerApiClient {
 
   constructor(options: XidServerClientOptions) {
     this.#secretKey = options.secretKey
-    this.#baseUrl = (options.apiUrl ?? 'https://api.xid.dev').replace(/\/+$/, '')
+    this.#baseUrl = trimTrailingSlashes(options.apiUrl ?? 'https://api.xid.dev')
     this.#fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
   }
 

@@ -7,13 +7,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseD1Json } from './d1-json.mjs'
 import { closeChromeAndRemoveProfile } from './chrome-cleanup.mjs'
+import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
 const DEFAULT_NEW_PASSWORD = 'LocalResetL3Platform123!'
 const CHROME_PATH =
   process.env.XID_CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
-const baseUrl = (process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
+const baseUrl = trimTrailingSlashes(process.env.XID_L3_BASE_URL ?? DEFAULT_BASE_URL)
 const adminEmail = (process.env.XID_L3_ADMIN_EMAIL ?? 'admin@localhost.test').toLowerCase()
 const newPassword =
   process.env.XID_L3_RESET_PASSWORD ??
@@ -42,7 +43,7 @@ function base64UrlEncode(bytes) {
     .toString('base64')
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replace(/=+$/g, '')
+    .replaceAll('=', '')
 }
 
 function base64UrlEncodeString(value) {

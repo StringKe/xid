@@ -112,6 +112,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run security:secret-scan
+      - run: pnpm run test:fuzz
 
   # pnpm audit 查实时 advisory DB,同一 commit 今天绿明天红,与被测代码无因果关系。
   # 独立 job 照常红/绿(不用 continue-on-error 假装成功),但不进 required checks,不阻塞合并。

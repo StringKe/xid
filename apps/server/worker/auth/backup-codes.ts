@@ -2,7 +2,7 @@
 // 10 个 8 字符一次性恢复码;HMAC-SHA256 哈希存储;展示一次;重生成作废旧批次。
 // 密码学原语只用 Web Crypto(见 crypto-boundary rule)。
 
-import { base64UrlDecode, base64UrlEncode, hmacSha256Base64 } from '@xid-kit/crypto'
+import { base64UrlDecode, base64UrlEncode, hmacSha256Base64, randomString } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
@@ -26,12 +26,7 @@ function hashCode(code: string, pepperRaw: string): Promise<string> {
 // ---- 生成恢复码 ----
 
 function generateCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH))
-  let code = ''
-  for (const b of bytes) {
-    code += CODE_CHARSET[b % CODE_CHARSET.length]
-  }
-  return code
+  return randomString(CODE_LENGTH, CODE_CHARSET)
 }
 
 export type GeneratedBackupCodes = {

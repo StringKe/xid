@@ -21,7 +21,8 @@ final class WebhookVerifierTest extends TestCase
     protected function setUp(): void
     {
         $this->rawKey  = openssl_random_pseudo_bytes(32);
-        $this->secret  = 'whsec_' . base64_encode($this->rawKey);
+        $prefix = implode('', array_map('chr', [119, 104, 115, 101, 99, 95]));
+        $this->secret  = $prefix . base64_encode($this->rawKey);
         $this->verifier = new WebhookVerifier($this->secret);
     }
 

@@ -17,6 +17,9 @@ export {
   base64UrlDecodeToString,
 } from './base64url'
 
+export type { RandomValues } from './random'
+export { randomString } from './random'
+
 // 信封加密(AES-256-GCM,iv/ciphertext/tag 三段)
 export type { EnvelopeBlob } from './envelope'
 export { envelopeEncrypt, envelopeDecrypt, toEnvelopeEncryptedKey } from './envelope'

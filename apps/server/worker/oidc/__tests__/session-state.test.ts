@@ -8,7 +8,7 @@ async function iframeSha256Base64Url(value: string): Promise<string> {
   const bytes = new Uint8Array(digest)
   let binary = ''
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
 }
 
 async function iframeOpSessionState(input: {

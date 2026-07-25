@@ -37,7 +37,7 @@ function err(error: WebhookVerifyError): Result<VerifiedWebhook, WebhookVerifyEr
 // 解析 whsec_ 前缀并 base64url 解码出原始 secret 字节(svix secret 是标准 base64,base64url 解码兼容无填充)。
 function decodeSecret(secret: string): Uint8Array {
   const raw = secret.startsWith(WHSEC_PREFIX) ? secret.slice(WHSEC_PREFIX.length) : secret
-  return base64UrlDecode(raw.replace(/=+$/, ''))
+  return base64UrlDecode(raw)
 }
 
 function checkTimestamp(

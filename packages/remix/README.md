@@ -169,11 +169,10 @@ const setCookie = await sessionStorage.destroySession(session)
 
 ## Peer Dependencies
 
-| 包                 | 版本要求   |
-| ------------------ | ---------- |
-| `@remix-run/node`  | `>=2.0.0`  |
-| `@remix-run/react` | `>=2.0.0`  |
-| `react`            | `>=18.0.0` |
+| 包                | 版本要求   |
+| ----------------- | ---------- |
+| `@remix-run/node` | `>=2.0.0`  |
+| `react`           | `>=18.0.0` |
 
 ## 开发
 

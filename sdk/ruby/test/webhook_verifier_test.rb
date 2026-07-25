@@ -35,7 +35,7 @@ class WebhookVerifierTest < Minitest::Test
     assert_equal @body_hash, result
   end
 
-  def test_verify_with_whsec_prefix_stripped
+  def test_verify_with_prefixed_secret
     verifier = Xid::WebhookVerifier.new(secret: @secret)
     result   = verifier.verify!(valid_headers, @raw_body)
     assert_equal @body_hash, result

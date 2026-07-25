@@ -73,9 +73,13 @@ module Xid
 
     def parse_bearer(header)
       return nil unless header.is_a?(String) && !header.empty?
+      return nil unless header.length > 7 && header[0, 6].casecmp?("Bearer")
+      return nil unless header.getbyte(6) == 32
 
-      match = header.match(/\ABearer\s+(.+)\z/i)
-      match&.[](1)&.strip
+      token_start = 7
+      token_start += 1 while header.getbyte(token_start) == 32
+      token = header[token_start..]&.strip
+      token unless token.nil? || token.empty?
     end
 
     # -- Cookie 提取 -------------------------------------------------------

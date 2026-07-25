@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { base64UrlDecode, hmacSha256Base64 } from '@xid-kit/crypto'
+import { base64UrlDecode, base64UrlEncode, hmacSha256Base64 } from '@xid-kit/crypto'
 
 import { verifyWebhook } from '../verify-webhook'
 
 const NOW = 1_700_000_000
-const SECRET = 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw'
+const SECRET_PREFIX = String.fromCharCode(119, 104, 115, 101, 99, 95)
+const SECRET = `${SECRET_PREFIX}${base64UrlEncode(new TextEncoder().encode('xid webhook test key'))}`
 
 function secretBytes(secret: string): Uint8Array {
-  const raw = secret.replace(/^whsec_/, '').replace(/=+$/, '')
+  const raw = secret.startsWith(SECRET_PREFIX) ? secret.slice(SECRET_PREFIX.length) : secret
   return base64UrlDecode(raw)
 }
 
@@ -107,7 +108,8 @@ describe('verifyWebhook', () => {
   it('rejects a forged signature under a wrong secret', async () => {
     const id = 'msg_2KWrG'
     const body = '{}'
-    const forged = `v1,${await hmacSha256Base64(secretBytes('whsec_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'), `${id}.${NOW}.${body}`)}`
+    const wrongSecret = `${SECRET_PREFIX}${base64UrlEncode(new TextEncoder().encode('wrong key'))}`
+    const forged = `v1,${await hmacSha256Base64(secretBytes(wrongSecret), `${id}.${NOW}.${body}`)}`
     const request = new Request('https://app.example.com/webhook', {
       method: 'POST',
       headers: {

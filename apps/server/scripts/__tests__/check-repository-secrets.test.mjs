@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -52,6 +52,13 @@ async function expectRule(file, content, rule) {
 }
 
 describe('check-repository-secrets', () => {
+  it('skips tracked files deleted from the worktree', async () => {
+    const root = await createFixture({ 'deleted.txt': 'safe\n' })
+    await unlink(join(root, 'deleted.txt'))
+
+    expect(scanTrackedFiles(root)).toEqual([])
+  })
+
   it('allows an exact temporary fixture allowlist entry', async () => {
     const token = ['ghp', 'a'.repeat(36)].join('_')
     const root = await createFixture({ 'fixtures/allowed.txt': token })

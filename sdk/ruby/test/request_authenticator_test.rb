@@ -37,12 +37,29 @@ class RequestAuthenticatorTest < Minitest::Test
   end
 
   def test_bearer_case_insensitive_prefix
-    # RFC 6750: "Bearer" is case-insensitive; our impl uses regex /\ABearer\s+/i
     env   = { "HTTP_AUTHORIZATION" => "BEARER #{valid_token}" }
     state = @auth.authenticate_env(env)
 
-    # Current impl regex uses /i flag
     assert state.signed_in?
+  end
+
+  def test_bearer_accepts_multiple_spaces
+    env   = { "HTTP_AUTHORIZATION" => "Bearer    #{valid_token}   " }
+    state = @auth.authenticate_env(env)
+
+    assert state.signed_in?
+  end
+
+  def test_bearer_rejects_missing_token
+    state = @auth.authenticate_env({ "HTTP_AUTHORIZATION" => "Bearer    " })
+
+    refute state.signed_in?
+  end
+
+  def test_bearer_rejects_tab_separator
+    state = @auth.authenticate_env({ "HTTP_AUTHORIZATION" => "Bearer\t#{valid_token}" })
+
+    refute state.signed_in?
   end
 
   # --- Cookie fallback --------------------------------------------------------

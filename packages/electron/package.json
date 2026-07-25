@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "@xid-kit/core": "workspace:*",
+    "@xid-kit/crypto": "workspace:*",
     "@xid-kit/types": "workspace:*"
   },
   "devDependencies": {

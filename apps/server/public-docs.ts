@@ -1,3 +1,5 @@
+import { trimTrailingSlashes } from './shared/url'
+
 export const PUBLIC_DOC_SLUGS = [
   'getting-started',
   'hosted-auth',
@@ -78,7 +80,7 @@ const PUBLIC_DOC_ALIASES = new Map<string, string>([
 ])
 
 export function normalizeDocsPath(pathname: string): string {
-  const normalized = pathname.replace(/\/+$/, '')
+  const normalized = trimTrailingSlashes(pathname)
   return normalized || '/docs'
 }
 

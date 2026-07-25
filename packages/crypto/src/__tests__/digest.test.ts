@@ -17,7 +17,7 @@ describe('sha256Hex', () => {
 })
 
 describe('hmacSha256', () => {
-  const secret = new TextEncoder().encode('whsec_test_secret')
+  const secret = new TextEncoder().encode('unit-test-hmac-key-material')
 
   it('produces stable base64 signature', async () => {
     const sig = await hmacSha256Base64(secret, 'payload')
