@@ -1,0 +1,35 @@
+---
+/**
+ * ThemeToggle — light/dark switcher. Persists to localStorage; theme
+ * applies to `<html data-mode="dark">` via the inline script in BaseLayout
+ * (no FOUC).
+ */
+import { Icon } from "astro-icon/components";
+import { cn } from "@/lib/cn";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends HTMLAttributes<"button"> {}
+
+const { class: className, ...attrs } = Astro.props;
+const toggleDarkMode = translateSiteMessage(Astro.url.pathname, siteShellMessages.toggleDarkMode);
+---
+
+<button
+  data-nb-theme-toggle
+  class={cn(
+    "group flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
+    className,
+  )}
+  {...attrs}
+  aria-label={toggleDarkMode}
+  data-nb-state="light"
+>
+  <Icon name="ph:sun" class="w-[1.125rem] h-[1.125rem] hidden group-data-[nb-state=dark]:block" />
+  <Icon name="ph:moon" class="w-[1.125rem] h-[1.125rem] group-data-[nb-state=dark]:hidden" />
+</button>
+
+<script>
+  import "./theme-toggle.client";
+</script>

@@ -25,8 +25,6 @@ export const JAR_REQUEST_OBJECT_TTL_SEC = 300
 export const BACKCHANNEL_LOGOUT_TOKEN_TTL_SEC = 120
 // RFC8693 token-exchange 颁发 id_token 的生命周期
 export const TOKEN_EXCHANGE_ID_TOKEN_TTL_SEC = 300
-// landing 边缘探针实测 token 窗口(06 章 networkless 验证建议 60s)
-export const EDGE_PROBE_TOKEN_TTL_SEC = 60
 // WebAuthn challenge TTL(01 章:5-10min 范围内取 7min)
 export const WEBAUTHN_CHALLENGE_TTL_MS = 7 * 60 * 1000
 // magic link token 有效期(01 章 4:15min 单次有效)

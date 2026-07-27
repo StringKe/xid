@@ -2,9 +2,10 @@
 
 [English](README.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | Español | [Português (BR)](README.pt-BR.md)
 
-Una plataforma de identidad nativa del edge que se ejecuta como un único Cloudflare Worker. Una sola
-base de código actúa como proveedor de identidad OIDC/OAuth, capa RBAC multi-tenant, endpoint de
-federación SSO empresarial (SAML y SCIM) e interfaz de autenticación alojada centrada en passkeys.
+Una plataforma de identidad nativa del edge desplegada como tres Cloudflare Workers desde una sola
+base de código. El Core Worker sirve OIDC/OAuth, RBAC multi-tenant, federación SSO empresarial,
+Hosted Auth y páginas de cuenta. El Nimbus Site Worker sirve la documentación Nimbus localizada
+desde apex, mientras que un Console Worker aislado sirve la interfaz de gestión.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
 
@@ -126,7 +127,7 @@ verificación, magic links o códigos de un solo uso necesita el plan de pago.
 git clone https://github.com/StringKe/xid.git
 cd xid && pnpm install
 
-# create the resources this Worker binds to
+# create the resources the Core Worker binds to
 cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
@@ -136,11 +137,13 @@ for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-d
 done
 ```
 
-Después edita `apps/server/wrangler.jsonc` y sustituye `account_id`, el `database_id` de D1, el `id`
-del namespace de KV y las entradas de `routes` por los tuyos. Todavía contiene los valores del
-proyecto original, no hay ninguna plantilla que copiar y **sin editarlo no se desplegará**. Los ocho
-bindings de Durable Object, el dataset de Analytics Engine, el binding `send_email` y los dos cron
-triggers ya están declarados y no requieren cambios.
+Después sustituye los valores upstream de account y routes en `apps/server/wrangler.jsonc`,
+`apps/console/wrangler.jsonc` y `apps/site/wrangler.jsonc`. También configura el origen público
+canónico de `apps/site/astro.config.ts` con tu URL HTTPS apex. La configuración de Core también
+necesita tu `database_id` de D1 y el `id` del namespace de KV. No hay una plantilla de
+autoalojamiento que copiar y **los tres Workers no se desplegarán correctamente mientras conserven
+los valores upstream**. Los ocho bindings de Durable Object, el dataset de Analytics Engine, el
+binding `send_email` y los dos cron triggers pertenecen solo a Core y ya están declarados.
 
 Configura los secretos, migra, despliega e inicializa. Perder `KEK` deja indescifrable cada clave de
 firma y cada credencial de proveedor almacenada; perder `PEPPER` invalida todos los hashes de
@@ -152,7 +155,11 @@ openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
 npx wrangler d1 migrations apply DB --remote
-npx wrangler deploy
+cd ../..
+pnpm run build
+pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
 
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
@@ -162,16 +169,19 @@ curl -X POST https://<your-domain>/admin/bootstrap \
 
 El bootstrap crea la instancia, la organización por defecto, la clave de firma ES256 de la instancia
 y el primer usuario `instance_manager`; se niega a ejecutarse dos veces. Las instrucciones
-completas, incluidas la migración local de D1 y el seeding, están en
-[`docs/deployment.md`](docs/deployment.md).
+completas, incluidas la migración local de D1, el seeding, el orden de release de los tres Workers y
+el rollback, están en [`docs/deployment.md`](docs/deployment.md). Un release autoalojado debe
+desplegar Core, Console y Site. Site gestiona apex, docs en 8 locales, SEO, Pagefind, agent surfaces
+y el 308 de `www`; Console gestiona `/console` y `/console/*`.
 
 ### Desarrollo
 
 ```bash
-pnpm --filter @xid-kit/server dev   # Vite dev server: Worker and SPA together
-pnpm test                           # Vitest across the workspace
-pnpm run check                      # typecheck, lint, i18n, protocol and coverage gates
-pnpm run build                      # all packages plus the server
+pnpm run dev                   # Core, Console, and Nimbus Site development servers
+pnpm test                      # Vitest across the workspace
+pnpm run check                 # typecheck, lint, i18n, protocol and coverage gates
+pnpm run build                 # all packages and all three Workers
+pnpm smoke:three-workers       # local route ownership and cross-Worker smoke test
 ```
 
 `pnpm run check` es el control completo, con dos pasadas de cobertura incluidas; no es un lint
@@ -183,20 +193,24 @@ trabajo de cada área.
 
 ## Arquitectura
 
-Un solo Worker lo contiene todo. Hono sirve los endpoints de protocolo y de gestión; la SPA de React
-19 se publica como Workers Assets y cualquier ruta que no sea de API cae en ella, de modo que la
-Hosted UI, el portal de cuenta y ambas consolas se despliegan como una sola unidad junto al endpoint
-de tokens. El estado se reparte según el requisito de consistencia: D1 para datos relacionales,
-Durable Objects para todo lo que necesite serialización (challenges de WebAuthn, estado OAuth, PAR,
-device flow, revocación de sesiones, límites de tasa, secuencia de auditoría, medición), KV para
-lecturas cacheadas, R2 para blobs y Queues para el trabajo que debe mantenerse fuera de la ruta de
-login.
+Tres Workers comparten un hostname sin compartir runtime bindings. Nimbus Site gestiona el hub de
+documentación apex, los 8 árboles de documentación localizada, SEO, Pagefind, los twins Markdown y MDX, los LLM
+indexes y el 308 de `www` a apex. Console es un Worker estático sin bindings que gestiona
+`/console` y `/console/*` en los hosts apex y tenant. Core gestiona Hosted Auth, páginas de cuenta,
+rutas de protocolo y API, y `/_core/*`; es el único Worker con bindings de D1, Durable Objects, KV,
+R2, Queues, email, Analytics Engine y cron.
+
+El estado de Core se reparte según el requisito de consistencia: D1 para datos relacionales, Durable
+Objects para todo lo que necesite serialización (challenges de WebAuthn, estado OAuth, PAR, device
+flow, revocación de sesiones, límites de tasa, secuencia de auditoría, medición), KV para lecturas
+cacheadas, R2 para blobs y Queues para el trabajo que debe mantenerse fuera de la ruta de login.
 
 ```
-apps/server/       The Worker
+apps/site/         Nimbus docs Site: apex hub, localized docs, SEO, Pagefind, agent surfaces, www 308
+apps/console/      Binding-free static management UI for /console and /console/*
+apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
-  src/             React SPA: 12 auth pages, 5 account pages, 6 shared console pages,
-                   16 organization console pages, 7 platform console pages
+  src/             React SPA for Hosted Auth and account pages
 packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
@@ -204,7 +218,7 @@ tests/             Cross-workspace gates: protocol source map, native SDK contra
 ```
 
 Las librerías del kernel -- `protocol`, `crypto`, `webauthn`, `saml`, `db`, `i18n`, `types` -- son
-internas al Worker. Las primitivas criptográficas provienen siempre de Web Crypto y XML-DSig se
+internas al Core Worker. Las primitivas criptográficas provienen siempre de Web Crypto y XML-DSig se
 delega en `xmldsigjs`; el protocolo y la lógica de negocio intermedios se escriben aquí.
 
 ## Soporte de protocolos

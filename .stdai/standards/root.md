@@ -5,10 +5,10 @@ Self-hosting gets the full feature set: no tiering, no license check. Scope = Cl
 Auth0/Zitadel (OIDC IdP, org model) + WorkOS (SSO federation, directory sync). One codebase serves
 single-tenant and multi-tenant; the difference is configuration, never stripped-out code.
 
-One Worker (`apps/server`) is the whole logical core: Hono protocol surface (OIDC/OAuth, JWKS, SCIM,
-SAML, Management API) + React 19 SPA (sign-in, consent, account, consoles, landing, docs) + admin
-logic. Hosted sign-in and consent are not optional -- an RP redirects an unauthenticated user to
-`/authorize`, so the IdP MUST render them.
+`apps/server` is the identity Core: protocols, APIs, admin logic, Hosted Auth and account UI.
+Binding-free frontend Workers are separate: Nimbus Site (`apps/site`) owns apex, `www` and public
+docs; Console (`apps/console`) owns management UI under `/console`. Hosted sign-in and consent stay
+in Core because an RP redirects unauthenticated users to `/authorize`.
 
 ## Sources of truth
 

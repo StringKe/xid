@@ -11,6 +11,7 @@ const appDir = join(scriptDir, '..')
 const repoRoot = join(appDir, '..', '..')
 const wranglerConfigPath = join(appDir, 'wrangler.jsonc')
 const workerEntryPath = join(appDir, 'worker', 'index.ts')
+const consoleDistPath = join(repoRoot, 'apps', 'console', 'dist', 'console')
 const SMOKE_QUEUE_NAMES = new Set(['xid-sms', 'xid-whatsapp'])
 export const CHILD_DEADLINE_MS = 300000
 export const GROUP_CLEANUP_TIMEOUT_MS = 5000
@@ -480,6 +481,7 @@ function createCompileEnv(env) {
     'XID_SMOKE_QUEUE_CONSUMER_WRANGLER_CONFIG_PATH',
     'XID_SMOKE_KEK',
     'XID_SMOKE_PEPPER',
+    'XID_SMOKE_CONSOLE_DIST_PATH',
     'XID_L2_BASE_URL',
     'XID_L3_BASE_URL',
     'XID_L3_SAML_IDP_CERT_B64',
@@ -571,19 +573,30 @@ export async function runIsolatedSmokeFiles(options = {}) {
 export async function main(options = {}) {
   const log = options.log ?? defaultLog
   const runFn = options.runFn ?? run
+  const runIsolatedSmokeFilesFn = options.runIsolatedSmokeFilesFn ?? runIsolatedSmokeFiles
   const parentEnv = options.env ?? process.env
+  const compileEnv = createCompileEnv(parentEnv)
+  const smokeParentEnv = {
+    ...parentEnv,
+    XID_SMOKE_CONSOLE_DIST_PATH: consoleDistPath,
+  }
   let activeServer
   const uninstallSignalCleanup = installSignalCleanup(() => activeServer)
   try {
-    phase(log, 'compile', 'start')
+    phase(log, 'compile-core', 'start')
     await runFn('pnpm', ['--filter', '@xid-kit/server', 'build'], {
-      env: createCompileEnv(parentEnv),
+      env: compileEnv,
     })
-    phase(log, 'compile', 'complete')
+    phase(log, 'compile-core', 'complete')
+    phase(log, 'compile-console', 'start')
+    await runFn('pnpm', ['--filter', '@xid-kit/console', 'build'], {
+      env: compileEnv,
+    })
+    phase(log, 'compile-console', 'complete')
     phase(log, 'vitest', 'start')
-    await runIsolatedSmokeFiles({
+    await runIsolatedSmokeFilesFn({
       ...options,
-      env: parentEnv,
+      env: smokeParentEnv,
       log,
       runFn,
       startServerFn: (port, env) => {

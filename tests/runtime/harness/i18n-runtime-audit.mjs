@@ -13,12 +13,7 @@ const CHROME_PATH =
   process.env['XID_CHROME_PATH'] ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const PROVIDED_BASE_URL = process.env['XID_I18N_RUNTIME_BASE_URL']?.trim()
 const LOCALES = ['en', 'zh-Hans', 'ja', 'ko', 'fr', 'de', 'es', 'pt-BR']
-const ROUTES = [
-  { path: '/', source: 'XID. Identity infrastructure on the edge.' },
-  { path: '/sign-in', source: 'Sign in' },
-  { path: '/docs', source: 'XID Developer Docs' },
-  { path: '/docs/scim', source: 'SCIM API reference' },
-]
+const ROUTES = [{ path: '/sign-in', source: 'Sign in' }]
 
 function flatMessage(value) {
   if (Array.isArray(value)) {

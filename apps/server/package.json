@@ -2,7 +2,7 @@
   "name": "@xid-kit/server",
   "version": "0.0.0",
   "private": true,
-  "description": "XID server: the single Cloudflare Worker serving OIDC/OAuth, SCIM, SAML and the Management API plus the React hosted auth UI and admin console.",
+  "description": "XID Core Worker serving OIDC/OAuth, SCIM, SAML, the Management API, Hosted Auth, and the account portal.",
   "homepage": "https://xid.dev",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
@@ -17,7 +17,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/verify-core-build-assets.mjs",
     "check": "node scripts/check-lint-warning-budget.mjs",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.spa.config.ts",
@@ -49,6 +49,7 @@
     "@xid-kit/protocol": "workspace:*",
     "@xid-kit/saml": "workspace:*",
     "@xid-kit/types": "workspace:*",
+    "@xid-kit/web-ui": "workspace:*",
     "@xid-kit/webauthn": "workspace:*",
     "drizzle-orm": "catalog:",
     "es-toolkit": "catalog:",

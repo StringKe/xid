@@ -4,10 +4,11 @@
 // Turnstile invisible token 由 SignInPage 在 callback 中注入(setTurnstileToken)。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useSearch } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { Result } from '@xid-kit/types'
 import { useAuth } from '../../lib/auth-context'
+import { useNavigate } from '../../lib/router'
 import {
   apiErrorToKey,
   enabledSignInMethods,
@@ -177,7 +178,7 @@ export function useSignIn(): [SignInState, SignInActions] {
         globalThis.location.href = target
         return
       }
-      void navigate({ to: target as never, replace: true })
+      navigate(target, { replace: true })
     },
     [authFlowIntent, authzRequestId, hostedReturn, navigate, refresh],
   )

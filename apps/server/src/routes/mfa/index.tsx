@@ -13,8 +13,8 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { createLazyRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { Link } from '../../lib/router'
+import { createLazyRoute, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate } from '../../lib/router'
 import { useMutation } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
@@ -267,7 +267,7 @@ function TotpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       trackMfaComplete('totp')
       await refresh()
       const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      void navigate({ to: redirectTo as never, replace: true })
+      navigate(redirectTo, { replace: true })
     },
   })
 
@@ -350,7 +350,7 @@ function BackupCodeChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       trackMfaComplete('backup_code')
       await refresh()
       const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      void navigate({ to: redirectTo as never, replace: true })
+      navigate(redirectTo, { replace: true })
     },
   })
 
@@ -440,7 +440,7 @@ function PasskeyMfaChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       trackMfaComplete('passkey')
       await refresh()
       const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      void navigate({ to: redirectTo as never, replace: true })
+      navigate(redirectTo, { replace: true })
     },
   })
 
@@ -555,7 +555,7 @@ function SmsOtpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       trackMfaComplete('sms')
       await refresh()
       const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      void navigate({ to: redirectTo as never, replace: true })
+      navigate(redirectTo, { replace: true })
     },
   })
 

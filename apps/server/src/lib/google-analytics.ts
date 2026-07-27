@@ -7,7 +7,7 @@ export const PUBLIC_SITE_ORIGIN = 'https://xid.dev'
 
 type GtagFn = (...args: readonly unknown[]) => void
 
-type AnalyticsPageGroup = 'marketing' | 'docs' | 'hosted_auth' | 'account' | 'console' | 'other'
+type AnalyticsPageGroup = 'hosted_auth' | 'account' | 'other'
 
 export type AnalyticsPageView = {
   pagePath: string
@@ -50,10 +50,7 @@ export function isAnalyticsEnabled(): boolean {
 }
 
 export function resolveAnalyticsPageGroup(pathname: string): AnalyticsPageGroup {
-  if (pathname === '/' || pathname.startsWith('/home')) return 'marketing'
-  if (pathname === '/docs' || pathname.startsWith('/docs/')) return 'docs'
   if (pathname.startsWith('/account')) return 'account'
-  if (pathname.startsWith('/console')) return 'console'
   if (
     pathname.startsWith('/sign-in') ||
     pathname.startsWith('/sign-up') ||
@@ -73,12 +70,8 @@ export function resolveAnalyticsPageGroup(pathname: string): AnalyticsPageGroup 
   return 'other'
 }
 
-export function buildPublicCanonicalUrl(pathname: string, locale?: string): string {
-  const url = new URL(pathname || '/', PUBLIC_SITE_ORIGIN)
-  if (locale && locale !== 'en') {
-    url.searchParams.set('locale', locale)
-  }
-  return url.toString()
+export function buildPublicCanonicalUrl(pathname: string): string {
+  return new URL(pathname || '/', PUBLIC_SITE_ORIGIN).toString()
 }
 
 export function trackPageView(input: AnalyticsPageView): void {

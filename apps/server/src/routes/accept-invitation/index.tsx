@@ -1,14 +1,14 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createLazyRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { trackInvitationAccepted } from '../../lib/google-analytics-funnel'
-import { Link } from '../../lib/router'
+import { Link, useNavigate } from '../../lib/router'
 import { tokens } from '../../styles/tokens.stylex'
 
 type InvitationPreview = {
@@ -64,7 +64,7 @@ function AcceptInvitationPage(): ReactNode {
         invitation_token: token ?? '',
         continue: `/accept-invitation?token=${encodeURIComponent(token ?? '')}`,
       })
-      void navigate({ to: `/sign-in?${params.toString()}` as never, replace: true })
+      navigate(`/sign-in?${params.toString()}`, { replace: true })
     }
   }, [navigate, preview.data, status, token])
 
@@ -80,7 +80,7 @@ function AcceptInvitationPage(): ReactNode {
     }
     trackInvitationAccepted()
     await refresh()
-    void navigate({ to: result.value.redirectUrl as never, replace: true })
+    navigate(result.value.redirectUrl, { replace: true })
   }
 
   if (!token) {

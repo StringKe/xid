@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=7cc1fb7c31e75ad20cafa1e8fb4ce98921567910 -->
+<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=37875c362e9ac983a3243b55dae615c46c2f8396 -->
 
 > Translation of `docs/design/00-overview.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/00-overview.md`](../../design/00-overview.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -64,9 +64,10 @@ MIT 授予的权利:
 Monorepo  pnpm workspace + turborepo(唯一跨包编排)+ Vite+(vp:Oxlint/Oxfmt/Vitest/tsgo/库打包)+ 标准 Vite(app 构建)
 运行时    Cloudflare Workers
 后端      Hono(协议端 + Management API)
-前端      React 19 SPA(标准 Vite + @cloudflare/vite-plugin),client-side 路由(@tanstack/react-router code-based;`lib/router.tsx` 保留 react-router 兼容 API)
-          覆盖:Hosted UI(登录/consent/account)+ org/instance 管理 console
-          构建产物经 ASSETS binding 由同一 Worker 静态分发,非 API 路径回落 single-page-application
+Public Site Astro 7 + @cloudflare/nimbus-docs 0.8.2,静态 SSR、Pagefind、sitemap、OG、Markdown twins 和 LLM 输出
+Hosted UI  React 19 SPA,保留在 Core 部署中:登录、consent 和 account
+Console    React 19 SPA,部署在只含静态 assets 的 Worker 中:apex 与 tenant host 上统一的 org/instance `/console`
+Edge 路由  更具体的 Worker Routes 选择 Site 和 Console 路径;Core 保持 Custom Domain 与 tenant wildcard fallback
 i18n      lingui 全套(@lingui/core + @lingui/react + @lingui/cli + macro,ICU,po 格式)
 密码学    Web Crypto(crypto.subtle)
 ORM/DB    Drizzle ORM + D1(关系数据)
@@ -84,29 +85,28 @@ SAML XML  xmldsigjs + @xmldom/xmldom(nodejs_compat >= 2025-04-08)
 
 ### 3.1 应用边界
 
-逻辑核心是一个 Worker(`apps/server`):协议端(Hono:OIDC/OAuth/JWKS/SCIM/SAML/Management API)+ 人机前端(React SPA:登录/consent/account/管理 console)+ 管理逻辑,同一份代码、同一个 Worker。`@cloudflare/vite-plugin` 一个项目构建:worker 处理 API,SPA 客户端渲染,非 API 路径回落静态 assets。
+一个产品和一个逻辑 Core 不要求只有一个前端部署。XID 有三个运行时边界:
 
-```
-apps/
-  server/        唯一 Worker(pnpm create cloudflare --framework=react 脚手架)
-    worker/      Hono:OIDC/OAuth/JWKS/SCIM/SAML/Management API;非 API 路径回落 SPA assets(ASSETS binding)
-    src/         React SPA(client mode):登录/consent/account + org/instance 管理 console
-    vite.config.ts   标准 Vite:@vitejs/plugin-react + @cloudflare/vite-plugin + lingui
-    wrangler.jsonc   main=worker/index.ts,assets.not_found_handling=single-page-application
-packages/
-  protocol/     OIDC/OAuth/JWT/PKCE/refresh rotation 协议内核(自研)
-  webauthn/     WebAuthn 验证编排
-  crypto/       信封加密 + instance signing key(Web Crypto 封装)
-  saml/         xmldsigjs + @xmldom/xmldom SAML 处理层
-  db/           Drizzle schema + 带租户上下文的查询层
-  i18n/         lingui 运行时实例 + locales catalog 产物
-  core/         SDK 浏览器核心(登录态/token/用户组织信息)
-  backend/      SDK 服务端核心(Cloudflare Workers 原生,networkless JWT 验证)
-  react/        SDK React 绑定(可嵌入 UI 组件)
-  nextjs/       SDK Next.js 适配
-```
+| 运行时      | Package            | 职责                                                                                                                            |
+| ----------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Nimbus Site | `@xid-kit/site`    | apex canonical 文档首页、8 locale 公共文档、SEO、Pagefind、OG、sitemap、Markdown twins、LLM 输出与 `www` 308                    |
+| Console     | `@xid-kit/console` | 统一的 org 和 instance 管理 SPA。它是只含 `ASSETS` binding 的静态 Worker,在 apex 与 tenant host 上拥有 `/console`               |
+| Core        | `@xid-kit/server`  | Hono 协议与 Management API、Hosted Auth、account 自助、admin 逻辑、Durable Objects、Queues、crons、secrets 与所有数据 binding |
 
-`@xid-kit/*` 分两类:`protocol/webauthn/crypto/saml/db/i18n` 是 server worker 内部用的**内核库**;`core/backend/react/nextjs` 是给客户**嵌入式集成的 SDK**(可选)。托管的登录/consent 页是 OIDC 协议底座,不是可选 app。
+Core Worker 仍是唯一的逻辑身份核心。Site 和 Console Worker 不能访问 D1、KV、R2、Durable
+Objects、Queues 或 Core secrets。Console 调用同 host 的 Core API,platform 与 org 管理继续共用
+一套 RBAC 模型和一个 Console 产品。
+
+Cloudflare 通过显式且更具体的 Worker Routes 选择这些运行时。Site 只拥有枚举出的 public 与
+locale 路径,Console 只拥有 `/console` 和 `/console/*`,Core Custom Domain 与 tenant wildcard
+保持 fallback。不引入 front proxy Worker,Site 与 Console 都不能声明宽泛的 apex catch-all。
+
+私有 `@xid-kit/web-ui` package 包含 Hosted UI 与 Console 共用的 UI primitives、theme、locale、
+session、API client、query helpers 与 router adapter。protocol、WebAuthn、crypto、SAML、database
+与 i18n kernel packages 仍只在 Core 内部使用。browser、backend、React 与 Next.js packages
+仍是客户应用可选的 SDK。
+
+`@xid-kit/*` 分两类:`protocol/webauthn/crypto/saml/db/i18n` 是 Core Worker 内部用的**内核库**;`core/backend/react/nextjs` 是给客户**嵌入式集成的 SDK**(可选)。托管的登录/consent 页是 OIDC 协议底座,不是可选 app。
 
 ## 4. 自研边界
 
@@ -152,7 +152,17 @@ D1 无 RLS,隔离靠应用层强制。用 Drizzle ORM 封装带租户上下文�
 
 ### 6.1 认证根域:xid.dev
 
-`xid.dev` 根域是 instance-level 统一人机入口与平台 console 入口,不是 `admin` tenant 或 `app` tenant 的固定别名。所有用户都可以从 `https://xid.dev/sign-in` 进入统一 Hosted UI,先收集 identifier、login_hint、OIDC authorize context 或已有 session,再由 instance login resolver 解析最终认证上下文。初始超管不要求知道 `admin.xid.dev`,业务用户也不要求知道 `app.xid.dev`,平台仍不另做 admin SPA、admin API、admin RBAC。
+`xid.dev` 根域是 instance-level 统一人机入口与平台 console 入口。Nimbus Site 拥有 canonical
+文档首页与公共文档,Core Worker 拥有 Hosted Auth、account、协议与 API 路径,Console Worker
+拥有 `/console`。这种路径路由不改变 issuer,也不创建第二个身份核心。apex 不是 `admin`
+tenant 或 `app` tenant 的固定别名。所有用户都可以从 `https://xid.dev/sign-in` 进入统一
+Hosted UI,先收集 identifier、login_hint、OIDC authorize context 或已有 session,再由 instance
+login resolver 解析最终认证上下文。初始超管不要求知道 `admin.xid.dev`,业务用户也不要求知道
+`app.xid.dev`,平台仍不另做 admin SPA、admin API、admin RBAC。
+
+`https://www.xid.dev/{path}?{query}` 始终返回 308 到
+`https://xid.dev/{path}?{query}`,并保留 path 与 query。`www` 是保留 tenant slug,永远不进入
+TenantContext 解析。
 
 instance login resolver 负责在根域入口下选择目标 org / tenant:
 
@@ -175,6 +185,9 @@ instance login resolver 负责在根域入口下选择目标 org / tenant:
 
 - 一级 wildcard `*.xid.dev` 被免费 Universal SSL 覆盖,不需要 ACM
 - RPID = `{tenant}.xid.dev`,每租户 RPID 不同,passkey 天然按租户隔离
+- 同一个静态 Console Worker 在 apex 与每个 tenant host 上拥有 `/console` 和
+  `/console/*`。它让 document navigation 和 Core API 调用保留原 host,因此 host-only session
+  cookies 继续生效
 - 默认不作为 OIDC issuer。子域可作为 org-scoped UI、branding 或 future custom issuer 入口,但 xid.dev 托管默认 issuer 仍是 instance domain `https://xid.dev`
 
 默认 bootstrap 只创建 default organization,不是 `admin org + app org` 双默认模型。`default.xid.dev` 可作为 default organization 的 org-scoped UI、branding 或 RPID entry,但不是独立 issuer。`admin.xid.dev` 与 `app.xid.dev` 不作为生产 route、普通 entry、兼容 redirect 或默认产品语义。根域入口不得硬编码为 `admin`、`app` 或 `default`,必须通过 instance login resolver。
@@ -240,7 +253,10 @@ SOC 2 Type II(P0,B2B 入场券)-> GDPR DPA(P0)-> ISO 27001(P1)-> OpenID Certifie
 
 | 服务                            | 用途                                                                                     |
 | ------------------------------- | ---------------------------------------------------------------------------------------- |
-| Workers + Hono                  | HTTP / 协议处理                                                                          |
+| Core Worker + Hono              | 协议、Hosted Auth、account、Management API、bindings、Queues、crons 与身份业务逻辑        |
+| Nimbus Site Worker              | Canonical apex 文档首页、8 locale 公共文档、SEO、Pagefind、Markdown 与 LLM 输出,以及 `www` 308 |
+| Console Worker                  | apex 与 tenant host `/console` 上的静态 org/instance 管理 SPA,不含 Core bindings          |
+| Worker Routes                   | 更具体的 Site 与 Console 路径覆盖 Core Custom Domain 和 tenant wildcard fallback,不设 front proxy |
 | D1                              | 用户/应用/组/凭证元数据/授权码/refresh token/审计/租户/密钥密文/会话                     |
 | Durable Objects                 | WebAuthn challenge、OAuth state/nonce/PKCE、会话撤销集、按租户限流(强一致防重放)         |
 | KV                              | JWKS / discovery / 品牌配置 / feature flag 缓存                                          |
@@ -279,4 +295,4 @@ SOC 2 Type II(P0,B2B 入场券)-> GDPR DPA(P0)-> ISO 27001(P1)-> OpenID Certifie
 | 10  | 用量计量      | DAU/MAU 精确去重,供自托管方接自有计费或配额                             |
 | 11  | 层级模型      | Instance -> Org -> Project -> App,一层子 Org                            |
 | 12  | 范围          | 目标能力全量覆盖,支持等级以协议矩阵和 L4 证据为准                       |
-| 13  | 前端架构      | React 19 SPA(无 SvelteKit),与 Hono Worker 共用一个 apps/server 部署单元 |
+| 13  | 前端架构      | Nimbus Site + 独立静态 Console Worker;Core 保留 React Hosted UI 与 account SPA |

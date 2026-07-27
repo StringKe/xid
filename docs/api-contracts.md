@@ -81,28 +81,76 @@ Hosted Auth policy rules:
 
 ## Public docs
 
-Authentication: none. `/docs/*` is the React SPA public technical documentation namespace, not a browser for the repository-internal `docs/` directory.
+Authentication: none. The apex root is the Nimbus Site static technical documentation namespace,
+not a browser for the repository-internal `docs/` directory. English uses `/` and `/<slug>`; the
+other 7 locales use lowercase locale prefixes: `zh-hans`, `ja`, `ko`, `fr`, `de`, `es`, and
+`pt-br`. The old `/docs` namespace is compatibility-only and returns one 308 redirect to the root
+canonical path. The exact `/scim` documentation path belongs to Site, while `/scim/v2/*` and
+`/scim/outbound/*` remain Core protocol routes.
 
-| Method | Path                    | Status        | Response                                                                                                                                                                 |
-| ------ | ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GET    | `/docs`                 | production L4 | Public technical documentation index. Current source, i18n, local DOM, and production browser smoke have all moved to organization semantics                             |
-| GET    | `/docs/getting-started` | production L4 | Getting started. Current source, i18n, local DOM, and production smoke have all moved to organization semantics                                                          |
-| GET    | `/docs/hosted-auth`     | production L4 | Hosted Auth. Current source, i18n, local DOM, and production smoke have all moved to organization semantics                                                              |
-| GET    | `/docs/oidc-oauth`      | PASS          | OIDC and OAuth                                                                                                                                                           |
-| GET    | `/docs/enterprise-sso`  | PASS          | Enterprise SSO. Distinguishes inbound SAML/OIDC, downstream SaaS SAML/OIDC, and the L4 boundary                                                                          |
-| GET    | `/docs/social-login`    | PASS          | Social login. Distinguishes the GitHub, Google, Microsoft account, and Apple provider-ready boundary from the production-supported boundary                              |
-| GET    | `/docs/management-api`  | production L4 | Management API. Current source, i18n, local DOM, and production docs smoke have all moved to organization API key and organization resource semantics                    |
-| GET    | `/docs/scim`            | production L4 | SCIM technical documentation. Current source, i18n, local DOM, and production Chrome DOM have all moved to the public `/scim/v2/organizations/{organization_id}` example |
-| GET    | `/docs/saml`            | PASS          | SAML SSO                                                                                                                                                                 |
-| GET    | `/docs/sdks`            | PASS          | SDKs. Distinguishes current package, scaffold, and planned design                                                                                                        |
-| GET    | `/docs/self-hosting`    | PASS          | Self-hosting technical documentation                                                                                                                                     |
-| GET    | `/docs/api`             | production L4 | HTTP 404; does not enter the SPA and does not render public Management API technical documentation                                                                       |
-| GET    | `/docs/deployment`      | production L4 | HTTP 404; does not enter the SPA and does not render `docs/deployment.md`                                                                                                |
-| GET    | `/docs/api-contracts`   | production L4 | HTTP 404; does not enter the SPA and does not render this file                                                                                                           |
-| GET    | `/docs/design`          | production L4 | HTTP 404; does not enter the SPA and does not render `docs/design/**`                                                                                                    |
-| GET    | `/docs/*`               | production L4 | An unregistered topic returns HTTP 404 and does not redirect to `/sign-in`                                                                                               |
+| Method | Path                   | Current evidence | Response                                                                                                                                                                 |
+| ------ | ---------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/`                    | local Site PASS  | Static Nimbus documentation hub with product position, capability scope, quick start, and full navigation                                                                |
+| GET    | `/getting-started`     | local Site PASS  | Getting started. Current source and i18n use organization semantics                                                                                                      |
+| GET    | `/hosted-auth`         | local Site PASS  | Hosted Auth. Current source and i18n use organization semantics                                                                                                          |
+| GET    | `/oidc-oauth`          | local Site PASS  | OIDC and OAuth                                                                                                                                                           |
+| GET    | `/enterprise-sso`      | local Site PASS  | Enterprise SSO. Distinguishes inbound SAML/OIDC, downstream SaaS SAML/OIDC, and the L4 boundary                                                                          |
+| GET    | `/social-login`        | local Site PASS  | Social login. Distinguishes the GitHub, Google, Microsoft account, and Apple provider-ready boundary from the production-supported boundary                              |
+| GET    | `/management-api`      | local Site PASS  | Management API. Current source and i18n use organization API key and organization resource semantics                                                                     |
+| GET    | `/scim`                | local Site PASS  | Exact SCIM documentation route; examples use the Core protocol path `/scim/v2/organizations/{organization_id}`                                                           |
+| GET    | `/saml`                | local Site PASS  | SAML SSO                                                                                                                                                                 |
+| GET    | `/sdks`                | local Site PASS  | SDKs. Distinguishes current package, local evidence, and planned design                                                                                                  |
+| GET    | `/self-hosting`        | local Site PASS  | Self-hosting technical documentation                                                                                                                                     |
+| GET    | `/zh-hans`             | local Site PASS  | Localized Nimbus documentation hub                                                                                                                                       |
+| GET    | `/zh-hans/oidc-oauth`  | local Site PASS  | Localized OIDC and OAuth documentation                                                                                                                                   |
+| GET    | `/docs`                | local Site PASS  | Compatibility 308 to `/`                                                                                                                                                 |
+| GET    | `/docs/getting-started` | local Site PASS | Compatibility 308 to `/getting-started`; query parameters are preserved                                                                                                 |
+| GET    | `/docs/api`            | local Site PASS  | Site HTTP 404; does not render public Management API technical documentation                                                                                             |
+| GET    | `/docs/deployment`     | local Site PASS  | Site HTTP 404; does not render `docs/deployment.md`                                                                                                                      |
+| GET    | `/docs/api-contracts`  | local Site PASS  | Site HTTP 404; does not render this file                                                                                                                                 |
+| GET    | `/docs/design`          | local Site PASS  | Site HTTP 404; does not render `docs/design/**`                                                                                                                          |
+| GET    | `/docs/*`               | local Site PASS  | An unregistered topic returns the Nimbus Site HTTP 404 and does not fall through to Core or redirect to `/sign-in`                                                       |
 
-The current public docs are rendered as structured XID technical documentation by the SPA `apps/server/src/routes/docs/index.tsx` and `apps/server/src/routes/docs/registry.ts`. The Worker only hands whitelisted public technical docs paths to the static assets entry; it MUST NOT read repository markdown and MUST NOT expose repository-internal documents such as `docs/design`, `docs/api-contracts.md`, and `docs/deployment.md`. `/docs/api` is not a public alias. `/docs/deployment` shares its name with the repository-internal `docs/deployment.md`, is treated as an internal document path, and returns 404 at the HTTP layer.
+The committed public allowlist is `packages/types/src/public-docs.ts`; Nimbus route validation lives
+in `apps/site/src/lib/docs-registry.ts`, and the localized document AST lives in
+`apps/site/src/content-source/docs/documents.json`. Only the hub and the 40 allowlisted technical
+documents enter the Nimbus content collection. Repository-internal documents such as `docs/design`,
+`docs/api-contracts.md`, and `docs/deployment.md` stay outside that collection and MUST return the
+Site 404. `/docs/api` is not a public alias. Historical public aliases such as `/docs/oidc`,
+`/docs/oauth`, and `/docs/sso` return 308 to their canonical Site paths with the query preserved.
+
+### Agent-readable surfaces
+
+Every published documentation page has two static twins:
+
+- `/<page>/index.md` is the downleveled Markdown render for readers and retrieval pipelines. Its
+  `Source:` line points to the same page's `index.mdx`.
+- `/<page>/index.mdx` is the authored MDX source after localized content generation.
+
+The Site publishes the 328-page global index at `/llms.txt` and the byte-stable 328-page global
+corpus at `/llms-full.txt`. `/en/llms.txt` and `/en/llms-full.txt` each cover the 41 English pages;
+each of the other seven locales publishes the same 41-page pair under its locale segment, such as
+`/zh-hans/llms.txt` and `/zh-hans/llms-full.txt`. Each index links every page in its scope to the
+Markdown twin. Core-owned `/.well-known/llms.txt` returns 308 to the canonical Site `/llms.txt`.
+
+Nimbus page heads carry title, description, canonical URL, hreflang alternates, Open Graph metadata,
+JSON-LD, and a Markdown alternate. The Site also owns `/robots.txt`, `/sitemap.xml`,
+`/sitemap-index.xml`, generated OG routes, and Pagefind. A content entry marked `draft: true` is not
+published; `noindex: true` excludes it from the agent index and search unless the content contract
+explicitly overrides searchability.
+
+Static asset metadata MUST produce these response types:
+
+| Path pattern | Content-Type                         |
+| ------------ | ------------------------------------ |
+| `/*.md`      | `text/markdown; charset=utf-8`       |
+| `/*.mdx`     | `text/markdown; charset=utf-8`       |
+| `/*.txt`     | `text/plain; charset=utf-8`          |
+
+All Site responses, including redirects and 404 responses, carry
+`X-XID-Route-Owner: site`. Production L4 for the new three-Worker route split remains gated on the
+coordinated deployment and live owner-header smoke; local Site build evidence is not production
+evidence.
 
 ## Platform console
 
@@ -276,8 +324,8 @@ Authentication: `Bearer sk_live_*` or `Bearer sk_test_*`. Tenant isolation: `Ten
 
 | Area                   | Status        | Contract                                                                                                                                                                                                                                                                                                                                                      |
 | ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NavLink` active class | production L4 | `apps/server/src/lib/router.tsx` is compatible with the react-router `className={({ isActive }) => ...}` form and children render function. Focused tests, local browser DOM, and production Chrome DOM have verified that the console DOM contains no function source, no `isActive`, and no `e=>n`                                                          |
-| `Link` href            | production L4 | The plain `Link` in `apps/server/src/lib/router.tsx` emits a real `<a href>` and only takes over internal SPA navigation with TanStack navigate on click. Focused tests cover that dynamic string routes and object routes do not emit `__link__`; the production browser smoke test and `cdp-bridge` verify that the console DOM has no `a[href="__link__"]` |
+| `NavLink` active class | local Console PASS | `packages/web-ui/src/tanstack-router.tsx` is compatible with the react-router `className={({ isActive }) => ...}` form and children render function. `packages/web-ui/src/tanstack-router.test.tsx` verifies that rendered anchors contain the resolved class and never contain function source                                                           |
+| `Link` href            | local Console PASS | The shared `Link` emits a real `<a href>` and takes over same-runtime SPA navigation with TanStack navigate on click. Focused tests cover dynamic string and object routes without `__link__`; links crossing the Core and Console Worker boundary retain their real href and use document navigation so the request host and host-only cookie remain intact |
 
 ## Error Contract
 

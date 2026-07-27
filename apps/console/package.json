@@ -1,0 +1,49 @@
+{
+  "name": "@xid-kit/console",
+  "version": "0.0.0",
+  "private": true,
+  "description": "XID organization and instance management console.",
+  "homepage": "https://xid.dev/console",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "bundle:cf": "vite build && wrangler versions upload --dry-run",
+    "check": "vp check",
+    "preview": "vite preview",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "dev:worker": "wrangler dev"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@lingui/core": "catalog:",
+    "@lingui/react": "catalog:",
+    "@stylexjs/stylex": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-table": "catalog:",
+    "@xid-kit/i18n": "workspace:*",
+    "@xid-kit/protocol": "workspace:*",
+    "@xid-kit/types": "workspace:*",
+    "@xid-kit/web-ui": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@lingui/babel-plugin-lingui-macro": "catalog:",
+    "@lingui/vite-plugin": "catalog:",
+    "@rolldown/plugin-babel": "catalog:",
+    "@stylexjs/unplugin": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^6.0.4",
+    "jsdom": "catalog:",
+    "typescript": "^6.0.3",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

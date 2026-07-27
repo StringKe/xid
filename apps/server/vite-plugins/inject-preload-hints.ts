@@ -6,7 +6,7 @@ import type { Plugin } from 'vite'
 
 const LATIN_FONT_PREFIX = 'inter-latin-wght-normal'
 const ENTRY_SCRIPT_PREFIX = 'index-'
-const HOME_PAGE_PREFIX = 'HomePage-'
+const CORE_ASSET_PATH = '/_core/'
 
 export function injectPreloadHintsPlugin(): Plugin {
   return {
@@ -22,7 +22,7 @@ export function injectPreloadHintsPlugin(): Plugin {
         return
       }
 
-      const assetsDir = join(outDir, 'assets')
+      const assetsDir = join(outDir, '_core')
       let assetNames: string[] = []
       try {
         assetNames = readdirSync(assetsDir)
@@ -36,15 +36,15 @@ export function injectPreloadHintsPlugin(): Plugin {
       )
       if (latinFont && !html.includes(latinFont)) {
         hints.push(
-          `    <link rel="preload" href="/assets/${latinFont}" as="font" type="font/woff2" crossorigin />`,
+          `    <link rel="preload" href="${CORE_ASSET_PATH}${latinFont}" as="font" type="font/woff2" crossorigin />`,
         )
       }
 
-      for (const prefix of [ENTRY_SCRIPT_PREFIX, HOME_PAGE_PREFIX] as const) {
-        const script = assetNames.find((name) => name.startsWith(prefix) && name.endsWith('.js'))
-        if (script && !html.includes(`href="/assets/${script}"`)) {
-          hints.push(`    <link rel="modulepreload" href="/assets/${script}" />`)
-        }
+      const script = assetNames.find(
+        (name) => name.startsWith(ENTRY_SCRIPT_PREFIX) && name.endsWith('.js'),
+      )
+      if (script && !html.includes(`href="${CORE_ASSET_PATH}${script}"`)) {
+        hints.push(`    <link rel="modulepreload" href="${CORE_ASSET_PATH}${script}" />`)
       }
 
       if (hints.length === 0) return

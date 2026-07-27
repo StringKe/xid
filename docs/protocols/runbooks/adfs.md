@@ -12,7 +12,7 @@
 
 - Smoke harness: `apps/server/tests/smoke/l3-inbound-saml.test.mjs`
 - Preset source: `apps/server/worker/sso/provider-presets.ts`
-- Console: `apps/server/src/routes/org/OrgSso.tsx`
+- Console: `apps/console/src/routes/org/OrgSso.tsx`
 
 ## Production L4 blocked inputs
 

@@ -17,6 +17,7 @@ import {
   VERIFIED_WRANGLER_CONFIG_PATH,
   verifiedWranglerConfigArgs,
 } from '../../../apps/server/scripts/production-target.mjs'
+import { webRouteOwnerMatches } from './web-route-owner.mjs'
 
 const baseUrl = productionBaseUrl()
 const repo = process.env['XID_GITHUB_REPO'] ?? 'StringKe/xid'
@@ -36,7 +37,6 @@ const INTERNAL_DOCS_MARKERS = [
   'docs/current-gap-audit',
   'docs/implementation-status',
   'docs/soft-delete',
-  'Open docs',
   '完整功能设计',
   '设计真相源',
 ]
@@ -666,29 +666,50 @@ function bodyBlocksInternalDocs(body) {
   return !INTERNAL_DOCS_MARKERS.some((marker) => body.includes(marker))
 }
 
+function bodyIsNimbusDocs(body) {
+  return (
+    body.includes('XID') &&
+    body.includes('data-ai-agent-directive') &&
+    body.includes('data-nb-sidebar') &&
+    body.includes('data-search-dialog') &&
+    !body.includes('Sign in to XID') &&
+    bodyBlocksInternalDocs(body)
+  )
+}
+
 async function auditProductionHttpReadiness(incomplete) {
-  const docs = await fetchProduction('/docs')
+  const docs = await fetchProduction('/')
   if (
     docs.res.status === 200 &&
-    docs.text.includes('XID') &&
-    bodyBlocksInternalDocs(docs.text) &&
-    !docs.text.includes('Sign in to XID')
+    webRouteOwnerMatches(docs.res.headers, 'site') &&
+    bodyIsNimbusDocs(docs.text)
   ) {
-    print('PASS', 'production HTTP docs route', 'path=/docs')
+    print('PASS', 'production HTTP docs root', 'path=/')
   } else {
-    incomplete.push(`production /docs route invalid http=${docs.res.status}`)
+    incomplete.push(`production docs root invalid http=${docs.res.status}`)
   }
 
-  const docsScim = await fetchProduction('/docs/scim')
+  const docsScim = await fetchProduction('/scim')
   if (
     docsScim.res.status === 200 &&
-    docsScim.text.includes('XID') &&
-    bodyBlocksInternalDocs(docsScim.text) &&
-    !docsScim.text.includes('Sign in to XID')
+    webRouteOwnerMatches(docsScim.res.headers, 'site') &&
+    bodyIsNimbusDocs(docsScim.text)
   ) {
-    print('PASS', 'production HTTP docs scim route', 'path=/docs/scim')
+    print('PASS', 'production HTTP docs scim route', 'path=/scim')
   } else {
-    incomplete.push(`production /docs/scim route invalid http=${docsScim.res.status}`)
+    incomplete.push(`production /scim route invalid http=${docsScim.res.status}`)
+  }
+
+  const localizedDocsScim = await fetchProduction('/zh-hans/scim')
+  if (
+    localizedDocsScim.res.status === 200 &&
+    webRouteOwnerMatches(localizedDocsScim.res.headers, 'site') &&
+    bodyIsNimbusDocs(localizedDocsScim.text) &&
+    localizedDocsScim.text.includes('<html lang="zh-Hans"')
+  ) {
+    print('PASS', 'production HTTP localized docs scim route', 'path=/zh-hans/scim')
+  } else {
+    incomplete.push(`production /zh-hans/scim route invalid http=${localizedDocsScim.res.status}`)
   }
 
   for (const path of [
@@ -701,7 +722,7 @@ async function auditProductionHttpReadiness(incomplete) {
     const internalDocs = await fetchProduction(path)
     if (
       internalDocs.res.status === 404 &&
-      internalDocs.res.headers.get('x-xid-docs-route-status') === 'blocked-non-public-docs-path' &&
+      webRouteOwnerMatches(internalDocs.res.headers, 'site') &&
       !internalDocs.text.includes('<div id="root"') &&
       !internalDocs.text.includes('Sign in to XID')
     ) {

@@ -17,32 +17,41 @@ repo, when you are adding a workspace member, or when you are about to edit
 
 ## Command Reference
 
-| Action           | apps/server                                        | packages/\*                 | Whole repo                                 |
-| ---------------- | -------------------------------------------------- | --------------------------- | ------------------------------------------ |
-| Install deps     | `pnpm install`                                      | --                          | `pnpm install`                             |
-| Dev              | `pnpm --filter @xid-kit/server dev` (`vite`)        | --                          | `pnpm dev` (`turbo run dev --parallel`)    |
-| Build            | `pnpm --filter @xid-kit/server build` (`vite build`)| `vp pack`                   | `pnpm build` (`turbo run build`)           |
-| Lint + format    | `node scripts/check-lint-warning-budget.mjs`        | `vp check`                  | `turbo run check`                          |
-| Type check       | `tsc --noEmit -p tsconfig.json`                     | `tsc --noEmit -p tsconfig.json` | `pnpm typecheck` (`turbo run typecheck`)  |
-| Test             | `vitest run --config vitest.worker.config.ts` and `--config vitest.spa.config.ts` | `vp test` | `pnpm test` (`turbo run test`)             |
-| Format in place  | --                                                  | --                          | `pnpm fmt` (`vp fmt`)                      |
-| Full gate        | --                                                  | --                          | `pnpm check`                               |
-| Deploy           | `pnpm --dir apps/server exec wrangler deploy`       | --                          | --                                         |
+| Action      | apps/site                         | apps/console                        | apps/server                         | packages/\*                        | Whole repo                              |
+| ----------- | --------------------------------- | ----------------------------------- | ----------------------------------- | ---------------------------------- | --------------------------------------- |
+| Install     | `pnpm install`                    | `pnpm install`                      | `pnpm install`                      | --                                 | `pnpm install`                          |
+| Dev         | `pnpm --filter @xid-kit/site dev` | `pnpm --filter @xid-kit/console dev`| `pnpm --filter @xid-kit/server dev` | --                                 | `pnpm dev`                              |
+| Build       | `pnpm --filter @xid-kit/site build` | `pnpm --filter @xid-kit/console build` | `pnpm --filter @xid-kit/server build` | `vp pack`                       | `pnpm build`                            |
+| Check       | package `check` script            | package `check` script              | zero-warning budget wrapper         | `vp check`                         | `turbo run check`                       |
+| Type check  | package `typecheck` script        | `tsc --noEmit -p tsconfig.json`     | `tsc --noEmit -p tsconfig.json`     | `tsc --noEmit -p tsconfig.json`    | `pnpm typecheck`                        |
+| Test        | package `test` plus route audit   | package `test`                      | Worker + SPA Vitest configs         | `vp test`                          | `pnpm test`                             |
+| Format      | --                                | --                                  | --                                  | --                                 | `pnpm fmt`                              |
+| Full gate   | --                                | --                                  | --                                  | --                                 | `pnpm check`                            |
+| Release     | coordinated Workers Builds version upload | coordinated Workers Builds version upload | coordinated Workers Builds version upload and promotion | -- | release manifest coordinator |
 
 Notes that matter when you run these:
 
 - `apps/server`'s `check` wraps `vp check` in `scripts/check-lint-warning-budget.mjs` with a budget
   of **zero warnings**, so an Oxlint warning fails the app build gate even though it is only a warn.
 - `apps/server` does not use `vp test`: it runs two Vitest projects, one for the Worker
-  (`vitest.worker.config.ts`) and one for the SPA (`vitest.spa.config.ts`). Smoke tests use
-  `vitest.smoke.config.ts`.
+  (`vitest.worker.config.ts`) and one for the Hosted Auth/account SPA (`vitest.spa.config.ts`).
+  Smoke tests use `vitest.smoke.config.ts`.
+- `apps/site` build order is localized content generation -> Astro/Nimbus static build -> Pagefind
+  -> complete `dist` route audit. A raw `astro build` is not the Site release artifact.
+- `apps/console` uses standard Vite with base `/console/`; its tests cover the React SPA and the
+  ASSETS-only Worker boundary.
 - Root `pnpm check` is the real CI gate and is much wider than `turbo run check`: it chains
   `turbo run check`, `turbo run typecheck`, the native SDK contract test, the i18n audit, the
   protocol source map, and several coverage / quality / release-contract gates. CI
   (`.github/workflows/ci.yml`) runs `pnpm check`, `pnpm test`, `pnpm build`, and `pnpm smoke:l2-l3`.
-- Production deploys run through Cloudflare Workers Builds (build and deploy commands configured in
-  the dashboard, see `docs/deployment.md`); the `wrangler deploy` above is the manual fallback.
-  There is no `deploy` script in any `package.json` and no `deploy` task in `turbo.json`.
+- Production artifacts are uploaded independently for Site, Console, and Core through Cloudflare
+  Workers Builds, then promoted by one coordinated release. There is no direct `deploy` script in
+  any `package.json` and no `deploy` task in `turbo.json`.
+- `scripts/web-release-manifest.mjs` initializes and validates the ignored staged release record.
+  `scripts/build-core-compat-artifact.mjs` rebuilds the compatibility Core from a fixed git SHA in a
+  detached worktree and uses `wrangler versions upload --dry-run` to package it without uploading.
+  Route activation uses `wrangler triggers deploy`; the rollback sequence removes Console, removes
+  Site public routes while keeping `www`, then removes `www` last.
 
 turbo `check` / `typecheck` / `test` **do not depend on build**: internal packages are consumed
 straight from source (`main` points at `src/index.ts`), so type checking needs no prior build. Only
@@ -59,7 +68,15 @@ pnpm create cloudflare@latest <name> --framework=react   # SPA + Worker app
 It has since diverged substantially (TanStack Router, lingui, StyleX, custom Vite plugins), so treat
 that command as history, not as something to re-run against the existing app.
 
-New library packages get a hand-written `package.json`: `main` and `types` point at
+`apps/site` is generated once from `@cloudflare/create-nimbus-docs@0.6.3`, then owned by this
+monorepo. `@cloudflare/nimbus-docs` is pinned exactly to `0.8.2`, Astro stays on compatible 7.x, and
+the Site remains static output with no Cloudflare SSR adapter.
+
+`apps/console` is a standard Vite React app extracted from the former Core SPA. It is not scaffolded
+by rerunning C3 against the repository.
+
+New library packages, including private `@xid-kit/web-ui`, get a hand-written `package.json`: `main`
+and `types` point at
 `./src/index.ts`, `build` is `vp pack`, `check` is `vp check`, `test` is `vp test`, and `typecheck`
 is `tsc --noEmit -p tsconfig.json`.
 
@@ -125,7 +142,15 @@ export default defineConfig({
       'max-params': ['warn', 4],
     },
     overrides: [
-      { files: ['apps/server/src/**', 'packages/react/**'], plugins: ['typescript', 'react'] },
+      {
+        files: [
+          'apps/server/src/**',
+          'apps/console/src/**',
+          'packages/react/**',
+          'packages/web-ui/**',
+        ],
+        plugins: ['typescript', 'react'],
+      },
       {
         files: ['apps/server/worker/**', 'packages/protocol/**', 'packages/db/**'],
         env: { node: true },
@@ -138,13 +163,14 @@ export default defineConfig({
 ```
 
 - The snippet above is abridged; read the real file before editing it. The node-env override covers
-  every kernel package (`protocol`, `webauthn`, `crypto`, `saml`, `db`, `backend`) plus
-  `apps/server/worker`, and `fmt.ignorePatterns` also excludes the lingui compile output.
+  every kernel package (`protocol`, `webauthn`, `crypto`, `saml`, `db`, `backend`) plus Worker
+  entries, and `fmt.ignorePatterns` also excludes the lingui compile output.
 - Setting `plugins` in an override **replaces** the base `lint.plugins`, so list them all
   (for example `['typescript', 'react']`).
 - Globs resolve from the root `vite.config.ts` and use workspace-relative paths (`apps/server/src/**`).
 - Everything stdagent generates (`CLAUDE.md`, `AGENTS.md`, `.claude/**`, `.codex/**`, `.agents/**`)
   is excluded from Oxfmt and listed in `.oxlintignore`; reformatting it would fight `stdagent sync`.
-- The two `vite.config.ts` files do not conflict: the root one is the Vite+ quality config (read by
-  `vp`), and `apps/server/vite.config.ts` is the standard Vite build config (read by `vite`).
+- The root `vite.config.ts` is the Vite+ quality config. `apps/server/vite.config.ts` and
+  `apps/console/vite.config.ts` are standard Vite app configs. `apps/site/astro.config.ts` owns the
+  Nimbus/Astro build and passes only its integration-specific options into Vite.
 <!-- /Generated by stdagent -->

@@ -1,0 +1,57 @@
+{
+  "plugins": {
+    "@textlint/markdown": {
+      "extensions": [".md"]
+    },
+    "mdx": {
+      "extensions": [".mdx"]
+    }
+  },
+  "rules": {
+    "write-good": {
+      "weasel": false,
+      "passive": false,
+      "tooWordy": false,
+      "adverb": false,
+      "cliches": true,
+      "illusion": true,
+      "thereIs": true,
+      "so": true,
+      "eprime": false
+    },
+    "alex": {
+      "allow": [
+        "attacks",
+        "color",
+        "colors",
+        "dead",
+        "execution",
+        "failed",
+        "failure",
+        "failures",
+        "hook",
+        "hooks",
+        "host-hostess",
+        "invalid",
+        "kid",
+        "kids",
+        "reject",
+        "rejects",
+        "remains",
+        "savage",
+        "spa"
+      ]
+    },
+    "terminology": {
+      "defaultTerms": false,
+      "terms": [
+        "Cloudflare",
+        "JavaScript",
+        "OAuth",
+        "OpenID Connect",
+        "TypeScript",
+        "WebAuthn"
+      ]
+    }
+  }
+}

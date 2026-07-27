@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Extract lingui messages from the source into each locale's .po
-# Usage: bash extract.sh [--watch] [--clean]
+# Usage: bash extract.sh [--watch]
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -13,7 +13,7 @@ else
 fi
 
 # --overwrite keeps the source locale in sync with the source text.
-# Pass --clean yourself to drop messages that no longer exist in the source.
-$LINGUI extract --overwrite "$@"
+# --clean prevents removed UI and documentation copy from entering runtime catalogs.
+$LINGUI extract --overwrite --clean "$@"
 
 echo "extract done. Translate packages/i18n/locales/<locale>/messages.po, then run compile.sh"

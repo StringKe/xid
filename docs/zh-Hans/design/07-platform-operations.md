@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=5d55b0c source-blob=69a4ad113c14fc8874999797db0be1f82050905a -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=5d55b0c source-blob=9131acc0274f7ee4599ee1927df42c9f675e7d3c -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -22,13 +22,32 @@
 - 全局告警规则:异常登录率/API 错误率阈值 -> PagerDuty/Slack
 - 状态页管理:发布/更新 incident
 
-设计决策:平台 admin 与租户 admin 使用同一个 Worker 和同一个 React console。平台视图主入口是 `/console/platform/*`,由 `ManagerAssignment` 的 `instance_manager` 授权进入,不依赖业务 access token claim,不新增独立 admin SPA、独立 admin API 或独立 admin RBAC。`/platform-admin/*` 不作为兼容入口。跨租户管理走 `/v1/platform/*` 平台管理路径和统一 console 下的平台视图;租户管理继续走 `/v1/organizations/:orgId/*` 与 org console。impersonate 生成 15min scoped token 并写平台审计,不可绕过;Feature Flags KV key `flag:{tenant_id}:{flag_name}`,全局默认 `flag:global:{flag_name}`,请求直读 <1ms。
+设计决策:平台 admin 与租户 admin 共用一个统一 React Console 产品、一套 Management API
+与一套 RBAC 模型。静态 assets 通过独立 Console Worker 部署,所有管理端点与授权决策仍在
+Core。平台视图主入口是 `/console/platform/*`,由 `ManagerAssignment` 的
+`instance_manager` 授权进入,不依赖业务 access token claim。不新增第二个 platform-admin
+SPA、admin API、admin tenant 或 admin RBAC。`/platform-admin/*` 不作为兼容入口。跨租户
+管理走 `/v1/platform/*` 平台管理路径和统一 Console 下的平台视图;租户管理继续走
+`/v1/organizations/:orgId/*` 与 org Console。impersonate 生成 15min scoped token 并写平台
+审计,不可绕过;Feature Flags KV key `flag:{tenant_id}:{flag_name}`,全局默认
+`flag:global:{flag_name}`,请求直读 <1ms。
 
 ### 租户 Admin(单租户自管理)
 
 仪表盘(DAU/MAU 趋势/登录成功率/MFA 采用率/活跃 Org)、用户管理、应用管理(OAuth2 Client)、SSO 连接、组织管理、团队成员(角色 Owner/Admin/Viewer/Billing)、品牌定制、通知设置、审计日志、计费用量、合规工具。
 
-设计决策:租户 admin 页面与平台 admin 页面同属统一 React console,由同一个 Worker 托管。租户管理 API 使用 `/v1/organizations/:orgId/*` 和相关 `/v1/*` 租户资源路径,tenant_id 与 org_id 从 `TenantContext` 和受保护路径解析,不信任请求 body。Org Admin 只能管理本 org;Instance Manager 通过平台管理路径或同一 org console 的 instance manager override 管理任意 org。Viewer 只读,Billing 只看用量,RBAC 中间件层强制。
+设计决策:租户 admin 页面与平台 admin 页面同属统一 React Console Worker。该 Worker 只
+服务静态 assets,在 apex 与 tenant hosts 上拥有 `/console` 和 `/console/*`。它没有 D1、
+KV、R2、Durable Object、Queue、secret、protocol 或 Management API binding。租户管理 API
+使用 Core 中的 `/v1/organizations/:orgId/*` 和相关 `/v1/*` 租户资源路径,tenant_id 与
+org_id 从 `TenantContext` 和受保护路径解析,不信任请求 body。Org Admin 只能管理本 org;
+Instance Manager 通过平台管理路径或同一 org Console 的 instance manager override 管理任意
+org。Viewer 只读,Billing 只看用量,由 Core RBAC middleware layer 强制。
+
+Console 保留请求 host。同源 `/v1/*` 与 `/auth/*` 请求因此到达 Core,host-only `__Host-`
+cookies 在 apex 与 tenant hosts 上继续工作。前往 sign-in、MFA 与 account 页时跨 Worker
+边界进行完整 document navigation。更具体的 Cloudflare Worker Routes 在 Core Custom
+Domain 与 tenant wildcard fallback 之前选择 Console paths,不引入 front proxy。
 
 ## 2. 品牌定制
 
@@ -67,6 +86,9 @@ Cloudflare Email Service(2025,Email Sending)能从 Worker 发 transactional 邮�
 ## 4. 国际化 i18n
 
 - 登录页 UI 全走 i18n key,首版 8 locale(en、zh-Hans、ja、ko、fr、de、es、pt-BR,全部全译);40+ 语言为后续规划
+- Nimbus Site 使用相同 8 locale 发布文档首页与详情。英文使用 canonical apex
+  paths,其他 7 locale 使用 locale-prefixed canonical paths,并提供一致的 hreflang、
+  sitemap、Pagefind、Markdown 与 LLM 输出
 - 邮件模板按语言分版本,按 user.locale 选
 - 错误信息本地化,API 错误 message 带 locale
 - locale 管理:租户启用/禁用语言、设默认

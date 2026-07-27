@@ -58,7 +58,7 @@ const CLAIMS = [
   'phone_number',
   'phone_number_verified',
 ] as const
-const RESOURCE_DOCUMENTATION_PATH = '/docs/oidc-oauth'
+const RESOURCE_DOCUMENTATION_URL = 'https://xid.dev/oidc-oauth'
 
 export type DiscoveryMetadata = {
   issuer: string
@@ -182,7 +182,7 @@ export function buildProtectedResourceMetadata(input: {
     jwks_uri: `${issuer}/jwks`,
     bearer_methods_supported: ['header'],
     dpop_signing_alg_values_supported: ALLOWED_DPOP_ALGS,
-    resource_documentation: `${issuer}${RESOURCE_DOCUMENTATION_PATH}`,
+    resource_documentation: RESOURCE_DOCUMENTATION_URL,
   }
 }
 

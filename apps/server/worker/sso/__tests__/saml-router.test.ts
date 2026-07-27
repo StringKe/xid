@@ -56,8 +56,11 @@ describe('resolveRelayState(open redirect 阻断)', () => {
     )
   })
 
-  it('缺省 RelayState 回退默认', () => {
-    expect(resolveRelayState(tenant(), null)).toBe('https://acme.xid.dev/console')
+  it.each([
+    ['apex', 'https://xid.dev'],
+    ['tenant', 'https://acme.xid.dev'],
+  ])('%s 缺省 RelayState 回到同 host Console', (_surface, issuer) => {
+    expect(resolveRelayState(tenant(issuer), null)).toBe(`${issuer}/console`)
   })
 
   it('超长 RelayState 截断到 2KB 后再校验', () => {

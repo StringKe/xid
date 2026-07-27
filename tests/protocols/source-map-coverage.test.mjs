@@ -23,10 +23,12 @@ const enterpriseSsoDesignZhPath = 'docs/zh-Hans/design/04-enterprise-sso.md'
 // than to the current wrap points.
 const collapseWhitespace = (text) => text.replace(/\s+/gu, ' ')
 const apiContractsPath = 'docs/api-contracts.md'
-const publicDocsRegistryPath = 'apps/server/public-docs.ts'
-const publicDocsRegistryTestPath = 'apps/server/src/routes/docs/registry.test.ts'
-const publicDocsDevServerGuardTestPath = 'apps/server/src/routes/docs/dev-server-guard.test.ts'
-const publicRoutesTestPath = 'apps/server/worker/__tests__/public-routes.test.ts'
+const publicDocsRegistryPath = 'packages/types/src/public-docs.ts'
+const publicDocsRegistryTestPath = 'apps/site/src/lib/docs-registry.test.ts'
+const publicDocsGenerationTestPath = 'apps/site/scripts/generate-localized-content.test.mjs'
+const siteWorkerTestPath = 'apps/site/worker/index.test.ts'
+const siteDistAuditPath = 'apps/site/scripts/audit-dist-routes.mjs'
+const publicDocsContentPath = 'apps/site/src/content-source/docs/documents.json'
 
 const expectedProtocolDocs = [
   'README.md',
@@ -709,16 +711,17 @@ const forbiddenPublicDocSlugs = ['goal', 'design', 'verification', 'protocols', 
 
 const publicDocsGuardTestPaths = [
   publicDocsRegistryTestPath,
-  publicDocsDevServerGuardTestPath,
-  publicRoutesTestPath,
+  publicDocsGenerationTestPath,
+  siteWorkerTestPath,
+  siteDistAuditPath,
 ]
 
-const internalDocsPatternsRequiredInGuard = [
-  'docs/design',
-  'docs/goal',
-  'docs/verification',
-  'docs/api-contracts',
-  'docs/deployment',
+const internalDocSlugsRequiredInGuard = [
+  'design',
+  'goal',
+  'verification',
+  'api-contracts',
+  'deployment',
 ]
 
 const standardsRefreshRequiredTerms = [
@@ -1492,7 +1495,9 @@ function hasExplicitMissingEvidence(value) {
 }
 
 function publicDocPathsFromCell(value) {
-  return [...value.matchAll(/\/docs(?:\/[a-z0-9-]+|\*)?/g)].map((match) => match[0])
+  return [...value.matchAll(/`(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)`/g)].map(
+    (match) => match[1],
+  )
 }
 
 function readConformancePlan() {
@@ -1610,15 +1615,15 @@ describe('protocol source map coverage', () => {
     ).toBe(true)
     expect(
       gapAuditMarkdown.includes('complete OIDC/OAuth identity provider status'),
-      `${gapAuditPath} homepage complete IdP boundary`,
+      `${gapAuditPath} Nimbus hub complete IdP boundary`,
     ).toBe(true)
     expect(
-      gapAuditMarkdown.includes('apps/server/src/routes/home/HeroSection.tsx'),
-      `${gapAuditPath} homepage Hero evidence`,
+      gapAuditMarkdown.includes('apps/site/src/lib/docs-agent-content.test.ts'),
+      `${gapAuditPath} Nimbus agent surface evidence`,
     ).toBe(true)
     expect(
-      gapAuditMarkdown.includes('apps/server/src/routes/home/seo.test.ts'),
-      `${gapAuditPath} homepage SEO guard evidence`,
+      gapAuditMarkdown.includes('apps/site/scripts/audit-dist-routes.mjs'),
+      `${gapAuditPath} Nimbus dist guard evidence`,
     ).toBe(true)
   })
 
@@ -1763,7 +1768,7 @@ describe('protocol source map coverage', () => {
   it('keeps downstream SaaS SCIM targets implemented locally and separate from inbound SCIM', () => {
     const row = sourceMapRow('Downstream SaaS SCIM target clients')
     const gapAuditMarkdown = readFileSync(gapAuditPath, 'utf8')
-    const docsSource = readFileSync('apps/server/src/routes/docs/index.tsx', 'utf8')
+    const docsSource = readFileSync(publicDocsContentPath, 'utf8')
 
     for (const term of expectedGapAuditOpenBoundaryTerms) {
       expect(gapAuditMarkdown.includes(term), `${gapAuditPath} ${term}`).toBe(true)
@@ -1772,7 +1777,7 @@ describe('protocol source map coverage', () => {
     expect(row.support, 'Downstream SaaS SCIM target clients support').toBe('implemented')
     expect(row.evidence, 'Downstream SaaS SCIM target clients evidence').toBe('L2/L3')
     expect(row.publicDocsPath, 'Downstream SaaS SCIM target clients public docs path').toBe(
-      '`/docs/scim` boundary text',
+      '`/scim` boundary text',
     )
     expect(
       row.codePath.includes('apps/server/worker/scim/outbound.ts'),
@@ -1815,7 +1820,7 @@ describe('protocol source map coverage', () => {
 
   it('keeps downstream SaaS SSO local baseline out of production support claims', () => {
     const rowsByFeature = new Map(readSourceMapRows().map((row) => [row.feature, row]))
-    const docsSource = readFileSync('apps/server/src/routes/docs/index.tsx', 'utf8')
+    const docsSource = readFileSync(publicDocsContentPath, 'utf8')
 
     expect(
       docsSource.includes('Outbound SAML IdP') &&
@@ -1843,12 +1848,12 @@ describe('protocol source map coverage', () => {
       }
       const expectedPublicDocsPath =
         feature === 'Downstream OIDC app catalog'
-          ? '`/docs/enterprise-sso`; `/docs/oidc-oauth` boundary text'
+          ? '`/enterprise-sso`; `/oidc-oauth` boundary text'
           : feature === 'Outbound SAML IdP metadata' || feature === 'Outbound SAML IdP SSO endpoint'
-            ? '`/docs/enterprise-sso`; `/docs/saml`'
+            ? '`/enterprise-sso`; `/saml`'
             : feature === 'Outbound SAML SLO'
-              ? '`/docs/saml`'
-              : '`/docs/enterprise-sso`; `/docs/saml` boundary text'
+              ? '`/saml`'
+              : '`/enterprise-sso`; `/saml` boundary text'
       expect(row?.publicDocsPath, `${feature} public docs path`).toBe(expectedPublicDocsPath)
       expect(row?.i18nMsgidPath, `${feature} i18n path`).toBe(
         '`packages/i18n/locales/**/messages.po`',
@@ -2495,8 +2500,8 @@ describe('protocol source map coverage', () => {
     for (const row of rows) {
       const publicDocsPaths = publicDocPathsFromCell(row.publicDocsPath)
       for (const publicDocsPath of publicDocsPaths) {
-        if (publicDocsPath === '/docs' || publicDocsPath === '/docs/*') continue
-        const slug = publicDocsPath.replace('/docs/', '')
+        if (publicDocsPath === '/') continue
+        const slug = publicDocsPath.slice(1)
         expect(
           publicDocSlugs.has(slug),
           `${row.feature} references unknown ${publicDocsPath}`,
@@ -2505,9 +2510,24 @@ describe('protocol source map coverage', () => {
     }
   })
 
+  it('keeps the public SCIM document exact and excludes Core SCIM subpaths', () => {
+    expect(publicDocPathsFromCell('`/scim`; `/scim/v2`; `/scim/outbound`')).toEqual([
+      '/scim',
+      '/scim/v2',
+      '/scim/outbound',
+    ])
+
+    const publicDocsPaths = readSourceMapRows().flatMap((row) =>
+      publicDocPathsFromCell(row.publicDocsPath),
+    )
+    expect(publicDocsPaths).toContain('/scim')
+    expect(publicDocsPaths.some((path) => path.startsWith('/scim/'))).toBe(false)
+  })
+
   it('keeps the source-map public docs whitelist row tied to every guard test', () => {
     const row = sourceMapRow('Public docs whitelist')
 
+    expect(row.publicDocsPath).toContain('root `/` hub')
     expect(row.codePath).toContain(publicDocsRegistryPath)
     for (const testPath of publicDocsGuardTestPaths) {
       expect(row.testPath).toContain(`\`${testPath}\``)
@@ -2526,43 +2546,32 @@ describe('protocol source map coverage', () => {
 
   it('keeps public docs tests blocking internal repository docs', () => {
     const registryTestSource = readFileSync(publicDocsRegistryTestPath, 'utf8')
-    const devServerGuardTestSource = readFileSync(publicDocsDevServerGuardTestPath, 'utf8')
-    const publicRoutesTestSource = readFileSync(publicRoutesTestPath, 'utf8')
+    const generationTestSource = readFileSync(publicDocsGenerationTestPath, 'utf8')
+    const siteWorkerTestSource = readFileSync(siteWorkerTestPath, 'utf8')
+    const distAuditSource = readFileSync(siteDistAuditPath, 'utf8')
+    const guardSources = [
+      registryTestSource,
+      generationTestSource,
+      siteWorkerTestSource,
+      distAuditSource,
+    ].join('\n')
 
-    for (const pattern of internalDocsPatternsRequiredInGuard) {
+    for (const slug of internalDocSlugsRequiredInGuard) {
       expect(
-        registryTestSource.includes(`'${pattern}'`),
-        `${publicDocsRegistryTestPath} missing ${pattern}`,
+        distAuditSource.includes(`'${slug}'`),
+        `Site docs root denylist missing ${slug}`,
       ).toBe(true)
     }
 
     for (const required of [
-      '/docs/design',
-      '/docs/goal',
-      '/docs/verification',
-      '/docs/deployment',
-      '/docs/api-contracts',
-      '/@fs/',
-      'docs/design',
+      'INTERNAL_DOC_SLUGS',
+      '`${prefix}/${slug}`',
+      '`${prefix}/docs/${slug}`',
+      '404-page',
     ]) {
       expect(
-        devServerGuardTestSource.includes(required),
-        `${publicDocsDevServerGuardTestPath} missing ${required}`,
-      ).toBe(true)
-    }
-
-    for (const required of [
-      'blocks repository docs paths from the public XID docs namespace',
-      'blocks same-name repository docs markdown paths from the public docs namespace',
-      '/docs/design',
-      '/docs/goal',
-      '/docs/verification',
-      '/docs/deployment',
-      'blocked-non-public-docs-path',
-    ]) {
-      expect(
-        publicRoutesTestSource.includes(required),
-        `${publicRoutesTestPath} missing ${required}`,
+        guardSources.includes(required),
+        `Site docs guards missing ${required}`,
       ).toBe(true)
     }
   })

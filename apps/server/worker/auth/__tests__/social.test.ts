@@ -834,72 +834,75 @@ describe('GET /auth/:provider/authorize', () => {
     )
   })
 
-  it('callback default console fallback redirects to original hosted origin', async () => {
-    const env = makeEnv(async (req) => {
-      const url = new URL(req.url)
-      if (url.pathname === '/consume') {
-        return new Response(
-          JSON.stringify({
-            record: {
-              tenantId: 'tenant-1',
-              provider: 'github',
-              codeVerifier: 'cv',
-              nonce: 'nonce',
-              redirectAfterLogin: '/console',
-              returnToOrigin: 'http://localhost:5174',
-              createdAt: Date.now(),
-            },
-          }),
-          { status: 200 },
-        )
+  it.each(['https://xid.dev', 'https://tenant-1.xid.dev'])(
+    'callback default Console fallback redirects to original hosted origin：%s',
+    async (returnToOrigin) => {
+      const env = makeEnv(async (req) => {
+        const url = new URL(req.url)
+        if (url.pathname === '/consume') {
+          return new Response(
+            JSON.stringify({
+              record: {
+                tenantId: 'tenant-1',
+                provider: 'github',
+                codeVerifier: 'cv',
+                nonce: 'nonce',
+                redirectAfterLogin: '/console',
+                returnToOrigin,
+                createdAt: Date.now(),
+              },
+            }),
+            { status: 200 },
+          )
+        }
+        return new Response(null, { status: 201 })
+      })
+      const db = {
+        userIdentities: {
+          findOne: vi.fn().mockResolvedValue({ id: 'ident_1', userId: 'user-1' }),
+          update: vi.fn().mockResolvedValue(undefined),
+        },
+        users: {
+          findOne: vi.fn().mockResolvedValue({ id: 'user-1', status: 'active', deletedAt: null }),
+        },
+        memberships: {
+          findMany: vi
+            .fn()
+            .mockResolvedValue([
+              { id: 'mem_1', userId: 'user-1', orgId: 'tenant-1', status: 'active' },
+            ]),
+        },
+        organizations: {
+          findOne: vi.fn().mockResolvedValue({ id: 'tenant-1', status: 'active', deletedAt: null }),
+          findMany: vi
+            .fn()
+            .mockResolvedValue([{ id: 'tenant-1', status: 'active', deletedAt: null }]),
+        },
+        sessions: {
+          insert: vi.fn().mockImplementation((row: Record<string, unknown>) =>
+            Promise.resolve({
+              ...row,
+              activeOrgId: row['activeOrgId'] ?? null,
+              isImpersonation: false,
+              impersonatorUserId: null,
+            }),
+          ),
+        },
       }
-      return new Response(null, { status: 201 })
-    })
-    const db = {
-      userIdentities: {
-        findOne: vi.fn().mockResolvedValue({ id: 'ident_1', userId: 'user-1' }),
-        update: vi.fn().mockResolvedValue(undefined),
-      },
-      users: {
-        findOne: vi.fn().mockResolvedValue({ id: 'user-1', status: 'active', deletedAt: null }),
-      },
-      memberships: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([
-            { id: 'mem_1', userId: 'user-1', orgId: 'tenant-1', status: 'active' },
-          ]),
-      },
-      organizations: {
-        findOne: vi.fn().mockResolvedValue({ id: 'tenant-1', status: 'active', deletedAt: null }),
-        findMany: vi
-          .fn()
-          .mockResolvedValue([{ id: 'tenant-1', status: 'active', deletedAt: null }]),
-      },
-      sessions: {
-        insert: vi.fn().mockImplementation((row: Record<string, unknown>) =>
-          Promise.resolve({
-            ...row,
-            activeOrgId: row['activeOrgId'] ?? null,
-            isImpersonation: false,
-            impersonatorUserId: null,
-          }),
-        ),
-      },
-    }
-    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-    const app = await makeGithubPolicyApp({ provider: { redirectUris: ['/account'] } })
+      vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+      const app = await makeGithubPolicyApp({ provider: { redirectUris: ['/account'] } })
 
-    const res = await app.request(
-      '/auth/github/callback?code=authcode&state=valid-state',
-      { method: 'GET' },
-      env,
-    )
+      const res = await app.request(
+        `${returnToOrigin}/auth/github/callback?code=authcode&state=valid-state`,
+        { method: 'GET' },
+        env,
+      )
 
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('http://localhost:5174/console')
-    expect(res.headers.get('set-cookie')).toContain('__Host-xid.rt.')
-  })
+      expect(res.status).toBe(302)
+      expect(res.headers.get('location')).toBe(`${returnToOrigin}/console`)
+      expect(res.headers.get('set-cookie')).toContain('__Host-xid.rt.')
+    },
+  )
 
   it('guest 转正:分支 D 持有效 guest session -> identity 挂到 guest user,不新建 user', async () => {
     const auditSend = vi.fn().mockResolvedValue(undefined)

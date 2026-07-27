@@ -11,6 +11,29 @@ export function productionBaseUrl(environment = process.env) {
   return DEFAULT_BASE_URL
 }
 
+export function productionSurfaceBaseUrl(variableName, environment = process.env) {
+  const configured = environment[variableName]?.trim()
+  if (!configured) return productionBaseUrl(environment)
+
+  let parsed
+  try {
+    parsed = new URL(configured)
+  } catch {
+    throw new Error(`${variableName} must be an absolute HTTP(S) origin`)
+  }
+  if (
+    (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`${variableName} must be an absolute HTTP(S) origin`)
+  }
+  return parsed.origin
+}
+
 // 生产 smoke 需要真实收信,但仓库不得内置任何真实收件地址(公开仓库里的默认收件人
 // 既是隐私泄露,也让任何人能把陌生部署的登录邮件寄到该地址)。操作者必须显式指定自己控制的邮箱。
 export function requireProductionEmail(variableName, environment = process.env) {

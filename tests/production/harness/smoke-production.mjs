@@ -3,22 +3,36 @@ import {
   DEFAULT_INSTANCE_ORG_ID,
   printResult,
   productionBaseUrl,
+  productionSurfaceBaseUrl,
   requireProductionEmail,
   sqlString,
 } from './production-auth.mjs'
-import { PUBLIC_DOC_SLUGS } from '../../../apps/server/public-docs.ts'
-import { llmsFullOk, llmsOk } from './public-content-checks.mjs'
+import { PUBLIC_DOC_ALIASES, PUBLIC_DOC_SLUGS } from '../../../packages/types/src/public-docs.ts'
+import {
+  PUBLIC_DOC_SECTIONS,
+  llmsFullOk,
+  llmsOk,
+  llmsSectionFullOk,
+  llmsSectionOk,
+  sitemapOk,
+} from './public-content-checks.mjs'
+import { webRedirectLocationMatches, webRouteOwnerMatches } from './web-route-owner.mjs'
 
 const baseUrl = productionBaseUrl()
+const siteBaseUrl = productionSurfaceBaseUrl('XID_PRODUCTION_SITE_BASE_URL')
+const consoleBaseUrl = productionSurfaceBaseUrl('XID_PRODUCTION_CONSOLE_BASE_URL')
+const coreBaseUrl = productionSurfaceBaseUrl('XID_PRODUCTION_CORE_BASE_URL')
+const surfaceBaseUrls = {
+  site: siteBaseUrl,
+  console: consoleBaseUrl,
+  core: coreBaseUrl,
+}
 // 这里曾经是第二份独立的 org id 字面量,重建生产库后只改一处就会出现一半 smoke 打新租户、
 // 一半打旧租户;改成复用 harness 的单一来源(它自己带 XID_PRODUCTION_TENANT_ID 覆盖口)。
 const tenantId = DEFAULT_INSTANCE_ORG_ID
 const defaultEmail = requireProductionEmail('XID_PRODUCTION_EMAIL')
 const defaultSmsPhone = process.env['XID_PRODUCTION_SMS_GATE_PHONE'] ?? '+15555550123'
 const defaultWhatsappPhone = process.env['XID_PRODUCTION_WHATSAPP_GATE_PHONE'] ?? '+15555550124'
-const publicSdkDocSlugs = PUBLIC_DOC_SLUGS.filter((slug) => slug.startsWith('sdks/')).map((slug) =>
-  slug.slice('sdks/'.length),
-)
 
 function emailAlias(email, tag) {
   const index = email.lastIndexOf('@')
@@ -41,26 +55,31 @@ const forbiddenPublicDocsPatterns = [
   'docs/current-gap-audit',
   'docs/implementation-status',
   'docs/soft-delete',
-  'Open docs',
   '完整功能设计',
   '设计真相源',
 ]
 
-function publicDocsBodyOk(body) {
-  return body.includes('XID') && forbiddenPublicDocsPatterns.every((item) => !body.includes(item))
+export function publicDocsBodyOk(body) {
+  return (
+    body.includes('XID') &&
+    body.includes('data-ai-agent-directive') &&
+    body.includes('data-nb-sidebar') &&
+    body.includes('data-search-dialog') &&
+    forbiddenPublicDocsPatterns.every((item) => !body.includes(item))
+  )
 }
 
-function enterpriseSsoDocsOk(body) {
+export function enterpriseSsoDocsOk(body) {
   return (
     publicDocsBodyOk(body) &&
     body.includes('Legacy protocol boundaries') &&
-    !body.includes('production-supported') &&
+    body.includes('must not be described as production-supported') &&
     !body.includes('Kerberos is fully supported in Workers')
   )
 }
 
 function publicDocsPathForSlug(slug) {
-  return slug === 'getting-started' ? '/docs' : `/docs/${slug}`
+  return `/${slug}`
 }
 
 function publicDocsCheckForSlug(slug) {
@@ -116,95 +135,70 @@ function canonicalJson(value) {
   return JSON.stringify(value)
 }
 
-const homeSeoTextRequired = [
-  '<title>XID | Edge identity platform</title>',
-  '<main data-seo-fallback>',
-  '<h1>XID edge identity platform</h1>',
-  '<a href="/docs/hosted-auth">Hosted Auth docs</a>',
-  '<a href="/docs/oidc">OIDC alias docs</a>',
-  '<a href="/docs/oidc-oauth">OIDC and OAuth docs</a>',
-  '<a href="/docs/enterprise-sso">Enterprise SSO docs</a>',
-  '<a href="/docs/social-login">Social login docs</a>',
-  '<a href="/docs/saml">SAML docs</a>',
-  '<a href="/docs/scim">SCIM docs</a>',
-  '<a href="/docs/management-api">Management API docs</a>',
-  '<a href="/docs/sdks">SDK docs</a>',
-  '<a href="/docs/self-hosting">Self-hosting docs</a>',
+const docsHomeTextRequired = [
+  '<title>XID Developer Docs | XID</title>',
+  'XID developer documentation',
+  'Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references',
+  'href="/getting-started"',
+  'href="/hosted-auth"',
+  'href="/oidc-oauth"',
+  'href="/enterprise-sso"',
+  'href="/social-login"',
+  'href="/scim"',
+  'href="/management-api"',
+  'href="/sdks"',
+  'href="/self-hosting"',
 ]
 
-const homeSeoPatternRequired = [
-  /<meta\s+[^>]*name="description"[^>]*content="XID is an edge-native identity platform/u,
-  /<meta\s+[^>]*name="robots"[^>]*content="index,follow"[^>]*>/u,
-  /<meta\s+[^>]*name="application-name"[^>]*content="XID"[^>]*>/u,
+const docsHomeSeoPatternRequired = [
+  /<meta\s+[^>]*name="description"[^>]*content="Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references/u,
   /<link\s+[^>]*rel="canonical"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="en"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="zh-Hans"[^>]*href="https:\/\/xid\.dev\/\?locale=zh-Hans"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ja"[^>]*href="https:\/\/xid\.dev\/\?locale=ja"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ko"[^>]*href="https:\/\/xid\.dev\/\?locale=ko"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="fr"[^>]*href="https:\/\/xid\.dev\/\?locale=fr"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="de"[^>]*href="https:\/\/xid\.dev\/\?locale=de"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="es"[^>]*href="https:\/\/xid\.dev\/\?locale=es"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="pt-BR"[^>]*href="https:\/\/xid\.dev\/\?locale=pt-BR"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="zh-Hans"[^>]*href="https:\/\/xid\.dev\/zh-hans\/"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ja"[^>]*href="https:\/\/xid\.dev\/ja\/"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ko"[^>]*href="https:\/\/xid\.dev\/ko\/"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="fr"[^>]*href="https:\/\/xid\.dev\/fr\/"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="de"[^>]*href="https:\/\/xid\.dev\/de\/"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="es"[^>]*href="https:\/\/xid\.dev\/es\/"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="pt-BR"[^>]*href="https:\/\/xid\.dev\/pt-br\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="x-default"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<meta\s+[^>]*property="og:type"[^>]*content="website"[^>]*>/u,
-  /<meta\s+[^>]*property="og:title"[^>]*content="XID \| Edge identity platform"[^>]*>/u,
-  /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/brand\/og\.png"[^>]*>/u,
-  /<meta\s+[^>]*property="og:image:alt"[^>]*content="XID edge identity platform brand card"[^>]*>/u,
+  /<meta\s+[^>]*property="og:title"[^>]*content="XID Developer Docs \| XID"[^>]*>/u,
+  /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/og\/[^"]+\.png"[^>]*>/u,
   /<meta\s+[^>]*name="twitter:card"[^>]*content="summary_large_image"[^>]*>/u,
-  /<meta\s+[^>]*name="twitter:image"[^>]*content="https:\/\/xid\.dev\/brand\/twitter-card\.png"[^>]*>/u,
-  /<meta\s+[^>]*name="twitter:image:alt"[^>]*content="XID edge identity platform brand card"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="\/llms\.txt"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="\/llms-full\.txt"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="https:\/\/xid\.dev\/llms\.txt"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*type="text\/markdown"[^>]*href="https:\/\/xid\.dev\/index\.md"[^>]*>/u,
 ]
 
-function jsonLdGraphOk(body) {
+function docsHomeJsonLdOk(body) {
   const match = body.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/)
   if (!match) return false
   try {
     const parsed = JSON.parse(match[1])
-    const graph = Array.isArray(parsed['@graph']) ? parsed['@graph'] : []
-    const types = new Set(graph.map((entry) => entry?.['@type']))
-    const software = graph.find((entry) => entry?.['@type'] === 'SoftwareApplication')
     return (
-      types.has('Organization') &&
-      types.has('WebSite') &&
-      types.has('SoftwareApplication') &&
-      software?.url === 'https://xid.dev/' &&
-      software?.image === 'https://xid.dev/brand/og.png' &&
-      Array.isArray(software?.featureList) &&
-      software.featureList.includes('Networkless JWT verification on Cloudflare Workers') &&
-      software.featureList.includes('Downstream SaaS SAML and outbound SCIM local baselines')
+      parsed['@type'] === 'WebSite' &&
+      parsed.url === 'https://xid.dev/' &&
+      parsed.inLanguage === 'en' &&
+      parsed.image === 'https://xid.dev/og/index.png'
     )
   } catch {
     return false
   }
 }
 
-function homeSeoOk(body) {
+export function docsHomeOk(body) {
   return (
-    homeSeoTextRequired.every((item) => body.includes(item)) &&
-    homeSeoPatternRequired.every((pattern) => pattern.test(body)) &&
-    jsonLdGraphOk(body)
+    publicDocsBodyOk(body) &&
+    docsHomeTextRequired.every((item) => body.includes(item)) &&
+    docsHomeSeoPatternRequired.every((pattern) => pattern.test(body)) &&
+    docsHomeJsonLdOk(body)
   )
 }
 
-function robotsOk(body) {
+export function robotsOk(body) {
   const required = [
     'User-agent: *',
-    'Allow: /$',
-    'Allow: /docs$',
-    'Allow: /docs/oidc$',
-    'Allow: /docs/hosted-auth$',
-    'Allow: /docs/oidc-oauth$',
-    'Allow: /docs/enterprise-sso$',
-    'Allow: /docs/social-login$',
-    'Allow: /docs/saml$',
-    'Allow: /docs/scim$',
-    'Allow: /docs/management-api$',
-    'Allow: /docs/webhooks$',
-    'Allow: /docs/branding$',
-    'Allow: /docs/sdks$',
-    'Allow: /docs/self-hosting$',
+    'Allow: /',
     'Disallow: /sign-in',
     'Disallow: /sign-up',
     'Disallow: /account',
@@ -213,221 +207,287 @@ function robotsOk(body) {
     'Disallow: /v1',
     'Sitemap: https://xid.dev/sitemap.xml',
   ]
-  const forbidden = ['Allow: /docs/']
   const lines = body
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter(Boolean)
-  return (
-    required.every((item) => body.includes(item)) &&
-    forbidden.every((item) => !lines.includes(item))
-  )
+  return required.every((item) => lines.includes(item))
 }
 
-function sitemapOk(body) {
-  const required = [
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    '<loc>https://xid.dev/</loc>',
-    '<loc>https://xid.dev/docs</loc>',
-    '<loc>https://xid.dev/docs/oidc</loc>',
-    '<loc>https://xid.dev/docs/hosted-auth</loc>',
-    '<loc>https://xid.dev/docs/oidc-oauth</loc>',
-    '<loc>https://xid.dev/docs/enterprise-sso</loc>',
-    '<loc>https://xid.dev/docs/social-login</loc>',
-    '<loc>https://xid.dev/docs/saml</loc>',
-    '<loc>https://xid.dev/docs/scim</loc>',
-    '<loc>https://xid.dev/docs/management-api</loc>',
-    '<loc>https://xid.dev/docs/webhooks</loc>',
-    '<loc>https://xid.dev/docs/branding</loc>',
-    '<loc>https://xid.dev/docs/sdks</loc>',
-    ...publicSdkDocSlugs.map((slug) => `<loc>https://xid.dev/docs/sdks/${slug}</loc>`),
-    '<loc>https://xid.dev/docs/self-hosting</loc>',
-  ]
-  // 已删除文档的 slug 同样留在 deny-list:sitemap 永远不得收录,防止未来复用同名 slug 时静默泄露。
-  const internalDocsSlugs = [
-    '/docs/design',
-    '/docs/goal',
-    '/docs/verification',
-    '/docs/deployment',
-    '/docs/api-contracts',
-    '/docs/current-gap-audit',
-    '/docs/implementation-status',
-    '/docs/soft-delete',
-    '/docs/i18n',
-    '/docs/api',
-  ]
-  return (
-    required.every((item) => body.includes(item)) &&
-    internalDocsSlugs.every((slug) => !body.includes(`https://xid.dev${slug}`))
-  )
+const internalDocsPaths = [
+  '/docs/design',
+  '/docs/goal',
+  '/docs/verification',
+  '/docs/deployment',
+  '/docs/api-contracts',
+  '/docs/current-gap-audit',
+  '/docs/implementation-status',
+  '/docs/soft-delete',
+  '/docs/i18n',
+  '/docs/api',
+  '/docs/not-published',
+]
+
+const legacyRedirectSearch = '?xid_smoke=1&client=agent'
+
+function localizedLegacyPath(routeSegment, pathname) {
+  return routeSegment === '' ? pathname : `/${routeSegment}${pathname}`
 }
+
+function localizedPublicDocsPath(routeSegment, slug = null) {
+  if (slug === null) return routeSegment === '' ? '/' : `/${routeSegment}/`
+  return routeSegment === '' ? `/${slug}` : `/${routeSegment}/${slug}`
+}
+
+function redirectName(pathname) {
+  return pathname
+    .replace(/^\/+/u, '')
+    .replaceAll('/', '-')
+    .replaceAll('.', '-')
+    .replaceAll('_', '-')
+}
+
+function legacyRedirectCheck(name, sourcePath, canonicalPath) {
+  return {
+    name,
+    surface: 'site',
+    path: `${sourcePath}${legacyRedirectSearch}`,
+    expectStatus: 308,
+    expectLocation: (location) =>
+      webRedirectLocationMatches(location, siteBaseUrl, canonicalPath, legacyRedirectSearch),
+  }
+}
+
+const legacyCanonicalDocsChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) => [
+  legacyRedirectCheck(
+    `legacy-${section}-docs-hub`,
+    localizedLegacyPath(routeSegment, '/docs'),
+    localizedPublicDocsPath(routeSegment),
+  ),
+  ...PUBLIC_DOC_SLUGS.map((slug) =>
+    legacyRedirectCheck(
+      `legacy-${section}-docs-${slug.replaceAll('/', '-')}`,
+      localizedLegacyPath(routeSegment, `/docs/${slug}`),
+      localizedPublicDocsPath(routeSegment, slug),
+    ),
+  ),
+])
+
+const legacyAliasChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) =>
+  Object.entries(PUBLIC_DOC_ALIASES)
+    .filter(([path, slug]) => path !== `/docs/${slug}`)
+    .map(([path, slug]) =>
+      legacyRedirectCheck(
+        `legacy-${section}-alias-${redirectName(path)}`,
+        localizedLegacyPath(routeSegment, path),
+        localizedPublicDocsPath(routeSegment, slug),
+      ),
+    ),
+)
+
+const legacyTwinChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) => {
+  const legacyHub = localizedLegacyPath(routeSegment, '/docs')
+  const canonicalHub = localizedPublicDocsPath(routeSegment).replace(/\/$/u, '')
+  const legacyScim = localizedLegacyPath(routeSegment, '/docs/scim')
+  const canonicalScim = localizedPublicDocsPath(routeSegment, 'scim')
+  return ['md', 'mdx'].flatMap((extension) => [
+    legacyRedirectCheck(
+      `legacy-${section}-hub-${extension}`,
+      `${legacyHub}/index.${extension}`,
+      `${canonicalHub}/index.${extension}`,
+    ),
+    legacyRedirectCheck(
+      `legacy-${section}-scim-${extension}`,
+      `${legacyScim}/index.${extension}`,
+      `${canonicalScim}/index.${extension}`,
+    ),
+  ])
+})
+
+const legacyAliasTwinChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) =>
+  ['md', 'mdx'].map((extension) =>
+    legacyRedirectCheck(
+      `legacy-${section}-oidc-alias-${extension}`,
+      `${localizedLegacyPath(routeSegment, '/docs/oidc')}/index.${extension}`,
+      `${localizedPublicDocsPath(routeSegment, 'oidc-oauth')}/index.${extension}`,
+    ),
+  ),
+)
+
+const legacyAgentIndexChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) => {
+  const legacyRoot = localizedLegacyPath(routeSegment, '/docs')
+  return ['llms.txt', 'llms-full.txt'].map((filename) =>
+    legacyRedirectCheck(
+      `legacy-${section}-${filename.replaceAll('.', '-')}`,
+      `${legacyRoot}/${filename}`,
+      `/${section}/${filename}`,
+    ),
+  )
+})
+
+const sectionAgentIndexChecks = PUBLIC_DOC_SECTIONS.flatMap(({ section }) => [
+  {
+    name: `${section}-llms`,
+    surface: 'site',
+    path: `/${section}/llms.txt`,
+    expectStatus: 200,
+    expectBody: (body) => llmsSectionOk(body, section),
+  },
+  {
+    name: `${section}-llms-full`,
+    surface: 'site',
+    path: `/${section}/llms-full.txt`,
+    expectStatus: 200,
+    expectBody: (body) => llmsSectionFullOk(body, section),
+  },
+])
 
 const checks = [
   {
-    name: 'home-seo',
+    name: 'docs-root',
+    surface: 'site',
     path: '/',
     expectStatus: 200,
-    expectBody: homeSeoOk,
+    expectBody: docsHomeOk,
   },
   {
     name: 'robots',
+    surface: 'site',
     path: '/robots.txt',
     expectStatus: 200,
     expectBody: robotsOk,
   },
   {
     name: 'sitemap',
+    surface: 'site',
     path: '/sitemap.xml',
     expectStatus: 200,
     expectBody: sitemapOk,
   },
   {
     name: 'llms',
+    surface: 'site',
     path: '/llms.txt',
     expectStatus: 200,
     expectBody: llmsOk,
   },
   {
     name: 'llms-full',
+    surface: 'site',
     path: '/llms-full.txt',
     expectStatus: 200,
     expectBody: llmsFullOk,
   },
   {
     name: 'well-known-llms',
-    path: '/.well-known/llms.txt',
-    expectStatus: 200,
-    expectBody: llmsOk,
+    surface: 'core',
+    path: '/.well-known/llms.txt?client=agent',
+    expectStatus: 308,
+    expectLocation: (location) =>
+      webRedirectLocationMatches(location, baseUrl, '/llms.txt', '?client=agent'),
   },
-  {
-    name: 'home-webmcp-headers',
-    path: '/',
-    expectStatus: 200,
-    expectHeader: ['Permissions-Policy', 'tools=(self)'],
-  },
-  {
-    name: 'home-origin-agent-cluster',
-    path: '/',
-    expectStatus: 200,
-    expectHeader: ['Origin-Agent-Cluster', '?1'],
-  },
+  ...sectionAgentIndexChecks,
   {
     name: 'health',
+    surface: 'core',
     path: '/v1/health',
     expectStatus: 200,
     expectBody: (body) => body.includes('"ok":true'),
   },
   ...PUBLIC_DOC_SLUGS.map((slug) => ({
-    name: slug === 'getting-started' ? 'docs' : `docs-${slug.replaceAll('/', '-')}`,
+    name: `docs-${slug.replaceAll('/', '-')}`,
+    surface: 'site',
     path: publicDocsPathForSlug(slug),
     expectStatus: 200,
     expectBody: publicDocsCheckForSlug(slug),
   })),
-  {
-    name: 'docs-oidc',
-    path: '/docs/oidc',
-    expectStatus: 200,
-    expectBody: publicDocsBodyOk,
-  },
+  ...PUBLIC_DOC_SECTIONS.filter(({ routeSegment }) => routeSegment !== '').flatMap(
+    ({ routeSegment, section }) => [
+      {
+        name: `docs-${section}-hub`,
+        surface: 'site',
+        path: localizedPublicDocsPath(routeSegment),
+        expectStatus: 200,
+        expectBody: publicDocsBodyOk,
+      },
+      {
+        name: `docs-${section}-scim`,
+        surface: 'site',
+        path: localizedPublicDocsPath(routeSegment, 'scim'),
+        expectStatus: 200,
+        expectBody: publicDocsBodyOk,
+      },
+    ],
+  ),
+  ...legacyCanonicalDocsChecks,
+  ...legacyAliasChecks,
+  ...legacyTwinChecks,
+  ...legacyAliasTwinChecks,
+  ...legacyAgentIndexChecks,
   // 下面这组 blocked 断言覆盖历史内部文档 slug,其中 goal / verification / current-gap-audit /
   // implementation-status 的 markdown 已从仓库删除。断言保留:公开路由是 allowlist deny-by-default,
   // 这里锁死"历史 slug 永远 404",避免未来有人复用同名 slug 建公开文档时静默暴露。
-  {
-    name: 'docs-design-blocked',
-    path: '/docs/design',
+  ...internalDocsPaths.map((path) => ({
+    name: `${path.slice('/docs/'.length).replaceAll('/', '-')}-docs-blocked`,
+    surface: 'site',
+    path,
     expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
+    expectBody: (body) => body.includes('Page not found'),
+  })),
+  {
+    name: 'console-shell',
+    surface: 'console',
+    path: '/console',
+    expectStatus: 200,
+    expectBody: (body) => body.includes('<div id="root">'),
   },
   {
-    name: 'docs-goal-blocked',
-    path: '/docs/goal',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
+    name: 'console-sessions-account-alias',
+    surface: 'console',
+    path: '/console/sessions?from=smoke',
+    expectStatus: 302,
+    expectLocation: (location) =>
+      webRedirectLocationMatches(location, consoleBaseUrl, '/account/sessions', '?from=smoke'),
   },
   {
-    name: 'docs-verification-blocked',
-    path: '/docs/verification',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
-  },
-  {
-    name: 'docs-deployment-blocked',
-    path: '/docs/deployment',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
-  },
-  {
-    name: 'docs-api-contracts-blocked',
-    path: '/docs/api-contracts',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
-  },
-  {
-    name: 'docs-current-gap-audit-blocked',
-    path: '/docs/current-gap-audit',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
-  },
-  {
-    name: 'docs-implementation-status-blocked',
-    path: '/docs/implementation-status',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
-  },
-  {
-    name: 'docs-soft-delete-blocked',
-    path: '/docs/soft-delete',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
-  },
-  {
-    name: 'docs-i18n-blocked',
-    path: '/docs/i18n',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
-  },
-  {
-    name: 'docs-api-blocked',
-    path: '/docs/api',
-    expectStatus: 404,
-    expectHeader: ['x-xid-docs-route-status', 'blocked-non-public-docs-path'],
-    expectBody: (body) => body.includes('published XID developer docs'),
+    name: 'console-security-account-alias',
+    surface: 'console',
+    path: '/console/security?from=smoke',
+    expectStatus: 302,
+    expectLocation: (location) =>
+      webRedirectLocationMatches(location, consoleBaseUrl, '/account/security', '?from=smoke'),
   },
   {
     name: 'sign-in',
+    surface: 'core',
     path: '/sign-in',
     expectStatus: 200,
     expectBody: (body) => body.includes('XID') || body.includes('root'),
   },
   {
     name: 'sign-up-unified-entry',
+    surface: 'core',
     path: '/sign-up',
     expectStatus: 200,
     expectBody: (body) => body.includes('XID') || body.includes('root'),
   },
   {
     name: 'auth-config-root-default-org',
+    surface: 'core',
     path: '/auth/config',
     expectStatus: 200,
     expectJson: defaultAuthConfigOk,
   },
   {
     name: 'oidc-discovery-root',
+    surface: 'core',
     path: '/.well-known/openid-configuration',
     expectStatus: 200,
     expectJson: (json) => json?.issuer === baseUrl && json?.jwks_uri === `${baseUrl}/jwks`,
   },
   {
     name: 'jwks',
+    surface: 'core',
     path: '/jwks',
     expectStatus: 200,
     expectJson: (json) => Array.isArray(json?.keys) && json.keys.length > 0,
@@ -574,16 +634,18 @@ export async function runProductionSmoke() {
   let failed = false
 
   for (const check of checks) {
-    const url = check.url ?? `${baseUrl}${check.path}`
+    const url = check.url ?? `${surfaceBaseUrls[check.surface]}${check.path}`
     try {
       const res = await fetch(url, { redirect: 'manual' })
       const body = await res.text()
       const statusOk = res.status === check.expectStatus
+      const ownerOk = webRouteOwnerMatches(res.headers, check.surface)
       let headerOk = true
       if (check.expectHeader) {
         const [name, value] = check.expectHeader
         headerOk = res.headers.get(name) === value
       }
+      const locationOk = !check.expectLocation || check.expectLocation(res.headers.get('location'))
       let bodyOk = true
       if (check.expectBody) bodyOk = check.expectBody(body)
       let jsonOk = true
@@ -594,12 +656,13 @@ export async function runProductionSmoke() {
           jsonOk = false
         }
       }
-      const ok = statusOk && headerOk && bodyOk && jsonOk
+      const ok = statusOk && ownerOk && headerOk && locationOk && bodyOk && jsonOk
       if (!ok) failed = true
       results.push({
         name: check.name,
         status: ok ? 'PASS' : 'FAIL',
         httpStatus: res.status,
+        routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
         url,
       })
     } catch (error) {
@@ -615,7 +678,7 @@ export async function runProductionSmoke() {
   }
 
   for (const check of gateChecks) {
-    const url = `${baseUrl}${check.path}`
+    const url = `${coreBaseUrl}${check.path}`
     try {
       const res = await fetch(url, {
         method: check.method,
@@ -631,6 +694,7 @@ export async function runProductionSmoke() {
       const redirectOk = !check.expectNoRedirect || location === null
       const cookieOk = !check.expectNoSessionCookie || !setCookie.includes('__Host-xid.rt.')
       const jsonRouteOk = !check.expectJsonRoute || contentType.includes('application/json')
+      const ownerOk = webRouteOwnerMatches(res.headers, 'core')
       const notSpaOk =
         !check.expectJsonRoute ||
         (!body.includes('<!doctype html') &&
@@ -644,12 +708,13 @@ export async function runProductionSmoke() {
           jsonOk = false
         }
       }
-      const ok = statusOk && redirectOk && cookieOk && jsonRouteOk && notSpaOk && jsonOk
+      const ok = statusOk && ownerOk && redirectOk && cookieOk && jsonRouteOk && notSpaOk && jsonOk
       if (!ok) failed = true
       results.push({
         name: check.name,
         status: ok ? 'PASS' : 'FAIL',
         httpStatus: res.status,
+        routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
         url,
       })
     } catch (error) {
@@ -709,7 +774,7 @@ WHERE ${policyDeniedWhere(input, afterMs)};
 
   async function checkMagicLinkVerifyRouteGate() {
     const path = '/auth/magic-link/verify?token=bad.jwt.sig'
-    const url = `${baseUrl}${path}`
+    const url = `${coreBaseUrl}${path}`
     try {
       const res = await fetch(url, { redirect: 'manual' })
       const body = await res.text()
@@ -725,6 +790,7 @@ WHERE ${policyDeniedWhere(input, afterMs)};
         !body.includes('<!doctype html') && !body.includes('id="root"') && !body.includes('<script')
       const ok =
         res.status === 400 &&
+        webRouteOwnerMatches(res.headers, 'core') &&
         contentType.includes('application/json') &&
         jsonOk &&
         bodyIsNotSpa &&
@@ -734,6 +800,7 @@ WHERE ${policyDeniedWhere(input, afterMs)};
         name: 'magic-link-verify-route-json-gate',
         status: ok ? 'PASS' : 'FAIL',
         httpStatus: res.status,
+        routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
         url,
       })
     } catch (error) {
@@ -750,7 +817,7 @@ WHERE ${policyDeniedWhere(input, afterMs)};
 
   async function checkForgotPasswordDisabledGate() {
     const path = '/auth/forgot-password'
-    const url = `${baseUrl}${path}`
+    const url = `${coreBaseUrl}${path}`
     const afterMs = Date.now()
     try {
       const res = await fetch(url, {
@@ -818,6 +885,7 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
       )
       const ok =
         res.status === 200 &&
+        webRouteOwnerMatches(res.headers, 'core') &&
         jsonOk &&
         !setCookie.includes('__Host-xid.rt.') &&
         resetTokenCount === 0 &&
@@ -830,6 +898,7 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
         name: 'forgot-password-disabled-gate',
         status: ok ? 'PASS' : 'FAIL',
         httpStatus: res.status,
+        routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
         url,
       })
     } catch (error) {
@@ -856,7 +925,7 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
         path: `/auth/config?organization_id=${encodeURIComponent(tenantId)}`,
       },
     ]
-    const baselineRes = await fetch(`${baseUrl}/auth/config`, { redirect: 'manual' })
+    const baselineRes = await fetch(`${coreBaseUrl}/auth/config`, { redirect: 'manual' })
     const baselineText = await baselineRes.text()
     let baseline
     try {
@@ -866,7 +935,7 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
     }
     const baselineTextCanonical = canonicalJson(baseline)
     for (const variant of variants) {
-      const url = `${baseUrl}${variant.path}`
+      const url = `${coreBaseUrl}${variant.path}`
       try {
         const res = await fetch(url, { redirect: 'manual' })
         const text = await res.text()
@@ -878,7 +947,9 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
         }
         const ok =
           baselineRes.status === 200 &&
+          webRouteOwnerMatches(baselineRes.headers, 'core') &&
           res.status === 200 &&
+          webRouteOwnerMatches(res.headers, 'core') &&
           defaultAuthConfigOk(baseline) &&
           defaultAuthConfigOk(json) &&
           canonicalJson(json) === baselineTextCanonical
@@ -887,7 +958,8 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
           name: variant.name,
           status: ok ? 'PASS' : 'FAIL',
           httpStatus: res.status,
-          url: `${baseUrl}${variant.displayPath ?? variant.path}`,
+          routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
+          url: `${coreBaseUrl}${variant.displayPath ?? variant.path}`,
         })
       } catch (error) {
         failed = true
@@ -895,7 +967,7 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
           name: variant.name,
           status: 'FAIL',
           httpStatus: 'ERROR',
-          url: `${baseUrl}${variant.displayPath ?? variant.path}`,
+          url: `${coreBaseUrl}${variant.displayPath ?? variant.path}`,
           error: error instanceof Error ? error.message : String(error),
         })
       }
@@ -988,7 +1060,7 @@ LIMIT 1;
   await checkDefaultOrgBootstrapShape()
 
   for (const check of phoneGateChecks) {
-    const url = `${baseUrl}${check.path}`
+    const url = `${coreBaseUrl}${check.path}`
     const afterMs = Date.now()
     try {
       const res = await fetch(url, {
@@ -1052,6 +1124,7 @@ WHERE phone = ${sqlString(check.phone)}
       )
       const ok =
         res.status === 200 &&
+        webRouteOwnerMatches(res.headers, 'core') &&
         jsonOk &&
         !setCookie.includes('__Host-xid.rt.') &&
         tokenCount === 0 &&
@@ -1063,6 +1136,7 @@ WHERE phone = ${sqlString(check.phone)}
         name: check.name,
         status: ok ? 'PASS' : 'FAIL',
         httpStatus: res.status,
+        routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
         url,
       })
     } catch (error) {
@@ -1079,7 +1153,12 @@ WHERE phone = ${sqlString(check.phone)}
 
   for (const result of results) {
     const error = result.error ? ` error=${result.error}` : ''
-    printResult(result.status, result.name, `http=${result.httpStatus} url=${result.url}${error}`)
+    const owner = result.routeOwner ? ` owner=${result.routeOwner}` : ''
+    printResult(
+      result.status,
+      result.name,
+      `http=${result.httpStatus}${owner} url=${result.url}${error}`,
+    )
   }
 
   if (failed) throw new Error('production smoke failed')

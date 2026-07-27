@@ -41,7 +41,7 @@ wondering whether a given rule is actually enforced by Oxlint.
   `interface` is declaration merging, which `type` cannot express: module augmentation such as
   `declare module` blocks (`apps/server/worker/env.d.ts`, `apps/server/src/router.tsx`) and
   augmenting a third-party empty interface (`ColumnMeta` in
-  `apps/server/src/components/ui/DataTable.tsx`). Anywhere else, use `type`.
+  `packages/web-ui/src/components/ui/DataTable.tsx`). Anywhere else, use `type`.
 - Public exported functions declare an explicit return type; internal locals may rely on inference.
 - Prefer immutability: `readonly` fields, `ReadonlyArray`, `as const` literals.
 - Use `satisfies` on boundary data to check a literal against a type while keeping the narrow type.

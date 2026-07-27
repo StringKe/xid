@@ -12,7 +12,7 @@
 
 - Smoke harness: `apps/server/tests/smoke/l3-protocol-client.test.mjs`
 - Preset source: `apps/server/worker/sso/provider-presets.ts`
-- Console: `apps/server/src/routes/org/OrgOutboundSso.tsx`
+- Console: `apps/console/src/routes/org/OrgOutboundSso.tsx`
 
 ## Production L4 blocked inputs
 

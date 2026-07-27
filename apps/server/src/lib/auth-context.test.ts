@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { authStatusFromMe, isPublicLandingPath, type MeResponse } from './auth-context'
-
-describe('isPublicLandingPath', () => {
-  it('matches landing and docs only', () => {
-    expect(isPublicLandingPath('/')).toBe(true)
-    expect(isPublicLandingPath('/docs/oidc')).toBe(true)
-    expect(isPublicLandingPath('/sign-in')).toBe(false)
-  })
-})
+import { authStatusFromMe, type MeResponse } from './auth-context'
 
 describe('authStatusFromMe', () => {
   const me: MeResponse = {

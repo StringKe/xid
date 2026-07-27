@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const LOCALES = ['zh-Hans', 'ja', 'ko', 'fr', 'de', 'es', 'pt-BR']
+const ALL_LOCALES = ['en', 'zh-Hans', 'ja', 'ko', 'fr', 'de', 'es', 'pt-BR']
+const LOCALES = ALL_LOCALES.filter((locale) => locale !== 'en')
 const CATALOG_DIR = 'locales'
 
 const allowedSameAsSource = new Set([
@@ -179,9 +181,6 @@ const allowedSameAsSource = new Set([
   'Vanilla JS / Web',
   'Vue',
   'Windows',
-  // landing 的协议专名串与延迟标注,CJK 之外保留英文原文(设计稿口径)。
-  'OIDC · OAuth IdP',
-  '0 RTT',
   // fr 的 session 与英文同拼写,ICU plural 串与源同形。
   '{sessionCount, plural, one {# session} other {# sessions}}',
   // SDK 详情页的依赖版本号/平台最低版本/导出类型与服务名/TS 类型字面量/标识符列表/协议字段,均为代码事实(填原文)。
@@ -286,6 +285,14 @@ function readEntries(source: string): PoEntry[] {
   return entries
 }
 
+async function readCompiledMessageCount(locale: string): Promise<number> {
+  const modulePath = pathToFileURL(join(process.cwd(), CATALOG_DIR, locale, 'messages.mjs')).href
+  const catalog = (await import(modulePath)) as {
+    messages: Record<string, unknown>
+  }
+  return Object.keys(catalog.messages).length
+}
+
 function isAllowedIdentity(entry: PoEntry): boolean {
   return allowedSameAsSource.has(entry.msgid)
 }
@@ -296,6 +303,24 @@ function needsSourceEqualCheck(locale: string, entry: PoEntry): boolean {
 }
 
 describe('i18n catalogs', () => {
+  it.each(ALL_LOCALES)(
+    'keeps %s source and runtime catalogs free of obsolete messages',
+    async (locale) => {
+      const poPath = join(CATALOG_DIR, locale, 'messages.po')
+      const poSource = readFileSync(poPath, 'utf8')
+      const activeCount = readEntries(poSource).length
+      const obsoleteCount = poSource
+        .split('\n')
+        .filter((line) => line.startsWith('#~ msgid ')).length
+      const compiledCount = await readCompiledMessageCount(locale)
+
+      expect({ obsoleteCount, compiledCount }).toEqual({
+        obsoleteCount: 0,
+        compiledCount: activeCount,
+      })
+    },
+  )
+
   it.each(LOCALES)('keeps %s translated and script-compatible', (locale) => {
     const path = join(CATALOG_DIR, locale, 'messages.po')
     const entries = readEntries(readFileSync(path, 'utf8'))
@@ -325,7 +350,7 @@ describe('i18n catalogs', () => {
 
       // 防线:译者偷懒贴"翻译:/翻訳:/번역:"前缀(伪翻译)直接判失败,
       // 否则 targetScript 的"含目标字形即过"会被前缀里的汉字蒙混。
-      if (/^(翻译|翻訳|번역)\s*[:：]/u.test(entry.msgstr.trimStart())) {
+      if (/^(?:翻译|翻訳|번역)\s*[:：]|^(?:FR|DE|ES|PT-BR):\s*/u.test(entry.msgstr.trimStart())) {
         prefixGarbage.push(entry.msgid)
       }
     }

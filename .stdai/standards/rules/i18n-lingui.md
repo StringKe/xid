@@ -1,11 +1,17 @@
 ---
 type: rules
 name: i18n-lingui
-description: All localization goes through lingui (macro / catalog / po / ICU) across the React SPA, the React SDK and Worker API error messages; transactional email stays on Mustache
+description: lingui for Site, Core UI, Console, shared UI, React SDK and Worker errors; email stays on Mustache
 priority: high
 applyTo:
   - 'apps/server/src/**/*.tsx'
   - 'apps/server/src/**/*.ts'
+  - 'apps/console/src/**/*.tsx'
+  - 'apps/console/src/**/*.ts'
+  - 'apps/site/src/**/*.astro'
+  - 'apps/site/src/**/*.ts'
+  - 'packages/web-ui/**/*.tsx'
+  - 'packages/web-ui/**/*.ts'
   - 'packages/react/**/*.tsx'
   - 'packages/i18n/**/*.ts'
   - 'apps/server/worker/lib/locale.ts'
@@ -18,13 +24,15 @@ targets: [claude-code, codex]
 
 # Localization: the lingui stack
 
-lingui is the only i18n stack: the React SPA (`apps/server/src`), the React SDK (`packages/react`),
-and user-facing Worker API errors. **Transactional email templates are out of scope** -- Mustache
-subset plus R2 language packs. Workflow `docs/i18n.md`.
+lingui is the only i18n stack for `apps/site`, `apps/server/src`, `apps/console`, `packages/web-ui`,
+`packages/react`, and user-facing Worker API errors. **Transactional email is out of scope**:
+Mustache plus R2 language packs. Workflow `docs/i18n.md`.
 
 ## MUST
 
 - **Never hardcode user-facing copy.** Every visible string goes through lingui.
+- Nimbus Site has no React runtime. Astro shell copy and document AST copy use `MessageDescriptor`
+  values rendered from the shared compiled catalogs during static generation.
 - SPA JSX: `<Trans>Sign in to {tenant}</Trans>`, never string concatenation. Imperative SPA strings
   (toast / alt / aria-label): `const { t } = useLingui(); t\`Email is required\``.
 - **The React SDK does NOT use macros.** It declares runtime descriptors in

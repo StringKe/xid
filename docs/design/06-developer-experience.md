@@ -148,7 +148,9 @@ self-management).
 The Hosted UI is a React 19 SPA built inside the same `apps/server` project as the Worker, with
 `@cloudflare/vite-plugin` producing both the Worker bundle and the static SPA assets. It is not hosted
 separately on R2; the assets are served directly by Cloudflare Workers Static Assets (the ASSETS
-binding), configured in `wrangler.jsonc`:
+binding), configured in `wrangler.jsonc`. This Core SPA contains sign-in, consent, MFA, organization
+selection, and account self-service. It does not contain the public site, public docs, or management
+Console.
 
 ```jsonc
 {
@@ -161,10 +163,10 @@ binding), configured in `wrangler.jsonc`:
 ```
 
 `not_found_handling=single-page-application` makes the CDN layer fall back to `index.html` for every
-unmatched path (`/sign-in`, `/user`, `/organization`, and the other SPA routes) without any Worker
-code, which reduces cold-start overhead. Inside the SPA, `@tanstack/react-router` handles routing (a
-code-based route tree in `apps/server/src/router.tsx`), and `lib/router.tsx` provides a react-router
-compatibility layer that existing pages can keep using.
+unmatched Core-owned human path (`/sign-in`, `/account`, and the other Hosted UI routes) without any
+additional Worker handler. More-specific Cloudflare Worker Routes select the Nimbus Site and Console
+before this Core fallback. Inside the Core SPA, `@tanstack/react-router` handles routing, and the
+router compatibility layer lets existing pages keep their navigation API.
 
 Build output directories:
 
@@ -173,6 +175,50 @@ dist/
   client/          Vite SPA build output (static assets)
   worker/          Worker bundle
 ```
+
+### Public documentation and Console runtime boundaries
+
+Public presentation is one Nimbus 0.8.2 documentation deployment, not a separate marketing site.
+Nimbus owns the canonical apex documentation hub, 8-locale docs, Pagefind, OG images, sitemaps,
+Markdown twins, LLM documents, and structured metadata. English uses `/` and `/{slug}`. The other
+7 locales use `/{locale-segment}` and `/{locale-segment}/{slug}`. The published surface contains
+one hub plus 40 documents per locale, for 328 pages total. The locale-neutral `documents.json` AST
+is the content source; generated localized MDX is a build artifact and is not an authoring source.
+
+The installed Nimbus Registry feature set is:
+
+- `pagefind-search`: indexes all 328 localized docs pages.
+- `ai-native`: emits one downleveled `.md` twin and one source-preserving `.mdx` twin for every
+  published page. Global `/llms.txt` and `/llms-full.txt` cover all 328 pages. English locale
+  endpoints under `/en/` and the other 7 locale endpoints under their locale segment each cover
+  41 pages. It also emits robots and sitemaps.
+- `404-page`: returns a localized terminal Site 404 for unknown public routes without entering Core.
+- `mermaid`: converts AST CodeBlock entries whose language is `mermaid` into theme-aware diagrams
+  with a full-screen dialog. Diagram source stays intact in both Markdown twins.
+- `lint-prose-textlint`: regenerates the content collection and applies the English prose gate only
+  to the generated English docs subtree.
+
+Every published HTML page carries canonical and hreflang links, Open Graph metadata, and JSON-LD.
+The availability of another upstream Registry recipe does not enable it in XID. In particular,
+`changelog`, `new-version`, and `new-collection` are not part of this shipped surface.
+
+Legacy `/docs` paths return a 308 to the root canonical tree when registered. An unknown legacy
+`/docs/*` path returns the Nimbus 404 and never falls through to Hosted Auth. The English SCIM
+documentation uses exact `/scim` routes only, so `/scim/v2/*` remains owned by Core.
+
+The org and instance management surfaces remain one unified React Console product, but their static
+assets are deployed by a separate Console Worker. That Worker has only an `ASSETS` binding and owns
+`/console` and `/console/*` on both the apex and tenant hosts. It has no database, cache, object
+storage, Durable Object, queue, secret, protocol, or Management API binding.
+
+The browser keeps the original host for Console document navigation and same-origin API calls. Sign
+in, MFA, account, `/auth/*`, and `/v1/*` continue to resolve to Core. This preserves the host-only
+`__Host-` session cookies on both apex and tenant hosts. Cross-runtime links use document navigation
+instead of client-router navigation.
+
+Cloudflare Worker Routes provide the split. More-specific Site and Console routes take precedence
+over the Core Custom Domain and tenant wildcard fallback. Neither frontend Worker claims a broad
+apex catch-all, and there is no front proxy Worker.
 
 `vite.config.ts` (`apps/server/vite.config.ts`) uses a standard Vite configuration, with this plugin
 order:
@@ -187,18 +233,18 @@ import { linguiTransformerBabelPreset } from '@lingui/vite-plugin'
 plugins: [react(), cloudflare(), lingui(), babel({ presets: [linguiTransformerBabelPreset()] })]
 ```
 
-### Worker fallback for non-API paths
+### Core Worker fallback for Hosted UI paths
 
-The Worker `worker/index.ts` mounts every protocol endpoint and the Management API through Hono, with
-path prefixes starting with `/api/`, `/.well-known/`, `/oauth/`, `/scim/`, and `/saml/`. Non-API paths
-flow like this:
+The Core Worker mounts every protocol endpoint and the Management API through Hono. Core-owned human
+paths flow like this:
 
-1. Hono matches no route -> the Worker does not intercept, and the request passes through to the
-   ASSETS binding.
-2. The ASSETS binding looks for the corresponding static file under `dist/client/`.
-3. The file does not exist -> `not_found_handling=single-page-application` returns
+1. The request does not match a more-specific Site or Console Worker Route.
+2. Hono matches no Core protocol or API route, and the request passes through to the Core ASSETS
+   binding.
+3. The ASSETS binding looks for the corresponding static file under `dist/client/`.
+4. The file does not exist -> `not_found_handling=single-page-application` returns
    `dist/client/index.html`, handled at the CDN layer without involving the Worker.
-4. The SPA bootstraps in the browser, `@tanstack/react-router` matches the current path, and the
+5. The SPA bootstraps in the browser, `@tanstack/react-router` matches the current path, and the
    corresponding page component renders.
 
 The explicit fallback shape inside the Worker (if you need to control it at the Worker layer):
@@ -315,7 +361,8 @@ Worker -> GET /authorize?authz_request_id=uuid
 XID's decision: prioritize embeddable components (the best developer experience) while also providing
 the Hosted UI as a zero-configuration starting point and fallback. The Hosted UI shares the Worker's
 origin (so there are no cross-origin problems), and once the RP 302s the user to `/authorize` the
-entire authentication flow completes inside the same Worker plus SPA.
+entire authentication flow completes inside the Core Worker plus its Hosted UI SPA. The separate
+Nimbus Site and Console deployments do not enter the authorization protocol loop.
 
 ### Branding customization tiers
 
@@ -405,8 +452,10 @@ URL prefix `/v1/`.
   form fields
 - Local development: a dev instance (`pk_test_`), certificate-free localhost (through an HTTPS proxy),
   and testing tokens that bypass bot detection
-- Documentation: a dedicated page per component and hook (a props table plus examples), a playground,
-  and shadcn/Tailwind integration examples
+- Documentation target: publish a dedicated page per component and hook, with a props table,
+  examples, a playground, and shadcn/Tailwind integration examples. The current Nimbus Site
+  publishes the product and protocol documentation corpus; the component showcase remains a design
+  target.
 
 ## 10. Guest sign-in (anonymous)
 

@@ -2,9 +2,10 @@
 
 [English](README.md) | [简体中文](README.zh-Hans.md) | 日本語 | [한국어](README.ko.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Español](README.es.md) | [Português (BR)](README.pt-BR.md)
 
-単一の Cloudflare Worker として動作する edge-native な identity platform である。一つの codebase が
-OIDC/OAuth Identity Provider、マルチテナント RBAC レイヤ、エンタープライズ SSO federation エンドポイント
-(SAML と SCIM)、そして passkey を第一とするホスト型認証 UI を兼ねる。
+一つの codebase から 3 つの Cloudflare Workers として deploy する edge-native な identity platform
+である。Core Worker は OIDC/OAuth、マルチテナント RBAC、enterprise SSO federation、Hosted Auth、
+account ページを提供し、Nimbus Site Worker は apex ルートの完全な多言語ドキュメント、分離された Console
+Worker は management UI を提供する。
 
 [![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
 
@@ -119,7 +120,7 @@ Workers Free の枠を持つが、`send_email` binding で任意の宛先にメ�
 git clone https://github.com/StringKe/xid.git
 cd xid && pnpm install
 
-# create the resources this Worker binds to
+# create the resources the Core Worker binds to
 cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
@@ -129,10 +130,12 @@ for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-d
 done
 ```
 
-続いて `apps/server/wrangler.jsonc` を編集し、`account_id`、D1 の `database_id`、KV namespace の `id`、
-`routes` の各項目を自分のものに置き換える。このファイルは今も upstream プロジェクトの値を持ったままで、
-コピー用のテンプレートも存在せず、**未編集のままでは deploy できない**。8 つの Durable Object binding、
-Analytics Engine dataset、`send_email` binding、2 つの cron trigger はすでに宣言済みで、変更は要らない。
+続いて `apps/server/wrangler.jsonc`、`apps/console/wrangler.jsonc`、
+`apps/site/wrangler.jsonc` の upstream account と route の値を自分のものに置き換え、
+`apps/site/astro.config.ts` の canonical public origin を自分の HTTPS apex URL に設定する。Core の
+設定には D1 の `database_id` と KV namespace の `id` も必要である。self-host 用テンプレートはなく、
+**upstream の値を残したままでは 3 Worker は正しく deploy できない**。8 つの Durable Object binding、
+Analytics Engine dataset、`send_email` binding、2 つの cron trigger は Core だけに属し、すでに宣言済みである。
 
 secret を設定し、migrate、deploy、初期化を行う。`KEK` を失えばすべての署名鍵と保存済み provider 資格情報が
 復号不能になり、`PEPPER` を失えばすべてのパスワードハッシュが無効になる。まず両方を Cloudflare の外に
@@ -144,7 +147,11 @@ openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
 npx wrangler d1 migrations apply DB --remote
-npx wrangler deploy
+cd ../..
+pnpm run build
+pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
 
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
@@ -153,16 +160,19 @@ curl -X POST https://<your-domain>/admin/bootstrap \
 ```
 
 bootstrap は instance、既定の organization、instance の ES256 署名鍵、そして最初の `instance_manager`
-ユーザーを作成する。二度目の実行は拒否される。ローカルでの D1 migration と seeding を含む完全な手順は
-[`docs/deployment.md`](docs/deployment.md) にある。
+ユーザーを作成する。二度目の実行は拒否される。ローカルでの D1 migration、seeding、3 Worker の release
+順序と rollback を含む完全な手順は [`docs/deployment.md`](docs/deployment.md) にある。self-host release
+では Core、Console、Site をすべて deploy する。Site は apex、8 locale docs、SEO、Pagefind、agent
+surfaces、`www` 308 を、Console は `/console` と `/console/*` を担当する。
 
 ### 開発
 
 ```bash
-pnpm --filter @xid-kit/server dev   # Vite dev server: Worker and SPA together
-pnpm test                           # Vitest across the workspace
-pnpm run check                      # typecheck, lint, i18n, protocol and coverage gates
-pnpm run build                      # all packages plus the server
+pnpm run dev                   # Core, Console, and Nimbus Site development servers
+pnpm test                      # Vitest across the workspace
+pnpm run check                 # typecheck, lint, i18n, protocol and coverage gates
+pnpm run build                 # all packages and all three Workers
+pnpm smoke:three-workers       # local route ownership and cross-Worker smoke test
 ```
 
 `pnpm run check` は 2 回の coverage 実行を含む完全なゲートであって、手軽な lint ではない。内部で
@@ -173,25 +183,30 @@ production への配備はリポジトリ所有者のアカウント上の Cloud
 
 ## アーキテクチャ
 
-Worker 一つがすべてを抱える。Hono が protocol エンドポイントと management エンドポイントを提供し、
-React 19 の SPA は Workers Assets として配信され、API 以外のパスはそこへフォールバックする。よって
-Hosted UI、account portal、二つの console は token エンドポイントと一体で deploy される。状態は一貫性の
-要件で分割している。関係データは D1、直列化が要るもの (WebAuthn challenge、OAuth state、PAR、device flow、
-session 失効、レート制限、監査 sequence、メータリング) は Durable Objects、キャッシュ読み取りは KV、
-blob は R2、ログインパスから外すべき処理は Queues に置く。
+3 つの Worker は一つの hostname を共有するが、runtime binding は共有しない。Nimbus Site は apex
+documentation hub、8 locale の docs tree、SEO、Pagefind、Markdown と MDX twins、LLM indexes、`www` から
+apex への 308 を担当する。Console は binding を持たない静的 Worker で、apex と tenant host の
+`/console` と `/console/*` を担当する。Core は Hosted Auth、account ページ、protocol と API route、
+`/_core/*` を担当し、D1、Durable Objects、KV、R2、Queues、email、Analytics Engine、cron binding を
+持つ唯一の Worker である。
+
+Core の状態は一貫性の要件で分割している。関係データは D1、直列化が要るもの (WebAuthn challenge、
+OAuth state、PAR、device flow、session 失効、レート制限、監査 sequence、メータリング) は Durable
+Objects、キャッシュ読み取りは KV、blob は R2、ログインパスから外すべき処理は Queues に置く。
 
 ```
-apps/server/       The Worker
+apps/site/         Nimbus docs Site: apex hub, localized docs, SEO, Pagefind, agent surfaces, www 308
+apps/console/      Binding-free static management UI for /console and /console/*
+apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
-  src/             React SPA: 12 auth pages, 5 account pages, 6 shared console pages,
-                   16 organization console pages, 7 platform console pages
+  src/             React SPA for Hosted Auth and account pages
 packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-kernel library である `protocol`、`crypto`、`webauthn`、`saml`、`db`、`i18n`、`types` は Worker の内部専用で
+kernel library である `protocol`、`crypto`、`webauthn`、`saml`、`db`、`i18n`、`types` は Core Worker の内部専用で
 ある。暗号プリミティブは常に Web Crypto から取り、XML-DSig は `xmldsigjs` に委譲する。その間にある
 protocol とビジネスロジックはここで実装している。
 

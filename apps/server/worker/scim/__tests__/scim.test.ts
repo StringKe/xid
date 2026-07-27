@@ -489,6 +489,7 @@ describe('SCIM ServiceProviderConfig', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body['schemas']).toContain('urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig')
+    expect(body['documentationUri']).toBe('https://xid.dev/scim')
     expect((body['patch'] as Record<string, unknown>)?.['supported']).toBe(true)
     expect((body['bulk'] as Record<string, unknown>)?.['supported']).toBe(true)
     expect((body['sort'] as Record<string, unknown>)?.['supported']).toBe(true)

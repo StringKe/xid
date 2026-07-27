@@ -29,14 +29,16 @@
   or Slack
 - Status page management: publish and update incidents
 
-Design decisions: the platform admin and the tenant admin share one Worker and one React console. The
-platform view's main entry point is `/console/platform/*`, authorized by the `instance_manager`
-ManagerAssignment rather than by a business access token claim, and it introduces no separate admin
-SPA, admin API, or admin RBAC. `/platform-admin/*` is not a compatibility entry point. Cross-tenant
-management goes through the `/v1/platform/*` platform management paths and the platform view inside
-the unified console; tenant management continues through `/v1/organizations/:orgId/*` and the org
-console. Impersonation generates a 15-minute scoped token and writes a platform audit entry, and it
-cannot be bypassed. Feature flags use the KV key `flag:{tenant_id}:{flag_name}` with the global default
+Design decisions: the platform admin and tenant admin share one unified React Console product, one
+Management API, and one RBAC model. Its static assets deploy through the separate Console Worker,
+while every management endpoint and authorization decision remains in Core. The platform view's main
+entry point is `/console/platform/*`, authorized by the `instance_manager` ManagerAssignment rather
+than by a business access token claim. There is no second platform-admin SPA, admin API, admin tenant,
+or admin RBAC. `/platform-admin/*` is not a compatibility entry point. Cross-tenant management goes
+through the `/v1/platform/*` platform management paths and the platform view inside the unified
+Console; tenant management continues through `/v1/organizations/:orgId/*` and the org Console.
+Impersonation generates a 15-minute scoped token and writes a platform audit entry, and it cannot be
+bypassed. Feature flags use the KV key `flag:{tenant_id}:{flag_name}` with the global default
 `flag:global:{flag_name}`, read directly per request in under 1 ms.
 
 ### Tenant admin (single-tenant self-management)
@@ -46,13 +48,21 @@ application management (OAuth2 clients), SSO connections, organization managemen
 (Owner/Admin/Viewer/Billing roles), branding, notification settings, audit log, billing usage, and
 compliance tooling.
 
-Design decisions: the tenant admin pages and the platform admin pages belong to the same unified React
-console hosted by the same Worker. Tenant management APIs use `/v1/organizations/:orgId/*` and the
-related `/v1/*` tenant resource paths, with tenant_id and org_id resolved from `TenantContext` and the
-protected path rather than trusted from the request body. An Org Admin can manage only their own org;
-an Instance Manager manages any org through the platform management paths or the instance manager
-override in the same org console. Viewer is read-only and Billing sees usage only, enforced by the
-RBAC middleware layer.
+Design decisions: the tenant admin pages and platform admin pages belong to the same unified React
+Console Worker. The Worker serves only static assets and owns `/console` and `/console/*` on both the
+apex and tenant hosts. It has no D1, KV, R2, Durable Object, Queue, secret, protocol, or Management API
+binding. Tenant management APIs use `/v1/organizations/:orgId/*` and the related `/v1/*` tenant
+resource paths in Core, with tenant_id and org_id resolved from `TenantContext` and the protected path
+rather than trusted from the request body. An Org Admin can manage only their own org; an Instance
+Manager manages any org through the platform management paths or the instance manager override in the
+same org Console. Viewer is read-only and Billing sees usage only, enforced by the Core RBAC
+middleware layer.
+
+The Console keeps the request host. Same-origin `/v1/*` and `/auth/*` requests therefore reach Core,
+and host-only `__Host-` cookies continue to work on the apex and tenant hosts. Navigation to sign-in,
+MFA, and account pages is a full document navigation across the Worker boundary. More-specific
+Cloudflare Worker Routes select Console paths over the Core Custom Domain and tenant wildcard
+fallback; there is no front proxy.
 
 ## 2. Branding customization
 
@@ -122,6 +132,9 @@ invitations) goes through this channel.
 
 - The sign-in page UI runs entirely on i18n keys, with 8 locales in the first release (en, zh-Hans,
   ja, ko, fr, de, es, pt-BR, all fully translated); 40+ languages are a later plan
+- Nimbus Site publishes the documentation hub and details in the same 8 locales. English uses
+  the canonical apex paths, and the other 7 locales use locale-prefixed canonical paths with
+  matching hreflang, sitemap, Pagefind, Markdown, and LLM output
 - Email templates are versioned by language and selected by `user.locale`
 - Error messages are localized, and API error messages carry a locale
 - Locale management: tenants enable or disable languages and set a default
