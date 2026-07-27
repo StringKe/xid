@@ -152,6 +152,45 @@ final class JwtVerifierTest extends TestCase
         $this->assertSame('usr_123', $claims->sub());
     }
 
+    public function test_guest_amr_marks_claims_as_guest(): void
+    {
+        $cache    = TestHelpers::makeMockJwksCache($this->ecJwks);
+        $verifier = new JwtVerifier($cache, 'https://xid.dev', 'my_client_id', 60);
+
+        $token  = TestHelpers::buildEs256Jwt(
+            $this->ecKey,
+            TestHelpers::validPayload(['amr' => ['guest']])
+        );
+        $claims = $verifier->verify($token);
+
+        $this->assertTrue($claims->isGuest());
+    }
+
+    public function test_non_guest_amr_is_not_guest(): void
+    {
+        $cache    = TestHelpers::makeMockJwksCache($this->ecJwks);
+        $verifier = new JwtVerifier($cache, 'https://xid.dev', 'my_client_id', 60);
+
+        $token  = TestHelpers::buildEs256Jwt(
+            $this->ecKey,
+            TestHelpers::validPayload(['amr' => ['pwd']])
+        );
+        $claims = $verifier->verify($token);
+
+        $this->assertFalse($claims->isGuest());
+    }
+
+    public function test_missing_amr_is_not_guest(): void
+    {
+        $cache    = TestHelpers::makeMockJwksCache($this->ecJwks);
+        $verifier = new JwtVerifier($cache, 'https://xid.dev', 'my_client_id', 60);
+
+        $token  = TestHelpers::buildEs256Jwt($this->ecKey, TestHelpers::validPayload());
+        $claims = $verifier->verify($token);
+
+        $this->assertFalse($claims->isGuest());
+    }
+
     public function test_missing_sub_throws(): void
     {
         $cache    = TestHelpers::makeMockJwksCache($this->ecJwks);

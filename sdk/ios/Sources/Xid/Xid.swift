@@ -2,7 +2,7 @@
 // XID iOS Swift SDK
 // Status: implemented; compiled and unit-tested locally, real IdP round-trip pending
 //
-// 主入口。提供 configure / signIn / handleRedirect / getSession /
+// 主入口。提供 configure / signIn / signInAnonymously / handleRedirect / getSession /
 // getAccessToken / signOut / setTokenStorage 接口,对齐平台矩阵
 // Shared native contract。
 
@@ -17,7 +17,7 @@ public final class Xid: @unchecked Sendable {
     // MARK: - 单例
 
     public static let shared = Xid()
-    private init() {}
+    init() {}
 
     // MARK: - 内部状态(由 stateLock 保护)
 
@@ -27,6 +27,9 @@ public final class Xid: @unchecked Sendable {
     private let userInfoClient = UserInfoClient()
     private let endSessionClient = EndSessionClient()
     private let refreshSingleFlight = RefreshSingleFlight<XidSession>()
+
+    /// Test hook: 替换匿名登录的 HTTP 层。
+    var guestAuthClient = GuestAuthClient()
 
     private var config: XidConfiguration {
         get throws {
@@ -211,6 +214,44 @@ public final class Xid: @unchecked Sendable {
         )
     }
 
+    /// Firebase 式匿名登录:创建或续期一个 guest(匿名)会话。
+    ///
+    /// 惰性语义:本地已有任何有效会话(token 或 guest)时不发请求,直接返回该会话。
+    /// guest 没有 access token:返回的 XidSession.accessToken 为 nil,
+    /// 会话凭证是服务端 session cookie,由 SDK 持久化并在 /v1/me 请求上回放。
+    ///
+    /// guest 不可恢复(登出即丢失)、单设备,产品应引导用户转正。
+    /// 转正(在 guest 会话内完成任一正式登录)后 sub 不变;
+    /// 若转而登入另一个既有账号则 sub 会变,调用方可对比新旧 session.user.sub。
+    ///
+    /// - Parameter turnstileToken: 服务端启用 Turnstile 时才需要,native 端通常为 nil。
+    @discardableResult
+    public func signInAnonymously(turnstileToken: String? = nil) async throws -> XidSession {
+        let c = try config
+
+        if let existing = try await getSession() {
+            return existing
+        }
+
+        let result = try await guestAuthClient.createGuestSession(
+            issuer: c.issuer,
+            turnstileToken: turnstileToken
+        )
+        let user = try await guestAuthClient.fetchCurrentUser(
+            issuer: c.issuer,
+            cookies: result.cookies
+        )
+
+        let stored = StoredGuestSession(
+            sessionId: result.sessionId,
+            cookies: result.cookies,
+            user: user,
+            expiresAt: result.cookies.compactMap(\.expiresAt).min()
+        )
+        try GuestSessionStorage.save(stored, storage: c.tokenStorage)
+        return Self.guestSession(from: stored)
+    }
+
     /// 获取当前会话。若 access token 即将过期则自动刷新。
     /// 若未登录返回 nil。
     public func getSession() async throws -> XidSession? {
@@ -218,6 +259,10 @@ public final class Xid: @unchecked Sendable {
         guard let session = try await loadSession(storage: c.tokenStorage, discovery: nil) else {
             if try TokenSessionStorage.isRefreshPending(storage: c.tokenStorage) {
                 return try await refreshSingleFlight.valueIfRunning()
+            }
+            // guest 会话没有 token 凭证,token 会话缺失时用它兜底
+            if let guest = try GuestSessionStorage.load(storage: c.tokenStorage) {
+                return Self.guestSession(from: guest)
             }
             return nil
         }
@@ -237,15 +282,20 @@ public final class Xid: @unchecked Sendable {
 
         if let session = try await loadSession(storage: c.tokenStorage, discovery: discovery),
            !session.isNearExpiry,
-           !forceRefresh
+           !forceRefresh,
+           let accessToken = session.accessToken
         {
-            return session.accessToken
+            return accessToken
         }
 
         let newSession = try await refreshSingleFlight.run { [self] in
             try await refreshSession(configuration: c, discovery: discovery)
         }
-        return newSession.accessToken
+        // refresh 只会产生 token 会话,缺 access token 说明服务端契约被破坏
+        guard let accessToken = newSession.accessToken else {
+            throw XidError.tokenRefreshFailed("刷新响应缺少 access token")
+        }
+        return accessToken
     }
 
     /// 登出:清除本地 token,可选调用 /end_session 端点触发服务端 logout。
@@ -268,6 +318,7 @@ public final class Xid: @unchecked Sendable {
         }
 
         try clearStoredTokens(storage: c.tokenStorage)
+        try GuestSessionStorage.clear(storage: c.tokenStorage)
     }
 
     // MARK: - 内部辅助
@@ -287,6 +338,9 @@ public final class Xid: @unchecked Sendable {
             expiresAt: expiresAt
         )
         try TokenSessionStorage.save(storedTokens, storage: storage)
+
+        // 正式登录成功即转正或换账号,本地 guest 凭证作废;清理失败不阻断登录
+        try? GuestSessionStorage.clear(storage: storage)
 
         let idTokenStr = storedTokens.idToken ?? ""
         let user = try await resolveUser(
@@ -343,10 +397,10 @@ public final class Xid: @unchecked Sendable {
 
         let user: XidUser
         if idTokenStr.isEmpty {
-            user = XidUser(sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil)
+            user = XidUser(sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil, provisionedBy: nil)
         } else {
             user = (try? IDTokenDecoder.decodeUser(idTokenStr)) ?? XidUser(
-                sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil
+                sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil, provisionedBy: nil
             )
         }
 
@@ -356,6 +410,16 @@ public final class Xid: @unchecked Sendable {
             idToken: idTokenStr,
             expiresAt: storedTokens.expiresAt,
             user: user
+        )
+    }
+
+    private static func guestSession(from stored: StoredGuestSession) -> XidSession {
+        XidSession(
+            accessToken: nil,
+            refreshToken: nil,
+            idToken: "",
+            expiresAt: stored.expiresAt ?? .distantFuture,
+            user: stored.user
         )
     }
 

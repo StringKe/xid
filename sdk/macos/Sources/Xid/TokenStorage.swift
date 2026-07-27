@@ -94,4 +94,8 @@ enum StorageKey {
     // code_verifier is stored only during the PKCE flow; deleted immediately after the callback
     static let pkceVerifier = "xid.pkce_verifier"
     static let oauthState = "xid.oauth_state"
+    // Guest sessions are cookie-based: the captured Cookie header and the /v1/me user
+    // snapshot are persisted instead of tokens.
+    static let guestSessionCookie = "xid.guest_session_cookie"
+    static let guestUser = "xid.guest_user"
 }

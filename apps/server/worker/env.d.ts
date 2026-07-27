@@ -34,6 +34,7 @@ type WorkerEnv = {
   RATE_LIMITER: DurableObjectNamespace
   AUDIT_SEQ: DurableObjectNamespace
   METERING: DurableObjectNamespace
+  GUEST_STORE: DurableObjectNamespace
 
   // Queues(6 条,消息体类型来自 @xid-kit/types)
   EMAIL_QUEUE: Queue<EmailQueueMessage>

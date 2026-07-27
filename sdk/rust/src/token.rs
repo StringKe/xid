@@ -79,6 +79,17 @@ impl Claims {
             .map(|s| s.split_whitespace().any(|part| part == scope))
             .unwrap_or(false)
     }
+
+    /// 是否为匿名访客(guest):amr 数组包含 "guest"
+    ///
+    /// RP 用于拦截匿名访客的敏感写操作;访客转正后平台签发的 token
+    /// amr 不再含 "guest",此方法返回 false。amr 缺失或为空时为 false。
+    pub fn is_guest(&self) -> bool {
+        self.amr
+            .as_deref()
+            .map(|methods| methods.iter().any(|m| m == "guest"))
+            .unwrap_or(false)
+    }
 }
 
 /// 验证通过后的 token 载体
@@ -229,6 +240,44 @@ mod tests {
         let mut claims = make_claims("https://xid.dev", None);
         claims.scope = None;
         assert!(!claims.has_scope("openid"));
+    }
+
+    // ------------------------------------------------------------------
+    // Claims::is_guest()
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn is_guest_with_guest_amr() {
+        let mut claims = make_claims("https://xid.dev", None);
+        claims.amr = Some(vec!["guest".to_owned()]);
+        assert!(claims.is_guest());
+    }
+
+    #[test]
+    fn is_guest_with_mixed_amr() {
+        let mut claims = make_claims("https://xid.dev", None);
+        claims.amr = Some(vec!["pwd".to_owned(), "guest".to_owned()]);
+        assert!(claims.is_guest());
+    }
+
+    #[test]
+    fn is_guest_false_for_other_amr() {
+        let mut claims = make_claims("https://xid.dev", None);
+        claims.amr = Some(vec!["pwd".to_owned()]);
+        assert!(!claims.is_guest());
+    }
+
+    #[test]
+    fn is_guest_false_when_amr_missing() {
+        let claims = make_claims("https://xid.dev", None);
+        assert!(!claims.is_guest());
+    }
+
+    #[test]
+    fn is_guest_false_when_amr_empty() {
+        let mut claims = make_claims("https://xid.dev", None);
+        claims.amr = Some(vec![]);
+        assert!(!claims.is_guest());
     }
 
     // ------------------------------------------------------------------

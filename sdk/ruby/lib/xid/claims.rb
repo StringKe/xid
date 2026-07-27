@@ -49,6 +49,16 @@ module Xid
       @raw["client_id"]
     end
 
+    # amr 规范允许 String 或 Array<String>
+    def amr
+      Array(@raw["amr"])
+    end
+
+    # 匿名访客（guest）签发的 token amr 含 "guest"；转正后的正式用户不含
+    def guest?
+      amr.include?("guest")
+    end
+
     # 任意自定义 claim 访问
     def [](key)
       @raw[key.to_s]

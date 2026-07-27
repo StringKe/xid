@@ -26,6 +26,8 @@ public final class Xid: @unchecked Sendable {
     private var _discoveryLoader: OIDCDiscoveryLoader?
     private let userInfoClient = UserInfoClient()
     private let endSessionClient = EndSessionClient()
+    // var (not let) so tests can swap in a client backed by a mocked URLSession.
+    var guestAuthClient = GuestAuthClient()
 
     private var config: XidConfiguration {
         get throws {
@@ -200,6 +202,47 @@ public final class Xid: @unchecked Sendable {
         )
     }
 
+    /// Signs in anonymously (Firebase-style guest mode).
+    ///
+    /// Lazy semantics: if a valid session already exists locally (hosted or guest),
+    /// it is returned immediately without any network request. Otherwise POSTs
+    /// {issuer}/auth/guest, persists the returned session cookie, fetches /v1/me
+    /// and returns the guest session. Guest sessions hold no tokens
+    /// (`accessToken` / `idToken` are nil) and are bound to this device only.
+    ///
+    /// - Parameter turnstileToken: Turnstile token, only required when the server
+    ///   enforces Turnstile on /auth/guest (native apps typically do not need it).
+    /// - Returns: The guest XidSession; `session.user.isAnonymous` is true.
+    @discardableResult
+    public func signInAnonymously(turnstileToken: String? = nil) async throws -> XidSession {
+        let c = try config
+
+        if let session = try await loadSession(storage: c.tokenStorage) {
+            return session
+        }
+
+        let sessionCookie = try await guestAuthClient.signIn(
+            issuer: c.issuer,
+            turnstileToken: turnstileToken
+        )
+        let user = try await guestAuthClient.fetchUser(issuer: c.issuer, sessionCookie: sessionCookie)
+
+        try c.tokenStorage.save(key: StorageKey.guestSessionCookie, value: sessionCookie)
+        let userData = try JSONEncoder().encode(user)
+        guard let userJSON = String(data: userData, encoding: .utf8) else {
+            throw XidError.tokenStorageError("Cannot encode guest user as UTF-8")
+        }
+        try c.tokenStorage.save(key: StorageKey.guestUser, value: userJSON)
+
+        return XidSession(
+            accessToken: nil,
+            refreshToken: nil,
+            idToken: nil,
+            expiresAt: .distantFuture,
+            user: user
+        )
+    }
+
     /// Returns the current session, refreshing the access token if it is near expiry.
     /// Returns nil if the user is not signed in.
     public func getSession() async throws -> XidSession? {
@@ -215,10 +258,11 @@ public final class Xid: @unchecked Sendable {
         let discovery = try await discoveryLoader.load()
 
         if let session = try await loadSession(storage: c.tokenStorage),
+           let accessToken = session.accessToken,
            !session.isNearExpiry,
            !forceRefresh
         {
-            return session.accessToken
+            return accessToken
         }
 
         guard let refreshToken = try c.tokenStorage.load(key: StorageKey.refreshToken) else {
@@ -242,7 +286,10 @@ public final class Xid: @unchecked Sendable {
             storage: c.tokenStorage,
             discovery: discovery
         )
-        return newSession.accessToken
+        guard let accessToken = newSession.accessToken else {
+            throw XidError.tokenRefreshFailed("Refresh response carried no access token")
+        }
+        return accessToken
     }
 
     /// Signs out: clears local tokens, optionally calls /end_session for server-side logout.
@@ -265,6 +312,9 @@ public final class Xid: @unchecked Sendable {
         }
 
         try clearStoredTokens(storage: c.tokenStorage)
+        // Drop the jar copy of the guest cookie too, or a later signInAnonymously
+        // would silently renew the signed-out guest session server-side.
+        guestAuthClient.clearCookies(for: c.issuer)
     }
 
     // MARK: - Internal helpers
@@ -295,10 +345,13 @@ public final class Xid: @unchecked Sendable {
         )
 
         let storedRefreshToken = try storage.load(key: StorageKey.refreshToken)
+        // A token session replaces any prior guest session on this device.
+        try? storage.delete(key: StorageKey.guestSessionCookie)
+        try? storage.delete(key: StorageKey.guestUser)
         return XidSession(
             accessToken: tokenResponse.accessToken,
             refreshToken: tokenResponse.refreshToken ?? storedRefreshToken,
-            idToken: idTokenStr,
+            idToken: idTokenStr.isEmpty ? nil : idTokenStr,
             expiresAt: expiresAt,
             user: user
         )
@@ -335,7 +388,7 @@ public final class Xid: @unchecked Sendable {
         guard let accessToken = try storage.load(key: StorageKey.accessToken),
               let expiresAtStr = try storage.load(key: StorageKey.expiresAt)
         else {
-            return nil
+            return try loadGuestSession(storage: storage)
         }
 
         let isoFormatter = ISO8601DateFormatter()
@@ -348,18 +401,38 @@ public final class Xid: @unchecked Sendable {
 
         let user: XidUser
         if idTokenStr.isEmpty {
-            user = XidUser(sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil)
+            user = XidUser(
+                sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil,
+                provisionedBy: nil
+            )
         } else {
             user = (try? IDTokenDecoder.decodeUser(idTokenStr)) ?? XidUser(
-                sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil
+                sub: "unknown", email: nil, emailVerified: nil, name: nil, picture: nil,
+                provisionedBy: nil
             )
         }
 
         return XidSession(
             accessToken: accessToken,
             refreshToken: refreshToken,
-            idToken: idTokenStr,
+            idToken: idTokenStr.isEmpty ? nil : idTokenStr,
             expiresAt: expiresAt,
+            user: user
+        )
+    }
+
+    private func loadGuestSession(storage: TokenStorageAdapter) throws -> XidSession? {
+        guard let userJSON = try storage.load(key: StorageKey.guestUser),
+              let userData = userJSON.data(using: .utf8),
+              let user = try? JSONDecoder().decode(XidUser.self, from: userData)
+        else {
+            return nil
+        }
+        return XidSession(
+            accessToken: nil,
+            refreshToken: nil,
+            idToken: nil,
+            expiresAt: .distantFuture,
             user: user
         )
     }
@@ -371,5 +444,7 @@ public final class Xid: @unchecked Sendable {
         try? storage.delete(key: StorageKey.expiresAt)
         try? storage.delete(key: StorageKey.pkceVerifier)
         try? storage.delete(key: StorageKey.oauthState)
+        try? storage.delete(key: StorageKey.guestSessionCookie)
+        try? storage.delete(key: StorageKey.guestUser)
     }
 }

@@ -173,7 +173,15 @@ WebhookPayload VerifyWebhook(
 | `Email`         | `string?`                           | email             |
 | `EmailVerified` | `bool?`                             | email_verified    |
 | `Name`          | `string?`                           | name              |
+| `Amr`           | `IReadOnlyList<string>`             | amr               |
+| `IsGuest`       | `bool`                              | 由 amr 派生       |
 | `Extra`         | `FrozenDictionary<string, object?>` | 其余自定义 claims |
+
+### 匿名访客判定
+
+`TokenClaims.IsGuest` 在 amr 包含 `guest` 时为 true,用于拦截匿名访客的敏感写操作
+(等价 Firebase Security Rules 的 `sign_in_provider != 'anonymous'`)。
+amr 缺失或为空时为 false;访客转正后平台签发的 token 不再带 `guest`,该值恒为 false。
 
 ### AuthStatus
 

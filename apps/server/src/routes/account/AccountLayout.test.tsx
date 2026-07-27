@@ -30,6 +30,16 @@ vi.mock('../../components/LanguageSwitcher', () => ({
   LanguageSwitcher: () => <span>Language</span>,
 }))
 
+vi.mock('../../lib/auth-context', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../lib/auth-context')>()
+  return {
+    ...original,
+    useAuth: () => ({
+      user: null,
+    }),
+  }
+})
+
 describe('AccountLayout', () => {
   it('renders navigation classes as strings instead of function source', () => {
     const html = renderToStaticMarkup(

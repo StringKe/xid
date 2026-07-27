@@ -75,6 +75,7 @@ export {
   RateLimitStore,
   AuditSeqDO,
   MeteringDO,
+  GuestStore,
 } from './durable-objects'
 
 // Queue handler:处理六条异步队列(邮件/WhatsApp/短信/审计/webhook/计量)。

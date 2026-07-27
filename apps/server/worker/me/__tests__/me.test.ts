@@ -174,6 +174,24 @@ describe('GET /v1/me', () => {
     expect((body['session'] as Record<string, unknown>)['isImpersonation']).toBe(false)
   })
 
+  it('exposes provisioned_by (snake_case) so SPA/SDK can detect guest users', async () => {
+    const db = makeFakeD1({
+      users: [userRow({ provisioned_by: 'anonymous' })],
+      user_emails: [emailRow()],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession({ userId: 'u_1' }) })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect((body['user'] as Record<string, unknown>)['provisioned_by']).toBe('anonymous')
+  })
+
   it('marks user as instance manager when a platform manager assignment exists', async () => {
     const db = makeFakeD1({
       users: [userRow()],

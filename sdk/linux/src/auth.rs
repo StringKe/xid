@@ -3,7 +3,7 @@ use crate::error::{Result, XidError};
 use crate::jwks::JwksCache;
 use crate::pkce::{generate_state, PkceParams};
 use crate::redirect_server::wait_for_callback;
-use crate::session::{Organization, Session, User};
+use crate::session::{GuestSession, MeResponse, Organization, Session, User};
 #[cfg(not(feature = "secret-service-storage"))]
 use crate::storage::InMemoryStorage;
 use crate::storage::{PendingAuthState, StorageAdapter, TokenStorage};
@@ -33,6 +33,13 @@ pub struct SignInOptions {
 pub struct GetAccessTokenOptions {
     /// 若为 true,即使 token 未过期也强制刷新
     pub force_refresh: bool,
+}
+
+/// signInAnonymously() 选项
+#[derive(Debug, Default)]
+pub struct SignInAnonymouslyOptions {
+    /// Cloudflare Turnstile token;仅当服务端启用 Turnstile 时需要,native 端通常不需要
+    pub turnstile_token: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +157,8 @@ impl XidClient {
 
         let stored = StoredTokens::from_response(&token_resp);
         self.storage.save(&stored).await?;
+        // 正式登录后旧 guest 会话作废:转正由服务端延续 sub,换账号则是新用户
+        self.storage.clear_guest_session().await?;
 
         self.build_session(stored).await
     }
@@ -234,16 +243,87 @@ impl XidClient {
 
         let stored = StoredTokens::from_response(&token_resp);
         self.storage.save(&stored).await?;
+        // 同 sign_in:正式登录成功后旧 guest 会话作废
+        self.storage.clear_guest_session().await?;
 
         self.build_session(stored).await
+    }
+
+    /// 匿名 (guest) 登录。对应 signInAnonymously()。
+    ///
+    /// 流程:POST /auth/guest -> 捕获 Set-Cookie 会话 cookie 并持久化 ->
+    /// 携带 cookie 调 /v1/me 取 user 并缓存。
+    ///
+    /// 惰性语义 (Firebase):本地已有有效 session (token 或 guest) 时直接返回,
+    /// 不发任何请求。guest 没有 access token,返回的 Session.access_token 为 None。
+    pub async fn sign_in_anonymously(
+        &self,
+        options: Option<SignInAnonymouslyOptions>,
+    ) -> Result<Session> {
+        if self.storage.load().await?.is_some() {
+            return self.get_session().await;
+        }
+        if let Some(guest) = self.storage.load_guest_session().await? {
+            return Ok(Self::session_from_guest(&guest));
+        }
+
+        let issuer = self.config.issuer.trim_end_matches('/');
+        let url = format!("{issuer}/auth/guest");
+
+        let mut body = serde_json::Map::new();
+        if let Some(opts) = &options {
+            if let Some(token) = &opts.turnstile_token {
+                body.insert(
+                    "turnstileToken".to_owned(),
+                    serde_json::Value::String(token.clone()),
+                );
+            }
+        }
+
+        let resp = self
+            .http
+            .post(&url)
+            .json(&serde_json::Value::Object(body))
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(XidError::GuestSignInError { status, body: text });
+        }
+
+        let cookies = capture_set_cookies(resp.headers());
+        let guest_resp: GuestSignInResponse = resp.json().await?;
+
+        // 先验证会话 cookie 可用再持久化,避免存下无法使用的 guest 会话
+        let user = self.fetch_current_user(&cookies).await?;
+
+        let guest = GuestSession {
+            session_id: guest_resp.session_id,
+            cookies,
+            user,
+        };
+        self.storage.save_guest_session(&guest).await?;
+
+        Ok(Self::session_from_guest(&guest))
     }
 
     /// 获取当前 session。对应 getSession()。
     ///
     /// 若 access_token 已过期且有 refresh_token,自动刷新。
+    /// 无 token 但存在 guest 会话时返回缓存的 guest session。
     pub async fn get_session(&self) -> Result<Session> {
         let stored = self.storage.load().await?;
-        let mut tokens = stored.ok_or(XidError::NotSignedIn)?;
+        let mut tokens = match stored {
+            Some(tokens) => tokens,
+            None => {
+                if let Some(guest) = self.storage.load_guest_session().await? {
+                    return Ok(Self::session_from_guest(&guest));
+                }
+                return Err(XidError::NotSignedIn);
+            }
+        };
 
         if tokens.access_token_expired() {
             tokens = self.refresh_tokens(tokens).await?;
@@ -286,6 +366,7 @@ impl XidClient {
         }
 
         self.storage.clear().await?;
+        self.storage.clear_guest_session().await?;
         Ok(())
     }
 
@@ -519,10 +600,63 @@ impl XidClient {
         Ok(Session {
             user,
             organization,
-            access_token: tokens.access_token,
+            access_token: Some(tokens.access_token),
             access_token_expires_at: tokens.access_token_expires_at,
         })
     }
+
+    /// 从持久化的 guest 会话构建 Session (无网络请求,guest 无 access token)
+    fn session_from_guest(guest: &GuestSession) -> Session {
+        Session {
+            user: guest.user.clone(),
+            organization: None,
+            access_token: None,
+            access_token_expires_at: None,
+        }
+    }
+
+    /// 携带会话 cookie 调 GET /v1/me,返回当前用户
+    async fn fetch_current_user(&self, cookies: &[String]) -> Result<User> {
+        let issuer = self.config.issuer.trim_end_matches('/');
+        let url = format!("{issuer}/v1/me");
+
+        let resp = self
+            .http
+            .get(&url)
+            .header(reqwest::header::COOKIE, cookies.join("; "))
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(XidError::UserInfoError { status, body });
+        }
+
+        let me: MeResponse = resp.json().await?;
+        Ok(User::from(me.user))
+    }
+}
+
+/// POST /auth/guest 成功响应体
+#[derive(Debug, serde::Deserialize)]
+struct GuestSignInResponse {
+    #[serde(rename = "sessionId")]
+    session_id: String,
+}
+
+/// 从响应头捕获 Set-Cookie 的 name=value 对。
+///
+/// reqwest 未启用 cookie jar,原生端必须自行捕获会话 cookie;属性段
+/// (Path/HttpOnly/Expires 等) 不是凭证,回放时只带 name=value。
+fn capture_set_cookies(headers: &reqwest::header::HeaderMap) -> Vec<String> {
+    headers
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|c| c.split(';').next().map(str::trim).map(str::to_owned))
+        .filter(|pair| pair.contains('='))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -630,7 +764,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(session.user.sub, "user_123");
-        assert_eq!(session.access_token, "access-token-value");
+        assert_eq!(session.access_token.as_deref(), Some("access-token-value"));
         assert!(storage.load_pending_auth().await.unwrap().is_none());
     }
 
@@ -649,5 +783,174 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, XidError::AuthCallbackError));
+    }
+
+    // ------------------------------------------------------------------
+    // sign_in_anonymously
+    // ------------------------------------------------------------------
+
+    fn sample_guest_session(sub: &str) -> GuestSession {
+        GuestSession {
+            session_id: "sess_cached".into(),
+            cookies: vec!["xid_session=cached".into()],
+            user: User {
+                sub: sub.into(),
+                name: None,
+                email: None,
+                picture: None,
+                provisioned_by: Some("anonymous".into()),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn sign_in_anonymously_creates_and_persists_guest_session() {
+        let mut server = Server::new_async().await;
+        let issuer = server.url();
+
+        let guest_mock = server
+            .mock("POST", "/auth/guest")
+            .match_body(mockito::Matcher::Json(json!({"turnstileToken": "tok-123"})))
+            .with_status(201)
+            .with_header("content-type", "application/json")
+            .with_header("set-cookie", "xid_session=sess-cookie; Path=/; HttpOnly")
+            .with_body(json!({"sessionId": "sess_1"}).to_string())
+            .create_async()
+            .await;
+        let me_mock = server
+            .mock("GET", "/v1/me")
+            .match_header("cookie", "xid_session=sess-cookie")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({"user": {"id": "guest_1", "provisioned_by": "anonymous", "email": null}})
+                    .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let config = test_config(&issuer, "http://127.0.0.1:51234/callback");
+        let storage: TokenStorage = Arc::new(InMemoryStorage::new());
+        let client = XidClient::configure_with_storage(config, Arc::clone(&storage)).unwrap();
+
+        let session = client
+            .sign_in_anonymously(Some(SignInAnonymouslyOptions {
+                turnstile_token: Some("tok-123".into()),
+            }))
+            .await
+            .unwrap();
+
+        assert_eq!(session.user.sub, "guest_1");
+        assert!(session.user.is_anonymous());
+        assert_eq!(session.access_token, None);
+
+        let stored = storage.load_guest_session().await.unwrap().unwrap();
+        assert_eq!(stored.session_id, "sess_1");
+        assert_eq!(stored.cookies, vec!["xid_session=sess-cookie".to_string()]);
+        assert!(stored.user.is_anonymous());
+
+        guest_mock.assert_async().await;
+        me_mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sign_in_anonymously_reuses_stored_guest_session_without_request() {
+        let mut server = Server::new_async().await;
+        let issuer = server.url();
+
+        // 惰性语义:已有 guest session 时不允许发出任何 /auth/guest 请求
+        let guest_mock = server
+            .mock("POST", "/auth/guest")
+            .expect(0)
+            .create_async()
+            .await;
+        let me_mock = server.mock("GET", "/v1/me").expect(0).create_async().await;
+
+        let config = test_config(&issuer, "http://127.0.0.1:51234/callback");
+        let storage: TokenStorage = Arc::new(InMemoryStorage::new());
+        storage
+            .save_guest_session(&sample_guest_session("guest_cached"))
+            .await
+            .unwrap();
+
+        let client = XidClient::configure_with_storage(config, storage).unwrap();
+        let session = client.sign_in_anonymously(None).await.unwrap();
+
+        assert_eq!(session.user.sub, "guest_cached");
+        assert!(session.user.is_anonymous());
+        assert_eq!(session.access_token, None);
+
+        guest_mock.assert_async().await;
+        me_mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sign_in_anonymously_propagates_server_error() {
+        let mut server = Server::new_async().await;
+        let issuer = server.url();
+
+        let _guest_mock = server
+            .mock("POST", "/auth/guest")
+            .with_status(429)
+            .with_body("rate_limited")
+            .create_async()
+            .await;
+
+        let config = test_config(&issuer, "http://127.0.0.1:51234/callback");
+        let storage: TokenStorage = Arc::new(InMemoryStorage::new());
+        let client = XidClient::configure_with_storage(config, Arc::clone(&storage)).unwrap();
+
+        let err = client.sign_in_anonymously(None).await.unwrap_err();
+        assert!(matches!(err, XidError::GuestSignInError { status: 429, .. }));
+        // 失败不得留下半截会话
+        assert!(storage.load_guest_session().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn sign_in_anonymously_fails_when_me_rejects_session_cookie() {
+        let mut server = Server::new_async().await;
+        let issuer = server.url();
+
+        let _guest_mock = server
+            .mock("POST", "/auth/guest")
+            .with_status(201)
+            .with_header("content-type", "application/json")
+            .with_header("set-cookie", "xid_session=bad-cookie; Path=/; HttpOnly")
+            .with_body(json!({"sessionId": "sess_bad"}).to_string())
+            .create_async()
+            .await;
+        let _me_mock = server
+            .mock("GET", "/v1/me")
+            .with_status(401)
+            .with_body("unauthorized")
+            .create_async()
+            .await;
+
+        let config = test_config(&issuer, "http://127.0.0.1:51234/callback");
+        let storage: TokenStorage = Arc::new(InMemoryStorage::new());
+        let client = XidClient::configure_with_storage(config, Arc::clone(&storage)).unwrap();
+
+        let err = client.sign_in_anonymously(None).await.unwrap_err();
+        assert!(matches!(err, XidError::UserInfoError { status: 401, .. }));
+        assert!(storage.load_guest_session().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn get_session_falls_back_to_guest_session() {
+        let server = Server::new_async().await;
+        let issuer = server.url();
+
+        let config = test_config(&issuer, "http://127.0.0.1:51234/callback");
+        let storage: TokenStorage = Arc::new(InMemoryStorage::new());
+        storage
+            .save_guest_session(&sample_guest_session("guest_restored"))
+            .await
+            .unwrap();
+
+        let client = XidClient::configure_with_storage(config, storage).unwrap();
+        let session = client.get_session().await.unwrap();
+
+        assert_eq!(session.user.sub, "guest_restored");
+        assert!(session.user.is_anonymous());
     }
 }

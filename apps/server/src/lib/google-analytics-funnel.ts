@@ -11,6 +11,7 @@ export type AuthMethod =
   | 'otp_whatsapp'
   | 'social'
   | 'enterprise_sso'
+  | 'guest'
   | 'unknown'
 
 export type AuthFlowIntent = 'sign_in' | 'sign_up'

@@ -127,6 +127,31 @@ class TokenVerifierTest < Minitest::Test
     assert_match(/No matching JWKS key/, err.message)
   end
 
+  # --- Guest (anonymous visitor) -----------------------------------------------
+
+  def test_guest_true_when_amr_contains_guest
+    token  = TestHelpers.build_jwt_es256(@ec_key, payload: valid_payload("amr" => ["guest"]))
+    claims = @verifier.verify!(token)
+
+    assert_equal ["guest"], claims.amr
+    assert claims.guest?
+  end
+
+  def test_guest_false_for_other_amr_values
+    token  = TestHelpers.build_jwt_es256(@ec_key, payload: valid_payload("amr" => ["pwd"]))
+    claims = @verifier.verify!(token)
+
+    refute claims.guest?
+  end
+
+  def test_guest_false_when_amr_missing
+    token  = TestHelpers.build_jwt_es256(@ec_key, payload: valid_payload)
+    claims = @verifier.verify!(token)
+
+    assert_empty claims.amr
+    refute claims.guest?
+  end
+
   # --- Malformed token --------------------------------------------------------
 
   def test_raises_on_malformed_token_two_segments

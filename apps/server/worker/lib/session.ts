@@ -259,14 +259,22 @@ async function hasActiveUser(
   db: ReturnType<typeof createTenantDb>,
   userId: string,
 ): Promise<boolean> {
-  const user = await db.users.findOne(
+  const user = await findActiveSessionUser(db, userId)
+  return Boolean(user)
+}
+
+// 签发路径的 user 加载:active + 未软删,顺带带出 provisionedBy(计量排除 guest 用)。
+async function findActiveSessionUser(
+  db: ReturnType<typeof createTenantDb>,
+  userId: string,
+): Promise<Pick<typeof schema.users.$inferSelect, 'id' | 'provisionedBy'> | undefined> {
+  return db.users.findOne(
     and(
       eq(schema.users.id, userId),
       eq(schema.users.status, 'active'),
       isNull(schema.users.deletedAt),
     ),
   )
-  return Boolean(user)
 }
 
 export async function assertActiveSessionUser(
@@ -279,7 +287,7 @@ export async function assertActiveSessionUser(
 }
 
 // policy.session 由 buildPolicy 三层解析后恒存在;兜底默认值只防测试桩与手搓 ctx 缺字段。
-function sessionPolicyOf(ctx: TenantVar): SessionPolicy {
+export function sessionPolicyOf(ctx: TenantVar): SessionPolicy {
   return ctx.policy?.session ?? DEFAULT_SESSION_POLICY
 }
 
@@ -470,7 +478,8 @@ export async function issueSession(
   const refreshTokenHash = await sha256Hex(refreshToken)
 
   const db = createTenantDb(env.DB, ctx)
-  await assertActiveSessionUser(db, input.userId)
+  const sessionUser = await findActiveSessionUser(db, input.userId)
+  if (!sessionUser) throw new AppError('invalid_credentials')
   const activeOrgId = await resolveIssueSessionActiveOrgId(db, input)
   const expectedGeneration = await doSessionGeneration(env, input.userId)
   const row = await db.sessions.insert(
@@ -494,6 +503,7 @@ export async function issueSession(
     userId: input.userId,
     status: row.status as ReadSessionStatus,
     timestamp: Date.now(),
+    provisionedBy: sessionUser.provisionedBy ?? null,
   })
   waitUntilBestEffort(c, telemetry)
 

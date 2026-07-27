@@ -137,6 +137,10 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 
 验证 webhook 请求签名。成功返回 `*WebhookEvent`(含原始 body)。
 
+### 匿名访客(guest)判定
+
+`Claims.IsGuest() bool` 报告 token 是否属于匿名访客:平台为访客签发的 token 在 `amr` 中包含 `guest` 值,可用于拦截匿名用户的敏感操作(等价 Firebase Security Rules 的 `sign_in_provider != 'anonymous'`)。访客转正后的 token 不再携带该值,返回 `false`;`amr` 缺失或为空时同样为 `false`。
+
 ### `Claims` 结构
 
 标准 `jwt.RegisteredClaims` 字段(`Subject`/`Issuer`/`Audience`/`ExpiresAt`...)加以下 XID 字段:

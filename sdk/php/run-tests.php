@@ -495,6 +495,8 @@ assert_true($claims->amr() === ['phr'], 'Claims->amr()');
 assert_true($claims->acr() === 'step-up', 'Claims->acr()');
 assert_true($claims->clientId() === 'client1', 'Claims->clientId() reads azp');
 assert_true($claims->extra('azp') === 'client1', 'Claims->extra()');
+assert_true($claims->isGuest() === false, 'Claims->isGuest() false without guest amr');
+assert_true((new Claims(['amr' => ['guest']]))->isGuest() === true, 'Claims->isGuest() true with guest amr');
 
 // ============================================================
 // Summary

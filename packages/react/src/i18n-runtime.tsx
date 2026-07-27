@@ -49,6 +49,14 @@ export const sdkMessages = {
     id: 'sdk.dontHaveAccountSignUp',
     message: "Don't have an account? <0>Sign up</0>",
   },
+  guestUpgradeAction: /*i18n*/ {
+    id: 'sdk.guestUpgradeAction',
+    message: 'Set up sign-in',
+  },
+  guestUpgradeMessage: /*i18n*/ {
+    id: 'sdk.guestUpgradeMessage',
+    message: 'You are browsing as a guest. Set up a sign-in method to keep your data.',
+  },
   loading: /*i18n*/ {
     id: 'sdk.loading',
     message: 'Loading...',

@@ -4,11 +4,14 @@ import android.content.Context
 import android.net.Uri
 import dev.xid.sdk.browser.AuthSession
 import dev.xid.sdk.browser.CallbackResult
+import dev.xid.sdk.guest.GuestAuthManager
 import dev.xid.sdk.model.GetAccessTokenOptions
 import dev.xid.sdk.model.OidcDiscovery
+import dev.xid.sdk.model.SignInAnonymouslyOptions
 import dev.xid.sdk.model.SignInOptions
 import dev.xid.sdk.model.XidConfig
 import dev.xid.sdk.model.XidException
+import dev.xid.sdk.model.XidGuestSession
 import dev.xid.sdk.model.XidSession
 import dev.xid.sdk.pkce.PkceGenerator
 import dev.xid.sdk.storage.EncryptedPrefsStorage
@@ -155,6 +158,40 @@ object Xid {
     }
 
     // ---------------------------------------------------------------------------
+    // signInAnonymously
+    // ---------------------------------------------------------------------------
+
+    /**
+     * 匿名访客登录(Firebase 式 guest 模式)。
+     *
+     * 调用 POST {issuer}/auth/guest 建立服务端会话, 捕获 Set-Cookie 中的会话 cookie
+     * 并持久化到安全存储, 再调 GET /v1/me 取回用户信息。
+     *
+     * 惰性语义: 本地已存在 guest 会话时直接返回, 不发任何网络请求。
+     * guest 不签发 OAuth token, 返回 [XidGuestSession](cookie 会话), 与 OIDC 登录的
+     * [XidSession] 分离; getSession/getAccessToken 不感知 guest 会话。
+     *
+     * 转正语义: guest 完成任一正式登录后 sub 不变, RP 数据自然延续; 若改登另一个
+     * 既有账号, sub 会变, 调用方可对比前后 user.sub 判定。
+     *
+     * @param options  [SignInAnonymouslyOptions], 可携带 turnstileToken。
+     * @return [XidGuestSession], user.isAnonymous 为 true。
+     * @throws [XidException.GuestSignInFailed] 建号失败或 /v1/me 未返回用户。
+     */
+    suspend fun signInAnonymously(
+        options: SignInAnonymouslyOptions = SignInAnonymouslyOptions(),
+    ): XidGuestSession {
+        val cfg = requireConfigured()
+        val stor = storage!!
+
+        // 串行化, 避免并发调用在本地无会话时重复建号
+        return mutex.withLock {
+            GuestAuthManager(storage = stor, issuer = cfg.issuer)
+                .signInAnonymously(options.turnstileToken)
+        }
+    }
+
+    // ---------------------------------------------------------------------------
     // handleRedirect
     // ---------------------------------------------------------------------------
 
@@ -181,12 +218,15 @@ object Xid {
             is CallbackResult.Error -> throw callbackResult.exception
             is CallbackResult.Success -> {
                 val tokenManager = TokenManager(storage = stor, discovery = disc)
-                tokenManager.exchangeCode(
+                val session = tokenManager.exchangeCode(
                     code = callbackResult.code,
                     codeVerifier = callbackResult.codeVerifier,
                     clientId = cfg.clientId,
                     redirectUri = cfg.redirectUri,
                 )
+                // 正式登录成功后丢弃本地 guest 会话, 避免后续 signInAnonymously 复用旧身份
+                GuestAuthManager.clear(stor)
+                session
             }
         }
     }
@@ -279,6 +319,7 @@ object Xid {
         }
 
         tokenManager?.clearAll() ?: stor.clearAll()
+        GuestAuthManager.clear(stor)
 
         // RP-initiated logout(可选): GET end_session + Custom Tabs
         if (openEndSession && context != null && cfg != null && idTokenHint != null) {

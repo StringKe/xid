@@ -100,6 +100,9 @@ export type { UserButtonProps } from './components/ui/user-button'
 export { UserProfile } from './components/ui/user-profile'
 export type { UserProfileProps } from './components/ui/user-profile'
 
+export { GuestUpgradeBanner } from './components/ui/guest-upgrade-banner'
+export type { GuestUpgradeBannerProps } from './components/ui/guest-upgrade-banner'
+
 // --- Organization components ---
 export { OrganizationSwitcher } from './components/organization/organization-switcher'
 export type { OrganizationSwitcherProps } from './components/organization/organization-switcher'

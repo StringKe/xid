@@ -7,7 +7,8 @@ library;
 
 export 'src/xid_client.dart' show XidClient;
 export 'src/xid_options.dart' show XidOptions;
-export 'src/session.dart' show XidSession, XidUser, XidOrganization;
+export 'src/session.dart'
+    show XidSession, XidUser, XidOrganization, XidGuestSession;
 export 'src/token_storage.dart'
     show TokenStorageAdapter, TokenStorageNamespace, SecureStorageAdapter;
 export 'src/errors.dart'

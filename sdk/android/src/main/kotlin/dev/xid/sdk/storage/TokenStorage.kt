@@ -29,4 +29,8 @@ internal object StorageKeys {
     // PKCE state 与 verifier 在授权流程中短暂持久化(防止进程被回收)
     const val PKCE_STATE = "xid_pkce_state"
     const val PKCE_VERIFIER = "xid_pkce_verifier"
+    // guest 会话凭证是 cookie 而非 OAuth token, 单独一组 key 持久化
+    const val GUEST_SESSION_ID = "xid_guest_session_id"
+    const val GUEST_SESSION_COOKIES = "xid_guest_session_cookies"
+    const val GUEST_USER = "xid_guest_user"
 }

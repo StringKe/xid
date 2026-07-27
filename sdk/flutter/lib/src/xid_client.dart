@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import 'discovery.dart';
 import 'errors.dart';
+import 'cookies.dart';
 import 'id_token_verifier.dart';
 import 'jwks_cache.dart';
 import 'pkce.dart';
@@ -163,6 +165,87 @@ class XidClient {
     }
 
     return handleRedirect(resultUrl);
+  }
+
+  // ---------------------------------------------------------------------------
+  // signInAnonymously
+  // ---------------------------------------------------------------------------
+
+  /// Firebase 式匿名登录:POST /auth/guest 建立访客会话,返回 [XidGuestSession]。
+  ///
+  /// 惰性语义:本地已有持久化的 guest session 时直接返回,不发任何请求。
+  /// guest 没有 access token;会话凭证是 /auth/guest 通过 Set-Cookie 签发的
+  /// HttpOnly cookie,原生端自行捕获并持久化,后续请求(如 /v1/me)随 Cookie 头回传。
+  ///
+  /// [turnstileToken] 仅在服务端启用 Turnstile 时需要,native 端通常不需要。
+  Future<XidGuestSession> signInAnonymously({String? turnstileToken}) async {
+    _assertConfigured();
+
+    final stored = await _sessionStore.loadGuestSession();
+    if (stored != null) {
+      return XidGuestSession(
+        sessionId: stored.sessionId,
+        user: XidUser.fromMeJson(stored.user),
+      );
+    }
+
+    final issuer = _options.issuer;
+    final guestResponse = await _httpClient.post(
+      Uri.parse('$issuer/auth/guest'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        if (turnstileToken != null) 'turnstileToken': turnstileToken,
+      }),
+    );
+    if (guestResponse.statusCode != 200 && guestResponse.statusCode != 201) {
+      throw XidNetworkException(
+        '匿名登录失败: HTTP ${guestResponse.statusCode}',
+        statusCode: guestResponse.statusCode,
+      );
+    }
+
+    final sessionId =
+        (jsonDecode(guestResponse.body) as Map<String, dynamic>)['sessionId'];
+    if (sessionId is! String) {
+      throw const XidNetworkException('匿名登录响应缺少 sessionId');
+    }
+
+    // 会话凭证在 Set-Cookie 里;package:http 不管理 cookie jar,需手动捕获并回传。
+    final cookies =
+        cookieHeaderFromSetCookie(guestResponse.headers['set-cookie']);
+    final meResponse = await _httpClient.get(
+      Uri.parse('$issuer/v1/me'),
+      headers: {
+        'Accept': 'application/json',
+        if (cookies != null) 'Cookie': cookies,
+      },
+    );
+    if (meResponse.statusCode != 200) {
+      throw XidNetworkException(
+        '获取访客用户失败: HTTP ${meResponse.statusCode}',
+        statusCode: meResponse.statusCode,
+      );
+    }
+
+    final userJson =
+        (jsonDecode(meResponse.body) as Map<String, dynamic>)['user'];
+    if (userJson is! Map<String, dynamic>) {
+      throw const XidNetworkException('/v1/me 响应缺少 user');
+    }
+
+    await _sessionStore.saveGuestSession(XidGuestSessionData(
+      sessionId: sessionId,
+      sessionCookies: cookies ?? '',
+      user: userJson,
+    ));
+
+    return XidGuestSession(
+      sessionId: sessionId,
+      user: XidUser.fromMeJson(userJson),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -455,6 +538,9 @@ class XidClient {
       scopes: session.scopes,
       claims: session.claims,
     ));
+    // 正式登录后匿名记录失效:转正 sub 不变、换账号 sub 变,
+    // 两种情况下旧 guest 的惰性快捷路径都不能再用。
+    await _sessionStore.clearGuestSession();
   }
 
   XidSession _sessionDataToSession(XidSessionData data) {

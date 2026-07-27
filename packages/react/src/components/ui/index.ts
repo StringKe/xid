@@ -12,3 +12,6 @@ export type { UserButtonProps } from './user-button'
 
 export { UserProfile } from './user-profile'
 export type { UserProfileProps } from './user-profile'
+
+export { GuestUpgradeBanner } from './guest-upgrade-banner'
+export type { GuestUpgradeBannerProps } from './guest-upgrade-banner'

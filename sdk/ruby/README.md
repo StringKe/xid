@@ -149,8 +149,16 @@ claims   = client_a.verify_token(token)
 | `.jti`       | JWT ID                    |
 | `.scope`     | 空格分隔的 scope 字符串   |
 | `.client_id` | OAuth client_id           |
+| `.amr`       | 认证方式列表（Array<String>） |
+| `.guest?`    | 是否匿名访客（Boolean）   |
 | `.[key]`     | 访问任意自定义 claim      |
 | `.to_h`      | 原始 claims Hash          |
+
+---
+
+### 匿名访客（guest）判定
+
+匿名访客签发的 token 其 `amr` claim 包含 `"guest"`，可用 `claims.guest?` 识别并按业务拦截匿名用户的敏感操作（等价 Firebase Security Rules 的 `sign_in_provider != 'anonymous'`）。访客转正为正式用户后签发的 token 不含该值，`guest?` 返回 `false`。
 
 ---
 

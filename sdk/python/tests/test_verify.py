@@ -17,6 +17,7 @@ verify.py 单元测试。
     - kid 不在 JWKS -> TokenVerificationError(由 JwksCache 抛出)
     - leeway 允许小幅时钟偏差
     - extra claims 收进 TokenClaims.extra
+    - amr 含 "guest" -> is_guest 为 True;其他 amr 值或无 amr -> False
   verify_webhook:
     - 合法签名 -> 返回 WebhookPayload
     - payload 篡改 -> WebhookVerificationError
@@ -332,6 +333,38 @@ class TestVerifyTokenES256:
 
         with pytest.raises(TokenVerificationError, match="Public key not found"):
             await verify_token(token, jwks_cache=cache, issuer="https://xid.dev", audience="myapp")
+
+
+class TestGuestClaim:
+    async def test_amr_guest_is_guest_true(self, ec_keypair):
+        priv, pub = ec_keypair
+        token = _make_token(priv, "ES256", extra_claims={"amr": ["guest"]})
+        cache = _mock_cache(pub, "ES256")
+
+        claims = await verify_token(token, jwks_cache=cache, issuer="https://xid.dev", audience="myapp")
+
+        assert claims.amr == ["guest"]
+        assert claims.is_guest is True
+
+    async def test_amr_other_values_is_guest_false(self, ec_keypair):
+        priv, pub = ec_keypair
+        token = _make_token(priv, "ES256", extra_claims={"amr": ["pwd"]})
+        cache = _mock_cache(pub, "ES256")
+
+        claims = await verify_token(token, jwks_cache=cache, issuer="https://xid.dev", audience="myapp")
+
+        assert claims.amr == ["pwd"]
+        assert claims.is_guest is False
+
+    async def test_amr_missing_is_guest_false(self, ec_keypair):
+        priv, pub = ec_keypair
+        token = _make_token(priv, "ES256")
+        cache = _mock_cache(pub, "ES256")
+
+        claims = await verify_token(token, jwks_cache=cache, issuer="https://xid.dev", audience="myapp")
+
+        assert claims.amr == []
+        assert claims.is_guest is False
 
 
 class TestVerifyTokenRS256:

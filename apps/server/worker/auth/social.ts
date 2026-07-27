@@ -35,6 +35,7 @@ import { assertSocialProviderAllowed } from './hosted-policy'
 import { auditPolicyDeniedError } from './hosted-audit'
 import { loginHintCandidates, resolveEntryTenant, withTenant } from '../me-auth/instance-login'
 import { ensureDefaultMembership, shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
+import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 import { OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
 
 const DEFAULT_AUTH_RETURN_PATH = '/console'
@@ -478,6 +479,18 @@ async function linkOrCreateUser(ctx: LinkContext): Promise<string> {
       identifier: { type: 'email', value: email },
     })
   }
+
+  // guest 转正:持有效 guest session 时 identity 挂到当前 guest user 而不是新建 user。
+  // 分支 B/C 的合并规则不变(在上面已先行返回);social 建号不写 provisionedBy,转正同样置 null。
+  // session 轮换由调用方(handleCallback)的 MFA gate + issueSession 完成。
+  const guest = await loadGuestConversionContext(ctx.c, db)
+  if (guest) {
+    await upsertIdentity(ctx, guest.userId, null)
+    await maybeUpdateExternalId(ctx, guest.userId)
+    await markGuestConverted({ c: ctx.c, tenant: ctx.tenant, db, guest, provisionedBy: null })
+    return guest.userId
+  }
+
   return createNewUser(ctx)
 }
 

@@ -45,6 +45,9 @@ public enum XidError: Error, LocalizedError, Sendable {
     /// /userinfo 请求失败。
     case userInfoFetchFailed(String)
 
+    /// /auth/guest 匿名登录或随后的 /v1/me 请求失败。
+    case guestSignInFailed(String)
+
     /// /end_session 请求失败。
     case endSessionFailed(String)
 
@@ -82,6 +85,8 @@ public enum XidError: Error, LocalizedError, Sendable {
             return "JWKS 拉取失败: \(reason)"
         case .userInfoFetchFailed(let reason):
             return "UserInfo 获取失败: \(reason)"
+        case .guestSignInFailed(let reason):
+            return "匿名登录失败: \(reason)"
         case .endSessionFailed(let reason):
             return "End Session 失败: \(reason)"
         case .tokenStorageError(let reason):

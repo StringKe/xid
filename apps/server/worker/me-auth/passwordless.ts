@@ -44,12 +44,15 @@ import { auditPolicyDeniedError } from '../auth/hosted-audit'
 import { normalizeProfileFields } from '../auth/profile-fields'
 import type { ProfileFieldInput } from '../auth/profile-fields'
 import {
+  attachPasswordlessEmail,
+  attachPasswordlessPhone,
   createPasswordlessEmailUser,
   createPasswordlessPhoneUser,
   markPrimaryEmailVerified,
   markPrimaryPhoneVerified,
   shouldSkipDefaultMembership,
 } from './passwordless-users'
+import { loadGuestConversionContext, markGuestConverted } from './guest-conversion'
 import { smsDeliveryReady, whatsappDeliveryReady } from '../auth/delivery-channels'
 import { resolveEntryTenant, withTenant } from './instance-login'
 import { postAuthRedirectPath, resolvePostAuthMfaGate } from '../lib/mfa-session'
@@ -255,15 +258,27 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
         'user_creation',
         hasPasswordlessCapability(c, tenant),
       )
-      const profile = normalizeProfileFields(tenant, profileInput, { email: target })
-      if (profile.email) assertEmailAllowed(tenant, profile.email)
-      userId = await createPasswordlessEmailUser({
-        db,
-        tenantId: tenant.tenantId,
-        email: target,
-        profile,
-        skipDefaultMembership,
-      })
+      // guest 转正:持有效 guest session 时不建号,目标 email 挂为 guest user 的未验证主邮箱。
+      const guest = await loadGuestConversionContext(c, db)
+      if (guest) {
+        await attachPasswordlessEmail({
+          db,
+          tenantId: tenant.tenantId,
+          userId: guest.userId,
+          email: target,
+        })
+        userId = guest.userId
+      } else {
+        const profile = normalizeProfileFields(tenant, profileInput, { email: target })
+        if (profile.email) assertEmailAllowed(tenant, profile.email)
+        userId = await createPasswordlessEmailUser({
+          db,
+          tenantId: tenant.tenantId,
+          email: target,
+          profile,
+          skipDefaultMembership,
+        })
+      }
     } catch (error) {
       await auditPolicyDeniedError(c, error, {
         tenant,
@@ -282,15 +297,27 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
         'user_creation',
         hasPasswordlessCapability(c, tenant),
       )
-      const profile = normalizeProfileFields(tenant, profileInput, { phone: target })
-      if (profile.email) assertEmailAllowed(tenant, profile.email)
-      userId = await createPasswordlessPhoneUser({
-        db,
-        tenantId: tenant.tenantId,
-        phone: target,
-        profile,
-        skipDefaultMembership,
-      })
+      // guest 转正:同 email 分支,目标 phone 挂为 guest user 的未验证主手机号。
+      const guest = await loadGuestConversionContext(c, db)
+      if (guest) {
+        await attachPasswordlessPhone({
+          db,
+          tenantId: tenant.tenantId,
+          userId: guest.userId,
+          phone: target,
+        })
+        userId = guest.userId
+      } else {
+        const profile = normalizeProfileFields(tenant, profileInput, { phone: target })
+        if (profile.email) assertEmailAllowed(tenant, profile.email)
+        userId = await createPasswordlessPhoneUser({
+          db,
+          tenantId: tenant.tenantId,
+          phone: target,
+          profile,
+          skipDefaultMembership,
+        })
+      }
     } catch (error) {
       await auditPolicyDeniedError(c, error, {
         tenant,
@@ -353,11 +380,23 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
       await recordOtpFailure(db, tokenRow)
     }
 
+    // guest 转正判定(验证码已证明控制权之后):
+    // - OTP 目标属于本租户其他 user:拒绝挂接,invalid_credentials 口径引导登录既有账号
+    //   (同 social 未验证拒绝合并;验证前的 send 阶段不泄露占用事实)。
+    // - OTP 目标就是 guest user(send 阶段挂接的联系方式):验证通过即完成转正。
+    const guest = await loadGuestConversionContext(c, db)
+    if (guest && tokenRow.userId !== guest.userId) throw new AppError('invalid_credentials')
+
     if (!(await consumeVerifiableOtp(db, tokenRow))) throw new AppError('otp_invalid')
     if (channel === 'email') {
       await markPrimaryEmailVerified(db, tokenRow.userId)
     } else {
       await markPrimaryPhoneVerified(db, tokenRow.userId)
+    }
+    // 转正钩子:provisionedBy 改写 + 吊销旧 guest session + 审计 + GuestStore 解绑。
+    // 新 session 由下方既有 MFA gate + issueSession 签发(amr 不含 'guest')。
+    if (guest) {
+      await markGuestConverted({ c, tenant, db, guest, provisionedBy: 'hosted_passwordless' })
     }
 
     const now = new Date()

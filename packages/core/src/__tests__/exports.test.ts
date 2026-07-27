@@ -13,6 +13,9 @@ const EXPECTED_EXPORTS = [
   'isXidErrorShape',
   'decodeTokenClaims',
   'isTokenExpiring',
+  'isGuestUser',
+  'isGuestToken',
+  'isSameUser',
   'SESSION_STATUS',
   'CLIENT_STATUS',
 ] as const

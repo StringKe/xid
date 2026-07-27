@@ -192,6 +192,7 @@ public struct KeychainTokenStorage: TokenStorageAdapter {
 
 enum StorageKey {
     static let session = "xid.session"
+    static let guestSession = "xid.guest_session"
     static let accessToken = "xid.access_token"
     static let refreshToken = "xid.refresh_token"
     static let idToken = "xid.id_token"

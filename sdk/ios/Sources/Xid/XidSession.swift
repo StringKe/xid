@@ -7,7 +7,8 @@ import Foundation
 /// 用户会话快照。通过 Xid.shared.getSession() 获取。
 public struct XidSession: Sendable, Codable {
     /// access token (JWT)。生命周期通常 1 小时。
-    public let accessToken: String
+    /// guest(匿名)会话没有 access token,为 nil;会话凭证由 SDK 持久化的 session cookie 承担。
+    public let accessToken: String?
 
     /// refresh token。用于换取新 access token,生命周期由服务端配置(默认 7 天)。
     /// 存入 Keychain secure storage。
@@ -31,9 +32,14 @@ public struct XidSession: Sendable, Codable {
     public var isNearExpiry: Bool {
         expiresAt <= Date().addingTimeInterval(60)
     }
+
+    /// 是否匿名 guest 会话(provisioned_by == 'anonymous')。
+    public var isAnonymous: Bool {
+        user.isAnonymous
+    }
 }
 
-/// 从 id token claims 解码的用户基础信息。
+/// 从 id token claims 或 /v1/me 解码的用户基础信息。
 public struct XidUser: Sendable, Codable {
     public let sub: String
     public let email: String?
@@ -41,11 +47,20 @@ public struct XidUser: Sendable, Codable {
     public let name: String?
     public let picture: String?
 
+    /// 用户来源。'anonymous' 表示匿名 guest 用户;正式用户为对应转正来源。
+    public let provisionedBy: String?
+
+    /// 是否匿名 guest 用户。guest 不可恢复(登出即丢失)、单设备,产品应引导转正。
+    public var isAnonymous: Bool {
+        provisionedBy == "anonymous"
+    }
+
     private enum CodingKeys: String, CodingKey {
         case sub
         case email
         case emailVerified = "email_verified"
         case name
         case picture
+        case provisionedBy = "provisioned_by"
     }
 }

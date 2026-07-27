@@ -51,6 +51,9 @@ public enum XidError: Error, LocalizedError, Sendable {
     /// Keychain / token storage operation failed.
     case tokenStorageError(String)
 
+    /// /auth/guest sign-in or the follow-up /v1/me fetch failed.
+    case anonymousSignInFailed(String)
+
     /// No active session (not signed in or all tokens expired).
     case noActiveSession
 
@@ -86,6 +89,8 @@ public enum XidError: Error, LocalizedError, Sendable {
             return "End session failed: \(reason)"
         case .tokenStorageError(let reason):
             return "Token storage error: \(reason)"
+        case .anonymousSignInFailed(let reason):
+            return "Anonymous sign-in failed: \(reason)"
         case .noActiveSession:
             return "No active session. Please sign in again."
         }

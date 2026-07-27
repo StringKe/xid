@@ -145,3 +145,20 @@ TokenCache:
 BrowserInterface:
   openAuthSession(url, redirectUri) -> Promise<BrowserResult>
 ```
+
+## Capability status: guest (anonymous) sign-in
+
+The design contract for Firebase-style guest sign-in lives in
+[../design/01-authentication.md](../design/01-authentication.md) section 8, and the server endpoint
+`POST /auth/guest` is tracked in [../protocols/source-map.md](../protocols/source-map.md) as
+implemented (L1/L2, local tests). The capability covers `signInAnonymously()`, `isAnonymous`,
+upgrade guidance, and the sub-comparison merge hook (see
+[../design/06-developer-experience.md](../design/06-developer-experience.md) section 10). Statuses
+below reflect shipped code with tests; rows marked not started have no guest support yet.
+
+| Platform surface                                                                  | Guest sign-in status |
+| --------------------------------------------------------------------------------- | -------------------- |
+| `@xid-kit/core` and `@xid-kit/react`                                              | implemented: `signInAnonymously()`, `isAnonymous`, `isGuestUser`/`isSameUser`, `<GuestUpgradeBanner />`; other web framework packages not started |
+| `@xid-kit/backend` and every server native SDK (`sdk/{go,java,rust,php,ruby,python,dotnet}`) | implemented: guest detection on the verified principal (`IsGuest()` / `is_guest` / `guest?` via the `amr` claim); `signInAnonymously()` is not applicable to backend SDKs by design |
+| Mobile (`sdk/flutter`, `sdk/ios`, `sdk/android`)                                  | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/react-native`, `@xid-kit/expo` not started |
+| Desktop (`sdk/macos`, `sdk/windows`, `sdk/linux`)                                 | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/electron`, `@xid-kit/tauri` not started |

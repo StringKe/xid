@@ -37,6 +37,7 @@ describe('useProtectedRoute redirect logic', () => {
       session: null,
       getToken: vi.fn(),
       signOut: vi.fn(),
+      isAnonymous: false,
     })
 
     const replace = vi.fn()
@@ -64,6 +65,7 @@ describe('useProtectedRoute redirect logic', () => {
       session: null,
       getToken: vi.fn(),
       signOut: vi.fn(),
+      isAnonymous: false,
     })
 
     const replace = vi.fn()
@@ -91,6 +93,7 @@ describe('useProtectedRoute redirect logic', () => {
       session: null,
       getToken: vi.fn(),
       signOut: vi.fn(),
+      isAnonymous: false,
     })
 
     const replace = vi.fn()
@@ -118,6 +121,7 @@ describe('useProtectedRoute redirect logic', () => {
       session: null,
       getToken: vi.fn(),
       signOut: vi.fn(),
+      isAnonymous: false,
     })
 
     const replace = vi.fn()
@@ -145,6 +149,7 @@ describe('useProtectedRoute redirect logic', () => {
       session: null,
       getToken: vi.fn(),
       signOut: vi.fn(),
+      isAnonymous: false,
     })
 
     const replace = vi.fn()

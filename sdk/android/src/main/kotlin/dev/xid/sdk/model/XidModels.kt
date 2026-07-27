@@ -47,6 +47,16 @@ data class SignInOptions(
 )
 
 /**
+ * signInAnonymously 调用选项。
+ *
+ * @param turnstileToken  Turnstile 验证 token(可选, 仅当服务端启用 Turnstile 时才需要;
+ *                        native 端通常不传)。
+ */
+data class SignInAnonymouslyOptions(
+    val turnstileToken: String? = null,
+)
+
+/**
  * getAccessToken 调用选项。
  *
  * @param forceRefresh  强制刷新 token, 即使当前 token 未过期。
@@ -81,6 +91,7 @@ data class XidSession(
  * @param name          显示名称。
  * @param picture       头像 URL。
  * @param organization  当前 org ID(如果 token 包含 org 信息)。
+ * @param provisionedBy 账号来源(服务端 users.provisioned_by), "anonymous" 即匿名访客。
  */
 data class XidUser(
     val sub: String,
@@ -89,7 +100,33 @@ data class XidUser(
     val name: String? = null,
     val picture: String? = null,
     val organization: String? = null,
-)
+    val provisionedBy: String? = null,
+) {
+    /** 是否为匿名访客账号(provisioned_by == "anonymous")。 */
+    val isAnonymous: Boolean
+        get() = provisionedBy == PROVISIONED_BY_ANONYMOUS
+}
+
+/** users.provisioned_by 的 guest 标记值, 与服务端 USER_PROVISIONED_BY_ANONYMOUS 对齐。 */
+internal const val PROVISIONED_BY_ANONYMOUS = "anonymous"
+
+/**
+ * 匿名访客(guest)会话。
+ *
+ * guest 不签发 OAuth token, 会话凭证是 /auth/guest 通过 Set-Cookie 下发的服务端
+ * session cookie, 因此与 OIDC 登录的 [XidSession] 分离建模。
+ *
+ * @param user       访客用户(isAnonymous 为 true)。
+ * @param sessionId  服务端会话 ID。
+ */
+data class XidGuestSession(
+    val user: XidUser,
+    val sessionId: String,
+) {
+    /** 恒为 true, 与 Firebase anonymous 语义对齐。 */
+    val isAnonymous: Boolean
+        get() = user.isAnonymous
+}
 
 // ---------------------------------------------------------------------------
 // OIDC Discovery 和 Token 端点响应的序列化模型
@@ -138,6 +175,29 @@ internal data class UserinfoResponse(
     @SerialName("org_id") val orgId: String? = null,
 )
 
+/** POST /auth/guest 成功响应(200 续签 / 201 新建同形)。*/
+@Serializable
+internal data class GuestSessionResponse(
+    @SerialName("sessionId") val sessionId: String,
+)
+
+/** GET /v1/me 响应子集(cookie session 认证)。*/
+@Serializable
+internal data class MeResponse(
+    @SerialName("user") val user: MeUser? = null,
+)
+
+/** /v1/me 的 user 对象。provisioned_by 可为 null, 解析时容忍缺失。*/
+@Serializable
+internal data class MeUser(
+    @SerialName("id") val id: String,
+    @SerialName("email") val email: String? = null,
+    @SerialName("emailVerified") val emailVerified: Boolean? = null,
+    @SerialName("name") val name: String? = null,
+    @SerialName("imageUrl") val imageUrl: String? = null,
+    @SerialName("provisioned_by") val provisionedBy: String? = null,
+)
+
 // ---------------------------------------------------------------------------
 // 错误类型
 // ---------------------------------------------------------------------------
@@ -183,6 +243,10 @@ sealed class XidException(message: String, cause: Throwable? = null) : Exception
     /** 网络请求失败。*/
     class NetworkError(message: String, cause: Throwable? = null) :
         XidException("网络请求失败: $message", cause)
+
+    /** 匿名访客(guest)登录失败: 建号请求失败、响应缺会话 cookie 或 /v1/me 未返回用户。*/
+    class GuestSignInFailed(message: String, cause: Throwable? = null) :
+        XidException("匿名登录失败: $message", cause)
 
     /** JWT 验证失败(签名错误、过期或 claims 不符)。*/
     class TokenValidationFailed(message: String) :

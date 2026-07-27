@@ -127,7 +127,26 @@ let token = try await Xid.shared.getAccessToken()
 try await Xid.shared.signOut(callEndSession: true)
 ```
 
-### 7. 自定义 Token 存储
+### 7. 匿名登录(Guest)
+
+Firebase 式匿名登录:首次打开 App 即可拿到一个可用的用户身份,无需任何凭证。
+
+```swift
+let session = try await Xid.shared.signInAnonymously()
+if session.isAnonymous {
+    print("guest 用户: \(session.user.sub)")
+}
+```
+
+语义与边界:
+
+- **惰性复用**:本地已有任何有效会话(token 或 guest)时,`signInAnonymously()` 不发请求直接返回该会话,重复调用不会创建第二个 guest。
+- **没有 access token**:guest 会话的凭证是服务端 session cookie,SDK 自动捕获、持久化到 Keychain 并在 `/v1/me` 请求上回放;`session.accessToken` 为 nil,`getAccessToken()` 对 guest 会话会抛 `noActiveSession`。
+- **不可恢复、单设备**:guest 没有凭证,登出或清除数据即永久丢失,服务端 GC 也会回收长期不活跃的 guest。产品应持续引导用户转正。
+- **sub 连续性**:在 guest 会话内完成任一正式登录(转正)后 `session.user.sub` 不变,RP 侧数据自然延续;若用户转而登入另一个既有账号,sub 会变——对比新旧 `session.user.sub` 即可识别,数据合并由 RP 应用层负责。
+- **Turnstile**:仅当服务端启用 Turnstile 时需要传入,`signInAnonymously(turnstileToken: "...")`,native 端通常不需要。
+
+### 8. 自定义 Token 存储
 
 ```swift
 // 实现 TokenStorageAdapter 协议接入企业 Keychain 策略
@@ -152,6 +171,7 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 | ------------------------------------------------------ | ------------------------------------- |
 | `configure(options:)`                                  | 初始化 SDK 配置,必须最先调用          |
 | `signIn(options:) async throws`                        | 启动授权流程,打开系统浏览器           |
+| `signInAnonymously(turnstileToken:) async throws -> XidSession` | 匿名登录,惰性复用本地有效会话 |
 | `handleRedirect(url:) async throws -> XidSession`      | 处理回调 URL,完成 code 换 token       |
 | `getSession() async throws -> XidSession?`             | 获取当前会话,token 即将过期时与 getAccessToken 共享单次自动刷新 |
 | `getAccessToken(forceRefresh:) async throws -> String` | 获取有效 access token                 |
@@ -172,13 +192,14 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 
 | 属性           | 类型      | 说明                       |
 | -------------- | --------- | -------------------------- |
-| `accessToken`  | `String`  | JWT access token           |
+| `accessToken`  | `String?` | JWT access token;guest 会话为 nil |
 | `refreshToken` | `String?` | Refresh token(存 Keychain) |
-| `idToken`      | `String`  | JWT id token               |
+| `idToken`      | `String`  | JWT id token;guest 会话为空串 |
 | `expiresAt`    | `Date`    | Access token 过期时间      |
-| `user`         | `XidUser` | 解码自 id token 的用户信息 |
+| `user`         | `XidUser` | 用户信息快照               |
 | `isExpired`    | `Bool`    | 是否已过期                 |
 | `isNearExpiry` | `Bool`    | 距过期不足 60 秒           |
+| `isAnonymous`  | `Bool`    | 是否匿名 guest 会话        |
 
 ### `XidUser`
 
@@ -189,6 +210,8 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 | `emailVerified` | `Bool?`   |
 | `name`          | `String?` |
 | `picture`       | `String?` |
+| `provisionedBy` | `String?` |
+| `isAnonymous`   | `Bool`    |
 
 ---
 
@@ -244,10 +267,12 @@ sdk/ios/
     JwksCache.swift           JWKS 拉取与缓存
     EndSessionClient.swift    RP-initiated logout
     UserInfoClient.swift      /userinfo 回退
+    GuestAuthClient.swift     匿名登录:/auth/guest + /v1/me + guest 会话 cookie 持久化
     AuthorizationSession.swift ASWebAuthenticationSession 封装 + authorization URL 构造
   Tests/XidTests/
     PKCETests.swift
     IDTokenDecoderTests.swift
     KeychainTokenStorageTests.swift
+    GuestSignInTests.swift
   README.md
 ```

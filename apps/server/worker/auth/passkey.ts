@@ -33,6 +33,8 @@ import {
 } from './passkey-helpers'
 import { assertMethodAllowed, assertTenantResolvedForWebAuthn } from './hosted-policy'
 import { auditPolicyDeniedError } from './hosted-audit'
+import { resolvePostAuthMfaGate, sanitizeLocalReturn } from '../lib/mfa-session'
+import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 
 const passkey = new Hono<XidHonoEnv>()
 
@@ -222,6 +224,28 @@ passkey.post('/register/verify', async (c) => {
     deviceName: body.deviceName ?? null,
     sessionAmr: session.amr,
   })
+
+  // guest 转正:guest session 注册首个 passkey 成功即转正 -- 钩子改写 provisionedBy /
+  // 吊销旧 guest session / 审计 / 解绑,随后按既有 MFA gate 轮换签发新 session。
+  const guest = await loadGuestConversionContext(c, db)
+  if (guest) {
+    await markGuestConverted({ c, tenant, db, guest, provisionedBy: 'hosted_passkey' })
+    const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
+      userId: guest.userId,
+      returnPath: sanitizeLocalReturn(null),
+      sessionAmr: PASSKEY_AUTH_CONTEXT.amr,
+    })
+    await issueSession(c, {
+      sessionId: crypto.randomUUID(),
+      userId: guest.userId,
+      ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
+      authContext: PASSKEY_AUTH_CONTEXT,
+      authenticatedAt: new Date(),
+      rememberMe: true,
+      ip: c.req.header('cf-connecting-ip') ?? null,
+      userAgent: c.req.header('user-agent') ?? null,
+    })
+  }
 
   return c.json({ ok: true })
 })

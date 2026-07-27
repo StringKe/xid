@@ -38,6 +38,11 @@ The 8 current Durable Objects (binding -> class):
 | AUDIT_SEQ          | AuditSeqDO      | Audit seq issuance (sharded by `audit-seq:{tenantId}`, see 17.2)               |
 | METERING           | MeteringDO      | Exact DAU/MAU deduplication (sharded by `metering:{tenantId}`, see 17.3)       |
 
+| GUEST_STORE        | GuestStore      | Guest sign-in concurrency dedup keyed by `idFromName("{tenant_id}:{anonKey}")` (see chapter 01 section 8) |
+
+The GuestStore binding reuses the WebAuthn `__Host-xid.anon` cookie plus anonKey infrastructure.
+The binding record TTL aligns with the session TTL and a Durable Object alarm cleans up.
+
 ## Entity relationship backbone
 
 ```
@@ -451,7 +456,7 @@ tenant it belongs to (in B2C it hangs directly off the instance's root org).
 | failed_login_count        | integer number  | NOT NULL                                          | `0`            | Consecutive failure counter (triggers lockout)                                                                                                                                  |
 | last_login_at             | integer ts_ms   | nullable                                          | null           |                                                                                                                                                                                 |
 | merged_into_user_id       | text            | FK -> users.id ON DELETE set null, nullable       | null           | Account merging: the secondary account points at the primary (see chapter 05 section 3)                                                                                         |
-| provisioned_by            | text            | nullable                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin` (see chapter 04 section 4)                                                                                                           |
+| provisioned_by            | text            | nullable                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin`/`anonymous`/`hosted_password`/`hosted_passwordless`/`hosted_passkey` (see chapter 04 section 4; `anonymous` = guest user, see chapter 01 section 8; `hosted_*` = hosted-UI credential provisioning, also written when a guest converts)                                                                     |
 | deleted_at                | integer ts_ms   | nullable                                          | null           | Soft delete (PII hard-deleted after 30 days, see chapter 05 section 7)                                                                                                          |
 | created_at / updated_at   | integer ts_ms   | NOT NULL                                          | See 9.3        |                                                                                                                                                                                 |
 
@@ -460,6 +465,13 @@ Indexes: `UNIQUE(tenant_id, username)`, `UNIQUE(tenant_id, external_id)`, `INDEX
 primary_email_id/primary_phone_id and user_emails/user_phones reference each other, so after table
 creation use a deferred FK or maintain it at the application layer (SQLite does not support
 ALTER ADD FK; declaring the FK in Drizzle is sufficient, and it is not enforced at runtime).
+
+Guest lifecycle (see chapter 01 section 8): a daily GC cron soft-deletes users with
+`provisioned_by = 'anonymous'` whose last activity is 30 days old or more (`created_at` when the
+user has no session, otherwise the newest session's `last_active_at`); they enter the same 30-day
+hard-delete PII pipeline as any other soft-deleted user (see chapter 05 section 7), with the audit
+event `guest.gc_deleted`. Guest rows are excluded from MeteringDO MAU deduplication (see 17.3), so
+free trials do not inflate MAU billing.
 
 ### 11.2 user_emails (multi-valued email, see chapter 05 section 1)
 
@@ -1359,6 +1371,10 @@ section 7.1.2):
 | archived_at | text           | NOT NULL    | --      | ISO 8601 (matching the SQL in chapter 07)                                                                                                                               |
 
 Primary key: `PRIMARY KEY (tenant_id, year_month)`.
+
+MeteringDO MAU deduplication excludes guest users (`users.provisioned_by = 'anonymous'`, see chapter
+01 section 8): guests are real user rows, but counting them as MAU would let free trials inflate the
+customer's MAU bill.
 
 ### 17.3b metering_outbox (a durable recovery queue for authentication-success metering)
 

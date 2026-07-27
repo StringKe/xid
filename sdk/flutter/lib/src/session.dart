@@ -20,6 +20,9 @@ class XidUser {
   final String? phoneNumber;
   final bool phoneNumberVerified;
 
+  /// 开通来源(XID 扩展)。'anonymous' 表示匿名访客(guest)账号。
+  final String? provisionedBy;
+
   const XidUser({
     required this.id,
     this.email,
@@ -30,7 +33,11 @@ class XidUser {
     this.picture,
     this.phoneNumber,
     this.phoneNumberVerified = false,
+    this.provisionedBy,
   });
+
+  /// 是否匿名访客:仅认 provisioned_by == 'anonymous'(与 /v1/me 契约一致)。
+  bool get isAnonymous => provisionedBy == 'anonymous';
 
   factory XidUser.fromClaims(Map<String, dynamic> claims) {
     return XidUser(
@@ -43,6 +50,19 @@ class XidUser {
       picture: claims['picture'] as String?,
       phoneNumber: claims['phone_number'] as String?,
       phoneNumberVerified: claims['phone_number_verified'] as bool? ?? false,
+      provisionedBy: claims['provisioned_by'] as String?,
+    );
+  }
+
+  /// 从 GET /v1/me 的 user 对象构造(camelCase 字段 + provisioned_by 契约字段)。
+  factory XidUser.fromMeJson(Map<String, dynamic> json) {
+    return XidUser(
+      id: json['id'] as String,
+      email: json['email'] as String?,
+      emailVerified: json['emailVerified'] as bool? ?? false,
+      name: json['name'] as String?,
+      picture: json['imageUrl'] as String?,
+      provisionedBy: json['provisioned_by'] as String?,
     );
   }
 }
@@ -141,6 +161,22 @@ class XidSession {
       claims: claims,
     );
   }
+}
+
+/// 匿名访客会话:guest 没有 OAuth token,凭证是服务端签发的 HttpOnly session cookie。
+///
+/// guest 是真用户实体(provisioned_by = 'anonymous'),可原地转正:
+/// 转正(完成任一正式登录)后 user.id(sub)不变,RP 数据自然延续;
+/// 若转而登入另一个既有账号,user.id 会变,调用方可对比新旧 user.id 区分。
+class XidGuestSession {
+  /// 服务端 session id,与持久化的 session cookie 对应。
+  final String sessionId;
+
+  final XidUser user;
+
+  const XidGuestSession({required this.sessionId, required this.user});
+
+  bool get isAnonymous => user.isAnonymous;
 }
 
 /// 解析 JWT payload(不验签,仅用于无 JWKS 时的降级路径)。

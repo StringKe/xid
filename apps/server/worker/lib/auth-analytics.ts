@@ -9,6 +9,8 @@ type AuthAnalyticsInput = {
   userId: string
   status: ReadSessionStatus
   timestamp: number
+  // guest(provisioned_by = 'anonymous')不计 MAU/DAU:调用方从 users 行带来,缺失按普通用户计。
+  provisionedBy?: string | null
 }
 
 function utcDay(timestamp: number): string {
@@ -42,17 +44,20 @@ async function persistMeteringOutbox(input: AuthAnalyticsInput): Promise<void> {
 export async function recordAuthenticatedSession(input: AuthAnalyticsInput): Promise<void> {
   if (input.status !== 'active') return
 
-  try {
-    await input.env.METERING_QUEUE.send({
-      tenantId: input.tenant.tenantId,
-      userId: input.userId,
-      ts: input.timestamp,
-    })
-  } catch {
+  // 计量排除:guest 不计 MAU/DAU( queue 与 outbox 兜底同路径跳过);Analytics 登录事件照记。
+  if (input.provisionedBy !== schema.USER_PROVISIONED_BY_ANONYMOUS) {
     try {
-      await persistMeteringOutbox(input)
+      await input.env.METERING_QUEUE.send({
+        tenantId: input.tenant.tenantId,
+        userId: input.userId,
+        ts: input.timestamp,
+      })
     } catch {
-      console.error('[auth-analytics] metering outbox persistence failed')
+      try {
+        await persistMeteringOutbox(input)
+      } catch {
+        console.error('[auth-analytics] metering outbox persistence failed')
+      }
     }
   }
 

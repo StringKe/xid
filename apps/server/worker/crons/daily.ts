@@ -2,9 +2,11 @@
 // 见 docs/design/07-platform-operations.md 7.1.4、signing-keys rule(四步轮换)。
 
 import { generateTenantSigningKey } from '@xid-kit/crypto'
+import { USER_PROVISIONED_BY_ANONYMOUS } from '@xid-kit/db'
 import { parseIdpMetadataXml } from '@xid-kit/saml'
 import type { SigningAlg } from '@xid-kit/types'
 import { decodeKek } from '../oidc/shared'
+import { GUEST_GC_INACTIVE_DAYS } from '../lib/ttl'
 
 // MeteringDO RPC stub(取最终 MAU 数值)。
 type MeteringCountStub = {
@@ -409,6 +411,70 @@ export async function runMonthlyUsageMaintenance(env: Env, now: Date = new Date(
   }
 }
 
+// ---- guest GC:不活跃满 GUEST_GC_INACTIVE_DAYS 天的 anonymous 用户软删(01 章 guest 模式)----
+
+const GUEST_GC_PAGE_SIZE = 100
+const DAY_MS = 24 * 60 * 60 * 1000
+
+type GuestGcRow = { id: string }
+
+// 单租户一轮:按"最后活跃"窗口软删 guest。
+// 活跃基准:无 session 按 users.created_at;有 session 按该 user 最新 session.last_active_at。
+// cron 无 TenantContext,raw SQL 显式绑 tenant_id(tenant-isolation rule 允许场景)。
+async function gcInactiveGuestsForTenant(
+  env: Env,
+  tenantId: string,
+  cutoffMs: number,
+  nowMs: number,
+): Promise<void> {
+  // 软删后行被 deleted_at IS NULL 条件排除,同一 SELECT 循环翻页直到无命中。
+  while (true) {
+    const rows = await env.DB.prepare(
+      `SELECT u.id AS id
+         FROM users u
+        WHERE u.tenant_id = ?
+          AND u.provisioned_by = ?
+          AND u.deleted_at IS NULL
+          AND COALESCE(
+            (SELECT MAX(s.last_active_at) FROM sessions s WHERE s.tenant_id = ? AND s.user_id = u.id),
+            u.created_at
+          ) < ?
+        ORDER BY u.id
+        LIMIT ?`,
+    )
+      .bind(tenantId, USER_PROVISIONED_BY_ANONYMOUS, tenantId, cutoffMs, GUEST_GC_PAGE_SIZE)
+      .all<GuestGcRow>()
+    if (rows.results.length === 0) return
+
+    for (const row of rows.results) {
+      await env.DB.prepare(
+        `UPDATE users
+            SET deleted_at = ?, status = 'deleted', updated_at = ?
+          WHERE tenant_id = ? AND id = ? AND provisioned_by = ? AND deleted_at IS NULL`,
+      )
+        .bind(nowMs, nowMs, tenantId, row.id, USER_PROVISIONED_BY_ANONYMOUS)
+        .run()
+      // 审计链 INSERT only:GC 也是身份资源变更,必须留痕(actor 为系统,不填 actorId)。
+      await env.AUDIT_QUEUE.send({
+        tenantId,
+        action: 'guest.gc_deleted',
+        ts: nowMs,
+        payload: { targetType: 'user', targetId: row.id },
+      })
+    }
+    if (rows.results.length < GUEST_GC_PAGE_SIZE) return
+  }
+}
+
+// 每日扫全量 active tenant 的不活跃 guest 并软删(复用 eachActiveTenant 的租户分页)。
+export async function gcInactiveGuests(env: Env, now: Date = new Date()): Promise<void> {
+  const nowMs = now.getTime()
+  const cutoffMs = nowMs - GUEST_GC_INACTIVE_DAYS * DAY_MS
+  await eachActiveTenant(env, (tenantId) =>
+    gcInactiveGuestsForTenant(env, tenantId, cutoffMs, nowMs),
+  )
+}
+
 export async function runDaily(env: Env): Promise<void> {
   await backfillRetiringKeyRetireAfter(env)
   await rotateSigningKeysCheck(env)
@@ -416,4 +482,5 @@ export async function runDaily(env: Env): Promise<void> {
   await pollDomainVerification(env)
   await pollSamlIdpMetadata(env)
   await runMonthlyUsageMaintenance(env)
+  await gcInactiveGuests(env)
 }

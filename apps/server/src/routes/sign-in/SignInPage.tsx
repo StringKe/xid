@@ -19,6 +19,7 @@ import { styles } from './styles'
 import { SignInOtpPanel } from './SignInOtpPanel'
 import { SignInPanel, SignInTabs } from './SignInTabs'
 import { SignInSocialButtons } from './SignInSocialButtons'
+import { SignInGuestButton } from './SignInGuestButton'
 import { useSignIn } from './useSignIn'
 import { useTurnstile } from './useTurnstile'
 import {
@@ -505,6 +506,10 @@ function SignInPage(): ReactNode {
             ) : null}
           </div>
         ) : null}
+
+        {ambiguousResolution ? null : (
+          <SignInGuestButton onContinue={actions.submitGuest} isLoading={state.isLoading} />
+        )}
 
         <div ref={containerRef} aria-hidden="true" {...stylex.props(styles.turnstile)} />
       </div>

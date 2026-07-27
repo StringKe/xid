@@ -119,6 +119,16 @@ final class Claims
     }
 
     /**
+     * 是否为匿名访客(guest)。
+     * 匿名访客的 access token 在 amr 中携带 "guest";转正后的正式用户不含该值。
+     * RP 可据此拦截匿名访客的敏感操作。amr 缺失或为空时返回 false。
+     */
+    public function isGuest(): bool
+    {
+        return in_array('guest', $this->amr(), true);
+    }
+
+    /**
      * 认证上下文类引用(acr),例如 "step-up"
      */
     public function acr(): string|null

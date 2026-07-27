@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=162b7cb8ebc2f7fea60554074551a1c59caf3c9e -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=e4fd6aec3041b91f62505bbd5a9534be03bc9722 -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -287,6 +287,7 @@ networkless 模式:传 jwtKey(JWKS 公钥)无需请求 API,适合 Edge 冷启动
 ### 事件命名 `<object>.<action>`(参考 WorkOS 细粒度,审计价值高)
 
 - user:created/updated/deleted
+- guest:created/converted/gc_deleted(见 01 章 8 与本章第 10 节)
 - session:created/ended/removed/revoked
 - organization:created/updated/deleted
 - organizationMembership:created/updated/deleted
@@ -315,3 +316,12 @@ networkless 模式:传 jwtKey(JWKS 公钥)无需请求 API,适合 Edge 冷启动
 - 结构化错误:XidAPIError(code/message/longMessage/meta.paramName),精确映射表单字段
 - 本地开发:dev 实例(pk*test*),localhost 免证书(HTTPS 代理),testing tokens 绕过 bot 检测
 - 文档:每组件/hook 独立文档页(props 表 + 示例),playground,与 shadcn/Tailwind 集成示例
+
+## 10. Guest 登录(匿名)
+
+设计契约见 01 章第 8 节。状态:已实现(端点、转正路由、GuestStore DO、GC cron、React 与原生 SDK API);分平台状态见 docs/sdks/platform-matrix.md。
+
+- 端点:POST /auth/guest,无认证的私有扩展(非 OIDC 标准能力)。建 anonymous user + session,响应 JSON 对齐既有 me-auth 登录响应形态(session handle、expires),浏览器场景同时 Set-Cookie。请求已带有效 guest session 时 200 续签不建号。端点由 Turnstile + RateLimitStore + 每租户每日铸造上限守护;完整四层防重复契约见 01 章 8。
+- SDK API:signInAnonymously() 创建 guest,本地 guest 凭证仍有效时惰性复用不再调用端点(Firebase 语义);isAnonymous 反映当前 token 的 amr 是否含 guest;转正引导持续提示用户转正,任意凭证仪式完成后 SDK 对比新旧 token 的 sub 并向 RP 应用层暴露合并钩子(只在 email 占用路径 sub 变化时用到)。
+- Management API:/v1/users 列表支持 ?provisioned_by=anonymous 过滤,不新增端点。
+- 审计与 webhook 事件名(见第 8 节):guest.created、guest.converted、guest.gc_deleted。

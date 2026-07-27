@@ -30,6 +30,8 @@ type MeUser = {
   locale: string | null
   hasMfa: boolean
   instanceManager: boolean
+  // guest 判定契约字段(snake_case,与 SPA auth-context.tsx / packages/core api-client 对齐)。
+  provisioned_by: string | null
 }
 
 type MeSessionView = {
@@ -280,6 +282,7 @@ app.get('/', async (c) => {
     locale: userRow.locale ?? null,
     hasMfa,
     instanceManager,
+    provisioned_by: userRow.provisionedBy ?? null,
   }
 
   const managedOrgIds = new Set(orgManagerOrgIds)

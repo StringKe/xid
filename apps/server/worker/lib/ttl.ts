@@ -57,3 +57,7 @@ export const DISCOVERY_CACHE_TTL_SEC = 3600
 export const SOCIAL_JWKS_CACHE_TTL_SEC = 3600
 // federation trust anchors KV 缓存 TTL 1d
 export const FEDERATION_ANCHORS_CACHE_TTL_SEC = 86400
+// guest GC:最后活跃(无 session 按 created_at,有 session 按最新 last_active_at)满 30 天软删。
+export const GUEST_GC_INACTIVE_DAYS = 30
+// 每租户每日 guest 铸造上限(防匿名批量建号刷用户表)。
+export const GUEST_DAILY_MINT_LIMIT = 500

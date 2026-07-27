@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=bc099b62f768938176e508cb9e159facf2edd52b -->
+<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=fd8b361fb88c97bae1a8c08f66ba787e68baaaba -->
 
 > Translation of `docs/design/05-users-sessions.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/05-users-sessions.md`](../../design/05-users-sessions.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -24,6 +24,7 @@
 
 - email/phone 独立关联表,多值 + verified/primary 状态,UNIQUE 于 (tenant_id, email) 隔离租户
 - external_id 加 (tenant_id, external_id) 唯一索引,允许 null
+- provisioned_by 记录用户来源:jit_sso/scim/signup/invite/admin,另有 anonymous 表示 POST /auth/guest 创建的 guest 用户(见 01 章 8)
 - 三层元数据各一 JSON 列不合并;private_metadata 默认不返回,仅 server context 显式请求
 
 ### 数据模型
@@ -50,6 +51,8 @@
 
 核心实体 UserIdentity(见 08 章):一种登录方式到 User 的关联。
 
+guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_by = 'anonymous' 的 user)有效时,首个完成的凭证仪式把凭证挂到该 guest user,provisioned_by 改写为转正来源并轮换 session,sub 不变。例外是 email 占用路径:被验证的 email 属于本租户另一 user 时,占用事实只在用户证明邮箱控制权之后才揭示,并引导其正常登录该账号;此时 guest user 标 merged_into_user_id,sub 变化,guest 期间 RP 侧数据的合并是 RP 应用层职责(SDK 对比新旧 sub 并暴露合并钩子)。
+
 ## 4. 验证(邮箱 / 手机)
 
 - 邮箱:注册发验证链接(magic link)或 6 位 OTP
@@ -67,6 +70,7 @@
 - 搜索/过滤:email/username/status/created_at/external_id,D1 对 email/status 建索引
 - 用户导入(迁移):bulk JSON/CSV,密码哈希迁移支持 bcrypt/argon2/scrypt/MD5(兼容 Auth0);lazy migration:导入只存哈希,首次登录透明升级
 - 用户导出:NDJSON,含所有字段(private_metadata 按权限)
+- guest GC(见 01 章 8):cron 每日扫,软删最后活跃满 30 天的 guest 用户(provisioned_by = 'anonymous'),进入第 7 节同一套 soft delete -> 30 天宽限 -> 硬删 PII 管道
 
 ## 6. 管理员能力
 
@@ -170,7 +174,7 @@ TTL 汇总：
 | org_role        | 取自 active_org_id 对应的 OrgMembership.role            | 仅含最高一个 role；无 org 上下文时省略                                                                                                                                                   |
 | org_permissions | 取自 role -> permissions 展开                           | 字符串数组；无 org 上下文时省略                                                                                                                                                          |
 | act             | 被模拟时设为 `{"sub": impersonator_user_id}`；否则 null | RFC 8693 token exchange，null 时不输出该 claim                                                                                                                                           |
-| amr             | 登录时使用的认证方法数组                                | passkey: `["phr"]`；密码: `["pwd"]`；OTP: `["otp"]`；MFA 同时含多个                                                                                                                      |
+| amr             | 登录时使用的认证方法数组                                | passkey: `["phr"]`；密码: `["pwd"]`；OTP: `["otp"]`；MFA 同时含多个；尚无凭证的 guest 携带 `guest`，转正后签发的下一张 token 自然摘掉（见 01 章 8）                                                                                                                      |
 | acr             | 认证上下文等级                                          | XID 私有 URI `urn:xid:aal1` / `urn:xid:aal2` / `urn:xid:aal3`；当前登录链路只签发 AAL1/AAL2                                                                                              |
 | auth_time       | 上次完整认证（非 token 刷新）的 Unix 时间戳             | OIDC Core 要求，session.authenticated_at                                                                                                                                                 |
 | email           | primary_email 地址                                      | 仅当 scope 含 email 时输出                                                                                                                                                               |

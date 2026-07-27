@@ -172,6 +172,7 @@ new XidClient(array $config)
 | `scope()`            | string       | scope           |
 | `scopes()`           | string[]     | scope 拆分数组  |
 | `amr()`              | string[]     | amr             |
+| `isGuest()`          | bool         | amr 含 "guest"  |
 | `acr()`              | string\|null | acr             |
 | `extra(string $key)` | mixed        | 自定义 claim    |
 | `toArray()`          | array        | 完整 payload    |
@@ -183,6 +184,10 @@ $result->isAuthenticated(): bool
 $result->claims(): Claims      // 未认证时调用抛 LogicException
 $result->reason(): string|null // 失败原因(仅服务端日志用)
 ```
+
+### 匿名访客(guest)判定
+
+匿名访客是真实用户实体,其 access token 的 `amr` claim 包含 `"guest"`。验证通过后调用 `$claims->isGuest()` 即可识别,用于按业务拦截匿名访客的敏感操作(例如写操作)。访客转正为正式用户后,新签发的 token 不再含该值,`isGuest()` 返回 `false`。
 
 ### `WebhookPayload`
 

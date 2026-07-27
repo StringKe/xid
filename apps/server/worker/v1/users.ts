@@ -6,11 +6,12 @@
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, isNull, like, ne, or } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
-import { readJsonBody, validateBody } from '../lib/validate'
+import { readJsonBody, validateBody, validateQuery } from '../lib/validate'
 import { requireApiKey, parsePagination, paginate, idAfterCursor, emitWebhookAsync } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -86,16 +87,31 @@ function toResponse(row: typeof schema.users.$inferSelect) {
 
 // ---- 列表 ----
 
-// GET /v1/users?limit=&cursor=&search=
+// 列表 query:provisioned_by 过滤(如 ?provisioned_by=anonymous 只看 guest)。
+// provisioned_by 是自由文本(登记值见 schema/users.ts),形状层只约束长度。
+const listUsersQuerySchema = v.object({
+  provisioned_by: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(64))),
+})
+
+// GET /v1/users?limit=&cursor=&search=&provisioned_by=
 app.get('/', async (c) => {
   await requireApiKey(c, 'users:read')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const { limit, cursor } = parsePagination(c)
   const search = c.req.query('search') ?? null
+  const query = validateQuery(listUsersQuerySchema, {
+    provisioned_by: c.req.query('provisioned_by'),
+  })
 
   const afterCond = idAfterCursor(schema.users.id, cursor)
   const notDeleted = notDeletedUser()
+  const provisionedCond: SQL | undefined = query.provisioned_by
+    ? eq(schema.users.provisionedBy, query.provisioned_by)
+    : undefined
+  const baseConds = [notDeleted, provisionedCond, afterCond].filter(
+    (cond): cond is NonNullable<typeof cond> => cond != null,
+  )
 
   let rows: (typeof schema.users.$inferSelect)[]
 
@@ -106,14 +122,12 @@ app.get('/', async (c) => {
       like(schema.users.firstName, pattern),
       like(schema.users.lastName, pattern),
     )
-    const where = afterCond ? and(searchCond, afterCond, notDeleted) : and(searchCond, notDeleted)
-    rows = await db.users.findMany(where, {
+    rows = await db.users.findMany(and(searchCond, ...baseConds), {
       orderBy: asc(schema.users.id),
       limit: limit + 1,
     })
   } else {
-    const where = afterCond ? and(afterCond, notDeleted) : notDeleted
-    rows = await db.users.findMany(where, {
+    rows = await db.users.findMany(and(...baseConds), {
       orderBy: asc(schema.users.id),
       limit: limit + 1,
     })

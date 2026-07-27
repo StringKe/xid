@@ -303,8 +303,14 @@ public sealed class XidClient : IDisposable
 
     private static TokenClaims BuildTokenClaims(ClaimsPrincipal principal)
     {
-        // 将 ClaimsPrincipal 展平为字典再调用 FromPayload
-        var payload = principal.Claims.ToDictionary(c => c.Type, c => (object?)c.Value);
+        // 将 ClaimsPrincipal 展平为字典再调用 FromPayload。
+        // amr / aud 这类多值 claim 会展开为多条同类型 Claim,直接 ToDictionary 会抛重复键异常,
+        // 因此按类型分组:单值保持 string,多值归并为 string[]
+        var payload = principal.Claims
+            .GroupBy(c => c.Type)
+            .ToDictionary(
+                g => g.Key,
+                g => (object?)(g.Skip(1).Any() ? g.Select(c => c.Value).ToArray() : g.First().Value));
 
         // aud 在 ClaimsPrincipal 中可能展开为多条 Claim
         var audClaims = principal.Claims

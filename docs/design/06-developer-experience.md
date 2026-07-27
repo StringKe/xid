@@ -370,6 +370,7 @@ URL prefix `/v1/`.
 ### Event naming `<object>.<action>` (following WorkOS's fine granularity, which has high audit value)
 
 - user: created/updated/deleted
+- guest: created/converted/gc_deleted (see chapter 01 section 8 and section 10 below)
 - session: created/ended/removed/revoked
 - organization: created/updated/deleted
 - organizationMembership: created/updated/deleted
@@ -406,3 +407,26 @@ URL prefix `/v1/`.
   and testing tokens that bypass bot detection
 - Documentation: a dedicated page per component and hook (a props table plus examples), a playground,
   and shadcn/Tailwind integration examples
+
+## 10. Guest sign-in (anonymous)
+
+The design contract is chapter 01 section 8. Status: implemented (endpoint, conversion routing,
+GuestStore DO, GC cron, React and native SDK APIs); the per-platform status lives in
+`docs/sdks/platform-matrix.md`.
+
+- Endpoint: `POST /auth/guest`, an unauthenticated private extension (not a standard OIDC
+  capability). It creates the anonymous user plus session, returns JSON aligned with the existing
+  me-auth sign-in response shape (session handle, expiry), and sets the session cookie in the
+  browser scenario. A request that already carries a valid guest session gets a 200 renewal with no
+  new user. The endpoint is guarded by Turnstile plus RateLimitStore and a per-tenant daily mint
+  cap; chapter 01 section 8 holds the full four-layer anti-duplicate contract.
+- SDK API: `signInAnonymously()` creates a guest, or lazily reuses the local guest credential when
+  one is still valid (the SDK does not call the endpoint in that case, the Firebase semantics).
+  `isAnonymous` reflects whether the current token `amr` carries `guest`. Upgrade guidance keeps
+  prompting the user to convert; after any credential ceremony the SDK compares the `sub` of the old
+  and new tokens and exposes a merge hook for the RP application layer, which matters only on the
+  email-occupied path where the sub changes.
+- Management API: the `/v1/users` list supports the `?provisioned_by=anonymous` filter; no new
+  endpoint is added.
+- Audit and webhook event names (see section 8): `guest.created`, `guest.converted`, and
+  `guest.gc_deleted`.

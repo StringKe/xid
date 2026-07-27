@@ -25,6 +25,9 @@ export { XidNetworkError, makeXidError, isXidErrorShape } from './errors'
 export { decodeTokenClaims, isTokenExpiring } from './jwt-decode'
 export type { DecodedTokenClaims } from './jwt-decode'
 
+// guest 模式判定与 sub 对比
+export { isGuestUser, isGuestToken, isSameUser } from './guest'
+
 export { trimTrailingSlashes } from './url'
 
 // 公开状态契约
@@ -42,6 +45,7 @@ export type {
   ManagementSession,
   ManagementUser,
   SignInPasswordInput,
+  SignInAnonymouslyInput,
   SignInResult,
   SessionStatus,
   ClientStatus,
