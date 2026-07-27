@@ -82,6 +82,9 @@ jobs:
     runs-on: ubuntu-latest
     # 30 分钟能在 dev server 或 Chrome 卡死时早于默认 360 分钟止损。
     timeout-minutes: 30
+    # 两组 browser smoke 都直接 spawn Chrome,必须共享 runner 上已验证的 Linux 路径。
+    env:
+      XID_CHROME_PATH: /usr/bin/google-chrome
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -99,8 +102,6 @@ jobs:
       - run: pnpm build
       - run: pnpm smoke:three-workers
       - run: pnpm smoke:l2-l3
-        env:
-          XID_CHROME_PATH: /usr/bin/google-chrome
 
   security:
     runs-on: ubuntu-latest
