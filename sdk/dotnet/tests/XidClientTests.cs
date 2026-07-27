@@ -6,6 +6,7 @@
 //   - JWT 验证:过期 / nbf 未到 / issuer 不符 / audience 不符
 //   - JWT 验证:alg=none 被拒绝
 //   - JWT 验证:kid 不存在
+//   - JWT 验证:amr / IsGuest 匿名访客判定
 //   - Webhook 验证:合法签名
 //   - Webhook 验证:时间窗超限(重放防护)
 //   - Webhook 验证:签名不匹配
@@ -325,6 +326,92 @@ public class VerifyTokenTests
         // Act & Assert
         var ex = await Assert.ThrowsAsync<TokenVerificationException>(() => client.VerifyTokenAsync(token));
         Assert.Contains("unknown-kid", ex.Message);
+    }
+
+    // -- amr 含 guest:匿名访客判定为 true --
+
+    [Fact]
+    public async Task VerifyToken_GuestAmr_IsGuestTrue()
+    {
+        // Arrange
+        var (ecKey, kid) = TokenHelper.CreateEcKey();
+        var securityKey = new ECDsaSecurityKey(ecKey) { KeyId = kid };
+        string token = TokenHelper.CreateToken(securityKey, kid, SecurityAlgorithms.EcdsaSha256,
+            extraClaims: new[] { new Claim("amr", "guest") });
+
+        using var http = new HttpClient(new MockJwksHandler(TokenHelper.ToJwksJson(ecKey, kid)));
+        var client = new XidClient(new XidOptions { Issuer = "https://xid.dev" }, http);
+
+        // Act
+        TokenClaims claims = await client.VerifyTokenAsync(token);
+
+        // Assert
+        Assert.True(claims.IsGuest);
+        Assert.Contains("guest", claims.Amr);
+    }
+
+    // -- amr 多值含 guest:仍判定为 true --
+
+    [Fact]
+    public async Task VerifyToken_MultiAmrWithGuest_IsGuestTrue()
+    {
+        // Arrange: 匿名访客叠加其他认证方式时 amr 是多值数组
+        var (ecKey, kid) = TokenHelper.CreateEcKey();
+        var securityKey = new ECDsaSecurityKey(ecKey) { KeyId = kid };
+        string token = TokenHelper.CreateToken(securityKey, kid, SecurityAlgorithms.EcdsaSha256,
+            extraClaims: new[] { new Claim("amr", "pwd"), new Claim("amr", "guest") });
+
+        using var http = new HttpClient(new MockJwksHandler(TokenHelper.ToJwksJson(ecKey, kid)));
+        var client = new XidClient(new XidOptions { Issuer = "https://xid.dev" }, http);
+
+        // Act
+        TokenClaims claims = await client.VerifyTokenAsync(token);
+
+        // Assert
+        Assert.True(claims.IsGuest);
+        Assert.Equal(new[] { "pwd", "guest" }, claims.Amr);
+    }
+
+    // -- amr 不含 guest:正式用户判定为 false --
+
+    [Fact]
+    public async Task VerifyToken_PwdAmr_IsGuestFalse()
+    {
+        // Arrange
+        var (ecKey, kid) = TokenHelper.CreateEcKey();
+        var securityKey = new ECDsaSecurityKey(ecKey) { KeyId = kid };
+        string token = TokenHelper.CreateToken(securityKey, kid, SecurityAlgorithms.EcdsaSha256,
+            extraClaims: new[] { new Claim("amr", "pwd") });
+
+        using var http = new HttpClient(new MockJwksHandler(TokenHelper.ToJwksJson(ecKey, kid)));
+        var client = new XidClient(new XidOptions { Issuer = "https://xid.dev" }, http);
+
+        // Act
+        TokenClaims claims = await client.VerifyTokenAsync(token);
+
+        // Assert
+        Assert.False(claims.IsGuest);
+    }
+
+    // -- 无 amr:判定为 false --
+
+    [Fact]
+    public async Task VerifyToken_NoAmr_IsGuestFalse()
+    {
+        // Arrange
+        var (ecKey, kid) = TokenHelper.CreateEcKey();
+        var securityKey = new ECDsaSecurityKey(ecKey) { KeyId = kid };
+        string token = TokenHelper.CreateToken(securityKey, kid, SecurityAlgorithms.EcdsaSha256);
+
+        using var http = new HttpClient(new MockJwksHandler(TokenHelper.ToJwksJson(ecKey, kid)));
+        var client = new XidClient(new XidOptions { Issuer = "https://xid.dev" }, http);
+
+        // Act
+        TokenClaims claims = await client.VerifyTokenAsync(token);
+
+        // Assert
+        Assert.False(claims.IsGuest);
+        Assert.Empty(claims.Amr);
     }
 
     private static string Base64UrlEncode(string input)

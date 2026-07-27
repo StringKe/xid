@@ -317,6 +317,37 @@ public final class TokenVerifierTest {
         System.out.println("  PASS test_kid_miss_refreshes_jwks_and_verifies");
     }
 
+    // Guest amr tests
+
+    static void test_guest_amr_marks_guest() throws Exception {
+        String token = mintToken(ISSUER, List.of(AUDIENCE),
+                NOW.plusSeconds(3600).getEpochSecond(), null, "test-kid-1",
+                "[\"guest\"]");
+        XidClaims claims = verifier.verify(token);
+        assertTrue(claims.isGuest(), "amr [guest] should mark guest");
+        assertTrue(claims.getAmr().contains("guest"), "getAmr should expose guest");
+        System.out.println("  PASS test_guest_amr_marks_guest");
+    }
+
+    static void test_non_guest_amr_not_guest() throws Exception {
+        String token = mintToken(ISSUER, List.of(AUDIENCE),
+                NOW.plusSeconds(3600).getEpochSecond(), null, "test-kid-1",
+                "[\"pwd\"]");
+        XidClaims claims = verifier.verify(token);
+        assertTrue(!claims.isGuest(), "amr [pwd] should not be guest");
+        assertTrue(!claims.getAmr().isEmpty(), "getAmr should expose pwd");
+        System.out.println("  PASS test_non_guest_amr_not_guest");
+    }
+
+    static void test_missing_amr_not_guest() throws Exception {
+        String token = mintToken(ISSUER, List.of(AUDIENCE),
+                NOW.plusSeconds(3600).getEpochSecond(), null, "test-kid-1");
+        XidClaims claims = verifier.verify(token);
+        assertTrue(!claims.isGuest(), "missing amr should not be guest");
+        assertTrue(claims.getAmr().isEmpty(), "getAmr should be empty when amr absent");
+        System.out.println("  PASS test_missing_amr_not_guest");
+    }
+
     public static void main(String[] args) throws Exception {
         System.out.println("=== TokenVerifierTest ===");
         setUp();
@@ -338,7 +369,10 @@ public final class TokenVerifierTest {
             "test_ps256_verifies_valid_token",
             "test_ps256_rejects_bad_signature",
             "test_ps256_not_accepted_by_es256_verifier",
-            "test_kid_miss_refreshes_jwks_and_verifies"
+            "test_kid_miss_refreshes_jwks_and_verifies",
+            "test_guest_amr_marks_guest",
+            "test_non_guest_amr_not_guest",
+            "test_missing_amr_not_guest"
         };
 
         for (String test : tests) {
@@ -365,6 +399,14 @@ public final class TokenVerifierTest {
     private static String mintToken(String iss, List<String> aud,
                                     long expEpochSec, Long nbfEpochSec, String kid)
             throws Exception {
+        return mintToken(iss, aud, expEpochSec, nbfEpochSec, kid, null);
+    }
+
+    /** amrJsonArray 为 JSON 数组字面量(如 "[\"guest\"]"),null 表示不带 amr claim。 */
+    private static String mintToken(String iss, List<String> aud,
+                                    long expEpochSec, Long nbfEpochSec, String kid,
+                                    String amrJsonArray)
+            throws Exception {
         // Build payload JSON
         StringBuilder payloadJson = new StringBuilder("{");
         payloadJson.append("\"sub\":\"test-user-42\",");
@@ -384,6 +426,9 @@ public final class TokenVerifierTest {
         payloadJson.append("\"jti\":\"jti-test-001\"");
         if (nbfEpochSec != null) {
             payloadJson.append(",\"nbf\":").append(nbfEpochSec);
+        }
+        if (amrJsonArray != null) {
+            payloadJson.append(",\"amr\":").append(amrJsonArray);
         }
         payloadJson.append("}");
 

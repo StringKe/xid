@@ -83,5 +83,22 @@ RSpec.describe Xid::TokenVerifier do
       expect { verifier.verify!(token) }
         .to raise_error(Xid::TokenVerificationError, /No matching JWKS key/i)
     end
+
+    it "reports guest? true when amr contains guest" do
+      claims = verifier.verify!(build_token(amr: ["guest"]))
+      expect(claims.amr).to eq(["guest"])
+      expect(claims.guest?).to be(true)
+    end
+
+    it "reports guest? false for other amr values" do
+      claims = verifier.verify!(build_token(amr: ["pwd"]))
+      expect(claims.guest?).to be(false)
+    end
+
+    it "reports guest? false when amr is missing" do
+      claims = verifier.verify!(build_token)
+      expect(claims.amr).to eq([])
+      expect(claims.guest?).to be(false)
+    end
   end
 end

@@ -86,6 +86,9 @@ func (k *testECKey) signToken(t *testing.T, registered jwt.RegisteredClaims, ext
 	if v, ok := extra["client_id"]; ok {
 		c.ClientID, _ = v.(string)
 	}
+	if v, ok := extra["amr"]; ok {
+		c.AMR, _ = v.([]string)
+	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodES256, c)
 	tok.Header["kid"] = k.kid
 	signed, err := tok.SignedString(k.priv)
@@ -167,6 +170,48 @@ func TestVerifyAccessToken_ValidES256(t *testing.T) {
 	}
 	if claims.Subject != "user-123" {
 		t.Errorf("subject: got %q, want %q", claims.Subject, "user-123")
+	}
+}
+
+func TestClaims_IsGuest(t *testing.T) {
+	key := newTestECKey(t, "key-1")
+	srv := key.jwksServer(t)
+	defer srv.Close()
+
+	c := newClientWithServer(t, srv, ClientOptions{})
+	now := time.Now()
+
+	sign := func(extra map[string]any) string {
+		return key.signToken(t, jwt.RegisteredClaims{
+			Issuer:    srv.URL,
+			Subject:   "user-1",
+			ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		}, extra)
+	}
+
+	cases := []struct {
+		name  string
+		extra map[string]any
+		want  bool
+	}{
+		{"guest amr", map[string]any{"amr": []string{"guest"}}, true},
+		{"guest among others", map[string]any{"amr": []string{"pwd", "guest"}}, true},
+		{"non-guest amr", map[string]any{"amr": []string{"pwd"}}, false},
+		{"empty amr", map[string]any{"amr": []string{}}, false},
+		{"no amr", nil, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			claims, err := c.VerifyAccessToken(context.Background(), sign(tc.extra))
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+			if got := claims.IsGuest(); got != tc.want {
+				t.Errorf("IsGuest: got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

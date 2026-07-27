@@ -171,7 +171,18 @@ async def me(claims: TokenClaims = Depends(require_auth)):
 | jti   | str / None      | JWT ID               |
 | scope | str / None      | 授权 scope           |
 | email | str / None      | 用户邮箱             |
+| amr   | list[str]       | 认证方式(RFC 8176)   |
 | extra | dict            | 自定义 / 额外 claims |
+
+### 匿名访客判定
+
+`TokenClaims.is_guest: bool` -- amr 数组包含 `"guest"` 时为 True,用于拦截匿名访客的敏感操作(等价 Firebase Security Rules 的 `sign_in_provider != 'anonymous'`)。访客转正为正式用户后签发的 token 不含 `"guest"`,该值为 False。
+
+```python
+claims = await client.verify_token("eyJ...")
+if claims.is_guest:
+    raise Forbidden("guest not allowed")
+```
 
 ### `AuthStatus`
 

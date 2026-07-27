@@ -32,8 +32,16 @@ class TokenClaims:
     email_verified: bool | None = None
     name: str | None = None
 
+    # 认证方式(RFC 8176 amr);匿名访客 token 的 amr 包含 "guest"
+    amr: list[str] = field(default_factory=list)
+
     # 自定义 / 额外 claims
     extra: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_guest(self) -> bool:
+        """是否为匿名访客。访客转正后 amr 不再包含 "guest",此值为 False。"""
+        return "guest" in self.amr
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "TokenClaims":
@@ -41,6 +49,7 @@ class TokenClaims:
         known_keys = {
             "sub", "iss", "aud", "exp", "iat", "jti", "nbf",
             "scope", "client_id", "email", "email_verified", "name",
+            "amr",
         }
         extra = {k: v for k, v in payload.items() if k not in known_keys}
         return cls(
@@ -56,6 +65,7 @@ class TokenClaims:
             email=payload.get("email"),
             email_verified=payload.get("email_verified"),
             name=payload.get("name"),
+            amr=list(payload.get("amr") or []),
             extra=extra,
         )
 

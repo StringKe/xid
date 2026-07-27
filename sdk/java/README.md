@@ -164,7 +164,13 @@ try {
 | `getNbf()`      | 生效时间(可 null)                       |
 | `getScope()`    | scope 字符串(空格分隔)                  |
 | `getClientId()` | client_id claim                         |
+| `getAmr()`      | amr 列表(认证方式引用,无 amr 时为空)  |
+| `isGuest()`     | 匿名访客判定(amr 包含 `guest`)        |
 | `getRaw()`      | 底层 JWTClaimsSet,用于访问自定义 claims |
+
+### 匿名访客(guest)判定
+
+`XidClaims.isGuest()` 在 token 的 `amr` claim 包含 `guest` 时返回 true,可用于拦截匿名访客的敏感操作(如写操作)。访客转正为正式用户后新签发的 token 不含该值,`isGuest()` 返回 false;`amr` 缺失或为空时同样返回 false。
 
 ### AuthResult
 

@@ -34,6 +34,19 @@ type Claims struct {
 	OrgSlug string `json:"org_slug,omitempty"`
 }
 
+// IsGuest reports whether this token belongs to an anonymous guest user.
+// The platform marks guest sessions with the "guest" value in the amr claim;
+// a converted (registered) user token no longer carries it. amr plays no role
+// in signature validation, so a missing or empty amr yields false.
+func (c *Claims) IsGuest() bool {
+	for _, m := range c.AMR {
+		if m == "guest" {
+			return true
+		}
+	}
+	return false
+}
+
 // AuthState represents the authentication outcome of a request.
 type AuthState struct {
 	// Authenticated is true when the JWT was valid and claims are trustworthy.

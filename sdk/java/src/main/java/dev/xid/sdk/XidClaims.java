@@ -84,6 +84,26 @@ public final class XidClaims {
         return stringClaim("client_id");
     }
 
+    /**
+     * amr(Authentication Methods Reference)列表。
+     * token 无 amr 或 amr 为空数组时返回空 List。
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> getAmr() {
+        Object v = raw.get("amr");
+        if (v == null) return Collections.emptyList();
+        if (v instanceof List) return (List<String>) v;
+        return Collections.singletonList(v.toString());
+    }
+
+    /**
+     * 匿名访客(guest)判定:amr 数组包含 "guest"。
+     * RP 据此拦截匿名用户的敏感写操作;访客转正后签发的 token 不含该值,返回 false。
+     */
+    public boolean isGuest() {
+        return getAmr().contains("guest");
+    }
+
     /** 原始 claims map,用于访问自定义 claims */
     public Map<String, Object> getRaw() {
         return raw;

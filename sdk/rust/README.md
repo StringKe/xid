@@ -156,7 +156,12 @@ pub enum AuthState {
 | `amr`            | `Option<Vec<String>>`    | 认证方式(phr/otp 等) |
 | `extra`          | `HashMap<String, Value>` | 自定义扩展字段       |
 
-辅助方法:`audiences() -> Vec<String>` / `has_scope(scope) -> bool`
+辅助方法:`audiences() -> Vec<String>` / `has_scope(scope) -> bool` / `is_guest() -> bool`
+
+### 匿名访客(guest)判定
+
+`claims.is_guest()` 在 token 的 `amr` 包含 `"guest"` 时返回 `true`,用于拦截匿名访客
+的敏感写操作;访客转正后平台签发的 token 不再含该值,结果为 `false`。
 
 ### `WebhookVerifier`
 
@@ -194,7 +199,7 @@ pub struct WebhookPayload {
 
 | 项目 | 状态 |
 | ---- | ---- |
-| `cargo test` 本机编译通过 | 20 passed |
+| `cargo test` 本机编译通过 | 25 passed |
 | `feature = "axum"` → `auth::axum_extract::Auth` (`FromRequestParts`) | 已实现 |
 | `feature = "actix-web"` → `auth::actix_extract::Auth` (`FromRequest`) | 已实现 |
 | JWKS 单条 key 解析失败 `tracing::warn!` | 已实现 |

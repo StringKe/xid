@@ -48,6 +48,15 @@ public sealed record TokenClaims
     public bool? EmailVerified { get; init; }
     public string? Name { get; init; }
 
+    /// <summary>Authentication Methods Reference (RFC 8176) -- 认证方式列表,缺失时为空。</summary>
+    public IReadOnlyList<string> Amr { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// 匿名访客(guest)判定 -- amr 包含 "guest" 时为 true。
+    /// RP 用它拦截匿名账号的敏感写操作;访客转正后平台签发的 token 不再带 "guest",恒为 false。
+    /// </summary>
+    public bool IsGuest => Amr.Contains("guest", StringComparer.Ordinal);
+
     /// <summary>未映射到具名字段的额外 claims。值类型为 object?。</summary>
     public FrozenDictionary<string, object?> Extra { get; init; } =
         FrozenDictionary<string, object?>.Empty;
@@ -84,10 +93,20 @@ public sealed record TokenClaims
             }
             : Array.Empty<string>();
 
+        // amr 与 aud 同样可能是单值或多值
+        IReadOnlyList<string> amr = payload.TryGetValue("amr", out var amrRaw)
+            ? amrRaw switch
+            {
+                string s => new[] { s },
+                IEnumerable<object> list => list.Select(x => x?.ToString() ?? "").ToArray(),
+                _ => Array.Empty<string>()
+            }
+            : Array.Empty<string>();
+
         var knownKeys = new HashSet<string>(StringComparer.Ordinal)
         {
             "sub", "iss", "aud", "exp", "iat", "jti", "nbf",
-            "scope", "client_id", "email", "email_verified", "name"
+            "scope", "client_id", "email", "email_verified", "name", "amr"
         };
 
         var extra = payload
@@ -119,6 +138,7 @@ public sealed record TokenClaims
                 _ => null
             } : null,
             Name = payload.TryGetValue("name", out var nm) ? nm?.ToString() : null,
+            Amr = amr,
             Extra = extra,
         };
     }
