@@ -25,8 +25,11 @@ function failure<T>(): Result<T> {
 }
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => routerState.navigate,
   useSearch: () => routerState.search,
+}))
+
+vi.mock('../../lib/router', () => ({
+  useNavigate: () => routerState.navigate,
 }))
 
 vi.mock('../../lib/auth-context', () => ({

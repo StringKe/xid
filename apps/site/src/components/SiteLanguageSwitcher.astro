@@ -1,0 +1,50 @@
+---
+import {
+  getSiteLocale,
+  SITE_LOCALE_LABELS,
+  SITE_LOCALES,
+} from "@/lib/site-locale";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+
+const locale = getSiteLocale(Astro.url.pathname);
+const label = translateSiteMessage(Astro.url.pathname, siteShellMessages.language);
+---
+
+<label class="inline-flex items-center">
+  <span class="sr-only">{label}</span>
+  <select
+    data-site-language-switcher
+    name="site-language"
+    value={locale}
+    aria-label={label}
+    class="h-8 max-w-30 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground"
+  >
+    {SITE_LOCALES.map((item) => (
+      <option value={item} selected={item === locale}>{SITE_LOCALE_LABELS[item]}</option>
+    ))}
+  </select>
+</label>
+
+<script>
+  import { isSiteLocale, localizeSitePath } from "@/lib/site-locale";
+
+  document.querySelectorAll("[data-site-language-switcher]").forEach((element) => {
+    if (!(element instanceof HTMLSelectElement)) return;
+    const select = element;
+    if (select.dataset.bound === "true") return;
+    select.dataset.bound = "true";
+    select.addEventListener("change", () => {
+      if (!isSiteLocale(select.value)) return;
+      const url = new URL(window.location.href);
+      url.pathname = localizeSitePath(url.pathname, select.value);
+      url.searchParams.delete("locale");
+      try {
+        localStorage.setItem("xid.locale", select.value);
+      } catch {
+        // Navigation remains functional when storage is unavailable.
+      }
+      window.location.assign(url.toString());
+    });
+  });
+</script>

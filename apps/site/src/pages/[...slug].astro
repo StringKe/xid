@@ -1,0 +1,26 @@
+---
+import { getDocsStaticPaths } from "@cloudflare/nimbus-docs";
+import type { GetStaticPaths } from "astro";
+import DocsEntryPage from "../components/DocsEntryPage.astro";
+import {
+  DOCUMENT_LOCALE_ROUTE_SEGMENTS,
+  type DocumentLocale,
+} from "../content-source/docs/types";
+
+export const prerender = true;
+export const getStaticPaths: GetStaticPaths = async (context) =>
+  (await getDocsStaticPaths(context)).filter(({ props }) => {
+    const entry = props?.entry as
+      | { id: string; data: { locale: DocumentLocale } }
+      | undefined;
+    if (!entry) {
+      throw new TypeError("Nimbus docs static path is missing its entry");
+    }
+    return (
+      entry.id !== "index" &&
+      entry.id !== DOCUMENT_LOCALE_ROUTE_SEGMENTS[entry.data.locale]
+    );
+  });
+---
+
+<DocsEntryPage entry={Astro.props.entry} />

@@ -6,54 +6,134 @@ This document answers one question: how do you deploy XID into your own Cloudfla
 
 XID is MIT-licensed open source. Self-hosting gives you the complete feature set. There is no feature tiering and no license key that phones home.
 
-The source of truth for Worker configuration is `apps/server/wrangler.jsonc`. Every value written as `<...>` in this document is a placeholder that you must replace with your own resource identifier.
+XID deploys three Workers: Nimbus Site, Console, and Core. Their Wrangler configurations and the
+shared route ownership contract are the deployment sources of truth. Every value written as `<...>`
+in this document is a placeholder that you must replace with your own resource identifier.
 
 ## Prerequisites
 
 - A Cloudflare account on the Workers Paid plan (required by Durable Objects, Queues and D1)
 - A domain whose DNS you control
 - Node.js and pnpm, then `pnpm install` at the repository root
-- `wrangler` logged in (`pnpm --dir apps/server exec wrangler login`)
+- `wrangler` logged in (`pnpm exec wrangler login`)
 
-## Worker configuration
+## Deployment units
 
-| Item                | Value                          |
-| ------------------- | ------------------------------ |
-| Worker name         | `<your-worker-name>`           |
-| account_id          | `<your-cloudflare-account-id>` |
-| main                | `worker/index.ts`              |
-| compatibility_date  | `2025-04-08`                   |
-| compatibility_flags | `nodejs_compat`                |
-| assets binding      | `ASSETS`                       |
-| assets fallback     | `single-page-application`      |
-| production var      | `ENVIRONMENT=production`       |
-| staging var         | `ENVIRONMENT=staging`          |
+| Deployment  | Responsibility                                                                                              | Bindings                                                                                             | Static asset behavior                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Nimbus Site | Canonical apex documentation hub, 8-locale public docs, SEO, Pagefind, OG, sitemap, Markdown and LLM output | `ASSETS` only                                                                                        | Static output, 404 page fallback, `run_worker_first=true`     |
+| Console     | One org and instance management SPA on apex and tenant-host `/console`                                      | `ASSETS` only                                                                                        | Explicit Console navigation fallback, `run_worker_first=true` |
+| Core        | Protocols, Hosted Auth, account, Management API, data, jobs, crons, Durable Objects and identity logic      | `ASSETS` plus every D1, KV, R2, Queue, Durable Object, Analytics, Email, variable and secret binding | Hosted UI and account SPA fallback                            |
 
-`compatibility_date` must not be earlier than `2025-04-08`: the SAML processing layer depends on the `nodejs_compat` behaviour that takes effect from that date.
+Core uses `worker/index.ts`, `compatibility_date=2025-04-08`, and `nodejs_compat`.
+`compatibility_date` must not be earlier than `2025-04-08`: the SAML processing layer depends on the
+`nodejs_compat` behaviour that takes effect from that date. Site and Console MUST NOT receive a Core
+binding, secret, queue consumer, or cron.
 
 ### Routes and issuer
 
-Recommended route shape:
+The apex domain remains the instance issuer, API base URL, Console base URL, and Hosted Auth base URL.
+Runtime separation changes only route ownership. It does not create another issuer or identity core.
+Do **not** make `admin.<your-domain>` or `app.<your-domain>` the default issuer or the default sign-in
+entry point. Once an issuer has been published to relying parties it is very hard to change.
 
-- `<your-domain>`
-- `*.<your-domain>/*`
+Cloudflare route ownership is:
 
-The apex domain is the instance domain, and it is simultaneously the OIDC issuer, the API base URL, the Console base URL and the Hosted Auth base URL. Do **not** make `admin.<your-domain>` or `app.<your-domain>` the default issuer or the default sign-in entry point. Once an issuer has been published to relying parties it is very hard to change.
+| Owner       | Routes                                                                                                                                                                                                                                                                                                      |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nimbus Site | Exact apex hub and English detail routes; `/docs` and `/docs/*` compatibility routes; each supported non-English locale root and subtree; `/_astro/*`, `/_nimbus/*`, `/pagefind/*`, `/og/*`, `/brand/*`, `/icons/*`, `/fonts/*`; exact sitemap, robots, LLM, manifest and icon files; `www.<your-domain>/*` |
+| Console     | `<your-domain>/console`, `<your-domain>/console/*`, `*.<your-domain>/console`, `*.<your-domain>/console/*`                                                                                                                                                                                                  |
+| Core        | Custom Domain `<your-domain>` plus the organization wildcard fallback `*.<your-domain>/*`; Core SPA chunks are isolated under `/_core/*`                                                                                                                                                                    |
 
-`*.<your-domain>/*` is the organization entry route. It requires that the subdomain DNS record already exists, or is created by an explicit custom domain. In multi-tenant mode the passkey RPID is isolated per tenant subdomain; see the domain model section of `docs/design/00-overview.md`.
+Site and Console routes are explicit, more-specific Worker Routes over the Core Custom Domain and
+tenant wildcard fallback. Neither frontend Worker may claim `<your-domain>/*`. There is no front
+proxy Worker.
+
+`*.<your-domain>/*` requires that the subdomain DNS record already exists, or is created by an
+explicit custom domain. In multi-tenant mode the passkey RPID is isolated per tenant subdomain. The
+same Console Worker serves `/console` on the apex and tenant host, so its same-origin Core API calls
+and host-only `__Host-` session cookies stay on the original host.
+
+`www.<your-domain>` is a reserved tenant slug. Every request to
+`https://www.<your-domain>/{path}?{query}` returns 308 to
+`https://<your-domain>/{path}?{query}` with the path and query preserved. Site owns the production
+`www` routes, including the more-specific Console paths. The Console handler retains the same 308 as
+a defensive check, but `www` never enters TenantContext.
+
+Worker Routes do not create DNS. Before route activation, create a proxied `www` DNS record in the
+zone. A placeholder A record may target `192.0.2.0`, or an AAAA record may target `100::`, because
+the Site Worker terminates the request and returns the redirect. Confirm
+`https://www.<your-domain>/` resolves before marking the release preflight PASS. This follows the
+Cloudflare redirect prerequisite documented at
+`https://developers.cloudflare.com/workers/configuration/routing/custom-domains/#redirect-between-www-and-root-domain`.
 
 ### Public docs routes
 
-The Worker implements no markdown renderer and never reads the `docs/` directory of this repository. The public technical documentation is a fixed set of routes inside the React SPA, whitelisted in `apps/server/public-docs.ts`.
+Nimbus Site renders public technical documentation from the explicit public docs registry and the
+locale-neutral `apps/site/src/content-source/docs/documents.json` AST. The build generates 40
+documents plus one documentation hub for each of 8 locales, for 328 canonical pages. English uses
+`/` and `/{slug}`. Other locales use `/{locale-segment}` and
+`/{locale-segment}/{slug}`. It also produces Pagefind search data, canonical
+and hreflang metadata, Open Graph metadata, JSON-LD, sitemap entries, `.md` and `.mdx` twins, section
+LLM files, root `llms.txt`, and `llms-full.txt`.
 
-Any `/docs/*` subpath that is not registered returns 404 at the HTTP layer. It does not enter the SPA and does not redirect to `/sign-in`. This is deliberate: it prevents repository-internal documents such as `docs/design/**`, `docs/deployment.md` and `docs/api-contracts.md` from being rendered as public pages just because a path name happens to match. Adding a public documentation page requires a matching change in `apps/server/public-docs.ts`.
+Global `/llms.txt` and `/llms-full.txt` each cover all 328 pages. English locale agent files are
+`/en/llms.txt` and `/en/llms-full.txt`; the other 7 locales use their locale segment. Every locale
+index and corpus covers 41 pages.
+
+Registered legacy `/docs` paths return a single 308 to the root canonical tree, with query
+parameters preserved. The same applies to old `.md`, `.mdx`, and English `llms*.txt` paths. Any
+unregistered `/docs/*` subpath returns the Nimbus 404. It does not enter Core, the Hosted UI SPA, or
+`/sign-in`. Repository-internal design, deployment, and API contract documents therefore remain
+private even when a requested URL resembles a repository path. Adding a public documentation page
+requires a matching registry entry and generated content for every supported locale.
+
+The English SCIM document is the route exception: Site declares only exact `/scim`, `/scim/`,
+`/scim/index.md`, and `/scim/index.mdx` routes. Never declare `<your-domain>/scim/*` for Site,
+because `/scim/v2/*` is a Core protocol surface.
+
+The installed Nimbus Registry features are `pagefind-search`, `ai-native`, `404-page`, `mermaid`,
+and `lint-prose-textlint`. Registry recipes such as `changelog`, `new-version`, and `new-collection`
+are not enabled merely because the upstream CLI can print them.
+
+Mermaid source is authored only as a CodeBlock in `documents.json` with `kind: "code"` and
+`language: "mermaid"`. The generator carries the fence into every locale and both Markdown twins;
+the Site turns it into a theme-aware browser diagram. Generated MDX is never edited directly.
+
+The prose gate regenerates content and runs textlint only on the generated English docs subtree.
+Translated content continues through the Lingui extract, compile, and audit workflow instead of
+English prose rules.
+
+`apps/site/public/_headers` assigns explicit UTF-8 media types to agent-readable static output:
+
+```text
+/*.md
+  Content-Type: text/markdown; charset=utf-8
+
+/*.mdx
+  Content-Type: text/markdown; charset=utf-8
+
+/*.txt
+  Content-Type: text/plain; charset=utf-8
+```
+
+Before publishing a Site or docs change, run:
+
+```bash
+pnpm --filter @xid-kit/site check
+pnpm --filter @xid-kit/site test
+pnpm --filter @xid-kit/site build
+```
 
 ### Platform management routes
 
 - Main entry `/console/platform`
 - Sub-pages `/console/platform/organizations`, `/console/platform/users`, `/console/platform/events`, `/console/platform/flags`, `/console/platform/billing`
 
-Platform management and tenant management are served by the same React console. Authorization is decided by the cookie session plus `ManagerAssignment(instance_manager)`. There is no separate admin SPA, no separate admin API and no separate admin RBAC.
+Platform management and tenant management are served by the same React Console Worker and the same
+Console product. Authorization stays in Core and is decided by the cookie session plus
+`ManagerAssignment(instance_manager)`. There is no second platform-admin SPA, no separate admin API,
+no separate admin tenant, and no separate admin RBAC.
 
 ## Cloudflare bindings
 
@@ -246,32 +326,213 @@ pnpm build
 
 `smoke:l2-l3` uses its own temporary Miniflare state; it neither reads nor modifies your `apps/server/.dev.vars`.
 
-### Automated deployment (recommended)
+### Automated build and coordinated release
 
-The production deployment path is Cloudflare Workers Builds with connected Git: link your fork to the Worker in the Cloudflare Dashboard, and a push deploys.
+Connect three Cloudflare Workers Builds projects to the same repository. A build may upload an
+immutable version, but independent projects MUST NOT promote themselves or mutate production routes
+on every push. One release job coordinates all three artifacts and records the result.
 
 Dashboard -> Worker -> Settings -> Build configuration:
 
-| Setting                              | Recommended value                                                                                         | Behaviour                                                                                                           |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Root directory                       | `apps/server`                                                                                             | The Worker project root inside the monorepo                                                                         |
-| Build command                        | `node scripts/assert-migration-compatibility.mjs && pnpm run build`                                       | Verifies migrations are additive, then builds the SPA and Worker bundle                                             |
-| Git branch (production)              | Your production branch                                                                                    | Only pushes to this branch are promoted to production traffic                                                       |
-| Deploy command                       | `pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.jsonc && pnpm exec wrangler deploy` | Applies the production D1 migration, then Workers Builds publishes the Worker natively                              |
-| Non-production branch deploy command | `pnpm exec wrangler versions upload`                                                                      | Uploads a preview version only. Does **not** shift production traffic and does **not** run production D1 migrations |
+| Worker      | Root directory | Build command                                                       | Upload behavior                                                                              |
+| ----------- | -------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Core        | `apps/server`  | `node scripts/assert-migration-compatibility.mjs && pnpm run build` | Upload an immutable version; run remote D1 migrations only during an approved Core promotion |
+| Console     | `apps/console` | `pnpm run build`                                                    | Upload an immutable version without attaching production routes                              |
+| Nimbus Site | `apps/site`    | `pnpm run build`                                                    | Upload an immutable version without attaching production routes                              |
 
-The Workers Builds deploy command **cannot** live in `wrangler.jsonc`; it has to be configured in the Dashboard.
+Feature branches upload preview versions only. They do not run production D1 migrations, shift
+production traffic, or change routes.
 
-After a push to the production branch, the D1 migration and the Worker deployment complete inside the same deploy step. The build command rejects non-additive SQL first; the deploy command then runs `wrangler d1 migrations apply DB --remote` followed by `wrangler deploy`. Migrations that have already been applied are skipped.
+The Core production trigger is a hard pre-merge gate. Before a commit that removes the old UI
+reaches `main`, its deploy command must be upload-only: `pnpm exec wrangler versions upload`.
+Disable the trigger instead if it cannot be changed in time. A Core trigger that runs
+`wrangler deploy`, `wrangler versions deploy`, `wrangler triggers deploy`, or remote D1 migrations
+can publish the tight Core before the frontend routes exist.
+The gate resolves Worker `xid` through `GET /workers/scripts`, then reads
+`GET /builds/workers/{tag}/triggers`. An empty trigger list fails. At least one `main` trigger must
+be rooted at `apps/server` and upload-only, and no other `main` trigger may promote, change routes,
+or apply D1 migrations.
 
-A push to a feature branch only performs a preview upload. It is not promoted to production traffic, and it runs no migration against the production D1.
+Production promotion runs only from `.github/workflows/release-web.yml`. Dispatch it from `main`
+with a unique release ID, the reviewed release SHA, the fixed compatibility Core SHA, and the exact
+confirmation `DEPLOY_XID_WEB`. The `production` GitHub environment should require a reviewer.
+`production-rollback` MUST NOT require an approval because it has to run after the source workflow
+is cancelled or times out.
+`CLOUDFLARE_API_TOKEN` needs Workers Scripts Edit, Workers Routes Edit, Zone DNS Read, and Workers
+Builds Read. `CLOUDFLARE_ACCOUNT_ID` is a repository variable. Both workflows need
+`deployments: write` for the durable GitHub Deployment checkpoint.
+
+### Staged production rollout
+
+The required release order is:
+
+1. Create and verify the proxied `www` DNS record. Record the preflight result in the release
+   manifest. Resolve the zone ID, record the exact expected Console and Site route patterns, and
+   require `xid`, `xid-console`, and `xid-site` to have an active deployment before mutation.
+   Record every active version and percentage, require that Console and Site own no live routes,
+   and verify the old Core fallback on apex, Console, and `www`.
+2. Build and deploy a compatibility Core version that still contains the old public UI and old
+   Console fallback. Record its immutable Cloudflare version ID.
+3. Build and upload the Console version without production routes. Verify its preview, artifact
+   contents, security headers, apex Console navigation, tenant-host Console navigation, account
+   redirects, and same-origin API boundary. Deploy that immutable version at 100 percent before
+   attaching routes. A first `versions upload` creates the Worker but does not create its production
+   deployment.
+4. Build and upload the Nimbus Site version without production routes. Verify its preview, all 8
+   locales, public docs, Pagefind, Markdown twins and their media types, LLM outputs, JSON-LD,
+   Mermaid rendering and expansion, assets, 404 behavior, and the `www` redirect. Deploy that
+   immutable version at 100 percent before attaching routes.
+5. Activate the Console routes, then the Site routes. Run edge smoke checks after each route group.
+   Confirm that protocol, Hosted Auth, account, and API paths still resolve to Core.
+6. Build and deploy the tight Core version that removes the old public UI and old Console fallback.
+   Do this only after the new routes have passed edge smoke.
+
+Before the old UI is removed, build the compatibility Core artifact from a fixed git SHA in an
+isolated checkout. The artifact must include the Worker bundle, its static assets, Wrangler
+configuration, and build metadata. The only allowed compatibility SHA is
+`995f65c6aae0bdc77e8a0fdbf0222f51143ce2d2`; it must be an ancestor of both `origin/main` and the
+reviewed release SHA. The detached install and build receive a minimal environment without
+`CLOUDFLARE_API_TOKEN` or `GITHUB_TOKEN`.
+
+The release manifest records, for compatibility Core, Console, Nimbus Site, and tight Core:
+
+- proxied `www` DNS resolution preflight
+- Worker name and git SHA
+- lockfile SHA-256 and deployable artifact SHA-256
+- immutable Cloudflare version ID
+- preview command and result
+- route activation command and result
+- rollback command and result
+
+The manifest contains no secret. A release is incomplete if any artifact digest or version ID is
+missing.
+
+Initialize the ignored release workspace only after the compatibility Core commit and lockfile are
+fixed:
+
+```bash
+node scripts/web-release-manifest.mjs init \
+  --release-id xid-web-YYYYMMDD-NNN \
+  --release-git-sha <release-git-sha> \
+  --release-lockfile-sha256 <release-lockfile-sha256> \
+  --compat-core-git-sha <compat-core-git-sha> \
+  --compat-core-lockfile-sha256 <compat-core-lockfile-sha256>
+node scripts/build-core-compat-artifact.mjs \
+  --git-sha <compat-core-git-sha> \
+  --print-plan
+node scripts/web-release-manifest.mjs validate \
+  .xid/releases/xid-web-YYYYMMDD-NNN/manifest.json
+```
+
+Remove `--print-plan` only in the approved release job to build the local compatibility artifact.
+That command uses a detached temporary worktree, runs a frozen install and Core build, runs
+`wrangler versions upload --dry-run` to produce the deployable bundle, and writes the archive plus
+SHA-256 metadata under `.xid/releases/`. It does not upload a Worker. Production upload passes that
+bundle with `--no-bundle` and rejects any SHA-256 difference in the complete module graph, including
+the entry and every additional ESM module, between the dry-run bundle and upload outdir. The
+generated upload config sets `no_bundle=true`, `find_additional_modules=true`,
+`base_dir=./worker-bundle`, and an `ESModule` rule for `**/*.js` and `**/*.mjs`, so Wrangler uploads
+the archived additional modules instead of only checking that they exist.
+
+The coordinated job uses these Cloudflare operations in order:
+
+```bash
+pnpm exec wrangler versions upload --config apps/server/wrangler.jsonc
+pnpm exec wrangler versions deploy <compat-core-version-id>@100% --config apps/server/wrangler.jsonc --yes
+pnpm exec wrangler versions upload --config apps/console/wrangler.jsonc
+pnpm exec wrangler versions deploy <console-version-id>@100% --config apps/console/wrangler.jsonc --yes
+pnpm exec wrangler versions upload --config apps/site/wrangler.jsonc
+pnpm exec wrangler versions deploy <site-version-id>@100% --config apps/site/wrangler.jsonc --yes
+pnpm exec wrangler triggers deploy --config apps/console/wrangler.jsonc
+pnpm exec wrangler triggers deploy --config apps/site/wrangler.jsonc
+pnpm exec wrangler versions upload --config apps/server/wrangler.jsonc
+pnpm exec wrangler versions deploy <tight-core-version-id>@100% --config apps/server/wrangler.jsonc --yes
+```
+
+All three Wrangler configurations set `preview_urls: true`. `versions upload` has no JSON flag.
+The release runner sets `WRANGLER_OUTPUT_FILE_PATH`, reads the `version-upload` NDJSON entry, and
+records `version_id`, `preview_url`, and `preview_alias_url`. It then independently confirms the
+same ID and tag through `wrangler versions list --json`; it never scrapes human console output.
+Console and Site require both preview URLs. A Core version may omit them because Durable Object
+bindings can prevent a version preview. In that case the runner verifies the exact Worker bundle
+and static asset instead; after promotion it always runs the complete production health,
+discovery, JWKS, and SCIM edge checks.
+
+Immediately before the first production traffic mutation, the runner re-reads all three active
+deployments and the frontend route baseline. Any drift fails closed. It then creates a GitHub
+Deployment whose immutable payload contains the source workflow run ID and attempt, repository ID,
+release identity, exact pre-release Core version split, zone ID, and expected route patterns.
+Deployment statuses persist `PREPARED`, each mutation intent, `SUCCESS`, `ROLLBACK_INTENT`, and
+`ROLLED_BACK`. An intent status must be durable before the corresponding Cloudflare mutation
+starts. Recovery validates each phase against its required GitHub state and always re-reads the
+remote checkpoint instead of trusting the local manifest phase.
+
+For a full rollback, deploy the exact pre-release Core version split from that checkpoint first.
+Do not use the newly built compatibility version as the rollback target. Then list
+`GET /zones/{zone_id}/workers/routes`, match only the recorded patterns owned by `xid-console` or
+`xid-site`, and delete each resolved route ID through the Cloudflare Zone Workers Routes API.
+Delete Console routes first, Site non-`www` routes second, and Site `www` routes last. Re-list and
+run the stage smoke after every group. An unexpected pattern fails closed before deletion. The
+runner verifies that the restored Core deployment exactly matches the recorded immutable baseline
+before deleting a route. If a staged smoke fails, it restores every route deleted by that stage
+before returning failure. Stage smoke derives the expected `www` owner from the live route
+inventory, so recovery remains idempotent when an intent was recorded before its mutation ran.
+Empty-route Wrangler configurations are not a rollback mechanism because `wrangler triggers deploy`
+does not remove existing zone routes. Use `wrangler rollback <version-id>` only for a Worker code
+rollback; it does not change Worker Routes. Version command behavior is pinned to Wrangler 4.114.0
+and follows
+`https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/`.
+
+Worker code versions and zone routes are separate Cloudflare state. Route activation happens after
+the Console and Site previews pass and is recorded independently from version upload or deployment.
+`wrangler rollback` changes Worker code only. It does not restore Worker Routes or bindings.
+
+The manual workflow preserves `.xid/releases/<release-id>` as a GitHub Actions audit artifact, but
+the artifact is not the cancellation checkpoint. Release execution has its own bounded timeout. The
+independent
+`.github/workflows/rollback-web.yml` workflow listens for the completed `Coordinated web release`
+run. It runs only when a same-repository `workflow_dispatch` on `main` does not succeed. It checks
+out the current trusted default branch, verifies that the source run `head_sha` is its ancestor,
+passes the source run ID and release SHA to `recover-rollback`, and never executes code from the
+failed source checkout. It does not read dispatch inputs from the `workflow_run` event. The recovery
+command finds the GitHub Deployment by source run ID, source run attempt, and release SHA. No
+checkpoint means no production intent and therefore a recorded `SKIP`. `PREPARED` also skips
+mutation. Any intent restores the exact baseline. `SUCCESS` keeps the release and runs strict
+production smoke. `ROLLED_BACK` is idempotent and only re-runs the baseline smoke.
+
+Release and rollback workflows share the fixed `xid-web-production` concurrency group. A new
+release rejects the latest checkpoint unless it is `SUCCESS` or `ROLLED_BACK`. Workflow run attempt
+is part of the checkpoint identity and every artifact name, so rerunning a GitHub Actions run cannot
+reuse an older checkpoint or collide with immutable artifacts. The release fetches `origin/main`
+again immediately before execution and again before the first production mutation; both checks
+require `HEAD`, the reviewed release SHA, and `origin/main` to be identical.
+
+Rollback runs in the separate `production-rollback` environment without an approval gate. It must
+restore the pre-release Core successfully before changing any frontend route. Only then may it
+remove Console routes, remove Site public routes while retaining `www`, and finally remove `www`.
+The staged edge gates cover health, discovery, JWKS, SCIM, root fallback, Console fallback, the Site
+owned `www` redirect before its removal, and the Core-owned `www` fallback after removal. The
+workflow preserves `.xid/releases` as separate recovery evidence even when rollback fails.
+
+### Rollback
+
+Rollback order is:
+
+1. Deploy the exact pre-release Core version split recorded before any mutation.
+2. Remove Nimbus Site and Console production routes. Remove `www` last so it cannot fall into the
+   Core tenant wildcard while other frontend routes are still changing.
+3. Verify the apex, protocol paths, Hosted Auth, account, Console fallback, tenant hosts, and `www`.
+
+Do not treat `wrangler rollback` as a complete rollback. The independent rollback workflow must
+execute and record the separate route rollback. The release workflow does not contain a rollback
+job.
 
 ### Do not deploy by hand
 
-Production releases go through Workers Builds and nowhere else. **Do not run `wrangler deploy` or
-`wrangler versions upload` locally.** A local deployment bypasses the migration compatibility check in the build command and every gate that runs before `pnpm build`, and it produces a version that corresponds to no commit, so afterwards nobody can reconstruct what was deployed.
-
-To release, push to the production branch. To re-run the deployment of an existing commit, retry that build under Worker -> Builds in the Cloudflare Dashboard instead of working around it locally.
+Production releases go through Workers Builds and the coordinated release job. **Do not run
+`wrangler deploy`, `wrangler versions upload`, or production route mutations locally.** A local
+deployment bypasses the repository gates and release manifest, and it produces state that cannot be
+reconstructed from a reviewed commit.
 
 ### CI
 
@@ -299,13 +560,42 @@ curl -fsS https://<your-domain>/v1/health
 curl -fsS https://<your-domain>/.well-known/openid-configuration
 curl -fsS https://<your-domain>/jwks
 curl -fsS https://<your-domain>/auth/config
+curl -fsS https://<your-domain>/
+curl -fsSI https://<your-domain>/getting-started/index.md
+curl -fsSI https://<your-domain>/getting-started/index.mdx
+curl -fsSI https://<your-domain>/llms.txt
+curl -fsSI https://<your-domain>/llms-full.txt
+curl -fsSI https://<your-domain>/en/llms.txt
+curl -fsSI https://<your-domain>/en/llms-full.txt
+curl -fsSI https://<your-domain>/docs/getting-started
+curl -fsSI https://<your-domain>/scim/v2/ServiceProviderConfig
+curl -fsSI https://<your-domain>/console
+curl -fsSI https://<tenant>.<your-domain>/console
+curl -fsSI 'https://www.<your-domain>/docs?locale=en'
 ```
 
-The repository also ships a set of `pnpm smoke:production*` scripts. Read them as maintainer tooling for the hosted instance rather than as a self-hosting verification step: `productionBaseUrl()` in `tests/production/harness/production-auth.mjs` rejects `XID_PRODUCTION_BASE_URL` outright, and `apps/server/scripts/production-target.mjs` pins the Cloudflare account id, the Worker name and the wrangler config that every D1 probe runs against. Running them against your own deployment means changing those pins to your own account first, then pointing `XID_PRODUCTION_TENANT_ID` at your default organization and `XID_PRODUCTION_EMAIL` at a mailbox you control.
+The Markdown and MDX responses must use `text/markdown; charset=utf-8`; LLM responses must use
+`text/plain; charset=utf-8`. The legacy docs response must be a 308 to
+`https://<your-domain>/getting-started`, while the SCIM protocol response must still come from
+Core. Open `https://<your-domain>/getting-started` in a browser and
+confirm the authorization Mermaid diagram renders, re-renders after a light or dark theme change,
+and opens and closes its full-screen dialog.
 
-`pnpm smoke:production` covers health, public docs, internal docs 404, the Hosted Auth entry, the default auth config, the default profileFields, the root resolver, the default organization bootstrap shape, the default authentication policy gate, the Magic Link verify route gate, the forgot-password disabled gate, root discovery and JWKS.
+The repository also ships a set of `pnpm smoke:production*` scripts. Read them as maintainer tooling
+for the hosted instance rather than as a self-hosting verification step. The production harness pins
+the hosted Cloudflare targets, while D1 probes target Core. Running them against your own deployment
+means changing those pins to your own three Workers first, then pointing
+`XID_PRODUCTION_TENANT_ID` at your default organization and `XID_PRODUCTION_EMAIL` at a mailbox you
+control.
 
-It cannot prove that a Magic Link email click, the Email OTP cookie flow, active organization handling, console routing, real provider delivery or a real cookie session work. Those need the per-feature smokes below.
+`pnpm smoke:production` covers Core health, Nimbus public docs, internal docs 404, the Hosted Auth
+entry, the default auth config, the default profileFields, the root resolver, the default
+organization bootstrap shape, the default authentication policy gate, the Magic Link verify route
+gate, the forgot-password disabled gate, root discovery and JWKS.
+
+It cannot prove that a Magic Link email click, the Email OTP cookie flow, active organization
+handling, apex and tenant-host Console routing, real provider delivery, or a real cookie session
+work. Those need the per-feature smokes below.
 
 ### Per-feature smokes
 
@@ -339,6 +629,8 @@ After touching the console, the auth context or any active-organization code, th
 - Call `POST /v1/sessions/active-organization` with the same cookie.
 - Call `/v1/me` again immediately with the same cookie and confirm the active org changed.
 - Open `/console/organizations`, `/console/users` and `/console/settings` in a browser and confirm there is no dead state when no active organization is set.
+- Repeat a nested Console navigation on the apex and tenant host, and confirm both are served by the
+  Console Worker while `/v1/me` stays on the same host and reaches Core.
 - After clearing the active org, an Instance Manager can still reach `/console/platform/*`, and an Org Admin lands on the organization switcher or on a usable org view.
 
 ## WhatsApp and SMS OTP providers
@@ -402,6 +694,7 @@ email OTP only):
 
    Complete DKIM, SPF and DMARC as the Cloudflare dashboard instructs. After onboarding you may send
    from any local-part on that domain (`anything@<your-domain>`).
+
 3. Make the Worker send from that domain. Today the code default is still `no-reply@xid.dev`; either
    patch `DEFAULT_FROM` in `apps/server/worker/queues/email.ts` to `{ email: 'no-reply@<your-domain>', name: 'XID' }`
    before deploy, or ensure every enqueued message carries an explicit `payload.from` with an address
@@ -441,7 +734,10 @@ An R2 template JSON must carry a complete `subject`, `html` and `text`:
 
 ## Brand assets
 
-The runtime public assets live in `apps/server/public/brand/` and `apps/server/public/icons/`, the delivery directory is `assets/brand/`, and the source image is `assets/xid-logo-source.png`. When you change the logo, re-export from the source image and replace all three outputs.
+Public documentation brand and icon assets belong to Nimbus Site. Hosted Auth and Console consume the
+shared brand contract but do not become alternate owners of public asset routes. When you change the
+logo, regenerate the Nimbus public outputs and the shared UI assets from the same source image, then
+verify both light and dark rendering in Site, Hosted Auth, and Console.
 
 ## Runtime observation
 

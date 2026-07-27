@@ -5,8 +5,6 @@ import type { ReactNode } from 'react'
 import { useLocation } from '../lib/router'
 import { useLocale } from '../lib/locale-context'
 import { resolveAnalyticsPageGroup, trackPageView } from '../lib/google-analytics'
-import { trackDocsEngagement } from '../lib/google-analytics-funnel'
-import { resolvePublicDocSlug } from '../routes/docs/registry'
 
 export function RouteAnalytics(): ReactNode {
   const { pathname } = useLocation()
@@ -21,11 +19,6 @@ export function RouteAnalytics(): ReactNode {
       contentGroup: resolveAnalyticsPageGroup(pathname),
       locale,
     })
-
-    if (pathname === '/docs' || pathname.startsWith('/docs/')) {
-      const slug = resolvePublicDocSlug(pathname)
-      if (slug) trackDocsEngagement(slug)
-    }
   }, [pathname, locale])
 
   return null

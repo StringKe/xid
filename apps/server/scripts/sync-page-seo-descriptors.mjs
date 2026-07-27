@@ -57,21 +57,6 @@ for (const block of po.split(/\n\n+/)) {
 const source = readFileSync(SOURCE, 'utf8')
 const exportMatches = [...source.matchAll(new RegExp('export const (\\w+) = msg`([^`]+)`', 'g'))]
 
-function extractSlugMsgMap(mapName) {
-  const marker = `const ${mapName}`
-  const start = source.indexOf(marker)
-  if (start < 0) return []
-  const open = source.indexOf('{', start)
-  const close = source.indexOf('\n}\n', open)
-  const block = source.slice(open, close + 1)
-  return [...block.matchAll(/(?:'([^']+)'|([A-Za-z0-9_-]+)): msg`([^`]+)`/gu)].map(
-    ([, quoted, bare, text]) => [quoted ?? bare, text],
-  )
-}
-
-const docTitleMatches = extractSlugMsgMap('DOC_TITLE_BY_SLUG')
-const docDescriptionMatches = extractSlugMsgMap('DOC_DESCRIPTION_BY_SLUG')
-
 const lines = [
   '// 自动生成:node apps/server/scripts/sync-page-seo-descriptors.mjs',
   '// 页面级 SEO MessageDescriptor(无 macro,供测试与 SSR 直引)。源文案在 page-seo-messages.ts。',
@@ -89,24 +74,6 @@ for (const [, name, text] of exportMatches) {
   if (!id) throw new Error(`missing catalog id for export ${name}: ${text}`)
   lines.push(`export const ${name} = seoDescriptor('${id}', \`${escapeTs(text)}\`)`)
 }
-
-function appendSlugMapLines(mapName, matches, exportName) {
-  lines.push('')
-  lines.push(`const ${mapName}: Record<string, MessageDescriptor> = {`)
-  for (const [slug, text] of matches) {
-    const id = idByText.get(text)
-    if (!id) throw new Error(`missing catalog id for slug ${slug}: ${text}`)
-    lines.push(`  '${slug}': seoDescriptor('${id}', \`${escapeTs(text)}\`),`)
-  }
-  lines.push('}')
-  lines.push('')
-  lines.push(`export function ${exportName}(slug: string): MessageDescriptor | null {`)
-  lines.push(`  return ${mapName}[slug] ?? null`)
-  lines.push('}')
-}
-
-appendSlugMapLines('DOC_DESCRIPTION_BY_SLUG', docDescriptionMatches, 'docSeoDescriptionForSlug')
-appendSlugMapLines('DOC_TITLE_BY_SLUG', docTitleMatches, 'docSeoTitleForSlug')
 lines.push('')
 
 writeFileSync(OUTPUT, `${lines.join('\n')}\n`)

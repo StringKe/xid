@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { llmsOk } from './public-content-checks.mjs'
 
-const llmsPath = new URL('../../../apps/server/public/llms.txt', import.meta.url)
+const llmsPath = new URL('../../../apps/site/dist/llms.txt', import.meta.url)
 
 describe('public content check properties', () => {
   it('rejects every internal design target', async () => {

@@ -663,6 +663,7 @@ function assertNoConsoleErrors(page, name) {
 
 async function verifyBrowserPasswordReset(page, token) {
   await page.navigate(`/reset-password?locale=en&token=${encodeURIComponent(token)}`)
+  await page.evaluate(`localStorage.setItem('xid.locale', 'en')`)
   await page.installFetchLog()
   await page.waitFor(
     () =>
@@ -703,7 +704,22 @@ async function verifyBrowserPasswordReset(page, token) {
       { cause: error },
     )
   }
-  await page.waitFor(() => document.body.innerText.includes('Sign out'), 15_000, 'signed in UI')
+  try {
+    await page.waitFor(() => document.body.innerText.includes('Sign out'), 15_000, 'signed in UI')
+  } catch (error) {
+    const snapshot = await page.snapshot()
+    const me = await page.browserMe()
+    const fetchLog = await page.fetchLog()
+    throw new Error(
+      `signed in UI timed out: ${JSON.stringify({
+        snapshot,
+        me,
+        fetchLog,
+        events: page.events.slice(-20),
+      }).slice(0, 5000)}`,
+      { cause: error },
+    )
+  }
 
   const cookie = await page.sessionCookieHeader()
   const me = await page.browserMe()

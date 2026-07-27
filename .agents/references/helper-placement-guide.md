@@ -21,6 +21,10 @@ signing, hashing, WebAuthn, or SAML.
 - Inside a package, helpers are flat topic-named modules directly under `packages/<pkg>/src/`, not a `utils/` subdirectory. Existing shape: `packages/protocol/src/pkce.ts`, `packages/protocol/src/refresh.ts`, `packages/crypto/src/base64url.ts`, `packages/crypto/src/envelope.ts`. Name the module after the concept, not after "utils".
 - Worker-wide shared helpers live in `apps/server/worker/lib/` and are re-exported through `apps/server/worker/lib/index.ts` (session, cookies, locale, errors, validation, TTL constants).
 - Cross-package shared contracts go in `@xid-kit/types` (`packages/types/src/`): `XidError`, `XidErrorCode`, `Result`, `TenantContext`, claims, env and signing types. There is **no** `@xid-kit/utils` package and none should be created without a genuine two-or-more-package need.
+- Reusable browser product UI shared by Core Hosted UI and Console goes in private
+  `@xid-kit/web-ui` (`packages/web-ui/src/`): UI primitives, StyleX tokens, theme, locale, session,
+  API client, query helpers, display names and the router adapter. It imports no Worker bindings
+  and is never published.
 - Never push business logic into a helper module.
 
 ## Cloudflare Bindings (MUST)

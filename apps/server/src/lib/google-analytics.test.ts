@@ -39,15 +39,13 @@ describe('google analytics helpers', () => {
   })
 
   it('maps routes to analytics content groups', () => {
-    expect(resolveAnalyticsPageGroup('/')).toBe('marketing')
-    expect(resolveAnalyticsPageGroup('/docs/oidc')).toBe('docs')
     expect(resolveAnalyticsPageGroup('/sign-in')).toBe('hosted_auth')
-    expect(resolveAnalyticsPageGroup('/console/org/members')).toBe('console')
+    expect(resolveAnalyticsPageGroup('/account/security')).toBe('account')
+    expect(resolveAnalyticsPageGroup('/unknown')).toBe('other')
   })
 
-  it('builds locale-aware canonical URLs', () => {
-    expect(buildPublicCanonicalUrl('/docs', 'zh-Hans')).toBe('https://xid.dev/docs?locale=zh-Hans')
-    expect(buildPublicCanonicalUrl('/')).toBe('https://xid.dev/')
+  it('builds Core canonical URLs', () => {
+    expect(buildPublicCanonicalUrl('/sign-in')).toBe('https://xid.dev/sign-in')
   })
 
   it('queues page_view events on dataLayer when gtag is absent', () => {
@@ -55,13 +53,13 @@ describe('google analytics helpers', () => {
       value: {
         hostname: 'xid.dev',
         origin: 'https://xid.dev',
-        pathname: '/docs',
+        pathname: '/sign-in',
         search: '',
       },
       configurable: true,
     })
 
-    trackPageView({ pagePath: '/docs', pageTitle: 'Developer docs | XID', locale: 'en' })
+    trackPageView({ pagePath: '/sign-in', pageTitle: 'Sign in | XID', locale: 'en' })
 
     const layer = (globalThis as { dataLayer?: unknown[] }).dataLayer ?? []
     expect(layer).toEqual([
@@ -70,10 +68,10 @@ describe('google analytics helpers', () => {
         'page_view',
         {
           send_to: 'G-M7Q66DQ8KX',
-          page_path: '/docs',
-          page_title: 'Developer docs | XID',
-          page_location: 'https://xid.dev/docs',
-          content_group: 'docs',
+          page_path: '/sign-in',
+          page_title: 'Sign in | XID',
+          page_location: 'https://xid.dev/sign-in',
+          content_group: 'hosted_auth',
           language: 'en',
         },
       ],
@@ -90,10 +88,10 @@ describe('google analytics helpers', () => {
       configurable: true,
     })
 
-    trackEvent('cta_click', { cta_id: 'hero_read_docs' })
+    trackEvent('auth_method_selected', { method: 'passkey' })
 
     expect(calls).toEqual([
-      ['event', 'cta_click', { send_to: 'G-M7Q66DQ8KX', cta_id: 'hero_read_docs' }],
+      ['event', 'auth_method_selected', { send_to: 'G-M7Q66DQ8KX', method: 'passkey' }],
     ])
   })
 })

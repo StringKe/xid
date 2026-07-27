@@ -11,12 +11,16 @@ This is the authoritative directory map for the XID repo, moved out of the root 
 new file, decide which package owns a concern, tell a kernel library apart from a shipped SDK, or
 write the `applyTo` globs of a rule -- the glob paths in this file are the authoritative ones.
 
-## Package split: kernel libraries vs embeddable SDKs
+## Package split: kernel libraries, private application UI, and embeddable SDKs
 
-`@xid-kit/*` packages split into two groups:
+`@xid-kit/*` packages split into three groups:
 
-- **Kernel libraries** used inside the server Worker: `protocol`, `webauthn`, `crypto`, `saml`, `db`,
-  `i18n`, `types`.
+- **Kernel and cross-runtime libraries**: `protocol`, `webauthn`, `crypto`, `saml`, `db`, `i18n`,
+  `types`. Protocol, security, and persistence kernels run inside the Core Worker; `i18n` and
+  `types` are also consumed by the Site and Console build.
+- **Private application UI**: `web-ui`, shared by the Core Hosted UI and Console. It is not
+  published, imports no Worker bindings, and owns reusable product UI, StyleX tokens, locale,
+  session, API-client, query, display-name, and navigation adapter code.
 - **Embeddable SDKs** shipped to customers (optional for running XID itself): `core`, `backend`, and
   the framework packages listed below.
 
@@ -24,18 +28,26 @@ write the `applyTo` globs of a rule -- the glob paths in this file are the autho
 
 ```
 apps/
-  server/        The only Worker
+  site/          Nimbus 0.8.2 on Astro 7, static output only
+    src/         Apex docs hub, 8-locale public docs collections, SEO, Pagefind, OG and LLM output
+    worker/      ASSETS-only Worker entry plus canonical www -> apex 308
+    astro.config.ts   Nimbus + lingui macro integration; no React islands or Cloudflare SSR adapter
+    wrangler.jsonc    Exact public and locale routes only; run_worker_first=true
+  console/       React 19 static management SPA
+    src/         Unified org + platform Console, backed by the same Core APIs and ManagerAssignment
+    worker/      ASSETS-only Console fallback, account redirects, www defense and security headers
+    vite.config.ts   standard Vite, base=/console/, output under dist/console
+    wrangler.jsonc   Exact apex + tenant /console routes; run_worker_first=true
+  server/        The only identity Core Worker
     worker/      Hono: OIDC/OAuth, JWKS, SCIM, SAML (SP and IdP), LDAP / WS-Fed / SWA legacy SSO,
                  Management API v1, platform console API, queue consumers, crons, Durable Objects.
-                 Non-API paths fall back to SPA assets (ASSETS binding).
-    src/         React SPA: sign-in / sign-up / consent / MFA / account, org + platform console,
-                 landing page and public docs
+                 It is the only owner of D1, KV, R2, DO, Queue, Email, Analytics and secrets.
+    src/         React SPA: sign-in / sign-up / consent / MFA / account and Core error UI only
     vite.config.ts   standard Vite: stylex + @vitejs/plugin-react + @cloudflare/vite-plugin +
                      lingui + babel(linguiTransformerBabelPreset)
-    wrangler.jsonc   main=worker/index.ts, run_worker_first=true,
-                     assets.not_found_handling=single-page-application
+    wrangler.jsonc   Core Custom Domain + tenant fallback; Hosted Auth/account ASSETS fallback
 packages/
-  Kernel libraries (imported by apps/server):
+  Kernel and cross-runtime libraries:
     protocol/    OIDC/OAuth/JWT/PKCE/refresh-rotation protocol kernel (in-house)
     webauthn/    WebAuthn verification orchestration (the four checks)
     crypto/      Envelope encryption + instance signing keys (Web Crypto wrapper)
@@ -43,7 +55,10 @@ packages/
     db/          Drizzle schema + tenant-scoped query layer
     i18n/        lingui runtime instance + compiled locale catalogs (lingui.config.ts is at the
                  repo root; catalogs live in packages/i18n/locales)
-    types/       Shared contracts: TenantContext, JWT claims, signing keys, WebAuthn, SAML
+    types/       Shared contracts: TenantContext, route ownership, JWT claims, signing keys,
+                 WebAuthn, SAML
+  Private application package:
+    web-ui/      Shared Core/Console product UI and browser infrastructure; private, no bindings
   Embeddable SDKs:
     core/        Browser core (session store, token cache, Management API helpers)
     backend/     Server core for Web-standard runtimes (Workers/Node/Bun/Deno), networkless JWT

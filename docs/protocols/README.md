@@ -2,7 +2,7 @@
 
 This directory answers one question: for every protocol capability, how far does XID actually support it, against which standard, which code, and which test. The audience is integrators, security reviewers, and contributors who need to check protocol behavior.
 
-Every capability is bound to a standards source, a support level, a code path, a test path, and an evidence level, so that the word "supported" never stays ambiguous. The public HTTP `/docs/*` site does not render this directory; it is written for people reading the source.
+Every capability is bound to a standards source, a support level, a code path, a test path, and an evidence level, so that the word "supported" never stays ambiguous. The public HTTP root documentation site does not render this directory; it is written for people reading the source.
 
 ## Support Levels
 

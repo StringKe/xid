@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="origin-trial"
+      content="AwQJO+GulqA9rUZ4ndXF2fkvirbACtMu7uobk+QrJwUr/AyDVTJhlhSArLiiBlfYREF4J4lOdo7CFCcsV5MyYA0AAABueyJvcmlnaW4iOiJodHRwczovL3hpZC5kZXY6NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTc5NDg3MzYwMCwiaXNTdWJkb21haW4iOnRydWUsImlzVGhpcmRQYXJ0eSI6dHJ1ZX0="
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#111318" />
+    <title>XID</title>
+    <style>
+      html {
+        color-scheme: light;
+        background-color: var(--xid-bg, #fafafc);
+      }
+      html[data-theme='dark'] {
+        color-scheme: dark;
+        background-color: var(--xid-bg, #111318);
+      }
+    </style>
+    <script>
+      ;(function () {
+        var dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        var meta = document.querySelector('meta[name="theme-color"]')
+        if (meta) meta.setAttribute('content', dark ? '#111318' : '#fafafc')
+      })()
+    </script>
+    <script>
+      ;(function () {
+        var host = location.hostname
+        if (host === 'localhost' || host === '127.0.0.1') return
+        if (host !== 'xid.dev' && !host.endsWith('.xid.dev')) return
+
+        window.dataLayer = window.dataLayer || []
+        function gtag() {
+          dataLayer.push(arguments)
+        }
+        window.gtag = gtag
+        gtag('js', new Date())
+        gtag('config', 'G-M7Q66DQ8KX', { send_page_view: false })
+
+        var script = document.createElement('script')
+        script.async = true
+        script.src = '/ts/'
+        document.head.appendChild(script)
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -142,7 +142,7 @@ describe('buildProtectedResourceMetadata', () => {
     expect(meta.jwks_uri).toBe('https://acme.xid.dev/jwks')
     expect(meta.bearer_methods_supported).toEqual(['header'])
     expect(meta.dpop_signing_alg_values_supported).toEqual(['ES256', 'RS256', 'PS256'])
-    expect(meta.resource_documentation).toBe('https://acme.xid.dev/docs/oidc-oauth')
+    expect(meta.resource_documentation).toBe('https://xid.dev/oidc-oauth')
   })
 
   it('isolates protected resource metadata issuer per tenant', async () => {

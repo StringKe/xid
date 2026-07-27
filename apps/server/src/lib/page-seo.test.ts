@@ -95,25 +95,16 @@ function seedDocument(): void {
 }
 
 describe('resolvePageSeo', () => {
-  it('marks marketing and docs routes as indexable', () => {
-    expect(resolvePageSeo('/').indexable).toBe(true)
-    expect(resolvePageSeo('/docs').indexable).toBe(true)
-    expect(resolvePageSeo('/docs/oidc-oauth').indexable).toBe(true)
-  })
-
-  it('marks hosted auth and console routes as noindex', () => {
+  it('marks every Core-owned UI route as noindex', () => {
     expect(resolvePageSeo('/sign-in').indexable).toBe(false)
-    expect(resolvePageSeo('/console/org/outbound-sso').indexable).toBe(false)
+    expect(resolvePageSeo('/account/security').indexable).toBe(false)
   })
 
-  it('resolves docs slug titles', () => {
-    expect(resolvePageSeo('/docs').title).not.toBe(resolvePageSeo('/docs/scim').title)
-    expect(resolvePageSeo('/docs/oidc').title).toBe(resolvePageSeo('/docs/oidc-oauth').title)
-  })
-
-  it('uses hub metadata for /docs and noindex for blocked docs paths', () => {
-    expect(resolvePageSeo('/docs').indexable).toBe(true)
-    expect(resolvePageSeo('/docs/design').indexable).toBe(false)
+  it('does not resolve metadata for Site or Console routes', () => {
+    const notFoundTitle = resolvePageSeo('/unknown').title
+    expect(resolvePageSeo('/').title).toBe(notFoundTitle)
+    expect(resolvePageSeo('/docs/scim').title).toBe(notFoundTitle)
+    expect(resolvePageSeo('/console/org/outbound-sso').title).toBe(notFoundTitle)
   })
 })
 
@@ -126,23 +117,11 @@ describe('page seo i18n titles', () => {
     i18n.load('en', enMessages)
     i18n.activate('en')
 
-    applyPageSeo(resolvePageSeo('/'), i18n)
-    expect(document.title).toBe('XID | Edge identity platform')
-
-    applyPageSeo(resolvePageSeo('/docs'), i18n, { pathname: '/docs', locale: 'en' })
-    expect(document.title).toBe('Developer docs | XID')
-
-    applyPageSeo(resolvePageSeo('/sign-in'), i18n)
+    applyPageSeo(resolvePageSeo('/sign-in'), i18n, { pathname: '/sign-in', locale: 'en' })
     expect(document.title).toBe('Sign in | XID')
     expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toBe('')
-
-    applyPageSeo(resolvePageSeo('/docs/getting-started'), i18n, {
-      pathname: '/docs/getting-started',
-      locale: 'en',
-    })
-    expect(document.title).toBe('Getting started | XID Docs')
     expect(document.querySelector('link#xid-page-canonical')?.getAttribute('href')).toBe(
-      'https://xid.dev/docs/getting-started',
+      'https://xid.dev/sign-in',
     )
   })
 

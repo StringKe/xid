@@ -1,8 +1,9 @@
 # Contributing to XID
 
-XID is an edge-native identity platform: an OIDC/OAuth Identity Provider, multi-tenant RBAC layer,
-enterprise SSO federation endpoint, and passkey-first Hosted UI, all running as a single Cloudflare
-Worker. Contributions are judged on protocol correctness, tenant isolation, and cryptographic
+XID is an edge-native identity platform deployed as three Cloudflare Workers from one codebase.
+Nimbus Site serves the complete localized docs from the apex, Console serves the isolated management UI,
+and Core serves OIDC/OAuth, multi-tenant RBAC, enterprise SSO federation, Hosted Auth, and account
+pages. Contributions are judged on protocol correctness, tenant isolation, and cryptographic
 discipline before anything else.
 
 Read [`SECURITY.md`](SECURITY.md) first if you found a vulnerability. Do not open a public issue for
@@ -62,7 +63,8 @@ touching.
 
 ```bash
 pnpm install
-pnpm --filter @xid-kit/server dev    # Vite dev server: Worker + React SPA
+pnpm run dev                         # Core, Console, and Nimbus Site in parallel
+pnpm smoke:three-workers             # route ownership and cross-Worker smoke test
 ```
 
 Common tasks (all defined in the root `package.json`):
@@ -99,8 +101,10 @@ pnpm run security:secret-scan    # apps/server/scripts/check-repository-secrets.
 ## Repository map
 
 ```
-apps/server/     The single Worker. worker/ is the Hono backend (OIDC, OAuth, SCIM, SAML,
-                 Management API /v1/*), src/ is the React 19 SPA (Hosted UI + consoles).
+apps/site/       Nimbus docs Site: apex hub, 8-locale docs, SEO, Pagefind, agent surfaces, www 308.
+apps/console/    Binding-free static management SPA for /console and /console/*.
+apps/server/     Identity Core. worker/ is Hono (protocols, Management API, bindings);
+                 src/ is the React 19 SPA for Hosted Auth and account pages.
 packages/        22 @xid-kit/* packages: 7 kernel libraries (protocol, crypto, webauthn, saml,
                  db, i18n, types) and 15 TypeScript SDKs.
 sdk/             13 native SDKs (go, rust, python, ruby, php, java, dotnet, ios, macos,
@@ -116,11 +120,13 @@ Toolchain ownership does not overlap:
 - **turborepo** is the only cross-package orchestrator (`turbo run <task>`).
 - **vite-plus (`vp`)** provides lint (Oxlint), format (Oxfmt), test (Vitest), and library packaging
   (`vp pack`). Configured in the root `vite.config.ts`. There is no ESLint or Prettier.
-- **Standard Vite** builds `apps/server` via `@vitejs/plugin-react` and `@cloudflare/vite-plugin`.
-  Configured in `apps/server/vite.config.ts`.
+- **Astro plus Nimbus** builds `apps/site`, including localized docs, Pagefind, SEO, Markdown and
+  MDX twins, and LLM indexes. Configured in `apps/site/astro.config.ts`.
+- **Standard Vite** builds `apps/console` and `apps/server`; Core also uses
+  `@cloudflare/vite-plugin`. Configured in each app's `vite.config.ts`.
 
-The two `vite.config.ts` files are unrelated: the root one configures code quality, the app one
-configures the build.
+The root `vite.config.ts` configures code quality. The app-level build configurations are
+independent.
 
 ## Contributing to the native SDKs
 

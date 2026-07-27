@@ -1,13 +1,14 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { createLazyRoute, useNavigate } from '@tanstack/react-router'
+import { createLazyRoute } from '@tanstack/react-router'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { RequireAuth } from '../../components/RequireAuth'
 import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { trackOrganizationCreated } from '../../lib/google-analytics-funnel'
+import { useNavigate } from '../../lib/router'
 import { page } from '../../styles/product-surface.stylex'
 const styles = stylex.create({
   stack: {
@@ -50,7 +51,7 @@ function CreateOrganizationPage(): ReactNode {
     }
     trackOrganizationCreated()
     await refresh()
-    void navigate({ to: result.value.redirectUrl as never, replace: true })
+    navigate(result.value.redirectUrl, { replace: true })
   }
 
   return (

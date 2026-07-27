@@ -1,0 +1,340 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import {
+  EXPECTED_WORKER_ROUTE_CONFIGS,
+  resolveWebRouteOwnership,
+} from '../packages/types/src/web-route-ownership.ts'
+import { PUBLIC_DOC_SLUGS } from '../packages/types/src/public-docs.ts'
+
+const OWNER_NAMES = ['site', 'console', 'core']
+const DEFAULT_CONFIG_PATHS = {
+  site: 'apps/site/wrangler.jsonc',
+  console: 'apps/console/wrangler.jsonc',
+  core: 'apps/server/wrangler.jsonc',
+}
+
+function stripJsoncComments(source) {
+  let output = ''
+  let index = 0
+  let inString = false
+  let escaped = false
+
+  while (index < source.length) {
+    const char = source[index]
+    const next = source[index + 1]
+
+    if (inString) {
+      output += char
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+      index += 1
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      output += char
+      index += 1
+      continue
+    }
+
+    if (char === '/' && next === '/') {
+      index += 2
+      while (index < source.length && source[index] !== '\n') index += 1
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      index += 2
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) {
+        if (source[index] === '\n') output += '\n'
+        index += 1
+      }
+      if (index >= source.length) throw new Error('Unterminated JSONC block comment')
+      index += 2
+      continue
+    }
+
+    output += char
+    index += 1
+  }
+
+  if (inString) throw new Error('Unterminated JSONC string')
+  return output
+}
+
+function stripTrailingCommas(source) {
+  let output = ''
+  let index = 0
+  let inString = false
+  let escaped = false
+
+  while (index < source.length) {
+    const char = source[index]
+
+    if (inString) {
+      output += char
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+      index += 1
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      output += char
+      index += 1
+      continue
+    }
+
+    if (char === ',') {
+      let lookahead = index + 1
+      while (lookahead < source.length && /\s/u.test(source[lookahead])) lookahead += 1
+      if (source[lookahead] === ']' || source[lookahead] === '}') {
+        index += 1
+        continue
+      }
+    }
+
+    output += char
+    index += 1
+  }
+
+  return output
+}
+
+export function parseJsonc(source, label = 'JSONC input') {
+  try {
+    return JSON.parse(stripTrailingCommas(stripJsoncComments(source)))
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(`${label}: ${detail}`)
+  }
+}
+
+function normalizeRoutes(config, owner, errors) {
+  if (!config || typeof config !== 'object' || !Array.isArray(config.routes)) {
+    errors.push(`${owner}: routes must be an array`)
+    return []
+  }
+
+  return config.routes.flatMap((route, index) => {
+    if (typeof route === 'string') {
+      return [{ pattern: route, customDomain: false }]
+    }
+
+    if (!route || typeof route !== 'object' || typeof route.pattern !== 'string') {
+      errors.push(`${owner}: routes[${index}] must be a pattern string or route object`)
+      return []
+    }
+
+    if (route.custom_domain !== undefined && typeof route.custom_domain !== 'boolean') {
+      errors.push(`${owner}: routes[${index}].custom_domain must be boolean`)
+      return []
+    }
+
+    return [{ pattern: route.pattern, customDomain: route.custom_domain === true }]
+  })
+}
+
+function routeKey(route) {
+  return `${route.customDomain ? 'custom-domain' : 'route'}:${route.pattern}`
+}
+
+function routeWitnessUrl(route) {
+  if (route.customDomain) return `https://${route.pattern}/core-route-contract`
+
+  let value = route.pattern
+  if (value.startsWith('*.')) value = `tenant.${value.slice(2)}`
+  value = value.replaceAll('*', 'route-contract')
+  if (!value.includes('/')) value += '/'
+  return `https://${value}`
+}
+
+function routeMatchesUrl(route, url) {
+  if (route.customDomain) return url.hostname === route.pattern
+
+  const escapedParts = route.pattern
+    .split('*')
+    .map((part) => part.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&'))
+  const pattern = new RegExp(`^${escapedParts.join('.*')}$`, 'u')
+  return pattern.test(`${url.hostname}${url.pathname}`)
+}
+
+function routeSpecificity(route) {
+  if (route.customDomain) return route.pattern.length
+  return route.pattern.replaceAll('*', '').length
+}
+
+function verifyEffectiveOwnership(actualByOwner, errors) {
+  const configuredRoutes = OWNER_NAMES.flatMap((owner) =>
+    actualByOwner[owner].map((route) => ({ ...route, owner })),
+  )
+  const witnessUrls = new Set([
+    ...OWNER_NAMES.flatMap((owner) => EXPECTED_WORKER_ROUTE_CONFIGS[owner].map(routeWitnessUrl)),
+    'https://xid.dev/authorize',
+    'https://tenant.xid.dev/.well-known/openid-configuration',
+    'https://xid.dev/.well-known/llms.txt',
+    'https://www.xid.dev/authorize',
+    'https://www.xid.dev/console',
+    'https://www.xid.dev/console/settings',
+    'https://xid.dev/docs/not-a-public-doc',
+    'https://xid.dev/en/llms.txt',
+    'https://xid.dev/en/llms-full.txt',
+    'https://xid.dev/scim/v2/Users',
+    'https://xid.dev/scim/outbound/route-contract',
+    ...PUBLIC_DOC_SLUGS.flatMap((slug) => [
+      `https://xid.dev/${slug}`,
+      `https://xid.dev/${slug}/`,
+      `https://xid.dev/${slug}/index.md`,
+      `https://xid.dev/${slug}/index.mdx`,
+    ]),
+  ])
+
+  for (const value of witnessUrls) {
+    const url = new URL(value)
+    const matchingRoutes = configuredRoutes
+      .filter((route) => routeMatchesUrl(route, url))
+      .sort((left, right) => routeSpecificity(right) - routeSpecificity(left))
+    const winner = matchingRoutes[0]
+    if (!winner) {
+      errors.push(`no configured Worker route owns ${value}`)
+      continue
+    }
+
+    const topScore = routeSpecificity(winner)
+    const topOwners = new Set(
+      matchingRoutes
+        .filter((route) => routeSpecificity(route) === topScore)
+        .map((route) => route.owner),
+    )
+    if (topOwners.size !== 1) {
+      errors.push(`unresolved route overlap for ${value}: ${[...topOwners].join(', ')}`)
+      continue
+    }
+
+    const expectedOwner = resolveWebRouteOwnership(url).owner
+    if (winner.owner !== expectedOwner) {
+      errors.push(
+        `route owner mismatch for ${value}: config=${winner.owner}, contract=${expectedOwner}`,
+      )
+    }
+  }
+}
+
+export function verifyWorkerRouteConfigs(configs) {
+  const errors = []
+  const actualByOwner = Object.fromEntries(
+    OWNER_NAMES.map((owner) => [owner, normalizeRoutes(configs[owner], owner, errors)]),
+  )
+  const patternOwners = new Map()
+
+  for (const owner of OWNER_NAMES) {
+    const actual = actualByOwner[owner]
+    const expected = EXPECTED_WORKER_ROUTE_CONFIGS[owner]
+    const actualKeys = new Set()
+
+    for (const route of actual) {
+      const key = routeKey(route)
+      if (actualKeys.has(key)) errors.push(`${owner}: duplicate route ${key}`)
+      actualKeys.add(key)
+
+      const owners = patternOwners.get(route.pattern) ?? []
+      owners.push(owner)
+      patternOwners.set(route.pattern, owners)
+    }
+
+    const expectedKeys = new Set(expected.map(routeKey))
+    for (const route of expected) {
+      const key = routeKey(route)
+      if (!actualKeys.has(key)) errors.push(`${owner}: missing route ${key}`)
+    }
+    for (const route of actual) {
+      const key = routeKey(route)
+      if (!expectedKeys.has(key)) errors.push(`${owner}: over-wide or unowned route ${key}`)
+    }
+  }
+
+  for (const [pattern, owners] of patternOwners) {
+    const uniqueOwners = [...new Set(owners)]
+    if (uniqueOwners.length > 1) {
+      errors.push(`unresolved duplicate pattern ${pattern}: ${uniqueOwners.join(', ')}`)
+    }
+  }
+
+  verifyEffectiveOwnership(actualByOwner, errors)
+  return errors
+}
+
+function parseConfigArguments(argv) {
+  if (argv.length === 0) return { paths: DEFAULT_CONFIG_PATHS, explicit: false }
+  if (argv.length % 2 !== 0) {
+    throw new Error('Expected --site, --console, and --core path pairs')
+  }
+
+  const paths = {}
+  for (let index = 0; index < argv.length; index += 2) {
+    const option = argv[index]
+    const value = argv[index + 1]
+    const owner = option?.startsWith('--') ? option.slice(2) : ''
+    if (!OWNER_NAMES.includes(owner) || !value) {
+      throw new Error('Expected --site, --console, and --core path pairs')
+    }
+    if (paths[owner]) throw new Error(`Duplicate --${owner} option`)
+    paths[owner] = value
+  }
+
+  for (const owner of OWNER_NAMES) {
+    if (!paths[owner]) throw new Error(`Missing --${owner} config path`)
+  }
+  return { paths, explicit: true }
+}
+
+export function runWorkerRouteVerification(argv = []) {
+  const { paths, explicit } = parseConfigArguments(argv)
+  const resolvedPaths = Object.fromEntries(
+    OWNER_NAMES.map((owner) => [owner, resolve(process.cwd(), paths[owner])]),
+  )
+  const missing = OWNER_NAMES.filter((owner) => !existsSync(resolvedPaths[owner]))
+
+  if (missing.length > 0) {
+    const detail = missing.map((owner) => `${owner}=${resolvedPaths[owner]}`).join(', ')
+    if (explicit) throw new Error(`Missing explicit Wrangler config: ${detail}`)
+    return { status: 'SKIP', detail: `missing Wrangler config: ${detail}` }
+  }
+
+  const configs = Object.fromEntries(
+    OWNER_NAMES.map((owner) => {
+      const path = resolvedPaths[owner]
+      return [owner, parseJsonc(readFileSync(path, 'utf8'), path)]
+    }),
+  )
+  const errors = verifyWorkerRouteConfigs(configs)
+  if (errors.length > 0) throw new Error(errors.join('\n'))
+  return { status: 'PASS', detail: 'site, console, and core route configs match the contract' }
+}
+
+function main() {
+  try {
+    const result = runWorkerRouteVerification(process.argv.slice(2))
+    process.stdout.write(`${result.status} worker routes: ${result.detail}\n`)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`FAIL worker routes: ${detail}\n`)
+    process.exitCode = 1
+  }
+}
+
+const entryUrl = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null
+if (entryUrl === import.meta.url) main()

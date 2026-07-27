@@ -40,14 +40,14 @@ export const EVIDENCE_MARKERS = {
   ],
   productionBrowserP0: [
     'email_otp_console',
-    'home_cta',
+    'docs_root',
     'public_docs',
     'console_routes',
     'sdk_browser',
     'mfa_provider_gate',
     'cleanup',
   ],
-  publicDocsBrowser: ['docs_public', 'docs_scim_public', 'internal_docs_blocked'],
+  publicDocsBrowser: ['docs_root_public', 'docs_scim_public', 'docs_localized_public'],
   phoneOtpFull: [
     'notification_sent',
     'verify_session',

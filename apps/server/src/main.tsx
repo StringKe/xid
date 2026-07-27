@@ -8,28 +8,20 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
+import { detectLocale, type SupportedLocale } from '@xid-kit/web-ui/locale'
+import {
+  LocaleProvider,
+  activateEnglishLocale,
+  loadInitialLocale,
+} from '@xid-kit/web-ui/locale-context'
+import { AppMotionConfig } from '@xid-kit/web-ui/motion'
+import { queryClient } from '@xid-kit/web-ui/query'
+import { NavigationRuntimeProvider } from '@xid-kit/web-ui/tanstack-router'
+import { ThemeProvider } from '@xid-kit/web-ui/theme'
 import { AuthProvider } from './lib/auth-context'
-import { detectLocale, type SupportedLocale } from './lib/locale'
-import { activateEnglishLocale, loadInitialLocale, LocaleProvider } from './lib/locale-context'
-import { AppMotionConfig } from './lib/motion'
-import { queryClient } from './lib/query'
-import { ThemeProvider } from './lib/theme'
 import { router } from './router'
 import './fonts/inter-latin.css'
 import './styles.css'
-
-function schedulePublicWebMcpBootstrap(): void {
-  const run = (): void => {
-    void import('./lib/webmcp/bootstrap').then(({ bootstrapPublicWebMcp }) => {
-      bootstrapPublicWebMcp()
-    })
-  }
-  if ('requestIdleCallback' in globalThis) {
-    globalThis.requestIdleCallback(run, { timeout: 4_000 })
-    return
-  }
-  globalThis.setTimeout(run, 1)
-}
 
 function mountApp(locale: SupportedLocale): void {
   document.documentElement.setAttribute('lang', locale)
@@ -44,7 +36,9 @@ function mountApp(locale: SupportedLocale): void {
           <QueryClientProvider client={queryClient}>
             <ThemeProvider>
               <AuthProvider>
-                <RouterProvider router={router} />
+                <NavigationRuntimeProvider runtime="core">
+                  <RouterProvider router={router} />
+                </NavigationRuntimeProvider>
               </AuthProvider>
             </ThemeProvider>
           </QueryClientProvider>
@@ -60,4 +54,3 @@ if (detectedLocale === 'en') {
 } else {
   void loadInitialLocale().then(mountApp)
 }
-schedulePublicWebMcpBootstrap()

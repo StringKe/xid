@@ -2,7 +2,7 @@
 // CLS 防护核心:渐进揭示只改 opacity/transform/box-shadow,绝不改 layout 高度。
 //   - 非激活面板 position:absolute 脱流,容器高度 = 激活面板自然高度。
 //   - passkey tab/提示 hidden 时 opacity:0 + 占位保留,visible 时渐入。
-// 视觉语言对齐 landing:层次靠中性阶 + 字号/字重表达,不堆叠 hairline;
+// 层次靠中性阶 + 字号/字重表达,避免堆叠 hairline;
 // tab 用分段控制器(muted 底槽 + surface 药丸),选中态由药丸承载而非 accent 下划线。
 // separator 用 mono microlabel(0.6875rem uppercase 0.08em)。颜色/圆角/字体全走 tokens(--xid-*)。
 

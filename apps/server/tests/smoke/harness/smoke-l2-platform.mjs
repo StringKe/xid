@@ -321,6 +321,9 @@ async function loginAndVerifyMe() {
   if (consoleRoute.res.status !== 200) {
     throw new Error(`/console failed http=${consoleRoute.res.status} body=${consoleRoute.text}`)
   }
+  if (consoleRoute.res.headers.get('x-xid-route-owner') !== 'console') {
+    throw new Error('/console was not served by the Console smoke route owner')
+  }
   if (
     !consoleRoute.text.includes('<!doctype html') &&
     !consoleRoute.text.includes('id="root"') &&
@@ -329,6 +332,18 @@ async function loginAndVerifyMe() {
     throw new Error(`/console did not return SPA html: ${consoleRoute.text.slice(0, 200)}`)
   }
   printResult('PASS', 'password console route', `http=${consoleRoute.res.status}`)
+
+  const accountAlias = await fetchText('/console/sessions?source=l2-smoke', { cookie })
+  if (
+    accountAlias.res.status !== 302 ||
+    accountAlias.res.headers.get('location') !== '/account/sessions?source=l2-smoke' ||
+    accountAlias.res.headers.get('x-xid-route-owner') !== 'console'
+  ) {
+    throw new Error(
+      `/console/sessions alias mismatch http=${accountAlias.res.status} location=${accountAlias.res.headers.get('location')}`,
+    )
+  }
+  printResult('PASS', 'console account alias', 'target=/account/sessions')
   return cookie
 }
 

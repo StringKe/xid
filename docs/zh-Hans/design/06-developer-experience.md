@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=e4fd6aec3041b91f62505bbd5a9534be03bc9722 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=f625cb6d9d53b2f7969565a2f8c5f1446670e72e -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -110,7 +110,11 @@ Billing/APIKey:`useCheckout` `usePlans` `useSubscription` `usePaymentMethods` `u
 
 ### 技术栈
 
-Hosted UI 是 React 19 SPA，与 Worker 同在 `apps/server` 单项目内构建，通过 `@cloudflare/vite-plugin` 同时产出 Worker bundle 和静态 SPA assets。不单独托管到 R2；assets 由 Cloudflare Workers Static Assets（ASSETS binding）直接服务，`wrangler.jsonc` 中配置：
+Hosted UI 是 React 19 SPA,与 Worker 同在 `apps/server` 单项目内构建,通过
+`@cloudflare/vite-plugin` 同时产出 Worker bundle 和静态 SPA assets。不单独托管到
+R2;assets 由 Cloudflare Workers Static Assets(ASSETS binding)直接服务。这个 Core SPA
+只包含 sign-in、consent、MFA、organization selection 与 account 自助,不包含 public site、
+public docs 或 management Console。`wrangler.jsonc` 中配置:
 
 ```jsonc
 {
@@ -122,7 +126,11 @@ Hosted UI 是 React 19 SPA，与 Worker 同在 `apps/server` 单项目内构建�
 }
 ```
 
-`not_found_handling=single-page-application` 让所有非匹配路径（`/sign-in`、`/user`、`/organization` 等 SPA 路由）由 CDN 层直接回落到 `index.html`，无需 Worker 代码处理，减少冷启动开销。SPA 内部用 `@tanstack/react-router`（code-based 路由树,`apps/server/src/router.tsx`）处理路由;`lib/router.tsx` 提供 react-router 兼容层供存量页面复用。
+`not_found_handling=single-page-application` 让未匹配的 Core 人机路径(`/sign-in`、`/account`
+与其他 Hosted UI 路由)由 CDN 层直接回落到 `index.html`,不需要额外 Worker handler。更具体
+的 Cloudflare Worker Routes 会在这个 Core fallback 前选择 Nimbus Site 与 Console。Core SPA
+内部用 `@tanstack/react-router` 处理路由,router compatibility layer 让现有页面保持原有
+navigation API。
 
 构建产物目录：
 
@@ -131,6 +139,48 @@ dist/
   client/          Vite SPA build 产物(静态 assets)
   worker/          Worker bundle
 ```
+
+### 公共文档与 Console 运行时边界
+
+公共展示只有一个 Nimbus 0.8.2 文档静态部署,不再存在独立 marketing site。Nimbus 拥有
+canonical apex 文档首页、8 locale 文档、Pagefind、OG images、sitemaps、Markdown twins、
+LLM documents 与 structured metadata。英文使用 `/` 与 `/{slug}`,其他 7 locale 使用
+`/{locale-segment}` 与 `/{locale-segment}/{slug}`。每个 locale 包含 1 个 hub 和 40 篇
+文档,总计 328 页。locale-neutral `documents.json` AST 是 content source,generated
+localized MDX 是 build artifact,不是 authoring source。
+
+已安装的 Nimbus Registry feature set:
+
+- `pagefind-search`:索引全部 328 个本地化 docs pages。
+- `ai-native`:为每个 published page 输出一个 downleveled `.md` twin 和一个保留 source 的
+  `.mdx` twin。全局 `/llms.txt` 与 `/llms-full.txt` 覆盖 328 页。English locale 使用
+  `/en/llms*.txt`,其他 7 locale 使用各自 segment,每份 locale index 与 corpus 覆盖 41 页。
+- `404-page`:对未知 public routes 返回本地化且终止于 Site 的 404,不进入 Core。
+- `mermaid`:把 AST 中 language 为 `mermaid` 的 CodeBlock entries 转成支持 theme 和
+  full-screen dialog 的 diagram。diagram source 在两种 Markdown twin 中保持不变。
+- `lint-prose-textlint`:重新生成 content collection,并且只对 generated English docs
+  subtree 执行 English prose gate。
+
+每个 published HTML page 都带 canonical 与 hreflang links、Open Graph metadata 和
+JSON-LD。upstream Registry 存在其他 recipe 不代表 XID 已启用它。`changelog`、
+`new-version` 与 `new-collection` 不属于当前 shipped surface。
+
+已登记旧 `/docs` path 返回到根 canonical 的 308。未知旧 `/docs/*` path 返回 Nimbus 404,
+不会落入 Hosted Auth。English SCIM 文档只使用 `/scim` exact routes,`/scim/v2/*` 始终归 Core。
+
+Org 与 instance 管理面仍是一个统一的 React Console 产品,但其静态 assets 由独立 Console
+Worker 部署。该 Worker 只有 `ASSETS` binding,在 apex 与 tenant hosts 上拥有 `/console` 和
+`/console/*`。它不包含 database、cache、object storage、Durable Object、Queue、secret、
+protocol 或 Management API binding。
+
+浏览器在 Console document navigation 和同源 API 调用中保留原 host。Sign in、MFA、
+account、`/auth/*` 与 `/v1/*` 继续解析到 Core。这能保留 apex 与 tenant hosts 上 host-only
+`__Host-` session cookies。跨运行时链接使用 document navigation,不使用 client-router
+navigation。
+
+Cloudflare Worker Routes 提供这次拆分。更具体的 Site 与 Console routes 优先于 Core
+Custom Domain 和 tenant wildcard fallback。两个 frontend Worker 都不能声明宽泛的 apex
+catch-all,也不引入 front proxy Worker。
 
 vite.config.ts(`apps/server/vite.config.ts`)使用标准 Vite 配置，插件顺序：
 
@@ -144,14 +194,17 @@ import { linguiTransformerBabelPreset } from '@lingui/vite-plugin'
 plugins: [react(), cloudflare(), lingui(), babel({ presets: [linguiTransformerBabelPreset()] })]
 ```
 
-### Worker 非 API 路径 fallback 机制
+### Core Worker 的 Hosted UI 路径 fallback
 
-Worker `worker/index.ts` 通过 Hono 挂载所有协议端点和 Management API，路径前缀均以 `/api/`、`/.well-known/`、`/oauth/`、`/scim/`、`/saml/` 开头。非 API 路径的处理流程：
+Core Worker 通过 Hono 挂载全部协议端点与 Management API。Core 拥有的人机路径按以下流程
+处理:
 
-1. Hono 未匹配任何路由 -> Worker 不拦截，让请求穿透到 ASSETS binding。
-2. ASSETS binding 查找 `dist/client/` 下对应静态文件。
-3. 文件不存在 -> `not_found_handling=single-page-application` 返回 `dist/client/index.html`，CDN 层处理，Worker 不介入。
-4. SPA 在浏览器端 bootstrap，`@tanstack/react-router` 匹配当前路径，渲染对应页面组件。
+1. 请求没有匹配更具体的 Site 或 Console Worker Route。
+2. Hono 没有匹配 Core protocol 或 API route,请求穿透到 Core ASSETS binding。
+3. ASSETS binding 查找 `dist/client/` 下对应静态文件。
+4. 文件不存在 -> `not_found_handling=single-page-application` 返回
+   `dist/client/index.html`,由 CDN 层处理。
+5. SPA 在浏览器端 bootstrap,`@tanstack/react-router` 匹配当前路径并渲染对应页面组件。
 
 Worker 内明确 fallback 写法（如需在 Worker 层控制）：
 
@@ -239,7 +292,9 @@ Worker -> GET /authorize?authz_request_id=uuid
 | 安全 | 前端接触认证流,关注 XSS | 凭据不经开发者服务器   |
 | 集成 | 低(npm + Provider)      | 中(配回调/CORS)        |
 
-XID 决策:优先可嵌入组件(DX 最好),同时提供 Hosted UI 作零配置起点和 fallback。Hosted UI 与 Worker 同域（无跨域问题），RP 把用户 302 到 `/authorize` 后完整认证流在同一 Worker + SPA 内完成。
+XID 决策:优先可嵌入组件(DX 最好),同时提供 Hosted UI 作零配置起点和 fallback。Hosted UI
+与 Worker 同域(无跨域问题),RP 把用户 302 到 `/authorize` 后完整认证流在 Core Worker 与其
+Hosted UI SPA 内完成。独立的 Nimbus Site 与 Console 部署不进入 authorization protocol loop。
 
 ### 品牌定制分层
 
@@ -315,7 +370,8 @@ networkless 模式:传 jwtKey(JWKS 公钥)无需请求 API,适合 Edge 冷启动
 - API Key 一等资源,scoped 权限,前端 useAPIKeys 管理,后端 CRUD
 - 结构化错误:XidAPIError(code/message/longMessage/meta.paramName),精确映射表单字段
 - 本地开发:dev 实例(pk*test*),localhost 免证书(HTTPS 代理),testing tokens 绕过 bot 检测
-- 文档:每组件/hook 独立文档页(props 表 + 示例),playground,与 shadcn/Tailwind 集成示例
+- 文档:Nimbus 为每个组件与 hook 发布独立文档页,包含 props 表、示例、playground 与
+  shadcn/Tailwind 集成示例
 
 ## 10. Guest 登录(匿名)
 

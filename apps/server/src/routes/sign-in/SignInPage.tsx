@@ -10,11 +10,12 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { createLazyRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
+import { useNavigate } from '../../lib/router'
 import { styles } from './styles'
 import { SignInOtpPanel } from './SignInOtpPanel'
 import { SignInPanel, SignInTabs } from './SignInTabs'
@@ -226,7 +227,7 @@ function SignInPage(): ReactNode {
       globalThis.location.href = signedInReturn
       return
     }
-    void navigate({ to: signedInReturn as never, replace: true })
+    navigate(signedInReturn, { replace: true })
   }, [signedInReturn, state.tenantSelection.authzRequestId, status, navigate])
 
   function handlePasswordSubmit(event: FormEvent<HTMLFormElement>): void {

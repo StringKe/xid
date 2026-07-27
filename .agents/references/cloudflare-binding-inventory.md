@@ -10,16 +10,19 @@ std-agent-type: references
 # Cloudflare binding inventory
 
 Lookup tables extracted from the `cloudflare-bindings` rule. Read this when you need the literal name
-of a binding, queue, Durable Object class or cron expression, or the shape of a queue message. The
-binding names below are the ones declared in `apps/server/wrangler.jsonc` and typed in
-`packages/types/src/env.ts` -- use those names, never invent new ones. The judgment calls about which
-service to pick for a given job stay in the `cloudflare-bindings` rule.
+of a binding, queue, Durable Object class or cron expression, or the shape of a queue message. All
+business bindings below belong exclusively to the Core Worker, are declared in
+`apps/server/wrangler.jsonc`, and are typed in `packages/types/src/env.ts` -- use those names, never
+invent new ones. `apps/site` and `apps/console` each declare only their own `ASSETS` binding. The
+judgment calls about which service to pick for a given job stay in the `cloudflare-bindings` rule.
 
 ## Service Mapping (bindings as declared)
 
 | Service           | Binding                                                                                            | Purpose                                                                                       |
 | ----------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Workers + Hono    | `main = worker/index.ts`                                                                           | HTTP and protocol handling; non-API paths fall back to SPA assets via `ASSETS`                 |
+| Core Worker + Hono | `apps/server`, `main = worker/index.ts`                                                           | Protocol, auth, account, Management API and every business binding                              |
+| Nimbus Site Worker | `apps/site`, `ASSETS` only                                                                         | Static apex documentation plus www canonical redirect; no business API or Core binding           |
+| Console Worker     | `apps/console`, `ASSETS` only                                                                      | Static management SPA and narrow redirects; same-host API calls continue to Core                |
 | D1                | `DB` (`xid-db`)                                                                                    | Users, applications, credential metadata, authorization codes, refresh tokens, audit, tenants, key ciphertext, sessions |
 | Durable Objects   | 8 bindings (see table below)                                                                       | Strong consistency, replay protection, serialized writes                                       |
 | KV                | `CACHE`                                                                                            | JWKS / discovery / branding config / feature flags                                             |

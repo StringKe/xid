@@ -39,6 +39,7 @@ import {
   EVIDENCE_MARKERS,
   recordProductionEvidence,
 } from './production-evidence.mjs'
+import { webRouteOwnerMatches } from './web-route-owner.mjs'
 
 const CHROME_PATH =
   process.env['XID_CHROME_PATH'] ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -70,7 +71,6 @@ const forbiddenPublicDocsText = [
   'docs/current-gap-audit',
   'docs/implementation-status',
   'docs/soft-delete',
-  'Open docs',
   '完整功能设计',
   '设计真相源',
 ]
@@ -535,11 +535,6 @@ class CdpPage {
     await this.send('Page.navigate', { url: `${baseUrl}${path}` })
     await this.waitFor(() => document.readyState === 'complete', 15_000, `load ${path}`)
     await this.waitFor(
-      () => document.querySelector('[data-seo-fallback]') === null,
-      15_000,
-      `spa hydrate ${path}`,
-    )
-    await this.waitFor(
       () => !document.body.innerText.includes('Loading your session'),
       15_000,
       `session load ${path}`,
@@ -576,6 +571,13 @@ class CdpPage {
       pathname: location.pathname,
       title: document.title,
       text: document.body.innerText,
+      lang: document.documentElement.lang,
+      canonicalHref: document.querySelector('link[rel="canonical"]')?.href ?? null,
+      markdownHref:
+        document.querySelector('link[rel="alternate"][type="text/markdown"]')?.href ?? null,
+      hasNimbusSidebar: document.querySelector('[data-nb-sidebar]') !== null,
+      hasNimbusSearch: document.querySelector('[data-search-dialog]') !== null,
+      hasAgentDirective: document.querySelector('[data-ai-agent-directive]') !== null,
       hasSignInAnchor: document.querySelector('a[href="/sign-in"]') !== null,
       hasConsoleAnchor:
         document.querySelector('a[href="/console"], a[href="/console/platform"]') !== null,
@@ -1818,47 +1820,59 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
   return { cookie }
 }
 
-async function checkHome(page) {
-  await page.navigate('/')
-  const browserMe = await page.browserMe()
-  if (browserMe.status !== 200) {
-    throw new Error(`browser /v1/me failed http=${browserMe.status} body=${browserMe.body}`)
-  }
-  const meBody = parseJson(browserMe.body, '/v1/me home smoke')
-  if (!meBody.user) throw new Error(`browser /v1/me anonymous on home smoke: ${browserMe.body}`)
-  try {
-    await page.waitFor(
-      () => document.querySelector('a[href="/console"], a[href="/console/platform"]') !== null,
-      15_000,
-      'home authenticated cta',
+async function checkDocs(page, { path, expectedLanguage, expectedCanonical, expectedMarkdown }) {
+  const ownerResponse = await fetch(`${baseUrl}${path}`, {
+    redirect: 'manual',
+    headers: { accept: 'text/html' },
+  })
+  if (ownerResponse.status !== 200 || !webRouteOwnerMatches(ownerResponse.headers, 'site')) {
+    const actualOwner = ownerResponse.headers.get('x-xid-route-owner') ?? 'missing'
+    throw new Error(
+      `${path} docs response mismatch: http=${ownerResponse.status} owner=${actualOwner}`,
     )
-  } catch (error) {
-    const snapshot = await page.snapshot()
-    throw new Error(`${error.message}; snapshot=${JSON.stringify(snapshot).slice(0, 1200)}`)
   }
-  const snapshot = await page.snapshot()
-  if (snapshot.pathname !== '/') throw new Error(`home pathname mismatch: ${snapshot.href}`)
-  if (!snapshot.hasConsoleAnchor) throw new Error('home does not show Console CTA after login')
-  if (snapshot.hasSignInAnchor) throw new Error('home still shows Sign in CTA after login')
-  if (snapshot.hasPlaceholderHref) throw new Error('home has placeholder href')
-  if (snapshot.badClass || snapshot.htmlHasFunctionClass) throw new Error('home has function class')
-  assertNoConsoleErrors(page, 'home')
-  printResult('PASS', 'browser home cta', 'console=true sign_in=false')
-}
 
-async function checkDocs(page, path) {
   await page.navigate(path)
+  await page.waitFor(
+    () =>
+      document.querySelector('[data-nb-sidebar]') !== null &&
+      document.querySelector('[data-search-dialog]') !== null &&
+      document.querySelector('[data-ai-agent-directive]') !== null,
+    15_000,
+    `${path} Nimbus docs shell`,
+  )
   const snapshot = await page.snapshot()
   if (snapshot.pathname !== path) throw new Error(`${path} pathname mismatch: ${snapshot.href}`)
   if (snapshot.text.includes('Sign in to XID')) throw new Error(`${path} rendered sign-in`)
   if (!snapshot.text.includes('XID')) throw new Error(`${path} missing XID docs content`)
+  if (snapshot.lang !== expectedLanguage) {
+    throw new Error(`${path} language mismatch: ${snapshot.lang}`)
+  }
+  if (snapshot.canonicalHref !== expectedCanonical) {
+    throw new Error(`${path} canonical mismatch: ${snapshot.canonicalHref}`)
+  }
+  if (snapshot.markdownHref !== expectedMarkdown) {
+    throw new Error(`${path} markdown alternate mismatch: ${snapshot.markdownHref}`)
+  }
+  if (!snapshot.hasNimbusSidebar || !snapshot.hasNimbusSearch || !snapshot.hasAgentDirective) {
+    throw new Error(`${path} missing Nimbus docs shell`)
+  }
   assertTextAbsent(snapshot, path, forbiddenPublicDocsText)
   if (snapshot.hasPlaceholderHref) throw new Error(`${path} has placeholder href`)
   assertNoConsoleErrors(page, path)
-  printResult('PASS', `browser ${path}`, 'public-docs=true')
+  printResult('PASS', `browser ${path}`, `nimbus=true lang=${snapshot.lang}`)
 }
 
 async function checkConsoleRoute(page, path, expectedPathPrefix) {
+  const ownerResponse = await fetch(`${baseUrl}${path}`, {
+    redirect: 'manual',
+    headers: { accept: 'text/html' },
+  })
+  if (!webRouteOwnerMatches(ownerResponse.headers, 'console')) {
+    const actualOwner = ownerResponse.headers.get('x-xid-route-owner') ?? 'missing'
+    throw new Error(`${path} route owner mismatch: ${actualOwner}`)
+  }
+
   await page.navigate(path)
   try {
     await page.waitFor(
@@ -2570,15 +2584,30 @@ export async function runProductionBrowserSmoke() {
       const result = await checkSignInEmailOtpFlow(page)
       state.cookie = result.cookie
       me = result.me
-      await checkHome(page)
-      await checkDocs(page, '/docs')
-      await checkDocs(page, '/docs/scim')
+      await checkDocs(page, {
+        path: '/',
+        expectedLanguage: 'en',
+        expectedCanonical: 'https://xid.dev/',
+        expectedMarkdown: 'https://xid.dev/index.md',
+      })
+      await checkDocs(page, {
+        path: '/scim',
+        expectedLanguage: 'en',
+        expectedCanonical: 'https://xid.dev/scim',
+        expectedMarkdown: 'https://xid.dev/scim/index.md',
+      })
+      await checkDocs(page, {
+        path: '/zh-hans/scim',
+        expectedLanguage: 'zh-Hans',
+        expectedCanonical: 'https://xid.dev/zh-hans/scim',
+        expectedMarkdown: 'https://xid.dev/zh-hans/scim/index.md',
+      })
       await checkConsoleRoute(page, '/console', '/console')
       await checkConsoleRoute(page, '/console/organizations', '/console/platform/organizations')
       await checkConsoleRoute(page, '/console/users', '/console/platform/users')
       await checkConsoleSettingsOverview(page)
-      await checkConsoleRoute(page, '/console/sessions', '/console/sessions')
-      await checkConsoleRoute(page, '/console/security', '/console/security')
+      await checkConsoleRoute(page, '/console/sessions', '/account/sessions')
+      await checkConsoleRoute(page, '/console/security', '/account/security')
       await checkActiveOrganization(page, state.cookie, me)
       await checkOrgConsoleRoutes(page)
       await checkSdkBrowserIntegration(page, state.cookie, me)

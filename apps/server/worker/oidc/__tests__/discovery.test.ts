@@ -112,7 +112,7 @@ describe('protected resource metadata endpoint', () => {
     expect(meta['jwks_uri']).toBe('https://acme.xid.dev/jwks')
     expect(meta['bearer_methods_supported']).toEqual(['header'])
     expect(meta['dpop_signing_alg_values_supported']).toContain('ES256')
-    expect(meta['resource_documentation']).toBe('https://acme.xid.dev/docs/oidc-oauth')
+    expect(meta['resource_documentation']).toBe('https://xid.dev/oidc-oauth')
     expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
   })
 

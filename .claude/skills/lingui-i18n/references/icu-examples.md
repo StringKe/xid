@@ -7,7 +7,10 @@ import { t, plural, select, selectOrdinal, msg } from '@lingui/core/macro'
 import { Trans, useLingui } from '@lingui/react/macro'
 ```
 
-These apply to the SPA (`apps/server/src`). The React SDK uses runtime descriptors instead -- see the last section.
+These React macro examples apply to Core UI (`apps/server/src`), Console (`apps/console/src`), and
+shared product UI (`packages/web-ui/src`). Nimbus Site has no React island. Its content generator
+and Astro shell use `MessageDescriptor` values from `@lingui/core`. The React SDK uses runtime
+descriptors instead -- see the last section.
 
 ## Basics
 

@@ -41,7 +41,12 @@ export default defineConfig({
     },
     overrides: [
       {
-        files: ['apps/server/src/**', 'packages/react/**'],
+        files: [
+          'apps/server/src/**',
+          'apps/console/src/**',
+          'packages/react/**',
+          'packages/web-ui/**',
+        ],
         plugins: ['typescript', 'react'],
       },
       {

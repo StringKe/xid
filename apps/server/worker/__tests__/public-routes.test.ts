@@ -1,11 +1,9 @@
 import { Hono } from 'hono'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_HOSTED_AUTH_PROFILE_FIELDS } from '@xid-kit/types'
 import type { SigningKeyMaterial } from '@xid-kit/types'
 import { generateTenantSigningKey } from '@xid-kit/crypto'
-import { PUBLIC_DOC_SLUGS } from '../../public-docs'
 import type { XidHonoEnv } from '../lib/types'
-import { renderDocsSeoFallback } from '../public-assets'
 import { registerHostedAuthConfigRoutes } from '../auth/config'
 import { registerOidcRoutes } from '../oidc'
 import {
@@ -18,6 +16,7 @@ import { tenantMiddleware } from '../middleware/tenant'
 import { sessionMiddleware } from '../middleware/session'
 import { TENANT_ROUTE_PATTERNS } from '../tenant-routes'
 import { registerPublicAssetRoutes } from '../public-assets'
+import { registerCanonicalHostRedirect, registerPublicMetadataRoutes } from '../public-metadata'
 
 type RouteTable = Record<string, Record<string, unknown>[]>
 
@@ -137,11 +136,9 @@ function makeKv(): KVNamespace {
 
 function makeRouteSplitApp(): Hono<XidHonoEnv> {
   const app = new Hono<XidHonoEnv>()
+  registerCanonicalHostRedirect(app)
+  registerPublicMetadataRoutes(app)
   app.get('/v1/health', (c) => c.json({ ok: true }))
-  app.get('/v1/edge', async (c) => {
-    const { buildEdgeProbePayload } = await import('../lib/edge-probe')
-    return c.json(await buildEdgeProbePayload(c.req.raw.cf))
-  })
   for (const pattern of TENANT_ROUTE_PATTERNS) {
     app.use(pattern, async (c, next) => {
       c.set('locale', 'en')
@@ -736,46 +733,89 @@ describe('GET /auth/config', () => {
 })
 
 describe('createApp public and organization route split', () => {
-  it('serves SPA sign-in through ASSETS without organization middleware', async () => {
+  it('serves only Core human routes and Core error UI through ASSETS', async () => {
     const env = await makeRouteEnv()
     const app = makeRouteSplitApp()
 
-    const res = await app.request('https://xid.dev/sign-in', {}, env)
+    for (const path of [
+      '/sign-in',
+      '/sign-up',
+      '/forgot-password',
+      '/reset-password',
+      '/verify-email',
+      '/accept-invitation',
+      '/create-organization',
+      '/select-organization',
+      '/mfa',
+      '/consent',
+      '/activate',
+      '/ciba-activation',
+      '/account',
+      '/account/security',
+      '/_core/app.js',
+      '/unknown-core-error',
+    ]) {
+      const res = await app.request(`https://xid.dev${path}`, {}, env)
 
-    expect(res.status).toBe(200)
-    expect(await res.text()).toContain('<div id="root"></div>')
-  })
-
-  it('renders SEO fallback text for every published docs route', () => {
-    for (const slug of PUBLIC_DOC_SLUGS) {
-      const path = slug === 'getting-started' ? '/docs' : `/docs/${slug}`
-      const fallback = renderDocsSeoFallback(path)
-
-      expect(fallback, path).toContain('<main data-seo-fallback>')
-      expect(fallback, path).toContain('XID')
-      expect(fallback, path).toContain('https://xid.dev/docs')
-      expect(fallback, path).not.toContain('docs/design')
-      expect(fallback, path).not.toContain('Open docs')
+      expect(res.status, path).toBe(200)
+      expect(await res.text(), path).toContain('<div id="root"></div>')
     }
   })
 
-  it('serves enterprise SSO docs with route-specific SEO fallback text', async () => {
+  it('does not serve public docs from the Core SPA', async () => {
     const env = await makeRouteEnv()
     const app = makeRouteSplitApp()
 
     const res = await app.request('https://xid.dev/docs/enterprise-sso', {}, env)
     const body = await res.text()
 
-    expect(res.status).toBe(200)
-    expect(res.headers.get('Permissions-Policy')).toBe('tools=(self)')
-    expect(res.headers.get('Origin-Agent-Cluster')).toBe('?1')
-    expect(res.headers.has('etag')).toBe(false)
-    expect(body).toContain('<h1>Enterprise SSO</h1>')
-    expect(body).toContain('Legacy protocol boundaries')
-    expect(body).toContain('Kerberos termination are not supported.')
-    expect(body).toContain('https://xid.dev/docs/enterprise-sso')
-    expect(body).not.toContain('production-supported')
-    expect(body).not.toContain('public-supported')
+    expect(res.status).toBe(404)
+    expect(res.headers.get('x-xid-core-route-status')).toBe('owned-by-site')
+    expect(body).not.toContain('<div id="root"></div>')
+  })
+
+  it('redirects well-known LLM discovery without resolving TenantContext', async () => {
+    const env = await makeRouteEnv()
+    const app = makeRouteSplitApp()
+
+    const apex = await app.request(
+      'https://xid.dev/.well-known/llms.txt?client=agent&lang=en',
+      {},
+      env,
+    )
+    const tenant = await app.request(
+      'https://team.xid.dev/.well-known/llms.txt?client=agent&lang=en',
+      {},
+      env,
+    )
+
+    expect(apex.status).toBe(308)
+    expect(apex.headers.get('location')).toBe('https://xid.dev/llms.txt?client=agent&lang=en')
+    expect(tenant.status).toBe(308)
+    expect(tenant.headers.get('location')).toBe('https://xid.dev/llms.txt?client=agent&lang=en')
+  })
+
+  it('redirects defensive www traffic before TenantContext', async () => {
+    const prepare = vi.fn(() => {
+      throw new Error('TenantContext must not read D1 for www')
+    })
+    const env = {
+      ...(await makeRouteEnv()),
+      DB: asUnknown<D1Database>({ prepare }),
+    }
+    const app = makeRouteSplitApp()
+
+    const res = await app.request(
+      'https://www.xid.dev/auth/config?login_hint=user%40example.test',
+      {},
+      env,
+    )
+
+    expect(res.status).toBe(308)
+    expect(res.headers.get('location')).toBe(
+      'https://xid.dev/auth/config?login_hint=user%40example.test',
+    )
+    expect(prepare).not.toHaveBeenCalled()
   })
 
   it('resolves root Hosted Auth config through the instance entry default organization', async () => {
@@ -913,15 +953,40 @@ describe('createApp public and organization route split', () => {
     expect(body.methods.emailOtp.enabled).toBe(true)
   })
 
-  it('serves public docs paths through the public SPA asset entry', async () => {
+  it('rejects Site and Console document routes at the Core fallback', async () => {
     const env = await makeRouteEnv()
     const app = makeRouteSplitApp()
 
-    const res = await app.request('https://xid.dev/docs/scim', {}, env)
-    const html = await res.text()
+    for (const [url, owner] of [
+      ['https://xid.dev/', 'site'],
+      ['https://xid.dev/robots.txt', 'site'],
+      ['https://xid.dev/brand/logo.svg', 'site'],
+      ['https://xid.dev/console', 'console'],
+      ['https://xid.dev/console/settings', 'console'],
+      ['https://team.xid.dev/console', 'console'],
+      ['https://team.xid.dev/console/settings', 'console'],
+    ] as const) {
+      const res = await app.request(url, {}, env)
+      const body = await res.text()
 
-    expect(res.status).toBe(200)
-    expect(html).toContain('<div id="root"></div>')
+      expect(res.status, url).toBe(404)
+      expect(res.headers.get('x-xid-core-route-status'), url).toBe(`owned-by-${owner}`)
+      expect(body, url).not.toContain('<div id="root"></div>')
+    }
+  })
+
+  it('rejects docs on both apex and tenant hosts', async () => {
+    const env = await makeRouteEnv()
+    const app = makeRouteSplitApp()
+
+    for (const url of ['https://xid.dev/docs/scim', 'https://team.xid.dev/docs/scim']) {
+      const res = await app.request(url, {}, env)
+      const body = await res.text()
+
+      expect(res.status, url).toBe(404)
+      expect(res.headers.get('x-xid-core-route-status'), url).toBe('owned-by-site')
+      expect(body, url).not.toContain('<div id="root"></div>')
+    }
   })
 
   it('blocks repository docs paths from the public XID docs namespace', async () => {
@@ -933,8 +998,8 @@ describe('createApp public and organization route split', () => {
       const html = await res.text()
 
       expect(res.status).toBe(404)
-      expect(res.headers.get('x-xid-docs-route-status')).toBe('blocked-non-public-docs-path')
-      expect(html).toContain('published XID developer docs')
+      expect(res.headers.get('x-xid-core-route-status')).toBe('owned-by-site')
+      expect(html).toBe('')
     }
   })
 
@@ -946,8 +1011,8 @@ describe('createApp public and organization route split', () => {
     const html = await res.text()
 
     expect(res.status).toBe(404)
-    expect(res.headers.get('x-xid-docs-route-status')).toBe('blocked-non-public-docs-path')
-    expect(html).toContain('published XID developer docs')
+    expect(res.headers.get('x-xid-core-route-status')).toBe('owned-by-site')
+    expect(html).toBe('')
   })
 
   it('does not serve SPA fallback for unknown protocol paths', async () => {

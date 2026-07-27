@@ -24,7 +24,12 @@ Evidence levels L0 through L4 are defined in `README.md`. Each section below lis
 
 - Real Worker route tests through `registerAllRoutes` for `/authorize`, `/token`, `/par`, `/userinfo`, `/introspect`, `/revoke`, `/device_authorization`, `/register`, `/scim/v2/*`, SAML ACS, and passkey routes.
 - Use local D1/DO/KV/R2/Queue equivalent bindings.
-- Prove public `/docs/*` only serves `apps/server/public-docs.ts` whitelist and blocks internal docs paths including `/docs/design`, `/docs/goal`, `/docs/verification`, `/docs/deployment`, and `/docs/api-contracts`.
+- Run `pnpm --filter @xid-kit/site test`, `pnpm --filter @xid-kit/site build`, and
+  `node apps/site/scripts/audit-dist-routes.mjs`.
+- Prove Nimbus Site emits only the `packages/types/src/public-docs.ts` allowlist across all 8
+  locales, with static HTML, Markdown and MDX twins, Pagefind, LLM indexes, sitemap, and Site-owned
+  404 responses for internal paths including `/design`, `/goal`, `/verification`, `/deployment`,
+  and `/api-contracts`. The corresponding unknown legacy `/docs/*` paths must also remain Site 404.
 
 ## L3
 
@@ -42,7 +47,10 @@ Evidence levels L0 through L4 are defined in `README.md`. Each section below lis
 
 - Only mark production-ready after connected Git Workers Builds deploys current HEAD.
 - Record build id, active deployment, active version, and production route/client/provider evidence.
-- Production public docs evidence must include `/docs`, `/docs/scim`, and internal docs blocking for `/docs/design`, `/docs/goal`, `/docs/verification`, and `/docs/deployment`.
+- Production public docs evidence must include Site owner-header checks for `/` and `/scim`,
+  Markdown and MDX twin content types, `/llms.txt`, `/llms-full.txt`, one-hop 308 compatibility
+  redirects from registered `/docs` paths, and Site 404 responses for `/design`, `/goal`,
+  `/verification`, and `/deployment`.
 - Provider-ready features require real provider secret/config/callback evidence without recording secrets, OTP values, SAMLResponse, authorization codes, refresh tokens, cookies, or provider tokens.
 
 ### Production readiness inputs

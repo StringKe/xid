@@ -1,4 +1,4 @@
-// @xid-kit/types:全局共享契约(7 组)。契约冻结后视为全局约束,后续不得单边改字段。
+// @xid-kit/types:全局共享契约。契约冻结后视为全局约束,后续不得单边改字段。
 // 见 docs/design/ 与 .stdai/standards/rules/(tenant-context / signing-keys / oidc-oauth / webauthn / api-sdk-conventions / cloudflare-bindings)。
 
 // 1. TenantContext 与租户策略覆盖(00 章 5、tenant-context rule)
@@ -15,3 +15,6 @@ export * from './webauthn'
 export * from './saml'
 // 7. Cloudflare bindings Env(00 章第 8 节、cloudflare-bindings rule)
 export * from './env'
+// 8. 公开 docs registry 和 Web route ownership。
+export * from './public-docs'
+export * from './web-route-ownership'

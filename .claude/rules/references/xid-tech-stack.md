@@ -21,18 +21,24 @@ summary plus a pointer here.
 Language     TypeScript (workers-rs rejected: an identity product is protocol correctness plus
              I/O, signing goes through Web Crypto, so Rust buys nothing here)
 Monorepo     pnpm workspace + turborepo (sole cross-package orchestrator) + Vite+ (vp: Oxlint /
-             Oxfmt / Vitest / library packaging) + standard Vite (app build)
+             Oxfmt / Vitest / library packaging) + standard Vite (React app builds) + Astro 7
+             (Nimbus Site static build)
 Type gate    Official tsc --noEmit via the turbo `typecheck` task. vp's tsgo type checking
              (typeAware + typeCheck) is disabled in the root vite.config.ts: it crashed natively
              on large packages and missed real type errors.
-Runtime      Cloudflare Workers
-Backend      Hono (protocol surface + Management API)
-Frontend     React 19 SPA (standard Vite + @cloudflare/vite-plugin), client-side routing with
-             @tanstack/react-router (code-based); src/lib/router.tsx is a react-router-shaped
-             compatibility layer over TanStack Router for migrated pages
+Runtime      Three Cloudflare Worker deployments: Nimbus Site, Console, and identity Core.
+             Site and Console are ASSETS-only; Core is the only business runtime.
+Backend      Hono in apps/server (protocol surface + Management API)
+Public docs  @cloudflare/nimbus-docs 0.8.2 + Astro 7 static output. The apex is the documentation
+             hub; there is no separate marketing runtime, React island, or Cloudflare SSR adapter.
+Core UI      React 19 SPA for Hosted Auth, consent, MFA, account and Core error surfaces
+Console UI   React 19 SPA deployed independently at /console on apex and tenant hosts
+Routing      @tanstack/react-router for Core UI and Console; Astro/Nimbus file and content routing
+             for the public Site. Cross-Worker navigation uses document navigation.
+Shared UI    Private @xid-kit/web-ui package shared by Core UI and Console; no Worker bindings
 Data/UI libs @tanstack/react-query, @tanstack/react-table, motion
-Styling      StyleX (@stylexjs/stylex compiled by @stylexjs/unplugin, ahead of react() in the
-             plugin chain so its babel transform does not collide with the lingui macro chain)
+Styling      StyleX for XID React product surfaces; Nimbus owns its docs shell styling. StyleX runs
+             ahead of react() in Core and Console so it does not collide with the lingui macro chain.
 i18n         Full lingui stack (@lingui/core + @lingui/react + @lingui/cli + macros, ICU, .po
              format, Vite 8 via linguiTransformerBabelPreset)
 Validation   valibot at every untrusted boundary
@@ -49,7 +55,8 @@ Email        Cloudflare Email Service, send_email binding EMAIL
 Scheduled    Cron Triggers: hourly (`0 * * * *`) expiry cleanup + DAU aggregation; daily
              (`0 2 * * *`) signing key rotation check, certificate polling, domain verification
              polling, SAML IdP metadata refresh, MAU archiving
-Secrets      Workers Secrets (KEK / pepper / provider credentials) + envelope encryption in D1
+Secrets      Core Workers Secrets (KEK / pepper / provider credentials) + envelope encryption in
+             D1; Site and Console declare no secrets
 Abuse        Turnstile; WAF + Rate Limiting at the edge; Analytics Engine (binding ANALYTICS)
 SAML XML     xmldsigjs + @xmldom/xmldom (+ xml-core, xpath), compatibility_date 2025-04-08 with
              nodejs_compat

@@ -2,9 +2,10 @@
 
 [English](README.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | 한국어 | [Français](README.fr.md) | [Deutsch](README.de.md) | [Español](README.es.md) | [Português (BR)](README.pt-BR.md)
 
-단일 Cloudflare Worker로 동작하는 엣지 네이티브 아이덴티티 플랫폼입니다. 하나의 코드베이스가
-OIDC/OAuth Identity Provider, 멀티 테넌트 RBAC 계층, 엔터프라이즈 SSO 페더레이션 엔드포인트(SAML 및
-SCIM), 그리고 passkey 우선 호스팅 인증 UI 역할을 모두 수행합니다.
+하나의 코드베이스에서 3개의 Cloudflare Workers로 배포하는 엣지 네이티브 아이덴티티 플랫폼입니다.
+Core Worker는 OIDC/OAuth, 멀티 테넌트 RBAC, 엔터프라이즈 SSO 페더레이션, Hosted Auth, 계정 페이지를
+제공합니다. Nimbus Site Worker는 apex 루트의 완전한 다국어 문서를, 분리된 Console Worker는 관리 UI를
+제공합니다.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
 
@@ -120,7 +121,7 @@ Paid가 필요합니다. 따라서 실제로 검증 메일, magic link, 일회�
 git clone https://github.com/StringKe/xid.git
 cd xid && pnpm install
 
-# create the resources this Worker binds to
+# create the resources the Core Worker binds to
 cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
@@ -130,11 +131,13 @@ for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-d
 done
 ```
 
-그다음 `apps/server/wrangler.jsonc`를 열어 `account_id`, D1의 `database_id`, KV namespace `id`,
-`routes` 항목을 자신의 값으로 교체하십시오. 이 파일에는 여전히 업스트림 프로젝트의 값이 들어
-있고 복사해 쓸 템플릿도 없으며, **수정하지 않으면 배포되지 않습니다**. 8개의 Durable Object
-binding, Analytics Engine 데이터셋, `send_email` binding, 2개의 cron trigger는 이미 선언되어 있어
-변경할 필요가 없습니다.
+그다음 `apps/server/wrangler.jsonc`, `apps/console/wrangler.jsonc`,
+`apps/site/wrangler.jsonc`의 업스트림 account와 route 값을 자신의 값으로 교체하고,
+`apps/site/astro.config.ts`의 canonical public origin을 자신의 HTTPS apex URL로 설정하십시오. Core
+설정에는 D1 `database_id`와 KV namespace `id`도 필요합니다. 셀프 호스팅 템플릿은 없으며, **업스트림
+값이 남아 있으면 3개의 Worker가 올바르게 배포되지 않습니다**. 8개의 Durable Object binding,
+Analytics Engine 데이터셋, `send_email` binding, 2개의 cron trigger는 Core에만 속하며 이미 선언되어
+있습니다.
 
 secret을 설정하고, 마이그레이션하고, 배포한 뒤 초기화하십시오. `KEK`을 분실하면 모든 서명 키와
 저장된 provider 자격 증명을 복호화할 수 없게 되고, `PEPPER`를 분실하면 모든 비밀번호 해시가
@@ -146,7 +149,11 @@ openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
 npx wrangler d1 migrations apply DB --remote
-npx wrangler deploy
+cd ../..
+pnpm run build
+pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
 
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
@@ -155,16 +162,19 @@ curl -X POST https://<your-domain>/admin/bootstrap \
 ```
 
 bootstrap은 인스턴스, 기본 조직, 인스턴스 ES256 서명 키, 그리고 최초 `instance_manager` 사용자를
-생성하며 두 번 실행되지 않습니다. 로컬 D1 마이그레이션과 시딩을 포함한 전체 절차는
-[`docs/deployment.md`](docs/deployment.md)에 있습니다.
+생성하며 두 번 실행되지 않습니다. 로컬 D1 마이그레이션, 시딩, 3 Worker 릴리스 순서와 롤백을 포함한
+전체 절차는 [`docs/deployment.md`](docs/deployment.md)에 있습니다. 셀프 호스팅 릴리스에는 Core,
+Console, Site를 모두 배포해야 합니다. Site는 apex, 8 locale 문서, SEO, Pagefind, agent surfaces,
+`www` 308을 담당하고 Console은 `/console`과 `/console/*`를 담당합니다.
 
 ### 개발
 
 ```bash
-pnpm --filter @xid-kit/server dev   # Vite dev server: Worker and SPA together
-pnpm test                           # Vitest across the workspace
-pnpm run check                      # typecheck, lint, i18n, protocol and coverage gates
-pnpm run build                      # all packages plus the server
+pnpm run dev                   # Core, Console, and Nimbus Site development servers
+pnpm test                      # Vitest across the workspace
+pnpm run check                 # typecheck, lint, i18n, protocol and coverage gates
+pnpm run build                 # all packages and all three Workers
+pnpm smoke:three-workers       # local route ownership and cross-Worker smoke test
 ```
 
 `pnpm run check`는 두 번의 커버리지 실행을 포함한 전체 게이트이며 가벼운 lint가 아닙니다. 이
@@ -175,25 +185,31 @@ pnpm run build                      # all packages plus the server
 
 ## 아키텍처
 
-하나의 Worker가 모든 것을 담고 있습니다. Hono가 프로토콜 및 관리 엔드포인트를 제공하고, React 19
-SPA는 Workers Assets로 배포되어 API가 아닌 경로는 모두 SPA로 폴백됩니다. 따라서 Hosted UI, 계정
-포털, 두 개의 콘솔이 token 엔드포인트와 함께 하나의 단위로 배포됩니다. 상태는 일관성 요구 사항에
-따라 분리됩니다. 관계형 데이터는 D1, 직렬화가 필요한 모든 것(WebAuthn challenge, OAuth state, PAR,
-device flow, 세션 폐기, rate limit, 감사 시퀀스, 미터링)은 Durable Objects, 캐시 읽기는 KV, blob은
-R2, 로그인 경로에서 반드시 분리해야 하는 작업은 Queues가 담당합니다.
+3개의 Worker가 하나의 hostname을 공유하지만 runtime binding은 공유하지 않습니다. Nimbus Site는 apex
+documentation hub, 8 locale 문서 트리, SEO, Pagefind, Markdown 및 MDX twins, LLM indexes, `www`에서 apex로의
+308을 담당합니다. Console은 binding이 없는 정적 Worker이며 apex와 tenant host의 `/console` 및
+`/console/*`를 담당합니다. Core는 Hosted Auth, 계정 페이지, 프로토콜과 API route, `/_core/*`를
+담당하며 D1, Durable Objects, KV, R2, Queues, email, Analytics Engine, cron binding을 보유하는 유일한
+Worker입니다.
+
+Core 상태는 일관성 요구 사항에 따라 분리됩니다. 관계형 데이터는 D1, 직렬화가 필요한 모든 것
+(WebAuthn challenge, OAuth state, PAR, device flow, 세션 폐기, rate limit, 감사 시퀀스, 미터링)은
+Durable Objects, 캐시 읽기는 KV, blob은 R2, 로그인 경로에서 반드시 분리해야 하는 작업은 Queues가
+담당합니다.
 
 ```
-apps/server/       The Worker
+apps/site/         Nimbus docs Site: apex hub, localized docs, SEO, Pagefind, agent surfaces, www 308
+apps/console/      Binding-free static management UI for /console and /console/*
+apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
-  src/             React SPA: 12 auth pages, 5 account pages, 6 shared console pages,
-                   16 organization console pages, 7 platform console pages
+  src/             React SPA for Hosted Auth and account pages
 packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-커널 라이브러리인 `protocol`, `crypto`, `webauthn`, `saml`, `db`, `i18n`, `types`는 Worker 내부
+커널 라이브러리인 `protocol`, `crypto`, `webauthn`, `saml`, `db`, `i18n`, `types`는 Core Worker 내부
 전용입니다. 암호학 프리미티브는 항상 Web Crypto에서 가져오고 XML-DSig는 `xmldsigjs`에 위임하며,
 그 사이의 프로토콜과 비즈니스 로직은 이 저장소에서 직접 작성합니다.
 

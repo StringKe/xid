@@ -22,10 +22,10 @@ Self-hosting gets the full feature set: no tiering, no license check. Scope = Cl
 Auth0/Zitadel (OIDC IdP, org model) + WorkOS (SSO federation, directory sync). One codebase serves
 single-tenant and multi-tenant; the difference is configuration, never stripped-out code.
 
-One Worker (`apps/server`) is the whole logical core: Hono protocol surface (OIDC/OAuth, JWKS, SCIM,
-SAML, Management API) + React 19 SPA (sign-in, consent, account, consoles, landing, docs) + admin
-logic. Hosted sign-in and consent are not optional -- an RP redirects an unauthenticated user to
-`/authorize`, so the IdP MUST render them.
+`apps/server` is the identity Core: protocols, APIs, admin logic, Hosted Auth and account UI.
+Binding-free frontend Workers are separate: Nimbus Site (`apps/site`) owns apex, `www` and public
+docs; Console (`apps/console`) owns management UI under `/console`. Hosted sign-in and consent stay
+in Core because an RP redirects unauthenticated users to `/authorize`.
 
 ## Sources of truth
 
@@ -186,17 +186,19 @@ new input or changing an error response shape.
 
 ## i18n-lingui
 
-All localization goes through lingui (macro / catalog / po / ICU) across the React SPA, the React SDK and Worker API error messages; transactional email stays on Mustache
+lingui for Site, Core UI, Console, shared UI, React SDK and Worker errors; email stays on Mustache
 
 # Localization: the lingui stack
 
-lingui is the only i18n stack: the React SPA (`apps/server/src`), the React SDK (`packages/react`),
-and user-facing Worker API errors. **Transactional email templates are out of scope** -- Mustache
-subset plus R2 language packs. Workflow `docs/i18n.md`.
+lingui is the only i18n stack for `apps/site`, `apps/server/src`, `apps/console`, `packages/web-ui`,
+`packages/react`, and user-facing Worker API errors. **Transactional email is out of scope**:
+Mustache plus R2 language packs. Workflow `docs/i18n.md`.
 
 ## MUST
 
 - **Never hardcode user-facing copy.** Every visible string goes through lingui.
+- Nimbus Site has no React runtime. Astro shell copy and document AST copy use `MessageDescriptor`
+  values rendered from the shared compiled catalogs during static generation.
 - SPA JSX: `<Trans>Sign in to {tenant}</Trans>`, never string concatenation. Imperative SPA strings
   (toast / alt / aria-label): `const { t } = useLingui(); t\`Email is required\``.
 - **The React SDK does NOT use macros.** It declares runtime descriptors in

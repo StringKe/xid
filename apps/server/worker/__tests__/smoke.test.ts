@@ -9,7 +9,6 @@ import { describe, it, expect } from 'vitest'
 import type { HostedAuthPolicy, TenantContext } from '@xid-kit/types'
 import { DEFAULT_HOSTED_AUTH_POLICY } from '@xid-kit/types'
 import { sessionMiddleware } from '../middleware/session'
-import { buildEdgeProbePayload } from '../lib/edge-probe'
 import { registerAllRoutes } from '../routes'
 import { isAppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
@@ -83,7 +82,6 @@ function buildSmokeApp(ctx: TenantContext, withErrorHandler = false): Hono<XidHo
   const app = new Hono<XidHonoEnv>()
   if (withErrorHandler) app.onError(testErrorHandler)
   app.get('/v1/health', (c) => c.json({ ok: true }))
-  app.get('/v1/edge', async (c) => c.json(await buildEdgeProbePayload(c.req.raw.cf)))
 
   const protocol = new Hono<XidHonoEnv>()
   protocol.use('*', async (c: Context<XidHonoEnv>, next) => {
@@ -209,24 +207,6 @@ describe('worker app smoke: protocol endpoints', () => {
     const res = await app.request('https://acme.xid.dev/v1/health', {}, smokeEnv({}))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true })
-  })
-
-  it('GET /v1/edge -> 200 with probe metrics', async () => {
-    const app = await mk()
-    const res = await app.request('https://acme.xid.dev/v1/edge', {}, smokeEnv({}))
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as {
-      colo: string | null
-      verifyUs: number
-      signingAlg: string
-      accessTokenTtlSec: number
-      jwksRoundTrips: number
-    }
-    expect(body.colo).toBeNull()
-    expect(body.signingAlg).toBe('ES256')
-    expect(body.accessTokenTtlSec).toBe(60)
-    expect(body.jwksRoundTrips).toBe(0)
-    expect(body.verifyUs).toBeGreaterThan(0)
   })
 })
 

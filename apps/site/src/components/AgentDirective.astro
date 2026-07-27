@@ -1,0 +1,26 @@
+---
+interface Props {
+  /** Absolute or site-relative URL for this page's markdown version. */
+  markdownUrl: string;
+  /** Absolute or site-relative URL for the top-level llms.txt index. */
+  llmsUrl: string;
+}
+
+const { markdownUrl, llmsUrl } = Astro.props;
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(Astro.url.pathname, descriptor);
+const pageAvailableInMarkdown = translate(siteShellMessages.pageAvailableInMarkdown);
+const markdownRecommendedForAi = translate(siteShellMessages.markdownRecommendedForAi);
+const see = translate(siteShellMessages.see);
+const pageMarkdownLink = translate(siteShellMessages.pageMarkdownLink);
+const fullDocumentationIndex = translate(siteShellMessages.fullDocumentationIndex);
+---
+
+<aside class="sr-only" data-ai-agent-directive>
+  {pageAvailableInMarkdown}. {markdownRecommendedForAi}. {see}
+  <a href={markdownUrl}>{pageMarkdownLink}</a>,
+  <a href={llmsUrl}>{fullDocumentationIndex}</a>.
+</aside>

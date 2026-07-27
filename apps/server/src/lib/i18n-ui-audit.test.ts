@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
-const ROOTS = ['src', '../../packages/react/src']
+const ROOTS = ['src', '../console/src', '../../packages/react/src', '../../packages/web-ui/src']
 const VISIBLE_ATTRIBUTES = new Set(['aria-label', 'alt', 'placeholder', 'title'])
 const LOCALIZED_TAGS = new Set(['Trans', 'Rt'])
 const MACHINE_TAGS = new Set(['code', 'pre', 'kbd', 'samp'])

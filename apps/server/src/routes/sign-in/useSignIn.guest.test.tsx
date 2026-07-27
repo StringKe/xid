@@ -29,8 +29,11 @@ function failure<T>(): Result<T> {
 }
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => routerState.navigate,
   useSearch: () => routerState.search,
+}))
+
+vi.mock('../../lib/router', () => ({
+  useNavigate: () => routerState.navigate,
 }))
 
 vi.mock('../../lib/auth-context', () => ({
@@ -127,9 +130,7 @@ describe('useSignIn guest entry', () => {
     })
 
     expect(authState.refresh).toHaveBeenCalledTimes(1)
-    expect(routerState.navigate).toHaveBeenCalledWith(
-      expect.objectContaining({ to: '/console', replace: true }),
-    )
+    expect(routerState.navigate).toHaveBeenCalledWith('/console', { replace: true })
     expect(captured()[0].error).toBeNull()
     await cleanup()
   })

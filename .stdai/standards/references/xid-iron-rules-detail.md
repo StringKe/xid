@@ -36,17 +36,19 @@ forbids, or why it exists. Rule numbering matches the root overview one for one.
    exactly with no wildcards; refresh tokens rotate with family revocation; `state`/`nonce` guard
    against CSRF; authorization codes are single-use; `jti` blocks replay. The four WebAuthn checks
    (challenge / origin / rpIdHash / signature) have no bypass path.
-6. **All i18n goes through lingui**: the SPA (hosted UI + console), the React SDK, and Workers API
-   error messages MUST NOT hardcode user-visible strings -- use lingui macros (`Trans` / `t` /
-   `plural`) plus catalogs. Transactional email templates stay on the Mustache subset + R2 locale
-   packs (chapter 07) and are out of lingui's scope.
+6. **All i18n goes through lingui**: the Nimbus Site, Core Hosted UI/account SPA, Console, shared
+   Web UI, React SDK, and Workers API error messages MUST NOT hardcode user-visible strings -- use
+   lingui macros (`Trans` / `t` / `plural`) plus the single shared catalog. Transactional email
+   templates stay on the Mustache subset + R2 locale packs (chapter 07) and are out of lingui's
+   scope.
 7. **Enumeration resistance**: every authentication endpoint returns a uniform ambiguous response.
    Never distinguish "user does not exist" from "wrong password". Response timing is normalized with
    constant-time comparison plus timing jitter.
 8. **Platform administration is ManagerAssignment, not a parallel system**: bootstrap seeds one
    default organization and the initial super admin, who administers every org through a
    platform-layer row in `manager_assignments` with `manager_role = 'instance_manager'` (see
-   `apps/server/worker/admin/bootstrap.ts`). The console is one unified org management UI: the
-   Instance Manager sees everything, an Org Admin sees only their own org. **Do not build a separate
-   admin tenant, admin app, admin API, or admin RBAC** (aligns with chapter 02 Manager Roles and
-   chapter 07 "platform admin and tenant admin live in the same Worker").
+   `apps/server/worker/admin/bootstrap.ts`). The separately deployed Console Worker remains one
+   unified org management UI backed by the same Core APIs: the Instance Manager sees everything,
+   an Org Admin sees only their own org. **Do not build a separate admin tenant, parallel admin
+   product, admin API, or admin RBAC**. A separate static Console deployment is a frontend runtime
+   boundary, not a second administration system.

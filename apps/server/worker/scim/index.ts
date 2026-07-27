@@ -16,7 +16,7 @@ const SCIM_BASE = '/scim/v2/organizations/:organization_id'
 // ServiceProviderConfig -- 告知 SCIM client 支持的功能
 const SERVICE_PROVIDER_CONFIG = {
   schemas: ['urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig'],
-  documentationUri: 'https://xid.dev/docs/scim',
+  documentationUri: 'https://xid.dev/scim',
   patch: { supported: true },
   bulk: {
     supported: true,

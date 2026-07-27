@@ -405,57 +405,60 @@ describe('OIDC RP -- callback 基础校验', () => {
     )
   })
 
-  it('root callback 按 state tenantId 切到最终 tenant 后换码签 session', async () => {
-    const { store, ns } = makeDoStore()
-    seedState(store, 'state-root', {
-      tenantId: 'tenant-resolved',
-      returnToOrigin: 'http://localhost:5174',
-    })
-    vi.mocked(resolveTenantContextById).mockResolvedValue({
-      ok: true,
-      value: { status: 'resolved', tenant: resolvedTenant() },
-    })
-    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
-    const gFetch = mockIdpEndpoints()
-    vi.mocked(verifyJwt).mockResolvedValue({
-      ok: true,
-      value: {
-        header: { alg: 'RS256', kid: 'k1' },
-        payload: {
-          sub: 'idp-user-1',
-          iss: 'https://idp.example.com',
-          aud: 'client-abc',
-          nonce: 'nonce-123',
-        },
-      },
-    })
-    vi.mocked(issueSession).mockImplementationOnce(async (c) => {
-      c.header('set-cookie', '__Host-xid.rt.sso=rt; Path=/; HttpOnly; Secure; SameSite=Lax')
-      return { session: {}, refreshToken: 'rt' } as Awaited<ReturnType<typeof issueSession>>
-    })
-    const env = makeBaseEnv(ns)
-    const res = await rootApp().request(
-      'http://localhost:5174/sso/oidc/conn-1/callback?code=auth-code&state=state-root',
-      {},
-      env,
-    )
-
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('http://localhost:5174/console')
-    expect(res.headers.get('set-cookie')).toContain('__Host-xid.rt.')
-    expect(resolveTenantContextById).toHaveBeenCalledWith(
-      expect.any(Request),
-      expect.anything(),
-      'tenant-resolved',
-    )
-    expect(createTenantDb).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
+  it.each(['https://xid.dev', 'https://tenant-1.xid.dev'])(
+    'root callback 按 state tenantId 切换后回到同 host Console：%s',
+    async (returnToOrigin) => {
+      const { store, ns } = makeDoStore()
+      seedState(store, 'state-root', {
         tenantId: 'tenant-resolved',
-      }),
-    )
-    gFetch.mockRestore()
-  })
+        returnToOrigin,
+      })
+      vi.mocked(resolveTenantContextById).mockResolvedValue({
+        ok: true,
+        value: { status: 'resolved', tenant: resolvedTenant() },
+      })
+      mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
+      const gFetch = mockIdpEndpoints()
+      vi.mocked(verifyJwt).mockResolvedValue({
+        ok: true,
+        value: {
+          header: { alg: 'RS256', kid: 'k1' },
+          payload: {
+            sub: 'idp-user-1',
+            iss: 'https://idp.example.com',
+            aud: 'client-abc',
+            nonce: 'nonce-123',
+          },
+        },
+      })
+      vi.mocked(issueSession).mockImplementationOnce(async (c) => {
+        c.header('set-cookie', '__Host-xid.rt.sso=rt; Path=/; HttpOnly; Secure; SameSite=Lax')
+        return { session: {}, refreshToken: 'rt' } as Awaited<ReturnType<typeof issueSession>>
+      })
+      const env = makeBaseEnv(ns)
+      const res = await rootApp().request(
+        `${returnToOrigin}/sso/oidc/conn-1/callback?code=auth-code&state=state-root`,
+        {},
+        env,
+      )
+
+      expect(res.status).toBe(302)
+      expect(res.headers.get('location')).toBe(`${returnToOrigin}/console`)
+      expect(res.headers.get('set-cookie')).toContain('__Host-xid.rt.')
+      expect(resolveTenantContextById).toHaveBeenCalledWith(
+        expect.any(Request),
+        expect.anything(),
+        'tenant-resolved',
+      )
+      expect(createTenantDb).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          tenantId: 'tenant-resolved',
+        }),
+      )
+      gFetch.mockRestore()
+    },
+  )
 
   it('enterprise SSO 未启用时 callback 拒绝且不换码', async () => {
     const { store, ns } = makeDoStore()

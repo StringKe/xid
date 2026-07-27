@@ -1,0 +1,65 @@
+{
+  "name": "@xid-kit/web-ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared XID product UI and browser infrastructure for Core Hosted UI and Console.",
+  "homepage": "https://xid.dev",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/api.ts",
+    "./brand-assets": "./src/brand-assets.ts",
+    "./class-name": "./src/class-name.ts",
+    "./display-names": "./src/display-names.tsx",
+    "./enum-labels": "./src/enum-labels.tsx",
+    "./locale": "./src/locale.ts",
+    "./locale-context": "./src/locale-context.tsx",
+    "./motion": "./src/motion/index.ts",
+    "./org-route-access": "./src/org-route-access.ts",
+    "./queries": "./src/queries.ts",
+    "./query": "./src/query.ts",
+    "./router": "./src/router.ts",
+    "./tanstack-router": "./src/tanstack-router.tsx",
+    "./session": "./src/session/index.ts",
+    "./theme": "./src/theme.tsx",
+    "./ui": "./src/components/ui/index.ts",
+    "./ui/*": "./src/components/ui/*.tsx",
+    "./BrandLogo": "./src/components/BrandLogo.tsx",
+    "./ConfirmDialog": "./src/components/ConfirmDialog.tsx",
+    "./styles/tokens.stylex": "./src/styles/tokens.stylex.ts",
+    "./styles/product-surface.stylex": "./src/styles/product-surface.stylex.ts"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit -p tsconfig.json",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@lingui/core": "catalog:",
+    "@lingui/react": "catalog:",
+    "@stylexjs/stylex": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-table": "catalog:",
+    "@xid-kit/i18n": "workspace:*",
+    "@xid-kit/types": "workspace:*",
+    "motion": "catalog:"
+  },
+  "devDependencies": {
+    "@stylexjs/unplugin": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19"
+  }
+}

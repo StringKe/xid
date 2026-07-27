@@ -36,7 +36,28 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: () => '',
 }))
 
-import { Link, Navigate, NavLink } from './router'
+import { createRouterAdapter, Link, Navigate, NavLink } from './router'
+
+describe('Core cross-runtime navigation', () => {
+  it('uses document replacement for Console targets and client navigation for Core targets', () => {
+    const clientNavigate = vi.fn()
+    const assign = vi.fn()
+    const replace = vi.fn()
+    const adapter = createRouterAdapter({
+      runtime: 'core',
+      clientNavigate,
+      getCurrentPathname: () => '/sign-in',
+      documentNavigation: { assign, replace },
+    })
+
+    adapter.navigate('/console/org/members?orgId=org_1', { replace: true })
+    adapter.navigate('/account/security')
+
+    expect(replace).toHaveBeenCalledWith('/console/org/members?orgId=org_1')
+    expect(assign).not.toHaveBeenCalled()
+    expect(clientNavigate).toHaveBeenCalledWith('/account/security', undefined)
+  })
+})
 
 describe('Link', () => {
   it('renders dynamic string routes as real href values', () => {

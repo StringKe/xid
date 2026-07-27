@@ -1,13 +1,14 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { createLazyRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { RequireAuth } from '../../components/RequireAuth'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { trackOrganizationSelected } from '../../lib/google-analytics-funnel'
+import { useNavigate } from '../../lib/router'
 import { page } from '../../styles/product-surface.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 
@@ -64,7 +65,7 @@ function SelectOrganizationPage(): ReactNode {
     trackOrganizationSelected()
     const safeRedirect =
       redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/console'
-    void navigate({ to: safeRedirect as never, replace: true })
+    navigate(safeRedirect, { replace: true })
   }
 
   if (organizations.length === 0) {

@@ -1,0 +1,53 @@
+---
+import { config } from "virtual:nimbus/config";
+import Header from "./Header.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getSiteLocale, localizeSitePath } from "@/lib/site-locale";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+
+type Props = {
+  pathname: string;
+};
+
+const { pathname } = Astro.props;
+const pageNotFound = translateSiteMessage(pathname, siteShellMessages.pageNotFound);
+const pageNotFoundDescription = translateSiteMessage(
+  pathname,
+  siteShellMessages.pageNotFoundDescription,
+);
+const backHome = translateSiteMessage(pathname, siteShellMessages.backHome);
+const homeHref = localizeSitePath("/", getSiteLocale(pathname));
+---
+
+<BaseLayout
+  title={`${pageNotFound} - ${config.title}`}
+  description={pageNotFoundDescription}
+  noindex
+>
+  <div class="flex flex-col min-h-screen">
+    <Header showSidebar={false} />
+    <main
+      id="main-content"
+      data-pagefind-ignore
+      class="flex-1 mx-auto max-w-2xl w-full px-6 py-24 text-center"
+    >
+      <p class="text-sm font-medium text-muted-foreground">404</p>
+      <h1
+        class="mt-2 text-foreground leading-tight"
+        style="font-size: var(--nb-h1-size); font-weight: var(--nb-h1-weight); letter-spacing: var(--nb-h1-tracking);"
+      >
+        {pageNotFound}
+      </h1>
+      <p class="mt-2 text-[1.0625rem] text-muted-foreground leading-relaxed">
+        {pageNotFoundDescription}
+      </p>
+      <a
+        href={homeHref}
+        class="mt-8 inline-block rounded-lg border border-border px-4 py-2 font-medium text-foreground no-underline transition-colors hover:border-border-strong"
+      >
+        {backHome}
+      </a>
+    </main>
+  </div>
+</BaseLayout>

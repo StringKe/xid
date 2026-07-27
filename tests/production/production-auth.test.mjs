@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   d1,
   productionBaseUrl,
+  productionSurfaceBaseUrl,
   productionD1Args,
   workerFilter,
   dbBinding,
@@ -30,6 +31,42 @@ describe('production auth D1 target', () => {
       'production base URL override is forbidden; use https://xid.dev',
     )
     expect(productionBaseUrl({})).toBe('https://xid.dev')
+  })
+
+  it('resolves isolated Worker origins and defaults each one to production', () => {
+    expect(productionSurfaceBaseUrl('XID_PRODUCTION_SITE_BASE_URL', {})).toBe('https://xid.dev')
+    expect(
+      productionSurfaceBaseUrl('XID_PRODUCTION_SITE_BASE_URL', {
+        XID_PRODUCTION_SITE_BASE_URL: 'https://site-preview.example/',
+      }),
+    ).toBe('https://site-preview.example')
+    expect(
+      productionSurfaceBaseUrl('XID_PRODUCTION_CONSOLE_BASE_URL', {
+        XID_PRODUCTION_CONSOLE_BASE_URL: 'http://127.0.0.1:8788',
+      }),
+    ).toBe('http://127.0.0.1:8788')
+    expect(
+      productionSurfaceBaseUrl('XID_PRODUCTION_CORE_BASE_URL', {
+        XID_PRODUCTION_CORE_BASE_URL: 'https://core-preview.example',
+      }),
+    ).toBe('https://core-preview.example')
+  })
+
+  it('rejects surface URLs that are not HTTP origins', () => {
+    for (const value of [
+      'xid.dev',
+      'ftp://xid.dev',
+      'https://user@example.com',
+      'https://xid.dev/path',
+      'https://xid.dev?preview=1',
+      'https://xid.dev#preview',
+    ]) {
+      expect(() =>
+        productionSurfaceBaseUrl('XID_PRODUCTION_SITE_BASE_URL', {
+          XID_PRODUCTION_SITE_BASE_URL: value,
+        }),
+      ).toThrow('XID_PRODUCTION_SITE_BASE_URL must be an absolute HTTP(S) origin')
+    }
   })
 
   it('uses the verified production Worker, DB binding and wrangler config', () => {

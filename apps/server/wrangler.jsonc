@@ -3,7 +3,10 @@
   "name": "xid",
   "account_id": "86e4d320a5d69fb54f9721fb219a4902",
   "main": "worker/index.ts",
+  "preview_urls": true,
   "routes": [
+    // Core 只保留 apex Custom Domain 和 tenant fallback。
+    // Site 与 Console 的具体 routes 由各自 wrangler.jsonc 唯一声明。
     { "pattern": "xid.dev", "custom_domain": true },
     { "pattern": "*.xid.dev/*", "zone_name": "xid.dev" },
   ],

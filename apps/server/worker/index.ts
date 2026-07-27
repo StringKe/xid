@@ -1,4 +1,3 @@
-import type { IncomingRequestCfProperties } from '@cloudflare/workers-types'
 import { Hono } from 'hono'
 import type {
   EmailQueueMessage,
@@ -15,9 +14,9 @@ import { registerAllRoutes } from './routes'
 import { registerPublicAssetRoutes } from './public-assets'
 import { dispatchQueue } from './queues'
 import { dispatchScheduled } from './crons'
-import { buildEdgeProbePayload } from './lib/edge-probe'
 import { registerUnmatchedProtocolBlocker } from './lib/unmatched-protocol'
 import { TENANT_ROUTE_PATTERNS } from './tenant-routes'
+import { registerCanonicalHostRedirect, registerPublicMetadataRoutes } from './public-metadata'
 
 // 装配整个 Worker 的 Hono app:协议/认证 sub-app(带 tenant/i18n/session 中间件)+ health + SPA 回落。
 // i18n 对所有路径生效；tenant/session 只作用于协议/认证路由，公共路径不解析 tenant。
@@ -29,16 +28,15 @@ export function createApp(): Hono<XidHonoEnv> {
   // 所有响应（含 bootstrap/public error）在渲染前都拥有请求私有 i18n 实例。
   app.use('*', i18nMiddleware)
 
+  // www 由 Site 持有，此处保留 route 迁移或回滚期间的防御性 308。
+  // 必须先于 TenantContext，www 永远不是 tenant。
+  registerCanonicalHostRedirect(app)
+
+  // LLM 发现入口不需要 TenantContext，其他 well-known metadata 仍走协议路由。
+  registerPublicMetadataRoutes(app)
+
   // 健康检查:不经 tenant 解析(平台探活/任意 Host 可达)。
   app.get('/v1/health', (c) => c.json({ ok: true }))
-
-  // 边缘探针:colo/TLS + 本 Worker 实测 JWT 验签耗时(landing 各区块共享)。
-  app.get('/v1/edge', async (c) => {
-    const body = await buildEdgeProbePayload(
-      c.req.raw.cf as IncomingRequestCfProperties | undefined,
-    )
-    return c.json(body, 200, { 'Cache-Control': 'no-store' })
-  })
 
   // Seed/bootstrap:平台初始化(空 D1 -> 第一个租户可用,铁律 8)。
   // 必须在 tenant 中间件之前(此刻无 instance,tenant 解析必 404);自带 instance-existence 幂等门控。

@@ -1,12 +1,12 @@
 ---
 type: skills
 name: ui-polish
-description: Complete execution rules for detail and motion polish on XID interfaces. Covers twelve dimensions -- alignment, spacing, typography, color contrast, interaction states, micro-interactions, motion choreography, copy, edge states, responsiveness, performance, code -- split into a brand register (landing) and a product register (Hosted UI / account / console / docs)
+description: Complete execution rules for detail and motion polish on XID product interfaces and Nimbus documentation. Covers alignment, spacing, typography, contrast, interaction states, motion, copy, edge states, responsiveness, performance, and code
 when_to_use: A reviewer says the details are unfinished, final polish before shipping, filling in missing interaction states, adding or tuning motion, fixing alignment and spacing, or the last quality pass before release
 allowed_tools: [Read, Edit, Write, Glob, Grep, Bash]
 metadata:
   category: frontend
-  stack: react-stylex
+  stack: react-stylex-astro
 ---
 
 # UI detail and motion polish: XID execution rules
@@ -20,19 +20,14 @@ function first -- never polish a half-built thing.
 
 Two budgets, split by surface, never mixed:
 
-|                  | brand (landing, `apps/server/src/routes/home`)              | product (Hosted UI, account, console, org, platform, docs)         |
-| ---------------- | ----------------------------------------------------------- | ------------------------------------------------------------------ |
-| Role             | The design is the product: one rehearsed signature entrance  | The design serves the task: motion only communicates state          |
-| Motion budget    | Entrance choreography up to 500-800ms, one hero moment       | 150-250ms across the board, no page-load choreography               |
-| Typography       | Fluid `clamp`, large sizes at low weight                     | Fixed rem steps (0.6875rem to 1.375rem) plus one clamped page title  |
-| Color            | Committed is allowed (brand color can hold area)             | Restrained is the floor: accent only for primary action, selection, status |
-| Density          | Breathing room first                                         | Density is the value: long table rows are the normal case           |
-| Gutter           | `clamp(1.25rem, 3vw, 4.5rem)` (`routes/home/landing-styles.ts`) | `clamp(1rem, 2.5vw, 4rem)` (`styles/product-surface.stylex.ts`)  |
-| Tokens           | `lx` from `routes/home/landing-theme.stylex.ts`              | `tokens` from `styles/tokens.stylex.ts`                             |
-
-The public docs site (`routes/docs`) is the one hybrid: it uses the product `tokens` set and the
-product motion budget, but keeps fluid `clamp` type. Treat it as product unless a change is
-explicitly about marketing presentation.
+|               | product (`apps/server/src`, `apps/console/src`)                                      | docs (`apps/site/src`)                                      |
+| ------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Role          | The design serves the task; motion only communicates state                          | Nimbus makes technical content readable and navigable        |
+| Motion budget | 150-250ms across the board, no page-load choreography                               | 100-300ms controls, no page-load choreography                 |
+| Typography    | Fixed rem steps plus one clamped page title                                         | Nimbus CSS tokens and documentation type scale                |
+| Color         | Accent only for primary action, selection, and status                               | Nimbus semantic CSS tokens                                    |
+| Density       | Long table rows are normal                                                          | Reading density with stable sidebar and table of contents     |
+| Tokens        | `tokens` from `packages/web-ui/src/styles/tokens.stylex.ts`                         | Nimbus tokens in `apps/site/src/styles`                       |
 
 ## 1. Hard numbers (red lines -- violations get fixed, not discussed)
 
@@ -46,7 +41,7 @@ Contrast:
 
 Typography:
 
-- Display `clamp` upper bound <= 6rem (the landing hero currently tops out at 5rem); display
+- Display `clamp` upper bound <= 6rem; display
   letter-spacing floor >= -0.04em, tighter than that and characters collide
 - Tracking is size-dependent -- never one global value. Display and headings take negative tracking
   on a gradient by size (-0.01em to -0.04em, tighter as the size grows), body takes 0, sizes below
@@ -76,30 +71,27 @@ Duration table (the 100 / 300 / 500 rule):
 | 100-150ms | Immediate feedback  | Press, toggle, color change           |
 | 200-300ms | State change        | Menu open, tooltip, hover, tab        |
 | 300-500ms | Layout change       | Collapsible panel, modal, drawer      |
-| 500-800ms | Entrance sequence   | Landing hero and page entrance only   |
+| 500-800ms | Not used            | XID ships no page-load choreography   |
 
-Spring physics (the `motion` library; shared primitives in `apps/server/src/lib/motion/`):
+Spring physics (the `motion` library; shared primitives in `packages/web-ui/src/motion/`):
 
 - Presets: `springDefault` (bounce 0, 0.4s, most UI) / `springSnappy` (0.3s, popovers) /
   `springPress` (0.25s, press feedback) / `springMomentum` (bounce 0.2, 0.4s, drag-and-fling only)
-- Interruptibility: gesture-driven and interactive transitions use a motion spring so they resume
+- Interruptibility: gesture-driven and interactive product transitions use a motion spring so they resume
   from the current value and can reverse at any time. Pure state toggles may stay CSS transitions.
-  The `Reveal` entrance system stays as it is
 - Press feedback is immediate: interactive elements scale to 0.97 on `:active` in 100-150ms, fired
   on pointer-down, not on release. `Button` already does this at 120ms
 - Popovers, drawers, and dialogs: `AnimatePresence` plus `popoverMotion`, with `transform-origin`
   anchored to the trigger, and the same path in and out
-- Reduced motion: `AppMotionConfig` sets `reducedMotion="user"` globally, and `styles.css` has the
-  0.01ms fallback. Transform and layout animations degrade to a crossfade automatically
+- Reduced motion: `AppMotionConfig` sets `reducedMotion="user"` globally, and each app stylesheet
+  carries the 0.01ms fallback. Transform and layout animations degrade to a crossfade automatically
 
 - Easing is limited to the ease-out exponential family: quart `cubic-bezier(0.25, 1, 0.5, 1)`,
   quint `cubic-bezier(0.22, 1, 0.36, 1)`, expo `cubic-bezier(0.16, 1, 0.3, 1)`. **Decorative bounce
   and elastic CSS easing are banned** -- they are dated and they steal attention. Gesture-momentum
   cases may use spring bounce <= 0.2 (`springMomentum`)
 - Exit duration is roughly 75% of entrance
-- Staggered lists are legitimate: on the landing surface stagger through `Reveal`'s `delayMs`, and
-  cap total sequence length at 500ms. **Copying a scroll reveal onto every section is an AI
-  reflex** -- each reveal has to earn what it reveals
+- Do not add scroll reveal choreography to product or documentation pages.
 - A reveal MUST enhance content that is already visible by default. Never make visibility depend on
   a class-triggered transition: in a headless environment or a hidden tab it never fires and the
   block renders blank
@@ -115,9 +107,8 @@ Spring physics (the `motion` library; shared primitives in `apps/server/src/lib/
   yourself
 - Perceived performance: micro-interactions target under 80ms (the threshold for "instant").
   Optimistic updates are for low-risk actions only -- never for payments or destructive operations
-- XID wiring: landing entrances reuse `Reveal` (IntersectionObserver plus reduced-motion already
-  handled). New keyframes are module-level constants. Express state with StyleX conditional values,
-  never descendant selectors
+- New product keyframes are module-level constants. Express product state with StyleX conditional
+  values, never descendant selectors.
 
 ## 3. Complete interaction states (eight per interactive element)
 
@@ -130,7 +121,7 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
   of an empty area is lazy
 - Async buttons set `isLoading` on `Button`, which handles the disabled state and the `Spinner`
   (the spinner takes `currentColor`, so it adapts to its context)
-- `ConfirmDialog` (`apps/server/src/routes/account/ConfirmDialog.tsx`) is the shared confirmation
+- `ConfirmDialog` (`packages/web-ui/src/components/ConfirmDialog.tsx`) is the shared confirmation
   surface for destructive actions. Do not invent a second one
 
 ## 4. Detail checklist (the twelve polish dimensions, walked in order)
@@ -150,9 +141,8 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
 6. Copy: one name per thing; consistent punctuation (labels take no period, sentences do); buttons
    are verb plus object; link text stands on its own. English source strings go through lingui
    macros, and new copy goes extract -> translate -> compile (see the lingui-i18n skill)
-7. Icons: one family, one size scale, from the `Icon` component in
-   `apps/server/src/routes/home/landing-icons.tsx` -- the only icon set in the repo. Never emoji as
-   icons
+7. Icons: one family and one size scale per surface. Nimbus docs use the configured Nimbus icon
+   system. Product surfaces reuse their existing icon system. Never use emoji as icons
 8. Forms: labels wired up (the aria chain in `Field`), required fields marked, one validation timing
    throughout (blur or submit, pick one), sensible tab order
 9. Edge states: loading / empty (teach the user, do not just say "nothing here") / error (offer a
@@ -162,9 +152,10 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
     >= 44x44. Mobile body text >= 14px. No horizontal scrolling
 11. Performance: no CLS (fixed image dimensions, skeletons at row height); expensive effects confined
     to small areas; 60fps measured, not assumed
-12. Code: remove `console.log`, dead code, unreferenced styles. Replace one-off implementations with
-    the shared components (`Section` / `SectionRow` / `MetricsBand` / `DataTable` / `EmptyState` /
-    `PageHeader`). Any new orphan value is a prompt to ask whether it belongs in the tokens
+12. Code: remove `console.log`, dead code, unreferenced styles. Product surfaces replace one-off
+    implementations with the shared components in `packages/web-ui/src/components/ui`
+    (`Section` / `SectionRow` / `MetricsBand` / `DataTable` / `EmptyState` / `PageHeader`). Any new
+    orphan value is a prompt to ask whether it belongs in the tokens
 
 ## 5. Absolute bans (XID edition)
 
@@ -181,14 +172,10 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
   when they overflow
 - Copy using the Empower / Unlock / Transform / Seamless family, or em dashes, or repeated "not just
   X, but Y" constructions
-- **XID exemption**: the mono microlabel and the slash section marker are an established part of the
-  brand system (they come from the design), so they do not count as the "eyebrow on every section"
-  reflex. Inter Variable is locked in the tokens, so the reflexive font rejection does not apply
-  either. Within that system, never stack a second eyebrow or numbering form on top
 
 ## 6. Workflow
 
-1. Pick the register (section 0) and read the matching budget
+1. Pick the product or docs register in section 0 and read the matching budget
 2. Walk the real interface: start the dev server, take screenshots in both light and dark at three
    or more breakpoints, and record findings against the twelve dimensions in section 4. **Tag each
    one cosmetic or functional**
@@ -196,7 +183,7 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
    whole repo for the same pattern and fix it everywhere. A systemic problem gets a systemic fix,
    not a one-line patch
 4. Verify: re-screenshot and compare, run `pnpm exec vp check --fix`, run the relevant vitest
-   suites. If you touched copy, add `pnpm run i18n:audit`. If you touched landing claims, add
+   suites. If you touched copy, add `pnpm run i18n:audit`. If you touched public docs claims, add
    `pnpm run seo:audit`. Before handoff, `pnpm run check` and `pnpm test` are the gates CI runs
 5. Done means every dimension's list is empty, or the remainder is stated explicitly as an accepted
    trade-off with a reason. Never cite "the scripts passed" as evidence that polish is finished --

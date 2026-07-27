@@ -93,6 +93,8 @@ jobs:
       # smoke 的浏览器用例直接 spawn 这个路径,缺失时给出秒级明确失败而不是等 15 分钟超时。
       - name: Verify headless Chrome
         run: /usr/bin/google-chrome --version
+      - run: pnpm build
+      - run: pnpm smoke:three-workers
       - run: pnpm smoke:l2-l3
         env:
           XID_CHROME_PATH: /usr/bin/google-chrome

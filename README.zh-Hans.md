@@ -2,8 +2,9 @@
 
 [English](README.md) | 简体中文 | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Español](README.es.md) | [Português (BR)](README.pt-BR.md)
 
-一个以单个 Cloudflare Worker 运行的边缘原生身份平台。同一份代码同时充当 OIDC/OAuth Identity
-Provider、多租户 RBAC 层、企业 SSO 联邦端点(SAML 与 SCIM),以及 passkey 优先的托管认证界面。
+一个从同一份代码部署为 3 个 Cloudflare Worker 的边缘原生身份平台。Core Worker 提供
+OIDC/OAuth、多租户 RBAC、企业 SSO 联邦、Hosted Auth 与 account 页面;Nimbus Site Worker 从 apex
+根路径提供完整多语言文档;隔离的 Console Worker 提供管理界面。
 
 [![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
 
@@ -108,7 +109,7 @@ link 或一次性验证码的部署都需要付费套餐。
 git clone https://github.com/StringKe/xid.git
 cd xid && pnpm install
 
-# create the resources this Worker binds to
+# create the resources the Core Worker binds to
 cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
@@ -118,10 +119,12 @@ for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-d
 done
 ```
 
-随后编辑 `apps/server/wrangler.jsonc`,把 `account_id`、D1 的 `database_id`、KV namespace 的 `id` 以及
-`routes` 条目替换成你自己的值。该文件目前仍保留上游项目的取值,没有可复制的模板,**未经编辑不会为你完成
-部署**。八个 Durable Object binding、Analytics Engine dataset、`send_email` binding 与两个 cron trigger
-已经声明好,无需改动。
+随后把 `apps/server/wrangler.jsonc`、`apps/console/wrangler.jsonc` 与
+`apps/site/wrangler.jsonc` 中的上游 account 和 route 值替换成你自己的值,并把
+`apps/site/astro.config.ts` 的 canonical public origin 设置为你的 HTTPS apex URL。Core 配置还需要
+你自己的 D1 `database_id` 与 KV namespace `id`。没有可复制的自托管模板,**保留上游值时 3 个 Worker
+无法正确部署**。八个 Durable Object binding、Analytics Engine dataset、`send_email` binding 与两个
+cron trigger 仅属于 Core,并且已经声明好。
 
 设置 secret、执行迁移、部署并初始化。丢失 `KEK` 会让所有签名密钥和已存储的 provider 凭证无法解密;丢失
 `PEPPER` 会让所有密码哈希失效。请先在 Cloudflare 之外备份两者。
@@ -132,7 +135,11 @@ openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
 npx wrangler d1 migrations apply DB --remote
-npx wrangler deploy
+cd ../..
+pnpm run build
+pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
+pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
 
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
@@ -141,16 +148,19 @@ curl -X POST https://<your-domain>/admin/bootstrap \
 ```
 
 Bootstrap 会创建 instance、默认 organization、instance ES256 签名密钥,以及第一个 `instance_manager`
-用户;它拒绝执行第二次。完整说明(含本地 D1 迁移与 seeding)见
-[`docs/zh-Hans/deployment.md`](docs/zh-Hans/deployment.md)。
+用户;它拒绝执行第二次。完整说明(含本地 D1 迁移、seeding、3 Worker 发布顺序与回滚)见
+[`docs/zh-Hans/deployment.md`](docs/zh-Hans/deployment.md)。自托管发布必须同时部署 Core、Console 与
+Site:Site 负责 apex 官网、8 locale 文档、SEO、Pagefind、agent surfaces 与 `www` 308;Console 负责
+`/console` 与 `/console/*`。
 
 ### 开发
 
 ```bash
-pnpm --filter @xid-kit/server dev   # Vite dev server: Worker and SPA together
-pnpm test                           # Vitest across the workspace
-pnpm run check                      # typecheck, lint, i18n, protocol and coverage gates
-pnpm run build                      # all packages plus the server
+pnpm run dev                   # Core, Console, and Nimbus Site development servers
+pnpm test                      # Vitest across the workspace
+pnpm run check                 # typecheck, lint, i18n, protocol and coverage gates
+pnpm run build                 # all packages and all three Workers
+pnpm smoke:three-workers       # local route ownership and cross-Worker smoke test
 ```
 
 `pnpm run check` 是完整关卡,包含两轮覆盖率运行,不是快速 lint。它会调用 `native:verify`;在未设置
@@ -160,24 +170,29 @@ pnpm run build                      # all packages plus the server
 
 ## 架构
 
-一个 Worker 承载全部内容。Hono 提供协议端点与管理端点;React 19 SPA 以 Workers Assets 形式分发,任何
-非 API 路径都回落到它,因此托管界面、账户门户与两套 console 与 token 端点作为一个整体一起部署。状态按
-一致性要求拆分:D1 存关系数据,Durable Objects 承载任何需要串行化的场景(WebAuthn challenge、OAuth
-state、PAR、device flow、会话撤销、限流、审计序号、计量),KV 用于缓存读,R2 存放二进制对象,Queues
-承载必须移出登录链路的工作。
+3 个 Worker 共用同一个 hostname,但不共享 runtime binding。Nimbus Site 负责 apex 文档首页、全部 8 locale
+文档树、SEO、Pagefind、Markdown 与 MDX twins、LLM indexes,以及 `www` 到 apex 的 308。Console 是
+无 binding 的静态 Worker,负责 apex 与 tenant host 的 `/console` 和 `/console/*`。Core 负责 Hosted
+Auth、account 页面、协议与 API route,以及 `/_core/*`;只有 Core 拥有 D1、Durable Objects、KV、R2、
+Queues、email、Analytics Engine 与 cron binding。
+
+Core 状态按一致性要求拆分:D1 存关系数据,Durable Objects 承载任何需要串行化的场景(WebAuthn
+challenge、OAuth state、PAR、device flow、会话撤销、限流、审计序号、计量),KV 用于缓存读,R2
+存放二进制对象,Queues 承载必须移出登录链路的工作。
 
 ```
-apps/server/       The Worker
+apps/site/         Nimbus docs Site: apex hub, localized docs, SEO, Pagefind, agent surfaces, www 308
+apps/console/      Binding-free static management UI for /console and /console/*
+apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
-  src/             React SPA: 12 auth pages, 5 account pages, 6 shared console pages,
-                   16 organization console pages, 7 platform console pages
+  src/             React SPA for Hosted Auth and account pages
 packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-内核库 `protocol`、`crypto`、`webauthn`、`saml`、`db`、`i18n`、`types` 是 Worker 内部使用的。密码学原语
+内核库 `protocol`、`crypto`、`webauthn`、`saml`、`db`、`i18n`、`types` 是 Core Worker 内部使用的。密码学原语
 一律来自 Web Crypto,XML-DSig 委托给 `xmldsigjs`;介于两者之间的协议与业务逻辑都在本仓库中实现。
 
 ## 协议支持

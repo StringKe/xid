@@ -10,8 +10,8 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useCallback, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { createLazyRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { Link } from '../../lib/router'
+import { createLazyRoute, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate } from '../../lib/router'
 import { useMutation } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
@@ -198,7 +198,7 @@ function ResetStep({ token }: ResetStepProps): ReactNode {
       }
       await handleResetPasswordSuccess({
         refresh,
-        navigate: (options) => navigate({ to: options.to as never, replace: options.replace }),
+        navigate: async (options) => navigate(options.to, { replace: options.replace }),
         redirectUrl: result.value.redirectUrl,
       })
     },

@@ -1,0 +1,23 @@
+---
+import NotFoundPage from "../../components/NotFoundPage.astro";
+import {
+  SITE_LOCALES,
+  SITE_LOCALE_ROUTE_SEGMENTS,
+  resolveSiteLocale,
+} from "../../lib/site-locale";
+
+export function getStaticPaths() {
+  return SITE_LOCALES
+    .filter((locale) => locale !== "en")
+    .map((locale) => ({
+      params: { lang: SITE_LOCALE_ROUTE_SEGMENTS[locale] },
+    }));
+}
+
+const locale = resolveSiteLocale(Astro.params.lang ?? "");
+if (locale === null || locale === "en") {
+  throw new Error(`Unsupported localized 404 route: ${Astro.params.lang ?? ""}`);
+}
+---
+
+<NotFoundPage pathname={`/${SITE_LOCALE_ROUTE_SEGMENTS[locale]}/404`} />

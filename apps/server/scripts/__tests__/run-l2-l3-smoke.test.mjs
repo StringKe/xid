@@ -15,6 +15,7 @@ import {
   VITEST_FILE_GRACE_MS,
   VITEST_FILE_TIMEOUT_MS,
   installSignalCleanup,
+  main,
   run,
   runIsolatedSmokeFile,
   runSmokeFiles,
@@ -326,6 +327,41 @@ describe('run-l2-l3 smoke lifecycle', () => {
     expect(rmFn).toHaveBeenCalledWith('/tmp/xid-smoke-one', { recursive: true, force: true })
     expect(rmFn).toHaveBeenCalledWith('/tmp/xid-smoke-two', { recursive: true, force: true })
     expect(writeFileFn).toHaveBeenCalledTimes(6)
+  })
+
+  it('builds Console and enables its test-only static route before smoke files', async () => {
+    const runFn = vi.fn(async () => {})
+    const runIsolatedSmokeFilesFn = vi.fn(async () => {})
+    await main({
+      env: { XID_SMOKE_CONSOLE_DIST_PATH: '/tmp/stale-console-build' },
+      log: vi.fn(),
+      runFn,
+      runIsolatedSmokeFilesFn,
+    })
+
+    expect(runFn).toHaveBeenNthCalledWith(
+      1,
+      'pnpm',
+      ['--filter', '@xid-kit/server', 'build'],
+      expect.objectContaining({
+        env: expect.not.objectContaining({ XID_SMOKE_CONSOLE_DIST_PATH: expect.anything() }),
+      }),
+    )
+    expect(runFn).toHaveBeenNthCalledWith(
+      2,
+      'pnpm',
+      ['--filter', '@xid-kit/console', 'build'],
+      expect.objectContaining({
+        env: expect.not.objectContaining({ XID_SMOKE_CONSOLE_DIST_PATH: expect.anything() }),
+      }),
+    )
+    expect(runIsolatedSmokeFilesFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          XID_SMOKE_CONSOLE_DIST_PATH: expect.stringMatching(/\/apps\/console\/dist\/console$/u),
+        }),
+      }),
+    )
   })
 
   it('bounds every health probe to two seconds', async () => {

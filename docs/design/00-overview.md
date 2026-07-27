@@ -75,9 +75,10 @@ Language     TypeScript
 Monorepo     pnpm workspace + turborepo (the only cross-package orchestrator) + Vite+ (vp: Oxlint/Oxfmt/Vitest/tsgo/library bundling) + standard Vite (app builds)
 Runtime      Cloudflare Workers
 Backend      Hono (protocol endpoints + Management API)
-Frontend     React 19 SPA (standard Vite + @cloudflare/vite-plugin), client-side routing (@tanstack/react-router, code-based; `lib/router.tsx` keeps a react-router compatible API)
-             Covers: Hosted UI (sign-in/consent/account) + org/instance management console
-             Build output is served statically by the same Worker through the ASSETS binding; non-API paths fall back to single-page-application handling
+Public site  Astro 7 + @cloudflare/nimbus-docs 0.8.2, static SSR, Pagefind, sitemap, OG, Markdown twins and LLM outputs
+Hosted UI    React 19 SPA in the Core deployment: sign-in, consent and account
+Console      React 19 SPA in a static-assets-only Worker: one org/instance console product on apex and tenant-host `/console`
+Edge routing More-specific Worker Routes select Site and Console paths; Core remains the Custom Domain and tenant wildcard fallback
 i18n         Full lingui stack (@lingui/core + @lingui/react + @lingui/cli + macros, ICU, po format)
 Cryptography Web Crypto (crypto.subtle)
 ORM/DB       Drizzle ORM + D1 (relational data)
@@ -95,34 +96,31 @@ SAML XML     xmldsigjs + @xmldom/xmldom (nodejs_compat >= 2025-04-08)
 
 ### 3.1 Application boundary
 
-The logical core is a single Worker (`apps/server`): protocol endpoints (Hono: OIDC/OAuth/JWKS/SCIM/
-SAML/Management API), the human-facing frontend (React SPA: sign-in/consent/account/management
-console), and the management logic -- one codebase, one Worker. `@cloudflare/vite-plugin` builds it
-as one project: the Worker handles the API, the SPA renders on the client, and non-API paths fall
-back to static assets.
+One product and one logical Core do not require one frontend deployment. XID has three runtime
+boundaries:
 
-```
-apps/
-  server/        The only Worker (scaffolded with pnpm create cloudflare --framework=react)
-    worker/      Hono: OIDC/OAuth/JWKS/SCIM/SAML/Management API; non-API paths fall back to SPA assets (ASSETS binding)
-    src/         React SPA (client mode): sign-in/consent/account + org/instance management console
-    vite.config.ts   Standard Vite: @vitejs/plugin-react + @cloudflare/vite-plugin + lingui
-    wrangler.jsonc   main=worker/index.ts, assets.not_found_handling=single-page-application
-packages/
-  protocol/     OIDC/OAuth/JWT/PKCE/refresh rotation protocol kernel (built in-house)
-  webauthn/     WebAuthn verification orchestration
-  crypto/       Envelope encryption + instance signing key (Web Crypto wrapper)
-  saml/         xmldsigjs + @xmldom/xmldom SAML processing layer
-  db/           Drizzle schema + tenant-scoped query layer
-  i18n/         lingui runtime instance + compiled locale catalogs
-  core/         SDK browser core (session state/tokens/user and organization info)
-  backend/      SDK server core (Cloudflare Workers native, networkless JWT verification)
-  react/        SDK React bindings (embeddable UI components)
-  nextjs/       SDK Next.js adapter
-```
+| Runtime     | Package            | Responsibility                                                                                                                                            |
+| ----------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nimbus Site | `@xid-kit/site`    | Canonical apex documentation hub, 8-locale public documentation, SEO, Pagefind, OG, sitemap, Markdown twins, LLM outputs, and the `www` 308 redirect      |
+| Console     | `@xid-kit/console` | One org and instance management SPA. It is a static Worker with only an `ASSETS` binding and owns `/console` on both apex and tenant hosts                |
+| Core        | `@xid-kit/server`  | Hono protocol and Management API surface, Hosted Auth, account self-service, admin logic, Durable Objects, queues, crons, secrets, and every data binding |
+
+The Core Worker remains the only logical identity core. The Site and Console Workers cannot access
+D1, KV, R2, Durable Objects, Queues, or Core secrets. The Console calls the same-host Core API, and
+platform and org management continue to share one RBAC model and one Console product.
+
+Cloudflare selects these runtimes through explicit, more-specific Worker Routes. Site owns only its
+enumerated public and locale paths, Console owns only `/console` and `/console/*`, and the Core
+Custom Domain plus tenant wildcard remain the fallback. No front proxy Worker is introduced, and
+neither Site nor Console may claim a broad apex catch-all.
+
+The private `@xid-kit/web-ui` package contains the UI primitives, theme, locale, session, API client,
+query helpers, and router adapter shared by Hosted UI and Console. The protocol, WebAuthn, crypto,
+SAML, database, and i18n kernel packages remain internal to Core. The browser, backend, React, and
+Next.js packages remain optional SDKs for customer applications.
 
 `@xid-kit/*` splits into two groups. `protocol/webauthn/crypto/saml/db/i18n` are **kernel libraries**
-used inside the server Worker. `core/backend/react/nextjs` are **SDKs for embedded customer
+used inside the Core Worker. `core/backend/react/nextjs` are **SDKs for embedded customer
 integration** (optional). The hosted sign-in and consent pages are part of the OIDC protocol
 foundation, not an optional app.
 
@@ -184,12 +182,19 @@ management API runs on a separate path and does not reuse the business API.
 ### 6.1 Authentication root domain: xid.dev
 
 The `xid.dev` apex domain is the unified instance-level entry point for humans and the entry point
-for the platform console. It is not a fixed alias for an `admin` tenant or an `app` tenant. Every
-user can reach the unified Hosted UI at `https://xid.dev/sign-in`, which first collects an
+for the platform console. Nimbus Site owns the canonical documentation hub and public documentation, while
+the Core Worker owns Hosted Auth, account, protocol and API paths, and the Console Worker owns
+`/console`. This path routing does not change the issuer or create an additional identity core. The
+apex is not a fixed alias for an `admin` tenant or an `app` tenant. Every user can reach the unified
+Hosted UI at `https://xid.dev/sign-in`, which first collects an
 identifier, `login_hint`, OIDC authorize context, or an existing session, and then lets the instance
 login resolver determine the final authentication context. The initial superadmin is not required to
 know about `admin.xid.dev`, business users are not required to know about `app.xid.dev`, and the
 platform still does not build a separate admin SPA, admin API, or admin RBAC system.
+
+`https://www.xid.dev/{path}?{query}` always returns 308 to
+`https://xid.dev/{path}?{query}` with the path and query preserved. `www` is a reserved tenant slug
+and never enters TenantContext resolution.
 
 The instance login resolver selects the target org/tenant under the apex domain:
 
@@ -225,6 +230,9 @@ Business tenants get a first-level subdomain `{tenant}.xid.dev`:
 
 - The first-level wildcard `*.xid.dev` is covered by free Universal SSL, so no ACM is needed
 - RPID is `{tenant}.xid.dev`, unique per tenant, which isolates passkeys per tenant naturally
+- The same static Console Worker owns `/console` and `/console/*` on both the apex and each tenant
+  host. It keeps document navigation and Core API calls on the original host so host-only session
+  cookies continue to work
 - By default this is not an OIDC issuer. A subdomain can serve as an org-scoped UI, branding surface,
   or future custom issuer entry point, but the hosted default issuer for xid.dev remains the instance
   domain `https://xid.dev`
@@ -325,7 +333,10 @@ sub-service-organization evidence, but application-layer controls remain our res
 
 | Service                         | Purpose                                                                                                                                        |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Workers + Hono                  | HTTP and protocol handling                                                                                                                     |
+| Core Worker + Hono              | Protocol, Hosted Auth, account, Management API, bindings, queues, crons, and identity business logic                                           |
+| Nimbus Site Worker              | Canonical apex documentation hub, 8-locale public docs, SEO, Pagefind, Markdown and LLM outputs, and `www` 308                                  |
+| Console Worker                  | Static org and instance management SPA on apex and tenant-host `/console`, with no Core bindings                                               |
+| Worker Routes                   | More-specific Site and Console path ownership over the Core Custom Domain and tenant wildcard fallback, with no front proxy                    |
 | D1                              | Users, applications, groups, credential metadata, authorization codes, refresh tokens, audit, tenants, key ciphertext, sessions                |
 | Durable Objects                 | WebAuthn challenges, OAuth state/nonce/PKCE, session revocation sets, per-tenant rate limiting (strong consistency, replay defense)            |
 | KV                              | JWKS, discovery, branding configuration, feature flag cache                                                                                    |
@@ -350,18 +361,18 @@ sub-service-organization evidence, but application-layer controls remain our res
 
 ## 10. Decision summary
 
-| #   | Decision                 | Conclusion                                                                                       |
-| --- | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| 1   | Language                 | TypeScript (workers-rs dropped)                                                                  |
-| 2   | Delivery model           | The entire codebase is open source and self-hostable; single and multi-tenant share one codebase |
-| 3   | License                  | MIT (OSI-approved open source, no usage restrictions)                                            |
-| 4   | Single/multi-tenant code | One codebase, driven by TenantContext configuration, with no code stripping                      |
-| 5   | Authentication           | Full multi-factor plus social plus enterprise SSO (SAML/OIDC)                                    |
-| 6   | Tenant addressing        | `{tenant}.xid.dev` subdomains plus custom domains                                                |
-| 7   | Passkey isolation        | Per-tenant RPID; subdomains isolate naturally                                                    |
-| 8   | Signing keys             | Instance ES256 by default plus envelope encryption (KEK in Workers Secrets)                      |
-| 9   | Build-vs-buy boundary    | Platform cryptography, in-house protocol and business logic, library-based SAML XML              |
-| 10  | Usage metering           | Exact DAU/MAU deduplication, so self-hosters can wire up their own billing or quotas             |
-| 11  | Hierarchy model          | Instance -> Org -> Project -> App, with one level of sub-org                                     |
-| 12  | Scope                    | Full target capability coverage; support level governed by the protocol matrices and L4 evidence |
-| 13  | Frontend architecture    | React 19 SPA (no SvelteKit), sharing the single apps/server deployment unit with the Hono Worker |
+| #   | Decision                 | Conclusion                                                                                          |
+| --- | ------------------------ | --------------------------------------------------------------------------------------------------- |
+| 1   | Language                 | TypeScript (workers-rs dropped)                                                                     |
+| 2   | Delivery model           | The entire codebase is open source and self-hostable; single and multi-tenant share one codebase    |
+| 3   | License                  | MIT (OSI-approved open source, no usage restrictions)                                               |
+| 4   | Single/multi-tenant code | One codebase, driven by TenantContext configuration, with no code stripping                         |
+| 5   | Authentication           | Full multi-factor plus social plus enterprise SSO (SAML/OIDC)                                       |
+| 6   | Tenant addressing        | `{tenant}.xid.dev` subdomains plus custom domains                                                   |
+| 7   | Passkey isolation        | Per-tenant RPID; subdomains isolate naturally                                                       |
+| 8   | Signing keys             | Instance ES256 by default plus envelope encryption (KEK in Workers Secrets)                         |
+| 9   | Build-vs-buy boundary    | Platform cryptography, in-house protocol and business logic, library-based SAML XML                 |
+| 10  | Usage metering           | Exact DAU/MAU deduplication, so self-hosters can wire up their own billing or quotas                |
+| 11  | Hierarchy model          | Instance -> Org -> Project -> App, with one level of sub-org                                        |
+| 12  | Scope                    | Full target capability coverage; support level governed by the protocol matrices and L4 evidence    |
+| 13  | Frontend architecture    | Nimbus Site plus a separate static Console Worker; Core retains the React Hosted UI and account SPA |
