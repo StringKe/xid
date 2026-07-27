@@ -109,6 +109,16 @@ describe('CI release contract', () => {
     expect(workflow).not.toContain('quality:')
   })
 
+  it('passes the verified Linux Chrome path to every smoke command', () => {
+    const workflow = readFileSync(workflowPath, 'utf8')
+    const smokeJob = jobBlock(workflow, 'smoke')
+
+    expect(smokeJob).toBeDefined()
+    expect(smokeJob).toContain('env:\n      XID_CHROME_PATH: /usr/bin/google-chrome')
+    expect(smokeJob).toContain('- run: pnpm smoke:three-workers')
+    expect(smokeJob).toContain('- run: pnpm smoke:l2-l3')
+  })
+
   it('rejects tracked private-key fixtures', () => {
     const result = spawnSync('node', [secretScannerPath], {
       cwd: repoRoot,
