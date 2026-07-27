@@ -28,6 +28,8 @@
 - Emails and phones live in their own association tables, multi-valued with verified and primary
   state, and `UNIQUE (tenant_id, email)` isolates tenants
 - external_id has a `(tenant_id, external_id)` unique index and allows null
+- provisioned_by records the provisioning source: `jit_sso`/`scim`/`signup`/`invite`/`admin`, plus
+  `anonymous` for a guest user created by `POST /auth/guest` (see chapter 01 section 8)
 - The three metadata tiers each get their own JSON column and are never merged. private_metadata is
   not returned by default and only when a server context requests it explicitly
 
@@ -72,6 +74,16 @@ table and are invalidated immediately after use.
 The core entity is UserIdentity (see chapter 08): the association between one sign-in method and a
 User.
 
+Guest conversion (see chapter 01 section 8) is an in-place link, not a merge: while a guest session
+(a user with `provisioned_by = 'anonymous'`) is valid, the first completed credential ceremony
+attaches the credential to the guest user, rewrites `provisioned_by` to the conversion source, and
+rotates the session, so `sub` does not change. The exception is the email-occupied path: when the
+email being verified belongs to another user in the same tenant, the occupation fact is revealed
+only after the user proves mailbox control, and the user is guided to sign in to that account
+instead. The guest user is then marked `merged_into_user_id`, the `sub` changes, and merging the
+RP-side data accumulated during the guest period is the RP application layer's responsibility (the
+SDK compares the old and new `sub` and exposes a merge hook).
+
 ## 4. Verification (email / phone)
 
 - Email: sign-up sends a verification link (magic link) or a 6-digit OTP
@@ -96,6 +108,9 @@ User.
   scrypt, and MD5 (Auth0 compatible). Lazy migration: the import stores the hash as-is and upgrades it
   transparently on first sign-in
 - User export: NDJSON containing every field (private_metadata subject to permissions)
+- Guest GC (see chapter 01 section 8): a daily cron soft-deletes guest users
+  (`provisioned_by = 'anonymous'`) whose last activity is 30 days old or more, entering the same
+  soft delete -> 30-day grace period -> hard delete PII pipeline described in section 7
 
 ## 6. Administrator capabilities
 
@@ -237,7 +252,7 @@ Source and rules for each claim:
 | org_role        | The role on the OrgMembership matching active_org_id                       | Only the highest single role; omitted when there is no org context                                                                                                                                                                                                                           |
 | org_permissions | Expanded from role -> permissions                                          | An array of strings; omitted when there is no org context                                                                                                                                                                                                                                    |
 | act             | Set to `{"sub": impersonator_user_id}` while impersonating, otherwise null | RFC 8693 token exchange; the claim is omitted when null                                                                                                                                                                                                                                      |
-| amr             | The array of authentication methods used at sign-in                        | passkey: `["phr"]`; password: `["pwd"]`; OTP: `["otp"]`; MFA carries several at once                                                                                                                                                                                                         |
+| amr             | The array of authentication methods used at sign-in                        | passkey: `["phr"]`; password: `["pwd"]`; OTP: `["otp"]`; MFA carries several at once; a guest with no credential yet carries `guest`, which the first token issued after conversion naturally drops (see chapter 01 section 8)                                                                                                                                                                                                         |
 | acr             | Authentication context class                                               | The XID-private URIs `urn:xid:aal1` / `urn:xid:aal2` / `urn:xid:aal3`; the current sign-in paths only issue AAL1 and AAL2                                                                                                                                                                    |
 | auth_time       | The Unix timestamp of the last full authentication (not a token refresh)   | Required by OIDC Core; session.authenticated_at                                                                                                                                                                                                                                              |
 | email           | The primary_email address                                                  | Emitted only when the scope includes email                                                                                                                                                                                                                                                   |

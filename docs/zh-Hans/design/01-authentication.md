@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=5d55b0c source-blob=47fbafcecfee852a4cb74c0ae08f52efda0d13fa -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=5d55b0c source-blob=c10f93af60ccef5bba7e700fa10c275ca0ee1a59 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -345,3 +345,51 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 1. **instance login resolver 的组织解析**:多租户托管下,输入邮箱后需要解析用户所属 org(instance login resolver / `/auth/config` 的 login_hint、密码登录的 ambiguous 分支),这会向匿名请求者透露"该邮箱是否注册了单 org/多 org"。这是 resolver 的产品本质(ZITADEL 同型),接受此面;缓解:账户级 10 次/15min + IP 级 50 次/min 限流。
 2. **magic link GET 即建会话**:magic link 点击后直接建立会话(行业惯例,Auth0/Clerk 同款一键体验)。攻击者诱导受害者点击攻击者自己的 link 可让受害者登录到攻击者账户(login CSRF 变体),但 token 一次性 + 15min 有效 + 跨设备打开是合法场景(手机收邮件、桌面登录),绑定浏览器会破坏该场景,接受此面。
+
+## 8. Guest 登录(匿名)
+
+Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得可用身份。本节是设计契约,已在 apps/server/worker/me-auth/guest.ts(端点)、guest-conversion.ts(转正钩子)、durable-objects/guest-store.ts(并发去重)、crons/daily.ts(GC)落地;交付状态以 docs/protocols/source-map.md(implemented,L1/L2)和 docs/sdks/platform-matrix.md 为准。
+
+### 模型
+
+- guest 是真 user 行:users.provisioned_by 新增值 'anonymous';无任何已链接凭证(无密码、无 passkey、无已验证 email/phone、无 social identity)的 user 即 guest。
+- 不新增 users.status 枚举值,不新增 session 类型。guest 标记 = provisioned_by = 'anonymous';token 的 amr 在签发时按"该 user 是否已有凭证"推导,含 'guest' 或不含,转正后下一张 token 自然摘掉。
+- guest session 是真 session:refresh 轮换、SessionDO 撤销、/authorize SSO 全部复用;RP 从 ID Token 的 amr 识别 guest 并自行决定是否接受(等价 Firebase Security Rules 的 sign_in_provider != 'anonymous')。
+
+### POST /auth/guest(私有扩展,非 OIDC 标准能力)
+
+- 无认证端点:建 anonymous user + session;响应 JSON(session handle、expires 等,对齐既有 me-auth 登录响应形态),浏览器场景同时 Set-Cookie。
+- 四层防重复(端点契约,四层均为必须):
+  1. SDK 惰性复用:本地有有效 guest 凭证就不再调用端点(Firebase 语义)。
+  2. 端点幂等:请求带有效 guest session 时 200 续签返回现有 session,不建号。
+  3. 并发去重:GuestStore Durable Object,idFromName("{tenant_id}:{anonKey}"),复用 WebAuthn 的 __Host-xid.anon cookie + anonKey 基建;DO 单线程串行 check-and-set,绑定记录 TTL 对齐 session TTL,alarm 清理;无 anonKey 的裸请求退化为每次新建,由第四层兜底。
+  4. 滥用防护:Turnstile(env.TURNSTILE_SECRET 存在时强制)+ RateLimitStore DO 按 IP + fingerprint 限流(一次 attempt 一次 check-and-increment)+ 每租户每日铸造上限,GC 兜底。
+- 做不到的:换浏览器/清 cookie/隐身 = 新访客,不追求一人一 guest。
+- 枚举抗性:响应不携带任何既有账号信息。
+- 审计事件 guest.created。
+
+### 转正(原地 link,sub 不变)
+
+- 路由规则:guest session 有效时,用户完成任意首个凭证仪式(passkey 注册,challenge 已是 reg:{userId}:{tenantId} 形态;设置密码;email OTP 验证;social 绑定),一律把凭证挂到当前 guest user,不新建 user。复用 05 章"已登录态添加凭证需认证"的既有 linking 规则,新逻辑只是 me-auth 仪式入口识别 guest session 路由到 link 而非 create。
+- 转正完成:provisioned_by 改写为转正来源,轮换 session(吊销旧 refresh、签发新 session,防 session fixation 变体),审计事件 guest.converted。
+- email 已被本租户其他 user 占用:不能提前泄露占用事实(枚举铁律),先发验证邮件,用户证明邮箱控制权后才告知"该邮箱属于另一个账号",引导正常登录;该路径 sub 变化,guest 期间 RP 侧数据成孤儿,guest user 标 merged_into_user_id,数据合并是 RP 应用层职责,SDK 对比新旧 token 的 sub 并暴露合并钩子。
+- 语义边界:guest 不可恢复(登出即丢失)、单设备、无 MFA;照抄 Firebase 的两条警告:匿名 token 不是 app attestation;持续提示用户转正。
+- MFA enrollment 不是转正仪式:TOTP 永远不是登录凭证,仅 enroll TOTP 的 guest 仍没有可恢复身份,保持 guest 身份(含 30 天 GC 窗口)直到完成上述四个仪式之一。
+- guest session TTL、GuestStore 绑定 TTL 与 __Host-xid.anon cookie Max-Age 均取自租户 session policy(absoluteTimeoutDays),不使用模块级常量。
+
+### GC
+
+- cron 每日扫:provisioned_by = 'anonymous' 且最后活跃满 30 天(user 无 session 时按 created_at;有 session 按该 user 最新 session 的 last_active_at),软删 deleted_at,进入既有 30 天硬删 PII 管道(见 05 章 7)。审计事件 guest.gc_deleted。
+
+### 计量、Management API 与审计
+
+- MeteringDO MAU 去重排除 guest,否则免费试用会打爆客户 MAU 账单。
+- Management API /v1/users 列表支持 ?provisioned_by=anonymous 过滤,不新增端点。
+- 新增审计事件名:guest.created、guest.converted、guest.gc_deleted(06 章 webhook/审计事件表同步)。
+
+### 不做
+
+- 不做 guest 登录的 OAuth extension grant。
+- 不做 XID 托管的数据合并端点。
+- 不做 Cognito 式非 user 凭证:guest 永远是真 user 行。
+- 不做 per-client guest 隔离池。

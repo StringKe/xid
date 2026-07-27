@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=5d55b0c source-blob=f1583b3f0dd7c48aded943f4119e594ae91f145f -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=5d55b0c source-blob=187fba46ae72e6cbb0f2b4482c827c08f1e84e33 -->
 
 > Translation of `docs/design/08-data-model.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -29,6 +29,10 @@
 | RATE_LIMITER       | RateLimitStore  | 按租户限流计数                                          |
 | AUDIT_SEQ          | AuditSeqDO      | 审计 seq 颁发(按 `audit-seq:{tenantId}` 分片,见 17.2)   |
 | METERING           | MeteringDO      | DAU/MAU 精确去重(按 `metering:{tenantId}` 分片,见 17.3) |
+
+| GUEST_STORE        | GuestStore      | guest 登录并发去重(按 `idFromName("{tenant_id}:{anonKey}")` 分片,见 01 章 8) |
+
+GuestStore 绑定复用 WebAuthn 的 __Host-xid.anon cookie + anonKey 基建;绑定记录 TTL 对齐 session TTL,DO alarm 清理。
 
 ## 实体关系主线
 
@@ -410,11 +414,13 @@ User 是平台级实体,跨 org 通过 Membership 关联;`tenant_id` 仍标其�
 | failed_login_count        | integer number  | NOT NULL                                      | `0`            | 连续失败计数(锁定触发)                                                                                                                    |
 | last_login_at             | integer ts_ms   | null                                          | null           |                                                                                                                                           |
 | merged_into_user_id       | text            | FK -> users.id ON DELETE set null, null       | null           | 账户合并次账户指向主账户(见 05 章 3)                                                                                                      |
-| provisioned_by            | text            | null                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin`(见 04 章 4)                                                                                    |
+| provisioned_by            | text            | null                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin`/`anonymous`/`hosted_password`/`hosted_passwordless`/`hosted_passkey`(见 04 章 4;`anonymous` = guest 用户,见 01 章 8;`hosted_*` = Hosted UI 凭证来源,guest 转正时也写这些值)                                  |
 | deleted_at                | integer ts_ms   | null                                          | null           | 软删除(30d 后硬删 PII,见 05 章 7)                                                                                                         |
 | created_at / updated_at   | integer ts_ms   | NOT NULL                                      | 见 9.3         |                                                                                                                                           |
 
 索引:`UNIQUE(tenant_id, username)`、`UNIQUE(tenant_id, external_id)`、`INDEX(tenant_id, status)`、`INDEX(tenant_id, created_at)`、`INDEX(primary_email_id)`、`INDEX(merged_into_user_id)`。primary_email_id/primary_phone_id 与 user_emails/user_phones 互为引用,建表后用 deferred FK 或应用层维护(SQLite 不支持 ALTER ADD FK,Drizzle 声明 FK 即可,运行时不强制)。
+
+guest 生命周期(见 01 章 8):GC cron 每日扫,软删 provisioned_by = 'anonymous' 且最后活跃满 30 天的 user(无 session 按 created_at,有 session 按该 user 最新 session 的 last_active_at),与其他软删用户进入同一套 30 天硬删 PII 管道(见 05 章 7),审计事件 guest.gc_deleted。guest 行不参与 MeteringDO MAU 去重(见 17.3),避免免费试用打爆 MAU 账单。
 
 ### 11.2 user_emails(多值邮箱,见 05 章 1)
 
@@ -1225,6 +1231,8 @@ usage_monthly(Cron 月底从 MeteringDO 读 count 归档,见 07 章 7.1.2):
 | archived_at | text           | NOT NULL | --   | ISO 8601(对齐 07 章 SQL)                                                                                              |
 
 主键:`PRIMARY KEY (tenant_id, year_month)`。
+
+MeteringDO MAU 去重排除 guest 用户(users.provisioned_by = 'anonymous',见 01 章 8):guest 是真 user 行,但计入 MAU 会让免费试用打爆客户 MAU 账单。
 
 ### 17.3b metering_outbox(认证成功计量的持久恢复队列)
 

@@ -1,80 +1,47 @@
-# GitHub Security 全量修复计划
+# Firebase 式访客模式(匿名注册 -> 原地转正)落地计划
 
 ## 基线
 
-- 日期：2026-07-25
-- 基线提交：`7c801679ee46862c450de34bf10dcb0169ba558a`
-- 分支：`codex/security-alert-remediation-20260725`
-- Dependabot：34 条开放告警，24 个独立安全公告
-- CodeQL：26 条开放告警
-- Scorecard：6 条开放告警
-- Secret Scanning：4 条开放告警
-- 总计：70 条开放告警
-
-数据源：
-
-- https://github.com/StringKe/xid/security/dependabot
-- https://github.com/StringKe/xid/security/code-scanning
-- https://github.com/StringKe/xid/security/secret-scanning
+- 日期:2026-07-26
+- 目标:guest 是真 user 行(provisioned_by = 'anonymous'),无已链接凭证即为 guest;转正原地 link,sub 不变
+- 设计共识(用户已拍板):
+  - GC 按最后活跃满 30 天
+  - email 冲突先验证后告知,引导登录既有账号,数据合并由 RP 应用层负责
+  - SDK 覆盖 React + sdk/ 全部原生平台
+  - 不做 OAuth extension grant、不做 XID 托管合并端点、不做 Cognito 式非 user 凭证
 
 ## 冻结范围
 
-- 修复 npm、Rust、Go、Composer 的全部已知易受攻击依赖链。
-- 修复 26 条 CodeQL 告警的根因，并搜索全库相同模式。
-- 恢复 CodeQL 工作流，使当前提交能够重新扫描。
-- 增加真实的属性测试和 fuzzing CI gate。
-- 替换 Secret Scanning 命中的测试夹具，不改写公开 Git 历史。
-- solo 仓库不强制独立 review，保留 required checks、线性历史、会话解决和禁止 force push。
-- 对无法由代码立即关闭的治理信号保留可验证说明，不伪造完成状态。
+- 新端点 POST /auth/guest,四层防重复:SDK 惰性复用 -> 端点先查后建幂等续签 -> GuestStore DO 按 anonKey 并发去重 -> Turnstile + RateLimitStore + 每租户日上限 + GC 兜底
+- 转正 = 持 guest session 完成首个凭证仪式(passkey / 密码 / email OTP / social)即原地 link;转正成功轮换 session
+- token amr 按凭证存在性推导('guest'),不写新 status 枚举、不加 session 类型
+- MeteringDO MAU 排除 guest;审计事件 guest.created / guest.converted / guest.gc_deleted
+- UI 走 frontend-design / ui-polish 规范;文案全部走 lingui,React SDK 用 sdk.* runtime descriptor
+- 禁止 git commit / push;禁止新增第三方依赖;禁止削弱既有安全规则
 
 ## Todo List
 
-- [x] T1 建立当前依赖图、告警和 CI 基线证据。
-- [x] T2 修复 npm、Rust、Go、Composer 依赖告警并更新锁文件。
-- [x] T3 修复随机数偏差、ReDoS、URL 规范化、XSS、堆栈泄露和 HTML 过滤根因。
-- [x] T4 恢复 CodeQL，增加 fuzzing gate，替换测试密钥夹具。
-- [x] T5 运行格式化、类型、测试、构建、原生 SDK 和依赖审计门禁。
-- [x] T6 创建 DCO 签名提交，推送分支并创建 PR。
-- [x] T7 完成默认分支重扫，修复 Scorecard 和 smoke 新暴露的根因，并核对全部告警状态。
-
-## 完成定义
-
-- `pnpm audit --json` 报告 0 个漏洞。
-- Rust 锁文件不含受影响或未进入实际依赖图的陈旧包。
-- Go 和 Composer 安全公告对应版本已升级并通过测试。
-- 全库不再存在 CodeQL 指出的同类危险模式。
-- `pnpm run check`、`pnpm test`、`pnpm build` 全部 PASS。
-- 原生 SDK 的受影响语言测试和构建全部 PASS。
-- GitHub required checks 和 CodeQL 全部 PASS。
-- 34 条 Dependabot 告警关闭。
-- 26 条 CodeQL 告警关闭。
-- 4 条 Secret Scanning 告警以 `used_in_tests` 关闭。
-- Scorecard 的 SAST、Vulnerabilities、Fuzzing 信号关闭。
-- Scorecard Code-Review 以 solo 仓库不适用为由关闭，不设置独立 review 门禁。
-- Scorecard Maintained 在仓库达到 90 天前保持外部时间约束说明。
-- Scorecard CII-Best-Practices 完成 OpenSSF 项目登记，并按 solo 仓库无法达到 Gold 多开发者要求的事实关闭告警。
-
-## 合并后证据
-
-- PR 21 已通过 rebase merge 合并到 `main`，合并提交为 `9c4b3c3fb364c3ee259cdae390f485ffe31a898d`。
-- PR 22 已通过 rebase merge 合并到 `main`，合并提交为 `0c68ee2d036821995e234c1bc970874a381eb2e1`。
-- Dependabot 34 条告警已降为 0。
-- CodeQL 26 条根因告警已降为 0，默认分支 8 个语言分析全部 PASS：
-  https://github.com/StringKe/xid/actions/runs/30165689902
-- Secret Scanning 4 条告警已关闭，开放告警为 0。
-- 默认分支 `check`、`test`、`build`、`security`、依赖审计和 main-only smoke 全部 PASS：
-  https://github.com/StringKe/xid/actions/runs/30165689905
-- Scorecard 重扫 PASS，SAST、Vulnerabilities、Fuzzing 已关闭，Vulnerabilities 明确报告 0 个现存漏洞：
-  https://github.com/StringKe/xid/actions/runs/30165689907
-- Scorecard Code-Review 已按 solo 仓库治理决定以 `won't fix` 关闭。
-- OpenSSF Best Practices 项目 `13783` 已登记，自动核验完成度为 19%：
-  https://www.bestpractices.dev/en/projects/13783
-- Scorecard 复扫已识别 `badge detected: InProgress`，分数从 0 提升为 2：
-  https://github.com/StringKe/xid/actions/runs/30166410457
-- CII-Best-Practices 只有 Gold 才获得 10 分，Gold 要求多个开发者，不适用于 solo 仓库；告警已按此事实以 `won't fix` 关闭，公开自评继续保留。
-- Scorecard 仅保留仓库未满 90 天的 Maintained 外部时间信号。
-- `main` 不要求独立 review，required checks、线性历史、会话解决和禁止 force push 均保持启用。
+- [x] T1 设计文档批:docs/design/01、05、06、08 更新 guest 设计;docs/protocols/source-map.md 登记私有扩展;docs/sdks/platform-matrix.md 更新;zh-Hans 译文同步
+- [x] T2 Worker 批:POST /auth/guest(四层幂等)+ GuestStore DO + wrangler/env 类型 + GC cron + 审计事件 + 计量排除 + Management API provisioned_by 过滤
+- [x] T3 转正路由:me-auth 四仪式识别 guest session 原地 link + 转正 session 轮换 + email 冲突先验证后告知 + /v1/me 暴露 provisioned_by
+- [x] T4 测试批:建号幂等(串行 + 并发)、转正四路径、email 冲突、session 轮换、GC cron、跨租户隔离、amr 推导
+- [x] T5 Hosted UI:访客入口(SignInGuestButton)与转正引导(GuestConversionBanner)
+- [x] T6 React SDK:signInAnonymously / isAnonymous / GuestUpgradeBanner + i18n descriptor;core 加 isGuestUser/isGuestToken/isSameUser
+- [x] T7 原生 SDK:6 客户端(ios/macos/android/flutter/windows/linux)signInAnonymously + 7 后端(go/python/ruby/php/rust/java/dotnet)guest 判定,各平台本地测试全绿
+- [x] T1 收尾:文档状态 planned -> 已实现(source-map / platform-matrix / 08 DO 清单 / 01 章标注,zh-Hans 同步,门禁全绿)
+- [x] T8 总校验:pnpm run check + pnpm test 全绿
 
 ## 状态
 
 已完成。
+
+## 完成定义
+
+- `pnpm run check` 全绿(typecheck、native:verify、i18n:audit、protocols:source-map、docs:translations、coverage gates)
+- `pnpm test` 全绿
+- T4 列出的新能力测试全部存在且通过
+- T1 列出的文档全部更新且 docs:translations 通过
+
+## 停止规则
+
+- 设计与安全铁律冲突、必须新增第三方依赖、某原生 SDK 不破坏既有契约无法加入匿名 API、或 check 失败根因不明时,停止并汇报,不做猜测性修复。

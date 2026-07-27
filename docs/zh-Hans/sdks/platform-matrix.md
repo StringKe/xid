@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=5d55b0c source-blob=8642ad026a3ed36d245e90deb7325b4597c342ed -->
+<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=5d55b0c source-blob=22816868957987261174d1d18f32f1d67811fb2d -->
 
 > Translation of `docs/sdks/platform-matrix.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/sdks/platform-matrix.md`](../../sdks/platform-matrix.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -148,3 +148,14 @@ TokenCache:
 BrowserInterface:
   openAuthSession(url, redirectUri) -> Promise<BrowserResult>
 ```
+
+## 能力状态:guest(匿名)登录
+
+Firebase 式 guest 登录的设计契约见 [../design/01-authentication.md](../../design/01-authentication.md) 第 8 节,服务端端点 POST /auth/guest 在 [../protocols/source-map.md](../../protocols/source-map.md) 登记为 implemented(L1/L2,本地测试)。该能力覆盖 signInAnonymously()、isAnonymous、转正引导与 sub 对比合并钩子(见 [../design/06-developer-experience.md](../../design/06-developer-experience.md) 第 10 节)。下列状态反映已交付且带测试的代码;标未开始的行尚无 guest 支持。
+
+| 平台面                                                                                       | guest 登录状态 |
+| -------------------------------------------------------------------------------------------- | -------------- |
+| @xid-kit/core 与 @xid-kit/react                                                              | 已实现:signInAnonymously()、isAnonymous、isGuestUser/isSameUser、<GuestUpgradeBanner />;其余 web 框架包未开始 |
+| @xid-kit/backend 与全部服务端原生 SDK(sdk/{go,java,rust,php,ruby,python,dotnet})             | 已实现:验证结果主体上的 guest 判定(IsGuest() / is_guest / guest?,经 amr claim);signInAnonymously() 按设计不属于后端 SDK |
+| 移动端(sdk/flutter、sdk/ios、sdk/android)                                                    | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);@xid-kit/react-native、@xid-kit/expo 未开始 |
+| 桌面端(sdk/macos、sdk/windows、sdk/linux)                                                    | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);@xid-kit/electron、@xid-kit/tauri 未开始 |

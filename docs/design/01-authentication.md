@@ -525,3 +525,99 @@ Counters live in KV (TTL handles expiry) and are enforced at the Worker layer.
    (a login CSRF variant). However, the token is single-use and valid for 15 minutes, and opening a
    link on a different device is a legitimate scenario (receive the email on a phone, sign in on a
    desktop). Binding the link to a browser would break that scenario, so the exposure is accepted.
+
+## 8. Guest sign-in (anonymous)
+
+Firebase-style anonymous sign-in: a first-time visitor gets a usable identity before choosing any
+credential. This section is the design contract. It is implemented in
+`apps/server/worker/me-auth/guest.ts` (endpoint), `apps/server/worker/me-auth/guest-conversion.ts`
+(conversion hook), `apps/server/worker/durable-objects/guest-store.ts` (concurrency dedup), and
+`apps/server/worker/crons/daily.ts` (GC); the shipped status is tracked in
+`docs/protocols/source-map.md` (implemented, L1/L2) and `docs/sdks/platform-matrix.md`.
+
+### Model
+
+- A guest is a real user row: `users.provisioned_by` gains the value `anonymous`, and any user with
+  no linked credential at all (no password, no passkey, no verified email or phone, no social
+  identity) is a guest.
+- No new `users.status` enum value and no new session type. The guest marker is
+  `provisioned_by = 'anonymous'`; the token `amr` is derived at issuance time from whether the user
+  already has a credential, so it carries `guest` or does not, and the first token issued after
+  conversion naturally drops it.
+- A guest session is a real session: refresh rotation, SessionDO revocation, and `/authorize` SSO
+  are all reused unchanged. The RP recognizes a guest from the ID token `amr` and decides whether to
+  accept it (the equivalent of Firebase Security Rules checking
+  `sign_in_provider != 'anonymous'`).
+
+### POST /auth/guest (a private extension, not a standard OIDC capability)
+
+- Unauthenticated endpoint: creates the anonymous user plus session. The response is JSON (session
+  handle, expiry, and so on, aligned with the existing me-auth sign-in response shape), and the
+  browser scenario also gets a Set-Cookie.
+- Four anti-duplicate layers (the endpoint contract; all four are mandatory):
+  1. SDK lazy reuse: while a valid local guest credential exists, the SDK never calls the endpoint
+     (Firebase semantics).
+  2. Endpoint idempotency: a request carrying a valid guest session returns 200 with the existing
+     session renewed; no new user is created.
+  3. Concurrency dedup: a GuestStore Durable Object keyed by `idFromName("{tenant_id}:{anonKey}")`,
+     reusing the WebAuthn `__Host-xid.anon` cookie plus anonKey infrastructure. The Durable Object
+     is single-threaded and serializes check-and-set; the binding record TTL aligns with the session
+     TTL and a Durable Object alarm cleans up. A bare request without an anonKey degrades to
+     always-create and is backstopped by layer 4.
+  4. Abuse protection: Turnstile (mandatory whenever `env.TURNSTILE_SECRET` is set) plus
+     RateLimitStore Durable Object rate limiting by IP and fingerprint (one attempt, one
+     check-and-increment), plus a per-tenant daily mint cap, with GC as the final backstop.
+- What this cannot do: a new browser, cleared cookies, or an incognito window means a new guest.
+  One person one guest is not a goal.
+- Enumeration resistance: the response carries no information about any existing account.
+- Audit event `guest.created`.
+
+### Conversion (in-place link, sub unchanged)
+
+- Routing rule: while the guest session is valid, completing any first credential ceremony --
+  passkey registration (the challenge is already in the `reg:{userId}:{tenantId}` shape), setting a
+  password, email OTP verification, or a social bind -- attaches the credential to the current guest
+  user and never creates a new user. This reuses the chapter 05 rule that adding a credential while
+  signed in requires authentication; the only new logic is that the me-auth ceremony entry points
+  recognize a guest session and route to link instead of create.
+- On conversion: `provisioned_by` is rewritten to the conversion source, the session is rotated
+  (the old refresh token is revoked and a new session is issued, defending against a session
+  fixation variant), and the audit event `guest.converted` is written.
+- Email already held by another user in the same tenant: the occupation fact MUST NOT leak early
+  (the enumeration iron rule). The verification email is sent first; only after the user proves
+  control of the mailbox are they told that this email belongs to another account, and they are
+  guided to a normal sign-in. On that path the sub changes, the RP-side data accumulated during the
+  guest period becomes orphaned, and the guest user is marked with `merged_into_user_id`. Data
+  merging is the RP application layer's responsibility; the SDK compares the sub of the old and new
+  tokens and exposes a merge hook.
+- Semantic boundaries: a guest is not recoverable (sign-out means loss), is single-device, and has
+  no MFA. Two Firebase warnings carry over verbatim: an anonymous token is not app attestation, and
+  the product should keep prompting the user to convert.
+- MFA enrollment is not a conversion ceremony. TOTP is never a sign-in credential, so a guest who
+  only enrolls TOTP still has no recoverable identity: they remain a guest (including the 30-day GC
+  window) until they complete one of the four ceremonies above.
+- The guest session TTL, the GuestStore binding TTL, and the `__Host-xid.anon` cookie Max-Age all
+  derive from the tenant session policy (`absoluteTimeoutDays`), never from a module-level constant.
+
+### Garbage collection
+
+- A daily cron scans for users with `provisioned_by = 'anonymous'` whose last activity is 30 days
+  old or more (`created_at` when the user has no session; otherwise the newest session's
+  `last_active_at`), soft-deletes them (`deleted_at`), and hands them to the existing 30-day
+  hard-delete PII pipeline (see chapter 05 section 7). Audit event `guest.gc_deleted`.
+
+### Metering, Management API, and audit
+
+- MeteringDO MAU deduplication excludes guests; otherwise free trials would inflate the customer's
+  MAU bill.
+- The Management API `/v1/users` list supports the `?provisioned_by=anonymous` filter; no new
+  endpoint is added.
+- New audit event names: `guest.created`, `guest.converted`, and `guest.gc_deleted` (the webhook and
+  audit event list in chapter 06 is updated in step).
+
+### Non-goals
+
+- No OAuth extension grant for guest sign-in.
+- No XID-hosted data merge endpoint.
+- No Cognito-style non-user credentials: a guest is always a real user row.
+- No per-client guest isolation pools.
