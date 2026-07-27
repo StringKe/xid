@@ -326,213 +326,56 @@ pnpm build
 
 `smoke:l2-l3` uses its own temporary Miniflare state; it neither reads nor modifies your `apps/server/.dev.vars`.
 
-### Automated build and coordinated release
+### Cloudflare Workers Builds
 
-Connect three Cloudflare Workers Builds projects to the same repository. A build may upload an
-immutable version, but independent projects MUST NOT promote themselves or mutate production routes
-on every push. One release job coordinates all three artifacts and records the result.
+Connect three Cloudflare Workers Builds projects to the same repository. Each project deploys one
+Worker directly from the reviewed `main` commit. GitHub Actions remains CI only and does not deploy.
 
-Dashboard -> Worker -> Settings -> Build configuration:
+Dashboard -> Worker -> Settings -> Builds:
 
-| Worker      | Root directory | Build command                                                       | Upload behavior                                                                              |
-| ----------- | -------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Core        | `apps/server`  | `node scripts/assert-migration-compatibility.mjs && pnpm run build` | Upload an immutable version; run remote D1 migrations only during an approved Core promotion |
-| Console     | `apps/console` | `pnpm run build`                                                    | Upload an immutable version without attaching production routes                              |
-| Nimbus Site | `apps/site`    | `pnpm run build`                                                    | Upload an immutable version without attaching production routes                              |
+| Worker      | Root directory | Build command                                                       | Deploy command                                                                                                                |
+| ----------- | -------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Core        | `apps/server`  | `node scripts/assert-migration-compatibility.mjs && pnpm run build` | `pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.jsonc && pnpm exec wrangler deploy`                     |
+| Console     | `apps/console` | `pnpm run build`                                                    | `pnpm exec wrangler deploy`                                                                                                   |
+| Nimbus Site | `apps/site`    | `pnpm run build`                                                    | `pnpm exec wrangler deploy`                                                                                                   |
 
-Feature branches upload preview versions only. They do not run production D1 migrations, shift
-production traffic, or change routes.
+Apply the same branch policy to all three projects:
 
-The Core production trigger is a hard pre-merge gate. Before a commit that removes the old UI
-reaches `main`, its deploy command must be upload-only: `pnpm exec wrangler versions upload`.
-Disable the trigger instead if it cannot be changed in time. A Core trigger that runs
-`wrangler deploy`, `wrangler versions deploy`, `wrangler triggers deploy`, or remote D1 migrations
-can publish the tight Core before the frontend routes exist.
-The gate resolves Worker `xid` through `GET /workers/scripts`, then reads
-`GET /builds/workers/{tag}/triggers`. An empty trigger list fails. At least one `main` trigger must
-be rooted at `apps/server` and upload-only, and no other `main` trigger may promote, change routes,
-or apply D1 migrations.
+- Production branch: `main`
+- Non-production branch builds: disabled
+- Build watch paths: `*`, so every reviewed `main` commit converges all three Workers on the same
+  source revision
 
-Production promotion runs only from `.github/workflows/release-web.yml`. Dispatch it from `main`
-with a unique release ID, the reviewed release SHA, the fixed compatibility Core SHA, and the exact
-confirmation `DEPLOY_XID_WEB`. The `production` GitHub environment should require a reviewer.
-`production-rollback` MUST NOT require an approval because it has to run after the source workflow
-is cancelled or times out.
-`CLOUDFLARE_API_TOKEN` needs Workers Scripts Edit, Workers Routes Edit, Zone DNS Read, and Workers
-Builds Read. `CLOUDFLARE_ACCOUNT_ID` is a repository variable. Both workflows need
-`deployments: write` for the durable GitHub Deployment checkpoint.
+Do not configure feature-branch preview builds or `wrangler versions upload`. A non-`main` commit is
+validated by GitHub Actions and does not create a Cloudflare build.
 
-### Staged production rollout
+The three production builds run independently. This is safe because route ownership is committed in
+the Wrangler configurations, Console and Site have no Core bindings, and the Core migration
+compatibility gate requires D1 changes to work across the deployment boundary. A change that needs
+an atomic order across Workers must be redesigned before merge.
 
-The required release order is:
-
-1. Create and verify the proxied `www` DNS record. Record the preflight result in the release
-   manifest. Resolve the zone ID, record the exact expected Console and Site route patterns, and
-   require `xid`, `xid-console`, and `xid-site` to have an active deployment before mutation.
-   Record every active version and percentage, require that Console and Site own no live routes,
-   and verify the old Core fallback on apex, Console, and `www`.
-2. Build and deploy a compatibility Core version that still contains the old public UI and old
-   Console fallback. Record its immutable Cloudflare version ID.
-3. Build and upload the Console version without production routes. Verify its preview, artifact
-   contents, security headers, apex Console navigation, tenant-host Console navigation, account
-   redirects, and same-origin API boundary. Deploy that immutable version at 100 percent before
-   attaching routes. A first `versions upload` creates the Worker but does not create its production
-   deployment.
-4. Build and upload the Nimbus Site version without production routes. Verify its preview, all 8
-   locales, public docs, Pagefind, Markdown twins and their media types, LLM outputs, JSON-LD,
-   Mermaid rendering and expansion, assets, 404 behavior, and the `www` redirect. Deploy that
-   immutable version at 100 percent before attaching routes.
-5. Activate the Console routes, then the Site routes. Run edge smoke checks after each route group.
-   Confirm that protocol, Hosted Auth, account, and API paths still resolve to Core.
-6. Build and deploy the tight Core version that removes the old public UI and old Console fallback.
-   Do this only after the new routes have passed edge smoke.
-
-Before the old UI is removed, build the compatibility Core artifact from a fixed git SHA in an
-isolated checkout. The artifact must include the Worker bundle, its static assets, Wrangler
-configuration, and build metadata. The only allowed compatibility SHA is
-`995f65c6aae0bdc77e8a0fdbf0222f51143ce2d2`; it must be an ancestor of both `origin/main` and the
-reviewed release SHA. The detached install and build receive a minimal environment without
-`CLOUDFLARE_API_TOKEN` or `GITHUB_TOKEN`.
-
-The release manifest records, for compatibility Core, Console, Nimbus Site, and tight Core:
-
-- proxied `www` DNS resolution preflight
-- Worker name and git SHA
-- lockfile SHA-256 and deployable artifact SHA-256
-- immutable Cloudflare version ID
-- preview command and result
-- route activation command and result
-- rollback command and result
-
-The manifest contains no secret. A release is incomplete if any artifact digest or version ID is
-missing.
-
-Initialize the ignored release workspace only after the compatibility Core commit and lockfile are
-fixed:
-
-```bash
-node scripts/web-release-manifest.mjs init \
-  --release-id xid-web-YYYYMMDD-NNN \
-  --release-git-sha <release-git-sha> \
-  --release-lockfile-sha256 <release-lockfile-sha256> \
-  --compat-core-git-sha <compat-core-git-sha> \
-  --compat-core-lockfile-sha256 <compat-core-lockfile-sha256>
-node scripts/build-core-compat-artifact.mjs \
-  --git-sha <compat-core-git-sha> \
-  --print-plan
-node scripts/web-release-manifest.mjs validate \
-  .xid/releases/xid-web-YYYYMMDD-NNN/manifest.json
-```
-
-Remove `--print-plan` only in the approved release job to build the local compatibility artifact.
-That command uses a detached temporary worktree, runs a frozen install and Core build, runs
-`wrangler versions upload --dry-run` to produce the deployable bundle, and writes the archive plus
-SHA-256 metadata under `.xid/releases/`. It does not upload a Worker. Production upload passes that
-bundle with `--no-bundle` and rejects any SHA-256 difference in the complete module graph, including
-the entry and every additional ESM module, between the dry-run bundle and upload outdir. The
-generated upload config sets `no_bundle=true`, `find_additional_modules=true`,
-`base_dir=./worker-bundle`, and an `ESModule` rule for `**/*.js` and `**/*.mjs`, so Wrangler uploads
-the archived additional modules instead of only checking that they exist.
-
-The coordinated job uses these Cloudflare operations in order:
-
-```bash
-pnpm exec wrangler versions upload --config apps/server/wrangler.jsonc
-pnpm exec wrangler versions deploy <compat-core-version-id>@100% --config apps/server/wrangler.jsonc --yes
-pnpm exec wrangler versions upload --config apps/console/wrangler.jsonc
-pnpm exec wrangler versions deploy <console-version-id>@100% --config apps/console/wrangler.jsonc --yes
-pnpm exec wrangler versions upload --config apps/site/wrangler.jsonc
-pnpm exec wrangler versions deploy <site-version-id>@100% --config apps/site/wrangler.jsonc --yes
-pnpm exec wrangler triggers deploy --config apps/console/wrangler.jsonc
-pnpm exec wrangler triggers deploy --config apps/site/wrangler.jsonc
-pnpm exec wrangler versions upload --config apps/server/wrangler.jsonc
-pnpm exec wrangler versions deploy <tight-core-version-id>@100% --config apps/server/wrangler.jsonc --yes
-```
-
-All three Wrangler configurations set `preview_urls: true`. `versions upload` has no JSON flag.
-The release runner sets `WRANGLER_OUTPUT_FILE_PATH`, reads the `version-upload` NDJSON entry, and
-records `version_id`, `preview_url`, and `preview_alias_url`. It then independently confirms the
-same ID and tag through `wrangler versions list --json`; it never scrapes human console output.
-Console and Site require both preview URLs. A Core version may omit them because Durable Object
-bindings can prevent a version preview. In that case the runner verifies the exact Worker bundle
-and static asset instead; after promotion it always runs the complete production health,
-discovery, JWKS, and SCIM edge checks.
-
-Immediately before the first production traffic mutation, the runner re-reads all three active
-deployments and the frontend route baseline. Any drift fails closed. It then creates a GitHub
-Deployment whose immutable payload contains the source workflow run ID and attempt, repository ID,
-release identity, exact pre-release Core version split, zone ID, and expected route patterns.
-Deployment statuses persist `PREPARED`, each mutation intent, `SUCCESS`, `ROLLBACK_INTENT`, and
-`ROLLED_BACK`. An intent status must be durable before the corresponding Cloudflare mutation
-starts. Recovery validates each phase against its required GitHub state and always re-reads the
-remote checkpoint instead of trusting the local manifest phase.
-
-For a full rollback, deploy the exact pre-release Core version split from that checkpoint first.
-Do not use the newly built compatibility version as the rollback target. Then list
-`GET /zones/{zone_id}/workers/routes`, match only the recorded patterns owned by `xid-console` or
-`xid-site`, and delete each resolved route ID through the Cloudflare Zone Workers Routes API.
-Delete Console routes first, Site non-`www` routes second, and Site `www` routes last. Re-list and
-run the stage smoke after every group. An unexpected pattern fails closed before deletion. The
-runner verifies that the restored Core deployment exactly matches the recorded immutable baseline
-before deleting a route. If a staged smoke fails, it restores every route deleted by that stage
-before returning failure. Stage smoke derives the expected `www` owner from the live route
-inventory, so recovery remains idempotent when an intent was recorded before its mutation ran.
-Empty-route Wrangler configurations are not a rollback mechanism because `wrangler triggers deploy`
-does not remove existing zone routes. Use `wrangler rollback <version-id>` only for a Worker code
-rollback; it does not change Worker Routes. Version command behavior is pinned to Wrangler 4.114.0
-and follows
-`https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/`.
-
-Worker code versions and zone routes are separate Cloudflare state. Route activation happens after
-the Console and Site previews pass and is recorded independently from version upload or deployment.
-`wrangler rollback` changes Worker code only. It does not restore Worker Routes or bindings.
-
-The manual workflow preserves `.xid/releases/<release-id>` as a GitHub Actions audit artifact, but
-the artifact is not the cancellation checkpoint. Release execution has its own bounded timeout. The
-independent
-`.github/workflows/rollback-web.yml` workflow listens for the completed `Coordinated web release`
-run. It runs only when a same-repository `workflow_dispatch` on `main` does not succeed. It checks
-out the current trusted default branch, verifies that the source run `head_sha` is its ancestor,
-passes the source run ID and release SHA to `recover-rollback`, and never executes code from the
-failed source checkout. It does not read dispatch inputs from the `workflow_run` event. The recovery
-command finds the GitHub Deployment by source run ID, source run attempt, and release SHA. No
-checkpoint means no production intent and therefore a recorded `SKIP`. `PREPARED` also skips
-mutation. Any intent restores the exact baseline. `SUCCESS` keeps the release and runs strict
-production smoke. `ROLLED_BACK` is idempotent and only re-runs the baseline smoke.
-
-Release and rollback workflows share the fixed `xid-web-production` concurrency group. A new
-release rejects the latest checkpoint unless it is `SUCCESS` or `ROLLED_BACK`. Workflow run attempt
-is part of the checkpoint identity and every artifact name, so rerunning a GitHub Actions run cannot
-reuse an older checkpoint or collide with immutable artifacts. The release fetches `origin/main`
-again immediately before execution and again before the first production mutation; both checks
-require `HEAD`, the reviewed release SHA, and `origin/main` to be identical.
-
-Rollback runs in the separate `production-rollback` environment without an approval gate. It must
-restore the pre-release Core successfully before changing any frontend route. Only then may it
-remove Console routes, remove Site public routes while retaining `www`, and finally remove `www`.
-The staged edge gates cover health, discovery, JWKS, SCIM, root fallback, Console fallback, the Site
-owned `www` redirect before its removal, and the Core-owned `www` fallback after removal. The
-workflow preserves `.xid/releases` as separate recovery evidence even when rollback fails.
+For the first deployment, create bindings and secrets first, then enable the Core build, Console
+build, and Nimbus Site build. After all three Workers have one successful deployment, every later
+push to `main` uses the same independent build flow.
 
 ### Rollback
 
-Rollback order is:
+Roll back the affected Worker from its Cloudflare Deployments page. A code rollback does not reverse
+D1 migrations, so database changes remain forward-compatible and are corrected with a new
+migration. Route patterns are part of the Worker configuration and must remain stable across a code
+rollback.
 
-1. Deploy the exact pre-release Core version split recorded before any mutation.
-2. Remove Nimbus Site and Console production routes. Remove `www` last so it cannot fall into the
-   Core tenant wildcard while other frontend routes are still changing.
-3. Verify the apex, protocol paths, Hosted Auth, account, Console fallback, tenant hosts, and `www`.
-
-Do not treat `wrangler rollback` as a complete rollback. The independent rollback workflow must
-execute and record the separate route rollback. The release workflow does not contain a rollback
-job.
+After a rollback, verify Core health and protocol routes, the Nimbus root and agent surfaces, and
+Console navigation on both apex and tenant hosts.
 
 ### Do not deploy by hand
 
-Production releases go through Workers Builds and the coordinated release job. **Do not run
-`wrangler deploy`, `wrangler versions upload`, or production route mutations locally.** A local
-deployment bypasses the repository gates and release manifest, and it produces state that cannot be
-reconstructed from a reviewed commit.
+Production releases go through Cloudflare Workers Builds from `main`. **Do not run `wrangler deploy`
+or production route mutations locally.** A local deployment bypasses the repository gates and
+breaks the commit-to-deployment record.
+
+The repository does not store a Cloudflare deployment token and GitHub Actions does not need one.
+Cloudflare uses the repository connection configured on each Workers Builds project.
 
 ### CI
 

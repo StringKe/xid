@@ -143,14 +143,11 @@ export function renderMarkdownHub(
         ),
       ].join('\n\n')
     }
-    if (section.kind === 'quickStart') {
-      const steps = section.steps
-        .map(
-          (step, index) =>
-            `${index + 1}. ${renderMarkdownInline(step, options)}`,
-        )
+    if (section.kind === 'capabilities') {
+      const items = section.items
+        .map((item) => `- ${renderMarkdownInline(item, options)}`)
         .join('\n')
-      return `${heading}\n\n${steps}`
+      return `${heading}\n\n${items}`
     }
     return [
       heading,

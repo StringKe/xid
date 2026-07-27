@@ -122,11 +122,11 @@ export function renderHtmlHub(
           .join('')
         return `<section><h2>${heading}</h2>${paragraphs}</section>`
       }
-      if (section.kind === 'quickStart') {
-        const steps = section.steps
-          .map((step) => `<li>${renderHtmlInline(step, options)}</li>`)
+      if (section.kind === 'capabilities') {
+        const items = section.items
+          .map((item) => `<li>${renderHtmlInline(item, options)}</li>`)
           .join('')
-        return `<section><h2>${heading}</h2><ol>${steps}</ol></section>`
+        return `<section><h2>${heading}</h2><ul>${items}</ul></section>`
       }
       const groups = section.groups
         .map((group) => renderGroup(group.label, group.slugs))

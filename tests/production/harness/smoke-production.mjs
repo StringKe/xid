@@ -136,9 +136,9 @@ function canonicalJson(value) {
 }
 
 const docsHomeTextRequired = [
-  '<title>XID Developer Docs | XID</title>',
-  'XID developer documentation',
-  'Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references',
+  '<title>XID Identity Platform | XID</title>',
+  'Open source identity platform',
+  'XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs',
   'href="/getting-started"',
   'href="/hosted-auth"',
   'href="/oidc-oauth"',
@@ -151,7 +151,7 @@ const docsHomeTextRequired = [
 ]
 
 const docsHomeSeoPatternRequired = [
-  /<meta\s+[^>]*name="description"[^>]*content="Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references/u,
+  /<meta\s+[^>]*name="description"[^>]*content="XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs/u,
   /<link\s+[^>]*rel="canonical"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="en"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="zh-Hans"[^>]*href="https:\/\/xid\.dev\/zh-hans\/"[^>]*>/u,
@@ -163,7 +163,7 @@ const docsHomeSeoPatternRequired = [
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="pt-BR"[^>]*href="https:\/\/xid\.dev\/pt-br\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="x-default"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<meta\s+[^>]*property="og:type"[^>]*content="website"[^>]*>/u,
-  /<meta\s+[^>]*property="og:title"[^>]*content="XID Developer Docs \| XID"[^>]*>/u,
+  /<meta\s+[^>]*property="og:title"[^>]*content="XID Identity Platform \| XID"[^>]*>/u,
   /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/og\/[^"]+\.png"[^>]*>/u,
   /<meta\s+[^>]*name="twitter:card"[^>]*content="summary_large_image"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="https:\/\/xid\.dev\/llms\.txt"[^>]*>/u,

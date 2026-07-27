@@ -74,8 +74,8 @@ function collectContentContract(bundle) {
       section.paragraphs.forEach((paragraph) =>
         visitRichText(paragraph, visit),
       )
-    } else if (section.kind === 'quickStart') {
-      section.steps.forEach((step) => visitRichText(step, visit))
+    } else if (section.kind === 'capabilities') {
+      section.items.forEach((item) => visitRichText(item, visit))
     } else {
       section.groups.forEach((group) => visitRichText(group.label, visit))
     }
@@ -146,13 +146,13 @@ test('committed AST exhausts every audited contract without legacy source access
     richTags: { inlineCode: 289, strong: 17, link: 16 },
     staticValues: 2,
     literalValues: 3,
-    catalogMessages: 1120,
+    catalogMessages: 1135,
   })
 
   const contract = collectContentContract(committed)
-  assert.equal(contract.messageIds.size, 1114)
-  assert.equal(committed.messageCatalog.length, 1120)
-  assert.deepEqual(contract.tags, { inlineCode: 290, strong: 17, link: 16 })
+  assert.equal(contract.messageIds.size, 1129)
+  assert.equal(committed.messageCatalog.length, 1135)
+  assert.deepEqual(contract.tags, { inlineCode: 289, strong: 17, link: 16 })
   assert.deepEqual(contract.values, { static: 2, literal: 3 })
   assert.equal(contract.codePositions.size, 123)
 
@@ -206,7 +206,7 @@ test('committed AST exhausts every audited contract without legacy source access
       )
     assert.equal(
       activeDocsMessages.length,
-      1120,
+      1135,
       `${locale} catalog must retain all AST messages after Lingui extraction`,
     )
   }
@@ -243,9 +243,11 @@ test('localized generation writes 328 complete MDX files and is repeatable', asy
   assert.match(englishScim, /```shell/)
   assert.match(englishScim, /\/organizations\/\{organization_id\}/)
   assert.match(chineseCore, /\]\(\/zh-hans\/sdks\/react\)/)
-  assert.match(englishHub, /## Platform/)
-  assert.match(englishHub, /## Minimum integration/)
-  assert.match(englishHub, /## All developer docs/)
+  assert.match(englishHub, /title: "XID Identity Platform"/)
+  assert.match(englishHub, /## One platform for identity/)
+  assert.match(englishHub, /## What XID includes/)
+  assert.match(englishHub, /## Explore XID/)
+  assert.doesNotMatch(englishHub, /Minimum integration/)
   assert.equal(englishHub.match(/^### /gm)?.length, 8)
 
   for (const locale of bundle.locales) {

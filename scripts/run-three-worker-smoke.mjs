@@ -453,7 +453,7 @@ async function runChecks(baseUrl, ports) {
     owner: 'site',
     status: 200,
     contentType: 'text/html',
-    includes: 'XID Developer Docs',
+    includes: 'XID Identity Platform',
     excludes: 'SiteApp',
   })
   const titleCount = home.body.match(/<title>/g)?.length ?? 0

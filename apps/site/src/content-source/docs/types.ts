@@ -96,9 +96,9 @@ export type DocumentHubSection =
       paragraphs: readonly MessageDescriptor[]
     }
   | {
-      kind: 'quickStart'
+      kind: 'capabilities'
       heading: MessageDescriptor
-      steps: readonly MessageDescriptor[]
+      items: readonly MessageDescriptor[]
     }
   | {
       kind: 'navigation'
@@ -310,12 +310,12 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
       )
       return
     }
-    if (section.kind === 'quickStart') {
-      if (!Array.isArray(section.steps) || section.steps.length === 0) {
-        throw new TypeError(`${label}.steps must be a non-empty array`)
+    if (section.kind === 'capabilities') {
+      if (!Array.isArray(section.items) || section.items.length === 0) {
+        throw new TypeError(`${label}.items must be a non-empty array`)
       }
-      section.steps.forEach((step, index) =>
-        assertRichText(step, `${label}.steps.${index}`),
+      section.items.forEach((item, index) =>
+        assertRichText(item, `${label}.items.${index}`),
       )
       return
     }
@@ -338,7 +338,7 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
       })
     })
   })
-  for (const kind of ['product', 'quickStart', 'navigation']) {
+  for (const kind of ['product', 'capabilities', 'navigation']) {
     if (!sectionKinds.has(kind)) {
       throw new TypeError(`document AST hub.sections is missing ${kind}`)
     }
@@ -373,8 +373,8 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
     throw new TypeError('document AST hub navigation must contain every document slug exactly once')
   }
 
-  if (!Array.isArray(value.messageCatalog) || value.messageCatalog.length !== 1120) {
-    throw new TypeError('document AST must contain 1120 catalog messages')
+  if (!Array.isArray(value.messageCatalog) || value.messageCatalog.length !== 1135) {
+    throw new TypeError('document AST must contain 1135 catalog messages')
   }
   const catalogIds = new Set<string>()
   value.messageCatalog.forEach((entryValue, entryIndex) => {

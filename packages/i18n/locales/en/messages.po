@@ -630,10 +630,6 @@ msgstr "After deployment, verify health, OIDC discovery, JWKS, Hosted Auth confi
 msgid "All BackendErrorCode values: missing_jwt_key, jwks_fetch_failed, invalid_options"
 msgstr "All BackendErrorCode values: missing_jwt_key, jwks_fetch_failed, invalid_options"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "All developer docs"
-msgstr "All developer docs"
-
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "all events"
 msgstr "all events"
@@ -793,6 +789,10 @@ msgstr "API keys"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "API keys | Console | XID"
 msgstr "API keys | Console | XID"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "APIs and operations"
+msgstr "APIs and operations"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "App Router server helpers"
@@ -1264,6 +1264,10 @@ msgstr "Browser client, session store, token cache, and Management API helpers."
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Browser default"
 msgstr "Browser default"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
+msgstr "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "BrowserInterface adapter backed by expo-web-browser"
@@ -2176,12 +2180,12 @@ msgid "Desktop Linux with xdg-open (xdg-utils) for system browser launch and a r
 msgstr "Desktop Linux with xdg-open (xdg-utils) for system browser launch and a running D-Bus session with gnome-keyring or kwallet for Secret Service storage"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Dev/test without Tauri runtime"
-msgstr "Dev/test without Tauri runtime"
+msgid "Desktop SDKs"
+msgstr "Desktop SDKs"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Developer docs"
-msgstr "Developer docs"
+msgid "Dev/test without Tauri runtime"
+msgstr "Dev/test without Tauri runtime"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Developer docs navigation"
@@ -2717,6 +2721,10 @@ msgstr "Expired"
 #: apps/server/src/routes/activate/ActivationDetails.tsx
 msgid "Expires"
 msgstr "Expires"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Explore XID"
+msgstr "Explore XID"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Expo"
@@ -3309,6 +3317,10 @@ msgstr "Hosted Auth only displays enabled providers that have credentials and or
 msgid "Hosted Auth sign-in flow helpers"
 msgstr "Hosted Auth sign-in flow helpers"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
+msgstr "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "Hosted flow"
@@ -3413,6 +3425,10 @@ msgstr "Identifier policy"
 msgid "Identity"
 msgstr "Identity"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Identity protocols"
+msgstr "Identity protocols"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Identity rules"
 msgstr "Identity rules"
@@ -3480,6 +3496,10 @@ msgstr "In-process memory only. Tokens are lost on process exit. Use for testing
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Inactive"
 msgstr "Inactive"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
+msgstr "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -4325,6 +4345,10 @@ msgid "Missing request"
 msgstr "Missing request"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Mobile SDKs"
+msgstr "Mobile SDKs"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
 msgstr "Module"
 
@@ -4724,6 +4748,10 @@ msgid "OIDC and OAuth"
 msgstr "OIDC and OAuth"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
+msgstr "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OIDC authorization code"
 msgstr "OIDC authorization code"
 
@@ -4770,6 +4798,10 @@ msgstr "ON"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "On this page"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "One platform for identity"
+msgstr "One platform for identity"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One-tap sign-in embed"
@@ -4854,6 +4886,10 @@ msgstr "Open SCIM targets"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Open social providers"
 msgstr "Open social providers"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Open source identity platform"
+msgstr "Open source identity platform"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -5556,6 +5592,10 @@ msgstr "Process a redirect URL from an external source and exchange the code for
 msgid "Process App Link or custom scheme callback. Called internally by signIn; invoke manually for cross-process redirect recovery."
 msgstr "Process App Link or custom scheme callback. Called internally by signIn; invoke manually for cross-process redirect recovery."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Product and setup"
+msgstr "Product and setup"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Production backend"
 msgstr "Production backend"
@@ -5608,10 +5648,6 @@ msgstr "Protocol"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol requirements"
 msgstr "Protocol requirements"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references for integrating with XID."
-msgstr "Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references for integrating with XID."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
@@ -6490,6 +6526,10 @@ msgid "Ruby server SDK for networkless JWT verification, Rack/Rails request auth
 msgstr "Ruby server SDK for networkless JWT verification, Rack/Rails request authentication, and webhook signature validation."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
+msgstr "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Run XID on your own Cloudflare account with Workers, D1, KV, R2, queues, and Durable Objects."
 msgstr "Run XID on your own Cloudflare account with Workers, D1, KV, R2, queues, and Durable Objects."
 
@@ -6660,8 +6700,8 @@ msgid "Scopes: {0}"
 msgstr "Scopes: {0}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SDK packages"
-msgstr "SDK packages"
+msgid "SDK overview"
+msgstr "SDK overview"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SDKs"
@@ -6869,6 +6909,10 @@ msgstr "server hook"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server middleware (JWT auth)"
 msgstr "Server middleware (JWT auth)"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Server SDKs"
+msgstr "Server SDKs"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server side password and token hashing pepper."
@@ -8628,6 +8672,10 @@ msgid "Web application"
 msgstr "Web application"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Web SDKs"
+msgstr "Web SDKs"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Web-standard runtimes (Cloudflare Workers, Node.js, Bun, Deno) share @xid-kit/backend via Web Crypto. Other languages get native SDKs. All do networkless JWT verification, request authentication, and webhook verification."
 msgstr "Web-standard runtimes (Cloudflare Workers, Node.js, Bun, Deno) share @xid-kit/backend via Web Crypto. Other languages get native SDKs. All do networkless JWT verification, request authentication, and webhook verification."
 
@@ -8685,6 +8733,10 @@ msgstr "WebView2 Runtime (Evergreen — pre-installed with Microsoft Edge)"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "WebView2 Runtime must be present. WebAuthenticationBroker support as a fallback is planned but not yet implemented."
 msgstr "WebView2 Runtime must be present. WebAuthenticationBroker support as a fallback is planned but not yet implemented."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "What XID includes"
+msgstr "What XID includes"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "WhatsApp delivery is ready for Hosted UI."
@@ -8760,20 +8812,16 @@ msgid "XID behavior"
 msgstr "XID behavior"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
+msgstr "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID Developer Docs"
-msgstr "XID Developer Docs"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID developer document not found"
 msgstr "XID developer document not found"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID developer documentation"
-msgstr "XID developer documentation"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
@@ -8788,8 +8836,20 @@ msgid "XID exposes organization-scoped SCIM 2.0 APIs under <0>/scim/v2/organizat
 msgstr "XID exposes organization-scoped SCIM 2.0 APIs under <0>/scim/v2/organizations/{organization_id}</0>. User and group resources are addressed with the organization ID in the path."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
+msgstr "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID Identity Platform"
+msgstr "XID Identity Platform"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID is an identity provider. The instance domain is the OIDC issuer, API base URL, Hosted Auth base URL, and console base URL. Organizations provide policy, branding, membership, and resource isolation."
 msgstr "XID is an identity provider. The instance domain is the OIDC issuer, API base URL, Hosted Auth base URL, and console base URL. Organizations provide policy, branding, membership, and resource isolation."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
+msgstr "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID issuer URI"
