@@ -40,6 +40,14 @@ export type AuthUser = {
   locale: string | null
   hasMfa: boolean
   instanceManager: boolean
+  // guest 判定标记:匿名开通的账号由 worker 带 provisioned_by='anonymous'(guest 模式契约)。
+  // 可选:旧会话 / 非 guest 用户不带该字段。
+  provisioned_by?: 'anonymous' | (string & {})
+}
+
+// guest 用户判定:仅认 provisioned_by === 'anonymous'(契约字段,见 /v1/me 响应)。
+export function isGuestUser(user: AuthUser | null | undefined): boolean {
+  return user?.provisioned_by === 'anonymous'
 }
 
 // 当前成员组织视图(active org + 用户可切换的 org 列表)。

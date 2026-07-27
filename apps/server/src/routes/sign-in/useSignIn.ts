@@ -84,6 +84,7 @@ export type SignInActions = {
   submitOtpRequest: () => void
   submitOtpVerify: () => void
   submitEnterpriseSso: () => void
+  submitGuest: () => void
   triggerPasskeyButton: () => void
   handleSocial: (provider: string) => void
   selectOrganizationContext: (organizationId: string) => void
@@ -347,6 +348,20 @@ export function useSignIn(): [SignInState, SignInActions] {
     },
   })
 
+  // 访客登录:无凭证建立 guest session(契约:POST /auth/guest,Set-Cookie 建会话,
+  // 成功响应对齐既有登录成功形态 { redirectUrl? }),收尾走统一 finishSignIn。
+  // Turnstile 随请求体提交(与 password/OTP 同一模式),服务端配置 TURNSTILE_SECRET 时强制校验。
+  const guestMutation = useMutation({
+    mutationFn: () => api.post<{ redirectUrl?: string }>('/auth/guest', { turnstileToken }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        setError(apiErrorToKey(result.error.code))
+        return
+      }
+      await finishSignIn(result.value.redirectUrl, 'guest')
+    },
+  })
+
   // 社交登录:整页跳到 OAuth 端点,带 continue 让 callback 回跳正确目标。
   const handleSocial = useCallback(
     (provider: string): void => {
@@ -403,7 +418,8 @@ export function useSignIn(): [SignInState, SignInActions] {
     magicLinkMutation.isPending ||
     otpRequestMutation.isPending ||
     otpVerifyMutation.isPending ||
-    enterpriseSsoMutation.isPending
+    enterpriseSsoMutation.isPending ||
+    guestMutation.isPending
 
   const state: SignInState = {
     method,
@@ -442,6 +458,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     submitOtpRequest: () => otpRequestMutation.mutate(),
     submitOtpVerify: () => otpVerifyMutation.mutate(),
     submitEnterpriseSso: () => enterpriseSsoMutation.mutate(),
+    submitGuest: () => guestMutation.mutate(),
     triggerPasskeyButton: passkey.triggerButton,
     handleSocial,
     selectOrganizationContext,

@@ -10,6 +10,7 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { BrandLogo } from '../../components/BrandLogo'
+import { GuestConversionBanner } from './GuestConversionBanner'
 
 export type AccountLayoutProps = {
   children: ReactNode
@@ -324,7 +325,10 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
       </nav>
 
       {/* main:零 padding;页面自持 gutter */}
-      <main {...stylex.props(styles.main)}>{children}</main>
+      <main {...stylex.props(styles.main)}>
+        <GuestConversionBanner />
+        {children}
+      </main>
     </div>
   )
 }
