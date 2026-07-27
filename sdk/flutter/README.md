@@ -120,6 +120,12 @@ xidClient.setTokenStorage(InMemoryStorageAdapter()); // 仅测试用
 
 处理 App Link / custom scheme 回调 URL。通常由 `signIn` 内部调用。跨进程恢复场景下可手动调用。
 
+### `signInAnonymously({String? turnstileToken})`
+
+匿名登录(Firebase 式访客模式):POST `/auth/guest` 建立访客会话,捕获 Set-Cookie 签发的会话 cookie 并持久化,再调 `/v1/me` 取出用户,返回 `XidGuestSession`。
+
+惰性语义:本地已有持久化的 guest session 时直接返回,不发任何请求。`turnstileToken` 仅在服务端启用 Turnstile 时需要,native 端通常不需要。
+
 ### `getSession()`
 
 返回 `XidSession?`。如果 access_token 即将过期(默认提前 60s)则自动触发 refresh token 轮换。未登录返回 `null`。
@@ -135,6 +141,33 @@ xidClient.setTokenStorage(InMemoryStorageAdapter()); // 仅测试用
 ### `setTokenStorage(TokenStorageAdapter adapter)`
 
 替换 token 存储后端。默认 `SecureStorageAdapter`(flutter_secure_storage)。
+
+---
+
+## 匿名登录(guest)
+
+不需要注册即可先体验产品。guest 是真用户实体(`provisioned_by = 'anonymous'`),不是临时标记。
+
+```dart
+// 1. 匿名登录(本地已有 guest session 时直接复用,不发请求)
+final guest = await xidClient.signInAnonymously();
+print(guest.user.id);        // guest 的 user id(sub)
+print(guest.isAnonymous);    // true
+
+// 2. 引导转正:在应用内完成任一正式登录
+final guestId = guest.user.id;
+final session = await xidClient.signIn();
+
+// 3. sub 连续性:转正后 sub 不变,RP 数据自然延续;
+//    若用户转而登入另一个既有账号,sub 会变,对比新旧 user id 即可区分。
+final converted = session.user.id == guestId;
+```
+
+guest 语义:
+
+- **不可恢复**:guest 没有凭证,本机会话丢失(app 卸载、storage 清空)后账号无法找回,务必引导转正。
+- **单设备**:会话绑定本机持久化的 cookie,不跨设备同步。
+- **无 access token**:guest 只有 session cookie,`getAccessToken()` 不适用;正式登录成功后 SDK 自动清除本地 guest 记录。
 
 ---
 

@@ -96,6 +96,40 @@ let client = XidClient::configure_with_storage(config, Arc::new(InMemoryStorage:
 
 ---
 
+## 匿名登录 (guest)
+
+Firebase 式访客模式:不打开浏览器即可建立会话。匿名访客是真实用户实体
+(`provisioned_by = 'anonymous'`),可在应用内原地转正。
+
+```rust
+use xid_linux::SignInAnonymouslyOptions;
+
+// 惰性语义:本地已有有效 session (token 或 guest) 时直接返回,不发请求
+let session = client.sign_in_anonymously(None).await?;
+assert!(session.user.is_anonymous());
+
+// 服务端启用 Turnstile 时传入 token (native 端通常不需要)
+let session = client
+    .sign_in_anonymously(Some(SignInAnonymouslyOptions {
+        turnstile_token: Some("turnstile-response-token".into()),
+    }))
+    .await?;
+```
+
+语义与注意事项:
+
+- **会话凭证是 cookie**:`POST /auth/guest` 通过 Set-Cookie 建立会话,SDK 自动捕获并
+  持久化到当前 `StorageAdapter`,后续 `/v1/me` 请求自动回放。
+- **无 access token**:guest 的 `session.access_token` 为 `None`;
+  `get_access_token()` 对 guest 会话返回 `NotSignedIn`。
+- **不可恢复、单设备**:guest 凭据只存在本机存储,清除或换设备即永久丢失,
+  请引导用户尽早转正。
+- **转正 sub 连续**:guest 在应用内完成任一正式登录后,服务端 sub 不变,RP 数据自然
+  延续;若转而登入另一个既有账号,sub 会变 -- 用 `session.user.sub` 对比新旧
+  user id 即可区分。
+
+---
+
 ## API 参考
 
 ### `XidConfigBuilder`
@@ -118,8 +152,9 @@ let client = XidClient::configure_with_storage(config, Arc::new(InMemoryStorage:
 | `configure_with_storage(config, storage)` | configure(options) + setTokenStorage | 创建客户端并指定存储适配器                      |
 | `set_token_storage(adapter)`              | setTokenStorage(adapter)             | 替换存储适配器                                  |
 | `sign_in(options)`                        | signIn(options)                      | 打开浏览器发起登录,返回 Session                 |
+| `sign_in_anonymously(options)`            | signInAnonymously()                  | 匿名 (guest) 登录,惰性复用本地 session          |
 | `handle_redirect(url)`                    | handleRedirect(url)                  | 处理外部 redirect URL (custom scheme 场景)        |
-| `get_session()`                           | getSession()                         | 获取当前 session,自动刷新 token                 |
+| `get_session()`                           | getSession()                         | 获取当前 session,自动刷新 token;含 guest 会话   |
 | `get_access_token(options)`               | getAccessToken(options)              | 获取 access_token 字符串,自动刷新               |
 | `sign_out()`                              | signOut()                            | 撤销 refresh_token 并清除本地存储               |
 

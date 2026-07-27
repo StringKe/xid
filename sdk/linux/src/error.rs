@@ -33,6 +33,12 @@ pub enum XidError {
     #[error("token 交换失败: {status} {body}")]
     TokenExchangeError { status: u16, body: String },
 
+    #[error("匿名登录失败: {status} {body}")]
+    GuestSignInError { status: u16, body: String },
+
+    #[error("获取当前用户失败: {status} {body}")]
+    UserInfoError { status: u16, body: String },
+
     #[error("token 刷新失败: {0}")]
     TokenRefreshError(String),
 

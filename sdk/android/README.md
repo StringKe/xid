@@ -181,8 +181,32 @@ lifecycleScope.launch {
 }
 ```
 
-### 7. 自定义存储适配器
+### 7. 匿名登录(访客模式)
 
+```kotlin
+lifecycleScope.launch {
+    try {
+        val guest = Xid.signInAnonymously()
+        // guest.user.isAnonymous == true, guest.user.sub 是访客的用户 ID
+    } catch (e: XidException.GuestSignInFailed) {
+        // 建号失败或 /v1/me 未返回用户
+    }
+}
+```
+
+guest 语义(Firebase 式访客模式):
+
+- **惰性复用**: 本地已有 guest 会话时 `signInAnonymously()` 直接返回, 不发任何网络请求。
+- **cookie 会话**: guest 不签发 OAuth token, 会话凭证是 `/auth/guest` 通过 Set-Cookie 下发的
+  session cookie, SDK 将其捕获并加密持久化; `getSession()` / `getAccessToken()` 不感知 guest 会话。
+- **不可恢复、单设备**: 会话 cookie 只存在本机, 卸载或 `signOut()` 后该访客身份永久丢失,
+  服务端回收后无法找回。请在应用内引导 guest 完成正式登录(转正)。
+- **转正 sub 连续**: guest 完成任一正式登录后 `sub` 不变, RP 侧数据自然延续;
+  若 guest 改登另一个既有账号, `sub` 会变, 可对比转正前后的 `user.sub` 判定。
+- 服务端启用 Turnstile 时才需要传参: `Xid.signInAnonymously(SignInAnonymouslyOptions(turnstileToken = "..."))`,
+  native 端通常不需要。
+
+### 8. 自定义存储适配器
 ```kotlin
 // 在 configure 之后调用。替换为应用的加密持久化实现后再启用。
 Xid.setTokenStorage(object : TokenStorageAdapter {
@@ -206,6 +230,7 @@ Xid.setTokenStorage(object : TokenStorageAdapter {
 | `configure`       | `fun configure(context: Context, config: XidConfig)`                 | 初始化 SDK, Application.onCreate 调用 |
 | `setTokenStorage` | `fun setTokenStorage(adapter: TokenStorageAdapter)`                  | 替换默认安全存储                      |
 | `signIn`          | `suspend fun signIn(context: Context, options: SignInOptions)`       | 启动 Chrome Custom Tabs 授权          |
+| `signInAnonymously` | `suspend fun signInAnonymously(options: SignInAnonymouslyOptions): XidGuestSession` | 匿名访客登录(惰性复用)      |
 | `handleRedirect`  | `suspend fun handleRedirect(url: String): XidSession`                | 处理回调 URI, 完成 code 交换          |
 | `getSession`      | `suspend fun getSession(): XidSession?`                              | 获取当前会话(自动刷新)                |
 | `getAccessToken`  | `suspend fun getAccessToken(options: GetAccessTokenOptions): String` | 获取 access token(自动刷新)           |
@@ -225,6 +250,7 @@ Xid.setTokenStorage(object : TokenStorageAdapter {
 | `NoSession`             | 未登录状态调用需要会话的方法        |
 | `StorageError`          | EncryptedSharedPreferences 读写失败 |
 | `NetworkError`          | 网络请求失败                        |
+| `GuestSignInFailed`     | 匿名登录失败(建号/缺 cookie/无用户) |
 | `TokenValidationFailed` | JWT 验证失败                        |
 
 ---
@@ -282,7 +308,9 @@ sdk/android/
     storage/TokenStorage.kt                 TokenStorageAdapter 接口 + StorageKeys
     storage/EncryptedPrefsStorage.kt        默认实现(EncryptedSharedPreferences)
     token/TokenManager.kt                   code 交换 + refresh + 会话重建
+    guest/GuestAuthManager.kt               匿名访客登录(cookie 会话捕获与持久化)
     browser/AuthSession.kt                  Chrome Custom Tabs + 授权 URL 构建 + 回调解析
   src/test/kotlin/dev/xid/sdk/
     PkceGeneratorTest.kt                    PKCE 生成器单元测试(部分)
+    GuestAuthTest.kt                      匿名登录单元测试(MockWebServer)
 ```

@@ -94,6 +94,7 @@ class InMemoryStorageAdapter implements TokenStorageAdapter {
 /// Token 存储 key 常量。
 abstract class _StorageKey {
   static const session = 'session';
+  static const guestSession = 'guest_session';
   static const pendingAuthorizationPrefix = 'pending_pkce_authorization:';
 
   static String pendingAuthorization(String state) =>
@@ -150,6 +151,24 @@ class SessionStore {
 
   Future<void> clearSession() => _adapter.clear();
 
+  Future<void> saveGuestSession(XidGuestSessionData data) {
+    return _adapter.write(_StorageKey.guestSession, jsonEncode(data.toJson()));
+  }
+
+  Future<XidGuestSessionData?> loadGuestSession() async {
+    final encoded = await _adapter.read(_StorageKey.guestSession);
+    if (encoded == null) return null;
+    try {
+      return XidGuestSessionData.fromJson(
+          jsonDecode(encoded) as Map<String, dynamic>);
+    } catch (_) {
+      // 损坏记录视为不存在,回退到重新建号,而不是把解析错误抛给调用方。
+      return null;
+    }
+  }
+
+  Future<void> clearGuestSession() => _adapter.delete(_StorageKey.guestSession);
+
   Future<void> savePendingAuth(PendingAuthData data) {
     return _adapter.write(
       _StorageKey.pendingAuthorization(data.state),
@@ -190,6 +209,36 @@ class SessionStore {
 
   Future<void> clearPendingAuth(String state) =>
       _adapter.delete(_StorageKey.pendingAuthorization(state));
+}
+
+/// 匿名访客会话的持久化数据。sessionCookies 以 "name=value; name=value"
+/// 形式保存,后续请求(如 /v1/me)随 Cookie 头原样回传。
+class XidGuestSessionData {
+  final String sessionId;
+  final String sessionCookies;
+  final Map<String, dynamic> user;
+
+  XidGuestSessionData({
+    required this.sessionId,
+    required this.sessionCookies,
+    required this.user,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sessionId': sessionId,
+      'sessionCookies': sessionCookies,
+      'user': user,
+    };
+  }
+
+  factory XidGuestSessionData.fromJson(Map<String, dynamic> json) {
+    return XidGuestSessionData(
+      sessionId: json['sessionId'] as String,
+      sessionCookies: json['sessionCookies'] as String,
+      user: Map<String, dynamic>.from(json['user'] as Map),
+    );
+  }
 }
 
 /// 纯数据类,与 xid_client.dart 解耦以避免循环引用。

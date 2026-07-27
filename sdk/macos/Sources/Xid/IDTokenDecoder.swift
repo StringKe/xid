@@ -204,7 +204,8 @@ struct IDTokenDecoder {
             email: claims["email"] as? String,
             emailVerified: claims["email_verified"] as? Bool,
             name: claims["name"] as? String,
-            picture: claims["picture"] as? String
+            picture: claims["picture"] as? String,
+            provisionedBy: claims["provisioned_by"] as? String
         )
     }
 }

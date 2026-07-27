@@ -137,6 +137,34 @@ public sealed class MyCustomStorage : ITokenStorage
 
 ---
 
+## 匿名登录(Firebase 式 guest)
+
+guest 是真实的用户实体(服务端 `provisioned_by = 'anonymous'`),可先让用户体验应用,再引导转正。
+
+```csharp
+XidSession session = await XidClient.Shared.SignInAnonymouslyAsync();
+
+if (session.IsAnonymous)
+{
+    Console.WriteLine($"guest id: {session.User.Sub}");
+    // guest 没有 access token;调用 XID cookie 认证的 API 时带上会话 cookie:
+    // request.Headers.TryAddWithoutValidation("Cookie", session.SessionCookie);
+}
+```
+
+行为说明:
+
+- **惰性语义**:本地已有有效会话(token 或 guest)时不发请求,直接返回现有会话;不会重复建号。
+- **凭证形态**:guest 会话无 access token / id token,凭证是 `SessionId` + `SessionCookie`
+  (`__Host-xid.rt.*`),经 `ITokenStorage` 与 OIDC token 一同加密持久化。
+- **不可恢复、单设备**:guest 账号只存在当前设备的 cookie 会话里,设备丢失或会话过期后无法找回。
+  请尽早引导用户在应用内完成任一正式登录转正。
+- **sub 连续性**:转正后 `User.Sub` 不变,应用内数据自然延续;若 guest 改登另一个既有账号,
+  `Sub` 会变,调用方可对比登录前后的 `User.Sub` 判断是否同一账号。
+- 服务端启用 Turnstile 时,通过 `SignInAnonymouslyOptions.TurnstileToken` 传入;native 端通常不需要。
+
+---
+
 ## API 参考
 
 ### XidClient
@@ -145,6 +173,7 @@ public sealed class MyCustomStorage : ITokenStorage
 | ----------------------------------------------------------- | -------------------------------------- |
 | `Configure(XidConfiguration)`                               | 初始化 SDK,应用启动时调用一次          |
 | `SignInAsync(SignInOptions?, CancellationToken)`            | 弹出 WebView2 授权窗口,完成登录        |
+| `SignInAnonymouslyAsync(SignInAnonymouslyOptions?, CancellationToken)` | 匿名访客 (guest) 登录,返回 cookie 会话 |
 | `HandleRedirectAsync(Uri, CancellationToken)`               | 处理自定义 URI scheme 回调             |
 | `GetSession(CancellationToken)`                             | 获取当前会话(自动刷新即将过期的 token) |
 | `GetAccessToken(GetAccessTokenOptions?, CancellationToken)` | 获取有效 access token 字符串           |
@@ -165,15 +194,26 @@ public sealed class MyCustomStorage : ITokenStorage
 
 ### XidSession
 
-| 属性           | 说明                                           |
-| -------------- | ---------------------------------------------- |
-| `AccessToken`  | access token (JWT),生命周期约 1 小时           |
-| `RefreshToken` | refresh token,可为 null(未请求 offline_access) |
-| `IdToken`      | id token (JWT)                                 |
-| `ExpiresAt`    | access token 过期时间 (UTC)                    |
-| `User`         | 用户信息(sub / email / name / picture)         |
-| `IsExpired`    | access token 是否已过期                        |
-| `IsNearExpiry` | 剩余不足 60 秒视为即将过期                     |
+| 属性            | 说明                                                  |
+| --------------- | ----------------------------------------------------- |
+| `AccessToken`   | access token (JWT),生命周期约 1 小时;guest 会话为 null |
+| `RefreshToken`  | refresh token,可为 null(未请求 offline_access)        |
+| `IdToken`       | id token (JWT);guest 会话为 null                       |
+| `ExpiresAt`     | access token 过期时间 (UTC);guest 会话为 null           |
+| `User`          | 用户信息(sub / email / name / picture)                 |
+| `SessionId`     | guest 会话 ID;OIDC 会话为 null                          |
+| `SessionCookie` | guest 会话 cookie(name=value);OIDC 会话为 null          |
+| `IsAnonymous`   | 是否为匿名访客 (guest)                                  |
+| `IsExpired`     | access token 是否已过期                                |
+| `IsNearExpiry`  | 剩余不足 60 秒视为即将过期                             |
+
+### XidUser
+
+| 属性            | 说明                                            |
+| --------------- | ----------------------------------------------- |
+| `Sub`           | 用户主体标识符;guest 转正后不变                  |
+| `ProvisionedBy` | 账号开通来源(`'anonymous'` 表示 guest),可为 null |
+| `IsAnonymous`   | `ProvisionedBy == 'anonymous'`                   |
 
 ---
 

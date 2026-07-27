@@ -16,6 +16,7 @@ use tokio::sync::RwLock;
 use crate::error::Result;
 #[cfg(feature = "secret-service-storage")]
 use crate::error::XidError;
+use crate::session::GuestSession;
 use crate::token::StoredTokens;
 
 /// 进行中的 OAuth 授权状态 (PKCE + state),供 custom scheme 回调使用。
@@ -63,6 +64,25 @@ pub trait StorageAdapter: Send + Sync {
 
     /// 清除进行中的授权状态
     async fn clear_pending_auth(&self) -> Result<()>;
+
+    /// 持久化 guest (匿名) 会话
+    ///
+    /// 默认实现为 no-op,仅为不破坏既有自定义适配器;需要 guest 会话跨进程
+    /// 持久的适配器必须覆写以下三个方法。
+    async fn save_guest_session(&self, session: &GuestSession) -> Result<()> {
+        let _ = session;
+        Ok(())
+    }
+
+    /// 加载 guest 会话;无记录时返回 None
+    async fn load_guest_session(&self) -> Result<Option<GuestSession>> {
+        Ok(None)
+    }
+
+    /// 清除 guest 会话 (登出或转正时调用)
+    async fn clear_guest_session(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// 对外统一的 TokenStorage 包装:可被 clone 且线程安全
@@ -76,6 +96,7 @@ pub type TokenStorage = Arc<dyn StorageAdapter>;
 pub struct InMemoryStorage {
     tokens: RwLock<Option<StoredTokens>>,
     pending_auth: RwLock<Option<PendingAuthState>>,
+    guest_session: RwLock<Option<GuestSession>>,
 }
 
 impl InMemoryStorage {
@@ -83,6 +104,7 @@ impl InMemoryStorage {
         Self {
             tokens: RwLock::new(None),
             pending_auth: RwLock::new(None),
+            guest_session: RwLock::new(None),
         }
     }
 }
@@ -122,6 +144,20 @@ impl StorageAdapter for InMemoryStorage {
         *self.pending_auth.write().await = None;
         Ok(())
     }
+
+    async fn save_guest_session(&self, session: &GuestSession) -> Result<()> {
+        *self.guest_session.write().await = Some(session.clone());
+        Ok(())
+    }
+
+    async fn load_guest_session(&self) -> Result<Option<GuestSession>> {
+        Ok(self.guest_session.read().await.clone())
+    }
+
+    async fn clear_guest_session(&self) -> Result<()> {
+        *self.guest_session.write().await = None;
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +176,8 @@ pub struct SecretServiceStorage {
     label: String,
     /// pending auth 条目 label
     pending_label: String,
+    /// guest 会话条目 label
+    guest_label: String,
 }
 
 #[cfg(feature = "secret-service-storage")]
@@ -149,6 +187,7 @@ impl SecretServiceStorage {
         Self {
             label: format!("xid-linux/{app_name}/tokens"),
             pending_label: format!("xid-linux/{app_name}/pending_auth"),
+            guest_label: format!("xid-linux/{app_name}/guest_session"),
         }
     }
 }
@@ -282,6 +321,18 @@ impl StorageAdapter for SecretServiceStorage {
 
     async fn clear_pending_auth(&self) -> Result<()> {
         self.delete_secrets(&self.pending_label).await
+    }
+
+    async fn save_guest_session(&self, session: &GuestSession) -> Result<()> {
+        self.write_json_secret(&self.guest_label, session).await
+    }
+
+    async fn load_guest_session(&self) -> Result<Option<GuestSession>> {
+        self.read_json_secret(&self.guest_label).await
+    }
+
+    async fn clear_guest_session(&self) -> Result<()> {
+        self.delete_secrets(&self.guest_label).await
     }
 }
 
@@ -483,6 +534,30 @@ mod tests {
 
         storage.clear_pending_auth().await.unwrap();
         assert!(storage.load_pending_auth().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn in_memory_guest_session_roundtrip() {
+        let storage = InMemoryStorage::new();
+        let guest = GuestSession {
+            session_id: "sess_1".to_owned(),
+            cookies: vec!["xid_session=abc".to_owned()],
+            user: crate::session::User {
+                sub: "guest_1".to_owned(),
+                name: None,
+                email: None,
+                picture: None,
+                provisioned_by: Some("anonymous".to_owned()),
+            },
+        };
+
+        storage.save_guest_session(&guest).await.unwrap();
+        let loaded = storage.load_guest_session().await.unwrap().unwrap();
+        assert_eq!(loaded.session_id, "sess_1");
+        assert!(loaded.user.is_anonymous());
+
+        storage.clear_guest_session().await.unwrap();
+        assert!(storage.load_guest_session().await.unwrap().is_none());
     }
 
     #[tokio::test]

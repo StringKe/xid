@@ -24,8 +24,8 @@ pub mod redirect_server;
 
 pub use config::{XidConfig, XidConfigBuilder, is_loopback_redirect_uri};
 pub use error::{XidError, Result};
-pub use session::{Session, User, Organization};
-pub use auth::{SignInOptions, GetAccessTokenOptions, XidClient};
+pub use session::{Session, User, Organization, GuestSession};
+pub use auth::{SignInOptions, GetAccessTokenOptions, SignInAnonymouslyOptions, XidClient};
 pub use storage::{PendingAuthState, TokenStorage, StorageAdapter, InMemoryStorage};
 pub use token::{IdTokenClaims, IdTokenVerifyOptions, verify_id_token};
 

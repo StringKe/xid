@@ -4,6 +4,7 @@
 // 公共 API 入口点。实现 Shared native contract:
 //   Configure(options) / SignInAsync(options) / HandleRedirectAsync(url)
 //   GetSession() / GetAccessToken(options) / SignOut() / SetTokenStorage(adapter)
+//   SignInAnonymouslyAsync(options) -- Firebase 式 guest 登录(cookie 会话,无 token)
 //
 // 安全约束:
 //   - public client:不存 client_secret。
@@ -46,6 +47,17 @@ public sealed class GetAccessTokenOptions
     public bool ForceRefresh { get; init; }
 }
 
+/// <summary>
+/// SignInAnonymouslyAsync() 选项。
+/// </summary>
+public sealed class SignInAnonymouslyOptions
+{
+    /// <summary>
+    /// Turnstile 验证 token。仅当服务端启用 Turnstile 时需要,native 端通常传 null。
+    /// </summary>
+    public string? TurnstileToken { get; init; }
+}
+
 // -- 主客户端 --
 
 /// <summary>
@@ -63,6 +75,7 @@ public sealed class XidClient
     private OidcDiscovery? _discovery;
     private TokenEndpointClient? _tokenClient;
     private JwksCache? _jwksCache;
+    private GuestAuthClient? _guestAuth;
 
     // 可覆盖的适配器(通过 Set* 方法更新)
     private ITokenStorage? _tokenStorageOverride;
@@ -97,6 +110,10 @@ public sealed class XidClient
         _tokenClient = new TokenEndpointClient(_http, options.ClientId);
         var jwksUri = $"{options.Issuer.ToString().TrimEnd('/')}/jwks";
         _jwksCache = new JwksCache(jwksUri, options.JwksTtl, _http);
+        // guest 流程必须读到 Set-Cookie 原文,不能被 handler 的 CookieContainer 吞掉
+        _guestAuth = new GuestAuthClient(
+            new HttpClient(new HttpClientHandler { UseCookies = false }) { Timeout = options.HttpTimeout },
+            options.Issuer);
     }
 
     // -- SetTokenStorage --
@@ -121,6 +138,63 @@ public sealed class XidClient
         ArgumentNullException.ThrowIfNull(browserSession);
         RequireConfigured();
         _browserSessionOverride = browserSession;
+    }
+
+    // 测试注入点:替换 guest HTTP 客户端(mock HttpMessageHandler)。
+    internal void SetGuestAuthClient(GuestAuthClient guestAuth)
+    {
+        ArgumentNullException.ThrowIfNull(guestAuth);
+        RequireConfigured();
+        _guestAuth = guestAuth;
+    }
+
+    // -- SignInAnonymouslyAsync --
+
+    /// <summary>
+    /// 匿名访客 (guest) 登录:POST /auth/guest 建立 cookie 会话,再用 /v1/me 取用户信息。
+    /// Firebase 语义:本地已有有效会话(token 或 guest)时不发请求,直接返回现有会话。
+    /// guest 不签发 access token,返回会话的 <see cref="XidSession.AccessToken"/> 为 null,
+    /// 调用方用 <see cref="XidSession.SessionCookie"/> 访问 cookie 认证的 API。
+    /// 转正(用户完成任一正式登录)后 sub 不变;若改登另一个既有账号,sub 会变。
+    /// </summary>
+    /// <param name="options">可选 Turnstile token。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>当前(已有或新建的)会话。</returns>
+    public async Task<XidSession> SignInAnonymouslyAsync(
+        SignInAnonymouslyOptions? options = null,
+        CancellationToken ct = default)
+    {
+        RequireConfigured();
+
+        // 惰性:已有有效会话直接复用,不重复建号
+        XidSession? existing = await GetSession(ct).ConfigureAwait(false);
+        if (existing is not null)
+            return existing;
+
+        GuestAuthResult result = await _guestAuth!.SignInAnonymouslyAsync(
+            options?.TurnstileToken, ct).ConfigureAwait(false);
+
+        XidUser user = new(
+            result.User.Id!,
+            result.User.Email,
+            result.User.EmailVerified,
+            result.User.Name,
+            result.User.ImageUrl,
+            result.User.ProvisionedBy);
+
+        var session = new XidSession(
+            accessToken: null,
+            refreshToken: null,
+            idToken: null,
+            expiresAt: null,
+            user,
+            result.SessionId,
+            result.SessionCookie);
+
+        _session = session;
+        await ActiveStorage.SaveAsync(SessionToStored(session), ct).ConfigureAwait(false);
+
+        return session;
     }
 
     // -- SignInAsync --
@@ -239,6 +313,8 @@ public sealed class XidClient
             if (stored is null) return null;
 
             _session = StoredToSession(stored);
+            // 记录损坏(既非 token 会话也非 guest 会话)视为未登录
+            if (_session is null) return null;
         }
 
         // 3. access token 即将过期则刷新
@@ -458,10 +534,45 @@ public sealed class XidClient
         RefreshToken = s.RefreshToken,
         IdToken = s.IdToken,
         ExpiresAt = s.ExpiresAt,
+        Guest = s.SessionId is null || s.SessionCookie is null
+            ? null
+            : new StoredGuestSession
+            {
+                SessionId = s.SessionId,
+                SessionCookie = s.SessionCookie,
+                Sub = s.User.Sub,
+                Email = s.User.Email,
+                Name = s.User.Name,
+                Picture = s.User.Picture,
+                ProvisionedBy = s.User.ProvisionedBy,
+            },
     };
 
-    private XidSession StoredToSession(StoredTokenSet stored)
+    private XidSession? StoredToSession(StoredTokenSet stored)
     {
+        // guest 会话:凭证是 cookie,无 id token 可解码
+        if (stored.Guest is not null)
+        {
+            XidUser guestUser = new(
+                stored.Guest.Sub,
+                stored.Guest.Email,
+                emailVerified: null,
+                stored.Guest.Name,
+                stored.Guest.Picture,
+                stored.Guest.ProvisionedBy);
+            return new XidSession(
+                accessToken: null,
+                refreshToken: null,
+                idToken: null,
+                expiresAt: null,
+                guestUser,
+                stored.Guest.SessionId,
+                stored.Guest.SessionCookie);
+        }
+
+        if (stored.IdToken is null)
+            return null;
+
         // 恢复会话时仅解码 claims(签名已在首次登录时验证)
         IdTokenClaims claims = IdTokenDecoder.Decode(stored.IdToken);
         XidUser user = new(
