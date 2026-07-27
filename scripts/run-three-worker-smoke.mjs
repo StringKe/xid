@@ -257,8 +257,9 @@ function createRoutingProxy(ports) {
         response.destroy(error instanceof Error ? error : new Error(String(error)))
         return
       }
+      console.error('Three Worker routing proxy failed', error)
       response.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' })
-      response.end(error instanceof Error ? error.message : String(error))
+      response.end('Bad Gateway')
     }
   })
 }

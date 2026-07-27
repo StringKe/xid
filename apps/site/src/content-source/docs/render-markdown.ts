@@ -20,7 +20,7 @@ export type MarkdownRenderOptions = {
 
 function escapeMarkdownText(value: string): string {
   return value
-    .replaceAll('\\', '\\\\')
+    .replace(/\\/g, '\\\\')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')

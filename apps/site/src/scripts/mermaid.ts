@@ -1,3 +1,5 @@
+import { sanitizeMermaidSvg } from './sanitize-mermaid-svg'
+
 type MermaidLabels = {
   close: string
   error: string
@@ -159,7 +161,7 @@ async function renderActiveDialog(): Promise<void> {
   body.replaceChildren(container)
 
   try {
-    expanded.innerHTML = await renderMermaidSvg(activeDialogDiagram.source)
+    expanded.replaceChildren(sanitizeMermaidSvg(await renderMermaidSvg(activeDialogDiagram.source)))
     expanded.dataset.processed = 'true'
   } catch (error) {
     showRenderError(expanded)
@@ -295,7 +297,7 @@ async function renderOnce(): Promise<void> {
   for (const diagram of diagrams) {
     try {
       const source = captureDiagramSource(diagram)
-      diagram.innerHTML = await renderMermaidSvg(source)
+      diagram.replaceChildren(sanitizeMermaidSvg(await renderMermaidSvg(source)))
       delete diagram.dataset.error
       diagram.dataset.processed = 'true'
       wrapDiagram(diagram)

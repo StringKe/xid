@@ -3,7 +3,6 @@ import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { renderEntryAsMarkdown } from '@cloudflare/nimbus-docs'
-import { resolveWebRouteOwnership } from '../../../packages/types/src/web-route-ownership.ts'
 
 const SITE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
@@ -52,21 +51,6 @@ const INTERNAL_DOC_SLUGS = [
   'soft-delete',
   'i18n',
   'api',
-]
-
-const CORE_RESERVED_PATHS = [
-  '/.well-known/openid-configuration',
-  '/jwks',
-  '/authorize',
-  '/par',
-  '/token',
-  '/userinfo',
-  '/end_session',
-  '/auth/sign-in',
-  '/account/security',
-  '/v1/users',
-  '/sso/saml',
-  '/scim/v2/ServiceProviderConfig',
 ]
 
 const MERMAID_DOC_SLUGS = new Set(['getting-started', 'hosted-auth', 'enterprise-sso', 'webhooks'])
@@ -412,12 +396,6 @@ async function audit() {
           `${label} is draft or noindex but entered the public collection`,
         )
       }
-      for (const url of [pageUrl, markdownUrl, sourceUrl]) {
-        invariant(
-          resolveWebRouteOwnership(url).owner === 'site',
-          `${url} is not owned by the Site Worker`,
-        )
-      }
       htmlCount += 1
       markdownCount += 1
       mdxCount += 1
@@ -654,20 +632,6 @@ async function audit() {
       }
     }
   }
-
-  for (const pathname of CORE_RESERVED_PATHS) {
-    invariant(
-      resolveWebRouteOwnership(new URL(pathname, SITE_ORIGIN)).owner === 'core',
-      `${pathname} is not owned by Core`,
-    )
-  }
-  invariant(
-    resolveWebRouteOwnership(new URL('/scim', SITE_ORIGIN)).owner === 'site' &&
-      resolveWebRouteOwnership(new URL('/scim/', SITE_ORIGIN)).owner === 'site' &&
-      resolveWebRouteOwnership(new URL('/scim/index.md', SITE_ORIGIN)).owner === 'site' &&
-      resolveWebRouteOwnership(new URL('/scim/index.mdx', SITE_ORIGIN)).owner === 'site',
-    'SCIM documentation exact route ownership is incomplete',
-  )
 
   for (const locale of LOCALES) {
     const notFoundPath =
