@@ -11,6 +11,8 @@ export type DecodedTokenClaims = {
   iat?: number
   sub?: string
   sid?: string
+  // authentication methods reference;guest session 的 token 含 'guest'(转正判定来源之一)。
+  amr?: string[]
 }
 
 // 解码失败返回 null(交由调用方按"无 exp"处理,即立即刷新),不抛。

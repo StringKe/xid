@@ -33,6 +33,7 @@ const EXPECTED_EXPORTS = [
   'UserAvatar',
   'UserButton',
   'UserProfile',
+  'GuestUpgradeBanner',
   'OrganizationSwitcher',
   'OrganizationProfile',
   'CreateOrganization',

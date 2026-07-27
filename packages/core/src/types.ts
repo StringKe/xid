@@ -17,6 +17,9 @@ export type XidUser = {
   username: string | null
   imageUrl: string | null
   hasImage: boolean
+  // guest 判定标记:匿名开通的账号由 worker 带 provisioned_by='anonymous'。
+  // 可选:旧会话 / 非 guest 用户不带该字段(与 /v1/me 契约一致)。
+  provisionedBy?: 'anonymous' | (string & {})
   // 开发者可读的非敏感元数据(对照 06 章 metadata PATCH)。
   publicMetadata: Readonly<Record<string, unknown>>
   // 该用户当前可用的组织成员摘要(用于 OrganizationSwitcher)。
@@ -106,6 +109,12 @@ export type CreateApiKeyInput = {
 export type SignInPasswordInput = {
   identifier: string
   password: string
+  turnstileToken?: string | null
+  signal?: AbortSignal
+}
+
+// guest 开通输入(POST /auth/guest);Turnstile 在 env.TURNSTILE_SECRET 配置时必传。
+export type SignInAnonymouslyInput = {
   turnstileToken?: string | null
   signal?: AbortSignal
 }

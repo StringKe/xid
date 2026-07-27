@@ -11,6 +11,7 @@ import type {
   ListUsersInput,
   ManagementSession,
   ManagementUser,
+  SignInAnonymouslyInput,
   SignInPasswordInput,
   SignInResult,
   XidApiKey,
@@ -25,6 +26,7 @@ import type {
   Unsubscribe,
 } from './types'
 import { XidApiClient, type ClientStateResponse } from './api-client'
+import { isGuestUser } from './guest'
 import { TokenManager } from './token-manager'
 import { XidStore } from './store'
 
@@ -74,6 +76,11 @@ export class XidClient {
     return this.#store.getSnapshot().isSignedIn
   }
 
+  // guest 判定:当前用户由匿名开通(provisionedBy === 'anonymous')。
+  get isAnonymous(): boolean {
+    return isGuestUser(this.#store.getSnapshot().user)
+  }
+
   // 初始化:拉取登录态快照(/v1/me)。SDK 启动时调用一次,失败置 error/degraded 状态。
   async load(input: { signal?: AbortSignal } = {}): Promise<void> {
     const result = await this.#api.loadState({ ...(input.signal ? { signal: input.signal } : {}) })
@@ -99,6 +106,23 @@ export class XidClient {
     if (result.value.nextStep === 'verify_email') return result
     await this.load(input.signal ? { signal: input.signal } : {})
     return result
+  }
+
+  // guest 开通(Firebase signInAnonymously 惰性语义):本地已有有效 session 直接返回,
+  // 不发请求;否则 POST /auth/guest 建立 cookie session 并重拉状态。
+  async signInAnonymously(input: SignInAnonymouslyInput = {}): Promise<Result<XidState, XidError>> {
+    const snapshot = this.#store.getSnapshot()
+    if (snapshot.isSignedIn) return { ok: true, value: snapshot }
+
+    const result = await this.#api.signInAnonymously({
+      turnstileToken: input.turnstileToken ?? null,
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+    if (!result.ok) return result
+    // 新 session 的 cookie 已换人,缓存的 token 属于旧会话,必须清掉。
+    this.#tokens.clear()
+    await this.load(input.signal ? { signal: input.signal } : {})
+    return { ok: true, value: this.#store.getSnapshot() }
   }
 
   // multi-session 切换:把目标 session 设为活跃,刷新派生态并清 token 缓存。

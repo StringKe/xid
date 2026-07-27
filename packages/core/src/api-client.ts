@@ -10,6 +10,7 @@ import type {
   ListUsersInput,
   ManagementSession,
   ManagementUser,
+  SignInAnonymouslyInput,
   SignInPasswordInput,
   SignInResult,
   SessionStatus,
@@ -44,6 +45,7 @@ type MeUserWire = {
   emailVerified?: boolean
   name?: string | null
   imageUrl?: string | null
+  provisioned_by?: string
 }
 
 type MeOrganizationWire = {
@@ -186,6 +188,18 @@ export class XidApiClient {
       signal: input.signal,
     })
     return result.ok ? { ok: true, value: result.value ?? {} } : result
+  }
+
+  // guest 开通:无认证端点,成功(200 续签 / 201 新建)由 worker Set-Cookie 建立真 session,
+  // 响应体不承载状态,调用方需重拉 /v1/me。
+  async signInAnonymously(input: SignInAnonymouslyInput = {}): Promise<Result<null, XidError>> {
+    const result = await this.#request<unknown>({
+      path: '/auth/guest',
+      method: 'POST',
+      body: { turnstileToken: input.turnstileToken ?? null },
+      signal: input.signal,
+    })
+    return result.ok ? { ok: true, value: null } : result
   }
 
   async getOrganization(input: {
@@ -440,6 +454,7 @@ function mapMeUser(
     username: null,
     imageUrl: user.imageUrl ?? null,
     hasImage: user.imageUrl !== null && user.imageUrl !== undefined,
+    ...(user.provisioned_by !== undefined ? { provisionedBy: user.provisioned_by } : {}),
     publicMetadata: {},
     organizationMemberships,
     createdAt: 0,
