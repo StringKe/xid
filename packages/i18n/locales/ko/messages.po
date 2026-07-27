@@ -630,10 +630,6 @@ msgstr "배포 후 상태 확인, OIDC 디스커버리, JWKS, Hosted Auth 설정
 msgid "All BackendErrorCode values: missing_jwt_key, jwks_fetch_failed, invalid_options"
 msgstr "모든 BackendErrorCode 값: missing_jwt_key, jwks_fetch_failed, invalid_options"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "All developer docs"
-msgstr "모든 개발자 문서"
-
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "all events"
 msgstr "모든 이벤트"
@@ -793,6 +789,10 @@ msgstr "API 키"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "API keys | Console | XID"
 msgstr "API 키 | 콘솔 | XID"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "APIs and operations"
+msgstr "API 및 운영"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "App Router server helpers"
@@ -1264,6 +1264,10 @@ msgstr "브라우저 클라이언트, 세션 저장소, token 캐시, 관리 API
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Browser default"
 msgstr "브라우저 기본값"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
+msgstr "브라우저, 서버, 웹 프레임워크, 모바일 및 데스크톱 SDK로 전체 스택에서 애플리케이션을 통합합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "BrowserInterface adapter backed by expo-web-browser"
@@ -2176,12 +2180,12 @@ msgid "Desktop Linux with xdg-open (xdg-utils) for system browser launch and a r
 msgstr "시스템 브라우저 실행을 위한 xdg-open(xdg-utils)과 Secret Service 저장소용 gnome-keyring 또는 kwallet이 있는 D-Bus 세션이 실행 중인 데스크톱 Linux"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Dev/test without Tauri runtime"
-msgstr "Tauri 런타임 없이 개발/테스트"
+msgid "Desktop SDKs"
+msgstr "데스크톱 SDK"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Developer docs"
-msgstr "개발자 문서"
+msgid "Dev/test without Tauri runtime"
+msgstr "Tauri 런타임 없이 개발/테스트"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Developer docs navigation"
@@ -2717,6 +2721,10 @@ msgstr "만료됨"
 #: apps/server/src/routes/activate/ActivationDetails.tsx
 msgid "Expires"
 msgstr "만료"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Explore XID"
+msgstr "XID 살펴보기"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Expo"
@@ -3309,6 +3317,10 @@ msgstr "Hosted Auth는 자격 증명과 조직 정책 권한이 있는 활성화
 msgid "Hosted Auth sign-in flow helpers"
 msgstr "Hosted Auth 로그인 흐름 헬퍼"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
+msgstr "Hosted Auth, 패스키, 비밀번호, 매직 링크, 소셜 로그인, MFA, 복구, 동의 및 계정 셀프서비스."
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "Hosted Auth 흐름"
@@ -3413,6 +3425,10 @@ msgstr "식별자 정책"
 msgid "Identity"
 msgstr "신원"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Identity protocols"
+msgstr "아이덴티티 프로토콜"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Identity rules"
 msgstr "아이덴티티 규칙"
@@ -3480,6 +3496,10 @@ msgstr "프로세스 메모리만 사용합니다. 프로세스 종료 시 토�
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Inactive"
 msgstr "비활성"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
+msgstr "인바운드 엔터프라이즈 SAML 및 OIDC, SCIM 사용자 및 그룹 프로비저닝, 웹훅, 감사 기록 및 Management API."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -4325,6 +4345,10 @@ msgid "Missing request"
 msgstr "요청이 없습니다"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Mobile SDKs"
+msgstr "모바일 SDK"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
 msgstr "모듈"
 
@@ -4724,6 +4748,10 @@ msgid "OIDC and OAuth"
 msgstr "OIDC 및 OAuth"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
+msgstr "OIDC 및 OAuth 2.0, 토큰 발급, 디스커버리, JWKS, 조직, 프로젝트, 애플리케이션, 역할 및 권한."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OIDC authorization code"
 msgstr "OIDC authorization code"
 
@@ -4770,6 +4798,10 @@ msgstr "활성화"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "이 페이지에서"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "One platform for identity"
+msgstr "아이덴티티를 위한 하나의 플랫폼"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One-tap sign-in embed"
@@ -4854,6 +4886,10 @@ msgstr "SCIM 대상 열기"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Open social providers"
 msgstr "소셜 공급자 열기"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Open source identity platform"
+msgstr "오픈 소스 아이덴티티 플랫폼"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -5556,6 +5592,10 @@ msgstr "외부 소스의 리디렉션 URL을 처리하고 코드를 토큰으로
 msgid "Process App Link or custom scheme callback. Called internally by signIn; invoke manually for cross-process redirect recovery."
 msgstr "App Link 또는 사용자 정의 스킴 콜백을 처리합니다. signIn 내부에서 호출됩니다. 크로스 프로세스 리디렉션 복구 시 수동으로 호출하세요."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Product and setup"
+msgstr "제품 및 설정"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Production backend"
 msgstr "프로덕션 백엔드"
@@ -5608,10 +5648,6 @@ msgstr "프로토콜"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol requirements"
 msgstr "프로토콜 요구사항"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references for integrating with XID."
-msgstr "XID 연동을 위한 프로토콜, API, inbound 엔터프라이즈 SSO, SCIM, SDK, 셀프 호스팅 참고 문서."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
@@ -6490,6 +6526,10 @@ msgid "Ruby server SDK for networkless JWT verification, Rack/Rails request auth
 msgstr "네트워크 호출 없는 JWT 검증, Rack/Rails 요청 인증, webhook 서명 검증을 위한 Ruby 서버 SDK."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
+msgstr "동일한 MIT 라이선스 코드베이스를 Cloudflare 계정에서 단일 테넌트 또는 멀티 테넌트 모드로 실행합니다. 셀프 호스팅에는 모든 기능이 포함되며 라이선스 검사나 별도 에디션이 없습니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Run XID on your own Cloudflare account with Workers, D1, KV, R2, queues, and Durable Objects."
 msgstr "Workers, D1, KV, R2, Queues, Durable Objects로 자체 Cloudflare 계정에서 XID를 실행합니다."
 
@@ -6660,8 +6700,8 @@ msgid "Scopes: {0}"
 msgstr "범위: {0}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SDK packages"
-msgstr "SDK 패키지"
+msgid "SDK overview"
+msgstr "SDK 개요"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SDKs"
@@ -6869,6 +6909,10 @@ msgstr "서버 hook"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server middleware (JWT auth)"
 msgstr "서버 미들웨어(JWT 인증)"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Server SDKs"
+msgstr "서버 SDK"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server side password and token hashing pepper."
@@ -8628,6 +8672,10 @@ msgid "Web application"
 msgstr "웹 애플리케이션"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Web SDKs"
+msgstr "웹 SDK"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Web-standard runtimes (Cloudflare Workers, Node.js, Bun, Deno) share @xid-kit/backend via Web Crypto. Other languages get native SDKs. All do networkless JWT verification, request authentication, and webhook verification."
 msgstr "웹 표준 런타임(Cloudflare Workers, Node.js, Bun, Deno)은 Web Crypto를 통해 @xid-kit/backend를 공유합니다. 다른 언어는 네이티브 SDK를 사용합니다. 모두 네트워크 호출 없는 JWT 검증, 요청 인증, webhook 검증을 지원합니다."
 
@@ -8685,6 +8733,10 @@ msgstr "WebView2 런타임(Evergreen — Microsoft Edge에 사전 설치됨)"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "WebView2 Runtime must be present. WebAuthenticationBroker support as a fallback is planned but not yet implemented."
 msgstr "WebView2 런타임이 있어야 합니다. 폴백으로 WebAuthenticationBroker 지원이 계획되어 있지만 아직 구현되지 않았습니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "What XID includes"
+msgstr "XID에 포함된 기능"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "WhatsApp delivery is ready for Hosted UI."
@@ -8760,20 +8812,16 @@ msgid "XID behavior"
 msgstr "XID 동작"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
+msgstr "XID는 Hosted Auth, 패스키, OIDC 및 OAuth, 조직, 엔터프라이즈 페더레이션, SCIM 및 SDK를 Cloudflare용으로 구축된 하나의 아이덴티티 플랫폼에 통합합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID는 현재 엔터프라이즈 IdP용 SAML 서비스 공급자로 동작합니다. Downstream SaaS 앱용 outbound SAML IdP는 로컬 fake-SaaS 증거가 있지만, 프로덕션 지원에는 여전히 실제 SaaS 관리자 L4가 필요합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID Developer Docs"
-msgstr "XID 개발자 문서"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID developer document not found"
 msgstr "XID 개발자 문서를 찾을 수 없습니다"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID developer documentation"
-msgstr "XID 개발자 문서"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
@@ -8788,8 +8836,20 @@ msgid "XID exposes organization-scoped SCIM 2.0 APIs under <0>/scim/v2/organizat
 msgstr "XID는 <0>/scim/v2/organizations/{organization_id}</0> 아래에서 조직 범위 SCIM 2.0 API를 제공합니다. 사용자 및 그룹 리소스는 경로의 조직 ID로 지정됩니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
+msgstr "XID는 하나의 아이덴티티 코어에서 로그인, 권한 부여, 조직 멤버십, 엔터프라이즈 연결 및 사용자 수명 주기를 처리합니다. 애플리케이션은 표준 기반 엔드포인트를 사용하고 팀은 하나의 Console에서 인스턴스와 각 조직을 관리합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID Identity Platform"
+msgstr "XID 아이덴티티 플랫폼"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID is an identity provider. The instance domain is the OIDC issuer, API base URL, Hosted Auth base URL, and console base URL. Organizations provide policy, branding, membership, and resource isolation."
 msgstr "XID는 ID 공급자입니다. 인스턴스 도메인은 OIDC 발급자, API 기본 URL, Hosted Auth 기본 URL, 콘솔 기본 URL입니다. 조직은 정책, 브랜딩, 멤버십, 리소스 격리를 제공합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
+msgstr "XID는 pre-1.0 단계이며 프로덕션 준비가 완료되지 않았습니다. 문서는 로컬 구현 증거와 실제 공급자 및 SaaS 검증을 구분합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID issuer URI"

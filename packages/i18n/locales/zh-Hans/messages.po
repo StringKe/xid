@@ -630,10 +630,6 @@ msgstr "部署后，验证健康检查、OIDC 发现文档、JWKS、Hosted Auth 
 msgid "All BackendErrorCode values: missing_jwt_key, jwks_fetch_failed, invalid_options"
 msgstr "所有 BackendErrorCode 取值：missing_jwt_key、jwks_fetch_failed、invalid_options"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "All developer docs"
-msgstr "所有开发者文档"
-
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "all events"
 msgstr "所有事件"
@@ -793,6 +789,10 @@ msgstr "API 密钥"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "API keys | Console | XID"
 msgstr "API 密钥 | 控制台 | XID"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "APIs and operations"
+msgstr "API 与运维"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "App Router server helpers"
@@ -1264,6 +1264,10 @@ msgstr "浏览器客户端、会话存储、token 缓存和 Management API 辅�
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Browser default"
 msgstr "浏览器默认"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
+msgstr "浏览器、服务端、Web 框架、移动端和桌面端 SDK，用于在整个技术栈中集成应用。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "BrowserInterface adapter backed by expo-web-browser"
@@ -2176,12 +2180,12 @@ msgid "Desktop Linux with xdg-open (xdg-utils) for system browser launch and a r
 msgstr "桌面 Linux 使用 xdg-open（xdg-utils）启动系统浏览器，并需要运行中的 D-Bus 会话及 gnome-keyring 或 kwallet 用于 Secret Service 存储"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Dev/test without Tauri runtime"
-msgstr "不依赖 Tauri 运行时的开发/测试"
+msgid "Desktop SDKs"
+msgstr "桌面端 SDK"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Developer docs"
-msgstr "开发者文档"
+msgid "Dev/test without Tauri runtime"
+msgstr "不依赖 Tauri 运行时的开发/测试"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Developer docs navigation"
@@ -2717,6 +2721,10 @@ msgstr "已过期"
 #: apps/server/src/routes/activate/ActivationDetails.tsx
 msgid "Expires"
 msgstr "过期时间"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Explore XID"
+msgstr "探索 XID"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Expo"
@@ -3309,6 +3317,10 @@ msgstr "Hosted Auth 只显示已启用、已有凭据且组织策略允许的提
 msgid "Hosted Auth sign-in flow helpers"
 msgstr "Hosted Auth 登录流程辅助工具"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
+msgstr "Hosted Auth、通行密钥、密码、魔法链接、社交登录、MFA、恢复、授权同意和账户自助服务。"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "托管流程"
@@ -3413,6 +3425,10 @@ msgstr "标识符策略"
 msgid "Identity"
 msgstr "身份"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Identity protocols"
+msgstr "身份协议"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Identity rules"
 msgstr "身份规则"
@@ -3480,6 +3496,10 @@ msgstr "仅限进程内内存。进程退出时 token 丢失。适用于没有 S
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Inactive"
 msgstr "不活跃"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
+msgstr "入站企业 SAML 和 OIDC、SCIM 用户与组预配、Webhook、审计记录和管理 API。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -4325,6 +4345,10 @@ msgid "Missing request"
 msgstr "缺少请求"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Mobile SDKs"
+msgstr "移动端 SDK"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
 msgstr "模块"
 
@@ -4724,6 +4748,10 @@ msgid "OIDC and OAuth"
 msgstr "OIDC 和 OAuth"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
+msgstr "OIDC 和 OAuth 2.0、令牌签发、发现、JWKS、组织、项目、应用、角色和权限。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OIDC authorization code"
 msgstr "OIDC 授权码"
 
@@ -4770,6 +4798,10 @@ msgstr "开启"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "本页内容"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "One platform for identity"
+msgstr "统一身份平台"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One-tap sign-in embed"
@@ -4854,6 +4886,10 @@ msgstr "打开 SCIM 目标"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Open social providers"
 msgstr "打开社交登录提供商"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Open source identity platform"
+msgstr "开源身份平台"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -5556,6 +5592,10 @@ msgstr "处理来自外部来源的重定向 URL 并用 code 换取 token。"
 msgid "Process App Link or custom scheme callback. Called internally by signIn; invoke manually for cross-process redirect recovery."
 msgstr "处理 App Link 或自定义 scheme callback。由 signIn 内部调用；跨进程重定向恢复时手动调用。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Product and setup"
+msgstr "产品与设置"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Production backend"
 msgstr "生产后端"
@@ -5608,10 +5648,6 @@ msgstr "协议"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocol requirements"
 msgstr "协议要求"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references for integrating with XID."
-msgstr "用于集成 XID 的协议、API、入站企业 SSO、SCIM、SDK 和自托管参考。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
@@ -6490,6 +6526,10 @@ msgid "Ruby server SDK for networkless JWT verification, Rack/Rails request auth
 msgstr "Ruby 服务端 SDK，提供 networkless JWT 验证、Rack/Rails 请求认证和 webhook 签名校验。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
+msgstr "在自己的 Cloudflare 账户中，以单租户或多租户模式运行同一套 MIT 许可代码。自托管包含全部功能，不设许可证检查或独立版本。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Run XID on your own Cloudflare account with Workers, D1, KV, R2, queues, and Durable Objects."
 msgstr "用 Workers、D1、KV、R2、Queues 和 Durable Objects 在自己的 Cloudflare 账户运行 XID。"
 
@@ -6660,8 +6700,8 @@ msgid "Scopes: {0}"
 msgstr "权限范围：{0}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "SDK packages"
-msgstr "SDK 包"
+msgid "SDK overview"
+msgstr "SDK 概览"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SDKs"
@@ -6869,6 +6909,10 @@ msgstr "服务端 hook"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server middleware (JWT auth)"
 msgstr "服务端 middleware（JWT 认证）"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Server SDKs"
+msgstr "服务端 SDK"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Server side password and token hashing pepper."
@@ -8628,6 +8672,10 @@ msgid "Web application"
 msgstr "Web 应用"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Web SDKs"
+msgstr "Web 端 SDK"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Web-standard runtimes (Cloudflare Workers, Node.js, Bun, Deno) share @xid-kit/backend via Web Crypto. Other languages get native SDKs. All do networkless JWT verification, request authentication, and webhook verification."
 msgstr "Web 标准运行时(Cloudflare Workers、Node.js、Bun、Deno)经 Web Crypto 共用 @xid-kit/backend;其他语言使用各自原生 SDK。全部做 networkless JWT 验证、请求认证和 webhook 验证。"
 
@@ -8685,6 +8733,10 @@ msgstr "WebView2 运行时（常青版——随 Microsoft Edge 预装）"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "WebView2 Runtime must be present. WebAuthenticationBroker support as a fallback is planned but not yet implemented."
 msgstr "必须安装 WebView2 运行时。WebAuthenticationBroker 作为回退方案已在计划中，但尚未实现。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "What XID includes"
+msgstr "XID 包含的能力"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "WhatsApp delivery is ready for Hosted UI."
@@ -8760,20 +8812,16 @@ msgid "XID behavior"
 msgstr "XID 行为"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
+msgstr "XID 将 Hosted Auth、通行密钥、OIDC 与 OAuth、组织、企业联合身份、SCIM 和 SDK 整合为一个面向 Cloudflare 构建的身份平台。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID 当前作为企业 IdP 的 SAML 服务提供商。面向下游 SaaS 应用的出站 SAML IdP 有本地 fake-SaaS 证据，但生产支持仍需要真实 SaaS 管理员 L4。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID Developer Docs"
-msgstr "XID 开发者文档"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID developer document not found"
 msgstr "未找到 XID 开发者文档"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID developer documentation"
-msgstr "XID 开发者文档"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
@@ -8788,8 +8836,20 @@ msgid "XID exposes organization-scoped SCIM 2.0 APIs under <0>/scim/v2/organizat
 msgstr "XID 在 <0>/scim/v2/organizations/{organization_id}</0> 下公开组织范围的 SCIM 2.0 API。用户和组资源通过路径中的组织 ID 定位。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
+msgstr "XID 通过一个身份核心处理登录、授权、组织成员关系、企业连接和用户生命周期。应用使用基于标准的端点，团队则通过统一 Console 管理实例和每个组织。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID Identity Platform"
+msgstr "XID 身份平台"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID is an identity provider. The instance domain is the OIDC issuer, API base URL, Hosted Auth base URL, and console base URL. Organizations provide policy, branding, membership, and resource isolation."
 msgstr "XID 是身份提供方。实例域名是 OIDC 签发方、API 基础 URL、Hosted Auth 基础 URL 和控制台基础 URL。组织提供策略、品牌、成员关系和资源隔离。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
+msgstr "XID 处于 pre-1.0 阶段，尚未达到生产就绪。文档明确区分本地实现证据与真实提供商和 SaaS 验证。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID issuer URI"

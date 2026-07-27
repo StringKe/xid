@@ -27,10 +27,10 @@ vitest everywhere. How it runs depends on the workspace:
   contracts. Its Worker tests MUST prove the only binding is `ASSETS`.
 - `turbo run test` is the only cross-package entry point.
 - Repository-level gates at the root run vitest against `.mjs` contract tests: `test:key-paths`,
-  `test:quality-gate`, `test:release-contracts`, `test:web-routes`, `test:web-release`, plus the two
+  `test:quality-gate`, `test:release-contracts`, `test:web-routes`, plus the two
   coverage gates. `test:web-routes` also validates all three Wrangler configs against the shared
-  owner model. `test:web-release` validates the staged manifest schema and compatibility artifact
-  dry-run plan without uploading or changing routes.
+  owner model. `test:release-contracts` validates migration compatibility and the Cloudflare Builds
+  deployment contract.
 
 ## Layout and naming
 

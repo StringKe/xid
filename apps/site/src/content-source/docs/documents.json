@@ -13,22 +13,22 @@
   "hub": {
     "eyebrow": {
       "kind": "message",
-      "id": "lgJ5SH",
-      "message": "XID developer documentation",
+      "id": "dnmh_I",
+      "message": "Open source identity platform",
       "values": {},
       "tags": {}
     },
     "title": {
       "kind": "message",
-      "id": "RMLnPK",
-      "message": "XID Developer Docs",
+      "id": "YKzy7_",
+      "message": "XID Identity Platform",
       "values": {},
       "tags": {}
     },
     "summary": {
       "kind": "message",
-      "id": "KWeoLF",
-      "message": "Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references for integrating with XID.",
+      "id": "0yG2H_",
+      "message": "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare.",
       "values": {},
       "tags": {}
     },
@@ -37,67 +37,70 @@
         "kind": "product",
         "heading": {
           "kind": "message",
-          "id": "F3bW6y",
-          "message": "Platform",
+          "id": "PXOGK4",
+          "message": "One platform for identity",
           "values": {},
           "tags": {}
         },
         "paragraphs": [
           {
             "kind": "message",
-            "id": "OFkwbN",
-            "message": "XID is an identity provider. The instance domain is the OIDC issuer, API base URL, Hosted Auth base URL, and console base URL. Organizations provide policy, branding, membership, and resource isolation.",
+            "id": "_6tvkv",
+            "message": "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console.",
             "values": {},
             "tags": {}
           },
           {
             "kind": "message",
-            "id": "-kFPWq",
-            "message": "Start by reading <0>/.well-known/openid-configuration</0> from the instance domain. The discovery document gives your app the authorization, token, userinfo, logout, and JWKS endpoints for that issuer.",
+            "id": "O0CZpd",
+            "message": "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition.",
             "values": {},
-            "tags": {
-              "0": {
-                "kind": "inlineCode"
-              }
-            }
+            "tags": {}
+          },
+          {
+            "kind": "message",
+            "id": "Y8BniJ",
+            "message": "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification.",
+            "values": {},
+            "tags": {}
           }
         ]
       },
       {
-        "kind": "quickStart",
+        "kind": "capabilities",
         "heading": {
           "kind": "message",
-          "id": "HKgn5s",
-          "message": "Minimum integration",
+          "id": "zTeEBf",
+          "message": "What XID includes",
           "values": {},
           "tags": {}
         },
-        "steps": [
+        "items": [
           {
             "kind": "message",
-            "id": "Euwy7k",
-            "message": "Create an OIDC application and register exact redirect URI values.",
+            "id": "r0UoH8",
+            "message": "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service.",
             "values": {},
             "tags": {}
           },
           {
             "kind": "message",
-            "id": "coo_xA",
-            "message": "Use authorization code flow with PKCE S256 for browser and native clients.",
+            "id": "cybAtK",
+            "message": "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions.",
             "values": {},
             "tags": {}
           },
           {
             "kind": "message",
-            "id": "fSQNs8",
-            "message": "Validate ID tokens and access tokens against the issuer and JWKS URI.",
+            "id": "mt_ezc",
+            "message": "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs.",
             "values": {},
             "tags": {}
           },
           {
             "kind": "message",
-            "id": "p4P40q",
-            "message": "Store refresh tokens server side or in a secure native credential store.",
+            "id": "Y7NEJn",
+            "message": "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack.",
             "values": {},
             "tags": {}
           }
@@ -107,8 +110,8 @@
         "kind": "navigation",
         "heading": {
           "kind": "message",
-          "id": "0hpSGh",
-          "message": "All developer docs",
+          "id": "W7PXsZ",
+          "message": "Explore XID",
           "values": {},
           "tags": {}
         },
@@ -116,8 +119,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "2XN6Kf",
-              "message": "Platform setup",
+              "id": "QcinWR",
+              "message": "Product and setup",
               "values": {},
               "tags": {}
             },
@@ -131,8 +134,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "hEksWI",
-              "message": "Protocols",
+              "id": "v-sxhT",
+              "message": "Identity protocols",
               "values": {},
               "tags": {}
             },
@@ -147,8 +150,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "kMP4_X",
-              "message": "Developer docs",
+              "id": "l8t_1y",
+              "message": "APIs and operations",
               "values": {},
               "tags": {}
             },
@@ -160,8 +163,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "kBj3ut",
-              "message": "SDK packages",
+              "id": "aGbNxc",
+              "message": "SDK overview",
               "values": {},
               "tags": {}
             },
@@ -172,8 +175,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "LfTh-S",
-              "message": "Server-side SDKs",
+              "id": "P4mdED",
+              "message": "Server SDKs",
               "values": {},
               "tags": {}
             },
@@ -191,8 +194,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "BsrhZj",
-              "message": "Client SDKs: web frameworks",
+              "id": "u--k4W",
+              "message": "Web SDKs",
               "values": {},
               "tags": {}
             },
@@ -212,8 +215,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "LUHmIr",
-              "message": "Client SDKs: mobile",
+              "id": "4cznMe",
+              "message": "Mobile SDKs",
               "values": {},
               "tags": {}
             },
@@ -228,8 +231,8 @@
           {
             "label": {
               "kind": "message",
-              "id": "zTd2TX",
-              "message": "Client SDKs: desktop",
+              "id": "FmLBHK",
+              "message": "Desktop SDKs",
               "values": {},
               "tags": {}
             },
@@ -18422,10 +18425,6 @@
       "message": "Selector xid-sign-in-button; inputs signInUrl, redirectUrl, ariaLabel"
     },
     {
-      "id": "0hpSGh",
-      "message": "All developer docs"
-    },
-    {
       "id": "0i6jYj",
       "message": "TauriSession or null; refreshes token if near expiry"
     },
@@ -19742,10 +19741,6 @@
       "message": "Kind"
     },
     {
-      "id": "KWeoLF",
-      "message": "Protocol, API, inbound enterprise SSO, SCIM, SDK, and self-hosting references for integrating with XID."
-    },
-    {
       "id": "KYkaZK",
       "message": "Full state ref plus all client actions (UseXidReturn)"
     },
@@ -20260,10 +20255,6 @@
     {
       "id": "RLrSl3",
       "message": "Uses public JWKS only. Never loads instance signing private keys."
-    },
-    {
-      "id": "RMLnPK",
-      "message": "XID Developer Docs"
     },
     {
       "id": "RODn-E",
@@ -21618,10 +21609,6 @@
       "message": "Replace the default KeychainTokenStorage with a custom TokenStorageAdapter implementation."
     },
     {
-      "id": "kBj3ut",
-      "message": "SDK packages"
-    },
-    {
       "id": "kGRZkz",
       "message": "Pass <0>appearance</0> to <1>XidProvider</1> to override CSS variables for white-label embeds. All user-visible strings use Lingui runtime descriptors; the <2>Appearance</2>, <3>AppearanceVariables</3>, and <4>AppearanceElements</4> types are exported for typed overrides."
     },
@@ -21632,10 +21619,6 @@
     {
       "id": "kMF7QE",
       "message": "Low-level POST to the token endpoint with grant_type authorization_code and the PKCE verifier; returns a TokenSet"
-    },
-    {
-      "id": "kMP4_X",
-      "message": "Developer docs"
     },
     {
       "id": "kPs9br",
@@ -21708,10 +21691,6 @@
     {
       "id": "lbaZ06",
       "message": "Remix cookie session storage for XID tokens"
-    },
-    {
-      "id": "lgJ5SH",
-      "message": "XID developer documentation"
     },
     {
       "id": "li9ibR",
@@ -22744,6 +22723,90 @@
     {
       "id": "zzGfHH",
       "message": "Create, read, update, and delete permissions."
+    },
+    {
+      "id": "dnmh_I",
+      "message": "Open source identity platform"
+    },
+    {
+      "id": "YKzy7_",
+      "message": "XID Identity Platform"
+    },
+    {
+      "id": "0yG2H_",
+      "message": "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
+    },
+    {
+      "id": "PXOGK4",
+      "message": "One platform for identity"
+    },
+    {
+      "id": "_6tvkv",
+      "message": "XID handles sign-in, authorization, organization membership, enterprise connections, and user lifecycle from one identity core. Applications use standards-based endpoints while teams manage the instance and every organization from one Console."
+    },
+    {
+      "id": "O0CZpd",
+      "message": "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
+    },
+    {
+      "id": "Y8BniJ",
+      "message": "XID is pre-1.0 and not production-ready. The documentation distinguishes local implementation evidence from real provider and SaaS verification."
+    },
+    {
+      "id": "zTeEBf",
+      "message": "What XID includes"
+    },
+    {
+      "id": "r0UoH8",
+      "message": "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
+    },
+    {
+      "id": "cybAtK",
+      "message": "OIDC and OAuth 2.0, token issuance, discovery, JWKS, organizations, projects, applications, roles, and permissions."
+    },
+    {
+      "id": "mt_ezc",
+      "message": "Inbound enterprise SAML and OIDC, SCIM user and group provisioning, webhooks, audit records, and management APIs."
+    },
+    {
+      "id": "Y7NEJn",
+      "message": "Browser, server, web framework, mobile, and desktop SDKs for integrating applications across the stack."
+    },
+    {
+      "id": "W7PXsZ",
+      "message": "Explore XID"
+    },
+    {
+      "id": "QcinWR",
+      "message": "Product and setup"
+    },
+    {
+      "id": "v-sxhT",
+      "message": "Identity protocols"
+    },
+    {
+      "id": "l8t_1y",
+      "message": "APIs and operations"
+    },
+    {
+      "id": "aGbNxc",
+      "message": "SDK overview"
+    },
+    {
+      "id": "P4mdED",
+      "message": "Server SDKs"
+    },
+    {
+      "id": "u--k4W",
+      "message": "Web SDKs"
+    },
+    {
+      "id": "4cznMe",
+      "message": "Mobile SDKs"
+    },
+    {
+      "id": "FmLBHK",
+      "message": "Desktop SDKs"
     }
   ],
   "stats": {
@@ -22761,6 +22824,6 @@
     },
     "staticValues": 2,
     "literalValues": 3,
-    "catalogMessages": 1120
+    "catalogMessages": 1135
   }
 }

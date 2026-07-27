@@ -9,7 +9,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "bundle:cf": "vite build && wrangler versions upload --dry-run",
     "check": "vp check",
     "preview": "vite preview",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit -p tsconfig.json",

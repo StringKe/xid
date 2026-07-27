@@ -27,7 +27,7 @@ repo, when you are adding a workspace member, or when you are about to edit
 | Test        | package `test` plus route audit   | package `test`                      | Worker + SPA Vitest configs         | `vp test`                          | `pnpm test`                             |
 | Format      | --                                | --                                  | --                                  | --                                 | `pnpm fmt`                              |
 | Full gate   | --                                | --                                  | --                                  | --                                 | `pnpm check`                            |
-| Release     | coordinated Workers Builds version upload | coordinated Workers Builds version upload | coordinated Workers Builds version upload and promotion | -- | release manifest coordinator |
+| Release     | Workers Builds `wrangler deploy` | Workers Builds `wrangler deploy` | Workers Builds D1 migration plus `wrangler deploy` | -- | Cloudflare Workers Builds |
 
 Notes that matter when you run these:
 
@@ -44,14 +44,11 @@ Notes that matter when you run these:
   `turbo run check`, `turbo run typecheck`, the native SDK contract test, the i18n audit, the
   protocol source map, and several coverage / quality / release-contract gates. CI
   (`.github/workflows/ci.yml`) runs `pnpm check`, `pnpm test`, `pnpm build`, and `pnpm smoke:l2-l3`.
-- Production artifacts are uploaded independently for Site, Console, and Core through Cloudflare
-  Workers Builds, then promoted by one coordinated release. There is no direct `deploy` script in
+- Site, Console, and Core deploy independently from the `main` branch through Cloudflare Workers
+  Builds. Site and Console run `wrangler deploy`. Core applies remote D1 migrations and then runs
+  `wrangler deploy`. Non-production branch builds are disabled.
+  GitHub Actions verifies the repository and never deploys it. There is no direct `deploy` script in
   any `package.json` and no `deploy` task in `turbo.json`.
-- `scripts/web-release-manifest.mjs` initializes and validates the ignored staged release record.
-  `scripts/build-core-compat-artifact.mjs` rebuilds the compatibility Core from a fixed git SHA in a
-  detached worktree and uses `wrangler versions upload --dry-run` to package it without uploading.
-  Route activation uses `wrangler triggers deploy`; the rollback sequence removes Console, removes
-  Site public routes while keeping `www`, then removes `www` last.
 
 turbo `check` / `typecheck` / `test` **do not depend on build**: internal packages are consumed
 straight from source (`main` points at `src/index.ts`), so type checking needs no prior build. Only

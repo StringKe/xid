@@ -69,7 +69,7 @@ export function renderPublicDocsLlmsIndex(
   const lines = [
     rootLocale ? '# XID' : `# XID documentation (${group.locale})`,
     '',
-    group.hub.description ?? 'XID developer documentation.',
+    group.hub.description ?? 'XID identity platform documentation.',
     '',
     `- [Homepage](${absoluteUrl(group.docsRoot, siteOrigin)})`,
     `- [Documentation hub](${absoluteUrl(group.hub.markdownUrl, siteOrigin)})${descriptionSuffix(group.hub.description)}`,
@@ -98,7 +98,7 @@ export function renderPublicDocsGlobalLlmsIndex(
   const lines = [
     '# XID',
     '',
-    'XID public developer documentation across every published locale.',
+    'XID product and integration documentation across every published locale.',
     '',
     `- [Full corpus](${absoluteUrl('/llms-full.txt', siteOrigin)})`,
     `- [Sitemap](${absoluteUrl('/sitemap.xml', siteOrigin)})`,

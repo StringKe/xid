@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=38844d38c6be416acd4028e4c102c04841294262 -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=e5977f18c0fc92670dae6a78e86c53cd44608025 -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -322,204 +322,54 @@ pnpm build
 
 `smoke:l2-l3` 使用独立临时 Miniflare state,不读取或修改你的 `apps/server/.dev.vars`。
 
-### 自动构建与协调发布
+### Cloudflare Workers Builds
 
-把三个 Cloudflare Workers Builds projects 连接到同一个 repository。build 可以上传不可变
-version,但独立 projects 禁止在每次 push 时自行 promote 或修改 production routes。由一个
-release job 协调三个 artifacts 并记录结果。
+把三个 Cloudflare Workers Builds projects 连接到同一个 repository。每个 project 都从
+reviewed `main` commit 直接部署一个 Worker。GitHub Actions 只负责 CI,不负责部署。
 
-Dashboard -> Worker -> Settings -> Build 配置:
+Dashboard -> Worker -> Settings -> Builds:
 
-| Worker      | Root directory | Build command                                                       | 上传行为                                                                 |
-| ----------- | -------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Core        | `apps/server`  | `node scripts/assert-migration-compatibility.mjs && pnpm run build` | 上传不可变 version;只在批准的 Core promotion 中执行 remote D1 migrations |
-| Console     | `apps/console` | `pnpm run build`                                                    | 上传不可变 version,不连接 production routes                              |
-| Nimbus Site | `apps/site`    | `pnpm run build`                                                    | 上传不可变 version,不连接 production routes                              |
+| Worker      | Root directory | Build command                                                       | Deploy command                                                                                           |
+| ----------- | -------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Core        | `apps/server`  | `node scripts/assert-migration-compatibility.mjs && pnpm run build` | `pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.jsonc && pnpm exec wrangler deploy` |
+| Console     | `apps/console` | `pnpm run build`                                                    | `pnpm exec wrangler deploy`                                                                              |
+| Nimbus Site | `apps/site`    | `pnpm run build`                                                    | `pnpm exec wrangler deploy`                                                                              |
 
-Feature branches 只上传 preview versions,不运行 production D1 migrations,不切换 production
-traffic,也不修改 routes。
+三个 projects 使用同一套 branch policy:
 
-Core production trigger 是合并前硬门禁。移除旧 UI 的 commit 进入 `main` 前,其 deploy
-command 必须改为只上传:`pnpm exec wrangler versions upload`。来不及修改时必须停用该
-trigger。执行 `wrangler deploy`、`wrangler versions deploy`、`wrangler triggers deploy`
-或 remote D1 migrations 的 Core trigger 会在 frontend routes 就绪前发布 tight Core。
-门禁先通过 `GET /workers/scripts` 解析 Worker `xid`,再读取
-`GET /builds/workers/{tag}/triggers`。空 trigger list 直接 FAIL。至少一个 `main` trigger
-必须以 `apps/server` 为 root 且只上传,其他 `main` trigger 也禁止 promote、改 routes 或
-应用 D1 migrations。
+- Production branch: `main`
+- Non-production branch builds: disabled
+- Build watch paths: `*`,确保每个 reviewed `main` commit 都让三个 Workers 收敛到同一个
+  source revision
 
-Production promotion 只从 `.github/workflows/release-web.yml` 执行。从 `main` 手动触发时
-传入唯一 release ID、reviewed release SHA、固定 compatibility Core SHA,并准确输入
-`DEPLOY_XID_WEB`。GitHub `production` environment 应配置 required reviewer。
-`production-rollback` 禁止配置 approval gate,因为 source workflow 被取消或超时时它必须
-自动运行。
-`CLOUDFLARE_API_TOKEN` 需要 Workers Scripts Edit、Workers Routes Edit、Zone DNS Read 与
-Workers Builds Read。`CLOUDFLARE_ACCOUNT_ID` 是 repository variable。两个 workflow 都
-需要 `deployments: write`,用于 durable GitHub Deployment checkpoint。
+不要配置 feature branch preview builds 或 `wrangler versions upload`。非 `main` commit
+只由 GitHub Actions 验证,不会创建 Cloudflare build。
 
-### 分阶段生产发布
+三个 production builds 独立运行。这一方式可行,因为 route ownership 已提交在 Wrangler
+配置中,Console 与 Site 不持有 Core bindings,Core migration compatibility gate 要求 D1
+变更跨部署边界兼容。需要跨 Worker 原子顺序的变更必须在合并前重新设计。
 
-必须按以下顺序发布:
-
-1. 创建并验证 proxied `www` DNS record,把 preflight 结果记录到 release manifest。解析并
-   保存 zone ID 和 Console、Site 的精确 expected route patterns,mutation 前要求 `xid`、
-   `xid-console` 与 `xid-site` 都有 active deployment。记录每个 active version 和
-   percentage,要求 Console 与 Site 没有 live route,并验证旧 Core 在 apex、Console 与
-   `www` 上的 fallback。
-2. 构建并部署 compatibility Core version,其中仍保留旧 public UI 与旧 Console fallback。
-   记录其不可变 Cloudflare version ID。
-3. 构建并上传 Console version,但不启用 production routes。验证 preview、artifact 内容、
-   security headers、apex Console navigation、tenant-host Console navigation、account
-   redirects 与 same-origin API boundary。连接 routes 前先把该不可变 version 部署到 100
-   percent。首次 `versions upload` 会创建 Worker,但不会创建 production deployment。
-4. 构建并上传 Nimbus Site version,但不启用 production routes。验证 preview、全部 8
-   locales、public docs、Pagefind、Markdown twins 及其 media types、LLM outputs、JSON-LD、
-   Mermaid rendering 与 expansion、assets、404 behavior 和 `www` redirect。连接 routes
-   前先把该不可变 version 部署到 100 percent。
-5. 先启用 Console routes,再启用 Site routes。每组 routes 启用后执行 edge smoke,确认
-   protocol、Hosted Auth、account 与 API paths 仍解析到 Core。
-6. 构建并部署 tight Core version,移除旧 public UI 与旧 Console fallback。只有新 routes
-   通过 edge smoke 后才能执行。
-
-移除旧 UI 前,从固定 git SHA 在 isolated checkout 构建 compatibility Core artifact。artifact
-必须包含 Worker bundle、static assets、Wrangler configuration 与 build metadata。唯一允许
-的 compatibility SHA 是 `995f65c6aae0bdc77e8a0fdbf0222f51143ce2d2`,且它必须同时是
-`origin/main` 与 reviewed release SHA 的 ancestor。detached install 和 build 使用不含
-`CLOUDFLARE_API_TOKEN` 与 `GITHUB_TOKEN` 的最小环境。
-
-Release manifest 为 compatibility Core、Console、Nimbus Site 与 tight Core 记录:
-
-- proxied `www` DNS resolution preflight
-- Worker name 与 git SHA
-- lockfile SHA-256 与 deployable artifact SHA-256
-- 不可变 Cloudflare version ID
-- preview command 与 result
-- route activation command 与 result
-- rollback command 与 result
-
-Manifest 不含 secret。任何 artifact digest 或 version ID 缺失时,release 都不完整。
-
-只有 compatibility Core commit 与 lockfile 固定后才能初始化 ignored release workspace:
-
-```bash
-node scripts/web-release-manifest.mjs init \
-  --release-id xid-web-YYYYMMDD-NNN \
-  --release-git-sha <release-git-sha> \
-  --release-lockfile-sha256 <release-lockfile-sha256> \
-  --compat-core-git-sha <compat-core-git-sha> \
-  --compat-core-lockfile-sha256 <compat-core-lockfile-sha256>
-node scripts/build-core-compat-artifact.mjs \
-  --git-sha <compat-core-git-sha> \
-  --print-plan
-node scripts/web-release-manifest.mjs validate \
-  .xid/releases/xid-web-YYYYMMDD-NNN/manifest.json
-```
-
-只有批准的 release job 才能移除 `--print-plan` 并构建本地 compatibility artifact。该命令
-使用 detached temporary worktree,执行 frozen install 与 Core build,再用
-`wrangler versions upload --dry-run` 生成 deployable bundle,并把 archive 与 SHA-256
-metadata 写入 `.xid/releases/`。它不会上传 Worker。production upload 用 `--no-bundle`
-上传该 bundle,并比较完整 module graph 的 SHA-256,包括入口和每个 additional ESM module。
-dry-run bundle 与 upload outdir 任一 module 不一致时 FAIL。生成的 upload config 设置
-`no_bundle=true`、`find_additional_modules=true`、`base_dir=./worker-bundle`,并为
-`**/*.js` 与 `**/*.mjs` 设置 `ESModule` rule,确保 Wrangler 上传归档中的 additional
-modules,不是只检查文件存在。
-
-协调 job 按以下顺序调用 Cloudflare operations:
-
-```bash
-pnpm exec wrangler versions upload --config apps/server/wrangler.jsonc
-pnpm exec wrangler versions deploy <compat-core-version-id>@100% --config apps/server/wrangler.jsonc --yes
-pnpm exec wrangler versions upload --config apps/console/wrangler.jsonc
-pnpm exec wrangler versions deploy <console-version-id>@100% --config apps/console/wrangler.jsonc --yes
-pnpm exec wrangler versions upload --config apps/site/wrangler.jsonc
-pnpm exec wrangler versions deploy <site-version-id>@100% --config apps/site/wrangler.jsonc --yes
-pnpm exec wrangler triggers deploy --config apps/console/wrangler.jsonc
-pnpm exec wrangler triggers deploy --config apps/site/wrangler.jsonc
-pnpm exec wrangler versions upload --config apps/server/wrangler.jsonc
-pnpm exec wrangler versions deploy <tight-core-version-id>@100% --config apps/server/wrangler.jsonc --yes
-```
-
-三个 Wrangler 配置都显式设置 `preview_urls: true`。`versions upload` 没有 JSON flag。
-release runner 设置 `WRANGLER_OUTPUT_FILE_PATH`,读取 `version-upload` NDJSON entry,记录
-`version_id`、`preview_url` 与 `preview_alias_url`,再通过 `wrangler versions list --json`
-独立确认同一个 ID 与 tag,不解析面向人的 console output。
-Console 与 Site 必须同时返回两个 preview URLs。Core 的 Durable Object bindings 会让
-version preview URL 不可用,此时 runner 校验精确 Worker bundle 与 static asset。promote
-后仍必须通过完整 production health、discovery、JWKS 与 SCIM edge checks。
-
-第一次 production traffic mutation 前,runner 会重新读取三个 active deployments 和
-frontend route baseline。任何 drift 都 fail closed。随后创建 GitHub Deployment,其不可变
-payload 包含 source workflow run ID、run attempt、repository ID、release identity、精确
-的发布前 Core version split、zone ID 与 expected route patterns。Deployment statuses 持久化
-`PREPARED`、每个 mutation intent、`SUCCESS`、`ROLLBACK_INTENT` 与 `ROLLED_BACK`。
-对应 Cloudflare mutation 开始前,intent status 必须已持久化。Recovery 会验证每个 phase
-与要求的 GitHub state 一致,并且始终重新读取 remote checkpoint,不信任本地 manifest
-中的 phase。
-
-完整 rollback 先部署 checkpoint 中精确的发布前 Core version split。禁止用新构建的
-compatibility version 作为 rollback target。然后调用
-`GET /zones/{zone_id}/workers/routes`,只匹配 manifest 记录且由 `xid-console` 或
-`xid-site` 拥有的 patterns,然后通过 Cloudflare Zone Workers Routes API 删除解析出的
-route IDs。顺序固定为 Console routes -> Site non-`www` routes -> Site `www` routes。
-每组删除后重新 list 并执行分段 smoke。出现未记录 pattern 时在删除前 fail closed。
-删除任何 route 前,runner 会验证恢复后的 Core deployment 与记录的 immutable baseline
-完全一致。分段 smoke 失败时,runner 会先恢复本阶段删除的全部 routes,再返回 FAIL。
-分段 smoke 从实际 route inventory 判断预期的 `www` owner,因此 intent 已写入但 mutation
-尚未执行时,recovery 仍保持幂等。
-空 routes 的 Wrangler config 不是 rollback 机制,因为 `wrangler triggers deploy` 不会删除
-已有 zone routes。`wrangler rollback <version-id>` 只用于 Worker code rollback,不会修改
-Worker Routes。version 命令行为锁定到 Wrangler 4.114.0,并遵循
-`https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/`。
-
-Worker code versions 与 zone routes 是两类独立的 Cloudflare state。Console 与 Site
-previews 通过后才启用 routes,version upload 或 deployment 与 route activation 分别记录。
-`wrangler rollback` 只改变 Worker code,不会恢复 Worker Routes 或 bindings。
-
-手动 workflow 把 `.xid/releases/<release-id>` 保存为 GitHub Actions audit artifact,但
-artifact 不是 cancellation checkpoint。release execution 有独立 bounded timeout。独立的
-`.github/workflows/rollback-web.yml` workflow 监听已完成的
-`Coordinated web release` run。只有同 repository、从 `main` 发起的
-`workflow_dispatch` 未成功时才运行。它 checkout 当前可信 default branch,验证 source
-run 的 `head_sha` 是该 branch 的 ancestor,再把 source run ID 与 release SHA 传给
-`recover-rollback`。它不执行失败 source checkout 中的代码,也不从 `workflow_run` event
-读取 dispatch inputs。recovery command 按 source run ID、source run attempt 与 release
-SHA 查找 GitHub Deployment。没有 checkpoint 表示没有 production intent,记录 `SKIP`;
-`PREPARED` 同样不执行 mutation;任一 intent 恢复精确 baseline;`SUCCESS` 保留 release
-并执行 strict production smoke;`ROLLED_BACK` 只重复 baseline smoke,保证幂等。
-
-Release 与 rollback workflows 共用固定的 `xid-web-production` concurrency group。最新
-checkpoint 不是 `SUCCESS` 或 `ROLLED_BACK` 时,新 release 直接拒绝执行。Workflow run
-attempt 同时进入 checkpoint identity 与全部 artifact names,因此重新运行 GitHub Actions
-run 不会复用旧 checkpoint,也不会与 immutable artifacts 冲突。Release 在开始执行前和
-第一次 production mutation 前都会重新 fetch `origin/main`,两次都要求 `HEAD`、reviewed
-release SHA 与 `origin/main` 完全一致。
-
-Rollback 在无 approval gate 的独立 `production-rollback` environment 中运行。只有发布前
-Core 恢复 PASS 后才能改变 frontend routes,然后依次移除 Console routes、保留 `www` 并
-移除 Site public routes,最后移除 `www`。分段 edge gate 覆盖 health、discovery、JWKS、
-SCIM、root fallback、Console fallback、移除前由 Site 响应的 `www` redirect,以及移除后由
-Core 响应的 `www` fallback。即使 rollback 失败,workflow 也会把 `.xid/releases` 保存为
-独立 recovery evidence。
+首次部署时,先创建 bindings 与 secrets,再依次启用 Core build、Console build 和 Nimbus
+Site build。三个 Workers 都有一次成功 deployment 后,后续每次 push 到 `main` 都使用同一
+套独立 build flow。
 
 ### 回滚
 
-回滚顺序:
+从对应 Worker 的 Cloudflare Deployments 页面回滚受影响版本。代码回滚不会反向执行 D1
+migrations,所以数据库变更必须保持 forward-compatible,并通过新 migration 修正。Route
+patterns 属于 Worker 配置,代码回滚前后必须保持稳定。
 
-1. 部署任何 mutation 前记录的精确发布前 Core version split。
-2. 移除 Nimbus Site 与 Console production routes。最后移除 `www`,避免其他 frontend
-   routes 仍在变化时落入 Core tenant wildcard。
-3. 验证 apex、protocol paths、Hosted Auth、account、Console fallback、tenant hosts 与
-   `www`。
-
-不能把 `wrangler rollback` 当作完整回滚。独立 rollback workflow 必须执行并记录 route
-rollback。release workflow 不包含 rollback job。
+回滚后验证 Core health 和 protocol routes、Nimbus 根首页与 agent surfaces,以及 apex 和
+tenant hosts 上的 Console navigation。
 
 ### 不要手工部署
 
-生产发布只经 Workers Builds 与 coordinated release job。**禁止在本地运行
-`wrangler deploy`、`wrangler versions upload` 或 production route mutations**。本地部署
-会绕过 repository gates 与 release manifest,生成无法从 reviewed commit 重建的状态。
+生产发布只经 `main` 上的 Cloudflare Workers Builds。**禁止在本地运行 `wrangler deploy`
+或 production route mutations**。本地部署会绕过 repository gates,破坏 commit 到
+deployment 的对应关系。
+
+仓库不保存 Cloudflare deployment token,GitHub Actions 也不需要该 token。Cloudflare 使用
+每个 Workers Builds project 中配置的 repository connection。
 
 ### CI
 

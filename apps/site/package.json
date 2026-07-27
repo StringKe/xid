@@ -18,7 +18,6 @@
     "lint:docs": "nimbus-docs lint",
     "lint:docs:fix": "nimbus-docs lint --fix",
     "lint:prose": "pnpm run generate:content && textlint 'src/content/generated/docs/{*.mdx,sdks/**/*.mdx}'",
-    "bundle:cf": "pnpm run build && wrangler versions upload --dry-run",
     "prepreview:cf": "pnpm run build",
     "preview:cf": "wrangler dev"
   },
