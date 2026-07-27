@@ -17,7 +17,7 @@ import { motion, springDefault } from '@xid-kit/web-ui/motion'
 import { useTheme } from '@xid-kit/web-ui/theme'
 import { BrandLogo } from '@xid-kit/web-ui/BrandLogo'
 import { LanguageSwitcher } from '../LanguageSwitcher'
-import { Button, Spinner } from '@xid-kit/web-ui/ui'
+import { Alert, Button, Spinner } from '@xid-kit/web-ui/ui'
 
 // 单个侧栏导航项(to 为路由路径,label 已本地化)。
 // groupKey:稳定字符串键,相邻相同 groupKey 的 item 合并为同一分组(ReactNode 不可用 === 比较)。
@@ -344,6 +344,24 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-bg'],
     minWidth: 0,
   },
+  verificationBand: {
+    paddingBlock: '0.75rem',
+    paddingInline: GUTTER,
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    backgroundColor: tokens['--xid-bg'],
+  },
+  verificationNotice: {
+    display: 'flex',
+    flexDirection: { default: 'column', '@media (min-width: 48rem)': 'row' },
+    alignItems: { default: 'stretch', '@media (min-width: 48rem)': 'center' },
+    gap: '0.75rem',
+  },
+  verificationMessage: {
+    flexGrow: 1,
+    minWidth: 0,
+  },
 })
 
 const navLinkBase = stylex.props(styles.navLink).className ?? ''
@@ -485,7 +503,15 @@ function BrandMark({ appName }: { appName: string }): ReactNode {
 
 export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): ReactNode {
   const { brand } = useTheme()
-  const { status, user, activeOrg, organizations, setActiveOrganization, signOut } = useAuth()
+  const {
+    status,
+    user,
+    activeOrg,
+    organizations,
+    setActiveOrganization,
+    signOut,
+    openEmailVerification,
+  } = useAuth()
   const { t } = useLingui()
   const navigate = useNavigate()
   const [switchingOrganizationId, setSwitchingOrganizationId] = useState<string | null>(null)
@@ -565,7 +591,30 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
         </div>
       </aside>
 
-      <main {...stylex.props(styles.content)}>{children}</main>
+      <main {...stylex.props(styles.content)}>
+        {user && !user.emailVerified ? (
+          <section
+            aria-label={t`Email verification required`}
+            {...stylex.props(styles.verificationBand)}
+          >
+            <div {...stylex.props(styles.verificationNotice)}>
+              <div {...stylex.props(styles.verificationMessage)}>
+                <Alert tone="warning" title={<Trans>Console is read-only</Trans>}>
+                  {user.email ? (
+                    <Trans>Verify {user.email} before creating or changing resources.</Trans>
+                  ) : (
+                    <Trans>Verify your email before creating or changing resources.</Trans>
+                  )}
+                </Alert>
+              </div>
+              <Button variant="secondary" onClick={openEmailVerification}>
+                <Trans>Verify email</Trans>
+              </Button>
+            </div>
+          </section>
+        ) : null}
+        {children}
+      </main>
     </div>
   )
 }

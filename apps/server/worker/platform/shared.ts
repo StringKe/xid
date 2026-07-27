@@ -11,6 +11,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import type { Context } from 'hono'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
+import { requireVerifiedManagementMutation } from '../lib/management-access'
 import { readSession } from '../lib/session'
 import { decodeCursor, encodeCursor } from '../v1/shared'
 
@@ -51,6 +52,7 @@ export async function requireInstanceManager(c: Context<XidHonoEnv>): Promise<Se
     .limit(1)
 
   if (rows.length === 0) throw new AppError('forbidden', { httpStatus: 403 })
+  await requireVerifiedManagementMutation(c, session)
   return session
 }
 

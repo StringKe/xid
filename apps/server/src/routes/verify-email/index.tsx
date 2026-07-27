@@ -21,6 +21,7 @@ import { styles as signInStyles } from '../sign-in/styles'
 
 // 验证失败原因(映射到本地化文案)。
 type VerifyErrorKind = 'expired' | 'invalid'
+type VerifyEmailResult = { ok: true; redirectUrl?: string }
 
 function classifyError(code: XidErrorCode): VerifyErrorKind {
   return code === 'token_expired' ? 'expired' : 'invalid'
@@ -74,22 +75,29 @@ function VerifyEmailPage(): ReactNode {
     queryKey: ['verify-email', token],
     enabled: token !== null,
     retry: false,
-    queryFn: async (): Promise<{ ok: true } | never> => {
-      const result = await api.post('/auth/verify-email', { token })
+    queryFn: async (): Promise<VerifyEmailResult | never> => {
+      const result = await api.post<VerifyEmailResult>('/auth/verify-email', { token })
       if (!result.ok) throw result.error
       // server 可能已将 emailVerified 置 true,刷新本地 session 视图。
       trackEmailVerified()
       await refresh()
-      return { ok: true }
+      return result.value
     },
   })
 
   // 验证成功后短暂停留再跳转,让用户看到成功提示。
   useEffect(() => {
     if (!verification.isSuccess) return
-    const timer = globalThis.setTimeout(() => void navigate({ to: '/sign-in' as never }), 2000)
+    const search =
+      verification.data.redirectUrl === '/sign-in?intent=sign-up'
+        ? ({ intent: 'sign-up' } as never)
+        : ({} as never)
+    const timer = globalThis.setTimeout(
+      () => void navigate({ to: '/sign-in' as never, search, replace: true }),
+      2000,
+    )
     return () => globalThis.clearTimeout(timer)
-  }, [verification.isSuccess, navigate])
+  }, [verification.data?.redirectUrl, verification.isSuccess, navigate])
 
   const errorKind: VerifyErrorKind | null =
     verification.error && typeof verification.error === 'object' && 'code' in verification.error

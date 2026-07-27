@@ -171,7 +171,10 @@ describe('POST /auth/guest', () => {
     const res = await post(app, env, {}, { cookie: ANON_COOKIE })
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ sessionId: 'sess-guest' })
+    expect(await res.json()).toEqual({
+      sessionId: 'sess-guest',
+      redirectUrl: '/create-organization',
+    })
     expect(db.users.insert).not.toHaveBeenCalled()
     expect(db.sessions.insert).not.toHaveBeenCalled()
     expect(guestStore.names).toHaveLength(0)

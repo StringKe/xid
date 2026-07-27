@@ -1324,6 +1324,7 @@ msgstr "CanActivateFn 팩토리"
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Cancel"
 msgstr "취소"
 
@@ -1342,6 +1343,10 @@ msgstr "비밀번호 변경"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Changes are previewed in an iframe sandbox before being published. Preview and live states are kept separate."
 msgstr "변경 사항은 게시 전 iframe 샌드박스에서 미리 볼 수 있습니다. 미리보기와 라이브 상태는 분리됩니다."
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Check your connection and try again."
+msgstr "연결 상태를 확인하고 다시 시도하세요."
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Check your email"
@@ -1485,6 +1490,10 @@ msgstr "exp/nbf에 대한 클럭 편차 허용 범위."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Clock skew tolerance in seconds"
 msgstr "초 단위 클럭 편차 허용 범위"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Close"
+msgstr "닫기"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close diagram"
@@ -1648,6 +1657,10 @@ msgstr "연결 | 계정 | XID"
 msgid "Console"
 msgstr "콘솔"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Console is read-only"
+msgstr "콘솔은 읽기 전용입니다"
+
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Console overview | XID"
 msgstr "콘솔 개요 | XID"
@@ -1776,8 +1789,8 @@ msgid "Could not copy"
 msgstr "복사할 수 없습니다"
 
 #: apps/server/src/routes/create-organization/index.tsx
-msgid "Could not create organization. Choose a different slug and try again."
-msgstr "조직을 만들 수 없습니다. 다른 슬러그를 선택하고 다시 시도하세요."
+msgid "Could not create organization. Check the email and slug, then try again."
+msgstr "조직을 만들 수 없습니다. 이메일 주소와 슬러그를 확인한 후 다시 시도하세요."
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Could not switch organization. Try again."
@@ -2423,6 +2436,7 @@ msgstr "메인 프로세스 PKCE 흐름, contextBridge preload, OS keychain 토�
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/server/src/routes/create-organization/index.tsx
 msgid "Email"
 msgstr "이메일"
 
@@ -2447,6 +2461,10 @@ msgstr "이메일 OTP"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Email template branding"
 msgstr "이메일 템플릿 브랜딩"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Email verification required"
+msgstr "이메일 인증이 필요합니다"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Embedded sign-in panel (Hosted Auth)"
@@ -4895,6 +4913,10 @@ msgstr "오픈 소스 아이덴티티 플랫폼"
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
 msgstr "PKCE S256 인증 URL로 시스템 브라우저를 엽니다. 코드를 교환하고 XidSession을 반환합니다."
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Open the link in your inbox, then sign in again."
+msgstr "받은편지함의 링크를 연 다음 다시 로그인하세요."
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Open this page from the CIBA authorization link that includes auth_req_id."
 msgstr "auth_req_id가 포함된 CIBA 승인 링크에서 이 페이지를 여세요."
@@ -6295,6 +6317,7 @@ msgid "Resend code"
 msgstr "코드 다시 보내기"
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "인증 이메일 다시 보내기"
 
@@ -6856,6 +6879,14 @@ msgstr "선택자 xid-sign-out-button; 입력값: sessionId, redirectUrl, ariaLa
 msgid "Self-hosting"
 msgstr "셀프 호스팅"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to {email}. The Console stays read-only until you use it."
+msgstr "{email}(으)로 인증 링크를 보냅니다. 링크를 사용할 때까지 콘솔은 읽기 전용으로 유지됩니다."
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to your email. The Console stays read-only until you use it."
+msgstr "이메일로 인증 링크를 보냅니다. 링크를 사용할 때까지 콘솔은 읽기 전용으로 유지됩니다."
+
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Send an invitation"
 msgstr "초대 보내기"
@@ -6884,6 +6915,10 @@ msgstr "매직 링크 보내기"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Send reset link"
 msgstr "재설정 링크 보내기"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send verification email"
+msgstr "인증 이메일 보내기"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Sender"
@@ -7865,6 +7900,10 @@ msgstr "이 디바이스"
 msgid "This documentation version is no longer maintained"
 msgstr "이 문서 버전은 더 이상 유지 관리되지 않습니다"
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "This email belongs to your signed-in account."
+msgstr "이 이메일은 현재 로그인한 계정에 등록되어 있습니다."
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation has already been accepted."
 msgstr "이 초대는 이미 수락되었습니다."
@@ -8053,6 +8092,10 @@ msgstr "시도 횟수가 너무 많습니다. 잠시 기다린 후 다시 시도
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Too many attempts. Please wait before trying again."
 msgstr "시도 횟수가 너무 많습니다. 기다린 후 다시 시도하세요."
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Too many requests"
+msgstr "요청이 너무 많습니다"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
@@ -8522,6 +8565,14 @@ msgstr "인증"
 msgid "Verification code"
 msgstr "인증 코드"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email not sent"
+msgstr "인증 이메일을 보내지 못했습니다"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email sent"
+msgstr "인증 이메일을 보냈습니다"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Verification failed. Please try again."
 msgstr "인증에 실패했습니다. 다시 시도하세요."
@@ -8547,6 +8598,11 @@ msgstr "검증자 엔트로피는 64바이트입니다. challenge는 Web Crypto 
 msgid "Verify"
 msgstr "인증"
 
+#. placeholder {0}: user.email
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify {0} before creating or changing resources."
+msgstr "리소스를 만들거나 변경하려면 {0} 인증을 완료하세요."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verify a JWT string, return <0>*Claims</0> or error."
 msgstr "JWT 문자열을 검증하고 <0>*Claims</0> 또는 오류를 반환합니다."
@@ -8554,6 +8610,10 @@ msgstr "JWT 문자열을 검증하고 <0>*Claims</0> 또는 오류를 반환합�
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Verify code"
 msgstr "코드 인증"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify email"
+msgstr "이메일 인증"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Verify email | XID"
@@ -8592,8 +8652,17 @@ msgid "Verify webhook request signature. Returns <0>*WebhookEvent</0> with raw b
 msgstr "webhook 요청 서명을 검증합니다. 성공 시 원시 body가 포함된 <0>*WebhookEvent</0>를 반환합니다."
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Verify your email"
 msgstr "이메일 인증"
+
+#: packages/i18n/src/messages.ts
+msgid "Verify your email address before making changes."
+msgstr "변경하기 전에 이메일 주소를 인증하세요."
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify your email before creating or changing resources."
+msgstr "리소스를 만들거나 변경하기 전에 이메일을 인증하세요."
 
 #: apps/server/src/routes/consent/ScopeList.tsx
 msgid "Verify your identity"
@@ -8642,6 +8711,10 @@ msgstr "@xid-kit/core 기반의 Vue 3 플러그인, composable, 헤드리스 컴
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Vue plugin"
 msgstr "Vue 플러그인"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Wait a minute before requesting another verification email."
+msgstr "1분 후에 인증 이메일을 다시 요청하세요."
 
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Waiting for passkey selection..."
@@ -8823,9 +8896,10 @@ msgstr "XID는 현재 엔터프라이즈 IdP용 SAML 서비스 공급자로 동�
 msgid "XID developer document not found"
 msgstr "XID 개발자 문서를 찾을 수 없습니다"
 
+#. js-lingui-explicit-id
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
-msgstr "XID는 최종 사용자 등록과 로그인을 별도 제품으로 노출하지 않습니다. Hosted Auth는 같은 식별자 단계에서 시작하고 조직 정책과 계정 상태에 따라 로그인 또는 사용자 생성을 결정합니다."
+msgid "BuOJPK"
+msgstr "XID는 최종 사용자 등록과 로그인을 별도 제품으로 제공하지 않습니다. Hosted Auth는 같은 식별자 단계에서 시작하고 Organization 정책과 계정 상태에 따라 로그인 또는 사용자 생성을 결정합니다. 게스트 또는 자격 증명을 사용하는 intent=sign-up 등록은 Email, Organization name, URL slug를 입력해 최상위 Tenant를 생성합니다. 게스트 Email은 계정 주소를 선점하지 않고 보류 상태로 유지됩니다. 새 소유자는 Console 데이터를 읽을 수 있지만 첫 번째 비즈니스 변경 전에 해당 Email을 인증해야 합니다. 다른 Tenant에서 같은 Email을 사용해도 별도의 계정으로 유지됩니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID exposes inbound SCIM Service Provider endpoints for external IdPs. Downstream SaaS SCIM push clients have local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -8934,6 +9008,10 @@ msgstr "게스트로 로그인되어 있습니다. 로그아웃하면 이 계정
 #: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "You can revoke these permissions at any time from your account settings."
 msgstr "계정 설정에서 언제든지 이 권한을 취소할 수 있습니다."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You can verify this address from the Console."
+msgstr "이 주소는 콘솔에서 인증할 수 있습니다."
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "You do not belong to any organizations yet."

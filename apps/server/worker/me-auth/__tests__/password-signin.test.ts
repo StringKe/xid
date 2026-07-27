@@ -13,7 +13,12 @@ vi.mock('@xid-kit/db', () => ({
   resolveInstanceLoginCandidates: vi.fn(),
   resolveTenantContextById: vi.fn(),
   schema: {
-    userEmails: { email: 'email', userId: 'userId' },
+    userEmails: {
+      id: 'id',
+      email: 'email',
+      userId: 'userId',
+      isPrimary: 'isPrimary',
+    },
     userPhones: { phone: 'phone', userId: 'userId' },
     users: { id: 'id', username: 'username', externalId: 'externalId' },
     passwords: { userId: 'userId' },
@@ -60,14 +65,24 @@ function dbWithUser(opts: {
     status: string
     lockoutUntil: Date | null
     deletedAt?: Date | null
+    primaryEmailId?: string | null
   } | null
   passwordHash?: string | null
+  emailVerified?: boolean
 }) {
   return {
     userEmails: {
-      findOne: vi
-        .fn()
-        .mockResolvedValue(opts.emailUserId ? { userId: opts.emailUserId } : undefined),
+      findOne: vi.fn().mockResolvedValue(
+        opts.emailUserId
+          ? {
+              id: 'email-1',
+              userId: opts.emailUserId,
+              email: 'user@example.com',
+              verified: opts.emailVerified ?? true,
+              isPrimary: true,
+            }
+          : undefined,
+      ),
       insert: vi.fn().mockResolvedValue({ id: 'email-new' }),
     },
     userPhones: { findOne: vi.fn().mockResolvedValue(undefined), insert: vi.fn() },
@@ -487,6 +502,63 @@ describe('POST /auth/password/sign-in', () => {
       }),
     )
     expect(issueEmailVerification).toHaveBeenCalledOnce()
+  })
+
+  it('intent=sign-up 的验证邮件保留组织 onboarding intent', async () => {
+    vi.mocked(verifyPassword).mockResolvedValue(false)
+    const db = dbWithUser({ emailUserId: null, user: null })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'owner@example.com',
+      password: 'StrongPass123',
+      intent: 'sign-up',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { nextStep: string }).nextStep).toBe('verify_email')
+    expect(issueEmailVerification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'owner@example.com',
+        intent: 'sign-up',
+      }),
+    )
+  })
+
+  it('既有未验证 password 用户不能绕过 sign-up Email verification', async () => {
+    vi.mocked(verifyPassword).mockResolvedValue(true)
+    const db = dbWithUser({
+      emailUserId: 'user-1',
+      emailVerified: false,
+      user: {
+        id: 'user-1',
+        status: 'active',
+        lockoutUntil: null,
+        primaryEmailId: 'email-1',
+      },
+      passwordHash: '$argon2id$stored',
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'user@example.com',
+      password: 'CorrectHorse12',
+      intent: 'sign-up',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ nextStep: 'verify_email' })
+    expect(issueEmailVerification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'user@example.com',
+        intent: 'sign-up',
+      }),
+    )
+    expect(db.sessions.insert).not.toHaveBeenCalled()
   })
 
   it('用户不存在且 username identifier 要求 profile email -> 创建用户并发送验证邮件', async () => {

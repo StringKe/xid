@@ -196,8 +196,35 @@ function makeFakeD1(tables: TableSet): D1Database {
     params: unknown[],
     opts: { skipParams?: number } = {},
   ): Record<string, unknown>[] => {
-    const rows = get(tableNameForSql(sql))
+    const table = tableNameForSql(sql)
+    let rows = get(table)
     const lower = sql.toLowerCase()
+    // 旧 happy-path fixture 未声明邮箱状态；仅在门禁查询时补 verified primary，显式邮箱行仍优先。
+    if (table === 'user_emails' && /"is_primary"\s*=\s*\?/i.test(sql)) {
+      const explicitPrimaryUsers = new Set(
+        rows.filter((row) => row['is_primary'] === 1).map((row) => row['user_id']),
+      )
+      const verifiedDefaults = get('users')
+        .filter(
+          (user) =>
+            user['status'] === 'active' &&
+            user['deleted_at'] == null &&
+            !explicitPrimaryUsers.has(user['id']),
+        )
+        .map((user) => ({
+          id: `email_${String(user['id'])}`,
+          tenant_id: user['tenant_id'],
+          user_id: user['id'],
+          email: `${String(user['id'])}@example.test`,
+          verified: 1,
+          verification_status: 'verified',
+          is_primary: 1,
+          verified_at: Date.now(),
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        }))
+      rows = [...rows, ...verifiedDefaults]
+    }
     if (lower.startsWith('insert') || lower.startsWith('with')) {
       const cols = insertColumns(sql)
       const tokens = insertValueTokens(sql)
@@ -5073,12 +5100,23 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
         },
       ],
       user_emails: [
-        { id: 'email_admin', tenant_id: 't_1', user_id: 'user_admin', email: 'admin@example.com' },
+        {
+          id: 'email_admin',
+          tenant_id: 't_1',
+          user_id: 'user_admin',
+          email: 'admin@example.com',
+          verified: 1,
+          verification_status: 'verified',
+          is_primary: 1,
+        },
         {
           id: 'email_target',
           tenant_id: 't_1',
           user_id: 'user_target',
           email: 'target@example.com',
+          verified: 1,
+          verification_status: 'verified',
+          is_primary: 1,
         },
       ],
     })

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=5d55b0c source-blob=c10f93af60ccef5bba7e700fa10c275ca0ee1a59 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=5d55b0c source-blob=52d73daaec755642da7e2dfd49f0cb6df0269d3a -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -368,18 +368,53 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
 - 枚举抗性:响应不携带任何既有账号信息。
 - 审计事件 guest.created。
 
+### 统一顶层 Tenant onboarding
+
+- 有效 guest session 与所有携带 `intent=sign-up` 的正常凭证注册在完成注册策略要求的凭证验证后
+  统一进入 `/create-organization`。password verification token 保留签名的 sign-up intent,验证后
+  回到 `/sign-in?intent=sign-up`。页面采集 Email、Organization name 和 URL slug。这是唯一创建
+  隔离根的 self-service 路径;邀请、JIT、SCIM 和普通 sign-in 保持既有 membership 流程。
+- 只有 `is_new_user = true` 且没有 Membership 的 provisional user 可以完成该流程。事务创建满足
+  `id = tenant_id = new_organization_id`、`parent_org_id = null` 的顶层 Organization,占用 Instance
+  内唯一 slug,把 provisional 根下所有 user-owned D1 行迁移到新 Tenant,创建 owner Membership,
+  并在同一 D1 batch 中把全部 session 行迁移到新 Tenant 且设为 active Organization。opaque cookie
+  与 session id 不变;实例根域下一次请求通过 refresh token hash 解析新的 TenantContext。
+- guest 提交的 Email 存入 `users.pending_email`,不创建或占用 `user_emails` 行,不算凭证,创建组织时
+  不发送验证。已有 primary Email 的正常注册用户复用该地址,页面预填且禁止修改。
+- Email 未验证时,新 owner 可以读取 Console 数据。Cookie session 的 `GET`/`HEAD`/`OPTIONS`
+  保持可用,但组织或平台管理守卫保护的所有业务 mutation 都返回 HTTP 403 和
+  `email_verification_required`。Tenant 创建、active Organization 切换、登出、Email 验证与
+  重发、账号安全操作不受此门禁影响。Console 收到该错误后打开验证面板,且不自动重放被拒绝的
+  mutation。
+- Email verification token 通过签名 `email_hash` claim 绑定签发时的精确 normalized pending 或
+  current primary Email。核销时对比当前值,只能更新匹配目标。验证 `pending_email` 后,在新 Tenant
+  内创建 verified primary Email,清空 pending 值,guest 原地转正,吊销全部 guest session,并要求
+  重新登录。下一张 token 的 `sub` 不变。
+- Email 唯一性以 Tenant 为边界。同一 Email 可以属于其他 Tenant 的独立用户,实例根域 resolver 在
+  下次登录时让用户选择目标 Tenant。顶层 Tenant onboarding 不做跨 Tenant merge 或 ownership
+  transfer。目标 Tenant 是全新的,所以同 Tenant 内与另一用户发生 Email 冲突属于不变量破坏,不是
+  account linking 分支。
+
 ### 转正(原地 link,sub 不变)
 
-- 路由规则:guest session 有效时,用户完成任意首个凭证仪式(passkey 注册,challenge 已是 reg:{userId}:{tenantId} 形态;设置密码;email OTP 验证;social 绑定),一律把凭证挂到当前 guest user,不新建 user。复用 05 章"已登录态添加凭证需认证"的既有 linking 规则,新逻辑只是 me-auth 仪式入口识别 guest session 路由到 link 而非 create。
-- 转正完成:provisioned_by 改写为转正来源,轮换 session(吊销旧 refresh、签发新 session,防 session fixation 变体),审计事件 guest.converted。
-- email 已被本租户其他 user 占用:不能提前泄露占用事实(枚举铁律),先发验证邮件,用户证明邮箱控制权后才告知"该邮箱属于另一个账号",引导正常登录;该路径 sub 变化,guest 期间 RP 侧数据成孤儿,guest user 标 merged_into_user_id,数据合并是 RP 应用层职责,SDK 对比新旧 token 的 sub 并暴露合并钩子。
+- 路由规则:guest session 有效时,用户完成任意首个凭证仪式(passkey 注册,challenge 已是 reg:{userId}:{tenantId} 形态;设置密码;email OTP 验证;social 绑定),一律把凭证挂到当前 guest user,不新建 user。复用 05 章"已登录态添加凭证需认证"的既有 linking 规则,新逻辑只是 me-auth 仪式入口识别 guest session 路由到 link 而非 create。顶层 Tenant onboarding 采集 `pending_email` 不属于凭证仪式;该路径只在新 Tenant 内完成精确目标 Email 验证后转正。
+- pending Email 转正完成:provisioned_by 改写为转正来源,在 SessionDO 和 D1 中吊销全部 guest
+  session,清除当前 cookie,并要求用户重新登录。审计事件 guest.converted。其他凭证仪式继续使用
+  各自的 credential linking session policy。
+- onboarding 路径不查找或合并其他 Tenant 的账户。其他 Tenant 内的 verified Email 合法且独立。新 Tenant 创建时不存在第二个 user,所以同 Tenant Email 占用不是正常 onboarding 分支。
 - 语义边界:guest 不可恢复(登出即丢失)、单设备、无 MFA;照抄 Firebase 的两条警告:匿名 token 不是 app attestation;持续提示用户转正。
 - MFA enrollment 不是转正仪式:TOTP 永远不是登录凭证,仅 enroll TOTP 的 guest 仍没有可恢复身份,保持 guest 身份(含 30 天 GC 窗口)直到完成上述四个仪式之一。
 - guest session TTL、GuestStore 绑定 TTL 与 __Host-xid.anon cookie Max-Age 均取自租户 session policy(absoluteTimeoutDays),不使用模块级常量。
 
 ### GC
 
-- cron 每日扫:provisioned_by = 'anonymous' 且最后活跃满 30 天(user 无 session 时按 created_at;有 session 按该 user 最新 session 的 last_active_at),软删 deleted_at,进入既有 30 天硬删 PII 管道(见 05 章 7)。审计事件 guest.gc_deleted。
+- cron 每日扫描未验证且 `provisioned_by = 'anonymous'`、最后活跃满 30 天的 user。无 session
+  时按 `created_at`,有 session 时按该 user 最新 `last_active_at`。D1 batch 第一条语句会原子复核
+  anonymous、未验证、不活跃和 Tenant 空闲条件,通过后才用 soft delete claim 该 user。
+- claim 成功后撤销 D1 sessions、停用 active Membership、使可用凭证状态失效,随后撤销
+  SessionDO。只有不存在其他 active member、子 Organization 或业务资源时,才与 user 一起软删除
+  onboarding 顶层 Tenant;否则整组保持不变。保留的 user-owned 行进入既有 30 天硬删 PII 管道
+  (见 05 章 7)。审计事件 `guest.gc_deleted`。
 
 ### 计量、Management API 与审计
 

@@ -92,6 +92,28 @@ export type ApiClient = {
   del: <T>(path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) => Promise<Result<T>>
 }
 
+export type ApiErrorObserver = (error: XidError) => void
+
+async function observeResult<T>(
+  resultPromise: Promise<Result<T>>,
+  observer: ApiErrorObserver,
+): Promise<Result<T>> {
+  const result = await resultPromise
+  if (!result.ok) observer(result.error)
+  return result
+}
+
+// 保留调用方原始 Result 语义,只把失败广播给跨页面 UI。observer 不重放请求。
+export function observeApiClientErrors(client: ApiClient, observer: ApiErrorObserver): ApiClient {
+  return {
+    request: (path, options) => observeResult(client.request(path, options), observer),
+    get: (path, options) => observeResult(client.get(path, options), observer),
+    post: (path, body, options) => observeResult(client.post(path, body, options), observer),
+    patch: (path, body, options) => observeResult(client.patch(path, body, options), observer),
+    del: (path, options) => observeResult(client.del(path, options), observer),
+  }
+}
+
 export function createApiClient(config: ApiClientConfig = {}): ApiClient {
   const baseUrl = config.baseUrl ?? ''
 

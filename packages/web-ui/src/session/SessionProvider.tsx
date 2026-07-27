@@ -1,8 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createApiClient } from '../api'
+import { createApiClient, observeApiClientErrors } from '../api'
 import type { ApiClient } from '../api'
+import type { XidError } from '@xid-kit/types'
+import { EmailVerificationPanel } from './EmailVerificationPanel'
 import {
   authStatusFromMe,
   type AuthOrg,
@@ -32,6 +34,7 @@ export type SessionContextValue = {
   setActiveOrganization: (organizationId: string | null) => Promise<boolean>
   getToken: () => Promise<string | null>
   signOut: () => Promise<void>
+  openEmailVerification: () => void
   api: ApiClient
 }
 
@@ -50,6 +53,7 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   const { children, client, callbacks, initialSession, loadOnMount = true, deferLoadMs = 0 } = props
   const queryClient = useQueryClient()
   const [meState, setMeState] = useState<MeResponse | null | undefined>(() => initialSession)
+  const [emailVerificationOpen, setEmailVerificationOpen] = useState(false)
   const statusRef = useRef<AuthStatus>('loading')
   const callbacksRef = useRef(callbacks)
   callbacksRef.current = callbacks
@@ -67,9 +71,19 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
     callbacksRef.current?.onUnauthorized?.()
   }, [applySession])
 
+  const handleApiError = useCallback((error: XidError): void => {
+    if (error.code === 'email_verification_required') {
+      setEmailVerificationOpen(true)
+    }
+  }, [])
+
   const apiClient = useMemo<ApiClient>(
-    () => client ?? createApiClient({ onUnauthorized: handleUnauthorized }),
-    [client, handleUnauthorized],
+    () =>
+      observeApiClientErrors(
+        client ?? createApiClient({ onUnauthorized: handleUnauthorized }),
+        handleApiError,
+      ),
+    [client, handleApiError, handleUnauthorized],
   )
 
   const fetchSession = useCallback(async (): Promise<MeResponse | null> => {
@@ -135,6 +149,10 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   statusRef.current = status
 
   useEffect(() => {
+    if (!me?.user || me.user.emailVerified) setEmailVerificationOpen(false)
+  }, [me?.user])
+
+  useEffect(() => {
     callbacksRef.current?.onUserChange?.(me?.user ?? null)
   }, [me?.user])
 
@@ -165,6 +183,10 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
     await callbacksRef.current?.onSignOut?.()
   }, [apiClient, applySession])
 
+  const openEmailVerification = useCallback((): void => {
+    setEmailVerificationOpen(true)
+  }, [])
+
   const value = useMemo<SessionContextValue>(
     () => ({
       status,
@@ -176,12 +198,33 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       setActiveOrganization,
       getToken,
       signOut,
+      openEmailVerification,
       api: apiClient,
     }),
-    [status, me, refresh, setActiveOrganization, getToken, signOut, apiClient],
+    [
+      status,
+      me,
+      refresh,
+      setActiveOrganization,
+      getToken,
+      signOut,
+      openEmailVerification,
+      apiClient,
+    ],
   )
 
-  return <SessionContext value={value}>{children}</SessionContext>
+  return (
+    <SessionContext value={value}>
+      {children}
+      {emailVerificationOpen ? (
+        <EmailVerificationPanel
+          api={apiClient}
+          email={me?.user?.email ?? ''}
+          onClose={() => setEmailVerificationOpen(false)}
+        />
+      ) : null}
+    </SessionContext>
+  )
 }
 
 export function useSession(): SessionContextValue {

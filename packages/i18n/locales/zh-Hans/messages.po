@@ -1324,6 +1324,7 @@ msgstr "CanActivateFn 工厂"
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Cancel"
 msgstr "取消"
 
@@ -1342,6 +1343,10 @@ msgstr "修改密码"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Changes are previewed in an iframe sandbox before being published. Preview and live states are kept separate."
 msgstr "更改在发布前会在 iframe 沙箱中预览。预览状态和正式状态保持分离。"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Check your connection and try again."
+msgstr "检查网络连接后重试。"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Check your email"
@@ -1485,6 +1490,10 @@ msgstr "exp/nbf 的时钟偏差容忍度。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Clock skew tolerance in seconds"
 msgstr "时钟偏差容忍度（秒）"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Close"
+msgstr "关闭"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close diagram"
@@ -1648,6 +1657,10 @@ msgstr "关联账户 | 账户 | XID"
 msgid "Console"
 msgstr "控制台"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Console is read-only"
+msgstr "Console 处于只读模式"
+
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Console overview | XID"
 msgstr "控制台概览 | XID"
@@ -1776,8 +1789,8 @@ msgid "Could not copy"
 msgstr "无法复制"
 
 #: apps/server/src/routes/create-organization/index.tsx
-msgid "Could not create organization. Choose a different slug and try again."
-msgstr "无法创建组织。请更换 slug 后重试。"
+msgid "Could not create organization. Check the email and slug, then try again."
+msgstr "无法创建组织。请检查邮箱和 URL slug 后重试。"
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Could not switch organization. Try again."
@@ -2423,6 +2436,7 @@ msgstr "带主进程 PKCE 流程、contextBridge preload、操作系统 keychain
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/server/src/routes/create-organization/index.tsx
 msgid "Email"
 msgstr "邮箱"
 
@@ -2447,6 +2461,10 @@ msgstr "邮箱验证码"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Email template branding"
 msgstr "邮件模板品牌"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Email verification required"
+msgstr "需要验证邮箱"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Embedded sign-in panel (Hosted Auth)"
@@ -4895,6 +4913,10 @@ msgstr "开源身份平台"
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
 msgstr "以 PKCE S256 授权 URL 打开系统浏览器；交换 code 并返回 XidSession。"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Open the link in your inbox, then sign in again."
+msgstr "打开收件箱中的链接，然后重新登录。"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Open this page from the CIBA authorization link that includes auth_req_id."
 msgstr "请从包含 auth_req_id 的 CIBA 授权链接打开此页面。"
@@ -6295,6 +6317,7 @@ msgid "Resend code"
 msgstr "重新发送验证码"
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "重新发送验证邮件"
 
@@ -6856,6 +6879,14 @@ msgstr "Selector xid-sign-out-button；输入 sessionId、redirectUrl、ariaLabe
 msgid "Self-hosting"
 msgstr "自托管"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to {email}. The Console stays read-only until you use it."
+msgstr "向 {email} 发送验证链接。在你使用该链接前，Console 将保持只读。"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to your email. The Console stays read-only until you use it."
+msgstr "向你的邮箱发送验证链接。在你使用该链接前，Console 将保持只读。"
+
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Send an invitation"
 msgstr "发送邀请"
@@ -6884,6 +6915,10 @@ msgstr "发送登录链接"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Send reset link"
 msgstr "发送重置链接"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send verification email"
+msgstr "发送验证邮件"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Sender"
@@ -7865,6 +7900,10 @@ msgstr "此设备"
 msgid "This documentation version is no longer maintained"
 msgstr "此文档版本已停止维护"
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "This email belongs to your signed-in account."
+msgstr "此邮箱属于你当前登录的账户。"
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation has already been accepted."
 msgstr "此邀请已被接受。"
@@ -8053,6 +8092,10 @@ msgstr "尝试次数过多。请稍后重试。"
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Too many attempts. Please wait before trying again."
 msgstr "尝试次数过多。请稍后再试。"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Too many requests"
+msgstr "请求过多"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
@@ -8522,6 +8565,14 @@ msgstr "验证"
 msgid "Verification code"
 msgstr "验证码"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email not sent"
+msgstr "验证邮件未发送"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email sent"
+msgstr "验证邮件已发送"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Verification failed. Please try again."
 msgstr "验证失败。请重试。"
@@ -8547,6 +8598,11 @@ msgstr "verifier 熵为 64 字节；challenge 通过 Web Crypto <0>crypto.subtle
 msgid "Verify"
 msgstr "验证"
 
+#. placeholder {0}: user.email
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify {0} before creating or changing resources."
+msgstr "请先验证 {0}，再创建或更改资源。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verify a JWT string, return <0>*Claims</0> or error."
 msgstr "验证 JWT 字符串，返回 <0>*Claims</0> 或错误。"
@@ -8554,6 +8610,10 @@ msgstr "验证 JWT 字符串，返回 <0>*Claims</0> 或错误。"
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Verify code"
 msgstr "验证验证码"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify email"
+msgstr "验证邮箱"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Verify email | XID"
@@ -8592,8 +8652,17 @@ msgid "Verify webhook request signature. Returns <0>*WebhookEvent</0> with raw b
 msgstr "验证 webhook 请求签名。成功时返回带原始请求体的 <0>*WebhookEvent</0>。"
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Verify your email"
 msgstr "验证邮箱"
+
+#: packages/i18n/src/messages.ts
+msgid "Verify your email address before making changes."
+msgstr "进行更改前，请先验证你的邮箱地址。"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify your email before creating or changing resources."
+msgstr "创建或更改资源前，请先验证你的邮箱。"
 
 #: apps/server/src/routes/consent/ScopeList.tsx
 msgid "Verify your identity"
@@ -8642,6 +8711,10 @@ msgstr "基于 @xid-kit/core 的 Vue 3 插件、composable 和无样式组件。
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Vue plugin"
 msgstr "Vue 插件"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Wait a minute before requesting another verification email."
+msgstr "请等待一分钟后再请求另一封验证邮件。"
 
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Waiting for passkey selection..."
@@ -8823,9 +8896,10 @@ msgstr "XID 当前作为企业 IdP 的 SAML 服务提供商。面向下游 SaaS 
 msgid "XID developer document not found"
 msgstr "未找到 XID 开发者文档"
 
+#. js-lingui-explicit-id
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
-msgstr "XID 不暴露独立的终端用户注册和登录产品。Hosted Auth 从同一个标识步骤开始，再根据组织策略和账号状态决定登录或创建用户。"
+msgid "BuOJPK"
+msgstr "XID 不提供相互独立的终端用户注册和登录产品。Hosted Auth 从相同的标识符步骤开始，并根据 Organization 策略和账号状态决定登录或创建用户。访客或使用凭据且 intent=sign-up 的注册随后会创建一个顶级 Tenant，并填写 Email、Organization name 和 URL slug。访客 Email 保持待验证状态，不会预占账号地址；新所有者可以读取 Console 数据，但必须在首次业务变更前验证该 Email。相同 Email 在另一个 Tenant 中仍属于独立账号。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID exposes inbound SCIM Service Provider endpoints for external IdPs. Downstream SaaS SCIM push clients have local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -8934,6 +9008,10 @@ msgstr "你当前以访客身份登录。一旦登出，该账号及其数据将
 #: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "You can revoke these permissions at any time from your account settings."
 msgstr "你可以随时在账户设置中吊销这些权限。"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You can verify this address from the Console."
+msgstr "你可以在 Console 中验证此邮箱地址。"
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "You do not belong to any organizations yet."

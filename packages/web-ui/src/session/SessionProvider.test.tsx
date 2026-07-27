@@ -1,10 +1,30 @@
+// @vitest-environment jsdom
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { SessionProvider, useSession } from './SessionProvider'
 import type { MeResponse } from './contracts'
 import type { ApiClient, ApiRequestOptions } from '../api'
+
+vi.mock('@lingui/react/macro', () => ({
+  Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
+}))
+
+const actEnvironment = globalThis as Record<string, unknown>
+actEnvironment['IS_REACT_ACT_ENVIRONMENT'] = true
+
+const dialogProto = HTMLDialogElement.prototype as unknown as Record<string, unknown>
+dialogProto['showModal'] ??= function showModal(this: HTMLDialogElement): void {
+  this.open = true
+}
+dialogProto['close'] ??= function close(this: HTMLDialogElement): void {
+  this.open = false
+}
 
 function makeMeResponse(activeOrgId: string | null): MeResponse {
   const org = {
@@ -130,5 +150,72 @@ describe('SessionProvider setActiveOrganization', () => {
     expect(post).toHaveBeenCalledWith('/auth/sign-out', undefined, undefined)
     expect(onSignOut).toHaveBeenCalledOnce()
     expect(queryClient.getQueryData<MeResponse | null>(['me'])).toBeNull()
+  })
+
+  it('opens one verification panel without replaying a blocked mutation', async () => {
+    const queryClient = new QueryClient()
+    const postCalls: string[] = []
+    const base = makeApiClient().client
+    const client: ApiClient = {
+      ...base,
+      post: async <T,>(path: string) => {
+        postCalls.push(path)
+        if (path === '/auth/resend-verification') {
+          return { ok: true, value: {} as T }
+        }
+        return {
+          ok: false,
+          error: {
+            code: 'email_verification_required',
+            message: '',
+            httpStatus: 403,
+          },
+        }
+      },
+    }
+    const initialSession = makeMeResponse('org_1')
+    initialSession.user.emailVerified = false
+    const holder: { api: ApiClient | null } = { api: null }
+
+    function Capture(): ReactNode {
+      holder.api = useSession().api
+      return null
+    }
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider client={client} initialSession={initialSession} loadOnMount={false}>
+            <Capture />
+          </SessionProvider>
+        </QueryClientProvider>,
+      )
+    })
+
+    const observedApi = holder.api
+    if (!observedApi) throw new Error('api was not captured')
+    await act(async () => {
+      await observedApi.post('/v1/organizations/org_1/applications', { name: 'Web' })
+    })
+
+    expect(container.textContent).toContain('Verify your email')
+    expect(postCalls).toEqual(['/v1/organizations/org_1/applications'])
+
+    const sendButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Send verification email',
+    )
+    if (!sendButton) throw new Error('verification send button was not rendered')
+    await act(async () => {
+      sendButton.click()
+    })
+
+    expect(postCalls).toEqual(['/v1/organizations/org_1/applications', '/auth/resend-verification'])
+    expect(container.textContent).toContain('Verification email sent')
+
+    await act(async () => root.unmount())
+    container.remove()
   })
 })

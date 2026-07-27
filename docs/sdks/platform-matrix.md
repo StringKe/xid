@@ -152,13 +152,20 @@ The design contract for Firebase-style guest sign-in lives in
 [../design/01-authentication.md](../design/01-authentication.md) section 8, and the server endpoint
 `POST /auth/guest` is tracked in [../protocols/source-map.md](../protocols/source-map.md) as
 implemented (L1/L2, local tests). The capability covers `signInAnonymously()`, `isAnonymous`,
-upgrade guidance, and the sub-comparison merge hook (see
+upgrade guidance, and the generic sub-comparison helper (see
 [../design/06-developer-experience.md](../design/06-developer-experience.md) section 10). Statuses
 below reflect shipped code with tests; rows marked not started have no guest support yet.
 
-| Platform surface                                                                  | Guest sign-in status |
-| --------------------------------------------------------------------------------- | -------------------- |
-| `@xid-kit/core` and `@xid-kit/react`                                              | implemented: `signInAnonymously()`, `isAnonymous`, `isGuestUser`/`isSameUser`, `<GuestUpgradeBanner />`; other web framework packages not started |
+Hosted Auth routes both a guest and a credential sign-up with `intent=sign-up` to the server-owned
+top-level Tenant onboarding flow. The guest Email stays pending until it is verified in the new
+Tenant, and the verified conversion preserves `sub`. The same Email in another Tenant is an
+independent tenant-local account, not an SDK merge or ownership-transfer flow. This server and
+Hosted UI behavior does not change any SDK support level in the table below; the existing
+sub-comparison helper remains available for application-specific identity transitions.
+
+| Platform surface                                                                             | Guest sign-in status                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@xid-kit/core` and `@xid-kit/react`                                                         | implemented: `signInAnonymously()`, `isAnonymous`, `isGuestUser`/`isSameUser`, `<GuestUpgradeBanner />`; other web framework packages not started                                   |
 | `@xid-kit/backend` and every server native SDK (`sdk/{go,java,rust,php,ruby,python,dotnet}`) | implemented: guest detection on the verified principal (`IsGuest()` / `is_guest` / `guest?` via the `amr` claim); `signInAnonymously()` is not applicable to backend SDKs by design |
-| Mobile (`sdk/flutter`, `sdk/ios`, `sdk/android`)                                  | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/react-native`, `@xid-kit/expo` not started |
-| Desktop (`sdk/macos`, `sdk/windows`, `sdk/linux`)                                 | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/electron`, `@xid-kit/tauri` not started |
+| Mobile (`sdk/flutter`, `sdk/ios`, `sdk/android`)                                             | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/react-native`, `@xid-kit/expo` not started                                 |
+| Desktop (`sdk/macos`, `sdk/windows`, `sdk/linux`)                                            | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/electron`, `@xid-kit/tauri` not started                                    |

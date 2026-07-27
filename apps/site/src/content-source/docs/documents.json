@@ -1,15 +1,6 @@
 {
   "version": 1,
-  "locales": [
-    "en",
-    "zh-Hans",
-    "ja",
-    "ko",
-    "fr",
-    "de",
-    "es",
-    "pt-BR"
-  ],
+  "locales": ["en", "zh-Hans", "ja", "ko", "fr", "de", "es", "pt-BR"],
   "hub": {
     "eyebrow": {
       "kind": "message",
@@ -124,12 +115,7 @@
               "values": {},
               "tags": {}
             },
-            "slugs": [
-              "getting-started",
-              "hosted-auth",
-              "branding",
-              "self-hosting"
-            ]
+            "slugs": ["getting-started", "hosted-auth", "branding", "self-hosting"]
           },
           {
             "label": {
@@ -139,13 +125,7 @@
               "values": {},
               "tags": {}
             },
-            "slugs": [
-              "oidc-oauth",
-              "enterprise-sso",
-              "social-login",
-              "scim",
-              "saml"
-            ]
+            "slugs": ["oidc-oauth", "enterprise-sso", "social-login", "scim", "saml"]
           },
           {
             "label": {
@@ -155,10 +135,7 @@
               "values": {},
               "tags": {}
             },
-            "slugs": [
-              "management-api",
-              "webhooks"
-            ]
+            "slugs": ["management-api", "webhooks"]
           },
           {
             "label": {
@@ -168,9 +145,7 @@
               "values": {},
               "tags": {}
             },
-            "slugs": [
-              "sdks"
-            ]
+            "slugs": ["sdks"]
           },
           {
             "label": {
@@ -220,13 +195,7 @@
               "values": {},
               "tags": {}
             },
-            "slugs": [
-              "sdks/react-native",
-              "sdks/expo",
-              "sdks/ios",
-              "sdks/android",
-              "sdks/flutter"
-            ]
+            "slugs": ["sdks/react-native", "sdks/expo", "sdks/ios", "sdks/android", "sdks/flutter"]
           },
           {
             "label": {
@@ -236,13 +205,7 @@
               "values": {},
               "tags": {}
             },
-            "slugs": [
-              "sdks/electron",
-              "sdks/tauri",
-              "sdks/macos",
-              "sdks/windows",
-              "sdks/linux"
-            ]
+            "slugs": ["sdks/electron", "sdks/tauri", "sdks/macos", "sdks/windows", "sdks/linux"]
           }
         ]
       }
@@ -529,7 +492,7 @@
               "content": {
                 "kind": "message",
                 "id": "BuOJPK",
-                "message": "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state.",
+                "message": "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state. A guest or credential sign-up with intent=sign-up then creates a top-level Tenant with an Email, Organization name, and URL slug. A guest Email stays pending without reserving an account address; the new owner can read Console data, and verifies that Email before the first business change. The same Email in another Tenant remains a separate account.",
                 "values": {},
                 "tags": {}
               }
@@ -547,7 +510,7 @@
             {
               "kind": "code",
               "language": "mermaid",
-              "value": "flowchart TD\n  Browser --> authorize[\"/authorize\"]\n  authorize --> signIn[\"/sign-in\"]\n  signIn --> config[\"/auth/config\"]\n  config --> methods[\"WebAuthn / Password / OTP / SSO\"]\n  methods --> code[\"code\"]\n  methods --> mfa[\"/auth/mfa/passkey/*\"]\n  mfa --> code",
+              "value": "flowchart TD\n  Browser --> authorize[\"/authorize\"]\n  authorize --> signIn[\"/sign-in\"]\n  signIn --> config[\"/auth/config\"]\n  config --> methods[\"WebAuthn / Password / OTP / SSO\"]\n  config --> signup[\"guest or intent=sign-up\"]\n  signup --> createOrg[\"/create-organization\"]\n  createOrg --> readOnly[\"Console reads\"]\n  readOnly --> verifyEmail[\"Verify Email\"]\n  verifyEmail --> mutations[\"Business mutations\"]\n  methods --> code[\"code\"]\n  methods --> mfa[\"/auth/mfa/passkey/*\"]\n  mfa --> code",
               "sourcePosition": "apps/site/src/content-source/docs/documents.json:hosted-auth/unified-flow"
             }
           ]
@@ -19162,7 +19125,7 @@
     },
     {
       "id": "BuOJPK",
-      "message": "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
+      "message": "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state. A guest or credential sign-up with intent=sign-up then creates a top-level Tenant with an Email, Organization name, and URL slug. A guest Email stays pending without reserving an account address; the new owner can read Console data, and verifies that Email before the first business change. The same Email in another Tenant remains a separate account."
     },
     {
       "id": "BxlyaG",

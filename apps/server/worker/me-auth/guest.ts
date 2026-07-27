@@ -27,6 +27,7 @@ const guestBodySchema = v.object({
 })
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const GUEST_ONBOARDING_PATH = '/create-organization'
 
 // 每租户每日 guest 铸造上限(限流兜底第四层,见 anti-abuse rule;阈值常量在 lib/ttl.ts)。
 const GUEST_MINT_PER_DAY_POLICY: RateLimitPolicy = {
@@ -136,7 +137,7 @@ async function issueGuestSession(c: Context<XidHonoEnv>, userId: string): Promis
     ip: requestIp(c),
     userAgent: requestUserAgent(c),
   })
-  return c.json({ sessionId })
+  return c.json({ sessionId, redirectUrl: GUEST_ONBOARDING_PATH })
 }
 
 // 审计不阻塞登录链路(cloudflare-bindings rule):入队挂 waitUntil,失败只进日志。
@@ -205,7 +206,7 @@ export async function handleGuestSignIn(c: Context<XidHonoEnv>): Promise<Respons
   // 1. 先查:已持有效 guest session 直接返回,不建号。
   const current = c.get('session') ?? (await readSession(c, [ACTIVE_SESSION_STATUS]))
   if (current?.status === ACTIVE_SESSION_STATUS && (await loadLiveGuestUser(db, current.userId))) {
-    return c.json({ sessionId: current.sessionId })
+    return c.json({ sessionId: current.sessionId, redirectUrl: GUEST_ONBOARDING_PATH })
   }
 
   // 2. anonKey 已绑定 guest:续签(绑定指向已 GC/转正账号时解绑,落入建号路径)。

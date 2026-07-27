@@ -1,47 +1,105 @@
-# Firebase 式访客模式(匿名注册 -> 原地转正)落地计划
+# 访客和注册用户统一 Tenant onboarding 计划
 
-## 基线
+## 目标和非目标
 
-- 日期:2026-07-26
-- 目标:guest 是真 user 行(provisioned_by = 'anonymous'),无已链接凭证即为 guest;转正原地 link,sub 不变
-- 设计共识(用户已拍板):
-  - GC 按最后活跃满 30 天
-  - email 冲突先验证后告知,引导登录既有账号,数据合并由 RP 应用层负责
-  - SDK 覆盖 React + sdk/ 全部原生平台
-  - 不做 OAuth extension grant、不做 XID 托管合并端点、不做 Cognito 式非 user 凭证
+- 目标:访客登录和 `intent=sign-up` 注册统一进入创建组织流程。
+- 目标:创建组织页要求 Email、Organization name 和 URL slug。
+- 目标:访客 Email 先保存为 pending，不发送验证，不提前占用 `user_emails` 唯一值。
+- 目标:创建独立顶层 Tenant，分配 owner Membership，切换 active Organization。
+- 目标:未验证邮箱用户可以读取 Console 数据，所有实际业务写操作要求先验证邮箱。
+- 目标:邮箱验证后在新 Tenant 内原地转正；同一邮箱在其他 Tenant 的账号保持独立。
+- 目标:同步英文和简体中文设计文档、协议状态、用户说明和 agent-readable 文档。
+- 非目标:不自动授予 `manager_assignments`，不改变邀请、JIT、SCIM 和已有 Membership 登录流程。
+- 非目标:不自动重放被邮箱门禁阻止的写操作。
+- 非目标:不把普通既有 Tenant 用户直接迁出原 Tenant。
 
-## 冻结范围
+## 实施前基线证据
 
-- 新端点 POST /auth/guest,四层防重复:SDK 惰性复用 -> 端点先查后建幂等续签 -> GuestStore DO 按 anonKey 并发去重 -> Turnstile + RateLimitStore + 每租户日上限 + GC 兜底
-- 转正 = 持 guest session 完成首个凭证仪式(passkey / 密码 / email OTP / social)即原地 link;转正成功轮换 session
-- token amr 按凭证存在性推导('guest'),不写新 status 枚举、不加 session 类型
-- MeteringDO MAU 排除 guest;审计事件 guest.created / guest.converted / guest.gc_deleted
-- UI 走 frontend-design / ui-polish 规范;文案全部走 lingui,React SDK 用 sdk.* runtime descriptor
-- 禁止 git commit / push;禁止新增第三方依赖;禁止削弱既有安全规则
+- guest 当前只创建 user 和 Session，`activeOrgId=null`。
+- `intent=sign-up` 跳过默认 Membership，依赖 `POST /v1/organizations/self` 创建 Organization。
+- 自助创建当前写出 `parentOrgId=null`、`tenantId=current` 的伪顶层 Organization。
+- TenantContext 从 Organization 的 `tenantId` 解析隔离根，因此伪顶层 Organization 仍访问旧 Tenant。
+- applications、webhooks 和 apiKeys 是 tenant-scoped flat resources，伪顶层 owner 无法安全使用。
+- `user_emails` 在 Tenant 内对未验证邮箱也唯一，不能用它保存未证明控制权的访客 Email。
+- 当前 email verification token 只绑定 userId 和 jti，没有绑定具体 Email。
+- `requireOrgManager` 和 `requireInstanceManager` 没有 email verified 门禁。
+- 实施前 guest GC 只删除 user，不处理 onboarding Organization 和 Membership。
 
-## Todo List
+## 设计决策
 
-- [x] T1 设计文档批:docs/design/01、05、06、08 更新 guest 设计;docs/protocols/source-map.md 登记私有扩展;docs/sdks/platform-matrix.md 更新;zh-Hans 译文同步
-- [x] T2 Worker 批:POST /auth/guest(四层幂等)+ GuestStore DO + wrangler/env 类型 + GC cron + 审计事件 + 计量排除 + Management API provisioned_by 过滤
-- [x] T3 转正路由:me-auth 四仪式识别 guest session 原地 link + 转正 session 轮换 + email 冲突先验证后告知 + /v1/me 暴露 provisioned_by
-- [x] T4 测试批:建号幂等(串行 + 并发)、转正四路径、email 冲突、session 轮换、GC cron、跨租户隔离、amr 推导
-- [x] T5 Hosted UI:访客入口(SignInGuestButton)与转正引导(GuestConversionBanner)
-- [x] T6 React SDK:signInAnonymously / isAnonymous / GuestUpgradeBanner + i18n descriptor;core 加 isGuestUser/isGuestToken/isSameUser
-- [x] T7 原生 SDK:6 客户端(ios/macos/android/flutter/windows/linux)signInAnonymously + 7 后端(go/python/ruby/php/rust/java/dotnet)guest 判定,各平台本地测试全绿
-- [x] T1 收尾:文档状态 planned -> 已实现(source-map / platform-matrix / 08 DO 清单 / 01 章标注,zh-Hans 同步,门禁全绿)
-- [x] T8 总校验:pnpm run check + pnpm test 全绿
+- 实例根域登录创建 provisional user。仅 `isNewUser=true` 且无 Membership 的 provisional user 可以执行 Tenant onboarding。
+- 新顶层 Organization 满足 `id=tenantId=newOrgId`、`parentOrgId=null`。
+- 顶层 slug 在同一 Instance 内唯一，不能只做 Tenant 内唯一检查。
+- guest Email 写入新的 pending 字段，不进入 `user_emails`。`GET /v1/me` 对当前用户返回该 Email，`emailVerified=false`。
+- 创建 Tenant 时原子迁移 provisional user 的 user-owned D1 行和 Session 行到新 Tenant，创建 owner Membership，并保留当前 opaque cookie 和 Session id。实例根域随后按 refresh token hash 解析新的 TenantContext。
+- 已有 primary Email 的正常注册用户复用该 Email；页面预填并禁止修改。
+- 只读定义为 GET、HEAD、OPTIONS。Cookie Session 发起的业务 mutation 在组织和平台管理守卫中检查 verified primary Email。
+- onboarding 创建、active Organization 切换、登出、邮箱验证、重发验证和账号安全操作不受业务 mutation 门禁影响。
+- 门禁错误使用独立 `email_verification_required`，HTTP 403；不复用 WebAuthn 的 `user_verification_required`。
+- Email token 绑定具体 pending Email 或 email row，核销时只更新被绑定目标。
+- pending Email 验证后在当前新 Tenant 写 verified primary Email，guest 原地转正，吊销该 guest 的全部 Session，并要求重新登录取得非 guest Session。
+- Email 唯一性是 Tenant 内约束。同一邮箱属于其他 Tenant 时保留独立 tenant-local user，由实例根域登录 resolver 提供 Tenant 选择，不做跨 Tenant merge。
+- Console 全局显示未验证状态。业务 mutation 收到 `email_verification_required` 时打开验证面板；验证完成后回原页面，不自动重放 mutation。
+- guest GC 只处理未验证、最后活跃满 30 天的 anonymous provisional user。无 Membership 的
+  guest 可以进入清理；已创建 Tenant 的 guest 仅在它是安全空闲 onboarding 顶层 Tenant 的唯一
+  owner 时进入清理。D1 batch 首条语句原子复核 anonymous、未验证、不活跃和 Tenant 空闲条件并
+  soft-delete user，随后撤销 D1 Session、停用 Membership、失效凭证与 token，并 soft-delete
+  安全空闲 onboarding Organization；D1 claim 成功后才执行 SessionDO revoke-all。存在其他
+  active member、子 Organization 或业务资源时整个 guest 和 Tenant 保持不变，保留行进入既有
+  PII retention pipeline。
 
-## 状态
+## 改动面
 
-已完成。
+- `docs/design/01-authentication.md` 和简体中文镜像:guest onboarding、pending Email、转正和冲突分支。
+- `docs/design/02-tenancy-rbac.md` 和简体中文镜像:顶层 Tenant self-service 和未验证只读边界。
+- `docs/design/05-users-sessions.md` 和简体中文镜像:onboarding Session、Email verification 和 Membership 不变量。
+- `docs/design/08-data-model.md` 和简体中文镜像:pending Email、顶层 slug 唯一性和迁移状态。
+- `docs/protocols/source-map.md`、SDK matrix 和用户文档:能力状态与验证边界。
+- DB schema 和 D1 migration:pending Email、Instance slug 唯一索引。
+- Worker onboarding:guest redirect、self Organization create、provisional Tenant migration、Session migration。
+- Worker verification:target-bound token、pending Email verify 和 resend。
+- Worker authorization:org 和 platform mutation verification gate。
+- Worker GC:未验证 onboarding Tenant 清理。
+- Hosted UI:create Organization Email 字段和统一跳转。
+- Console:只读提示、验证面板、全局错误处理和尾斜杠 metadata 修复。
+- Lingui:新增 Worker error 和 UI copy 的全部 locale catalog。
 
-## 完成定义
+## 实施顺序
 
-- `pnpm run check` 全绿(typecheck、native:verify、i18n:audit、protocols:source-map、docs:translations、coverage gates)
-- `pnpm test` 全绿
-- T4 列出的新能力测试全部存在且通过
-- T1 列出的文档全部更新且 docs:translations 通过
+- [x] T1 更新英文和简体中文设计契约，冻结状态机和数据不变量。
+- [x] T2 增加 DB schema、migration、错误码和精确 Email verification 契约。
+- [x] T3 实现顶层 Tenant self-service onboarding 和 provisional user 迁移。
+- [x] T4 实现 verified Email mutation gate、pending Email resend 和验证转正。
+- [x] T5 实现 guest 和 sign-up 统一 Hosted UI、Console 只读提示及验证面板。
+- [x] T6 补齐 guest GC、同类模式搜索和生产存量伪顶层 Organization 只读审计。
+- [x] T7 同步 Lingui catalog、协议文档、SDK 文档和 agent-readable 文档。
+- [ ] T8 运行局部测试、全量 check、test、build、三 Worker smoke 和浏览器视觉验证。
+- [ ] T9 精确暂存、DCO commit、push、PR、合并、Cloudflare Workers Builds 和生产验证。
 
-## 停止规则
+## 验证
 
-- 设计与安全铁律冲突、必须新增第三方依赖、某原生 SDK 不破坏既有契约无法加入匿名 API、或 check 失败根因不明时,停止并汇报,不做猜测性修复。
+- guest -> create Organization 页面，Email 必填且提交时不发送验证邮件。
+- 创建后 Organization 是独立顶层 Tenant，user、Session 和 Membership 全部属于新 Tenant。
+- 未验证 owner 的 GET 成功，mutation 返回 `email_verification_required`。
+- 验证新 Email 后 guest 原地转正并吊销全部 guest Session；重新登录后 `sub` 不变，mutation 成功。
+- 同一邮箱存在于其他 Tenant 时不冲突，根域重新登录可以选择对应 Tenant。
+- 正常 password、passwordless、social `intent=sign-up` 都进入同一 Organization onboarding。
+- invitation、JIT、SCIM 和普通 sign-in 无回归。
+- guest GC 对无 Membership 的过期 guest 完成 user soft-delete 与 Session 撤销；对安全空闲
+  onboarding Tenant 同时 soft-delete user 和 Organization、停用 owner Membership、失效凭证
+  与 token，并在 D1 claim 后执行 SessionDO revoke-all；非空 Tenant 完整跳过。
+- 英文和简体中文文档同步，所有 locale catalog 无缺失。
+- `pnpm run check`、`pnpm test`、`pnpm run build` 全部 PASS。
+- 三 Worker smoke、生产 health、Console browser flow 和 Cloudflare observability PASS。
+
+## 风险和回滚
+
+- Tenant migration 必须使用显式 D1 transaction batch。用户行、用户归属行、Membership 和 Session 行同时迁移，失败时整个 batch 回滚。
+- onboarding 保留现有 Session id 和 opaque cookie，所以不需要跨 D1 与 Durable Object 重签。实例根域下一次请求按 refresh token hash 解析新 Tenant。
+- guest Email 验证先在 SessionDO fail-closed 吊销全部 Session，再原子核销 token 和写入 verified Email；D1 失败时 token 保持可重试，但旧 guest Session 不恢复。
+- 存量伪顶层 Organization 不自动猜测 flat resource 归属。审计工具只报告，迁移前要求显式映射。
+- 回滚使用追加 commit。已推送分支、main 和生产历史不改写。
+
+## 生产只读预检
+
+- 2026-07-27 生产 D1 审计：Instance 内重复 slug 分组为 0，存量伪顶层 Organization 为 0，active 且无 Membership 的 provisional user 为 1。

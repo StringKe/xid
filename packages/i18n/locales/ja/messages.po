@@ -1324,6 +1324,7 @@ msgstr "CanActivateFn ファクトリー"
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Cancel"
 msgstr "キャンセル"
 
@@ -1342,6 +1343,10 @@ msgstr "パスワードを変更"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Changes are previewed in an iframe sandbox before being published. Preview and live states are kept separate."
 msgstr "変更は公開前に iframe サンドボックスでプレビューされます。プレビュー状態と本番状態は分離されます。"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Check your connection and try again."
+msgstr "接続を確認して、もう一度お試しください。"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Check your email"
@@ -1485,6 +1490,10 @@ msgstr "exp/nbf のクロックスキュー許容値。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Clock skew tolerance in seconds"
 msgstr "クロックスキュー許容値（秒）"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Close"
+msgstr "閉じる"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close diagram"
@@ -1648,6 +1657,10 @@ msgstr "連携 | アカウント | XID"
 msgid "Console"
 msgstr "コンソール"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Console is read-only"
+msgstr "コンソールは読み取り専用です"
+
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Console overview | XID"
 msgstr "コンソール概要 | XID"
@@ -1776,8 +1789,8 @@ msgid "Could not copy"
 msgstr "コピーできませんでした"
 
 #: apps/server/src/routes/create-organization/index.tsx
-msgid "Could not create organization. Choose a different slug and try again."
-msgstr "組織を作成できませんでした。別のスラッグを選んで再試行してください。"
+msgid "Could not create organization. Check the email and slug, then try again."
+msgstr "組織を作成できませんでした。メールアドレスとスラッグを確認して、もう一度お試しください。"
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Could not switch organization. Try again."
@@ -2423,6 +2436,7 @@ msgstr "メインプロセス PKCE フロー、contextBridge プリロード、O
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/server/src/routes/create-organization/index.tsx
 msgid "Email"
 msgstr "メール"
 
@@ -2447,6 +2461,10 @@ msgstr "Email OTP"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Email template branding"
 msgstr "メールテンプレートのブランド設定"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Email verification required"
+msgstr "メールアドレスの確認が必要です"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Embedded sign-in panel (Hosted Auth)"
@@ -4895,6 +4913,10 @@ msgstr "オープンソースのアイデンティティプラットフォーム
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
 msgstr "PKCE S256 認可 URL でシステムブラウザを開き、コードを交換して XidSession を返します。"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Open the link in your inbox, then sign in again."
+msgstr "受信トレイのリンクを開き、もう一度サインインしてください。"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Open this page from the CIBA authorization link that includes auth_req_id."
 msgstr "auth_req_id を含む CIBA 認可リンクからこのページを開いてください。"
@@ -6295,6 +6317,7 @@ msgid "Resend code"
 msgstr "コードを再送"
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "確認メールを再送"
 
@@ -6856,6 +6879,14 @@ msgstr "セレクター xid-sign-out-button。入力：sessionId、redirectUrl�
 msgid "Self-hosting"
 msgstr "セルフホスティング"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to {email}. The Console stays read-only until you use it."
+msgstr "{email} に確認リンクを送信します。リンクを使用するまで、コンソールは読み取り専用のままです。"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to your email. The Console stays read-only until you use it."
+msgstr "メールアドレスに確認リンクを送信します。リンクを使用するまで、コンソールは読み取り専用のままです。"
+
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Send an invitation"
 msgstr "招待を送信"
@@ -6884,6 +6915,10 @@ msgstr "メールリンクを送信"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Send reset link"
 msgstr "リセットリンクを送信"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send verification email"
+msgstr "確認メールを送信"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Sender"
@@ -7865,6 +7900,10 @@ msgstr "このデバイス"
 msgid "This documentation version is no longer maintained"
 msgstr "このバージョンのドキュメントは現在メンテナンスされていません"
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "This email belongs to your signed-in account."
+msgstr "このメールアドレスはサインイン中のアカウントに登録されています。"
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation has already been accepted."
 msgstr "この招待はすでに承諾されています。"
@@ -8053,6 +8092,10 @@ msgstr "試行回数が多すぎます。少し待ってからもう一度お試
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Too many attempts. Please wait before trying again."
 msgstr "試行回数が多すぎます。しばらく待ってからもう一度お試しください。"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Too many requests"
+msgstr "リクエストが多すぎます"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
@@ -8522,6 +8565,14 @@ msgstr "検証"
 msgid "Verification code"
 msgstr "検証コード"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email not sent"
+msgstr "確認メールを送信できませんでした"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email sent"
+msgstr "確認メールを送信しました"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Verification failed. Please try again."
 msgstr "検証に失敗しました。もう一度お試しください。"
@@ -8547,6 +8598,11 @@ msgstr "ベリファイアーのエントロピーは 64 バイト。チャレ�
 msgid "Verify"
 msgstr "検証"
 
+#. placeholder {0}: user.email
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify {0} before creating or changing resources."
+msgstr "リソースを作成または変更する前に、{0} を確認してください。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verify a JWT string, return <0>*Claims</0> or error."
 msgstr "JWT 文字列を検証し、<0>*Claims</0> またはエラーを返します。"
@@ -8554,6 +8610,10 @@ msgstr "JWT 文字列を検証し、<0>*Claims</0> またはエラーを返し�
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Verify code"
 msgstr "コードを検証"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify email"
+msgstr "メールアドレスを確認"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Verify email | XID"
@@ -8592,8 +8652,17 @@ msgid "Verify webhook request signature. Returns <0>*WebhookEvent</0> with raw b
 msgstr "webhook リクエストの署名を検証します。成功時は生のボディを含む <0>*WebhookEvent</0> を返します。"
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Verify your email"
 msgstr "メールを確認"
+
+#: packages/i18n/src/messages.ts
+msgid "Verify your email address before making changes."
+msgstr "変更する前にメールアドレスを確認してください。"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify your email before creating or changing resources."
+msgstr "リソースを作成または変更する前に、メールアドレスを確認してください。"
 
 #: apps/server/src/routes/consent/ScopeList.tsx
 msgid "Verify your identity"
@@ -8642,6 +8711,10 @@ msgstr "Vue 3 プラグイン、コンポーザブル、@xid-kit/core 上のヘ�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Vue plugin"
 msgstr "Vue プラグイン"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Wait a minute before requesting another verification email."
+msgstr "次の確認メールをリクエストするまで 1 分お待ちください。"
 
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Waiting for passkey selection..."
@@ -8823,9 +8896,10 @@ msgstr "XID は現在、エンタープライズ IdP 向けの SAML サービス
 msgid "XID developer document not found"
 msgstr "XID 開発者ドキュメントが見つかりません"
 
+#. js-lingui-explicit-id
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
-msgstr "XID はエンドユーザー登録とログインを別製品として公開しません。Hosted Auth は同じ識別子ステップから開始し、組織ポリシーとアカウント状態に基づいてログインまたはユーザー作成を決定します。"
+msgid "BuOJPK"
+msgstr "XID はエンドユーザー登録とログインを別々の製品として提供しません。Hosted Auth は同じ識別子ステップから開始し、Organization のポリシーとアカウントの状態に基づいてログインまたはユーザー作成を決定します。ゲストまたは資格情報による intent=sign-up のサインアップでは、Email、Organization name、URL slug を指定してトップレベルの Tenant を作成します。ゲストの Email はアカウントアドレスを予約せず保留状態となります。新しい所有者は Console のデータを読み取れますが、最初の業務変更を行う前にその Email を確認します。別の Tenant で同じ Email を使っても、別のアカウントとして扱われます。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID exposes inbound SCIM Service Provider endpoints for external IdPs. Downstream SaaS SCIM push clients have local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -8934,6 +9008,10 @@ msgstr "ゲストとしてサインインしています。サインアウトす
 #: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "You can revoke these permissions at any time from your account settings."
 msgstr "これらの権限はアカウント設定からいつでも取り消せます。"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You can verify this address from the Console."
+msgstr "このメールアドレスはコンソールから確認できます。"
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "You do not belong to any organizations yet."

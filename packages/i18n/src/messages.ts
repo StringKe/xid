@@ -39,6 +39,7 @@ export const errorMessages: ErrorMessages = {
   mfa_invalid: msg`The MFA code is incorrect.`,
   mfa_setup_required: msg`You must set up multi-factor authentication before continuing.`,
   step_up_required: msg`Additional verification is required to perform this action.`,
+  email_verification_required: msg`Verify your email address before making changes.`,
   password_breached: msg`This password has appeared in a data breach. Please choose a different password.`,
   password_reused: msg`This password has been used recently. Please choose a different password.`,
   password_too_weak: msg`The password does not meet the minimum strength requirements.`,

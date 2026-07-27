@@ -59,6 +59,7 @@ export const organizations = sqliteTable(
   },
   (t) => [
     uniqueIndex('organizations_tenant_slug_unq').on(t.tenantId, t.slug),
+    uniqueIndex('organizations_instance_slug_unq').on(t.instanceId, t.slug),
     index('organizations_instance_slug_idx').on(t.instanceId, t.slug),
     index('organizations_top_level_id_idx')
       .on(t.id)

@@ -37,6 +37,7 @@ export const AUTH_ERROR_CODES = [
   'mfa_invalid',
   'mfa_setup_required',
   'step_up_required',
+  'email_verification_required',
   'password_breached',
   'password_reused',
   'password_too_weak',

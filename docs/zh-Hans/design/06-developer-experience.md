@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=f625cb6d9d53b2f7969565a2f8c5f1446670e72e -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=b27c54c871cd73f5f8f6bea060befb9ba9f89d0e -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -378,6 +378,6 @@ networkless 模式:传 jwtKey(JWKS 公钥)无需请求 API,适合 Edge 冷启动
 设计契约见 01 章第 8 节。状态:已实现(端点、转正路由、GuestStore DO、GC cron、React 与原生 SDK API);分平台状态见 docs/sdks/platform-matrix.md。
 
 - 端点:POST /auth/guest,无认证的私有扩展(非 OIDC 标准能力)。建 anonymous user + session,响应 JSON 对齐既有 me-auth 登录响应形态(session handle、expires),浏览器场景同时 Set-Cookie。请求已带有效 guest session 时 200 续签不建号。端点由 Turnstile + RateLimitStore + 每租户每日铸造上限守护;完整四层防重复契约见 01 章 8。
-- SDK API:signInAnonymously() 创建 guest,本地 guest 凭证仍有效时惰性复用不再调用端点(Firebase 语义);isAnonymous 反映当前 token 的 amr 是否含 guest;转正引导持续提示用户转正,任意凭证仪式完成后 SDK 对比新旧 token 的 sub 并向 RP 应用层暴露合并钩子(只在 email 占用路径 sub 变化时用到)。
+- SDK API:signInAnonymously() 创建 guest,本地 guest 凭证仍有效时惰性复用不再调用端点(Firebase 语义);isAnonymous 反映当前 token 的 amr 是否含 guest;转正引导持续提示用户转正。凭证 linking 与 pending Email 验证都原地转正 guest,下一张 token 保持相同 sub。Email 唯一性是 Tenant-local:其他 Tenant 中相同 Email 的账号保持独立,onboarding 不做跨 Tenant merge,fresh Tenant 内的同 Tenant 冲突不是正常分支。
 - Management API:/v1/users 列表支持 ?provisioned_by=anonymous 过滤,不新增端点。
 - 审计与 webhook 事件名(见第 8 节):guest.created、guest.converted、guest.gc_deleted。

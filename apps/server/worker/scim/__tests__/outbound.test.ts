@@ -30,6 +30,8 @@ function tableNameForSql(sql: string): string {
   if (l.includes('manager_assignments')) return 'manager_assignments'
   if (l.includes('memberships')) return 'memberships'
   if (l.includes('organizations')) return 'organizations'
+  if (l.includes('user_emails')) return 'user_emails'
+  if (l.includes('users')) return 'users'
   return 'unknown'
 }
 
@@ -135,6 +137,31 @@ function membershipRow(role: string): Record<string, unknown> {
   }
 }
 
+function verifiedUserTables(): TableSet {
+  return {
+    users: [
+      {
+        id: 'user_1',
+        tenant_id: 't_1',
+        primary_email_id: 'email_1',
+        status: 'active',
+        deleted_at: null,
+      },
+    ],
+    user_emails: [
+      {
+        id: 'email_1',
+        tenant_id: 't_1',
+        user_id: 'user_1',
+        email: 'manager@example.test',
+        verified: 1,
+        verification_status: 'verified',
+        is_primary: 1,
+      },
+    ],
+  }
+}
+
 function makeEnv(tables: TableSet): Env {
   return asUnknown<Env>({ DB: makeFakeD1(tables) })
 }
@@ -164,6 +191,7 @@ describe('outbound SCIM sync 门控', () => {
 
   it('org admin 通过门控(进入同步流程,缺下游 token secret -> 422 而非 403)', async () => {
     const env = makeEnv({
+      ...verifiedUserTables(),
       scim_targets: [targetRow()],
       organizations: [orgRow()],
       memberships: [membershipRow('admin')],
@@ -175,6 +203,7 @@ describe('outbound SCIM sync 门控', () => {
 
   it('org_manager assignment(无 membership)通过门控 -> 422 而非 403', async () => {
     const env = makeEnv({
+      ...verifiedUserTables(),
       scim_targets: [targetRow()],
       organizations: [orgRow()],
       memberships: [],

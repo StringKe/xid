@@ -49,6 +49,24 @@ type HrdResult = {
   protocol?: 'saml' | 'oidc'
 }
 
+export function buildSocialAuthorizeUrl(input: {
+  origin: string
+  provider: string
+  hostedReturn: string
+  signUpIntent: boolean
+  identifier: string
+  organizationId?: string
+  turnstileToken: string | null
+}): URL {
+  const url = new URL(`/auth/${input.provider}/authorize`, input.origin)
+  url.searchParams.set('continue', input.signUpIntent ? '/create-organization' : input.hostedReturn)
+  if (input.signUpIntent) url.searchParams.set('intent', 'sign-up')
+  if (input.identifier.trim()) url.searchParams.set('login_hint', input.identifier.trim())
+  if (input.organizationId) url.searchParams.set('organization_id', input.organizationId)
+  if (input.turnstileToken) url.searchParams.set('turnstile', input.turnstileToken)
+  return url
+}
+
 export type SignInState = {
   method: SignInMethod
   authConfig: PublicHostedAuthConfig
@@ -359,7 +377,7 @@ export function useSignIn(): [SignInState, SignInActions] {
         setError(apiErrorToKey(result.error.code))
         return
       }
-      await finishSignIn(result.value.redirectUrl, 'guest')
+      await finishSignIn('/create-organization', 'guest')
     },
   })
 
@@ -368,14 +386,25 @@ export function useSignIn(): [SignInState, SignInActions] {
     (provider: string): void => {
       trackEvent('social_login_start', { provider })
       setPendingAuthCompletion({ method: 'social', intent: analyticsAuthIntent })
-      const url = new URL(`/auth/${provider}/authorize`, globalThis.location.origin)
-      url.searchParams.set('continue', hostedReturn)
-      if (identifier.trim()) url.searchParams.set('login_hint', identifier.trim())
-      if (search.organization_id) url.searchParams.set('organization_id', search.organization_id)
-      if (turnstileToken) url.searchParams.set('turnstile', turnstileToken)
+      const url = buildSocialAuthorizeUrl({
+        origin: globalThis.location.origin,
+        provider,
+        hostedReturn,
+        signUpIntent: authFlowIntent === 'sign_up',
+        identifier,
+        organizationId: search.organization_id,
+        turnstileToken,
+      })
       globalThis.location.href = url.toString()
     },
-    [analyticsAuthIntent, hostedReturn, identifier, search.organization_id, turnstileToken],
+    [
+      analyticsAuthIntent,
+      authFlowIntent,
+      hostedReturn,
+      identifier,
+      search.organization_id,
+      turnstileToken,
+    ],
   )
 
   const selectOrganizationContext = useCallback(

@@ -16,14 +16,23 @@ import { EMAIL_VERIFY_TTL_MS } from '../lib/ttl'
 
 const PURPOSE = 'email_verification'
 
+export type VerifiedEmailToken = {
+  jti: string
+  userId: string
+  emailHash: string
+  intent: 'sign-up' | null
+}
+
 // 签发邮箱验证 token + 持久化 jti 哈希(删旧同 purpose token),入队发验证邮件。
 export async function issueEmailVerification(opts: {
   env: Env
   tenant: TenantVar
   userId: string
   email: string
+  intent?: 'sign-up'
 }): Promise<void> {
-  const { env, tenant, userId, email } = opts
+  const { env, tenant, userId, email, intent } = opts
+  const normalizedEmail = email.trim().toLowerCase()
   const origin = hostedAuthOriginForTenant(tenant)
   const signer = await loadActiveSigner(tenant, env.KEK)
   const jti = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)))
@@ -36,6 +45,8 @@ export async function issueEmailVerification(opts: {
     exp: now + EMAIL_VERIFY_TTL_MS / 1000,
     purpose: PURPOSE,
     tenant_id: tenant.tenantId,
+    email_hash: await sha256Hex(normalizedEmail),
+    ...(intent ? { intent } : {}),
   }
   const token = await signJwt(
     { header: { alg: signer.alg, kid: signer.kid }, payload },
@@ -68,7 +79,7 @@ export async function issueEmailVerification(opts: {
 
   await env.EMAIL_QUEUE.send({
     type: 'verify_email',
-    recipient: email,
+    recipient: normalizedEmail,
     payload: {
       tenantId: tenant.tenantId,
       userId,
@@ -80,23 +91,30 @@ export async function issueEmailVerification(opts: {
   })
 }
 
-// 验签邮箱验证 JWT:签名(租户公钥集)+ exp + iss + purpose,提取 jti。失败抛 token_*。
-export async function verifyEmailVerifyJwt(tenant: TenantVar, rawToken: string): Promise<string> {
+// 验签邮箱验证 JWT:签名(租户公钥集)+ exp + iss + purpose,提取精确 Email 目标。失败抛 token_*。
+export async function verifyEmailVerifyJwt(
+  tenant: TenantVar,
+  rawToken: string,
+): Promise<VerifiedEmailToken> {
   const verifyKeys = await buildVerifyKeySet(tenant)
   const verified = await verifyJwt(rawToken, verifyKeys, { expectedIssuer: tenant.issuer })
   if (!verified.ok) {
     throw new AppError(verified.error.reason === 'expired' ? 'token_expired' : 'token_invalid')
   }
-  const { sub: userId, jti, purpose } = verified.value.payload
+  const { sub: userId, jti, purpose, email_hash: emailHash, intent } = verified.value.payload
   if (!userId || !jti || purpose !== PURPOSE) throw new AppError('token_invalid')
-  return jti
+  if (typeof emailHash !== 'string' || !/^[0-9a-f]{64}$/.test(emailHash)) {
+    throw new AppError('token_invalid')
+  }
+  if (intent !== undefined && intent !== 'sign-up') throw new AppError('token_invalid')
+  return { jti, userId, emailHash, intent: intent ?? null }
 }
 
-// jti 一次性消费:按 tokenHash=sha256(jti) 查行 + 状态校验 + 标记 consumed,返回绑定 userId(防重放)。
-export async function consumeEmailVerifyToken(
+// 按 tokenHash=sha256(jti) 加载可消费行，调用方可把消费与目标 Email 更新放进同一 D1 transaction。
+export async function loadEmailVerifyToken(
   db: ReturnType<typeof createTenantDb>,
   jti: string,
-): Promise<string> {
+): Promise<typeof schema.verificationTokens.$inferSelect> {
   const tokenHash = await sha256Hex(jti)
   const row = await db.verificationTokens.findOne(
     eq(schema.verificationTokens.tokenHash, tokenHash),
@@ -104,6 +122,16 @@ export async function consumeEmailVerifyToken(
   if (!row || row.consumedAt !== null) throw new AppError('token_invalid')
   if (row.expiresAt.getTime() <= Date.now()) throw new AppError('token_expired')
   if (row.purpose !== PURPOSE) throw new AppError('token_invalid')
+  return row
+}
+
+// jti 一次性消费:按 tokenHash=sha256(jti) 查行 + 状态校验 + 标记 consumed,返回绑定 userId(防重放)。
+export async function consumeEmailVerifyToken(
+  db: ReturnType<typeof createTenantDb>,
+  jti: string,
+): Promise<string> {
+  const row = await loadEmailVerifyToken(db, jti)
+  const tokenHash = await sha256Hex(jti)
   const consumed = await db.verificationTokens.update(
     { consumedAt: new Date() },
     and(

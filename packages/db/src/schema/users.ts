@@ -19,6 +19,7 @@ export const users = sqliteTable(
     username: text('username'),
     externalId: text('external_id'),
     primaryEmailId: text('primary_email_id'),
+    pendingEmail: text('pending_email'),
     primaryPhoneId: text('primary_phone_id'),
     firstName: text('first_name'),
     lastName: text('last_name'),

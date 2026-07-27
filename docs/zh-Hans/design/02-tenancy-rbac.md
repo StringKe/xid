@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=42f9d607cbbb404bf5865b3595a9a9620f8b12ce -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=98eb6e28f5f6fb97df2c84b29316c8e297fe52d1 -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -26,6 +26,27 @@ Instance(平台运营层,IAM 运营视角,可跨所有 org 管理)
 ### 数据模型
 
 核心实体 Instance、Organization、Project、Application、ProjectGrant(见 08 章):四层归属关系,Organization 可有一层父子。
+
+### Self-service 顶层 Tenant onboarding
+
+- guest sign-in 与携带 `intent=sign-up` 的凭证注册进入同一个创建 Organization 流程。只有
+  `is_new_user = true` 且没有 Membership 的 provisional user 可以使用。
+- self-service 创建的是新隔离根,不是 resolver provisional Organization 的子组织。不变量是
+  `id = tenant_id = new_organization_id`、`parent_org_id = null`。子 Organization 创建仍是显式
+  操作,必须设置 `parent_org_id`,并继承父级顶层 `tenant_id`。
+- 顶层 Organization slug 参与 host 解析,所以必须在所属 Instance 内唯一。只做 Tenant 内唯一不足以
+  保证解析正确。
+- 创建事务把 provisional user 的 user-owned 行和 sessions 迁移到新 Tenant,创建一个 active owner
+  Membership,并把该 Organization 设为全部迁移 session 的当前上下文。session id 与 opaque cookie
+  保持不变,实例根域通过 refresh token hash 解析新的 TenantContext。流程不创建
+  `manager_assignment`;平台管理继续使用既有 ManagerAssignment 模型。
+- Email 验证前,owner 可以读取新 Tenant,但组织和平台业务 mutation 要求 verified primary Email。
+  `GET`/`HEAD`/`OPTIONS` 属于读取。onboarding 创建、active Organization 切换、登出、Email
+  验证与重发、账号安全操作不受 mutation 门禁影响。
+- guest Email 在新 Tenant 内验证前保持 pending,创建时不占用 `user_emails`。Email 唯一性以 Tenant
+  为边界,所以同一 Email 在其他 Tenant 中保持独立用户。本流程不跨 Tenant 合并 user。
+- 邀请接受、enterprise JIT、SCIM provisioning 和普通 sign-in 保持既有 membership 行为,不会隐式
+  进入 self-service 路径。
 
 ## 2. 组织成员管理
 

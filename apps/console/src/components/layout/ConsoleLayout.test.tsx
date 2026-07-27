@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
@@ -14,6 +18,7 @@ const authState = vi.hoisted(
     user: AuthUser
     activeOrg: AuthOrg
     organizations: readonly AuthOrg[]
+    openEmailVerification: ReturnType<typeof vi.fn>
   } => ({
     user: {
       id: 'user_1',
@@ -33,6 +38,7 @@ const authState = vi.hoisted(
       permissions: [],
     },
     organizations: [],
+    openEmailVerification: vi.fn(),
   }),
 )
 
@@ -66,6 +72,7 @@ vi.mock('@xid-kit/web-ui/session', () => ({
     organizations: authState.organizations,
     setActiveOrganization: async () => true,
     signOut: async () => undefined,
+    openEmailVerification: authState.openEmailVerification,
   }),
 }))
 
@@ -86,7 +93,17 @@ vi.mock('../LanguageSwitcher', () => ({
 }))
 
 vi.mock('@xid-kit/web-ui/ui', () => ({
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  Alert: ({ title, children }: { title?: ReactNode; children: ReactNode }) => (
+    <div role="status">
+      {title}
+      {children}
+    </div>
+  ),
+  Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
   Spinner: () => <span>Loading</span>,
 }))
 
@@ -112,8 +129,9 @@ vi.mock('@xid-kit/web-ui/motion', () => ({
 
 describe('ConsoleLayout', () => {
   beforeEach(() => {
-    authState.user = { ...authState.user, instanceManager: false }
+    authState.user = { ...authState.user, emailVerified: true, instanceManager: false }
     authState.organizations = [authState.activeOrg]
+    authState.openEmailVerification.mockClear()
   })
 
   it('renders navigation classes as strings instead of function source', () => {
@@ -221,5 +239,36 @@ describe('ConsoleLayout', () => {
     expect(html).toContain('data-layout-id="console-nav-rail"')
     expect(html).toContain('data-layout-id="console-nav-tab"')
     expect(html.match(/data-layout-id=/g)).toHaveLength(2)
+  })
+
+  it('shows the global read-only notice and opens email verification', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    authState.user = { ...authState.user, emailVerified: false }
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(
+        <ConsoleLayout navItems={[{ to: '/console/org', label: 'Overview', end: true }]}>
+          <span>Content</span>
+        </ConsoleLayout>,
+      )
+    })
+
+    expect(container.textContent).toContain('Console is read-only')
+    expect(container.textContent).toContain('owner@example.com')
+    const verifyButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Verify email',
+    )
+    if (!verifyButton) throw new Error('Verify email button was not rendered')
+
+    await act(async () => {
+      verifyButton.click()
+    })
+    expect(authState.openEmailVerification).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    container.remove()
   })
 })

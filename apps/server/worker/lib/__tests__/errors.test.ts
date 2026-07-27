@@ -6,6 +6,7 @@ import { AppError, httpStatusForCode, isAppError } from '../errors'
 describe('httpStatusForCode', () => {
   it('已知 code 映射到约定 status', () => {
     expect(httpStatusForCode('invalid_credentials')).toBe(401)
+    expect(httpStatusForCode('email_verification_required')).toBe(403)
     expect(httpStatusForCode('rate_limited')).toBe(429)
     expect(httpStatusForCode('tenant_not_found')).toBe(404)
     expect(httpStatusForCode('server_error')).toBe(500)

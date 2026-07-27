@@ -572,6 +572,42 @@ credential. This section is the design contract. It is implemented in
 - Enumeration resistance: the response carries no information about any existing account.
 - Audit event `guest.created`.
 
+### Unified top-level Tenant onboarding
+
+- A valid guest session and every normal credential sign-up carrying `intent=sign-up` converge on
+  `/create-organization`, after any credential verification required by the sign-up policy. A
+  password verification token preserves the signed sign-up intent and returns the user to
+  `/sign-in?intent=sign-up`. The page collects Email, Organization name, and URL slug. It is the only
+  self-service path that creates an isolation root; invitation, JIT, SCIM, and ordinary sign-in keep
+  their existing membership flows.
+- Only a provisional user with `is_new_user = true` and no Membership may complete this flow. The
+  transaction creates a top-level Organization satisfying
+  `id = tenant_id = new_organization_id` and `parent_org_id = null`, reserves a slug that is unique
+  within the Instance, migrates every user-owned D1 row from the provisional root into the new
+  Tenant, creates the owner Membership, and updates every session row to the new Tenant and active
+  Organization in the same D1 batch. The opaque cookie and session id stay unchanged; the Instance
+  root resolver finds the new TenantContext from the refresh token hash on the next request.
+- For a guest, the submitted Email is stored as `users.pending_email`. It does not create or reserve
+  a `user_emails` row, does not count as a credential, and does not send verification during
+  organization creation. For a normally registered user that already has a primary Email, the page
+  reuses that address, pre-fills it, and does not allow it to be changed.
+- The new owner may read Console data while the Email is unverified. For a cookie session,
+  `GET`/`HEAD`/`OPTIONS` remain available, but every business mutation protected by an organization
+  or platform management guard returns HTTP 403 with `email_verification_required` until the
+  primary Email is verified. Tenant creation, active Organization switching, sign-out, Email
+  verification and resend, and account-security operations are exempt. The Console opens the
+  verification panel on this error; it never replays the rejected mutation automatically.
+- An Email verification token binds the exact normalized pending or current primary Email through a
+  signed `email_hash` claim. Consumption compares that claim with the current value and may update
+  only the match. Verifying `pending_email` creates the verified primary Email inside the new
+  Tenant, clears the pending value, converts a guest in place, revokes every guest session, and
+  requires a fresh sign-in. The next token keeps the same `sub`.
+- Email uniqueness is Tenant-local. The same Email may identify independent users in other Tenants,
+  and the Instance root resolver lets the user select the intended Tenant at the next sign-in.
+  Top-level Tenant onboarding never performs a cross-Tenant merge or ownership transfer. Because the
+  destination Tenant is fresh, an Email collision with another user in that same Tenant is an
+  invariant violation rather than an account-linking branch.
+
 ### Conversion (in-place link, sub unchanged)
 
 - Routing rule: while the guest session is valid, completing any first credential ceremony --
@@ -579,17 +615,16 @@ credential. This section is the design contract. It is implemented in
   password, email OTP verification, or a social bind -- attaches the credential to the current guest
   user and never creates a new user. This reuses the chapter 05 rule that adding a credential while
   signed in requires authentication; the only new logic is that the me-auth ceremony entry points
-  recognize a guest session and route to link instead of create.
-- On conversion: `provisioned_by` is rewritten to the conversion source, the session is rotated
-  (the old refresh token is revoked and a new session is issued, defending against a session
-  fixation variant), and the audit event `guest.converted` is written.
-- Email already held by another user in the same tenant: the occupation fact MUST NOT leak early
-  (the enumeration iron rule). The verification email is sent first; only after the user proves
-  control of the mailbox are they told that this email belongs to another account, and they are
-  guided to a normal sign-in. On that path the sub changes, the RP-side data accumulated during the
-  guest period becomes orphaned, and the guest user is marked with `merged_into_user_id`. Data
-  merging is the RP application layer's responsibility; the SDK compares the sub of the old and new
-  tokens and exposes a merge hook.
+  recognize a guest session and route to link instead of create. Collecting `pending_email` during
+  top-level Tenant onboarding is not a credential ceremony; that path converts only after the
+  target-bound Email verification succeeds in the new Tenant.
+- On pending Email conversion, `provisioned_by` is rewritten to the conversion source, every guest
+  session is revoked in SessionDO and D1, the current cookie is cleared, and the user signs in again.
+  The audit event `guest.converted` is written. Other credential ceremonies retain their own
+  credential-linking session policy.
+- The onboarding path never searches for or merges an account in another Tenant. A verified Email
+  in another Tenant is valid and independent. The new Tenant has no second user at creation time, so
+  same-Tenant occupation is not a normal onboarding branch.
 - Semantic boundaries: a guest is not recoverable (sign-out means loss), is single-device, and has
   no MFA. Two Firebase warnings carry over verbatim: an anonymous token is not app attestation, and
   the product should keep prompting the user to convert.
@@ -601,10 +636,17 @@ credential. This section is the design contract. It is implemented in
 
 ### Garbage collection
 
-- A daily cron scans for users with `provisioned_by = 'anonymous'` whose last activity is 30 days
-  old or more (`created_at` when the user has no session; otherwise the newest session's
-  `last_active_at`), soft-deletes them (`deleted_at`), and hands them to the existing 30-day
-  hard-delete PII pipeline (see chapter 05 section 7). Audit event `guest.gc_deleted`.
+- A daily cron scans for unverified users with `provisioned_by = 'anonymous'` whose last activity is
+  30 days old or more (`created_at` when the user has no session; otherwise the newest session's
+  `last_active_at`). The first statement in the D1 batch atomically rechecks the anonymous,
+  unverified, inactive, and Tenant-emptiness conditions before it claims the user by soft-deleting
+  it.
+- A claimed guest has its D1 sessions revoked, active Membership inactivated, and usable credential
+  state invalidated. SessionDO is revoked after the D1 claim succeeds. An onboarding top-level
+  Tenant is soft-deleted only when it has no other active member, child Organization, or business
+  resource; otherwise the entire guest and Tenant are skipped intact. Retained user-owned rows enter
+  the existing 30-day hard-delete PII pipeline (see chapter 05 section 7). Audit event
+  `guest.gc_deleted`.
 
 ### Metering, Management API, and audit
 

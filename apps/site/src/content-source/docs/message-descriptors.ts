@@ -223,7 +223,7 @@ export const docsMessageDescriptors = [
   /*i18n*/ { id: "BnGbHU", message: "Module setup" },
   /*i18n*/ { id: "BsrhZj", message: "Client SDKs: web frameworks" },
   /*i18n*/ { id: "BtNLn-", message: "createXidTauriClient options" },
-  /*i18n*/ { id: "BuOJPK", message: "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state." },
+  /*i18n*/ { id: "BuOJPK", message: "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state. A guest or credential sign-up with intent=sign-up then creates a top-level Tenant with an Email, Organization name, and URL slug. A guest Email stays pending without reserving an account address; the new owner can read Console data, and verifies that Email before the first business change. The same Email in another Tenant remains a separate account." },
   /*i18n*/ { id: "BxlyaG", message: "Authorization code with PKCE S256 only. No implicit or password grant." },
   /*i18n*/ { id: "C-gfjV", message: "D1 relational storage." },
   /*i18n*/ { id: "C15cTE", message: "Provider-ready with local outbound SAML baseline; real GitHub Enterprise L4 missing." },
