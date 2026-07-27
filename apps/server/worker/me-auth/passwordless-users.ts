@@ -132,6 +132,49 @@ export async function createPasswordlessPhoneUser(opts: {
   return userId
 }
 
+// guest 转正挂接:不新建 user,把目标 email 作为未验证主邮箱挂到既有(guest)user 上,
+// 后续 OTP 验证经 markPrimaryEmailVerified 照常标 verified。guest 无主邮箱,直接挂 primary。
+export async function attachPasswordlessEmail(opts: {
+  db: ReturnType<typeof createTenantDb>
+  tenantId: string
+  userId: string
+  email: string
+}): Promise<void> {
+  const { db, tenantId, userId, email } = opts
+  const emailId = crypto.randomUUID()
+  await db.userEmails.insert({
+    id: emailId,
+    tenantId,
+    userId,
+    email,
+    verified: false,
+    verificationStatus: 'unverified',
+    isPrimary: true,
+  })
+  await db.users.update({ primaryEmailId: emailId }, eq(schema.users.id, userId))
+}
+
+// 同 attachPasswordlessEmail 的 phone 变体(guest 转正挂未验证主手机号)。
+export async function attachPasswordlessPhone(opts: {
+  db: ReturnType<typeof createTenantDb>
+  tenantId: string
+  userId: string
+  phone: string
+}): Promise<void> {
+  const { db, tenantId, userId, phone } = opts
+  const phoneId = crypto.randomUUID()
+  await db.userPhones.insert({
+    id: phoneId,
+    tenantId,
+    userId,
+    phone,
+    verified: false,
+    verificationStatus: 'unverified',
+    isPrimary: true,
+  })
+  await db.users.update({ primaryPhoneId: phoneId }, eq(schema.users.id, userId))
+}
+
 export async function markPrimaryEmailVerified(
   db: ReturnType<typeof createTenantDb>,
   userId: string,

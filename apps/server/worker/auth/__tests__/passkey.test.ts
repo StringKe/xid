@@ -12,6 +12,7 @@ vi.mock('@xid-kit/webauthn', () => ({
 
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
+  USER_PROVISIONED_BY_ANONYMOUS: 'anonymous',
   schema: {
     passkeyCredentials: {
       credentialId: 'credentialId',
@@ -20,6 +21,13 @@ vi.mock('@xid-kit/db', () => ({
       signCount: 'signCount',
       revokedAt: 'revokedAt',
     },
+    users: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
+    sessions: { id: 'id', userId: 'userId' },
+    memberships: { userId: 'userId', status: 'status', orgId: 'orgId' },
+    organizations: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
+    mfaFactors: { userId: 'userId', status: 'status', factorType: 'factorType' },
+    backupCodes: { userId: 'userId', used: 'used' },
+    userPhones: { userId: 'userId', verified: 'verified' },
   },
 }))
 
@@ -138,8 +146,18 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
       update: vi.fn().mockResolvedValue([]),
     },
     mfaFactors: {
+      findOne: vi.fn().mockResolvedValue(undefined),
       insert: vi.fn().mockResolvedValue({ id: 'mf_1' }),
     },
+    // guest 转正判定(register/verify 成功后):默认查不到 guest -> 不触发转正钩子。
+    users: {
+      findOne: vi.fn().mockResolvedValue(undefined),
+      update: vi.fn().mockResolvedValue([]),
+    },
+    backupCodes: { findOne: vi.fn().mockResolvedValue(undefined) },
+    userPhones: { findOne: vi.fn().mockResolvedValue(undefined) },
+    memberships: { findMany: vi.fn().mockResolvedValue([]) },
+    organizations: { findMany: vi.fn().mockResolvedValue([]) },
     sessions: {
       insert: vi.fn().mockResolvedValue({
         id: 'sess-1',
@@ -156,6 +174,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
         amr: null,
         aal: null,
       }),
+      update: vi.fn().mockResolvedValue([]),
     },
     ...overrides,
   }
@@ -361,6 +380,92 @@ describe('POST /auth/passkey/register/verify', () => {
       }),
       expect.objectContaining({ attestationPolicy: 'none' }),
     )
+  })
+
+  it('guest session 注册成功 -> 触发转正钩子(改写 provisionedBy + 轮换 session + 审计 + 解绑)', async () => {
+    vi.mocked(verifyRegistration).mockResolvedValue({
+      ok: true,
+      value: {
+        credentialId: new Uint8Array([1, 2, 3]),
+        publicKey: new Uint8Array([4, 5, 6]),
+        coseAlg: -7,
+        aaguid: new Uint8Array(16),
+        signCount: 0,
+        userVerified: true,
+        transports: [],
+        credentialDeviceType: 'singleDevice',
+        credentialBackedUp: false,
+        signCountAnomaly: false,
+      },
+    })
+    const db = makeTenantDb({
+      users: {
+        findOne: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          status: 'active',
+          deletedAt: null,
+          provisionedBy: 'anonymous',
+        }),
+        update: vi.fn().mockResolvedValue([]),
+      },
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    const auditSend = vi.fn().mockResolvedValue(undefined)
+    const guestStoreCalls: string[] = []
+    const env = {
+      ...makeEnv(async (req) => {
+        const url = new URL(req.url)
+        if (url.pathname === '/consume') {
+          return new Response(JSON.stringify({ value: 'test-challenge' }), { status: 200 })
+        }
+        return new Response(null, { status: 201 })
+      }),
+      AUDIT_QUEUE: { send: auditSend } as unknown as Queue,
+      // issueSession 的 generation/add 必须回真实契约形状(session.ts fail closed)。
+      SESSION_REVOCATION: makeDoNamespace(async (req) => {
+        const action = new URL(req.url).pathname.replace(/^\//, '')
+        if (action === 'generation') return Response.json({ generation: 0 })
+        if (action === 'add') return Response.json({ ok: true, value: { accepted: true } })
+        return Response.json({ active: true })
+      }),
+      GUEST_STORE: makeDoNamespace(async (req) => {
+        guestStoreCalls.push(new URL(req.url).pathname.replace(/^\//, ''))
+        return new Response(null, { status: 204 })
+      }),
+    } as unknown as Env
+
+    const app = await makeApp()
+    const res = await app.request(
+      '/auth/passkey/register/verify',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: '__Host-xid.anon=anon-x' },
+        body: JSON.stringify({
+          id: 'cred-id',
+          rawId: 'Y3JlZC1pZA',
+          response: {
+            clientDataJSON: 'Y2xpZW50RGF0YQ',
+            attestationObject: 'YXR0ZXN0YXRpb25PYmplY3Q',
+          },
+        }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(db.users.update).toHaveBeenCalledWith(
+      { provisionedBy: 'hosted_passkey' },
+      expect.anything(),
+    )
+    // session 轮换:旧 guest session 吊销 + 新 session 签发(amr 不含 guest)。
+    expect(db.sessions.update).toHaveBeenCalledWith({ status: 'revoked' }, expect.anything())
+    expect(db.sessions.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', amr: ['phr'] }),
+    )
+    expect(auditSend).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'guest.converted', actorId: 'user-1' }),
+    )
+    expect(guestStoreCalls).toContain('unbind')
   })
 
   it('returns 400 when challenge is missing', async () => {

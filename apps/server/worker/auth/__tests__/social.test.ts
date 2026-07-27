@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   resolveTenantContextById: vi.fn(),
+  USER_PROVISIONED_BY_ANONYMOUS: 'anonymous',
   schema: {
     userIdentities: {
       provider: 'provider',
@@ -14,7 +15,7 @@ vi.mock('@xid-kit/db', () => ({
       userId: 'userId',
     },
     userEmails: { email: 'email', userId: 'userId' },
-    users: { id: 'id' },
+    users: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
     sessions: { id: 'id', userId: 'userId' },
     memberships: { userId: 'userId', status: 'status', orgId: 'orgId' },
     organizations: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
@@ -898,6 +899,100 @@ describe('GET /auth/:provider/authorize', () => {
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe('http://localhost:5174/console')
     expect(res.headers.get('set-cookie')).toContain('__Host-xid.rt.')
+  })
+
+  it('guest 转正:分支 D 持有效 guest session -> identity 挂到 guest user,不新建 user', async () => {
+    const auditSend = vi.fn().mockResolvedValue(undefined)
+    const guestStoreCalls: string[] = []
+    const env = {
+      ...githubCallbackEnv(auditSend),
+      GUEST_STORE: makeOAuthFlowDoNamespace(async (req) => {
+        guestStoreCalls.push(new URL(req.url).pathname.replace(/^\//, ''))
+        return new Response(null, { status: 204 })
+      }),
+    } as unknown as Env
+    const db = {
+      userIdentities: {
+        findOne: vi.fn().mockResolvedValue(undefined),
+        insert: vi.fn().mockResolvedValue({ id: 'ident-new' }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      userEmails: { findOne: vi.fn().mockResolvedValue(undefined) },
+      users: {
+        findOne: vi.fn().mockResolvedValue({
+          id: 'user-guest',
+          status: 'active',
+          deletedAt: null,
+          provisionedBy: 'anonymous',
+        }),
+        insert: vi.fn(),
+        update: vi.fn().mockResolvedValue([]),
+      },
+      memberships: { findMany: vi.fn().mockResolvedValue([]) },
+      organizations: { findMany: vi.fn().mockResolvedValue([]) },
+      sessions: {
+        insert: vi.fn().mockImplementation((row: Record<string, unknown>) =>
+          Promise.resolve({
+            ...row,
+            activeOrgId: row['activeOrgId'] ?? null,
+            isImpersonation: false,
+            impersonatorUserId: null,
+          }),
+        ),
+        update: vi.fn().mockResolvedValue([]),
+      },
+    }
+    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    const { registerSocialRoutes } = await import('../social')
+    const app = new Hono<XidHonoEnv>()
+    app.onError(testErrorHandler)
+    app.use('*', async (c, next) => {
+      c.set('tenant', {
+        ...makeTenant(),
+        policy: {
+          hostedAuth: makeHostedAuthPolicy(),
+          socialProviders: { github: makeGithubPolicy() },
+        },
+      } as unknown as TenantVar)
+      // live guest session:amr 含 guest,转正后由 MFA gate + issueSession 轮换。
+      c.set('session', {
+        sessionId: 'sess-guest',
+        userId: 'user-guest',
+        status: 'active',
+        activeOrgId: null,
+        authenticatedAt: new Date(),
+        lastActiveAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000),
+        rememberMe: false,
+        isImpersonation: false,
+        impersonatorUserId: null,
+        acr: 'urn:xid:aal1',
+        amr: ['guest'],
+        aal: 1,
+      } as never)
+      await next()
+    })
+    registerSocialRoutes(app)
+
+    const res = await app.request(
+      '/auth/github/callback?code=authcode&state=valid-state',
+      { method: 'GET', headers: { cookie: '__Host-xid.anon=anon-x' } },
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    // identity 挂到 guest user;social 建号不写 provisionedBy,转正同样置 null。
+    expect(db.userIdentities.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-guest', provider: 'github' }),
+    )
+    expect(db.users.insert).not.toHaveBeenCalled()
+    expect(db.users.update).toHaveBeenCalledWith({ provisionedBy: null }, expect.anything())
+    // session 轮换:旧 guest session 吊销。
+    expect(db.sessions.update).toHaveBeenCalledWith({ status: 'revoked' }, expect.anything())
+    expect(auditSend).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'guest.converted', actorId: 'user-guest' }),
+    )
+    expect(guestStoreCalls).toContain('unbind')
   })
 
   it('forceSso 时 callback 不交换 code 不创建用户不签发 session', async () => {

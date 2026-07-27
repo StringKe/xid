@@ -27,10 +27,12 @@ import { requestIp, requestUserAgent, verifyTurnstile } from './shared'
 import { assertEmailAllowed, assertMethodAllowed } from '../auth/hosted-policy'
 import { auditPolicyDeniedError } from '../auth/hosted-audit'
 import { normalizeProfileFields } from '../auth/profile-fields'
-import type { ProfileFieldInput } from '../auth/profile-fields'
+import type { NormalizedProfileFields, ProfileFieldInput } from '../auth/profile-fields'
 import { issueEmailVerification } from './email-verify-token'
 import { loginHintCandidates, resolveEntryTenant, withTenant } from './instance-login'
 import { ensureDefaultMembership, shouldSkipDefaultMembership } from './passwordless-users'
+import { loadGuestConversionContext, markGuestConverted } from './guest-conversion'
+import type { GuestConversionContext } from './guest-conversion'
 import {
   postAuthRedirectPath,
   resolvePostAuthMfaGate,
@@ -232,6 +234,27 @@ async function createUserWithPassword(opts: {
     throw new AppError('invalid_credentials')
   }
 
+  // guest 转正:持有效 guest session 时不新建 user,凭证挂到当前 guest user。
+  // email 已被本租户其他 user 占用时走不到这里(resolveUserByIdentifier 命中 -> 登录路径
+  // -> invalid_credentials),枚举防护口径不变。
+  const guest = await loadGuestConversionContext(c, db)
+  if (guest) {
+    return convertGuestWithPassword({
+      c,
+      tenant,
+      db,
+      guest,
+      identifier,
+      password,
+      rememberMe,
+      profile,
+      requireEmailVerification,
+      invitationToken,
+      intent,
+      continueParam,
+    })
+  }
+
   const userId = crypto.randomUUID()
   const emailId = profile.email ? crypto.randomUUID() : null
   const phoneId = profile.phone ? crypto.randomUUID() : null
@@ -316,6 +339,127 @@ async function createUserWithPassword(opts: {
   })
   if (mfaGate.redirectUrl) {
     return { nextStep: 'complete', redirectUrl: mfaGate.redirectUrl }
+  }
+  const redirectUrl = await resolvePasswordSignInRedirect(c, {
+    db,
+    tenant,
+    userId,
+    sessionId: issued.session.sessionId,
+    invitationToken,
+    intent,
+    continueParam,
+  })
+  return { nextStep: 'complete', ...(redirectUrl ? { redirectUrl } : {}) }
+}
+
+// guest 转正(password 仪式):email/phone 挂为未验证主联系方式,补写 profile 列,写 passwords 行,
+// 然后走统一转正钩子。与新建路径的差异:不 insert users、不补默认 membership(guest 已有账号);
+// session 一律轮换签发 -- guest 原本就持 session,只吊销不补发会把用户踢成匿名态。
+async function convertGuestWithPassword(opts: {
+  c: Context<XidHonoEnv>
+  tenant: TenantVar
+  db: ReturnType<typeof createTenantDb>
+  guest: GuestConversionContext
+  identifier: ParsedIdentifier
+  password: string
+  rememberMe: boolean
+  profile: NormalizedProfileFields
+  requireEmailVerification: boolean
+  invitationToken?: string | null
+  intent?: string | null
+  continueParam?: string | null
+}): Promise<PasswordAuthResponse> {
+  const {
+    c,
+    tenant,
+    db,
+    guest,
+    identifier,
+    password,
+    rememberMe,
+    profile,
+    requireEmailVerification,
+    invitationToken,
+    intent,
+    continueParam,
+  } = opts
+  const userId = guest.userId
+  const emailId = profile.email ? crypto.randomUUID() : null
+  const phoneId = profile.phone ? crypto.randomUUID() : null
+  if (profile.email && emailId) {
+    await db.userEmails.insert({
+      id: emailId,
+      tenantId: tenant.tenantId,
+      userId,
+      email: profile.email,
+      verified: false,
+      verificationStatus: 'unverified',
+      isPrimary: true,
+    })
+  }
+  if (profile.phone && phoneId) {
+    await db.userPhones.insert({
+      id: phoneId,
+      tenantId: tenant.tenantId,
+      userId,
+      phone: profile.phone,
+      verified: false,
+      verificationStatus: 'unverified',
+      isPrimary: true,
+    })
+  }
+  await db.users.update(
+    {
+      username: profile.username,
+      externalId: identifier.kind === 'external_id' ? identifier.value : null,
+      primaryEmailId: emailId,
+      primaryPhoneId: phoneId,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      displayName: profile.displayName,
+      profileCompletionStatus: profile.profileCompletionStatus,
+    },
+    eq(schema.users.id, userId),
+  )
+
+  const passwordHash = await hashPassword(password, c.env.PEPPER)
+  await db.passwords.insert({
+    id: crypto.randomUUID(),
+    tenantId: tenant.tenantId,
+    userId,
+    hash: passwordHash.hash,
+    algo: passwordHash.algo,
+    pepperVersion: passwordHash.pepperVersion,
+    reuseTag: await passwordReuseTag(password, c.env.PEPPER),
+  })
+
+  await markGuestConverted({ c, tenant, db, guest, provisionedBy: 'hosted_password' })
+
+  const returnPath = postAuthRedirectPath({ invitationToken, intent, continueParam })
+  const now = new Date()
+  const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath })
+  const sessionId = crypto.randomUUID()
+  const issued = await issueSession(c, {
+    sessionId,
+    userId,
+    ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
+    authContext: PASSWORD_AUTH_CONTEXT,
+    authenticatedAt: now,
+    rememberMe,
+    ip: requestIp(c),
+    userAgent: requestUserAgent(c),
+  })
+  if (mfaGate.redirectUrl) {
+    return { nextStep: 'complete', redirectUrl: mfaGate.redirectUrl }
+  }
+  if (requireEmailVerification && profile.email) {
+    await issueEmailVerification({
+      env: c.env,
+      tenant,
+      userId,
+      email: profile.email,
+    })
+    return { nextStep: 'verify_email' }
   }
   const redirectUrl = await resolvePasswordSignInRedirect(c, {
     db,
