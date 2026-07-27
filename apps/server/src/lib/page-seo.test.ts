@@ -57,7 +57,6 @@ function seedDocument(): void {
           attrs.set(name, value)
           if (name === 'id') this.id = value
           if (name === 'rel') this.rel = value
-          if (name === 'href') this.href = value
         },
         getAttribute(name: string) {
           if (name === 'href') return this.href || attrs.get(name) || null
