@@ -5,6 +5,8 @@ export const PACKAGE = '@xid-kit/db'
 
 // Drizzle schema(字段级对齐 08 章)。
 export * as schema from './schema'
+// users.provisioned_by 取值登记(常量定义在 schema/users.ts,此处给不带 schema 命名空间的引用方)。
+export { USER_PROVISIONED_BY_ANONYMOUS } from './schema/users'
 // 租户查询层(P0 隔离):createTenantDb + 类型。
 export { createTenantDb } from './tenant-db'
 export type { TenantDb, OrgScopedDb, TenantScoped } from './tenant-db'

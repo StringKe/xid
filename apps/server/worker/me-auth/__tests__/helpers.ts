@@ -98,14 +98,35 @@ export function makeSessionNs(): DurableObjectNamespace {
   } as unknown as DurableObjectNamespace
 }
 
+// GuestStore DO 默认 fake:无绑定(lookup 404),bind 直接胜出。需要既有绑定/竞争落败语义的测试
+// 经 MakeEnvOptions.guestStoreNs 注入自己的 stateful fake。
+export function makeGuestStoreNs(): DurableObjectNamespace {
+  return {
+    idFromName: (name: string) => name as unknown as DurableObjectId,
+    get: () =>
+      ({
+        fetch: async (url: string, init?: RequestInit) => {
+          const action = new URL(url).pathname.replace(/^\//, '')
+          if (action === 'lookup') return new Response('Not Found', { status: 404 })
+          if (action === 'unbind') return new Response(null, { status: 204 })
+          const body = JSON.parse(String(init?.body ?? '{}')) as { userId?: string }
+          return Response.json({ userId: body.userId ?? '', created: true })
+        },
+      }) as unknown as DurableObjectStub,
+  } as unknown as DurableObjectNamespace
+}
+
 export type MakeEnvOptions = {
   rateLimitAllowed?: boolean
   emailSend?: ReturnType<typeof vi.fn>
   smsSend?: ReturnType<typeof vi.fn>
   whatsappSend?: ReturnType<typeof vi.fn>
   auditSend?: ReturnType<typeof vi.fn>
+  meteringSend?: ReturnType<typeof vi.fn>
+  analyticsWrite?: ReturnType<typeof vi.fn>
   oauthStateNs?: DurableObjectNamespace
   webauthnNs?: DurableObjectNamespace
+  guestStoreNs?: DurableObjectNamespace
   smsProvider?: 'twilio' | 'vonage'
   whatsappProvider?: 'twilio' | 'meta'
 }
@@ -117,6 +138,8 @@ export function makeEnv(options: MakeEnvOptions = {}): Env {
     whatsappSend = vi.fn(),
     smsSend = vi.fn(),
     auditSend = vi.fn(),
+    meteringSend = vi.fn(),
+    analyticsWrite = vi.fn(),
   } = options
   return {
     DB: {} as D1Database,
@@ -126,10 +149,13 @@ export function makeEnv(options: MakeEnvOptions = {}): Env {
     } as unknown as KVNamespace,
     RATE_LIMITER: makeRateLimitNs(rateLimitAllowed),
     SESSION_REVOCATION: makeSessionNs(),
+    GUEST_STORE: options.guestStoreNs ?? makeGuestStoreNs(),
     EMAIL_QUEUE: { send: emailSend } as unknown as Queue,
     WHATSAPP_QUEUE: { send: whatsappSend } as unknown as Queue,
     SMS_QUEUE: { send: smsSend } as unknown as Queue,
     AUDIT_QUEUE: { send: auditSend } as unknown as Queue,
+    METERING_QUEUE: { send: meteringSend } as unknown as Queue,
+    ANALYTICS: { writeDataPoint: analyticsWrite } as unknown as AnalyticsEngineDataset,
     OAUTH_STATE: options.oauthStateNs ?? makeSessionNs(),
     WEBAUTHN_CHALLENGE: options.webauthnNs ?? makeSessionNs(),
     KEK: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',

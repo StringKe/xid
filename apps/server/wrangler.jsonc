@@ -121,6 +121,7 @@
       { "name": "RATE_LIMITER", "class_name": "RateLimitStore" },
       { "name": "AUDIT_SEQ", "class_name": "AuditSeqDO" },
       { "name": "METERING", "class_name": "MeteringDO" },
+      { "name": "GUEST_STORE", "class_name": "GuestStore" },
     ],
   },
   // 重建生产 D1 时不需要、也不能靠这里清 DO 状态。
@@ -150,6 +151,10 @@
         "AuditSeqDO",
         "MeteringDO",
       ],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["GuestStore"],
     },
   ],
   "triggers": {

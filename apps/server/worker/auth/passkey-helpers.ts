@@ -81,15 +81,25 @@ function isChallengeConsumeBody(value: unknown): value is { value: string } {
   )
 }
 
+// 匿名 session key cookie 名(passkey challenge 与 guest 模式共用)。
+export const ANON_KEY_COOKIE = '__Host-xid.anon'
+
+// 只读匿名 session key(不存在返回 null,不生成);guest 模式据此决定是否走 GuestStore 去重。
+export function readAnonKey(c: Context<XidHonoEnv>): string | null {
+  return (
+    c.req
+      .header('cookie')
+      ?.split(';')
+      .map((s) => s.trim())
+      .find((s) => s.startsWith(`${ANON_KEY_COOKIE}=`))
+      ?.split('=')[1] ?? null
+  )
+}
+
 // 从 request 取匿名 session key(cookie 或 header),用于 challenge DO id 派生。
 // 不存在时生成新 key 并通过 Set-Cookie 设置(httpOnly + SameSite=Strict)。
 export function getOrCreateAnonKey(c: Context<XidHonoEnv>): string {
-  const existing = c.req
-    .header('cookie')
-    ?.split(';')
-    .map((s) => s.trim())
-    .find((s) => s.startsWith('__Host-xid.anon='))
-    ?.split('=')[1]
+  const existing = readAnonKey(c)
   if (existing) return existing
   return base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
 }

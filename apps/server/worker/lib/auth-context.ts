@@ -38,6 +38,13 @@ export const SMS_OTP_AUTH_CONTEXT: AuthContextData = {
 
 export const MAGIC_LINK_AUTH_CONTEXT: AuthContextData = EMAIL_OTP_AUTH_CONTEXT
 
+// guest(匿名访客)session:amr 含 'guest',AAL1(无任何凭证校验,见 01 章 guest 模式)。
+export const GUEST_AUTH_CONTEXT: AuthContextData = {
+  acr: ACR_AAL1,
+  amr: ['guest'],
+  aal: 1,
+}
+
 export const SOCIAL_AUTH_CONTEXT: AuthContextData = {
   acr: ACR_AAL1,
   amr: ['pwd'],

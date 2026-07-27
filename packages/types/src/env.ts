@@ -75,6 +75,7 @@ export type Env = {
   DEVICE_FLOW: DurableObjectNamespace
   AUDIT_SEQ: DurableObjectNamespace
   METERING: DurableObjectNamespace
+  GUEST_STORE: DurableObjectNamespace
 
   // Queues(异步,见 cloudflare-bindings rule)
   EMAIL_QUEUE: Queue<EmailQueueMessage>

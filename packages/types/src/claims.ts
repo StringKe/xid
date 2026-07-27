@@ -2,8 +2,8 @@
 // 对照 docs/design/03-oidc-oauth.md 第 3 节与 9.1、05 章 8.1 完整 claims 规格。
 // 铁律:禁止覆盖 IANA 标准 claims(iss/sub/aud/exp/iat/nbf/jti)。
 
-// amr 认证方法(见 05 章 8.1:passkey=phr / 密码=pwd / OTP=otp;MFA 含多个)
-export const AMR_VALUES = ['phr', 'pwd', 'otp', 'mfa', 'sms', 'email'] as const
+// amr 认证方法(见 05 章 8.1:passkey=phr / 密码=pwd / OTP=otp;MFA 含多个;guest=匿名访客 session)
+export const AMR_VALUES = ['phr', 'pwd', 'otp', 'mfa', 'sms', 'email', 'guest'] as const
 export type AmrValue = (typeof AMR_VALUES)[number]
 
 // RFC8693 token exchange 委托链:act claim(见 05 章 8.1、03 章 9.5)

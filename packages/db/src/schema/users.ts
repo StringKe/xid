@@ -5,6 +5,11 @@ import { sql } from 'drizzle-orm'
 import { blob, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, numCol, tenantId, timestamps, tsMs } from './common'
 
+// users.provisioned_by 取值登记:text 字段无枚举,新值在此登记后才允许写入。
+// 既有值:hosted_password / hosted_passwordless / hosted_passkey / jit_sso / bootstrap / scim。
+// hosted_passkey:guest 转正经 passkey 注册仪式(passkey 无独立建号路径,仅转正使用)。
+export const USER_PROVISIONED_BY_ANONYMOUS = 'anonymous'
+
 // 11.1 users(平台级用户主体;即 JWT sub)
 export const users = sqliteTable(
   'users',

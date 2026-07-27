@@ -31,6 +31,15 @@ class MockDurableObjectStorage {
     return this.data.delete(key) ? 1 : 0
   }
 
+  // transaction:模拟 DO 事务期间并发 storage 操作被阻塞的语义(互斥串行)。
+  private txnChain: Promise<unknown> = Promise.resolve()
+
+  async transaction<T>(fn: (txn: MockDurableObjectStorage) => Promise<T>): Promise<T> {
+    const run = this.txnChain.then(() => fn(this))
+    this.txnChain = run.catch(() => undefined)
+    return run
+  }
+
   async list<T>(): Promise<Map<string, T>> {
     return new Map(this.data) as Map<string, T>
   }

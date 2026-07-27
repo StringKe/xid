@@ -28,11 +28,15 @@ import { handleSessionToken } from './session-token'
 import { handleActiveOrganization } from './active-organization'
 import { handleInvitationAccept, handleInvitationPreview } from './invitation-accept'
 import { handleSelfOrganizationCreate } from './organization-self'
+import { handleGuestSignIn } from './guest'
 
 export function registerSessionAuthRoutes(app: Hono<XidHonoEnv>): void {
   // 密码统一登录和创建 / 登出
   app.post('/auth/password/sign-in', handlePasswordSignIn)
   app.post('/auth/sign-out', handleSignOut)
+
+  // guest(匿名访客)登录:先查后建 + GuestStore 并发去重
+  app.post('/auth/guest', handleGuestSignIn)
 
   // passkey(发现式登录:challenge handle 走响应体 sessionId)
   app.post('/auth/passkey/challenge', handlePasskeyChallenge)

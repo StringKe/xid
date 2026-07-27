@@ -7,6 +7,7 @@ vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   schema: {
     meteringOutbox: { userId: 'userId', day: 'day' },
+    USER_PROVISIONED_BY_ANONYMOUS: 'anonymous',
   },
 }))
 
@@ -130,6 +131,27 @@ describe('recordAuthenticatedSession', () => {
     })
     expect(queueSend).not.toHaveBeenCalled()
     expect(writeDataPoint).not.toHaveBeenCalled()
+  })
+
+  it('excludes guest (provisioned_by anonymous) sessions from MAU metering but keeps analytics', async () => {
+    vi.mocked(createTenantDb).mockClear()
+    const { env, queueSend, writeDataPoint } = makeEnv({ queueRejects: true })
+    await recordAuthenticatedSession({
+      env,
+      tenant: tenant(),
+      userId: 'user_guest',
+      status: 'active',
+      timestamp: 1_700_000_000_000,
+      provisionedBy: 'anonymous',
+    })
+    // 计量排除:queue 与 outbox 兜底同路径跳过(createTenantDb 不应被触达)。
+    expect(queueSend).not.toHaveBeenCalled()
+    expect(createTenantDb).not.toHaveBeenCalled()
+    expect(writeDataPoint).toHaveBeenCalledWith({
+      indexes: ['tenant_1'],
+      blobs: ['auth.login_success'],
+      doubles: [1],
+    })
   })
 
   it('contains outbox and analytics failures without rejecting successful authentication', async () => {
