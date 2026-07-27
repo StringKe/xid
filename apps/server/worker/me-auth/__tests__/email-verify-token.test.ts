@@ -42,7 +42,31 @@ describe('verifyEmailVerifyJwt', () => {
     vi.mocked(verifyJwt).mockReset()
   })
 
-  it('returns jti when JWT verifies with email_verification purpose', async () => {
+  it('returns jti, userId, and exact email hash when JWT verifies', async () => {
+    const emailHash = 'a'.repeat(64)
+    vi.mocked(verifyJwt).mockResolvedValue({
+      ok: true,
+      value: {
+        payload: {
+          sub: 'user_1',
+          jti: 'jti_abc',
+          purpose: 'email_verification',
+          email_hash: emailHash,
+          intent: 'sign-up',
+        },
+        header: { alg: 'ES256', kid: 'k1' },
+      },
+    })
+    await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).resolves.toEqual({
+      jti: 'jti_abc',
+      userId: 'user_1',
+      emailHash,
+      intent: 'sign-up',
+    })
+    expect(buildVerifyKeySet).toHaveBeenCalledWith(TENANT)
+  })
+
+  it('rejects a token without the exact email_hash target', async () => {
     vi.mocked(verifyJwt).mockResolvedValue({
       ok: true,
       value: {
@@ -50,8 +74,9 @@ describe('verifyEmailVerifyJwt', () => {
         header: { alg: 'ES256', kid: 'k1' },
       },
     })
-    await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).resolves.toBe('jti_abc')
-    expect(buildVerifyKeySet).toHaveBeenCalledWith(TENANT)
+    await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).rejects.toMatchObject({
+      code: 'token_invalid',
+    })
   })
 
   it('throws token_expired when verifyJwt reports expiry', async () => {
@@ -68,6 +93,43 @@ describe('verifyEmailVerifyJwt', () => {
     vi.mocked(verifyJwt).mockResolvedValue({
       ok: true,
       value: { payload: { sub: 'user_1', jti: 'jti', purpose: 'magic_link' }, header: {} },
+    })
+    await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).rejects.toMatchObject({
+      code: 'token_invalid',
+    })
+  })
+
+  it('throws token_invalid for malformed email_hash', async () => {
+    vi.mocked(verifyJwt).mockResolvedValue({
+      ok: true,
+      value: {
+        payload: {
+          sub: 'user_1',
+          jti: 'jti',
+          purpose: 'email_verification',
+          email_hash: 'not-a-hash',
+        },
+        header: {},
+      },
+    })
+    await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).rejects.toMatchObject({
+      code: 'token_invalid',
+    })
+  })
+
+  it('throws token_invalid for an unsupported signed intent', async () => {
+    vi.mocked(verifyJwt).mockResolvedValue({
+      ok: true,
+      value: {
+        payload: {
+          sub: 'user_1',
+          jti: 'jti',
+          purpose: 'email_verification',
+          email_hash: 'a'.repeat(64),
+          intent: 'admin',
+        },
+        header: {},
+      },
     })
     await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).rejects.toMatchObject({
       code: 'token_invalid',

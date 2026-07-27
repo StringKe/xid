@@ -275,7 +275,7 @@ app.get('/', async (c) => {
 
   const user: MeUser = {
     id: userRow.id,
-    email: primaryEmail?.email ?? '',
+    email: primaryEmail?.email ?? userRow.pendingEmail ?? '',
     emailVerified: primaryEmail?.verified ?? false,
     name: resolveName(userRow),
     imageUrl: userRow.avatarUrl ?? null,

@@ -904,6 +904,69 @@ describe('GET /auth/:provider/authorize', () => {
     },
   )
 
+  it('sign-up callback redirects to fixed create organization path', async () => {
+    const env = makeEnv(async (req) => {
+      const url = new URL(req.url)
+      if (url.pathname === '/consume') {
+        return new Response(
+          JSON.stringify({
+            record: {
+              tenantId: 'tenant-1',
+              provider: 'github',
+              codeVerifier: 'cv',
+              nonce: 'nonce',
+              redirectAfterLogin: '/create-organization',
+              returnToOrigin: 'https://test.xid.dev',
+              createdAt: Date.now(),
+              intent: 'sign-up',
+              skipDefaultMembership: true,
+            },
+          }),
+          { status: 200 },
+        )
+      }
+      return new Response(null, { status: 201 })
+    })
+    const db = {
+      userIdentities: {
+        findOne: vi.fn().mockResolvedValue({ id: 'ident_1', userId: 'user-1' }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      users: {
+        findOne: vi.fn().mockResolvedValue({ id: 'user-1', status: 'active', deletedAt: null }),
+      },
+      memberships: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      organizations: {
+        findOne: vi.fn().mockResolvedValue(undefined),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      sessions: {
+        insert: vi.fn().mockImplementation((row: Record<string, unknown>) =>
+          Promise.resolve({
+            ...row,
+            activeOrgId: row['activeOrgId'] ?? null,
+            isImpersonation: false,
+            impersonatorUserId: null,
+          }),
+        ),
+      },
+    }
+    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    const app = await makeGithubPolicyApp({ provider: { redirectUris: ['/account'] } })
+
+    const res = await app.request(
+      'https://test.xid.dev/auth/github/callback?code=authcode&state=valid-state',
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('https://test.xid.dev/create-organization')
+    expect(db.sessions.insert).toHaveBeenCalledWith(expect.objectContaining({ activeOrgId: null }))
+  })
+
   it('guest 转正:分支 D 持有效 guest session -> identity 挂到 guest user,不新建 user', async () => {
     const auditSend = vi.fn().mockResolvedValue(undefined)
     const guestStoreCalls: string[] = []

@@ -61,12 +61,45 @@ vi.mock('./usePasskeySignIn', () => ({
   },
 }))
 
-import { useSignIn } from './useSignIn'
+import { buildSocialAuthorizeUrl, useSignIn } from './useSignIn'
 
 function Capture(): ReactNode {
   useSignIn()
   return null
 }
+
+describe('social OAuth authorize URL', () => {
+  it('routes sign-up through organization creation and preserves the intent', () => {
+    const url = buildSocialAuthorizeUrl({
+      origin: 'https://xid.dev',
+      provider: 'github',
+      hostedReturn: '/console',
+      signUpIntent: true,
+      identifier: 'owner@example.com',
+      organizationId: undefined,
+      turnstileToken: null,
+    })
+
+    expect(url.pathname).toBe('/auth/github/authorize')
+    expect(url.searchParams.get('continue')).toBe('/create-organization')
+    expect(url.searchParams.get('intent')).toBe('sign-up')
+  })
+
+  it('keeps the hosted return and omits the intent for normal sign-in', () => {
+    const url = buildSocialAuthorizeUrl({
+      origin: 'https://xid.dev',
+      provider: 'github',
+      hostedReturn: '/account',
+      signUpIntent: false,
+      identifier: '',
+      organizationId: undefined,
+      turnstileToken: null,
+    })
+
+    expect(url.searchParams.get('continue')).toBe('/account')
+    expect(url.searchParams.has('intent')).toBe(false)
+  })
+})
 
 describe('useSignIn passkey policy gate', () => {
   it('does not enable passkey conditional UI when default Hosted Auth disables passkey', () => {

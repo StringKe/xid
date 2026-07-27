@@ -117,7 +117,7 @@ describe('useSignIn guest entry', () => {
     await cleanup()
   })
 
-  it('on success refreshes the session and navigates like any other sign-in', async () => {
+  it('on success refreshes the session and always opens organization creation', async () => {
     postCalls.length = 0
     routerState.search = {}
     authState.refresh.mockClear()
@@ -130,7 +130,7 @@ describe('useSignIn guest entry', () => {
     })
 
     expect(authState.refresh).toHaveBeenCalledTimes(1)
-    expect(routerState.navigate).toHaveBeenCalledWith('/console', { replace: true })
+    expect(routerState.navigate).toHaveBeenCalledWith('/create-organization', { replace: true })
     expect(captured()[0].error).toBeNull()
     await cleanup()
   })

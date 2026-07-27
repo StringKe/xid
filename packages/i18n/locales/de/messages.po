@@ -1324,6 +1324,7 @@ msgstr "CanActivateFn-Factory"
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -1342,6 +1343,10 @@ msgstr "Passwort ändern"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Changes are previewed in an iframe sandbox before being published. Preview and live states are kept separate."
 msgstr "Änderungen werden in einer iframe-Sandbox vorschaubar gemacht, bevor sie veröffentlicht werden. Vorschau- und Live-Zustände bleiben getrennt."
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Check your connection and try again."
+msgstr "Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut."
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Check your email"
@@ -1485,6 +1490,10 @@ msgstr "Taktversatztoleranz für exp/nbf."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Clock skew tolerance in seconds"
 msgstr "Taktversatztoleranz in Sekunden"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Close"
+msgstr "Schließen"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Close diagram"
@@ -1648,6 +1657,10 @@ msgstr "Verbindungen | Konto | XID"
 msgid "Console"
 msgstr "Konsole"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Console is read-only"
+msgstr "Die Konsole ist schreibgeschützt"
+
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Console overview | XID"
 msgstr "Konsolenübersicht | | XID"
@@ -1776,8 +1789,8 @@ msgid "Could not copy"
 msgstr "Kopieren fehlgeschlagen"
 
 #: apps/server/src/routes/create-organization/index.tsx
-msgid "Could not create organization. Choose a different slug and try again."
-msgstr "in."
+msgid "Could not create organization. Check the email and slug, then try again."
+msgstr "Die Organisation konnte nicht erstellt werden. Überprüfen Sie die E-Mail-Adresse und den Slug und versuchen Sie es erneut."
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Could not switch organization. Try again."
@@ -2423,6 +2436,7 @@ msgstr "Electron-SDK mit PKCE-Flow im Hauptprozess, contextBridge-Preload,OS-Key
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
+#: apps/server/src/routes/create-organization/index.tsx
 msgid "Email"
 msgstr "E-Mail"
 
@@ -2447,6 +2461,10 @@ msgstr "E-Mail-OTP"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Email template branding"
 msgstr "E-Mail-Vorlagen-Branding"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Email verification required"
+msgstr "E-Mail-Verifizierung erforderlich"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Embedded sign-in panel (Hosted Auth)"
@@ -4895,6 +4913,10 @@ msgstr "Open-Source-Identitätsplattform"
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
 msgstr "Systembrowser mit PKCE-S256-Autorisierungs-URL öffnen; Code eintauschenund XidSession zurückgeben."
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Open the link in your inbox, then sign in again."
+msgstr "Öffnen Sie den Link in Ihrem Posteingang und melden Sie sich anschließend erneut an."
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Open this page from the CIBA authorization link that includes auth_req_id."
 msgstr "Öffnen Sie diese Seite über den CIBA-Autorisierungslink mit auth_req_id."
@@ -6295,6 +6317,7 @@ msgid "Resend code"
 msgstr "Code erneut senden"
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "Verifizierungs-E-Mail erneut senden"
 
@@ -6856,6 +6879,14 @@ msgstr "Selektor xid-sign-out-button; Eingaben sessionId, redirectUrl, ariaLabel
 msgid "Self-hosting"
 msgstr "Self-Hosting"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to {email}. The Console stays read-only until you use it."
+msgstr "Senden Sie einen Verifizierungslink an {email}. Die Konsole bleibt schreibgeschützt, bis Sie ihn verwenden."
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send a verification link to your email. The Console stays read-only until you use it."
+msgstr "Senden Sie einen Verifizierungslink an Ihre E-Mail-Adresse. Die Konsole bleibt schreibgeschützt, bis Sie ihn verwenden."
+
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Send an invitation"
 msgstr "Eine Einladung senden"
@@ -6884,6 +6915,10 @@ msgstr "Magischen Link senden"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Send reset link"
 msgstr "Reset-Link senden"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Send verification email"
+msgstr "Verifizierungs-E-Mail senden"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Sender"
@@ -7865,6 +7900,10 @@ msgstr "Dieses Gerät"
 msgid "This documentation version is no longer maintained"
 msgstr "Diese Dokumentationsversion wird nicht mehr gepflegt"
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "This email belongs to your signed-in account."
+msgstr "Diese E-Mail-Adresse gehört zu Ihrem angemeldeten Konto."
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation has already been accepted."
 msgstr "Diese Einladung wurde bereits angenommen."
@@ -8053,6 +8092,10 @@ msgstr "Zu viele Versuche. Bitte warten Sie einen Moment und versuchen Sie es er
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Too many attempts. Please wait before trying again."
 msgstr "Zu viele Versuche. Bitte warten Sie, bevor Sie es erneut versuchen."
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Too many requests"
+msgstr "Zu viele Anfragen"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
@@ -8522,6 +8565,14 @@ msgstr "Verifizierung"
 msgid "Verification code"
 msgstr "Verifizierungscode"
 
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email not sent"
+msgstr "Verifizierungs-E-Mail nicht gesendet"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Verification email sent"
+msgstr "Verifizierungs-E-Mail gesendet"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Verification failed. Please try again."
 msgstr "Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut."
@@ -8547,6 +8598,11 @@ msgstr "Verifier-Entropie beträgt 64 Bytes; Challenge wird über Web Crypto<0>c
 msgid "Verify"
 msgstr "Verifizieren"
 
+#. placeholder {0}: user.email
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify {0} before creating or changing resources."
+msgstr "Verifizieren Sie {0}, bevor Sie Ressourcen erstellen oder ändern."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verify a JWT string, return <0>*Claims</0> or error."
 msgstr "Einen JWT-String prüfen, <0>*Claims</0> oder Fehler zurückgeben."
@@ -8554,6 +8610,10 @@ msgstr "Einen JWT-String prüfen, <0>*Claims</0> oder Fehler zurückgeben."
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Verify code"
 msgstr "Code verifizieren"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify email"
+msgstr "E-Mail verifizieren"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Verify email | XID"
@@ -8592,8 +8652,17 @@ msgid "Verify webhook request signature. Returns <0>*WebhookEvent</0> with raw b
 msgstr "Webhook-Anfrage-Signatur prüfen. Gibt bei Erfolg <0>*WebhookEvent</0> mitrohem Body zurück."
 
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Verify your email"
 msgstr "E-Mail verifizieren"
+
+#: packages/i18n/src/messages.ts
+msgid "Verify your email address before making changes."
+msgstr "Verifizieren Sie Ihre E-Mail-Adresse, bevor Sie Änderungen vornehmen."
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Verify your email before creating or changing resources."
+msgstr "Verifizieren Sie Ihre E-Mail-Adresse, bevor Sie Ressourcen erstellen oder ändern."
 
 #: apps/server/src/routes/consent/ScopeList.tsx
 msgid "Verify your identity"
@@ -8642,6 +8711,10 @@ msgstr "Vue-3-Plugin, Composables und Headless-Komponenten auf Basis von@xid-kit
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Vue plugin"
 msgstr "Vue-Plugin"
+
+#: packages/web-ui/src/session/EmailVerificationPanel.tsx
+msgid "Wait a minute before requesting another verification email."
+msgstr "Warten Sie eine Minute, bevor Sie eine weitere Verifizierungs-E-Mail anfordern."
 
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Waiting for passkey selection..."
@@ -8823,9 +8896,10 @@ msgstr "XID agiert derzeit als SAML Service Provider für Enterprise-IdPs. Der a
 msgid "XID developer document not found"
 msgstr "XID-Entwicklerdokument nicht gefunden"
 
+#. js-lingui-explicit-id
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID does not expose separate end-user registration and login products. Hosted Auth starts from the same identifier step and decides login or user creation from organization policy and account state."
-msgstr "XID stellt keine getrennten Produkte für Registrierung und Anmeldung von Endbenutzern bereit. Hosted Auth beginnt mit demselben Kennungsschritt und entscheidet anhand von Organisationsrichtlinie und Kontostatus über Anmeldung oder Benutzererstellung."
+msgid "BuOJPK"
+msgstr "XID stellt keine getrennten Produkte für Registrierung und Anmeldung von Endbenutzern bereit. Hosted Auth beginnt mit demselben Kennungsschritt und entscheidet anhand der Richtlinie der Organization und des Kontostatus über Anmeldung oder Benutzererstellung. Ein Gast oder eine Registrierung mit Zugangsdaten und intent=sign-up erstellt anschließend einen Top-Level Tenant mit Email, Organization name und URL slug. Die Email eines Gastes bleibt ausstehend, ohne eine Kontoadresse zu reservieren; der neue Eigentümer kann Console-Daten lesen und bestätigt diese Email vor der ersten geschäftlichen Änderung. Dieselbe Email in einem anderen Tenant bleibt ein separates Konto."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID exposes inbound SCIM Service Provider endpoints for external IdPs. Downstream SaaS SCIM push clients have local fake-SaaS evidence, but production support still requires real SaaS admin L4."
@@ -8934,6 +9008,10 @@ msgstr "Sie sind als Gast angemeldet. Nach der Abmeldung können dieses Konto un
 #: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "You can revoke these permissions at any time from your account settings."
 msgstr "Sie können diese Berechtigungen jederzeit in Ihren Kontoeinstellungen widerrufen."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You can verify this address from the Console."
+msgstr "Sie können diese Adresse in der Konsole verifizieren."
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "You do not belong to any organizations yet."

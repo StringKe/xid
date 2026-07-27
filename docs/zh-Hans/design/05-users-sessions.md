@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=fd8b361fb88c97bae1a8c08f66ba787e68baaaba -->
+<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=5aeaf21578eb43618028cca2e4ae00bdee799df5 -->
 
 > Translation of `docs/design/05-users-sessions.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/05-users-sessions.md`](../../design/05-users-sessions.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -9,7 +9,8 @@
 
 ### 功能点
 
-- 标准标识:email(多个)、phone(多个)、username,至少持其一
+- 标准标识:email(多个)、phone(多个)、username,注册完成后至少持其一。顶层 Tenant onboarding
+  期间,provisional guest 可以只持有 `pending_email`
 - 档案:first_name/last_name/display_name/avatar_url/locale/timezone
 - 主标识选举:primary_email_id/primary_phone_id,变更需重新验证
 - external_id:对接外部系统外键,租户级唯一,可按此查询关联
@@ -23,6 +24,8 @@
 ### 设计决策
 
 - email/phone 独立关联表,多值 + verified/primary 状态,UNIQUE 于 (tenant_id, email) 隔离租户
+- `users.pending_email` 是尚未证明控制权的 onboarding 值。`GET /v1/me` 把它作为当前 Email 返回,
+  同时 `emailVerified = false`;精确目标验证成功前,它不创建或占用 `user_emails`
 - external_id 加 (tenant_id, external_id) 唯一索引,允许 null
 - provisioned_by 记录用户来源:jit_sso/scim/signup/invite/admin,另有 anonymous 表示 POST /auth/guest 创建的 guest 用户(见 01 章 8)
 - 三层元数据各一 JSON 列不合并;private_metadata 默认不返回,仅 server context 显式请求
@@ -38,6 +41,16 @@
 - 登录方式组合:密码/passkey/magic link/OTP/OAuth/SSO,按租户策略启用禁用
 - 首登引导:is_new_user flag 在 session token,前端跳 onboarding
 - 邀请注册:invite token 绑定 email,接受后预填并跳过验证
+- guest sign-in 与所有携带 `intent=sign-up` 的 password、passwordless 或 social 注册在完成注册策略
+  要求的凭证验证后统一进入 `/create-organization`。password verification token 保留签名的
+  sign-up intent,验证后回到 `/sign-in?intent=sign-up`。页面要求 Email、Organization name 和
+  URL slug。guest Email 只存 pending,不在创建时发送验证;正常注册用户的 primary Email 预填且禁止修改
+- 只有 `is_new_user = true` 且没有 Membership 的用户可以创建顶层 Tenant。创建过程原子迁移其
+  user-owned 行和 sessions,写入 active owner Membership,并切换 active Organization。session id 与
+  opaque cookie 保持不变,实例根域通过 refresh token hash 解析新的 TenantContext
+- 未验证 owner 持有只读 Console session。Cookie session 的业务 mutation 返回 HTTP 403 和
+  `email_verification_required`;读取、onboarding、active Organization 切换、登出、Email 验证与
+  重发、账号安全操作保持可用。Console 不重放被拒绝的 mutation
 
 设计决策:注册策略存配置表不硬编码,每字段 required/optional/hidden 三态;progressive profiling 每步记 profile_completion_events 便于漏斗分析;magic link 和 OTP 共用短期 token 表,使用后立即 invalidate。
 
@@ -51,7 +64,7 @@
 
 核心实体 UserIdentity(见 08 章):一种登录方式到 User 的关联。
 
-guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_by = 'anonymous' 的 user)有效时,首个完成的凭证仪式把凭证挂到该 guest user,provisioned_by 改写为转正来源并轮换 session,sub 不变。例外是 email 占用路径:被验证的 email 属于本租户另一 user 时,占用事实只在用户证明邮箱控制权之后才揭示,并引导其正常登录该账号;此时 guest user 标 merged_into_user_id,sub 变化,guest 期间 RP 侧数据的合并是 RP 应用层职责(SDK 对比新旧 sub 并暴露合并钩子)。
+guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_by = 'anonymous' 的 user)有效时,首个完成的凭证仪式把凭证挂到该 guest user,provisioned_by 改写为转正来源,sub 不变。顶层 Tenant onboarding 采集 pending Email 不属于凭证仪式。精确目标验证在全新 Tenant 内创建 verified primary Email,清空 `pending_email`,原地转正 guest,吊销全部 guest session,并要求重新登录。下一张 token 的 sub 不变。同一 Email 在其他 Tenant 中是独立 tenant-local identity,不会触发 merge 或 ownership transfer。全新 Tenant 内的同 Tenant 冲突不是正常分支。
 
 ## 4. 验证(邮箱 / 手机)
 
@@ -60,6 +73,12 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
 - 状态机:unverified -> pending -> verified,或 -> expired
 - primary 变更:新 email/phone 先验证才可设 primary
 - 验证 token:短期表,purpose(email_verify/phone_verify/password_reset),15min,一次性
+- 每个 Email verification token 都携带签名 `email_hash`,不可变地绑定精确 normalized
+  `pending_email` 或 current primary Email 值。核销时对比当前值,只更新匹配目标;重发时先作废
+  同一目标的旧 active token
+- 验证 guest pending Email 后,在当前新 Tenant 写入 verified primary `user_emails` 行,吊销全部
+  guest session,并要求重新登录。Tenant-local 唯一性允许同一 normalized Email 存在于其他 Tenant;
+  后续登录由实例根域 resolver 提供 Tenant 选择
 
 ## 5. 用户状态与管理
 
@@ -70,7 +89,13 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
 - 搜索/过滤:email/username/status/created_at/external_id,D1 对 email/status 建索引
 - 用户导入(迁移):bulk JSON/CSV,密码哈希迁移支持 bcrypt/argon2/scrypt/MD5(兼容 Auth0);lazy migration:导入只存哈希,首次登录透明升级
 - 用户导出:NDJSON,含所有字段(private_metadata 按权限)
-- guest GC(见 01 章 8):cron 每日扫,软删最后活跃满 30 天的 guest 用户(provisioned_by = 'anonymous'),进入第 7 节同一套 soft delete -> 30 天宽限 -> 硬删 PII 管道
+- guest GC(见 01 章 8):cron 每日处理未验证且最后活跃满 30 天的 guest user
+  (`provisioned_by = 'anonymous'`)。D1 batch 第一条语句原子复核不活跃、验证状态、Membership 状态
+  和 Tenant 空闲条件。
+- claim 成功后软删除 guest、撤销 D1 和 SessionDO sessions、停用 Membership,并使可用凭证状态
+  失效。安全空闲的 onboarding 顶层 Tenant 与 guest 一起软删除。存在其他 active member、子
+  Organization 或业务资源时整组保持不变。保留行继续进入第 7 节的 soft delete -> 30 天宽限 ->
+  硬删 PII 管道。
 
 ## 6. 管理员能力
 
@@ -174,7 +199,7 @@ TTL 汇总：
 | org_role        | 取自 active_org_id 对应的 OrgMembership.role            | 仅含最高一个 role；无 org 上下文时省略                                                                                                                                                   |
 | org_permissions | 取自 role -> permissions 展开                           | 字符串数组；无 org 上下文时省略                                                                                                                                                          |
 | act             | 被模拟时设为 `{"sub": impersonator_user_id}`；否则 null | RFC 8693 token exchange，null 时不输出该 claim                                                                                                                                           |
-| amr             | 登录时使用的认证方法数组                                | passkey: `["phr"]`；密码: `["pwd"]`；OTP: `["otp"]`；MFA 同时含多个；尚无凭证的 guest 携带 `guest`，转正后签发的下一张 token 自然摘掉（见 01 章 8）                                                                                                                      |
+| amr             | 登录时使用的认证方法数组                                | passkey: `["phr"]`；密码: `["pwd"]`；OTP: `["otp"]`；MFA 同时含多个；尚无凭证的 guest 携带 `guest`，转正后签发的下一张 token 自然摘掉（见 01 章 8）                                      |
 | acr             | 认证上下文等级                                          | XID 私有 URI `urn:xid:aal1` / `urn:xid:aal2` / `urn:xid:aal3`；当前登录链路只签发 AAL1/AAL2                                                                                              |
 | auth_time       | 上次完整认证（非 token 刷新）的 Unix 时间戳             | OIDC Core 要求，session.authenticated_at                                                                                                                                                 |
 | email           | primary_email 地址                                      | 仅当 scope 含 email 时输出                                                                                                                                                               |
@@ -313,12 +338,15 @@ __Host-xid.rt.01HZ9K3T = {refresh_token_B}; Path=/; Secure; HttpOnly; SameSite=L
 
 常规注册与登录路径(密码、passwordless/magic link、社交 OAuth 新建用户)默认写入实例默认 org(`org_id = tenant_id`)membership;`invitationToken`、`intent=sign-up`、OAuth 续跑(redirect 含 `authz_request_id`)与跳转 `/create-organization` 时跳过默认写入;邀请接受与自助建 org 走显式 membership 路径。
 
-| 入口                                              | 新建用户时默认 tenant membership | 说明                                                                                |
-| ------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------- |
-| 密码注册（常规登录）                              | 写入                             | 已有成员走登录，不重复写入                                                          |
-| 密码注册（`intent=sign-up` 或 `invitationToken`） | 跳过                             | 注册后跳转 `/create-organization` 或 `/accept-invitation`                           |
-| Passwordless / magic link（同上标志）             | 跳过                             | 与密码注册一致                                                                      |
-| Social OAuth 新建用户                             | 默认写入                         | `authz_request_id` 续跑、`intent=sign-up`、`invitationToken` 时跳过                 |
-| Enterprise SSO JIT（SAML / OIDC RP）新建用户      | 写入 connection org membership   | OAuth 续跑标志为 true 时跳过 connection org membership；已存在用户仍同步 membership |
-| 邀请接受                                          | 写入邀请 org                     | 接受后设置 `session.active_org_id`                                                  |
-| 自助建 org                                        | 写入新建 org（owner）            | 创建后设置 `session.active_org_id`                                                  |
+| 入口                                              | 新建用户时默认 tenant membership | 说明                                                                                    |
+| ------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- |
+| 密码注册（常规登录）                              | 写入                             | 已有成员走登录，不重复写入                                                              |
+| 密码注册（`intent=sign-up` 或 `invitationToken`） | 跳过                             | 注册后跳转 `/create-organization` 或 `/accept-invitation`                               |
+| Passwordless / magic link（同上标志）             | 跳过                             | 与密码注册一致                                                                          |
+| Social OAuth 新建用户                             | 默认写入                         | `authz_request_id` 续跑、`intent=sign-up`、`invitationToken` 时跳过                     |
+| Enterprise SSO JIT（SAML / OIDC RP）新建用户      | 写入 connection org membership   | OAuth 续跑标志为 true 时跳过 connection org membership；已存在用户仍同步 membership     |
+| 邀请接受                                          | 写入邀请 org                     | 接受后设置 `session.active_org_id`                                                      |
+| Self-service 顶层 Tenant 创建                     | 写入新建 org（owner）            | 仅无 Membership 的新用户;迁移 user-owned 行和 session 行,并设置 `session.active_org_id` |
+
+guest 与 `intent=sign-up` 凭证流程都使用最后一行。邀请、enterprise JIT、SCIM、OAuth resume 和普通
+sign-in 保持各自显式行,不会附带创建顶层 Tenant。

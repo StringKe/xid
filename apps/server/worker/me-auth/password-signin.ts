@@ -109,6 +109,15 @@ function identifierProfile(identifier: ParsedIdentifier): ProfileFieldInput {
   return {}
 }
 
+function passwordRequiresEmailVerification(tenant: TenantVar): boolean {
+  const hostedPolicy = tenant.policy?.hostedAuth
+  return (
+    hostedPolicy?.password?.requireEmailVerification ??
+    hostedPolicy?.requireVerifiedEmail ??
+    REQUIRE_EMAIL_VERIFICATION
+  )
+}
+
 // 按 identifierMode 解析 userId + 状态。不存在返回 null(调用方仍走等时哈希)。
 async function resolveUserByIdentifier(
   db: ReturnType<typeof createTenantDb>,
@@ -224,12 +233,7 @@ async function createUserWithPassword(opts: {
   }
   if (await checkHibpBreached(password)) throw new AppError('password_breached')
 
-  const hostedPolicy = tenant.policy?.hostedAuth
-  const methodPolicy = hostedPolicy?.password
-  const requireEmailVerification =
-    methodPolicy?.requireEmailVerification ??
-    hostedPolicy?.requireVerifiedEmail ??
-    REQUIRE_EMAIL_VERIFICATION
+  const requireEmailVerification = passwordRequiresEmailVerification(tenant)
   if (requireEmailVerification && !profile.email) {
     throw new AppError('invalid_credentials')
   }
@@ -319,6 +323,7 @@ async function createUserWithPassword(opts: {
       tenant,
       userId,
       email: profile.email,
+      ...(intent === 'sign-up' ? { intent: 'sign-up' as const } : {}),
     })
     return { nextStep: 'verify_email' }
   }
@@ -458,6 +463,7 @@ async function convertGuestWithPassword(opts: {
       tenant,
       userId,
       email: profile.email,
+      ...(intent === 'sign-up' ? { intent: 'sign-up' as const } : {}),
     })
     return { nextStep: 'verify_email' }
   }
@@ -581,6 +587,29 @@ export async function handlePasswordAuth(
 
     // HIBP 登录异步检查不阻断(命中标记 breached,下次提示重置,见 password-auth rule)。
     c.executionCtx.waitUntil(markBreachedIfPwned(c, tenant, user.userId, password))
+
+    if (passwordRequiresEmailVerification(tenant) && !body.invitationToken?.trim()) {
+      const primaryEmail = await db.userEmails.findOne(
+        user.primaryEmailId
+          ? and(
+              eq(schema.userEmails.id, user.primaryEmailId),
+              eq(schema.userEmails.userId, user.userId),
+              eq(schema.userEmails.isPrimary, true),
+            )
+          : and(eq(schema.userEmails.userId, user.userId), eq(schema.userEmails.isPrimary, true)),
+      )
+      if (!primaryEmail?.verified) {
+        if (!primaryEmail?.email) throw new AppError('invalid_credentials')
+        await issueEmailVerification({
+          env: c.env,
+          tenant,
+          userId: user.userId,
+          email: primaryEmail.email,
+          ...(body.intent === 'sign-up' ? { intent: 'sign-up' as const } : {}),
+        })
+        return c.json({ nextStep: 'verify_email' })
+      }
+    }
 
     const returnPath = postAuthRedirectPath({
       invitationToken: body.invitationToken,

@@ -27,10 +27,12 @@ type CreateOrgResponse = {
   redirectUrl: string
 }
 
-function CreateOrganizationPage(): ReactNode {
-  const { api, refresh } = useAuth()
+export function CreateOrganizationPage(): ReactNode {
+  const { api, refresh, user } = useAuth()
   const navigate = useNavigate()
   const { t } = useLingui()
+  const existingEmail = user?.email.trim() ?? ''
+  const [email, setEmail] = useState(existingEmail)
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -41,12 +43,13 @@ function CreateOrganizationPage(): ReactNode {
     setLoading(true)
     setError(null)
     const result = await api.post<CreateOrgResponse>('/v1/organizations/self', {
+      email: email.trim(),
       name: name.trim(),
       slug: slug.trim() || name.trim(),
     })
     setLoading(false)
     if (!result.ok) {
-      setError(t`Could not create organization. Choose a different slug and try again.`)
+      setError(t`Could not create organization. Check the email and slug, then try again.`)
       return
     }
     trackOrganizationCreated()
@@ -66,8 +69,30 @@ function CreateOrganizationPage(): ReactNode {
           }
         />
         <div {...stylex.props(styles.stack)}>
+          <Field
+            label={<Trans>Email</Trans>}
+            hint={
+              existingEmail ? (
+                <Trans>This email belongs to your signed-in account.</Trans>
+              ) : (
+                <Trans>You can verify this address from the Console.</Trans>
+              )
+            }
+            required
+          >
+            <Input
+              type="email"
+              name="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              readOnly={existingEmail !== ''}
+              autoComplete="email"
+            />
+          </Field>
           <Field label={<Trans>Organization name</Trans>} required>
             <Input
+              name="organization-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
@@ -81,6 +106,7 @@ function CreateOrganizationPage(): ReactNode {
             }
           >
             <Input
+              name="organization-slug"
               value={slug}
               onChange={(event) => setSlug(event.target.value)}
               placeholder={name
@@ -91,7 +117,7 @@ function CreateOrganizationPage(): ReactNode {
             />
           </Field>
           {error ? <Alert tone="error">{error}</Alert> : null}
-          <Button type="submit" disabled={loading || name.trim() === ''}>
+          <Button type="submit" disabled={loading || email.trim() === '' || name.trim() === ''}>
             {loading ? <Trans>Creating…</Trans> : <Trans>Create organization</Trans>}
           </Button>
         </div>

@@ -14,6 +14,7 @@ function userRow(overrides: Record<string, unknown> = {}): Record<string, unknow
     username: null,
     external_id: null,
     primary_email_id: 'em_1',
+    pending_email: null,
     primary_phone_id: null,
     first_name: 'Ada',
     last_name: 'Lovelace',
@@ -190,6 +191,33 @@ describe('GET /v1/me', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect((body['user'] as Record<string, unknown>)['provisioned_by']).toBe('anonymous')
+  })
+
+  it('returns pending Email as unverified during guest onboarding', async () => {
+    const db = makeFakeD1({
+      users: [
+        userRow({
+          primary_email_id: null,
+          pending_email: 'guest@example.com',
+          provisioned_by: 'anonymous',
+        }),
+      ],
+      user_emails: [],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({
+      register: registerMeRoute,
+      session: makeSession({ sessionId: 's_guest', userId: 'u_1' }),
+    })
+
+    const res = await app.request('https://xid.dev/v1/me', { method: 'GET' }, env)
+    const body = (await res.json()) as { user: { email: string; emailVerified: boolean } }
+
+    expect(body.user.email).toBe('guest@example.com')
+    expect(body.user.emailVerified).toBe(false)
   })
 
   it('marks user as instance manager when a platform manager assignment exists', async () => {

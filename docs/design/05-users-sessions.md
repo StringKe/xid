@@ -7,6 +7,8 @@
 ### Capabilities
 
 - Standard identifiers: email (multiple), phone (multiple), and username; at least one is required
+  after registration completes. A provisional guest may instead carry only `pending_email` during
+  top-level Tenant onboarding.
 - Profile: first_name, last_name, display_name, avatar_url, locale, timezone
 - Primary identifier election: primary_email_id and primary_phone_id, where a change requires
   re-verification
@@ -27,6 +29,9 @@
 
 - Emails and phones live in their own association tables, multi-valued with verified and primary
   state, and `UNIQUE (tenant_id, email)` isolates tenants
+- `users.pending_email` is an unproved onboarding value. It is returned by `GET /v1/me` as the
+  current Email with `emailVerified = false`, but it neither creates nor reserves a `user_emails`
+  row until exact-target verification succeeds.
 - external_id has a `(tenant_id, external_id)` unique index and allows null
 - provisioned_by records the provisioning source: `jit_sso`/`scim`/`signup`/`invite`/`admin`, plus
   `anonymous` for a guest user created by `POST /auth/guest` (see chapter 01 section 8)
@@ -51,6 +56,20 @@ a tenant.
   onboarding
 - Invitation sign-up: the invite token is bound to an email, so accepting it pre-fills the address and
   skips verification
+- Guest sign-in and every password, passwordless, or social sign-up carrying `intent=sign-up`
+  converge on `/create-organization`, after any credential verification required by the sign-up
+  policy. A password verification token preserves the signed sign-up intent and returns the user to
+  `/sign-in?intent=sign-up`. The page requires Email, Organization name, and URL slug. A guest Email
+  is stored as pending without sending verification; a normally registered user's primary Email is
+  pre-filled and immutable.
+- Only `is_new_user = true` users with no Membership may create the top-level Tenant. Creation
+  atomically migrates their user-owned rows and sessions, writes an active owner Membership, and
+  switches the active Organization. The session id and opaque cookie remain stable; the Instance
+  root resolver resolves the new TenantContext from the refresh token hash.
+- An unverified owner has a read-only Console session. Cookie-session business mutations return
+  HTTP 403 with `email_verification_required`; reads, onboarding, active Organization switching,
+  sign-out, Email verification and resend, and account-security operations remain available. The
+  Console never replays the rejected mutation.
 
 Design decisions: the sign-up policy lives in a configuration table rather than in code, with each
 field in one of three states (required, optional, hidden). Progressive profiling records each step in
@@ -76,13 +95,13 @@ User.
 
 Guest conversion (see chapter 01 section 8) is an in-place link, not a merge: while a guest session
 (a user with `provisioned_by = 'anonymous'`) is valid, the first completed credential ceremony
-attaches the credential to the guest user, rewrites `provisioned_by` to the conversion source, and
-rotates the session, so `sub` does not change. The exception is the email-occupied path: when the
-email being verified belongs to another user in the same tenant, the occupation fact is revealed
-only after the user proves mailbox control, and the user is guided to sign in to that account
-instead. The guest user is then marked `merged_into_user_id`, the `sub` changes, and merging the
-RP-side data accumulated during the guest period is the RP application layer's responsibility (the
-SDK compares the old and new `sub` and exposes a merge hook).
+attaches the credential to the guest user and rewrites `provisioned_by` to the conversion source, so
+`sub` does not change. Collecting a pending Email during top-level Tenant onboarding is not a
+credential ceremony. Exact-target verification creates the verified primary Email inside the fresh
+Tenant, clears `pending_email`, converts the guest in place, revokes every guest session, and
+requires a fresh sign-in. The next token keeps the same `sub`. The same Email in another Tenant is an
+independent tenant-local identity and never triggers a merge or ownership transfer. A same-Tenant
+collision is not a normal branch for a freshly created Tenant.
 
 ## 4. Verification (email / phone)
 
@@ -92,6 +111,14 @@ SDK compares the old and new `sub` and exposes a merge hook).
 - Primary change: a new email or phone MUST be verified before it can be set primary
 - Verification tokens: a short-lived table with a purpose (`email_verify` / `phone_verify` /
   `password_reset`), 15 minutes, single use
+- Every Email verification token carries a signed `email_hash` that immutably binds the exact
+  normalized `pending_email` or current primary Email value. Consumption compares the current value
+  and updates only a match. Resend invalidates the prior active token before issuing another for the
+  same target.
+- Verifying a guest's pending Email writes a verified primary `user_emails` row in the current new
+  Tenant, revokes all guest sessions, and requires a fresh sign-in. Tenant-local uniqueness permits
+  the same normalized Email in another Tenant; the Instance root resolver offers Tenant selection
+  on later sign-in.
 
 ## 5. User status and management
 
@@ -108,9 +135,14 @@ SDK compares the old and new `sub` and exposes a merge hook).
   scrypt, and MD5 (Auth0 compatible). Lazy migration: the import stores the hash as-is and upgrades it
   transparently on first sign-in
 - User export: NDJSON containing every field (private_metadata subject to permissions)
-- Guest GC (see chapter 01 section 8): a daily cron soft-deletes guest users
-  (`provisioned_by = 'anonymous'`) whose last activity is 30 days old or more, entering the same
-  soft delete -> 30-day grace period -> hard delete PII pipeline described in section 7
+- Guest GC (see chapter 01 section 8): a daily cron considers unverified guest users
+  (`provisioned_by = 'anonymous'`) whose last activity is 30 days old or more. The D1 batch first
+  atomically rechecks inactivity, verification state, Membership state, and Tenant emptiness.
+- A successful claim soft-deletes the guest, revokes its D1 and SessionDO sessions, inactivates its
+  Membership, and invalidates usable credential state. A safe empty onboarding top-level Tenant is
+  soft-deleted with the guest. A Tenant with another active member, child Organization, or business
+  resource is skipped intact. Retained rows continue through the section 7 soft delete -> 30-day
+  grace period -> hard delete PII pipeline.
 
 ## 6. Administrator capabilities
 
@@ -252,7 +284,7 @@ Source and rules for each claim:
 | org_role        | The role on the OrgMembership matching active_org_id                       | Only the highest single role; omitted when there is no org context                                                                                                                                                                                                                           |
 | org_permissions | Expanded from role -> permissions                                          | An array of strings; omitted when there is no org context                                                                                                                                                                                                                                    |
 | act             | Set to `{"sub": impersonator_user_id}` while impersonating, otherwise null | RFC 8693 token exchange; the claim is omitted when null                                                                                                                                                                                                                                      |
-| amr             | The array of authentication methods used at sign-in                        | passkey: `["phr"]`; password: `["pwd"]`; OTP: `["otp"]`; MFA carries several at once; a guest with no credential yet carries `guest`, which the first token issued after conversion naturally drops (see chapter 01 section 8)                                                                                                                                                                                                         |
+| amr             | The array of authentication methods used at sign-in                        | passkey: `["phr"]`; password: `["pwd"]`; OTP: `["otp"]`; MFA carries several at once; a guest with no credential yet carries `guest`, which the first token issued after conversion naturally drops (see chapter 01 section 8)                                                               |
 | acr             | Authentication context class                                               | The XID-private URIs `urn:xid:aal1` / `urn:xid:aal2` / `urn:xid:aal3`; the current sign-in paths only issue AAL1 and AAL2                                                                                                                                                                    |
 | auth_time       | The Unix timestamp of the last full authentication (not a token refresh)   | Required by OIDC Core; session.authenticated_at                                                                                                                                                                                                                                              |
 | email           | The primary_email address                                                  | Emitted only when the scope includes email                                                                                                                                                                                                                                                   |
@@ -436,12 +468,16 @@ default write is skipped for `invitationToken`, `intent=sign-up`, an OAuth resum
 carries `authz_request_id`), and a redirect to `/create-organization`. Invitation acceptance and
 self-service org creation go through explicit membership paths.
 
-| Entry point                                              | Default tenant membership on user creation | Notes                                                                                     |
-| -------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Password sign-up (ordinary sign-in)                      | Written                                    | An existing member goes through sign-in and is not written again                          |
-| Password sign-up (`intent=sign-up` or `invitationToken`) | Skipped                                    | After sign-up, redirect to `/create-organization` or `/accept-invitation`                 |
-| Passwordless / magic link (same flags)                   | Skipped                                    | Same as password sign-up                                                                  |
-| Social OAuth user creation                               | Written by default                         | Skipped for an `authz_request_id` resume, `intent=sign-up`, or `invitationToken`          |
-| Enterprise SSO JIT (SAML / OIDC RP) user creation        | Writes a connection org membership         | Skipped when the OAuth resume flag is true; an existing user still gets membership synced |
-| Invitation acceptance                                    | Writes into the invited org                | After acceptance, set `session.active_org_id`                                             |
-| Self-service org creation                                | Writes into the new org (as owner)         | After creation, set `session.active_org_id`                                               |
+| Entry point                                              | Default tenant membership on user creation | Notes                                                                                                          |
+| -------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Password sign-up (ordinary sign-in)                      | Written                                    | An existing member goes through sign-in and is not written again                                               |
+| Password sign-up (`intent=sign-up` or `invitationToken`) | Skipped                                    | After sign-up, redirect to `/create-organization` or `/accept-invitation`                                      |
+| Passwordless / magic link (same flags)                   | Skipped                                    | Same as password sign-up                                                                                       |
+| Social OAuth user creation                               | Written by default                         | Skipped for an `authz_request_id` resume, `intent=sign-up`, or `invitationToken`                               |
+| Enterprise SSO JIT (SAML / OIDC RP) user creation        | Writes a connection org membership         | Skipped when the OAuth resume flag is true; an existing user still gets membership synced                      |
+| Invitation acceptance                                    | Writes into the invited org                | After acceptance, set `session.active_org_id`                                                                  |
+| Self-service top-level Tenant creation                   | Writes into the new org (as owner)         | Only a new user with no Membership; migrate user-owned rows and session rows, then set `session.active_org_id` |
+
+Guest and `intent=sign-up` credential flows both use the final row. Invitation, enterprise JIT,
+SCIM, OAuth resume, and ordinary sign-in preserve their explicit rows and never create a top-level
+Tenant as a side effect.

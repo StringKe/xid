@@ -29,6 +29,32 @@ The core entities are Instance, Organization, Project, Application, and ProjectG
 08): a four-level ownership chain, where an Organization may have one level of parent/child
 relationship.
 
+### Self-service top-level Tenant onboarding
+
+- Guest sign-in and credential sign-up with `intent=sign-up` both route to the same create
+  Organization flow. Only a provisional user with `is_new_user = true` and no Membership may use
+  it.
+- Self-service creation makes a new isolation root, not a child of the resolver's provisional
+  Organization. Its invariant is `id = tenant_id = new_organization_id` and
+  `parent_org_id = null`. Child Organization creation remains an explicit operation with
+  `parent_org_id` set and the parent's top-level `tenant_id`.
+- A top-level Organization slug is unique within its Instance because it participates in host
+  resolution. Tenant-local uniqueness alone is insufficient.
+- The creation transaction migrates the provisional user's user-owned rows and sessions to the new
+  Tenant, creates one active owner Membership, and selects that Organization for every migrated
+  session. The session id and opaque cookie remain stable, and the Instance root resolver resolves
+  the new TenantContext from its refresh token hash. It does not create a `manager_assignment`;
+  platform management remains the existing ManagerAssignment model.
+- The owner may read the new Tenant before Email verification, but organization and platform
+  business mutations require a verified primary Email. `GET`/`HEAD`/`OPTIONS` are reads.
+  Onboarding creation, active Organization switching, sign-out, Email verification and resend, and
+  account-security operations are exempt from the mutation gate.
+- Guest Email remains pending until it is verified inside the new Tenant and does not reserve a
+  `user_emails` value during creation. Email uniqueness is Tenant-local, so the same Email in
+  another Tenant stays an independent user. This flow does not merge users across Tenants.
+- Invitation acceptance, enterprise JIT, SCIM provisioning, and ordinary sign-in retain their
+  existing membership behavior and never enter this self-service path implicitly.
+
 ## 2. Organization membership management
 
 ### Four sources of membership

@@ -575,7 +575,10 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
     })
 
     const now = new Date()
-    const location = resolveRedirect(flow.redirectAfterLogin, config, DEFAULT_AUTH_RETURN_PATH)
+    const location =
+      flow.intent === 'sign-up' && !flow.invitationToken
+        ? '/create-organization'
+        : resolveRedirect(flow.redirectAfterLogin, config, DEFAULT_AUTH_RETURN_PATH)
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath: location })
     await issueSession(c, {
       sessionId: crypto.randomUUID(),
@@ -588,7 +591,7 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
       userAgent: c.req.header('user-agent') ?? null,
     })
 
-    // open redirect 防护:redirectAfterLogin 必须精确匹配 client 注册白名单,否则回退默认。
+    // sign-up 目标是 Worker 固定内部路径,其余 redirectAfterLogin 必须精确匹配 client 注册白名单。
     // session 走 cookie(issueSession 已设),绝不在 URL 携带 session_id。
     const target = mfaGate.redirectUrl ?? location
     return c.redirect(redirectUrl(target, flow.returnToOrigin), 302)

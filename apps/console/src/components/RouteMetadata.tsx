@@ -80,8 +80,13 @@ const NOT_FOUND_TITLE: MessageDescriptor = /*i18n*/ {
   message: 'Page not found | XID',
 }
 
-function titleForPath(pathname: string): MessageDescriptor {
-  return TITLES[pathname] ?? NOT_FOUND_TITLE
+export function normalizeConsoleMetadataPath(pathname: string): string {
+  if (pathname === '/') return pathname
+  return pathname.replace(/\/+$/, '')
+}
+
+export function titleForPath(pathname: string): MessageDescriptor {
+  return TITLES[normalizeConsoleMetadataPath(pathname)] ?? NOT_FOUND_TITLE
 }
 
 export function RouteMetadata(): ReactNode {

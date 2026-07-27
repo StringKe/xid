@@ -219,16 +219,28 @@ function SignInPage(): ReactNode {
     state.tenantSelection.continueParam ?? state.tenantSelection.redirect,
     state.tenantSelection.authzRequestId,
   )
+  const isInvitationReturn = signedInReturn.startsWith('/accept-invitation?')
 
-  // 已登录访问登录页时按显式回跳继续,否则进入统一 console。
+  // 授权和邀请必须续跑原流程;普通 sign-up 会话进入组织 onboarding。
   useEffect(() => {
     if (status !== 'authenticated') return
     if (state.tenantSelection.authzRequestId) {
       globalThis.location.href = signedInReturn
       return
     }
+    if (isSignUpIntent && !isInvitationReturn) {
+      navigate('/create-organization', { replace: true })
+      return
+    }
     navigate(signedInReturn, { replace: true })
-  }, [signedInReturn, state.tenantSelection.authzRequestId, status, navigate])
+  }, [
+    isInvitationReturn,
+    isSignUpIntent,
+    navigate,
+    signedInReturn,
+    state.tenantSelection.authzRequestId,
+    status,
+  ])
 
   function handlePasswordSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()

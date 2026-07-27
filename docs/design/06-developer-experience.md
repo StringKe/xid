@@ -472,9 +472,10 @@ GuestStore DO, GC cron, React and native SDK APIs); the per-platform status live
 - SDK API: `signInAnonymously()` creates a guest, or lazily reuses the local guest credential when
   one is still valid (the SDK does not call the endpoint in that case, the Firebase semantics).
   `isAnonymous` reflects whether the current token `amr` carries `guest`. Upgrade guidance keeps
-  prompting the user to convert; after any credential ceremony the SDK compares the `sub` of the old
-  and new tokens and exposes a merge hook for the RP application layer, which matters only on the
-  email-occupied path where the sub changes.
+  prompting the user to convert. Credential linking and pending Email verification convert the
+  guest in place, so the next token keeps the same `sub`. Email uniqueness is Tenant-local: an
+  account with the same Email in another Tenant remains independent, onboarding never performs a
+  cross-Tenant merge, and a same-Tenant collision is not a normal branch for the fresh Tenant.
 - Management API: the `/v1/users` list supports the `?provisioned_by=anonymous` filter; no new
   endpoint is added.
 - Audit and webhook event names (see section 8): `guest.created`, `guest.converted`, and

@@ -2,7 +2,7 @@
 // node 环境无浏览器 fetch 真实网络,stub globalThis.fetch 断言请求装配与响应映射。
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createApiClient } from '../api'
+import { createApiClient, observeApiClientErrors } from '../api'
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -111,5 +111,28 @@ describe('createApiClient', () => {
     expect(init.credentials).toBe('include')
     expect(init.method).toBe('POST')
     expect(init.body).toBe(JSON.stringify({ reason: 'manual' }))
+  })
+
+  it('observes a verification gate without replaying the failed mutation', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse(403, {
+        code: 'email_verification_required',
+        message: 'Email verification is required.',
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const observer = vi.fn<(error: unknown) => void>()
+    const client = observeApiClientErrors(createApiClient(), observer)
+
+    const result = await client.post('/v1/organizations/org_1/applications', { name: 'Web' })
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: 'email_verification_required', httpStatus: 403 },
+    })
+    expect(observer).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'email_verification_required', httpStatus: 403 }),
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 })

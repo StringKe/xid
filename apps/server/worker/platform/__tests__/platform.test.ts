@@ -138,7 +138,33 @@ function makeFakeD1(tables: TableSet): D1Database {
 
   const match = (sql: string, params: unknown[], skipParams = 0): Rows => {
     const table = tableNameForSql(sql)
-    const rows = filterNoParamPredicates(sql, table, get(table))
+    let rows = filterNoParamPredicates(sql, table, get(table))
+    // 旧 happy-path fixture 未声明邮箱状态；仅在门禁查询时补 verified primary，显式邮箱行仍优先。
+    if (table === 'user_emails' && /"is_primary"\s*=\s*\?/i.test(sql)) {
+      const explicitPrimaryUsers = new Set(
+        rows.filter((row) => row['is_primary'] === 1).map((row) => row['user_id']),
+      )
+      const verifiedDefaults = get('users')
+        .filter(
+          (user) =>
+            user['status'] === 'active' &&
+            user['deleted_at'] == null &&
+            !explicitPrimaryUsers.has(user['id']),
+        )
+        .map((user) => ({
+          id: `email_${String(user['id'])}`,
+          tenant_id: user['tenant_id'],
+          user_id: user['id'],
+          email: `${String(user['id'])}@example.test`,
+          verified: 1,
+          verification_status: 'verified',
+          is_primary: 1,
+          verified_at: Date.now(),
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        }))
+      rows = [...rows, ...verifiedDefaults]
+    }
     const stringParams = params.slice(skipParams).filter((v): v is string => typeof v === 'string')
     return stringParams.length === 0
       ? rows

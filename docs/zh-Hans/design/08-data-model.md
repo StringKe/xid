@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=5d55b0c source-blob=187fba46ae72e6cbb0f2b4482c827c08f1e84e33 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=5d55b0c source-blob=31e6ce025147c00db9b70c43ff1dbf07380c5de6 -->
 
 > Translation of `docs/design/08-data-model.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -30,7 +30,7 @@
 | AUDIT_SEQ          | AuditSeqDO      | 审计 seq 颁发(按 `audit-seq:{tenantId}` 分片,见 17.2)   |
 | METERING           | MeteringDO      | DAU/MAU 精确去重(按 `metering:{tenantId}` 分片,见 17.3) |
 
-| GUEST_STORE        | GuestStore      | guest 登录并发去重(按 `idFromName("{tenant_id}:{anonKey}")` 分片,见 01 章 8) |
+| GUEST_STORE | GuestStore | guest 登录并发去重(按 `idFromName("{tenant_id}:{anonKey}")` 分片,见 01 章 8) |
 
 GuestStore 绑定复用 WebAuthn 的 __Host-xid.anon cookie + anonKey 基建;绑定记录 TTL 对齐 session TTL,DO alarm 清理。
 
@@ -207,6 +207,7 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 | user_identities      | `UNIQUE (tenant_id, provider, provider_user_id)` | 社交绑定租户内唯一(见 01 章 3)                                  |
 | passkey_credentials  | `UNIQUE (tenant_id, credential_id)`              | 凭证 ID 租户内唯一(见 01 章注册步骤 7)                          |
 | organizations        | `UNIQUE (tenant_id, slug)`                       | org slug 在租户内唯一(顶层 org 的 tenant_id=自身 id)            |
+| organizations        | `UNIQUE (instance_id, slug)`                     | host 解析与 self-service 顶层 Tenant 创建要求 Instance 内唯一   |
 | organization_domains | `UNIQUE (domain)`                                | 域名全局唯一(一个域只能被一个 org 认领,见 04 章 5),非租户内     |
 | refresh_tokens       | `UNIQUE (token_hash)`                            | hash 全局唯一(见 03 章 11.1)                                    |
 | roles                | `UNIQUE (tenant_id, project_id, key)`            | role key 在 project 内唯一                                      |
@@ -218,17 +219,17 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 
 索引按实际查询谓词设计,不把租户隔离唯一索引误当成跨租户解析索引:
 
-| 查询路径                      | 索引要求                                                            | 用途                                     |
-| ----------------------------- | ------------------------------------------------------------------- | ---------------------------------------- |
-| 根域登录 email/phone          | `INDEX(email,user_id,tenant_id)`、`INDEX(phone,user_id,tenant_id)`  | 根域入口跨租户识别用户所属组织           |
-| 根域登录 username/external_id | `INDEX(username,tenant_id)`、`INDEX(external_id,tenant_id)`         | 先匹配登录字段,再返回租户                |
-| Host 租户解析                 | `INDEX(instance_id,slug)`                                           | instance 下按 slug 精确解析 organization |
-| 管理列表                      | `INDEX(tenant_id,status,id)` 或 `INDEX(tenant_id,org_id,status,id)` | SQL keyset 分页,避免全量读取和临时排序   |
-| 用户和 SCIM 列表              | `INDEX(tenant_id,id)` 或 `INDEX(tenant_id,directory_id,id)`         | 非删除记录按 id 稳定分页                 |
-| 会话列表                      | `INDEX(tenant_id,status,id)`、`INDEX(tenant_id,user_id,status,id)`  | 租户级和用户级会话分页                   |
-| 租户审计列表                  | `INDEX(tenant_id,occurred_at,id)`                                   | occurred_at、id 复合游标倒序读取         |
-| 平台当前用量                  | `INDEX(day,tenant_id)`、`INDEX(year_month,tenant_id)`               | 跨租户按当期计量字段读取                 |
-| 平台全局统计                  | `INDEX(event_type)` 及 active、top-level partial index              | 避免按 tenant 前缀索引扫描全表           |
+| 查询路径                      | 索引要求                                                            | 用途                                       |
+| ----------------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
+| 根域登录 email/phone          | `INDEX(email,user_id,tenant_id)`、`INDEX(phone,user_id,tenant_id)`  | 根域入口跨租户识别用户所属组织             |
+| 根域登录 username/external_id | `INDEX(username,tenant_id)`、`INDEX(external_id,tenant_id)`         | 先匹配登录字段,再返回租户                  |
+| Host 租户解析                 | `UNIQUE(instance_id,slug)`                                          | instance 下按 slug 精确解析并阻止歧义 host |
+| 管理列表                      | `INDEX(tenant_id,status,id)` 或 `INDEX(tenant_id,org_id,status,id)` | SQL keyset 分页,避免全量读取和临时排序     |
+| 用户和 SCIM 列表              | `INDEX(tenant_id,id)` 或 `INDEX(tenant_id,directory_id,id)`         | 非删除记录按 id 稳定分页                   |
+| 会话列表                      | `INDEX(tenant_id,status,id)`、`INDEX(tenant_id,user_id,status,id)`  | 租户级和用户级会话分页                     |
+| 租户审计列表                  | `INDEX(tenant_id,occurred_at,id)`                                   | occurred_at、id 复合游标倒序读取           |
+| 平台当前用量                  | `INDEX(day,tenant_id)`、`INDEX(year_month,tenant_id)`               | 跨租户按当期计量字段读取                   |
+| 平台全局统计                  | `INDEX(event_type)` 及 active、top-level partial index              | 避免按 tenant 前缀索引扫描全表             |
 
 所有列表接口必须在数据库执行 `WHERE`、`ORDER BY`、`LIMIT`。Worker 内存中的 `slice` 只允许处理数据库已经限制为 `limit + 1` 的结果。导出和全量同步属于显式全量场景,必须使用分块读取。
 
@@ -277,26 +278,26 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 
 ### 10.2 organizations(租户,顶层 org 的 tenant_id = 自身 id)
 
-| 字段                    | 类型            | 约束                                             | 默认                | 说明                                                   |
-| ----------------------- | --------------- | ------------------------------------------------ | ------------------- | ------------------------------------------------------ |
-| id                      | text            | PK                                               | `org_`+nanoid       |                                                        |
-| tenant_id               | text            | NOT NULL, FK -> organizations.id(self)           | --                  | 顶层 org 时 = id;子 org 时 = 顶层 org id(租户隔离根)   |
-| instance_id             | text            | NOT NULL, FK -> instances.id ON DELETE no action | --                  | 所属平台实例                                           |
-| parent_org_id           | text            | FK -> organizations.id ON DELETE cascade, null   | null                | 一层子组织(见 02 章 1,不做深嵌套);顶层为 null          |
-| slug                    | text            | NOT NULL                                         | --                  | URL/子域用,见 9.5 `UNIQUE(tenant_id,slug)`             |
-| name                    | text            | NOT NULL                                         | --                  | 显示名                                                 |
-| logo_url                | text            | null                                             | null                | R2 logo URL(品牌见 OrgBranding)                        |
-| public_metadata         | text json       | NOT NULL                                         | `{}`                | 前端可读(见 02 章 5)                                   |
-| private_metadata        | text json       | NOT NULL                                         | `{}`                | 仅 server/admin                                        |
-| seat_limit              | integer number  | null                                             | null                | 计费 seat 上限,null=无限(见 02 章 2)                   |
-| seat_used               | integer number  | NOT NULL                                         | `0`                 | 当前 active 成员数                                     |
-| enrollment_mode         | text            | NOT NULL                                         | `'invite_required'` | `automatic`/`invite_required`(域名自动归属,见 02 章 2) |
-| allow_org_self_service  | integer boolean | NOT NULL                                         | `1`                 | 关闭时 org admin 不能改 SSO/MFA(见 02 章 6)            |
-| status                  | text            | NOT NULL                                         | `'active'`          | `active`/`suspended`/`deleted`                         |
-| deleted_at              | integer ts_ms   | null                                             | null                | 软删除标记(Instance Manager 删 org)                    |
-| created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3              |                                                        |
+| 字段                    | 类型            | 约束                                             | 默认                | 说明                                                                     |
+| ----------------------- | --------------- | ------------------------------------------------ | ------------------- | ------------------------------------------------------------------------ |
+| id                      | text            | PK                                               | `org_`+nanoid       |                                                                          |
+| tenant_id               | text            | NOT NULL, FK -> organizations.id(self)           | --                  | 顶层 org 时 = id;子 org 时 = 顶层 org id(租户隔离根)                     |
+| instance_id             | text            | NOT NULL, FK -> instances.id ON DELETE no action | --                  | 所属平台实例                                                             |
+| parent_org_id           | text            | FK -> organizations.id ON DELETE cascade, null   | null                | 一层子组织(见 02 章 1,不做深嵌套);顶层为 null                            |
+| slug                    | text            | NOT NULL                                         | --                  | URL/子域用,同时按 `(tenant_id,slug)` 和 `(instance_id,slug)` 唯一,见 9.5 |
+| name                    | text            | NOT NULL                                         | --                  | 显示名                                                                   |
+| logo_url                | text            | null                                             | null                | R2 logo URL(品牌见 OrgBranding)                                          |
+| public_metadata         | text json       | NOT NULL                                         | `{}`                | 前端可读(见 02 章 5)                                                     |
+| private_metadata        | text json       | NOT NULL                                         | `{}`                | 仅 server/admin                                                          |
+| seat_limit              | integer number  | null                                             | null                | 计费 seat 上限,null=无限(见 02 章 2)                                     |
+| seat_used               | integer number  | NOT NULL                                         | `0`                 | 当前 active 成员数                                                       |
+| enrollment_mode         | text            | NOT NULL                                         | `'invite_required'` | `automatic`/`invite_required`(域名自动归属,见 02 章 2)                   |
+| allow_org_self_service  | integer boolean | NOT NULL                                         | `1`                 | 关闭时 org admin 不能改 SSO/MFA(见 02 章 6)                              |
+| status                  | text            | NOT NULL                                         | `'active'`          | `active`/`suspended`/`deleted`                                           |
+| deleted_at              | integer ts_ms   | null                                             | null                | 软删除标记(Instance Manager 删 org)                                      |
+| created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3              |                                                                          |
 
-索引:`UNIQUE(tenant_id, slug)`、`INDEX(instance_id)`、`INDEX(parent_org_id)`、`INDEX(tenant_id, status)`。
+索引:`UNIQUE(tenant_id, slug)`、`UNIQUE(instance_id, slug)`、`INDEX(instance_id)`、`INDEX(parent_org_id)`、`INDEX(tenant_id, status)`。
 
 ### 10.3 projects(角色命名空间)
 
@@ -388,39 +389,46 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 
 User 是平台级实体,跨 org 通过 Membership 关联;`tenant_id` 仍标其归属租户(B2C 直接挂 instance 的根 org)。
 
-| 字段                      | 类型            | 约束                                          | 默认           | 说明                                                                                                                                      |
-| ------------------------- | --------------- | --------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| id                        | text            | PK                                            | `user_`+nanoid | 即 JWT sub(见 05 章 8.1)                                                                                                                  |
-| tenant_id                 | text            | NOT NULL, FK -> organizations.id              | --             | 归属租户                                                                                                                                  |
-| username                  | text            | null                                          | null           | 见 9.5 `UNIQUE(tenant_id,username)`                                                                                                       |
-| external_id               | text            | null                                          | null           | 见 9.5 `UNIQUE(tenant_id,external_id)`                                                                                                    |
-| primary_email_id          | text            | FK -> user_emails.id ON DELETE set null, null | null           | 主邮箱(见 05 章 1,变更需重验证)                                                                                                           |
-| primary_phone_id          | text            | FK -> user_phones.id ON DELETE set null, null | null           | 主手机                                                                                                                                    |
-| first_name                | text            | null                                          | null           |                                                                                                                                           |
-| last_name                 | text            | null                                          | null           |                                                                                                                                           |
-| display_name              | text            | null                                          | null           |                                                                                                                                           |
-| avatar_url                | text            | null                                          | null           | R2 头像                                                                                                                                   |
-| locale                    | text            | null                                          | null           | 缺失回退租户/instance(见 07 章 4)                                                                                                         |
-| timezone                  | text            | null                                          | null           |                                                                                                                                           |
-| public_metadata           | text json       | NOT NULL                                      | `{}`           | 后端写前端只读(见 05 章 1)                                                                                                                |
-| private_metadata          | text json       | NOT NULL                                      | `{}`           | 仅 server,默认不返回                                                                                                                      |
-| unsafe_metadata           | text json       | NOT NULL                                      | `{}`           | 前后端可写                                                                                                                                |
-| custom_attributes         | text json       | NOT NULL                                      | `{}`           | 租户定义额外字段(见 05 章 1,可配 generated column 索引)                                                                                   |
-| status                    | text            | NOT NULL                                      | `'active'`     | `active`/`banned`/`locked`/`suspended`/`pending_mfa_setup`/`deactivated`/`deleted`(见 05 章 5、password-auth 强制 MFA、04 章 deprovision) |
-| password_change_required  | integer boolean | NOT NULL                                      | `0`            | 强制改密 flag(见 05 章 6)                                                                                                                 |
-| is_new_user               | integer boolean | NOT NULL                                      | `1`            | 首登引导(见 05 章 2)                                                                                                                      |
-| profile_completion_status | text            | NOT NULL                                      | `'incomplete'` | progressive profiling(见 05 章 2)                                                                                                         |
-| lockout_until             | integer ts_ms   | null                                          | null           | 账户锁定到期(指数退避,见 anti-abuse rule)                                                                                                 |
-| failed_login_count        | integer number  | NOT NULL                                      | `0`            | 连续失败计数(锁定触发)                                                                                                                    |
-| last_login_at             | integer ts_ms   | null                                          | null           |                                                                                                                                           |
-| merged_into_user_id       | text            | FK -> users.id ON DELETE set null, null       | null           | 账户合并次账户指向主账户(见 05 章 3)                                                                                                      |
-| provisioned_by            | text            | null                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin`/`anonymous`/`hosted_password`/`hosted_passwordless`/`hosted_passkey`(见 04 章 4;`anonymous` = guest 用户,见 01 章 8;`hosted_*` = Hosted UI 凭证来源,guest 转正时也写这些值)                                  |
-| deleted_at                | integer ts_ms   | null                                          | null           | 软删除(30d 后硬删 PII,见 05 章 7)                                                                                                         |
-| created_at / updated_at   | integer ts_ms   | NOT NULL                                      | 见 9.3         |                                                                                                                                           |
+| 字段                      | 类型            | 约束                                          | 默认           | 说明                                                                                                                                                                                                                   |
+| ------------------------- | --------------- | --------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                        | text            | PK                                            | `user_`+nanoid | 即 JWT sub(见 05 章 8.1)                                                                                                                                                                                               |
+| tenant_id                 | text            | NOT NULL, FK -> organizations.id              | --             | 归属租户                                                                                                                                                                                                               |
+| username                  | text            | null                                          | null           | 见 9.5 `UNIQUE(tenant_id,username)`                                                                                                                                                                                    |
+| external_id               | text            | null                                          | null           | 见 9.5 `UNIQUE(tenant_id,external_id)`                                                                                                                                                                                 |
+| primary_email_id          | text            | FK -> user_emails.id ON DELETE set null, null | null           | 主邮箱(见 05 章 1,变更需重验证)                                                                                                                                                                                        |
+| pending_email             | text            | null                                          | null           | 顶层 Tenant onboarding 的未证明 Email;`/v1/me` 返回时 `emailVerified=false`,但不占用 `user_emails`                                                                                                                     |
+| primary_phone_id          | text            | FK -> user_phones.id ON DELETE set null, null | null           | 主手机                                                                                                                                                                                                                 |
+| first_name                | text            | null                                          | null           |                                                                                                                                                                                                                        |
+| last_name                 | text            | null                                          | null           |                                                                                                                                                                                                                        |
+| display_name              | text            | null                                          | null           |                                                                                                                                                                                                                        |
+| avatar_url                | text            | null                                          | null           | R2 头像                                                                                                                                                                                                                |
+| locale                    | text            | null                                          | null           | 缺失回退租户/instance(见 07 章 4)                                                                                                                                                                                      |
+| timezone                  | text            | null                                          | null           |                                                                                                                                                                                                                        |
+| public_metadata           | text json       | NOT NULL                                      | `{}`           | 后端写前端只读(见 05 章 1)                                                                                                                                                                                             |
+| private_metadata          | text json       | NOT NULL                                      | `{}`           | 仅 server,默认不返回                                                                                                                                                                                                   |
+| unsafe_metadata           | text json       | NOT NULL                                      | `{}`           | 前后端可写                                                                                                                                                                                                             |
+| custom_attributes         | text json       | NOT NULL                                      | `{}`           | 租户定义额外字段(见 05 章 1,可配 generated column 索引)                                                                                                                                                                |
+| status                    | text            | NOT NULL                                      | `'active'`     | `active`/`banned`/`locked`/`suspended`/`pending_mfa_setup`/`deactivated`/`deleted`(见 05 章 5、password-auth 强制 MFA、04 章 deprovision)                                                                              |
+| password_change_required  | integer boolean | NOT NULL                                      | `0`            | 强制改密 flag(见 05 章 6)                                                                                                                                                                                              |
+| is_new_user               | integer boolean | NOT NULL                                      | `1`            | 首登引导(见 05 章 2)                                                                                                                                                                                                   |
+| profile_completion_status | text            | NOT NULL                                      | `'incomplete'` | progressive profiling(见 05 章 2)                                                                                                                                                                                      |
+| lockout_until             | integer ts_ms   | null                                          | null           | 账户锁定到期(指数退避,见 anti-abuse rule)                                                                                                                                                                              |
+| failed_login_count        | integer number  | NOT NULL                                      | `0`            | 连续失败计数(锁定触发)                                                                                                                                                                                                 |
+| last_login_at             | integer ts_ms   | null                                          | null           |                                                                                                                                                                                                                        |
+| merged_into_user_id       | text            | FK -> users.id ON DELETE set null, null       | null           | 账户合并次账户指向主账户(见 05 章 3)                                                                                                                                                                                   |
+| provisioned_by            | text            | null                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin`/`anonymous`/`hosted_password`/`hosted_passwordless`/`hosted_passkey`(见 04 章 4;`anonymous` = guest 用户,见 01 章 8;`hosted_*` = Hosted UI 凭证来源,guest 转正时也写这些值) |
+| deleted_at                | integer ts_ms   | null                                          | null           | 软删除(30d 后硬删 PII,见 05 章 7)                                                                                                                                                                                      |
+| created_at / updated_at   | integer ts_ms   | NOT NULL                                      | 见 9.3         |                                                                                                                                                                                                                        |
 
 索引:`UNIQUE(tenant_id, username)`、`UNIQUE(tenant_id, external_id)`、`INDEX(tenant_id, status)`、`INDEX(tenant_id, created_at)`、`INDEX(primary_email_id)`、`INDEX(merged_into_user_id)`。primary_email_id/primary_phone_id 与 user_emails/user_phones 互为引用,建表后用 deferred FK 或应用层维护(SQLite 不支持 ALTER ADD FK,Drizzle 声明 FK 即可,运行时不强制)。
 
 guest 生命周期(见 01 章 8):GC cron 每日扫,软删 provisioned_by = 'anonymous' 且最后活跃满 30 天的 user(无 session 按 created_at,有 session 按该 user 最新 session 的 last_active_at),与其他软删用户进入同一套 30 天硬删 PII 管道(见 05 章 7),审计事件 guest.gc_deleted。guest 行不参与 MeteringDO MAU 去重(见 17.3),避免免费试用打爆 MAU 账单。
+
+未使用的 anonymous provisional user 在没有 Membership,或只有安全空闲 onboarding 顶层 Tenant
+的 owner Membership 时进入同一 30 天生命周期。若 `pending_email` 始终未验证,清理会撤销
+sessions、停用该 owner Membership,并软删除 onboarding Organization 与 user。迁移后的 user-owned
+行继续进入正常 PII 保留管道。存在其他 active member、子 Organization 或业务资源的 Tenant
+完整跳过。
 
 ### 11.2 user_emails(多值邮箱,见 05 章 1)
 
@@ -562,6 +570,11 @@ gdpr_consents:
 | created_at    | integer ts_ms  | NOT NULL                                   | 见 9.3 |                                                               |
 
 索引:`UNIQUE(token_hash)`、`INDEX(tenant_id, user_id)`、部分 `UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose IN ('magic_link','otp')`(同用户同用途同渠道同时至多一条 active,重发先作废旧条)。
+
+当 `purpose = 'email_verification'` 时,签名 JWT 携带 `email_hash`,值为签发时精确 normalized Email
+的 SHA-256。D1 继续只在 `verification_tokens.token_hash` 保存 jti 哈希,不保存明文 Email,也不新增
+target 列。核销时把签名 `email_hash` 与当前 primary Email 或 `users.pending_email` 对比,只更新匹配
+目标。目标变化会使 token 失效;重发时先作废旧 active token,再签发替代 token。
 
 ### 12.4 passkey_credentials(WebAuthn 凭证,见 01 章 1、webauthn rule)
 

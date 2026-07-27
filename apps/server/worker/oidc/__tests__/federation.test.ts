@@ -19,6 +19,26 @@ const managerSession = {
 
 function managerDb() {
   return makeFakeD1({
+    users: [
+      {
+        id: 'u_mgr',
+        tenant_id: 't_1',
+        primary_email_id: 'email_mgr',
+        status: 'active',
+        deleted_at: null,
+      },
+    ],
+    user_emails: [
+      {
+        id: 'email_mgr',
+        tenant_id: 't_1',
+        user_id: 'u_mgr',
+        email: 'manager@example.test',
+        verified: 1,
+        verification_status: 'verified',
+        is_primary: 1,
+      },
+    ],
     manager_assignments: [
       {
         id: 'mgr_1',

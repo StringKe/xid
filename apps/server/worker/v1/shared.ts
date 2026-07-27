@@ -10,6 +10,7 @@ import type { Context } from 'hono'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import type { RateLimitPolicy } from '../durable-objects/rate-limit-store'
 import { AppError } from '../lib/errors'
+import { requireVerifiedManagementMutation } from '../lib/management-access'
 import { checkRateLimitStore } from '../lib/rate-limit'
 import { readSession } from '../lib/session'
 
@@ -236,21 +237,26 @@ export async function requireOrgManager(
       eq(schema.memberships.status, 'active'),
     ),
   )
+  let role: OrgManagerRole | undefined
   if (membership && (membership.role === 'admin' || membership.role === 'owner')) {
-    return { session, role: membership.role }
+    role = membership.role
   }
 
-  const orgManager = await db.managerAssignments.findOne(
-    and(
-      eq(schema.managerAssignments.userId, session.userId),
-      eq(schema.managerAssignments.managerRole, 'org_manager'),
-      eq(schema.managerAssignments.scopeType, 'org'),
-      eq(schema.managerAssignments.scopeId, orgId),
-    ),
-  )
-  if (orgManager) return { session, role: 'org_manager' }
+  if (!role) {
+    const orgManager = await db.managerAssignments.findOne(
+      and(
+        eq(schema.managerAssignments.userId, session.userId),
+        eq(schema.managerAssignments.managerRole, 'org_manager'),
+        eq(schema.managerAssignments.scopeType, 'org'),
+        eq(schema.managerAssignments.scopeId, orgId),
+      ),
+    )
+    if (orgManager) role = 'org_manager'
+  }
 
-  throw new AppError('forbidden', { httpStatus: 403 })
+  if (!role) throw new AppError('forbidden', { httpStatus: 403 })
+  await requireVerifiedManagementMutation(c, session)
+  return { session, role }
 }
 
 // Bulk invitations: 50/hour/tenant, natural window expiry (no lockout).
