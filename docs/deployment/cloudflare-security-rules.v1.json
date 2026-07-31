@@ -1,7 +1,7 @@
 {
   "$schema": "./cloudflare-security-rules.schema.json",
   "schemaVersion": 1,
-  "deploymentState": "EXTERNAL",
+  "deploymentState": "RECONCILED",
   "scope": {
     "type": "zone",
     "zoneName": "xid.dev",
