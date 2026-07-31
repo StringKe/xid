@@ -20,6 +20,7 @@ export type IdpMetadataInput = {
   sloUrl?: string
   signingCertsB64: readonly string[]
   nameIdFormats?: readonly string[]
+  wantAuthnRequestsSigned?: boolean
 }
 
 export type SamlAttributeValue = string | readonly string[]
@@ -87,7 +88,7 @@ export function buildIdpMetadataXml(input: IdpMetadataInput): string {
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<md:EntityDescriptor xmlns:md="${MD_NS}" entityID="${escapeXml(input.entityId)}">`,
-    `<md:IDPSSODescriptor protocolSupportEnumeration="${PROTO}" WantAuthnRequestsSigned="false">`,
+    `<md:IDPSSODescriptor protocolSupportEnumeration="${PROTO}" WantAuthnRequestsSigned="${input.wantAuthnRequestsSigned ? 'true' : 'false'}">`,
     certs,
     nameIdFormats,
     `<md:SingleSignOnService Binding="${POST_BINDING}" Location="${escapeXml(input.ssoUrl)}"/>`,
@@ -176,7 +177,8 @@ async function signElement(doc: Document, target: Element, key: CryptoKey): Prom
   })
   const sig = signedXml.GetXml()
   if (!sig) throw new Error('SAML signature not produced')
-  target.appendChild(sig)
+  const issuer = childByLocalName(target, 'Issuer')
+  target.insertBefore(sig, issuer?.nextSibling ?? target.firstChild)
 }
 
 function childByLocalName(parent: Element, localName: string): Element | null {

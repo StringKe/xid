@@ -27,9 +27,9 @@ signing, hashing, WebAuthn, or SAML.
 ## Cloudflare Bindings (MUST)
 
 - **D1 is never touched directly.** All relational access goes through `createTenantDb` from `@xid-kit/db`, which injects the `tenant_id` / `org_id` predicate automatically (see tenant-isolation rule). Raw SQL and unfiltered `db.select().from(...)` are forbidden. This is enforced by `packages/db/src/__tests__/isolation.test.ts`.
-- **Queues**: producers call `c.env.<NAME>_QUEUE.send(...)` directly; type safety comes from the `Queue<T>` declarations in `apps/server/worker/env.d.ts` (`EMAIL_QUEUE`, `WHATSAPP_QUEUE`, `SMS_QUEUE`, `AUDIT_QUEUE`, `WEBHOOK_QUEUE`, `METERING_QUEUE`). Consumers live in `apps/server/worker/queues/`. Add a new message type to `env.d.ts` rather than sending an untyped payload.
+- **Queues**: producers call `c.env.<NAME>_QUEUE.send(...)` directly; type safety comes from the `Queue<T>` declarations in `apps/server/worker/env.d.ts` (`EMAIL_QUEUE`, `WHATSAPP_QUEUE`, `SMS_QUEUE`, `AUDIT_QUEUE`, `WEBHOOK_QUEUE`, `METERING_QUEUE`, `SCIM_QUEUE`). Consumers live in `apps/server/worker/queues/`. Add a new message type to `env.d.ts` rather than sending an untyped payload.
 - **KV (`CACHE`) and R2 (`STORAGE`)** are read through `c.env` at the call site. What MUST stay centralized is the surrounding policy, not the call:
-  - TTLs and limits belong in `apps/server/worker/lib/ttl.ts` (`JWKS_CACHE_TTL_SEC`, `DISCOVERY_CACHE_TTL_SEC`, `TOTP_REPLAY_KV_TTL_SEC`, `OTP_PHONE_TTL_MS`, ...). Never inline a magic TTL number at a call site.
+  - TTLs and limits belong in `apps/server/worker/lib/ttl.ts` (`JWKS_CACHE_TTL_SEC`, `DISCOVERY_CACHE_TTL_SEC`, `TOTP_REPLAY_TTL_MS`, `OTP_PHONE_TTL_MS`, ...). Never inline a magic TTL number at a call site.
   - Key naming follows the conventions in the cloudflare-bindings rule.
   - R2 public serving goes through `registerStorageRoutes` in `apps/server/worker/storage.ts`, not ad-hoc object fetches from route handlers.
 

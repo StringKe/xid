@@ -9,12 +9,18 @@
 // provider 集成层(配置/验签/profile/code exchange/token 加密)见 social-providers.ts。
 
 import { base64UrlEncode } from '@xid-kit/crypto'
-import { createTenantDb, resolveTenantContextById, schema } from '@xid-kit/db'
+import {
+  createTenantDb,
+  resolveTenantContextByApplicationClientId,
+  resolveTenantContextById,
+  schema,
+} from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { validateQuery } from '../lib/validate'
@@ -34,11 +40,36 @@ import type { Provider, ProviderProfile, TokenResponse } from './social-provider
 import { assertSocialProviderAllowed } from './hosted-policy'
 import { auditPolicyDeniedError } from './hosted-audit'
 import { loginHintCandidates, resolveEntryTenant, withTenant } from '../me-auth/instance-login'
-import { ensureDefaultMembership, shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
+import { requestIp, verifyTurnstile } from '../me-auth/shared'
+import { shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 import { OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
+import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
+import { provisionAccountAtomically } from './account-provisioning'
 
 const DEFAULT_AUTH_RETURN_PATH = '/console'
+const INVITATION_PATH = '/accept-invitation'
+
+function isInvitationContinuePath(value: string | null | undefined): boolean {
+  if (!value) return false
+  try {
+    const parsed = new URL(value, 'https://xid.invalid')
+    return parsed.pathname === INVITATION_PATH || parsed.pathname === `${INVITATION_PATH}/`
+  } catch {
+    return false
+  }
+}
+
+function requestHasRawInvitationInput(
+  c: Context<XidHonoEnv>,
+  continuationParameters: readonly string[],
+): boolean {
+  const query = new URL(c.req.url).searchParams
+  if (query.has('invitation_token') || query.has('invitationToken')) return true
+  return continuationParameters.some((name) =>
+    query.getAll(name).some((value) => isInvitationContinuePath(value)),
+  )
+}
 
 // callback 输入形状:code/state/error 均为可选字符串(Apple form_post 的 File 值视为缺失,见 readCallbackParams)。
 const callbackParamsSchema = v.object({
@@ -65,10 +96,14 @@ type OAuthFlowPayload = {
   redirectAfterLogin: string
   returnToOrigin: string
   createdAt: number
+  invitationId?: string
   invitationToken?: string
   intent?: string
+  applicationClientId?: string
   skipDefaultMembership?: boolean
 }
+
+type NewOAuthFlowPayload = Omit<OAuthFlowPayload, 'invitationId' | 'invitationToken'>
 
 // OAuthFlowDO stub(OAUTH_STATE binding,见 cloudflare-bindings rule)。
 function oauthFlowStub(env: Env, state: string): DurableObjectStub {
@@ -76,7 +111,11 @@ function oauthFlowStub(env: Env, state: string): DurableObjectStub {
   return ns.get(ns.idFromName(`state:${state}`))
 }
 
-async function storeOAuthFlow(env: Env, state: string, payload: OAuthFlowPayload): Promise<void> {
+async function storeOAuthFlow(
+  env: Env,
+  state: string,
+  payload: NewOAuthFlowPayload,
+): Promise<void> {
   const stub = oauthFlowStub(env, state)
   const res = await stub.fetch('https://oauth-flow/store', {
     method: 'POST',
@@ -116,8 +155,12 @@ function parseConsumedOAuthFlowBody(value: unknown): OAuthFlowPayload {
   ) {
     throw new AppError('server_error')
   }
-  const invitationToken = optionalString(record, 'invitationToken')
+  const invitationId = optionalString(record, 'invitationId')
+  const camelInvitationToken = optionalString(record, 'invitationToken')
+  const snakeInvitationToken = optionalString(record, 'invitation_token')
+  const invitationToken = camelInvitationToken ?? snakeInvitationToken
   const intent = optionalString(record, 'intent')
+  const applicationClientId = optionalString(record, 'applicationClientId')
   return {
     tenantId: requiredString(record, 'tenantId'),
     provider: requiredString(record, 'provider'),
@@ -126,8 +169,10 @@ function parseConsumedOAuthFlowBody(value: unknown): OAuthFlowPayload {
     redirectAfterLogin: requiredString(record, 'redirectAfterLogin'),
     returnToOrigin: requiredString(record, 'returnToOrigin'),
     createdAt,
+    ...(invitationId === undefined ? {} : { invitationId }),
     ...(invitationToken === undefined ? {} : { invitationToken }),
     ...(intent === undefined ? {} : { intent }),
+    ...(applicationClientId === undefined ? {} : { applicationClientId }),
     ...(skipDefaultMembership === undefined ? {} : { skipDefaultMembership }),
   }
 }
@@ -193,30 +238,52 @@ const social = new Hono<XidHonoEnv>()
 
 async function socialAuthorizeTenant(c: Context<XidHonoEnv>): Promise<TenantVar> {
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
-
   const organizationId = c.req.query('organization_id')?.trim()
-  if (organizationId) {
-    const result = await resolveTenantContextById(c.req.raw, c.env, organizationId)
-    if (!result.ok) throw new AppError('invalid_request')
-    return result.value.tenant
-  }
-
   const loginHint = c.req.query('login_hint')?.trim()
-  if (!loginHint) return current
-  return resolveEntryTenant(c, loginHintCandidates(loginHint))
+  const intent = c.req.query('intent') ?? null
+  const applicationClientId = c.req.query('client_id') ?? null
+  if (!current.resolution?.unresolvedRoot && !applicationClientId?.trim()) {
+    return current
+  }
+  if (!loginHint && !organizationId && !intent && !applicationClientId) {
+    return current
+  }
+  return resolveEntryTenant(c, loginHint ? loginHintCandidates(loginHint) : [], organizationId, {
+    intent,
+    applicationClientId,
+  })
 }
 
-async function socialCallbackTenant(c: Context<XidHonoEnv>, tenantId: string): Promise<TenantVar> {
+async function socialCallbackTenant(
+  c: Context<XidHonoEnv>,
+  flow: OAuthFlowPayload,
+): Promise<TenantVar> {
+  if (flow.applicationClientId) {
+    const applicationTenant = await resolveTenantContextByApplicationClientId(
+      c.req.raw,
+      c.env,
+      flow.applicationClientId,
+    )
+    if (!applicationTenant.ok || applicationTenant.value.tenantId !== flow.tenantId) {
+      throw new AppError('cross_tenant_access_denied')
+    }
+    return applicationTenant.value
+  }
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
-  const result = await resolveTenantContextById(c.req.raw, c.env, tenantId)
-  if (!result.ok) throw new AppError('cross_tenant_access_denied')
+  if (current.tenantId === flow.tenantId) return current
+  const result = await resolveTenantContextById(c.req.raw, c.env, flow.tenantId)
+  if (!result.ok || result.value.tenant.tenantId !== flow.tenantId) {
+    throw new AppError('cross_tenant_access_denied')
+  }
   return result.value.tenant
 }
 
 // GET /auth/{provider}/authorize -- 发起 OAuth 授权跳转
 async function handleAuthorize(c: Context<XidHonoEnv>, provider: Provider): Promise<Response> {
+  if (requestHasRawInvitationInput(c, ['redirect_uri', 'continue'])) {
+    throw new AppError('invalid_request')
+  }
+  await verifyTurnstile(c.req.query('turnstile'), c.env, requestIp(c))
   const tenant = await socialAuthorizeTenant(c)
 
   const config = getProviderConfig(c.env, tenant, provider)
@@ -229,7 +296,7 @@ async function handleAuthorize(c: Context<XidHonoEnv>, provider: Provider): Prom
       action: 'login',
       email: null,
       emailVerified: true,
-      hasSecret: (policy) => hasProviderSecret(c.env, policy),
+      hasSecret: (policy, providerName) => hasProviderSecret(c.env, policy, providerName),
     })
     // authorizationEndpoint 进 302 Location,必须 https + 公网(SSRF/open redirect 防护)。
     assertPublicProviderEndpoints(config, isDevOrTestEnvironment(c.env))
@@ -248,15 +315,20 @@ async function handleAuthorize(c: Context<XidHonoEnv>, provider: Provider): Prom
   const codeVerifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(43)))
   const codeChallenge = await computeCodeChallenge(codeVerifier)
 
-  const redirectAfterLogin =
+  const requestedRedirectAfterLogin =
     c.req.query('redirect_uri') ?? c.req.query('continue') ?? DEFAULT_AUTH_RETURN_PATH
+  const applicationClientId = c.req.query('client_id')?.trim() || null
   const returnToOrigin = new URL(c.req.url).origin
-  const invitationToken = c.req.query('invitation_token') ?? c.req.query('invitationToken') ?? null
   const intent = c.req.query('intent') ?? null
-  const skipDefaultMembership = shouldSkipDefaultMembership({
-    redirectAfterLogin,
-    invitationToken,
+  const flowResolution = resolveHostedAuthFlow({
     intent,
+    continuePath: requestedRedirectAfterLogin,
+    applicationClientId,
+  })
+  if (!flowResolution) throw new AppError('invalid_request')
+  const skipDefaultMembership = shouldSkipDefaultMembership({
+    redirectAfterLogin: flowResolution.continuePath,
+    intent: flowResolution.intent,
   })
 
   // state 存 OAuthFlowDO(10min,一次性消费)。
@@ -265,11 +337,11 @@ async function handleAuthorize(c: Context<XidHonoEnv>, provider: Provider): Prom
     provider,
     codeVerifier,
     nonce,
-    redirectAfterLogin,
+    redirectAfterLogin: flowResolution.continuePath,
     returnToOrigin,
     createdAt: Date.now(),
-    invitationToken: invitationToken ?? undefined,
-    intent: intent ?? undefined,
+    intent: flowResolution.intent ?? undefined,
+    applicationClientId: flowResolution.applicationClientId ?? undefined,
     skipDefaultMembership,
   })
 
@@ -371,7 +443,7 @@ async function upsertIdentity(
     return
   }
   await db.userIdentities.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('userIdentity'),
     tenantId: tenant.tenantId,
     userId,
     identityType: 'oauth',
@@ -412,7 +484,7 @@ async function linkOrCreateUser(ctx: LinkContext): Promise<string> {
         action: 'login',
         email,
         emailVerified,
-        hasSecret: (policy) => hasProviderSecret(ctx.c.env, policy),
+        hasSecret: (policy, providerName) => hasProviderSecret(ctx.c.env, policy, providerName),
       })
     } catch (error) {
       throw await auditPolicyDeniedError(ctx.c, error, {
@@ -431,7 +503,12 @@ async function linkOrCreateUser(ctx: LinkContext): Promise<string> {
   // 分支 B/C:按 email 命中现有 user。
   if (email) {
     const emailRow = await db.userEmails.findOne(eq(schema.userEmails.email, email))
-    if (emailRow && emailVerified) {
+    if (
+      emailRow &&
+      emailVerified &&
+      emailRow.verified &&
+      emailRow.verificationStatus === 'verified'
+    ) {
       try {
         assertSocialProviderAllowed({
           tenant: ctx.tenant,
@@ -439,7 +516,7 @@ async function linkOrCreateUser(ctx: LinkContext): Promise<string> {
           action: 'login',
           email,
           emailVerified,
-          hasSecret: (policy) => hasProviderSecret(ctx.c.env, policy),
+          hasSecret: (policy, providerName) => hasProviderSecret(ctx.c.env, policy, providerName),
         })
       } catch (error) {
         throw await auditPolicyDeniedError(ctx.c, error, {
@@ -468,7 +545,7 @@ async function linkOrCreateUser(ctx: LinkContext): Promise<string> {
       action: 'user_creation',
       email,
       emailVerified,
-      hasSecret: (policy) => hasProviderSecret(ctx.c.env, policy),
+      hasSecret: (policy, providerName) => hasProviderSecret(ctx.c.env, policy, providerName),
     })
   } catch (error) {
     throw await auditPolicyDeniedError(ctx.c, error, {
@@ -509,7 +586,14 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
   const flow = await consumeOAuthFlow(c.env, state)
   if (!flow) throw new AppError('invalid_request', { longMessage: 'state_invalid' })
   assertOAuthFlowPayload(flow, provider)
-  tenant = await socialCallbackTenant(c, flow.tenantId)
+  if (
+    flow.invitationId !== undefined ||
+    flow.invitationToken !== undefined ||
+    isInvitationContinuePath(flow.redirectAfterLogin)
+  ) {
+    throw new AppError('invalid_request')
+  }
+  tenant = await socialCallbackTenant(c, flow)
   if (flow.tenantId !== tenant.tenantId) throw new AppError('cross_tenant_access_denied')
 
   return withTenant(c, tenant, async () => {
@@ -522,7 +606,7 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
         action: 'login',
         email: null,
         emailVerified: true,
-        hasSecret: (policy) => hasProviderSecret(c.env, policy),
+        hasSecret: (policy, providerName) => hasProviderSecret(c.env, policy, providerName),
       })
     } catch (policyError) {
       throw await auditPolicyDeniedError(c, policyError, {
@@ -575,13 +659,26 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
     })
 
     const now = new Date()
+    const flowResolution = resolveHostedAuthFlow({
+      intent: flow.intent,
+      continuePath: flow.redirectAfterLogin,
+      applicationClientId: flow.applicationClientId,
+    })
+    if (
+      !flowResolution ||
+      flowResolution.continuePath !== flow.redirectAfterLogin ||
+      flowResolution.applicationClientId !== (flow.applicationClientId ?? null)
+    ) {
+      throw new AppError('invalid_request')
+    }
     const location =
-      flow.intent === 'sign-up' && !flow.invitationToken
-        ? '/create-organization'
-        : resolveRedirect(flow.redirectAfterLogin, config, DEFAULT_AUTH_RETURN_PATH)
+      flowResolution.kind === 'local'
+        ? resolveRedirect(flowResolution.continuePath, config, DEFAULT_AUTH_RETURN_PATH)
+        : flowResolution.continuePath
+    const sessionId = createPersistedId('session')
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath: location })
     await issueSession(c, {
-      sessionId: crypto.randomUUID(),
+      sessionId,
       userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
       authContext: SOCIAL_AUTH_CONTEXT,
@@ -591,8 +688,8 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
       userAgent: c.req.header('user-agent') ?? null,
     })
 
-    // sign-up 目标是 Worker 固定内部路径,其余 redirectAfterLogin 必须精确匹配 client 注册白名单。
-    // session 走 cookie(issueSession 已设),绝不在 URL 携带 session_id。
+    // sign-up 目标是 Worker 固定内部路径,其余 redirectAfterLogin 必须精确匹配 client 注册
+    // 白名单。session 走 cookie(issueSession 已设),绝不在 URL 携带 session_id。
     const target = mfaGate.redirectUrl ?? location
     return c.redirect(redirectUrl(target, flow.returnToOrigin), 302)
   })
@@ -600,42 +697,61 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
 
 // 新建 user + 主邮箱 + SocialConnection(分支 D),记 user.created + connection.linked 审计。
 async function createNewUser(ctx: LinkContext): Promise<string> {
-  const { c, tenant, db, provider, profile } = ctx
-  const userId = crypto.randomUUID()
+  const { c, tenant, provider, profile } = ctx
+  const userId = createPersistedId('user')
   const nameParts = (profile.name ?? '').split(' ')
-
-  await db.users.insert({
-    id: userId,
+  const emailId = profile.email ? crypto.randomUUID() : null
+  const identityId = createPersistedId('userIdentity')
+  const ciphertexts = await buildTokenCiphertexts(c.env, ctx.tokens)
+  const now = new Date()
+  await provisionAccountAtomically({
+    d1: c.env.DB,
     tenantId: tenant.tenantId,
-    firstName: nameParts[0] ?? null,
-    lastName: nameParts.slice(1).join(' ') || null,
-    displayName: profile.name ?? null,
-    externalId: profile.externalId ?? null,
-    status: 'active',
+    user: {
+      id: userId,
+      externalId: profile.externalId ?? null,
+      primaryEmailId: emailId,
+      firstName: nameParts[0] ?? null,
+      lastName: nameParts.slice(1).join(' ') || null,
+      displayName: profile.name ?? null,
+      profileCompletionStatus: 'incomplete',
+      provisionedBy: null,
+      isNewUser: true,
+    },
+    primaryEmail:
+      profile.email && emailId
+        ? {
+            id: emailId,
+            email: profile.email,
+            verified: profile.emailVerified,
+            verificationStatus: profile.emailVerified ? 'verified' : 'unverified',
+            verifiedAt: profile.emailVerified ? now : null,
+          }
+        : null,
+    socialIdentity: {
+      id: identityId,
+      provider,
+      providerUserId: profile.idpUserId,
+      ...ciphertexts,
+      scopes: ctx.scopes,
+      profileRaw: profile.profileRaw,
+      lastUsedAt: now,
+    },
+    defaultMembership: ctx.skipDefaultMembership
+      ? null
+      : {
+          id: createPersistedId('membership'),
+          orgId: tenant.tenantId,
+        },
   })
 
-  if (profile.email) {
-    const emailId = crypto.randomUUID()
-    await db.userEmails.insert({
-      id: emailId,
-      tenantId: tenant.tenantId,
-      userId,
-      email: profile.email,
-      verified: profile.emailVerified,
-      verificationStatus: profile.emailVerified ? 'verified' : 'unverified',
-      isPrimary: true,
-      ...(profile.emailVerified ? { verifiedAt: new Date() } : {}),
-    })
-    await db.users.update({ primaryEmailId: emailId }, eq(schema.users.id, userId))
-  }
-  await ensureDefaultMembership({
-    db,
+  await c.env.AUDIT_QUEUE.send({
     tenantId: tenant.tenantId,
-    userId,
-    skip: ctx.skipDefaultMembership ?? false,
+    action: 'connection.linked',
+    actorId: userId,
+    ts: Date.now(),
+    payload: { provider, idpUserId: profile.idpUserId },
   })
-
-  await upsertIdentity(ctx, userId, null)
   await c.env.AUDIT_QUEUE.send({
     tenantId: tenant.tenantId,
     action: 'user.created',

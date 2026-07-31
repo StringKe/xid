@@ -112,7 +112,7 @@ function verifyTlsClientAuthForMethod(
     const selfSigned = issuer.length === 0 || issuer === subject
     if (!selfSigned) return false
     const allowlist = thumbprintAllowlist(client)
-    if (allowlist.length === 0) return true
+    if (allowlist.length === 0) return false
     return allowlist.includes(mtlsCertThumbprint(tls))
   }
   return false

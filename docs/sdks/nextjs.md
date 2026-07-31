@@ -4,7 +4,13 @@
 
 ## Install
 
+Registry status is `UNPUBLISHED`: local release artifacts are verified, but no npm publication has
+been performed or authorized. The registry command below is post-publication only and becomes valid
+after an independently verified authorized release. Until then, install from a source checkout or
+audited tarball as described in [SDK Distribution](./distribution.md).
+
 ```sh
+# Post-publication only
 pnpm add @xid-kit/nextjs
 ```
 
@@ -15,14 +21,24 @@ pnpm add @xid-kit/nextjs
 import { xidMiddleware } from '@xid-kit/nextjs'
 
 export default xidMiddleware({
-  jwtKey: process.env.XID_JWKS_PUBLIC_KEY!,
+  jwtKey: JSON.parse(process.env.XID_JWKS_PUBLIC_KEY!),
   issuer: 'https://xid.dev',
+  // This exact-origin path must be routed to XID Core.
+  sessionTokenExchange: { endpoint: '/v1/sessions/token' },
 })
 
 export const config = {
   matcher: ['/dashboard(.*)', '/api/protected(.*)'],
 }
 ```
+
+This quickstart assumes the application and Core session-token route share an origin. Core's
+`__Host-xid.rt.*` cookie is an opaque refresh credential. Middleware forwards it to
+`POST /v1/sessions/token` on that same origin and verifies only the returned short-lived JWT.
+
+If the application is on another origin, hand a short-lived JWT to the server as
+`Authorization: Bearer <token>`, or use an application-owned JWT cookie with `jwtCookieName`. Never
+copy a Core refresh cookie to the application origin.
 
 ## Quickstart: App Router
 
@@ -58,7 +74,7 @@ export const getServerSideProps = async (ctx) => {
 | Export                 | Kind     | Description                                                                                                                                   |
 | ---------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `xidMiddleware`        | function | Edge Runtime middleware: verifies session JWT networklessly, injects auth state into request headers for server components and route handlers |
-| `XidMiddlewareOptions` | type     | Options for `xidMiddleware`: jwtKey, issuer, publicRoutes, ignoredRoutes                                                                      |
+| `XidMiddlewareOptions` | type     | Options include jwtKey, issuer, route protection, jwtCookieName, and same-origin sessionTokenExchange                                         |
 
 ### Server helpers
 
@@ -80,7 +96,7 @@ export const getServerSideProps = async (ctx) => {
 
 | Export                      | Description                                            |
 | --------------------------- | ------------------------------------------------------ |
-| `AuthObject`                | Authenticated state: userId, orgId, orgRole, sessionId |
+| `AuthObject`                | Authenticated state: userId, orgId, orgRole, sessionId; orgRole is `owner`, `admin`, or `member` |
 | `UnauthenticatedAuthObject` | Unauthenticated state with null fields                 |
 | `AuthResult`                | Union of `AuthObject` and `UnauthenticatedAuthObject`  |
 | `PaginationParams`          | Cursor and limit params for Management API list calls  |
@@ -117,6 +133,7 @@ All exports from `@xid-kit/react` are re-exported. See the [React SDK](./react.m
 ## Security boundaries
 
 - Middleware runs on the Edge Runtime and reads only the session JWT; it does not expose secrets to client bundles.
+- Core opaque refresh cookies are validated only by Core through an exact same-origin exchange.
 - Server helpers do not pass signing secrets to client components.
 - Token verification is delegated to `@xid-kit/backend`.
 

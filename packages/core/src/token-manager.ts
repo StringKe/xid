@@ -15,15 +15,13 @@ type CachedToken = {
   expireAt: number | null
 }
 
-// 每个 template(含默认)独立缓存槽:默认 session token 与自定义模板 token 互不覆盖。
-const DEFAULT_TEMPLATE = '__default__'
-
 export class TokenManager {
   readonly #api: XidApiClient
   readonly #now: () => number
-  readonly #cache = new Map<string, CachedToken>()
-  // 在途刷新去重:同一 template 并发只发一次请求。
-  readonly #inflight = new Map<string, Promise<Result<string, XidError>>>()
+  #cache: CachedToken | null = null
+  // 在途刷新去重:并发 getToken 只发一次请求。
+  #inflight: Promise<Result<string, XidError>> | null = null
+  #generation = 0
 
   constructor(input: { api: XidApiClient; now: () => number }) {
     this.#api = input.api
@@ -31,23 +29,23 @@ export class TokenManager {
   }
 
   async getToken(options: GetTokenOptions = {}): Promise<Result<string, XidError>> {
-    const template = options.template ?? DEFAULT_TEMPLATE
     const leeway = options.leewaySeconds ?? DEFAULT_LEEWAY_SECONDS
 
     if (!options.skipCache) {
-      const cached = this.#cache.get(template)
+      const cached = this.#cache
       if (cached && !this.#isExpiring(cached, leeway)) {
         return { ok: true, value: cached.jwt }
       }
     }
 
-    return this.#refresh(template, options)
+    return this.#refresh(options)
   }
 
   // 清缓存(sign-out / 切换会话后调用,防旧 token 泄漏到新上下文)。
   clear(): void {
-    this.#cache.clear()
-    this.#inflight.clear()
+    this.#generation += 1
+    this.#cache = null
+    this.#inflight = null
   }
 
   #isExpiring(cached: CachedToken, leeway: number): boolean {
@@ -56,34 +54,35 @@ export class TokenManager {
     return isTokenExpiring(cached.jwt, now, leeway)
   }
 
-  async #refresh(template: string, options: GetTokenOptions): Promise<Result<string, XidError>> {
-    const existing = this.#inflight.get(template)
+  async #refresh(options: GetTokenOptions): Promise<Result<string, XidError>> {
+    const existing = this.#inflight
     if (existing) return existing
 
-    const promise = this.#fetchToken(template, options).finally(() => {
-      this.#inflight.delete(template)
+    const generation = this.#generation
+    const promise = this.#fetchToken(options, generation).finally(() => {
+      if (this.#inflight === promise) this.#inflight = null
     })
-    this.#inflight.set(template, promise)
+    this.#inflight = promise
     return promise
   }
 
-  async #fetchToken(template: string, options: GetTokenOptions): Promise<Result<string, XidError>> {
-    const requestTemplate = template === DEFAULT_TEMPLATE ? undefined : template
+  async #fetchToken(
+    options: GetTokenOptions,
+    generation: number,
+  ): Promise<Result<string, XidError>> {
     const result = await this.#api.getToken({
-      ...(requestTemplate ? { template: requestTemplate } : {}),
       ...(options.signal ? { signal: options.signal } : {}),
     })
     if (!result.ok) return result
 
-    this.#cache.set(template, toCachedToken(result.value))
-    return { ok: true, value: result.value.jwt }
+    // A sign-out or session switch can clear state while the request is in flight. Do not let
+    // that stale completion repopulate the cache for the new browser session.
+    if (this.#generation === generation) this.#cache = toCachedToken(result.value)
+    return { ok: true, value: result.value.token }
   }
 }
 
 function toCachedToken(response: TokenResponse): CachedToken {
-  if (typeof response.expireAt === 'number') {
-    return { jwt: response.jwt, expireAt: response.expireAt }
-  }
-  const claims = decodeTokenClaims(response.jwt)
-  return { jwt: response.jwt, expireAt: typeof claims?.exp === 'number' ? claims.exp : null }
+  const claims = decodeTokenClaims(response.token)
+  return { jwt: response.token, expireAt: typeof claims?.exp === 'number' ? claims.exp : null }
 }

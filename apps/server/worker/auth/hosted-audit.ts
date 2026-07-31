@@ -15,7 +15,7 @@ type PolicyDeniedIdentifier = {
 
 type PolicyDeniedInput = {
   tenant: TenantVar
-  method: HostedAuthMethod | 'social' | 'enterpriseSso'
+  method: HostedAuthMethod | 'social' | 'enterpriseSso' | 'guest'
   action: 'login' | 'user_creation' | 'availability' | 'domain_discovery'
   reason: HostedAuthPolicyDenialReason | 'domain_discovery_disabled'
   identifier?: PolicyDeniedIdentifier

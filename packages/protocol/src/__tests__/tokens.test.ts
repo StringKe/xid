@@ -1,6 +1,6 @@
 // buildIdTokenClaims / buildAccessTokenClaims / signClaims 正例 + claims 条件组合。
 // issuer/签名 kid 从 TenantContext 取(tenant-context rule);amr passkey=phr / OTP=otp。
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, expectTypeOf } from 'vitest'
 import { importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
 
 import {
@@ -9,7 +9,9 @@ import {
   signClaims,
   signAccessTokenClaims,
   leftHalfHash,
+  type AccessTokenOptions,
 } from '../tokens'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 import { buildTestTenant } from './fixtures/tenant'
 
 const NOW = 1_900_000_000
@@ -148,6 +150,26 @@ describe('buildAccessTokenClaims', () => {
       options: { authorizationDetails },
     })
     expect(claims.authorization_details).toEqual(authorizationDetails)
+  })
+
+  it('uses the fixed Organization membership role contract for org_role', async () => {
+    expectTypeOf<
+      NonNullable<AccessTokenOptions['orgRole']>
+    >().toEqualTypeOf<OrganizationMembershipRole>()
+    const { ctx } = await buildTestTenant()
+    const claims = buildAccessTokenClaims({
+      ctx,
+      subject: { userId: 'u1' },
+      clientId: 'c1',
+      scope: 'openid',
+      audience: 'c1',
+      now: NOW,
+      ttlSec: 3600,
+      options: { activeOrgId: 'org_1', orgRole: 'admin' },
+    })
+
+    expect(claims.active_org_id).toBe('org_1')
+    expect(claims.org_role).toBe('admin')
   })
 })
 

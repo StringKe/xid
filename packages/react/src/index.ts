@@ -118,3 +118,5 @@ export type { OrganizationListProps } from './components/organization/organizati
 
 // --- Appearance ---
 export type { Appearance, AppearanceVariables, AppearanceElements } from './appearance'
+
+export type { OrganizationMembershipRole } from '@xid-kit/types'

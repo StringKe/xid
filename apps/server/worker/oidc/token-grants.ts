@@ -29,6 +29,8 @@ import {
   tokenResponseBody,
 } from './token-issue'
 import type { TokenContext } from './token-issue'
+import { normalizeIssuedAcr } from '../lib/auth-context'
+import { createPersistedId } from '../lib/persisted-id'
 import { refreshTtlSecOf } from './shared'
 
 type GrantResult = Result<Record<string, unknown>, XidError>
@@ -320,7 +322,7 @@ async function rotateAndIssue(
     scope,
     now: tc.now,
     idleTtlSec: refreshTtlSecOf(tc.c.get('tenant')).idleTtlSec,
-    newId: crypto.randomUUID(),
+    newId: createPersistedId('refreshToken'),
   })
   // 原子 CAS:只有 revoked_at IS NULL 的旧 token 被本次撤销;0 行=已被并发请求轮换=双花。
   const affected = await atomicRevokeOld(tc, oldHash, revokedOld.revokedAt ?? tc.now)
@@ -423,7 +425,7 @@ async function persistRotatedRefresh(tc: TokenContext, rec: RefreshTokenRecord):
       rec.resource === null ? null : JSON.stringify(rec.resource),
       rec.authorizationDetails === null ? null : JSON.stringify(rec.authorizationDetails),
       rec.authTime,
-      rec.acr,
+      normalizeIssuedAcr(rec.acr),
       rec.amr === null ? null : JSON.stringify(rec.amr),
       rec.expiresAt * 1000,
       rec.absoluteExpiresAt * 1000,
@@ -458,7 +460,7 @@ function toRefreshRecord(row: RefreshRow): RefreshTokenRecord {
     resource: row.resource ?? null,
     authorizationDetails: parseAuthorizationDetailsRow(row.authorizationDetails),
     authTime: row.authTime ?? null,
-    acr: row.acr ?? null,
+    acr: normalizeIssuedAcr(row.acr),
     amr: row.amr ?? null,
     revokedAt: row.revokedAt === null ? null : Math.floor(row.revokedAt.getTime() / 1000),
     expiresAt: Math.floor(row.expiresAt.getTime() / 1000),

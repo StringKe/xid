@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/core",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Browser core SDK for XID: session state, token manager, API client and JWT decoding.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Browser core SDK for the XID identity platform.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/core",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,18 +20,34 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/core"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test"
   },
   "dependencies": {
-    "@xid-kit/crypto": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/crypto": "workspace:^",
+    "@xid-kit/protocol": "workspace:^",
+    "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",

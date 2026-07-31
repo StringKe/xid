@@ -39,6 +39,7 @@ import {
   EVIDENCE_MARKERS,
   recordProductionEvidence,
 } from './production-evidence.mjs'
+import { docsAuthActionsOk, docsLocaleMetadataOk } from './public-doc-html.mjs'
 import { webRouteOwnerMatches } from './web-route-owner.mjs'
 
 const CHROME_PATH =
@@ -211,9 +212,9 @@ async function firstExistingPath(paths, name) {
   throw new Error(`${name} not found: ${paths.join(', ')}`)
 }
 
-function sdkBrowserEntrySource() {
+export function sdkBrowserEntrySource() {
   return `
-import React, { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { XidClient } from '@xid-kit/core'
 import { XidProvider } from './src/context/xid-provider'
@@ -225,11 +226,18 @@ import { SignedIn } from './src/components/control/signed-in'
 import { SignedOut } from './src/components/control/signed-out'
 import { Protect } from './src/components/control/protect'
 
-function withTimeout(label, promise, timeoutMs = 15000) {
-  let timer
+declare global {
+  var __runXidSdkSmoke: () => Promise<void>
+  var __xidCoreSdkResult: unknown
+  var __xidReactSdkPhase: string | null | undefined
+  var __xidReactSdkResult: unknown
+}
+
+function withTimeout<T>(label: string, promise: Promise<T>, timeoutMs = 15000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
   return Promise.race([
     promise,
-    new Promise((_, reject) => {
+    new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error(label + ' timed out')), timeoutMs)
     }),
   ]).finally(() => {
@@ -237,12 +245,16 @@ function withTimeout(label, promise, timeoutMs = 15000) {
   })
 }
 
-function waitForDom(label, predicate, timeoutMs = 15000) {
+function waitForDom(
+  label: string,
+  predicate: () => boolean,
+  timeoutMs = 15000,
+): Promise<void> {
   const start = Date.now()
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const tick = () => {
       if (predicate()) {
-        resolve(true)
+        resolve()
         return
       }
       if (Date.now() - start > timeoutMs) {
@@ -348,16 +360,17 @@ globalThis.__runXidSdkSmoke = async function runXidSdkSmoke() {
   root.style.left = '-10000px'
   root.style.top = '0'
   document.body.appendChild(root)
-  createRoot(root).render(<XidProvider publishableKey="pk_xid_production_smoke"><Probe /></XidProvider>)
+  createRoot(root).render(<XidProvider mode="same-origin"><Probe /></XidProvider>)
 }
 `
 }
 
-async function buildSdkBrowserBundle() {
+export async function buildSdkBrowserBundle() {
   const reactPackageDir = join(repoRoot, 'packages/react')
   const buildDir = await mkdtemp(join(tmpdir(), 'xid-sdk-browser-bundle-'))
   const entryPath = join(reactPackageDir, `.xid-sdk-smoke-${process.pid}-${Date.now()}.tsx`)
   const outPath = join(buildDir, 'sdk-smoke.js')
+  const typecheckConfigPath = join(buildDir, 'tsconfig.json')
   const esbuildPath = await firstExistingPath(
     [
       join(reactPackageDir, 'node_modules/.bin/esbuild'),
@@ -368,6 +381,26 @@ async function buildSdkBrowserBundle() {
   )
   try {
     await writeFile(entryPath, sdkBrowserEntrySource(), 'utf8')
+    await writeFile(
+      typecheckConfigPath,
+      `${JSON.stringify(
+        {
+          extends: join(reactPackageDir, 'tsconfig.json'),
+          compilerOptions: { noEmit: true },
+          files: [entryPath],
+          include: [],
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    )
+    await runCommand(
+      'pnpm',
+      ['exec', 'tsc', '--noEmit', '-p', typecheckConfigPath],
+      { cwd: reactPackageDir, stdio: ['ignore', 'pipe', 'pipe'] },
+      'typecheck sdk browser smoke bundle',
+    )
     await runCommand(
       esbuildPath,
       [
@@ -1820,16 +1853,40 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
   return { cookie }
 }
 
-async function checkDocs(page, { path, expectedLanguage, expectedCanonical, expectedMarkdown }) {
+async function checkDocs(
+  page,
+  {
+    path,
+    expectedLanguage,
+    expectedCanonical,
+    expectedMarkdown,
+    expectedOgLocale,
+    expectedLlmsIndex,
+  },
+) {
   const ownerResponse = await fetch(`${baseUrl}${path}`, {
     redirect: 'manual',
     headers: { accept: 'text/html' },
   })
+  const ownerBody = await ownerResponse.text()
   if (ownerResponse.status !== 200 || !webRouteOwnerMatches(ownerResponse.headers, 'site')) {
     const actualOwner = ownerResponse.headers.get('x-xid-route-owner') ?? 'missing'
     throw new Error(
       `${path} docs response mismatch: http=${ownerResponse.status} owner=${actualOwner}`,
     )
+  }
+  if (!docsAuthActionsOk(ownerBody, expectedLanguage)) {
+    throw new Error(`${path} missing localized Sign in or Sign up action`)
+  }
+  if (
+    !docsLocaleMetadataOk(ownerBody, {
+      language: expectedLanguage,
+      ogLocale: expectedOgLocale,
+      canonicalUrl: expectedCanonical,
+      llmsIndexUrl: expectedLlmsIndex,
+    })
+  ) {
+    throw new Error(`${path} localized SEO, GEO, or agent metadata mismatch`)
   }
 
   await page.navigate(path)
@@ -2589,18 +2646,24 @@ export async function runProductionBrowserSmoke() {
         expectedLanguage: 'en',
         expectedCanonical: 'https://xid.dev/',
         expectedMarkdown: 'https://xid.dev/index.md',
+        expectedOgLocale: 'en_US',
+        expectedLlmsIndex: 'https://xid.dev/en/llms.txt',
       })
       await checkDocs(page, {
         path: '/scim',
         expectedLanguage: 'en',
         expectedCanonical: 'https://xid.dev/scim',
         expectedMarkdown: 'https://xid.dev/scim/index.md',
+        expectedOgLocale: 'en_US',
+        expectedLlmsIndex: 'https://xid.dev/en/llms.txt',
       })
       await checkDocs(page, {
         path: '/zh-hans/scim',
         expectedLanguage: 'zh-Hans',
         expectedCanonical: 'https://xid.dev/zh-hans/scim',
         expectedMarkdown: 'https://xid.dev/zh-hans/scim/index.md',
+        expectedOgLocale: 'zh_CN',
+        expectedLlmsIndex: 'https://xid.dev/zh-hans/llms.txt',
       })
       await checkConsoleRoute(page, '/console', '/console')
       await checkConsoleRoute(page, '/console/organizations', '/console/platform/organizations')

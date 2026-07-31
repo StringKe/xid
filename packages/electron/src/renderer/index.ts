@@ -37,6 +37,8 @@ export type {
   XidClientOptions,
 } from '@xid-kit/core'
 
+export type { OrganizationMembershipRole } from '@xid-kit/types'
+
 export type { SecureStorageAdapter, XidBridge, SignInOptions, IpcChannels } from '../types'
 
 export { IPC_CHANNELS, XID_BRIDGE_KEY } from '../types'

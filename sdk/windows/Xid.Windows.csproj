@@ -29,6 +29,9 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://xid.dev</PackageProjectUrl>
     <RepositoryUrl>https://github.com/StringKe/xid</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageTags>xid;oidc;pkce;windows;identity;authentication</PackageTags>
     <PackageReleaseNotes>Status: implemented; compiled and unit-tested locally, real IdP round-trip pending.</PackageReleaseNotes>
 
@@ -48,6 +51,10 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Xid.Windows.Tests</_Parameter1>
     </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0-windows10.0.19041.0'))">

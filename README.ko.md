@@ -66,16 +66,23 @@ Durable Object가 직렬화하며, JWKS는 KV에 캐시되어 Relying Party가 �
 
 ### 애플리케이션 연동
 
-`@xid-kit/*` 패키지는 **npm에 배포되지 않습니다**. workspace 패키지이므로 현재 자신의 애플리케이션에서
-사용하려면 소스를 벤더링하거나 이 저장소를 workspace에 추가해야 합니다. 아래 API가 현재의 공개
-표면입니다. `@xid-kit/react`에서:
+18개의 `@xid-kit/*` TypeScript 패키지는 publishable로 설정되어 있으며 깨끗한 로컬 tarball consumer
+gate(`pnpm run sdk:distribution:verify`)를 통과합니다. 외부 registry의 현재 상태를 입증하는 release
+evidence는 저장소에 없으므로 npm 배포 상태는 `UNKNOWN`입니다. registry를 별도로 검증하지 않았다면
+workspace 또는 로컬에서 만든 tarball을 사용해야 합니다. 아래 API가 현재의 공개 표면입니다.
+`@xid-kit/react`에서:
 
 ```tsx
 import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
 
 function App() {
   return (
-    <XidProvider publishableKey="pk_test_..." apiUrl="https://auth.example.com">
+    <XidProvider
+      mode="oidc"
+      issuer="https://auth.example.com"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
+    >
       <SignedOut>
         <SignInButton />
       </SignedOut>
@@ -126,35 +133,45 @@ cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
 npx wrangler r2 bucket create xid-storage
-for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-dlq; do
-  npx wrangler queues create "$q"
-done
+pnpm --dir ../.. run cloudflare:queues:create
 ```
+
+Queue script는 `apps/server/wrangler.jsonc`에서 필요한 24개 resource를 도출합니다. source Queue
+8개, source별 dead-letter Queue 8개, persistence failure quarantine Queue 8개이며, 폐기된 공유
+`xid-dlq`는 만들지 않습니다.
 
 그다음 `apps/server/wrangler.jsonc`, `apps/console/wrangler.jsonc`,
 `apps/site/wrangler.jsonc`의 업스트림 account와 route 값을 자신의 값으로 교체하고,
 `apps/site/astro.config.ts`의 canonical public origin을 자신의 HTTPS apex URL로 설정하십시오. Core
 설정에는 D1 `database_id`와 KV namespace `id`도 필요합니다. 셀프 호스팅 템플릿은 없으며, **업스트림
-값이 남아 있으면 3개의 Worker가 올바르게 배포되지 않습니다**. 8개의 Durable Object binding,
+값이 남아 있으면 3개의 Worker가 올바르게 배포되지 않습니다**. 11개의 Durable Object binding,
 Analytics Engine 데이터셋, `send_email` binding, 2개의 cron trigger는 Core에만 속하며 이미 선언되어
 있습니다.
 
-secret을 설정하고, 마이그레이션하고, 배포한 뒤 초기화하십시오. `KEK`을 분실하면 모든 서명 키와
-저장된 provider 자격 증명을 복호화할 수 없게 되고, `PEPPER`를 분실하면 모든 비밀번호 해시가
-무효가 됩니다. 두 값 모두 Cloudflare 외부에 먼저 백업하십시오.
+secret을 설정하고 로컬에서 검증한 다음 Workers Builds를 연결하십시오. 3개의 production build가
+성공한 후 초기화하십시오. `KEK`을 분실하면 모든 서명 키와 저장된 provider 자격 증명을 복호화할
+수 없게 되고, `PEPPER`를 분실하면 모든 비밀번호 해시가 무효가 됩니다. 두 값 모두 Cloudflare
+외부에 먼저 백업하십시오.
 
 ```bash
 openssl rand -base64 32 | npx wrangler secret put KEK
 openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
-npx wrangler d1 migrations apply DB --remote
 cd ../..
+pnpm check
+pnpm test
 pnpm run build
-pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
+pnpm smoke:three-workers
+```
 
+`xid`, `xid-console`, `xid-site`를 이 Git repository에 연결된 3개의 Cloudflare Workers Builds
+project로 구성하십시오. Production branch는 `main`으로 설정하고 non-production branch build와
+Worker Preview URLs는 비활성화하며, [`docs/deployment.md`](docs/deployment.md)의 root, build,
+deploy command를 사용하십시오. review와 서명을 마친 commit을 `main`에 merge하면 Workers Builds가
+remote D1 migration을 적용하고 3개의 Worker를 배포합니다. 모든 build가 성공한 후:
+
+```bash
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
   -H 'X-Bootstrap-Token: <BOOTSTRAP_TOKEN>' \
@@ -203,15 +220,15 @@ apps/console/      Binding-free static management UI for /console and /console/*
 apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
   src/             React SPA for Hosted Auth and account pages
-packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
+packages/          23 workspace packages: 15 TypeScript SDKs + 3 public runtime kernels + 5 private implementation packages
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-커널 라이브러리인 `protocol`, `crypto`, `webauthn`, `saml`, `db`, `i18n`, `types`는 Core Worker 내부
-전용입니다. 암호학 프리미티브는 항상 Web Crypto에서 가져오고 XML-DSig는 `xmldsigjs`에 위임하며,
-그 사이의 프로토콜과 비즈니스 로직은 이 저장소에서 직접 작성합니다.
+public runtime kernel은 `protocol`, `crypto`, `types`입니다. private implementation 패키지는
+`webauthn`, `saml`, `db`, `i18n`, `web-ui`입니다. 암호학 프리미티브는 항상 Web Crypto에서 가져오고
+XML-DSig는 `xmldsigjs`에 위임하며, 그 사이의 프로토콜과 비즈니스 로직은 이 저장소에서 직접 작성합니다.
 
 ## 프로토콜 지원
 
@@ -234,9 +251,13 @@ tests/             Cross-workspace gates: protocol source map, native SDK contra
 
 ## SDK
 
-`packages/` 아래의 TypeScript 패키지 15개: `core`와 `backend`, 그리고 React, Next.js, Remix,
-Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo, Electron, Tauri용 프레임워크 바인딩.
-모두 workspace 전용이며 **npm에 배포되지 않습니다**.
+`packages/` 아래에는 TypeScript SDK 패키지 15개가 있습니다. `core`와 `backend`, 그리고 React,
+Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo, Electron, Tauri용
+framework binding입니다. public runtime kernel 3개(`crypto`, `protocol`, `types`)를 합친 18개
+패키지가 publishable로 설정되어 있고 깨끗한 로컬 tarball installation test를 통과합니다. 나머지
+5개(`db`, `i18n`, `saml`, `web-ui`, `webauthn`)는 private implementation 패키지입니다. 외부 npm
+registry 배포 상태는 여전히 `UNKNOWN`이며, 로컬 distribution evidence는 registry release를
+입증하지 않습니다.
 
 `sdk/` 아래의 네이티브 SDK 13개: Go, Rust, Python, Ruby, PHP, Java, .NET, Windows, iOS, macOS,
 Linux, Android, Flutter. **crates.io, PyPI, Maven Central, RubyGems, Packagist, NuGet, CocoaPods,

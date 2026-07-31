@@ -1,15 +1,22 @@
 // hourly cron 单元测试:过期 session/denylist 清理、DAU 兜底、runHourly 编排。
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('../../lib/session', () => ({
+  sessionDoRevoke: vi.fn().mockResolvedValue(undefined),
+}))
+
 import {
   aggregateDau,
   cleanupExpiredAccessTokenRevocations,
   cleanupExpiredAuthCodes,
   cleanupExpiredChallenges,
   cleanupExpiredSessions,
+  expireInvitationClaims,
   hardDeleteExpiredSessions,
   redeliverMeteringOutbox,
   runHourly,
 } from '../hourly'
+import { sessionDoRevoke } from '../../lib/session'
 
 type D1Run = ReturnType<typeof vi.fn>
 
@@ -155,6 +162,120 @@ describe('cleanupExpiredChallenges', () => {
   })
 })
 
+describe('expireInvitationClaims', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('atomically expires the claim and revokes its D1 session before SessionDO cleanup', async () => {
+    const batches: Array<Array<{ sql: string; params: unknown[] }>> = []
+    let selected = false
+    const db = {
+      prepare(sql: string) {
+        let params: unknown[] = []
+        const statement = {
+          sql,
+          params,
+          bind(...values: unknown[]) {
+            params = values
+            statement.params = values
+            return statement
+          },
+          async all() {
+            if (!sql.includes('FROM invitations') || selected) return { results: [] }
+            selected = true
+            return {
+              results: [
+                {
+                  tenantId: 'tenant_1',
+                  invitationId: 'invitation_1',
+                  userId: 'user_1',
+                  sessionId: 'session_1',
+                  status: 'claim_verified',
+                },
+              ],
+            }
+          },
+          async run() {
+            return { success: true, results: [], meta: { changes: 1 } }
+          },
+        }
+        return statement
+      },
+      async batch(statements: Array<{ sql: string; params: unknown[] }>) {
+        batches.push(statements)
+        return statements.map(() => ({ success: true, meta: { changes: 1 } }))
+      },
+    } as unknown as D1Database
+    const env = { DB: db } as unknown as Env
+
+    await expireInvitationClaims(env, 1_700_000_000_000)
+
+    expect(batches).toHaveLength(1)
+    expect(batches[0]?.[0]?.sql).toContain("SET status = 'revoked'")
+    expect(batches[0]?.[1]?.sql).toContain("SET status = 'expired'")
+    expect(batches[0]?.[1]?.sql).toContain('email_claim_recovery_hash = CASE')
+    expect(sessionDoRevoke).toHaveBeenCalledWith(env, 'user_1', 'session_1')
+  })
+
+  it('skips safely while migration 0011 is not applied', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const env = {
+      DB: {
+        prepare: () => ({
+          bind: () => ({
+            all: async () => {
+              throw new Error('no such column: email_claim_session_id')
+            },
+          }),
+        }),
+      },
+    } as unknown as Env
+
+    await expect(expireInvitationClaims(env)).resolves.toBeUndefined()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('does not revoke SessionDO when acceptance wins after the expiry scan', async () => {
+    let selected = false
+    const db = {
+      prepare(_sql: string) {
+        const statement = {
+          bind() {
+            return statement
+          },
+          async all() {
+            if (selected) return { results: [] }
+            selected = true
+            return {
+              results: [
+                {
+                  tenantId: 'tenant_1',
+                  invitationId: 'invitation_1',
+                  userId: 'user_1',
+                  sessionId: 'session_1',
+                  status: 'claim_verified',
+                },
+              ],
+            }
+          },
+        }
+        return statement
+      },
+      async batch(statements: unknown[]) {
+        return statements.map((_, index) => ({
+          success: true,
+          meta: { changes: index === 1 ? 0 : 1 },
+        }))
+      },
+    } as unknown as D1Database
+    const env = { DB: db } as unknown as Env
+
+    await expireInvitationClaims(env, 1_700_000_000_000)
+
+    expect(sessionDoRevoke).not.toHaveBeenCalled()
+  })
+})
+
 describe('aggregateDau', () => {
   it('skips batch insert when no active root organizations exist', async () => {
     const run = vi.fn().mockResolvedValue({ success: true })
@@ -228,7 +349,7 @@ describe('redeliverMeteringOutbox', () => {
 
 describe('runHourly', () => {
   it('orchestrates session, denylist, and auth code cleanup plus DAU aggregation', async () => {
-    const run = vi.fn().mockResolvedValue({ success: true })
+    const run = vi.fn().mockResolvedValue({ success: true, meta: { changes: 0 } })
     const db = makeD1(run, { tenants: [{ tenant_id: 'org_hourly' }] })
     await runHourly({ DB: db } as unknown as Env)
 

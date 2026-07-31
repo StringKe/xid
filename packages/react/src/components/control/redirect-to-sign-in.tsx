@@ -4,23 +4,36 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 
+import { useXidContext } from '../../context/xid-context'
+import { runAuthorizationRedirect } from './authorization-redirect'
+
 export type RedirectToSignInProps = {
   // 登录页路径,默认 /sign-in
   signInUrl?: string
-  // 登录后返回的 URL(encoded 传 redirect_url param)
+  // 登录后返回的应用内 URL。
   redirectUrl?: string
+  onError?: (error: unknown) => void
 }
 
 export function RedirectToSignIn({
   signInUrl = '/sign-in',
   redirectUrl,
+  onError,
 }: RedirectToSignInProps): ReactNode {
+  const { client, mode } = useXidContext()
   useEffect(() => {
-    const target = redirectUrl
-      ? `${signInUrl}?redirect_url=${encodeURIComponent(redirectUrl)}`
-      : signInUrl
-    window.location.replace(target)
-  }, [signInUrl, redirectUrl])
+    runAuthorizationRedirect(
+      {
+        client,
+        mode,
+        intent: 'sign-in',
+        ...(redirectUrl ? { returnUrl: redirectUrl } : {}),
+        sameOriginPath: signInUrl,
+        navigation: 'replace',
+      },
+      onError,
+    )
+  }, [client, mode, signInUrl, redirectUrl, onError])
 
   return null
 }

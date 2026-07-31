@@ -2,8 +2,10 @@
 
 import { getCookie, setCookie } from 'hono/cookie'
 import type { Context, Hono } from 'hono'
+import { AppError } from '../lib/errors'
 import { readSession } from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
+import { findClient } from './shared'
 import { computeOpSessionState } from './session-state'
 
 const OPBS_COOKIE = '__Host-xid.opbs'
@@ -23,7 +25,13 @@ function ensureOpbsSalt(c: Context<XidHonoEnv>): string {
   return salt
 }
 
-function checkSessionHtml(input: { issuer: string; salt: string; sessionKey: string }): string {
+function checkSessionHtml(input: {
+  issuer: string
+  salt: string
+  sessionKey: string
+  clientId: string
+  allowedOrigins: readonly string[]
+}): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>OP Check Session</title></head>
@@ -33,6 +41,8 @@ function checkSessionHtml(input: { issuer: string; salt: string; sessionKey: str
   var issuer = ${JSON.stringify(input.issuer)};
   var salt = ${JSON.stringify(input.salt)};
   var sessionKey = ${JSON.stringify(input.sessionKey)};
+  var clientId = ${JSON.stringify(input.clientId)};
+  var allowedOrigins = new Set(${JSON.stringify(input.allowedOrigins)});
 
   async function sha256Base64Url(value) {
     var data = new TextEncoder().encode(value);
@@ -48,20 +58,15 @@ function checkSessionHtml(input: { issuer: string; salt: string; sessionKey: str
     return sha256Base64Url(clientId + ' ' + issuer + ' ' + browserState + ' ' + salt);
   }
 
-  function originFrom(url) {
-    try { return new URL(url).origin; } catch (e) { return '*'; }
-  }
-
   window.addEventListener('message', function (event) {
     if (typeof event.data !== 'string') return;
     var parts = event.data.split(' ');
-    if (parts.length < 2) return;
-    var clientId = parts[0];
+    if (parts.length !== 2 || parts[0] !== clientId) return;
+    if (!allowedOrigins.has(event.origin)) return;
     var rpSessionState = parts[1];
     computeOpSessionState(clientId).then(function (opSessionState) {
       var status = (rpSessionState === opSessionState) ? 'unchanged' : 'changed';
-      var origin = originFrom(event.origin);
-      event.source && event.source.postMessage(clientId + ' ' + rpSessionState + ' ' + status, origin);
+      event.source && event.source.postMessage(clientId + ' ' + rpSessionState + ' ' + status, event.origin);
     });
   }, false);
 })();
@@ -71,14 +76,39 @@ function checkSessionHtml(input: { issuer: string; salt: string; sessionKey: str
 }
 
 async function handleCheckSession(c: Context<XidHonoEnv>): Promise<Response> {
+  const clientId = c.req.query('client_id')
+  if (!clientId) throw new AppError('invalid_request', { httpStatus: 400 })
+  const client = await findClient(c, clientId)
+  if (!client) throw new AppError('invalid_request', { httpStatus: 400 })
+  const allowedOrigins = [
+    ...new Set(
+      client.redirectUris.flatMap((redirectUri) => {
+        try {
+          const origin = new URL(redirectUri).origin
+          return origin === 'null' ? [] : [origin]
+        } catch {
+          return []
+        }
+      }),
+    ),
+  ]
+  if (allowedOrigins.length === 0) {
+    throw new AppError('invalid_request', { httpStatus: 400 })
+  }
   const session = c.get('session') ?? (await readSession(c))
   const ctx = c.get('tenant')
   const salt = ensureOpbsSalt(c)
   const sessionKey = session?.sessionId ?? ''
-  const html = checkSessionHtml({ issuer: ctx.issuer, salt, sessionKey })
+  const html = checkSessionHtml({
+    issuer: ctx.issuer,
+    salt,
+    sessionKey,
+    clientId,
+    allowedOrigins,
+  })
   return c.html(html, 200, {
     'cache-control': 'no-store',
-    'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'",
+    'content-security-policy': `default-src 'none'; script-src 'unsafe-inline'; frame-ancestors ${allowedOrigins.join(' ')}`,
   })
 }
 

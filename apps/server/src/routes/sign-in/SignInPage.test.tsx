@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode } from 'react'
 
 const routerState = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -15,6 +15,8 @@ const authState = vi.hoisted(() => ({
 }))
 
 const signInState = vi.hoisted(() => ({
+  enabledMethods: [] as string[],
+  guestCapability: false,
   tenantSelection: {
     continueParam: null as string | null,
     redirect: null as string | null,
@@ -40,7 +42,7 @@ vi.mock('../../components/ui', () => ({
   Alert: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   Field: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Input: () => <input />,
+  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   PageHeader: ({ title }: { title: ReactNode }) => <h1>{title}</h1>,
 }))
 
@@ -65,7 +67,7 @@ vi.mock('./shared', () => ({
 }))
 
 vi.mock('./SignInGuestButton', () => ({
-  SignInGuestButton: () => null,
+  SignInGuestButton: () => <div>Guest entry</div>,
 }))
 
 vi.mock('./SignInOtpPanel', () => ({
@@ -93,8 +95,9 @@ vi.mock('./useSignIn', () => ({
         forceSso: false,
         socialProviders: [],
         resolution: { status: 'resolved' },
+        guest: signInState.guestCapability ? { capabilityToken: 'guest-capability-token' } : null,
       },
-      enabledMethods: [],
+      enabledMethods: signInState.enabledMethods,
       identifier: '',
       profileValues: {
         email: '',
@@ -144,7 +147,7 @@ const SignInPage = (
   }
 ).component
 
-async function renderPage(): Promise<void> {
+async function renderPage(): Promise<{ html: string; text: string }> {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -152,8 +155,10 @@ async function renderPage(): Promise<void> {
   await act(async () => {
     root.render(<SignInPage />)
   })
+  const rendered = { html: container.innerHTML, text: container.textContent ?? '' }
   await act(async () => root.unmount())
   container.remove()
+  return rendered
 }
 
 describe('SignInPage authenticated redirect', () => {
@@ -161,11 +166,60 @@ describe('SignInPage authenticated redirect', () => {
     authState.status = 'authenticated'
     routerState.navigate.mockClear()
     routerState.search = {}
+    signInState.enabledMethods = []
+    signInState.guestCapability = false
     signInState.tenantSelection = {
       continueParam: null,
       redirect: null,
       authzRequestId: null,
     }
+  })
+
+  it('uses account-creation copy and password semantics for sign-up intent', async () => {
+    authState.status = 'unauthenticated'
+    routerState.search = { intent: 'sign-up' }
+    signInState.enabledMethods = ['password']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain('Create your account')
+    expect(rendered.text).toContain('Sign up')
+    expect(rendered.text).not.toContain('Forgot password?')
+    expect(rendered.html).toContain('autocomplete="new-password"')
+    expect(rendered.html).toContain('placeholder="Minimum 12 characters"')
+  })
+
+  it('does not expose the sign-in passkey action during sign-up', async () => {
+    authState.status = 'unauthenticated'
+    routerState.search = { intent: 'sign-up' }
+    signInState.enabledMethods = ['passkey', 'password']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).not.toContain('Sign in with passkey')
+    expect(rendered.text).toContain('Sign up')
+  })
+
+  it('keeps recovery and current-password semantics for sign-in intent', async () => {
+    authState.status = 'unauthenticated'
+    signInState.enabledMethods = ['password']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain('Sign in')
+    expect(rendered.text).toContain('Forgot password?')
+    expect(rendered.html).toContain('href="/forgot-password"')
+    expect(rendered.html).toContain('autocomplete="current-password"')
+  })
+
+  it('renders guest entry only when the server config includes the capability', async () => {
+    authState.status = 'unauthenticated'
+    signInState.guestCapability = true
+
+    expect((await renderPage()).text).toContain('Guest entry')
+
+    signInState.guestCapability = false
+    expect((await renderPage()).text).not.toContain('Guest entry')
   })
 
   it('routes an authenticated sign-up session to organization onboarding', async () => {

@@ -93,21 +93,18 @@ export function renderHtmlHub(
 ): string {
   const documentsBySlug = new Map(documents.map((document) => [document.slug, document]))
 
-  const renderGroup = (
-    label: RichText,
-    slugs: readonly string[],
-  ): string => {
-      const items = slugs
-        .map((slug) => {
-          const document = documentsBySlug.get(slug)
-          if (!document) {
-            throw new TypeError(`hub navigation references unknown document ${slug}`)
-          }
-          const href = localizedDocsHref(`/${document.slug}`, options.locale)
-          return `<li><a href="${escapeHtml(href)}">${renderHtmlInline(document.title, options)}</a><p>${renderHtmlInline(document.summary, options)}</p></li>`
-        })
-        .join('')
-      return `<section><h3>${renderHtmlInline(label, options)}</h3><ul>${items}</ul></section>`
+  const renderGroup = (label: RichText, slugs: readonly string[]): string => {
+    const items = slugs
+      .map((slug) => {
+        const document = documentsBySlug.get(slug)
+        if (!document) {
+          throw new TypeError(`hub navigation references unknown document ${slug}`)
+        }
+        const href = localizedDocsHref(`/${document.slug}`, options.locale)
+        return `<li><a href="${escapeHtml(href)}">${renderHtmlInline(document.title, options)}</a><p>${renderHtmlInline(document.summary, options)}</p></li>`
+      })
+      .join('')
+    return `<section><h3>${renderHtmlInline(label, options)}</h3><ul>${items}</ul></section>`
   }
 
   const sectionHtml = hub.sections
@@ -115,10 +112,7 @@ export function renderHtmlHub(
       const heading = renderHtmlInline(section.heading, options)
       if (section.kind === 'product') {
         const paragraphs = section.paragraphs
-          .map(
-            (paragraph) =>
-              `<p>${renderHtmlInline(paragraph, options)}</p>`,
-          )
+          .map((paragraph) => `<p>${renderHtmlInline(paragraph, options)}</p>`)
           .join('')
         return `<section><h2>${heading}</h2>${paragraphs}</section>`
       }
@@ -128,9 +122,7 @@ export function renderHtmlHub(
           .join('')
         return `<section><h2>${heading}</h2><ul>${items}</ul></section>`
       }
-      const groups = section.groups
-        .map((group) => renderGroup(group.label, group.slugs))
-        .join('')
+      const groups = section.groups.map((group) => renderGroup(group.label, group.slugs)).join('')
       return `<section><h2>${heading}</h2>${groups}</section>`
     })
     .join('')

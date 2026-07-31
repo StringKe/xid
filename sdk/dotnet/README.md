@@ -1,5 +1,8 @@
 # Xid .NET Server SDK
 
+> Registry status: UNPUBLISHED. No external registry release is verified or authorized.
+> Use a local `ProjectReference` until an authorized NuGet release exists.
+
 **Status: implemented (verified locally)**
 
 > 本机 `dotnet test` 全部 PASS(net8.0 + net9.0,见 `docs/sdks/platform-matrix.md`)。
@@ -10,7 +13,8 @@ XID Identity Platform 的 .NET 服务端 SDK。目标运行时 net8.0。
 职责范围:
 
 - networkless JWT 验证(JWKS 带内存缓存,ES256 主 / RS256 / PS256 兼容)
-- 请求认证(Authorization: Bearer 或 Cookie)
+- 请求认证(默认 Authorization: Bearer;应用自有 JWT cookie 必须显式配置)
+- Core opaque browser session -> short-lived JWT 显式 exchange
 - webhook 验证(svix 风格 HMAC-SHA256 + 5 分钟时间窗防重放)
 
 不负责 OAuth 授权流程(那是客户端 SDK 的职责)。
@@ -20,9 +24,12 @@ XID Identity Platform 的 .NET 服务端 SDK。目标运行时 net8.0。
 ## 安装
 
 ```xml
-<!-- Xid.csproj 或 .csproj 引用 -->
-<PackageReference Include="Xid" Version="0.1.0" />
+<ItemGroup>
+  <ProjectReference Include="../xid/sdk/dotnet/Xid.csproj" />
+</ItemGroup>
 ```
+
+`Xid` 是预留 NuGet package ID,当前不能通过 `<PackageReference>` 从 NuGet 安装。
 
 依赖:
 
@@ -46,6 +53,10 @@ builder.Services.AddXid(options =>
 });
 ```
 
+默认不读取任何 cookie。只有设置
+`SessionCookieName = "__Host-myapp.xid-jwt"` 时才读取应用自己持有的 JWT cookie。
+`__Host-xid.rt.*` 是 opaque Core browser session,SDK 不会扫描或本地验证它。
+
 ```csharp
 // Controller / Minimal API
 public class MyController(XidClient xid) : ControllerBase
@@ -54,8 +65,7 @@ public class MyController(XidClient xid) : ControllerBase
     public async Task<IActionResult> GetMe()
     {
         var auth = await xid.AuthenticateRequestAsync(
-            authorizationHeader: Request.Headers.Authorization,
-            cookies: Request.Cookies.ToDictionary(c => c.Key, c => c.Value));
+            authorizationHeader: Request.Headers.Authorization);
 
         if (!auth.Authenticated)
             return Unauthorized(auth.Reason);
@@ -87,6 +97,18 @@ catch (TokenVerificationException ex)
     Console.WriteLine($"Invalid token: {ex.Message}");
 }
 ```
+
+### 将 Core browser session 交换为 JWT
+
+```csharp
+string token = await xid.ExchangeSessionTokenAsync(
+    $"{Request.Scheme}://{Request.Host}{Request.Path}",
+    Request.Headers.Cookie.ToString());
+```
+
+SDK 强制 exact same-origin `POST /v1/sessions/token`,完整转发 `Cookie` header,不跟随
+redirect,并且只接受 HTTP 200 与 exact `{"token":"..."}` response。特殊 HTTP runtime
+可通过 `SessionTokenTransport` adapter 注入,安全校验仍由 SDK 执行。
 
 ### Webhook 验证
 
@@ -134,7 +156,7 @@ app.MapPost("/webhooks/xid", async (HttpRequest req, XidClient xid) =>
 | `Audience`               | `string?`  | null        | 期望的 aud claim;null 时跳过 audience 校验             |
 | `JwksUri`                | `string?`  | null        | 自定义 JWKS endpoint;null 时自动构造为 `{Issuer}/jwks` |
 | `JwksTtl`                | `TimeSpan` | 1 小时      | JWKS 内存缓存有效期                                    |
-| `SessionCookieName`      | `string`   | `__session` | 回落 Cookie 名称                                       |
+| `SessionCookieName`      | `string?`  | null        | 应用自有 JWT cookie;null 禁用 fallback                 |
 | `ClockSkew`              | `TimeSpan` | 5 分钟      | JWT exp/nbf 时钟偏差容忍                               |
 | `WebhookToleranceWindow` | `TimeSpan` | 5 分钟      | Webhook 时间窗防重放                                   |
 
@@ -148,6 +170,14 @@ Task<TokenClaims> VerifyTokenAsync(string token, CancellationToken ct = default)
 Task<AuthStatus> AuthenticateRequestAsync(
     string? authorizationHeader,
     IReadOnlyDictionary<string, string>? cookies = null,
+    CancellationToken ct = default)
+
+// Core opaque session -> short-lived JWT
+Task<string> ExchangeSessionTokenAsync(
+    string incomingRequestUrl,
+    string cookieHeader,
+    string? endpoint = null,
+    SessionTokenTransport? transport = null,
     CancellationToken ct = default)
 
 // 验证 webhook 签名,失败抛 WebhookVerificationException
@@ -198,6 +228,7 @@ string? Reason       // Authenticated=false 时说明原因
 | `XidException`                 | `xid_error`                  | 所有 SDK 错误的基类            |
 | `JwksException`                | `jwks_error`                 | JWKS 拉取或解析失败            |
 | `TokenVerificationException`   | `token_verification_error`   | JWT 签名/claims 验证失败       |
+| `SessionTokenExchangeException` | `session_token_exchange_error` | session exchange 失败        |
 | `WebhookVerificationException` | `webhook_verification_error` | Webhook 签名不合法或时间窗超限 |
 
 ---
@@ -213,6 +244,7 @@ sdk/dotnet/
     Models.cs                  TokenClaims / AuthStatus / WebhookPayload
     JwksCache.cs               JWKS 拉取与内存缓存
     XidClient.cs               主入口 -- JWT 验证 / 请求认证 / Webhook 验证
+    SessionTokenExchange.cs    session exchange response / transport / exception
     ServiceCollectionExtensions.cs  ASP.NET Core DI 集成
 ```
 

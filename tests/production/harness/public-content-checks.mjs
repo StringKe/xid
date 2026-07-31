@@ -11,12 +11,14 @@ export const PUBLIC_DOC_SECTIONS = [
   { section: 'pt-br', locale: 'pt-BR', routeSegment: 'pt-br' },
 ]
 
-export const PUBLIC_DOCS_PER_SECTION = 41
-export const PUBLIC_DOCS_TOTAL = 328
+export const PUBLIC_DOCS_PER_SECTION = 42
+export const PUBLIC_DOCS_TOTAL = 336
 
 function registrySizeOk() {
   return (
-    PUBLIC_DOC_SLUGS.length + 1 === PUBLIC_DOCS_PER_SECTION &&
+    // The content registry owns 40 documents. Each locale also publishes the root hub and the
+    // runtime-backed status surface, which intentionally lives outside documents.json.
+    PUBLIC_DOC_SLUGS.length + 2 === PUBLIC_DOCS_PER_SECTION &&
     PUBLIC_DOC_SECTIONS.length * PUBLIC_DOCS_PER_SECTION === PUBLIC_DOCS_TOTAL
   )
 }
@@ -82,6 +84,7 @@ function expectedSectionPaths(routeSegment) {
   return new Set([
     publicDocIndexedPath(routeSegment),
     ...PUBLIC_DOC_SLUGS.map((slug) => publicDocIndexedPath(routeSegment, slug)),
+    publicDocIndexedPath(routeSegment, 'status'),
   ])
 }
 
@@ -89,6 +92,7 @@ function expectedSectionMarkdownUrls(routeSegment) {
   return new Set([
     publicDocMarkdownUrl(routeSegment),
     ...PUBLIC_DOC_SLUGS.map((slug) => publicDocMarkdownUrl(routeSegment, slug)),
+    publicDocMarkdownUrl(routeSegment, 'status'),
   ])
 }
 

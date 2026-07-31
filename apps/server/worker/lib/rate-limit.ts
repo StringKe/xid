@@ -43,7 +43,7 @@ function rateLimitUnavailable(cause?: unknown): never {
 async function postToRateLimitStore(
   env: Env,
   doName: string,
-  action: 'check' | 'reserve',
+  action: 'check' | 'reserve' | 'reset',
   body: unknown,
 ): Promise<RateLimitStoreResponse> {
   const ns = env.RATE_LIMITER
@@ -96,4 +96,8 @@ export async function reserveRateLimitWindows(
 
   if (typeof payload.allowed !== 'boolean') rateLimitUnavailable()
   if (!payload.allowed) throw new AppError('rate_limited')
+}
+
+export async function resetRateLimitStore(env: Env, key: string): Promise<void> {
+  await postToRateLimitStore(env, key, 'reset', { key })
 }

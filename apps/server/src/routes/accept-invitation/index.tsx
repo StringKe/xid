@@ -1,5 +1,6 @@
+import { sha256Hex } from '@xid-kit/crypto'
 import { Trans, useLingui } from '@lingui/react/macro'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -8,8 +9,9 @@ import { AuthLayout } from '../../components/layout'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { trackInvitationAccepted } from '../../lib/google-analytics-funnel'
-import { Link, useNavigate } from '../../lib/router'
 import { tokens } from '../../styles/tokens.stylex'
+import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
+import { useTurnstile } from '../sign-in/useTurnstile'
 
 type InvitationPreview = {
   status: 'pending' | 'expired' | 'invalid'
@@ -20,6 +22,14 @@ type InvitationPreview = {
   expiresAt: string | null
 }
 
+type ClaimRecovery = {
+  identifier: string
+  recoveryKey: string
+}
+
+const CLAIM_STORAGE_PREFIX = 'xid.invitation-claim'
+const CURRENT_CLAIM_IDENTIFIER_KEY = `${CLAIM_STORAGE_PREFIX}.current`
+
 const styles = stylex.create({
   stack: {
     display: 'flex',
@@ -27,63 +37,299 @@ const styles = stylex.create({
     gap: '1.25rem',
     minWidth: 0,
   },
+  details: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+  },
   meta: {
     margin: 0,
     color: tokens['--xid-muted-foreground'],
     fontSize: '0.875rem',
-    lineHeight: 1.5,
+    lineHeight: 1.55,
+  },
+  turnstile: {
+    display: 'flex',
+    justifyContent: 'center',
+    width: '100%',
   },
 })
 
-function AcceptInvitationPage(): ReactNode {
+function claimTokenStorageKey(identifier: string): string {
+  return `${CLAIM_STORAGE_PREFIX}.${identifier}.token`
+}
+
+function recoveryStorageKey(identifier: string): string {
+  return `${CLAIM_STORAGE_PREFIX}.${identifier}.recovery`
+}
+
+function getSessionStorage(): Storage | null {
+  try {
+    return globalThis.sessionStorage ?? null
+  } catch {
+    return null
+  }
+}
+
+function readStoredClaimToken(): string | null {
+  const storage = getSessionStorage()
+  if (!storage) return null
+  try {
+    const identifier = storage.getItem(CURRENT_CLAIM_IDENTIFIER_KEY)
+    if (!identifier || !/^[0-9a-f]{64}$/.test(identifier)) return null
+    return storage.getItem(claimTokenStorageKey(identifier))
+  } catch {
+    return null
+  }
+}
+
+async function rememberClaimToken(token: string): Promise<string> {
+  const identifier = await sha256Hex(token)
+  const storage = getSessionStorage()
+  if (!storage) return identifier
+  try {
+    storage.setItem(claimTokenStorageKey(identifier), token)
+    storage.setItem(CURRENT_CLAIM_IDENTIFIER_KEY, identifier)
+  } catch {
+    // The claim remains usable from component memory when browser storage is unavailable.
+  }
+  return identifier
+}
+
+function randomRecoveryKey(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32))
+  let result = ''
+  for (const byte of bytes) result += byte.toString(16).padStart(2, '0')
+  return result
+}
+
+async function getOrCreateRecovery(
+  token: string,
+  current: ClaimRecovery | null,
+): Promise<ClaimRecovery> {
+  const identifier = await sha256Hex(token)
+  if (current?.identifier === identifier) return current
+
+  const storage = getSessionStorage()
+  if (storage) {
+    try {
+      const stored = storage.getItem(recoveryStorageKey(identifier))
+      if (stored && stored.length >= 32 && stored.length <= 256) {
+        return { identifier, recoveryKey: stored }
+      }
+    } catch {
+      // A fresh in-memory recovery key still keeps retries idempotent in this page instance.
+    }
+  }
+
+  const recovery = { identifier, recoveryKey: randomRecoveryKey() }
+  if (storage) {
+    try {
+      storage.setItem(recoveryStorageKey(identifier), recovery.recoveryKey)
+    } catch {
+      // The in-memory recovery key is sufficient until this page is closed.
+    }
+  }
+  return recovery
+}
+
+function clearClaimStorage(identifier: string): void {
+  const storage = getSessionStorage()
+  if (!storage) return
+  try {
+    storage.removeItem(claimTokenStorageKey(identifier))
+    storage.removeItem(recoveryStorageKey(identifier))
+    if (storage.getItem(CURRENT_CLAIM_IDENTIFIER_KEY) === identifier) {
+      storage.removeItem(CURRENT_CLAIM_IDENTIFIER_KEY)
+    }
+  } catch {
+    // A successful response has already consumed the one-time server proof.
+  }
+}
+
+function clearCurrentClaimStorage(): void {
+  const storage = getSessionStorage()
+  if (!storage) return
+  try {
+    const identifier = storage.getItem(CURRENT_CLAIM_IDENTIFIER_KEY)
+    if (identifier && /^[0-9a-f]{64}$/.test(identifier)) {
+      clearClaimStorage(identifier)
+      return
+    }
+    storage.removeItem(CURRENT_CLAIM_IDENTIFIER_KEY)
+  } catch {
+    // A raw invitation remains usable even if stale session storage cannot be cleared.
+  }
+}
+
+function claimTokenFromFragment(): string | null {
+  const hash = globalThis.location.hash
+  if (!hash.startsWith('#')) return null
+  const token = new URLSearchParams(hash.slice(1)).get('claim_token')?.trim()
+  return token || null
+}
+
+function scrubFragment(): void {
+  globalThis.history.replaceState(
+    globalThis.history.state,
+    '',
+    `${globalThis.location.pathname}${globalThis.location.search}`,
+  )
+}
+
+export const invitationNavigation = {
+  assign(redirectUrl: string): void {
+    globalThis.location.assign(redirectUrl)
+  },
+}
+
+export function AcceptInvitationPage(): ReactNode {
   const search = useSearch({ strict: false }) as { token?: string }
-  const token = search.token ?? null
-  const { api, status, user, refresh } = useAuth()
-  const navigate = useNavigate()
+  const rawToken = search.token?.trim() || null
+  const { api } = useAuth()
   const { t } = useLingui()
-  const [acceptError, setAcceptError] = useState<string | null>(null)
-  const [accepting, setAccepting] = useState(false)
+  const [fragmentReady, setFragmentReady] = useState(false)
+  const [claimToken, setClaimToken] = useState<string | null>(
+    () => claimTokenFromFragment() ?? (rawToken ? null : readStoredClaimToken()),
+  )
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const [claimStartPending, setClaimStartPending] = useState(false)
+  const [claimStartComplete, setClaimStartComplete] = useState(false)
+  const [claimStartError, setClaimStartError] = useState<string | null>(null)
+  const [claimVerifyPending, setClaimVerifyPending] = useState(false)
+  const [claimVerifyError, setClaimVerifyError] = useState<string | null>(null)
+  const recoveryRef = useRef<ClaimRecovery | null>(null)
+
+  useLayoutEffect(() => {
+    const fragmentToken = claimTokenFromFragment()
+    if (fragmentToken) {
+      scrubFragment()
+      setClaimToken(fragmentToken)
+    } else if (rawToken) {
+      clearCurrentClaimStorage()
+      setClaimToken(null)
+    }
+    setFragmentReady(true)
+  }, [rawToken])
+
+  useEffect(() => {
+    if (!claimToken) return
+    void rememberClaimToken(claimToken)
+  }, [claimToken])
 
   const preview = useQuery({
-    queryKey: ['invitation-preview', token],
-    enabled: token !== null,
+    queryKey: ['invitation-preview', rawToken],
+    enabled: fragmentReady && claimToken === null && rawToken !== null,
     retry: false,
     queryFn: async (): Promise<InvitationPreview> => {
       const result = await api.get<InvitationPreview>(
-        `/auth/invitation/preview?token=${encodeURIComponent(token ?? '')}`,
+        `/auth/invitation/preview?token=${encodeURIComponent(rawToken ?? '')}`,
       )
       if (!result.ok) throw result.error
       return result.value
     },
   })
 
-  useEffect(() => {
-    if (preview.data?.status === 'pending' && preview.data.email && status === 'unauthenticated') {
-      const params = new URLSearchParams({
-        login_hint: preview.data.email,
-        invitation_token: token ?? '',
-        continue: `/accept-invitation?token=${encodeURIComponent(token ?? '')}`,
-      })
-      navigate(`/sign-in?${params.toString()}`, { replace: true })
-    }
-  }, [navigate, preview.data, status, token])
+  const previewData = preview.data
+  const authConfigEnabled =
+    claimToken === null &&
+    rawToken !== null &&
+    previewData?.status === 'pending' &&
+    previewData.orgId !== null
+  const authConfigQuery = useQuery<PublicHostedAuthConfig, never>({
+    queryKey: ['auth-config', 'invitation-claim', previewData?.orgId ?? null],
+    enabled: authConfigEnabled,
+    retry: false,
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (previewData?.orgId) params.set('organization_id', previewData.orgId)
+      const path = params.size > 0 ? `/auth/config?${params.toString()}` : '/auth/config'
+      const result = await api.get<PublicHostedAuthConfig>(path)
+      return result.ok ? result.value : DEFAULT_PUBLIC_AUTH_CONFIG
+    },
+  })
+  const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
+  const { containerRef } = useTurnstile(
+    authConfig.turnstileSiteKey,
+    turnstileToken,
+    setTurnstileToken,
+  )
 
-  async function handleAccept(): Promise<void> {
-    if (!token) return
-    setAccepting(true)
-    setAcceptError(null)
-    const result = await api.post<{ redirectUrl: string }>('/auth/invitation/accept', { token })
-    setAccepting(false)
+  async function handleClaimStart(): Promise<void> {
+    if (!rawToken || claimStartPending) return
+    setClaimStartPending(true)
+    setClaimStartError(null)
+    const result = await api.post<{ ok: true }>('/auth/invitation/claim', {
+      token: rawToken,
+      turnstileToken,
+    })
+    setClaimStartPending(false)
+    setTurnstileToken(null)
     if (!result.ok) {
-      setAcceptError(t`Unable to accept this invitation. Please sign in with the invited email.`)
+      setClaimStartError(t`We could not send the invitation email. Please try again.`)
       return
     }
-    trackInvitationAccepted()
-    await refresh()
-    navigate(result.value.redirectUrl, { replace: true })
+    setClaimStartComplete(true)
   }
 
-  if (!token) {
+  async function handleClaimVerify(): Promise<void> {
+    if (!claimToken || claimVerifyPending) return
+    setClaimVerifyPending(true)
+    setClaimVerifyError(null)
+    const recovery = await getOrCreateRecovery(claimToken, recoveryRef.current)
+    recoveryRef.current = recovery
+    const result = await api.post<{ redirectUrl: string }>('/auth/invitation/claim/verify', {
+      token: claimToken,
+      recoveryKey: recovery.recoveryKey,
+    })
+    setClaimVerifyPending(false)
+    if (!result.ok) {
+      setClaimVerifyError(
+        t`This email link is invalid or expired. Open the latest invitation email and try again.`,
+      )
+      return
+    }
+    clearClaimStorage(recovery.identifier)
+    recoveryRef.current = null
+    trackInvitationAccepted()
+    invitationNavigation.assign(result.value.redirectUrl)
+  }
+
+  if (!fragmentReady) {
+    return (
+      <AuthLayout>
+        <Spinner label={t`Loading invitation`} />
+      </AuthLayout>
+    )
+  }
+
+  if (claimToken) {
+    return (
+      <AuthLayout>
+        <div {...stylex.props(styles.stack)}>
+          <PageHeader
+            title={<Trans>Confirm your invitation</Trans>}
+            lead={
+              <Trans>
+                Continue only if you opened this link from the invitation email sent to you.
+              </Trans>
+            }
+          />
+          {claimVerifyError ? <Alert tone="error">{claimVerifyError}</Alert> : null}
+          <Button
+            type="button"
+            fullWidth
+            isLoading={claimVerifyPending}
+            onClick={() => void handleClaimVerify()}
+          >
+            <Trans>Confirm and join</Trans>
+          </Button>
+        </div>
+      </AuthLayout>
+    )
+  }
+
+  if (!rawToken) {
     return (
       <AuthLayout>
         <div {...stylex.props(styles.stack)}>
@@ -91,9 +337,6 @@ function AcceptInvitationPage(): ReactNode {
           <Alert tone="error">
             <Trans>Invitation link is invalid.</Trans>
           </Alert>
-          <Link to="/sign-in">
-            <Trans>Back to sign in</Trans>
-          </Link>
         </div>
       </AuthLayout>
     )
@@ -116,9 +359,6 @@ function AcceptInvitationPage(): ReactNode {
           <Alert tone="error">
             <Trans>This invitation link is invalid or has already been used.</Trans>
           </Alert>
-          <Link to="/sign-in">
-            <Trans>Back to sign in</Trans>
-          </Link>
         </div>
       </AuthLayout>
     )
@@ -132,13 +372,33 @@ function AcceptInvitationPage(): ReactNode {
           <Alert tone="warning">
             <Trans>Ask your organization admin to send a new invitation.</Trans>
           </Alert>
-          <Link to="/sign-in">
-            <Trans>Back to sign in</Trans>
-          </Link>
         </div>
       </AuthLayout>
     )
   }
+
+  if (claimStartComplete) {
+    return (
+      <AuthLayout>
+        <div {...stylex.props(styles.stack)}>
+          <PageHeader
+            title={<Trans>Check your email</Trans>}
+            lead={
+              <Trans>
+                We sent a one-time invitation link to {data.email}. Open it in this browser to
+                continue.
+              </Trans>
+            }
+          />
+        </div>
+      </AuthLayout>
+    )
+  }
+
+  const turnstileRequired = authConfig.turnstileSiteKey !== null
+  const waitingForAuthConfig = authConfigEnabled && authConfigQuery.isPending
+  const claimStartDisabled =
+    claimStartPending || waitingForAuthConfig || (turnstileRequired && turnstileToken === null)
 
   return (
     <AuthLayout>
@@ -149,38 +409,32 @@ function AcceptInvitationPage(): ReactNode {
           }
           lead={
             <Trans>
-              You have been invited as {data.role ?? 'member'}. Sign in with {data.email} to
-              continue.
+              We will verify {data.email} before creating your account and adding you to this
+              organization.
             </Trans>
           }
         />
-        <p {...stylex.props(styles.meta)}>
-          <Trans>Invited email: {data.email}</Trans>
-        </p>
-        {status === 'authenticated' ? (
-          <>
-            {user?.email && data.email && user.email.toLowerCase() !== data.email.toLowerCase() ? (
-              <Alert tone="warning">
-                <Trans>
-                  You are signed in as {user.email}. Sign out and use {data.email} to accept this
-                  invitation.
-                </Trans>
-              </Alert>
-            ) : (
-              <Button type="button" onClick={() => void handleAccept()} disabled={accepting}>
-                {accepting ? <Trans>Accepting…</Trans> : <Trans>Accept invitation</Trans>}
-              </Button>
-            )}
-          </>
-        ) : (
+        <div {...stylex.props(styles.details)}>
           <p {...stylex.props(styles.meta)}>
-            <Trans>Redirecting to sign in…</Trans>
+            <Trans>Invited email: {data.email}</Trans>
           </p>
-        )}
-        {acceptError ? <Alert tone="error">{acceptError}</Alert> : null}
-        <Link to="/sign-in">
-          <Trans>Back to sign in</Trans>
-        </Link>
+          {data.role ? (
+            <p {...stylex.props(styles.meta)}>
+              <Trans>Organization role: {data.role}</Trans>
+            </p>
+          ) : null}
+        </div>
+        {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
+        <Button
+          type="button"
+          fullWidth
+          isLoading={claimStartPending}
+          disabled={claimStartDisabled}
+          onClick={() => void handleClaimStart()}
+        >
+          <Trans>Email me a secure link</Trans>
+        </Button>
+        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
       </div>
     </AuthLayout>
   )

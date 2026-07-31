@@ -2,8 +2,10 @@
 // manager_assignments / memberships / invitations / organization_domains。
 // role/permission key 在 project 内唯一,第一列 tenant_id(见 9.5)。Manager 角色不进业务 token。
 
+import { sql } from 'drizzle-orm'
 import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, createdAt, numCol, tenantId, timestamps, tsMs } from './common'
+import type { ManagerRole, ManagerScopeType, OrganizationMembershipRole } from '@xid-kit/types'
 
 // 13.1 roles(Project 级角色)
 export const roles = sqliteTable(
@@ -62,7 +64,10 @@ export const rolePermissions = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [
+    // Referenced entity IDs are globally unique. Retaining the legacy index keeps this migration
+    // additive for rolling Workers deployments while the tenant-first index states the data model.
     uniqueIndex('role_permissions_role_perm_unq').on(t.roleId, t.permissionId),
+    uniqueIndex('role_permissions_tenant_role_perm_unq').on(t.tenantId, t.roleId, t.permissionId),
     index('role_permissions_tenant_role_idx').on(t.tenantId, t.roleId),
     index('role_permissions_tenant_role_id_idx').on(t.tenantId, t.roleId, t.id),
   ],
@@ -102,13 +107,25 @@ export const managerAssignments = sqliteTable(
     id: text('id').primaryKey(),
     tenantId: tenantId(),
     userId: text('user_id').notNull(),
-    managerRole: text('manager_role').notNull(),
-    scopeType: text('scope_type').notNull(),
+    managerRole: text('manager_role').$type<ManagerRole>().notNull(),
+    scopeType: text('scope_type').$type<ManagerScopeType>().notNull(),
     scopeId: text('scope_id'),
     ...timestamps(),
   },
   (t) => [
+    // Keep the legacy global-ID constraint alongside the tenant-first constraints so old and new
+    // Workers can share the schema throughout a rolling deployment.
     uniqueIndex('manager_assignments_unq').on(t.userId, t.managerRole, t.scopeType, t.scopeId),
+    uniqueIndex('manager_assignments_tenant_scope_unq')
+      .on(t.tenantId, t.userId, t.managerRole, t.scopeType, t.scopeId)
+      .where(sql`${t.scopeId} IS NOT NULL`),
+    uniqueIndex('manager_assignments_instance_unq')
+      .on(t.tenantId, t.userId, t.managerRole, t.scopeType)
+      .where(
+        sql`${t.managerRole} = 'instance_manager'
+          AND ${t.scopeType} = 'instance'
+          AND ${t.scopeId} IS NULL`,
+      ),
     index('manager_assignments_tenant_user_idx').on(t.tenantId, t.userId),
     index('manager_assignments_scope_idx').on(t.scopeType, t.scopeId),
   ],
@@ -122,7 +139,7 @@ export const memberships = sqliteTable(
     tenantId: tenantId(),
     orgId: text('org_id').notNull(),
     userId: text('user_id').notNull(),
-    role: text('role').notNull().default('member'),
+    role: text('role').$type<OrganizationMembershipRole>().notNull().default('member'),
     membershipType: text('membership_type').notNull().default('member'),
     status: text('status').notNull().default('active'),
     isManaged: boolCol('is_managed').notNull().default(false),
@@ -147,19 +164,50 @@ export const invitations = sqliteTable(
     tenantId: tenantId(),
     orgId: text('org_id').notNull(),
     email: text('email').notNull(),
-    role: text('role').notNull().default('member'),
+    role: text('role').$type<OrganizationMembershipRole>().notNull().default('member'),
     tokenHash: text('token_hash').notNull(),
+    tokenVersion: text('token_version')
+      .$type<'legacy' | 'locator_v1'>()
+      .notNull()
+      .default('legacy'),
     inviteType: text('invite_type').notNull().default('email'),
     maxUses: numCol('max_uses'),
     usedCount: numCol('used_count').notNull().default(0),
     status: text('status').notNull().default('pending'),
     invitedByUserId: text('invited_by_user_id'),
     acceptedByUserId: text('accepted_by_user_id'),
+    emailClaimTokenHash: text('email_claim_token_hash'),
+    emailClaimEmailHash: text('email_claim_email_hash'),
+    emailClaimExpiresAt: tsMs('email_claim_expires_at'),
+    emailClaimConsumedAt: tsMs('email_claim_consumed_at'),
+    emailClaimConsumptionId: text('email_claim_consumption_id'),
+    emailClaimUserId: text('email_claim_user_id'),
+    emailClaimRecoveryHash: text('email_claim_recovery_hash'),
+    emailClaimSessionId: text('email_claim_session_id'),
+    emailClaimSessionReservedAt: tsMs('email_claim_session_reserved_at'),
+    emailClaimFinalizationId: text('email_claim_finalization_id'),
+    displacedUserId: text('displaced_user_id'),
+    displacedEmailId: text('displaced_email_id'),
     expiresAt: tsMs('expires_at').notNull(),
     ...timestamps(),
   },
   (t) => [
     uniqueIndex('invitations_token_unq').on(t.tokenHash),
+    uniqueIndex('invitations_email_claim_token_unq')
+      .on(t.emailClaimTokenHash)
+      .where(sql`${t.emailClaimTokenHash} IS NOT NULL`),
+    uniqueIndex('invitations_email_claim_consumption_unq')
+      .on(t.emailClaimConsumptionId)
+      .where(sql`${t.emailClaimConsumptionId} IS NOT NULL`),
+    uniqueIndex('invitations_email_claim_recovery_unq')
+      .on(t.emailClaimRecoveryHash)
+      .where(sql`${t.emailClaimRecoveryHash} IS NOT NULL`),
+    uniqueIndex('invitations_email_claim_finalization_unq')
+      .on(t.emailClaimFinalizationId)
+      .where(sql`${t.emailClaimFinalizationId} IS NOT NULL`),
+    uniqueIndex('invitations_tenant_org_email_pending_unq')
+      .on(t.tenantId, t.orgId, t.email)
+      .where(sql`${t.status} IN ('pending', 'claim_verified')`),
     index('invitations_tenant_org_status_id_idx').on(t.tenantId, t.orgId, t.status, t.id),
     index('invitations_tenant_org_status_idx').on(t.tenantId, t.orgId, t.status),
     index('invitations_tenant_email_idx').on(t.tenantId, t.email),

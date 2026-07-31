@@ -10,8 +10,12 @@ class RequestAuthenticatorTest < Minitest::Test
   def setup
     @ec_key = OpenSSL::PKey::EC.generate("prime256v1")
     cache     = TestHelpers.mock_jwks_cache(KID => @ec_key)
-    verifier  = Xid::TokenVerifier.new(jwks_cache: cache, issuer: ISSUER, audience: AUDIENCE)
-    @auth     = Xid::RequestAuthenticator.new(token_verifier: verifier)
+    @verifier = Xid::TokenVerifier.new(
+      jwks_cache: cache,
+      issuer: ISSUER,
+      audience: AUDIENCE
+    )
+    @auth = Xid::RequestAuthenticator.new(token_verifier: @verifier)
   end
 
   def valid_token
@@ -65,21 +69,40 @@ class RequestAuthenticatorTest < Minitest::Test
   # --- Cookie fallback --------------------------------------------------------
 
   def test_signed_in_via_cookie
+    auth = Xid::RequestAuthenticator.new(
+      token_verifier: @verifier,
+      cookie_name: "__xid_token"
+    )
     env   = { "HTTP_COOKIE" => "__xid_token=#{valid_token}" }
-    state = @auth.authenticate_env(env)
+    state = auth.authenticate_env(env)
 
     assert state.signed_in?
     assert_equal "usr_abc", state.claims.sub
   end
 
   def test_bearer_takes_precedence_over_cookie
+    auth = Xid::RequestAuthenticator.new(
+      token_verifier: @verifier,
+      cookie_name: "__xid_token"
+    )
     bad_token = "obviously.bad.token"
     env = {
       "HTTP_AUTHORIZATION" => "Bearer #{valid_token}",
       "HTTP_COOKIE"        => "__xid_token=#{bad_token}"
     }
-    state = @auth.authenticate_env(env)
+    state = auth.authenticate_env(env)
     assert state.signed_in?
+  end
+
+  def test_implicit_and_core_cookies_are_ignored
+    env = {
+      "HTTP_COOKIE" =>
+        "__xid_token=#{valid_token}; __session=#{valid_token}; " \
+        "__Host-xid.rt.abcdefgh=#{valid_token}"
+    }
+    state = @auth.authenticate_env(env)
+    refute state.signed_in?
+    assert_match(/No token found/, state.reason)
   end
 
   # --- No token ---------------------------------------------------------------

@@ -2,7 +2,13 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 
 import { pollCertificateStatus, pollDomainVerification, verifyDomainDnsTxt } from '../daily'
 
-type CertRow = { id: string; status: string; not_after: number | null; updated_at: number }
+type CertRow = {
+  id: string
+  usage: string
+  status: string
+  not_after: number | null
+  updated_at: number
+}
 
 class CertStoreD1 {
   certs: CertRow[] = []
@@ -14,12 +20,17 @@ class CertStoreD1 {
         run: async () => {
           this.runs.push({ sql, args })
           const normalized = sql.toLowerCase()
-          if (normalized.includes("set status = 'expiring'")) {
+          if (normalized.includes("set status = 'retiring'")) {
             const soon = Number(args[1])
             const now = Number(args[0])
             for (const row of this.certs) {
-              if (row.status === 'active' && row.not_after !== null && row.not_after < soon) {
-                row.status = 'expiring'
+              if (
+                row.usage === 'saml_idp_signing' &&
+                row.status === 'active' &&
+                row.not_after !== null &&
+                row.not_after < soon
+              ) {
+                row.status = 'retiring'
                 row.updated_at = now
               }
             }
@@ -144,6 +155,7 @@ describe('pollCertificateStatus', () => {
     const now = Date.now()
     db.certs.push({
       id: 'c_far',
+      usage: 'saml_idp_signing',
       status: 'active',
       not_after: now + 60 * 24 * 60 * 60 * 1000,
       updated_at: now,
@@ -153,16 +165,36 @@ describe('pollCertificateStatus', () => {
     expect(db.runs).toHaveLength(1)
   })
 
-  it('marks active certs expiring within 30 days', async () => {
+  it('marks active certs retiring within 30 days', async () => {
     const db = new CertStoreD1()
     const now = Date.now()
     db.certs.push(
-      { id: 'c1', status: 'active', not_after: now + 1_000, updated_at: now },
-      { id: 'c2', status: 'active', not_after: now + 40 * 24 * 60 * 60 * 1000, updated_at: now },
+      {
+        id: 'c1',
+        usage: 'saml_idp_signing',
+        status: 'active',
+        not_after: now + 1_000,
+        updated_at: now,
+      },
+      {
+        id: 'c2',
+        usage: 'saml_idp_signing',
+        status: 'active',
+        not_after: now + 40 * 24 * 60 * 60 * 1000,
+        updated_at: now,
+      },
+      {
+        id: 'c3',
+        usage: 'saml_sp_encryption',
+        status: 'active',
+        not_after: now + 1_000,
+        updated_at: now,
+      },
     )
     const env = { DB: db } as unknown as Env
     await pollCertificateStatus(env)
-    expect(db.certs.find((c) => c.id === 'c1')?.status).toBe('expiring')
+    expect(db.certs.find((c) => c.id === 'c1')?.status).toBe('retiring')
     expect(db.certs.find((c) => c.id === 'c2')?.status).toBe('active')
+    expect(db.certs.find((c) => c.id === 'c3')?.status).toBe('active')
   })
 })

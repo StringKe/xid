@@ -10,7 +10,8 @@
     "dev": "astro dev",
     "build": "astro build && node scripts/generate-localized-404s.mjs && node scripts/audit-dist-routes.mjs",
     "audit:dist": "node scripts/audit-dist-routes.mjs",
-    "check": "astro check && nimbus-docs lint && pnpm run lint:prose",
+    "check": "node scripts/check-nimbus-patch.mjs && astro check && nimbus-docs lint && pnpm run lint:prose",
+    "check:nimbus-patch": "node scripts/check-nimbus-patch.mjs",
     "preview": "astro preview",
     "typecheck": "astro check && tsc --noEmit -p worker/tsconfig.json",
     "test": "vitest run",
@@ -22,10 +23,10 @@
     "preview:cf": "wrangler dev"
   },
   "dependencies": {
+    "@cloudflare/nimbus-docs": "catalog:",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@iconify-json/ph": "^1.2.0",
-    "@cloudflare/nimbus-docs": "catalog:",
     "@lingui/core": "catalog:",
     "@xid-kit/i18n": "workspace:*",
     "@xid-kit/types": "workspace:*",

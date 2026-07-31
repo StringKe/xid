@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   resolveInstanceLogin,
   resolveTenantContext,
+  resolveTenantContextByIdInInstance,
   resolveTenantContextByIssuer,
   resolveTenantContextBySessionHash,
   resolveTenantContextBySsoConnection,
@@ -67,6 +68,88 @@ describe('resolveTenantContext', () => {
     const result = await resolveTenantContext(req('acme.xid.test'), envFor(store))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('tenant_suspended')
+  })
+
+  it('reverse-resolves an active custom hostname without changing the instance issuer', async () => {
+    const store: Store = {}
+    seedMultiTenantInstance(store)
+    const now = Date.now()
+    store['custom_hostnames'] = [
+      {
+        id: 'ch_custom_1',
+        tenant_id: 'org_acme',
+        org_id: 'org_acme',
+        instance_id: 'inst_1',
+        hostname: 'login.customer.example',
+        cloudflare_hostname_id: 'cf_hostname_1',
+        status: 'active',
+        hostname_status: 'active',
+        ssl_status: 'active',
+        ownership_verification_type: 'txt',
+        ownership_verification_name: '_cf-custom-hostname.login.customer.example',
+        ownership_verification_value: 'ownership-value',
+        ownership_expires_at: null,
+        dcv_delegation_records: '[]',
+        validation_records: '[]',
+        traffic_cname_target: 'customers.xid.test',
+        verification_errors: '[]',
+        requires_passkey_reregistration: 1,
+        activated_at: now,
+        last_polled_at: now,
+        deleted_at: null,
+        created_at: now,
+        updated_at: now,
+      },
+    ]
+
+    const result = await resolveTenantContext(req('login.customer.example'), envFor(store))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.tenantId).toBe('org_acme')
+      expect(result.value.instanceId).toBe('inst_1')
+      expect(result.value.issuer).toBe('https://xid.test')
+      expect(result.value.hostedAuthOrigin).toBe('https://login.customer.example')
+      expect(result.value.rpId).toBe('login.customer.example')
+      expect(result.value.customHostname).toBe('login.customer.example')
+      expect(result.value.requiresPasskeyReregistration).toBe(true)
+      expect(result.value.resolution).toEqual({
+        kind: 'tenant',
+        primaryDomain: 'xid.test',
+      })
+    }
+  })
+
+  it('does not resolve a custom hostname before both ownership and SSL are active', async () => {
+    const store: Store = {}
+    seedMultiTenantInstance(store)
+    const now = Date.now()
+    store['custom_hostnames'] = [
+      {
+        id: 'ch_pending_1',
+        tenant_id: 'org_acme',
+        org_id: 'org_acme',
+        instance_id: 'inst_1',
+        hostname: 'pending.customer.example',
+        cloudflare_hostname_id: 'cf_hostname_pending',
+        status: 'pending',
+        hostname_status: 'active',
+        ssl_status: 'pending_validation',
+        dcv_delegation_records: '[]',
+        validation_records: '[]',
+        traffic_cname_target: 'customers.xid.test',
+        verification_errors: '[]',
+        requires_passkey_reregistration: 1,
+        deleted_at: null,
+        created_at: now,
+        updated_at: now,
+      },
+    ]
+
+    const result = await resolveTenantContext(req('pending.customer.example'), envFor(store))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('tenant_not_found')
   })
 })
 
@@ -189,6 +272,42 @@ describe('resolveTenantContextByIssuer', () => {
     if (result.ok && result.value.status === 'resolved') {
       expect(result.value.tenant.tenantId).toBe('org_acme')
     }
+  })
+})
+
+describe('resolveTenantContextByIdInInstance', () => {
+  it('resolves a token-selected Tenant even when the request host belongs to another Tenant', async () => {
+    const store: Store = {}
+    seedMultiTenantInstance(store)
+
+    const result = await resolveTenantContextByIdInInstance(
+      req('acme.xid.test'),
+      envFor(store),
+      'org_default',
+      'inst_1',
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok && result.value.status === 'resolved') {
+      expect(result.value.tenant.tenantId).toBe('org_default')
+      expect(result.value.tenant.instanceId).toBe('inst_1')
+      expect(result.value.tenant.issuer).toBe('https://xid.test')
+    }
+  })
+
+  it('rejects a target when the trusted Instance boundary does not match', async () => {
+    const store: Store = {}
+    seedMultiTenantInstance(store)
+
+    const result = await resolveTenantContextByIdInInstance(
+      req('acme.xid.test'),
+      envFor(store),
+      'org_default',
+      'another-instance',
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('tenant_not_found')
   })
 })
 

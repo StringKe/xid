@@ -80,6 +80,16 @@ struct AuthorizationURLBuilder {
     ) -> URL? {
         var components = URLComponents(url: authorizationEndpoint, resolvingAgainstBaseURL: true)
 
+        let reservedParameters: Set<String> = [
+            "response_type",
+            "client_id",
+            "redirect_uri",
+            "scope",
+            "state",
+            "nonce",
+            "code_challenge",
+            "code_challenge_method",
+        ]
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: clientId),
@@ -90,7 +100,7 @@ struct AuthorizationURLBuilder {
             URLQueryItem(name: "code_challenge_method", value: pkce.method),
         ]
 
-        for (key, value) in additionalParams {
+        for (key, value) in additionalParams where !reservedParameters.contains(key) {
             queryItems.append(URLQueryItem(name: key, value: value))
         }
 

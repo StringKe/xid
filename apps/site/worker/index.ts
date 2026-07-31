@@ -1,3 +1,4 @@
+import { resolveWebRouteOwnership } from '@xid-kit/types'
 import {
   SITE_LOCALE_ROUTE_SEGMENTS,
   isLocalizableSitePath,
@@ -55,6 +56,14 @@ function resolveRequestHostname(request: Request, url: URL): string {
     return forwardedHost
   }
   return url.hostname
+}
+
+function isSiteOwnedRequest(request: Request, url: URL): boolean {
+  const ownershipUrl = new URL(url)
+  const requestHostname = resolveRequestHostname(request, url)
+  ownershipUrl.hostname = LOCAL_DEV_HOSTS.has(requestHostname) ? CANONICAL_HOST : requestHostname
+  ownershipUrl.port = ''
+  return resolveWebRouteOwnership(ownershipUrl).owner === 'site'
 }
 
 function agentIndexRouteSegment(locale: SiteLocale): string {
@@ -120,6 +129,9 @@ function resolveCanonicalRedirect(request: Request, source: URL): URL | null {
 export default {
   async fetch(request: Request, env: SiteEnv, _context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
+    if (!isSiteOwnedRequest(request, url)) {
+      return withSecurityHeaders(new Response(null, { status: 404 }))
+    }
     const redirect = resolveCanonicalRedirect(request, url)
     if (redirect) {
       return withSecurityHeaders(Response.redirect(redirect.toString(), 308))

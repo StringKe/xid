@@ -3,13 +3,15 @@
 // Creates the XidClient singleton, installs XidPlugin into the Vue app
 // (making composables available), and exposes the client as nuxtApp.$xid.
 //
-// runtimeConfig.public.xidApiUrl is written by setupXidModule when the
-// consumer sets xid.apiUrl in nuxt.config.ts.
+// runtimeConfig.public.xidBrowser is written by setupXidModule from the
+// serializable browser Core configuration.
 //
 // This file requires the Nuxt runtime environment (defineNuxtPlugin / useRuntimeConfig).
 // It is loaded by the Nuxt module system, not bundled by this library.
 
 import { XidPlugin, createXidClient } from '@xid-kit/vue'
+import type { XidClientOptions } from '@xid-kit/core'
+import type { XidNuxtBrowserOptions } from '../types'
 
 // Nuxt plugin entry: defineNuxtPlugin is provided by the host Nuxt runtime (peer dep).
 // Declared here to avoid importing nuxt/app which would force a hard peer dependency
@@ -23,7 +25,7 @@ declare const defineNuxtPlugin: (
     $config: {
       public: {
         xidApiUrl?: string
-        xidPublishableKey?: string
+        xidBrowser?: XidNuxtBrowserOptions
       }
     }
   }) => void,
@@ -32,12 +34,12 @@ declare const defineNuxtPlugin: (
 export default defineNuxtPlugin((nuxtApp) => {
   // Read values written to runtimeConfig.public by setupXidModule.
   const apiUrl = nuxtApp.$config.public.xidApiUrl as string | undefined
-  const publishableKey = nuxtApp.$config.public.xidPublishableKey as string | undefined
-
-  const client = createXidClient({
+  const browser = nuxtApp.$config.public.xidBrowser
+  const options: XidClientOptions = browser ?? {
+    mode: 'same-origin',
     ...(apiUrl ? { apiUrl } : {}),
-    ...(publishableKey ? { publishableKey } : {}),
-  })
+  }
+  const client = createXidClient(options)
 
   // Install XidPlugin into the Vue app so composables (useXid, useAuth, etc.) work.
   nuxtApp.vueApp.use(XidPlugin, { client })

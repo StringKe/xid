@@ -480,6 +480,32 @@ public class WebhookVerificationTests
         Assert.Equal(ts, result.Timestamp);
     }
 
+    [Fact]
+    public void VerifyWebhook_LegacyHexSecret_UsesUtf8KeyMaterial()
+    {
+        var client = new XidClient(new XidOptions { Issuer = "https://xid.dev" },
+            new HttpClient(new MockJwksHandler("{\"keys\":[]}")));
+        string svixId = "msg_legacy";
+        long ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        byte[] bodyBytes = Encoding.UTF8.GetBytes("{\"type\":\"user.updated\"}");
+        string legacySecret = string.Concat(Enumerable.Repeat("ab", 32));
+        byte[] sigBytes = ComputeExpectedSigBytes(
+            svixId,
+            ts.ToString(),
+            bodyBytes,
+            Encoding.UTF8.GetBytes(legacySecret));
+        var headers = new Dictionary<string, string>
+        {
+            ["svix-id"] = svixId,
+            ["svix-timestamp"] = ts.ToString(),
+            ["svix-signature"] = BuildSig(sigBytes),
+        };
+
+        WebhookPayload result = client.VerifyWebhook(bodyBytes, headers, legacySecret);
+
+        Assert.Equal(svixId, result.SvixId);
+    }
+
     // -- 合法签名 --
 
     [Fact]
@@ -615,10 +641,10 @@ public class AuthenticateRequestTests
         Assert.Equal("user-123", status.Claims!.Sub);
     }
 
-    // -- 从 Cookie 提取 token --
+    // -- 默认不从 Cookie 提取 token --
 
     [Fact]
-    public async Task AuthenticateRequest_Cookie_Authenticated()
+    public async Task AuthenticateRequest_ImplicitAndCoreCookies_Unauthenticated()
     {
         // Arrange
         var (ecKey, kid) = TokenHelper.CreateEcKey();
@@ -628,12 +654,39 @@ public class AuthenticateRequestTests
         using var http = new HttpClient(new MockJwksHandler(TokenHelper.ToJwksJson(ecKey, kid)));
         var client = new XidClient(new XidOptions { Issuer = "https://xid.dev" }, http);
 
-        var cookies = new Dictionary<string, string> { ["__session"] = token };
+        var cookies = new Dictionary<string, string>
+        {
+            ["__session"] = token,
+            ["__Host-xid.rt.abcdefgh"] = token,
+        };
 
         // Act
         AuthStatus status = await client.AuthenticateRequestAsync(null, cookies);
 
         // Assert
+        Assert.False(status.Authenticated);
+        Assert.Null(status.Claims);
+    }
+
+    [Fact]
+    public async Task AuthenticateRequest_ExplicitApplicationJwtCookie_Authenticated()
+    {
+        var (ecKey, kid) = TokenHelper.CreateEcKey();
+        var securityKey = new ECDsaSecurityKey(ecKey) { KeyId = kid };
+        string token = TokenHelper.CreateToken(securityKey, kid, SecurityAlgorithms.EcdsaSha256);
+
+        using var http = new HttpClient(new MockJwksHandler(TokenHelper.ToJwksJson(ecKey, kid)));
+        var client = new XidClient(
+            new XidOptions
+            {
+                Issuer = "https://xid.dev",
+                SessionCookieName = "__app_xid_jwt",
+            },
+            http);
+        var cookies = new Dictionary<string, string> { ["__app_xid_jwt"] = token };
+
+        AuthStatus status = await client.AuthenticateRequestAsync(null, cookies);
+
         Assert.True(status.Authenticated);
     }
 
@@ -652,5 +705,64 @@ public class AuthenticateRequestTests
         // Assert
         Assert.False(status.Authenticated);
         Assert.NotNull(status.Reason);
+    }
+}
+
+public class SessionTokenExchangeTests
+{
+    [Fact]
+    public async Task Exchange_ExactSameOrigin_ForwardsCompleteCookie()
+    {
+        using var client = new XidClient(new XidOptions { Issuer = "https://app.example" });
+        string token = await client.ExchangeSessionTokenAsync(
+            "https://app.example/api",
+            "__Host-xid.rt.abc=opaque; __Host-xid.active=sess_abc",
+            "/v1/sessions/token",
+            (endpoint, cookie, _) =>
+            {
+                Assert.Equal("https://app.example/v1/sessions/token", endpoint.ToString());
+                Assert.Equal(
+                    "__Host-xid.rt.abc=opaque; __Host-xid.active=sess_abc",
+                    cookie);
+                return Task.FromResult(
+                    new SessionTokenHttpResponse(200, "{\"token\":\"jwt-value\"}"));
+            });
+        Assert.Equal("jwt-value", token);
+    }
+
+    [Fact]
+    public async Task Exchange_RejectsCrossOriginBeforeTransport()
+    {
+        using var client = new XidClient(new XidOptions { Issuer = "https://app.example" });
+        bool called = false;
+        await Assert.ThrowsAsync<SessionTokenExchangeException>(() =>
+            client.ExchangeSessionTokenAsync(
+                "https://app.example/api",
+                "__Host-xid.rt.abc=opaque",
+                "https://xid.dev/v1/sessions/token",
+                (_, _, _) =>
+                {
+                    called = true;
+                    return Task.FromResult(
+                        new SessionTokenHttpResponse(200, "{\"token\":\"jwt\"}"));
+                }));
+        Assert.False(called);
+    }
+
+    [Theory]
+    [InlineData(302, "{\"token\":\"jwt\"}")]
+    [InlineData(200, "{\"jwt\":\"wrong\"}")]
+    [InlineData(200, "{\"token\":\"\"}")]
+    [InlineData(200, "{\"token\":\"jwt\",\"extra\":true}")]
+    [InlineData(200, "not-json")]
+    public async Task Exchange_RejectsRedirectAndInvalidResponse(int status, string body)
+    {
+        using var client = new XidClient(new XidOptions { Issuer = "https://app.example" });
+        await Assert.ThrowsAsync<SessionTokenExchangeException>(() =>
+            client.ExchangeSessionTokenAsync(
+                "https://app.example/api",
+                "__Host-xid.rt.abc=opaque",
+                null,
+                (_, _, _) => Task.FromResult(new SessionTokenHttpResponse(status, body))));
     }
 }

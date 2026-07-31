@@ -16,7 +16,7 @@ export { toVerifyKeySet, JwksCache } from './jwks'
 export type { VerifyTokenOptions, VerifyTokenError } from './verify-token'
 export { verifyToken } from './verify-token'
 
-// authenticateRequest:从 Request(Authorization header / cookie)提取并验证。
+// authenticateRequest:验证 bearer / 显式 JWT cookie,可选同源 Core cookie-to-JWT exchange。
 export type {
   AuthenticateRequestOptions,
   RequestState,
@@ -24,7 +24,12 @@ export type {
   SignedOutState,
 } from './authenticate-request'
 export { authenticateRequest } from './authenticate-request'
+export type {
+  SessionTokenExchangeError,
+  SessionTokenExchangeOptions,
+} from './session-token-exchange'
+export { exchangeSessionToken, hasCoreSessionCookie } from './session-token-exchange'
 
 // verifyWebhook:svix 风格 HMAC-SHA256 webhook 签名验证(5min 防重放)。
-export type { VerifyWebhookOptions, WebhookVerifyError, VerifiedWebhook } from './verify-webhook'
+export type { VerifiedWebhook, VerifyWebhookOptions, WebhookVerifyError } from './verify-webhook'
 export { verifyWebhook } from './verify-webhook'

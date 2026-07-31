@@ -69,6 +69,14 @@ function session(status: SessionData['status'] = 'active'): SessionData {
   }
 }
 
+function impersonationSession(): SessionData {
+  return {
+    ...session(),
+    isImpersonation: true,
+    impersonatorUserId: 'user_manager',
+  }
+}
+
 function buildApp(currentSession: SessionData): Hono<XidHonoEnv> {
   const app = new Hono<XidHonoEnv>()
   app.onError((error, c) => {
@@ -228,4 +236,30 @@ describe('management cookie mutation verification gate', () => {
       code: 'email_verification_required',
     })
   })
+
+  it.each([
+    ['/org', 'GET'],
+    ['/platform', 'GET'],
+  ] as const)('allows an impersonation session to read %s', async (path, method) => {
+    const response = await request(buildApp(impersonationSession()), path, { method })
+
+    expect(response.status).toBe(200)
+    expect(mocks.tenantDb.users.findOne).not.toHaveBeenCalled()
+    expect(mocks.tenantDb.userEmails.findOne).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['/org', 'POST'],
+    ['/platform', 'PATCH'],
+  ] as const)(
+    'rejects an impersonation session management mutation on %s before email lookup',
+    async (path, method) => {
+      const response = await request(buildApp(impersonationSession()), path, { method })
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toMatchObject({ code: 'forbidden' })
+      expect(mocks.tenantDb.users.findOne).not.toHaveBeenCalled()
+      expect(mocks.tenantDb.userEmails.findOne).not.toHaveBeenCalled()
+    },
+  )
 })

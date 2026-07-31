@@ -30,6 +30,7 @@ export function createSecureStoreAdapter(options: SecureStoreAdapterOptions): To
   }
 
   return {
+    coordinationNamespace: `expo-secure-store:${keyPrefix || 'default'}`,
     async getToken(key) {
       return secureStore.getItemAsync(prefixKey(key))
     },

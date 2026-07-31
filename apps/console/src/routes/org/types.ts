@@ -1,12 +1,19 @@
 // org 管理路由共享类型。对照 /v1 Management API 契约。
 // 不含密钥/凭证;tenant_id 从 JWT/session 取不信任请求 body。
 
+import type {
+  OrganizationMembershipRole,
+  TenantManagerRole as SharedTenantManagerRole,
+  TenantManagerRoleScopeWire,
+  TenantManagerScopeType as SharedTenantManagerScopeType,
+} from '@xid-kit/types'
+
 export type OrgMember = {
   id: string
   userId: string
   email: string
   name: string | null
-  role: string
+  role: OrganizationMembershipRole
   status: 'active' | 'inactive' | 'pending'
   joinedAt: string
 }
@@ -14,7 +21,7 @@ export type OrgMember = {
 export type OrgInvitation = {
   id: string
   email: string
-  role: string
+  role: OrganizationMembershipRole
   status: 'pending' | 'expired' | 'accepted' | 'revoked'
   expiresAt: string
   createdAt: string
@@ -35,6 +42,137 @@ export type OrgPermission = {
   resourceType: string
 }
 
+export type ProjectStatus = 'active' | 'deleted'
+
+export type Project = {
+  id: string
+  org_id: string
+  name: string
+  description: string | null
+  status: ProjectStatus
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ProjectRole = {
+  id: string
+  project_id: string
+  key: string
+  display_name: string
+  group: string | null
+  status: ProjectStatus
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ProjectPermission = {
+  id: string
+  project_id: string
+  key: string
+  description: string | null
+  status: ProjectStatus
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type RolePermission = {
+  id: string
+  role_id: string
+  permission_id: string
+  condition_expression: Record<string, unknown> | null
+  created_at: string
+}
+
+export type ProjectGrant = {
+  id: string
+  granted_project_id: string
+  granted_by_org_id: string
+  granted_to_org_id: string
+  status: 'active' | 'revoked'
+  revoked_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type UserGrant = {
+  id: string
+  user_id: string
+  project_id: string
+  role_id: string
+  granted_via_grant_id: string | null
+  revoked_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ManagerScopeType = SharedTenantManagerScopeType
+export type TenantManagerRole = SharedTenantManagerRole
+
+export type ManagerAssignment = TenantManagerRoleScopeWire & {
+  id: string
+  user_id: string
+  scope_id: string
+  created_at: string
+  updated_at: string
+}
+
+export type CreateProjectInput = {
+  org_id: string
+  name: string
+  description?: string
+}
+
+export type UpdateProjectInput = {
+  name?: string
+  description?: string | null
+}
+
+export type CreateProjectRoleInput = {
+  project_id: string
+  key: string
+  display_name: string
+  group?: string
+}
+
+export type UpdateProjectRoleInput = {
+  display_name?: string
+  group?: string
+}
+
+export type CreateProjectPermissionInput = {
+  project_id: string
+  key: string
+  description?: string
+}
+
+export type UpdateProjectPermissionInput = {
+  description?: string
+}
+
+export type CreateRolePermissionInput = {
+  role_id: string
+  permission_id: string
+  condition_expression?: Record<string, unknown> | null
+}
+
+export type UpdateRolePermissionInput = {
+  condition_expression: Record<string, unknown> | null
+}
+
+export type CreateProjectGrantInput = {
+  granted_project_id: string
+  granted_by_org_id: string
+  granted_to_org_id: string
+}
+
+export type CreateManagerAssignmentInput = TenantManagerRoleScopeWire & {
+  user_id: string
+  scope_id: string
+}
+
 export type InboundSsoProtocol = 'saml' | 'oidc' | 'ldap' | 'wsfed' | 'swa' | 'header'
 
 export type SsoConnection = {
@@ -44,12 +182,14 @@ export type SsoConnection = {
   domain: string
   idp_entity_id?: string | null
   idp_sso_url?: string | null
+  idp_slo_url?: string | null
   idp_metadata_url?: string | null
   idp_certificates: string[]
   oidc_client_id?: string | null
   oidc_discovery_url?: string | null
   want_authn_response_signed: boolean
   want_assertions_signed: boolean
+  saml_clock_skew_ms: number
   attribute_mapping: Record<string, unknown>
   role_mapping: Record<string, unknown>
   jit_enabled: boolean
@@ -62,6 +202,7 @@ export type CreateSsoConnectionInput = {
   protocol: InboundSsoProtocol
   idp_entity_id?: string
   idp_sso_url?: string
+  idp_slo_url?: string | null
   idp_metadata_url?: string
   idp_certificates?: string[]
   oidc_client_id?: string
@@ -71,6 +212,7 @@ export type CreateSsoConnectionInput = {
   role_mapping?: Record<string, unknown>
   want_authn_response_signed?: boolean
   want_assertions_signed?: boolean
+  saml_clock_skew_ms?: number
 }
 
 export type UpdateSsoConnectionInput = Omit<CreateSsoConnectionInput, 'protocol'>
@@ -87,6 +229,9 @@ export type OutboundSamlApp = {
   spEntityId: string
   acsUrl: string
   sloUrl: string | null
+  sloBinding: 'redirect' | 'post'
+  spCertificates: string[]
+  idpSigningCertId: string | null
   attributeMapping: Record<string, unknown>
   assignmentGate: AssignmentGate
   nameIdFormat: string
@@ -99,8 +244,11 @@ export type CreateOutboundSamlAppInput = {
   preset?: string
   sp_entity_id?: string
   acs_url: string
-  slo_url?: string
+  slo_url?: string | null
+  slo_binding?: 'redirect' | 'post'
+  sp_certificates?: string[]
   name_id_format?: string
+  idp_signing_cert_id?: string | null
   attribute_mapping?: Record<string, string>
   assignment_gate?: AssignmentGate
 }
@@ -111,6 +259,7 @@ export type ScimTarget = {
   id: string
   provider: string
   baseUrl: string
+  requiredTokenSecretName: string
   hasTokenSecret: boolean
   assignmentGate: AssignmentGate
   status: string
@@ -122,18 +271,15 @@ export type ScimTarget = {
 export type CreateScimTargetInput = {
   provider: string
   base_url: string
-  token_secret_ref: string
   assignment_gate?: AssignmentGate
 }
 
 export type UpdateScimTargetInput = Partial<CreateScimTargetInput>
 
-export type ScimTargetSyncSummary = {
+export type ScimTargetSyncAccepted = {
+  runId: string
   targetId: string
-  provider: string
-  users: number
-  groups: number
-  deactivations: number
+  status: 'queued'
 }
 
 export type ScimDirectory = {
@@ -338,6 +484,7 @@ export type OAuthApplication = {
   redirect_uris: string[]
   post_logout_redirect_uris: string[]
   allowed_grant_types: string[]
+  allowed_response_types: string[]
   allowed_scopes: string[]
   require_pkce: boolean
   dpop_bound_access_tokens?: boolean
@@ -352,7 +499,7 @@ export type OAuthApplication = {
 
 // 创建/轮换返回 client_secret 一次性明文。
 export type CreatedOAuthApplication = OAuthApplication & {
-  client_secret: string
+  client_secret?: string
 }
 
 export type RotateClientSecretResult = {
@@ -419,6 +566,7 @@ export type AuditEvent = {
   orgId: string | null
   eventType: string
   actorId: string | null
+  actorDisplay: string | null
   actorIp: string | null
   targetType: string | null
   targetId: string | null
@@ -429,4 +577,16 @@ export type AuditEventPage = {
   data: AuditEvent[]
   nextCursor: string | null
   total: number
+}
+
+export type OrgComplianceDocument = {
+  id: string
+  documentType: string
+  title: string
+  version: string
+  status: 'available'
+  checksum: string | null
+  acceptedBy: string | null
+  acceptedAt: string | null
+  artifactUrl: string | null
 }

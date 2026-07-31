@@ -61,7 +61,7 @@ function renderBanner(state: XidState): ReturnType<typeof render> {
   } as unknown as XidClient
   return render(
     <I18nProvider i18n={i18n}>
-      <XidContext.Provider value={{ client, publishableKey: 'pk_test' }}>
+      <XidContext.Provider value={{ client, mode: 'same-origin' }}>
         <GuestUpgradeBanner redirectUrl="/app" />
       </XidContext.Provider>
     </I18nProvider>,
@@ -78,8 +78,9 @@ describe('GuestUpgradeBanner', () => {
     expect(banner).not.toBeNull()
     expect(banner?.textContent).toContain('guest')
 
-    const action = banner?.querySelector<HTMLAnchorElement>('.xid-guest-upgrade-banner__action')
-    expect(action?.getAttribute('href')).toBe('/sign-up?redirect_url=%2Fapp')
+    const action = banner?.querySelector<HTMLButtonElement>('.xid-guest-upgrade-banner__action')
+    expect(action?.tagName).toBe('BUTTON')
+    expect(action?.type).toBe('button')
   })
 
   it('renders nothing for a non-guest user', () => {

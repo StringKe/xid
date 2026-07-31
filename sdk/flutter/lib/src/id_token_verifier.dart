@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:cryptography_flutter/cryptography_flutter.dart';
 
 import 'jwks_cache.dart';
 
@@ -9,12 +10,14 @@ class IdTokenVerifyOptions {
   final String issuer;
   final String clientId;
   final String jwksUri;
+  final String? expectedNonce;
   final Duration clockSkew;
 
   const IdTokenVerifyOptions({
     required this.issuer,
     required this.clientId,
     required this.jwksUri,
+    this.expectedNonce,
     this.clockSkew = const Duration(seconds: 60),
   });
 }
@@ -22,7 +25,8 @@ class IdTokenVerifyOptions {
 /// 使用 JWKS 对 ID token 做 ES256 验签并校验 iss/aud/exp。
 class IdTokenVerifier {
   final JwksCache _cache;
-  final Ecdsa _algorithm = Ecdsa.p256(Sha256());
+  final Ecdsa _algorithm =
+      FlutterCryptography.defaultInstance.ecdsaP256(Sha256());
 
   IdTokenVerifier({required JwksCache cache}) : _cache = cache;
 
@@ -32,7 +36,7 @@ class IdTokenVerifier {
   ) async {
     final parts = idToken.split('.');
     if (parts.length != 3) {
-      throw FormatException('Invalid JWT format');
+      throw const FormatException('Invalid JWT format');
     }
 
     final header = jsonDecode(utf8.decode(_base64UrlDecode(parts[0])))
@@ -44,7 +48,7 @@ class IdTokenVerifier {
       throw FormatException('Unsupported ID token algorithm: $alg');
     }
     if (kid == null || kid.isEmpty) {
-      throw FormatException('ID token header missing kid');
+      throw const FormatException('ID token header missing kid');
     }
 
     final signedContent = utf8.encode('${parts[0]}.${parts[1]}');
@@ -57,20 +61,22 @@ class IdTokenVerifier {
       signature: signature,
     );
     if (!valid) {
-      throw FormatException('ID token signature verification failed');
+      throw const FormatException('ID token signature verification failed');
     }
 
     final payloadJson = utf8.decode(_base64UrlDecode(parts[1]));
     final claims = jsonDecode(payloadJson) as Map<String, dynamic>;
 
-    _validateClaims(claims, options);
+    validateClaims(claims, options);
     return claims;
   }
 
-  void _validateClaims(Map<String, dynamic> claims, IdTokenVerifyOptions options) {
+  static void validateClaims(
+      Map<String, dynamic> claims, IdTokenVerifyOptions options) {
     final iss = claims['iss'] as String?;
     if (iss != options.issuer) {
-      throw FormatException('Issuer mismatch: expected ${options.issuer}, got $iss');
+      throw FormatException(
+          'Issuer mismatch: expected ${options.issuer}, got $iss');
     }
 
     final aud = claims['aud'];
@@ -81,18 +87,26 @@ class IdTokenVerifier {
       audiences.addAll(aud.whereType<String>());
     }
     if (!audiences.contains(options.clientId)) {
-      throw FormatException('Audience mismatch');
+      throw const FormatException('Audience mismatch');
+    }
+
+    if (options.expectedNonce != null &&
+        claims['nonce'] != options.expectedNonce) {
+      throw const FormatException('ID token nonce mismatch');
     }
 
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final skew = options.clockSkew.inSeconds;
     final exp = claims['exp'];
-    if (exp is int && now > exp + skew) {
-      throw FormatException('ID token expired');
+    if (exp is! int) {
+      throw const FormatException('ID token missing valid exp claim');
+    }
+    if (now > exp + skew) {
+      throw const FormatException('ID token expired');
     }
     final nbf = claims['nbf'];
     if (nbf is int && now + skew < nbf) {
-      throw FormatException('ID token not yet valid');
+      throw const FormatException('ID token not yet valid');
     }
   }
 

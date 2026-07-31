@@ -115,8 +115,12 @@ func (c *Client) verifyWebhookAt(r *http.Request, now time.Time) (*WebhookEvent,
 }
 
 // decodeWebhookSecret strips the "whsec_" prefix (if present) and base64-decodes the secret.
-// The svix secret format is "whsec_<base64-standard-encoded>".
+// The svix secret format is "whsec_<base64-standard-encoded>". XID's legacy API returned
+// a 64-character lowercase hex value and signed with that value's UTF-8 bytes.
 func decodeWebhookSecret(secret string) ([]byte, error) {
+	if !strings.HasPrefix(secret, whsecPrefix) && isLegacyWebhookHexSecret(secret) {
+		return []byte(secret), nil
+	}
 	raw := secret
 	if strings.HasPrefix(secret, whsecPrefix) {
 		raw = secret[len(whsecPrefix):]
@@ -131,6 +135,18 @@ func decodeWebhookSecret(secret string) ([]byte, error) {
 		}
 	}
 	return decoded, nil
+}
+
+func isLegacyWebhookHexSecret(secret string) bool {
+	if len(secret) != 64 {
+		return false
+	}
+	for _, char := range secret {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // computeHMACSHA256 computes HMAC-SHA256 of content using the provided key bytes.

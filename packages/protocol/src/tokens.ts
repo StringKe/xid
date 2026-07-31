@@ -9,6 +9,7 @@ import type {
   AuthorizationDetails,
   ConfirmationClaim,
   IdTokenClaims,
+  OrganizationMembershipRole,
   SigningAlg,
   TenantContext,
 } from '@xid-kit/types'
@@ -112,7 +113,7 @@ export type AccessTokenOptions = {
   authContext?: AuthContext
   sid?: string
   activeOrgId?: string | null
-  orgRole?: string
+  orgRole?: OrganizationMembershipRole
   orgPermissions?: readonly string[]
   cnf?: ConfirmationClaim
   act?: ActClaim | null

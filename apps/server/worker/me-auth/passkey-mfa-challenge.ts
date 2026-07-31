@@ -21,17 +21,15 @@ import { AppError } from '../lib/errors'
 import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
 import {
   addMfaToAuthContext,
-  ACR_AAL3,
-  buildPasskeyMfaAuthContext,
+  normalizeAuthAssuranceLevel,
+  normalizeIssuedAcr,
   PASSWORD_AUTH_CONTEXT,
-  type AuthAssuranceLevel,
   type AuthContextData,
 } from '../lib/auth-context'
 import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
 import { readSession } from '../lib/session'
 import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
-import { parseAuthzRequestId, peekStashedAuthorizeParams } from '../oidc/pending-params'
-import { readJsonBody, validateCredentialBody, validateQuery } from '../lib/validate'
+import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import { requestIp } from './shared'
 
 const STEP_UP_TTL_SEC = 5 * 60
@@ -45,14 +43,7 @@ const passkeyMfaVerifyBodySchema = v.object({
     signature: v.string(),
   }),
   stepUp: v.optional(v.boolean()),
-  requireAal3: v.optional(v.boolean()),
-  authzRequestId: v.optional(v.string()),
-  redirectTo: v.optional(v.string()),
 })
-
-type PasskeyMfaVerifyBody = v.InferOutput<typeof passkeyMfaVerifyBodySchema>
-
-const authzRequestIdQuerySchema = v.object({ authz_request_id: v.optional(v.string()) })
 
 function webAuthnOrigins(tenant: TenantVar, requestOrigin: string): string[] {
   return [
@@ -84,29 +75,6 @@ async function requireMfaSession(c: Context<XidHonoEnv>): Promise<SessionData> {
 
 function challengeKey(sessionId: string, tenantId: string): string {
   return `mfa:${sessionId}:${tenantId}`
-}
-
-function stashedParamsRequireAal3(params: Record<string, string>): boolean {
-  if (params['require_aal3'] === '1') return true
-  const acrValues = params['acr_values'] ?? ''
-  return acrValues.split(' ').filter(Boolean).includes(ACR_AAL3)
-}
-
-async function resolveRequireAal3(
-  c: Context<XidHonoEnv>,
-  body: PasskeyMfaVerifyBody,
-): Promise<boolean> {
-  const query = validateQuery(authzRequestIdQuerySchema, {
-    authz_request_id: c.req.query('authz_request_id'),
-  })
-  const authzRequestId =
-    body.authzRequestId ?? parseAuthzRequestId(body.redirectTo) ?? query.authz_request_id
-  if (!authzRequestId) return false
-
-  const tenant = c.get('tenant')
-  const pending = await peekStashedAuthorizeParams(c.env, tenant.tenantId, authzRequestId)
-  if (!pending) return false
-  return stashedParamsRequireAal3(pending)
 }
 
 export async function handlePasskeyMfaOptions(c: Context<XidHonoEnv>): Promise<Response> {
@@ -192,13 +160,11 @@ export async function handlePasskeyMfaVerify(c: Context<XidHonoEnv>): Promise<Re
     db,
   })
 
-  const attestationMode = tenant.policy.hostedAuth?.attestationMode ?? 'none'
   const passkeyAssurance = {
     userVerified: result.value.userVerified,
     credentialBackedUp: result.value.credentialBackedUp,
     credentialDeviceType: result.value.credentialDeviceType,
     enterpriseAttestationVerified: cred.enterpriseAttestationVerified,
-    requireEnterpriseAttestation: attestationMode === 'direct',
   }
 
   if (body.stepUp === true) {
@@ -224,19 +190,12 @@ export async function handlePasskeyMfaVerify(c: Context<XidHonoEnv>): Promise<Re
     return c.json({})
   }
 
-  const sessionAal = session.aal
   const base: AuthContextData = {
-    acr: session.acr ?? PASSWORD_AUTH_CONTEXT.acr,
+    acr: normalizeIssuedAcr(session.acr) ?? PASSWORD_AUTH_CONTEXT.acr,
     amr: session.amr ?? PASSWORD_AUTH_CONTEXT.amr,
-    aal:
-      sessionAal === 1 || sessionAal === 2 || sessionAal === 3
-        ? sessionAal
-        : (1 as AuthAssuranceLevel),
+    aal: normalizeAuthAssuranceLevel(session.aal) ?? 1,
   }
-  const requireAal3 = await resolveRequireAal3(c, body)
-  const nextAuthContext = requireAal3
-    ? buildPasskeyMfaAuthContext(base, passkeyAssurance)
-    : addMfaToAuthContext(base, 'passkey')
+  const nextAuthContext = addMfaToAuthContext(base, 'passkey')
 
   await db.sessions.update(
     {

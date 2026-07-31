@@ -39,13 +39,10 @@ pub enum XidError {
     #[error("获取当前用户失败: {status} {body}")]
     UserInfoError { status: u16, body: String },
 
-    #[error("token 刷新失败: {0}")]
-    TokenRefreshError(String),
-
     #[error("Secret Service 错误: {0}")]
     StorageError(String),
 
-    #[error("token 已过期且无 refresh token")]
+    #[error("token 已过期,请重新授权")]
     SessionExpired,
 
     #[error("JWT 解析失败: {0}")]
@@ -77,9 +74,6 @@ pub enum XidError {
 
     #[error("未登录")]
     NotSignedIn,
-
-    #[error("signOut 撤销 token 失败: {0}")]
-    RevocationError(String),
 }
 
 /// SDK 操作统一 Result 别名

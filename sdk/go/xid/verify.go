@@ -173,7 +173,7 @@ func isSupportedAlg(alg string) bool {
 //
 // Token lookup order:
 //  1. Authorization: Bearer <token>
-//  2. Cookie named by CookieName (default "__session")
+//  2. Application-owned JWT cookie named by an explicit CookieName
 //
 // Always returns AuthState; authentication failures are captured in Reason rather than
 // returned as an error, so the caller can serve a 401 without a second error check.
@@ -208,8 +208,10 @@ func extractToken(r *http.Request, cookieName string) (string, string) {
 			}
 		}
 	}
-	if cookie, err := r.Cookie(cookieName); err == nil && cookie.Value != "" {
-		return cookie.Value, "cookie"
+	if cookieName != "" {
+		if cookie, err := r.Cookie(cookieName); err == nil && cookie.Value != "" {
+			return cookie.Value, "cookie"
+		}
 	}
 	return "", ""
 }

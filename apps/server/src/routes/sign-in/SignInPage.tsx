@@ -23,6 +23,7 @@ import { SignInSocialButtons } from './SignInSocialButtons'
 import { SignInGuestButton } from './SignInGuestButton'
 import { useSignIn } from './useSignIn'
 import { useTurnstile } from './useTurnstile'
+import { isProductSignUpIntent, isSignUpIntent } from '../../../shared/hosted-auth-intent'
 import {
   getEnabledOtpMethods,
   identifierPrompt,
@@ -190,27 +191,55 @@ function ProfileFields({
 function SignInPage(): ReactNode {
   const { status } = useAuth()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as { intent?: string }
-  const isSignUpIntent = search.intent === 'sign-up'
+  const search = useSearch({ strict: false }) as {
+    intent?: string
+    client_id?: string
+    invitation_token?: string
+    reauthenticate?: string
+    select_account?: string
+  }
+  const isInvitationFlow = Boolean(search.invitation_token)
+  const isSignUpFlow = isInvitationFlow || isSignUpIntent(search.intent)
+  const isProductSignUpFlow = isProductSignUpIntent(search.intent)
+  const requiresExplicitInteraction = search.reauthenticate === '1' || search.select_account === '1'
   const { t } = useLingui()
   const [state, actions] = useSignIn()
-  const { containerRef } = useTurnstile(actions.setTurnstileToken)
+  const { containerRef } = useTurnstile(
+    state.authConfig.turnstileSiteKey,
+    state.turnstileToken,
+    actions.setTurnstileToken,
+  )
   const errorMessage = useErrorMessage(state.error)
   const successMessage = useSuccessMessage(state.error)
-  const enabledOtpMethods = getEnabledOtpMethods(state.enabledMethods)
-  const currentOtpMethod = resolveOtpMethod(state.method, state.enabledMethods)
+  // Defense in depth for mocked/stale config state: sign-up cannot surface the sign-in-only
+  // passkey ceremony even if an upstream caller accidentally includes it.
+  const enabledMethods = isSignUpFlow
+    ? state.enabledMethods.filter((method) => method !== 'passkey')
+    : state.enabledMethods
+  const enabledOtpMethods = getEnabledOtpMethods(enabledMethods)
+  const currentOtpMethod = resolveOtpMethod(state.method, enabledMethods)
   const isOtp = enabledOtpMethods.includes(currentOtpMethod) && state.method === currentOtpMethod
   const hasSocial = !state.authConfig.forceSso && state.authConfig.socialProviders.length > 0
-  const hasTabs = state.enabledMethods.length > 1
-  const showSeparator = hasSocial && state.enabledMethods.length > 0
+  const hasTabs = enabledMethods.length > 1
+  const showSeparator = hasSocial && enabledMethods.length > 0
   const prompt = identifierPrompt(state.authConfig)
   const identifierPlaceholder = useIdentifierPlaceholder(prompt)
   const identifierAriaLabel = useIdentifierAriaLabel(prompt)
   const passkeyAutoComplete = `${prompt.autoComplete} webauthn`
   const ambiguousResolution =
     state.authConfig.resolution.status === 'ambiguous' ? state.authConfig.resolution : null
-  const profileFields = visibleProfileFields(state.authConfig, state.method)
-  const requiredFields = requiredProfileFields(state.authConfig, state.method)
+  const configuredProfileFields = visibleProfileFields(state.authConfig, state.method)
+  const configuredRequiredFields = requiredProfileFields(state.authConfig, state.method)
+  const requiresInvitationEmail =
+    isInvitationFlow && (state.method === 'otp-sms' || state.method === 'otp-whatsapp')
+  const profileFields =
+    requiresInvitationEmail && !configuredProfileFields.includes('email')
+      ? (['email', ...configuredProfileFields] as const)
+      : configuredProfileFields
+  const requiredFields =
+    requiresInvitationEmail && !configuredRequiredFields.includes('email')
+      ? (['email', ...configuredRequiredFields] as const)
+      : configuredRequiredFields
   const requiredProfileComplete = requiredFields.every(
     (field) => state.profileValues[field].trim() !== '',
   )
@@ -218,25 +247,27 @@ function SignInPage(): ReactNode {
   const signedInReturn = resolveHostedReturn(
     state.tenantSelection.continueParam ?? state.tenantSelection.redirect,
     state.tenantSelection.authzRequestId,
+    search.client_id,
   )
   const isInvitationReturn = signedInReturn.startsWith('/accept-invitation?')
 
   // 授权和邀请必须续跑原流程;普通 sign-up 会话进入组织 onboarding。
   useEffect(() => {
-    if (status !== 'authenticated') return
+    if (status !== 'authenticated' || requiresExplicitInteraction) return
     if (state.tenantSelection.authzRequestId) {
       globalThis.location.href = signedInReturn
       return
     }
-    if (isSignUpIntent && !isInvitationReturn) {
+    if (isProductSignUpFlow && !isInvitationReturn) {
       navigate('/create-organization', { replace: true })
       return
     }
     navigate(signedInReturn, { replace: true })
   }, [
     isInvitationReturn,
-    isSignUpIntent,
+    isProductSignUpFlow,
     navigate,
+    requiresExplicitInteraction,
     signedInReturn,
     state.tenantSelection.authzRequestId,
     status,
@@ -270,7 +301,7 @@ function SignInPage(): ReactNode {
     >
       <div {...stylex.props(styles.stack)}>
         <PageHeader
-          title={isSignUpIntent ? <Trans>Create your account</Trans> : <Trans>Sign in</Trans>}
+          title={isSignUpFlow ? <Trans>Create your account</Trans> : <Trans>Sign in</Trans>}
         />
 
         {errorMessage ? (
@@ -297,12 +328,13 @@ function SignInPage(): ReactNode {
           <SignInTabs
             method={state.method}
             passkeySupport={state.passkeySupport}
-            enabledMethods={state.enabledMethods}
+            enabledMethods={enabledMethods}
+            isSignUpFlow={isSignUpFlow}
             onSelect={actions.setMethod}
           />
         ) : null}
 
-        {state.enabledMethods.length === 0 && !ambiguousResolution ? (
+        {enabledMethods.length === 0 && !ambiguousResolution ? (
           <Alert tone="error">
             <Trans>No sign-in methods are available for this organization.</Trans>
           </Alert>
@@ -326,15 +358,15 @@ function SignInPage(): ReactNode {
           </div>
         ) : null}
 
-        {state.enabledMethods.length > 0 && !ambiguousResolution ? (
+        {enabledMethods.length > 0 && !ambiguousResolution ? (
           <div {...stylex.props(styles.panelHost)}>
-            {state.enabledMethods.includes('enterprise-sso') ? (
+            {enabledMethods.includes('enterprise-sso') ? (
               <SignInPanel active={state.method === 'enterprise-sso'}>
                 <form
                   onSubmit={handleEnterpriseSsoSubmit}
                   noValidate
                   {...stylex.props(styles.panel)}
-                  aria-label={t`Sign in with SSO`}
+                  aria-label={t`Continue with SSO`}
                 >
                   <Field label={<Trans>Work email</Trans>} required>
                     <Input
@@ -358,7 +390,7 @@ function SignInPage(): ReactNode {
               </SignInPanel>
             ) : null}
 
-            {state.enabledMethods.includes('passkey') ? (
+            {!isSignUpFlow && enabledMethods.includes('passkey') ? (
               <SignInPanel active={state.method === 'passkey'}>
                 <Field label={<IdentifierLabel prompt={prompt} />}>
                   <Input
@@ -393,13 +425,13 @@ function SignInPage(): ReactNode {
               </SignInPanel>
             ) : null}
 
-            {state.enabledMethods.includes('password') ? (
+            {enabledMethods.includes('password') ? (
               <SignInPanel active={state.method === 'password'}>
                 <form
                   onSubmit={handlePasswordSubmit}
                   noValidate
                   {...stylex.props(styles.panel)}
-                  aria-label={t`Sign in with password`}
+                  aria-label={isSignUpFlow ? t`Create your account` : t`Sign in with password`}
                 >
                   <Field label={<IdentifierLabel prompt={prompt} />} required>
                     <Input
@@ -414,8 +446,8 @@ function SignInPage(): ReactNode {
                   <Field label={<Trans>Password</Trans>} required>
                     <Input
                       type="password"
-                      autoComplete="current-password"
-                      placeholder={t`Your password`}
+                      autoComplete={isSignUpFlow ? 'new-password' : 'current-password'}
+                      placeholder={isSignUpFlow ? t`Minimum 12 characters` : t`Your password`}
                       value={state.password}
                       onChange={(e) => actions.setPassword(e.target.value)}
                       disabled={state.isLoading}
@@ -441,9 +473,11 @@ function SignInPage(): ReactNode {
                         <Trans>Remember me</Trans>
                       </span>
                     </label>
-                    <a href="/reset-password" {...stylex.props(styles.textLink)}>
-                      <Trans>Forgot password?</Trans>
-                    </a>
+                    {isSignUpFlow ? null : (
+                      <a href="/forgot-password" {...stylex.props(styles.textLink)}>
+                        <Trans>Forgot password?</Trans>
+                      </a>
+                    )}
                   </div>
                   <Button
                     type="submit"
@@ -453,19 +487,19 @@ function SignInPage(): ReactNode {
                       !state.identifier.trim() || !state.password.trim() || !requiredProfileComplete
                     }
                   >
-                    <Trans>Sign in</Trans>
+                    {isSignUpFlow ? <Trans>Sign up</Trans> : <Trans>Sign in</Trans>}
                   </Button>
                 </form>
               </SignInPanel>
             ) : null}
 
-            {state.enabledMethods.includes('magic-link') ? (
+            {enabledMethods.includes('magic-link') ? (
               <SignInPanel active={state.method === 'magic-link'}>
                 <form
                   onSubmit={handleMagicLinkSubmit}
                   noValidate
                   {...stylex.props(styles.panel)}
-                  aria-label={t`Sign in with magic link`}
+                  aria-label={isSignUpFlow ? t`Create your account` : t`Sign in with magic link`}
                 >
                   <Field label={<Trans>Email address</Trans>} required>
                     <Input
@@ -520,11 +554,11 @@ function SignInPage(): ReactNode {
           </div>
         ) : null}
 
-        {ambiguousResolution ? null : (
+        {ambiguousResolution || !state.authConfig.guest ? null : (
           <SignInGuestButton onContinue={actions.submitGuest} isLoading={state.isLoading} />
         )}
 
-        <div ref={containerRef} aria-hidden="true" {...stylex.props(styles.turnstile)} />
+        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
       </div>
     </AuthLayout>
   )

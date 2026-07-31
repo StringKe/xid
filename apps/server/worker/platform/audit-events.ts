@@ -10,6 +10,7 @@ import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
+import { auditActorDisplay } from '../lib/audit-actor'
 import {
   decodeCursor,
   encodeCursor,
@@ -28,6 +29,7 @@ type AuditEvent = {
   orgId: string | null
   eventType: string
   actorId: string | null
+  actorDisplay: string | null
   actorIp: string | null
   targetType: string | null
   targetId: string | null
@@ -77,9 +79,18 @@ app.get('/', async (c) => {
       targetId: schema.auditEvents.targetId,
       occurredAt: schema.auditEvents.occurredAt,
       organizationName: schema.organizations.name,
+      actorUserId: schema.users.id,
+      actorErasedAt: schema.users.erasedAt,
     })
     .from(schema.auditEvents)
     .leftJoin(schema.organizations, eq(schema.organizations.id, schema.auditEvents.tenantId))
+    .leftJoin(
+      schema.users,
+      and(
+        eq(schema.users.id, schema.auditEvents.actorId),
+        eq(schema.users.tenantId, schema.auditEvents.tenantId),
+      ),
+    )
     .where(after ?? undefined)
     .orderBy(desc(schema.auditEvents.occurredAt), desc(schema.auditEvents.id))
     .limit(limit + 1)
@@ -100,6 +111,10 @@ app.get('/', async (c) => {
     orgId: row.orgId ?? null,
     eventType: row.eventType,
     actorId: row.actorId ?? null,
+    actorDisplay: auditActorDisplay(row.actorId ?? null, {
+      found: typeof row.actorUserId === 'string',
+      erasedAt: row.actorErasedAt ?? null,
+    }),
     actorIp: row.actorIp ?? null,
     targetType: row.targetType ?? null,
     targetId: row.targetId ?? null,

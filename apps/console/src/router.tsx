@@ -45,6 +45,7 @@ function CenterLoader(): ReactNode {
 
 const CONSOLE_NAV: readonly ConsoleNavItem[] = [
   { to: '/console', label: <Trans>Overview</Trans>, end: true },
+  { to: '/console/managed-projects', label: <Trans>Managed projects</Trans> },
   { to: '/console/users', label: <Trans>Users</Trans> },
   { to: '/console/organizations', label: <Trans>Organizations</Trans> },
   { to: '/console/sessions', label: <Trans>Sessions</Trans> },
@@ -103,6 +104,18 @@ const ORG_NAV: readonly ConsoleNavItem[] = [
     groupLabel: <Trans>Resources</Trans>,
   },
   {
+    to: '/console/org/projects',
+    label: <Trans>Projects</Trans>,
+    groupKey: 'resources',
+    groupLabel: <Trans>Resources</Trans>,
+  },
+  {
+    to: '/console/org/roles',
+    label: <Trans>Roles and permissions</Trans>,
+    groupKey: 'resources',
+    groupLabel: <Trans>Resources</Trans>,
+  },
+  {
     to: '/console/org/api-keys',
     label: <Trans>API keys</Trans>,
     groupKey: 'resources',
@@ -133,14 +146,14 @@ const ORG_NAV: readonly ConsoleNavItem[] = [
     groupLabel: <Trans>People</Trans>,
   },
   {
-    to: '/console/org/roles',
-    label: <Trans>Roles</Trans>,
-    groupKey: 'people',
-    groupLabel: <Trans>People</Trans>,
-  },
-  {
     to: '/console/org/audit-events',
     label: <Trans>Audit events</Trans>,
+    groupKey: 'activity',
+    groupLabel: <Trans>Activity</Trans>,
+  },
+  {
+    to: '/console/org/compliance',
+    label: <Trans>Compliance</Trans>,
     groupKey: 'activity',
     groupLabel: <Trans>Activity</Trans>,
   },
@@ -150,9 +163,15 @@ const PLATFORM_NAV: readonly ConsoleNavItem[] = [
   { to: '/console/platform', label: <Trans>Overview</Trans>, end: true },
   { to: '/console/platform/organizations', label: <Trans>Organizations</Trans> },
   { to: '/console/platform/users', label: <Trans>Users</Trans> },
+  { to: '/console/platform/managers', label: <Trans>Instance managers</Trans> },
   { to: '/console/platform/events', label: <Trans>Event stream</Trans> },
   { to: '/console/platform/flags', label: <Trans>Feature flags</Trans> },
   { to: '/console/platform/billing', label: <Trans>Billing</Trans> },
+  { to: '/console/platform/plans', label: <Trans>Plans and quotas</Trans> },
+  { to: '/console/platform/announcements', label: <Trans>Announcements</Trans> },
+  { to: '/console/platform/status', label: <Trans>Status incidents</Trans> },
+  { to: '/console/platform/compliance', label: <Trans>Compliance</Trans> },
+  { to: '/console/platform/dead-letters', label: <Trans>Dead letters</Trans> },
   { to: '/console/platform/settings', label: <Trans>Settings</Trans> },
 ]
 
@@ -227,6 +246,11 @@ const consoleOverviewRoute = consoleRoute(
   '/console',
   () => import('./routes/console/ConsoleOverview'),
 )
+const consoleManagedProjectsRoute = consoleRoute(
+  '/console/managed-projects',
+  '/console/managed-projects',
+  () => import('./routes/console/ManagedProjects'),
+)
 const consoleUsersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/console/users',
@@ -264,6 +288,11 @@ const consoleSettingsRoute = createRoute({
 const orgRoutes = [
   orgRoute('/console/org', '/console/org', () => import('./routes/org/OrgOverview')),
   orgRoute('/console/org/members', '/console/org/members', () => import('./routes/org/OrgMembers')),
+  orgRoute(
+    '/console/org/projects',
+    '/console/org/projects',
+    () => import('./routes/org/OrgProjects'),
+  ),
   orgRoute('/console/org/roles', '/console/org/roles', () => import('./routes/org/OrgRoles')),
   orgRoute(
     '/console/org/auth-policy',
@@ -318,6 +347,11 @@ const orgRoutes = [
     '/console/org/audit-events',
     () => import('./routes/org/OrgAuditEvents'),
   ),
+  orgRoute(
+    '/console/org/compliance',
+    '/console/org/compliance',
+    () => import('./routes/org/OrgCompliance'),
+  ),
 ]
 
 const platformRoutes = [
@@ -337,6 +371,11 @@ const platformRoutes = [
     () => import('./routes/platform/PlatformUsers'),
   ),
   platformRoute(
+    '/console/platform/managers',
+    '/console/platform/managers',
+    () => import('./routes/platform/PlatformInstanceManagers'),
+  ),
+  platformRoute(
     '/console/platform/events',
     '/console/platform/events',
     () => import('./routes/platform/PlatformAuditEvents'),
@@ -352,6 +391,31 @@ const platformRoutes = [
     () => import('./routes/platform/PlatformBilling'),
   ),
   platformRoute(
+    '/console/platform/plans',
+    '/console/platform/plans',
+    () => import('./routes/platform/PlatformPlans'),
+  ),
+  platformRoute(
+    '/console/platform/announcements',
+    '/console/platform/announcements',
+    () => import('./routes/platform/PlatformAnnouncements'),
+  ),
+  platformRoute(
+    '/console/platform/status',
+    '/console/platform/status',
+    () => import('./routes/platform/PlatformStatusIncidents'),
+  ),
+  platformRoute(
+    '/console/platform/compliance',
+    '/console/platform/compliance',
+    () => import('./routes/platform/PlatformCompliance'),
+  ),
+  platformRoute(
+    '/console/platform/dead-letters',
+    '/console/platform/dead-letters',
+    () => import('./routes/platform/PlatformDeadLetters'),
+  ),
+  platformRoute(
     '/console/platform/settings',
     '/console/platform/settings',
     () => import('./routes/platform/PlatformSettings'),
@@ -360,11 +424,13 @@ const platformRoutes = [
 
 export const CONSOLE_SPA_ROUTE_PATHS = [
   '/console',
+  '/console/managed-projects',
   '/console/users',
   '/console/organizations',
   '/console/settings',
   '/console/org',
   '/console/org/members',
+  '/console/org/projects',
   '/console/org/roles',
   '/console/org/auth-policy',
   '/console/org/delivery-channels',
@@ -379,12 +445,19 @@ export const CONSOLE_SPA_ROUTE_PATHS = [
   '/console/org/webhooks',
   '/console/org/api-keys',
   '/console/org/audit-events',
+  '/console/org/compliance',
   '/console/platform',
   '/console/platform/organizations',
   '/console/platform/users',
+  '/console/platform/managers',
   '/console/platform/events',
   '/console/platform/flags',
   '/console/platform/billing',
+  '/console/platform/plans',
+  '/console/platform/announcements',
+  '/console/platform/status',
+  '/console/platform/compliance',
+  '/console/platform/dead-letters',
   '/console/platform/settings',
 ] as const
 
@@ -406,6 +479,7 @@ const notFoundRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   consoleOverviewRoute,
+  consoleManagedProjectsRoute,
   consoleUsersRoute,
   consoleOrganizationsRoute,
   consoleSettingsRoute,

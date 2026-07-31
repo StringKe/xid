@@ -4,49 +4,31 @@
 // 见 docs/design/05-users-sessions.md、02 章 RBAC、tenant-isolation rule。
 
 import { createTenantDb, schema } from '@xid-kit/db'
+import type {
+  BrowserAuthOrganization,
+  BrowserAuthSession,
+  BrowserAuthUser,
+  BrowserManagerAssignment,
+  BrowserMeResponse,
+} from '@xid-kit/types'
 import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
+import { readBrowserSessions } from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { smsDeliveryReady } from '../auth/delivery-channels'
 import { loadPrimaryEmail, readAllById, resolveActiveSession } from './shared'
 
-type AuthOrg = {
-  id: string
-  slug: string
-  name: string
-  role: string
-  permissions: readonly string[]
-}
+type AuthOrg = BrowserAuthOrganization
 
-type MeUser = {
-  id: string
-  email: string
-  emailVerified: boolean
-  name: string | null
-  imageUrl: string | null
-  locale: string | null
-  hasMfa: boolean
-  instanceManager: boolean
+type MeUser = Omit<BrowserAuthUser, 'provisioned_by'> & {
   // guest 判定契约字段(snake_case,与 SPA auth-context.tsx / packages/core api-client 对齐)。
   provisioned_by: string | null
 }
 
-type MeSessionView = {
-  id: string
-  status: SessionData['status']
-  expiresAt: string
-  isImpersonation: boolean
-}
-
-type MeResponse = {
-  user: MeUser | null
-  activeOrg: AuthOrg | null
-  organizations: readonly AuthOrg[]
-  session: MeSessionView | null
-}
+type MeResponse = BrowserMeResponse
 
 // users.displayName 优先;缺失回退 "first last"(任一为空则取非空者);全空回退 null。
 function resolveName(row: typeof schema.users.$inferSelect): string | null {
@@ -191,9 +173,115 @@ async function readPagedByIdChunks<T extends { id: string }>(
   return rows
 }
 
-// org_manager 行(manager_role=org_manager + scope_type=org,scope_id=orgId)是 membership 之外
-// 的第二个 organizations 来源:requireOrgManager(worker/v1/shared.ts)对 org_manager 放行,
-// /v1/me 必须把这类 org 返回给前端,否则前端角色门控与后端 403 语义不一致。
+async function listActiveManagerAssignments(
+  db: ReturnType<typeof createTenantDb>,
+  userId: string,
+): Promise<readonly BrowserManagerAssignment[]> {
+  const rows = await db.managerAssignments.findMany(eq(schema.managerAssignments.userId, userId))
+  const tenantRows = rows.filter(
+    (row) =>
+      row.scopeId !== null &&
+      ((row.managerRole === 'project_manager' && row.scopeType === 'project') ||
+        (row.managerRole === 'project_grant_manager' && row.scopeType === 'grant')),
+  )
+  const directProjectIds = tenantRows.flatMap((row) =>
+    row.managerRole === 'project_manager' && row.scopeType === 'project' && row.scopeId
+      ? [row.scopeId]
+      : [],
+  )
+  const grantIds = tenantRows.flatMap((row) =>
+    row.managerRole === 'project_grant_manager' && row.scopeType === 'grant' && row.scopeId
+      ? [row.scopeId]
+      : [],
+  )
+  const grants =
+    grantIds.length === 0
+      ? []
+      : await db.projectGrants.findMany(
+          and(
+            inArray(schema.projectGrants.id, grantIds),
+            eq(schema.projectGrants.status, 'active'),
+          ),
+          { limit: grantIds.length },
+        )
+  const projectIds = [
+    ...new Set([...directProjectIds, ...grants.map((grant) => grant.grantedProjectId)]),
+  ]
+  const projects =
+    projectIds.length === 0
+      ? []
+      : await db.projects.findMany(inArray(schema.projects.id, projectIds), {
+          limit: projectIds.length,
+        })
+  const directProjectOrgIds = projects
+    .filter((project) => directProjectIds.includes(project.id))
+    .map((project) => project.orgId)
+  const activeOrganizations =
+    directProjectOrgIds.length === 0
+      ? []
+      : await db.organizations.findMany(
+          and(
+            inArray(schema.organizations.id, directProjectOrgIds),
+            eq(schema.organizations.status, 'active'),
+          ),
+          { limit: directProjectOrgIds.length },
+        )
+  const activeOrgIds = new Set(activeOrganizations.map((organization) => organization.id))
+  const activeProjectIds = new Set(
+    projects.filter((project) => project.status === 'active').map((project) => project.id),
+  )
+  const discoverableProjectById = new Map(
+    projects
+      .filter(
+        (project) =>
+          (project.status === 'active' || project.status === 'deleted') &&
+          activeOrgIds.has(project.orgId),
+      )
+      .map((project) => [project.id, project]),
+  )
+  const activeGrantIds = new Set(
+    grants.filter((grant) => activeProjectIds.has(grant.grantedProjectId)).map((grant) => grant.id),
+  )
+  return tenantRows.flatMap((row): BrowserManagerAssignment[] => {
+    if (
+      row.scopeId &&
+      row.managerRole === 'project_manager' &&
+      row.scopeType === 'project' &&
+      discoverableProjectById.has(row.scopeId)
+    ) {
+      const project = discoverableProjectById.get(row.scopeId)!
+      return [
+        {
+          id: row.id,
+          managerRole: row.managerRole,
+          scopeType: row.scopeType,
+          scopeId: row.scopeId,
+          scopeStatus: project.status as 'active' | 'deleted',
+        },
+      ]
+    }
+    if (
+      row.scopeId &&
+      row.managerRole === 'project_grant_manager' &&
+      row.scopeType === 'grant' &&
+      activeGrantIds.has(row.scopeId)
+    ) {
+      return [
+        {
+          id: row.id,
+          managerRole: row.managerRole,
+          scopeType: row.scopeType,
+          scopeId: row.scopeId,
+          scopeStatus: 'active',
+        },
+      ]
+    }
+    return []
+  })
+}
+
+// org_manager 行是 membership 之外的第二个 organizations 来源，继续映射到 organizations，
+// 不重复暴露在 managerAssignments。
 async function listOrgManagerOrgIds(
   db: ReturnType<typeof createTenantDb>,
   userId: string,
@@ -230,12 +318,15 @@ async function listActiveMemberships(
   return rows
 }
 
-function toSessionView(session: SessionData): MeResponse['session'] {
+function toSessionView(session: SessionData): BrowserAuthSession {
   return {
     id: session.sessionId,
     status: session.status,
     expiresAt: session.expiresAt.toISOString(),
     isImpersonation: session.isImpersonation,
+    userId: session.userId,
+    activeOrganizationId: session.activeOrgId,
+    lastActiveAt: session.lastActiveAt.toISOString(),
   }
 }
 
@@ -246,7 +337,10 @@ const ANONYMOUS_ME: MeResponse = {
   user: null,
   activeOrg: null,
   organizations: [],
+  managerAssignments: [],
   session: null,
+  activeSessionId: null,
+  sessions: [],
 }
 
 // GET /v1/me
@@ -265,12 +359,22 @@ app.get('/', async (c) => {
   // session 通过但 user 行缺失(数据不一致):按 401 处理,不外泄存在性(枚举防护)。
   if (!userRow) throw new AppError('unauthorized', { httpStatus: 401 })
 
-  const [primaryEmail, hasMfa, instanceManager, memberships, orgManagerOrgIds] = await Promise.all([
+  const [
+    primaryEmail,
+    hasMfa,
+    instanceManager,
+    memberships,
+    orgManagerOrgIds,
+    managerAssignments,
+    browserSessions,
+  ] = await Promise.all([
     loadPrimaryEmail(c, userRow.id, userRow.primaryEmailId),
     hasMfaEnabled(c, userRow.id),
     isInstanceManager(c, userRow.id),
     listActiveMemberships(db, userRow.id),
     listOrgManagerOrgIds(db, userRow.id),
+    listActiveManagerAssignments(db, userRow.id),
+    readBrowserSessions(c),
   ])
 
   const user: MeUser = {
@@ -297,7 +401,10 @@ app.get('/', async (c) => {
       )
     }),
     readPagedByIdChunks(orgIds, (batch, cursor, limit) => {
-      const filter = inArray(schema.projects.orgId, batch)
+      const filter = and(
+        inArray(schema.projects.orgId, batch),
+        eq(schema.projects.status, 'active'),
+      )
       return db.projects.findMany(cursor ? and(filter, gt(schema.projects.id, cursor)) : filter, {
         orderBy: asc(schema.projects.id),
         limit,
@@ -344,11 +451,21 @@ app.get('/', async (c) => {
     ? (organizations.find((organization) => organization.id === session.activeOrgId) ?? null)
     : null
 
+  const sessionView = toSessionView(session)
+  const sessionViews = [
+    sessionView,
+    ...browserSessions
+      .filter((browserSession) => browserSession.sessionId !== session.sessionId)
+      .map(toSessionView),
+  ]
   const body: MeResponse = {
     user,
     activeOrg,
     organizations,
-    session: toSessionView(session),
+    managerAssignments,
+    session: sessionView,
+    activeSessionId: session.sessionId,
+    sessions: sessionViews,
   }
   return c.json(body)
 })

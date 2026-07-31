@@ -14,6 +14,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace Xid;
 
@@ -43,10 +44,10 @@ public sealed record XidOptions
     public TimeSpan JwksTtl { get; init; } = TimeSpan.FromHours(1);
 
     /// <summary>
-    /// 读取 Bearer token 时使用的 Cookie 名称。
-    /// 默认为 "__session"(与 XID Hosted UI 约定对齐)。
+    /// 应用自己持有的 short-lived JWT cookie 名称。
+    /// 默认为 null,即只接受 Authorization: Bearer。
     /// </summary>
-    public string SessionCookieName { get; init; } = "__session";
+    public string? SessionCookieName { get; init; }
 
     /// <summary>时钟偏差容忍窗口,默认 5 分钟。</summary>
     public TimeSpan ClockSkew { get; init; } = TimeSpan.FromMinutes(5);
@@ -63,6 +64,7 @@ public sealed class XidClient : IDisposable
 {
     private readonly XidOptions _options;
     private readonly JwksCache _jwksCache;
+    private readonly HttpClient _sessionHttpClient;
     private readonly JwtSecurityTokenHandler _jwtHandler = new();
 
     // ES256 / RS256 / PS256 白名单 -- 对应 XID 协议约定
@@ -83,6 +85,14 @@ public sealed class XidClient : IDisposable
         _options = options;
         var jwksUri = options.JwksUri ?? $"{options.Issuer.TrimEnd('/')}/jwks";
         _jwksCache = new JwksCache(jwksUri, options.JwksTtl, httpClient);
+        _sessionHttpClient = new HttpClient(new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(10),
+        };
 
         // 禁用 inbound claim type mapping -- 保留 JWT 原始 claim 名
         _jwtHandler.InboundClaimTypeMap.Clear();
@@ -185,6 +195,83 @@ public sealed class XidClient : IDisposable
         catch (XidException ex)
         {
             return AuthStatus.Fail(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 将 Core opaque browser session cookie 显式交换为 short-lived JWT。
+    /// </summary>
+    public async Task<string> ExchangeSessionTokenAsync(
+        string incomingRequestUrl,
+        string cookieHeader,
+        string? endpoint = null,
+        SessionTokenTransport? transport = null,
+        CancellationToken ct = default)
+    {
+        Uri resolved = ResolveSessionTokenEndpoint(incomingRequestUrl, endpoint);
+        SessionTokenHttpResponse response;
+        try
+        {
+            if (transport is not null)
+            {
+                response = await transport(resolved, cookieHeader, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, resolved);
+                request.Headers.Accept.ParseAdd("application/json");
+                request.Headers.TryAddWithoutValidation("Cookie", cookieHeader);
+                using var httpResponse = await _sessionHttpClient
+                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+                    .ConfigureAwait(false);
+                response = new SessionTokenHttpResponse(
+                    (int)httpResponse.StatusCode,
+                    await httpResponse.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+            }
+        }
+        catch (SessionTokenExchangeException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new SessionTokenExchangeException(
+                "Session token exchange request failed.",
+                ex);
+        }
+
+        if (response.StatusCode != 200)
+            throw new SessionTokenExchangeException(
+                $"Session token exchange returned HTTP {response.StatusCode}.");
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(response.Body);
+        }
+        catch (JsonException ex)
+        {
+            throw new SessionTokenExchangeException(
+                "Session token exchange returned invalid JSON.",
+                ex);
+        }
+        using (document)
+        {
+            JsonElement root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                throw new SessionTokenExchangeException(
+                    "Session token exchange returned an invalid response.");
+            JsonProperty[] properties = root.EnumerateObject().ToArray();
+            if (properties.Length != 1 ||
+                properties[0].Name != "token" ||
+                properties[0].Value.ValueKind != JsonValueKind.String)
+                throw new SessionTokenExchangeException(
+                    "Session token exchange returned an invalid response.");
+            string? token = properties[0].Value.GetString();
+            if (string.IsNullOrWhiteSpace(token))
+                throw new SessionTokenExchangeException(
+                    "Session token exchange returned an invalid response.");
+            return token;
         }
     }
 
@@ -335,6 +422,7 @@ public sealed class XidClient : IDisposable
 
         // 回落 Cookie
         if (cookies is not null &&
+            !string.IsNullOrWhiteSpace(_options.SessionCookieName) &&
             cookies.TryGetValue(_options.SessionCookieName, out var cookieToken) &&
             !string.IsNullOrWhiteSpace(cookieToken))
         {
@@ -344,10 +432,47 @@ public sealed class XidClient : IDisposable
         return null;
     }
 
+    private static Uri ResolveSessionTokenEndpoint(
+        string incomingRequestUrl,
+        string? endpoint)
+    {
+        if (!Uri.TryCreate(incomingRequestUrl, UriKind.Absolute, out Uri? incoming) ||
+            !IsHttpUri(incoming) ||
+            !string.IsNullOrEmpty(incoming.UserInfo))
+            throw new SessionTokenExchangeException(
+                "Incoming request URL must be an absolute HTTP(S) URL.");
+
+        string target = string.IsNullOrWhiteSpace(endpoint)
+            ? "/v1/sessions/token"
+            : endpoint;
+        if (!Uri.TryCreate(incoming, target, out Uri? resolved) ||
+            !IsHttpUri(resolved) ||
+            !string.IsNullOrEmpty(resolved.UserInfo) ||
+            !SameOrigin(incoming, resolved) ||
+            resolved.AbsolutePath != "/v1/sessions/token" ||
+            !string.IsNullOrEmpty(resolved.Query) ||
+            !string.IsNullOrEmpty(resolved.Fragment))
+            throw new SessionTokenExchangeException(
+                "Session token endpoint must be exact same-origin /v1/sessions/token.");
+        return resolved;
+    }
+
+    private static bool IsHttpUri(Uri uri) =>
+        uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+
+    private static bool SameOrigin(Uri left, Uri right) =>
+        string.Equals(left.Scheme, right.Scheme, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(left.IdnHost, right.IdnHost, StringComparison.OrdinalIgnoreCase) &&
+        left.Port == right.Port;
+
     private static byte[] ParseWebhookSecret(string secret)
     {
         // 去除 whsec_ 前缀(svix 风格)
         const string prefix = "whsec_";
+        if (!secret.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+            IsLegacyWebhookHexSecret(secret))
+            return Encoding.UTF8.GetBytes(secret);
+
         var raw = secret.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
             ? secret[prefix.Length..]
             : secret;
@@ -362,6 +487,11 @@ public sealed class XidClient : IDisposable
             return Encoding.UTF8.GetBytes(raw);
         }
     }
+
+    private static bool IsLegacyWebhookHexSecret(string secret) =>
+        secret.Length == 64 &&
+        secret.All(value =>
+            value is >= '0' and <= '9' or >= 'a' and <= 'f');
 
     private static byte[] ComputeWebhookSignature(
         string svixId,
@@ -383,5 +513,9 @@ public sealed class XidClient : IDisposable
         return hmac.ComputeHash(msgBuf);
     }
 
-    public void Dispose() => _jwksCache.Dispose();
+    public void Dispose()
+    {
+        _jwksCache.Dispose();
+        _sessionHttpClient.Dispose();
+    }
 }

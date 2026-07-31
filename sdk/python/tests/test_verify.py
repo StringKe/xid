@@ -427,6 +427,26 @@ class TestVerifyWebhook:
         assert result.svix_id == "msg_001"
         assert result.body == payload
 
+    def test_legacy_hex_secret_uses_utf8_key_material(self) -> None:
+        legacy_secret = "ab" * 32
+        payload = b'{"event":"user.updated","data":{"id":"usr_1"}}'
+        timestamp = int(time.time())
+        signed = f"msg_legacy.{timestamp}.".encode() + payload
+        signature = hmac.new(
+            legacy_secret.encode(),
+            signed,
+            hashlib.sha256,
+        ).digest()
+        headers = {
+            "svix-id": "msg_legacy",
+            "svix-timestamp": str(timestamp),
+            "svix-signature": "v1," + base64.b64encode(signature).decode(),
+        }
+
+        result = verify_webhook(payload, headers, legacy_secret)
+
+        assert result.svix_id == "msg_legacy"
+
     def test_tampered_payload_fails(self) -> None:
         payload = b'{"event":"user.created"}'
         headers = _make_svix_headers("msg_002", payload)

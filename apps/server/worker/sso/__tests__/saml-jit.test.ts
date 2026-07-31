@@ -153,6 +153,19 @@ describe('SAML JIT Hosted Auth policy', () => {
     fakeAuditQueue.send.mockResolvedValue(undefined)
   })
 
+  it('invalid role mapping cannot create a viewer Organization Membership', async () => {
+    setupNewUserDeps()
+
+    await provisionUser({
+      c: makeContext(),
+      connection: makeConnection({ roleMapping: { Engineering: 'viewer' } }),
+      subject: makeSubject(),
+      attributes: makeAttributes({ groups: ['Engineering'] }),
+    })
+
+    expect(mockMembershipsInsert).toHaveBeenCalledWith(expect.objectContaining({ role: 'member' }))
+  })
+
   it('enterprise SSO JIT user creation disabled -> 不创建用户并写策略拒绝审计', async () => {
     setupNewUserDeps()
 

@@ -3,6 +3,7 @@
 // Text labels use lingui runtime descriptors via @lingui/core (no @lingui/react needed).
 
 import { type JSX, Show, createSignal } from 'solid-js'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 import { useXidContext } from './context'
 import { t, sdkMessages } from './i18n-runtime'
@@ -17,16 +18,40 @@ export type SignInButtonProps = {
   // Redirect after successful sign-in.
   readonly redirectUrl?: string
   readonly mode?: 'redirect'
+  readonly onError?: (error: unknown) => void
   readonly 'aria-label'?: string
 }
 
 export function SignInButton(props: SignInButtonProps): JSX.Element {
-  function handleClick(): void {
+  const { client, mode } = useXidContext()
+
+  async function startSignIn(): Promise<void> {
+    if (mode === 'oidc') {
+      const result = await client.createAuthorizationUrl({
+        intent: 'sign-in',
+        ...(props.redirectUrl ? { returnUrl: props.redirectUrl } : {}),
+      })
+      if (!result.ok) throw result.error
+      window.location.assign(result.value)
+      return
+    }
+
     const base = props.signInUrl ?? '/sign-in'
-    const target = props.redirectUrl
-      ? `${base}?redirect_url=${encodeURIComponent(props.redirectUrl)}`
-      : base
-    window.location.assign(target)
+    const target = new URL(base, window.location.href)
+    if (target.origin !== window.location.origin) {
+      throw new TypeError('same-origin Hosted Auth URL must use the application origin')
+    }
+    if (props.redirectUrl) target.searchParams.set('continue', props.redirectUrl)
+    window.location.assign(`${target.pathname}${target.search}${target.hash}`)
+  }
+
+  function handleClick(): void {
+    const pending = startSignIn()
+    if (props.onError) {
+      void pending.catch(props.onError)
+      return
+    }
+    void pending
   }
 
   return (
@@ -40,7 +65,7 @@ export function SignInButton(props: SignInButtonProps): JSX.Element {
 
 export type SignOutButtonProps = {
   readonly children?: JSX.Element
-  // Target a specific session; omit to sign out all sessions.
+  // Target a browser-held session; omit to sign out the current active session.
   readonly sessionId?: string
   // Redirect after sign-out. Default: no redirect.
   readonly redirectUrl?: string
@@ -83,8 +108,8 @@ export type ProtectProps = {
   readonly children: JSX.Element
   // Require this org permission (e.g. "org:member:read").
   readonly permission?: string
-  // Require this role (e.g. "org:admin").
-  readonly role?: string
+  // Require this Organization membership role.
+  readonly role?: OrganizationMembershipRole
   // Rendered when condition not met. Default: null.
   readonly fallback?: JSX.Element
 }

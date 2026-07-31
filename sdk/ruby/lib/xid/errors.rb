@@ -16,4 +16,7 @@ module Xid
 
   # 配置缺失或非法（如 issuer 为空）。
   class ConfigurationError < Error; end
+
+  # Core opaque browser-session cookie exchange failed closed.
+  class SessionTokenExchangeError < Error; end
 end

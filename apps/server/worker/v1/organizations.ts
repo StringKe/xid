@@ -5,6 +5,12 @@
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { sha256Hex } from '@xid-kit/crypto'
+import {
+  DEFAULT_SAML_CLOCK_SKEW_MS,
+  MAX_SAML_CLOCK_SKEW_MS,
+  loadIdpVerifyKeys,
+  setSamlEngine,
+} from '@xid-kit/saml'
 import type {
   DeliveryChannelProviderPolicy,
   HostedAuthPolicy,
@@ -12,6 +18,7 @@ import type {
 } from '@xid-kit/types'
 import {
   DEFAULT_HOSTED_AUTH_POLICY,
+  ORGANIZATION_MEMBERSHIP_ROLES,
   SESSION_POLICY_BOUNDS,
   TOKEN_POLICY_BOUNDS,
   normalizeDeliveryChannelsPolicy,
@@ -25,7 +32,16 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
-import { paginationQuerySchema, readJsonBody, validateBody, validateQuery } from '../lib/validate'
+import { createPersistedId } from '../lib/persisted-id'
+import { auditActorDisplay } from '../lib/audit-actor'
+import {
+  isPublicHttpsUrl,
+  paginationQuerySchema,
+  publicHttpsUrlSchema,
+  readJsonBody,
+  validateBody,
+  validateQuery,
+} from '../lib/validate'
 import {
   SMS_PROVIDER_REFS,
   WHATSAPP_PROVIDER_REFS,
@@ -36,14 +52,23 @@ import {
   whatsappDeliverySecretRefs,
 } from '../auth/delivery-channels'
 import { hasSocialProviderCredentials } from '../auth/hosted-policy'
-import { hasProviderSecret } from '../auth/social-providers'
+import { hasProviderSecret, socialProviderSecretBinding } from '../auth/social-providers'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
+import {
+  buildOrganizationQuotaUpsertStatement,
+  buildSeatLimitMirrorStatement,
+} from '../platform/plans'
 import {
   assertHeaderConnectionConfig,
   assertInboundSsoProtocol,
   isInboundSsoProtocol,
 } from '../sso/legacy-shared'
-import { syncScimTarget } from '../scim/outbound'
+import { enqueueScimTargetSync } from '../scim/outbound'
+import {
+  normalizeScimTargetBaseUrl,
+  scimTargetHasToken,
+  scimTargetTokenSecretName,
+} from '../scim/target-credentials'
 import { SCIM_TOKEN_ROTATE_GRACE_MS } from '../lib/ttl'
 import {
   assignmentGateFromBody,
@@ -61,6 +86,7 @@ import {
   type LegacyInboundPresetKey,
   type OutboundSaasPresetKey,
 } from '../sso/provider-presets'
+import { resolveOrProvisionOutboundSamlSigningCertificate } from '../sso/signing-certificate'
 import {
   requireApiKey,
   requireApiKeyOrOrgManager,
@@ -78,19 +104,33 @@ const app = new Hono<XidHonoEnv>()
 const ORG_STATS_MEMBER_BATCH_SIZE = 100
 const ORG_LIST_BATCH_SIZE = 100
 
+function assertOptionalPublicHttpsUrl(value: string | null | undefined, paramName: string): void {
+  if (value === null || value === undefined || isPublicHttpsUrl(value)) return
+  throw new AppError('validation_failed', {
+    httpStatus: 422,
+    meta: { paramName },
+  })
+}
+
 // 形状校验只管字段类型/必填/边界;三态(missing/null/value)与 camel/snake 双键语义由下方
 // domain normalize(readTokenPolicyPatch/mergeAuthPolicy/mergeDeliveryChannels/mergeSocialProviders)处理,
 // 它们的语义比 schema 丰富,不并入 schema。
 const metadataRecordSchema = v.record(v.string(), v.unknown())
+const organizationRoleMappingSchema = v.record(
+  v.string(),
+  v.picklist(ORGANIZATION_MEMBERSHIP_ROLES),
+)
 const enrollmentModeSchema = v.picklist(['automatic', 'invite_required'])
+const seatLimitSchema = v.pipe(v.number(), v.integer(), v.minValue(0))
 
 const createOrgBodySchema = v.object({
+  parent_org_id: v.pipe(v.string(), v.minLength(1)),
   slug: v.pipe(v.string(), v.minLength(1)),
   name: v.pipe(v.string(), v.minLength(1)),
   public_metadata: v.optional(metadataRecordSchema),
   private_metadata: v.optional(metadataRecordSchema),
   enrollment_mode: v.optional(enrollmentModeSchema),
-  seat_limit: v.optional(v.number()),
+  seat_limit: v.optional(seatLimitSchema),
 })
 
 const patchOrgBodySchema = v.object({
@@ -99,7 +139,7 @@ const patchOrgBodySchema = v.object({
   public_metadata: v.optional(metadataRecordSchema),
   private_metadata: v.optional(metadataRecordSchema),
   enrollment_mode: v.optional(enrollmentModeSchema),
-  seat_limit: v.optional(v.nullable(v.number())),
+  seat_limit: v.optional(v.nullable(seatLimitSchema)),
   allow_org_self_service: v.optional(v.boolean()),
 })
 
@@ -127,30 +167,38 @@ const createSsoConnectionBodySchema = v.object({
   preset: v.optional(v.string()),
   protocol: v.optional(v.string()),
   idp_entity_id: v.optional(v.string()),
-  idp_sso_url: v.optional(v.string()),
-  idp_metadata_url: v.optional(v.string()),
+  idp_sso_url: v.optional(publicHttpsUrlSchema),
+  idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
+  idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
-  oidc_discovery_url: v.optional(v.string()),
+  oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   jit_enabled: v.optional(v.boolean()),
   attribute_mapping: v.optional(metadataRecordSchema),
-  role_mapping: v.optional(metadataRecordSchema),
+  role_mapping: v.optional(organizationRoleMappingSchema),
   want_authn_response_signed: v.optional(v.boolean()),
   want_assertions_signed: v.optional(v.boolean()),
+  saml_clock_skew_ms: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
+  ),
 })
 
 const patchSsoConnectionBodySchema = v.object({
   idp_entity_id: v.optional(v.string()),
-  idp_sso_url: v.optional(v.string()),
-  idp_metadata_url: v.optional(v.string()),
+  idp_sso_url: v.optional(publicHttpsUrlSchema),
+  idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
+  idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
-  oidc_discovery_url: v.optional(v.string()),
+  oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   jit_enabled: v.optional(v.boolean()),
   attribute_mapping: v.optional(metadataRecordSchema),
-  role_mapping: v.optional(metadataRecordSchema),
+  role_mapping: v.optional(organizationRoleMappingSchema),
   want_authn_response_signed: v.optional(v.boolean()),
   want_assertions_signed: v.optional(v.boolean()),
+  saml_clock_skew_ms: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
+  ),
 })
 
 const createDirectoryBodySchema = v.object({
@@ -159,14 +207,21 @@ const createDirectoryBodySchema = v.object({
 
 // assignment_gate 的字段级校验在 assignmentGateFromBody(paramName 契约已固定),schema 只放行键存在性。
 const assignmentGateFieldSchema = v.optional(v.unknown())
+const outboundSamlCertificatesSchema = v.pipe(
+  v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(64 * 1024))),
+  v.maxLength(10),
+)
+const outboundSloBindingSchema = v.picklist(['redirect', 'post'])
 
 const createOutboundSamlAppBodySchema = v.object({
   preset: v.optional(v.string()),
   sp_entity_id: v.optional(v.string()),
-  acs_url: v.optional(v.string()),
-  slo_url: v.optional(v.string()),
+  acs_url: v.optional(publicHttpsUrlSchema),
+  slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
+  slo_binding: v.optional(outboundSloBindingSchema),
+  sp_certificates: v.optional(outboundSamlCertificatesSchema),
   name_id_format: v.optional(v.string()),
-  idp_signing_cert_id: v.optional(v.string()),
+  idp_signing_cert_id: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
   attribute_mapping: v.optional(metadataRecordSchema),
   assignment_gate: assignmentGateFieldSchema,
   assignmentGate: assignmentGateFieldSchema,
@@ -174,9 +229,12 @@ const createOutboundSamlAppBodySchema = v.object({
 
 const patchOutboundSamlAppBodySchema = v.object({
   sp_entity_id: v.optional(v.string()),
-  acs_url: v.optional(v.string()),
-  slo_url: v.optional(v.string()),
+  acs_url: v.optional(publicHttpsUrlSchema),
+  slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
+  slo_binding: v.optional(outboundSloBindingSchema),
+  sp_certificates: v.optional(outboundSamlCertificatesSchema),
   name_id_format: v.optional(v.string()),
+  idp_signing_cert_id: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
   attribute_mapping: v.optional(metadataRecordSchema),
   assignment_gate: assignmentGateFieldSchema,
   assignmentGate: assignmentGateFieldSchema,
@@ -522,6 +580,7 @@ function readPrivateMetadata(
 function toResponse(row: typeof schema.organizations.$inferSelect) {
   return {
     id: row.id,
+    parent_org_id: row.parentOrgId,
     slug: row.slug,
     name: row.name,
     logo_url: row.logoUrl,
@@ -534,6 +593,38 @@ function toResponse(row: typeof schema.organizations.$inferSelect) {
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   }
+}
+
+async function requireTopLevelParentOrganization(
+  c: Context<XidHonoEnv>,
+  parentOrgId: string,
+): Promise<typeof schema.organizations.$inferSelect> {
+  const tenant = c.get('tenant')
+  const parent = await requireOrg(c, parentOrgId)
+  if (
+    parent.id !== tenant.tenantId ||
+    parent.tenantId !== tenant.tenantId ||
+    parent.parentOrgId !== null
+  ) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'parent_org_id' },
+    })
+  }
+  return parent
+}
+
+async function requireRestorableChildParent(
+  c: Context<XidHonoEnv>,
+  organization: typeof schema.organizations.$inferSelect,
+): Promise<void> {
+  if (organization.parentOrgId === null) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'id' },
+    })
+  }
+  await requireTopLevelParentOrganization(c, organization.parentOrgId)
 }
 
 // 域名行 sk 路径响应:verificationToken 属设计保留(域名验证流程要向用户展示),
@@ -798,38 +889,55 @@ function toConsoleSocialProviders(
     socialProviders: Object.fromEntries(
       Object.entries(providers).map(([provider, policy]) => [
         provider,
-        {
-          authorizationEndpoint: policy.authorizationEndpoint,
-          tokenEndpoint: policy.tokenEndpoint,
-          clientId: policy.clientId,
-          clientSecretRef: policy.clientSecretRef,
-          userInfoEndpoint: policy.userInfoEndpoint,
-          scopes: policy.scopes,
-          usesPkce: policy.usesPkce,
-          issuer: policy.issuer,
-          jwksUri: policy.jwksUri,
-          redirectUris: policy.redirectUris,
-          enabled: policy.enabled,
-          allowLogin: policy.allowLogin,
-          allowUserCreation: policy.allowUserCreation,
-          requireVerifiedEmail: policy.requireVerifiedEmail,
-          allowedEmailDomains: policy.allowedEmailDomains,
-          blockedEmailDomains: policy.blockedEmailDomains,
-          hasClientSecret: Boolean(policy.clientSecretRef),
-          credentialsReady: hasSocialProviderCredentials(policy, provider, (p) =>
-            hasProviderSecret(env, p),
-          ),
-        },
+        (() => {
+          const clientSecretRef = socialProviderSecretBinding(env, provider)
+          return {
+            authorizationEndpoint: policy.authorizationEndpoint,
+            tokenEndpoint: policy.tokenEndpoint,
+            clientId: policy.clientId,
+            clientSecretRef,
+            userInfoEndpoint: policy.userInfoEndpoint,
+            scopes: policy.scopes,
+            usesPkce: policy.usesPkce,
+            issuer: policy.issuer,
+            jwksUri: policy.jwksUri,
+            redirectUris: policy.redirectUris,
+            enabled: policy.enabled,
+            allowLogin: policy.allowLogin,
+            allowUserCreation: policy.allowUserCreation,
+            requireVerifiedEmail: policy.requireVerifiedEmail,
+            allowedEmailDomains: policy.allowedEmailDomains,
+            blockedEmailDomains: policy.blockedEmailDomains,
+            hasClientSecret: Boolean(clientSecretRef),
+            credentialsReady: hasSocialProviderCredentials(policy, provider, (p, providerName) =>
+              hasProviderSecret(env, p, providerName),
+            ),
+          }
+        })(),
       ]),
     ),
   }
 }
 
 function readSocialProviderPatch(
+  provider: string,
   raw: unknown,
+  env: Env,
   existing?: SocialProviderPolicy,
 ): SocialProviderPolicy | null {
   if (!isRecord(raw)) return existing ?? null
+  const requestedSecretRef = readOptionalStringField(
+    raw,
+    ['clientSecretRef', 'client_secret_ref'],
+    undefined,
+  )
+  const clientSecretRef = socialProviderSecretBinding(env, provider)
+  if (requestedSecretRef !== undefined && requestedSecretRef !== clientSecretRef) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'clientSecretRef' },
+    })
+  }
   const next: SocialProviderPolicy = {
     authorizationEndpoint: readStringField(
       raw,
@@ -842,11 +950,7 @@ function readSocialProviderPatch(
       existing?.tokenEndpoint,
     ),
     clientId: readStringField(raw, ['clientId', 'client_id'], existing?.clientId),
-    clientSecretRef: readOptionalStringField(
-      raw,
-      ['clientSecretRef', 'client_secret_ref'],
-      existing?.clientSecretRef,
-    ),
+    clientSecretRef,
     userInfoEndpoint: readOptionalStringField(
       raw,
       ['userInfoEndpoint', 'user_info_endpoint'],
@@ -891,16 +995,30 @@ function readSocialProviderPatch(
 function readDeliveryProviderPatch(
   raw: unknown,
   existing: DeliveryChannelProviderPolicy,
+  refsByProvider: Readonly<Record<string, readonly string[]>>,
   allowedProviders: readonly string[],
 ): DeliveryChannelProviderPolicy {
   if (!isRecord(raw)) return existing
   const rawProvider = readStringField(raw, ['provider'], existing.provider).toLowerCase()
   const provider = allowedProviders.includes(rawProvider) ? rawProvider : existing.provider
+  const secretRefs = [...(refsByProvider[provider] ?? [])]
+  const requestedSecretRefs = readStringArrayField(raw, ['secretRefs', 'secret_refs'], secretRefs)
+  const requestedSet = [...new Set(requestedSecretRefs)].sort()
+  const expectedSet = [...secretRefs].sort()
+  if (
+    requestedSet.length !== expectedSet.length ||
+    requestedSet.some((value, index) => value !== expectedSet[index])
+  ) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'secretRefs' },
+    })
+  }
   return {
     provider,
     enabled: typeof raw['enabled'] === 'boolean' ? raw['enabled'] : existing.enabled,
     from: readOptionalStringField(raw, ['from'], existing.from),
-    secretRefs: readStringArrayField(raw, ['secretRefs', 'secret_refs'], existing.secretRefs),
+    secretRefs,
   }
 }
 
@@ -913,12 +1031,13 @@ function mergeDeliveryChannels(
   const channels = isRecord(rawChannels) ? rawChannels : {}
   const testProviders = isDevOrTestEnvironment(env) ? (['test'] as const) : []
   return {
-    whatsapp: readDeliveryProviderPatch(channels['whatsapp'], currentChannels.whatsapp, [
-      'twilio',
-      'meta',
-      ...testProviders,
-    ]),
-    sms: readDeliveryProviderPatch(channels['sms'], currentChannels.sms, [
+    whatsapp: readDeliveryProviderPatch(
+      channels['whatsapp'],
+      currentChannels.whatsapp,
+      WHATSAPP_PROVIDER_REFS,
+      ['twilio', 'meta', ...testProviders],
+    ),
+    sms: readDeliveryProviderPatch(channels['sms'], currentChannels.sms, SMS_PROVIDER_REFS, [
       'twilio',
       'vonage',
       'infobip',
@@ -1103,12 +1222,13 @@ async function upsertOrgSessionTokenPolicy(
 function mergeSocialProviders(
   currentProviders: Readonly<Record<string, SocialProviderPolicy>>,
   body: Record<string, unknown>,
+  env: Env,
 ): Record<string, SocialProviderPolicy> {
   const rawProviders = body['socialProviders'] ?? body['social_providers']
   if (!isRecord(rawProviders)) return { ...currentProviders }
   const socialProviders: Record<string, SocialProviderPolicy> = {}
   for (const [provider, raw] of Object.entries(rawProviders)) {
-    const parsed = readSocialProviderPatch(raw, currentProviders[provider])
+    const parsed = readSocialProviderPatch(provider, raw, env, currentProviders[provider])
     if (parsed) socialProviders[provider] = parsed
   }
   return socialProviders
@@ -1227,12 +1347,14 @@ function toConsoleSsoConnection(row: typeof schema.ssoConnections.$inferSelect) 
     domain: row.idpSsoUrl ?? row.oidcDiscoveryUrl ?? '',
     idp_entity_id: row.idpEntityId,
     idp_sso_url: row.idpSsoUrl,
+    idp_slo_url: row.idpSloUrl,
     idp_metadata_url: row.idpMetadataUrl,
     idp_certificates: row.idpCertificates,
     oidc_client_id: row.oidcClientId,
     oidc_discovery_url: row.oidcDiscoveryUrl,
     want_authn_response_signed: row.wantAuthnResponseSigned,
     want_assertions_signed: row.wantAssertionsSigned,
+    saml_clock_skew_ms: row.samlClockSkewMs,
     attribute_mapping: attributeMapping,
     role_mapping: row.roleMapping,
     jit_enabled: row.jitEnabled,
@@ -1415,8 +1537,12 @@ app.get('/:id/roles', async (c) => {
       .forOrg(id)
       .projects.findMany(
         cursor
-          ? and(eq(schema.projects.orgId, id), gt(schema.projects.id, cursor))
-          : eq(schema.projects.orgId, id),
+          ? and(
+              eq(schema.projects.orgId, id),
+              eq(schema.projects.status, 'active'),
+              gt(schema.projects.id, cursor),
+            )
+          : and(eq(schema.projects.orgId, id), eq(schema.projects.status, 'active')),
         { orderBy: asc(schema.projects.id), limit: ORG_LIST_BATCH_SIZE },
       ),
   )
@@ -1491,19 +1617,29 @@ app.post('/:id/sso-connections', async (c) => {
   const roleMapping =
     body.role_mapping ??
     (legacyPreset ? legacyPreset.roleMapping : preset ? preset.roleMapping : {})
+  const idpSsoUrl = body.idp_sso_url ?? legacyPreset?.idpSsoUrl ?? preset?.idpSsoUrl
+  const idpSloUrl = body.idp_slo_url
+  const idpMetadataUrl = body.idp_metadata_url ?? preset?.idpMetadataUrl
+  const oidcDiscoveryUrl = body.oidc_discovery_url ?? preset?.oidcDiscoveryUrl
+  assertOptionalPublicHttpsUrl(idpSsoUrl, 'idp_sso_url')
+  assertOptionalPublicHttpsUrl(idpSloUrl, 'idp_slo_url')
+  assertOptionalPublicHttpsUrl(idpMetadataUrl, 'idp_metadata_url')
+  assertOptionalPublicHttpsUrl(oidcDiscoveryUrl, 'oidc_discovery_url')
   const patch = {
     protocol,
     idpEntityId: body.idp_entity_id ?? preset?.idpEntityId,
-    idpSsoUrl: body.idp_sso_url ?? legacyPreset?.idpSsoUrl ?? preset?.idpSsoUrl,
-    idpMetadataUrl: body.idp_metadata_url ?? preset?.idpMetadataUrl,
+    idpSsoUrl,
+    idpSloUrl,
+    idpMetadataUrl,
     idpCertificates: body.idp_certificates ?? [],
     oidcClientId: body.oidc_client_id,
-    oidcDiscoveryUrl: body.oidc_discovery_url ?? preset?.oidcDiscoveryUrl,
+    oidcDiscoveryUrl,
     attributeMapping,
     roleMapping,
     jitEnabled: body.jit_enabled ?? legacyPreset?.jitEnabled ?? preset?.jitEnabled ?? true,
     wantAuthnResponseSigned: body.want_authn_response_signed ?? preset?.wantAuthnResponseSigned,
     wantAssertionsSigned: body.want_assertions_signed ?? preset?.wantAssertionsSigned,
+    samlClockSkewMs: body.saml_clock_skew_ms ?? DEFAULT_SAML_CLOCK_SKEW_MS,
     status: 'active',
   } satisfies Partial<typeof schema.ssoConnections.$inferInsert>
   const row =
@@ -1515,7 +1651,7 @@ app.post('/:id/sso-connections', async (c) => {
           )
         )[0]
       : await db.ssoConnections.insert({
-          id: crypto.randomUUID(),
+          id: createPersistedId('ssoConnection'),
           tenantId: tenant.tenantId,
           orgId: id,
           ...patch,
@@ -1545,6 +1681,7 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
   const patch: Partial<typeof schema.ssoConnections.$inferInsert> = {}
   if (body.idp_entity_id !== undefined) patch.idpEntityId = body.idp_entity_id
   if (body.idp_sso_url !== undefined) patch.idpSsoUrl = body.idp_sso_url
+  if (body.idp_slo_url !== undefined) patch.idpSloUrl = body.idp_slo_url
   if (body.idp_metadata_url !== undefined) patch.idpMetadataUrl = body.idp_metadata_url
   if (body.idp_certificates !== undefined) patch.idpCertificates = body.idp_certificates
   if (body.oidc_client_id !== undefined) patch.oidcClientId = body.oidc_client_id
@@ -1559,6 +1696,7 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
     patch.wantAuthnResponseSigned = body.want_authn_response_signed
   if (body.want_assertions_signed !== undefined)
     patch.wantAssertionsSigned = body.want_assertions_signed
+  if (body.saml_clock_skew_ms !== undefined) patch.samlClockSkewMs = body.saml_clock_skew_ms
 
   const updated = await orgDb.ssoConnections.update(patch, where)
   const row = updated[0]
@@ -1614,7 +1752,7 @@ app.post('/:id/directories', async (c) => {
   const provider = body.provider
   const token = genScimToken()
   const row = await db.directories.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('directory'),
     tenantId: tenant.tenantId,
     orgId: id,
     provider,
@@ -1768,6 +1906,7 @@ app.patch('/:id/social-providers', async (c) => {
   const socialProviders = mergeSocialProviders(
     normalizeSocialProviders(currentMetadata['socialProviders']) ?? {},
     body,
+    c.env,
   )
   const privateMetadata = {
     ...currentMetadata,
@@ -1787,6 +1926,30 @@ app.patch('/:id/social-providers', async (c) => {
   return c.json(toConsoleSocialProviders(updated[0]!, c.env))
 })
 
+async function assertValidOutboundSpCertificates(certificates: readonly string[]): Promise<void> {
+  if (certificates.length === 0) return
+  setSamlEngine(globalThis.crypto)
+  const verified = await loadIdpVerifyKeys(certificates)
+  if (!verified.ok) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'sp_certificates' },
+    })
+  }
+}
+
+function assertOutboundSloConfiguration(
+  sloUrl: string | null | undefined,
+  certificates: readonly string[],
+): void {
+  if (sloUrl && certificates.length === 0) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'sp_certificates' },
+    })
+  }
+}
+
 function toConsoleOutboundSamlApp(row: typeof schema.samlServiceProviders.$inferSelect) {
   const mapping = row.attributeMapping as Record<string, unknown>
   const gate = parseAssignmentGate(mapping)
@@ -1796,6 +1959,9 @@ function toConsoleOutboundSamlApp(row: typeof schema.samlServiceProviders.$infer
     spEntityId: row.spEntityId,
     acsUrl: row.acsUrl,
     sloUrl: row.sloUrl,
+    sloBinding: row.sloBinding ?? 'redirect',
+    spCertificates: row.spCertificates ?? [],
+    idpSigningCertId: row.idpSigningCertId,
     attributeMapping: mapping,
     assignmentGate: serializeAssignmentGate(gate),
     nameIdFormat: row.nameIdFormat,
@@ -1825,7 +1991,8 @@ app.get('/:id/outbound-saml-apps', async (c) => {
 // POST /v1/organizations/:id/outbound-saml-apps
 app.post('/:id/outbound-saml-apps', async (c) => {
   const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -1834,31 +2001,49 @@ app.post('/:id/outbound-saml-apps', async (c) => {
   const presetKey = body.preset
   const preset = presetKey ? OUTBOUND_SAAS_PRESETS[presetKey as OutboundSaasPresetKey] : undefined
   const spEntityId = body.sp_entity_id ?? preset?.spEntityId
-  const acsUrl = body.acs_url ?? ''
-  if (!spEntityId || !acsUrl) {
+  if (!spEntityId) {
     throw new AppError('validation_failed', {
       httpStatus: 422,
       meta: { paramName: 'sp_entity_id' },
     })
   }
+  const acsUrl = body.acs_url
+  if (!acsUrl) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'acs_url' },
+    })
+  }
+  const sloUrl = body.slo_url !== undefined ? body.slo_url : (preset?.sloUrl ?? null)
+  const spCertificates = body.sp_certificates ?? []
+  assertOptionalPublicHttpsUrl(acsUrl, 'acs_url')
+  assertOptionalPublicHttpsUrl(sloUrl, 'slo_url')
+  await assertValidOutboundSpCertificates(spCertificates)
+  assertOutboundSloConfiguration(sloUrl, spCertificates)
+  const signingCertificate = await resolveOrProvisionOutboundSamlSigningCertificate(
+    c,
+    body.idp_signing_cert_id ?? undefined,
+  )
   let attributeMapping: Record<string, unknown> =
     body.attribute_mapping ??
     (preset ? withPresetAttributeMapping(preset.key, preset.attributeMapping) : {})
   const gate = assignmentGateFromBody(body)
   if (gate) attributeMapping = withAssignmentGate(attributeMapping, gate)
   const row = await db.samlServiceProviders.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('samlServiceProvider'),
     tenantId: tenant.tenantId,
     orgId: id,
     spEntityId,
     acsUrl,
-    sloUrl: body.slo_url ?? preset?.sloUrl ?? null,
+    sloUrl,
+    sloBinding: body.slo_binding ?? 'redirect',
+    spCertificates,
     attributeMapping,
     nameIdFormat:
       body.name_id_format ??
       preset?.nameIdFormat ??
       'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
-    idpSigningCertId: body.idp_signing_cert_id ?? null,
+    idpSigningCertId: signingCertificate.id,
   })
   emitWebhookAsync(c, {
     tenantId: tenant.tenantId,
@@ -1872,7 +2057,8 @@ app.post('/:id/outbound-saml-apps', async (c) => {
 app.patch('/:id/outbound-saml-apps/:appId', async (c) => {
   const id = c.req.param('id')
   const appId = c.req.param('appId')
-  await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -1885,11 +2071,30 @@ app.patch('/:id/outbound-saml-apps/:appId', async (c) => {
   )
   const existing = await db.samlServiceProviders.findOne(where)
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+  const nextSloUrl = body.slo_url === undefined ? existing.sloUrl : body.slo_url
+  const nextSpCertificates = body.sp_certificates ?? existing.spCertificates ?? []
+  if (body.sp_certificates !== undefined || nextSloUrl) {
+    await assertValidOutboundSpCertificates(nextSpCertificates)
+  }
+  assertOutboundSloConfiguration(nextSloUrl, nextSpCertificates)
+  const requestedSigningCertificateId =
+    body.idp_signing_cert_id === undefined
+      ? (existing.idpSigningCertId ?? undefined)
+      : (body.idp_signing_cert_id ?? undefined)
+  const signingCertificate = await resolveOrProvisionOutboundSamlSigningCertificate(
+    c,
+    requestedSigningCertificateId,
+  )
   const patch: Partial<typeof schema.samlServiceProviders.$inferInsert> = {}
   if (body.sp_entity_id !== undefined) patch.spEntityId = body.sp_entity_id
   if (body.acs_url !== undefined) patch.acsUrl = body.acs_url
   if (body.slo_url !== undefined) patch.sloUrl = body.slo_url
+  if (body.slo_binding !== undefined) patch.sloBinding = body.slo_binding
+  if (body.sp_certificates !== undefined) patch.spCertificates = body.sp_certificates
   if (body.name_id_format !== undefined) patch.nameIdFormat = body.name_id_format
+  if (signingCertificate.id !== existing.idpSigningCertId) {
+    patch.idpSigningCertId = signingCertificate.id
+  }
   const gate = assignmentGateFromBody(body)
   if (body.attribute_mapping !== undefined) {
     patch.attributeMapping = body.attribute_mapping
@@ -1899,14 +2104,17 @@ app.patch('/:id/outbound-saml-apps/:appId', async (c) => {
     patch.attributeMapping = withAssignmentGate(base, gate)
   }
   const updated = await db.samlServiceProviders.update(patch, where)
-  return c.json(toConsoleOutboundSamlApp(updated[0]!))
+  const row = updated[0]
+  if (!row) throw new AppError('not_found', { httpStatus: 404 })
+  return c.json(toConsoleOutboundSamlApp(row))
 })
 
 // DELETE /v1/organizations/:id/outbound-saml-apps/:appId
 app.delete('/:id/outbound-saml-apps/:appId', async (c) => {
   const id = c.req.param('id')
   const appId = c.req.param('appId')
-  await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -1925,18 +2133,14 @@ app.delete('/:id/outbound-saml-apps/:appId', async (c) => {
   return new Response(null, { status: 204 })
 })
 
-function scimTargetHasToken(env: Env, ref: string): boolean {
-  const value = (env as unknown as Record<string, unknown>)[ref]
-  return typeof value === 'string' && value.length > 0
-}
-
 function toConsoleScimTarget(row: typeof schema.scimTargets.$inferSelect, env: Env) {
   const filter = row.userFilter as Record<string, unknown>
   return {
     id: row.id,
     provider: row.provider,
     baseUrl: row.baseUrl,
-    hasTokenSecret: scimTargetHasToken(env, row.tokenSecretRef),
+    requiredTokenSecretName: scimTargetTokenSecretName(row.id),
+    hasTokenSecret: scimTargetHasToken(env, row.id),
     assignmentGate: serializeAssignmentGate(parseAssignmentGate(filter)),
     status: row.status,
     lastSyncAt: row.lastSyncAt ? toIso(row.lastSyncAt) : null,
@@ -1974,20 +2178,24 @@ app.post('/:id/scim-targets', async (c) => {
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(scimTargetBodySchema, json.value)
   const provider = body.provider?.trim() ?? ''
-  const baseUrl = body.base_url?.trim() ?? ''
-  const tokenSecretRef = body.token_secret_ref?.trim() ?? ''
-  if (!provider || !baseUrl || !tokenSecretRef) {
+  const rawBaseUrl = body.base_url?.trim() ?? ''
+  if (!provider || !rawBaseUrl) {
     throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'base_url' } })
   }
-  if (!scimTargetHasToken(c.env, tokenSecretRef)) {
+  // Legacy clients could select any env binding through token_secret_ref. Reject the field rather
+  // than using it; the server derives a target-specific SCIM_TARGET_TOKEN_<target id> name.
+  if (body.token_secret_ref !== undefined) {
     throw new AppError('validation_failed', {
       httpStatus: 422,
       meta: { paramName: 'token_secret_ref' },
     })
   }
+  const baseUrl = normalizeScimTargetBaseUrl(rawBaseUrl)
+  const targetId = createPersistedId('scimTarget')
+  const tokenSecretRef = scimTargetTokenSecretName(targetId)
   const gate = assignmentGateFromBody(body) ?? parseAssignmentGate({})
   const row = await db.scimTargets.insert({
-    id: crypto.randomUUID(),
+    id: targetId,
     tenantId: tenant.tenantId,
     orgId: id,
     provider,
@@ -2024,17 +2232,17 @@ app.patch('/:id/scim-targets/:targetId', async (c) => {
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
   const patch: Partial<typeof schema.scimTargets.$inferInsert> = {}
   if (body.provider !== undefined && body.provider.trim()) patch.provider = body.provider.trim()
-  if (body.base_url !== undefined && body.base_url.trim()) patch.baseUrl = body.base_url.trim()
-  if (body.token_secret_ref !== undefined && body.token_secret_ref.trim()) {
-    const ref = body.token_secret_ref.trim()
-    if (!scimTargetHasToken(c.env, ref)) {
-      throw new AppError('validation_failed', {
-        httpStatus: 422,
-        meta: { paramName: 'token_secret_ref' },
-      })
-    }
-    patch.tokenSecretRef = ref
+  if (body.base_url !== undefined && body.base_url.trim()) {
+    patch.baseUrl = normalizeScimTargetBaseUrl(body.base_url.trim())
   }
+  if (body.token_secret_ref !== undefined) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'token_secret_ref' },
+    })
+  }
+  // Any legacy arbitrary reference becomes inert and is normalized on the next safe update.
+  patch.tokenSecretRef = scimTargetTokenSecretName(existing.id)
   const gate = assignmentGateFromBody(body)
   if (gate) {
     patch.userFilter = withAssignmentGate(existing.userFilter as Record<string, unknown>, gate)
@@ -2071,7 +2279,7 @@ app.delete('/:id/scim-targets/:targetId', async (c) => {
 app.post('/:id/scim-targets/:targetId/sync', async (c) => {
   const id = c.req.param('id')
   const targetId = c.req.param('targetId')
-  await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const target = await db.scimTargets.findOne(
@@ -2083,7 +2291,8 @@ app.post('/:id/scim-targets/:targetId/sync', async (c) => {
     ),
   )
   if (!target) throw new AppError('not_found', { httpStatus: 404 })
-  return c.json(await syncScimTarget(c, target), 200)
+  const actorId = auth.kind === 'org_console' ? auth.session.userId : auth.apiKeyId
+  return c.json(await enqueueScimTargetSync(c, target, actorId), 202)
 })
 
 // PATCH /v1/organizations/:id/branding
@@ -2119,19 +2328,31 @@ app.post('/', async (c) => {
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(createOrgBodySchema, json.value)
+  if (body.seat_limit !== undefined) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'seat_limit' },
+    })
+  }
   assertSlugNotReserved(body.slug)
+  const parent = await requireTopLevelParentOrganization(c, body.parent_org_id)
 
   // slug 实例级唯一:子域解析按 (instance_id, slug) 全局 limit(1)(见 tenant-context.ts resolveMultiTenant),
   // 冲突检查必须同域;仅同租户 deleted 行允许复活,他租户占用一律 409(不指明持有者,枚举防护)。
   const existing = await findOrgByInstanceSlug(c, body.slug)
   if (existing?.status === 'deleted' && existing.tenantId === tenant.tenantId) {
+    if (existing.parentOrgId !== parent.id) {
+      throw new AppError('already_exists', {
+        httpStatus: 409,
+        meta: { paramName: 'slug' },
+      })
+    }
     const updated = await db.organizations.update(
       {
         name: body.name,
         publicMetadata: body.public_metadata ?? {},
         privateMetadata: body.private_metadata ?? {},
         enrollmentMode: body.enrollment_mode ?? 'invite_required',
-        seatLimit: body.seat_limit ?? null,
         status: 'active',
         deletedAt: null,
       },
@@ -2147,18 +2368,18 @@ app.post('/', async (c) => {
   if (existing)
     throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'slug' } })
 
-  const id = crypto.randomUUID()
+  const id = createPersistedId('organization')
   const org = await db.organizations.insert({
     id,
     tenantId: tenant.tenantId,
     // instance_id 取 TenantContext.instanceId(buildContext 产出);缺省回退 tenantId 兼容旧上下文。
     instanceId: tenant.instanceId ?? tenant.tenantId,
+    parentOrgId: parent.id,
     slug: body.slug,
     name: body.name,
     publicMetadata: body.public_metadata ?? {},
     privateMetadata: body.private_metadata ?? {},
     enrollmentMode: body.enrollment_mode ?? 'invite_required',
-    seatLimit: body.seat_limit ?? null,
     status: 'active',
   })
   emitWebhookAsync(c, {
@@ -2173,7 +2394,7 @@ app.post('/', async (c) => {
 
 // PATCH /v1/organizations/:id
 app.patch('/:id', async (c) => {
-  await requireApiKey(c, 'organizations:write')
+  const apiKey = await requireApiKey(c, 'organizations:write')
   const id = c.req.param('id')
   await requireOrg(c, id)
 
@@ -2183,6 +2404,12 @@ app.patch('/:id', async (c) => {
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(patchOrgBodySchema, json.value)
+  if (body.seat_limit !== undefined && id !== tenant.tenantId) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'seat_limit' },
+    })
+  }
 
   const patch: Partial<typeof schema.organizations.$inferInsert> = {}
   if (body.name !== undefined) patch.name = body.name
@@ -2198,11 +2425,34 @@ app.patch('/:id', async (c) => {
   if (body.public_metadata !== undefined) patch.publicMetadata = body.public_metadata
   if (body.private_metadata !== undefined) patch.privateMetadata = body.private_metadata
   if (body.enrollment_mode !== undefined) patch.enrollmentMode = body.enrollment_mode
-  if (body.seat_limit !== undefined) patch.seatLimit = body.seat_limit
   if (body.allow_org_self_service !== undefined)
     patch.allowOrgSelfService = body.allow_org_self_service
 
-  const updated = await db.organizations.update(patch, eq(schema.organizations.id, id))
+  if (body.seat_limit !== undefined) {
+    const now = Date.now()
+    await c.env.DB.batch([
+      buildSeatLimitMirrorStatement(c.env, {
+        tenantId: tenant.tenantId,
+        seatLimit: body.seat_limit,
+        now,
+      }),
+      buildOrganizationQuotaUpsertStatement(c.env, {
+        tenantId: tenant.tenantId,
+        quota: {
+          key: 'seats',
+          limit: body.seat_limit,
+          enforcement: 'block_creation',
+        },
+        updatedBy: apiKey.id,
+        now,
+      }),
+    ])
+  }
+  const updated =
+    Object.keys(patch).length === 0
+      ? [await db.organizations.findOne(eq(schema.organizations.id, id))]
+      : await db.organizations.update(patch, eq(schema.organizations.id, id))
+  if (!updated[0]) throw new AppError('not_found', { httpStatus: 404 })
   emitWebhookAsync(c, {
     tenantId: tenant.tenantId,
     event: 'organization.updated',
@@ -2217,7 +2467,8 @@ app.patch('/:id', async (c) => {
 app.delete('/:id', async (c) => {
   await requireApiKey(c, 'organizations:write')
   const id = c.req.param('id')
-  await requireOrg(c, id)
+  const organization = await requireOrg(c, id)
+  await requireRestorableChildParent(c, organization)
 
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
@@ -2243,6 +2494,7 @@ app.post('/:id/restore', async (c) => {
   const where = and(eq(schema.organizations.id, id), eq(schema.organizations.status, 'deleted'))
   const existing = await db.organizations.findOne(where)
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+  await requireRestorableChildParent(c, existing)
 
   const updated = await db.organizations.update({ status: 'active', deletedAt: null }, where)
   const row = updated[0]
@@ -2353,7 +2605,7 @@ app.post('/:id/domains', async (c) => {
   let domain: typeof schema.organizationDomains.$inferSelect
   try {
     domain = await db.organizationDomains.insert({
-      id: crypto.randomUUID(),
+      id: createPersistedId('organizationDomain'),
       tenantId: tenant.tenantId,
       orgId: id,
       domain: body.domain,
@@ -2454,6 +2706,19 @@ app.get('/:id/audit-events', async (c) => {
   const nextCursor =
     hasMore && last !== undefined ? encodeCursor(`${last.occurredAt}|${last.id}`) : null
 
+  const actorIds = [
+    ...new Set(
+      pageRows
+        .map((row) => row.actorId)
+        .filter((actorId): actorId is string => actorId !== null && actorId !== 'system'),
+    ),
+  ]
+  const actorRows =
+    actorIds.length === 0
+      ? []
+      : await db.users.findMany(inArray(schema.users.id, actorIds), { limit: actorIds.length })
+  const actors = new Map(actorRows.map((row) => [row.id, row.erasedAt] as const))
+
   const data = pageRows.map((row) => ({
     id: row.id,
     seq: row.seq,
@@ -2462,6 +2727,10 @@ app.get('/:id/audit-events', async (c) => {
     orgId: row.orgId ?? null,
     eventType: row.eventType,
     actorId: row.actorId ?? null,
+    actorDisplay: auditActorDisplay(row.actorId ?? null, {
+      found: row.actorId === 'system' || actors.has(row.actorId ?? ''),
+      erasedAt: actors.get(row.actorId ?? '') ?? null,
+    }),
     actorIp: row.actorIp ?? null,
     targetType: row.targetType ?? null,
     targetId: row.targetId ?? null,

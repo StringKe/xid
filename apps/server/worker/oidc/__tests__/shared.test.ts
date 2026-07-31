@@ -5,6 +5,7 @@ import type { XidHonoEnv } from '../../lib/types'
 import {
   decodeKek,
   endpointUrl,
+  findClient,
   handlePublicClientOptions,
   oauthError,
   refreshTtlSecOf,
@@ -101,6 +102,72 @@ describe('token policy helpers', () => {
   })
 })
 
+describe('findClient Project lifecycle', () => {
+  async function lookup(projectStatus: 'active' | 'deleted'): Promise<Response> {
+    const { ctx } = await buildTestTenant()
+    const env = makeEnv({
+      DB: makeFakeD1({
+        applications: [
+          {
+            id: 'app_1',
+            tenant_id: 't_1',
+            client_id: 'cli_project',
+            project_id: 'proj_1',
+            client_secret_hash: null,
+            client_type: 'public',
+            token_endpoint_auth_method: 'none',
+            jwks: null,
+            status: 'active',
+            redirect_uris: '[]',
+            post_logout_redirect_uris: '[]',
+            allowed_grant_types: JSON.stringify(['authorization_code']),
+            allowed_response_types: JSON.stringify(['code']),
+            allowed_scopes: JSON.stringify(['openid']),
+            require_pkce: 1,
+            dpop_bound_access_tokens: 0,
+            access_token_format: 'jwt',
+            access_token_ttl_sec: 3600,
+            id_token_signed_alg: 'ES256',
+            first_party: 0,
+            require_org_context: 0,
+            custom_claims_config: '{}',
+            registration_access_token_hash: null,
+            backchannel_logout_uri: null,
+            frontchannel_logout_uri: null,
+            created_at: Date.now(),
+            updated_at: Date.now(),
+          },
+        ],
+        projects: [
+          {
+            id: 'proj_1',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            name: 'Project',
+            description: null,
+            status: projectStatus,
+            deleted_at: projectStatus === 'deleted' ? Date.now() : null,
+            created_at: Date.now(),
+            updated_at: Date.now(),
+          },
+        ],
+      }),
+    })
+    const app = makeApp(ctx, (honoApp) => {
+      honoApp.get('/client', async (c) => {
+        const client = await findClient(c, 'cli_project')
+        return c.json({ id: client?.id ?? null })
+      })
+    })
+    return app.request('/client', undefined, env)
+  }
+
+  it('returns a Project-linked client only while the Project is active', async () => {
+    expect(await (await lookup('active')).json()).toEqual({ id: 'app_1' })
+    expect(await (await lookup('deleted')).json()).toEqual({ id: null })
+  })
+})
+
 // OPTIONS 预检必须按 query client_id 校验 origin 白名单:不在白名单/未知 client 均不回 ACAO。
 describe('handlePublicClientOptions', () => {
   const CLIENT_ID = 'cli_pub'
@@ -111,9 +178,30 @@ describe('handlePublicClientOptions', () => {
       id: 'app_1',
       tenant_id: 't_1',
       client_id: CLIENT_ID,
+      client_secret_hash: null,
       client_type: 'public',
+      token_endpoint_auth_method: 'none',
+      jwks: null,
       status: 'active',
       redirect_uris: JSON.stringify(['https://spa.example/cb']),
+      post_logout_redirect_uris: JSON.stringify([]),
+      allowed_grant_types: JSON.stringify(['authorization_code']),
+      allowed_response_types: JSON.stringify(['code']),
+      allowed_scopes: JSON.stringify(['openid']),
+      require_pkce: 1,
+      dpop_bound_access_tokens: 0,
+      access_token_format: 'jwt',
+      access_token_ttl_sec: 3600,
+      id_token_signed_alg: 'ES256',
+      first_party: 0,
+      require_org_context: 0,
+      custom_claims_config: JSON.stringify({}),
+      registration_access_token_hash: null,
+      project_id: null,
+      backchannel_logout_uri: null,
+      frontchannel_logout_uri: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
     }
   }
 

@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { LinkButton } from "./ui/link-button";
 import { ThemeToggle } from "./ui/theme-toggle";
 import { SearchTrigger } from "./ui/search";
+import SiteAuthActions from "./SiteAuthActions.astro";
 import SiteLanguageSwitcher from "./SiteLanguageSwitcher.astro";
 import { config } from "virtual:nimbus/config";
 import { getSidebarSections } from "@cloudflare/nimbus-docs";
@@ -17,18 +18,14 @@ interface Props {
   collection?: string;
   /** Astro entry id for the current page, forwarded from DocsLayout. */
   entryId?: string;
-  /**
-   * Whether the page has a sidebar to open. When `false`, the mobile
-   * menu button is hidden — pages that opted out via `sidebar: false`
-   * shouldn't show a button that opens an empty dialog. Default `true`.
-   */
-  showSidebar?: boolean;
+  /** Whether the surrounding layout provides a mobile navigation dialog. */
+  showMobileMenu?: boolean;
 }
 
 // `entryId` is part of Props as a forward-compat hook (the version-switcher
 // recipe reads it) but the base Header doesn't use it — leave it off the
 // destructure to avoid an unused-var warning.
-const { collection, showSidebar = true } = Astro.props;
+const { collection, showMobileMenu = true } = Astro.props;
 
 // Normalize trailing slash so isActive matches sidebar hrefs.
 const currentSlug = Astro.url.pathname.replace(/\/$/, "") || "/";
@@ -76,6 +73,7 @@ const openNavigationLabel = translateSiteMessage(
     </div>
 
     <div class="flex items-center gap-2">
+      <SiteAuthActions class="hidden lg:flex" />
       <SiteLanguageSwitcher />
       {config.search !== false && <SearchTrigger />}
       {config.github && (
@@ -93,7 +91,7 @@ const openNavigationLabel = translateSiteMessage(
         </LinkButton>
       )}
       <ThemeToggle />
-      {showSidebar && (
+      {showMobileMenu && (
         <Button
           variant="ghost"
           shape="square"

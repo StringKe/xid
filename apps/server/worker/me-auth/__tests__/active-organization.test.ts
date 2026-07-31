@@ -12,7 +12,12 @@ vi.mock('@xid-kit/db', () => ({
   },
 }))
 
-vi.mock('../../lib/session', () => ({ readSession: vi.fn(), ACTIVE_SESSION_STATUS: 'active' }))
+vi.mock('../../lib/session', () => ({
+  readSession: vi.fn(),
+  ACTIVE_SESSION_STATUS: 'active',
+  PENDING_MFA_SESSION_STATUS: 'pending_mfa',
+  PENDING_MFA_SETUP_SESSION_STATUS: 'pending_mfa_setup',
+}))
 
 import { createTenantDb } from '@xid-kit/db'
 import { registerSessionAuthRoutes } from '../index'
@@ -152,4 +157,22 @@ describe('POST /v1/sessions/active-organization', () => {
     expect(res.status).toBe(401)
     expect(db.sessions.update).not.toHaveBeenCalled()
   })
+
+  it.each([{ organizationId: 'org-2' }, { organizationId: null }])(
+    'pins an impersonation session to its active organization',
+    async (body) => {
+      const db = makeDb({})
+      const res = await post(body, db, {
+        ...makeSession(),
+        activeOrgId: 'org-1',
+        isImpersonation: true,
+        impersonatorUserId: 'user-manager',
+      })
+
+      expect(res.status).toBe(403)
+      expect(((await res.json()) as Record<string, unknown>)['code']).toBe('forbidden')
+      expect(db.memberships.findOne).not.toHaveBeenCalled()
+      expect(db.sessions.update).not.toHaveBeenCalled()
+    },
+  )
 })

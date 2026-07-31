@@ -143,6 +143,13 @@ export function createConsoleWebMcpTools(
           user: me.user ? sanitizeUser(me.user) : null,
           activeOrg: me.activeOrg ? sanitizeOrg(me.activeOrg) : null,
           organizations: me.organizations.map(sanitizeOrg),
+          managerAssignments: me.managerAssignments.map((assignment) => ({
+            id: assignment.id,
+            managerRole: assignment.managerRole,
+            scopeType: assignment.scopeType,
+            scopeId: assignment.scopeId,
+            scopeStatus: assignment.scopeStatus,
+          })),
           sessionStatus: me.session?.status ?? null,
         }),
     },

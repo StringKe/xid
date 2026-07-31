@@ -8,6 +8,7 @@ export const BACKEND_ERROR_CODES = [
   'missing_jwt_key',
   'jwks_fetch_failed',
   'invalid_options',
+  'session_token_exchange_failed',
 ] as const
 export type BackendErrorCode = (typeof BACKEND_ERROR_CODES)[number]
 

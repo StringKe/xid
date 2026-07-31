@@ -1,7 +1,8 @@
 // GuestAuthClient.swift
 // XID iOS Swift SDK
 //
-// Firebase 式匿名登录 (POST /auth/guest + GET /v1/me)。
+// Firebase 式匿名登录 (GET /auth/config?intent=sign-up +
+// POST /auth/guest + GET /v1/me)。
 // guest 会话没有 access token,会话凭证是服务端 Set-Cookie 的 session cookie:
 // 原生端没有浏览器 cookie jar,必须自行捕获、持久化并在后续请求上回放。
 
@@ -20,15 +21,17 @@ struct GuestAuthClient: Sendable {
         self.urlSession = urlSession
     }
 
-    /// 创建或续期 guest 会话。服务端 200 续期、201 新建,本地无需区分。
+    /// 获取一次性 capability 后创建或续期 guest 会话。capability 不缓存,
+    /// 服务端 200 续期、201 新建,本地无需区分。
     func createGuestSession(issuer: URL, turnstileToken: String?) async throws -> GuestAuthResult {
+        let capabilityToken = try await fetchGuestCapability(issuer: issuer)
         let url = issuer.appendingPathComponent("auth").appendingPathComponent("guest")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         // turnstileToken 仅当服务端启用 Turnstile 时才需要,native 端通常为 nil
-        var body: [String: String] = [:]
+        var body = ["capabilityToken": capabilityToken]
         if let turnstileToken {
             body["turnstileToken"] = turnstileToken
         }
@@ -54,6 +57,38 @@ struct GuestAuthClient: Sendable {
             sessionId: sessionId,
             cookies: Self.captureCookies(from: httpResponse)
         )
+    }
+
+    private func fetchGuestCapability(issuer: URL) async throws -> String {
+        var components = URLComponents(
+            url: issuer.appendingPathComponent("auth").appendingPathComponent("config"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "intent", value: "sign-up")]
+        guard let url = components?.url else {
+            throw XidError.guestSignInFailed("无法构造访客登录能力 URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw XidError.guestSignInFailed("无效响应类型")
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw XidError.guestSignInFailed("/auth/config HTTP \(httpResponse.statusCode)")
+        }
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data),
+            let object = json as? [String: Any],
+            let guest = object["guest"] as? [String: Any],
+            let rawToken = guest["capabilityToken"] as? String,
+            !rawToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw XidError.guestSignInFailed("访客登录能力不可用")
+        }
+        return rawToken
     }
 
     /// 用 guest 会话 cookie 调 /v1/me,响应的 user 对象含 provisioned_by。

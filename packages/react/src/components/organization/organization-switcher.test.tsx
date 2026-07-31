@@ -70,7 +70,7 @@ function makeClient(): XidClient {
 function renderSwitcher(): ReturnType<typeof render> {
   return render(
     <I18nProvider i18n={i18n}>
-      <XidContext.Provider value={{ client: makeClient(), publishableKey: 'pk_test' }}>
+      <XidContext.Provider value={{ client: makeClient(), mode: 'same-origin' }}>
         <OrganizationSwitcher />
       </XidContext.Provider>
     </I18nProvider>,

@@ -10,12 +10,13 @@
 //   - 路由模块 export 注册函数。
 
 import { base64UrlEncode, importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
-import { createTenantDb, schema } from '@xid-kit/db'
+import { createTenantDb, resolveTenantContextByApplicationClientId, schema } from '@xid-kit/db'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import { issueSession } from '../lib/session'
 import { SSO_AUTH_CONTEXT } from '../lib/auth-context'
 import { resolvePostAuthMfaGate } from '../lib/mfa-session'
@@ -26,6 +27,15 @@ import { resolveSsoConnectionTenant, resolveSsoFlowTenant, withTenant } from './
 import { enforceEnterpriseSsoPolicy } from './enterprise-policy'
 import { shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
 import { OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
+import { isLoopbackHttpUrl, isPublicHttpsUrl } from '../lib/validate'
+import { readBoundedJson } from './bounded-json'
+import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
+import {
+  isAuthorizeContinuation,
+  normalizeLocalContinuePath,
+  resolveApplicationAuthorizeContinuation,
+} from '../../shared/hosted-auth-continuation'
+import { isApplicationSignUpIntent } from '../../shared/hosted-auth-intent'
 
 // OAuthFlowDO 中存储的 OIDC RP 流程状态。
 type OidcRpFlowPayload = {
@@ -36,10 +46,36 @@ type OidcRpFlowPayload = {
   redirectAfterLogin: string
   returnToOrigin: string
   createdAt: number
+  applicationClientId?: string
+  invitationToken?: string
   skipDefaultMembership?: boolean
 }
 
+type NewOidcRpFlowPayload = Omit<OidcRpFlowPayload, 'invitationToken'>
+
 const DEFAULT_AUTH_RETURN_PATH = '/console'
+const INVITATION_PATH = '/accept-invitation'
+
+function isInvitationContinuePath(value: string | null | undefined): boolean {
+  if (!value) return false
+  try {
+    const parsed = new URL(value, 'https://xid.invalid')
+    return parsed.pathname === INVITATION_PATH || parsed.pathname === `${INVITATION_PATH}/`
+  } catch {
+    return false
+  }
+}
+
+function requestHasRawInvitationInput(
+  c: Context<XidHonoEnv>,
+  continuationParameters: readonly string[],
+): boolean {
+  const query = new URL(c.req.url).searchParams
+  if (query.has('invitation_token') || query.has('invitationToken')) return true
+  return continuationParameters.some((name) =>
+    query.getAll(name).some((value) => isInvitationContinuePath(value)),
+  )
+}
 
 // PKCE code_verifier 字节数(43 字节 base64url = 256bit entropy)。
 const CODE_VERIFIER_BYTES = 43
@@ -50,7 +86,7 @@ function oauthFlowStub(env: Env, state: string): DurableObjectStub {
   return ns.get(ns.idFromName(`sso-oidc:${state}`))
 }
 
-async function storeFlow(env: Env, state: string, payload: OidcRpFlowPayload): Promise<void> {
+async function storeFlow(env: Env, state: string, payload: NewOidcRpFlowPayload): Promise<void> {
   const stub = oauthFlowStub(env, state)
   const res = await stub.fetch('https://oauth-flow/store', {
     method: 'POST',
@@ -71,12 +107,23 @@ function requiredString(record: Record<string, unknown>, key: string): string {
   return value
 }
 
+function optionalString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key]
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.length === 0) throw new AppError('server_error')
+  return value
+}
+
 // DO 返回的 record 持 codeVerifier / nonce / connectionId:形状不完整时不能带缺省值继续换码,
 // 否则 PKCE 与 nonce 绑定被跳过,connection 归属也无从校验。
 function parseConsumedFlowBody(value: unknown): OidcRpFlowPayload {
   const record = asObject(asObject(value)['record'])
   const createdAt = record['createdAt']
   const skipDefaultMembership = record['skipDefaultMembership']
+  const applicationClientId = optionalString(record, 'applicationClientId')
+  const camelInvitationToken = optionalString(record, 'invitationToken')
+  const snakeInvitationToken = optionalString(record, 'invitation_token')
+  const invitationToken = camelInvitationToken ?? snakeInvitationToken
   if (
     typeof createdAt !== 'number' ||
     (skipDefaultMembership !== undefined && typeof skipDefaultMembership !== 'boolean')
@@ -91,6 +138,8 @@ function parseConsumedFlowBody(value: unknown): OidcRpFlowPayload {
     redirectAfterLogin: requiredString(record, 'redirectAfterLogin'),
     returnToOrigin: requiredString(record, 'returnToOrigin'),
     createdAt,
+    ...(applicationClientId === undefined ? {} : { applicationClientId }),
+    ...(invitationToken === undefined ? {} : { invitationToken }),
     ...(skipDefaultMembership === undefined ? {} : { skipDefaultMembership }),
   }
 }
@@ -150,24 +199,144 @@ type OidcDiscovery = {
   issuer: string
 }
 
+const OIDC_UPSTREAM_TIMEOUT_MS = 5_000
+const OIDC_DISCOVERY_MAX_BYTES = 64 * 1024
+const OIDC_TOKEN_MAX_BYTES = 64 * 1024
+const OIDC_JWKS_MAX_BYTES = 512 * 1024
+
+const oidcDiscoverySchema = v.object({
+  authorization_endpoint: v.pipe(v.string(), v.url()),
+  token_endpoint: v.pipe(v.string(), v.url()),
+  jwks_uri: v.pipe(v.string(), v.url()),
+  issuer: v.pipe(v.string(), v.url()),
+})
+
+const oidcTokenResponseSchema = v.object({
+  id_token: v.pipe(v.string(), v.minLength(1)),
+  access_token: v.pipe(v.string(), v.minLength(1)),
+  token_type: v.pipe(v.string(), v.minLength(1)),
+  expires_in: v.optional(v.number()),
+})
+
+const oidcJwksSchema = v.object({
+  keys: v.pipe(v.array(v.record(v.string(), v.unknown())), v.minLength(1), v.maxLength(64)),
+})
+
+async function fetchOidcJson(
+  url: string,
+  init: RequestInit,
+  maxBytes: number,
+  failure: string,
+): Promise<unknown> {
+  let response: Response
+  try {
+    response = await fetch(url, {
+      ...init,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(OIDC_UPSTREAM_TIMEOUT_MS),
+    })
+  } catch (cause) {
+    throw new AppError('internal_error', { cause, longMessage: failure })
+  }
+  if (!response.ok) throw new AppError('internal_error', { longMessage: failure })
+  try {
+    return await readBoundedJson(response, maxBytes)
+  } catch (cause) {
+    throw new AppError('internal_error', { cause, longMessage: failure })
+  }
+}
+
+function isTrustedUpstreamUrl(value: string, permitsLoopbackHttp: boolean): boolean {
+  return isPublicHttpsUrl(value) || (permitsLoopbackHttp && isLoopbackHttpUrl(value))
+}
+
+function assertDiscoveryTrust(
+  discoveryUrl: string,
+  discovery: OidcDiscovery,
+  permitsLoopbackHttp: boolean,
+): void {
+  const configured = new URL(discoveryUrl)
+  const issuer = new URL(discovery.issuer)
+  if (
+    configured.username ||
+    configured.password ||
+    issuer.username ||
+    issuer.password ||
+    issuer.search ||
+    issuer.hash ||
+    configured.origin !== issuer.origin ||
+    !isTrustedUpstreamUrl(discovery.issuer, permitsLoopbackHttp)
+  ) {
+    throw new AppError('internal_error', { longMessage: 'OIDC discovery trust mismatch' })
+  }
+  for (const endpoint of [
+    discovery.authorization_endpoint,
+    discovery.token_endpoint,
+    discovery.jwks_uri,
+  ]) {
+    const parsed = new URL(endpoint)
+    if (
+      parsed.username ||
+      parsed.password ||
+      parsed.origin !== issuer.origin ||
+      !isTrustedUpstreamUrl(endpoint, permitsLoopbackHttp)
+    ) {
+      throw new AppError('internal_error', { longMessage: 'OIDC discovery endpoint untrusted' })
+    }
+  }
+}
+
 // 拉取 provider OIDC Discovery 文档。
-async function fetchDiscovery(discoveryUrl: string): Promise<OidcDiscovery> {
-  const res = await fetch(discoveryUrl, {
-    cf: { cacheEverything: true, cacheTtl: 3600 },
-  } as RequestInit)
-  if (!res.ok)
-    throw new AppError('internal_error', { longMessage: 'Failed to fetch OIDC discovery' })
-  return (await res.json()) as OidcDiscovery
+async function fetchDiscovery(
+  discoveryUrl: string,
+  permitsLoopbackHttp: boolean,
+): Promise<OidcDiscovery> {
+  if (!isTrustedUpstreamUrl(discoveryUrl, permitsLoopbackHttp)) {
+    throw new AppError('internal_error', { longMessage: 'OIDC discovery URL is not public HTTPS' })
+  }
+  const fetchInit =
+    permitsLoopbackHttp && isLoopbackHttpUrl(discoveryUrl)
+      ? {}
+      : ({ cf: { cacheEverything: true, cacheTtl: 3600 } } as RequestInit)
+  const payload = await fetchOidcJson(
+    discoveryUrl,
+    fetchInit,
+    OIDC_DISCOVERY_MAX_BYTES,
+    'Failed to fetch OIDC discovery',
+  )
+  const parsed = v.safeParse(oidcDiscoverySchema, payload)
+  if (!parsed.success) {
+    throw new AppError('internal_error', { longMessage: 'OIDC discovery response invalid' })
+  }
+  assertDiscoveryTrust(discoveryUrl, parsed.output, permitsLoopbackHttp)
+  return parsed.output
 }
 
 // 拉取 provider JWKS(用于验证 id_token 签名)。
 type JwksResponse = { keys: (JsonWebKey & { kid?: string; alg?: string; use?: string })[] }
 
-async function fetchProviderJwks(jwksUri: string): Promise<JwksResponse> {
-  const res = await fetch(jwksUri, { cf: { cacheEverything: true, cacheTtl: 3600 } } as RequestInit)
-  if (!res.ok)
-    throw new AppError('internal_error', { longMessage: 'Failed to fetch provider JWKS' })
-  return (await res.json()) as JwksResponse
+async function fetchProviderJwks(
+  jwksUri: string,
+  permitsLoopbackHttp: boolean,
+): Promise<JwksResponse> {
+  if (!isTrustedUpstreamUrl(jwksUri, permitsLoopbackHttp)) {
+    throw new AppError('internal_error', { longMessage: 'Provider JWKS URL is not public HTTPS' })
+  }
+  const fetchInit =
+    permitsLoopbackHttp && isLoopbackHttpUrl(jwksUri)
+      ? {}
+      : ({ cf: { cacheEverything: true, cacheTtl: 3600 } } as RequestInit)
+  const payload = await fetchOidcJson(
+    jwksUri,
+    fetchInit,
+    OIDC_JWKS_MAX_BYTES,
+    'Failed to fetch provider JWKS',
+  )
+  const parsed = v.safeParse(oidcJwksSchema, payload)
+  if (!parsed.success || parsed.output.keys.some((key) => typeof key['kty'] !== 'string')) {
+    throw new AppError('internal_error', { longMessage: 'Provider JWKS response invalid' })
+  }
+  return parsed.output as JwksResponse
 }
 
 // 从 provider JWKS 构建 VerifyKeySet(按 kid 索引)。
@@ -235,6 +404,9 @@ function callbackUrl(origin: string, connectionId: string): string {
 
 // POST /sso/oidc/:connectionId/authorize -- 发起 OIDC 授权跳转。
 async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
+  if (requestHasRawInvitationInput(c, ['redirect_uri', 'continue'])) {
+    throw new AppError('invalid_request')
+  }
   const connectionId = c.req.param('connectionId')
   if (!connectionId) throw new AppError('invalid_request', { longMessage: 'connectionId required' })
   const tenant = await resolveSsoConnectionTenant(c, connectionId)
@@ -254,7 +426,10 @@ async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
       throw new AppError('internal_error', { longMessage: 'OIDC connection misconfigured' })
     }
 
-    const discovery = await fetchDiscovery(connection.oidcDiscoveryUrl)
+    const discovery = await fetchDiscovery(
+      connection.oidcDiscoveryUrl,
+      isDevOrTestEnvironment(c.env),
+    )
 
     // 生成 state(>= 32 字节)、nonce、PKCE code_verifier。
     const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)))
@@ -266,13 +441,33 @@ async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
 
     const redirectAfterLogin =
       c.req.query('redirect_uri') ?? c.req.query('continue') ?? DEFAULT_AUTH_RETURN_PATH
+    const applicationClientId = c.req.query('client_id')?.trim() || null
+    const applicationContinuation = applicationClientId
+      ? resolveApplicationAuthorizeContinuation(redirectAfterLogin, applicationClientId)
+      : null
+    if (
+      (applicationClientId && !applicationContinuation) ||
+      (!applicationClientId && isAuthorizeContinuation(redirectAfterLogin))
+    ) {
+      throw new AppError('invalid_request')
+    }
+    if (applicationClientId) {
+      const applicationTenant = await resolveTenantContextByApplicationClientId(
+        c.req.raw,
+        c.env,
+        applicationClientId,
+      )
+      if (!applicationTenant.ok || applicationTenant.value.tenantId !== tenant.tenantId) {
+        throw new AppError('cross_tenant_access_denied')
+      }
+    }
     const returnToOrigin = new URL(c.req.url).origin
-    const invitationToken =
-      c.req.query('invitation_token') ?? c.req.query('invitationToken') ?? null
     const intent = c.req.query('intent') ?? null
+    if (isApplicationSignUpIntent(intent) && !applicationClientId) {
+      throw new AppError('invalid_request')
+    }
     const skipDefaultMembership = shouldSkipDefaultMembership({
       redirectAfterLogin,
-      invitationToken,
       intent,
     })
 
@@ -284,6 +479,7 @@ async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
       redirectAfterLogin,
       returnToOrigin,
       createdAt: Date.now(),
+      applicationClientId: applicationClientId ?? undefined,
       skipDefaultMembership,
     })
 
@@ -317,6 +513,7 @@ type ExchangeCodeParams = {
   code: string
   codeVerifier: string
   redirectUri: string
+  permitsLoopbackHttp: boolean
 }
 
 // 用 authorization_code + PKCE code_verifier 换 token(见 oidc-oauth rule code exchange)。
@@ -328,13 +525,33 @@ async function exchangeCode(p: ExchangeCodeParams): Promise<TokenResponse> {
     code_verifier: p.codeVerifier,
     redirect_uri: p.redirectUri,
   })
-  const res = await fetch(p.tokenEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
+  if (!isTrustedUpstreamUrl(p.tokenEndpoint, p.permitsLoopbackHttp)) {
+    throw new AppError('invalid_grant', { longMessage: 'Token endpoint is not public HTTPS' })
+  }
+  let res: Response
+  try {
+    res = await fetch(p.tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(OIDC_UPSTREAM_TIMEOUT_MS),
+    })
+  } catch (cause) {
+    throw new AppError('invalid_grant', { cause, longMessage: 'Token exchange failed' })
+  }
   if (!res.ok) throw new AppError('invalid_grant', { longMessage: 'Token exchange failed' })
-  return (await res.json()) as TokenResponse
+  let payload: unknown
+  try {
+    payload = await readBoundedJson(res, OIDC_TOKEN_MAX_BYTES)
+  } catch (cause) {
+    throw new AppError('invalid_grant', { cause, longMessage: 'Token response invalid' })
+  }
+  const parsed = v.safeParse(oidcTokenResponseSchema, payload)
+  if (!parsed.success) {
+    throw new AppError('invalid_grant', { longMessage: 'Token response invalid' })
+  }
+  return parsed.output
 }
 
 // OIDC callback query(RFC6749 4.1.2):成功带 code+state,失败带 error。形状失败保持
@@ -393,19 +610,30 @@ type FinalizeSessionParams = {
   orgId: string | null
   redirectAfterLogin: string
   returnToOrigin: string
+  applicationClientId?: string
 }
 
 async function finalizeSession(p: FinalizeSessionParams): Promise<Response> {
   const now = new Date()
-  const safeLocalRedirect = isLocalPath(p.redirectAfterLogin)
-    ? p.redirectAfterLogin
-    : DEFAULT_AUTH_RETURN_PATH
+  const applicationContinuation = p.applicationClientId
+    ? resolveApplicationAuthorizeContinuation(p.redirectAfterLogin, p.applicationClientId)
+    : null
+  if (
+    (p.applicationClientId && !applicationContinuation) ||
+    (!p.applicationClientId && isAuthorizeContinuation(p.redirectAfterLogin))
+  ) {
+    throw new AppError('invalid_request')
+  }
+  const safeLocalRedirect =
+    applicationContinuation ??
+    normalizeLocalContinuePath(p.redirectAfterLogin) ??
+    DEFAULT_AUTH_RETURN_PATH
   const mfaGate = await resolvePostAuthMfaGate(p.c, p.c.get('tenant'), {
     userId: p.userId,
     returnPath: safeLocalRedirect,
   })
   await issueSession(p.c, {
-    sessionId: crypto.randomUUID(),
+    sessionId: createPersistedId('session'),
     userId: p.userId,
     activeOrgId: p.orgId,
     ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
@@ -428,10 +656,23 @@ async function handleCallback(c: Context<XidHonoEnv>): Promise<Response> {
   const flow = await consumeFlow(c.env, state)
   if (!flow) throw new AppError('invalid_request', { longMessage: 'state_invalid' })
   assertOidcRpFlowPayload(flow)
+  if (flow.invitationToken !== undefined || isInvitationContinuePath(flow.redirectAfterLogin)) {
+    throw new AppError('invalid_request')
+  }
   const tenant = await resolveSsoFlowTenant(c, flow.tenantId)
   if (flow.tenantId !== tenant.tenantId) throw new AppError('cross_tenant_access_denied')
   if (flow.connectionId !== connectionId) {
     throw new AppError('invalid_request', { longMessage: 'connection_mismatch' })
+  }
+  if (flow.applicationClientId) {
+    const applicationTenant = await resolveTenantContextByApplicationClientId(
+      c.req.raw,
+      c.env,
+      flow.applicationClientId,
+    )
+    if (!applicationTenant.ok || applicationTenant.value.tenantId !== flow.tenantId) {
+      throw new AppError('cross_tenant_access_denied')
+    }
   }
 
   return withTenant(c, tenant, async () => {
@@ -443,14 +684,18 @@ async function handleCallback(c: Context<XidHonoEnv>): Promise<Response> {
     }
     await enforceEnterpriseSsoPolicy({ c, action: 'login', email: null })
 
-    const discovery = await fetchDiscovery(connection.oidcDiscoveryUrl)
-    const keySet = await buildProviderKeySet(await fetchProviderJwks(discovery.jwks_uri))
+    const permitsLoopbackHttp = isDevOrTestEnvironment(c.env)
+    const discovery = await fetchDiscovery(connection.oidcDiscoveryUrl, permitsLoopbackHttp)
+    const keySet = await buildProviderKeySet(
+      await fetchProviderJwks(discovery.jwks_uri, permitsLoopbackHttp),
+    )
     const tokens = await exchangeCode({
       tokenEndpoint: discovery.token_endpoint,
       clientId: connection.oidcClientId,
       code,
       codeVerifier: flow.codeVerifier,
       redirectUri: callbackUrl(flow.returnToOrigin, connectionId),
+      permitsLoopbackHttp,
     })
     const claims = await verifyIdToken({
       idToken: tokens.id_token,
@@ -468,13 +713,9 @@ async function handleCallback(c: Context<XidHonoEnv>): Promise<Response> {
       orgId: skipDefaultMembership ? null : connection.orgId,
       redirectAfterLogin: flow.redirectAfterLogin,
       returnToOrigin: flow.returnToOrigin,
+      ...(flow.applicationClientId ? { applicationClientId: flow.applicationClientId } : {}),
     })
   })
-}
-
-// 判断是否为本租户相对路径(防 open redirect)。
-function isLocalPath(url: string): boolean {
-  return url.startsWith('/') && !url.startsWith('//')
 }
 
 const oidcRp = new Hono<XidHonoEnv>()

@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/types",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Shared TypeScript type definitions for XID: tenant context, JWT claims, signing keys, WebAuthn and SAML structures.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Shared public TypeScript contracts for the XID identity platform.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,16 +20,42 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/types"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack --copy ../../LICENSE --copy src/cloudflare.d.ts",
     "check": "vp check",
     "test": "vp test --passWithNoTests"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@cloudflare/workers-types": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@cloudflare/workers-types": {
+      "optional": true
+    }
   }
 }

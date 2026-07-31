@@ -45,12 +45,18 @@ actor IDTokenVerifier {
         self.clockLeeway = clockLeeway
     }
 
-    func verifyAndDecodeUser(_ idToken: String) async throws -> XidUser {
-        let claims = try await verify(idToken)
+    func verifyAndDecodeUser(
+        _ idToken: String,
+        expectedNonce: String? = nil
+    ) async throws -> XidUser {
+        let claims = try await verify(idToken, expectedNonce: expectedNonce)
         return try IDTokenDecoder.user(from: claims)
     }
 
-    func verify(_ idToken: String) async throws -> [String: Any] {
+    func verify(
+        _ idToken: String,
+        expectedNonce: String? = nil
+    ) async throws -> [String: Any] {
         let parts = idToken.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3 else {
             throw XidError.idTokenVerificationFailed("JWT 格式错误: 应有 3 段")
@@ -99,13 +105,16 @@ actor IDTokenVerifier {
         }
 
         let claims = try IDTokenDecoder.decodePayload(idToken)
-        try validateClaims(claims)
+        try validateClaims(claims, expectedNonce: expectedNonce)
         return claims
     }
 
     // MARK: - Claim validation
 
-    private func validateClaims(_ claims: [String: Any]) throws {
+    private func validateClaims(
+        _ claims: [String: Any],
+        expectedNonce: String?
+    ) throws {
         let expectedIssuer = issuer.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         if let iss = claims["iss"] as? String {
             let normalizedIss = iss.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -139,6 +148,20 @@ actor IDTokenVerifier {
             }
         } else {
             throw XidError.idTokenVerificationFailed("缺少 exp claim")
+        }
+
+        try Self.validateNonce(claims: claims, expectedNonce: expectedNonce)
+    }
+
+    static func validateNonce(
+        claims: [String: Any],
+        expectedNonce: String?
+    ) throws {
+        guard let expectedNonce else {
+            return
+        }
+        guard let nonce = claims["nonce"] as? String, nonce == expectedNonce else {
+            throw XidError.idTokenVerificationFailed("nonce 不匹配")
         }
     }
 

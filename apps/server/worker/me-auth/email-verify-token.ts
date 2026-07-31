@@ -13,14 +13,20 @@ import { buildVerifyKeySet, loadActiveSigner } from '../oidc/shared'
 import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
 import { recordAuthTokenIssued } from '../auth/token-audit'
 import { EMAIL_VERIFY_TTL_MS } from '../lib/ttl'
+import { isHostedAuthIntent, type HostedAuthIntent } from '../../shared/hosted-auth-intent'
+import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 
 const PURPOSE = 'email_verification'
+const MAX_INVITATION_ID_LENGTH = 255
 
 export type VerifiedEmailToken = {
   jti: string
   userId: string
   emailHash: string
-  intent: 'sign-up' | null
+  intent: HostedAuthIntent | null
+  continuePath: string | null
+  applicationClientId: string | null
+  invitationId: string | null
 }
 
 // 签发邮箱验证 token + 持久化 jti 哈希(删旧同 purpose token),入队发验证邮件。
@@ -29,9 +35,27 @@ export async function issueEmailVerification(opts: {
   tenant: TenantVar
   userId: string
   email: string
-  intent?: 'sign-up'
+  intent?: HostedAuthIntent
+  continuePath?: string | null
+  applicationClientId?: string | null
+  invitationId?: string | null
 }): Promise<void> {
   const { env, tenant, userId, email, intent } = opts
+  if (intent !== undefined && !isHostedAuthIntent(intent)) throw new AppError('invalid_request')
+  const invitationId = opts.invitationId?.trim() || null
+  if (invitationId) {
+    throw new AppError('invalid_request')
+  }
+  const flow = resolveHostedAuthFlow({
+    intent,
+    continuePath: opts.continuePath,
+    applicationClientId: opts.applicationClientId,
+    hasInvitation: invitationId !== null,
+  })
+  if (!flow) throw new AppError('invalid_request')
+  const hasFlowContext = Boolean(
+    intent || opts.continuePath || opts.applicationClientId || invitationId,
+  )
   const normalizedEmail = email.trim().toLowerCase()
   const origin = hostedAuthOriginForTenant(tenant)
   const signer = await loadActiveSigner(tenant, env.KEK)
@@ -46,7 +70,9 @@ export async function issueEmailVerification(opts: {
     purpose: PURPOSE,
     tenant_id: tenant.tenantId,
     email_hash: await sha256Hex(normalizedEmail),
-    ...(intent ? { intent } : {}),
+    ...(flow.intent ? { intent: flow.intent } : {}),
+    ...(hasFlowContext ? { continue_path: flow.continuePath } : {}),
+    ...(flow.applicationClientId ? { client_id: flow.applicationClientId } : {}),
   }
   const token = await signJwt(
     { header: { alg: signer.alg, kid: signer.kid }, payload },
@@ -101,13 +127,66 @@ export async function verifyEmailVerifyJwt(
   if (!verified.ok) {
     throw new AppError(verified.error.reason === 'expired' ? 'token_expired' : 'token_invalid')
   }
-  const { sub: userId, jti, purpose, email_hash: emailHash, intent } = verified.value.payload
+  const {
+    sub: userId,
+    jti,
+    purpose,
+    email_hash: emailHash,
+    intent,
+    continue_path: rawContinuePath,
+    client_id: rawApplicationClientId,
+    invitation_id: rawInvitationId,
+  } = verified.value.payload
   if (!userId || !jti || purpose !== PURPOSE) throw new AppError('token_invalid')
   if (typeof emailHash !== 'string' || !/^[0-9a-f]{64}$/.test(emailHash)) {
     throw new AppError('token_invalid')
   }
-  if (intent !== undefined && intent !== 'sign-up') throw new AppError('token_invalid')
-  return { jti, userId, emailHash, intent: intent ?? null }
+  if (
+    (intent !== undefined && (typeof intent !== 'string' || !isHostedAuthIntent(intent))) ||
+    (rawContinuePath !== undefined && typeof rawContinuePath !== 'string') ||
+    (rawApplicationClientId !== undefined && typeof rawApplicationClientId !== 'string') ||
+    (rawInvitationId !== undefined &&
+      (typeof rawInvitationId !== 'string' ||
+        !rawInvitationId ||
+        rawInvitationId.length > MAX_INVITATION_ID_LENGTH))
+  ) {
+    throw new AppError('token_invalid')
+  }
+  const hasFlowContext =
+    intent !== undefined ||
+    rawContinuePath !== undefined ||
+    rawApplicationClientId !== undefined ||
+    rawInvitationId !== undefined
+  // Tokens issued immediately before the flow-context rollout carried only intent=sign-up.
+  // Preserve that exact in-flight shape for one TTL window by mapping it to the same canonical
+  // product onboarding destination; no client or invitation binding is inferred.
+  const legacyProductSignUp =
+    intent === 'sign-up' &&
+    rawContinuePath === undefined &&
+    rawApplicationClientId === undefined &&
+    rawInvitationId === undefined
+  const flow = resolveHostedAuthFlow({
+    intent: typeof intent === 'string' ? intent : null,
+    continuePath: typeof rawContinuePath === 'string' ? rawContinuePath : null,
+    applicationClientId: typeof rawApplicationClientId === 'string' ? rawApplicationClientId : null,
+    hasInvitation: rawInvitationId !== undefined,
+  })
+  if (
+    !flow ||
+    (hasFlowContext && !legacyProductSignUp && rawContinuePath !== flow.continuePath) ||
+    (!hasFlowContext && rawContinuePath !== undefined)
+  ) {
+    throw new AppError('token_invalid')
+  }
+  return {
+    jti,
+    userId,
+    emailHash,
+    intent: hasFlowContext ? flow.intent : null,
+    continuePath: hasFlowContext ? flow.continuePath : null,
+    applicationClientId: hasFlowContext ? flow.applicationClientId : null,
+    invitationId: typeof rawInvitationId === 'string' ? rawInvitationId : null,
+  }
 }
 
 // 按 tokenHash=sha256(jti) 加载可消费行，调用方可把消费与目标 Email 更新放进同一 D1 transaction。

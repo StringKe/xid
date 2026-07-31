@@ -8,6 +8,7 @@ import { verifyRegistration } from '@xid-kit/webauthn'
 import { and, eq, isNull, lte } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { WEBAUTHN_CHALLENGE_TTL_MS } from '../lib/ttl'
 
@@ -195,7 +196,7 @@ export async function persistNewCredential(opts: {
   )
   try {
     await db.passkeyCredentials.insert({
-      id: crypto.randomUUID(),
+      id: createPersistedId('passkeyCredential'),
       tenantId,
       userId,
       credentialId: credentialIdBase64,
@@ -218,7 +219,7 @@ export async function persistNewCredential(opts: {
 
   if (sessionAmrIncludesPhr(opts.sessionAmr)) {
     await db.mfaFactors.insert({
-      id: `mf_${crypto.randomUUID()}`,
+      id: createPersistedId('mfaFactor'),
       tenantId,
       userId,
       factorType: 'passkey',

@@ -46,19 +46,21 @@ const state: XidState = {
   error: null,
 }
 
-function makeClient(): XidClient {
+function makeClient(
+  signOutResult: Awaited<ReturnType<XidClient['signOut']>> = { ok: true, value: null },
+): XidClient {
   return {
     getSnapshot: () => state,
     subscribe: () => () => {},
-    signOut: vi.fn().mockResolvedValue(undefined),
+    signOut: vi.fn().mockResolvedValue(signOutResult),
     setActiveSession: vi.fn().mockResolvedValue({ ok: true, value: state }),
   } as unknown as XidClient
 }
 
-function renderUserButton(): ReturnType<typeof render> {
+function renderUserButton(client: XidClient = makeClient()): ReturnType<typeof render> {
   return render(
     <I18nProvider i18n={i18n}>
-      <XidContext.Provider value={{ client: makeClient(), publishableKey: 'pk_test' }}>
+      <XidContext.Provider value={{ client, mode: 'same-origin' }}>
         <UserButton />
       </XidContext.Provider>
     </I18nProvider>,
@@ -117,6 +119,45 @@ describe('UserButton popover', () => {
     if (!menu) throw new Error('menu not rendered')
     fireEvent.pointerDown(menu)
 
+    expect(document.querySelector('.xid-user-button__popover')).not.toBeNull()
+  })
+
+  it('keeps the popover open when sign-out returns a business error', async () => {
+    const client = makeClient({
+      ok: false,
+      error: {
+        code: 'temporarily_unavailable',
+        message: 'Try again later.',
+        httpStatus: 503,
+      },
+    })
+    renderUserButton(client)
+    openPopover()
+
+    const signOut = document.querySelector<HTMLButtonElement>('.xid-user-button__sign-out')
+    if (!signOut) throw new Error('sign-out button not rendered')
+    fireEvent.click(signOut)
+
+    await waitFor(() => expect(signOut.disabled).toBe(false))
+    expect(document.querySelector('.xid-user-button__popover')).not.toBeNull()
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe('Try again later.')
+    expect(client.signOut).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces a localized fallback when sign-out throws', async () => {
+    const client = makeClient()
+    vi.mocked(client.signOut).mockRejectedValueOnce(new TypeError('offline'))
+    renderUserButton(client)
+    openPopover()
+
+    const signOut = document.querySelector<HTMLButtonElement>('.xid-user-button__sign-out')
+    if (!signOut) throw new Error('sign-out button not rendered')
+    fireEvent.click(signOut)
+
+    await waitFor(() => expect(signOut.disabled).toBe(false))
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      'Could not sign out. Try again.',
+    )
     expect(document.querySelector('.xid-user-button__popover')).not.toBeNull()
   })
 })

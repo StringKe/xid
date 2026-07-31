@@ -11,10 +11,13 @@ import type {
   SmsQueueMessage,
   AuditQueueMessage,
   WebhookQueueMessage,
-  MeteringQueueMessage,
+  MeteringQueueEnvelope,
+  PrivacyQueueMessage,
+  ScimSyncQueueMessage,
+  CloudflareForSaasEnv,
 } from '@xid-kit/types'
 
-type WorkerEnv = {
+type WorkerBindings = {
   // D1 / KV / R2 / Email / Analytics
   DB: D1Database
   CACHE: KVNamespace
@@ -24,8 +27,12 @@ type WorkerEnv = {
 
   // SPA 静态资源
   ASSETS: Fetcher
+  // Cloudflare exact Worker Routes do not match query variants. Core owns the fallback and
+  // delegates only requests that the shared route contract assigns to a frontend Worker.
+  SITE_WORKER: Fetcher
+  CONSOLE_WORKER: Fetcher
 
-  // Durable Objects(8 个,见 wrangler.jsonc durable_objects)
+  // Durable Objects(11 个,见 wrangler.jsonc durable_objects)
   SESSION_REVOCATION: DurableObjectNamespace
   WEBAUTHN_CHALLENGE: DurableObjectNamespace
   OAUTH_STATE: DurableObjectNamespace
@@ -35,17 +42,25 @@ type WorkerEnv = {
   AUDIT_SEQ: DurableObjectNamespace
   METERING: DurableObjectNamespace
   GUEST_STORE: DurableObjectNamespace
+  CIBA_STATE: DurableObjectNamespace
+  IMPERSONATION_GRANTS: DurableObjectNamespace
 
-  // Queues(6 条,消息体类型来自 @xid-kit/types)
+  // Queues(8 条,消息体类型来自 @xid-kit/types)
   EMAIL_QUEUE: Queue<EmailQueueMessage>
   WHATSAPP_QUEUE: Queue<WhatsappQueueMessage>
   SMS_QUEUE: Queue<SmsQueueMessage>
   AUDIT_QUEUE: Queue<AuditQueueMessage>
   WEBHOOK_QUEUE: Queue<WebhookQueueMessage>
-  METERING_QUEUE: Queue<MeteringQueueMessage>
+  METERING_QUEUE: Queue<MeteringQueueEnvelope>
+  SCIM_QUEUE: Queue<ScimSyncQueueMessage>
+  PRIVACY_QUEUE: Queue<PrivacyQueueMessage>
 
   // 非敏感运行时配置
   ENVIRONMENT: string
+  // Cloudflare Email Service 默认发件人。自托管部署通过 Workers variables 覆盖,
+  // 不需要也不应修改 Queue consumer 源码。
+  EMAIL_FROM_ADDRESS?: string
+  EMAIL_FROM_NAME?: string
 
   // Workers Secrets(wrangler types 不输出 secrets)
   // KEK:信封加密主密钥(base64 编码 32 字节 AES-256-GCM 密钥,见 signing-keys rule)
@@ -54,8 +69,27 @@ type WorkerEnv = {
   PEPPER: string
   // BOOTSTRAP_TOKEN:可选,seed/bootstrap 接口门控(配置则强制 X-Bootstrap-Token 匹配,防公网滥用)
   BOOTSTRAP_TOKEN?: string
-  // TURNSTILE_SECRET:可选,Turnstile siteverify secret;未配置时认证端点跳过人机校验(dev/test)
+  // Turnstile 必须成对配置:site key 是公开 runtime var,secret 是 Workers Secret。
+  // 两者都未配置时 dev/test 跳过;只配置任一项时认证配置与校验均 fail closed。
+  TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET?: string
+  // LDAP HTTP gateway bearer credential. Production LDAP bind fails closed when absent.
+  LDAP_GATEWAY_SHARED_SECRET?: string
+  // Optional managed-service billing adapter. Unset for ordinary self-hosted deployments.
+  STRIPE_SECRET_KEY?: string
+  STRIPE_WEBHOOK_SECRET?: string
+  STRIPE_STARTER_PRICE_ID?: string
+  STRIPE_PRO_PRICE_ID?: string
+  STRIPE_ENTERPRISE_PRICE_ID?: string
+  STRIPE_METER_EVENT_NAME?: string
+  // Social provider credential bindings. Built-ins have fixed names; custom providers are mapped
+  // by the deployment operator through this non-secret JSON object.
+  SOCIAL_PROVIDER_SECRET_BINDINGS?: string
+  GOOGLE_CLIENT_SECRET?: string
+  GITHUB_CLIENT_SECRET?: string
+  MICROSOFT_CLIENT_SECRET?: string
+  APPLE_CLIENT_SECRET?: string
+  GITHUB_EMU_CLIENT_SECRET?: string
   // WhatsApp provider:支持 twilio / meta。未配置时 WhatsApp OTP 不可见且 direct API 策略拒绝。
   WHATSAPP_PROVIDER?: 'twilio' | 'meta'
   WHATSAPP_FROM?: string
@@ -77,9 +111,11 @@ type WorkerEnv = {
   WEBAUTHN_TRUSTED_ROOTS_PEM?: string
 }
 
+type WorkerEnv = CloudflareForSaasEnv & WorkerBindings
+
 declare global {
   // 全局 Env:供 worker/index.ts 与 Hono<{ Bindings: Env }> 使用。
-  interface Env extends WorkerEnv {}
+  interface Env extends CloudflareForSaasEnv, WorkerBindings {}
 }
 
 // 命名导出供 import type { Env } from '../env'(等价全局 Env,含 ASSETS)。

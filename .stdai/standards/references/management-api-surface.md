@@ -34,26 +34,56 @@ to reference a resource and need to confirm it actually exists. Design source:
 - Dual auth for org-scoped resources: `requireApiKeyOrOrgManager` accepts either an `sk_*` bearer or a
   cookie session belonging to an org `owner` / `admin` / platform `org_manager`. Flat tenant-level
   resources use `requireApiKeyOrTopLevelOrgManager`. Never hand-roll either check.
+- Project-scoped dual auth lives in `v1/project-access.ts`. API keys keep their resource scopes.
+  Cookie sessions are narrowed to the exact `project_manager` Project or
+  `project_grant_manager` ProjectGrant; the recipient Organization owner/admin can manage
+  UserGrants for its own active members. Neither Project manager role becomes Organization Admin.
 
 ### Implemented resources
 
 `/v1/users`, `/v1/organizations` (plus nested members, roles, domains, branding, auth-policy,
 delivery-channels, social-providers, sso-connections, directories, outbound-saml-apps, scim-targets,
-audit-events), `/v1/organizations/:orgId/memberships`, `/v1/organizations/:orgId/invitations`,
-`/v1/sessions`, `/v1/applications`, `/v1/connections` (SSO), `/v1/directories` (SCIM), `/v1/roles`,
-`/v1/permissions`, `/v1/webhooks`, `/v1/api-keys`, `/v1/project-grants`.
+custom-hostnames, audit-events), `/v1/organizations/:orgId/memberships`,
+`/v1/organizations/:orgId/invitations`,
+`/v1/sessions`, `/v1/applications`, `/v1/connections` (SSO), `/v1/directories` (SCIM), `/v1/projects`,
+`/v1/roles`, `/v1/permissions`, `/v1/role-permissions`, `/v1/manager-assignments`, `/v1/webhooks`,
+`/v1/api-keys`, `/v1/project-grants`, `/v1/user-grants`.
+
+Projects provide tenant-scoped CRUD plus soft delete and restore. Role-permission mappings provide
+list/create/read/update/delete for active Role and Permission records in the same active Project.
+Manager assignments provide tenant-scoped list/provision/revoke for the fixed
+`org_manager`/`org`, `project_manager`/`project`, and `project_grant_manager`/`grant` pairs.
+`instance_manager` remains exclusively under `/v1/platform/*` and is deliberately invisible to the
+tenant-scoped manager-assignment routes.
 
 Registration is centralized in `apps/server/worker/v1/index.ts`; each module exports its own
 `register*` function. Do not mount routes directly from `worker/index.ts`.
 
+Custom hostnames use `custom_hostnames:read` / `custom_hostnames:write`. Create reserves the concrete
+hostname globally before calling Cloudflare for SaaS. Refresh requires the exact provider id and
+hostname to match. Delete is remote-first and retains a local tombstone. Local evidence exists, but
+real provider, DNS, certificate and traffic evidence remains `UNKNOWN`.
+
 Adjacent but separate route families, do not conflate them with the Management API:
 `/v1/me/*` is the self-service account portal (cookie session, not `sk_*`), and `/v1/platform/*` is the
-instance-manager console (cookie session + `requireInstanceManager`), which is where the read-only
-billing overview lives.
+instance-manager Console API (cookie session + `requireInstanceManager`). The platform family owns
+organization plans and quotas, optional Stripe Checkout / Portal configuration, user impersonation,
+announcements, status incidents, compliance evidence, audit views and Queue dead-letter operations.
+`GET /v1/platform/audit/verify` synchronously recomputes a bounded audit chain range in D1 batches;
+the Console exposes the diagnostic. A Queue/KV verification job is not implemented.
+`/v1/platform/dead-letters` exposes only redacted metadata;
+`POST /v1/platform/dead-letters/:id/replay` decrypts inside Core and routes only to the recorded
+source Queue. Neither ciphertext nor plaintext payload is returned to Console.
+
+The signed Stripe callback is the public `/v1/billing/stripe/webhook` route and is registered before
+tenant middleware. It is not a Management API or Console mutation. Repository evidence covers
+signature validation, idempotency, ordering and crash-safe MAU retries; real Stripe provider L4
+remains `UNKNOWN`.
 
 Resources described in chapter 06 but NOT implemented: `emailAddresses`, `phoneNumbers`,
-`allowlistIdentifiers`, `oauthApplications`, `redirectUrls`, user impersonation, and billing CRUD. Do
-not reference them as if they exist.
+`allowlistIdentifiers`, `oauthApplications`, `redirectUrls`, and invoice/payment-method/subscription
+CRUD. Do not reference them as if they exist. Platform accounting plans and quotas are implemented,
+but they are not a licensing gate and they do not imply the missing financial-record CRUD.
 
 ## SDK Layering
 
@@ -106,7 +136,8 @@ Publishable keys use the `pk_test_` / `pk_live_` prefixes, secret keys `sk_test_
 worker accepts both secret prefixes identically -- environment separation comes from the deployment,
 not from the prefix.
 
-Turnstile verification is skipped when `TURNSTILE_SECRET` is unset, which is how local dev bypasses bot
-checks; when the secret is set, siteverify is enforced with a 5s timeout. The `/test-harness/*` routes
+Turnstile verification is skipped only when both `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` are
+unset, which is how local dev bypasses bot checks. A partial pair fails closed; a complete pair
+enforces Siteverify with a 5s timeout and action validation. The `/test-harness/*` routes
 (fake IdP, fake social provider, fake LDAP, fake SWA, fake WS-Fed, OTP capture) exist for development
 and test only and MUST NOT be reachable in production.

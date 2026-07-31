@@ -7,9 +7,15 @@ import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
-import { idAfterCursor, requireApiKey, paginate, parsePagination } from './shared'
+import {
+  authorizeProjectManagement,
+  authorizeProjectRead,
+  requireProjectAccessActor,
+} from './project-access'
+import { emitManagementAuditAsync, idAfterCursor, paginate, parsePagination } from './shared'
 
 const app = new Hono<XidHonoEnv>()
 
@@ -33,6 +39,8 @@ function toResponse(row: typeof schema.roles.$inferSelect) {
     key: row.key,
     display_name: row.displayName,
     group: row.group,
+    status: row.status,
+    deleted_at: row.deletedAt,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   }
@@ -40,14 +48,30 @@ function toResponse(row: typeof schema.roles.$inferSelect) {
 
 // GET /v1/roles
 app.get('/', async (c) => {
-  await requireApiKey(c, 'roles:read')
+  const actor = await requireProjectAccessActor(c, 'roles:read')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const { limit, cursor } = parsePagination(c)
   const projectId = c.req.query('project_id')
-  const active = eq(schema.roles.status, 'active')
+  const status = c.req.query('status') ?? 'active'
+  if (!['active', 'deleted', 'all'].includes(status)) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'status' },
+    })
+  }
+  if (actor.kind === 'session' && !projectId) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'project_id' },
+    })
+  }
+  if (projectId) {
+    await authorizeProjectRead(c, actor, projectId, c.req.query('grant_id'))
+  }
   const after = idAfterCursor(schema.roles.id, cursor)
-  const filters = projectId ? [eq(schema.roles.projectId, projectId), active] : [active]
+  const filters = projectId ? [eq(schema.roles.projectId, projectId)] : []
+  if (status !== 'all') filters.push(eq(schema.roles.status, status))
   if (after) filters.push(after)
   const rows = await db.roles.findMany(and(...filters), {
     orderBy: asc(schema.roles.id),
@@ -58,7 +82,7 @@ app.get('/', async (c) => {
 
 // POST /v1/roles
 app.post('/', async (c) => {
-  await requireApiKey(c, 'roles:write')
+  const actor = await requireProjectAccessActor(c, 'roles:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -66,6 +90,7 @@ app.post('/', async (c) => {
   const body = validateBody(createRoleBodySchema, json.value)
 
   const projectId = body.project_id
+  await authorizeProjectManagement(c, actor, projectId)
   const key = body.key
   const displayName = body.display_name
 
@@ -83,13 +108,20 @@ app.post('/', async (c) => {
       },
       eq(schema.roles.id, existing.id),
     )
-    return c.json(toResponse(updated[0]!), 201)
+    const row = updated[0]!
+    emitManagementAuditAsync(c, {
+      action: 'management.role.restored',
+      actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+      targetType: 'role',
+      targetId: row.id,
+    })
+    return c.json(toResponse(row), 201)
   }
   if (existing)
     throw new AppError('already_exists', { longMessage: 'role key already exists in project' })
 
   const row = await db.roles.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('role'),
     tenantId: tenant.tenantId,
     projectId,
     key,
@@ -97,32 +129,43 @@ app.post('/', async (c) => {
     group: body.group,
   })
 
+  emitManagementAuditAsync(c, {
+    action: 'management.role.created',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'role',
+    targetId: row.id,
+  })
   return c.json(toResponse(row), 201)
 })
 
 // GET /v1/roles/:id
 app.get('/:id', async (c) => {
-  await requireApiKey(c, 'roles:read')
+  const actor = await requireProjectAccessActor(c, 'roles:read')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const row = await db.roles.findOne(
     and(eq(schema.roles.id, c.req.param('id')), eq(schema.roles.status, 'active')),
   )
   if (!row) throw new AppError('not_found')
+  await authorizeProjectRead(c, actor, row.projectId, c.req.query('grant_id'))
   return c.json(toResponse(row))
 })
 
 // PATCH /v1/roles/:id
 app.patch('/:id', async (c) => {
-  await requireApiKey(c, 'roles:write')
+  const actor = await requireProjectAccessActor(c, 'roles:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(patchRoleBodySchema, json.value)
+  if (Object.keys(body).length === 0) {
+    throw new AppError('validation_failed', { httpStatus: 422 })
+  }
   const where = and(eq(schema.roles.id, c.req.param('id')), eq(schema.roles.status, 'active'))
   const existing = await db.roles.findOne(where)
   if (!existing) throw new AppError('not_found')
+  await authorizeProjectManagement(c, actor, existing.projectId)
 
   const patch: Partial<typeof schema.roles.$inferInsert> = {}
   if (body.display_name !== undefined) patch.displayName = body.display_name
@@ -131,32 +174,52 @@ app.patch('/:id', async (c) => {
   const updated = await db.roles.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  emitManagementAuditAsync(c, {
+    action: 'management.role.updated',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'role',
+    targetId: row.id,
+  })
   return c.json(toResponse(row))
 })
 
 // DELETE /v1/roles/:id
 app.delete('/:id', async (c) => {
-  await requireApiKey(c, 'roles:write')
+  const actor = await requireProjectAccessActor(c, 'roles:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(eq(schema.roles.id, c.req.param('id')), eq(schema.roles.status, 'active'))
   const existing = await db.roles.findOne(where)
   if (!existing) throw new AppError('not_found')
+  await authorizeProjectManagement(c, actor, existing.projectId)
   await db.roles.update({ status: 'deleted', deletedAt: new Date() }, where)
+  emitManagementAuditAsync(c, {
+    action: 'management.role.deleted',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'role',
+    targetId: existing.id,
+  })
   return new Response(null, { status: 204 })
 })
 
 // POST /v1/roles/:id/restore
 app.post('/:id/restore', async (c) => {
-  await requireApiKey(c, 'roles:write')
+  const actor = await requireProjectAccessActor(c, 'roles:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(eq(schema.roles.id, c.req.param('id')), eq(schema.roles.status, 'deleted'))
   const existing = await db.roles.findOne(where)
   if (!existing) throw new AppError('not_found')
+  await authorizeProjectManagement(c, actor, existing.projectId)
   const updated = await db.roles.update({ status: 'active', deletedAt: null }, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  emitManagementAuditAsync(c, {
+    action: 'management.role.restored',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'role',
+    targetId: row.id,
+  })
   return c.json(toResponse(row))
 })
 

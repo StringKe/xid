@@ -13,6 +13,7 @@ import { listEligiblePasskeyCredentials } from '../auth/passkey-mfa-eligibility'
 import { PASSKEY_LIMIT } from '../auth/passkey-helpers'
 import { activateTotp, createTotpFactor } from '../auth/mfa'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { otpCodeSchema, readJsonBody, validateBody } from '../lib/validate'
 import { smsDeliveryReady } from '../auth/delivery-channels'
@@ -215,7 +216,7 @@ app.post('/totp/setup', async (c) => {
     d1: c.env.DB,
     kekRaw: c.env.KEK,
     userId: session.userId,
-    factorId: `mf_${crypto.randomUUID()}`,
+    factorId: createPersistedId('mfaFactor'),
   })
   const label = await currentUserLabel(db, session.userId)
   const body: TotpSetupResponse = {
@@ -236,7 +237,7 @@ app.post('/totp/verify', async (c) => {
   const result = await activateTotp({
     ctx: tenant,
     d1: c.env.DB,
-    cache: c.env.CACHE,
+    replayStore: c.env.WEBAUTHN_CHALLENGE,
     kekRaw: c.env.KEK,
     userId: session.userId,
     factorId: body.factorId,

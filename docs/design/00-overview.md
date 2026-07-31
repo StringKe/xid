@@ -82,11 +82,11 @@ Edge routing More-specific Worker Routes select Site and Console paths; Core rem
 i18n         Full lingui stack (@lingui/core + @lingui/react + @lingui/cli + macros, ICU, po format)
 Cryptography Web Crypto (crypto.subtle)
 ORM/DB       Drizzle ORM + D1 (relational data)
-Strong consistency  Durable Objects (WebAuthn challenge / OAuth state / session revocation / rate limiting)
-Cache        KV (JWKS / discovery / branding configuration cache)
-Objects      R2 (avatars / logos / email language packs / export files / GeoIP MMDB)
-Async        Queues (email / audit / webhook / metering)
-Scheduled    Cron Triggers (cleanup / key rotation / certificate polling / DAU aggregation / domain verification polling)
+Strong consistency  11 Durable Objects (WebAuthn and TOTP replay / OAuth, PAR, device and CIBA state / session revocation / rate limiting / audit sequence / metering / guest dedupe / impersonation grants)
+Cache        KV (JWKS / discovery / branding / feature flags / upstream keys and trust anchors)
+Objects      R2 (organization logos / email locale packs / private privacy exports / immutable compliance evidence)
+Async        8 business Queues (email / SMS / WhatsApp / audit / webhook / metering / outbound SCIM / privacy) plus source-specific DLQ and quarantine Queues
+Scheduled    Cron Triggers (hourly cleanup; daily signing key, custom hostname, domain, SAML, usage, privacy and guest maintenance)
 Secrets      Workers Secrets (KEK / pepper / provider credentials) + envelope encryption stored in D1
 Human check  Turnstile
 Edge         WAF + Rate Limiting
@@ -113,6 +113,12 @@ Cloudflare selects these runtimes through explicit, more-specific Worker Routes.
 enumerated public and locale paths, Console owns only `/console` and `/console/*`, and the Core
 Custom Domain plus tenant wildcard remain the fallback. No front proxy Worker is introduced, and
 neither Site nor Console may claim a broad apex catch-all.
+
+Worker Route matching includes the query string, so an exact frontend route can fall through to the
+Core Custom Domain when a query is present. Core resolves the same ownership contract and delegates
+only those requests through one-way `SITE_WORKER` or `CONSOLE_WORKER` Service Bindings. The original
+Request is preserved, frontend Workers do not bind back to Core, and unknown or overmatched paths
+remain in Core.
 
 The private `@xid-kit/web-ui` package contains the UI primitives, theme, locale, session, API client,
 query helpers, and router adapter shared by Hosted UI and Console. The protocol, WebAuthn, crypto,
@@ -212,6 +218,12 @@ The instance login resolver selects the target org/tenant under the apex domain:
 
 Protocol boundaries for requests under the apex domain:
 
+- An OAuth/OIDC request has a stable protocol owner: the active Application selected by the
+  validated `client_id`. Its top-level Tenant is resolved before the browser cookie and remains the
+  data, policy, and signing context for the complete authorize, token, userinfo, logout, PAR, device,
+  and CIBA transaction. A cookie from another top-level Tenant is treated as unauthenticated. The
+  current implementation does not authorize users across top-level Tenants; ProjectGrant only spans
+  Organizations inside one top-level Tenant.
 - Hosted UI origin is `https://xid.dev`. Transactional email magic link, OTP, reset, and verify links
   point back to the apex domain by default, and the resolver reconstructs the authentication context
   from there.
@@ -244,6 +256,10 @@ are not production routes, ordinary entry points, compatibility redirects, or de
 semantics. The apex-domain entry point MUST NOT be hard-coded to `admin`, `app`, or `default`; it
 MUST go through the instance login resolver.
 
+The instance, root Organization and quota, signing key, initial manager User and Email, owner
+Membership, and `instance_manager` assignment MUST be created by one D1 batch transaction. A failed
+statement leaves no bootstrap resource rows and keeps the complete request retryable.
+
 Note: under multi-tenancy the RPID MUST be the specific tenant subdomain and MUST NOT be set to the
 parent domain. Otherwise a user of tenant A would see their own passkeys on tenant B's sign-in page,
 which breaks both isolation and privacy.
@@ -253,35 +269,45 @@ which breaks both isolation and privacy.
 ### 6.2 Custom domains (enterprise feature)
 
 Tenants can white-label to `auth.customer.com` through Cloudflare for SaaS Custom Hostnames. The
-state machine:
+implemented state machine is:
 
 ```
-Backend POST /custom_hostnames (ssl.method=txt)
-  -> Immediately bind the ownership_verification token to that tenant (prevents squatting)
-  -> Show the tenant three DNS records:
+POST /v1/organizations/:orgId/custom-hostnames
+  -> Normalize the external hostname and reserve it globally in D1 before the provider call
+  -> Cloudflare API POST /custom_hostnames (ssl.method=txt, type=dv)
+  -> Bind ownership_verification to the initiating tenant with a 24-hour expiry
+  -> Show the tenant up to three DNS record groups:
      1. Ownership TXT:  _cf-custom-hostname.auth.customer.com TXT <token>
-     2. DCV delegation CNAME: _acme-challenge.auth.customer.com CNAME auth.customer.com.<zone-DCV-UUID>
-     3. Traffic CNAME: auth.customer.com CNAME <fallback-origin>
-  -> Cloudflare automatically verifies ownership, waits for DNS, then issues the certificate (ECDSA+RSA, 90 days, auto-renewed 30 days before expiry)
-  -> status: active
-  -> Worker route */* intercepts, and the tenant context is loaded by reverse lookup on the Host header
+     2. DCV delegation CNAME, once Cloudflare returns it asynchronously
+     3. Traffic CNAME: auth.customer.com CNAME <configured-friendly-target-or-active-fallback-origin>
+  -> Daily maintenance polls Cloudflare and refreshes hostname, SSL and DCV state
+  -> status becomes active only when hostname status=active AND ssl.status=active
+  -> Core Worker route */* intercepts, and TenantContext reverse-resolves the active Host
 ```
 
-- DCV delegation: the tenant configures `_acme-challenge` once as a CNAME, and every 90-day renewal
-  after that is fully automatic
-- Anti-squatting: the ownership token MUST be bound to the initiating tenant's account and MUST have
-  an expiry
-- Anti-takeover: when a tenant deletes a custom domain, the backend MUST call
-  `DELETE /custom_hostnames/{id}` in the same flow and tell the tenant to remove the CNAME
-- Pricing: Free/Pro/Biz include 100 custom hostnames, then $0.10 each up to 50000; wildcard custom
-  hostnames are Enterprise only
+- Ownership verification and certificate DCV are separate provider states. A successful ownership
+  check does not make the hostname routable until SSL is active.
+- Cloudflare can return DCV records after the create response. The Console exposes refresh and the
+  daily job eventually surfaces those records; an empty initial DCV list is not treated as success.
+- An unverified ownership reservation expires after 24 hours. Cleanup calls the remote delete first
+  and releases the local reservation only after that succeeds.
+- Explicit deletion also calls the remote delete first. The local deleted tombstone remains globally
+  unique so stale customer DNS cannot be claimed by another tenant; the same organization can
+  re-provision it.
+- Wildcard custom hostnames are rejected. This implementation accepts one concrete external
+  hostname at a time.
+- Local API, isolation, resolver and cron evidence exists. A real Cloudflare for SaaS account,
+  customer DNS, certificate issuance and traffic cutover have not been exercised in production and
+  remain `UNKNOWN`.
 
 ### 6.3 WebAuthn RPID under custom domains
 
 `auth.customer.com` is a separate eTLD+1, so the RPID switches to that domain. Passkeys already
 registered under `{tenant}.xid.dev` will not work on the new domain, so enabling a custom domain MUST
 explicitly prompt users to re-register their passkeys (the same approach Auth0 and Clerk take).
-Related Origin Requests (ROR) is a later optimization and is not in the first release.
+The Console shows this warning before creation and on every hostname that carries the migration
+flag. The OIDC issuer remains the instance issuer; only `hostedAuthOrigin` and `rpId` move to the
+active custom hostname. Related Origin Requests (ROR) is not implemented.
 
 ## 7. Security trust model
 
@@ -323,6 +349,14 @@ detection. See chapter 01.
 Rate Limiting (network) + Turnstile (forms) + Durable Objects (business logic). Account enumeration
 defense: uniform error messages plus constant-time responses. See chapters 01 and 07.
 
+The versioned expected edge policy is
+`docs/deployment/cloudflare-security-rules.v1.json`. The hosted `xid.dev` zone uses the Cloudflare
+Free WAF plan, so the baseline deliberately fits its limits: no more than five custom rules, one
+rate-limiting rule, and only Free-plan fields and actions. The manifest remains `EXTERNAL` until a
+read-only zone reconciliation proves that live phase entry points match it. Edge limiting is a
+coarse shield only; `RateLimitStore` remains the fail-closed, strongly consistent authority for
+identity-flow and per-tenant business limits.
+
 ### 7.5 Compliance roadmap
 
 SOC 2 Type II (P0, the price of entry for B2B) -> GDPR DPA (P0) -> ISO 27001 (P1) -> OpenID Certified
@@ -331,21 +365,21 @@ sub-service-organization evidence, but application-layer controls remain our res
 
 ## 8. Cloudflare service mapping
 
-| Service                         | Purpose                                                                                                                                        |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core Worker + Hono              | Protocol, Hosted Auth, account, Management API, bindings, queues, crons, and identity business logic                                           |
-| Nimbus Site Worker              | Canonical apex documentation hub, 8-locale public docs, SEO, Pagefind, Markdown and LLM outputs, and `www` 308                                  |
-| Console Worker                  | Static org and instance management SPA on apex and tenant-host `/console`, with no Core bindings                                               |
-| Worker Routes                   | More-specific Site and Console path ownership over the Core Custom Domain and tenant wildcard fallback, with no front proxy                    |
-| D1                              | Users, applications, groups, credential metadata, authorization codes, refresh tokens, audit, tenants, key ciphertext, sessions                |
-| Durable Objects                 | WebAuthn challenges, OAuth state/nonce/PKCE, session revocation sets, per-tenant rate limiting (strong consistency, replay defense)            |
-| KV                              | JWKS, discovery, branding configuration, feature flag cache                                                                                    |
-| R2                              | Avatars, logos, language packs, data export files, GeoIP MMDB                                                                                  |
-| Queues                          | Email, asynchronous audit persistence, webhook delivery (retry and dead letter), metering events                                               |
-| Cron Triggers                   | Expiry cleanup, key rotation, custom hostname certificate status polling, DAU/MAU aggregation, status page probes, domain verification polling |
-| Workers Secrets                 | KEK master key, provider credentials                                                                                                           |
-| Turnstile / WAF / Rate Limiting | Abuse prevention                                                                                                                               |
-| Analytics Engine                | Live metrics (sign-in success rate, MFA adoption, active users)                                                                                |
+| Service                         | Purpose                                                                                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core Worker + Hono              | Protocol, Hosted Auth, account, Management API, bindings, queues, crons, and identity business logic                                                                   |
+| Nimbus Site Worker              | Canonical apex documentation hub, 8-locale public docs, SEO, Pagefind, Markdown and LLM outputs, and `www` 308                                                         |
+| Console Worker                  | Static org and instance management SPA on apex and tenant-host `/console`, with no Core bindings                                                                       |
+| Worker Routes                   | More-specific Site and Console path ownership over the Core Custom Domain and tenant wildcard fallback, with no front proxy                                            |
+| D1                              | Users, applications, groups, credential metadata, authorization codes, refresh tokens, audit, tenants, key ciphertext, sessions                                        |
+| Durable Objects                 | 11 bindings for WebAuthn/TOTP replay, OAuth/PAR/device/CIBA state, session revocation, rate limiting, audit sequence, metering, guest dedupe, and impersonation grants |
+| KV                              | JWKS, discovery, branding, feature flags, upstream provider keys, and trust anchors                                                                                    |
+| R2                              | Organization logos, email locale packs, private privacy exports, and immutable compliance evidence                                                                     |
+| Queues                          | 8 business Queues for email, SMS, WhatsApp, audit, webhook, metering, outbound SCIM, and privacy, plus per-source DLQ and quarantine Queues                            |
+| Cron Triggers                   | Hourly cleanup plus daily signing key, custom hostname, domain, SAML, usage, privacy, and guest maintenance                                                            |
+| Workers Secrets                 | KEK master key, provider credentials                                                                                                                                   |
+| Turnstile / WAF / Rate Limiting | Abuse prevention                                                                                                                                                       |
+| Analytics Engine                | Live metrics (sign-in success rate, MFA adoption, active users)                                                                                                        |
 
 ## 9. Key technical risks and verification items
 
@@ -354,7 +388,7 @@ sub-service-organization evidence, but application-layer controls remain our res
 | P1    | SAML round-trip verification against a real IdP                           | Spike complete: the xmldsigjs + @xmldom/xmldom processing layer shipped in `packages/saml` and all SSO endpoints pass; round-trip signature verification against real Okta/Azure/Google IdPs is still pending L4. See chapter 04 |
 | P0    | D1 has no RLS, so a missing tenant_id injection means cross-tenant access | Mandatory query-layer wrapping plus cross-tenant access tests                                                                                                                                                                    |
 | P1    | Correctness of the in-house OIDC/WebAuthn protocol code                   | Verify against the specifications and pursue OpenID Certified                                                                                                                                                                    |
-| P1    | Cloudflare for SaaS custom domain squatting or takeover                   | Bind the token to the tenant and release the hostname on deletion                                                                                                                                                                |
+| P1    | Cloudflare for SaaS custom domain squatting or takeover                   | Bind ownership to the tenant with expiry; delete remotely first; keep an explicit-delete hostname tombstone so stale DNS cannot move to another tenant                                                                           |
 | P1    | Exact MAU deduplication (billing)                                         | MeteringDO sharded per tenant, with exact deduplication on DO storage keys `member:month:{ym}:{userId}`; HyperLogLog is not used because 0.8% error is unacceptable                                                              |
 | P2    | WASM/bundle size and cold start                                           | This risk dropped sharply after moving to TypeScript; keep monitoring bundle size                                                                                                                                                |
 | P2    | Security incidents caused by self-hoster misconfiguration                 | Secure defaults plus a deployment guide that explicitly lists the secrets and domain boundaries that must be set                                                                                                                 |

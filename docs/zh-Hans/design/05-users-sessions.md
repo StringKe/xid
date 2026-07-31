@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=5aeaf21578eb43618028cca2e4ae00bdee799df5 -->
+<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=c471fc07acf30c24c960ee6546205261b94fe43c -->
 
 > Translation of `docs/design/05-users-sessions.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/05-users-sessions.md`](../../design/05-users-sessions.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -27,7 +27,9 @@
 - `users.pending_email` 是尚未证明控制权的 onboarding 值。`GET /v1/me` 把它作为当前 Email 返回,
   同时 `emailVerified = false`;精确目标验证成功前,它不创建或占用 `user_emails`
 - external_id 加 (tenant_id, external_id) 唯一索引,允许 null
-- provisioned_by 记录用户来源:jit_sso/scim/signup/invite/admin,另有 anonymous 表示 POST /auth/guest 创建的 guest 用户(见 01 章 8)
+- provisioned_by 记录用户来源:jit_sso/scim/signup/invite/admin;anonymous 表示
+  `POST /auth/guest` 创建的 guest User,`invitation_email_claim` 仅表示 exact invitation Email
+  proof 后创建的 credential-free User(见 01 章 4 和 8)
 - 三层元数据各一 JSON 列不合并;private_metadata 默认不返回,仅 server context 显式请求
 
 ### 数据模型
@@ -40,7 +42,22 @@
 - 渐进式资料补全(progressive profiling):注册采集最少信息,后续触发点追加,记 completion_status
 - 登录方式组合:密码/passkey/magic link/OTP/OAuth/SSO,按租户策略启用禁用
 - 首登引导:is_new_user flag 在 session token,前端跳 onboarding
-- 邀请注册:invite token 绑定 email,接受后预填并跳过验证
+- 邀请注册:invite token 绑定 Email 并可预填地址,但它只授权一次接受尝试,绝不证明 Email 所有权
+- 未认证 invitation holder 必须请求一个只发送到 invitation 精确 normalized Email、有效期
+  15 分钟且单次使用的 claim。该 claim 验证前,流程不得创建或复用 User,也不得写入 password、
+  phone、social identity、passkey、MFA factor、session 或 Membership
+- `verified` flag、active session 或 Email-only session 都不是可复用的 ownership provenance。
+  Invitation claim 仅在 exact verified-primary Email row 与 active/unmerged User 保留前一次
+  claim ceremony 的 durable `invitation_email_claim_v1` provenance 时复用该 User,使同一个已
+  安全证明的 identity 可以加入多个 Organization
+- 其他任何 exact Email collision 都只解除该 Email association 并创建没有 credential 的 invited
+  User;同时清空旧 primary 或 pending pointer,并使未完成的 Email-bound verification、
+  passwordless 与 password-reset artifact 失效,但旧账号的 credential、identity、session、
+  Membership、metadata 和其他数据既不转移也不清空
+- Claim 核销与 Email/User provenance 构成原子的 `pending -> claim_verified` transition。
+  Browser 必须保留 random `recoveryKey`;只有原始 signed claim 加相同 key 才能恢复 session
+  签发、MFA routing、Membership 创建/重新激活和条件化 `claim_verified -> accepted` transition。
+  signed claim lifetime 内的 accepted retry 必须幂等
 - guest sign-in 与所有携带 `intent=sign-up` 的 password、passwordless 或 social 注册在完成注册策略
   要求的凭证验证后统一进入 `/create-organization`。password verification token 保留签名的
   sign-up intent,验证后回到 `/sign-in?intent=sign-up`。页面要求 Email、Organization name 和
@@ -79,6 +96,10 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
 - 验证 guest pending Email 后,在当前新 Tenant 写入 verified primary `user_emails` 行,吊销全部
   guest session,并要求重新登录。Tenant-local 唯一性允许同一 normalized Email 存在于其他 Tenant;
   后续登录由实例根域 resolver 提供 Tenant 选择
+- Invitation Email verification 不是普通 sign-up verification。其签名 token 包含
+  `purpose = invitation_email_claim`、`tenant_id`、`sub = invitationId`、`jti` 和
+  `email_hash`,有效期 15 分钟且单次使用。claim 记录绝不持久化原始 invitation capability。
+  proof-first 写入边界见 01 章 "Invitation Email claim"
 
 ## 5. 用户状态与管理
 
@@ -99,15 +120,51 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
 
 ## 6. 管理员能力
 
-- Admin impersonation:创建 actor token,应用消费后以目标用户身份建会话;token 含 `act` claim(impersonator_id),应用展示提示横幅;审计记录 who/whom/when/IP
+- Admin impersonation 只允许 Instance Manager 使用,并通过跨 host handoff 完成:
+  - `POST /v1/platform/impersonation/start` 先确认 target user、Organization、Membership 和
+    instance 均为 active,再创建有效期 2 分钟的 `ImpersonationGrantDO` grant。DO 只保存
+    secret 的 SHA-256 hash,并以原子 compare-and-delete 保证只消费一次。
+  - 响应要求向 target Organization host 发送 opaque form `POST`;grant id 与 secret 只在
+    request body 中,target identity 不进入 token、URL query 或日志。target host 使用自己解析
+    的 TenantContext,instance issuer 与具体 target RPID 保持唯一权威。
+  - consume 创建不 remember、硬过期 15 分钟的 session,写入 `is_impersonation = true`、
+    `impersonator_user_id`,并固定 active Organization。防御性 JWT 构造会携带
+    `act: {"sub": impersonator_user_id}`,但 impersonation session 不能调用公开 session-token
+    exchange。support impersonation 不产生 target user 的 login success 或 MAU/DAU metering
+    event。
+  - impersonation cookie 只允许访问 `/v1/*` 下的 `GET`、`HEAD`、`OPTIONS`,以及
+    `POST /auth/impersonation/end`。其余 method 或 path 全部返回拒绝,包括
+    `/v1/sessions/token`、`/authorize`、`/auth/*`、`/sso/*` 和 `/end_session`;target identity
+    无法以 bearer token 或 protocol session 形式逃逸出只读 Console 边界。active Organization
+    切换同样返回拒绝。Console 全局展示明显 warning banner 和显式 end action,end 会 revoke
+    该 session,再通过 full document navigation 返回 instance issuer 的 Platform user list,
+    由 manager host 上的 host-only cookie 恢复 operator session。
+  - grant create、grant consume、session start 与 session end 都先写
+    `platform_audit_outbox`;Queue 故障由 Cron 恢复,再由 append-only audit chain 记录
+    actor、target、session、time 与 IP。
 - 强制登出:撤销指定用户全部或单个 session,通过 Durable Object 立即生效
 - 强制改密:password_change_required flag,用户下次登录进入强制改密
 - 查看活动:session 列表、login history(IP/device/时间)、失败登录
 
 ## 7. GDPR / 隐私
 
-- 数据导出(可携带性):打包用户所有数据,生成下载链接 48h 有效
-- 被遗忘权:soft delete -> 30 天宽限 -> 硬删除 PII(保留匿名化审计),关联 OAuth token 同步 revoke
+- 数据导出(可携带性):`POST /v1/me/privacy/requests` 创建 Queue 异步导出。consumer 把明确的
+  安全字段投影流式写入私有 R2 JSON object,排除 password、token、credential 和加密 secret
+  material。只有已认证 account API 可在 48h 内下载,到期后 daily Cron 删除 object 并清空
+  storage reference。
+- 被遗忘权:Account UI 要求二次确认,API 仅接受带精确 `confirmation: "DELETE"` 的删除请求。
+  请求进入 30 天内可取消的 pending 状态。如果 erasure 会删除任一 Organization 唯一的
+  active owner 或同一 Instance scope 最后一个 active `instance_manager`,schedule 以 opaque
+  conflict 拒绝。非 null `scope_id` 只匹配相同值;现有 global Instance Manager contract 使用
+  null,因此只与另一个 null scope 匹配。
+  daily Cron 投递到期或 stale work,privacy consumer 在 grace period 后重复相同校验。D1
+  erasure batch 第一条 statement 是 atomic eligibility guard,因此并发 role change 会回滚
+  全部 relational erasure statement。consumer 随后撤销用户自身 session、由该用户发起的
+  impersonation session、OAuth session 和
+  已签发 access JWT,再删除 credential、profile PII、membership 与 identity lookup。已接受
+  invitation 中保留的 Email 会替换成随机 `.invalid` tombstone。只保留最小化 erased
+  `users` tombstone 和不可变审计。既有 `audit_events` 行绝不重写或删除;审计视图把 erased
+  actor 渲染为 `[deleted_user]`,durable audit outbox 追加 `user.erasure_completed`。
 - 同意管理:consents 表记录各类处理 consent(terms 接受时间/marketing opt-in),带时间戳和来源 IP
 - 数据驻留:D1 绑定特定 region,租户创建时选驻留地(EU/US/APAC)
 
@@ -200,7 +257,7 @@ TTL 汇总：
 | org_permissions | 取自 role -> permissions 展开                           | 字符串数组；无 org 上下文时省略                                                                                                                                                          |
 | act             | 被模拟时设为 `{"sub": impersonator_user_id}`；否则 null | RFC 8693 token exchange，null 时不输出该 claim                                                                                                                                           |
 | amr             | 登录时使用的认证方法数组                                | passkey: `["phr"]`；密码: `["pwd"]`；OTP: `["otp"]`；MFA 同时含多个；尚无凭证的 guest 携带 `guest`，转正后签发的下一张 token 自然摘掉（见 01 章 8）                                      |
-| acr             | 认证上下文等级                                          | XID 私有 URI `urn:xid:aal1` / `urn:xid:aal2` / `urn:xid:aal3`；当前登录链路只签发 AAL1/AAL2                                                                                              |
+| acr             | 认证上下文等级                                          | 当前签发的 XID 私有 URI 只有 `urn:xid:aal1` 和 `urn:xid:aal2`。不支持 `urn:xid:aal3`；历史存量值会在签发新 token 前归一化为 AAL2                                                         |
 | auth_time       | 上次完整认证（非 token 刷新）的 Unix 时间戳             | OIDC Core 要求，session.authenticated_at                                                                                                                                                 |
 | email           | primary_email 地址                                      | 仅当 scope 含 email 时输出                                                                                                                                                               |
 | email_verified  | UserEmail.verified                                      | 同上                                                                                                                                                                                     |
@@ -241,7 +298,7 @@ Set-Cookie: __Host-xid.rt.{session_id_prefix}=
 | attribute                   | 值                                                                                                         | 理由                                                                                                                                                |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Name 前缀 `__Host-`         | 强制应用                                                                                                   | RFC 6265bis `__Host-` prefix 要求 Secure + Path=/ + 无 Domain attribute；防子域 cookie 注入（子域 A 无法写入带此前缀的 cookie）                     |
-| Name 结构 `xid.rt.{prefix}` | `xid.rt.` 固定命名空间 + session_id 前 8 字符                                                              | 多 tab / 多 session 区分（见 8.4）；`__Host-` prefix 不允许 dot 作为首字符，故 prefix 加在 `__Host-` 之后                                           |
+| Name 结构 `xid.rt.{prefix}` | `xid.rt.` 固定命名空间 + session_id 随机后缀前 8 字符                                                      | 多 tab / 多 session 区分（见 8.4）；跳过固定 `sess_` 才能保留 8 个随机字符,legacy UUID session 继续使用自身前 8 字符                                |
 | Path=/                      | 仅此值允许 `__Host-`                                                                                       | RFC 6265bis 要求 `__Host-` cookie 的 Path 必须为 /                                                                                                  |
 | Secure                      | 必须                                                                                                       | HTTPS only，防网络层窃取；`__Host-` prefix 强制要求此 attribute                                                                                     |
 | HttpOnly                    | 必须                                                                                                       | 禁止 JS 读取，防 XSS 窃取 refresh token                                                                                                             |
@@ -295,7 +352,8 @@ Access token TTL 60s，刷新窗口机制如下：
 
 **方案：per-session cookie name，session_id 前缀作 namespace。**
 
-Cookie name 结构：`__Host-xid.rt.{session_id[0:8]}`
+Cookie name 结构：`__Host-xid.rt.{session_random_suffix[0:8]}`。当前 `sess_` 标识跳过固定前缀；
+legacy UUID 继续使用 `session_id[0:8]`。
 
 示例（同一浏览器两个 session）：
 
@@ -306,10 +364,14 @@ __Host-xid.rt.01HZ9K3T = {refresh_token_B}; Path=/; Secure; HttpOnly; SameSite=L
 
 **SDK active session 选择逻辑：**
 
-1. 读所有 `__Host-xid.rt.*` cookie（JS 端读取 cookie names，注意 HttpOnly 不可读；实际由 SDK service worker 或 server-side token endpoint 管理）。
-2. 纯浏览器 SDK 不能读 HttpOnly cookie，因此 session 列表存于同源 `localStorage` 或 `sessionStorage`，key 为 `xid.sessions`，value 为 `[{session_id, active_org_id, user_id, exp}]` 的 JSON 数组（不含 token 明文）。
-3. Token 刷新请求由 SDK 构造，携带目标 session_id 在请求 body（`POST /oauth/token`，`grant_type=refresh_token`，`session_id` 字段）；server 根据 session_id 找到对应 cookie 或由 client 在请求中显式传 refresh_token。
-4. 默认 active session = localStorage 中 `last_active_at` 最新的 session；用户切换账户/org 时更新该指针。
+1. Refresh cookie 始终保持 `HttpOnly`；浏览器 JavaScript、service worker、localStorage 和 sessionStorage 都拿不到 refresh token 明文，也不维护另一份可信 session registry。
+2. Worker 把选中的 session id 存在 `HttpOnly` `__Host-xid.active` cookie 中。它只是 pointer，不是 credential。pointer 缺失或失效时回退到第一个有效 refresh cookie，并由 Worker 修复 pointer。
+3. `GET /v1/me` 返回 `activeSessionId` 和 `sessions`。列表只包含当前请求实际携带 refresh cookie，并通过 D1 精确 hash、active user、绝对/空闲过期和 Session Durable Object 校验的 session。只有 D1 行而没有浏览器 cookie 的 session 不会出现在列表中。
+4. `POST /v1/sessions/active` 接收 `{sessionId}`，校验对应的浏览器 refresh cookie 后更新 `__Host-xid.active`。SDK 清理派生 token 与 organization cache，再重拉 `/v1/me`。
+5. `POST /v1/sessions/token` 始终使用 active 且已校验的 cookie session，返回 `{token}`。`POST /auth/sign-out` 撤销该 session，清理对应 refresh cookie 和 active pointer；随后 `/v1/me` 会选择剩余的有效浏览器 session。
+6. Server/framework SDK 绝不把 `__Host-xid.rt.*` 当成 JWT。同源部署把 Cookie header 交给
+   Core session-token endpoint,并只验签返回的 short-lived JWT。不同源应用必须使用显式
+   Bearer 或应用自有 JWT cookie handoff,永远不接收 Core opaque refresh token。
 
 **Org 上下文切换（同 session 内切 active_org）：**
 
@@ -321,7 +383,7 @@ __Host-xid.rt.01HZ9K3T = {refresh_token_B}; Path=/; Secure; HttpOnly; SameSite=L
 
 **Server-side 多 session 枚举防护：**
 
-`/oauth/token` 端点不接受无 session_id 的 refresh 请求（需显式指定）；枚举 session_id 无意义，因为 refresh_token opaque 值是校验的实际凭据。
+`POST /v1/sessions/active` 中的 session id 只是 selector；对应的 opaque refresh cookie 才是 credential，并按 hash 和正常 session 规则完整校验。只有 session id 而没有浏览器持有的 refresh cookie 时返回不透明的 unauthorized 响应。
 
 ### 数据模型
 
@@ -336,17 +398,22 @@ __Host-xid.rt.01HZ9K3T = {refresh_token_B}; Path=/; Secure; HttpOnly; SameSite=L
 
 ### JIT 默认 membership 策略
 
-常规注册与登录路径(密码、passwordless/magic link、社交 OAuth 新建用户)默认写入实例默认 org(`org_id = tenant_id`)membership;`invitationToken`、`intent=sign-up`、OAuth 续跑(redirect 含 `authz_request_id`)与跳转 `/create-organization` 时跳过默认写入;邀请接受与自助建 org 走显式 membership 路径。
+常规注册与登录路径(密码、passwordless/magic link、社交 OAuth 新建用户)默认写入实例默认
+org(`org_id = tenant_id`)membership;`intent=sign-up`、OAuth 续跑(redirect 含
+`authz_request_id`)与跳转 `/create-organization` 时跳过默认写入。`invitationToken` 不是通用
+credential-provisioning flag:所有 holder 都进入 proof-first Email claim,包括当前已登录 user。
+raw authenticated acceptance 被禁用。Invitation proof 与自助建 org 都走显式 membership 路径。
 
-| 入口                                              | 新建用户时默认 tenant membership | 说明                                                                                    |
-| ------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- |
-| 密码注册（常规登录）                              | 写入                             | 已有成员走登录，不重复写入                                                              |
-| 密码注册（`intent=sign-up` 或 `invitationToken`） | 跳过                             | 注册后跳转 `/create-organization` 或 `/accept-invitation`                               |
-| Passwordless / magic link（同上标志）             | 跳过                             | 与密码注册一致                                                                          |
-| Social OAuth 新建用户                             | 默认写入                         | `authz_request_id` 续跑、`intent=sign-up`、`invitationToken` 时跳过                     |
-| Enterprise SSO JIT（SAML / OIDC RP）新建用户      | 写入 connection org membership   | OAuth 续跑标志为 true 时跳过 connection org membership；已存在用户仍同步 membership     |
-| 邀请接受                                          | 写入邀请 org                     | 接受后设置 `session.active_org_id`                                                      |
-| Self-service 顶层 Tenant 创建                     | 写入新建 org（owner）            | 仅无 Membership 的新用户;迁移 user-owned 行和 session 行,并设置 `session.active_org_id` |
+| 入口                                         | 新建用户时默认 tenant membership | 说明                                                                                     |
+| -------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
+| 密码注册（常规登录）                         | 写入                             | 已有成员走登录,不重复写入                                                                |
+| 密码注册（`intent=sign-up`）                 | 跳过                             | credential 验证后跳转 `/create-organization`                                             |
+| Passwordless / magic link（`intent=sign-up`） | 跳过                             | 与密码注册一致                                                                           |
+| Social OAuth 新建用户                        | 默认写入                         | `authz_request_id` 续跑或 `intent=sign-up` 时跳过;invitation capability 不是 social proof |
+| Enterprise SSO JIT（SAML / OIDC RP）新建用户 | 写入 connection org membership   | OAuth 续跑标志为 true 时跳过 connection org membership;已存在用户仍同步 membership       |
+| Invitation Email claim 发起                  | 不写 User 或 Membership          | 只向精确邀请 Email 发送;不提交 credential、identity、session 或 account lookup           |
+| Invitation claim verification                | 写入邀请 org                     | 只复用 exact claim-proven identity;否则创建 clean User;proof 原子落地后再可恢复地完成 session/Membership acceptance |
+| Self-service 顶层 Tenant 创建                | 写入新建 org（owner）            | 仅无 Membership 的新用户;迁移 user-owned 行和 session 行,并设置 `session.active_org_id`   |
 
 guest 与 `intent=sign-up` 凭证流程都使用最后一行。邀请、enterprise JIT、SCIM、OAuth resume 和普通
 sign-in 保持各自显式行,不会附带创建顶层 Tenant。

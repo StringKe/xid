@@ -2,7 +2,7 @@
 // PKCE 不匹配 / 未知 client / 缺 grant_type / Content-Type 错 拒绝。client_secret_post 认证。
 // 用真实 ES256 签名密钥(loadActiveSigner 解密)+ 真实 verifyJwt 校验签发的 token。
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   buildAccessTokenClaims,
   computeS256Challenge,
@@ -638,6 +638,17 @@ describe('/token authorization_code', () => {
     const challenge = await computeS256Challenge(challengeVerifier)
     const tables: TableSet = {
       applications: [await appRow({ project_id: 'proj_a' })],
+      projects: [
+        {
+          id: 'proj_a',
+          tenant_id: 't_1',
+          org_id: 'org_a',
+          name: 'Project A',
+          description: null,
+          status: 'active',
+          deleted_at: null,
+        },
+      ],
       authorization_codes: [
         codeRow({
           code_challenge: challenge,
@@ -687,6 +698,17 @@ describe('/token authorization_code', () => {
           revoked_at: null,
         },
       ],
+      roles: [
+        {
+          id: 'role_viewer',
+          tenant_id: 't_1',
+          project_id: 'proj_a',
+          key: 'viewer',
+          display_name: 'Viewer',
+          status: 'active',
+          deleted_at: null,
+        },
+      ],
       role_permissions: [
         {
           id: 'rp_1',
@@ -694,6 +716,13 @@ describe('/token authorization_code', () => {
           role_id: 'role_viewer',
           permission_id: 'perm_read',
           condition_expression: null,
+        },
+        {
+          id: 'rp_invalid',
+          tenant_id: 't_1',
+          role_id: 'role_viewer',
+          permission_id: 'perm_invalid',
+          condition_expression: '{"op":',
         },
       ],
       permissions: [
@@ -703,11 +732,23 @@ describe('/token authorization_code', () => {
           project_id: 'proj_a',
           key: 'document:read',
           status: 'active',
+          deleted_at: null,
+        },
+        {
+          id: 'perm_invalid',
+          tenant_id: 't_1',
+          project_id: 'proj_a',
+          key: 'admin:all',
+          status: 'active',
+          deleted_at: null,
         },
       ],
       users: [activeUserRow()],
     }
-    const { app, env, capture } = await setup(tables, ctx, kekB64)
+    const auditSend = vi.fn(async () => undefined)
+    const { app, env, capture } = await setup(tables, ctx, kekB64, {
+      AUDIT_QUEUE: { send: auditSend } as unknown as Queue,
+    })
 
     const res = await postForm(app, env, {
       grant_type: 'authorization_code',
@@ -726,11 +767,23 @@ describe('/token authorization_code', () => {
     expect(payload['project_id']).toBe('proj_a')
     expect(payload['granted_org_id']).toBe('org_a')
     expect(payload['permissions']).toEqual(['document:read'])
+    expect(auditSend).toHaveBeenCalledWith({
+      tenantId: 't_1',
+      orgId: 'org_b',
+      action: 'rbac.condition_invalid',
+      actorId: USER_ID,
+      ts: expect.any(Number),
+      payload: {
+        projectId: 'proj_a',
+        clientId: CLIENT_ID,
+        permissionKeys: ['admin:all'],
+      },
+    })
     expect(body['refresh_token']).toBeDefined()
     expect(capture.inserts.some((i) => i.table === 'refresh_tokens')).toBe(true)
   })
 
-  it('public client 无 DPoP proof 时不签发 refresh token', async () => {
+  it('不含 refresh_token grant 的 public client 不签发 refresh token', async () => {
     const { ctx, kekB64 } = await buildTestTenant()
     const challengeVerifier = generateCodeVerifier()
     const challenge = await computeS256Challenge(challengeVerifier)
@@ -740,7 +793,7 @@ describe('/token authorization_code', () => {
           client_secret_hash: null,
           client_type: 'public',
           token_endpoint_auth_method: 'none',
-          allowed_grant_types: JSON.stringify(['authorization_code', 'refresh_token']),
+          allowed_grant_types: JSON.stringify(['authorization_code']),
         }),
       ],
       authorization_codes: [
@@ -1445,7 +1498,7 @@ describe('/token refresh_token', () => {
     expect(refreshInsert?.params).toContain(JSON.stringify(authorizationDetails))
   })
 
-  it('public client 旧 non-DPoP refresh token 不能轮换', async () => {
+  it('旧 non-DPoP public refresh client 按无效注册 fail closed', async () => {
     const { ctx, kekB64 } = await buildTestTenant()
     const token = generateRefreshToken()
     const hash = await hashRefreshToken(token)
@@ -1466,8 +1519,8 @@ describe('/token refresh_token', () => {
       client_id: CLIENT_ID,
     })
 
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as Record<string, string>)['error']).toBe('invalid_grant')
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as Record<string, string>)['error']).toBe('invalid_client')
     expect(capture.inserts.some((i) => i.table === 'refresh_tokens')).toBe(false)
   })
 
@@ -1500,7 +1553,14 @@ describe('/token prelude', () => {
     // 预检按 query client_id 校验 origin 白名单:public client + redirectUris origin 命中才回 ACAO。
     const { app, env } = await setup(
       {
-        applications: [await appRow({ client_type: 'public', token_endpoint_auth_method: 'none' })],
+        applications: [
+          await appRow({
+            client_type: 'public',
+            token_endpoint_auth_method: 'none',
+            client_secret_hash: null,
+            allowed_grant_types: JSON.stringify(['authorization_code']),
+          }),
+        ],
       },
       ctx,
       kekB64,
@@ -1570,6 +1630,43 @@ describe('/token prelude', () => {
     })
     expect(res.status).toBe(400)
     expect(((await res.json()) as Record<string, string>)['error']).toBe('unauthorized_client')
+  })
+
+  it('Project soft delete immediately disables a linked client at /token', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const { app, env, capture } = await setup(
+      {
+        applications: [
+          await appRow({
+            project_id: 'proj_deleted',
+            allowed_grant_types: JSON.stringify(['client_credentials']),
+          }),
+        ],
+        projects: [
+          {
+            id: 'proj_deleted',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            name: 'Deleted Project',
+            description: null,
+            status: 'deleted',
+            deleted_at: Date.now(),
+            created_at: Date.now(),
+            updated_at: Date.now(),
+          },
+        ],
+      },
+      ctx,
+      kekB64,
+    )
+    const res = await postForm(app, env, {
+      grant_type: 'client_credentials',
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    })
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as Record<string, string>)['error']).toBe('invalid_client')
+    expect(capture.inserts).toEqual([])
   })
 
   it('OAuth password grant is rejected before any credential handling', async () => {

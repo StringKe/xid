@@ -35,8 +35,8 @@ describe('useProtectedRoute redirect logic', () => {
       userId: null,
       sessionId: null,
       session: null,
-      getToken: vi.fn(),
-      signOut: vi.fn(),
+      getToken: vi.fn(async () => null),
+      signOut: vi.fn(async () => undefined),
       isAnonymous: false,
     })
 
@@ -63,8 +63,8 @@ describe('useProtectedRoute redirect logic', () => {
       userId: null,
       sessionId: null,
       session: null,
-      getToken: vi.fn(),
-      signOut: vi.fn(),
+      getToken: vi.fn(async () => null),
+      signOut: vi.fn(async () => undefined),
       isAnonymous: false,
     })
 
@@ -91,8 +91,8 @@ describe('useProtectedRoute redirect logic', () => {
       userId: 'user_1',
       sessionId: 'sess_1',
       session: null,
-      getToken: vi.fn(),
-      signOut: vi.fn(),
+      getToken: vi.fn(async () => 'at_test'),
+      signOut: vi.fn(async () => undefined),
       isAnonymous: false,
     })
 
@@ -119,8 +119,8 @@ describe('useProtectedRoute redirect logic', () => {
       userId: 'user_1',
       sessionId: 'sess_1',
       session: null,
-      getToken: vi.fn(),
-      signOut: vi.fn(),
+      getToken: vi.fn(async () => 'at_test'),
+      signOut: vi.fn(async () => undefined),
       isAnonymous: false,
     })
 
@@ -147,8 +147,8 @@ describe('useProtectedRoute redirect logic', () => {
       userId: null,
       sessionId: null,
       session: null,
-      getToken: vi.fn(),
-      signOut: vi.fn(),
+      getToken: vi.fn(async () => null),
+      signOut: vi.fn(async () => undefined),
       isAnonymous: false,
     })
 

@@ -8,6 +8,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { publicHttpsUrlSchema, readJsonBody, validateBody } from '../lib/validate'
 import {
@@ -32,11 +33,22 @@ const patchWebhookBodySchema = v.object({
   status: v.optional(v.string()),
 })
 
-// 生成 webhook signing secret(32 字节随机,hex 格式)。
-function genSigningSecret(): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(32)))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
+type GeneratedSigningSecret = {
+  publicValue: string
+  key: Uint8Array
+}
+
+function base64Encode(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes))
+}
+
+// 对外 secret 使用 svix 兼容的 whsec_<standard-base64>,D1 仅信封加密存原始 32-byte HMAC key。
+export function generateWebhookSigningSecret(): GeneratedSigningSecret {
+  const key = crypto.getRandomValues(new Uint8Array(32))
+  return {
+    publicValue: `whsec_${base64Encode(key)}`,
+    key,
+  }
 }
 
 // KEK base64 解码(Workers Secrets 以 base64 存储)。
@@ -48,15 +60,18 @@ function decodeKek(kekBase64: string): Uint8Array {
 }
 
 // 签名 secret 信封加密:明文 -> iv/ciphertext/tag base64url 存 D1。
-async function encryptSecret(secret: string, kekBase64: string) {
+async function encryptSecret(secret: Uint8Array, kekBase64: string) {
   const kek = decodeKek(kekBase64)
-  const plaintext = new TextEncoder().encode(secret)
-  // KEK version 默认 1(首版单 KEK)。
-  const blob = await envelopeEncrypt(plaintext, kek, 1)
-  return {
-    signingSecretIv: base64UrlEncode(blob.iv),
-    signingSecretCiphertext: base64UrlEncode(blob.ciphertext),
-    signingSecretTag: base64UrlEncode(blob.tag),
+  try {
+    // KEK version 默认 1(首版单 KEK)。
+    const blob = await envelopeEncrypt(secret, kek, 1)
+    return {
+      signingSecretIv: base64UrlEncode(blob.iv),
+      signingSecretCiphertext: base64UrlEncode(blob.ciphertext),
+      signingSecretTag: base64UrlEncode(blob.tag),
+    }
+  } finally {
+    kek.fill(0)
   }
 }
 
@@ -98,25 +113,27 @@ app.post('/', async (c) => {
   const url = body.url
   const eventTypes = body.event_types ?? []
 
-  const secret = genSigningSecret()
-  const encrypted = await encryptSecret(secret, c.env.KEK)
-
-  // signing_secret_hash 遗留列(不用于 HMAC,存 placeholder 标记已迁移信封加密)。
-  const placeholderHash = 'v2:envelope_encrypted'
+  const secret = generateWebhookSigningSecret()
+  let encrypted: Awaited<ReturnType<typeof encryptSecret>>
+  try {
+    encrypted = await encryptSecret(secret.key, c.env.KEK)
+  } finally {
+    secret.key.fill(0)
+  }
 
   const row = await db.webhooks.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('webhook'),
     tenantId: tenant.tenantId,
     url,
     eventTypes,
-    signingSecretHash: placeholderHash,
+    signingSecretHash: 'v3:whsec_base64',
     signingSecretIv: encrypted.signingSecretIv,
     signingSecretCiphertext: encrypted.signingSecretCiphertext,
     signingSecretTag: encrypted.signingSecretTag,
     status: 'active',
   })
 
-  return c.json({ ...toResponse(row), signing_secret: secret }, 201)
+  return c.json({ ...toResponse(row), signing_secret: secret.publicValue }, 201)
 })
 
 // GET /v1/webhooks/:id
@@ -192,11 +209,17 @@ app.post('/:id/rotate-secret', async (c) => {
   const existing = await db.webhooks.findOne(where)
   if (!existing) throw new AppError('not_found')
 
-  const newSecret = genSigningSecret()
-  const encrypted = await encryptSecret(newSecret, c.env.KEK)
+  const newSecret = generateWebhookSigningSecret()
+  let encrypted: Awaited<ReturnType<typeof encryptSecret>>
+  try {
+    encrypted = await encryptSecret(newSecret.key, c.env.KEK)
+  } finally {
+    newSecret.key.fill(0)
+  }
 
   await db.webhooks.update(
     {
+      signingSecretHash: 'v3:whsec_base64',
       signingSecretIv: encrypted.signingSecretIv,
       signingSecretCiphertext: encrypted.signingSecretCiphertext,
       signingSecretTag: encrypted.signingSecretTag,
@@ -204,7 +227,7 @@ app.post('/:id/rotate-secret', async (c) => {
     where,
   )
 
-  return c.json({ signing_secret: newSecret })
+  return c.json({ signing_secret: newSecret.publicValue })
 })
 
 export function registerWebhooks(parent: Hono<XidHonoEnv>): void {

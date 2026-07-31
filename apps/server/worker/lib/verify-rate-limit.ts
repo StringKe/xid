@@ -4,7 +4,7 @@
 
 import { POLICIES } from '../durable-objects/rate-limit-store'
 import { AppError } from './errors'
-import { checkRateLimitStore } from './rate-limit'
+import { checkRateLimitStore, resetRateLimitStore } from './rate-limit'
 
 type RlPolicy = (typeof POLICIES)[keyof typeof POLICIES]
 
@@ -47,4 +47,10 @@ export async function enforceVerifyRateLimit(input: VerifyRateLimitInput): Promi
     )
     if (!acctAllowed) throw new AppError('rate_limited')
   }
+}
+
+export async function resetVerifyAccountRateLimit(
+  input: Pick<VerifyRateLimitInput, 'env' | 'tenantId' | 'scope'> & { account: string },
+): Promise<void> {
+  await resetRateLimitStore(input.env, ACCOUNT_KEY(input.tenantId, input.scope, input.account))
 }

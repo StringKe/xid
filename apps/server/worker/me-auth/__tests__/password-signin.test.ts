@@ -43,6 +43,10 @@ vi.mock('../email-verify-token', () => ({
   issueEmailVerification: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('../../auth/account-provisioning', () => ({
+  provisionAccountAtomically: vi.fn(async (input: { user: { id: string } }) => input.user.id),
+}))
+
 vi.mock('../../lib/mfa-session', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/mfa-session')>()
   return { ...actual, resolvePostAuthMfaGate: vi.fn().mockResolvedValue({}) }
@@ -53,7 +57,8 @@ import {
   resolveInstanceLoginCandidates,
   resolveTenantContextById,
 } from '@xid-kit/db'
-import { verifyPassword } from '../../auth/password'
+import { hashPassword, passwordReuseTag, verifyPassword } from '../../auth/password'
+import { provisionAccountAtomically } from '../../auth/account-provisioning'
 import { issueEmailVerification } from '../email-verify-token'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeTenant } from './helpers'
@@ -79,6 +84,7 @@ function dbWithUser(opts: {
               userId: opts.emailUserId,
               email: 'user@example.com',
               verified: opts.emailVerified ?? true,
+              verificationStatus: (opts.emailVerified ?? true) ? 'verified' : 'unverified',
               isPrimary: true,
             }
           : undefined,
@@ -370,8 +376,11 @@ describe('POST /auth/password/sign-in', () => {
     )
     expect(resolveInstanceLoginCandidates).not.toHaveBeenCalled()
     expect(createTenantDb).toHaveBeenCalledWith(expect.anything(), resolvedTenant)
-    expect(db.users.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ tenantId: 'tenant-selected', username: 'alice' }),
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-selected',
+        user: expect.objectContaining({ username: 'alice' }),
+      }),
     )
   })
 
@@ -482,7 +491,7 @@ describe('POST /auth/password/sign-in', () => {
     )
   })
 
-  it('用户不存在且允许 password 创建 -> 创建用户并返回 verify_email', async () => {
+  it('用户不存在且要求 Email proof -> 创建无凭证用户且不建默认 Membership', async () => {
     vi.mocked(verifyPassword).mockResolvedValue(false)
     const db = dbWithUser({ emailUserId: null, user: null })
     vi.mocked(createTenantDb).mockReturnValue(db)
@@ -494,13 +503,20 @@ describe('POST /auth/password/sign-in', () => {
     })
     expect(res.status).toBe(200)
     expect(((await res.json()) as { nextStep: string }).nextStep).toBe('verify_email')
-    expect(db.users.insert).toHaveBeenCalledWith(
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
       expect.objectContaining({
-        primaryEmailId: expect.any(String),
-        username: null,
-        profileCompletionStatus: 'complete',
+        user: expect.objectContaining({
+          primaryEmailId: expect.any(String),
+          username: null,
+          profileCompletionStatus: 'complete',
+        }),
+        primaryEmail: expect.objectContaining({ email: 'new@example.com', verified: false }),
+        password: null,
+        defaultMembership: null,
       }),
     )
+    expect(hashPassword).not.toHaveBeenCalled()
+    expect(passwordReuseTag).not.toHaveBeenCalled()
     expect(issueEmailVerification).toHaveBeenCalledOnce()
   })
 
@@ -523,6 +539,51 @@ describe('POST /auth/password/sign-in', () => {
       expect.objectContaining({
         email: 'owner@example.com',
         intent: 'sign-up',
+      }),
+    )
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultMembership: null }),
+    )
+  })
+
+  it('root intent=sign-up ignores existing Tenant candidates and creates in default staging', async () => {
+    const rootTenant = {
+      ...makeTenant(),
+      tenantId: 'tenant-entry',
+      issuer: 'https://xid.dev',
+      rpId: 'xid.dev',
+      resolution: {
+        kind: 'instance_entry' as const,
+        primaryDomain: 'xid.dev',
+        unresolvedRoot: true,
+      },
+    }
+    vi.mocked(resolveInstanceLoginCandidates).mockResolvedValue({
+      ok: true,
+      value: { status: 'ambiguous', matches: [] },
+    } as never)
+    const db = dbWithUser({ emailUserId: null, user: null })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes, { tenant: rootTenant as never })
+    const env = makeEnv()
+
+    const res = await request(app, env, {
+      identifier: 'owner@verified.example',
+      password: 'StrongPass123',
+      organizationId: 'tenant-existing',
+      intent: 'sign-up',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ nextStep: 'verify_email' })
+    expect(resolveTenantContextById).not.toHaveBeenCalled()
+    expect(resolveInstanceLoginCandidates).not.toHaveBeenCalled()
+    expect(createTenantDb).toHaveBeenCalledWith(env.DB, rootTenant)
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-entry',
+        defaultMembership: null,
       }),
     )
   })
@@ -586,15 +647,18 @@ describe('POST /auth/password/sign-in', () => {
 
     expect(res.status).toBe(200)
     expect(((await res.json()) as { nextStep: string }).nextStep).toBe('verify_email')
-    expect(db.users.insert).toHaveBeenCalledWith(
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
       expect.objectContaining({
-        username: 'alice',
-        displayName: 'Alice Chen',
-        profileCompletionStatus: 'complete',
+        user: expect.objectContaining({
+          username: 'alice',
+          displayName: 'Alice Chen',
+          profileCompletionStatus: 'complete',
+        }),
+        primaryEmail: expect.objectContaining({
+          email: 'alice@example.com',
+          verified: false,
+        }),
       }),
-    )
-    expect(db.userEmails.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'alice@example.com', isPrimary: true }),
     )
     expect(issueEmailVerification).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'alice@example.com' }),
@@ -623,7 +687,7 @@ describe('POST /auth/password/sign-in', () => {
 
     expect(res.status).toBe(422)
     expect(((await res.json()) as { code: string }).code).toBe('validation_failed')
-    expect(db.users.insert).not.toHaveBeenCalled()
+    expect(provisionAccountAtomically).not.toHaveBeenCalled()
   })
 
   it('用户不存在且禁用 password 创建 -> invalid_credentials', async () => {
@@ -689,8 +753,7 @@ describe('POST /auth/password/sign-in', () => {
 
     expect(res.status).toBe(401)
     expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
-    expect(db.users.insert).not.toHaveBeenCalled()
-    expect(db.passwords.insert).not.toHaveBeenCalled()
+    expect(provisionAccountAtomically).not.toHaveBeenCalled()
     expect(issueEmailVerification).not.toHaveBeenCalled()
     expect(auditSend).toHaveBeenCalledWith(
       expect.objectContaining({

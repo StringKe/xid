@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isAppError } from '../../lib/errors'
 import { parseAuthzRequestId, peekStashedAuthorizeParams } from '../pending-params'
 
-const PENDING = { acr_values: 'urn:xid:aal3', require_aal3: '1' }
+const PENDING = { acr_values: 'urn:xid:aal2', state: 'state_1' }
 
 describe('pending-params', () => {
   it('parseAuthzRequestId extracts authz_request_id from redirect_to', () => {

@@ -1,6 +1,6 @@
 // 8.0 解码 + 8.1 解析前安全预检(防 XXE/DTD/实体扩展/外部实体/PI)。
 // 在 DOMParser.parseFromString 之前对原始字符串扫描,任一命中即拒(malformed_xml,见 04 章 8.1)。
-// 解析后断言单根 samlp:Response,EncryptedAssertion 解密后的明文 Assertion 同样复用本预检。
+// 解析后断言调用方要求的单根 SAML 消息,EncryptedAssertion 解密后的明文 Assertion 同样复用本预检。
 
 import { Parse } from 'xmldsigjs'
 import { failResult, okResult } from './errors'
@@ -52,7 +52,7 @@ export function securityPrecheck(xml: string): SamlResult<true> {
   return okResult(true)
 }
 
-// 解码 -> 预检 -> 解析为单根 Document。expectedRootLocalName 校验文档根(Response 或 Assertion)。
+// 解码 -> 预检 -> 解析为单根 Document。expectedRootLocalName 同时校验文档根名称与命名空间。
 export function parseSecureXml(xml: string, expectedRootLocalName: string): SamlResult<Document> {
   const pre = securityPrecheck(xml)
   if (!pre.ok) return failResult(pre.error.code, pre.error.reason)
@@ -68,7 +68,7 @@ export function parseSecureXml(xml: string, expectedRootLocalName: string): Saml
   if (!root || root.localName !== expectedRootLocalName) {
     return failResult('malformed_xml', `expected root <${expectedRootLocalName}>`)
   }
-  const protocolRoots = new Set(['Response', 'LogoutRequest', 'LogoutResponse'])
+  const protocolRoots = new Set(['Response', 'AuthnRequest', 'LogoutRequest', 'LogoutResponse'])
   const expectedNs = protocolRoots.has(expectedRootLocalName) ? SAMLP_NS : SAML_ASSERTION_NS
   if (root.namespaceURI !== expectedNs) {
     return failResult('malformed_xml', `root namespace mismatch for <${expectedRootLocalName}>`)

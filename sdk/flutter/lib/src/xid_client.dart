@@ -26,8 +26,7 @@ import 'xid_options.dart';
 /// 安全边界:
 ///   - 使用 PKCE S256,不支持 implicit flow 或 password grant。
 ///   - 不存储 client_secret(public client)。
-///   - Refresh token 使用 flutter_secure_storage 写入平台 secure enclave。
-///   - 每次使用 refresh token 即轮换(XID 服务端 rotation + family 策略)。
+///   - 尚未实现 DPoP,因此拒绝 offline_access,access token 过期后需重新授权。
 class XidClient {
   late XidOptions _options;
   OidcDiscovery? _discovery;
@@ -40,7 +39,6 @@ class XidClient {
   JwksCache? _jwksCache;
   IdTokenVerifier? _idTokenVerifierInstance;
 
-  static final Map<String, _RefreshCoordinator> _refreshCoordinators = {};
   static final Map<String, Future<void>> _pendingAuthorizationTails = {};
 
   XidClient({http.Client? httpClient})
@@ -58,6 +56,11 @@ class XidClient {
     XidOptions options, {
     TokenStorageAdapter? storageAdapter,
   }) async {
+    if (options.scopes.contains('offline_access')) {
+      throw const XidConfigException(
+        'offline_access 需要 DPoP,当前 Flutter SDK 尚未实现 DPoP',
+      );
+    }
     _options = options;
     _tokenStorage = storageAdapter ?? SecureStorageAdapter();
     _sessionStore = SessionStore(_tokenStorage);
@@ -99,7 +102,8 @@ class XidClient {
   ///   5. 从 URL 提取 code,调用 /token 完成 code exchange。
   ///   6. 持久化 session,返回 [XidSession]。
   ///
-  /// [additionalParameters] 可覆盖或追加 authorize 参数(prompt / login_hint 等)。
+  /// [additionalParameters] 可追加非保留 authorize 参数(prompt / login_hint 等);
+  /// scope、redirect_uri、PKCE、state 和 nonce 等安全参数始终由 SDK 生成。
   Future<XidSession> signIn({
     Map<String, String> additionalParameters = const {},
     String? audience,
@@ -110,24 +114,27 @@ class XidClient {
 
     // 生成 PKCE pair
     final pkce = Pkce.generate();
-    final state = _generateState();
+    final state = _generateOpaqueValue();
+    final nonce = _generateOpaqueValue();
 
     await _sessionStore.savePendingAuth(PendingAuthData(
       state: state,
       codeVerifier: pkce.codeVerifier,
       codeChallenge: pkce.codeChallenge,
+      nonce: nonce,
     ));
 
     final params = <String, String>{
+      ..._options.additionalParameters,
+      ...additionalParameters,
       'response_type': 'code',
       'client_id': _options.clientId,
       'redirect_uri': _options.redirectUri,
       'scope': _options.scopes.join(' '),
       'state': state,
+      'nonce': nonce,
       'code_challenge': pkce.codeChallenge,
       'code_challenge_method': pkce.codeChallengeMethod,
-      ..._options.additionalParameters,
-      ...additionalParameters,
     };
 
     if (audience != null) params['audience'] = audience;
@@ -171,7 +178,8 @@ class XidClient {
   // signInAnonymously
   // ---------------------------------------------------------------------------
 
-  /// Firebase 式匿名登录:POST /auth/guest 建立访客会话,返回 [XidGuestSession]。
+  /// Firebase 式匿名登录:先 GET /auth/config?intent=sign-up 获取一次性 guest
+  /// capability,再 POST /auth/guest 建立访客会话,返回 [XidGuestSession]。
   ///
   /// 惰性语义:本地已有持久化的 guest session 时直接返回,不发任何请求。
   /// guest 没有 access token;会话凭证是 /auth/guest 通过 Set-Cookie 签发的
@@ -190,6 +198,7 @@ class XidClient {
     }
 
     final issuer = _options.issuer;
+    final capabilityToken = await _fetchGuestCapabilityToken(issuer);
     final guestResponse = await _httpClient.post(
       Uri.parse('$issuer/auth/guest'),
       headers: {
@@ -197,6 +206,7 @@ class XidClient {
         'Accept': 'application/json',
       },
       body: jsonEncode({
+        'capabilityToken': capabilityToken,
         if (turnstileToken != null) 'turnstileToken': turnstileToken,
       }),
     );
@@ -236,16 +246,49 @@ class XidClient {
       throw const XidNetworkException('/v1/me 响应缺少 user');
     }
 
-    await _sessionStore.saveGuestSession(XidGuestSessionData(
-      sessionId: sessionId,
-      sessionCookies: cookies ?? '',
-      user: userJson,
-    ));
+    try {
+      await _sessionStore.saveGuestSession(XidGuestSessionData(
+        sessionId: sessionId,
+        sessionCookies: cookies ?? '',
+        user: userJson,
+      ));
+    } catch (error, stackTrace) {
+      try {
+        await _sessionStore.clearGuestSession();
+      } catch (cleanupError) {
+        throw XidNetworkException(
+          '访客会话持久化失败且清理失败: $cleanupError',
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
 
     return XidGuestSession(
       sessionId: sessionId,
       user: XidUser.fromMeJson(userJson),
     );
+  }
+
+  Future<String> _fetchGuestCapabilityToken(String issuer) async {
+    final response = await _httpClient.get(
+      Uri.parse('$issuer/auth/config?intent=sign-up'),
+      headers: {'Accept': 'application/json'},
+    );
+    if (response.statusCode != 200) {
+      throw XidNetworkException(
+        '获取访客登录能力失败: HTTP ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+
+    final dynamic decoded = jsonDecode(response.body);
+    final guest = decoded is Map<String, dynamic> ? decoded['guest'] : null;
+    final token =
+        guest is Map<String, dynamic> ? guest['capabilityToken'] : null;
+    if (token is! String || token.trim().isEmpty) {
+      throw const XidNetworkException('访客登录能力不可用');
+    }
+    return token;
   }
 
   // ---------------------------------------------------------------------------
@@ -302,6 +345,13 @@ class XidClient {
       redirectUri: _options.redirectUri,
       codeVerifier: pending.codeVerifier,
     );
+    final idToken = tokenResponse['id_token'];
+    if (idToken is! String || idToken.isEmpty) {
+      throw const XidAuthException(
+        'OIDC token 响应缺少 id_token,无法验证 nonce',
+        errorCode: 'id_token_missing',
+      );
+    }
 
     final session = await XidSession.fromTokenResponse(
       tokenResponse,
@@ -309,6 +359,7 @@ class XidClient {
         issuer: _options.issuer,
         clientId: _options.clientId,
         jwksUri: discovery.jwksUri,
+        expectedNonce: pending.nonce,
       ),
       verifier: _idTokenVerifier(discovery),
     );
@@ -331,7 +382,7 @@ class XidClient {
     } finally {
       completion.complete();
       if (identical(_pendingAuthorizationTails[namespace], tail)) {
-        _pendingAuthorizationTails.remove(namespace);
+        unawaited(_pendingAuthorizationTails.remove(namespace));
       }
     }
   }
@@ -340,20 +391,18 @@ class XidClient {
   // getSession
   // ---------------------------------------------------------------------------
 
-  /// 返回当前有效 session,如果 access_token 即将过期则自动 refresh。
+  /// 返回当前 session。access_token 过期后清除本地 session 并返回 null。
   ///
   /// 返回 null 表示未登录。
   Future<XidSession?> getSession() async {
     _assertConfigured();
     final data = await _sessionStore.loadSession();
-    if (data == null) return _awaitSharedRefresh();
+    if (data == null) return null;
 
-    var session = _sessionDataToSession(data);
-
-    if (session.needsRefresh()) {
-      final refreshToken = data.refreshToken;
-      if (refreshToken == null) return null; // 无法刷新
-      session = await _refresh(refreshToken);
+    final session = _sessionDataToSession(data);
+    if (session.isExpired) {
+      await _sessionStore.clearSession();
+      return null;
     }
 
     return session;
@@ -363,30 +412,28 @@ class XidClient {
   // getAccessToken
   // ---------------------------------------------------------------------------
 
-  /// 返回有效 access_token 字符串。
+  /// 返回尚未过期的 access_token 字符串。
   ///
-  /// [forceRefresh] = true 时强制刷新。
+  /// 当前未实现 DPoP refresh。[forceRefresh] = true 或 token 过期时清除本地
+  /// session 并返回 null,调用方需重新授权。
   Future<String?> getAccessToken({bool forceRefresh = false}) async {
     _assertConfigured();
     final data = await _sessionStore.loadSession();
-    if (data == null) return (await _awaitSharedRefresh())?.accessToken;
+    if (data == null) return null;
 
-    if (!forceRefresh && !_sessionDataToSession(data).needsRefresh()) {
+    if (!forceRefresh && !_sessionDataToSession(data).isExpired) {
       return data.accessToken;
     }
 
-    final refreshToken = data.refreshToken;
-    if (refreshToken == null) return null;
-
-    final session = await _refresh(refreshToken);
-    return session.accessToken;
+    await _sessionStore.clearSession();
+    return null;
   }
 
   // ---------------------------------------------------------------------------
   // signOut
   // ---------------------------------------------------------------------------
 
-  /// 注销:吊销 refresh_token(RFC 7009)并清除本地存储。
+  /// 注销:清除本地存储。
   ///
   /// [openLogoutUrl] = true 时(默认)还会打开 end_session_endpoint
   /// 清除服务端 SSO session。
@@ -394,18 +441,6 @@ class XidClient {
     _assertConfigured();
     final data = await _sessionStore.loadSession();
     final discovery = await _ensureDiscovery();
-
-    // 先吊销 refresh_token(best effort,失败不阻塞注销)
-    if (data?.refreshToken != null && discovery.revocationEndpoint != null) {
-      await _tokenService
-          .revokeToken(
-            revocationEndpoint: discovery.revocationEndpoint!,
-            clientId: _options.clientId,
-            token: data!.refreshToken!,
-            tokenTypeHint: 'refresh_token',
-          )
-          .onError((_, __) => null); // best effort
-    }
 
     // 清除本地存储
     await _sessionStore.clearSession();
@@ -459,67 +494,6 @@ class XidClient {
     return _discovery!;
   }
 
-  Future<XidSession?> _awaitSharedRefresh() async {
-    if (!await _sessionStore.isRefreshPending()) return null;
-    return _refreshCoordinators[_storageNamespace()]?.inFlight;
-  }
-
-  Future<XidSession> _refresh(String refreshToken) {
-    final storageNamespace = _storageNamespace();
-    final coordinator =
-        _refreshCoordinators[storageNamespace] ?? _RefreshCoordinator();
-    _refreshCoordinators[storageNamespace] = coordinator;
-    final existing = coordinator.inFlight;
-    if (existing != null) return existing;
-
-    late final Future<XidSession> operation;
-    operation = _refreshOnce(refreshToken).whenComplete(() {
-      if (identical(coordinator.inFlight, operation)) {
-        coordinator.inFlight = null;
-        if (identical(_refreshCoordinators[storageNamespace], coordinator)) {
-          _refreshCoordinators.remove(storageNamespace);
-        }
-      }
-    });
-    coordinator.inFlight = operation;
-    return operation;
-  }
-
-  Future<XidSession> _refreshOnce(String refreshToken) async {
-    final discovery = await _ensureDiscovery();
-    await _sessionStore.markRefreshPending();
-    try {
-      final tokenResponse = await _tokenService.refreshTokens(
-        tokenEndpoint: discovery.tokenEndpoint,
-        clientId: _options.clientId,
-        refreshToken: refreshToken,
-      );
-
-      final session = await XidSession.fromTokenResponse(
-        tokenResponse,
-        verifyOptions: IdTokenVerifyOptions(
-          issuer: _options.issuer,
-          clientId: _options.clientId,
-          jwksUri: discovery.jwksUri,
-        ),
-        verifier: _idTokenVerifier(discovery),
-      );
-      await _persistSession(session);
-      return session;
-    } catch (_) {
-      await _sessionStore.clearSession();
-      rethrow;
-    }
-  }
-
-  String _storageNamespace() {
-    final storage = _tokenStorage;
-    if (storage is TokenStorageNamespace) {
-      return (storage as TokenStorageNamespace).storageNamespace;
-    }
-    return 'adapter:${identityHashCode(storage)}';
-  }
-
   IdTokenVerifier _idTokenVerifier(OidcDiscovery discovery) {
     _jwksCache ??= JwksCache(
       jwksUri: discovery.jwksUri,
@@ -533,7 +507,7 @@ class XidClient {
     await _sessionStore.saveSession(XidSessionData(
       accessToken: session.accessToken,
       idToken: session.idToken,
-      refreshToken: session.refreshToken,
+      refreshToken: null,
       expiresAt: session.expiresAt,
       scopes: session.scopes,
       claims: session.claims,
@@ -547,16 +521,16 @@ class XidClient {
     return XidSession(
       accessToken: data.accessToken,
       idToken: data.idToken,
-      refreshToken: data.refreshToken,
+      refreshToken: null,
       expiresAt: data.expiresAt,
       scopes: data.scopes,
       claims: data.claims,
     );
   }
 
-  static String _generateState({int length = 32}) {
+  static String _generateOpaqueValue({int length = 43}) {
     const chars =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
     final rng = Random.secure();
     return List.generate(length, (_) => chars[rng.nextInt(chars.length)])
         .join();
@@ -569,8 +543,4 @@ class XidClient {
     final parsed = Uri.parse(uri);
     return parsed.scheme;
   }
-}
-
-class _RefreshCoordinator {
-  Future<XidSession>? inFlight;
 }

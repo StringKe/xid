@@ -1,8 +1,8 @@
 // SignInSocialButtons:社交提供商登录按钮组(Google/GitHub/Microsoft/Apple)。
-// 文案走 lingui;按钮语义 button + aria-label。
+// 文案走 lingui;按钮可见文本直接提供 accessible name。
 // 图标用内联 SVG(无外部依赖)。
 
-import { Trans, useLingui } from '@lingui/react/macro'
+import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Button } from '../../components/ui'
@@ -117,7 +117,6 @@ export function SignInSocialButtons({
   onSelect,
   isLoading,
 }: SignInSocialButtonsProps): ReactNode {
-  const { t } = useLingui()
   const visibleProviders = useProviders(providers)
 
   if (visibleProviders.length === 0) return null
@@ -130,7 +129,6 @@ export function SignInSocialButtons({
           variant="secondary"
           fullWidth
           disabled={isLoading}
-          aria-label={t`Sign in with ${p.id}`}
           onClick={() => onSelect(p.id)}
           {...stylex.props(styles.socialButton)}
         >

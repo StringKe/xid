@@ -138,6 +138,15 @@ describe('verifyToken', () => {
     expect(result.ok).toBe(true)
   })
 
+  it('rejects a signed access token with a Project role in org_role', async () => {
+    const key = await setup()
+    const token = await mintToken(key, basePayload({ org_role: 'viewer' }))
+
+    const result = await verifyToken(token, { jwtKey: key.publicJwk, now: NOW })
+
+    expect(result).toEqual({ ok: false, error: 'invalid_org_role' })
+  })
+
   it('selects the correct public key by kid from a JWKS', async () => {
     const key1 = await makeEs256Key('kid_1')
     const key2 = await makeEs256Key('kid_2')

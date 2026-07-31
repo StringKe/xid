@@ -75,6 +75,69 @@ export const organizations = sqliteTable(
   ],
 )
 
+// 10.2a custom_hostnames(Cloudflare for SaaS custom domains).
+// hostname is deliberately globally unique: unlike ordinary tenant data, one external DNS name
+// can be bound to only one organization. The durable tombstone after explicit deletion prevents a
+// stale customer CNAME from being claimed by another tenant.
+export type CustomHostnameDcvDelegationRecord = {
+  cname: string
+  cnameTarget: string
+}
+
+export type CustomHostnameValidationRecord = {
+  status?: string
+  txtName?: string
+  txtValue?: string
+  cname?: string
+  cnameTarget?: string
+}
+
+export const customHostnames = sqliteTable(
+  'custom_hostnames',
+  {
+    id: text('id').primaryKey(),
+    tenantId: tenantId(),
+    orgId: text('org_id').notNull(),
+    instanceId: text('instance_id').notNull(),
+    hostname: text('hostname').notNull(),
+    cloudflareHostnameId: text('cloudflare_hostname_id'),
+    status: text('status').notNull().default('provisioning'),
+    hostnameStatus: text('hostname_status').notNull().default('pending'),
+    sslStatus: text('ssl_status'),
+    ownershipVerificationType: text('ownership_verification_type'),
+    ownershipVerificationName: text('ownership_verification_name'),
+    ownershipVerificationValue: text('ownership_verification_value'),
+    ownershipExpiresAt: tsMs('ownership_expires_at'),
+    dcvDelegationRecords: text('dcv_delegation_records', { mode: 'json' })
+      .$type<CustomHostnameDcvDelegationRecord[]>()
+      .notNull()
+      .default([]),
+    validationRecords: text('validation_records', { mode: 'json' })
+      .$type<CustomHostnameValidationRecord[]>()
+      .notNull()
+      .default([]),
+    trafficCnameTarget: text('traffic_cname_target').notNull(),
+    verificationErrors: text('verification_errors', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    requiresPasskeyReregistration: boolCol('requires_passkey_reregistration')
+      .notNull()
+      .default(true),
+    activatedAt: tsMs('activated_at'),
+    lastPolledAt: tsMs('last_polled_at'),
+    deletedAt: tsMs('deleted_at'),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('custom_hostnames_hostname_unq').on(t.hostname),
+    uniqueIndex('custom_hostnames_cloudflare_id_unq').on(t.cloudflareHostnameId),
+    index('custom_hostnames_tenant_org_status_id_idx').on(t.tenantId, t.orgId, t.status, t.id),
+    index('custom_hostnames_status_expiry_id_idx').on(t.status, t.ownershipExpiresAt, t.id),
+    index('custom_hostnames_instance_status_id_idx').on(t.instanceId, t.status, t.id),
+  ],
+)
+
 // 10.3 projects(角色命名空间)
 export const projects = sqliteTable(
   'projects',
@@ -84,9 +147,15 @@ export const projects = sqliteTable(
     orgId: text('org_id').notNull(),
     name: text('name').notNull(),
     description: text('description'),
+    status: text('status').notNull().default('active'),
+    deletedAt: tsMs('deleted_at'),
     ...timestamps(),
   },
-  (t) => [index('projects_tenant_org_idx').on(t.tenantId, t.orgId)],
+  (t) => [
+    index('projects_tenant_org_idx').on(t.tenantId, t.orgId),
+    index('projects_tenant_status_id_idx').on(t.tenantId, t.status, t.id),
+    index('projects_tenant_org_status_id_idx').on(t.tenantId, t.orgId, t.status, t.id),
+  ],
 )
 
 // 10.4 applications(= OAuthClient,OIDC/SAML 客户端)
@@ -110,6 +179,9 @@ export const applications = sqliteTable(
       .default([]),
     frontchannelLogoutUri: text('frontchannel_logout_uri'),
     backchannelLogoutUri: text('backchannel_logout_uri'),
+    backchannelLogoutSessionRequired: boolCol('backchannel_logout_session_required')
+      .notNull()
+      .default(false),
     allowedGrantTypes: text('allowed_grant_types', { mode: 'json' })
       .$type<string[]>()
       .notNull()

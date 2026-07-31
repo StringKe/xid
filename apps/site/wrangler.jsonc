@@ -3,13 +3,17 @@
   "name": "xid-site",
   "account_id": "86e4d320a5d69fb54f9721fb219a4902",
   "main": "worker/index.ts",
-  "preview_urls": true,
+  "preview_urls": false,
   "routes": [
     { "pattern": "xid.dev/", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/index.md", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/index.mdx", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/docs", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/docs/*", "zone_name": "xid.dev" },
+    { "pattern": "xid.dev/status", "zone_name": "xid.dev" },
+    { "pattern": "xid.dev/status/", "zone_name": "xid.dev" },
+    { "pattern": "xid.dev/status/index.md", "zone_name": "xid.dev" },
+    { "pattern": "xid.dev/status/index.mdx", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/getting-started", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/getting-started/*", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/hosted-auth", "zone_name": "xid.dev" },
@@ -95,5 +99,16 @@
   },
   "observability": {
     "enabled": true,
+    "head_sampling_rate": 0.1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 0.1,
+      "persist": true,
+      "invocation_logs": false,
+    },
+    "traces": {
+      "enabled": false,
+      "persist": false,
+    },
   },
 }

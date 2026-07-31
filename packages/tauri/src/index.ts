@@ -1,6 +1,6 @@
 // @xid-kit/tauri: XID identity SDK for Tauri v2 desktop apps.
 // Provides the JS bridge (WebView side) and OS keychain adapter for sign-in,
-// token exchange, refresh rotation, and session storage.
+// authorization-code token exchange and session storage.
 // Rust side: see templates/xid-keychain-plugin.rs for the plugin reference.
 //
 // Public API follows the "Shared native contract" from docs/sdks/platform-matrix.md:
@@ -68,3 +68,5 @@ export type {
   GetTokenOptions,
   XidClientOptions,
 } from '@xid-kit/core'
+
+export type { OrganizationMembershipRole } from '@xid-kit/types'

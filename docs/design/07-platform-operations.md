@@ -6,14 +6,19 @@
 
 ### Platform operations admin (cross-tenant)
 
-- Global tenant list: search and filter (plan, status, creation time) plus bulk actions (suspend,
-  resume, delete)
-- Impersonate a tenant admin (recorded in the platform audit log)
+- Global tenant list: cursor-paginated search by name or slug and one-at-a-time status changes are
+  implemented. Plan/status/creation-time filters and bulk suspend/resume/delete remain design targets
+- Impersonate any active user through one of their active Organization Memberships (recorded in the
+  platform audit log)
 - Global user search (cross-tenant, with GDPR access controls)
-- Global event stream: aggregates audit records from every tenant, filterable by tenant, event_type,
-  and user
-- System announcement banner: targeted by plan or tenant
-- Global feature flags: rolled out by tenant or plan, stored in KV, with no redeployment required
+- Global event stream: cursor-paginated aggregation across every tenant is implemented.
+  Tenant/event_type/user filters remain design targets
+- Queue dead-letter operations: redacted metadata for every business Queue, encrypted replay, and an
+  auditable operator action inside the global event page
+- System announcement banner: targeted globally, by explicit tenant, or by accounting plan label
+- Global feature flags: the catalog and KV-backed global defaults are implemented without a
+  redeployment. Writing explicit tenant overrides and deployment-cohort rollouts remains a design
+  target. A plan label is never an authentication feature gate
 - Resource quota management: view and manually adjust a single tenant's quota
 - Instance default policy (`/v1/platform/settings`): every sessionPolicy field (idleTimeoutMin,
   default 4320 minutes, bounds 5-43200; absoluteTimeoutDays, default 30 days, bounds 1-365;
@@ -23,10 +28,11 @@
   field through `/v1/organizations/:id/auth-policy` (null means inherit)
 - Billing overview: current-month DAU/MAU for every tenant, overdue and overage status, and a direct
   link to Stripe
-- Plan changes and provisioning: upgrade or downgrade a plan, trial periods, and commercial license
-  generation
-- Global alert rules: thresholds on anomalous sign-in rates and API error rates, routed to PagerDuty
-  or Slack
+- Plan accounting: change a billing label, trial dates, default quotas, and support label. It never
+  generates a license or unlocks an authentication capability
+- Global alert rules are a design target. There is no current alert-rule API or PagerDuty/Slack
+  delivery path; live notification destinations remain deployment state and are `UNKNOWN` until
+  verified
 - Status page management: publish and update incidents
 
 Design decisions: the platform admin and tenant admin share one unified React Console product, one
@@ -37,15 +43,22 @@ than by a business access token claim. There is no second platform-admin SPA, ad
 or admin RBAC. `/platform-admin/*` is not a compatibility entry point. Cross-tenant management goes
 through the `/v1/platform/*` platform management paths and the platform view inside the unified
 Console; tenant management continues through `/v1/organizations/:orgId/*` and the org Console.
-Impersonation generates a 15-minute scoped token and writes a platform audit entry, and it cannot be
-bypassed. Feature flags use the KV key `flag:{tenant_id}:{flag_name}` with the global default
-`flag:global:{flag_name}`, read directly per request in under 1 ms.
+Impersonation start returns a two-minute, consume-once opaque handoff for the exact target
+Organization host. The handoff is submitted in a POST body and exchanged there for a 15-minute
+HttpOnly impersonation cookie. This is not a bearer token: the cookie can only read `/v1/*` with
+`GET`, `HEAD`, or `OPTIONS`, plus explicitly end impersonation. Protocol, auth, SSO, session-token
+exchange, and every mutation path reject it. The implemented feature-flag API reads and writes the
+global default key
+`flag:global:{flag_name}` and reports the count of any existing
+`flag:{tenant_id}:{flag_name}` keys. The repository does not currently expose a writer for those
+tenant override keys or a deployment-cohort model. Those rollout modes remain design targets and
+MUST NOT derive authentication behavior from a plan label.
 
 ### Tenant admin (single-tenant self-management)
 
 Dashboard (DAU/MAU trends, sign-in success rate, MFA adoption, active orgs), user management,
 application management (OAuth2 clients), SSO connections, organization management, team members
-(Owner/Admin/Viewer/Billing roles), branding, notification settings, audit log, billing usage, and
+(Owner/Admin/Member roles), branding, notification settings, audit log, billing usage, and
 compliance tooling.
 
 Design decisions: the tenant admin pages and platform admin pages belong to the same unified React
@@ -55,8 +68,10 @@ binding. Tenant management APIs use `/v1/organizations/:orgId/*` and the related
 resource paths in Core, with tenant_id and org_id resolved from `TenantContext` and the protected path
 rather than trusted from the request body. An Org Admin can manage only their own org; an Instance
 Manager manages any org through the platform management paths or the instance manager override in the
-same org Console. Viewer is read-only and Billing sees usage only, enforced by the Core RBAC
-middleware layer.
+same org Console. Organization Membership is the fixed Owner/Admin/Member contract: Owner and Admin
+can enter the org management Console, while Member uses the account portal. `org_manager` is a
+ManagerAssignment role, not a fourth Membership role, and has the same org-management access as
+Owner.
 
 The Console keeps the request host. Same-origin `/v1/*` and `/auth/*` requests therefore reach Core,
 and host-only `__Host-` cookies continue to work on the apex and tenant hosts. Navigation to sign-in,
@@ -65,6 +80,11 @@ Cloudflare Worker Routes select Console paths over the Core Custom Domain and te
 fallback; there is no front proxy.
 
 ## 2. Branding customization
+
+Implementation status: the authenticated Management API currently stores seven organization-scoped
+KV fields (`primaryColor`, `backgroundColor`, `accentColor`, `borderRadius`, `fontFamily`, `logoUrl`,
+and `logoDarkUrl`). Hosted Auth runtime application, tenant-wide fallback, custom CSS, layout
+templates, preview/publish state, and per-organization email template upload remain design targets.
 
 - Theme: primary/background/accent color, border radius, and font family (Google Fonts or a custom
   CDN)
@@ -84,14 +104,15 @@ are separate operations.
 
 ## 3. Notification system
 
-Transactional email types: email verification, magic link, OTP, password reset, email change
-confirmation, new-device sign-in alert, organization invitation, account lockout notification,
-administrator invitation, and subscription/billing alerts. SMS: OTP and magic link short links.
+Implementation status: the email Queue currently produces and renders five transactional types:
+email verification, magic link, OTP, password reset, and organization invitation. Email-change
+confirmation, new-device sign-in alerts, account-lockout notifications, administrator invitations,
+and subscription/billing alerts remain design targets. SMS supports OTP and magic-link short links.
 
-Email providers in priority order: **Cloudflare Email Service** (preferred and the default, through
-the send_email binding), Resend, SendGrid, and bring-your-own SMTP. The default provider is Cloudflare
-Email Service, which sends mail with zero additional credentials; deployers can switch to any of the
-other three.
+The only implemented email provider is **Cloudflare Email Service**, through the `send_email`
+binding. Resend, SendGrid, bring-your-own SMTP, tenant-level provider selection, and per-email-type
+provider selection remain design targets. Whether a deployment has onboarded a sending domain and
+has sufficient live quota remains `UNKNOWN` until that Cloudflare account is verified.
 
 Design decisions:
 
@@ -101,17 +122,17 @@ Design decisions:
   `notification_failures` table
 - The template engine is a Mustache subset (`{{var}}` plus `{{#if}}`), which runs on Workers with no
   Node dependency, scoped to user/org/brand/action
-- The provider is abstracted as an `EmailProvider` interface (`send({to, from, subject, html, text})`)
-  and the consumer selects a provider from tenant configuration. Each email type can name its own
-  provider (for example routing OTP through a self-hosted SMTP server)
+- The provider boundary is abstracted as an `EmailProvider` interface
+  (`send({to, from, subject, html, text})`), but the current consumer always resolves
+  `CloudflareEmailProvider`. Tenant and per-email-type selection are design targets
 - SMS: Twilio (primary) and Vonage (backup) behind a single adapter
 
 ### 3.1 Cloudflare Email Service (the default email channel)
 
 Cloudflare Email Service (2025, Email Sending) can send transactional email from a Worker to **any
 external recipient address**, unlike the older Email Routing, which only forwarded to verified
-addresses. Every XID transactional email (verification, magic link, OTP, password reset, alerts,
-invitations) goes through this channel.
+addresses. The five implemented XID transactional email types (verification, magic link, OTP,
+password reset, and organization invitation) go through this channel.
 
 - **Binding**: add `"send_email": [{ "name": "EMAIL" }]` to `wrangler.jsonc`, then call
   `env.EMAIL.send({ to, from: { email, name }, subject, html, text })` inside the Worker. No API key is
@@ -123,8 +144,8 @@ invitations) goes through this channel.
   versions are required (which lowers the spam score); recipients MUST be real addresses (bounces hurt
   sender reputation). Quotas and pricing are in the Cloudflare Email Service documentation.
 - **Provider abstraction**: `CloudflareEmailProvider` implements the `EmailProvider` interface and
-  wraps `env.EMAIL.send`. Resend, SendGrid, and SMTP each implement the same interface, and the
-  EmailConsumer is unaware of the concrete provider.
+  wraps `env.EMAIL.send`. Resend, SendGrid, and SMTP implementations are design targets and are not
+  present in the current consumer.
 - **Deliverability**: depends on the sending domain's SPF, DKIM, and DMARC configuration; bounce and
   suppression handling follows the Cloudflare Email Service deliverability guidance.
 
@@ -137,9 +158,10 @@ invitations) goes through this channel.
   matching hreflang, sitemap, Pagefind, Markdown, and LLM output
 - Email templates are versioned by language and selected by `user.locale`
 - Error messages are localized, and API error messages carry a locale
-- Locale management: tenants enable or disable languages and set a default
-- Language pack JSON lives in R2; the Worker preloads the top 5 into memory and reads the rest on
-  demand
+- Locale management: an Instance Manager can set one instance `defaultLocale` through
+  `/v1/platform/settings`. Per-tenant enabled/disabled locale sets remain a design target
+- Global email language-pack JSON can live in R2 and is loaded on demand. Preloading the top 5 packs
+  and tenant-specific language-pack management remain design targets
 
 Design decisions: the locale detection priority is `?locale=` -> `user.locale` -> `Accept-Language` ->
 the tenant default -> `en`; a missing string falls back to `en` and never displays the key name.
@@ -152,20 +174,27 @@ Event types (roughly 60+, grouped by domain): authentication, user lifecycle, or
 application, SSO, administrator operations, security (brute_force_blocked, impossible_travel,
 new_device), and billing.
 
-- Query filters: event_type, actor_id, target_id, IP, and time range, backed by D1 indexes and cursor
-  pagination
-- Export: CSV or JSON, at most 90 days per request, generated asynchronously (through a Queue) into R2
-  with a signed URL
-- Retention: Free 7 days, Pro 30 days, Enterprise custom (up to 2 years), with a daily Cron cleanup
-- Tamper resistance: INSERT only, with no UPDATE or DELETE; a monotonically increasing seq plus the
-  previous record's SHA-256 chained hash stored in prev_hash forms an append-only chain that not even
-  a platform admin can alter, and the DDL layer has no UPDATE privilege
-- SIEM integration: webhooks (HMAC-SHA256) plus prebuilt templates (Splunk, Datadog, Elastic, Panther)
-  fanned out through Queues
+- Query: the platform-wide and organization-scoped endpoints currently provide cursor pagination
+  only. Filters for event_type, actor_id, target_id, IP, time range, and tenant remain design targets
+- Export: asynchronous CSV/JSON export through a Queue into R2 with a signed URL remains a design
+  target; no current route or consumer implements it
+- Retention: `audit_events` has no tier-based cleanup path. Query or export windows may be service
+  labels, but they never authorize UPDATE or DELETE of a row in the active append-only chain.
+  Deployment-level archival and statutory retention outside that chain are deployment state and
+  remain `UNKNOWN` until verified
+- Tamper evidence: the application write path is INSERT-only. A monotonically increasing seq plus the
+  previous record's SHA-256 chained hash in prev_hash detects mutation, deletion, and gaps. The
+  current D1 schema has no trigger or table-level privilege that prevents UPDATE or DELETE, so
+  database access control is deployment state and remains `UNKNOWN` until verified
+- SIEM integration through HMAC-SHA256 webhooks and prebuilt Splunk, Datadog, Elastic, and Panther
+  templates remains a design target
 
-Design decisions: the audit write path goes through Queues asynchronously rather than writing to D1
-synchronously, which keeps sign-in P99 under 200 ms. The consumer writes in batches (of 100), and the
-chained hash is computed single-threaded on the consumer side to guarantee ordering.
+Current implementation: producers enqueue to `xid-audit`, keeping the D1 append off the request
+critical path; live sign-in P99 remains deployment evidence and is `UNKNOWN` until measured. The
+consumer walks each received batch sequentially and sends one message at a time to the tenant-sharded
+`AuditSeqDO.append()` path. The Durable Object persists one pending row, inserts and confirms that
+row in D1, and only then advances `next` and `last_hash`. `source_message_id` makes crash recovery and
+Queue retry idempotent. The queue uses `max_concurrency: 1` and 5 retries.
 
 ### 5.1 Audit chain implementation spec
 
@@ -174,7 +203,8 @@ chained hash is computed single-threaded on the consumer side to guarantee order
 ```sql
 CREATE TABLE audit_events (
   seq         INTEGER  NOT NULL,  -- per-tenant monotonic counter issued by AuditSeqDO, sharded by audit-seq:{tenant_id}
-  id          TEXT     NOT NULL,  -- UUID v4
+  id          TEXT     NOT NULL,  -- deterministic SHA-256 of tenant_id and source_message_id
+  source_message_id TEXT,         -- stable Queue/outbox identity; unique per tenant when present
   tenant_id   TEXT     NOT NULL,
   org_id      TEXT,               -- nullable (platform-level events)
   event_type  TEXT     NOT NULL,  -- see the enumeration in 5.1.5
@@ -191,10 +221,15 @@ CREATE TABLE audit_events (
 CREATE INDEX idx_audit_tenant_time ON audit_events(tenant_id, occurred_at);
 CREATE INDEX idx_audit_actor ON audit_events(tenant_id, actor_id);
 CREATE INDEX idx_audit_type ON audit_events(tenant_id, event_type);
+CREATE UNIQUE INDEX audit_events_tenant_source_message_id_unq
+  ON audit_events(tenant_id, source_message_id)
+  WHERE source_message_id IS NOT NULL;
 ```
 
-UPDATE and DELETE operations are forbidden. At the DDL layer, production data is protected by a
-read-only D1 account with no UPDATE privilege.
+Application code treats `audit_events` as INSERT-only and exposes no UPDATE or DELETE path. The
+current schema does not enforce that rule with a trigger or table-level privilege. The chain
+verification endpoint detects mutation or deletion; prevention by production access policy is
+deployment state and remains `UNKNOWN` until verified.
 
 #### 5.1.2 Hash computation specification
 
@@ -237,43 +272,55 @@ async function computeAuditHash(input: string): Promise<string> {
 The first record (genesis) has
 `prev_hash = "0000000000000000000000000000000000000000000000000000000000000000"` (64 zeros).
 
-#### 5.1.3 seq generation mechanism
+#### 5.1.3 Single-message append and seq generation
 
-**Approach: a Durable Object counter (`AuditSeqDO`), sharded by tenant_id.**
+**Current approach: `AuditSeqDO.append()`, sharded by tenant_id.**
 
-Durable Object name: `audit-seq:{tenant_id}`. Before writing to D1, the consumer requests a batch of
-seq values from that Durable Object (`allocate(n: number): number`). The Durable Object returns the
-start of the range, increments in memory, and persists:
+The Durable Object name is `audit-seq:{tenant_id}`. The consumer passes one event and its stable
+`source_message_id` to `append()`. The Durable Object initializes `next` and `last_hash` from its own
+storage, or from the latest persisted D1 row when its storage has not been initialized. It then:
+
+1. Finds an already persisted row by `(tenant_id, source_message_id)` and commits that result if a
+   prior attempt reached D1.
+2. Rejects a different message as `blocked` while another pending row exists.
+3. Persists the one pending row in Durable Object storage before touching D1. The event `id` is
+   `SHA-256(tenant_id + "\0" + source_message_id)`.
+4. Executes one `INSERT OR IGNORE`, reads the row back by source identity, and verifies its seq, id,
+   and hash.
+5. Only after D1 confirmation persists `next = seq + 1` and `last_hash`, then clears the pending row.
+
+This ordering is the recovery boundary because Durable Object storage and D1 cannot participate in
+one transaction. A crash before confirmation replays the same source identity rather than allocating
+a gap or duplicate. A later message cannot advance past an unconfirmed predecessor. There is no
+batch `allocate(n)` path and no batch audit INSERT in the current implementation.
 
 ```typescript
-export class AuditSeqDO extends DurableObject {
-  private next: number = 0
-
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env)
-    ctx.blockConcurrencyWhile(async () => {
-      this.next = (await ctx.storage.get<number>('next')) ?? 1
-    })
+// simplified current flow
+async append(input: AuditAppendInput) {
+  await initialize(input.fields.tenantId)
+  const existing = await findPersistedEvent(input.fields.tenantId, input.sourceMessageId)
+  if (existing) {
+    await commitPersisted(existing)
+    return { status: 'appended' }
+  }
+  if (pending && pending.sourceMessageId !== input.sourceMessageId) {
+    return { status: 'blocked' }
   }
 
-  async allocate(count: number): Promise<number> {
-    const start = this.next
-    this.next += count
-    await this.ctx.storage.put('next', this.next)
-    return start // returns the range [start, start+count)
-  }
+  const pendingEvent = pending ?? (await createPending(input))
+  await insertAndConfirm(pendingEvent)
+  await commitPersisted({
+    seq: pendingEvent.row.seq,
+    id: pendingEvent.row.id,
+    hash: pendingEvent.row.hash,
+  })
+  return { status: 'appended' }
 }
 ```
 
-The Durable Object input gate guarantees read-modify-write atomicity, so no additional lock is needed.
-Once the consumer has a range it assigns seq values in batch order, so seq values are contiguous within
-a batch. **D1's `INTEGER PRIMARY KEY AUTOINCREMENT` MUST NOT be used** for seq: D1 cannot guarantee a
-strictly monotonic return value across replicas on write, and it does not support batch
-pre-allocation.
+#### 5.1.4 Queue and consumer ordering guarantee
 
-#### 5.1.4 Consumer single-threading guarantee
-
-The audit Queue consumer is configured with `max_concurrency = 1`:
+The `xid-audit` Queue consumer is configured with `max_concurrency: 1` and 5 retries:
 
 ```jsonc
 // wrangler.jsonc
@@ -281,11 +328,11 @@ The audit Queue consumer is configured with `max_concurrency = 1`:
   "queues": {
     "consumers": [
       {
-        "queue": "audit-events",
+        "queue": "xid-audit",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
-        "max_retries": 3,
-        "dead_letter_queue": "audit-events-dlq",
+        "max_retries": 5,
+        "dead_letter_queue": "xid-audit-dlq",
         "max_concurrency": 1,
       },
     ],
@@ -293,46 +340,20 @@ The audit Queue consumer is configured with `max_concurrency = 1`:
 }
 ```
 
-`max_concurrency = 1` guarantees only one consumer isolate runs at a time, so the chained hash
-computation has no concurrency race. Consumer logic:
+The consumer iterates `batch.messages` sequentially and delegates each message to its tenant
+`AuditSeqDO`; it does not group messages or preallocate seq ranges. `AuditSeqDO` remains the
+per-tenant serialization and commit boundary even when Queue retries split or reorder an original
+batch. A malformed message is persisted to `audit_dead_letters`. A retryable failure is retried up
+to the five-retry boundary; after that, `terminalize()` persists the terminal failure without
+advancing the audit chain past an unconfirmed event.
 
 ```typescript
-// pseudocode
+// simplified current consumer
 async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
-  // 1. Group by tenant_id to reduce cross-tenant seq Durable Object calls
-  const groups = groupBy(batch.messages, (m) => m.body.tenant_id)
-
-  for (const [tenantId, msgs] of groups) {
-    const seqDO = env.AUDIT_SEQ.get(env.AUDIT_SEQ.idFromName(`audit-seq:${tenantId}`))
-    const seqStart = await seqDO.allocate(msgs.length)
-
-    // 2. Read the previous hash (the current latest hash from D1)
-    let prevHash = await getLatestHash(env.DB, tenantId) // returns 64 zeros when there is no record
-
-    // 3. Compute hashes in order and assemble the rows
-    const rows: AuditRow[] = []
-    for (let i = 0; i < msgs.length; i++) {
-      const msg = msgs[i]
-      const seq = seqStart + i
-      const hash = await computeAuditHash(buildInput(seq, msg, prevHash))
-      rows.push({ seq, hash, prev_hash: prevHash, ...msg.body })
-      prevHash = hash
-    }
-
-    // 4. Batch INSERT (a single transaction)
-    await batchInsertAudit(env.DB, rows)
+  for (const message of batch.messages) {
+    await handleMessage(env, message)
   }
-  batch.ackAll()
 }
-```
-
-The `getLatestHash` query:
-
-```sql
-SELECT hash FROM audit_events
-WHERE tenant_id = ?
-ORDER BY seq DESC
-LIMIT 1
 ```
 
 #### 5.1.5 Event type enumeration (roughly 60+)
@@ -342,8 +363,8 @@ Grouped by domain, with the string format `<domain>.<action>`:
 - Authentication: auth.login_success / auth.login_failure / auth.logout / auth.mfa_challenge /
   auth.mfa_success / auth.mfa_failure / auth.passkey_register / auth.passkey_authenticate /
   auth.token_issued / auth.token_revoked / auth.session_revoked
-- User: user.created / user.updated / user.deleted / user.email_verified / user.password_changed /
-  user.mfa_enrolled / user.mfa_removed / user.impersonated
+- User: user.created / user.updated / user.deleted / user.erasure_completed / user.email_verified /
+  user.password_changed / user.mfa_enrolled / user.mfa_removed / user.impersonated
 - Organization: org.created / org.updated / org.deleted / org.member_added / org.member_removed /
   org.role_assigned / org.role_removed / org.invitation_sent / org.invitation_accepted
 - Application: app.created / app.updated / app.deleted / app.secret_rotated
@@ -357,10 +378,9 @@ Grouped by domain, with the string format `<domain>.<action>`:
 - Billing: billing.subscription_created / billing.subscription_updated / billing.payment_failed /
   billing.quota_exceeded
 
-#### 5.1.6 Chain verification endpoint (not started)
+#### 5.1.6 Chain verification endpoint
 
-`GET /v1/platform/audit/verify` (Instance Manager only; not started -- the existing audit query
-endpoints are `GET /v1/platform/audit-events` and `GET /v1/organizations/:id/audit-events`):
+`GET /v1/platform/audit/verify` (Instance Manager only):
 
 Request parameters:
 
@@ -378,41 +398,81 @@ Response (200):
   "verified_range": { "from": 1, "to": 50000 },
   "chain_valid": true,
   "broken_at_seq": null, // the first break point seq when chain_valid=false
+  "failure_reason": null, // audit_chain_broken | audit_seq_gap | audit_genesis_missing
   "record_count": 50000,
   "computed_at": "2025-01-15T12:00:00.000Z",
 }
 ```
 
-Verification logic: read from D1 in batches through a cursor (1000 rows per batch), recompute each
-hash, and compare against prev_hash. The time complexity is O(n), so it is recommended to run it
-asynchronously in the background (through a Queue) with the result stored in KV under
-`audit-verify:{tenant_id}:{job_id}`.
+The implemented operator path reads D1 in batches of at most 1000 rows, recomputes every selected
+hash, checks `prev_hash`, and returns the diagnostic synchronously. Its time complexity is O(n), so
+operators should use `from_seq` / `to_seq` for bounded investigations. A range starting after seq 1
+is anchored to the stored predecessor hash; a full integrity verification therefore starts at seq 1.
+An asynchronous Queue/KV verification job is not implemented.
 
-Error codes:
+Failure diagnostics are returned in the 200 response through `failure_reason` and
+`broken_at_seq`:
 
 - `audit_chain_broken` - hash mismatch, returning `broken_at_seq`
 - `audit_seq_gap` - non-contiguous seq (something was deleted)
 - `audit_genesis_missing` - the first record's prev_hash is not 64 zeros
 
+### 5.2 Queue dead-letter operations
+
+Each business Queue has its own DLQ (`xid-email-dlq`, `xid-whatsapp-dlq`, `xid-sms-dlq`,
+`xid-audit-dlq`, `xid-webhook-dlq`, `xid-metering-dlq`, `xid-scim-sync-dlq`, and
+`xid-privacy-dlq`). This is load-bearing: `MessageBatch.queue` identifies only the queue currently
+being consumed, so a shared DLQ cannot prove the original destination for a replay.
+
+The DLQ consumer stores bounded metadata in `queue_dead_letters`. It never stores a plaintext body,
+recipient, token, OTP, cookie, Authorization value, or provider response. The exact original JSON
+message is encrypted with the existing KEK AES-256-GCM envelope boundary and only decrypted inside
+the replay operation. A persistence failure retries the DLQ message; after 100 persistence retries,
+the per-source `*-dlq-persistence-failures` quarantine queue retains it instead of discarding it.
+
+Only an authenticated, verified `instance_manager` can list, inspect, or replay records through
+`/v1/platform/dead-letters`. Replay atomically claims `pending -> replaying`, routes only to the
+recorded source Queue, and completes `replaying -> replayed`. A five-minute lease prevents
+concurrent replay; the hourly cron releases an expired lease, and a later manual request can also
+reclaim it directly. This prevents a Worker crash from leaving a record in `replaying` forever.
+Because the crash can happen after Queue acceptance but before the D1 completion write, recovery is
+intentionally at-least-once and every source consumer keeps its own idempotency boundary. A
+completed `replayed` record is never sent again. The Console requires an explicit confirmation and
+the Core queues a `platform.queue_dead_letter.replayed` audit event. Ciphertext is never returned by
+list or detail responses.
+
 ## 6. Observability
 
-Core metrics: sign-in success rate (split by password, social, SSO, magic_link), MFA adoption and pass
-rate, DAU/WAU/MAU, API error rate, token issuance and revocation volume, and email success rate.
+Implemented baseline:
 
-Anomaly detection:
+- Authentication success writes a low-cardinality Analytics Engine event, while MAU/DAU uses the
+  exact `METERING_QUEUE` -> `MeteringDO` -> D1 pipeline.
+- Audit metadata is recursively redacted before it enters the append-only hash chain.
+- Worker application logs go through `worker/lib/safe-log.ts`. They contain a static event name,
+  severity, an allowlisted error type/code, and bounded operational fields. Error message, stack,
+  cause, cookie, Authorization, IP, raw URL/query, provider payload, and user identifiers are never
+  passed to `console`.
+- Production Workers Logs sample 10%; staging logs sample 100%. Cloudflare invocation logs and
+  automatic request traces are disabled in every environment because both persist the request URL,
+  and automatic Fetch spans include `url.full`. Core URLs can carry OAuth codes, invitation tokens,
+  verification tokens, and other one-time secrets.
+- Cloudflare Workers Logs retention is 3 days on Free and 7 days on Paid, with an overall maximum
+  of 7 days. Current read-only evidence identifies the hosted account as Free, so its expected
+  retention is 3 days; the active account plan and deployed retention remain `EXTERNAL` until
+  reconciled there. XID configures no Logpush destination and therefore makes no longer-retention
+  claim. Dashboard/query access must be restricted to the deployer's incident-response role and
+  audited in the Cloudflare account. See
+  `https://developers.cloudflare.com/workers/observability/logs/workers-logs/`.
 
-- Brute force: 10 failures from the same IP within 5 minutes triggers a CAPTCHA or a temporary block
-  (KV TTL 15 minutes)
-- Impossible travel: an IP geolocation delta over 1000 km with a time delta under 2 hours raises an
-  alert
-- Device fingerprint change: triggers a new-device alert email
-- Account enumeration probing: response times are normalized (constant-time)
+Production access-control and alert policies are deployment state, not repository code. A release
+cannot claim them as verified until the active Cloudflare account proves the expected member roles,
+Workers Logs access, notification destinations, and sampling configuration.
 
-Design decisions: live metrics use Analytics Engine (`env.ANALYTICS.writeDataPoint`), and historical
-aggregation goes through the Analytics Engine SQL API. Impossible travel is computed synchronously in
-the login Worker (the GeoIP MMDB lives in R2 and is preloaded at startup, taking under 5 ms), while
-firing the alert goes through an asynchronous Queue. Tenant admins see their own data; platform admins
-see the global aggregate plus per-tenant drill-down.
+Planned metrics remain sign-in success by method, MFA adoption/pass rate, API error rate, token
+issuance/revocation volume, and delivery success. Impossible travel, device fingerprint alerts, a
+GeoIP MMDB, and historical Analytics Engine SQL aggregation are not implemented. Brute-force
+protection currently uses Turnstile plus `RateLimitStore`; account-enumeration work is normalized by
+constant-time comparison and jitter.
 
 ## 7. Billing and quotas
 
@@ -424,34 +484,65 @@ Aggregation architecture:
 - After a successful authentication, the login Worker writes a metering event
   `{tenant_id, user_id, ts}` to Queues
 - The metering consumer deduplicates and writes daily rows into the D1 `usage_daily` table
-- A Cron job aggregates the current month's MAU hourly into `usage_monthly` and reports the day's
-  usage delta to Stripe (Metered Subscriptions) daily
+- The daily `0 2 * * *` Cron snapshots the current month's MAU into `usage_monthly`. On the first
+  UTC day of a month, the same daily path also archives and evicts the previous month's
+  `MeteringDO` keys. The optional Stripe metering phase runs daily
 
-Example plans:
+Example managed-service accounting labels:
 
-| Tier       | Monthly | MAU       | Orgs      | SSO connections |
-| ---------- | ------- | --------- | --------- | --------------- |
-| Free       | $0      | 10,000    | 3         | 0               |
-| Starter    | $25     | 50,000    | 20        | 2               |
-| Pro        | $99     | 200,000   | Unlimited | 10              |
-| Enterprise | Custom  | Unlimited | Unlimited | Unlimited       |
+| Label      | Monthly | Default seat quota | Default API quota | Support label |
+| ---------- | ------- | ------------------ | ----------------- | ------------- |
+| Free       | $0      | 10                 | 100,000           | Community     |
+| Starter    | $25     | 50                 | 1,000,000         | Standard      |
+| Pro        | $99     | 250                | 10,000,000        | Priority      |
+| Enterprise | Custom  | Custom             | Custom            | Contracted    |
 
-Overage: Free at 100% blocks new sign-ins and prompts an upgrade; Starter and Pro alert at 80% and
-auto-upgrade to the next tier at 100% (which can be switched off in favor of blocking).
+Plan labels select accounting metadata, default quotas, and support labels only. They never control
+OIDC, OAuth, SAML, SSO, SCIM, WebAuthn, MFA, or any other authentication capability. A hard resource
+quota may reject a new quota-consuming management write, such as adding another seat, but it MUST NOT
+suspend an existing user, block sign-in, stop token issuance or refresh, or disable an already
+configured protocol integration. Usage-alert rules, thresholds, delivery, and deduplication remain
+design targets; the current repository does not emit them. Changing the accounting label or an
+explicit quota is an administrative billing operation, not a feature unlock.
 
-Stripe: Checkout Session (upgrades), Customer Portal (invoices and payments), and webhook handling
-where `invoice.payment_failed` triggers a downgrade or lockout.
+The seat definition is tenant-wide: `COUNT(DISTINCT memberships.user_id)` over active memberships
+for the complete tenant, including every child organization. The same user in multiple organizations
+therefore consumes one seat. The billing overview uses this exact definition for `seatUsed`.
+Membership INSERT and UPDATE triggers apply the hard quota atomically when an active user would
+consume a new seat. An UPDATE excludes the old row before evaluating the destination tenant, so an
+organization move within one tenant does not consume a second seat and a cross-tenant move cannot
+bypass the destination quota.
 
-XID is MIT licensed and performs no license key validation; there is no feature that requires a
-network signature check to unlock. The tier table above and the Stripe integration are an optional
-billing layer for deployers who want to run a paid service on top of XID. The kernel does not depend
-on it, and turning billing off does not affect any authentication capability.
+`organization_quotas(tenant_id, 'seats')` is the authoritative hard seat-creation quota.
+`organizations.seat_limit` on the root organization is a compatibility mirror only. A plan or
+seat-limit mutation updates both values in the same D1 batch, and the Console presents one seat
+control. `seats`, `organizations`, and `sso_connections` may use `block_creation`; `api_calls`,
+`emails`, and `mau` are observational only, and the management API rejects hard enforcement for
+those keys. Creating a top-level tenant initializes the Free seat quota and root mirror in the same
+batch. Child Organizations do not own a seat limit, and their create/patch API rejects `seat_limit`.
+
+Stripe is an optional managed-service adapter for Checkout Sessions, the Customer Portal, invoices,
+payments, and accounting-label updates. `invoice.payment_failed` records billing state; operator
+alert delivery remains a design target. It does not downgrade authentication behavior or lock users
+out.
+
+Meter reporting persists a `billing_meter_reports` cursor before each provider call. The pending
+identifier is globally unique, and every retry reuses the complete first payload, including customer,
+event name, value, and timestamp, until the provider-acknowledged target is committed. A Worker or D1
+failure therefore cannot turn one usage delta into two provider reports.
+Stripe webhook processing similarly claims each provider `event_id` in `stripe_webhook_events`
+before applying it, making event retries idempotent.
+
+XID is MIT licensed. Self-hosting always includes the full feature set, with no tiering, license key,
+license generation, or local/network validation check. The labels and Stripe adapter above are
+optional for deployers who operate a paid service on top of XID. The kernel does not depend on them,
+and turning billing off does not affect any authentication capability.
 
 Design decisions: MAU and DAU use exact counting in a per-tenant sharded MeteringDO. Each membership
 is stored as its own Durable Object storage key, and each day and month bucket stores a count, so the
 full user set is never held in the isolate. HyperLogLog's 0.8% error is unacceptable for billing.
-Stripe metered billing reports a delta rather than the full total. Overage alerts are deduplicated to
-at most 3 per tenant per type per month so users are not spammed.
+Stripe metered billing reports a delta rather than the full total. Deduplicating future overage
+alerts to at most 3 per tenant per type per month is a design target, not a shipped path.
 
 ### 7.1 Exact membership counting implementation spec
 
@@ -471,54 +562,36 @@ Object storage transaction rolls back and a retry does not double-count. A dupli
 reads the membership and simply returns the existing DAU snapshot. The full user set always stays in
 storage, and a Durable Object restart reads only the counts or the current user key.
 
-#### 7.1.2 Archiving and cleanup
+#### 7.1.2 Daily snapshots, month-start archiving, and cleanup
 
-A Cron job reads last month's count from MeteringDO, writes it into the D1 `usage_monthly` table, and
-then calls `evictMonth`. `evictMonth` deletes last month's data 1000 keys per page across the month
-and day membership prefixes and the day count prefix, without reading or deserializing any membership
-value. The storage key count grows linearly with the number of exactly deduplicated members, but the
-isolate memory usage stays constant.
+The daily `0 2 * * *` Cron snapshots every active tenant's current-month count from `MeteringDO` into
+the D1 `usage_monthly` table. On UTC day 1, `reportMonthlyMau()` additionally reads the final
+previous-month count, upserts it, and then calls `evictMonth`. `evictMonth` deletes the previous
+month's membership and count keys 1000 at a time without reading or deserializing membership values.
+The same month-start branch removes D1 monthly rows older than the rolling cutoff computed 13 months
+before the current month. The storage key count grows linearly with the number of exactly
+deduplicated members, but isolate memory usage stays constant.
 
-#### 7.1.3 Month-end archival Cron pseudocode
+#### 7.1.3 Daily maintenance and month-start archival pseudocode
 
-Cron Trigger: `0 2 1 * *` (02:00 UTC on the first of each month, processing the previous month).
+Cron Trigger: `0 2 * * *` (02:00 UTC every day). The first day of a UTC month also processes the
+previous month.
 
 ```typescript
-// pseudocode: MauArchiveCron
-export async function runMauArchive(env: Env) {
-  const lastMonth = getPrevYearMonth() // e.g. "2025-01"
-
-  // 1. Enumerate every active tenant (a D1 query)
-  const tenants = await env.DB.prepare('SELECT tenant_id FROM tenants WHERE status = ?')
-    .bind('active')
-    .all<{ tenant_id: string }>()
-
-  for (const { tenant_id } of tenants.results) {
-    // 2. Read the final MAU value from MeteringDO
-    const do_ = env.METERING.get(env.METERING.idFromName(`metering:${tenant_id}`))
-    const mau = await do_.getMau(tenant_id, lastMonth)
-
-    // 3. Archive into D1 usage_monthly
-    await env.DB.prepare(
-      `
-        INSERT INTO usage_monthly (tenant_id, year_month, mau, archived_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT (tenant_id, year_month) DO UPDATE SET mau = excluded.mau
-      `,
-    )
-      .bind(tenant_id, lastMonth, mau, new Date().toISOString())
-      .run()
-
-    // 4. Report the MAU to Stripe (delta = mau, because Stripe settles monthly)
-    await reportStripeUsage(tenant_id, lastMonth, mau, env)
-
-    // 5. Clean up last month's membership and count keys
-    await do_.evictMonth(lastMonth)
+export async function runMonthlyUsageMaintenance(env: Env, now: Date = new Date()) {
+  await snapshotCurrentMonthMau(env, now)
+  await reportMonthlyMau(env, now) // returns immediately unless now is UTC day 1
+  if (shouldArchivePrevMonth(now)) {
+    await cleanupOldMonthlyUsage(env, now)
   }
 }
 ```
 
-D1 schema:
+The optional Stripe adapter runs as a separate daily phase after usage maintenance. It reads the
+persisted monthly snapshot and queues idempotent meter reports; it is not part of the month-start
+archive transaction.
+
+Current D1 schema:
 
 ```sql
 CREATE TABLE usage_monthly (
@@ -535,33 +608,59 @@ The Cron Trigger is configured in `wrangler.jsonc`:
 ```jsonc
 {
   "triggers": {
-    "crons": ["0 2 1 * *"],
+    "crons": ["0 * * * *", "0 2 * * *"],
   },
 }
 ```
 
-The Worker `scheduled` handler dispatches to the right function based on `event.cron`. The Cron
-execution timeout is 15 minutes (Free) and 15 minutes (Paid), so with a large tenant count the work
-MUST be batched at 50 tenants per batch, spanning batches through a Queue or by splitting it into
-several Cron tasks.
+The Worker `scheduled` handler dispatches `0 2 * * *` to the daily runner. The current implementation
+paginates active tenants 50 at a time and processes them sequentially. Completion time and capacity
+for a particular production tenant count remain deployment evidence and are `UNKNOWN` until measured.
 
 ## 8. Compliance center
 
-- SOC 2 / GDPR evidence: the audit tamper-resistance statement (the chained hash is exportable), the
-  access control matrix, MFA enforcement status, and the data encryption statement (D1/KV/R2
-  encryption at rest, TLS 1.3)
-- Data residency: EU tenants can choose EU-only (Durable Objects `jurisdiction: "eu"`). D1 has no
-  native geographic locking, so EU residency is deployed as a separate D1 instance
-  (`--location eu`), assigned automatically by `billing_country`
-- GDPR tooling: data export (a Right of Access ZIP), deletion (soft delete -> 7-day cooling off ->
-  hard delete of PII, with the audit user_id replaced by `[deleted_user]` so events are retained in
-  anonymized form), and online DPA signing generating a PDF stored in R2
-- Status page: `status.xid.dev` hosted on Cloudflare Pages, with a Cron job probing the core endpoints
-  every 60 seconds and writing to KV, publishing 30 days of availability history
-- Backup and DR: D1 Time Travel (7 days) plus a weekly export to R2 cold storage (90 days), with an
-  RTO of 4 hours and an RPO of 1 hour, plus a quarterly DR drill (SOC 2 evidence)
+- SOC 2 / GDPR evidence: the implemented audit chain provides tamper evidence, not database-level
+  immutability. Deployment access controls, MFA enforcement state, storage encryption evidence, and
+  TLS posture must be collected from the active Cloudflare account and remain `UNKNOWN` until
+  verified
+- Data residency: the current settings API stores a `dataResidency` metadata string only. It does not
+  select a Durable Object jurisdiction, route to a regional D1 binding, or derive placement from
+  `billing_country`. EU-only Durable Objects, a separately deployed EU D1, and automatic assignment
+  remain design targets; any live residency claim is `UNKNOWN` until its deployment topology is
+  verified
+- GDPR tooling: the implemented self-service path produces a private Right of Access JSON export in
+  R2 with a 48-hour authenticated download, while deletion follows a cancelable 30-day grace period
+  before PII erasure. Erasure keeps a minimal `users` tombstone but removes identity lookups and
+  never rewrites the append-only audit chain: audit views render the erased actor as
+  `[deleted_user]`, then a new `user.erasure_completed` event records completion
+- Compliance evidence: an Instance Manager publishes versioned global or tenant-specific metadata
+  backed by an immutable `compliance/` R2 object and a required `sha256:` checksum. The authenticated
+  download proxy re-hashes at most 10 MiB before returning a private attachment. An Organization
+  Manager can accept an available DPA; Core persists `accepted_by`, `accepted_at`, artifact checksum,
+  and source version in an immutable tenant record. Once any Organization accepts a source version,
+  the Instance Manager can no longer update or delete that source metadata; the acceptance write and
+  source mutation use mutually exclusive D1 predicates so a concurrent request cannot orphan the
+  evidence. XID does not generate or cryptographically sign the source PDF
+- Status page: the Nimbus Site Worker serves the public `/status` shell, and Core serves public
+  incident history plus a severity-derived overall state at `/v1/public/status`. Incident authoring
+  and timestamped updates remain authenticated platform operations in the unified Console
+- Backup and DR: repository recovery guidance uses D1 Time Travel as the platform-side safety net.
+  Its live availability and retention depend on the Cloudflare account and remain `UNKNOWN` until
+  verified. No application path performs weekly R2 cold exports. A 90-day cold-retention policy, RTO
+  of 4 hours, RPO of 1 hour, and quarterly DR drill remain design/operational targets and MUST NOT be
+  claimed without deployment evidence
 
-Design decisions: GDPR deletion runs asynchronously through Queues (progressively cleaning up the D1
-profile and sessions, KV tokens, and the R2 avatar), and a deletion-complete event is written to the
-audit log. The status page is a separate Pages project, so a main-service outage does not affect its
-availability.
+Design decisions: privacy export and deletion run asynchronously through `PRIVACY_QUEUE`. The
+deletion request and consumer both reject erasure of an Organization's sole active owner or the last
+active `instance_manager` in the same Instance scope. Non-null `scope_id` values match exactly, while
+the existing global null scope matches only another null scope. The consumer repeats that check after the 30-day grace
+period, and an atomic eligibility guard is the first statement in the D1 batch so a concurrent role
+change rolls back all relational erasure and audit-outbox writes. It then revokes SessionDO and OAuth
+state, erases D1 PII, removes prior R2 privacy exports, and writes completion through the durable
+audit outbox. Announcement, incident, compliance metadata, and DPA acceptance mutations use the same
+durable platform-audit outbox. Status does not introduce a
+fourth Worker or a separate Pages project: the three deployed surfaces remain Nimbus Site, Console,
+and Core. The Nimbus shell remains independently renderable if Core is unavailable and shows that the
+live status API cannot be reached. An independent external probe and availability-history store are
+outside the three-Worker repository architecture and remain `UNKNOWN` until a deployment configures
+and verifies them.

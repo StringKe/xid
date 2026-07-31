@@ -1,5 +1,8 @@
 # xid -- XID Identity Platform Python Server SDK
 
+> Registry status: UNPUBLISHED. No PyPI release is verified or authorized.
+> Use the Git source installation below.
+
 **Status: implemented (verified locally)**
 
 > 本机 pytest 全部 PASS(见 `docs/sdks/platform-matrix.md`)。真实 IdP round-trip(L4)尚未验证。
@@ -10,12 +13,6 @@
 
 ```bash
 pip install "xid @ git+https://github.com/StringKe/xid#subdirectory=sdk/python"
-```
-
-PyPI 发布后:
-
-```bash
-pip install xid
 ```
 
 依赖:
@@ -62,8 +59,7 @@ except TokenVerificationError as exc:
 ### 认证 HTTP 请求
 
 ```python
-# headers: dict[str, str] -- 请求头
-# cookies: dict[str, str] | None -- Cookie 字典(可选)
+# 默认 Bearer-only。cookies 只有在 XidClient(cookie_name="...") 时才会被读取。
 status = await client.authenticate_request(
     headers=dict(request.headers),
     cookies=dict(request.cookies),
@@ -75,6 +71,22 @@ else:
     # status.reason 说明失败原因(仅供服务端日志,不暴露给客户端)
     raise Unauthorized()
 ```
+
+Core 的 `__Host-xid.rt.*` cookie 是 opaque session handle,SDK 不会扫描或本地验证它。应用
+如需自己的 JWT cookie fallback,必须在构造时显式传入 `cookie_name`。
+
+### 将 Core browser session 交换为 JWT
+
+```python
+token = await client.exchange_session_token(
+    incoming_request_url="https://app.example.com/account",
+    cookie_header=request.headers["cookie"],
+)
+```
+
+SDK 只允许 exact same-origin `POST /v1/sessions/token`,转发完整 `Cookie` header,
+`follow_redirects=False`,并且只接受 HTTP 200 与 exact `{"token":"..."}` response。特殊
+HTTP runtime 可通过 `http_client=` 注入 adapter,安全校验仍由 SDK 执行。
 
 ### 验证 webhook
 
@@ -135,7 +147,7 @@ async def me(claims: TokenClaims = Depends(require_auth)):
 | audience           | str / list[str] / None            | None                   | 期望的 aud claim;None 跳过校验                      |
 | jwks_ttl           | int                               | 3600                   | JWKS 内存缓存 TTL(秒)                               |
 | http_timeout       | float                             | 10.0                   | JWKS 拉取超时(秒)                                   |
-| cookie_name        | str / None                        | None                   | 精确 cookie 名;None 时扫描 `__Host-xid.rt.*` 前缀   |
+| cookie_name        | str / None                        | None                   | 应用自有 JWT cookie 名;None 时禁用 cookie fallback |
 | leeway             | int                               | 0                      | JWT exp/iat 时钟偏差容忍(秒)                        |
 | nbf_leeway_seconds | int / None                        | None                   | nbf 独立 leeway;None 时与 `leeway` 相同             |
 | preset_jwks        | dict / None                       | None                   | 预置 JWKS 文档,跳过 HTTP 拉取                       |
@@ -144,16 +156,20 @@ async def me(claims: TokenClaims = Depends(require_auth)):
 | logger             | logging.Logger / None             | None                   | SDK 内部 logger(如 JWK 解析 warning)                |
 | external_cache     | JwksExternalCache / None          | None                   | 多 worker JWKS 外部缓存(Redis 等)                   |
 
-`SESSION_COOKIE_PREFIX` 常量值为 `__Host-xid.rt.`,与 `apps/server/worker/lib/cookies.ts` 对齐。
-默认从 Cookie 扫描此前缀(多 tab 多 session namespace);也可传 `cookie_name` 精确匹配。
-
 ### `await client.verify_token(token, *, audience) -> TokenClaims`
 
 验证 JWT access token。失败抛 `TokenVerificationError`。
 
 ### `await client.authenticate_request(headers, cookies, *, audience) -> AuthStatus`
 
-从请求头/Cookie 提取并验证 token。不抛异常,通过 `AuthStatus.authenticated` 判断。
+默认从 Bearer header 提取并验证 token。仅在显式配置 `cookie_name` 时读取该应用自有 JWT
+cookie。不抛异常,通过 `AuthStatus.authenticated` 判断。
+
+### `await client.exchange_session_token(*, incoming_request_url, cookie_header, endpoint, http_client) -> str`
+
+将 Core opaque browser session 显式交换为 short-lived JWT。SDK 强制 exact same-origin
+endpoint、禁止 redirect,并验证 exact response wire。失败抛
+`SessionTokenExchangeError`。
 
 ### `client.verify_webhook(payload, headers, secret, *, tolerance) -> WebhookPayload`
 

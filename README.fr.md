@@ -75,17 +75,24 @@ par un flag de build.
 
 ### Intégrer une application
 
-Les packages `@xid-kit/*` ne sont **pas publiés sur npm** ; ce sont des packages du workspace, donc
-les utiliser aujourd'hui dans votre propre application suppose d'en vendoriser les sources ou
-d'ajouter ce dépôt à votre workspace. L'API ci-dessous est la surface publique actuelle. Depuis
-`@xid-kit/react` :
+Dix-huit packages TypeScript `@xid-kit/*` sont configurés comme publiables et passent le contrôle
+de consommation depuis des tarballs locaux propres (`pnpm run sdk:distribution:verify`). Le dépôt
+ne contient aucune preuve de release établissant leur état actuel dans un registre externe ; le
+statut de publication npm est donc `UNKNOWN`. Sans vérification indépendante du registre, utilisez
+le workspace ou un tarball produit localement. L'API ci-dessous est la surface publique actuelle.
+Depuis `@xid-kit/react` :
 
 ```tsx
 import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
 
 function App() {
   return (
-    <XidProvider publishableKey="pk_test_..." apiUrl="https://auth.example.com">
+    <XidProvider
+      mode="oidc"
+      issuer="https://auth.example.com"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
+    >
       <SignedOut>
         <SignInButton />
       </SignedOut>
@@ -137,36 +144,46 @@ cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
 npx wrangler r2 bucket create xid-storage
-for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-dlq; do
-  npx wrangler queues create "$q"
-done
+pnpm --dir ../.. run cloudflare:queues:create
 ```
+
+Le script Queue dérive les 24 ressources requises depuis `apps/server/wrangler.jsonc` :
+8 Queues sources, 8 dead-letter Queues propres à chaque source et 8 Queues de quarantaine pour les
+échecs de persistance. Il ne crée pas l'ancien `xid-dlq` partagé.
 
 Remplacez ensuite les valeurs d'account et de route amont dans `apps/server/wrangler.jsonc`,
 `apps/console/wrangler.jsonc` et `apps/site/wrangler.jsonc`. Définissez aussi l'origine publique
 canonique dans `apps/site/astro.config.ts` sur votre URL HTTPS apex. La configuration Core a
 également besoin de votre `database_id` D1 et de l'`id` de votre namespace KV. Il n'existe aucun
 modèle d'auto-hébergement à copier, et **les trois Workers ne se déploieront pas correctement tant
-que ces valeurs amont subsistent**. Les huit bindings Durable Object, le dataset Analytics Engine,
+que ces valeurs amont subsistent**. Les onze bindings Durable Object, le dataset Analytics Engine,
 le binding `send_email` et les deux cron triggers appartiennent uniquement au Core et sont déjà
 déclarés.
 
-Définissez les secrets, migrez, déployez, puis initialisez. Perdre `KEK` rend indéchiffrables
-toutes les clés de signature et tous les identifiants de provider stockés ; perdre `PEPPER`
-invalide tous les hachages de mots de passe. Sauvegardez les deux hors de Cloudflare au préalable.
+Définissez les secrets, vérifiez en local, connectez Workers Builds, puis initialisez après la
+réussite des trois builds de production. Perdre `KEK` rend indéchiffrables toutes les clés de
+signature et tous les identifiants de provider stockés ; perdre `PEPPER` invalide tous les hachages
+de mots de passe. Sauvegardez les deux hors de Cloudflare au préalable.
 
 ```bash
 openssl rand -base64 32 | npx wrangler secret put KEK
 openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
-npx wrangler d1 migrations apply DB --remote
 cd ../..
+pnpm check
+pnpm test
 pnpm run build
-pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
+pnpm smoke:three-workers
+```
 
+Connectez `xid`, `xid-console` et `xid-site` comme trois projets Cloudflare Workers Builds adossés à
+ce dépôt Git. Définissez `main` comme branche de production, désactivez les builds des branches
+non-production et les Worker Preview URLs, puis utilisez les commandes root, build et deploy de
+[`docs/deployment.md`](docs/deployment.md). Fusionnez dans `main` un commit relu et signé ; Workers
+Builds applique les migrations D1 distantes et déploie les trois Workers. Après leur réussite :
+
+```bash
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
   -H 'X-Bootstrap-Token: <BOOTSTRAP_TOKEN>' \
@@ -218,16 +235,16 @@ apps/console/      Binding-free static management UI for /console and /console/*
 apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
   src/             React SPA for Hosted Auth and account pages
-packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
+packages/          23 workspace packages: 15 TypeScript SDKs + 3 public runtime kernels + 5 private implementation packages
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-Les bibliothèques noyau -- `protocol`, `crypto`, `webauthn`, `saml`, `db`, `i18n`, `types` -- sont
-internes au Core Worker. Les primitives cryptographiques proviennent toujours de Web Crypto et la
-XML-DSig est déléguée à `xmldsigjs` ; tout le protocole et la logique métier intermédiaires sont
-écrits ici.
+Les kernels runtime publics sont `protocol`, `crypto` et `types`. Les packages d'implémentation
+privés sont `webauthn`, `saml`, `db`, `i18n` et `web-ui`. Les primitives cryptographiques
+proviennent toujours de Web Crypto et la XML-DSig est déléguée à `xmldsigjs` ; tout le protocole et
+la logique métier intermédiaires sont écrits ici.
 
 ## Support des protocoles
 
@@ -250,9 +267,13 @@ Chaque ligne renvoie à des fichiers et des tests recensés dans
 
 ## SDK
 
-Quinze packages TypeScript sous `packages/` : `core` et `backend`, plus les bindings de framework
-pour React, Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo, Electron
-et Tauri -- tous privés au workspace et **non publiés sur npm**.
+Sous `packages/` se trouvent 15 packages SDK TypeScript : `core` et `backend`, plus les bindings de
+framework pour React, Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo,
+Electron et Tauri. Avec les 3 kernels runtime publics (`crypto`, `protocol`, `types`), 18 packages
+sont configurés comme publiables et passent des installations propres depuis des tarballs locaux.
+Les 5 autres (`db`, `i18n`, `saml`, `web-ui`, `webauthn`) sont des packages d'implémentation privés.
+Le statut de publication dans le registre npm externe reste `UNKNOWN` ; une preuve de distribution
+locale ne constitue pas une preuve de release dans le registre.
 
 Treize SDK natifs sous `sdk/` : Go, Rust, Python, Ruby, PHP, Java, .NET, Windows, iOS, macOS,
 Linux, Android et Flutter. **Aucun n'est publié sur crates.io, PyPI, Maven Central, RubyGems,

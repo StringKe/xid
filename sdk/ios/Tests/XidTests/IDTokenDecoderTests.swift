@@ -55,4 +55,25 @@ final class IDTokenDecoderTests: XCTestCase {
             }
         }
     }
+
+    func testExpectedNonceMustMatchExactly() throws {
+        XCTAssertNoThrow(
+            try IDTokenVerifier.validateNonce(
+                claims: ["nonce": "nonce_expected"],
+                expectedNonce: "nonce_expected"
+            )
+        )
+        XCTAssertThrowsError(
+            try IDTokenVerifier.validateNonce(
+                claims: ["nonce": "nonce_other"],
+                expectedNonce: "nonce_expected"
+            )
+        )
+        XCTAssertThrowsError(
+            try IDTokenVerifier.validateNonce(
+                claims: [:],
+                expectedNonce: "nonce_expected"
+            )
+        )
+    }
 }

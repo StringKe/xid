@@ -41,23 +41,33 @@ describe('run-l2-l3 smoke lifecycle', () => {
     expect(shouldKeepSmokeState('1')).toBe(true)
   })
 
-  it('generates a standard Base64 KEK and a versioned Base64URL PEPPER', () => {
-    const { KEK, PEPPER } = testSecrets()
+  it('generates isolated crypto and outbound SCIM smoke secrets', () => {
+    const { KEK, PEPPER, SCIM_TARGET_TOKEN, SOCIAL_CLIENT_SECRET } = testSecrets()
 
     expect(KEK).toMatch(/^[A-Za-z0-9+/]{43}=$/u)
     expect(KEK).not.toMatch(/[-_]/u)
     expect(atob(KEK)).toHaveLength(32)
     expect(PEPPER).toMatch(/^v1:[A-Za-z0-9_-]+$/u)
+    expect(SCIM_TARGET_TOKEN).toMatch(/^[A-Za-z0-9_-]{43}$/u)
+    expect(SCIM_TARGET_TOKEN).not.toBe(PEPPER)
+    expect(SOCIAL_CLIENT_SECRET).toMatch(/^[A-Za-z0-9_-]{43}$/u)
+    expect(SOCIAL_CLIENT_SECRET).not.toBe(PEPPER)
+    expect(SOCIAL_CLIENT_SECRET).not.toBe(SCIM_TARGET_TOKEN)
   })
 
-  it('writes the local SAML key only into temporary smoke dev vars', () => {
+  it('writes protocol-only credentials into temporary smoke dev vars', () => {
     const devVars = createSmokeDevVars(
-      { KEK: 'kek-value', PEPPER: 'v1:pepper-value' },
+      {
+        KEK: 'kek-value',
+        PEPPER: 'v1:pepper-value',
+        SCIM_TARGET_TOKEN: 'scim-token-value',
+        SOCIAL_CLIENT_SECRET: 'social-secret-value',
+      },
       'temporary-saml-key',
     )
 
     expect(devVars).toBe(
-      'KEK=kek-value\nPEPPER=v1:pepper-value\nXID_L3_SAML_IDP_KEY_PKCS8_B64=temporary-saml-key\n',
+      'KEK=kek-value\nPEPPER=v1:pepper-value\nSCIM_TARGET_TOKEN_scim_target_l3_protocol=scim-token-value\nSOCIAL_PROVIDER_SECRET_BINDINGS={"localoidc":"SOCIAL_LOCALOIDC_CLIENT_SECRET"}\nSOCIAL_LOCALOIDC_CLIENT_SECRET=social-secret-value\nGOOGLE_CLIENT_SECRET=social-secret-value\nGITHUB_EMU_CLIENT_SECRET=social-secret-value\nMICROSOFT_CLIENT_SECRET=social-secret-value\nAPPLE_CLIENT_SECRET=social-secret-value\nXID_L3_SAML_IDP_KEY_PKCS8_B64=temporary-saml-key\n',
     )
   })
 
@@ -157,12 +167,29 @@ describe('run-l2-l3 smoke lifecycle', () => {
     expect(entry.main).toContain('/worker/index.ts')
     expect(isAbsolute(entry.d1_databases[0].migrations_dir)).toBe(true)
     expect(entry.assets.binding).toBe('ASSETS')
-    expect(entry.queues.producers).toHaveLength(6)
-    expect(entry.queues.consumers).toEqual([])
+    expect(entry).not.toHaveProperty('services')
+    expect(entry.queues.producers.map((producer) => producer.binding)).toEqual([
+      'EMAIL_QUEUE',
+      'WHATSAPP_QUEUE',
+      'SMS_QUEUE',
+      'AUDIT_QUEUE',
+      'WEBHOOK_QUEUE',
+      'METERING_QUEUE',
+      'SCIM_QUEUE',
+      'PRIVACY_QUEUE',
+    ])
+    expect(entry.queues.consumers).toEqual([
+      expect.objectContaining({
+        queue: 'xid-scim-sync',
+        max_batch_size: 1,
+        max_batch_timeout: 1,
+      }),
+    ])
     expect(queueConsumer.name).toBe('xid-smoke-queue-consumers')
     expect(queueConsumer).not.toHaveProperty('assets')
     expect(queueConsumer).not.toHaveProperty('routes')
     expect(queueConsumer).not.toHaveProperty('durable_objects')
+    expect(queueConsumer).not.toHaveProperty('services')
     expect(queueConsumer.queues.producers).toEqual([])
     expect(queueConsumer.queues.consumers.map((consumer) => consumer.queue)).toEqual([
       'xid-whatsapp',
@@ -258,8 +285,18 @@ describe('run-l2-l3 smoke lifecycle', () => {
     const persistPaths = ['/tmp/xid-smoke-one', '/tmp/xid-smoke-two']
     const ports = [43123, 43124]
     const secrets = [
-      { KEK: 'kek-one', PEPPER: 'v1:pepper-one' },
-      { KEK: 'kek-two', PEPPER: 'v1:pepper-two' },
+      {
+        KEK: 'kek-one',
+        PEPPER: 'v1:pepper-one',
+        SCIM_TARGET_TOKEN: 'scim-token-one',
+        SOCIAL_CLIENT_SECRET: 'social-secret-one',
+      },
+      {
+        KEK: 'kek-two',
+        PEPPER: 'v1:pepper-two',
+        SCIM_TARGET_TOKEN: 'scim-token-two',
+        SOCIAL_CLIENT_SECRET: 'social-secret-two',
+      },
     ]
     const servers = [child(1001), child(1002)]
     const writeFileFn = vi.fn(async () => {})
@@ -307,6 +344,8 @@ describe('run-l2-l3 smoke lifecycle', () => {
         XID_SMOKE_PORT: '43123',
         XID_SMOKE_KEK: 'kek-one',
         XID_SMOKE_PEPPER: 'v1:pepper-one',
+        XID_SMOKE_SCIM_TARGET_TOKEN: 'scim-token-one',
+        XID_SMOKE_SOCIAL_CLIENT_SECRET: 'social-secret-one',
         XID_L3_BASE_URL: 'http://localhost:43123',
       }),
     )
@@ -318,6 +357,8 @@ describe('run-l2-l3 smoke lifecycle', () => {
         XID_SMOKE_PORT: '43124',
         XID_SMOKE_KEK: 'kek-two',
         XID_SMOKE_PEPPER: 'v1:pepper-two',
+        XID_SMOKE_SCIM_TARGET_TOKEN: 'scim-token-two',
+        XID_SMOKE_SOCIAL_CLIENT_SECRET: 'social-secret-two',
         XID_L3_BASE_URL: 'http://localhost:43124',
       }),
     )

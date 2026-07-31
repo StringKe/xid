@@ -52,6 +52,8 @@ export type {
   XidClientOptions,
 } from '@xid-kit/core'
 
+export type { OrganizationMembershipRole } from '@xid-kit/types'
+
 // --- Remix session storage helpers (shared between client + server) ---
 export {
   createXidSessionStorage,

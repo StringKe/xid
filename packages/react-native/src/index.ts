@@ -1,6 +1,5 @@
 // @xid-kit/react-native:React Native SDK(对标 @clerk/clerk-expo mobile auth)。
-// 架构:@xid-kit/react hooks 复用(useAuth/useUser/useOrganization/useSession) +
-//       RN 专属 XidProvider(注入 tokenCache + browser 适配器)+ RN 专属 hooks。
+// 架构:secure TokenCache 驱动的 RN Provider + hooks,不依赖浏览器 cookie session。
 // 不重写任何协议逻辑;密码学走 Web Crypto(crypto.subtle / crypto.getRandomValues)。
 // 见 docs/sdks/platform-matrix.md 移动端行 + Shared native contract 节。
 
@@ -23,39 +22,23 @@ export type { UseSignInReturn, SignInOptions, SignInState } from './use-sign-in'
 export { useSignOut } from './use-sign-out'
 export type { UseSignOutReturn, SignOutState } from './use-sign-out'
 
-// --- re-export @xid-kit/react hooks(语义完全一致,无需重写)---
+// --- Native token-session hooks + control components ---
 export {
   useAuth,
   useUser,
   useSession,
-  useSessionList,
-  useOrganization,
-  useOrganizationList,
-  useAPIKeys,
   SignedIn,
   SignedOut,
-  Protect,
   XidLoaded,
   XidLoading,
-  XidFailed,
-  XidDegraded,
-} from '@xid-kit/react'
+} from './native-auth'
 export type {
   UseAuthReturn,
   UseUserReturn,
   UseSessionReturn,
-  UseSessionListReturn,
-  UseOrganizationReturn,
-  UseOrganizationListReturn,
-  UseAPIKeysReturn,
-  SignedInProps,
-  SignedOutProps,
-  ProtectProps,
-  XidLoadedProps,
-  XidLoadingProps,
-  XidFailedProps,
-  XidDegradedProps,
-} from '@xid-kit/react'
+  NativeUser,
+  AuthControlProps,
+} from './native-auth'
 
 // --- PKCE 工具(高级用法 / 测试)---
 export {
@@ -75,3 +58,5 @@ export {
 } from './token-exchange'
 export type { TokenExchangeInput, TokenSet, StoredTokenSet } from './token-exchange'
 export { XidSessionManager } from './session-manager'
+export { verifyNativeIdToken } from './id-token'
+export type { NativeIdTokenClaims, VerifyNativeIdTokenInput } from './id-token'

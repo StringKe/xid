@@ -30,39 +30,59 @@ describe('XidClient.load', () => {
 
   it('maps the current /v1/me response shape into SDK state', async () => {
     const { instance } = client({
-      '/v1/me': () => ({
-        status: 200,
-        json: {
-          user: {
-            id: 'user_live',
-            email: 'live@example.com',
-            emailVerified: true,
-            name: 'Live User',
-            imageUrl: null,
-          },
-          activeOrg: {
-            id: 'org_live',
-            slug: 'live',
-            name: 'Live Organization',
-            role: 'owner',
-            permissions: ['org:read'],
-          },
-          organizations: [
-            {
+      '/v1/me': () => {
+        const session = {
+          id: 'sess_live',
+          status: 'active',
+          expiresAt: '2030-01-01T00:00:00.000Z',
+          isImpersonation: false,
+          userId: 'user_live',
+          activeOrganizationId: 'org_live',
+          lastActiveAt: '2029-01-01T00:00:00.000Z',
+        }
+        const otherSession = {
+          ...session,
+          id: 'sess_other',
+          userId: 'user_other',
+          activeOrganizationId: null,
+          lastActiveAt: '2028-01-01T00:00:00.000Z',
+        }
+        return {
+          status: 200,
+          json: {
+            user: {
+              id: 'user_live',
+              email: 'live@example.com',
+              emailVerified: true,
+              name: 'Live User',
+              imageUrl: null,
+              locale: null,
+              hasMfa: false,
+              instanceManager: false,
+              provisioned_by: null,
+            },
+            activeOrg: {
               id: 'org_live',
               slug: 'live',
               name: 'Live Organization',
               role: 'owner',
               permissions: ['org:read'],
             },
-          ],
-          session: {
-            id: 'sess_live',
-            expiresAt: '2030-01-01T00:00:00.000Z',
-            isImpersonation: false,
+            organizations: [
+              {
+                id: 'org_live',
+                slug: 'live',
+                name: 'Live Organization',
+                role: 'owner',
+                permissions: ['org:read'],
+              },
+            ],
+            session,
+            activeSessionId: session.id,
+            sessions: [session, otherSession],
           },
-        },
-      }),
+        }
+      },
     })
 
     await instance.load()
@@ -74,6 +94,10 @@ describe('XidClient.load', () => {
     expect(snapshot.session?.id).toBe('sess_live')
     expect(snapshot.session?.activeOrganizationId).toBe('org_live')
     expect(snapshot.organization?.id).toBe('org_live')
+    expect(snapshot.sessions.map((session) => [session.id, session.userId])).toEqual([
+      ['sess_live', 'user_live'],
+      ['sess_other', 'user_other'],
+    ])
   })
 
   it('falls to degraded status and records the error when the state request fails', async () => {
@@ -138,18 +162,25 @@ describe('XidClient active org resolution', () => {
 describe('XidClient.setActiveSession', () => {
   it('switches active session and reloads derived state', async () => {
     const second = makeSession({ id: 'sess_2', userId: 'user_2' })
+    let activeSessionId = 'sess_1'
     const { instance } = client({
-      '/v1/me': () => ({ status: 200, json: { data: makeState() } }),
-      '/v1/sessions/active': () => ({
+      '/v1/me': () => ({
         status: 200,
         json: {
-          data: makeState({
-            activeSessionId: 'sess_2',
-            sessions: [makeSession(), second],
-            user: makeUser({ id: 'user_2' }),
-          }),
+          data:
+            activeSessionId === 'sess_2'
+              ? makeState({
+                  activeSessionId,
+                  sessions: [makeSession(), second],
+                  user: makeUser({ id: 'user_2' }),
+                })
+              : makeState(),
         },
       }),
+      '/v1/sessions/active': ({ body }) => {
+        activeSessionId = (body as { sessionId: string }).sessionId
+        return { status: 200, json: { activeSessionId } }
+      },
     })
     await instance.load()
 
@@ -308,10 +339,26 @@ describe('XidClient.setActiveOrganization', () => {
 })
 
 describe('XidClient.signOut', () => {
-  it('resets to a signed-out ready state on full sign-out', async () => {
-    const { instance } = client({
-      '/v1/me': () => ({ status: 200, json: { data: makeState() } }),
-      '/v1/sessions/sign-out': () => ({ status: 200, json: { data: null } }),
+  it('signs out the active session through the Worker route and normalizes the anonymous shell', async () => {
+    let signedOut = false
+    const { fetcher, instance } = client({
+      '/v1/me': () => ({
+        status: 200,
+        json: signedOut
+          ? {
+              user: null,
+              activeOrg: null,
+              organizations: [],
+              session: null,
+              activeSessionId: null,
+              sessions: [],
+            }
+          : { data: makeState() },
+      }),
+      '/auth/sign-out': () => {
+        signedOut = true
+        return { status: 200, json: { ok: true } }
+      },
     })
     await instance.load()
 
@@ -322,6 +369,94 @@ describe('XidClient.signOut', () => {
     expect(snapshot.isSignedIn).toBe(false)
     expect(snapshot.status).toBe('ready')
     expect(snapshot.user).toBeNull()
+    expect(fetcher.calls.map((call) => call.path)).toEqual(['/v1/me', '/auth/sign-out', '/v1/me'])
+  })
+
+  it('switches to a requested non-active session before signing it out', async () => {
+    const first = makeSession()
+    const second = makeSession({ id: 'sess_2', userId: 'user_2' })
+    let activeSessionId = 'sess_1'
+    let targetSignedOut = false
+    const { fetcher, instance } = client({
+      '/v1/me': () => ({
+        status: 200,
+        json: {
+          data: makeState({
+            activeSessionId,
+            sessions: targetSignedOut ? [first] : [first, second],
+            user: makeUser({ id: activeSessionId === 'sess_2' ? 'user_2' : 'user_1' }),
+          }),
+        },
+      }),
+      '/v1/sessions/active': ({ body }) => {
+        activeSessionId = (body as { sessionId: string }).sessionId
+        return { status: 200, json: { activeSessionId } }
+      },
+      '/auth/sign-out': () => {
+        targetSignedOut = true
+        activeSessionId = 'sess_1'
+        return { status: 200, json: { ok: true } }
+      },
+    })
+    await instance.load()
+
+    const result = await instance.signOut({ sessionId: 'sess_2' })
+
+    expect(result.ok).toBe(true)
+    expect(fetcher.calls.map((call) => call.path)).toEqual([
+      '/v1/me',
+      '/v1/sessions/active',
+      '/v1/me',
+      '/auth/sign-out',
+      '/v1/me',
+    ])
+    expect(instance.session?.id).toBe('sess_1')
+    expect(instance.sessions.map((session) => session.id)).toEqual(['sess_1'])
+  })
+
+  it('keeps client state aligned with the selected target when sign-out is rejected', async () => {
+    const first = makeSession()
+    const second = makeSession({ id: 'sess_2', userId: 'user_2' })
+    let activeSessionId = 'sess_1'
+    const { fetcher, instance } = client({
+      '/v1/me': () => ({
+        status: 200,
+        json: {
+          data: makeState({
+            activeSessionId,
+            sessions: [first, second],
+            user: makeUser({ id: activeSessionId === 'sess_2' ? 'user_2' : 'user_1' }),
+          }),
+        },
+      }),
+      '/v1/sessions/active': ({ body }) => {
+        activeSessionId = (body as { sessionId: string }).sessionId
+        return { status: 200, json: { activeSessionId } }
+      },
+      '/auth/sign-out': () => ({
+        status: 503,
+        json: {
+          error: {
+            code: 'service_unavailable',
+            message: 'try again',
+            httpStatus: 503,
+          },
+        },
+      }),
+    })
+    await instance.load()
+
+    const result = await instance.signOut({ sessionId: 'sess_2' })
+
+    expect(result.ok).toBe(false)
+    expect(instance.session?.id).toBe('sess_2')
+    expect(instance.user?.id).toBe('user_2')
+    expect(fetcher.calls.map((call) => call.path)).toEqual([
+      '/v1/me',
+      '/v1/sessions/active',
+      '/v1/me',
+      '/auth/sign-out',
+    ])
   })
 })
 

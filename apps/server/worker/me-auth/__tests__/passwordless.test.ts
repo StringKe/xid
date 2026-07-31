@@ -43,6 +43,10 @@ vi.mock('../../auth/magic-link', async (importOriginal) => {
   return { ...actual, sendMagicLink: vi.fn().mockResolvedValue(undefined) }
 })
 
+vi.mock('../../auth/account-provisioning', () => ({
+  provisionAccountAtomically: vi.fn(async (input: { user: { id: string } }) => input.user.id),
+}))
+
 vi.mock('../../lib/mfa-session', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/mfa-session')>()
   return { ...actual, resolvePostAuthMfaGate: vi.fn().mockResolvedValue({}) }
@@ -70,6 +74,7 @@ import {
 } from '@xid-kit/db'
 import { verifyJwt } from '@xid-kit/crypto'
 import { sendMagicLink } from '../../auth/magic-link'
+import { provisionAccountAtomically } from '../../auth/account-provisioning'
 import {
   constantTimeEqualStr,
   loadVerifiableOtp,
@@ -77,8 +82,24 @@ import {
   reserveOtpSendRateLimit,
   resolveTargetUserId,
 } from '../../auth/otp'
+import { resolvePostAuthMfaGate } from '../../lib/mfa-session'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeTenant } from './helpers'
+
+const LOGIN_FLOW_CONTEXT = JSON.stringify({
+  version: 1,
+  intent: null,
+  continuePath: '/console',
+  applicationClientId: null,
+  invitationId: null,
+})
+const PRODUCT_SIGN_UP_FLOW_CONTEXT = JSON.stringify({
+  version: 1,
+  intent: 'sign-up',
+  continuePath: '/create-organization',
+  applicationClientId: null,
+  invitationId: null,
+})
 
 function post(app: ReturnType<typeof makeApp>, env: Env, path: string, body: unknown) {
   return app.request(
@@ -95,7 +116,14 @@ function get(app: ReturnType<typeof makeApp>, env: Env, path: string, headers?: 
 }
 
 function setVerifyOk(payload: Record<string, unknown>): void {
-  vi.mocked(verifyJwt).mockResolvedValue({ ok: true, value: { header: {}, payload } } as never)
+  const verifiedPayload =
+    payload['purpose'] === 'magic_link' && payload['flow_context'] === undefined
+      ? { ...payload, flow_context: LOGIN_FLOW_CONTEXT }
+      : payload
+  vi.mocked(verifyJwt).mockResolvedValue({
+    ok: true,
+    value: { header: {}, payload: verifiedPayload },
+  } as never)
 }
 
 function setVerifyFail(reason: string): void {
@@ -253,9 +281,42 @@ describe('POST /auth/magic-link/send', () => {
         turnstileToken: null,
       },
       invitationToken: undefined,
-      skipDefaultMembership: false,
-      continuePath: null,
+      continuePath: undefined,
+      intent: undefined,
+      applicationClientId: undefined,
     })
+  })
+
+  it('root intent=sign-up skips existing Tenant and verified-domain resolution for Magic Link', async () => {
+    const rootTenant = {
+      ...makeTenant('tenant-entry'),
+      issuer: 'https://xid.dev',
+      rpId: 'xid.dev',
+      resolution: {
+        kind: 'instance_entry' as const,
+        primaryDomain: 'xid.dev',
+        unresolvedRoot: true,
+      },
+    }
+    const app = makeApp(registerSessionAuthRoutes, { tenant: rootTenant as never })
+
+    const res = await post(app, makeEnv(), '/auth/magic-link/send', {
+      email: 'owner@verified.example',
+      organizationId: 'tenant-existing',
+      intent: 'sign-up',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(resolveTenantContextById).not.toHaveBeenCalled()
+    expect(resolveInstanceLogin).not.toHaveBeenCalled()
+    expect(sendMagicLink).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner@verified.example',
+      expect.objectContaining({
+        intent: 'sign-up',
+      }),
+    )
   })
 
   it('forceSso -> 200 但不入队 Magic Link 邮件', async () => {
@@ -303,6 +364,7 @@ describe('GET /auth/magic-link/verify', () => {
             tokenHash: 'code-hash',
             userId: 'user-1',
             purpose: 'magic_link',
+            flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: null,
             expiresAt: new Date(Date.now() + 600000),
           }),
@@ -350,6 +412,7 @@ describe('GET /auth/magic-link/verify', () => {
             tokenHash: 'code-hash',
             userId: 'user-1',
             purpose: 'magic_link',
+            flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: null,
             expiresAt: new Date(Date.now() + 600000),
           }),
@@ -386,6 +449,7 @@ describe('GET /auth/magic-link/verify', () => {
             tokenHash: 'code-hash',
             userId: 'user-1',
             purpose: 'magic_link',
+            flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: null,
             expiresAt: new Date(Date.now() + 600000),
           }),
@@ -529,7 +593,7 @@ describe('GET /auth/magic-link/verify', () => {
 
     expect(res.status).toBe(302)
     expect(res.headers.get('Location')).toBe(
-      `https://xid.dev/auth/magic-link/verify?token=${encodeURIComponent(token)}&continue=%2Fconsole`,
+      `https://xid.dev/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
     )
     expect(res.headers.get('Cache-Control')).toBe('no-store')
     expect(resolveTenantContextByIssuer).not.toHaveBeenCalled()
@@ -580,6 +644,7 @@ describe('GET /auth/magic-link/verify', () => {
             tokenHash: 'code-hash',
             userId: 'user-1',
             purpose: 'magic_link',
+            flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: new Date(),
             expiresAt: new Date(Date.now() + 600000),
           }),
@@ -643,15 +708,7 @@ describe('POST /auth/otp/email/send', () => {
 
   it('target 不存在且允许 email OTP 创建 -> 创建 passwordless 用户并发码', async () => {
     vi.mocked(resolveTargetUserId).mockResolvedValue(null)
-    const usersInsert = vi.fn().mockResolvedValue({ id: 'user-new' })
-    const userEmailsInsert = vi.fn().mockResolvedValue({ id: 'email-new' })
-    const db = sessionDb({
-      users: { insert: usersInsert },
-      userEmails: {
-        insert: userEmailsInsert,
-        update: vi.fn().mockResolvedValue([]),
-      },
-    })
+    const db = sessionDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
     const app = makeApp(registerSessionAuthRoutes, {
       tenant: tenantWithEmailOtpCreation() as never,
@@ -661,11 +718,12 @@ describe('POST /auth/otp/email/send', () => {
       turnstileToken: null,
     })
     expect(res.status).toBe(200)
-    expect(usersInsert).toHaveBeenCalledWith(
-      expect.objectContaining({ provisionedBy: 'hosted_passwordless' }),
-    )
-    expect(userEmailsInsert).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'new@example.com' }),
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-1',
+        user: expect.objectContaining({ provisionedBy: 'hosted_passwordless' }),
+        primaryEmail: expect.objectContaining({ email: 'new@example.com' }),
+      }),
     )
     expect(persistAndSendOtp).toHaveBeenCalledOnce()
   })
@@ -687,8 +745,7 @@ describe('POST /auth/otp/email/send', () => {
       value: { status: 'resolved', tenant: resolvedTenant },
     } as never)
     vi.mocked(resolveTargetUserId).mockResolvedValue(null)
-    const usersInsert = vi.fn().mockResolvedValue({ id: 'user-new' })
-    vi.mocked(createTenantDb).mockReturnValue(sessionDb({ users: { insert: usersInsert } }))
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
     const app = makeApp(registerSessionAuthRoutes, { tenant: rootTenant as never })
 
     const res = await post(app, makeEnv(), '/auth/otp/email/send', {
@@ -705,7 +762,7 @@ describe('POST /auth/otp/email/send', () => {
     )
     expect(resolveInstanceLogin).not.toHaveBeenCalled()
     expect(createTenantDb).toHaveBeenCalledWith(expect.anything(), resolvedTenant)
-    expect(usersInsert).toHaveBeenCalledWith(
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'tenant-selected' }),
     )
     expect(persistAndSendOtp).toHaveBeenCalledOnce()
@@ -749,17 +806,7 @@ describe('POST /auth/otp/email/send', () => {
 
   it('target 不存在且提供 profile field -> 创建用户时写 profile 和额外 phone identity', async () => {
     vi.mocked(resolveTargetUserId).mockResolvedValue(null)
-    const usersInsert = vi.fn().mockResolvedValue({ id: 'user-new' })
-    const userPhonesInsert = vi.fn().mockResolvedValue({ id: 'phone-new' })
-    vi.mocked(createTenantDb).mockReturnValue(
-      sessionDb({
-        users: { insert: usersInsert },
-        userPhones: {
-          insert: userPhonesInsert,
-          update: vi.fn().mockResolvedValue([]),
-        },
-      }),
-    )
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
     const tenant = tenantWithEmailOtpCreation()
     Object.assign(tenant.policy.hostedAuth, {
       profileFields: {
@@ -781,22 +828,21 @@ describe('POST /auth/otp/email/send', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(usersInsert).toHaveBeenCalledWith(
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
       expect.objectContaining({
-        username: 'alice',
-        primaryPhoneId: expect.any(String),
-        firstName: 'Alice',
-        lastName: 'Chen',
-        displayName: 'Alice Chen',
-        profileCompletionStatus: 'complete',
-      }),
-    )
-    expect(userPhonesInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        phone: '+15557654321',
-        verified: false,
-        verificationStatus: 'unverified',
-        isPrimary: true,
+        user: expect.objectContaining({
+          username: 'alice',
+          primaryPhoneId: expect.any(String),
+          firstName: 'Alice',
+          lastName: 'Chen',
+          displayName: 'Alice Chen',
+          profileCompletionStatus: 'complete',
+        }),
+        primaryPhone: expect.objectContaining({
+          phone: '+15557654321',
+          verified: false,
+          verificationStatus: 'unverified',
+        }),
       }),
     )
     expect(persistAndSendOtp).toHaveBeenCalledOnce()
@@ -868,7 +914,17 @@ describe('POST /auth/otp/email/send', () => {
       turnstileToken: null,
     })
     expect(res.status).toBe(200)
-    expect(persistAndSendOtp).toHaveBeenCalledOnce()
+    expect(persistAndSendOtp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flowContext: {
+          version: 1,
+          intent: null,
+          continuePath: '/console',
+          applicationClientId: null,
+          invitationId: null,
+        },
+      }),
+    )
   })
 
   it('forceSso -> 200 但不发送 Email OTP', async () => {
@@ -1013,15 +1069,7 @@ describe('POST /auth/otp/sms/send', () => {
 
   it('新手机号且允许 SMS OTP 创建 -> 创建 passwordless phone 用户并发码', async () => {
     vi.mocked(resolveTargetUserId).mockResolvedValue(null)
-    const usersInsert = vi.fn().mockResolvedValue({ id: 'user-new' })
-    const userPhonesInsert = vi.fn().mockResolvedValue({ id: 'phone-new' })
-    const db = sessionDb({
-      users: { insert: usersInsert },
-      userPhones: {
-        insert: userPhonesInsert,
-        update: vi.fn().mockResolvedValue([]),
-      },
-    })
+    const db = sessionDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
     const app = makeApp(registerSessionAuthRoutes, {
       tenant: tenantWithPhoneOtpCreation('smsOtp', {
@@ -1034,18 +1082,17 @@ describe('POST /auth/otp/sms/send', () => {
       turnstileToken: null,
     })
     expect(res.status).toBe(200)
-    expect(usersInsert).toHaveBeenCalledWith(
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
       expect.objectContaining({
-        primaryPhoneId: expect.any(String),
-        provisionedBy: 'hosted_passwordless',
-      }),
-    )
-    expect(userPhonesInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        phone: '+15551234567',
-        verified: false,
-        verificationStatus: 'unverified',
-        isPrimary: true,
+        user: expect.objectContaining({
+          primaryPhoneId: expect.any(String),
+          provisionedBy: 'hosted_passwordless',
+        }),
+        primaryPhone: expect.objectContaining({
+          phone: '+15551234567',
+          verified: false,
+          verificationStatus: 'unverified',
+        }),
       }),
     )
     expect(persistAndSendOtp).toHaveBeenCalledWith(
@@ -1055,15 +1102,7 @@ describe('POST /auth/otp/sms/send', () => {
 
   it('新手机号且要求 profile email -> 创建 phone 用户时写 primary email', async () => {
     vi.mocked(resolveTargetUserId).mockResolvedValue(null)
-    const usersInsert = vi.fn().mockResolvedValue({ id: 'user-new' })
-    const userEmailsInsert = vi.fn().mockResolvedValue({ id: 'email-new' })
-    const db = sessionDb({
-      users: { insert: usersInsert },
-      userEmails: {
-        insert: userEmailsInsert,
-        update: vi.fn().mockResolvedValue([]),
-      },
-    })
+    const db = sessionDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
     const app = makeApp(registerSessionAuthRoutes, {
       tenant: tenantWithPhoneOtpCreation('smsOtp', {
@@ -1078,19 +1117,18 @@ describe('POST /auth/otp/sms/send', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(usersInsert).toHaveBeenCalledWith(
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
       expect.objectContaining({
-        primaryEmailId: expect.any(String),
-        primaryPhoneId: expect.any(String),
-        profileCompletionStatus: 'complete',
-      }),
-    )
-    expect(userEmailsInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: 'phone-owner@example.com',
-        verified: false,
-        verificationStatus: 'unverified',
-        isPrimary: true,
+        user: expect.objectContaining({
+          primaryEmailId: expect.any(String),
+          primaryPhoneId: expect.any(String),
+          profileCompletionStatus: 'complete',
+        }),
+        primaryEmail: expect.objectContaining({
+          email: 'phone-owner@example.com',
+          verified: false,
+          verificationStatus: 'unverified',
+        }),
       }),
     )
     expect(persistAndSendOtp).toHaveBeenCalledOnce()
@@ -1168,15 +1206,7 @@ describe('POST /auth/otp/whatsapp/send', () => {
 
   it('新手机号且允许 WhatsApp OTP 创建 -> 创建 passwordless phone 用户并发码', async () => {
     vi.mocked(resolveTargetUserId).mockResolvedValue(null)
-    const usersInsert = vi.fn().mockResolvedValue({ id: 'user-new' })
-    const userPhonesInsert = vi.fn().mockResolvedValue({ id: 'phone-new' })
-    const db = sessionDb({
-      users: { insert: usersInsert },
-      userPhones: {
-        insert: userPhonesInsert,
-        update: vi.fn().mockResolvedValue([]),
-      },
-    })
+    const db = sessionDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
     const app = makeApp(registerSessionAuthRoutes, {
       tenant: tenantWithPhoneOtpCreation('whatsappOtp', {
@@ -1189,18 +1219,17 @@ describe('POST /auth/otp/whatsapp/send', () => {
       turnstileToken: null,
     })
     expect(res.status).toBe(200)
-    expect(usersInsert).toHaveBeenCalledWith(
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
       expect.objectContaining({
-        primaryPhoneId: expect.any(String),
-        provisionedBy: 'hosted_passwordless',
-      }),
-    )
-    expect(userPhonesInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        phone: '+15551234567',
-        verified: false,
-        verificationStatus: 'unverified',
-        isPrimary: true,
+        user: expect.objectContaining({
+          primaryPhoneId: expect.any(String),
+          provisionedBy: 'hosted_passwordless',
+        }),
+        primaryPhone: expect.objectContaining({
+          phone: '+15551234567',
+          verified: false,
+          verificationStatus: 'unverified',
+        }),
       }),
     )
     expect(persistAndSendOtp).toHaveBeenCalledWith(
@@ -1295,6 +1324,7 @@ describe('POST /auth/otp/email/verify', () => {
       tokenHash: 'th-1',
       userId: 'user-1',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     vi.mocked(createTenantDb).mockReturnValue(
       sessionDb({
@@ -1313,6 +1343,33 @@ describe('POST /auth/otp/email/verify', () => {
       expect.anything(),
     )
     expect(sessionInsert).toHaveBeenCalledWith(expect.objectContaining({ activeOrgId: 'tenant-1' }))
+  })
+
+  it('verify ignores rewritten intent and continue fields and follows the persisted send flow', async () => {
+    vi.mocked(constantTimeEqualStr).mockReturnValue(true)
+    vi.mocked(loadVerifiableOtp).mockResolvedValue({
+      tokenHash: 'th-product',
+      userId: 'user-1',
+      codeHash: 'code-hash',
+      flowContext: PRODUCT_SIGN_UP_FLOW_CONTEXT,
+    } as never)
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, makeEnv(), '/auth/otp/email/verify', {
+      email: 'user@example.com',
+      code: '123456',
+      intent: 'sign-in',
+      continue: '/console',
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ redirectUrl: '/create-organization' })
+    expect(resolvePostAuthMfaGate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ returnPath: '/create-organization' }),
+    )
   })
 
   it('forceSso -> invalid_credentials 且不消费 Email OTP 不签发 session', async () => {
@@ -1369,6 +1426,7 @@ describe('POST /auth/otp/email/verify', () => {
       tokenHash: 'th-1',
       userId: 'user-1',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     const db = sessionDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
@@ -1408,6 +1466,7 @@ describe('POST /auth/otp/email/verify', () => {
       tokenHash: 'th-1',
       userId: 'user-1',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     vi.mocked(createTenantDb).mockReturnValue(sessionDb())
     const app = makeApp(registerSessionAuthRoutes, { tenant: rootTenant as never })
@@ -1463,6 +1522,7 @@ describe('POST /auth/otp/whatsapp/verify', () => {
       tokenHash: 'th-1',
       userId: 'user-1',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     vi.mocked(createTenantDb).mockReturnValue(
       sessionDb({
@@ -1507,6 +1567,7 @@ describe('POST /auth/otp/whatsapp/verify', () => {
       tokenHash: 'th-1',
       userId: 'user-1',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     vi.mocked(createTenantDb).mockReturnValue(sessionDb())
     const app = makeApp(registerSessionAuthRoutes, {

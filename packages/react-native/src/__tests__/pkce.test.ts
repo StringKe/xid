@@ -33,6 +33,12 @@ describe('createRandomString', () => {
     const b = createRandomString(32)
     expect(a).not.toBe(b)
   })
+
+  it('uses a SecureStore-safe base64url alphabet for state and nonce keys', () => {
+    for (let index = 0; index < 100; index += 1) {
+      expect(createRandomString(64)).toMatch(/^[A-Za-z0-9_-]+$/)
+    }
+  })
 })
 
 describe('createPkceVerifier', () => {

@@ -13,7 +13,11 @@ import { b64urlToBytes, serializeAssertion } from './passkey'
 
 type ChallengeResponse = { challenge: string; sessionId: string; organizationId?: string }
 type VerifyResponse = { redirectUrl?: string }
-type VerifyBody = ReturnType<typeof serializeAssertion> & { organizationId?: string }
+type VerifyBody = ReturnType<typeof serializeAssertion> & {
+  organizationId?: string
+  clientId?: string
+  turnstileToken?: string | null
+}
 
 export type PasskeySupport = 'pending' | 'yes' | 'no'
 
@@ -32,6 +36,9 @@ type PasskeySignInOptions = {
   enabled: boolean
   identifier: string
   organizationId?: string | null
+  applicationClientId?: string | null
+  turnstileToken: string | null
+  onTurnstileConsumed: () => void
   // 验证成功回调:接收 server 指定的 redirectUrl(可空),由调用方解析最终回跳。
   onSuccess: (redirectUrl: string | undefined) => Promise<void>
 }
@@ -40,28 +47,51 @@ async function fetchChallenge(
   api: ApiClient,
   identifier: string,
   organizationId?: string | null,
+  applicationClientId?: string | null,
 ): Promise<ChallengeResponse | null> {
   const result = await api.post<ChallengeResponse>('/auth/passkey/challenge', {
     identifier,
     ...(organizationId ? { organizationId } : {}),
+    ...(applicationClientId ? { clientId: applicationClientId } : {}),
   })
   return result.ok ? result.value : null
 }
 
-function assertionBody(credential: PublicKeyCredential, challenge: ChallengeResponse): VerifyBody {
+function assertionBody(
+  credential: PublicKeyCredential,
+  challenge: ChallengeResponse,
+  applicationClientId: string | null | undefined,
+  turnstileToken: string | null,
+): VerifyBody {
   return {
     ...serializeAssertion(credential, challenge.sessionId),
     ...(challenge.organizationId ? { organizationId: challenge.organizationId } : {}),
+    ...(applicationClientId ? { clientId: applicationClientId } : {}),
+    ...(turnstileToken ? { turnstileToken } : {}),
   }
 }
 
 export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
-  const { api, enabled, identifier, organizationId, onSuccess } = options
+  const {
+    api,
+    enabled,
+    identifier,
+    organizationId,
+    applicationClientId,
+    turnstileToken,
+    onTurnstileConsumed,
+    onSuccess,
+  } = options
   const [support, setSupport] = useState<PasskeySupport>('pending')
   const [conditionalRunning, setConditionalRunning] = useState(false)
   const [error, setError] = useState<SignInErrorKey | null>(null)
   // 取消正在进行的 conditional UI(组件卸载或切到按钮路径时)。
   const abortRef = useRef<AbortController | null>(null)
+  // Conditional UI 可跨多次 render 等待用户选择,提交时必须读取最新的单次 Turnstile token。
+  const turnstileTokenRef = useRef(turnstileToken)
+  turnstileTokenRef.current = turnstileToken
+  const onTurnstileConsumedRef = useRef(onTurnstileConsumed)
+  onTurnstileConsumedRef.current = onTurnstileConsumed
 
   const verifyMutation = useMutation({
     mutationFn: (body: VerifyBody) => api.post<VerifyResponse>('/auth/passkey/verify', body),
@@ -72,6 +102,7 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
       }
       await onSuccess(result.value.redirectUrl)
     },
+    onSettled: () => onTurnstileConsumedRef.current(),
   })
 
   // mutate 引用在 TanStack Query 中跨渲染稳定;用它而非整个 verifyMutation 对象。
@@ -102,7 +133,12 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     const normalizedIdentifier = identifier.trim()
     if (!normalizedIdentifier) return
 
-    const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId)
+    const challenge = await fetchChallenge(
+      api,
+      normalizedIdentifier,
+      organizationId,
+      applicationClientId,
+    )
     if (!challenge) return
 
     abortRef.current = new AbortController()
@@ -126,8 +162,15 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     }
     setConditionalRunning(false)
     if (!credential) return
-    verifyMutate(assertionBody(credential as PublicKeyCredential, challenge))
-  }, [api, enabled, identifier, organizationId, verifyMutate])
+    verifyMutate(
+      assertionBody(
+        credential as PublicKeyCredential,
+        challenge,
+        applicationClientId,
+        turnstileTokenRef.current,
+      ),
+    )
+  }, [api, applicationClientId, enabled, identifier, organizationId, verifyMutate])
 
   // Conditional UI 仅挂载启动一次(startConditional 可能因依赖变化重建,用 ref 防重入 ->
   // 杜绝 effect 反复重跑猛打 challenge)。卸载 abort 拆到独立 effect,避免依赖变化时误 abort 在途选择器。
@@ -160,7 +203,12 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
         setError('auth_failed')
         return
       }
-      const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId)
+      const challenge = await fetchChallenge(
+        api,
+        normalizedIdentifier,
+        organizationId,
+        applicationClientId,
+      )
       if (!challenge) {
         setError('auth_failed')
         return
@@ -180,9 +228,16 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
         return
       }
       if (!credential) return
-      verifyMutate(assertionBody(credential as PublicKeyCredential, challenge))
+      verifyMutate(
+        assertionBody(
+          credential as PublicKeyCredential,
+          challenge,
+          applicationClientId,
+          turnstileTokenRef.current,
+        ),
+      )
     })()
-  }, [api, enabled, identifier, organizationId, verifyMutate])
+  }, [api, applicationClientId, enabled, identifier, organizationId, verifyMutate])
 
   return {
     support,

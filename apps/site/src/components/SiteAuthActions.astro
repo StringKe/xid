@@ -1,0 +1,35 @@
+---
+import { LinkButton } from "./ui/link-button";
+import { getSiteLocale, hostedAuthHref } from "@/lib/site-locale";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+
+interface Props {
+  class?: string;
+  mobile?: boolean;
+}
+
+const { class: className, mobile = false } = Astro.props;
+const locale = getSiteLocale(Astro.url.pathname);
+const signInLabel = translateSiteMessage(Astro.url.pathname, siteShellMessages.signIn);
+const signUpLabel = translateSiteMessage(Astro.url.pathname, siteShellMessages.signUp);
+---
+
+<div class:list={[mobile ? "grid grid-cols-2 gap-2" : "flex items-center gap-2", className]}>
+  <LinkButton
+    href={hostedAuthHref("sign-in", locale)}
+    variant={mobile ? "secondary" : "minimal"}
+    size="sm"
+    class:list={[mobile ? "w-full justify-center" : "text-muted-foreground"]}
+  >
+    {signInLabel}
+  </LinkButton>
+  <LinkButton
+    href={hostedAuthHref("sign-up", locale)}
+    variant="primary"
+    size="sm"
+    class:list={[mobile && "w-full justify-center"]}
+  >
+    {signUpLabel}
+  </LinkButton>
+</div>

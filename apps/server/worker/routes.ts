@@ -25,8 +25,14 @@ import { registerAccountRoutes } from './me'
 import { registerPlatformConsoleRoutes } from './platform'
 import { registerTestHarnessRoutes } from './test-harness'
 import { registerStorageRoutes } from './storage'
+import { registerImpersonationRoutes } from './impersonation'
+import { registerActiveAnnouncementRoutes } from './platform/announcements'
+import { registerComplianceRoutes } from './compliance'
 
 export function registerAllRoutes(app: Hono<XidHonoEnv>): void {
+  // Impersonation 先挂全局只读边界，再挂任何可能读取 cookie session 的协议/API 路由。
+  // 具体 start/handoff/end 端点也由同一模块注册。
+  registerImpersonationRoutes(app)
   // OIDC/OAuth 核心:discovery/jwks/authorize/par/token/userinfo/end_session。
   registerOidcRoutes(app)
   // OAuth 扩展:introspect/revoke/device_authorization/register(DCR)。
@@ -64,6 +70,9 @@ export function registerAllRoutes(app: Hono<XidHonoEnv>): void {
   // account portal(self-service):/v1/me + /v1/me/*(cookie session 认证,非 sk_live)。
   // 路径前缀 /v1/me 与 v1 的 /v1/users、/v1/sessions 不重叠;passkeys 子路径走 passkey verify 逻辑无冲突。
   registerAccountRoutes(app)
+  // 当前 tenant/plan 生效公告与 org compliance center 都复用 request TenantContext。
+  registerActiveAnnouncementRoutes(app)
+  registerComplianceRoutes(app)
   // platform-console:/v1/platform/*(cookie session + instance_manager 门控),与 v1 路径不重叠。
   registerPlatformConsoleRoutes(app)
   // Local L3 harness:fake IdP, fake Social OAuth, test OTP capture (development/test only)。

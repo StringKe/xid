@@ -570,14 +570,13 @@ export default function OrgSocialProvidersPage(): ReactNode {
                     }
                   />
                 </Field>
-                <Field label={<Trans>Client secret reference</Trans>}>
+                <Field
+                  label={<Trans>Client secret binding</Trans>}
+                  hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+                >
                   <Input
                     value={policy.clientSecretRef ?? ''}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        clientSecretRef: event.target.value.trim(),
-                      })
-                    }
+                    readOnly
                     placeholder={t`GOOGLE_CLIENT_SECRET`}
                   />
                 </Field>

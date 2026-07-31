@@ -13,14 +13,18 @@ const BASE_OPTIONS = {
   now: () => 1_000_000,
 }
 
-function makeTokenFetcher(accessToken = 'at.jwt', refreshToken = 'rt.xyz', expiresIn = 3600) {
+function makeTokenFetcher(
+  accessToken = 'at.jwt',
+  unexpectedRefreshToken: string | null = null,
+  expiresIn = 3600,
+) {
   return async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> =>
     new Response(
       JSON.stringify({
         access_token: accessToken,
         token_type: 'Bearer',
         expires_in: expiresIn,
-        refresh_token: refreshToken,
+        ...(unexpectedRefreshToken ? { refresh_token: unexpectedRefreshToken } : {}),
       }),
       { status: 200 },
     )
@@ -57,9 +61,17 @@ describe('createXidTauriClient.signIn', () => {
   it('accepts custom scopes at call time', async () => {
     const client = createXidTauriClient({ ...BASE_OPTIONS })
 
-    const url = await client.signIn({ scopes: ['openid', 'offline_access'] })
+    const url = await client.signIn({ scopes: ['openid', 'organization'] })
 
-    expect(url.searchParams.get('scope')).toBe('openid offline_access')
+    expect(url.searchParams.get('scope')).toBe('openid organization')
+  })
+
+  it('rejects offline_access until DPoP sender binding is implemented', async () => {
+    const client = createXidTauriClient({ ...BASE_OPTIONS })
+
+    await expect(client.signIn({ scopes: ['openid', 'offline_access'] })).rejects.toThrow(
+      'offline_access requires DPoP',
+    )
   })
 
   it('calls openUrl callback with the authorize URL string', async () => {
@@ -102,6 +114,33 @@ describe('createXidTauriClient.handleRedirect', () => {
     await client.handleRedirect(makeCallbackUrl('auth-code-1', state))
 
     expect(await client.getAccessToken()).toBe('at.success')
+  })
+
+  it('discards an unexpected refresh token from the code exchange response', async () => {
+    const keychain = createMemoryKeychainAdapter()
+    const client = createXidTauriClient({
+      ...BASE_OPTIONS,
+      keychain,
+      fetcher: makeTokenFetcher('at.success', 'rt.unexpected'),
+    })
+
+    const state = await signInAndGetState(client)
+    await client.handleRedirect(makeCallbackUrl('auth-code-with-refresh', state))
+
+    expect(await keychain.getItem('xid.refresh_token')).toBeNull()
+  })
+
+  it('requires reauthorization after an authorization-code-only token expires', async () => {
+    const client = createXidTauriClient({
+      ...BASE_OPTIONS,
+      keychain: createMemoryKeychainAdapter(),
+      fetcher: makeTokenFetcher('at.expired', null, 0),
+    })
+
+    const state = await signInAndGetState(client)
+    await client.handleRedirect(makeCallbackUrl('auth-code-expired', state))
+
+    await expect(client.getAccessToken()).resolves.toBeNull()
   })
 
   it('throws TauriTokenError when state is mismatched', async () => {

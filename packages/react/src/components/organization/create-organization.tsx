@@ -9,6 +9,7 @@ import type { Appearance } from '../../appearance'
 import { buildCssVariables, cx } from '../../appearance'
 import { useXidContext } from '../../context/xid-context'
 import { Rt, rt, sdkMessages } from '../../i18n-runtime'
+import { runAuthorizationRedirect } from '../control/authorization-redirect'
 
 export type CreateOrganizationProps = {
   // Hosted UI 创建 org 页 URL
@@ -17,6 +18,7 @@ export type CreateOrganizationProps = {
   redirectUrl?: string
   appearance?: Appearance
   className?: string
+  onError?: (error: unknown) => void
 }
 
 export function CreateOrganization({
@@ -24,15 +26,12 @@ export function CreateOrganization({
   redirectUrl,
   appearance,
   className,
+  onError,
 }: CreateOrganizationProps): ReactNode {
-  const { publishableKey } = useXidContext()
+  const { client, mode } = useXidContext()
   const { _ } = useLingui()
   const cssVars = buildCssVariables(appearance?.variables)
   const cardClass = cx('xid-create-org', appearance?.elements?.card, className)
-
-  const target = redirectUrl
-    ? `${createOrganizationUrl}?redirect_url=${encodeURIComponent(redirectUrl)}&pk=${encodeURIComponent(publishableKey)}`
-    : `${createOrganizationUrl}?pk=${encodeURIComponent(publishableKey)}`
 
   return (
     <div
@@ -47,13 +46,24 @@ export function CreateOrganization({
         </h2>
       </div>
       <div className="xid-create-org__body">
-        <a
-          href={target}
+        <button
+          type="button"
           className={cx('xid-button xid-button--primary', appearance?.elements?.buttonPrimary)}
-          role="button"
+          onClick={() =>
+            runAuthorizationRedirect(
+              {
+                client,
+                mode,
+                intent: 'sign-up',
+                ...(redirectUrl ? { returnUrl: redirectUrl } : {}),
+                sameOriginPath: createOrganizationUrl,
+              },
+              onError,
+            )
+          }
         >
           <Rt {...sdkMessages.continue} />
-        </a>
+        </button>
       </div>
     </div>
   )

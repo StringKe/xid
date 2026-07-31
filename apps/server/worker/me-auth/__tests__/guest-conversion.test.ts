@@ -64,6 +64,10 @@ vi.mock('../email-verify-token', () => ({
   issueEmailVerification: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('../../auth/account-provisioning', () => ({
+  provisionAccountAtomically: vi.fn(async (input: { user: { id: string } }) => input.user.id),
+}))
+
 vi.mock('../../lib/mfa-session', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/mfa-session')>()
   return { ...actual, resolvePostAuthMfaGate: vi.fn().mockResolvedValue({}) }
@@ -77,8 +81,9 @@ import {
   persistAndSendOtp,
   resolveTargetUserId,
 } from '../../auth/otp'
-import { verifyPassword } from '../../auth/password'
+import { hashPassword, passwordReuseTag, verifyPassword } from '../../auth/password'
 import { issueEmailVerification } from '../email-verify-token'
+import { provisionAccountAtomically } from '../../auth/account-provisioning'
 import { resolvePostAuthMfaGate } from '../../lib/mfa-session'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
@@ -91,6 +96,13 @@ const GUEST_ROW = {
   deletedAt: null,
   provisionedBy: 'anonymous',
 }
+const LOGIN_FLOW_CONTEXT = JSON.stringify({
+  version: 1,
+  intent: null,
+  continuePath: '/console',
+  applicationClientId: null,
+  invitationId: null,
+})
 
 // stateful GuestStore fake:记录 (DO 实例名, action),断言 unbind 是否命中正确 tenant:anonKey。
 function makeGuestStoreFake() {
@@ -136,6 +148,7 @@ function makeDb(overrides: Record<string, unknown> = {}) {
       insert: vi.fn().mockResolvedValue({ id: 'pw-new' }),
       update: vi.fn().mockResolvedValue([]),
     },
+    passwordHistory: { insert: vi.fn().mockResolvedValue({ id: 'history-new' }) },
     memberships: {
       findMany: vi.fn().mockResolvedValue([]),
       insert: vi.fn().mockResolvedValue({ id: 'mem-new' }),
@@ -228,6 +241,7 @@ describe('guest 转正 -- OTP email', () => {
       tokenHash: 'th-1',
       userId: 'user-guest',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     const db = makeDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
@@ -283,6 +297,7 @@ describe('guest 转正 -- OTP email', () => {
       tokenHash: 'th-1',
       userId: 'user-guest',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     vi.mocked(resolvePostAuthMfaGate).mockResolvedValue({
       sessionStatus: 'pending_mfa_setup',
@@ -332,6 +347,7 @@ describe('guest 转正 -- OTP email', () => {
       tokenHash: 'th-1',
       userId: 'user-b',
       codeHash: 'code-hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
     } as never)
     const db = makeDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
@@ -371,8 +387,11 @@ describe('guest 转正 -- OTP email', () => {
     expect(db.userEmails.insert).not.toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-guest' }),
     )
-    expect(db.users.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ tenantId: 'tenant-b', provisionedBy: 'hosted_passwordless' }),
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-b',
+        user: expect.objectContaining({ provisionedBy: 'hosted_passwordless' }),
+      }),
     )
     const sentInput = persistAndSendOtp.mock.calls[0]?.[0] as { userId: string } | undefined
     expect(sentInput?.userId).not.toBe('user-guest')
@@ -403,8 +422,10 @@ describe('guest 转正 -- OTP email', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(db.users.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ provisionedBy: 'hosted_passwordless' }),
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({ provisionedBy: 'hosted_passwordless' }),
+      }),
     )
   })
 })
@@ -415,7 +436,7 @@ describe('guest 转正 -- password', () => {
     vi.mocked(resolvePostAuthMfaGate).mockResolvedValue({})
   })
 
-  it('guest session + sign-up -> 不建号,email + password 挂到 guest user 并轮换 session', async () => {
+  it('guest session + sign-up -> proof 前只挂 Email,不写 password 或默认 Membership', async () => {
     const db = makeDb({
       users: {
         // 第一次:resolveUserByIdentifier 的 externalId 兜底查 -> 无此人;
@@ -447,18 +468,18 @@ describe('guest 转正 -- password', () => {
         isPrimary: true,
       }),
     )
-    expect(db.passwords.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-guest', algo: 'argon2id' }),
-    )
+    expect(db.passwords.insert).not.toHaveBeenCalled()
+    expect(db.passwordHistory.insert).not.toHaveBeenCalled()
+    expect(hashPassword).not.toHaveBeenCalled()
+    expect(passwordReuseTag).not.toHaveBeenCalled()
+    expect(db.memberships.insert).not.toHaveBeenCalled()
     expect(db.users.update).toHaveBeenCalledWith(
       { provisionedBy: 'hosted_password' },
       expect.anything(),
     )
-    // session 轮换 + 新 session amr 不含 guest。
+    // proof 前吊销 guest session,但没有 password 凭证可签发新 session。
     expect(db.sessions.update).toHaveBeenCalledWith({ status: 'revoked' }, expect.anything())
-    expect(db.sessions.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-guest', amr: ['pwd'] }),
-    )
+    expect(db.sessions.insert).not.toHaveBeenCalled()
     // 既有 email 验证 token 流程照走。
     expect(issueEmailVerification).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-guest', email: 'new@example.com' }),

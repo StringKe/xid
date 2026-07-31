@@ -37,6 +37,7 @@ const TABLE_KEYWORDS = [
   'manager_assignments',
   'memberships',
   'organizations',
+  'project_grants',
   'projects',
   'role_permissions',
   'permissions',

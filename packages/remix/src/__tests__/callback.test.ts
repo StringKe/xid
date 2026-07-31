@@ -103,6 +103,53 @@ afterEach(() => {
 // All success paths include state + code_verifier in session (both are required).
 
 describe('handleCallback success path', () => {
+  it('uses the Core root /token endpoint by default', async () => {
+    mockFetchSuccess()
+    const store: SessionStore = new Map([
+      ['xid:oauth_state', 'state_default_endpoint'],
+      ['xid:code_verifier', 'cv_default_endpoint'],
+    ])
+    const sessionStorage = makeTestSessionStorage(store)
+
+    const request = new Request(
+      'https://app.example.com/auth/callback?code=auth_code_123&state=state_default_endpoint',
+    )
+    await handleCallback(request, {
+      clientId: 'client_test_123',
+      redirectUri: 'https://app.example.com/auth/callback',
+      sessionStorage,
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://xid.dev/token',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('uses an explicit token endpoint override', async () => {
+    mockFetchSuccess()
+    const store: SessionStore = new Map([
+      ['xid:oauth_state', 'state_custom_endpoint'],
+      ['xid:code_verifier', 'cv_custom_endpoint'],
+    ])
+    const sessionStorage = makeTestSessionStorage(store)
+
+    const request = new Request(
+      'https://app.example.com/auth/callback?code=auth_code_123&state=state_custom_endpoint',
+    )
+    await handleCallback(request, {
+      clientId: 'client_test_123',
+      redirectUri: 'https://app.example.com/auth/callback',
+      sessionStorage,
+      tokenEndpoint: 'https://identity.example.com/token',
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://identity.example.com/token',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
   it('exchanges code, writes tokens to session, and redirects to defaultReturnTo', async () => {
     mockFetchSuccess()
     const store: SessionStore = new Map([
@@ -115,7 +162,7 @@ describe('handleCallback success path', () => {
       'https://app.example.com/auth/callback?code=auth_code_123&state=state_abc',
     )
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
       defaultReturnTo: '/dashboard',
@@ -139,7 +186,7 @@ describe('handleCallback success path', () => {
       'https://app.example.com/auth/callback?code=auth_code_123&state=st1',
     )
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -161,7 +208,7 @@ describe('handleCallback success path', () => {
       'https://app.example.com/auth/callback?code=c&state=st2&return_to=%2Fprofile',
     )
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
       defaultReturnTo: '/dashboard',
@@ -183,7 +230,7 @@ describe('handleCallback success path', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=c&state=st3')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
       defaultReturnTo: '/dashboard',
@@ -204,7 +251,7 @@ describe('handleCallback success path', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=c&state=st4')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -225,7 +272,7 @@ describe('handleCallback state/CSRF validation', () => {
     // No state param in URL -- must be rejected even if session has a stored state.
     const request = new Request('https://app.example.com/auth/callback?code=c')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -242,7 +289,7 @@ describe('handleCallback state/CSRF validation', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=c&state=incoming_state')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -259,7 +306,7 @@ describe('handleCallback state/CSRF validation', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=c&state=wrong_state')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -279,7 +326,7 @@ describe('handleCallback state/CSRF validation', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=c&state=matching_state')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -299,7 +346,7 @@ describe('handleCallback PKCE enforcement', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=c&state=st_pkce')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -332,7 +379,7 @@ describe('handleCallback PKCE enforcement', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=c&state=st_cv')
     await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -357,7 +404,7 @@ describe('handleCallback return_to open redirect prevention', () => {
       `https://app.example.com/auth/callback?code=c&state=st_or&return_to=${malicious}`,
     )
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
       defaultReturnTo: '/safe',
@@ -383,7 +430,7 @@ describe('handleCallback return_to open redirect prevention', () => {
       `https://app.example.com/auth/callback?code=c&state=st_pr&return_to=${malicious}`,
     )
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
       defaultReturnTo: '/safe',
@@ -404,7 +451,7 @@ describe('handleCallback error paths', () => {
 
     const request = new Request('https://app.example.com/auth/callback')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -424,7 +471,7 @@ describe('handleCallback error paths', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=bad_code&state=st_err')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -444,7 +491,7 @@ describe('handleCallback error paths', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=net_fail&state=st_nf')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })
@@ -464,7 +511,7 @@ describe('handleCallback error paths', () => {
 
     const request = new Request('https://app.example.com/auth/callback?code=no_token&state=st_noat')
     const result = await handleCallback(request, {
-      clientId: 'pk_test_123',
+      clientId: 'client_test_123',
       redirectUri: 'https://app.example.com/auth/callback',
       sessionStorage,
     })

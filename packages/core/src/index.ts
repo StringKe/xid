@@ -7,6 +7,9 @@ export const PACKAGE = '@xid-kit/core'
 
 // 顶层客户端
 export { XidClient } from './client'
+export { BrowserOidcError } from './browser-oidc'
+export { executeBrowserSamlLogout } from './saml-logout'
+export type { BrowserSamlLogoutAction, SignOutResponse } from './saml-logout'
 
 // 框架无关 store(框架层绑定用)
 export { XidStore } from './store'
@@ -46,6 +49,7 @@ export type {
   ManagementUser,
   SignInPasswordInput,
   SignInAnonymouslyInput,
+  SignInAnonymouslyResult,
   SignInResult,
   SessionStatus,
   ClientStatus,
@@ -53,6 +57,15 @@ export type {
   XidStateListener,
   Unsubscribe,
   GetTokenOptions,
+  CreateAuthorizationUrlInput,
+  HandleRedirectCallbackResult,
+  OidcAuthorizationIntent,
+  OidcXidClientOptions,
+  SameOriginXidClientOptions,
+  XidTokenCache,
   XidClientOptions,
 } from './types'
 export { SESSION_STATUS, CLIENT_STATUS } from './types'
+
+// 固定 Organization membership role contract。Project 自定义角色不使用此类型。
+export type { OrganizationMembershipRole } from '@xid-kit/types'

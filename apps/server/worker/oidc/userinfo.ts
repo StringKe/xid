@@ -4,6 +4,7 @@
 
 import { signJwt, verifyJwt } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import { parseScopeSet } from '@xid-kit/protocol'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context, Hono } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
@@ -85,7 +86,7 @@ function projectClaims(
   scope: string,
   contact: ContactClaims,
 ): Record<string, unknown> {
-  const scopes = new Set(scope.split(' ').filter(Boolean))
+  const scopes = parseScopeSet(scope)
   const claims: Record<string, unknown> = { sub: user.id }
   if (scopes.has('profile')) Object.assign(claims, profileClaims(user))
   if (scopes.has('email') && contact.email) {

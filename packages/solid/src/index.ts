@@ -63,4 +63,6 @@ export type {
   XidClientOptions,
 } from '@xid-kit/core'
 
+export type { OrganizationMembershipRole } from '@xid-kit/types'
+
 export const SOLID_PACKAGE = '@xid-kit/solid' as const

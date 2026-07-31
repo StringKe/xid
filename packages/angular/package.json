@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/angular",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Angular SDK for XID: auth service, route guards and sign-in/sign-out components.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Angular providers, guards, services, and components for XID.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/angular",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,18 +20,33 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/angular"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test"
   },
   "dependencies": {
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/core": "workspace:^",
+    "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
     "@angular/common": "22.0.8",

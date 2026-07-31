@@ -1,5 +1,8 @@
 # XID Ruby SDK
 
+> Registry status: UNPUBLISHED. No RubyGems release is verified or authorized.
+> Use a local Gemfile path or a locally built gem.
+
 **Status: implemented (verified locally)**
 本机 minitest 全部 PASS（见 `docs/sdks/platform-matrix.md`）。
 真实 IdP round-trip（L4）尚未验证，生产环境使用前需完成下方"后续增强"。
@@ -10,10 +13,12 @@ XID Identity Platform 的 Ruby 服务端 SDK。
 提供：
 
 - Networkless JWT access token 验证（ES256 主，RS256 兼容）
-- HTTP 请求认证（Bearer token + cookie 双来源）
+- HTTP 请求认证（默认 Bearer-only；可显式配置应用自有 JWT cookie）
+- Core opaque browser session -> short-lived JWT 显式 exchange
 - Webhook 签名验证（svix 风格，HMAC-SHA256，5 分钟时间窗防重放）
 
-不包含 OAuth 客户端授权流程（redirect、token exchange 等），那些由浏览器/移动端完成。
+不包含 OAuth 客户端授权流程。Core session token exchange 只负责服务端同源 cookie -> JWT
+桥接。
 
 ---
 
@@ -22,7 +27,7 @@ XID Identity Platform 的 Ruby 服务端 SDK。
 在 Gemfile 中添加：
 
 ```ruby
-gem "xid"
+gem "xid", path: "../xid/sdk/ruby"
 ```
 
 然后执行：
@@ -31,10 +36,12 @@ gem "xid"
 bundle install
 ```
 
-或直接：
+也可以从源码构建并安装本地 artifact：
 
 ```bash
-gem install xid
+cd sdk/ruby
+gem build xid.gemspec
+gem install ./xid-0.1.0.gem
 ```
 
 ---
@@ -52,6 +59,10 @@ Xid.configure do |c|
   c.webhook_secret = "whsec_AbCdEf..."       # 从 XID Dashboard 获取
 end
 ```
+
+默认不读取任何 cookie。只有设置 `c.cookie_name = "__Host-myapp.xid-jwt"` 时,请求认证才会
+读取这个应用自己持有的 JWT cookie。`__Host-xid.rt.*` 是 opaque Core browser session,
+SDK 不会扫描或本地验证它。
 
 ### 2. 验证 access token
 
@@ -86,7 +97,20 @@ unless auth.signed_in?
 end
 ```
 
-### 4. 验证 Webhook
+### 4. 将 Core browser session 交换为 JWT
+
+```ruby
+token = Xid.exchange_session_token(
+  incoming_request_url: request.url,
+  cookie_header: request.get_header("HTTP_COOKIE")
+)
+```
+
+SDK 只允许 exact same-origin `POST /v1/sessions/token`,转发完整 `Cookie` header,不跟随
+redirect,并且只接受 HTTP 200 与 exact `{"token":"..."}` response。特殊 HTTP runtime
+可通过 `transport:` 注入 callable,安全校验仍由 SDK 执行。
+
+### 5. 验证 Webhook
 
 ```ruby
 # Rails controller
@@ -103,7 +127,7 @@ def receive
 end
 ```
 
-### 5. 多实例场景（多 issuer）
+### 6. 多实例场景（多 issuer）
 
 ```ruby
 config_a = Xid::Configuration.new
@@ -129,7 +153,7 @@ claims   = client_a.verify_token(token)
 | `leeway`            | Integer       | 60                | JWT clock skew 容忍秒数                       |
 | `webhook_secret`    | String \| nil | nil               | whsec\_ 前缀的 Webhook 签名密钥               |
 | `webhook_tolerance` | Integer       | 300               | Webhook 时间窗容忍秒数                        |
-| `cookie_name`       | String        | "\_\_xid_token"   | 存放 access token 的 cookie 键名              |
+| `cookie_name`       | String \| nil | nil               | 应用自有 JWT cookie 名;nil 禁用 fallback       |
 
 ---
 
@@ -174,6 +198,13 @@ claims   = client_a.verify_token(token)
 
 ---
 
+### `Xid.exchange_session_token(...) -> String`
+
+将 Core opaque browser session 显式交换为 short-lived JWT。失败抛
+`Xid::SessionTokenExchangeError`。
+
+---
+
 ### `Xid.verify_webhook(headers, raw_body) -> Hash`
 
 验证 Webhook 签名并返回解析后的 payload Hash。
@@ -188,6 +219,7 @@ Xid::Error
   Xid::ConfigurationError       -- 配置缺失/非法
   Xid::JwksError                -- JWKS 拉取失败
   Xid::TokenVerificationError   -- JWT 验证失败
+  Xid::SessionTokenExchangeError -- session exchange 失败
   Xid::WebhookVerificationError -- Webhook 签名验证失败
 ```
 

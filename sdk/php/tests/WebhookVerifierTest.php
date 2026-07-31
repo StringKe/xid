@@ -46,6 +46,25 @@ final class WebhookVerifierTest extends TestCase
         $this->assertSame((int) $timestamp, $payload->timestamp());
     }
 
+    public function test_legacy_hex_secret_uses_utf8_key_material(): void
+    {
+        $legacySecret = str_repeat('ab', 32);
+        $verifier = new WebhookVerifier($legacySecret);
+        $msgId = 'msg_legacy';
+        $bodyData = ['type' => 'user.updated', 'data' => ['id' => 'usr_123']];
+        $rawBody = json_encode($bodyData, JSON_THROW_ON_ERROR);
+        $timestamp = (string) time();
+        $sig = TestHelpers::makeHmacSig($legacySecret, $msgId, $timestamp, $rawBody);
+        $req = TestHelpers::makeWebhookRequest(
+            ['svix-id' => $msgId, 'svix-timestamp' => $timestamp, 'svix-signature' => $sig],
+            $rawBody,
+        );
+
+        $payload = $verifier->verify($req);
+
+        $this->assertSame($msgId, $payload->messageId());
+    }
+
     public function test_timestamp_too_old_throws(): void
     {
         $msgId     = 'msg_01HZ3Q0000000000000000000';

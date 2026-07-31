@@ -4,24 +4,27 @@
 // export 注册函数,不直接改 worker/index.ts(wire 阶段统一挂)。
 
 import {
+  buildLogoutResponseXml,
   decodeBase64Xml,
   decodeSamlBindingPayload,
   encodeRedirectBindingMessage,
   setSamlEngine,
   signLogoutResponse,
+  signRedirectBindingResponse,
   verifySamlLogoutRequest,
   verifySamlResponse,
 } from '@xid-kit/saml'
 import type { AttributeMapping } from '@xid-kit/saml'
-import { createTenantDb, schema } from '@xid-kit/db'
+import { createTenantDb, resolveTenantContextByApplicationClientId, schema } from '@xid-kit/db'
 import { DEFAULT_SESSION_POLICY } from '@xid-kit/types'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError, isAppError } from '../lib/errors'
 import { renderProtocolErrorPage } from '../lib/error-page'
-import { issueSession, revokeSession } from '../lib/session'
+import { createPersistedId } from '../lib/persisted-id'
+import { issueSession, revokeSession, sessionDoRevoke } from '../lib/session'
 import type { SessionData } from '../lib/types'
 import { SSO_AUTH_CONTEXT } from '../lib/auth-context'
 import { resolvePostAuthMfaGate } from '../lib/mfa-session'
@@ -37,27 +40,64 @@ import {
 } from './saml-connection'
 import type { SamlConnection } from './saml-connection'
 import { shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
+import { readUniqueSamlFormField, readUniqueSamlQueryParameter } from './saml-binding-input'
 import { provisionUser } from './saml-jit'
 import {
-  consumeAuthnRequestId,
+  consumeAuthnRequestContext,
   isAssertionReplay,
+  isLogoutRequestReplay,
+  releaseLogoutRequestReplay,
   resolveInboundSamlSessionByNameId,
   resolveInboundSamlSessionIndex,
+  restoreConsumedSamlSessionBindings,
   storeAuthnRequestId,
   storeInboundSamlSessionIndex,
+} from './saml-do'
+import type {
+  ConsumedSamlSessionBinding,
+  SamlAuthnRequestContext,
+  SamlLogoutRequestReplayInput,
 } from './saml-do'
 import { buildSpMetadata, redirectToIdp } from './saml-views'
 import { resolveSsoConnectionTenant, withTenant } from './tenant'
 import { enforceEnterpriseSsoPolicy } from './enterprise-policy'
+import {
+  isAuthorizeContinuation,
+  normalizeLocalContinuePath,
+  resolveApplicationAuthorizeContinuation,
+} from '../../shared/hosted-auth-continuation'
+import { isApplicationSignUpIntent } from '../../shared/hosted-auth-intent'
 
 const saml = new Hono<XidHonoEnv>()
 
 // RelayState 最大 2KB(超长截断记日志,见第 1 节决策)。
 const RELAY_STATE_MAX = 2048
 const DEFAULT_AUTH_RETURN_PATH = '/console'
+const INVITATION_PATH = '/accept-invitation'
 
 // base64 XML 上限(字符数):schema 层拒超大 SAMLResponse/SAMLRequest,量级对齐 SAML_METADATA_MAX_BYTES。
 const SAML_XML_BASE64_MAX_LENGTH = 256 * 1024
+
+function isInvitationContinuePath(value: string | null | undefined): boolean {
+  if (!value) return false
+  try {
+    const parsed = new URL(value, 'https://xid.invalid')
+    return parsed.pathname === INVITATION_PATH || parsed.pathname === `${INVITATION_PATH}/`
+  } catch {
+    return false
+  }
+}
+
+function requestHasRawInvitationInput(
+  c: Context<XidHonoEnv>,
+  continuationParameters: readonly string[],
+): boolean {
+  const query = new URL(c.req.url).searchParams
+  if (query.has('invitation_token') || query.has('invitationToken')) return true
+  return continuationParameters.some((name) =>
+    query.getAll(name).some((value) => isInvitationContinuePath(value)),
+  )
+}
 
 // HTTP-POST binding 的 ACS/SLO 表单:SAMLResponse/SAMLRequest 必填,RelayState 可选。
 // FormData 值可能是 File,valibot string 直接拒(形状层),不用手写 typeof 守卫。
@@ -71,12 +111,12 @@ const sloPostFormSchema = v.object({
   RelayState: v.optional(v.string()),
 })
 
-// HTTP-Redirect binding 的 SLO query:Signature/SigAlg 成对出现才参与验签(成对性在 domain 层判断)。
+// HTTP-Redirect binding 的 SLO query 必须携带 detached Signature/SigAlg。
 const sloRedirectQuerySchema = v.object({
   SAMLRequest: v.pipe(v.string(), v.minLength(1), v.maxLength(SAML_XML_BASE64_MAX_LENGTH)),
-  RelayState: v.optional(v.string()),
-  Signature: v.optional(v.string()),
-  SigAlg: v.optional(v.string()),
+  RelayState: v.optional(v.pipe(v.string(), v.maxLength(RELAY_STATE_MAX))),
+  Signature: v.optional(v.pipe(v.string(), v.minLength(1))),
+  SigAlg: v.optional(v.pipe(v.string(), v.minLength(1))),
 })
 
 // SSO 协议面错误契约是 malformed_request 400(8.8),不走 validation_failed 422,故此处用
@@ -125,8 +165,8 @@ async function readAcsForm(
 ): Promise<{ samlResponse: string; relayState: string | null }> {
   const form = await c.req.formData()
   const parsed = parseShape(acsFormSchema, {
-    SAMLResponse: form.get('SAMLResponse'),
-    RelayState: form.get('RelayState') ?? undefined,
+    SAMLResponse: readUniqueSamlFormField(form, 'SAMLResponse'),
+    RelayState: readUniqueSamlFormField(form, 'RelayState'),
   })
   return { samlResponse: parsed.SAMLResponse, relayState: parsed.RelayState ?? null }
 }
@@ -146,6 +186,7 @@ async function verifyAcs(c: Context<XidHonoEnv>, connection: SamlConnection, sam
     spInitiated: 'auto',
     wantAuthnResponseSigned: connection.wantAuthnResponseSigned,
     wantAssertionsSigned: connection.wantAssertionsSigned,
+    clockSkewToleranceMs: connection.samlClockSkewMs,
     ...(spDecryptKey ? { spDecryptKey } : {}),
     attributeMapping: toAttributeMapping(connection.attributeMapping),
   })
@@ -158,10 +199,36 @@ async function checkInResponseTo(
   c: Context<XidHonoEnv>,
   connectionId: string,
   inResponseTo: string | undefined,
-): Promise<void> {
-  if (!inResponseTo) return
-  const ok = await consumeAuthnRequestId(c, connectionId, inResponseTo)
-  if (!ok) throw new AppError('recipient_mismatch', { httpStatus: 403 })
+): Promise<SamlAuthnRequestContext | null> {
+  if (!inResponseTo) return null
+  const flow = await consumeAuthnRequestContext(c, connectionId, inResponseTo)
+  if (!flow) throw new AppError('recipient_mismatch', { httpStatus: 403 })
+  if (isInvitationContinuePath(flow.continuePath)) {
+    throw new AppError('invalid_request')
+  }
+  const tenant = c.get('tenant')
+  if (flow.tenantId && flow.tenantId !== tenant.tenantId) {
+    throw new AppError('cross_tenant_access_denied')
+  }
+  if (normalizeLocalContinuePath(flow.continuePath) !== flow.continuePath) {
+    throw new AppError('server_error')
+  }
+  if (flow.applicationClientId) {
+    const applicationTenant = await resolveTenantContextByApplicationClientId(
+      c.req.raw,
+      c.env,
+      flow.applicationClientId,
+    )
+    if (!applicationTenant.ok || applicationTenant.value.tenantId !== tenant.tenantId) {
+      throw new AppError('cross_tenant_access_denied')
+    }
+    if (!resolveApplicationAuthorizeContinuation(flow.continuePath, flow.applicationClientId)) {
+      throw new AppError('invalid_request')
+    }
+  } else if (isAuthorizeContinuation(flow.continuePath)) {
+    throw new AppError('invalid_request')
+  }
+  return flow
 }
 
 // ACS 主体(验签 -> 重放/InResponseTo -> JIT -> session -> 回跳 RelayState)。
@@ -169,18 +236,26 @@ async function runAcs(c: Context<XidHonoEnv>, connectionId: string): Promise<Res
   const connection = await resolveConnection(c, connectionId)
   await enforceEnterpriseSsoPolicy({ c, action: 'login', email: null })
   const { samlResponse, relayState } = await readAcsForm(c)
+  if (isInvitationContinuePath(relayState)) {
+    throw new AppError('invalid_request')
+  }
 
   const assertion = await verifyAcs(c, connection, samlResponse)
-  await checkInResponseTo(c, connectionId, assertion.inResponseTo)
+  const requestFlow = await checkInResponseTo(c, connectionId, assertion.inResponseTo)
 
   if (await isAssertionReplay(c, connectionId, assertion.assertionId, assertion.notOnOrAfter)) {
     throw new AppError('replay_detected', { httpStatus: 403 })
   }
 
-  const relayTarget = resolveRelayState(c.get('tenant'), relayState)
+  const relayTarget = requestFlow
+    ? new URL(requestFlow.continuePath, c.get('tenant').issuer).toString()
+    : resolveRelayState(c.get('tenant'), relayState)
   const localRelayTarget = relayTarget.startsWith(c.get('tenant').issuer)
     ? relayTarget.slice(c.get('tenant').issuer.length) || DEFAULT_AUTH_RETURN_PATH
     : DEFAULT_AUTH_RETURN_PATH
+  if (!requestFlow && isAuthorizeContinuation(localRelayTarget)) {
+    throw new AppError('invalid_request')
+  }
   const skipDefaultMembership = shouldSkipDefaultMembership({
     redirectAfterLogin: localRelayTarget,
   })
@@ -198,7 +273,7 @@ async function runAcs(c: Context<XidHonoEnv>, connectionId: string): Promise<Res
     returnPath: localRelayTarget,
     sessionAmr: SSO_AUTH_CONTEXT.amr,
   })
-  const sessionId = crypto.randomUUID()
+  const sessionId = createPersistedId('session')
   // SAML sessionIndex 绑定窗口对齐 session absolute 策略(签发生命周期同源)。
   const sessionTtlMs =
     (c.get('tenant').policy.session ?? DEFAULT_SESSION_POLICY).absoluteTimeoutDays *
@@ -209,7 +284,7 @@ async function runAcs(c: Context<XidHonoEnv>, connectionId: string): Promise<Res
   await issueSession(c, {
     sessionId,
     userId,
-    activeOrgId: connection.orgId,
+    activeOrgId: skipDefaultMembership ? null : connection.orgId,
     ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
     authContext: SSO_AUTH_CONTEXT,
     authenticatedAt: now,
@@ -278,9 +353,10 @@ function sloPostForm(input: {
   samlResponse: string
   relayState: string | null
 }): string {
-  const relay = input.relayState
-    ? `<input type="hidden" name="RelayState" value="${htmlEscape(input.relayState)}">`
-    : ''
+  const relay =
+    input.relayState !== null
+      ? `<input type="hidden" name="RelayState" value="${htmlEscape(input.relayState)}">`
+      : ''
   return [
     `<!doctype html>`,
     `<html><body>`,
@@ -302,41 +378,61 @@ async function readSloRequest(c: Context<XidHonoEnv>): Promise<{
     relayState?: string | null
     signature: string
     sigAlg: string
+    wireEncoded: {
+      samlMessage: string
+      relayState: string | null
+      sigAlg: string
+    }
   }
 }> {
+  const readRelayState = (value: string | undefined): string | null => {
+    if (value === undefined) return null
+    if (value.length > RELAY_STATE_MAX) {
+      throw new AppError('malformed_request', { httpStatus: 400 })
+    }
+    return value
+  }
   if (c.req.method === 'POST') {
     const form = await c.req.formData()
     const parsed = parseShape(sloPostFormSchema, {
-      SAMLRequest: form.get('SAMLRequest'),
-      RelayState: form.get('RelayState') ?? undefined,
+      SAMLRequest: readUniqueSamlFormField(form, 'SAMLRequest'),
+      RelayState: readUniqueSamlFormField(form, 'RelayState'),
     })
     return {
       encoded: parsed.SAMLRequest,
       binding: 'post',
-      relayState: parsed.RelayState?.slice(0, RELAY_STATE_MAX) ?? null,
+      relayState: readRelayState(parsed.RelayState),
     }
   }
+  const requestParameter = readUniqueSamlQueryParameter(c.req.url, 'SAMLRequest')
+  const relayStateParameter = readUniqueSamlQueryParameter(c.req.url, 'RelayState')
+  const signatureParameter = readUniqueSamlQueryParameter(c.req.url, 'Signature')
+  const sigAlgParameter = readUniqueSamlQueryParameter(c.req.url, 'SigAlg')
   const parsed = parseShape(sloRedirectQuerySchema, {
-    SAMLRequest: c.req.query('SAMLRequest'),
-    RelayState: c.req.query('RelayState'),
-    Signature: c.req.query('Signature'),
-    SigAlg: c.req.query('SigAlg'),
+    SAMLRequest: requestParameter?.value,
+    RelayState: relayStateParameter?.value,
+    Signature: signatureParameter?.value,
+    SigAlg: sigAlgParameter?.value,
   })
-  const relayState = parsed.RelayState?.slice(0, RELAY_STATE_MAX) ?? null
+  const relayState = readRelayState(parsed.RelayState)
+  if (!parsed.Signature || !parsed.SigAlg) {
+    throw new AppError('malformed_request', { httpStatus: 400 })
+  }
   return {
     encoded: parsed.SAMLRequest,
     binding: 'redirect',
     relayState,
-    ...(parsed.Signature && parsed.SigAlg
-      ? {
-          redirectSignature: {
-            samlRequestEncoded: parsed.SAMLRequest,
-            relayState,
-            signature: parsed.Signature,
-            sigAlg: parsed.SigAlg,
-          },
-        }
-      : {}),
+    redirectSignature: {
+      samlRequestEncoded: parsed.SAMLRequest,
+      relayState,
+      signature: parsed.Signature,
+      sigAlg: parsed.SigAlg,
+      wireEncoded: {
+        samlMessage: requestParameter!.wireValue,
+        relayState: relayStateParameter?.wireValue ?? null,
+        sigAlg: sigAlgParameter!.wireValue,
+      },
+    },
   }
 }
 
@@ -346,7 +442,12 @@ async function revokeInboundSamlSession(
 ): Promise<void> {
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const row = await db.sessions.findOne(eq(schema.sessions.id, binding.sessionId))
-  if (!row || row.userId !== binding.userId || row.status !== 'active') return
+  if (!row || row.status !== 'active') return
+  if (row.userId !== binding.userId) {
+    throw new AppError('server_error', {
+      cause: new Error('SAML session binding user mismatch'),
+    })
+  }
   const session: SessionData = {
     sessionId: row.id,
     userId: row.userId,
@@ -362,7 +463,98 @@ async function revokeInboundSamlSession(
     amr: row.amr ?? null,
     aal: row.aal ?? null,
   }
-  await revokeSession(c, session)
+  try {
+    await revokeSession(c, session)
+  } catch (cause) {
+    const fallback = await Promise.allSettled([
+      sessionDoRevoke(c.env, binding.userId, binding.sessionId),
+      db.sessions.update(
+        { status: 'revoked' },
+        and(
+          eq(schema.sessions.id, binding.sessionId),
+          eq(schema.sessions.userId, binding.userId),
+          eq(schema.sessions.status, 'active'),
+        ),
+      ),
+    ])
+    if (fallback.some((result) => result.status === 'fulfilled')) return
+    throw new AppError('server_error', {
+      cause: new AggregateError(
+        [
+          cause,
+          ...fallback.map((result) =>
+            result.status === 'rejected' ? result.reason : new Error('unexpected success'),
+          ),
+        ],
+        'SAML session revocation failed in both stores',
+      ),
+    })
+  }
+}
+
+async function attemptAllInboundSessionRevocations(
+  c: Context<XidHonoEnv>,
+  bindings: readonly ConsumedSamlSessionBinding[],
+): Promise<{ cause: unknown } | null> {
+  let firstFailure: { cause: unknown } | null = null
+  for (const binding of bindings) {
+    try {
+      await revokeInboundSamlSession(c, binding)
+    } catch (cause) {
+      firstFailure ??= { cause }
+    }
+  }
+  return firstFailure
+}
+
+async function consumeVerifiedInboundLogoutRequest(
+  c: Context<XidHonoEnv>,
+  connectionId: string,
+  verified: {
+    requestId: string
+    validUntil: number
+    sessionIndexes: readonly string[]
+    nameId?: string
+  },
+): Promise<void> {
+  const replayInput: SamlLogoutRequestReplayInput = {
+    direction: 'inbound',
+    scopeId: connectionId,
+    requestId: verified.requestId,
+    validUntil: verified.validUntil,
+  }
+  if (await isLogoutRequestReplay(c, replayInput)) {
+    throw samlErrorToApp('replay_detected', 'LogoutRequest was already consumed')
+  }
+  const bindings: ConsumedSamlSessionBinding[] = []
+  let consumeFailure: { cause: unknown } | null = null
+  if (verified.sessionIndexes.length > 0) {
+    for (const sessionIndex of new Set(verified.sessionIndexes)) {
+      try {
+        const binding = await resolveInboundSamlSessionIndex(c, connectionId, sessionIndex)
+        if (binding) bindings.push(binding)
+      } catch (cause) {
+        consumeFailure ??= { cause }
+      }
+    }
+  } else if (verified.nameId) {
+    try {
+      bindings.push(...(await resolveInboundSamlSessionByNameId(c, connectionId, verified.nameId)))
+    } catch (cause) {
+      consumeFailure = { cause }
+    }
+  }
+  const revokeFailure = await attemptAllInboundSessionRevocations(c, bindings)
+  const failure = consumeFailure ?? revokeFailure
+  if (failure) {
+    await restoreConsumedSamlSessionBindings(c, {
+      direction: 'inbound',
+      scopeId: connectionId,
+      bindings,
+    })
+    await releaseLogoutRequestReplay(c, replayInput)
+    throw new AppError('server_error', { cause: failure.cause })
+  }
 }
 
 async function handleInboundSlo(c: Context<XidHonoEnv>): Promise<Response> {
@@ -381,51 +573,46 @@ async function handleInboundSlo(c: Context<XidHonoEnv>): Promise<Response> {
       idpCertificatesB64: connection.idpCertificates,
       expectedIssuer: connection.idpEntityId ?? '',
       expectedDestination: sloUrl(ctx, connectionId),
+      clockSkewToleranceMs: connection.samlClockSkewMs,
       ...(redirectSignature ? { redirectSignature } : {}),
     })
     if (!verified.ok) throw samlErrorToApp(verified.error.code, verified.error.reason)
 
-    let bindingHit = null as { userId: string; sessionId: string } | null
-    if (verified.value.sessionIndex) {
-      bindingHit = await resolveInboundSamlSessionIndex(
-        c,
-        connectionId,
-        verified.value.sessionIndex,
-      )
-    } else if (verified.value.nameId) {
-      bindingHit = await resolveInboundSamlSessionByNameId(c, connectionId, verified.value.nameId)
+    const responseDestination = connection.idpSloUrl
+    if (!responseDestination) {
+      throw new AppError('connection_not_found', { httpStatus: 404 })
     }
-    if (bindingHit) await revokeInboundSamlSession(c, bindingHit)
-
     const signingKey = await loadSpSigningKey(c)
     if (!signingKey) throw new AppError('connection_not_found', { httpStatus: 404 })
+    const responseInput = {
+      issuer: spEntityId(ctx, connectionId),
+      destination: responseDestination,
+      inResponseTo: verified.value.requestId,
+    }
 
-    const responseDestination =
-      connection.idpSloUrl ??
-      connection.idpSsoUrl?.replace(/\/sso\/?$/, '/slo') ??
-      verified.value.issuer
-    const signed = await signLogoutResponse(
-      {
-        issuer: spEntityId(ctx, connectionId),
-        destination: responseDestination,
-        inResponseTo: verified.value.requestId,
-      },
-      signingKey,
-    )
+    if (binding === 'redirect') {
+      const built = buildLogoutResponseXml(responseInput)
+      const param = await encodeRedirectBindingMessage(built.xml)
+      const signed = await signRedirectBindingResponse(param, relayState, signingKey)
+      if (!signed.ok) {
+        throw new AppError('internal_error', {
+          httpStatus: 500,
+          longMessage: 'saml_slo_sign_failed',
+        })
+      }
+      await consumeVerifiedInboundLogoutRequest(c, connectionId, verified.value)
+      const sep = responseDestination.includes('?') ? '&' : '?'
+      return c.redirect(`${responseDestination}${sep}${signed.value.query}`)
+    }
+
+    const signed = await signLogoutResponse(responseInput, signingKey)
     if (!signed.ok) {
       throw new AppError('internal_error', {
         httpStatus: 500,
         longMessage: 'saml_slo_sign_failed',
       })
     }
-
-    if (binding === 'redirect') {
-      const param = await encodeRedirectBindingMessage(signed.value.xml)
-      const params = new URLSearchParams({ SAMLResponse: param })
-      if (relayState) params.set('RelayState', relayState)
-      const sep = responseDestination.includes('?') ? '&' : '?'
-      return c.redirect(`${responseDestination}${sep}${params.toString()}`)
-    }
+    await consumeVerifiedInboundLogoutRequest(c, connectionId, verified.value)
 
     const html = sloPostForm({
       destination: responseDestination,
@@ -442,13 +629,45 @@ saml.post('/saml/:connection/slo', handleInboundSlo)
 
 // GET /sso/saml/:connection/login -- SP-initiated AuthnRequest 发起(302 到 IdP SSO URL)。
 saml.get('/saml/:connection/login', async (c) => {
+  if (requestHasRawInvitationInput(c, ['relay_state', 'RelayState', 'redirect_uri', 'continue'])) {
+    throw new AppError('invalid_request')
+  }
   const connectionId = c.req.param('connection')
   const tenant = await resolveSsoConnectionTenant(c, connectionId)
   return withTenant(c, tenant, async () => {
     await enforceEnterpriseSsoPolicy({ c, action: 'login', email: null })
 
     const connection = await resolveConnection(c, connectionId)
-    return redirectToIdp(c, connection, storeAuthnRequestId)
+    const rawContinue =
+      c.req.query('relay_state') ?? c.req.query('continue') ?? DEFAULT_AUTH_RETURN_PATH
+    const applicationClientId = c.req.query('client_id')?.trim() || null
+    const applicationContinuation = applicationClientId
+      ? resolveApplicationAuthorizeContinuation(rawContinue, applicationClientId)
+      : null
+    const continuePath = applicationContinuation ?? normalizeLocalContinuePath(rawContinue)
+    if (
+      !continuePath ||
+      (applicationClientId && !applicationContinuation) ||
+      (!applicationClientId && isAuthorizeContinuation(continuePath)) ||
+      (isApplicationSignUpIntent(c.req.query('intent')) && !applicationClientId)
+    ) {
+      throw new AppError('invalid_request')
+    }
+    if (applicationClientId) {
+      const applicationTenant = await resolveTenantContextByApplicationClientId(
+        c.req.raw,
+        c.env,
+        applicationClientId,
+      )
+      if (!applicationTenant.ok || applicationTenant.value.tenantId !== tenant.tenantId) {
+        throw new AppError('cross_tenant_access_denied')
+      }
+    }
+    return redirectToIdp(c, connection, storeAuthnRequestId, {
+      tenantId: tenant.tenantId,
+      continuePath,
+      applicationClientId,
+    })
   })
 })
 

@@ -1,5 +1,9 @@
 # @xid-kit/angular
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 Angular 17+ SDK for the [XID identity platform](https://xid.dev).
 Standalone components, functional guards, and an RxJS-based service on top of `@xid-kit/core`.
 No NgModule required.
@@ -16,7 +20,8 @@ import { provideXid } from '@xid-kit/angular'
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideXid({ apiUrl: 'https://app.xid.dev' }),
+    // Core auth endpoints must be served on this application's exact origin.
+    provideXid({ mode: 'same-origin' }),
     // ...other providers
   ],
 }
@@ -24,6 +29,10 @@ export const appConfig: ApplicationConfig = {
 
 `provideXid` registers `XID_CLIENT` (the `XidClient` singleton) and wires
 an `APP_INITIALIZER` that calls `client.load()` on bootstrap.
+
+The prebuilt sign-in component targets a same-origin Hosted Auth path. A normal cross-origin
+application should use `provideXid({ mode: 'oidc', issuer, clientId, redirectUri })` and call
+`XID_CLIENT.createAuthorizationUrl()` to start OIDC login.
 
 ### 2. Inject XidAuthService
 
@@ -106,12 +115,11 @@ export const routes: Routes = [
 Registers XidClient as the `XID_CLIENT` singleton and bootstraps `load()`.
 
 ```ts
-type ProvideXidOptions = {
-  apiUrl?: string // Auth API root. Defaults to same-origin relative path.
-  fetcher?: typeof fetch // Override fetch (for testing).
-  now?: () => number // Override clock (for testing).
-}
+type ProvideXidOptions = XidClientOptions
 ```
+
+`XidClientOptions` is a discriminated union: OIDC mode requires `issuer`, `clientId`, and
+`redirectUri`; same-origin mode accepts only a relative or exact same-origin `apiUrl`.
 
 ### `XID_CLIENT: InjectionToken<XidClient>`
 
@@ -167,7 +175,7 @@ Inputs: `signInUrl` (default `'/sign-in'`), `redirectUrl`, `ariaLabel`.
 </xid-sign-out-button>
 ```
 
-Inputs: `sessionId` (omit to sign out all), `redirectUrl`, `ariaLabel`.
+Inputs: `sessionId` (omit to sign out the current active session), `redirectUrl`, `ariaLabel`.
 Shows `aria-busy` and `disabled` while the sign-out request is in flight.
 
 ---
@@ -213,6 +221,7 @@ export class MyComponent {
 - Guards read a single state snapshot via `service.state$.pipe(take(1))`.
 - Components delegate to `XidAuthService` -- no direct client coupling.
 
-Token storage: session tokens are `HttpOnly` cookies set by the XID Worker.
-The SDK never stores tokens in `localStorage`. `getToken()` returns a short-lived
-JWT (60 s default) acquired via a silent `/v1/token` request.
+Token storage: the XID Worker stores an opaque refresh credential in an `HttpOnly` cookie. The
+cookie is not a JWT and the SDK never reads it from JavaScript or stores it in `localStorage`.
+`getToken()` exchanges that cookie through `/v1/sessions/token` and keeps the returned short-lived
+JWT only in memory.

@@ -10,7 +10,10 @@ This SDK is distributed as source inside the repository. It is not published to 
 - `Xid.configure` / `signIn` / `handleRedirect` / `getSession` / `getAccessToken` / `signOut` / `setTokenStorage`
 - EncryptedSharedPreferences (Android Keystore AES-256-GCM) backed token storage
 - `TokenStorageAdapter` interface for custom storage backends
-- state parameter CSRF guard in `handleRedirect`
+- independent 32-byte state and OIDC nonce values persisted across the browser callback
+- state CSRF validation before code exchange and exact nonce validation against the verified ID token
+- JWKS-backed ES256/RS256 ID token signature, issuer, audience, expiry and issued-at validation
+- Chrome Custom Tabs warmup and RP-initiated logout through Custom Tabs
 - Sealed `XidException` hierarchy covering all error paths
 
 ## Install
@@ -69,7 +72,7 @@ class MyApp : Application() {
                 issuer = "https://xid.dev",
                 clientId = "your_client_id",
                 redirectUri = "https://yourapp.example.com/auth/callback",
-                scopes = listOf("openid", "profile", "email", "offline_access"),
+                scopes = listOf("openid", "profile", "email"),
             )
         )
     }
@@ -138,8 +141,8 @@ Xid.signOut(context = this@MainActivity, openEndSession = true)
 | `setTokenStorage` | `fun setTokenStorage(adapter: TokenStorageAdapter)`                  | Replace default secure storage                  |
 | `signIn`          | `suspend fun signIn(context: Context, options: SignInOptions)`       | Launch Chrome Custom Tabs authorization         |
 | `handleRedirect`  | `suspend fun handleRedirect(url: String): XidSession`                | Handle callback URI, complete code exchange     |
-| `getSession`      | `suspend fun getSession(): XidSession?`                              | Get current session (auto-refresh)              |
-| `getAccessToken`  | `suspend fun getAccessToken(options: GetAccessTokenOptions): String` | Get access token (auto-refresh)                 |
+| `getSession`      | `suspend fun getSession(): XidSession?`                              | Return an unexpired session; expiry returns null |
+| `getAccessToken`  | `suspend fun getAccessToken(options: GetAccessTokenOptions): String` | Return an unexpired token; expiry requires authorization |
 | `signOut`         | `suspend fun signOut(context, openEndSession)`                       | Clear local tokens, optionally open end_session |
 
 ### Error types (sealed class XidException)
@@ -152,7 +155,6 @@ Xid.signOut(context = this@MainActivity, openEndSession = true)
 | `AuthorizationError`    | Authorization server returned error             |
 | `StateMismatch`         | state mismatch (CSRF guard)                     |
 | `TokenExchangeFailed`   | /token endpoint returned error                  |
-| `TokenRefreshFailed`    | Refresh token invalid                           |
 | `NoSession`             | Session-required method called while signed out |
 | `StorageError`          | EncryptedSharedPreferences read/write failed    |
 | `NetworkError`          | Network request failed                          |
@@ -163,19 +165,17 @@ Xid.signOut(context = this@MainActivity, openEndSession = true)
 - Public client: no client secret stored.
 - PKCE S256: 64-byte random code_verifier; S256 only.
 - State CSRF guard: random state per authorization request, validated in handleRedirect.
+- OIDC nonce: an independent 32-byte nonce is sent to `/authorize`, restored with the pending
+  authorization, and matched exactly against the verified ID token before persistence.
 - Secure storage: EncryptedSharedPreferences backed by Android Keystore (AES-256-GCM).
-- Refresh token rotation: server issues new refresh token on each use; old token is immediately invalidated.
+- Offline access: the SDK does not implement DPoP, so the default scopes are `openid profile email`
+  and explicit `offline_access` is rejected during configuration. Reauthorize after access-token expiry.
 
 ## Known limits (pending before production use)
 
-- **JWT signature verification**: `TokenManager.parseUserFromIdToken` decodes payload only; does not verify signature. JWKS fetch + ES256/RS256 verification must be added before production.
-- **Chrome Custom Tabs warmup**: `CustomTabsClient.warmup` not yet called; increases cold-start latency.
 - **Certificate pinning**: no `CertificatePinner` on OkHttpClient.
 - **Biometric unlock**: `EncryptedPrefsStorage` does not set `setUserAuthenticationRequired(true)`.
 - **UserCancelled detection**: no mechanism to detect user pressing back in Custom Tabs without completing authorization.
-- **end_session URL bug**: `post_logout_redirect_uri` parameter construction in `Xid.signOut` has a bug.
-- **end_session via CustomTabsIntent**: `signOut` uses a bare Intent instead of `CustomTabsIntent`.
-- **nonce support**: nonce not generated on signIn or validated on token receipt.
 - **Multi-account support**: storage uses fixed keys; multiple accounts on one device not supported.
 - **`EncryptedSharedPreferences` / `CustomTabs` / `App Links`**: require Android device or emulator to verify; not covered by JVM unit tests.
 
@@ -199,9 +199,10 @@ sdk/android/
     pkce/PkceGenerator.kt        PKCE S256 code_verifier/code_challenge
     storage/TokenStorage.kt      TokenStorageAdapter interface + StorageKeys
     storage/EncryptedPrefsStorage.kt  Default implementation (EncryptedSharedPreferences)
-    token/TokenManager.kt        Code exchange + refresh + session reconstruction
+    token/TokenManager.kt        Code exchange + session reconstruction
     browser/AuthSession.kt       Chrome Custom Tabs + authorization URL + callback parsing
   src/test/kotlin/dev/xid/sdk/
+    OidcNonceTest.kt
     PkceGeneratorTest.kt
     StateValidationTest.kt
     TokenStorageInMemoryTest.kt

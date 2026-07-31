@@ -5,7 +5,7 @@
 
 export type TokenCache = {
   /**
-   * 同一底层安全存储的 wrapper 必须使用相同值，供 refresh single-flight 协调。
+   * 同一底层安全存储的 wrapper 必须使用相同值，供 session mutation 协调。
    * 未提供时仅按当前 TokenCache 对象实例协调。
    */
   readonly coordinationNamespace?: string

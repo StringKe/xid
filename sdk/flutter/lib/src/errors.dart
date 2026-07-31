@@ -6,7 +6,8 @@ sealed class XidException implements Exception {
   const XidException(this.message, {this.cause});
 
   @override
-  String toString() => 'XidException: $message${cause != null ? ' (cause: $cause)' : ''}';
+  String toString() =>
+      'XidException: $message${cause != null ? ' (cause: $cause)' : ''}';
 }
 
 /// 配置缺失或格式不合法。
@@ -19,8 +20,8 @@ final class XidConfigException extends XidException {
 
 /// 用户主动取消授权或关闭系统浏览器。
 final class UserCancelledException extends XidAuthException {
-  const UserCancelledException([String message = '用户取消授权'])
-      : super(message, errorCode: 'access_denied');
+  const UserCancelledException([super.message = '用户取消授权'])
+      : super(errorCode: 'access_denied');
 }
 
 /// 认证流程错误:用户取消、code 交换失败、token 无效等。
@@ -39,8 +40,7 @@ class XidAuthException extends XidException {
   });
 
   @override
-  String toString() =>
-      'XidAuthException[$errorCode]: $message'
+  String toString() => 'XidAuthException[$errorCode]: $message'
       '${errorDescription != null ? ' - $errorDescription' : ''}';
 }
 

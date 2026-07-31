@@ -22,7 +22,7 @@ export type AppRow = {
   client_secret_hash: string | null
   client_type: string
   token_endpoint_auth_method: string
-  jwks: null
+  jwks: string | null
   redirect_uris: string
   post_logout_redirect_uris: string
   allowed_grant_types: string
@@ -40,6 +40,7 @@ export type AppRow = {
   project_id: string | null
   frontchannel_logout_uri: string | null
   backchannel_logout_uri: string | null
+  backchannel_logout_session_required: number
   status: string
   created_at: number
   updated_at: number
@@ -117,26 +118,64 @@ function isInsertSql(lower: string): boolean {
   return /^\s*insert\s/.test(lower)
 }
 
+function insertAppRow(
+  apps: AppRow[],
+  sql: string,
+  params: unknown[],
+  opts: FakeD1Options,
+): AppRow[] {
+  const match = /insert\s+into\s+"applications"\s*\(([^)]+)\)\s*values\s*\(([^)]+)\)/i.exec(sql)
+  if (!match?.[1] || !match[2]) return []
+  const columns = [...match[1].matchAll(/"([a-z_]+)"/g)].map((entry) => entry[1] ?? '')
+  const valueTokens = match[2].split(',').map((value) => value.trim())
+  const inserted = { ...makeAppRow() } as AppRow & Record<string, unknown>
+  let paramIndex = 0
+  for (let i = 0; i < columns.length; i++) {
+    const column = columns[i]
+    const token = valueTokens[i]
+    if (!column || !token) continue
+    if (token === '?') {
+      inserted[column] = params[paramIndex]
+      paramIndex += 1
+    } else if (token.toLowerCase() === 'null') {
+      inserted[column] = null
+    }
+  }
+  const row = inserted as AppRow
+  apps.push(row)
+  opts.onInsert?.('applications', row)
+  return [row]
+}
+
 function applyAppUpdate(row: AppRow, sql: string, params: unknown[]): void {
-  const lower = sql.toLowerCase()
+  const setClause = /\bset\s+(.+?)\s+where\b/i.exec(sql)?.[1]?.toLowerCase() ?? ''
   // drizzle SET 顺序与 patchValues 对象序一致:updated_at 恒在前;ttl 参数是 null(清回继承)或小整数(覆盖)。
-  if (lower.includes('access_token_ttl_sec')) {
+  if (setClause.includes('access_token_ttl_sec')) {
     const ttl = params.find((v) => v === null || (typeof v === 'number' && v <= 86400))
     if (ttl === null || typeof ttl === 'number') row.access_token_ttl_sec = ttl
   }
+  const backchannelSessionRequired = /"backchannel_logout_session_required"\s*=\s*\?/i.exec(sql)
+  if (backchannelSessionRequired?.index !== undefined) {
+    const paramIndex = (sql.slice(0, backchannelSessionRequired.index).match(/\?/g) ?? []).length
+    const value = params[paramIndex]
+    if (typeof value === 'number') row.backchannel_logout_session_required = value
+  }
   for (const value of params) {
     if (typeof value !== 'string') continue
-    if (lower.includes('post_logout_redirect_uris') && value.startsWith('[')) {
+    if (setClause.includes('post_logout_redirect_uris') && value.startsWith('[')) {
       row.post_logout_redirect_uris = value
     }
-    if (lower.includes('backchannel_logout_uri') && value.startsWith('https://')) {
+    if (setClause.includes('backchannel_logout_uri') && value.startsWith('https://')) {
       row.backchannel_logout_uri = value
     }
-    if (lower.includes('id_token_signed_alg') && value === 'ES256') {
+    if (setClause.includes('id_token_signed_alg') && value === 'ES256') {
       row.id_token_signed_alg = value
     }
-    if (lower.includes('allowed_response_types') && value.startsWith('[')) {
+    if (setClause.includes('allowed_response_types') && value.startsWith('[')) {
       row.allowed_response_types = value
+    }
+    if (setClause.includes('"jwks"') && value.includes('"keys"')) {
+      row.jwks = value
     }
   }
 }
@@ -144,8 +183,7 @@ function applyAppUpdate(row: AppRow, sql: string, params: unknown[]): void {
 function matchApps(apps: AppRow[], sql: string, params: unknown[], opts: FakeD1Options): AppRow[] {
   const lower = sql.toLowerCase()
   if (isInsertSql(lower)) {
-    // INSERT: return empty to avoid JSON-mapping errors; callers should not rely on returning().
-    return []
+    return insertAppRow(apps, sql, params, opts)
   }
   if (isUpdateSql(lower)) {
     if (opts.onUpdate) opts.onUpdate('applications', {})
@@ -251,7 +289,10 @@ export function makeFakeD1(options: FakeD1Options): D1Database {
         const rows = rowsFor(sql)
         return { results: rows, success: true, meta: {} }
       },
-      run: async () => ({ results: [], success: true, meta: {} }),
+      run: async () => {
+        if (isInsertSql(sql.toLowerCase()) && table(sql) === 'applications') rowsFor(sql)
+        return { results: [], success: true, meta: {} }
+      },
     }
     return stmt
   }
@@ -353,6 +394,7 @@ export function makeAppRow(override?: Partial<AppRow>): AppRow {
     project_id: null,
     frontchannel_logout_uri: null,
     backchannel_logout_uri: null,
+    backchannel_logout_session_required: 0,
     status: 'active',
     created_at: now,
     updated_at: now,

@@ -5,23 +5,17 @@
 // verify 成功:issueSession 设 cookie,响应 { redirectUrl? }(此处省略 redirectUrl,前端回落 continue)。
 
 import { sha256Hex } from '@xid-kit/crypto'
-import { createTenantDb, schema } from '@xid-kit/db'
-import { eq } from 'drizzle-orm'
+import { createTenantDb } from '@xid-kit/db'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { EMAIL_OTP_AUTH_CONTEXT, SMS_OTP_AUTH_CONTEXT } from '../lib/auth-context'
 import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
 import { otpCodeSchema, readJsonBody, validateCredentialBody } from '../lib/validate'
 import { handleMagicLinkVerify, sendMagicLink } from '../auth/magic-link'
-import {
-  acceptInvitationByToken,
-  invitationAcceptContinuePath,
-  loadPrimaryEmailForUserId,
-  requirePendingInvitationForEmail,
-} from '../auth/invitations'
 import {
   consumeVerifiableOtp,
   constantTimeEqualStr,
@@ -55,7 +49,12 @@ import {
 import { loadGuestConversionContext, markGuestConverted } from './guest-conversion'
 import { smsDeliveryReady, whatsappDeliveryReady } from '../auth/delivery-channels'
 import { resolveEntryTenant, withTenant } from './instance-login'
-import { postAuthRedirectPath, resolvePostAuthMfaGate } from '../lib/mfa-session'
+import { resolvePostAuthMfaGate } from '../lib/mfa-session'
+import {
+  createPasswordlessFlowContext,
+  parsePasswordlessFlowContext,
+} from '../auth/passwordless-flow'
+import { startInvitationEmailClaim } from './invitation-claim'
 
 function identifierTypeForChannel(channel: OtpChannel): 'email' | 'phone' {
   return channel === 'email' ? 'email' : 'phone'
@@ -72,6 +71,7 @@ const magicLinkBodySchema = v.object({
   givenName: nullableString,
   familyName: nullableString,
   organizationId: nullableString,
+  clientId: nullableString,
   invitationToken: nullableString,
   intent: nullableString,
   continue: nullableString,
@@ -85,6 +85,7 @@ const otpSendBodySchema = v.object({
   givenName: nullableString,
   familyName: nullableString,
   organizationId: nullableString,
+  clientId: nullableString,
   invitationToken: nullableString,
   intent: nullableString,
   continue: nullableString,
@@ -95,6 +96,7 @@ const otpVerifyBodySchema = v.object({
   phone: v.optional(v.string()),
   code: v.optional(otpCodeSchema),
   organizationId: nullableString,
+  clientId: nullableString,
   invitationToken: nullableString,
   intent: nullableString,
   continue: nullableString,
@@ -105,6 +107,7 @@ type OtpSendInput = {
   target: string
   profileInput: ProfileFieldInput
   organizationId?: string | null
+  applicationClientId?: string | null
   invitationToken?: string | null
   intent?: string | null
   continue?: string | null
@@ -115,8 +118,10 @@ type OtpVerifyInput = {
   target: string
   code: string
   organizationId?: string | null
+  applicationClientId?: string | null
   invitationToken?: string | null
   intent?: string | null
+  continue?: string | null
 }
 
 function methodForChannel(channel: OtpChannel): 'emailOtp' | 'whatsappOtp' | 'smsOtp' {
@@ -142,6 +147,23 @@ function hasPasswordlessCapability(
     (method !== 'smsOtp' || passwordlessCapability(c, tenant, method))
 }
 
+async function startInvitationClaimOpaque(
+  c: Context<XidHonoEnv>,
+  rawInvitationToken: string,
+): Promise<void> {
+  try {
+    await startInvitationEmailClaim({ c, rawInvitationToken })
+  } catch (error) {
+    if (
+      error instanceof AppError &&
+      (error.code === 'invitation_invalid' || error.code === 'invitation_expired')
+    ) {
+      return
+    }
+    throw error
+  }
+}
+
 // POST /auth/magic-link/send -- 先过 turnstile 校验再复用 sendMagicLink(枚举防护 200)。
 export async function handleMagicLinkSend(c: Context<XidHonoEnv>): Promise<Response> {
   const json = await readJsonBody(c)
@@ -153,25 +175,20 @@ export async function handleMagicLinkSend(c: Context<XidHonoEnv>): Promise<Respo
   const email = (body.email ?? '').trim().toLowerCase()
   if (!email) throw new AppError('invalid_request')
   await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
-  const tenant = await resolveEntryTenant(c, { kind: 'email', value: email }, body.organizationId)
-  const continuePath =
-    body.continue ??
-    (body.invitationToken
-      ? `/accept-invitation?token=${encodeURIComponent(body.invitationToken.trim())}`
-      : body.intent === 'sign-up'
-        ? '/create-organization'
-        : null)
-  const skipDefaultMembership = shouldSkipDefaultMembership({
-    redirectAfterLogin: continuePath,
-    invitationToken: body.invitationToken,
+  if (body.invitationToken?.trim()) {
+    await startInvitationClaimOpaque(c, body.invitationToken)
+    return c.json({ ok: true })
+  }
+  const tenant = await resolveEntryTenant(c, { kind: 'email', value: email }, body.organizationId, {
     intent: body.intent,
+    applicationClientId: body.clientId,
   })
   await withTenant(c, tenant, () =>
     sendMagicLink(c, email, {
       profileInput: body,
-      invitationToken: body.invitationToken,
-      skipDefaultMembership,
-      continuePath,
+      continuePath: body.continue,
+      intent: body.intent,
+      applicationClientId: body.clientId,
     }),
   )
   return c.json({ ok: true })
@@ -187,15 +204,28 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
     target,
     profileInput,
     organizationId,
+    applicationClientId,
     invitationToken,
     intent,
     continue: continueParam,
   } = input
   if (!target) throw new AppError('invalid_request')
+  if (invitationToken?.trim()) {
+    await startInvitationClaimOpaque(c, invitationToken)
+    return c.json({ ok: true })
+  }
   const tenant =
     channel === 'email'
-      ? await resolveEntryTenant(c, { kind: 'email', value: target.toLowerCase() }, organizationId)
-      : await resolveEntryTenant(c, { kind: 'phone', value: target }, organizationId)
+      ? await resolveEntryTenant(
+          c,
+          { kind: 'email', value: target.toLowerCase() },
+          organizationId,
+          { intent, applicationClientId },
+        )
+      : await resolveEntryTenant(c, { kind: 'phone', value: target }, organizationId, {
+          intent,
+          applicationClientId,
+        })
   if (channel !== 'email' && !validatePhoneOtpTarget(target)) {
     throw new AppError('invalid_request', { longMessage: 'Phone number not in allowed region' })
   }
@@ -216,20 +246,15 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
   await reserveOtpSendRateLimit(c.env, target, tenant.tenantId)
 
   const db = createTenantDb(c.env.DB, tenant)
-  if (channel === 'email' && invitationToken) {
-    await requirePendingInvitationForEmail(db, invitationToken, target)
-  }
-  const continuePath =
-    continueParam ??
-    (invitationToken
-      ? `/accept-invitation?token=${encodeURIComponent(invitationToken.trim())}`
-      : intent === 'sign-up'
-        ? '/create-organization'
-        : null)
-  const skipDefaultMembership = shouldSkipDefaultMembership({
-    redirectAfterLogin: continuePath,
-    invitationToken,
+  const flow = createPasswordlessFlowContext({
     intent,
+    continuePath: continueParam,
+    applicationClientId,
+  })
+  const skipDefaultMembership = shouldSkipDefaultMembership({
+    redirectAfterLogin: flow.continuePath,
+    invitationToken,
+    intent: flow.intent,
   })
   let userId = await resolveTargetUserId(db, channel, target)
   if (userId) {
@@ -273,6 +298,7 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
         if (profile.email) assertEmailAllowed(tenant, profile.email)
         userId = await createPasswordlessEmailUser({
           db,
+          d1: c.env.DB,
           tenantId: tenant.tenantId,
           email: target,
           profile,
@@ -308,10 +334,13 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
         })
         userId = guest.userId
       } else {
-        const profile = normalizeProfileFields(tenant, profileInput, { phone: target })
+        const profile = normalizeProfileFields(tenant, profileInput, {
+          phone: target,
+        })
         if (profile.email) assertEmailAllowed(tenant, profile.email)
         userId = await createPasswordlessPhoneUser({
           db,
+          d1: c.env.DB,
           tenantId: tenant.tenantId,
           phone: target,
           profile,
@@ -330,18 +359,36 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
   }
 
   await withTenant(c, tenant, () =>
-    persistAndSendOtp({ c, db, tenantId: tenant.tenantId, channel, target, userId }),
+    persistAndSendOtp({
+      c,
+      db,
+      tenantId: tenant.tenantId,
+      channel,
+      target,
+      userId,
+      flowContext: flow,
+    }),
   )
   return c.json({ ok: true })
 }
 
 // OTP 验证核心:失败限流 + loadVerifiableOtp + constant-time 比对 + recordOtpFailure + issueSession。
 async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
-  const { c, channel, target, code, organizationId, invitationToken, intent } = input
+  const { c, channel, target, code, organizationId, applicationClientId, invitationToken, intent } =
+    input
+  // Invitation ownership can only be proved by the dedicated Email claim ceremony.
+  if (invitationToken?.trim()) throw new AppError('otp_invalid')
   const tenant =
     channel === 'email'
-      ? await resolveEntryTenant(c, { kind: 'email', value: target.toLowerCase() }, organizationId)
-      : await resolveEntryTenant(c, { kind: 'phone', value: target }, organizationId)
+      ? await resolveEntryTenant(
+          c,
+          { kind: 'email', value: target.toLowerCase() },
+          organizationId,
+          { intent, applicationClientId },
+        )
+      : await resolveEntryTenant(c, { kind: 'phone', value: target }, organizationId, {
+          applicationClientId,
+        })
   // code 格式已由 otpVerifyBodySchema 保证(形状失败在入口已抛 otp_invalid),此处只兜空值。
   if (!target || !code) throw new AppError('otp_invalid')
 
@@ -374,6 +421,9 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
 
     const db = createTenantDb(c.env.DB, tenant)
     const tokenRow = await loadVerifiableOtp(db, channel, target)
+    const flow = parsePasswordlessFlowContext(tokenRow.flowContext, 'otp_invalid')
+    // Reject legacy persisted OTP flows before comparison, consumption, or user/session writes.
+    if (flow.invitationId) throw new AppError('otp_invalid')
 
     const codeHash = await sha256Hex(code)
     if (!constantTimeEqualStr(codeHash, tokenRow.codeHash ?? '')) {
@@ -400,13 +450,14 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
     }
 
     const now = new Date()
-    const returnPath = postAuthRedirectPath({ invitationToken, intent })
+    const sessionId = createPersistedId('session')
+    const returnPath = flow.continuePath
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId: tokenRow.userId,
       returnPath,
     })
-    const issued = await issueSession(c, {
-      sessionId: crypto.randomUUID(),
+    await issueSession(c, {
+      sessionId,
       userId: tokenRow.userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
       authContext: channel === 'email' ? EMAIL_OTP_AUTH_CONTEXT : SMS_OTP_AUTH_CONTEXT,
@@ -419,32 +470,7 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
       return c.json({ redirectUrl: mfaGate.redirectUrl })
     }
 
-    let redirectUrl: string | undefined
-    if (invitationToken) {
-      const user = await db.users.findOne(eq(schema.users.id, tokenRow.userId))
-      const userEmail = user
-        ? await loadPrimaryEmailForUserId(db, user.id, user.primaryEmailId)
-        : null
-      const accepted = await acceptInvitationByToken({
-        db,
-        env: c.env,
-        tenantId: tenant.tenantId,
-        rawToken: invitationToken,
-        userId: tokenRow.userId,
-        userEmail,
-      })
-      await db.sessions.update(
-        { activeOrgId: accepted.orgId },
-        eq(schema.sessions.id, issued.session.sessionId),
-      )
-      const org = await db.organizations.findOne(eq(schema.organizations.id, accepted.orgId))
-      const orgName = org?.name ?? org?.slug ?? accepted.orgId
-      redirectUrl = invitationAcceptContinuePath(accepted.orgId, orgName)
-    } else if (intent === 'sign-up') {
-      redirectUrl = '/create-organization'
-    }
-
-    return c.json(redirectUrl ? { redirectUrl } : {})
+    return c.json({ redirectUrl: flow.continuePath })
   })
 }
 
@@ -462,6 +488,7 @@ export async function handleOtpEmailSend(c: Context<XidHonoEnv>): Promise<Respon
     target: (body.email ?? '').trim().toLowerCase(),
     profileInput: body,
     organizationId: body.organizationId,
+    applicationClientId: body.clientId,
     invitationToken: body.invitationToken,
     intent: body.intent,
     continue: body.continue,
@@ -482,6 +509,7 @@ export async function handleOtpSmsSend(c: Context<XidHonoEnv>): Promise<Response
     target: (body.phone ?? '').trim(),
     profileInput: body,
     organizationId: body.organizationId,
+    applicationClientId: body.clientId,
     invitationToken: body.invitationToken,
     intent: body.intent,
     continue: body.continue,
@@ -502,6 +530,7 @@ export async function handleOtpWhatsappSend(c: Context<XidHonoEnv>): Promise<Res
     target: (body.phone ?? '').trim(),
     profileInput: body,
     organizationId: body.organizationId,
+    applicationClientId: body.clientId,
     invitationToken: body.invitationToken,
     intent: body.intent,
     continue: body.continue,
@@ -522,8 +551,10 @@ export async function handleOtpEmailVerify(c: Context<XidHonoEnv>): Promise<Resp
     target: (body.email ?? '').trim().toLowerCase(),
     code: body.code ?? '',
     organizationId: body.organizationId,
+    applicationClientId: body.clientId,
     invitationToken: body.invitationToken,
     intent: body.intent,
+    continue: body.continue,
   })
 }
 
@@ -540,8 +571,10 @@ export async function handleOtpSmsVerify(c: Context<XidHonoEnv>): Promise<Respon
     target: (body.phone ?? '').trim(),
     code: body.code ?? '',
     organizationId: body.organizationId,
+    applicationClientId: body.clientId,
     invitationToken: body.invitationToken,
     intent: body.intent,
+    continue: body.continue,
   })
 }
 
@@ -558,7 +591,9 @@ export async function handleOtpWhatsappVerify(c: Context<XidHonoEnv>): Promise<R
     target: (body.phone ?? '').trim(),
     code: body.code ?? '',
     organizationId: body.organizationId,
+    applicationClientId: body.clientId,
     invitationToken: body.invitationToken,
     intent: body.intent,
+    continue: body.continue,
   })
 }

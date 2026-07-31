@@ -27,6 +27,17 @@ export const SITE_LOCALE_ROUTE_SEGMENTS: Readonly<Record<SiteLocale, string>> = 
   'pt-BR': 'pt-br',
 }
 
+export const SITE_OPEN_GRAPH_LOCALES: Readonly<Record<SiteLocale, string>> = {
+  en: 'en_US',
+  'zh-Hans': 'zh_CN',
+  ja: 'ja_JP',
+  ko: 'ko_KR',
+  fr: 'fr_FR',
+  de: 'de_DE',
+  es: 'es_ES',
+  'pt-BR': 'pt_BR',
+}
+
 const ROUTE_SEGMENT_LOCALES = new Map<string, SiteLocale>(
   SITE_LOCALES.filter((locale) => locale !== 'en').map((locale) => [
     SITE_LOCALE_ROUTE_SEGMENTS[locale],
@@ -73,10 +84,22 @@ export function getSiteLocaleAlternates(pathname: string): ReadonlyArray<{
   locale: SiteLocale
   href: string
 }> {
+  if (!isLocalizableSitePath(pathname)) {
+    return [{ locale: getSiteLocale(pathname), href: ensureLeadingSlash(pathname) }]
+  }
   return SITE_LOCALES.map((locale) => ({
     locale,
     href: localizeSitePath(pathname, locale),
   }))
+}
+
+export function getSiteLlmsIndexPath(locale: SiteLocale): string {
+  const segment = SITE_LOCALE_ROUTE_SEGMENTS[locale] || 'en'
+  return `/${segment}/llms.txt`
+}
+
+export function getSiteOpenGraphLocale(locale: SiteLocale): string {
+  return SITE_OPEN_GRAPH_LOCALES[locale]
 }
 
 export function isLocalizableSitePath(pathname: string): boolean {
@@ -84,5 +107,14 @@ export function isLocalizableSitePath(pathname: string): boolean {
   const normalized = unprefixed.replace(/^\/+|\/+$/gu, '')
   if (normalized === '') return true
   const twinBase = normalized.replace(/(?:^|\/)index\.(?:md|mdx)$/u, '')
-  return twinBase === '' || PUBLIC_DOC_SLUG_SET.has(twinBase)
+  return twinBase === '' || twinBase === 'status' || PUBLIC_DOC_SLUG_SET.has(twinBase)
+}
+
+export function hostedAuthHref(action: 'sign-in' | 'sign-up', locale: SiteLocale): string {
+  const bcp = encodeURIComponent(locale)
+  // Registration stays inside the unified Hosted Auth state machine.
+  if (action === 'sign-up') {
+    return `/sign-in?intent=sign-up&locale=${bcp}`
+  }
+  return `/sign-in?locale=${bcp}`
 }

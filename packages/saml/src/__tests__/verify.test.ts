@@ -11,9 +11,11 @@ import { generateAuthnRequest } from '../authn-request'
 import {
   ACS_URL,
   IDP_CERT_B64,
+  IDP_CERT_VALID_NOW,
   IDP_ENTITY_ID,
   SP_ENTITY_ID,
   buildResponseXml,
+  certificateWithValidity,
   importIdpSigningKey,
   signResponse,
 } from './fixtures'
@@ -22,7 +24,7 @@ import {
 const OTHER_CERT_B64 =
   'MIICtDCCAZwCCQDnJfqAQozYiDANBgkqhkiG9w0BAQsFADAcMRowGAYDVQQDDBFvdGhlci5leGFtcGxlLmNvbTAeFw0yNjA2MDEyMDAzNTVaFw0yNzA2MDEyMDAzNTVaMBwxGjAYBgNVBAMMEW90aGVyLmV4YW1wbGUuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxuiqChBxRbzWh0Q7c7vTy5LocCnauxHVJMb0lAiFabDjnrb+1dLqVXOkfCNnrGHhcgr00JgjeVHNVbBwQVLOHnEKMqwAuxmMbn2kO8eRb6097JAJS3OqF5/g/9e+1PsHa0R/WWvoJT8xZ0XLHv9pxDiftO+yTL1zxidC4Y5bUhLTNO7/ZdyqWQ6i8kOjsyUEbdVSDNSHKOL+Uw4dUKV5n/HHaMFXvc2x8oBlb6xDbXLtl4bkJl8ukePzJSbvZKxVF/kSC6oqB073FunI3n9ZwurHsaCUAj9LOqeyEZBWAXq8+gcyQlbytdcp5c9bbMXZ7ADjt50FZ0jH3+WBJxc8RQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB4W4hlYrpGhN1W2aY/oHzKbv/e+NR+HoAwmkc1ZFAmEcRrK9i8SJTXm42/BCXpraX4zBfG38Nkdcv617N/pQ1OE+aqsmZk3BopHdNVbBQqYvHpPOl4BVFzBgkhNyM3Y/weCWdTIffCBdZUSTNKDsW7MUqdayS6kQJ6W5TnouJwXOYLm4lheqaS5yoKL5VTkW+w9bvMxcNIMHMA4N24fnaKcNJ6ps0by/BFnxMidJnRw3QMlPDXZ/UAF5zPTDDMku5pp8HpOPvgeh+mRFgp35bMR7VLwvvxi9pOtkBjaB4PZtj6bpQkdmtr1kglxZanuUE67LTz0amLjMOYXiMn5ALF'
 
-const NOW = Date.parse('2026-06-01T08:01:00Z')
+const NOW = IDP_CERT_VALID_NOW
 const SAMLP_NS = 'urn:oasis:names:tc:SAML:2.0:protocol'
 const ASSERT_NS = 'urn:oasis:names:tc:SAML:2.0:assertion'
 const DS_NS = 'http://www.w3.org/2000/09/xmldsig#'
@@ -49,6 +51,15 @@ let signKey: CryptoKey
 async function signedResponse(parts = {}, signOpts = { response: true, assertion: true }) {
   return signResponse(buildResponseXml(parts), signKey, signOpts)
 }
+
+async function signedMutatedResponse(mutate: (xml: string) => string) {
+  return signResponse(mutate(buildResponseXml()), signKey, {
+    response: true,
+    assertion: true,
+  })
+}
+
+const AUTHN_STATEMENT_PATTERN = /<saml:AuthnStatement\b[^>]*>[\s\S]*?<\/saml:AuthnStatement>/
 
 describe('verifySamlResponse end-to-end', () => {
   beforeAll(async () => {
@@ -83,6 +94,33 @@ describe('verifySamlResponse end-to-end', () => {
     if (!result.ok) expect(result.error.code).toBe('signature_invalid')
   })
 
+  it('signature_invalid when the configured signing certificate is expired', async () => {
+    const expired = certificateWithValidity(
+      IDP_CERT_B64,
+      NOW - 2 * 60 * 60 * 1000,
+      NOW - 3 * 60 * 1000 - 1,
+    )
+    const result = await verifySamlResponse(
+      await signedResponse(),
+      opts({ idpCertificatesB64: [expired] }),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('signature_invalid')
+  })
+
+  it('uses the valid certificate when rotation includes an expired certificate', async () => {
+    const expired = certificateWithValidity(
+      IDP_CERT_B64,
+      NOW - 2 * 60 * 60 * 1000,
+      NOW - 3 * 60 * 1000 - 1,
+    )
+    const result = await verifySamlResponse(
+      await signedResponse(),
+      opts({ idpCertificatesB64: [expired, IDP_CERT_B64] }),
+    )
+    expect(result.ok).toBe(true)
+  })
+
   it('issuer_mismatch when Issuer differs from config', async () => {
     const xml = await signedResponse({ issuer: 'https://evil.example.com' })
     const result = await verifySamlResponse(xml, opts())
@@ -91,7 +129,7 @@ describe('verifySamlResponse end-to-end', () => {
   })
 
   it('assertion_expired when NotOnOrAfter passed', async () => {
-    const xml = await signedResponse({ notOnOrAfter: '2026-06-01T07:00:00Z' })
+    const xml = await signedResponse({ notOnOrAfter: new Date(NOW - 60 * 60 * 1000).toISOString() })
     const result = await verifySamlResponse(xml, opts())
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('assertion_expired')
@@ -102,6 +140,23 @@ describe('verifySamlResponse end-to-end', () => {
     const result = await verifySamlResponse(xml, opts())
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('recipient_mismatch')
+  })
+
+  it.each([
+    [
+      'missing',
+      (xml: string) =>
+        xml.replace(/(<saml:SubjectConfirmationData\b[^>]*?) Recipient="[^"]*"/, '$1'),
+    ],
+    [
+      'blank',
+      (xml: string) =>
+        xml.replace(/(<saml:SubjectConfirmationData\b[^>]*? Recipient=")[^"]*"/, '$1 "'),
+    ],
+  ])('schema_invalid when SubjectConfirmationData Recipient is %s', async (_label, mutate) => {
+    const result = await verifySamlResponse(await signedMutatedResponse(mutate), opts())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
   })
 
   it('recipient_mismatch when Response Destination != ACS', async () => {
@@ -118,6 +173,122 @@ describe('verifySamlResponse end-to-end', () => {
     const result = await verifySamlResponse(xml, opts())
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('recipient_mismatch')
+  })
+
+  it.each([
+    [
+      'missing',
+      (xml: string) =>
+        xml.replace(/(<saml:SubjectConfirmationData\b[^>]*?) NotOnOrAfter="[^"]*"/, '$1'),
+    ],
+    [
+      'blank',
+      (xml: string) =>
+        xml.replace(/(<saml:SubjectConfirmationData\b[^>]*? NotOnOrAfter=")[^"]*"/, '$1 "'),
+    ],
+    [
+      'malformed',
+      (xml: string) =>
+        xml.replace(
+          /(<saml:SubjectConfirmationData\b[^>]*? NotOnOrAfter=")[^"]*"/,
+          '$1not-a-date"',
+        ),
+    ],
+  ])('schema_invalid when SubjectConfirmationData NotOnOrAfter is %s', async (_label, mutate) => {
+    const result = await verifySamlResponse(await signedMutatedResponse(mutate), opts())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('assertion_expired when SubjectConfirmationData NotOnOrAfter passed', async () => {
+    const result = await verifySamlResponse(
+      await signedResponse({
+        subjConfirmExpiry: new Date(NOW - 3 * 60 * 1000 - 1).toISOString(),
+      }),
+      opts(),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('assertion_expired')
+  })
+
+  it('accepts a future SubjectConfirmationData expiry inside the signed freshness window', async () => {
+    const result = await verifySamlResponse(
+      await signedResponse({
+        subjConfirmExpiry: new Date(NOW + 2 * 60 * 1000).toISOString(),
+      }),
+      opts(),
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it('schema_invalid when the login Assertion has no AuthnStatement', async () => {
+    const xml = await signedMutatedResponse((unsigned) =>
+      unsigned.replace(AUTHN_STATEMENT_PATTERN, ''),
+    )
+    const result = await verifySamlResponse(xml, opts())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('schema_invalid when the login Assertion has duplicate AuthnStatement elements', async () => {
+    const xml = await signedMutatedResponse((unsigned) =>
+      unsigned.replace(AUTHN_STATEMENT_PATTERN, (statement) => statement + statement),
+    )
+    const result = await verifySamlResponse(xml, opts())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('schema_invalid when AuthnInstant is malformed', async () => {
+    const result = await verifySamlResponse(
+      await signedResponse({ authnInstant: 'not-a-date' }),
+      opts(),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('schema_invalid when AuthnInstant is missing', async () => {
+    const xml = await signedMutatedResponse((unsigned) =>
+      unsigned.replace(/(<saml:AuthnStatement\b[^>]*?) AuthnInstant="[^"]*"/, '$1'),
+    )
+    const result = await verifySamlResponse(xml, opts())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('assertion_expired when AuthnInstant is later than the clock-skew window', async () => {
+    const result = await verifySamlResponse(
+      await signedResponse({
+        authnInstant: new Date(NOW + 3 * 60 * 1000 + 1).toISOString(),
+      }),
+      opts(),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('assertion_expired')
+  })
+
+  it('assertion_expired when AuthnInstant predates the signed freshness window', async () => {
+    const notBefore = NOW - 60 * 1000
+    const result = await verifySamlResponse(
+      await signedResponse({
+        notBefore: new Date(notBefore).toISOString(),
+        authnInstant: new Date(notBefore - 3 * 60 * 1000 - 1).toISOString(),
+      }),
+      opts(),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('assertion_expired')
+  })
+
+  it('accepts AuthnInstant at the future clock-skew boundary', async () => {
+    const result = await verifySamlResponse(
+      await signedResponse({
+        authnInstant: new Date(NOW + 3 * 60 * 1000).toISOString(),
+      }),
+      opts(),
+    )
+    expect(result.ok).toBe(true)
   })
 })
 
@@ -284,7 +455,15 @@ async function signStandaloneAssertion(assertionXml: string, key: CryptoKey): Pr
   })
   const sig = signedXml.GetXml()
   if (!sig) throw new Error('signature not produced')
-  doc.documentElement.appendChild(sig)
+  const issuer = Array.from({ length: doc.documentElement.childNodes.length }, (_, index) =>
+    doc.documentElement.childNodes.item(index),
+  ).find(
+    (node) =>
+      node?.nodeType === 1 &&
+      (node as Element).namespaceURI === ASSERT_NS &&
+      (node as Element).localName === 'Issuer',
+  ) as Element | undefined
+  doc.documentElement.insertBefore(sig, issuer?.nextSibling ?? doc.documentElement.firstChild)
   return Stringify(doc)
 }
 
@@ -315,25 +494,25 @@ describe('verifySamlResponse XSW (signature wrapping) defense', () => {
     return opts({ wantAuthnResponseSigned: false, wantAssertionsSigned: true, ...over })
   }
 
-  it('rejects duplicated signed Assertion (cloned ID -> id not unique)', async () => {
-    // 复制整段已签名 Assertion(同 ID),Reference 目标在文档内出现两次 -> 拒。
+  it('rejects duplicated signed Assertion at the structural boundary', async () => {
+    // 复制整段已签名 Assertion(同 ID),Response 不再满足单一 payload allowlist。
     const signed = await signedResponse({}, { response: false, assertion: true })
     const clone = extractSignedAssertion(signed)
     const tampered = injectBeforeAssertion(signed, clone)
     const result = await verifySamlResponse(tampered, assertionOnly())
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('signature_invalid')
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
   })
 
-  it('rejects forged unsigned Assertion injected before the signed one (signature_required)', async () => {
+  it('rejects forged unsigned Assertion injected before the signed one', async () => {
     // 在已签名 Assertion 前注入伪造未签名 Assertion(攻击者 email)。
-    // 被消费的是首个 Assertion(伪造,无直接 Signature 子节点)-> signature_required。
+    // Response 同时出现伪造与合法 Assertion,在选择待验签节点前即拒绝。
     const signed = await signedResponse({}, { response: false, assertion: true })
     const evil = forgedAssertion('_evil_assert', 'attacker@evil.example.com')
     const tampered = injectBeforeAssertion(signed, evil)
     const result = await verifySamlResponse(tampered, assertionOnly())
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.code).toBe('signature_required')
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
   })
 
   it('rejects when both want-signed flags are false (baseline forces assertion signature)', async () => {
@@ -345,6 +524,122 @@ describe('verifySamlResponse XSW (signature wrapping) defense', () => {
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('signature_required')
+  })
+})
+
+describe('verifySamlResponse structural allowlist', () => {
+  beforeAll(async () => {
+    setSamlEngine(crypto)
+    signKey = await importIdpSigningKey()
+  })
+
+  it.each([
+    [
+      'Response Extensions',
+      (xml: string) =>
+        xml.replace(
+          '<samlp:Status>',
+          '<samlp:Extensions><evil:Injected xmlns:evil="urn:evil"/></samlp:Extensions><samlp:Status>',
+        ),
+    ],
+    [
+      'unknown Assertion child',
+      (xml: string) =>
+        xml.replace(
+          '<saml:AttributeStatement>',
+          '<evil:Injected xmlns:evil="urn:evil"/><saml:AttributeStatement>',
+        ),
+    ],
+    [
+      'nested AttributeValue extension',
+      (xml: string) =>
+        xml.replace(
+          '<saml:AttributeValue>Bjorn</saml:AttributeValue>',
+          '<saml:AttributeValue><evil:Injected xmlns:evil="urn:evil"/>Bjorn</saml:AttributeValue>',
+        ),
+    ],
+  ])('rejects signed %s', async (_label, mutate) => {
+    const xml = await signResponse(mutate(buildResponseXml()), signKey, {
+      response: true,
+      assertion: true,
+    })
+    const result = await verifySamlResponse(xml, opts())
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('rejects ds:Object added outside SignedInfo', async () => {
+    const doc = Parse(await signedResponse())
+    let responseSignature: Element | undefined
+    for (let index = 0; index < doc.documentElement.childNodes.length; index += 1) {
+      const node = doc.documentElement.childNodes.item(index)
+      if (!node || node.nodeType !== 1) continue
+      const element = node as unknown as Element
+      if (element.namespaceURI === DS_NS && element.localName === 'Signature') {
+        responseSignature = element
+        break
+      }
+    }
+    if (!responseSignature) throw new Error('Response Signature missing')
+    const object = doc.createElementNS(DS_NS, 'ds:Object')
+    object.appendChild(doc.createElementNS('urn:evil', 'evil:Injected'))
+    responseSignature.appendChild(object)
+
+    const result = await verifySamlResponse(Stringify(doc), opts())
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('rejects a Response Signature moved out of its fixed schema position', async () => {
+    const doc = Parse(await signedResponse())
+    const signature = Array.from({ length: doc.documentElement.childNodes.length }, (_, index) =>
+      doc.documentElement.childNodes.item(index),
+    ).find(
+      (node) =>
+        node?.nodeType === 1 &&
+        (node as Element).namespaceURI === DS_NS &&
+        (node as Element).localName === 'Signature',
+    ) as Element | undefined
+    if (!signature) throw new Error('Response Signature missing')
+    doc.documentElement.appendChild(signature)
+
+    const result = await verifySamlResponse(Stringify(doc), opts())
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
+  })
+
+  it('rejects an Assertion Signature moved out of its fixed schema position', async () => {
+    const doc = Parse(await signedResponse({}, { response: false, assertion: true }))
+    const assertion = Array.from({ length: doc.documentElement.childNodes.length }, (_, index) =>
+      doc.documentElement.childNodes.item(index),
+    ).find(
+      (node) =>
+        node?.nodeType === 1 &&
+        (node as Element).namespaceURI === ASSERT_NS &&
+        (node as Element).localName === 'Assertion',
+    ) as Element | undefined
+    if (!assertion) throw new Error('Assertion missing')
+    const signature = Array.from({ length: assertion.childNodes.length }, (_, index) =>
+      assertion.childNodes.item(index),
+    ).find(
+      (node) =>
+        node?.nodeType === 1 &&
+        (node as Element).namespaceURI === DS_NS &&
+        (node as Element).localName === 'Signature',
+    ) as Element | undefined
+    if (!signature) throw new Error('Assertion Signature missing')
+    assertion.appendChild(signature)
+
+    const result = await verifySamlResponse(
+      Stringify(doc),
+      opts({ wantAuthnResponseSigned: false }),
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
   })
 })
 
@@ -423,6 +718,25 @@ describe('verifySamlResponse EncryptedAssertion', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('signature_required')
+  })
+
+  it('schema_invalid when EncryptedData contains an unknown extension', async () => {
+    const { xml, privateKey } = await encryptedSignedResponse()
+    const tampered = xml.replace(
+      '</xenc:EncryptedData>',
+      '<evil:Injected xmlns:evil="urn:evil"/></xenc:EncryptedData>',
+    )
+    const result = await verifySamlResponse(
+      tampered,
+      opts({
+        wantAuthnResponseSigned: false,
+        wantAssertionsSigned: true,
+        spDecryptKey: privateKey,
+      }),
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('schema_invalid')
   })
 })
 

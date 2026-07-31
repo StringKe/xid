@@ -10,6 +10,7 @@ import {
   GITHUB_EMU_ISSUER_BOUNDARIES,
   isGithubEmuIssuer,
   resolveProfile,
+  socialProviderSecretBinding,
 } from '../social-providers'
 import { isHostedAuthPolicyError } from '../hosted-policy'
 
@@ -22,6 +23,32 @@ function makeKv(): KVNamespace {
     }),
   } as unknown as KVNamespace
 }
+
+describe('social provider secret binding allowlist', () => {
+  it('uses fixed built-in bindings and ignores tenant-adjacent arbitrary Env keys', () => {
+    const env = {
+      GOOGLE_CLIENT_SECRET: 'google-secret',
+      KEK: 'must-not-be-addressable',
+    } as unknown as Env
+
+    expect(socialProviderSecretBinding(env, 'google')).toBe('GOOGLE_CLIENT_SECRET')
+    expect(socialProviderSecretBinding(env, 'KEK')).toBeUndefined()
+  })
+
+  it('allows custom providers only through an operator mapping with the social secret prefix', () => {
+    const env = {
+      SOCIAL_PROVIDER_SECRET_BINDINGS: JSON.stringify({
+        acme: 'SOCIAL_ACME_CLIENT_SECRET',
+        unsafe: 'KEK',
+      }),
+      SOCIAL_ACME_CLIENT_SECRET: 'custom-secret',
+      KEK: 'must-not-be-addressable',
+    } as unknown as Env
+
+    expect(socialProviderSecretBinding(env, 'acme')).toBe('SOCIAL_ACME_CLIENT_SECRET')
+    expect(socialProviderSecretBinding(env, 'unsafe')).toBeUndefined()
+  })
+})
 
 async function setupProviderJwt(input: {
   issuer: string
@@ -78,6 +105,135 @@ function makeConfig(input: { issuer: string; jwksUri: string; clientId: string }
     redirectUris: ['/account'],
   }
 }
+
+function makeGitHubConfig(): ProviderConfig {
+  return {
+    authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+    tokenEndpoint: 'https://github.com/login/oauth/access_token',
+    userInfoEndpoint: 'https://api.github.com/user',
+    clientId: 'github-client',
+    clientSecret: 'github-secret',
+    scopes: ['read:user', 'user:email'],
+    usesPkce: true,
+  }
+}
+
+describe('GitHub non-OIDC Email proof', () => {
+  it('uses the primary verified /user/emails address and ignores public profile verification hints', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url === 'https://api.github.com/user') {
+        return Response.json({
+          id: 42,
+          name: 'GitHub User',
+          email: 'public@example.com',
+          email_verified: true,
+        })
+      }
+      if (url === 'https://api.github.com/user/emails') {
+        return Response.json([
+          {
+            email: 'public@example.com',
+            primary: false,
+            verified: true,
+            visibility: 'public',
+          },
+          {
+            email: 'primary@example.com',
+            primary: true,
+            verified: true,
+            visibility: 'private',
+          },
+        ])
+      }
+      return new Response(null, { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const profile = await resolveProfile({
+      env: {} as Env,
+      provider: 'github',
+      config: makeGitHubConfig(),
+      tokens: { accessToken: 'github-access-token', refreshToken: null, idToken: null },
+      nonce: 'unused-for-github',
+    })
+
+    expect(profile).toMatchObject({
+      idpUserId: '42',
+      email: 'primary@example.com',
+      emailVerified: true,
+      name: 'GitHub User',
+    })
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+      'https://api.github.com/user',
+      'https://api.github.com/user/emails',
+    ])
+    vi.unstubAllGlobals()
+  })
+
+  it('does not use a public profile Email or a non-primary verified address', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+        if (url === 'https://api.github.com/user') {
+          return Response.json({
+            id: 42,
+            name: 'GitHub User',
+            email: 'public@example.com',
+          })
+        }
+        if (url === 'https://api.github.com/user/emails') {
+          return Response.json([
+            { email: 'public@example.com', primary: true, verified: false },
+            { email: 'secondary@example.com', primary: false, verified: true },
+          ])
+        }
+        return new Response(null, { status: 404 })
+      }),
+    )
+
+    const profile = await resolveProfile({
+      env: {} as Env,
+      provider: 'github',
+      config: makeGitHubConfig(),
+      tokens: { accessToken: 'github-access-token', refreshToken: null, idToken: null },
+      nonce: 'unused-for-github',
+    })
+
+    expect(profile.email).toBeNull()
+    expect(profile.emailVerified).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
+  it('fails closed when /user/emails is unavailable instead of trusting public profile Email', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+        if (url === 'https://api.github.com/user') {
+          return Response.json({
+            id: 42,
+            name: 'GitHub User',
+            email: 'public@example.com',
+          })
+        }
+        return new Response(null, { status: 403 })
+      }),
+    )
+
+    await expect(
+      resolveProfile({
+        env: {} as Env,
+        provider: 'github',
+        config: makeGitHubConfig(),
+        tokens: { accessToken: 'github-access-token', refreshToken: null, idToken: null },
+        nonce: 'unused-for-github',
+      }),
+    ).rejects.toMatchObject({ code: 'internal_error' })
+    vi.unstubAllGlobals()
+  })
+})
 
 describe('GitHub EMU OIDC preset', () => {
   it('accepts GitHub Actions issuer globally and Entra issuer when configured', () => {

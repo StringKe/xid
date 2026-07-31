@@ -18,9 +18,6 @@ public enum XidError: Error, LocalizedError, Sendable {
     /// authorization code 换 token 失败。
     case tokenExchangeFailed(String)
 
-    /// refresh token 轮换失败。
-    case tokenRefreshFailed(String)
-
     /// 服务端返回 OAuth 错误响应 (RFC 6749 Section 5.2)。
     case oauthError(String, String?)
 
@@ -67,8 +64,6 @@ public enum XidError: Error, LocalizedError, Sendable {
             return "OIDC Discovery 加载失败: \(reason)"
         case .tokenExchangeFailed(let reason):
             return "Token 换取失败: \(reason)"
-        case .tokenRefreshFailed(let reason):
-            return "Token 刷新失败: \(reason)"
         case .oauthError(let code, let description):
             return "OAuth 错误 [\(code)]: \(description ?? "无详情")"
         case .authSessionCancelled:

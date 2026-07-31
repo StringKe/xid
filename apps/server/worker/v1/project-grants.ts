@@ -8,9 +8,16 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
-import { idAfterCursor, paginate, parsePagination, requireApiKey, requireOrg } from './shared'
+import {
+  authorizeOrganizationManagement,
+  authorizeProjectGrantRead,
+  authorizeProjectManagement,
+  requireProjectAccessActor,
+} from './project-access'
+import { idAfterCursor, paginate, parsePagination, requireOrg } from './shared'
 
 const app = new Hono<XidHonoEnv>()
 
@@ -41,7 +48,11 @@ async function requireProjectBelongsToOrg(
 ): Promise<void> {
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const project = await db.projects.findOne(
-    and(eq(schema.projects.id, projectId), eq(schema.projects.orgId, orgId)),
+    and(
+      eq(schema.projects.id, projectId),
+      eq(schema.projects.orgId, orgId),
+      eq(schema.projects.status, 'active'),
+    ),
   )
   if (!project) throw new AppError('not_found', { httpStatus: 404 })
 }
@@ -60,7 +71,7 @@ async function revokeUserGrantsForProjectGrant(
 
 // GET /v1/project-grants?limit=&cursor=&granted_project_id=&granted_to_org_id=
 app.get('/', async (c) => {
-  await requireApiKey(c, 'project_grants:read')
+  const actor = await requireProjectAccessActor(c, 'project_grants:read')
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const { limit, cursor } = parsePagination(c)
   const filters = [eq(schema.projectGrants.status, 'active')]
@@ -70,6 +81,18 @@ app.get('/', async (c) => {
   if (projectId) filters.push(eq(schema.projectGrants.grantedProjectId, projectId))
   const toOrgId = c.req.query('granted_to_org_id')
   if (toOrgId) filters.push(eq(schema.projectGrants.grantedToOrgId, toOrgId))
+  if (actor.kind === 'session') {
+    if (projectId) {
+      await authorizeProjectManagement(c, actor, projectId)
+    } else if (toOrgId) {
+      await authorizeOrganizationManagement(c, actor, toOrgId)
+    } else {
+      throw new AppError('validation_failed', {
+        httpStatus: 422,
+        meta: { paramName: 'granted_project_id' },
+      })
+    }
+  }
   const rows = await db.projectGrants.findMany(and(...filters), {
     orderBy: asc(schema.projectGrants.id),
     limit: limit + 1,
@@ -79,7 +102,7 @@ app.get('/', async (c) => {
 
 // POST /v1/project-grants
 app.post('/', async (c) => {
-  await requireApiKey(c, 'project_grants:write')
+  const actor = await requireProjectAccessActor(c, 'project_grants:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -98,6 +121,7 @@ app.post('/', async (c) => {
 
   await requireOrg(c, byOrgId)
   await requireOrg(c, toOrgId)
+  await authorizeProjectManagement(c, actor, projectId)
   await requireProjectBelongsToOrg(c, projectId, byOrgId)
 
   const existing = await db.projectGrants.findOne(
@@ -121,7 +145,7 @@ app.post('/', async (c) => {
   }
 
   const row = await db.projectGrants.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('projectGrant'),
     tenantId: tenant.tenantId,
     grantedProjectId: projectId,
     grantedByOrgId: byOrgId,
@@ -133,18 +157,19 @@ app.post('/', async (c) => {
 
 // GET /v1/project-grants/:id
 app.get('/:id', async (c) => {
-  await requireApiKey(c, 'project_grants:read')
+  const actor = await requireProjectAccessActor(c, 'project_grants:read')
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const row = await db.projectGrants.findOne(
     and(eq(schema.projectGrants.id, c.req.param('id')), eq(schema.projectGrants.status, 'active')),
   )
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
+  await authorizeProjectGrantRead(c, actor, row)
   return c.json(toResponse(row))
 })
 
 // POST /v1/project-grants/:id/revoke
 app.post('/:id/revoke', async (c) => {
-  await requireApiKey(c, 'project_grants:write')
+  const actor = await requireProjectAccessActor(c, 'project_grants:write')
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const where = and(
     eq(schema.projectGrants.id, c.req.param('id')),
@@ -152,6 +177,7 @@ app.post('/:id/revoke', async (c) => {
   )
   const existing = await db.projectGrants.findOne(where)
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+  await authorizeProjectManagement(c, actor, existing.grantedProjectId)
 
   const now = new Date()
   const updated = await db.projectGrants.update({ status: 'revoked', revokedAt: now }, where)
@@ -161,7 +187,7 @@ app.post('/:id/revoke', async (c) => {
 
 // DELETE /v1/project-grants/:id
 app.delete('/:id', async (c) => {
-  await requireApiKey(c, 'project_grants:write')
+  const actor = await requireProjectAccessActor(c, 'project_grants:write')
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const where = and(
     eq(schema.projectGrants.id, c.req.param('id')),
@@ -169,6 +195,7 @@ app.delete('/:id', async (c) => {
   )
   const existing = await db.projectGrants.findOne(where)
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+  await authorizeProjectManagement(c, actor, existing.grantedProjectId)
 
   const now = new Date()
   await db.projectGrants.update({ status: 'revoked', revokedAt: now }, where)

@@ -12,14 +12,18 @@ import type { Context } from 'hono'
 import type { AuthContextData } from './auth-context'
 import { AppError } from './errors'
 import {
+  clearActiveSessionCookie,
   clearRefreshTokenCookie,
-  readAllRefreshTokenCookies,
+  readActiveSessionCookie,
+  readRefreshTokenCookiesInPriorityOrder,
   readRefreshTokenCookie,
+  setActiveSessionCookie,
   setRefreshTokenCookie,
 } from './cookies'
 import type { ResolvedSessionCandidate, SessionData, XidHonoEnv } from './types'
 import type { TenantVar } from './types'
 import { recordAuthenticatedSession } from './auth-analytics'
+import { logWorkerError } from './safe-log'
 
 // opaque refresh token 字节数(见 05 章 8.2:32 字节 base64url 约 43 字符)。
 const REFRESH_TOKEN_BYTES = 32
@@ -49,7 +53,7 @@ export const AUTHENTICATED_SESSION_STATUSES: readonly ReadSessionStatus[] = [
 
 // per-user SessionDO 实例 key(撤销集,见 cloudflare-bindings rule 会话存储)。
 // 签发/单撤销/SCIM deprovision/Management API 强制下线必须命中同一 DO 实例,
-// userId 是全局唯一 UUID(users.id 无 tenant 复合主键),无需再拼 tenantId。
+// userId 是全局唯一持久化标识(users.id 无 tenant 复合主键),无需再拼 tenantId。
 export function sessionDoName(userId: string): string {
   return `session:${userId}`
 }
@@ -250,7 +254,11 @@ async function doIsActive(env: Env, userId: string, sessionId: string): Promise<
     const body = (await response.json()) as { active?: unknown }
     return body.active === true
   } catch (err) {
-    console.error('[session] SessionDO is-active unreachable, treating session as revoked', err)
+    logWorkerError('session.revocation_store.unavailable', err, {
+      component: 'session',
+      operation: 'is-active',
+      outcome: 'revoked',
+    })
     return false
   }
 }
@@ -497,6 +505,7 @@ export async function issueSession(
     // 记住我 cookie 生命周期对齐 session absolute 策略;非记住我不设 Max-Age(浏览器会话生命周期)。
     ...(input.rememberMe ? { maxAgeSec: sessionPolicy.absoluteTimeoutDays * 24 * 60 * 60 } : {}),
   })
+  setActiveSessionCookie(c, input.sessionId)
   const telemetry = recordAuthenticatedSession({
     env,
     tenant: ctx,
@@ -504,6 +513,7 @@ export async function issueSession(
     status: row.status as ReadSessionStatus,
     timestamp: Date.now(),
     provisionedBy: sessionUser.provisionedBy ?? null,
+    isImpersonation: input.isImpersonation === true,
   })
   waitUntilBestEffort(c, telemetry)
 
@@ -542,14 +552,86 @@ export async function readSessionById(
   return toSessionData(row)
 }
 
+async function resolveBrowserSessionToken(
+  c: Context<XidHonoEnv>,
+  token: string,
+): Promise<SessionData | null> {
+  const refreshTokenHash = await sha256Hex(token)
+  const preResolved = c.get('sessionCandidate')
+  let tenant = c.get('tenant')
+  let session: SessionData
+
+  if (preResolved?.refreshTokenHash === refreshTokenHash) {
+    session = preResolved.session
+  } else {
+    const candidate = await tenantForCookie(c, refreshTokenHash)
+    if (!candidate) return null
+    tenant = candidate.tenant
+    const db = createTenantDb(c.env.DB, tenant)
+    const row =
+      candidate.session ??
+      (await db.sessions.findOne(eq(schema.sessions.refreshTokenHash, refreshTokenHash)))
+    if (!row || row.status !== ACTIVE_SESSION_STATUS) return null
+    session = toSessionData(row)
+  }
+
+  if (session.status !== ACTIVE_SESSION_STATUS) return null
+  const nowMs = Date.now()
+  if (session.expiresAt.getTime() <= nowMs) return null
+  const db = createTenantDb(c.env.DB, tenant)
+  if (isIdleExpired(session, sessionPolicyOf(tenant), nowMs)) {
+    markSessionExpired(c, db, session.sessionId)
+    return null
+  }
+  const [activeUser, active] = await Promise.all([
+    hasActiveUser(db, session.userId),
+    doIsActive(c.env, session.userId, session.sessionId),
+  ])
+  return activeUser && active ? session : null
+}
+
+// Enumerate only sessions for which this browser actually presents a valid HttpOnly refresh cookie.
+// Session ids are returned for SDK switching; token plaintext and hashes never leave the Worker.
+export async function readBrowserSessions(c: Context<XidHonoEnv>): Promise<readonly SessionData[]> {
+  const sessions = new Map<string, SessionData>()
+  const resolved = await Promise.all(
+    readRefreshTokenCookiesInPriorityOrder(c).map((token) => resolveBrowserSessionToken(c, token)),
+  )
+  for (const session of resolved) {
+    if (session) sessions.set(session.sessionId, session)
+  }
+  return [...sessions.values()]
+}
+
+// Switch targets may belong to another top-level Tenant on the instance entry host. Resolve the
+// target from the credential hash first, then run the same exact-id, status, expiry, user, and DO
+// checks as every other session read. The session id alone is never accepted as authentication.
+export async function selectSessionById(
+  c: Context<XidHonoEnv>,
+  sessionId: string,
+): Promise<SessionData | null> {
+  const token = readRefreshTokenCookie(c, sessionId)
+  if (!token) return null
+
+  const refreshTokenHash = await sha256Hex(token)
+  const resolved = await resolveTenantContextBySessionHash(c.req.raw, c.env, refreshTokenHash)
+  if (!resolved.ok) return null
+  c.set('tenant', resolved.value.tenant)
+
+  const session = await readSessionById(c, sessionId)
+  if (!session) return null
+  c.set('session', session)
+  return session
+}
+
 // 从请求 cookie 解析当前 session(取第一个校验通过的 __Host-xid.rt.* cookie)。
-// session 中间件用此填充 c.set('session')。多 session 下返回首个有效项。
+// session 中间件用此填充 c.set('session')。多 session 下优先 active-session pointer。
 export async function readSession(
   c: Context<XidHonoEnv>,
   allowedStatuses: readonly ReadSessionStatus[] = [ACTIVE_SESSION_STATUS],
 ): Promise<SessionData | null> {
   const env = c.env
-  const all = Object.values(readAllRefreshTokenCookies(c))
+  const all = readRefreshTokenCookiesInPriorityOrder(c)
   if (all.length === 0) return null
 
   for (const token of all) {
@@ -571,6 +653,9 @@ export async function readSession(
       ])
       if (!activeUser || !active) continue
       touchSessionLastActive(c, db, session.sessionId, lastActiveMs(session))
+      if (readActiveSessionCookie(c) !== session.sessionId) {
+        setActiveSessionCookie(c, session.sessionId)
+      }
       return session
     }
 
@@ -595,17 +680,91 @@ export async function readSession(
     if (!activeUser || !active) continue
     touchSessionLastActive(c, db, row.id, lastActiveMs(row))
     c.set('tenant', candidate.tenant)
-    return toSessionData(row)
+    const session = toSessionData(row)
+    if (readActiveSessionCookie(c) !== session.sessionId) {
+      setActiveSessionCookie(c, session.sessionId)
+    }
+    return session
   }
   return null
 }
 
-// 撤销 session:SessionDO revoke + D1 status=revoked + 清 cookie(见 05 章 8 撤销)。
-export async function revokeSession(c: Context<XidHonoEnv>, session: SessionData): Promise<void> {
+// Invitation acceptance may intentionally target a different Tenant than the browser's active
+// session pointer. Authenticate only a cookie whose persistent session resolves back to that exact
+// Tenant; an otherwise valid session from another Tenant is not authority to accept the invitation.
+export async function readSessionForTenant(
+  c: Context<XidHonoEnv>,
+  targetTenant: TenantVar,
+  allowedStatuses: readonly ReadSessionStatus[] = [ACTIVE_SESSION_STATUS],
+): Promise<SessionData | null> {
+  const current = c.get('session')
+  const currentTenant = c.get('tenant')
+  if (
+    current &&
+    currentTenant.tenantId === targetTenant.tenantId &&
+    allowedStatuses.includes(current.status)
+  ) {
+    return current
+  }
+
+  const env = c.env
+  for (const token of readRefreshTokenCookiesInPriorityOrder(c)) {
+    const refreshTokenHash = await sha256Hex(token)
+    const resolved = await resolveTenantContextBySessionHash(c.req.raw, env, refreshTokenHash)
+    if (
+      !resolved.ok ||
+      resolved.value.status !== 'resolved' ||
+      !resolved.value.session ||
+      resolved.value.tenant.tenantId !== targetTenant.tenantId ||
+      (targetTenant.instanceId !== undefined &&
+        resolved.value.tenant.instanceId !== targetTenant.instanceId)
+    ) {
+      continue
+    }
+
+    const row = resolved.value.session
+    if (!allowedStatuses.includes(row.status as ReadSessionStatus)) continue
+    const nowMs = Date.now()
+    if (row.expiresAt.getTime() <= nowMs) continue
+    const db = createTenantDb(env.DB, targetTenant)
+    if (isIdleExpired(row, sessionPolicyOf(targetTenant), nowMs)) {
+      markSessionExpired(c, db, row.id)
+      continue
+    }
+    const [activeUser, active] = await Promise.all([
+      hasActiveUser(db, row.userId),
+      doIsActive(env, row.userId, row.id),
+    ])
+    if (!activeUser || !active) continue
+
+    touchSessionLastActive(c, db, row.id, lastActiveMs(row))
+    const session = toSessionData(row)
+    c.set('tenant', targetTenant)
+    c.set('sessionCandidate', sessionCandidateFromRow(refreshTokenHash, row))
+    c.set('session', session)
+    return session
+  }
+  return null
+}
+
+// 按稳定 identity 撤销 session，供没有当前浏览器 cookie 的恢复状态机使用。
+export async function revokeSessionByIdentity(
+  c: Context<XidHonoEnv>,
+  userId: string,
+  sessionId: string,
+): Promise<void> {
   const env = c.env
   const ctx = c.get('tenant')
-  await sessionDoRevoke(env, session.userId, session.sessionId)
   const db = createTenantDb(env.DB, ctx)
-  await db.sessions.update({ status: 'revoked' }, eq(schema.sessions.id, session.sessionId))
-  clearRefreshTokenCookie(c, session.sessionId)
+  // D1 is checked before SessionDO on every read. Marking the durable row first therefore closes
+  // authentication even when the DO call fails and the caller must retry distributed cleanup.
+  await db.sessions.update({ status: 'revoked' }, eq(schema.sessions.id, sessionId))
+  await sessionDoRevoke(env, userId, sessionId)
+  clearRefreshTokenCookie(c, sessionId)
+  if (readActiveSessionCookie(c) === sessionId) clearActiveSessionCookie(c)
+}
+
+// 撤销 session:SessionDO revoke + D1 status=revoked + 清 cookie(见 05 章 8 撤销)。
+export async function revokeSession(c: Context<XidHonoEnv>, session: SessionData): Promise<void> {
+  await revokeSessionByIdentity(c, session.userId, session.sessionId)
 }

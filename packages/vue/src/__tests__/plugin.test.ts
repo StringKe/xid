@@ -20,6 +20,17 @@ function makeAppMock() {
   return { app, provided }
 }
 
+function anonymousMeResponse(): Response {
+  return Response.json({
+    user: null,
+    activeOrg: null,
+    organizations: [],
+    session: null,
+    activeSessionId: null,
+    sessions: [],
+  })
+}
+
 describe('createXidClient', () => {
   it('returns an XidClient instance', () => {
     const client = createXidClient({})
@@ -40,7 +51,7 @@ describe('XidPlugin.install', () => {
     const { app, provided } = makeAppMock()
     // Pass pre-built client to avoid network call inside install.
     const client = createXidClient({
-      fetcher: () => Promise.resolve(new Response(null, { status: 200 })),
+      fetcher: () => Promise.resolve(anonymousMeResponse()),
     })
 
     XidPlugin.install(app, { client })
@@ -52,7 +63,7 @@ describe('XidPlugin.install', () => {
   it('creates a client from options when no client is given', () => {
     const { app, provided } = makeAppMock()
     XidPlugin.install(app, {
-      fetcher: () => Promise.resolve(new Response(null, { status: 200 })),
+      fetcher: () => Promise.resolve(anonymousMeResponse()),
     })
 
     const injected = provided.get(XID_INJECTION_KEY as symbol)

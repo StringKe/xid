@@ -42,7 +42,12 @@ vi.mock('../../oidc/authorize-respond', async () => {
   }
 })
 
-vi.mock('../../lib/session', () => ({ readSession: vi.fn(), ACTIVE_SESSION_STATUS: 'active' }))
+vi.mock('../../lib/session', () => ({
+  readSession: vi.fn(),
+  ACTIVE_SESSION_STATUS: 'active',
+  PENDING_MFA_SESSION_STATUS: 'pending_mfa',
+  PENDING_MFA_SETUP_SESSION_STATUS: 'pending_mfa_setup',
+}))
 
 import { createTenantDb } from '@xid-kit/db'
 import { findClient } from '../../oidc/shared'
@@ -86,6 +91,7 @@ const PENDING = {
 }
 
 const JARM_PENDING = { ...PENDING, response_mode: 'query.jwt' }
+const UNSUPPORTED_AAL3_PENDING = { ...PENDING, acr_values: 'urn:xid:aal3' }
 const RAR_DETAILS = [
   {
     type: 'resource_access',
@@ -306,6 +312,23 @@ describe('POST /auth/consent', () => {
         authorizationDetails: RAR_DETAILS,
       }),
     )
+  })
+
+  it('approved=true + legacy pending AAL3 request -> 明确拒绝且不签发 code', async () => {
+    const db = clientDb()
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    mockActiveClient()
+    const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })
+    const env = makeEnv({ oauthStateNs: oauthStateNs(UNSUPPORTED_AAL3_PENDING) })
+    const res = await post(app, env, { promptId: 'p1', approved: true })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { redirectUrl: string }
+    const redirect = new URL(body.redirectUrl)
+    expect(redirect.searchParams.get('error')).toBe('interaction_required')
+    expect(redirect.searchParams.get('error_description')).toContain('not supported')
+    expect(db.oauthConsents.insert).not.toHaveBeenCalled()
+    expect(db.authorizationCodes.insert).not.toHaveBeenCalled()
   })
 
   it('approved=true + JARM -> redirectUrl 只回传 response JWT', async () => {

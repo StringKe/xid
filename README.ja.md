@@ -66,16 +66,23 @@ Durable Object が直列化し、JWKS は KV にキャッシュされるので r
 
 ### アプリケーションへの組み込み
 
-`@xid-kit/*` package は **npm に公開していない**。workspace package なので、現時点でこれらを自分の
-アプリケーションで使うには、ソースを vendoring するか、このリポジトリを自分の workspace に追加する
-ことになる。以下の API が現在の公開インターフェースである。`@xid-kit/react` から:
+18 個の `@xid-kit/*` TypeScript package は publishable に設定され、clean なローカル tarball consumer
+gate (`pnpm run sdk:distribution:verify`) を通過している。外部 registry の現在の状態を示す release
+evidence はリポジトリ内にないため、npm 公開状態は `UNKNOWN` である。registry を別途確認しない限り、
+workspace またはローカル生成 tarball を使う。以下の API が現在の公開インターフェースである。
+`@xid-kit/react` から:
 
 ```tsx
 import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
 
 function App() {
   return (
-    <XidProvider publishableKey="pk_test_..." apiUrl="https://auth.example.com">
+    <XidProvider
+      mode="oidc"
+      issuer="https://auth.example.com"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
+    >
       <SignedOut>
         <SignInButton />
       </SignedOut>
@@ -125,34 +132,43 @@ cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
 npx wrangler r2 bucket create xid-storage
-for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-dlq; do
-  npx wrangler queues create "$q"
-done
+pnpm --dir ../.. run cloudflare:queues:create
 ```
+
+Queue script は `apps/server/wrangler.jsonc` から必要な 24 resource を導出する。内訳は source Queue
+8 個、source ごとの dead-letter Queue 8 個、persistence failure quarantine Queue 8 個である。
+廃止済みの共有 `xid-dlq` は作成しない。
 
 続いて `apps/server/wrangler.jsonc`、`apps/console/wrangler.jsonc`、
 `apps/site/wrangler.jsonc` の upstream account と route の値を自分のものに置き換え、
 `apps/site/astro.config.ts` の canonical public origin を自分の HTTPS apex URL に設定する。Core の
 設定には D1 の `database_id` と KV namespace の `id` も必要である。self-host 用テンプレートはなく、
-**upstream の値を残したままでは 3 Worker は正しく deploy できない**。8 つの Durable Object binding、
+**upstream の値を残したままでは 3 Worker は正しく deploy できない**。11 個の Durable Object binding、
 Analytics Engine dataset、`send_email` binding、2 つの cron trigger は Core だけに属し、すでに宣言済みである。
 
-secret を設定し、migrate、deploy、初期化を行う。`KEK` を失えばすべての署名鍵と保存済み provider 資格情報が
-復号不能になり、`PEPPER` を失えばすべてのパスワードハッシュが無効になる。まず両方を Cloudflare の外に
-バックアップすること。
+secret を設定し、ローカルで検証し、Workers Builds を接続する。3 つの production build が成功してから
+初期化を行う。`KEK` を失えばすべての署名鍵と保存済み provider 資格情報が復号不能になり、`PEPPER` を
+失えばすべてのパスワードハッシュが無効になる。まず両方を Cloudflare の外にバックアップすること。
 
 ```bash
 openssl rand -base64 32 | npx wrangler secret put KEK
 openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
-npx wrangler d1 migrations apply DB --remote
 cd ../..
+pnpm check
+pnpm test
 pnpm run build
-pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
+pnpm smoke:three-workers
+```
 
+`xid`、`xid-console`、`xid-site` を、この Git repository に接続する 3 つの Cloudflare Workers
+Builds project として構成する。Production branch は `main`、non-production branch build と Worker
+Preview URLs は無効にし、[`docs/deployment.md`](docs/deployment.md) の root、build、deploy command を
+使う。review 済みかつ署名済みの commit を `main` に merge すると、Workers Builds が remote D1
+migration を適用して 3 Worker を deploy する。build がすべて成功した後:
+
+```bash
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
   -H 'X-Bootstrap-Token: <BOOTSTRAP_TOKEN>' \
@@ -200,15 +216,15 @@ apps/console/      Binding-free static management UI for /console and /console/*
 apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
   src/             React SPA for Hosted Auth and account pages
-packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
+packages/          23 workspace packages: 15 TypeScript SDKs + 3 public runtime kernels + 5 private implementation packages
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-kernel library である `protocol`、`crypto`、`webauthn`、`saml`、`db`、`i18n`、`types` は Core Worker の内部専用で
-ある。暗号プリミティブは常に Web Crypto から取り、XML-DSig は `xmldsigjs` に委譲する。その間にある
-protocol とビジネスロジックはここで実装している。
+public runtime kernel は `protocol`、`crypto`、`types` である。private implementation package は
+`webauthn`、`saml`、`db`、`i18n`、`web-ui` である。暗号プリミティブは常に Web Crypto から取り、
+XML-DSig は `xmldsigjs` に委譲する。その間にある protocol とビジネスロジックはここで実装している。
 
 ## プロトコルサポート
 
@@ -230,9 +246,13 @@ protocol とビジネスロジックはここで実装している。
 
 ## SDK
 
-`packages/` 配下の TypeScript package が 15 個。`core` と `backend`、そして React、Next.js、Remix、Astro、
-Vue、Nuxt、Svelte、Solid、Angular、React Native、Expo、Electron、Tauri 向けの framework binding である。
-いずれも workspace 内部限定で、**npm には公開していない**。
+`packages/` 配下の TypeScript SDK package は 15 個。`core` と `backend`、そして React、Next.js、
+Remix、Astro、Vue、Nuxt、Svelte、Solid、Angular、React Native、Expo、Electron、Tauri 向けの framework
+binding である。public runtime kernel 3 個 (`crypto`、`protocol`、`types`) と合わせた 18 package が
+publishable に設定され、clean なローカル tarball installation test を通過している。残る 5 個
+(`db`、`i18n`、`saml`、`web-ui`、`webauthn`) は private implementation package である。外部 npm
+registry の公開状態は `UNKNOWN` のままであり、ローカル distribution evidence は registry release
+の証明ではない。
 
 `sdk/` 配下のネイティブ SDK が 13 個。Go、Rust、Python、Ruby、PHP、Java、.NET、Windows、iOS、macOS、
 Linux、Android、Flutter である。**crates.io、PyPI、Maven Central、RubyGems、Packagist、NuGet、CocoaPods、

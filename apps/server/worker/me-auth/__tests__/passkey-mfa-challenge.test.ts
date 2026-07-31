@@ -216,7 +216,7 @@ describe('passkey MFA challenge routes', () => {
     expect(res.headers.get('set-cookie')).toContain('__Host-xid.acr=')
   })
 
-  it('POST /auth/mfa/passkey/verify upgrades to AAL3 when stashed authorize params require it', async () => {
+  it('POST /auth/mfa/passkey/verify caps device-bound passkey MFA at AAL2', async () => {
     vi.mocked(verifyAuthentication).mockResolvedValue({
       ok: true,
       value: {
@@ -231,7 +231,6 @@ describe('passkey MFA challenge routes', () => {
     const env = makeEnv({
       oauthStateNs: makeOAuthStateNs({
         acr_values: 'urn:xid:aal3',
-        require_aal3: '1',
       }),
     })
     const app = makeApp(registerSessionAuthRoutes, {
@@ -249,12 +248,12 @@ describe('passkey MFA challenge routes', () => {
     })
     expect(res.status).toBe(200)
     expect(sessionUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ acr: 'urn:xid:aal3', aal: 3 }),
+      expect.objectContaining({ acr: 'urn:xid:aal2', aal: 2 }),
       expect.anything(),
     )
   })
 
-  it('POST /auth/mfa/passkey/verify falls back to AAL2 for backed-up credential under AAL3 request', async () => {
+  it('POST /auth/mfa/passkey/verify keeps a backed-up credential at AAL2', async () => {
     vi.mocked(verifyAuthentication).mockResolvedValue({
       ok: true,
       value: {
@@ -267,7 +266,7 @@ describe('passkey MFA challenge routes', () => {
     } as never)
     const sessionUpdate = passkeyDbMocks({ backedUp: true })
     const env = makeEnv({
-      oauthStateNs: makeOAuthStateNs({ acr_values: 'urn:xid:aal3', require_aal3: '1' }),
+      oauthStateNs: makeOAuthStateNs({ acr_values: 'urn:xid:aal3' }),
     })
     const app = makeApp(registerSessionAuthRoutes, {
       session: makeSession(),

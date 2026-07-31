@@ -19,13 +19,9 @@ import { XidCustomSchemeHandler } from './custom-scheme'
 import { startLoopbackServer } from './loopback-server'
 
 const TOKEN_STORAGE_KEY = 'xid:access-token'
-const REFRESH_TOKEN_STORAGE_KEY = 'xid:refresh-token'
-// offline_access is intentionally absent from the defaults: request it explicitly
-// when the app needs a refresh token.
+const LEGACY_REFRESH_TOKEN_STORAGE_KEY = 'xid:refresh-token'
+// This public client has no DPoP proof implementation, so it is authorization-code-only.
 const DEFAULT_SCOPES = ['openid', 'profile', 'email'] as const
-
-// Proactively refresh when within this window of expiry (seconds).
-const TOKEN_REFRESH_LEEWAY_SECONDS = 30
 
 type StoredTokenMeta = {
   expiresAt: number
@@ -55,9 +51,9 @@ export class XidElectronApp {
   // In-flight PKCE state for CSRF validation.
   #pendingPkce: PkceChallenge | null = null
   #pendingState: string | null = null
-  #refreshInFlight: Promise<string | null> | null = null
 
   constructor(options: XidElectronMainOptions) {
+    assertAuthorizationCodeOnlyScopes(options.scopes ?? DEFAULT_SCOPES)
     this.#options = {
       issuer: options.issuer,
       clientId: options.clientId,
@@ -87,6 +83,7 @@ export class XidElectronApp {
    */
   async init(ipcMain: IpcMain): Promise<void> {
     await this.#storage.init()
+    await this.#storage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY)
     this.#storage.registerIpcHandlers(ipcMain)
     this.#registerSignInHandler(ipcMain)
     this.#registerSignOutHandler(ipcMain)
@@ -118,13 +115,7 @@ export class XidElectronApp {
   }
 
   #registerSignOutHandler(ipcMain: IpcMain): void {
-    ipcMain.handle(IPC_CHANNELS.SIGN_OUT, async () => {
-      await Promise.all([
-        this.#storage.removeItem(TOKEN_STORAGE_KEY),
-        this.#storage.removeItem(REFRESH_TOKEN_STORAGE_KEY),
-        this.#storage.removeItem(SESSION_META_KEY),
-      ])
-    })
+    ipcMain.handle(IPC_CHANNELS.SIGN_OUT, () => this.#clearLocalSession())
   }
 
   #registerGetAccessTokenHandler(ipcMain: IpcMain): void {
@@ -152,78 +143,11 @@ export class XidElectronApp {
 
     if (!accessToken) return null
 
-    const isExpiring = (() => {
-      if (!metaRaw) return false
-      try {
-        const meta = JSON.parse(metaRaw) as StoredTokenMeta
-        return meta.expiresAt - TOKEN_REFRESH_LEEWAY_SECONDS <= Math.floor(Date.now() / 1000)
-      } catch {
-        return false
-      }
-    })()
+    const meta = parseStoredTokenMeta(metaRaw)
+    if (meta && meta.expiresAt > Math.floor(Date.now() / 1000)) return accessToken
 
-    if (!isExpiring) return accessToken
-
-    // Refresh 失败(网络错误或 invalid_grant)返回 null;invalid_grant 路径已清空 storage。
-    return this.#tryRefresh()
-  }
-
-  async #tryRefresh(): Promise<string | null> {
-    if (this.#refreshInFlight) return this.#refreshInFlight
-
-    const refreshInFlight = this.#refreshAccessToken()
-    this.#refreshInFlight = refreshInFlight
-
-    try {
-      return await refreshInFlight
-    } finally {
-      if (this.#refreshInFlight === refreshInFlight) {
-        this.#refreshInFlight = null
-      }
-    }
-  }
-
-  async #refreshAccessToken(): Promise<string | null> {
-    const refreshToken = await this.#storage.getItem(REFRESH_TOKEN_STORAGE_KEY)
-    if (!refreshToken) return null
-
-    try {
-      const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: this.#options.clientId,
-        refresh_token: refreshToken,
-      })
-
-      const response = await fetch(new URL('/token', this.#options.issuer).toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      })
-
-      if (!response.ok) {
-        // Protocol error: refresh token is invalid/revoked -- clear everything.
-        await Promise.all([
-          this.#storage.removeItem(TOKEN_STORAGE_KEY),
-          this.#storage.removeItem(REFRESH_TOKEN_STORAGE_KEY),
-          this.#storage.removeItem(SESSION_META_KEY),
-        ])
-        return null
-      }
-
-      const json = (await response.json()) as Record<string, unknown>
-      const newAccessToken = typeof json['access_token'] === 'string' ? json['access_token'] : null
-      if (!newAccessToken) return null
-
-      const expiresIn = typeof json['expires_in'] === 'number' ? json['expires_in'] : 3600
-      const newRefreshToken =
-        typeof json['refresh_token'] === 'string' ? json['refresh_token'] : null
-
-      await this.#storeTokens(newAccessToken, newRefreshToken, expiresIn)
-      return newAccessToken
-    } catch {
-      // Network error: preserve existing credentials, let caller use current (possibly expired) token.
-      return null
-    }
+    await this.#clearLocalSession()
+    return null
   }
 
   async #getSession(): Promise<{ accessToken: string; expiresAt: number } | null> {
@@ -231,32 +155,31 @@ export class XidElectronApp {
     if (!accessToken) return null
 
     const metaRaw = await this.#storage.getItem(SESSION_META_KEY)
-    let expiresAt = Math.floor(Date.now() / 1000) + 3600
-    if (metaRaw) {
-      try {
-        const meta = JSON.parse(metaRaw) as StoredTokenMeta
-        expiresAt = meta.expiresAt
-      } catch {
-        // Corrupted meta: fall through with default expiresAt.
-      }
+    const meta = parseStoredTokenMeta(metaRaw)
+    if (!meta) {
+      await this.#clearLocalSession()
+      return null
     }
 
-    return { accessToken, expiresAt }
+    return { accessToken, expiresAt: meta.expiresAt }
   }
 
-  async #storeTokens(
-    accessToken: string,
-    refreshToken: string | null,
-    expiresIn: number,
-  ): Promise<void> {
+  async #storeTokens(accessToken: string, expiresIn: number): Promise<void> {
     const expiresAt = Math.floor(Date.now() / 1000) + expiresIn
     const meta: StoredTokenMeta = { expiresAt }
-    const ops: Promise<void>[] = [
+    await Promise.all([
       this.#storage.setItem(TOKEN_STORAGE_KEY, accessToken),
       this.#storage.setItem(SESSION_META_KEY, JSON.stringify(meta)),
-    ]
-    if (refreshToken) ops.push(this.#storage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken))
-    await Promise.all(ops)
+      this.#storage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY),
+    ])
+  }
+
+  async #clearLocalSession(): Promise<void> {
+    await Promise.all([
+      this.#storage.removeItem(TOKEN_STORAGE_KEY),
+      this.#storage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY),
+      this.#storage.removeItem(SESSION_META_KEY),
+    ])
   }
 
   // ---------------------------------------------------------------------------
@@ -277,6 +200,7 @@ export class XidElectronApp {
 
     const callbackServer = await this.#resolveCallbackServer()
     const scopes = [...this.#options.scopes, ...(options?.scopes ?? [])]
+    assertAuthorizationCodeOnlyScopes(scopes)
     const authorizeUrl = buildAuthorizeUrl({
       issuer: this.#options.issuer,
       clientId: this.#options.clientId,
@@ -348,10 +272,9 @@ export class XidElectronApp {
     const accessToken = typeof json['access_token'] === 'string' ? json['access_token'] : null
     if (!accessToken) throw new Error('[xid-electron] token response missing access_token')
 
-    const refreshToken = typeof json['refresh_token'] === 'string' ? json['refresh_token'] : null
     const expiresIn = typeof json['expires_in'] === 'number' ? json['expires_in'] : 3600
 
-    await this.#storeTokens(accessToken, refreshToken, expiresIn)
+    await this.#storeTokens(accessToken, expiresIn)
     return accessToken
   }
 
@@ -360,6 +283,31 @@ export class XidElectronApp {
       return this.#customSchemeHandler.asCallbackServer()
     }
     return startLoopbackServer()
+  }
+}
+
+function parseStoredTokenMeta(raw: string | null): StoredTokenMeta | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredTokenMeta>
+    if (
+      typeof parsed.expiresAt !== 'number' ||
+      !Number.isFinite(parsed.expiresAt) ||
+      parsed.expiresAt <= 0
+    ) {
+      return null
+    }
+    return { expiresAt: parsed.expiresAt }
+  } catch {
+    return null
+  }
+}
+
+function assertAuthorizationCodeOnlyScopes(scopes: readonly string[]): void {
+  if (scopes.includes('offline_access')) {
+    throw new TypeError(
+      '[xid-electron] offline_access requires DPoP sender binding, which this SDK does not implement',
+    )
   }
 }
 

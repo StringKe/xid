@@ -1,5 +1,8 @@
 # XID Android SDK
 
+> Registry status: UNPUBLISHED. No external registry release is verified or authorized.
+> Use the source checkout or local project instructions below.
+
 > **Status: implemented (verified locally)**
 > 本机 `gradle testDebugUnitTest` 全部 PASS(JVM 单测,见 `docs/sdks/platform-matrix.md`)。
 > 真实 IdP round-trip(L4)尚未验证,生产集成前请完成下方"后续增强"项。
@@ -10,20 +13,22 @@ XID 身份平台的 Android 原生 SDK。基于 Chrome Custom Tabs 实现 OIDC A
 
 ## 安装
 
-在 app 模块的 `build.gradle.kts` 中添加依赖:
+当前源码 checkout 的 Gradle `settings.gradle.kts`:
+
+```kotlin
+include(":xid-android")
+project(":xid-android").projectDir = file("../xid/sdk/android")
+```
+
+然后在 app 模块的 `build.gradle.kts` 中添加:
 
 ```kotlin
 dependencies {
-    implementation("dev.xid:xid-android:0.1.0-alpha")
+    implementation(project(":xid-android"))
 }
 ```
 
-目前尚未发布到 Maven Central, 本地调试方式:
-
-```kotlin
-// settings.gradle.kts
-includeBuild("../sdk/android")  // 或通过 maven-publish 发布到本地仓库
-```
+`dev.xid:xid-android:0.1.0-alpha.0` 是预留 Maven coordinate,当前不能从 Maven Central 安装。
 
 ---
 
@@ -80,7 +85,7 @@ class MyApp : Application() {
                 issuer = "https://xid.dev",           // 或自托管 issuer
                 clientId = "your_client_id",
                 redirectUri = "https://yourapp.example.com/auth/callback",
-                scopes = listOf("openid", "profile", "email", "offline_access"),
+                scopes = listOf("openid", "profile", "email"),
             )
         )
     }
@@ -162,9 +167,7 @@ lifecycleScope.launch {
         val token = Xid.getAccessToken()
         // 用于 API 请求的 Authorization: Bearer header
     } catch (e: XidException.NoSession) {
-        // 未登录
-    } catch (e: XidException.TokenRefreshFailed) {
-        // refresh token 失效, 需重新登录
+        // 未登录或 access token 已过期,需重新授权
     }
 }
 ```
@@ -197,6 +200,8 @@ lifecycleScope.launch {
 guest 语义(Firebase 式访客模式):
 
 - **惰性复用**: 本地已有 guest 会话时 `signInAnonymously()` 直接返回, 不发任何网络请求。
+- **建号能力**: 真正建号前先 GET `/auth/config?intent=sign-up` 获取一次性
+  `guest.capabilityToken`,再随 POST `/auth/guest` 提交;capability 不缓存或复用。
 - **cookie 会话**: guest 不签发 OAuth token, 会话凭证是 `/auth/guest` 通过 Set-Cookie 下发的
   session cookie, SDK 将其捕获并加密持久化; `getSession()` / `getAccessToken()` 不感知 guest 会话。
 - **不可恢复、单设备**: 会话 cookie 只存在本机, 卸载或 `signOut()` 后该访客身份永久丢失,
@@ -232,8 +237,8 @@ Xid.setTokenStorage(object : TokenStorageAdapter {
 | `signIn`          | `suspend fun signIn(context: Context, options: SignInOptions)`       | 启动 Chrome Custom Tabs 授权          |
 | `signInAnonymously` | `suspend fun signInAnonymously(options: SignInAnonymouslyOptions): XidGuestSession` | 匿名访客登录(惰性复用)      |
 | `handleRedirect`  | `suspend fun handleRedirect(url: String): XidSession`                | 处理回调 URI, 完成 code 交换          |
-| `getSession`      | `suspend fun getSession(): XidSession?`                              | 获取当前会话(自动刷新)                |
-| `getAccessToken`  | `suspend fun getAccessToken(options: GetAccessTokenOptions): String` | 获取 access token(自动刷新)           |
+| `getSession`      | `suspend fun getSession(): XidSession?`                              | 获取未过期会话;过期后返回 null        |
+| `getAccessToken`  | `suspend fun getAccessToken(options: GetAccessTokenOptions): String` | 获取未过期 token;过期后要求重新授权   |
 | `signOut`         | `suspend fun signOut(context, openEndSession)`                       | 清除本地 token, 可选打开 end_session  |
 
 ### 错误类型(sealed class XidException)
@@ -246,7 +251,6 @@ Xid.setTokenStorage(object : TokenStorageAdapter {
 | `AuthorizationError`    | 授权服务端返回错误                  |
 | `StateMismatch`         | state 不匹配(CSRF 防护)             |
 | `TokenExchangeFailed`   | /token 端点返回错误                 |
-| `TokenRefreshFailed`    | refresh token 失效                  |
 | `NoSession`             | 未登录状态调用需要会话的方法        |
 | `StorageError`          | EncryptedSharedPreferences 读写失败 |
 | `NetworkError`          | 网络请求失败                        |
@@ -260,14 +264,18 @@ Xid.setTokenStorage(object : TokenStorageAdapter {
 - public client: 不存储 client secret, 完全符合 OAuth 2.0 public client 规范。
 - PKCE S256: 每次登录生成新的随机 code_verifier(64 字节), 仅支持 S256 方法。
 - state 防 CSRF: 每次授权请求生成随机 state, 回调时严格校验。
+- OIDC nonce:每次授权生成独立的 32 字节 nonce,跨 Custom Tabs 回调持久化,并在
+  ID token JWKS 验签后精确比对。
 - 安全存储: EncryptedSharedPreferences 底层使用 Android Keystore(AES-256-GCM)加密。
-- refresh token rotation: 每次刷新服务端返回新 refresh token, 旧 token 立即废弃。
+- Offline access:当前 SDK 尚未实现 DPoP,默认 scopes 为 `openid profile email`,
+  显式 `offline_access` 在配置阶段失败;access token 到期后重新调用 `signIn`。
 
 ---
 
 ## 已实现的增强能力
 
-1. **JWT 签名验证** -- `IdTokenVerifier`(nimbus-jose-jwt) + JWKS,校验 iss/aud/exp/iat
+1. **JWT 签名验证** -- `IdTokenVerifier`(nimbus-jose-jwt) + JWKS,校验
+   iss/aud/exp/iat/nonce
 2. **Custom Tabs 预热** -- `AuthSession.warmupCustomTabs`
 3. **Biometric 解锁** -- `XidConfig.requireBiometricUnlock` → `EncryptedPrefsStorage`
 4. **RP-initiated logout** -- `signOut(openEndSession=true)` 携带 `id_token_hint` + `post_logout_redirect_uri`, 经 `CustomTabsIntent` 打开
@@ -279,9 +287,8 @@ Xid.setTokenStorage(object : TokenStorageAdapter {
 1. **Certificate Pinning**: OkHttpClient 启用 `CertificatePinner`, 固定 SPKI 指纹。
 2. **UserCancelled 检测**: Custom Tabs 用户主动返回未完成授权时的回调。
 3. **单元测试扩充**: 添加 Robolectric 依赖, 完成 TokenManager mock 网络测试。
-4. **nonce 支持**: 在 signIn 时生成 nonce 并在 JWT 验证时校验。
-5. **多账户支持**: 当前存储层使用固定 key, 不支持同一设备多账户切换。
-6. **L4 round-trip**: 真实 IdP 端到端验证。
+4. **多账户支持**: 当前存储层使用固定 key, 不支持同一设备多账户切换。
+5. **L4 round-trip**: 真实 IdP 端到端验证。
 
 ---
 
@@ -307,8 +314,8 @@ sdk/android/
     pkce/PkceGenerator.kt                   PKCE S256 code_verifier/code_challenge 生成
     storage/TokenStorage.kt                 TokenStorageAdapter 接口 + StorageKeys
     storage/EncryptedPrefsStorage.kt        默认实现(EncryptedSharedPreferences)
-    token/TokenManager.kt                   code 交换 + refresh + 会话重建
-    guest/GuestAuthManager.kt               匿名访客登录(cookie 会话捕获与持久化)
+    token/TokenManager.kt                   code 交换 + 会话重建
+    guest/GuestAuthManager.kt               匿名访客登录(config capability + cookie 会话捕获与持久化)
     browser/AuthSession.kt                  Chrome Custom Tabs + 授权 URL 构建 + 回调解析
   src/test/kotlin/dev/xid/sdk/
     PkceGeneratorTest.kt                    PKCE 生成器单元测试(部分)

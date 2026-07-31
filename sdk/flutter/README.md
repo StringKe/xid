@@ -1,5 +1,11 @@
 # xid Flutter SDK
 
+> Registry status: UNPUBLISHED. No external registry release is verified or authorized.
+> The Git source dependency below is the supported distribution path for this checkout.
+> A 2026-07-28 `flutter pub publish --dry-run` reported an existing pub.dev `xid` package at
+> `1.2.1`; ownership is not established by this repository, so the registry name is blocked pending
+> an explicit rename or ownership decision.
+
 **Status: implemented (verified locally)**
 
 本包是 XID 身份平台的 Flutter/Dart SDK。代码结构和核心流程完整,本机 `flutter test` 全部 PASS(见 `docs/sdks/platform-matrix.md`)。真实 IdP round-trip(L4)尚未验证,在集成到生产项目前必须完成该验证。
@@ -71,7 +77,7 @@ await xidClient.configure(
     issuer: 'https://xid.dev',      // 自托管填部署根域
     clientId: 'YOUR_CLIENT_ID',
     redirectUri: 'com.example.myapp://auth/callback',
-    scopes: ['openid', 'profile', 'email', 'offline_access'],
+    scopes: ['openid', 'profile', 'email'],
   ),
 );
 
@@ -79,13 +85,13 @@ await xidClient.configure(
 final session = await xidClient.signIn();
 print(session.user.email);
 
-// 3. 获取有效 access_token(自动刷新)
+// 3. 获取尚未过期的 access_token
 final token = await xidClient.getAccessToken();
 
 // 4. 获取当前 session
 final current = await xidClient.getSession();
 
-// 5. 注销(吊销 refresh_token + 清除本地存储)
+// 5. 注销(清除本地存储,可选打开 end_session)
 await xidClient.signOut();
 
 // 6. 替换存储适配器(可选)
@@ -122,21 +128,23 @@ xidClient.setTokenStorage(InMemoryStorageAdapter()); // 仅测试用
 
 ### `signInAnonymously({String? turnstileToken})`
 
-匿名登录(Firebase 式访客模式):POST `/auth/guest` 建立访客会话,捕获 Set-Cookie 签发的会话 cookie 并持久化,再调 `/v1/me` 取出用户,返回 `XidGuestSession`。
+匿名登录(Firebase 式访客模式):先 GET `/auth/config?intent=sign-up` 获取一次性 `guest.capabilityToken`,再 POST `/auth/guest` 建立访客会话,捕获 Set-Cookie 签发的会话 cookie 并持久化,最后调 `/v1/me` 取出用户,返回 `XidGuestSession`。capability 每次现取,不缓存或复用。
 
 惰性语义:本地已有持久化的 guest session 时直接返回,不发任何请求。`turnstileToken` 仅在服务端启用 Turnstile 时需要,native 端通常不需要。
 
 ### `getSession()`
 
-返回 `XidSession?`。如果 access_token 即将过期(默认提前 60s)则自动触发 refresh token 轮换。未登录返回 `null`。
+返回 `XidSession?`。access_token 有效期内返回会话;到期后清除本地会话并返回 `null`,
+调用方应重新执行 `signIn()`。
 
 ### `getAccessToken({bool forceRefresh})`
 
-返回有效 access_token 字符串。`forceRefresh=true` 强制刷新。
+返回尚未过期的 access_token。当前没有 DPoP refresh,
+`forceRefresh=true` 或 token 到期时清除本地会话并返回 `null`,调用方应重新授权。
 
 ### `signOut({bool openLogoutUrl})`
 
-注销:吊销 refresh_token(RFC 7009)+ 清除本地 secure storage + 打开 `end_session_endpoint`(默认开启)清除服务端 SSO session。
+注销:清除本地 secure storage + 打开 `end_session_endpoint`(默认开启)清除服务端 SSO session。
 
 ### `setTokenStorage(TokenStorageAdapter adapter)`
 
@@ -175,9 +183,11 @@ guest 语义:
 
 - 使用 PKCE S256,不支持 implicit flow 或 password grant。
 - 不在 app 中存储 client_secret(public client)。
-- Refresh token 存入平台 secure storage(Keychain/Keystore/DPAPI/Secret Service)。
-- Refresh token 每次使用即轮换(XID 服务端 rotation + family 策略)。
+- 当前 SDK 尚未实现 DPoP,不存储或使用 refresh token。
+- 默认 scopes 为 `openid profile email`;显式 `offline_access` 在 `configure()` 阶段失败。
 - state 参数防 CSRF,每次 signIn 生成随机值并在 handleRedirect 中验证。
+- OIDC nonce 与 state 独立生成并按 authorization 持久化;回调若缺少 ID token 或 nonce
+  不匹配,不会写入 session。
 - 不实现 SAML、SCIM 或 Management API 业务逻辑。
 
 ---
@@ -189,6 +199,8 @@ guest 语义:
 | `flutter_web_auth_2`     | ^4.0.0 | 系统浏览器授权会话 + callback 接收           |
 | `flutter_secure_storage` | ^9.2.4 | 平台 secure storage(Keychain/Keystore/DPAPI) |
 | `crypto`                 | ^3.0.3 | SHA-256(PKCE S256 challenge 计算)            |
+| `cryptography`           | ^2.7.0 | ES256 ID token 验签 API                      |
+| `cryptography_flutter`   | ^2.3.4 | Android/iOS/macOS 原生 ECDSA backend          |
 | `http`                   | ^1.2.2 | HTTP client(discovery + token 端点)          |
 
 ---
@@ -196,17 +208,20 @@ guest 语义:
 ## 已实现的增强能力
 
 - **PKCE 跨进程持久化** -- `SessionStore.savePendingAuth` / `loadPendingAuth`,`handleRedirect` 自动恢复
-- **ID token JWKS 验签** -- `JwksCache` + `IdTokenVerifier`,token exchange 后验签
+- **ID token JWKS 验签** -- `JwksCache` + `IdTokenVerifier` +
+  `cryptography_flutter`,token exchange 后校验签名与 iss/aud/exp/nbf/nonce
+- **OIDC nonce** -- 独立生成、随 authorize 提交、按 state 一次性恢复并精确校验
+- **到期后重新授权** -- 不发送没有 DPoP proof 的 refresh grant
 - **用户取消** -- `UserCancelledException`(flutter_web_auth_2 `CANCELED`)
 
 ---
 
 ## 后续增强(非阻塞)
 
-- **nonce 防重放**:authorize 请求应附加 nonce,code exchange 后验证 ID token 中 nonce 匹配。
 - **discovery 缓存 TTL**:当前 in-process 无 TTL。长运行进程应定期重新 fetch。
-- **并发 refresh 防竞态**:多个并发 `getAccessToken()` 可能各自发起 refresh,需加锁(单次 refresh 飞行中)。
 - **跨平台 App Links 配置**:macOS / Linux 平台的回调接收需额外配置,参考 flutter_web_auth_2 文档。
-- **offline_access scope**:要获得 refresh_token 必须在 scopes 中包含 `offline_access`。
+- **offline_access scope**:当前 SDK 明确拒绝;完成 DPoP 支持后才能启用。
 - **错误本地化**:当前错误消息为英文/中文混合硬编码,待对接 XID i18n 体系。
-- **Pub.dev 发布**:需补充 LICENSE、CHANGELOG.md、更完整的文档注释、完整测试覆盖后才可发布。
+- **原生 ECDSA 证据**:`cryptography_flutter` 的 Android/iOS/macOS platform channel 需要真机或
+  模拟器验证;headless `flutter test` 只覆盖 claims 与调用链。
+- **Pub.dev 发布**:`xid` 名称已被占用,仓库尚未确认 registry ownership 或替代包名。

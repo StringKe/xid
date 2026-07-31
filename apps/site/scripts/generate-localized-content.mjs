@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -24,6 +25,21 @@ const I18N_DIRECTORY = path.join(REPOSITORY_ROOT, 'packages/i18n/locales')
 
 function stableCompare(left, right) {
   return left < right ? -1 : left > right ? 1 : 0
+}
+
+export function documentMessageId(message) {
+  return createHash('sha256').update(`${message}\u001f`).digest('base64url').slice(0, 6)
+}
+
+export function assertDocumentMessageIds(bundle) {
+  for (const entry of bundle.messageCatalog) {
+    const expected = documentMessageId(entry.message)
+    if (entry.id !== expected) {
+      throw new TypeError(
+        `document AST message id ${entry.id} is stale; expected ${expected} for current source`,
+      )
+    }
+  }
 }
 
 function toRepositoryPath(file) {
@@ -145,6 +161,7 @@ async function writeFileIfChanged(file, content) {
 export async function loadSourceAst() {
   const bundle = JSON.parse(await readFile(SOURCE_AST_FILE, 'utf8'))
   assertDocumentAstBundle(bundle)
+  assertDocumentMessageIds(bundle)
   return bundle
 }
 
@@ -166,12 +183,14 @@ export async function syncMessageDescriptors(bundle) {
   return writeFileIfChanged(MESSAGE_DESCRIPTORS_FILE, renderMessageDescriptors(bundle))
 }
 
-function frontmatter({ title, description, locale, order }) {
+function frontmatter({ title, description, locale, order, draft, noindex }) {
   return [
     '---',
     `title: ${JSON.stringify(title)}`,
     `description: ${JSON.stringify(description)}`,
     `locale: ${JSON.stringify(locale)}`,
+    ...(draft === true ? ['draft: true'] : []),
+    ...(noindex === true ? ['noindex: true'] : []),
     'sidebar:',
     `  order: ${order}`,
     '---',
@@ -231,6 +250,7 @@ export async function generateLocalizedContent(options = {}) {
     : DEFAULT_OUTPUT_DIRECTORY
   const bundle = options.bundle ?? (await loadSourceAst())
   assertDocumentAstBundle(bundle)
+  assertDocumentMessageIds(bundle)
   if (!options.outputDirectory) await syncMessageDescriptors(bundle)
   const catalogs = await loadAndValidateCatalogs(bundle.messageCatalog)
   const expectedFiles = new Set()
@@ -264,6 +284,8 @@ export async function generateLocalizedContent(options = {}) {
         description,
         locale,
         order: index + 1,
+        draft: document.draft,
+        noindex: document.noindex,
       })}\n\n${body}\n`
       expectedFiles.add(path.resolve(file))
       if (await writeFileIfChanged(file, content)) changedFiles += 1
@@ -272,9 +294,10 @@ export async function generateLocalizedContent(options = {}) {
 
   await moveStaleGeneratedFilesToTrash(outputDirectory, expectedFiles)
   const generatedFiles = await listMdxFiles(outputDirectory)
-  if (generatedFiles.length !== 328 || expectedFiles.size !== 328) {
+  const expectedFileCount = DOCUMENT_LOCALES.length * (bundle.documents.length + 1)
+  if (generatedFiles.length !== expectedFileCount || expectedFiles.size !== expectedFileCount) {
     throw new TypeError(
-      `localized generation must produce 328 MDX files, received ${generatedFiles.length}`,
+      `localized generation must produce ${expectedFileCount} MDX files, received ${generatedFiles.length}`,
     )
   }
   return {

@@ -1,0 +1,346 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import Header from "@/components/Header.astro";
+import { translateSiteMessage } from "@/lib/site-i18n";
+import { siteShellMessages } from "@/lib/site-shell-messages";
+import { getSiteLocale } from "@/lib/site-locale";
+import { getStatusSurface, STATUS_API_PATH } from "@/lib/status-surface";
+
+const translate = (descriptor: Parameters<typeof translateSiteMessage>[1]) =>
+  translateSiteMessage(Astro.url.pathname, descriptor);
+const surface = getStatusSurface(getSiteLocale(Astro.url.pathname));
+const title = surface.title;
+const description = surface.description;
+const markdownUrl = Astro.site
+  ? new URL(surface.markdownPath, Astro.site).href
+  : surface.markdownPath;
+const copy = {
+  currentPublicStatus: translate(siteShellMessages.currentPublicStatus),
+  loading: translate(siteShellMessages.loading),
+  operational: translate(siteShellMessages.operational),
+  degraded: translate(siteShellMessages.degraded),
+  partialOutage: translate(siteShellMessages.partialOutage),
+  majorOutage: translate(siteShellMessages.majorOutage),
+  investigating: translate(siteShellMessages.investigating),
+  identified: translate(siteShellMessages.identified),
+  monitoring: translate(siteShellMessages.monitoring),
+  resolved: translate(siteShellMessages.resolved),
+  noIncidentsReported: translate(siteShellMessages.noIncidentsReported),
+  incidentHistory: translate(siteShellMessages.incidentHistory),
+  unavailable: translate(siteShellMessages.liveStatusUnavailable),
+  lastUpdated: translate(siteShellMessages.lastUpdated),
+};
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  markdownUrl={markdownUrl}
+  socialImage="/og.png"
+>
+  <div class="min-h-screen">
+    <Header showMobileMenu={false} />
+    <main id="main-content" data-pagefind-body class="status-page">
+      <header class="status-heading">
+        <p class="status-kicker">{copy.currentPublicStatus}</p>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </header>
+      <section
+        id="live-status"
+        class="status-live"
+        aria-live="polite"
+        data-copy={JSON.stringify(copy)}
+        data-endpoint={STATUS_API_PATH}
+      >
+        <div class="status-summary" data-status-summary>
+          <span class="status-indicator" data-status-indicator></span>
+          <strong data-status-label>{copy.loading}</strong>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    type IncidentUpdate = {
+      id: string;
+      status: "investigating" | "identified" | "monitoring" | "resolved";
+      message: string;
+      createdAt: string;
+    };
+    type Incident = {
+      id: string;
+      title: string;
+      status: IncidentUpdate["status"];
+      impact: "none" | "minor" | "major" | "critical";
+      summary: string;
+      startedAt: string;
+      resolvedAt: string | null;
+      updates: IncidentUpdate[];
+    };
+    type StatusResponse = {
+      status: "operational" | "degraded" | "partial_outage" | "major_outage";
+      updatedAt: string | null;
+      incidents: Incident[];
+    };
+
+    const root = document.querySelector<HTMLElement>("#live-status");
+    if (root) {
+      const copy = JSON.parse(root.dataset.copy ?? "{}") as Record<string, string>;
+      const endpoint = root.dataset.endpoint;
+      const statusLabel = root.querySelector<HTMLElement>("[data-status-label]");
+      const statusIndicator = root.querySelector<HTMLElement>("[data-status-indicator]");
+      const labels: Record<StatusResponse["status"] | IncidentUpdate["status"], string> = {
+        operational: copy.operational,
+        degraded: copy.degraded,
+        partial_outage: copy.partialOutage,
+        major_outage: copy.majorOutage,
+        investigating: copy.investigating,
+        identified: copy.identified,
+        monitoring: copy.monitoring,
+        resolved: copy.resolved,
+      };
+      const date = (value: string) =>
+        new Intl.DateTimeFormat(document.documentElement.lang, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(value));
+      const text = (tag: string, value: string, className?: string) => {
+        const element = document.createElement(tag);
+        element.textContent = value;
+        if (className) element.className = className;
+        return element;
+      };
+
+      if (!endpoint) throw new Error("status_endpoint_missing");
+      fetch(endpoint, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("status_request_failed");
+          return (await response.json()) as StatusResponse;
+        })
+        .then((data) => {
+          if (!labels[data.status] || !Array.isArray(data.incidents)) {
+            throw new Error("status_response_invalid");
+          }
+          if (statusLabel) statusLabel.textContent = labels[data.status];
+          if (statusIndicator) statusIndicator.dataset.state = data.status;
+          if (data.updatedAt) {
+            const updated = text(
+              "p",
+              `${copy.lastUpdated}: ${date(data.updatedAt)}`,
+              "status-updated",
+            );
+            root.append(updated);
+          }
+          const heading = text("h2", copy.incidentHistory, "status-section-title");
+          root.append(heading);
+          if (data.incidents.length === 0) {
+            root.append(text("p", copy.noIncidentsReported, "status-empty"));
+            return;
+          }
+          const list = document.createElement("div");
+          list.className = "status-incidents";
+          for (const incident of data.incidents) {
+            const article = document.createElement("article");
+            article.className = "status-incident";
+            const headline = document.createElement("div");
+            headline.className = "status-incident-heading";
+            headline.append(
+              text("h3", incident.title),
+              text("span", labels[incident.status], "status-incident-state"),
+            );
+            article.append(
+              headline,
+              text("p", incident.summary, "status-incident-summary"),
+              text("time", date(incident.startedAt), "status-incident-time"),
+            );
+            if (incident.updates.length > 0) {
+              const updates = document.createElement("ol");
+              updates.className = "status-updates";
+              for (const update of incident.updates) {
+                const item = document.createElement("li");
+                item.append(
+                  text("time", date(update.createdAt)),
+                  text("strong", labels[update.status]),
+                  text("p", update.message),
+                );
+                updates.append(item);
+              }
+              article.append(updates);
+            }
+            list.append(article);
+          }
+          root.append(list);
+        })
+        .catch(() => {
+          if (statusLabel) statusLabel.textContent = copy.unavailable;
+          if (statusIndicator) statusIndicator.dataset.state = "unavailable";
+        });
+    }
+  </script>
+</BaseLayout>
+
+<style is:global>
+  .status-page {
+    width: min(100% - 2rem, 72rem);
+    margin-inline: auto;
+    padding-block: clamp(3rem, 8vw, 7rem);
+  }
+  .status-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 8fr) minmax(14rem, 4fr);
+    column-gap: clamp(2rem, 8vw, 8rem);
+    align-items: end;
+    padding-bottom: clamp(2rem, 5vw, 4rem);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .status-heading h1 {
+    grid-column: 1;
+    margin: 0;
+    font-size: clamp(2.75rem, 8vw, 6.5rem);
+    font-weight: 580;
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+  }
+  .status-heading > p:last-child {
+    grid-column: 2;
+    margin: 0;
+    color: var(--color-muted-foreground);
+    line-height: 1.6;
+  }
+  .status-kicker {
+    grid-column: 1 / -1;
+    margin: 0 0 1rem;
+    color: var(--color-muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .status-live {
+    padding-block: clamp(2rem, 5vw, 4rem);
+  }
+  .status-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3rem;
+    font-size: clamp(1.25rem, 2vw, 1.75rem);
+  }
+  .status-indicator {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    background: var(--color-muted-foreground);
+  }
+  .status-indicator[data-state="operational"] {
+    background: var(--color-success);
+  }
+  .status-indicator[data-state="degraded"],
+  .status-indicator[data-state="partial_outage"] {
+    background: var(--color-warning);
+  }
+  .status-indicator[data-state="major_outage"],
+  .status-indicator[data-state="unavailable"] {
+    background: var(--color-danger);
+  }
+  .status-updated,
+  .status-incident-time {
+    color: var(--color-muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+  .status-section-title {
+    margin: clamp(2rem, 5vw, 4rem) 0 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .status-empty {
+    margin: 0;
+    padding-block: 2rem;
+    color: var(--color-muted-foreground);
+  }
+  .status-incidents {
+    border-bottom: 1px solid var(--color-border);
+  }
+  .status-incident {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(16rem, 5fr);
+    column-gap: clamp(2rem, 6vw, 6rem);
+    padding-block: 1.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .status-incident:first-child {
+    border-top: 0;
+  }
+  .status-incident-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .status-incident-heading h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 620;
+  }
+  .status-incident-state {
+    color: var(--color-muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .status-incident-summary {
+    margin: 0.5rem 0;
+    color: var(--color-muted-foreground);
+    line-height: 1.55;
+  }
+  .status-updates {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .status-updates li {
+    display: grid;
+    grid-template-columns: 7rem 1fr;
+    column-gap: 0.75rem;
+    padding-block: 0.625rem;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.75rem;
+  }
+  .status-updates time {
+    color: var(--color-muted-foreground);
+    font-family: var(--font-mono);
+  }
+  .status-updates strong {
+    font-weight: 620;
+  }
+  .status-updates p {
+    grid-column: 2;
+    margin: 0.25rem 0 0;
+    color: var(--color-muted-foreground);
+    line-height: 1.5;
+  }
+  @media (max-width: 48rem) {
+    .status-heading,
+    .status-incident {
+      grid-template-columns: 1fr;
+      row-gap: 1rem;
+    }
+    .status-heading > p:last-child,
+    .status-updates {
+      grid-column: 1;
+      grid-row: auto;
+    }
+  }
+</style>

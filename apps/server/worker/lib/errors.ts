@@ -53,6 +53,7 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   insufficient_permission: 403,
   cross_tenant_access_denied: 404,
   seat_limit_exceeded: 403,
+  resource_quota_exceeded: 403,
   // 会话
   session_not_found: 404,
   session_revoked: 401,
@@ -108,4 +109,26 @@ export class AppError extends Error {
 
 export function isAppError(value: unknown): value is AppError {
   return value instanceof AppError
+}
+
+// D1 trigger errors are otherwise untyped runtime exceptions. Only the exact migration-owned
+// sentinel is promoted to the public business error; arbitrary SQL/provider messages remain 500.
+export function isSeatLimitConstraintError(value: unknown): boolean {
+  let current: unknown = value
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!(current instanceof Error)) return false
+    if (current.message.includes('seat_limit_exceeded')) return true
+    current = current.cause
+  }
+  return false
+}
+
+export function isResourceQuotaConstraintError(value: unknown): boolean {
+  let current: unknown = value
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!(current instanceof Error)) return false
+    if (current.message.includes('resource_quota_exceeded')) return true
+    current = current.cause
+  }
+  return false
 }

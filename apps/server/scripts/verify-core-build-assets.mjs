@@ -6,6 +6,7 @@ const SERVER_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CLIENT_OUTPUT = join(SERVER_ROOT, 'dist/client')
 const INDEX_PATH = join(CLIENT_OUTPUT, 'index.html')
 const CORE_ASSET_DIR = join(CLIENT_OUTPUT, '_core')
+const DEPLOY_CONFIG_PATH = join(SERVER_ROOT, 'dist/xid/wrangler.json')
 
 function fail(message) {
   process.stderr.write(`FAIL Core build assets: ${message}\n`)
@@ -16,8 +17,11 @@ if (!existsSync(INDEX_PATH)) {
   fail(`missing ${INDEX_PATH}`)
 } else if (!existsSync(CORE_ASSET_DIR)) {
   fail(`missing ${CORE_ASSET_DIR}`)
+} else if (!existsSync(DEPLOY_CONFIG_PATH)) {
+  fail(`missing ${DEPLOY_CONFIG_PATH}`)
 } else {
   const html = readFileSync(INDEX_PATH, 'utf8')
+  const deployConfig = JSON.parse(readFileSync(DEPLOY_CONFIG_PATH, 'utf8'))
   const files = readdirSync(CORE_ASSET_DIR)
   const executableReferences = [...html.matchAll(/(?:src|href)="(\/[^"]+\.(?:css|js))"/gu)].map(
     (match) => match[1],
@@ -39,9 +43,12 @@ if (!existsSync(INDEX_PATH)) {
     fail(`missing executable assets: ${missingReferences.join(', ')}`)
   } else if (html.includes('"/assets/')) {
     fail(`${INDEX_PATH} still references the shared /assets namespace`)
+  } else if (deployConfig.keep_vars !== true) {
+    fail(`${DEPLOY_CONFIG_PATH} must preserve dashboard variables with keep_vars=true`)
   } else {
     process.stdout.write(
       `PASS Core build assets: ${executableReferences.length} references use /_core/\n`,
     )
+    process.stdout.write('PASS Core deploy config: keep_vars=true\n')
   }
 }

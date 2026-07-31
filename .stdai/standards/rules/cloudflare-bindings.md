@@ -15,7 +15,9 @@ targets: [claude-code, codex]
 
 Picking the wrong store is a correctness or latency bug. Design source `docs/design/00-overview.md`
 section 8. Binding names are declared in `apps/server/wrangler.jsonc` and typed in
-`packages/types/src/env.ts` -- use those, never invent.
+`apps/server/worker/env.d.ts`; the reusable type-only contract is
+`packages/types/src/cloudflare.d.ts`. Queue messages and optional provider configuration stay in
+`packages/types/src/env.ts` -- use those sources, never invent.
 
 ## Selection rules (MUST)
 
@@ -26,9 +28,10 @@ section 8. Binding names are declared in `apps/server/wrangler.jsonc` and typed 
   flags, upstream provider JWKS, trust anchors. TTL constants live in
   `apps/server/worker/lib/ttl.ts` -- never an inline literal.
 - **Async work off the critical path -> Queues**: email, SMS, WhatsApp, audit persistence, webhooks,
-  metering. The login path MUST NOT synchronously await any of them.
-- **Large objects -> R2**: org logos and email locale packs are the only implemented uses; avatars,
-  export files and the GeoIP MMDB are reserved and NOT implemented.
+  metering, outbound SCIM, and privacy export/erasure. The login path MUST NOT synchronously await any
+  of them.
+- **Large objects -> R2**: org logos, email locale packs, private privacy exports, and compliance
+  artifacts. Avatars, unrelated export files, and the GeoIP MMDB are reserved and NOT implemented.
 - There is no Cloudflare Rate Limiting or WAF binding; application rate limiting runs entirely
   through the `RATE_LIMITER` Durable Object.
 

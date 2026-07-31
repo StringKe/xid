@@ -16,7 +16,8 @@ pub struct XidConfig {
     pub redirect_uri: String,
 
     /// 请求的 scope 列表。"openid" 必须包含。
-    /// 默认: ["openid", "profile", "email", "offline_access"]
+    /// 默认: ["openid", "profile", "email"]
+    /// 当前 SDK 尚未实现 DPoP,因此不支持 offline_access。
     pub scopes: Vec<String>,
 
     /// loopback redirect 服务器监听端口。
@@ -26,7 +27,7 @@ pub struct XidConfig {
     ///   或控制台预注册 loopback 模式);否则请使用固定端口。
     pub redirect_port: u16,
 
-    /// token 交换与刷新的超时(秒)。默认 30。
+    /// token 交换的超时(秒)。默认 30。
     pub http_timeout_secs: u64,
 }
 
@@ -50,8 +51,11 @@ impl XidConfig {
             .map_err(|e| XidError::ConfigError(format!("redirect_uri URL 无效: {e}")))?;
 
         if !self.scopes.iter().any(|s| s == "openid") {
+            return Err(XidError::ConfigError("scopes 必须包含 \"openid\"".into()));
+        }
+        if self.scopes.iter().any(|s| s == "offline_access") {
             return Err(XidError::ConfigError(
-                "scopes 必须包含 \"openid\"".into(),
+                "offline_access 需要 DPoP,当前 Linux SDK 尚未实现 DPoP".into(),
             ));
         }
 
@@ -104,7 +108,10 @@ pub fn replace_loopback_port(redirect_uri: &str, port: u16) -> Result<String> {
 pub fn is_loopback_redirect_uri(redirect_uri: &str) -> bool {
     Url::parse(redirect_uri)
         .ok()
-        .and_then(|u| u.host_str().map(|h| (u.scheme() == "http") && (h == "127.0.0.1" || h == "localhost")))
+        .and_then(|u| {
+            u.host_str()
+                .map(|h| (u.scheme() == "http") && (h == "127.0.0.1" || h == "localhost"))
+        })
         .unwrap_or(false)
 }
 
@@ -156,19 +163,18 @@ impl XidConfigBuilder {
 
     pub fn build(self) -> Result<XidConfig> {
         let config = XidConfig {
-            issuer: self.issuer.ok_or_else(|| XidError::ConfigError("issuer 必填".into()))?,
-            client_id: self.client_id.ok_or_else(|| XidError::ConfigError("client_id 必填".into()))?,
-            redirect_uri: self.redirect_uri.ok_or_else(|| {
-                XidError::ConfigError("redirect_uri 必填".into())
-            })?,
-            scopes: self.scopes.unwrap_or_else(|| {
-                vec![
-                    "openid".into(),
-                    "profile".into(),
-                    "email".into(),
-                    "offline_access".into(),
-                ]
-            }),
+            issuer: self
+                .issuer
+                .ok_or_else(|| XidError::ConfigError("issuer 必填".into()))?,
+            client_id: self
+                .client_id
+                .ok_or_else(|| XidError::ConfigError("client_id 必填".into()))?,
+            redirect_uri: self
+                .redirect_uri
+                .ok_or_else(|| XidError::ConfigError("redirect_uri 必填".into()))?,
+            scopes: self
+                .scopes
+                .unwrap_or_else(|| vec!["openid".into(), "profile".into(), "email".into()]),
             redirect_port: self.redirect_port.unwrap_or(51234),
             http_timeout_secs: self.http_timeout_secs.unwrap_or(30),
         };
@@ -204,7 +210,7 @@ mod tests {
         assert_eq!(cfg.issuer, "https://xid.dev");
         assert_eq!(cfg.client_id, "test_client");
         assert_eq!(cfg.redirect_uri, "http://127.0.0.1:51234/callback");
-        assert!(cfg.scopes.contains(&"openid".to_owned()));
+        assert_eq!(cfg.scopes, ["openid", "profile", "email"]);
         assert_eq!(cfg.redirect_port, 51234);
         assert_eq!(cfg.http_timeout_secs, 30);
     }
@@ -251,6 +257,17 @@ mod tests {
             .scopes(vec!["profile".into()])
             .build();
         assert!(matches!(result, Err(XidError::ConfigError(_))));
+    }
+
+    #[test]
+    fn offline_access_without_dpop_rejected() {
+        let result = XidConfigBuilder::new()
+            .issuer("https://xid.dev")
+            .client_id("c")
+            .redirect_uri("http://127.0.0.1:51234/callback")
+            .scopes(vec!["openid".into(), "offline_access".into()])
+            .build();
+        assert!(matches!(result, Err(XidError::ConfigError(message)) if message.contains("DPoP")));
     }
 
     #[test]

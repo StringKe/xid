@@ -153,7 +153,245 @@ function namedIdentifier(name) {
   return `(?:\`${name}\`|"${name}"|\\[${name}\\]|${name})`
 }
 
+function isSafeMembershipSeatLimitTrigger(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  const triggerMatch =
+    /^CREATE TRIGGER `?(memberships_seat_limit_before_insert|memberships_seat_limit_before_update)`? (BEFORE INSERT ON `?memberships`?|BEFORE UPDATE OF `?status`?, `?tenant_id`?, `?org_id`?, `?user_id`? ON `?memberships`?) WHEN (.+) BEGIN SELECT RAISE\(ABORT, 'seat_limit_exceeded'\); END$/iu.exec(
+      normalized,
+    )
+  if (triggerMatch === null) return false
+  const [, name, event, condition] = triggerMatch
+  if (
+    name === 'memberships_seat_limit_before_insert' &&
+    !event.toUpperCase().startsWith('BEFORE INSERT')
+  ) {
+    return false
+  }
+  if (
+    name === 'memberships_seat_limit_before_update' &&
+    !event.toUpperCase().startsWith('BEFORE UPDATE')
+  ) {
+    return false
+  }
+  const required = [
+    "NEW.`status` = 'active'",
+    'NOT EXISTS ( SELECT 1 FROM `memberships`',
+    'SELECT COUNT(DISTINCT `memberships`.`user_id`) FROM `memberships`',
+    '`memberships`.`tenant_id` = NEW.`tenant_id`',
+    '`memberships`.`user_id` = NEW.`user_id`',
+    "`memberships`.`status` = 'active'",
+    'FROM `organization_quotas`',
+    '`tenant_id` = NEW.`tenant_id`',
+    "`quota_key` = 'seats'",
+    '`enforcement`',
+    "'block_creation'",
+    'SELECT `limit`',
+  ]
+  if (name === 'memberships_seat_limit_before_update') {
+    required.push('`memberships`.`id` <> OLD.`id`')
+  }
+  return required.every((fragment) => condition.includes(fragment))
+}
+
+function isSafeResourceQuotaTrigger(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  const specs = {
+    organizations_quota_before_insert: {
+      event: 'BEFORE INSERT ON `organizations`',
+      quotaKey: 'organizations',
+      resourceTable: '`organizations`',
+      required: ['NEW.`parent_org_id` IS NOT NULL', 'NEW.`deleted_at` IS NULL'],
+    },
+    organizations_quota_before_update: {
+      event:
+        'BEFORE UPDATE OF `status`, `deleted_at`, `tenant_id`, `parent_org_id` ON `organizations`',
+      quotaKey: 'organizations',
+      resourceTable: '`organizations`',
+      required: ['NEW.`parent_org_id` IS NOT NULL', '`id` <> OLD.`id`'],
+    },
+    sso_connections_quota_before_insert: {
+      event: 'BEFORE INSERT ON `sso_connections`',
+      quotaKey: 'sso_connections',
+      resourceTable: '`sso_connections`',
+      required: ["NEW.`status` <> 'deleted'"],
+    },
+    sso_connections_quota_before_update: {
+      event: 'BEFORE UPDATE OF `status`, `tenant_id` ON `sso_connections`',
+      quotaKey: 'sso_connections',
+      resourceTable: '`sso_connections`',
+      required: ["OLD.`status` = 'deleted'", '`id` <> OLD.`id`'],
+    },
+  }
+  const match =
+    /^CREATE TRIGGER `?([a-z0-9_]+)`? (.+?) WHEN (.+) BEGIN SELECT RAISE\(ABORT, 'resource_quota_exceeded'\); END$/iu.exec(
+      normalized,
+    )
+  if (match === null) return false
+  const [, name, event, condition] = match
+  const spec = specs[name]
+  if (spec === undefined || event !== spec.event) return false
+  return [
+    'FROM `organization_quotas`',
+    '`tenant_id` = NEW.`tenant_id`',
+    `\`quota_key\` = '${spec.quotaKey}'`,
+    '`enforcement`',
+    "'block_creation'",
+    'SELECT `limit`',
+    'SELECT COUNT(*)',
+    `FROM ${spec.resourceTable}`,
+    ...spec.required,
+  ].every((fragment) => condition.includes(fragment))
+}
+
+function isSafeOrganizationSeatQuotaBackfill(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized ===
+    [
+      'INSERT INTO `organization_quotas` ( `tenant_id`, `quota_key`, `limit`, `enforcement`,',
+      '`updated_by`, `created_at`, `updated_at` ) SELECT `organizations`.`tenant_id`,',
+      "'seats', `organizations`.`seat_limit`, 'block_creation', NULL,",
+      '`organizations`.`created_at`, `organizations`.`updated_at` FROM `organizations`',
+      'WHERE `organizations`.`parent_org_id` IS NULL',
+      'ON CONFLICT (`tenant_id`, `quota_key`) DO NOTHING',
+    ].join(' ')
+  )
+}
+
+function isSafeLegacyInvitationCutover(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized ===
+      "UPDATE `invitations` SET `status` = 'revoked', `updated_at` = CAST(strftime('%s', 'now') AS INTEGER) * 1000 WHERE `status` = 'pending' AND `token_version` = 'legacy'" ||
+    normalized ===
+      "CREATE TRIGGER `invitations_reject_legacy_pending_before_insert` BEFORE INSERT ON `invitations` WHEN NEW.`status` = 'pending' AND NEW.`token_version` = 'legacy' BEGIN SELECT RAISE(ABORT, 'legacy_invitation_token_disabled'); END"
+  )
+}
+
+// These exact rewrites normalize only active invitation targets and revoke deterministic duplicate
+// losers before the tenant/org/email partial UNIQUE index is installed.
+function isSafeInvitationEmailClaimCutover(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  const normalizePendingEmail = [
+    'UPDATE `invitations`',
+    'SET `email` = lower(trim(`email`)),',
+    "`updated_at` = CAST(strftime('%s', 'now') AS integer) * 1000",
+    "WHERE `status` IN ('pending', 'claim_verified')",
+    'AND `email` <> lower(trim(`email`))',
+  ].join(' ')
+  const revokeDuplicatePending = [
+    'UPDATE `invitations` AS `duplicate`',
+    "SET `status` = 'revoked',",
+    "`updated_at` = CAST(strftime('%s', 'now') AS integer) * 1000",
+    "WHERE `duplicate`.`status` IN ('pending', 'claim_verified')",
+    'AND EXISTS ( SELECT 1 FROM `invitations` AS `keeper`',
+    'WHERE `keeper`.`tenant_id` = `duplicate`.`tenant_id`',
+    'AND `keeper`.`org_id` = `duplicate`.`org_id`',
+    'AND `keeper`.`email` = `duplicate`.`email`',
+    "AND `keeper`.`status` IN ('pending', 'claim_verified')",
+    'AND ( `keeper`.`created_at` > `duplicate`.`created_at`',
+    'OR ( `keeper`.`created_at` = `duplicate`.`created_at`',
+    'AND `keeper`.`id` > `duplicate`.`id` ) ) )',
+  ].join(' ')
+  return normalized === normalizePendingEmail || normalized === revokeDuplicatePending
+}
+
+// The legacy UNIQUE index permits duplicate NULL scope ids. This exact cutover removes only
+// redundant copies of the same instance-level authorization before the partial UNIQUE index lands.
+function isSafeInstanceManagerDeduplication(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized ===
+    [
+      'DELETE FROM `manager_assignments`',
+      "WHERE `manager_role` = 'instance_manager'",
+      "AND `scope_type` = 'instance'",
+      'AND `scope_id` IS NULL',
+      'AND EXISTS ( SELECT 1 FROM `manager_assignments` AS `retained`',
+      'WHERE `retained`.`tenant_id` = `manager_assignments`.`tenant_id`',
+      'AND `retained`.`user_id` = `manager_assignments`.`user_id`',
+      'AND `retained`.`manager_role` = `manager_assignments`.`manager_role`',
+      'AND `retained`.`scope_type` = `manager_assignments`.`scope_type`',
+      'AND `retained`.`scope_id` IS NULL',
+      'AND `retained`.`id` < `manager_assignments`.`id` )',
+    ].join(' ')
+  )
+}
+
+// These exact rewrites preserve every certificate while making the active-only UNIQUE index
+// installable. Keeping full-statement equality prevents this exception from becoming a general
+// cert_store UPDATE channel.
+function isSafeSamlCertificateUniquenessCutover(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  const legacyIdpStatusRename = [
+    'UPDATE `cert_store`',
+    "SET `status` = 'retiring', `updated_at` = unixepoch() * 1000",
+    "WHERE `status` = 'expiring'",
+    "AND `usage` = 'saml_idp_signing'",
+  ].join(' ')
+  const legacySpStatusBackfill = [
+    'UPDATE `cert_store`',
+    "SET `status` = 'active', `updated_at` = unixepoch() * 1000",
+    "WHERE `status` = 'expiring'",
+    "AND `usage` IN ('saml_sp_signing', 'saml_sp_encryption')",
+  ].join(' ')
+  const activeCertificateDeduplication = [
+    'UPDATE `cert_store`',
+    "SET `status` = 'retiring', `updated_at` = unixepoch() * 1000",
+    "WHERE `status` = 'active'",
+    "AND `usage` = 'saml_idp_signing'",
+    'AND EXISTS ( SELECT 1 FROM `cert_store` AS `retained`',
+    'WHERE `retained`.`tenant_id` = `cert_store`.`tenant_id`',
+    'AND `retained`.`usage` = `cert_store`.`usage`',
+    "AND `retained`.`status` = 'active'",
+    'AND `retained`.`id` < `cert_store`.`id` )',
+  ].join(' ')
+  return (
+    normalized === legacyIdpStatusRename ||
+    normalized === legacySpStatusBackfill ||
+    normalized === activeCertificateDeduplication
+  )
+}
+
+function isSafeOrganizationHierarchyTrigger(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  const insertTrigger = [
+    'CREATE TRIGGER `organizations_hierarchy_insert_guard`',
+    'BEFORE INSERT ON `organizations`',
+    'WHEN ( NEW.`id` = NEW.`tenant_id` AND NEW.`parent_org_id` IS NOT NULL )',
+    'OR ( NEW.`id` <> NEW.`tenant_id` AND ( NEW.`parent_org_id` IS NULL',
+    'OR NEW.`parent_org_id` <> NEW.`tenant_id` OR NOT EXISTS ( SELECT 1',
+    'FROM `organizations` AS parent WHERE parent.`id` = NEW.`tenant_id`',
+    'AND parent.`tenant_id` = NEW.`tenant_id`',
+    'AND parent.`instance_id` = NEW.`instance_id`',
+    'AND parent.`parent_org_id` IS NULL AND parent.`status` =',
+    "'active' ) ) ) BEGIN SELECT RAISE(ABORT, 'organization_hierarchy_invalid'); END",
+  ].join(' ')
+  const updateTrigger = [
+    'CREATE TRIGGER `organizations_hierarchy_update_guard`',
+    'BEFORE UPDATE OF `id`, `tenant_id`, `instance_id`, `parent_org_id`, `status`, `deleted_at`',
+    'ON `organizations` WHEN NEW.`id` <> OLD.`id`',
+    'OR NEW.`tenant_id` <> OLD.`tenant_id`',
+    'OR NEW.`instance_id` <> OLD.`instance_id`',
+    'OR NOT (NEW.`parent_org_id` IS OLD.`parent_org_id`)',
+    'OR ( NEW.`id` = NEW.`tenant_id` AND NEW.`parent_org_id` IS NOT NULL )',
+    'OR ( NEW.`id` <> NEW.`tenant_id` AND ( NEW.`parent_org_id` IS NULL',
+    'OR NEW.`parent_org_id` <> NEW.`tenant_id` OR NOT EXISTS ( SELECT 1',
+    'FROM `organizations` AS parent WHERE parent.`id` = NEW.`tenant_id`',
+    'AND parent.`tenant_id` = NEW.`tenant_id`',
+    'AND parent.`instance_id` = NEW.`instance_id`',
+    'AND parent.`parent_org_id` IS NULL',
+    "AND (NEW.`status` <> 'active' OR parent.`status` = 'active') ) ) )",
+    "BEGIN SELECT RAISE(ABORT, 'organization_hierarchy_invalid'); END",
+  ].join(' ')
+  return normalized === insertTrigger || normalized === updateTrigger
+}
+
 function isSafeCreateTrigger(statement) {
+  if (isSafeLegacyInvitationCutover(statement)) return true
+  if (isSafeMembershipSeatLimitTrigger(statement)) return true
+  if (isSafeResourceQuotaTrigger(statement)) return true
+  if (isSafeOrganizationHierarchyTrigger(statement)) return true
   const normalized = statement.replace(/\s+/gu, ' ').trim()
   const match = new RegExp(
     String.raw`^CREATE TRIGGER (?:IF NOT EXISTS )?(${IDENTIFIER}) BEFORE INSERT ON (${IDENTIFIER})(?: WHEN (.+?))? BEGIN (.+) END$`,
@@ -186,7 +424,12 @@ function isApprovedAdditiveStatement(statement) {
     CREATE_TABLE.test(statement) ||
     CREATE_INDEX.test(statement) ||
     isSafeAddedColumn(statement) ||
-    isSafeCreateTrigger(statement)
+    isSafeCreateTrigger(statement) ||
+    isSafeOrganizationSeatQuotaBackfill(statement) ||
+    isSafeLegacyInvitationCutover(statement) ||
+    isSafeInvitationEmailClaimCutover(statement) ||
+    isSafeInstanceManagerDeduplication(statement) ||
+    isSafeSamlCertificateUniquenessCutover(statement)
   )
 }
 

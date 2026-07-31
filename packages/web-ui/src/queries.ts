@@ -30,6 +30,7 @@ export const queryKeys = {
   meSocialConnections: ['me', 'social-connections'] as const,
   meSessions: ['me', 'sessions'] as const,
   meTrustedDevices: ['me', 'trusted-devices'] as const,
+  mePrivacyRequests: ['me', 'privacy-requests'] as const,
   users: (query?: string) => ['users', { query: query ?? null }] as const,
   user: (userId: string) => ['users', userId] as const,
   organizations: (cursor?: string) => ['organizations', { cursor: cursor ?? null }] as const,
@@ -39,6 +40,45 @@ export const queryKeys = {
   orgInvitations: (orgId: string, cursor?: string) =>
     ['organizations', orgId, 'invitations', { cursor: cursor ?? null }] as const,
   orgRoles: (orgId: string) => ['organizations', orgId, 'roles'] as const,
+  orgProjects: (orgId: string, status: 'active' | 'deleted', cursor?: string) =>
+    ['organizations', orgId, 'projects', status, { cursor: cursor ?? null }] as const,
+  projectRoles: (
+    projectId: string,
+    status: 'active' | 'deleted',
+    cursor?: string,
+    grantId?: string,
+  ) =>
+    [
+      'projects',
+      projectId,
+      'roles',
+      status,
+      { cursor: cursor ?? null, grantId: grantId ?? null },
+    ] as const,
+  projectPermissions: (
+    projectId: string,
+    status: 'active' | 'deleted',
+    cursor?: string,
+    grantId?: string,
+  ) =>
+    [
+      'projects',
+      projectId,
+      'permissions',
+      status,
+      { cursor: cursor ?? null, grantId: grantId ?? null },
+    ] as const,
+  rolePermissions: (roleId: string, cursor?: string, grantId?: string) =>
+    ['roles', roleId, 'permissions', { cursor: cursor ?? null, grantId: grantId ?? null }] as const,
+  managedProject: (projectId: string, status: 'active' | 'all', grantId?: string) =>
+    ['managed-projects', projectId, status, { grantId: grantId ?? null }] as const,
+  projectGrant: (grantId: string) => ['project-grants', grantId] as const,
+  userGrants: (projectId: string, grantId: string, cursor?: string) =>
+    ['projects', projectId, 'user-grants', grantId, { cursor: cursor ?? null }] as const,
+  projectGrants: (projectId: string, cursor?: string) =>
+    ['projects', projectId, 'grants', { cursor: cursor ?? null }] as const,
+  managerAssignments: (scopeType: 'org' | 'project' | 'grant', scopeId: string, cursor?: string) =>
+    ['manager-assignments', scopeType, scopeId, { cursor: cursor ?? null }] as const,
   orgSsoConnections: (orgId: string) => ['organizations', orgId, 'sso-connections'] as const,
   orgOutboundSamlApps: (orgId: string) => ['organizations', orgId, 'outbound-saml-apps'] as const,
   orgScimDirectories: (orgId: string) => ['organizations', orgId, 'directories'] as const,
@@ -56,13 +96,35 @@ export const queryKeys = {
   apiKeys: (cursor?: string) => ['api-keys', { cursor: cursor ?? null }] as const,
   platformOrganizations: (cursor?: string, query?: string) =>
     ['platform', 'organizations', { cursor: cursor ?? null, query: query ?? null }] as const,
-  platformUsers: (query?: string) => ['platform', 'users', { query: query ?? null }] as const,
+  platformUsers: (query?: string, cursor?: string) =>
+    ['platform', 'users', { query: query ?? null, cursor: cursor ?? null }] as const,
   platformAuditEvents: (cursor?: string) =>
     ['platform', 'audit-events', { cursor: cursor ?? null }] as const,
+  platformAuditVerification: (tenantId?: string, fromSeq?: number, toSeq?: number) =>
+    [
+      'platform',
+      'audit-verification',
+      { tenantId: tenantId ?? null, fromSeq: fromSeq ?? null, toSeq: toSeq ?? null },
+    ] as const,
+  platformDeadLetters: (cursor?: string) =>
+    ['platform', 'dead-letters', { cursor: cursor ?? null }] as const,
   platformFeatureFlags: ['platform', 'feature-flags'] as const,
   platformSettings: ['platform', 'settings'] as const,
   platformBilling: (cursor?: string) =>
     ['platform', 'billing', { cursor: cursor ?? null }] as const,
+  platformStripeBilling: (tenantId: string) => ['platform', 'billing', 'stripe', tenantId] as const,
+  platformPlan: (tenantId: string) => ['platform', 'plans', tenantId] as const,
+  platformAnnouncements: (cursor?: string) =>
+    ['platform', 'announcements', { cursor: cursor ?? null }] as const,
+  platformStatusIncidents: (cursor?: string) =>
+    ['platform', 'status-incidents', { cursor: cursor ?? null }] as const,
+  platformComplianceDocuments: (cursor?: string) =>
+    ['platform', 'compliance-documents', { cursor: cursor ?? null }] as const,
+  platformManagerAssignments: (cursor?: string) =>
+    ['platform', 'manager-assignments', { cursor: cursor ?? null }] as const,
+  activeAnnouncements: ['announcements', 'active'] as const,
+  orgComplianceDocuments: (orgId: string) =>
+    ['organizations', orgId, 'compliance-documents'] as const,
 } as const
 
 // 失效前缀:列表 query 的 key 末位带 cursor 对象,invalidate 用 3 段前缀(react-query 部分匹配命中所有分页变体)。
@@ -70,9 +132,21 @@ export const queryKeyPrefixes = {
   organizations: ['organizations'] as const,
   orgMembers: (orgId: string) => ['organizations', orgId, 'members'] as const,
   orgInvitations: (orgId: string) => ['organizations', orgId, 'invitations'] as const,
+  orgProjects: (orgId: string) => ['organizations', orgId, 'projects'] as const,
+  projectRoles: (projectId: string) => ['projects', projectId, 'roles'] as const,
+  projectPermissions: (projectId: string) => ['projects', projectId, 'permissions'] as const,
+  rolePermissions: (roleId: string) => ['roles', roleId, 'permissions'] as const,
+  projectGrants: (projectId: string) => ['projects', projectId, 'grants'] as const,
+  managerAssignments: (scopeType: 'org' | 'project' | 'grant', scopeId: string) =>
+    ['manager-assignments', scopeType, scopeId] as const,
+  userGrants: (projectId: string, grantId: string) =>
+    ['projects', projectId, 'user-grants', grantId] as const,
+  managedProjects: ['managed-projects'] as const,
   orgSsoConnections: (orgId: string) => ['organizations', orgId, 'sso-connections'] as const,
   orgScimDirectories: (orgId: string) => ['organizations', orgId, 'directories'] as const,
   orgScimTargets: (orgId: string) => ['organizations', orgId, 'scim-targets'] as const,
+  orgComplianceDocuments: (orgId: string) =>
+    ['organizations', orgId, 'compliance-documents'] as const,
   applications: ['applications'] as const,
   webhooks: ['webhooks'] as const,
   apiKeys: ['api-keys'] as const,
@@ -80,7 +154,13 @@ export const queryKeyPrefixes = {
   platformOrganizations: ['platform', 'organizations'] as const,
   platformUsers: ['platform', 'users'] as const,
   platformAuditEvents: ['platform', 'audit-events'] as const,
+  platformDeadLetters: ['platform', 'dead-letters'] as const,
   platformBilling: ['platform', 'billing'] as const,
+  platformPlans: ['platform', 'plans'] as const,
+  platformAnnouncements: ['platform', 'announcements'] as const,
+  platformStatusIncidents: ['platform', 'status-incidents'] as const,
+  platformComplianceDocuments: ['platform', 'compliance-documents'] as const,
+  platformManagerAssignments: ['platform', 'manager-assignments'] as const,
 } as const
 
 // --- queryFn 基础:Result<T> -> throw XidError | return value ---

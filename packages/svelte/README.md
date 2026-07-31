@@ -1,5 +1,9 @@
 # @xid-kit/svelte
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 Svelte 5 / SvelteKit binding for the XID identity platform.
 
 Peer dependencies: `svelte >= 5.0.0` (required), `@sveltejs/kit >= 2.0.0` (optional, for server hooks), `@xid-kit/backend` (optional, for server hooks).
@@ -24,7 +28,8 @@ pnpm add @xid-kit/backend
   import { setContext, onMount } from 'svelte'
   import { XidClient, createXidStores, setXidContext } from '@xid-kit/svelte'
 
-  const client = new XidClient({ apiUrl: 'https://acme.xid.dev' })
+  // Core auth endpoints must be served on this application's exact origin.
+  const client = new XidClient({ mode: 'same-origin' })
   const stores = createXidStores(client)
   setXidContext(setContext, stores)
 
@@ -37,6 +42,10 @@ pnpm add @xid-kit/backend
 
 <slot />
 ```
+
+The `buildSignInUrl()` helper below is same-origin only. For a normal cross-origin application,
+construct `XidClient` with `{ mode: 'oidc', issuer, clientId, redirectUri }` and call
+`client.createAuthorizationUrl()` instead of `buildSignInUrl()`.
 
 ### 2. Access state in a child component
 
@@ -92,7 +101,7 @@ pnpm add @xid-kit/backend
   const { state } = getXidContext(getContext)
 </script>
 
-{#if isAllowed($state, { role: 'org:admin' })}
+{#if isAllowed($state, { role: 'admin' })}
   <AdminPanel />
 {/if}
 
@@ -109,8 +118,9 @@ pnpm add @xid-kit/backend
 import { handleXid } from '@xid-kit/svelte/server'
 
 export const handle = handleXid({
-  jwtKey: JSON.parse(process.env.XID_JWT_KEY!),
+  jwtKey: JSON.parse(process.env.XID_JWKS_PUBLIC_KEY!),
   issuer: 'https://xid.dev',
+  sessionTokenExchange: { endpoint: '/v1/sessions/token' },
   protectedRoutes: ['/dashboard', '/account'],
   signInUrl: '/sign-in',
   publicRoutes: ['/dashboard/public'],
@@ -123,9 +133,14 @@ Multiple handle hooks via SvelteKit `sequence`:
 import { sequence } from '@sveltejs/kit/hooks'
 import { handleXid } from '@xid-kit/svelte/server'
 
-const xid = handleXid({ jwtKey: JSON.parse(process.env.XID_JWT_KEY!) })
+const xid = handleXid({ jwtKey: JSON.parse(process.env.XID_JWKS_PUBLIC_KEY!) })
 export const handle = sequence(xid, myOtherHandle)
 ```
+
+`sessionTokenExchange` is for deployments where `/v1/sessions/token` on the application origin is
+routed to XID Core. The `__Host-xid.rt.*` refresh credential stays opaque and is never verified by
+SvelteKit. If Core is on another origin, pass a short-lived JWT as a Bearer token or configure an
+application-owned JWT cookie with `jwtCookieName`.
 
 ### 6. Reading auth in load functions (+page.server.ts)
 

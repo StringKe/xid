@@ -2,7 +2,18 @@
 // 约定(api-sdk-conventions rule):/v1/ 前缀、Bearer 由 HttpOnly cookie 承载(credentials: include)、
 // 错误体为 XidAPIError 结构。可预期失败 -> Result<_, XidError>;传输/意外 -> throw XidNetworkError。
 
-import type { Result, XidError } from '@xid-kit/types'
+import { isOrganizationMembershipRole } from '@xid-kit/types'
+import type {
+  ActiveOrganizationResponse,
+  ActiveSessionResponse,
+  BrowserAuthOrganization,
+  BrowserAuthSession,
+  BrowserAuthUser,
+  BrowserMeResponse,
+  Result,
+  SessionTokenResponse,
+  XidError,
+} from '@xid-kit/types'
 
 import type {
   CreateApiKeyInput,
@@ -22,60 +33,18 @@ import type {
   XidSession,
   XidUser,
 } from './types'
-import { XidNetworkError, isXidErrorShape } from './errors'
+import type { SignOutResponse } from './saml-logout'
+import { XidNetworkError, isXidErrorShape, makeXidError } from './errors'
 import { trimTrailingSlashes } from './url'
 
 // worker 颁发的 short-lived JWT 响应(对照 /v1/sessions/token)。
-export type TokenResponse = {
-  jwt: string
-  // 服务端回传过期(秒,epoch),可选;缺失时 core 解码 jwt.exp。
-  expireAt?: number
-}
+export type TokenResponse = SessionTokenResponse
 
 // 登录态快照响应(/v1/me):一次拉齐 session/user/sessions 列表,减少往返。
 export type ClientStateResponse = {
   activeSessionId: string | null
   sessions: readonly XidSession[]
   user: XidUser | null
-}
-
-type MeUserWire = {
-  id: string
-  email?: string
-  emailVerified?: boolean
-  name?: string | null
-  imageUrl?: string | null
-  provisioned_by?: string
-}
-
-type MeOrganizationWire = {
-  id: string
-  slug: string
-  name: string
-  role: string
-  permissions?: string[]
-}
-
-type MeSessionWire = {
-  id: string
-  expiresAt: string
-  isImpersonation: boolean
-}
-
-type MeResponseWire = {
-  user: MeUserWire
-  activeOrg: MeOrganizationWire | null
-  organizations: MeOrganizationWire[]
-  session: MeSessionWire
-}
-
-export type ActiveOrganizationResponse = {
-  session: {
-    id: string
-    expiresAt: string
-    isImpersonation: boolean
-  }
-  activeOrganizationId: string | null
 }
 
 type RequestInput = {
@@ -154,26 +123,38 @@ export class XidApiClient {
     this.#secretKey = options.secretKey ?? null
   }
 
-  async getToken(
-    input: { template?: string; signal?: AbortSignal } = {},
-  ): Promise<Result<TokenResponse, XidError>> {
-    return this.#request<TokenResponse>({
+  async getToken(input: { signal?: AbortSignal } = {}): Promise<Result<TokenResponse, XidError>> {
+    const result = await this.#request<unknown>({
       path: '/v1/sessions/token',
       method: 'POST',
-      body: input.template ? { template: input.template } : {},
+      body: {},
       signal: input.signal,
     })
+    if (!result.ok) return result
+    if (
+      !isRecord(result.value) ||
+      typeof result.value.token !== 'string' ||
+      result.value.token.trim().length === 0
+    ) {
+      throw new XidNetworkError('Invalid /v1/sessions/token response')
+    }
+    return { ok: true, value: { token: result.value.token } }
   }
 
   async loadState(
     input: { signal?: AbortSignal } = {},
   ): Promise<Result<ClientStateResponse, XidError>> {
-    const result = await this.#request<ClientStateResponse | MeResponseWire>({
+    const result = await this.#request<unknown>({
       path: '/v1/me',
       signal: input.signal,
     })
     if (!result.ok) return result
-    return { ok: true, value: normalizeClientState(result.value) }
+    try {
+      return { ok: true, value: normalizeClientState(result.value) }
+    } catch (error) {
+      if (error instanceof XidNetworkError) throw error
+      throw new XidNetworkError('Invalid /v1/me response', { cause: error })
+    }
   }
 
   async signInPassword(input: SignInPasswordInput): Promise<Result<SignInResult, XidError>> {
@@ -191,15 +172,54 @@ export class XidApiClient {
   }
 
   // guest 开通:无认证端点,成功(200 续签 / 201 新建)由 worker Set-Cookie 建立真 session,
-  // 响应体不承载状态,调用方需重拉 /v1/me。
-  async signInAnonymously(input: SignInAnonymouslyInput = {}): Promise<Result<null, XidError>> {
+  // 响应只携带 session id 与服务端拥有的 onboarding 指令,完整状态仍由 /v1/me 提供。
+  async signInAnonymously(
+    input: SignInAnonymouslyInput = {},
+  ): Promise<Result<{ sessionId: string; redirectUrl: string }, XidError>> {
+    // /auth/guest 只接受由同源 /auth/config 为当前 root onboarding flow
+    // 颁发的一次性 capability。每次建号前现取,绝不缓存或复用。
+    const configResult = await this.#request<unknown>({
+      path: '/auth/config?intent=sign-up',
+      signal: input.signal,
+    })
+    if (!configResult.ok) return configResult
+    const capabilityToken = readGuestCapabilityToken(configResult.value)
+    if (capabilityToken === null) {
+      return {
+        ok: false,
+        error: makeXidError(
+          'invalid_request',
+          'The request is missing a required parameter or is malformed.',
+        ),
+      }
+    }
+
     const result = await this.#request<unknown>({
       path: '/auth/guest',
       method: 'POST',
-      body: { turnstileToken: input.turnstileToken ?? null },
+      body: {
+        capabilityToken,
+        turnstileToken: input.turnstileToken ?? null,
+      },
       signal: input.signal,
     })
-    return result.ok ? { ok: true, value: null } : result
+    if (!result.ok) return result
+    if (
+      !isRecord(result.value) ||
+      typeof result.value.sessionId !== 'string' ||
+      result.value.sessionId.trim().length === 0 ||
+      typeof result.value.redirectUrl !== 'string' ||
+      result.value.redirectUrl.trim().length === 0
+    ) {
+      throw new XidNetworkError('Invalid /auth/guest response')
+    }
+    return {
+      ok: true,
+      value: {
+        sessionId: result.value.sessionId,
+        redirectUrl: result.value.redirectUrl,
+      },
+    }
   }
 
   async getOrganization(input: {
@@ -216,8 +236,8 @@ export class XidApiClient {
   async setActiveSession(input: {
     sessionId: string
     signal?: AbortSignal
-  }): Promise<Result<ClientStateResponse, XidError>> {
-    return this.#request<ClientStateResponse>({
+  }): Promise<Result<ActiveSessionResponse, XidError>> {
+    return this.#request<ActiveSessionResponse>({
       path: '/v1/sessions/active',
       method: 'POST',
       body: { sessionId: input.sessionId },
@@ -238,17 +258,13 @@ export class XidApiClient {
     })
   }
 
-  // 登出:sessionId 省略则登出全部会话(对照 06 章 sign-out)。worker 清 cookie。
-  async signOut(
-    input: { sessionId?: string; signal?: AbortSignal } = {},
-  ): Promise<Result<null, XidError>> {
-    const result = await this.#request<unknown>({
-      path: '/v1/sessions/sign-out',
+  // 登出当前 active session。指定其他 session 的编排由 XidClient 先切换再调用本端点。
+  async signOut(input: { signal?: AbortSignal } = {}): Promise<Result<SignOutResponse, XidError>> {
+    return this.#request<SignOutResponse>({
+      path: '/auth/sign-out',
       method: 'POST',
-      body: input.sessionId ? { sessionId: input.sessionId } : {},
       signal: input.signal,
     })
-    return result.ok ? { ok: true, value: null } : result
   }
 
   async listApiKeys(
@@ -425,21 +441,90 @@ function unwrapDataEnvelope<T>(parsed: unknown): T {
   return 'data' in record ? (record.data as T) : (parsed as T)
 }
 
-function normalizeClientState(value: ClientStateResponse | MeResponseWire): ClientStateResponse {
-  if ('sessions' in value) return value
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
-  const organizationMemberships = value.organizations.map(mapMeOrganizationMembership)
-  const user = mapMeUser(value.user, organizationMemberships)
-  const session = mapMeSession(value.session, value.user.id, value.activeOrg?.id ?? null)
+function readGuestCapabilityToken(value: unknown): string | null {
+  if (!isRecord(value) || !isRecord(value.guest)) return null
+  const token = value.guest.capabilityToken
+  return typeof token === 'string' && token.length > 0 ? token : null
+}
+
+function hasNullableString(record: Record<string, unknown>, key: string): boolean {
+  return record[key] === null || typeof record[key] === 'string'
+}
+
+function hasValidOrganizationRole(value: unknown): boolean {
+  return isRecord(value) && isOrganizationMembershipRole(value.role)
+}
+
+function hasValidMembershipRoles(user: Record<string, unknown> | null): boolean {
+  if (user === null || user.organizationMemberships === undefined) return true
+  return (
+    Array.isArray(user.organizationMemberships) &&
+    user.organizationMemberships.every(
+      (membership) => isRecord(membership) && isOrganizationMembershipRole(membership.role),
+    )
+  )
+}
+
+function normalizeClientState(value: unknown): ClientStateResponse {
+  if (!isRecord(value)) {
+    throw new XidNetworkError('Invalid /v1/me response')
+  }
+
+  if (!('activeOrg' in value)) {
+    if (
+      !('activeSessionId' in value) ||
+      !hasNullableString(value, 'activeSessionId') ||
+      !Array.isArray(value.sessions) ||
+      !('user' in value) ||
+      (value.user !== null && !isRecord(value.user)) ||
+      !hasValidMembershipRoles(value.user as Record<string, unknown> | null)
+    ) {
+      throw new XidNetworkError('Invalid /v1/me response')
+    }
+    return value as ClientStateResponse
+  }
+
+  if (
+    !('activeSessionId' in value) ||
+    !hasNullableString(value, 'activeSessionId') ||
+    !Array.isArray(value.sessions) ||
+    !Array.isArray(value.organizations) ||
+    !('user' in value) ||
+    !('session' in value) ||
+    !('activeOrg' in value) ||
+    (value.user !== null && !isRecord(value.user)) ||
+    (value.session !== null && !isRecord(value.session)) ||
+    (value.activeOrg !== null && !isRecord(value.activeOrg)) ||
+    !value.organizations.every(hasValidOrganizationRole) ||
+    (value.activeOrg !== null && !hasValidOrganizationRole(value.activeOrg)) ||
+    (value.user === null) !== (value.session === null)
+  ) {
+    throw new XidNetworkError('Invalid /v1/me response')
+  }
+
+  const browserState = value as BrowserMeResponse
+  if (!browserState.user || !browserState.session) {
+    return { activeSessionId: null, sessions: [], user: null }
+  }
+
+  const organizationMemberships = browserState.organizations.map(mapMeOrganizationMembership)
+  const user = mapMeUser(browserState.user, organizationMemberships)
+  const sessions = browserState.sessions.map((session) =>
+    mapMeSession(session, session.userId, session.activeOrganizationId),
+  )
   return {
-    activeSessionId: session.id,
-    sessions: [session],
+    activeSessionId: browserState.activeSessionId ?? browserState.session.id,
+    sessions,
     user,
   }
 }
 
 function mapMeUser(
-  user: MeUserWire,
+  user: BrowserAuthUser,
   organizationMemberships: readonly XidOrganizationMembership[],
 ): XidUser {
   const parts = splitName(user.name ?? null)
@@ -454,7 +539,7 @@ function mapMeUser(
     username: null,
     imageUrl: user.imageUrl ?? null,
     hasImage: user.imageUrl !== null && user.imageUrl !== undefined,
-    ...(user.provisioned_by !== undefined ? { provisionedBy: user.provisioned_by } : {}),
+    ...(typeof user.provisioned_by === 'string' ? { provisionedBy: user.provisioned_by } : {}),
     publicMetadata: {},
     organizationMemberships,
     createdAt: 0,
@@ -472,7 +557,7 @@ function splitName(name: string | null): { firstName: string | null; lastName: s
   }
 }
 
-function mapMeOrganizationMembership(row: MeOrganizationWire): XidOrganizationMembership {
+function mapMeOrganizationMembership(row: BrowserAuthOrganization): XidOrganizationMembership {
   return {
     id: `mem:${row.id}`,
     organization: mapMeOrganization(row),
@@ -482,7 +567,7 @@ function mapMeOrganizationMembership(row: MeOrganizationWire): XidOrganizationMe
   }
 }
 
-function mapMeOrganization(row: MeOrganizationWire): XidOrganization {
+function mapMeOrganization(row: BrowserAuthOrganization): XidOrganization {
   return {
     id: row.id,
     name: row.name,
@@ -496,17 +581,17 @@ function mapMeOrganization(row: MeOrganizationWire): XidOrganization {
 }
 
 function mapMeSession(
-  session: MeSessionWire,
+  session: BrowserAuthSession,
   userId: string,
   activeOrganizationId: string | null,
 ): XidSession {
   const expireAt = Math.floor(Date.parse(session.expiresAt) / 1000)
   return {
     id: session.id,
-    status: 'active' satisfies SessionStatus,
+    status: (session.status === 'active' ? 'active' : 'pending') satisfies SessionStatus,
     userId,
     activeOrganizationId,
-    lastActiveAt: 0,
+    lastActiveAt: Math.floor(Date.parse(session.lastActiveAt) / 1000),
     expireAt,
     abandonAt: expireAt,
     createdAt: 0,

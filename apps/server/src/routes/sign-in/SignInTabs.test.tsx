@@ -100,6 +100,7 @@ describe('SignInTabs pill contract', () => {
         method="password"
         passkeySupport="no"
         enabledMethods={enabledMethods}
+        isSignUpFlow={false}
         onSelect={vi.fn()}
       />,
     )
@@ -117,6 +118,7 @@ describe('SignInTabs pill contract', () => {
         method="password"
         passkeySupport="no"
         enabledMethods={enabledMethods}
+        isSignUpFlow={false}
         onSelect={vi.fn()}
       />,
     )
@@ -127,6 +129,7 @@ describe('SignInTabs pill contract', () => {
           method="magic-link"
           passkeySupport="no"
           enabledMethods={enabledMethods}
+          isSignUpFlow={false}
           onSelect={vi.fn()}
         />,
       )
@@ -151,5 +154,23 @@ describe('SignInTabs pill contract', () => {
       expect(rule.cssText).not.toContain('borderBottom')
       expect(rule.cssText).not.toContain('text-decoration')
     }
+  })
+
+  it('uses account-creation semantics and removes passkey sign-in during sign-up', async () => {
+    const { container } = await render(
+      <SignInTabs
+        method="password"
+        passkeySupport="yes"
+        enabledMethods={['passkey', 'password']}
+        isSignUpFlow={true}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect(container.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe(
+      'Create your account',
+    )
+    expect(container.textContent).toContain('Password')
+    expect(container.textContent).not.toContain('Passkey')
   })
 })

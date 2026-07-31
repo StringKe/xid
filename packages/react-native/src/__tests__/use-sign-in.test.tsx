@@ -11,6 +11,23 @@ import { useSignIn } from '../use-sign-in'
 import type { TokenCache } from '../token-cache'
 import type { BrowserInterface } from '../browser-interface'
 import { pendingAuthorizationKey } from '../token-exchange'
+import { readTokenSet, saveTokenSet } from '../token-exchange'
+
+vi.mock('../id-token', () => ({
+  verifyNativeIdToken: vi.fn(
+    async (
+      _idToken: string,
+      input: { issuer: string; clientId: string; expectedNonce?: string },
+    ) => ({
+      iss: input.issuer,
+      sub: 'user_test',
+      aud: input.clientId,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000),
+      nonce: input.expectedNonce,
+    }),
+  ),
+}))
 
 const ISSUER = 'https://xid.dev'
 const CLIENT_ID = 'client_test'
@@ -38,12 +55,24 @@ function makeRnCtx(cache: TokenCache, browser: BrowserInterface): XidRnContextVa
     clientId: CLIENT_ID,
     redirectUri: REDIRECT_URI,
     scopes: ['openid', 'profile', 'email'] as const,
+    fetcher: fetch,
     isLoaded: true,
     session: null,
     restoreSession: async () => null,
+    commitAuthorizationSession: async (tokens) => {
+      await saveTokenSet(cache, tokens)
+      const stored = await readTokenSet(cache)
+      if (!stored) throw new Error('test authorization commit failed')
+      return stored
+    },
     getAccessToken: async () => null,
     clearSession: async () => undefined,
+    signOut: async () => undefined,
   }
+}
+
+function pendingAuthorization(verifier: string, nonce: string): string {
+  return JSON.stringify({ verifier, nonce, redirectUri: REDIRECT_URI })
 }
 
 function makeWrapper(
@@ -75,6 +104,24 @@ describe('useSignIn initial state', () => {
     expect(typeof result.current.signIn).toBe('function')
     expect(typeof result.current.handleRedirect).toBe('function')
   })
+
+  it('rejects offline_access until DPoP sender binding is implemented', async () => {
+    const cache = makeTokenCache()
+    const browser: BrowserInterface = { openAuthSession: vi.fn() }
+    const { result } = renderHook(() => useSignIn(), {
+      wrapper: makeWrapper(makeRnCtx(cache, browser)),
+    })
+
+    await act(async () => {
+      await result.current.signIn({ scopes: ['openid', 'offline_access'] })
+    })
+
+    expect(browser.openAuthSession).not.toHaveBeenCalled()
+    expect(result.current.signInState.status).toBe('error')
+    if (result.current.signInState.status === 'error') {
+      expect(result.current.signInState.error.message).toContain('offline_access requires DPoP')
+    }
+  })
 })
 
 describe('handleRedirect CSRF guard', () => {
@@ -84,7 +131,10 @@ describe('handleRedirect CSRF guard', () => {
 
   it('sets error state when redirect state does not match stored state', async () => {
     const cache = makeTokenCache()
-    await cache.saveToken(pendingAuthorizationKey('stored_state_abc'), 'verifier_xyz')
+    await cache.saveToken(
+      pendingAuthorizationKey('stored_state_abc'),
+      pendingAuthorization('verifier_xyz', 'nonce_xyz'),
+    )
 
     const browser: BrowserInterface = { openAuthSession: vi.fn() }
     const { result } = renderHook(() => useSignIn(), {
@@ -103,7 +153,10 @@ describe('handleRedirect CSRF guard', () => {
 
   it('sets error state when authorization code is missing', async () => {
     const cache = makeTokenCache()
-    await cache.saveToken(pendingAuthorizationKey('state_123'), 'verifier_123')
+    await cache.saveToken(
+      pendingAuthorizationKey('state_123'),
+      pendingAuthorization('verifier_123', 'nonce_123'),
+    )
 
     const browser: BrowserInterface = { openAuthSession: vi.fn() }
     const { result } = renderHook(() => useSignIn(), {
@@ -122,7 +175,10 @@ describe('handleRedirect CSRF guard', () => {
 
   it('sets error state when OAuth error parameter is present', async () => {
     const cache = makeTokenCache()
-    await cache.saveToken(pendingAuthorizationKey('state_error'), 'verifier_error')
+    await cache.saveToken(
+      pendingAuthorizationKey('state_error'),
+      pendingAuthorization('verifier_error', 'nonce_error'),
+    )
     const browser: BrowserInterface = { openAuthSession: vi.fn() }
 
     const { result } = renderHook(() => useSignIn(), {
@@ -201,10 +257,18 @@ describe('signIn flow', () => {
     }
   })
 
-  it('stores pkce verifier and state before opening browser', async () => {
+  it('stores PKCE, nonce, and redirect URI before opening the browser', async () => {
     const cache = makeTokenCache()
+    let capturedAuthorizeUrl: string | null = null
+    let pending: Record<string, unknown> | null = null
     const browser: BrowserInterface = {
-      openAuthSession: vi.fn().mockResolvedValue({ type: 'cancel' }),
+      openAuthSession: vi.fn(async (url) => {
+        capturedAuthorizeUrl = url
+        const state = new URL(url).searchParams.get('state')
+        const raw = state ? cache.store.get(pendingAuthorizationKey(state)) : undefined
+        pending = raw ? (JSON.parse(raw) as Record<string, unknown>) : null
+        return { type: 'cancel' as const }
+      }),
     }
 
     const { result } = renderHook(() => useSignIn(), {
@@ -219,6 +283,12 @@ describe('signIn flow', () => {
       expect.stringMatching(/^xid\.pending_authorization\./),
       expect.any(String),
     )
+    expect(capturedAuthorizeUrl).not.toBeNull()
+    expect(pending).not.toBeNull()
+    const authorizeUrl = new URL(capturedAuthorizeUrl ?? '')
+    expect(authorizeUrl.searchParams.get('nonce')).toBe(pending?.['nonce'])
+    expect(authorizeUrl.searchParams.get('state')).not.toBe(pending?.['nonce'])
+    expect(pending?.['redirectUri']).toBe(REDIRECT_URI)
   })
 
   it('两次 pending authorization 乱序回调使用各自 verifier 且重复回调只消费一次', async () => {
@@ -231,13 +301,23 @@ describe('signIn flow', () => {
         const body = new URLSearchParams(String(init?.body))
         exchangedVerifiers.push(body.get('code_verifier') ?? '')
         return new Response(
-          JSON.stringify({ access_token: `access_${body.get('code')}`, expires_in: 3600 }),
+          JSON.stringify({
+            access_token: `access_${body.get('code')}`,
+            id_token: `id_${body.get('code')}`,
+            expires_in: 3600,
+          }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         )
       }),
     )
-    await cache.saveToken(pendingAuthorizationKey('state_first'), 'verifier_first')
-    await cache.saveToken(pendingAuthorizationKey('state_second'), 'verifier_second')
+    await cache.saveToken(
+      pendingAuthorizationKey('state_first'),
+      pendingAuthorization('verifier_first', 'nonce_first'),
+    )
+    await cache.saveToken(
+      pendingAuthorizationKey('state_second'),
+      pendingAuthorization('verifier_second', 'nonce_second'),
+    )
 
     const { result } = renderHook(() => useSignIn(), {
       wrapper: makeWrapper(makeRnCtx(cache, browser)),

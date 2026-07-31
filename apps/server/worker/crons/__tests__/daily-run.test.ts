@@ -117,4 +117,35 @@ describe('runDaily', () => {
     expect(certIdx).toBeGreaterThan(rotateIdx)
     expect(usageIdx).toBeGreaterThan(certIdx)
   })
+
+  it('continues privacy maintenance after a custom-hostname configuration failure', async () => {
+    const { db, sqlLog } = makeDailyD1()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    const env = {
+      DB: db,
+      KEK: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      CLOUDFLARE_FOR_SAAS_ZONE_ID: 'zone-without-token',
+      METERING: {
+        idFromName: () => 'metering:org_01',
+        get: () => ({
+          getMau: vi.fn().mockResolvedValue(0),
+          evictMonth: vi.fn().mockResolvedValue(undefined),
+        }),
+      },
+      WEBHOOK_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
+    } as unknown as Env
+
+    await expect(runDaily(env)).rejects.toBeInstanceOf(AggregateError)
+
+    expect(sqlLog.join('\n')).toContain('FROM privacy_requests')
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'cron.daily.phase_failed',
+        operation: 'custom_hostname_maintenance',
+        outcome: 'continued_remaining_phases',
+      }),
+    )
+  })
 })

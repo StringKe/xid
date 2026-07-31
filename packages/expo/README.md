@@ -1,8 +1,14 @@
 # @xid-kit/expo
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 **Status: current package.** Expo SDK for XID identity platform. Wraps `@xid-kit/react-native` with ready-made adapters for `expo-secure-store` and `expo-web-browser`, plus an Expo Router `useProtectedRoute` hook.
 
-See `docs/sdks/platform-matrix.md` for the full capability matrix and current limitations. In particular, `useAuth().isSignedIn` reflects the `XidClient` web-cookie session state, which does not auto-populate from the local SecureStore tokens after token exchange (see `@xid-kit/react-native` README for details).
+See `docs/sdks/platform-matrix.md` for the full capability matrix and current limitations.
+`useAuth().isSignedIn` is restored directly from the verified SecureStore token session; it does
+not depend on browser-cookie synchronization.
 
 ## Peer dependencies
 
@@ -10,7 +16,7 @@ See `docs/sdks/platform-matrix.md` for the full capability matrix and current li
 expo >= 51
 expo-secure-store >= 13
 expo-web-browser >= 14
-react >= 18
+react ^19
 react-native >= 0.73
 ```
 
@@ -18,8 +24,11 @@ react-native >= 0.73
 
 ```sh
 pnpm add @xid-kit/expo
-pnpm add expo-secure-store expo-web-browser expo react react-native
+pnpm add expo-secure-store expo-web-browser expo react@^19 react-native
 ```
+
+The Expo package re-exports the native provider and hooks. It does not require `@xid-kit/react`,
+`@xid-kit/core` or `react-dom`.
 
 ## Quick start
 
@@ -34,7 +43,6 @@ const browser = createExpoWebBrowserAdapter({ webBrowser: WebBrowser })
 export default function App() {
   return (
     <XidProvider
-      publishableKey="pk_live_..."
       issuer="https://xid.dev"
       clientId="your_client_id"
       redirectUri="myapp://auth/callback"
@@ -104,6 +112,8 @@ export default function RootLayout() {
 ## keyPrefix for SecureStore namespacing
 
 The key separator is `.` (dot), which is within the allowed character set for `expo-secure-store` (`[A-Za-z0-9._-]`).
+Adapters created with the same prefix expose the same `coordinationNamespace`, so independently
+created wrappers share one serialized session-mutation boundary.
 
 ```ts
 const tokenCache = createSecureStoreAdapter({
@@ -116,5 +126,9 @@ const tokenCache = createSecureStoreAdapter({
 ## Architecture
 
 - `createSecureStoreAdapter` and `createExpoWebBrowserAdapter` accept injected module instances -- no top-level Expo module import, CI typecheck stays clean without Expo peer deps installed.
-- `useProtectedRoute` reads `isLoaded`/`isSignedIn` from `useAuth` and calls `replace` from Expo Router. The redirect logic runs inside `useEffect` and fires on every change to those values.
-- All PKCE logic, token exchange, and session management live in `@xid-kit/react-native`; this package provides adapters and Expo Router integration only.
+- `useProtectedRoute` reads the restored native `isLoaded` / `isSignedIn` state and calls `replace`
+  from Expo Router.
+- PKCE, nonce, ID token verification and authorization-code-only session handling live in
+  `@xid-kit/react-native`; this package provides platform adapters and Expo Router integration.
+- `offline_access` is rejected until the native SDK implements DPoP sender binding. After access
+  token expiry, start sign-in again.

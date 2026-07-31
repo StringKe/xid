@@ -114,7 +114,11 @@ describe('POST /auth/forgot-password', () => {
 
   it('配置 TURNSTILE_SECRET 但缺 turnstileToken -> 401 captcha_required(不签发重置 token)', async () => {
     const app = makeApp(registerSessionAuthRoutes)
-    const env = { ...makeEnv(), TURNSTILE_SECRET: 'turnstile-secret' } as unknown as Env
+    const env = {
+      ...makeEnv(),
+      TURNSTILE_SITE_KEY: 'turnstile-site-key',
+      TURNSTILE_SECRET: 'turnstile-secret',
+    } as unknown as Env
     const res = await post(app, env, '/auth/forgot-password', { email: 'user@example.com' })
     expect(res.status).toBe(401)
     expect(((await res.json()) as { code: string }).code).toBe('captcha_required')
@@ -124,11 +128,12 @@ describe('POST /auth/forgot-password', () => {
   it('email 存在 -> 200 + 发 password_reset 邮件', async () => {
     const emailSend = vi.fn()
     const auditSend = vi.fn()
+    const tokenInsert = vi.fn().mockResolvedValue({ id: 't-1' })
     vi.mocked(createTenantDb).mockReturnValue({
       userEmails: { findOne: vi.fn().mockResolvedValue({ userId: 'user-1' }) },
       passwordResetTokens: {
         hardDelete: vi.fn().mockResolvedValue(undefined),
-        insert: vi.fn().mockResolvedValue({ id: 't-1' }),
+        insert: tokenInsert,
       },
     } as unknown as ReturnType<typeof createTenantDb>)
     const app = makeApp(registerSessionAuthRoutes)
@@ -163,6 +168,14 @@ describe('POST /auth/forgot-password', () => {
     expect(auditPayload).not.toContain('reset.token.sig')
     expect(auditPayload).not.toContain('jti-1')
     expect(auditPayload).not.toContain('https://tenant-1.xid.dev/reset-password')
+    expect(tokenInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        tokenHash: 'hash-of-token',
+        purpose: 'password_reset',
+      }),
+    )
+    expect(JSON.stringify(tokenInsert.mock.calls)).not.toContain('reset.token.sig')
     expect(emailSend).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'password_reset',
@@ -520,6 +533,40 @@ describe('POST /auth/reset-password', () => {
       password: 'NewStrongPass1',
     })
     expect(res.status).toBe(200)
+  })
+
+  it('Email proof continuation 为无密码用户设置首个密码并签发 session', async () => {
+    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+    const db = resetDb({
+      userId: 'user-1',
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 900000),
+    })
+    vi.mocked(db.passwords.findOne).mockResolvedValue(undefined)
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, makeEnv(), '/auth/reset-password', {
+      token: 'proof-issued.token',
+      password: 'NewStrongPass1',
+    })
+
+    expect(res.status).toBe(200)
+    expect(db.passwordResetTokens.update).toHaveBeenCalled()
+    expect(db.passwords.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+        hash: '$argon2id$h',
+        reuseTag: 'pwd-reuse:v1:test',
+      }),
+    )
+    expect(db.passwordHistory.insert).not.toHaveBeenCalled()
+    expect(db.sessions.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+      }),
+    )
   })
 
   it('forceSso valid token -> invalid_credentials 且不消费 token 不改密码不签发 session', async () => {

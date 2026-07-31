@@ -2,6 +2,7 @@ package dev.xid.sdk
 
 import dev.xid.sdk.guest.GuestAuthManager
 import dev.xid.sdk.model.XidException
+import dev.xid.sdk.storage.StorageKeys
 import dev.xid.sdk.storage.TokenStorageAdapter
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
@@ -24,6 +25,27 @@ private class GuestInMemoryStorage : TokenStorageAdapter {
     override suspend fun set(key: String, value: String) { map[key] = value }
     override suspend fun clear(key: String) { map.remove(key) }
     override suspend fun clearAll() { map.clear() }
+}
+
+private class WriteThenFailGuestStorage : TokenStorageAdapter {
+    private val map = mutableMapOf<String, String>()
+
+    override suspend fun get(key: String): String? = map[key]
+
+    override suspend fun set(key: String, value: String) {
+        map[key] = value
+        if (key == StorageKeys.GUEST_USER) {
+            throw IllegalStateException("simulated storage failure")
+        }
+    }
+
+    override suspend fun clear(key: String) {
+        map.remove(key)
+    }
+
+    override suspend fun clearAll() {
+        map.clear()
+    }
 }
 
 class GuestAuthTest {
@@ -49,7 +71,14 @@ class GuestAuthTest {
         code: Int = 201,
         sessionId: String = "sess_1",
         withCookie: Boolean = true,
+        capabilityToken: String = "guest_capability_1",
     ) {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"guest":{"capabilityToken":"$capabilityToken"}}"""),
+        )
         val response = MockResponse()
             .setResponseCode(code)
             .setHeader("Content-Type", "application/json")
@@ -95,10 +124,17 @@ class GuestAuthTest {
         assertTrue(session.user.isAnonymous)
         assertTrue(session.isAnonymous)
 
+        val configRequest = takeRequest()
+        assertEquals("GET", configRequest.method)
+        assertEquals("/auth/config?intent=sign-up", configRequest.path)
+
         val guestRequest = takeRequest()
         assertEquals("POST", guestRequest.method)
         assertEquals("/auth/guest", guestRequest.path)
-        assertEquals("{}", guestRequest.body.readUtf8())
+        assertEquals(
+            """{"capabilityToken":"guest_capability_1"}""",
+            guestRequest.body.readUtf8(),
+        )
 
         val meRequest = takeRequest()
         assertEquals("GET", meRequest.method)
@@ -112,7 +148,7 @@ class GuestAuthTest {
         assertEquals("sess_1", restored!!.sessionId)
         assertEquals("u_guest", restored.user.sub)
         assertTrue(restored.user.isAnonymous)
-        assertEquals(2, server.requestCount)
+        assertEquals(3, server.requestCount)
     }
 
     @Test
@@ -120,14 +156,14 @@ class GuestAuthTest {
         enqueueGuestResponse()
         enqueueMeResponse()
         val first = manager.signInAnonymously()
-        assertEquals(2, server.requestCount)
+        assertEquals(3, server.requestCount)
 
         val second = manager.signInAnonymously()
 
         assertEquals(first.sessionId, second.sessionId)
         assertEquals(first.user.sub, second.user.sub)
         // 惰性复用: 已有会话不发任何请求
-        assertEquals(2, server.requestCount)
+        assertEquals(3, server.requestCount)
     }
 
     @Test
@@ -137,8 +173,12 @@ class GuestAuthTest {
 
         manager.signInAnonymously(turnstileToken = "ts-token-123")
 
+        takeRequest()
         val guestRequest = takeRequest()
-        assertEquals("""{"turnstileToken":"ts-token-123"}""", guestRequest.body.readUtf8())
+        assertEquals(
+            """{"capabilityToken":"guest_capability_1","turnstileToken":"ts-token-123"}""",
+            guestRequest.body.readUtf8(),
+        )
     }
 
     @Test
@@ -153,6 +193,49 @@ class GuestAuthTest {
         }
         // 失败后不落盘, 重试不会被误判为已有会话
         assertNull(manager.loadSession())
+    }
+
+    @Test
+    fun `signInAnonymously rejects missing capability before guest post`() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"guest":null}"""),
+        )
+
+        try {
+            manager.signInAnonymously()
+            fail("expected GuestSignInFailed")
+        } catch (e: XidException.GuestSignInFailed) {
+            assertTrue(e.message!!.contains("capability"))
+        }
+
+        assertEquals(1, server.requestCount)
+        assertEquals("/auth/config?intent=sign-up", takeRequest().path)
+        assertNull(manager.loadSession())
+    }
+
+    @Test
+    fun `signInAnonymously storage failure rolls back all guest keys`() = runBlocking {
+        enqueueGuestResponse()
+        enqueueMeResponse()
+        val failingStorage = WriteThenFailGuestStorage()
+        val failingManager = GuestAuthManager(
+            storage = failingStorage,
+            issuer = server.url("/").toString(),
+        )
+
+        try {
+            failingManager.signInAnonymously()
+            fail("expected storage failure")
+        } catch (error: IllegalStateException) {
+            assertTrue(error.message!!.contains("storage failure"))
+        }
+
+        assertNull(failingStorage.get(StorageKeys.GUEST_SESSION_ID))
+        assertNull(failingStorage.get(StorageKeys.GUEST_SESSION_COOKIES))
+        assertNull(failingStorage.get(StorageKeys.GUEST_USER))
     }
 
     @Test

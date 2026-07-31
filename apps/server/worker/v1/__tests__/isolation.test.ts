@@ -4,11 +4,13 @@
 // node 池无 Workers binding,用最小 D1 / DO namespace fake(按 SQL 关键字 + 字符串参数路由)。
 // 见 tenant-isolation rule、cloudflare-bindings rule 会话存储。
 
+import { DatabaseSync } from 'node:sqlite'
 import { describe, it, expect, vi } from 'vitest'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { sha256Hex } from '@xid-kit/crypto'
-import type { TenantContext } from '@xid-kit/types'
+import { base64UrlDecode, envelopeDecrypt, sha256Hex } from '@xid-kit/crypto'
+import { generateSelfSignedSamlCertificate } from '@xid-kit/saml'
+import type { OrganizationMembershipRole, TenantContext } from '@xid-kit/types'
 import type { XidHonoEnv } from '../../lib/types'
 import { registerApplications } from '../applications'
 import { registerConnections } from '../connections'
@@ -21,6 +23,7 @@ import { registerMembershipsRoutes } from '../memberships'
 import { registerInvitationsRoutes } from '../invitations'
 import { registerRoles } from '../roles'
 import { registerPermissions } from '../permissions'
+import { registerUserGrants } from '../user-grants'
 import { registerSessionsRoutes } from '../sessions'
 import { registerUsersRoutes } from '../users'
 import { isAppError } from '../../lib/errors'
@@ -42,6 +45,7 @@ function asUnknown<T>(v: unknown): T {
 type TableSet = {
   api_keys?: Record<string, unknown>[]
   organizations?: Record<string, unknown>[]
+  organization_quotas?: Record<string, unknown>[]
   organization_domains?: Record<string, unknown>[]
   org_policies?: Record<string, unknown>[]
   memberships?: Record<string, unknown>[]
@@ -53,10 +57,12 @@ type TableSet = {
   mfa_factors?: Record<string, unknown>[]
   projects?: Record<string, unknown>[]
   applications?: Record<string, unknown>[]
+  resource_servers?: Record<string, unknown>[]
   project_grants?: Record<string, unknown>[]
   roles?: Record<string, unknown>[]
   permissions?: Record<string, unknown>[]
   sso_connections?: Record<string, unknown>[]
+  cert_store?: Record<string, unknown>[]
   scim_targets?: Record<string, unknown>[]
   saml_service_providers?: Record<string, unknown>[]
   directories?: Record<string, unknown>[]
@@ -76,6 +82,7 @@ function tableNameForSql(sql: string): string {
   if (l.includes('usage_monthly')) return 'usage_monthly'
   if (l.includes('mfa_factors')) return 'mfa_factors'
   if (l.includes('organization_domains')) return 'organization_domains'
+  if (l.includes('organization_quotas')) return 'organization_quotas'
   if (l.includes('org_policies')) return 'org_policies'
   if (l.includes('organizations')) return 'organizations'
   if (l.includes('memberships')) return 'memberships'
@@ -83,9 +90,11 @@ function tableNameForSql(sql: string): string {
   if (l.includes('project_grants')) return 'project_grants'
   if (l.includes('projects')) return 'projects'
   if (l.includes('applications')) return 'applications'
+  if (l.includes('resource_servers')) return 'resource_servers'
   if (l.includes('roles')) return 'roles'
   if (l.includes('permissions')) return 'permissions'
   if (l.includes('sso_connections')) return 'sso_connections'
+  if (l.includes('cert_store')) return 'cert_store'
   if (l.includes('scim_targets')) return 'scim_targets'
   if (l.includes('saml_service_providers')) return 'saml_service_providers'
   if (l.includes('directories')) return 'directories'
@@ -105,13 +114,13 @@ function projectionColumns(sql: string): string[] {
 }
 
 function insertColumns(sql: string): string[] {
-  const match = /insert\s+into\s+"[a-z_]+"\s*\(([^)]*)\)/i.exec(sql)
+  const match = /insert\s+into\s+(?:"|`)?[a-z_]+(?:"|`)?\s*\(([^)]*)\)/i.exec(sql)
   if (!match?.[1]) return []
-  return [...match[1].matchAll(/"([a-z_]+)"/g)].map((item) => item[1] ?? '')
+  return [...match[1].matchAll(/(?:"|`)?([a-z_]+)(?:"|`)?/g)].map((item) => item[1] ?? '')
 }
 
 function insertValueTokens(sql: string): string[] {
-  const match = /values\s*\(([\s\S]*?)\)\s*(?:returning|$)/i.exec(sql)
+  const match = /values\s*\(([\s\S]*?)\)\s*(?:on\s+conflict|returning|$)/i.exec(sql)
   if (!match?.[1]) return []
   return match[1].split(',').map((token) => token.trim())
 }
@@ -129,7 +138,7 @@ function updateSetColumns(sql: string): string[] {
   const match = /^update\s+"?[a-z_]+"?\s+set\s+(.+?)\s+where\s/i.exec(sql.toLowerCase())
   const setClause = match?.[1]
   if (!setClause) return []
-  return [...setClause.matchAll(/"([a-z_]+)"\s*=/g)].map((m) => m[1] ?? '')
+  return [...setClause.matchAll(/"?([a-z_]+)"?\s*=/g)].map((m) => m[1] ?? '')
 }
 
 function requiresNull(sql: string, column: string): boolean {
@@ -166,6 +175,26 @@ function matchesParameterizedStatus(
   row: Record<string, unknown>,
 ): { ok: boolean; remaining: unknown[] } {
   const remaining = [...params]
+  if (/"status"\s+in\s*\(/i.test(sql)) {
+    const allowed = remaining.filter((value) =>
+      [
+        'active',
+        'deleted',
+        'pending',
+        'claim_verified',
+        'revoked',
+        'inactive',
+        'retiring',
+      ].includes(String(value)),
+    )
+    for (const value of allowed) {
+      const index = remaining.indexOf(value)
+      if (index >= 0) remaining.splice(index, 1)
+    }
+    if (allowed.length > 0 && !allowed.includes(row['status'])) {
+      return { ok: false, remaining }
+    }
+  }
   if (/"status"\s*(<>|!=)\s*\?/i.test(sql)) {
     const idx = remaining.indexOf('deleted')
     if (idx >= 0) {
@@ -187,9 +216,12 @@ function matchesParameterizedStatus(
 }
 
 // 最小 D1 fake:按表名取行,字符串绑定参数全部命中行内某列值才算匹配(模拟 WHERE 收窄)。
-function makeFakeD1(tables: TableSet): D1Database {
+function makeFakeD1(
+  tables: TableSet,
+  hooks: { beforeUpdate?: (sql: string, params: unknown[]) => void } = {},
+): D1Database {
   const get = (t: string): Record<string, unknown>[] =>
-    (tables as Record<string, Record<string, unknown>[]>)[t] ?? []
+    ((tables as Record<string, Record<string, unknown>[]>)[t] ??= [])
 
   const match = (
     sql: string,
@@ -269,8 +301,38 @@ function makeFakeD1(tables: TableSet): D1Database {
   }
 
   const applyUpdate = (sql: string, params: unknown[]): Record<string, unknown>[] => {
+    hooks.beforeUpdate?.(sql, params)
     const cols = updateSetColumns(sql)
-    const rows = match(sql, params, { skipParams: cols.length })
+    let rows = match(sql, params, { skipParams: cols.length })
+    if (/and\s+"role"\s*=\s*'owner'/i.test(sql)) {
+      rows = rows.filter((row) => row['role'] === 'owner')
+    }
+    if (/and\s+"role"\s*<>\s*'owner'/i.test(sql)) {
+      rows = rows.filter((row) => row['role'] !== 'owner')
+    }
+    if (/from\s+memberships\s+replacement_owner/i.test(sql)) {
+      rows = rows.filter((row) => {
+        if (row['role'] !== 'owner') return true
+        return get('memberships').some((replacement) => {
+          if (
+            replacement['tenant_id'] !== row['tenant_id'] ||
+            replacement['org_id'] !== row['org_id'] ||
+            replacement['id'] === row['id'] ||
+            replacement['role'] !== 'owner' ||
+            replacement['status'] !== 'active'
+          ) {
+            return false
+          }
+          return get('users').some(
+            (user) =>
+              user['tenant_id'] === replacement['tenant_id'] &&
+              user['id'] === replacement['user_id'] &&
+              user['status'] === 'active' &&
+              user['deleted_at'] == null,
+          )
+        })
+      })
+    }
     for (const row of rows) {
       cols.forEach((col, i) => {
         row[col] = params[i]
@@ -282,6 +344,10 @@ function makeFakeD1(tables: TableSet): D1Database {
   const prepare = (sql: string): unknown => {
     let bound: unknown[] = []
     const stmt = {
+      sql,
+      get bound() {
+        return bound
+      },
       bind: (...p: unknown[]) => {
         bound = p
         return stmt
@@ -301,13 +367,17 @@ function makeFakeD1(tables: TableSet): D1Database {
         const rows = sql.toLowerCase().startsWith('update')
           ? applyUpdate(sql, bound)
           : match(sql, bound)
-        return { results: rows, success: true, meta: {} }
+        return { results: rows, success: true, meta: { changes: rows.length } }
       },
       first: async () => match(sql, bound)[0] ?? null,
     }
     return stmt
   }
-  return asUnknown<D1Database>({ prepare, batch: async () => [] })
+  return asUnknown<D1Database>({
+    prepare,
+    batch: async (statements: D1PreparedStatement[]) =>
+      Promise.all(statements.map((statement) => statement.run())),
+  })
 }
 
 // SessionDO namespace fake:记录 idFromName 的入参(用于断言命中正确实例)。
@@ -337,6 +407,10 @@ function makeFakeKv(): KVNamespace {
 
 function makeFakeQueue(): Queue<unknown> {
   return asUnknown<Queue<unknown>>({ send: async () => undefined })
+}
+
+function testKek(): string {
+  return btoa('0'.repeat(32))
 }
 
 async function makeApiKeyRow(
@@ -677,7 +751,7 @@ describe('v1 applications 软删除', () => {
       client_secret_hash: 'hash',
       client_type: 'confidential',
       token_endpoint_auth_method: 'client_secret_basic',
-      redirect_uris: [],
+      redirect_uris: ['https://app.example.com/callback'],
       post_logout_redirect_uris: [],
       allowed_grant_types: ['authorization_code'],
       allowed_scopes: ['openid'],
@@ -707,16 +781,19 @@ describe('v1 applications PATCH access_token_ttl_sec 边界', () => {
       client_secret_hash: 'hash',
       client_type: 'confidential',
       token_endpoint_auth_method: 'client_secret_basic',
-      redirect_uris: [],
+      redirect_uris: ['https://app.example.com/callback'],
       post_logout_redirect_uris: [],
       allowed_grant_types: ['authorization_code'],
+      allowed_response_types: ['code'],
       allowed_scopes: ['openid'],
       require_pkce: 1,
       dpop_bound_access_tokens: 0,
+      jwks: null,
       access_token_format: 'jwt',
       access_token_ttl_sec: 3600,
       id_token_signed_alg: 'ES256',
       first_party: 0,
+      custom_claims_config: {},
       status: 'active',
       created_at: Date.now(),
       updated_at: Date.now(),
@@ -776,6 +853,176 @@ describe('v1 applications PATCH access_token_ttl_sec 边界', () => {
   })
 })
 
+describe('v1 applications client registration policy', () => {
+  function validPublicApplication(): Record<string, unknown> {
+    return {
+      id: 'app_public',
+      tenant_id: 't_1',
+      client_id: 'client_public',
+      client_secret_hash: null,
+      client_type: 'public',
+      token_endpoint_auth_method: 'none',
+      jwks: null,
+      redirect_uris: ['https://spa.example.com/callback'],
+      post_logout_redirect_uris: [],
+      allowed_grant_types: ['authorization_code'],
+      allowed_response_types: ['code'],
+      allowed_scopes: ['openid', 'profile', 'email'],
+      require_pkce: 1,
+      dpop_bound_access_tokens: 0,
+      access_token_format: 'jwt',
+      access_token_ttl_sec: null,
+      id_token_signed_alg: 'ES256',
+      first_party: 0,
+      require_org_context: 0,
+      custom_claims_config: {},
+      status: 'active',
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }
+  }
+
+  async function setupPolicyApp(applications: Record<string, unknown>[] = []): Promise<{
+    app: Hono<XidHonoEnv>
+    env: Env
+    token: string
+  }> {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const db = makeFakeD1({ api_keys: [apiKey], applications })
+    return {
+      app: buildApp(registerApplications),
+      env: asUnknown<Env>({ DB: db }),
+      token,
+    }
+  }
+
+  async function createApplication(
+    app: Hono<XidHonoEnv>,
+    env: Env,
+    token: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> {
+    return app.request(
+      'https://acme.xid.dev/v1/applications',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+      env,
+    )
+  }
+
+  it('creates a public PKCE client without ever issuing or storing a shared secret', async () => {
+    const applications: Record<string, unknown>[] = []
+    const { app, env, token } = await setupPolicyApp(applications)
+
+    const response = await createApplication(app, env, token, {
+      client_type: 'public',
+      require_pkce: false,
+      redirect_uris: ['https://spa.example.com/callback'],
+    })
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as Record<string, unknown>
+    expect(body['client_type']).toBe('public')
+    expect(body['token_endpoint_auth_method']).toBe('none')
+    expect(body['require_pkce']).toBe(true)
+    expect(body['allowed_grant_types']).toEqual(['authorization_code'])
+    expect(body['client_secret']).toBeUndefined()
+    expect(applications).toHaveLength(1)
+    expect(applications[0]?.['client_secret_hash']).toBeNull()
+  })
+
+  it.each([
+    {
+      client_type: 'public',
+      token_endpoint_auth_method: 'client_secret_basic',
+      redirect_uris: ['https://spa.example.com/callback'],
+    },
+    {
+      client_type: 'confidential',
+      token_endpoint_auth_method: 'none',
+      redirect_uris: ['https://service.example.com/callback'],
+    },
+    {
+      client_type: 'public',
+      redirect_uris: ['https://spa.example.com/callback'],
+      allowed_grant_types: ['authorization_code', 'refresh_token'],
+    },
+  ])('rejects inconsistent client metadata %#', async (payload) => {
+    const { app, env, token } = await setupPolicyApp()
+    expect((await createApplication(app, env, token, payload)).status).toBe(422)
+  })
+
+  it('allows public refresh only when DPoP binding is enabled', async () => {
+    const { app, env, token } = await setupPolicyApp()
+
+    const response = await createApplication(app, env, token, {
+      client_type: 'public',
+      redirect_uris: ['https://spa.example.com/callback'],
+      allowed_grant_types: ['authorization_code', 'refresh_token'],
+      dpop_bound_access_tokens: true,
+    })
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as Record<string, unknown>
+    expect(body['dpop_bound_access_tokens']).toBe(true)
+    expect(body['client_secret']).toBeUndefined()
+  })
+
+  it('issues a one-time secret only for a shared-secret confidential method', async () => {
+    const applications: Record<string, unknown>[] = []
+    const { app, env, token } = await setupPolicyApp(applications)
+
+    const response = await createApplication(app, env, token, {
+      client_type: 'confidential',
+      token_endpoint_auth_method: 'client_secret_post',
+      redirect_uris: ['https://service.example.com/callback'],
+    })
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as Record<string, unknown>
+    expect(typeof body['client_secret']).toBe('string')
+    expect(body['client_secret']).not.toBe('')
+    expect(applications[0]?.['client_secret_hash']).not.toBeNull()
+    expect(applications[0]?.['client_secret_hash']).not.toBe(body['client_secret'])
+  })
+
+  it('rejects secret rotation for a public client', async () => {
+    const applications = [validPublicApplication()]
+    const { app, env, token } = await setupPolicyApp(applications)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/applications/app_public/rotate-secret',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      env,
+    )
+
+    expect(response.status).toBe(422)
+    expect(applications[0]?.['client_secret_hash']).toBeNull()
+  })
+
+  it.each([{ allowed_grant_types: ['password'] }, { allowed_response_types: ['token'] }])(
+    'rejects unsupported protocol metadata %#',
+    async (metadata) => {
+      const { app, env, token } = await setupPolicyApp()
+      const response = await createApplication(app, env, token, {
+        client_type: 'public',
+        redirect_uris: ['https://spa.example.com/callback'],
+        ...metadata,
+      })
+      expect(response.status).toBe(422)
+    },
+  )
+})
+
 describe('v1 applications redirect_uris 注册校验', () => {
   it('POST:http 明文 / fragment -> 422;https -> 201', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
@@ -823,20 +1070,105 @@ describe('v1 applications redirect_uris 注册校验', () => {
     expect(m2m.status).toBe(201)
   })
 
-  it('PATCH:http redirect_uri -> 422;native loopback http -> 200', async () => {
+  it('POST/PATCH 拒绝不安全的 post_logout_redirect_uris', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const application = {
       id: 'app_1',
       tenant_id: 't_1',
       client_id: 'client_1',
       client_secret_hash: 'hash',
-      client_type: 'public',
-      token_endpoint_auth_method: 'none',
+      client_type: 'confidential',
+      token_endpoint_auth_method: 'client_secret_basic',
       redirect_uris: ['https://app.example.com/callback'],
       post_logout_redirect_uris: [],
       allowed_grant_types: ['authorization_code'],
       allowed_scopes: ['openid'],
       require_pkce: 1,
+      custom_claims_config: JSON.stringify({}),
+      status: 'active',
+    }
+    const db = makeFakeD1({ api_keys: [apiKey], applications: [application] })
+    const env = asUnknown<Env>({ DB: db })
+    const app = buildApp(registerApplications)
+    const create = await app.request(
+      'https://acme.xid.dev/v1/applications',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          redirect_uris: ['https://app.example.com/callback'],
+          post_logout_redirect_uris: ['https://user:pass@rp.example/logout'],
+        }),
+      },
+      env,
+    )
+    expect(create.status).toBe(422)
+
+    const patch = await app.request(
+      'https://acme.xid.dev/v1/applications/app_1',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          post_logout_redirect_uris: ['https://rp.example/logout#fragment'],
+        }),
+      },
+      env,
+    )
+    expect(patch.status).toBe(422)
+  })
+
+  it('self-signed mTLS application requires a SHA-256 certificate pin', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const db = makeFakeD1({ api_keys: [apiKey] })
+    const env = asUnknown<Env>({ DB: db })
+    const app = buildApp(registerApplications)
+    const post = (body: Record<string, unknown>) =>
+      app.request(
+        'https://acme.xid.dev/v1/applications',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        env,
+      )
+    const missing = await post({
+      token_endpoint_auth_method: 'self_signed_tls_client_auth',
+      tls_client_auth_subject_dn: 'CN=client.example.com',
+      redirect_uris: ['https://app.example.com/callback'],
+    })
+    expect(missing.status).toBe(422)
+
+    const accepted = await post({
+      token_endpoint_auth_method: 'self_signed_tls_client_auth',
+      tls_client_auth_subject_dn: 'CN=client.example.com',
+      tls_client_auth_cert_thumbprints: ['ab'.repeat(32)],
+      redirect_uris: ['https://app.example.com/callback'],
+    })
+    expect(accepted.status).toBe(201)
+    const body = (await accepted.json()) as Record<string, unknown>
+    expect(body['tls_client_auth_cert_thumbprints']).toEqual(['ab'.repeat(32)])
+  })
+
+  it('PATCH:http redirect_uri -> 422;native loopback http -> 200', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const application = {
+      id: 'app_1',
+      tenant_id: 't_1',
+      client_id: 'client_1',
+      client_secret_hash: null,
+      client_type: 'public',
+      token_endpoint_auth_method: 'none',
+      redirect_uris: ['https://app.example.com/callback'],
+      post_logout_redirect_uris: [],
+      allowed_grant_types: ['authorization_code'],
+      allowed_response_types: ['code'],
+      allowed_scopes: ['openid'],
+      require_pkce: 1,
+      dpop_bound_access_tokens: 0,
+      jwks: null,
+      custom_claims_config: {},
       status: 'active',
       created_at: Date.now(),
       updated_at: Date.now(),
@@ -944,6 +1276,48 @@ describe('v1 webhooks URL SSRF 防护', () => {
     }
   }
 
+  it('POST create 返回 whsec_ secret 且信封内保存对应原始 HMAC key', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const webhooks: Record<string, unknown>[] = []
+    const db = makeFakeD1({ api_keys: [apiKey], webhooks })
+    const kekText = 'k'.repeat(32)
+    const env = asUnknown<Env>({ DB: db, KEK: btoa(kekText) })
+    const app = buildApp(registerWebhooks)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/webhooks',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://hooks.example.com/xid',
+          event_types: ['user.created'],
+        }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as Record<string, unknown>
+    const publicSecret = String(body['signing_secret'])
+    expect(publicSecret).toMatch(/^whsec_[A-Za-z0-9+/]{43}=$/u)
+    expect(webhooks[0]?.['signing_secret_hash']).toBe('v3:whsec_base64')
+
+    const decrypted = await envelopeDecrypt(
+      {
+        iv: base64UrlDecode(String(webhooks[0]?.['signing_secret_iv'])),
+        ciphertext: base64UrlDecode(String(webhooks[0]?.['signing_secret_ciphertext'])),
+        tag: base64UrlDecode(String(webhooks[0]?.['signing_secret_tag'])),
+        kekVersion: 1,
+      },
+      new TextEncoder().encode(kekText),
+    )
+    expect(decrypted).toEqual(
+      Uint8Array.from(atob(publicSecret.slice('whsec_'.length)), (char) => char.charCodeAt(0)),
+    )
+    decrypted.fill(0)
+  })
+
   it('POST create:http 与内网 IP -> 422 validation_failed', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const db = makeFakeD1({ api_keys: [apiKey] })
@@ -994,7 +1368,7 @@ describe('v1 webhooks URL SSRF 防护', () => {
 })
 
 describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () => {
-  it('POST:idp_metadata_url / oidc_discovery_url 为 http 或内网 IP -> 422', async () => {
+  it('POST:IdP URL 为 http 或内网 IP -> 422', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const db = makeFakeD1({
       api_keys: [apiKey],
@@ -1013,6 +1387,9 @@ describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () =
         env,
       )
     for (const extra of [
+      { idp_sso_url: 'http://idp.example.com/sso' },
+      { idp_sso_url: 'https://127.0.0.1/sso' },
+      { idp_slo_url: 'https://127.0.0.1/slo' },
       { idp_metadata_url: 'http://idp.example.com/meta.xml' },
       { idp_metadata_url: 'https://169.254.169.254/latest/meta-data' },
       { oidc_discovery_url: 'http://idp.example.com/.well-known/openid-configuration' },
@@ -1025,7 +1402,7 @@ describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () =
     }
   })
 
-  it('POST:公网 https metadata/discovery URL 接受,201 响应不下发 _ 前缀内部键', async () => {
+  it('POST:公网 https SAML endpoints 接受,201 响应不下发 _ 前缀内部键', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const db = makeFakeD1({
       api_keys: [apiKey],
@@ -1040,8 +1417,10 @@ describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () =
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           org_id: 'org_1',
-          protocol: 'oidc',
-          oidc_discovery_url: 'https://idp.example.com/.well-known/openid-configuration',
+          protocol: 'saml',
+          idp_sso_url: 'https://idp.example.com/sso',
+          idp_slo_url: 'https://idp.example.com/slo',
+          idp_metadata_url: 'https://idp.example.com/metadata.xml',
           attribute_mapping: {
             email: 'mail',
             _swaVault: { cred: 'sealed' },
@@ -1053,6 +1432,7 @@ describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () =
     )
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
+    expect(body['idp_slo_url']).toBe('https://idp.example.com/slo')
     const mapping = body['attribute_mapping'] as Record<string, unknown>
     expect(mapping).toEqual({ email: 'mail' })
   })
@@ -1106,6 +1486,7 @@ describe('v1 connections 软删除', () => {
       oidc_discovery_url: null,
       want_authn_response_signed: 1,
       want_assertions_signed: 1,
+      saml_clock_skew_ms: 180000,
       attribute_mapping: {},
       role_mapping: {},
       jit_enabled: 1,
@@ -1256,7 +1637,12 @@ describe('v1 roles 软删除', () => {
 
   it('resource wildcard scope 允许同资源写操作', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1', ['roles:*'])
-    const db = makeFakeD1({ api_keys: [apiKey] })
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      projects: [
+        { id: 'proj_1', tenant_id: 't_1', org_id: 'org_1', status: 'active', deleted_at: null },
+      ],
+    })
     const env = asUnknown<Env>({ DB: db })
     const app = buildApp(registerRoles)
 
@@ -1314,7 +1700,13 @@ describe('v1 roles 软删除', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
     }
-    const db = makeFakeD1({ api_keys: [apiKey], roles: [role] })
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      projects: [
+        { id: 'proj_1', tenant_id: 't_1', org_id: 'org_1', status: 'active', deleted_at: null },
+      ],
+      roles: [role],
+    })
     const env = asUnknown<Env>({ DB: db })
     const app = buildApp(registerRoles)
 
@@ -1337,6 +1729,74 @@ describe('v1 roles 软删除', () => {
     expect(body.data).toEqual([])
   })
 
+  it('GET list 支持 active/deleted/all 并返回回收站状态', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const now = Date.now()
+    const rows = [
+      {
+        id: 'role_active',
+        tenant_id: 't_1',
+        project_id: 'proj_1',
+        key: 'viewer',
+        display_name: 'Viewer',
+        group: null,
+        status: 'active',
+        deleted_at: null,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'role_deleted',
+        tenant_id: 't_1',
+        project_id: 'proj_1',
+        key: 'editor',
+        display_name: 'Editor',
+        group: null,
+        status: 'deleted',
+        deleted_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+    ]
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        api_keys: [apiKey],
+        projects: [{ id: 'proj_1', tenant_id: 't_1', org_id: 'org_1', status: 'active' }],
+        roles: rows,
+      }),
+    })
+    const app = buildApp(registerRoles)
+    const headers = { Authorization: `Bearer ${token}` }
+
+    const active = await app.request(
+      'https://acme.xid.dev/v1/roles?project_id=proj_1',
+      { headers },
+      env,
+    )
+    expect(active.status).toBe(200)
+    expect((await active.json()) as Record<string, unknown>).toMatchObject({
+      data: [{ id: 'role_active', status: 'active', deleted_at: null }],
+    })
+
+    const deleted = await app.request(
+      'https://acme.xid.dev/v1/roles?project_id=proj_1&status=deleted',
+      { headers },
+      env,
+    )
+    expect(deleted.status).toBe(200)
+    expect((await deleted.json()) as Record<string, unknown>).toMatchObject({
+      data: [{ id: 'role_deleted', status: 'deleted', deleted_at: new Date(now).toISOString() }],
+    })
+
+    const all = await app.request(
+      'https://acme.xid.dev/v1/roles?project_id=proj_1&status=all',
+      { headers },
+      env,
+    )
+    expect(all.status).toBe(200)
+    expect(((await all.json()) as { data: unknown[] }).data).toHaveLength(2)
+  })
+
   it('POST restore -> 恢复 deleted role,普通详情重新可读', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const role = {
@@ -1351,7 +1811,13 @@ describe('v1 roles 软删除', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
     }
-    const db = makeFakeD1({ api_keys: [apiKey], roles: [role] })
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      projects: [
+        { id: 'proj_1', tenant_id: 't_1', org_id: 'org_1', status: 'active', deleted_at: null },
+      ],
+      roles: [role],
+    })
     const env = asUnknown<Env>({ DB: db })
     const app = buildApp(registerRoles)
 
@@ -1404,6 +1870,72 @@ describe('v1 roles 软删除', () => {
 })
 
 describe('v1 permissions 软删除', () => {
+  it('GET list 支持 active/deleted/all 并返回回收站状态', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const now = Date.now()
+    const rows = [
+      {
+        id: 'perm_active',
+        tenant_id: 't_1',
+        project_id: 'proj_1',
+        key: 'documents:read',
+        description: 'Read',
+        status: 'active',
+        deleted_at: null,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'perm_deleted',
+        tenant_id: 't_1',
+        project_id: 'proj_1',
+        key: 'documents:write',
+        description: 'Write',
+        status: 'deleted',
+        deleted_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+    ]
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        api_keys: [apiKey],
+        projects: [{ id: 'proj_1', tenant_id: 't_1', org_id: 'org_1', status: 'active' }],
+        permissions: rows,
+      }),
+    })
+    const app = buildApp(registerPermissions)
+    const headers = { Authorization: `Bearer ${token}` }
+
+    const active = await app.request(
+      'https://acme.xid.dev/v1/permissions?project_id=proj_1',
+      { headers },
+      env,
+    )
+    expect(active.status).toBe(200)
+    expect((await active.json()) as Record<string, unknown>).toMatchObject({
+      data: [{ id: 'perm_active', status: 'active', deleted_at: null }],
+    })
+
+    const deleted = await app.request(
+      'https://acme.xid.dev/v1/permissions?project_id=proj_1&status=deleted',
+      { headers },
+      env,
+    )
+    expect(deleted.status).toBe(200)
+    expect((await deleted.json()) as Record<string, unknown>).toMatchObject({
+      data: [{ id: 'perm_deleted', status: 'deleted', deleted_at: new Date(now).toISOString() }],
+    })
+
+    const all = await app.request(
+      'https://acme.xid.dev/v1/permissions?project_id=proj_1&status=all',
+      { headers },
+      env,
+    )
+    expect(all.status).toBe(200)
+    expect(((await all.json()) as { data: unknown[] }).data).toHaveLength(2)
+  })
+
   it('POST restore -> 恢复 deleted permission,普通详情重新可读', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const permission = {
@@ -1417,7 +1949,13 @@ describe('v1 permissions 软删除', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
     }
-    const db = makeFakeD1({ api_keys: [apiKey], permissions: [permission] })
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      projects: [
+        { id: 'proj_1', tenant_id: 't_1', org_id: 'org_1', status: 'active', deleted_at: null },
+      ],
+      permissions: [permission],
+    })
     const env = asUnknown<Env>({ DB: db })
     const app = buildApp(registerPermissions)
 
@@ -1465,6 +2003,247 @@ describe('v1 permissions 软删除', () => {
     expect(restore.status).toBe(404)
     expect(victim['status']).toBe('deleted')
     expect(victim['deleted_at']).toBeTypeOf('number')
+  })
+})
+
+describe('Project Manager 与 Project Grant Manager 精确 scope 消费', () => {
+  async function managerSession(userId: string) {
+    const session = await makeSessionRow({ tenantId: 't_1', userId })
+    return {
+      ...session,
+      headers: {
+        Cookie: `${session.cookieName}=${session.token}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  }
+
+  it('project_manager 可写精确 Project 的 Role,错误 Project 被拒绝', async () => {
+    const manager = await managerSession('user_project_manager')
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [manager.row],
+        users: [activeUserRow('user_project_manager')],
+        projects: [
+          { id: 'proj_1', tenant_id: 't_1', org_id: 'org_a', status: 'active', deleted_at: null },
+          { id: 'proj_2', tenant_id: 't_1', org_id: 'org_a', status: 'active', deleted_at: null },
+        ],
+        manager_assignments: [
+          {
+            id: 'mgr_project_1',
+            tenant_id: 't_1',
+            user_id: 'user_project_manager',
+            manager_role: 'project_manager',
+            scope_type: 'project',
+            scope_id: 'proj_1',
+          },
+        ],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+    const app = buildApp(registerRoles)
+    const post = (projectId: string) =>
+      app.request(
+        'https://acme.xid.dev/v1/roles',
+        {
+          method: 'POST',
+          headers: manager.headers,
+          body: JSON.stringify({
+            project_id: projectId,
+            key: `role:${projectId}`,
+            display_name: projectId,
+          }),
+        },
+        env,
+      )
+
+    expect((await post('proj_1')).status).toBe(201)
+    expect((await post('proj_2')).status).toBe(403)
+  })
+
+  it('project_grant_manager 可读 grant 对应 Role,不能写 Project 定义或撤销 grant', async () => {
+    const manager = await managerSession('user_grant_manager')
+    const grant = {
+      id: 'grant_1',
+      tenant_id: 't_1',
+      granted_project_id: 'proj_1',
+      granted_by_org_id: 'org_a',
+      granted_to_org_id: 'org_b',
+      status: 'active',
+      revoked_at: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [manager.row],
+        users: [activeUserRow('user_grant_manager')],
+        projects: [
+          { id: 'proj_1', tenant_id: 't_1', org_id: 'org_a', status: 'active', deleted_at: null },
+        ],
+        project_grants: [grant],
+        roles: [
+          {
+            id: 'role_1',
+            tenant_id: 't_1',
+            project_id: 'proj_1',
+            key: 'viewer',
+            display_name: 'Viewer',
+            group: null,
+            status: 'active',
+            deleted_at: null,
+            created_at: Date.now(),
+            updated_at: Date.now(),
+          },
+        ],
+        manager_assignments: [
+          {
+            id: 'mgr_grant_1',
+            tenant_id: 't_1',
+            user_id: 'user_grant_manager',
+            manager_role: 'project_grant_manager',
+            scope_type: 'grant',
+            scope_id: 'grant_1',
+          },
+        ],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+
+    const rolesApp = buildApp(registerRoles)
+    const read = await rolesApp.request(
+      'https://acme.xid.dev/v1/roles?project_id=proj_1&grant_id=grant_1',
+      { headers: { Cookie: manager.headers.Cookie } },
+      env,
+    )
+    expect(read.status).toBe(200)
+    expect(((await read.json()) as { data: unknown[] }).data).toHaveLength(1)
+
+    const write = await rolesApp.request(
+      'https://acme.xid.dev/v1/roles',
+      {
+        method: 'POST',
+        headers: manager.headers,
+        body: JSON.stringify({
+          project_id: 'proj_1',
+          key: 'editor',
+          display_name: 'Editor',
+        }),
+      },
+      env,
+    )
+    expect(write.status).toBe(403)
+
+    const grantsApp = buildApp(registerProjectGrants)
+    const revoke = await grantsApp.request(
+      'https://acme.xid.dev/v1/project-grants/grant_1',
+      { method: 'DELETE', headers: { Cookie: manager.headers.Cookie } },
+      env,
+    )
+    expect(revoke.status).toBe(403)
+    expect(grant.status).toBe('active')
+  })
+
+  it('project_grant_manager 可为目标 Organization active member 创建和撤销 UserGrant', async () => {
+    const manager = await managerSession('user_grant_manager')
+    const tables: TableSet = {
+      sessions: [manager.row],
+      users: [
+        activeUserRow('user_grant_manager'),
+        activeUserRow('user_target'),
+        activeUserRow('user_outside'),
+      ],
+      projects: [
+        { id: 'proj_1', tenant_id: 't_1', org_id: 'org_a', status: 'active', deleted_at: null },
+      ],
+      project_grants: [
+        {
+          id: 'grant_1',
+          tenant_id: 't_1',
+          granted_project_id: 'proj_1',
+          granted_by_org_id: 'org_a',
+          granted_to_org_id: 'org_b',
+          status: 'active',
+          revoked_at: null,
+        },
+      ],
+      roles: [
+        {
+          id: 'role_1',
+          tenant_id: 't_1',
+          project_id: 'proj_1',
+          key: 'viewer',
+          display_name: 'Viewer',
+          status: 'active',
+          deleted_at: null,
+        },
+      ],
+      memberships: [
+        {
+          id: 'mem_target',
+          tenant_id: 't_1',
+          org_id: 'org_b',
+          user_id: 'user_target',
+          role: 'member',
+          status: 'active',
+        },
+        {
+          id: 'mem_outside',
+          tenant_id: 't_1',
+          org_id: 'org_a',
+          user_id: 'user_outside',
+          role: 'member',
+          status: 'active',
+        },
+      ],
+      manager_assignments: [
+        {
+          id: 'mgr_grant_1',
+          tenant_id: 't_1',
+          user_id: 'user_grant_manager',
+          manager_role: 'project_grant_manager',
+          scope_type: 'grant',
+          scope_id: 'grant_1',
+        },
+      ],
+      user_grants: [],
+    }
+    const env = asUnknown<Env>({
+      DB: makeFakeD1(tables),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+    const app = buildApp(registerUserGrants)
+    const create = (userId: string) =>
+      app.request(
+        'https://acme.xid.dev/v1/user-grants',
+        {
+          method: 'POST',
+          headers: manager.headers,
+          body: JSON.stringify({
+            user_id: userId,
+            project_id: 'proj_1',
+            role_id: 'role_1',
+            granted_via_grant_id: 'grant_1',
+          }),
+        },
+        env,
+      )
+
+    const created = await create('user_target')
+    expect(created.status).toBe(201)
+    const body = (await created.json()) as { id: string }
+    expect(body.id).toMatch(/^ug_/)
+    expect(tables.user_grants).toHaveLength(1)
+
+    expect((await create('user_outside')).status).toBe(404)
+
+    const revoked = await app.request(
+      `https://acme.xid.dev/v1/user-grants/${body.id}/revoke`,
+      { method: 'POST', headers: { Cookie: manager.headers.Cookie } },
+      env,
+    )
+    expect(revoked.status).toBe(200)
+    expect(tables.user_grants?.[0]?.['revoked_at']).toBeTypeOf('number')
   })
 })
 
@@ -1694,6 +2473,17 @@ describe('v1 api keys 铸 key 防提权(scope 白名单 + sk 子集校验)', () 
     expect(((await res.json()) as { code: string }).code).toBe('validation_failed')
   })
 
+  it('caller * 可铸 user_grants:write scope', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['*'])
+    const env = asUnknown<Env>({ DB: makeFakeD1({ api_keys: [apiKey] }) })
+    const app = buildApp(registerApiKeys)
+
+    const res = await postApiKey(app, env, token, ['user_grants:write'])
+
+    expect(res.status).toBe(201)
+    expect(((await res.json()) as { scopes: string[] }).scopes).toEqual(['user_grants:write'])
+  })
+
   it('cookie 顶层 org owner 铸 * -> 201(console 语义不变)', async () => {
     const {
       token,
@@ -1740,7 +2530,10 @@ describe('v1 api keys 铸 key 防提权(scope 白名单 + sk 子集校验)', () 
 describe('v1 租户级资源 cookie 双认证(requireApiKeyOrTopLevelOrgManager)', () => {
   const TOP_ORG = { id: 't_1', tenant_id: 't_1', status: 'active' }
 
-  function membershipRow(userId: string, role: string): Record<string, unknown> {
+  function membershipRow(
+    userId: string,
+    role: OrganizationMembershipRole,
+  ): Record<string, unknown> {
     return {
       id: `m_${userId}`,
       tenant_id: 't_1',
@@ -2084,7 +2877,7 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
         ],
       }),
       SESSION_REVOCATION: makeFakeSessionNs([]),
-      SCIM_TOKEN: 'secret',
+      SCIM_TARGET_TOKEN_target_a: 'secret',
     })
     const app = buildApp(registerOrganizationsRoutes)
     const res = await app.request(
@@ -2093,8 +2886,135 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
       env,
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { id: string }[]
+    const body = (await res.json()) as {
+      id: string
+      requiredTokenSecretName: string
+      hasTokenSecret: boolean
+    }[]
     expect(body.map((row) => row.id)).toEqual(['target_a'])
+    expect(body[0]).toMatchObject({
+      requiredTokenSecretName: 'SCIM_TARGET_TOKEN_target_a',
+      hasTokenSecret: true,
+    })
+  })
+
+  it('POST creates an addressable SCIM target with the public st_ id contract', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_a',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [ORG_A],
+        memberships: [
+          {
+            id: 'mem_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        scim_targets: [],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_a/scim-targets',
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `${cookieName}=${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'custom',
+          base_url: 'https://scim.example.test/v2',
+        }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as { id: string }
+    expect(body.id).toMatch(/^st_[A-Za-z0-9]{21}$/u)
+  })
+
+  it('rejects a tenant-selected Worker secret reference and an unsafe base URL', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_a',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [ORG_A],
+        memberships: [
+          {
+            id: 'mem_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        scim_targets: [],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      KEK: 'must-never-be-selectable',
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const secretRef = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_a/scim-targets',
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `${cookieName}=${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'custom',
+          base_url: 'https://scim.example.test/v2',
+          token_secret_ref: 'KEK',
+        }),
+      },
+      env,
+    )
+    expect(secretRef.status).toBe(422)
+
+    const unsafeUrl = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_a/scim-targets',
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `${cookieName}=${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'custom',
+          base_url: 'https://127.0.0.1/scim',
+        }),
+      },
+      env,
+    )
+    expect(unsafeUrl.status).toBe(422)
   })
 
   it('session 非成员 -> 403', async () => {
@@ -2188,6 +3108,403 @@ describe('v1 org outbound-saml-apps 归属与跨租户隔离', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { id: string }[]
     expect(body.map((row) => row.id)).toEqual(['app_a'])
+  })
+
+  it('POST creates an addressable outbound SAML app with the public sp_ id contract', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_a',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [ORG_A],
+        memberships: [
+          {
+            id: 'mem_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        cert_store: [],
+        saml_service_providers: [],
+      }),
+      KEK: btoa('0'.repeat(32)),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_a/outbound-saml-apps',
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `${cookieName}=${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sp_entity_id: 'https://saas.example.test/saml/metadata',
+          acs_url: 'https://saas.example.test/saml/acs',
+        }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as { id: string }
+    expect(body.id).toMatch(/^sp_[A-Za-z0-9]{21}$/u)
+  })
+
+  it('atomically replaces an active IdP certificate inside the 30-day window', async () => {
+    const now = Date.now()
+    const dayMs = 24 * 60 * 60 * 1000
+    const oldCertificate = await generateSelfSignedSamlCertificate(
+      'acme.xid.dev',
+      now - 355 * dayMs,
+    )
+    if (!oldCertificate.ok) throw new Error(oldCertificate.error.reason)
+    oldCertificate.value.privateKeyPkcs8.fill(0)
+    const certStore: Record<string, unknown>[] = [
+      {
+        id: 'cert_old',
+        tenant_id: 't_1',
+        usage: 'saml_idp_signing',
+        certificate: oldCertificate.value.certificateB64,
+        private_key_iv: new Uint8Array(12),
+        private_key_ciphertext: new Uint8Array(32),
+        private_key_tag: new Uint8Array(16),
+        kek_version: 1,
+        status: 'active',
+        not_before: oldCertificate.value.notBefore,
+        not_after: oldCertificate.value.notAfter,
+        fingerprint: oldCertificate.value.fingerprint,
+        created_at: now - 355 * dayMs,
+        updated_at: now - 355 * dayMs,
+      },
+    ]
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_a',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [ORG_A],
+        memberships: [
+          {
+            id: 'mem_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        cert_store: certStore,
+        saml_service_providers: [],
+      }),
+      KEK: testKek(),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_a/outbound-saml-apps',
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `${cookieName}=${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sp_entity_id: 'https://saas.example.test/saml/metadata',
+          acs_url: 'https://saas.example.test/saml/acs',
+        }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as { idpSigningCertId: string }
+    expect(body.idpSigningCertId).not.toBe('cert_old')
+    expect(certStore.find((row) => row['id'] === 'cert_old')?.['status']).toBe('retiring')
+    expect(
+      certStore.find(
+        (row) => row['id'] === body.idpSigningCertId && row['usage'] === 'saml_idp_signing',
+      )?.['status'],
+    ).toBe('active')
+  })
+
+  it('reuses the concurrent provisioning winner after an active-certificate conflict', async () => {
+    const now = Date.now()
+    const winnerCertificate = await generateSelfSignedSamlCertificate('acme.xid.dev', now)
+    if (!winnerCertificate.ok) throw new Error(winnerCertificate.error.reason)
+    winnerCertificate.value.privateKeyPkcs8.fill(0)
+    const certStore: Record<string, unknown>[] = []
+    const tables: TableSet = {
+      organizations: [ORG_A],
+      memberships: [
+        {
+          id: 'mem_a',
+          tenant_id: 't_1',
+          org_id: 'org_a',
+          user_id: 'user_admin',
+          role: 'admin',
+          status: 'active',
+        },
+      ],
+      cert_store: certStore,
+      saml_service_providers: [],
+    }
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_a',
+    })
+    tables.sessions = [session]
+    tables.users = [activeUserRow('user_admin')]
+    const baseDb = makeFakeD1(tables)
+    let injectedConflict = false
+    const db = asUnknown<D1Database>({
+      prepare: (sql: string) => baseDb.prepare(sql),
+      batch: async (statements: D1PreparedStatement[]) => {
+        if (!injectedConflict) {
+          injectedConflict = true
+          certStore.push({
+            id: 'cert_winner',
+            tenant_id: 't_1',
+            usage: 'saml_idp_signing',
+            certificate: winnerCertificate.value.certificateB64,
+            private_key_iv: new Uint8Array(12),
+            private_key_ciphertext: new Uint8Array(32),
+            private_key_tag: new Uint8Array(16),
+            kek_version: 1,
+            status: 'active',
+            not_before: winnerCertificate.value.notBefore,
+            not_after: winnerCertificate.value.notAfter,
+            fingerprint: winnerCertificate.value.fingerprint,
+            created_at: now,
+            updated_at: now,
+          })
+          throw new Error('UNIQUE constraint failed: cert_store.tenant_id, cert_store.usage')
+        }
+        return baseDb.batch(statements)
+      },
+    })
+    const env = asUnknown<Env>({
+      DB: db,
+      KEK: testKek(),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_a/outbound-saml-apps',
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `${cookieName}=${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sp_entity_id: 'https://saas.example.test/saml/metadata',
+          acs_url: 'https://saas.example.test/saml/acs',
+        }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({
+      idpSigningCertId: 'cert_winner',
+    })
+    expect(certStore).toHaveLength(1)
+  })
+
+  it('preserves, auto-selects, and explicitly selects IdP certificates across PATCH tri-state', async () => {
+    const now = Date.now()
+    const generated = await generateSelfSignedSamlCertificate('acme.xid.dev', now)
+    if (!generated.ok) throw new Error(generated.error.reason)
+    generated.value.privateKeyPkcs8.fill(0)
+    const certRow = (id: string, status: 'active' | 'retiring') => ({
+      id,
+      tenant_id: 't_1',
+      usage: 'saml_idp_signing',
+      certificate: generated.value.certificateB64,
+      private_key_iv: new Uint8Array(12),
+      private_key_ciphertext: new Uint8Array(32),
+      private_key_tag: new Uint8Array(16),
+      kek_version: 1,
+      status,
+      not_before: generated.value.notBefore,
+      not_after: generated.value.notAfter,
+      fingerprint: generated.value.fingerprint,
+      created_at: now,
+      updated_at: now,
+    })
+    const appRow = {
+      id: 'sp_existing',
+      tenant_id: 't_1',
+      org_id: 'org_a',
+      sp_entity_id: 'https://saas.example.test/saml/metadata',
+      acs_url: 'https://saas.example.test/saml/acs',
+      slo_url: null,
+      slo_binding: 'redirect',
+      sp_certificates: [],
+      attribute_mapping: {},
+      name_id_format: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+      idp_signing_cert_id: 'cert_retiring',
+      created_at: now,
+      updated_at: now,
+    }
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_a',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [ORG_A],
+        memberships: [
+          {
+            id: 'mem_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        cert_store: [certRow('cert_active', 'active'), certRow('cert_retiring', 'retiring')],
+        saml_service_providers: [appRow],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const patch = (body: Record<string, unknown>) =>
+      app.request(
+        'https://acme.xid.dev/v1/organizations/org_a/outbound-saml-apps/sp_existing',
+        {
+          method: 'PATCH',
+          headers: {
+            Cookie: `${cookieName}=${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        },
+        env,
+      )
+
+    const missing = await patch({ acs_url: 'https://saas.example.test/saml/acs-2' })
+    expect(missing.status).toBe(200)
+    await expect(missing.json()).resolves.toMatchObject({
+      idpSigningCertId: 'cert_retiring',
+    })
+
+    const automatic = await patch({ idp_signing_cert_id: null })
+    expect(automatic.status).toBe(200)
+    await expect(automatic.json()).resolves.toMatchObject({
+      idpSigningCertId: 'cert_active',
+    })
+
+    const explicit = await patch({ idp_signing_cert_id: 'cert_retiring' })
+    expect(explicit.status).toBe(200)
+    await expect(explicit.json()).resolves.toMatchObject({
+      idpSigningCertId: 'cert_retiring',
+    })
+  })
+
+  it('org admin 创建或更新 outbound SAML app 时拒绝非公网 ACS/SLO URL', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_a',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [ORG_A],
+        memberships: [
+          {
+            id: 'mem_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        saml_service_providers: [
+          {
+            id: 'app_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            sp_entity_id: 'https://slack.com',
+            acs_url: 'https://saas.example.com/acs',
+            slo_url: 'https://saas.example.com/slo',
+            attribute_mapping: '{}',
+            name_id_format: 'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress',
+          },
+        ],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const request = (path: string, method: 'POST' | 'PATCH', body: Record<string, unknown>) =>
+      app.request(
+        `https://acme.xid.dev/v1/organizations/org_a/outbound-saml-apps${path}`,
+        {
+          method,
+          headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        env,
+      )
+
+    const badAcs = await request('', 'POST', {
+      sp_entity_id: 'https://saas.example.com',
+      acs_url: 'http://saas.example.com/acs',
+    })
+    expect(badAcs.status).toBe(422)
+    await expect(badAcs.json()).resolves.toMatchObject({ code: 'validation_failed' })
+
+    const badSlo = await request('/app_a', 'PATCH', {
+      slo_url: 'https://127.0.0.1/slo',
+    })
+    expect(badSlo.status).toBe(422)
+    await expect(badSlo.json()).resolves.toMatchObject({ code: 'validation_failed' })
   })
 
   it('session 非成员 -> 403', async () => {
@@ -2605,6 +3922,7 @@ describe('v1 organizations Management API 契约', () => {
       id: 'org_1',
       tenant_id: 't_1',
       instance_id: 't_1',
+      parent_org_id: 't_1',
       slug: 'acme',
       name: 'Acme',
       public_metadata: {},
@@ -2616,7 +3934,17 @@ describe('v1 organizations Management API 契约', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
     }
-    const db = makeFakeD1({ api_keys: [apiKey], organizations: [org] })
+    const root: Record<string, unknown> = {
+      id: 't_1',
+      tenant_id: 't_1',
+      instance_id: 't_1',
+      parent_org_id: null,
+      slug: 'root',
+      name: 'Root',
+      status: 'active',
+      deleted_at: null,
+    }
+    const db = makeFakeD1({ api_keys: [apiKey], organizations: [root, org] })
     const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
     const app = buildApp(registerOrganizationsRoutes)
 
@@ -2640,7 +3968,8 @@ describe('v1 organizations Management API 契约', () => {
       next_cursor: string | null
       has_more: boolean
     }
-    expect(page.data).toEqual([])
+    expect(page.data).toHaveLength(1)
+    expect(page.data[0]).toMatchObject({ id: 't_1', parent_org_id: null })
     expect(page.next_cursor).toBeNull()
     expect(page.has_more).toBe(false)
 
@@ -2658,6 +3987,7 @@ describe('v1 organizations Management API 契约', () => {
       id: 'org_1',
       tenant_id: 't_1',
       instance_id: 't_1',
+      parent_org_id: 't_1',
       slug: 'acme',
       name: 'Acme',
       public_metadata: {},
@@ -2669,7 +3999,17 @@ describe('v1 organizations Management API 契约', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
     }
-    const db = makeFakeD1({ api_keys: [apiKey], organizations: [org] })
+    const root = {
+      id: 't_1',
+      tenant_id: 't_1',
+      instance_id: 't_1',
+      parent_org_id: null,
+      slug: 'root',
+      name: 'Root',
+      status: 'active',
+      deleted_at: null,
+    }
+    const db = makeFakeD1({ api_keys: [apiKey], organizations: [root, org] })
     const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
     const app = buildApp(registerOrganizationsRoutes)
 
@@ -2716,9 +4056,70 @@ describe('v1 organizations Management API 契约', () => {
     expect(victim['status']).toBe('deleted')
     expect(victim['deleted_at']).toBeTypeOf('number')
   })
+
+  it('Management API 不删除或恢复 top-level organization', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const root: Record<string, unknown> = {
+      id: 't_1',
+      tenant_id: 't_1',
+      instance_id: 't_1',
+      parent_org_id: null,
+      slug: 'root',
+      name: 'Root',
+      status: 'active',
+      deleted_at: null,
+    }
+    const db = makeFakeD1({ api_keys: [apiKey], organizations: [root] })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const deletion = await app.request(
+      'https://acme.xid.dev/v1/organizations/t_1',
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+    expect(deletion.status).toBe(422)
+    expect(root.status).toBe('active')
+
+    root.status = 'deleted'
+    root.deleted_at = Date.now()
+    const restore = await app.request(
+      'https://acme.xid.dev/v1/organizations/t_1/restore',
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+    expect(restore.status).toBe(422)
+    expect(root.status).toBe('deleted')
+  })
 })
 
 describe('v1 organization domains 软删除', () => {
+  it('POST creates an addressable organization domain with the public dom_ id contract', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        api_keys: [apiKey],
+        organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+        organization_domains: [],
+      }),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/domains',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: 'example.test' }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as { id: string }
+    expect(body.id).toMatch(/^dom_[A-Za-z0-9]{21}$/u)
+  })
+
   it('DELETE domain -> 标记 deleted,普通列表不再返回', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const org = { id: 'org_1', tenant_id: 't_1', status: 'active' }
@@ -2767,6 +4168,382 @@ describe('v1 organization domains 软删除', () => {
 })
 
 describe('v1 memberships 创建软删除过滤', () => {
+  it('API key 不能创建或提升 Organization owner', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
+    const member = {
+      id: 'mem_member',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_member',
+      role: 'member',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const memberships: Record<string, unknown>[] = [member]
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      users: [activeUserRow('user_new'), activeUserRow('user_member')],
+      memberships,
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerMembershipsRoutes)
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+
+    const create = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ user_id: 'user_new', role: 'owner' }),
+      },
+      env,
+    )
+    expect(create.status).toBe(403)
+    expect(memberships).toHaveLength(1)
+
+    const promote = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_member',
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ role: 'owner' }),
+      },
+      env,
+    )
+    expect(promote.status).toBe(403)
+    expect(member['role']).toBe('member')
+  })
+
+  it.each([
+    ['demote', 'PATCH', { role: 'admin' }],
+    ['deactivate', 'PATCH', { status: 'inactive' }],
+    ['delete', 'DELETE', undefined],
+  ] as const)('不能 %s 唯一 active owner', async (_name, method, body) => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
+    const owner = {
+      id: 'mem_owner',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_owner',
+      role: 'owner',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      users: [activeUserRow('user_owner')],
+      memberships: [owner],
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerMembershipsRoutes)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_owner',
+      {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(409)
+    expect(owner['role']).toBe('owner')
+    expect(owner['status']).toBe('active')
+  })
+
+  it('有另一个 active owner 时可降级 owner，且非 owner 仍可正常停用', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
+    const owner = {
+      id: 'mem_owner',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_owner',
+      role: 'owner',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const replacement = {
+      id: 'mem_replacement',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_replacement',
+      role: 'owner',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const member = {
+      id: 'mem_member',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_member',
+      role: 'member',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      users: [
+        activeUserRow('user_owner'),
+        activeUserRow('user_replacement'),
+        activeUserRow('user_member'),
+      ],
+      memberships: [owner, replacement, member],
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerMembershipsRoutes)
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+
+    const demote = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_owner',
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ role: 'admin' }),
+      },
+      env,
+    )
+    expect(demote.status).toBe(200)
+    expect(owner['role']).toBe('admin')
+
+    const deactivate = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_member',
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ status: 'inactive' }),
+      },
+      env,
+    )
+    expect(deactivate.status).toBe(200)
+    expect(member['status']).toBe('inactive')
+  })
+
+  it('有另一个 active owner 时可删除当前 owner', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
+    const owner = {
+      id: 'mem_owner',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_owner',
+      role: 'owner',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const replacement = {
+      id: 'mem_replacement',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_replacement',
+      role: 'owner',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      users: [activeUserRow('user_owner'), activeUserRow('user_replacement')],
+      memberships: [owner, replacement],
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerMembershipsRoutes)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_owner',
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+
+    expect(response.status).toBe(204)
+    expect(owner['status']).toBe('inactive')
+    expect(replacement['status']).toBe('active')
+  })
+
+  it.each([
+    ['reactivate through create', 'memberships', 'POST', { user_id: 'user_owner' }],
+    ['restore', 'memberships/mem_owner/restore', 'POST', undefined],
+  ] as const)('API key 不能 %s inactive owner', async (_name, path, method, body) => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
+    const owner = {
+      id: 'mem_owner',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_owner',
+      role: 'owner',
+      status: 'inactive',
+      joined_at: Date.now(),
+    }
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      users: [activeUserRow('user_owner')],
+      memberships: [owner],
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerMembershipsRoutes)
+
+    const response = await app.request(
+      `https://acme.xid.dev/v1/organizations/org_1/${path}`,
+      {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(403)
+    expect(owner['role']).toBe('owner')
+    expect(owner['status']).toBe('inactive')
+  })
+
+  it('reactivation 在 mutation 时重检 role，阻止 pre-read 后变成 owner 的 membership 被激活', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
+    const membership = {
+      id: 'mem_target',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_target',
+      role: 'member',
+      status: 'inactive',
+      joined_at: Date.now(),
+    }
+    const baseDb = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      users: [activeUserRow('user_target')],
+      memberships: [membership],
+    })
+    const batch = vi.fn(async (statements: D1PreparedStatement[]) => {
+      membership.role = 'owner'
+      return baseDb.batch(statements)
+    })
+    const db = asUnknown<D1Database>({
+      prepare: (sql: string) => baseDb.prepare(sql),
+      batch,
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerMembershipsRoutes)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id: 'user_target' }),
+      },
+      env,
+    )
+
+    expect(batch).toHaveBeenCalledOnce()
+    expect(response.status).toBe(409)
+    expect(membership['role']).toBe('owner')
+    expect(membership['status']).toBe('inactive')
+  })
+
+  it('owner 条件门在 mutation 时重检，阻止 pre-read 后出现的唯一 owner 被停用', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
+    const membership = {
+      id: 'mem_target',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: 'user_target',
+      role: 'member',
+      status: 'active',
+      joined_at: Date.now(),
+    }
+    const baseDb = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      users: [activeUserRow('user_target')],
+      memberships: [membership],
+    })
+    const batch = vi.fn(async (statements: D1PreparedStatement[]) => {
+      membership.role = 'owner'
+      return baseDb.batch(statements)
+    })
+    const db = asUnknown<D1Database>({
+      prepare: (sql: string) => baseDb.prepare(sql),
+      batch,
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerMembershipsRoutes)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_target',
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+
+    expect(batch).toHaveBeenCalledOnce()
+    expect(response.status).toBe(409)
+    expect(membership['role']).toBe('owner')
+    expect(membership['status']).toBe('active')
+
+    const prepared = asUnknown<{ sql: string; bound: unknown[] }>(batch.mock.calls[0]?.[0][0])
+    const sqlite = new DatabaseSync(':memory:')
+    try {
+      sqlite.exec(`
+        CREATE TABLE users (
+          id TEXT PRIMARY KEY NOT NULL,
+          tenant_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          deleted_at INTEGER
+        );
+        CREATE TABLE memberships (
+          id TEXT PRIMARY KEY NOT NULL,
+          tenant_id TEXT NOT NULL,
+          org_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          status TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT INTO users (id, tenant_id, status, deleted_at)
+          VALUES ('user_target', 't_1', 'active', NULL);
+        INSERT INTO memberships (
+          id, tenant_id, org_id, user_id, role, status, updated_at
+        ) VALUES (
+          'mem_target', 't_1', 'org_1', 'user_target', 'owner', 'active', 0
+        );
+      `)
+
+      const guarded = sqlite.prepare(prepared.sql)
+      expect(guarded.run(...prepared.bound).changes).toBe(0)
+
+      sqlite.exec(`
+        INSERT INTO users (id, tenant_id, status, deleted_at)
+          VALUES ('user_replacement', 't_1', 'active', NULL);
+        INSERT INTO memberships (
+          id, tenant_id, org_id, user_id, role, status, updated_at
+        ) VALUES (
+          'mem_replacement', 't_1', 'org_1', 'user_replacement', 'owner', 'active', 0
+        );
+      `)
+      expect(guarded.run(...prepared.bound).changes).toBe(1)
+    } finally {
+      sqlite.close()
+    }
+  })
+
   it('POST membership 拒绝 deleted_at 非空的 active user', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1', ['memberships:write'])
     const memberships: Record<string, unknown>[] = []
@@ -2942,6 +4719,176 @@ describe('v1 memberships 创建软删除过滤', () => {
 })
 
 describe('v1 invitations revoke 语义', () => {
+  function claimVerifiedInvitation(): Record<string, unknown> {
+    return {
+      id: 'inv_1',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      email: 'user@example.com',
+      role: 'member',
+      token_hash: 'hash',
+      token_version: 'locator_v1',
+      status: 'claim_verified',
+      email_claim_user_id: 'user_claim',
+      email_claim_session_id: 'sess_claim',
+      expires_at: Date.now() + 3_600_000,
+    }
+  }
+
+  function reservedSession(): Record<string, unknown> {
+    return {
+      id: 'sess_claim',
+      tenant_id: 't_1',
+      user_id: 'user_claim',
+      refresh_token_hash: 'refresh_hash',
+      status: 'active',
+      expires_at: Date.now() + 3_600_000,
+    }
+  }
+
+  it.each([
+    {
+      method: 'POST',
+      url: 'https://acme.xid.dev/v1/organizations/org_1/invitations/inv_1/revoke',
+      expectedStatus: 200,
+    },
+    {
+      method: 'DELETE',
+      url: 'https://acme.xid.dev/v1/organizations/org_1/invitations/inv_1',
+      expectedStatus: 204,
+    },
+  ])('$method 先 CAS revoked 再清理 reserved session', async ({ method, url, expectedStatus }) => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const invitation = claimVerifiedInvitation()
+    const session = reservedSession()
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      invitations: [invitation],
+      sessions: [session],
+    })
+    const names: string[] = []
+    const fetch = vi.fn(async () => {
+      expect(invitation['status']).toBe('revoked')
+      expect(session['status']).toBe('revoked')
+      return Response.json({ ok: true })
+    })
+    const env = asUnknown<Env>({
+      DB: db,
+      WEBHOOK_QUEUE: makeFakeQueue(),
+      SESSION_REVOCATION: {
+        idFromName: (name: string) => {
+          names.push(name)
+          return name
+        },
+        get: () => ({ fetch }),
+      },
+    })
+    const app = buildApp(registerInvitationsRoutes)
+
+    const response = await app.request(
+      url,
+      { method, headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+
+    expect(response.status).toBe(expectedStatus)
+    expect(invitation['status']).toBe('revoked')
+    expect(session['status']).toBe('revoked')
+    expect(names).toEqual(['session:user_claim'])
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    {
+      method: 'POST',
+      url: 'https://acme.xid.dev/v1/organizations/org_1/invitations/inv_1/revoke',
+    },
+    {
+      method: 'DELETE',
+      url: 'https://acme.xid.dev/v1/organizations/org_1/invitations/inv_1',
+    },
+  ])('$method CAS loser 返回 conflict 且不清理 winner 的 session', async ({ method, url }) => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const invitation = claimVerifiedInvitation()
+    const session = reservedSession()
+    let raced = false
+    const db = makeFakeD1(
+      {
+        api_keys: [apiKey],
+        organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+        invitations: [invitation],
+        sessions: [session],
+      },
+      {
+        beforeUpdate: (sql) => {
+          if (!raced && /^update\s+"?invitations"?\s/i.test(sql)) {
+            raced = true
+            invitation['status'] = 'accepted'
+          }
+        },
+      },
+    )
+    const doFetch = vi.fn(async () => Response.json({ ok: true }))
+    const webhookSend = vi.fn(async () => undefined)
+    const env = asUnknown<Env>({
+      DB: db,
+      WEBHOOK_QUEUE: { send: webhookSend },
+      SESSION_REVOCATION: {
+        idFromName: (name: string) => name,
+        get: () => ({ fetch: doFetch }),
+      },
+    })
+    const app = buildApp(registerInvitationsRoutes)
+
+    const response = await app.request(
+      url,
+      { method, headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+
+    expect(response.status).toBe(409)
+    expect(invitation['status']).toBe('accepted')
+    expect(session['status']).toBe('active')
+    expect(doFetch).not.toHaveBeenCalled()
+    expect(webhookSend).not.toHaveBeenCalled()
+  })
+
+  it('POST winner 在 SessionDO 清理失败时保持 D1 revoked 且只发一次 revoked webhook', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const invitation = claimVerifiedInvitation()
+    const session = reservedSession()
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      invitations: [invitation],
+      sessions: [session],
+    })
+    const webhookSend = vi.fn(async () => undefined)
+    const env = asUnknown<Env>({
+      DB: db,
+      WEBHOOK_QUEUE: { send: webhookSend },
+      SESSION_REVOCATION: makeFakeSessionNs([], 500),
+    })
+    const app = buildApp(registerInvitationsRoutes)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/invitations/inv_1/revoke',
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+
+    expect(response.status).toBe(500)
+    expect(invitation['status']).toBe('revoked')
+    expect(session['status']).toBe('revoked')
+    expect(webhookSend).toHaveBeenCalledOnce()
+    expect(webhookSend).toHaveBeenCalledWith({
+      tenantId: 't_1',
+      event: 'organizationInvitation.revoked',
+      payload: { orgId: 'org_1', invitationId: 'inv_1' },
+    })
+  })
+
   it('DELETE -> 标记 revoked,普通列表和详情不再返回', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
     const invitation = {
@@ -3045,6 +4992,7 @@ describe('v1 invitations cookie 路径 role 防自提', () => {
       DB: db,
       SESSION_REVOCATION: makeFakeSessionNs([]),
       CACHE: makeFakeKv(),
+      KEK: testKek(),
       EMAIL_QUEUE: makeFakeQueue(),
       WEBHOOK_QUEUE: makeFakeQueue(),
     })
@@ -3055,7 +5003,7 @@ describe('v1 invitations cookie 路径 role 防自提', () => {
     app: Hono<XidHonoEnv>,
     env: Env,
     cookie: { cookieName: string; token: string },
-    role: string,
+    role: OrganizationMembershipRole,
   ): Promise<Response> {
     return app.request(
       'https://acme.xid.dev/v1/organizations/org_1/invitations',
@@ -3098,6 +5046,70 @@ describe('v1 invitations cookie 路径 role 防自提', () => {
 
     expect(res.status).toBe(201)
   })
+
+  it('邀请与加密通知 outbox 同批提交，Queue 暂时失败仍由 outbox 恢复', async () => {
+    const { token, cookieName, env } = await setupConsoleInvitation('admin')
+    const statements: Array<{ sql: string; bound: unknown[] }> = []
+    const originalBatch = env.DB.batch.bind(env.DB)
+    const batch = vi.fn(async (items: D1PreparedStatement[]) => {
+      statements.push(...(items as unknown as Array<{ sql: string; bound: unknown[] }>))
+      return originalBatch(items)
+    })
+    const send = vi.fn().mockRejectedValue(new Error('queue_unavailable'))
+    const routeEnv = asUnknown<Env>({
+      ...env,
+      DB: Object.assign(env.DB, { batch }),
+      EMAIL_QUEUE: { send },
+    })
+    const app = buildApp(registerInvitationsRoutes)
+
+    const res = await postInvitation(app, routeEnv, { cookieName, token }, 'member')
+
+    expect(res.status).toBe(201)
+    expect(batch).toHaveBeenCalledOnce()
+    expect(statements).toHaveLength(2)
+    expect(statements[0]?.sql).toContain('INSERT INTO invitations')
+    expect(statements[0]?.sql).toContain('token_version')
+    expect(statements[0]?.bound).toContain('locator_v1')
+    expect(statements[1]?.sql).toContain('INSERT INTO notification_delivery_outbox')
+    expect(JSON.stringify(statements[1]?.bound)).not.toContain('new@example.com')
+    expect(JSON.stringify(statements[1]?.bound)).not.toContain('accept-invitation?token=')
+    expect(send).toHaveBeenCalledOnce()
+    expect(await res.json()).not.toHaveProperty('tokenVersion')
+  })
+
+  it('invitations:write API key 不能绕过主体角色创建 owner invitation', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1', ['invitations:write'])
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        api_keys: [apiKey],
+        organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      }),
+      RATE_LIMITER: {
+        idFromName: (name: string) => name as unknown as DurableObjectId,
+        get: () => ({ fetch: async () => Response.json({ allowed: true }) }),
+      },
+      EMAIL_QUEUE: makeFakeQueue(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerInvitationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/invitations',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: 'self@example.test', role: 'owner' }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as { code: string }).code).toBe('forbidden')
+  })
 })
 
 describe('v1 project grants revoke 语义', () => {
@@ -3127,6 +5139,9 @@ describe('v1 project grants revoke 语义', () => {
     }
     const db = makeFakeD1({
       api_keys: [apiKey],
+      projects: [
+        { id: 'proj_1', tenant_id: 't_1', org_id: 'org_a', status: 'active', deleted_at: null },
+      ],
       project_grants: [grant],
       user_grants: [userGrant],
     })
@@ -3161,7 +5176,9 @@ describe('v1 project grants revoke 语义', () => {
         { id: 'org_a', tenant_id: 't_1', status: 'active' },
         { id: 'org_victim', tenant_id: 't_other', status: 'active' },
       ],
-      projects: [{ id: 'proj_1', tenant_id: 't_1', org_id: 'org_a' }],
+      projects: [
+        { id: 'proj_1', tenant_id: 't_1', org_id: 'org_a', status: 'active', deleted_at: null },
+      ],
     })
     const env = asUnknown<Env>({ DB: db })
     const app = buildApp(registerProjectGrants)
@@ -3365,12 +5382,70 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
           protocol: 'saml',
           idp_entity_id: 'https://idp.example.com/entity',
           idp_sso_url: 'https://idp.example.com/sso',
+          idp_slo_url: 'https://idp.example.com/slo',
         }),
       },
       env,
     )
 
     expect(res.status).toBe(201)
+    await expect(res.json()).resolves.toMatchObject({
+      idp_slo_url: 'https://idp.example.com/slo',
+    })
+  })
+
+  it('admin 创建 SSO connection 时拒绝非公网 IdP URL', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_1',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+        memberships: [
+          {
+            id: 'mem_admin',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      CACHE: makeFakeKv(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const create = (body: Record<string, unknown>) =>
+      app.request(
+        'https://acme.xid.dev/v1/organizations/org_1/sso-connections',
+        {
+          method: 'POST',
+          headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ protocol: 'saml', ...body }),
+        },
+        env,
+      )
+
+    for (const body of [
+      { idp_sso_url: 'http://idp.example.com/sso' },
+      { idp_slo_url: 'https://127.0.0.1/slo' },
+      { idp_metadata_url: 'https://169.254.169.254/latest/meta-data' },
+      { protocol: 'oidc', oidc_discovery_url: 'https://10.0.0.1/discovery' },
+    ]) {
+      const res = await create(body)
+      expect(res.status).toBe(422)
+      await expect(res.json()).resolves.toMatchObject({ code: 'validation_failed' })
+    }
   })
 
   it('admin 可读取并更新 SSO connection JIT 和 mapping', async () => {
@@ -3396,6 +5471,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
       oidc_discovery_url: null,
       want_authn_response_signed: 1,
       want_assertions_signed: 1,
+      saml_clock_skew_ms: 180000,
       attribute_mapping: { email: 'mail' },
       role_mapping: { Engineering: 'member' },
       jit_enabled: 1,
@@ -3452,6 +5528,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
           attribute_mapping: { email: 'email', groups: 'groups' },
           role_mapping: { Admins: 'admin' },
           idp_certificates: ['new-cert'],
+          saml_clock_skew_ms: 120000,
         }),
       },
       env,
@@ -3463,6 +5540,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     expect(body['attribute_mapping']).toEqual({ email: 'email', groups: 'groups' })
     expect(body['role_mapping']).toEqual({ Admins: 'admin' })
     expect(body['idp_certificates']).toEqual(['new-cert'])
+    expect(body['saml_clock_skew_ms']).toBe(120000)
   })
 
   it('admin 删除 SSO connection 后普通列表过滤 inactive', async () => {
@@ -4100,6 +6178,24 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     })
     const app = buildApp(registerOrganizationsRoutes)
 
+    const rejected = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/delivery-channels',
+      {
+        method: 'PATCH',
+        headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sms: {
+            provider: 'twilio',
+            enabled: true,
+            secretRefs: ['KEK'],
+            from: '+15550000000',
+          },
+        }),
+      },
+      env,
+    )
+    expect(rejected.status).toBe(422)
+
     const patch = await app.request(
       'https://acme.xid.dev/v1/organizations/org_1/delivery-channels',
       {
@@ -4693,7 +6789,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     expect(getBody.socialProviders.google?.['hasClientSecret']).toBe(true)
     expect(getBody.socialProviders.google?.['credentialsReady']).toBe(false)
     expect(getBody.socialProviders.google?.['allowUserCreation']).toBe(false)
-    expect(getBody.socialProviders.google?.['clientSecretRef']).toBe('secret:google')
+    expect(getBody.socialProviders.google?.['clientSecretRef']).toBe('GOOGLE_CLIENT_SECRET')
   })
 
   it('admin 可新增 social provider 配置且 secret ref 不回显', async () => {
@@ -4737,6 +6833,23 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
       WEBHOOK_QUEUE: makeFakeQueue(),
     })
     const app = buildApp(registerOrganizationsRoutes)
+
+    const rejected = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/social-providers',
+      {
+        method: 'PATCH',
+        headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          socialProviders: {
+            microsoft: {
+              clientSecretRef: 'KEK',
+            },
+          },
+        }),
+      },
+      env,
+    )
+    expect(rejected.status).toBe(422)
 
     const res = await app.request(
       'https://acme.xid.dev/v1/organizations/org_1/social-providers',
@@ -4978,7 +7091,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     }
     expect(body.socialProviders.google).toMatchObject({
       clientId: 'google-client',
-      hasClientSecret: false,
+      hasClientSecret: true,
       credentialsReady: false,
       scopes: [],
       redirectUris: [],
@@ -4988,7 +7101,7 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     expect(body.socialProviders.google?.['userInfoEndpoint']).toBeUndefined()
     expect(body.socialProviders.google?.['issuer']).toBeUndefined()
     expect(body.socialProviders.google?.['jwksUri']).toBeUndefined()
-    expect(body.socialProviders.google?.['clientSecretRef']).toBeUndefined()
+    expect(body.socialProviders.google?.['clientSecretRef']).toBe('GOOGLE_CLIENT_SECRET')
   })
 
   it('admin 可轮换 SCIM directory token', async () => {
@@ -5323,6 +7436,7 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
     id: 'org_1',
     tenant_id: 't_1',
     instance_id: 't_1',
+    parent_org_id: 't_1',
     slug: 'acme',
     name: 'Acme',
     logo_url: null,
@@ -5354,6 +7468,7 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
     const page = (await list.json()) as { data: Record<string, unknown>[] }
     const item = page.data[0]!
     expect(item['slug']).toBe('acme')
+    expect(item['parent_org_id']).toBe('t_1')
     expect(item).not.toHaveProperty('private_metadata')
     expect(item).not.toHaveProperty('privateMetadata')
     expect(item).not.toHaveProperty('tenant_id')
@@ -5368,6 +7483,7 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
     expect(detail.status).toBe(200)
     const org = (await detail.json()) as Record<string, unknown>
     expect(org['slug']).toBe('acme')
+    expect(org['parent_org_id']).toBe('t_1')
     expect(org).not.toHaveProperty('private_metadata')
     expect(org).not.toHaveProperty('privateMetadata')
     expect(org).not.toHaveProperty('tenant_id')
@@ -5411,6 +7527,14 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
       api_keys: [apiKey],
       organizations: [
         {
+          id: 't_1',
+          tenant_id: 't_1',
+          instance_id: 't_1',
+          parent_org_id: null,
+          slug: 'root',
+          status: 'active',
+        },
+        {
           id: 'org_victim',
           tenant_id: 't_other',
           instance_id: 't_1',
@@ -5426,7 +7550,7 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: 'victim-slug', name: 'X' }),
+        body: JSON.stringify({ parent_org_id: 't_1', slug: 'victim-slug', name: 'X' }),
       },
       env,
     )
@@ -5440,6 +7564,14 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
     const db = makeFakeD1({
       api_keys: [apiKey],
       organizations: [
+        {
+          id: 't_1',
+          tenant_id: 't_1',
+          instance_id: 't_1',
+          parent_org_id: null,
+          slug: 'root',
+          status: 'active',
+        },
         { id: 'org_1', tenant_id: 't_1', instance_id: 't_1', slug: 'own-slug', status: 'active' },
       ],
     })
@@ -5473,7 +7605,7 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: 'admin', name: 'X' }),
+        body: JSON.stringify({ parent_org_id: 't_1', slug: 'admin', name: 'X' }),
       },
       env,
     )
@@ -5493,7 +7625,17 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
 
   it('POST create -> instance_id 取 TenantContext.instanceId 写入', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1')
-    const orgs: Record<string, unknown>[] = []
+    const root = {
+      id: 't_1',
+      tenant_id: 't_1',
+      instance_id: 'inst_1',
+      parent_org_id: null,
+      slug: 'root',
+      name: 'Root',
+      status: 'active',
+      deleted_at: null,
+    }
+    const orgs: Record<string, unknown>[] = [root]
     const db = makeFakeD1({ api_keys: [apiKey], organizations: orgs })
     const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
     const app = buildApp(registerOrganizationsRoutes, { ...TENANT, instanceId: 'inst_1' })
@@ -5502,14 +7644,279 @@ describe('v1 organizations 响应白名单与 slug 实例级唯一', () => {
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: 'new-org', name: 'New' }),
+        body: JSON.stringify({ parent_org_id: 't_1', slug: 'new-org', name: 'New' }),
       },
       env,
     )
     expect(res.status).toBe(201)
-    expect(orgs).toHaveLength(1)
-    expect(orgs[0]!['instance_id']).toBe('inst_1')
-    expect(orgs[0]!['tenant_id']).toBe('t_1')
+    expect(orgs).toHaveLength(2)
+    expect(orgs[1]!['instance_id']).toBe('inst_1')
+    expect(orgs[1]!['tenant_id']).toBe('t_1')
+    expect(orgs[1]!['parent_org_id']).toBe('t_1')
+  })
+
+  it('POST create 缺少 parent_org_id -> 422 且不写入', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const organizations: Record<string, unknown>[] = []
+    const db = makeFakeD1({ api_keys: [apiKey], organizations })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: 'child', name: 'Child' }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(422)
+    expect(organizations).toEqual([])
+  })
+
+  it('POST create 拒绝 child-of-child parent', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const organizations = [
+      {
+        id: 'org_parent',
+        tenant_id: 't_1',
+        instance_id: 'inst_1',
+        parent_org_id: 't_1',
+        slug: 'parent',
+        name: 'Parent',
+        status: 'active',
+        deleted_at: null,
+      },
+    ]
+    const db = makeFakeD1({ api_keys: [apiKey], organizations })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes, { ...TENANT, instanceId: 'inst_1' })
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parent_org_id: 'org_parent',
+          slug: 'grandchild',
+          name: 'Grandchild',
+        }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(422)
+    expect(organizations).toHaveLength(1)
+  })
+
+  it('POST create 拒绝 foreign 与 suspended parent', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const organizations = [
+      {
+        id: 't_1',
+        tenant_id: 't_1',
+        instance_id: 'inst_1',
+        parent_org_id: null,
+        slug: 'root',
+        name: 'Root',
+        status: 'suspended',
+        deleted_at: null,
+      },
+      {
+        id: 't_other',
+        tenant_id: 't_other',
+        instance_id: 'inst_1',
+        parent_org_id: null,
+        slug: 'foreign',
+        name: 'Foreign',
+        status: 'active',
+        deleted_at: null,
+      },
+    ]
+    const db = makeFakeD1({ api_keys: [apiKey], organizations })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes, { ...TENANT, instanceId: 'inst_1' })
+
+    const suspended = await app.request(
+      'https://acme.xid.dev/v1/organizations',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_org_id: 't_1', slug: 'child', name: 'Child' }),
+      },
+      env,
+    )
+    expect(suspended.status).toBe(403)
+
+    const foreign = await app.request(
+      'https://acme.xid.dev/v1/organizations',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_org_id: 't_other', slug: 'child', name: 'Child' }),
+      },
+      env,
+    )
+    expect(foreign.status).toBe(404)
+    expect(organizations).toHaveLength(2)
+  })
+
+  it('POST create 不会借同 slug 将 deleted child 重挂到另一个 parent', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const organizations = [
+      {
+        id: 't_1',
+        tenant_id: 't_1',
+        instance_id: 'inst_1',
+        parent_org_id: null,
+        slug: 'root',
+        name: 'Root',
+        status: 'active',
+        deleted_at: null,
+      },
+      {
+        id: 'org_deleted',
+        tenant_id: 't_1',
+        instance_id: 'inst_1',
+        parent_org_id: 'org_legacy_parent',
+        slug: 'child',
+        name: 'Deleted child',
+        status: 'deleted',
+        deleted_at: Date.now(),
+      },
+    ]
+    const db = makeFakeD1({ api_keys: [apiKey], organizations })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes, { ...TENANT, instanceId: 'inst_1' })
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_org_id: 't_1', slug: 'child', name: 'Child' }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(409)
+    expect(organizations[1]!['status']).toBe('deleted')
+    expect(organizations[1]!['parent_org_id']).toBe('org_legacy_parent')
+  })
+
+  it('POST/PATCH child organization 拒绝 tenant-wide seat_limit', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const child = {
+      id: 'org_child',
+      tenant_id: 't_1',
+      instance_id: 'inst_1',
+      parent_org_id: 't_1',
+      slug: 'child',
+      name: 'Child',
+      public_metadata: {},
+      private_metadata: {},
+      seat_limit: null,
+      seat_used: 0,
+      enrollment_mode: 'invite_required',
+      allow_org_self_service: 1,
+      status: 'active',
+      deleted_at: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }
+    const organizations = [child]
+    const db = makeFakeD1({ api_keys: [apiKey], organizations })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes, { ...TENANT, instanceId: 'inst_1' })
+
+    const create = await app.request(
+      'https://acme.xid.dev/v1/organizations',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parent_org_id: 't_1',
+          slug: 'new-child',
+          name: 'New Child',
+          seat_limit: 5,
+        }),
+      },
+      env,
+    )
+    expect(create.status).toBe(422)
+    expect((await create.json()) as Record<string, unknown>).toMatchObject({
+      code: 'validation_failed',
+    })
+    expect(organizations).toHaveLength(1)
+
+    const patch = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_child',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Still Child', seat_limit: 5 }),
+      },
+      env,
+    )
+    expect(patch.status).toBe(422)
+    expect(child['name']).toBe('Child')
+    expect(child['seat_limit']).toBeNull()
+  })
+
+  it('PATCH root seat_limit atomically updates the mirror and hard seats quota', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const root = {
+      id: 't_1',
+      tenant_id: 't_1',
+      instance_id: 'inst_1',
+      parent_org_id: null,
+      slug: 'acme',
+      name: 'Acme',
+      logo_url: null,
+      public_metadata: {},
+      private_metadata: {},
+      seat_limit: 10,
+      seat_used: 0,
+      enrollment_mode: 'invite_required',
+      allow_org_self_service: 1,
+      status: 'active',
+      deleted_at: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }
+    const quotas: Record<string, unknown>[] = []
+    const db = makeFakeD1({
+      api_keys: [apiKey],
+      organizations: [root],
+      organization_quotas: quotas,
+    })
+    const env = asUnknown<Env>({ DB: db, WEBHOOK_QUEUE: makeFakeQueue() })
+    const app = buildApp(registerOrganizationsRoutes, { ...TENANT, instanceId: 'inst_1' })
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/organizations/t_1',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seat_limit: 25 }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(200)
+    expect(root['seat_limit']).toBe(25)
+    expect(quotas).toEqual([
+      expect.objectContaining({
+        tenant_id: 't_1',
+        quota_key: 'seats',
+        limit: 25,
+        enforcement: 'block_creation',
+        updated_by: 'ak_1',
+      }),
+    ])
   })
 })
 
@@ -5650,6 +8057,26 @@ describe('v1 organizations allow_org_self_service 门控', () => {
         method: 'POST',
         headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ protocol: 'oidc' }),
+      },
+      env,
+    )
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body['code']).toBe('forbidden')
+  })
+
+  it('flag=false 时 org admin(cookie)POST outbound-saml-apps -> 403', async () => {
+    const { env, cookieName, token } = await adminCookieEnv()
+    const app = buildApp(registerOrganizationsRoutes)
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/outbound-saml-apps',
+      {
+        method: 'POST',
+        headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sp_entity_id: 'https://saas.example.com/metadata',
+          acs_url: 'https://saas.example.com/acs',
+        }),
       },
       env,
     )

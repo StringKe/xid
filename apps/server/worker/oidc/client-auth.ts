@@ -5,7 +5,9 @@
 import { sha256Hex, verifyJwt } from '@xid-kit/crypto'
 import type { VerifyKeySet } from '@xid-kit/crypto'
 import { importJwkForVerify } from '@xid-kit/crypto'
-import type { SigningAlg, TenantContext, XidError } from '@xid-kit/types'
+import { normalizePublicJwks } from '@xid-kit/protocol'
+import type { NormalizedPublicJwk } from '@xid-kit/protocol'
+import type { TenantContext, XidError } from '@xid-kit/types'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
 import { readTlsClientAuth, verifyTlsClientAuth } from './mtls'
@@ -22,6 +24,7 @@ export type ClientCredentials = {
   postSecret: string | null
   assertionType: string | null
   assertion: string | null
+  authorizationHeaderPresent?: boolean
 }
 
 // constant-time 字符串比较(避免泄露哈希前缀匹配长度)。
@@ -52,22 +55,38 @@ export function parseBasicAuth(header: string | undefined): {
   clientId: string
   secret: string
 } | null {
-  if (!header || !header.startsWith('Basic ')) return null
+  const match = /^Basic\s+(.+)$/iu.exec(header ?? '')
+  if (!match?.[1]) return null
   try {
-    const decoded = atob(header.slice('Basic '.length).trim())
+    const decoded = atob(match[1])
     const idx = decoded.indexOf(':')
-    if (idx < 0) return null
+    if (idx < 1) return null
     return { clientId: decoded.slice(0, idx), secret: decoded.slice(idx + 1) }
   } catch {
     return null
   }
 }
 
-// 提供两种凭证(Basic + body secret/assertion)即 invalid_request(9.6)。
+export function extractClientCredentials(
+  authHeader: string | undefined,
+  form: Readonly<Record<string, string | undefined>>,
+): ClientCredentials {
+  return {
+    basic: parseBasicAuth(authHeader),
+    postClientId: form['client_id'] ?? null,
+    postSecret: form['client_secret'] ?? null,
+    assertionType: form['client_assertion_type'] ?? null,
+    assertion: form['client_assertion'] ?? null,
+    authorizationHeaderPresent: authHeader !== undefined && authHeader.trim().length > 0,
+  }
+}
+
 function hasMultipleCredentials(creds: ClientCredentials): boolean {
-  const ways = [creds.basic !== null, creds.postSecret !== null, creds.assertion !== null].filter(
-    Boolean,
-  ).length
+  const ways = [
+    creds.basic !== null,
+    creds.postSecret !== null,
+    creds.assertion !== null || creds.assertionType !== null,
+  ].filter(Boolean).length
   return ways > 1
 }
 
@@ -129,11 +148,16 @@ async function verifyPrivateKeyJwt(input: {
   tokenEndpoint: string
   now: number
 }): Promise<ClientAuthResult> {
-  const jwks = input.client.jwks as { keys?: unknown[] } | null
-  if (!jwks || !Array.isArray(jwks.keys) || jwks.keys.length === 0) {
-    return { ok: false, error: clientError(401, 'client has no registered jwks') }
+  const normalized = normalizePublicJwks(input.client.jwks)
+  if (!normalized.ok) {
+    return { ok: false, error: clientError(401, 'client has no valid registered public jwks') }
   }
-  const keySet = await buildClientVerifyKeySet(jwks.keys)
+  let keySet: VerifyKeySet
+  try {
+    keySet = await buildClientVerifyKeySet(normalized.value.keys)
+  } catch {
+    return { ok: false, error: clientError(401, 'client has no valid registered public jwks') }
+  }
   const verified = await verifyJwt(input.assertion, keySet, {
     now: input.now,
     expectedIssuer: input.client.clientId,
@@ -149,21 +173,12 @@ async function verifyPrivateKeyJwt(input: {
   return { ok: true, clientId: input.client.clientId }
 }
 
-async function buildClientVerifyKeySet(rawKeys: unknown[]): Promise<VerifyKeySet> {
+async function buildClientVerifyKeySet(
+  rawKeys: readonly NormalizedPublicJwk[],
+): Promise<VerifyKeySet> {
   const keys = await Promise.all(
-    rawKeys.map(async (raw) => {
-      const jwk = raw as JsonWebKey & { kid?: string; alg?: string }
-      const alg = (jwk.alg as SigningAlg | undefined) ?? 'ES256'
-      return {
-        kid: jwk.kid ?? 'client',
-        alg,
-        publicKey: await importJwkForVerify({
-          ...jwk,
-          kid: jwk.kid ?? 'client',
-          use: 'sig' as const,
-          alg,
-        }),
-      }
+    rawKeys.map(async (jwk) => {
+      return { kid: jwk.kid, alg: jwk.alg, publicKey: await importJwkForVerify(jwk) }
     }),
   )
   return { keys }
@@ -194,15 +209,66 @@ type AuthInput = {
   now: number
 }
 
-// 凭证一致性前置(多方式并存 / client_id 不一致 -> invalid_request)。返回 null 表通过。
-function preflightCredentials(creds: ClientCredentials): XidError | null {
+// 所有 OAuth 认证端点的共享 fail-closed 前置。client_id 本身不是认证方式,但若 Basic 与
+// body 同时声明则必须完全一致。任何附加 secret/assertion 都不能被 none/mTLS 忽略。
+export function preflightClientCredentials(
+  creds: ClientCredentials,
+  registeredMethod: ClientRow['tokenEndpointAuthMethod'],
+): XidError | null {
+  const authHeaderPresent = creds.authorizationHeaderPresent ?? creds.basic !== null
+  if (authHeaderPresent && creds.basic === null) {
+    return clientError(401, 'malformed or unsupported Authorization header')
+  }
   if (hasMultipleCredentials(creds)) {
     return invalidRequest('multiple client authentication methods presented')
   }
   if (creds.basic && creds.postClientId && creds.basic.clientId !== creds.postClientId) {
     return invalidRequest('client_id mismatch between Basic and body')
   }
-  return null
+
+  switch (registeredMethod) {
+    case 'none':
+      if (
+        authHeaderPresent ||
+        creds.postSecret !== null ||
+        creds.assertion !== null ||
+        creds.assertionType !== null
+      ) {
+        return clientError(401, 'public client must not present client authentication credentials')
+      }
+      return null
+    case 'client_secret_basic':
+      return creds.basic ? null : clientError(401, 'Basic credentials required', 'Basic')
+    case 'client_secret_post':
+      if (authHeaderPresent || creds.postSecret === null || creds.postSecret.length === 0) {
+        return clientError(401, 'client_secret_post credentials required')
+      }
+      return null
+    case 'private_key_jwt':
+      if (
+        authHeaderPresent ||
+        creds.postSecret !== null ||
+        creds.assertionType !== PRIVATE_KEY_JWT_ASSERTION_TYPE ||
+        creds.assertion === null ||
+        creds.assertion.length === 0
+      ) {
+        return clientError(401, 'private_key_jwt credentials required')
+      }
+      return null
+    case 'tls_client_auth':
+    case 'self_signed_tls_client_auth':
+      if (
+        authHeaderPresent ||
+        creds.postSecret !== null ||
+        creds.assertion !== null ||
+        creds.assertionType !== null
+      ) {
+        return clientError(401, 'mTLS client must not present another authentication method')
+      }
+      return null
+    default:
+      return clientError(401, `unsupported auth method ${registeredMethod}`)
+  }
 }
 
 function authBasic(input: AuthInput): Promise<ClientAuthResult> | ClientAuthResult {
@@ -246,7 +312,7 @@ function authPrivateKeyJwt(input: AuthInput): Promise<ClientAuthResult> | Client
 
 // 主入口:按 client.tokenEndpointAuthMethod 校验,只接受注册的那一种(9.6)。
 export async function authenticateClient(input: AuthInput): Promise<ClientAuthResult> {
-  const preflightErr = preflightCredentials(input.creds)
+  const preflightErr = preflightClientCredentials(input.creds, input.client.tokenEndpointAuthMethod)
   if (preflightErr) return { ok: false, error: preflightErr }
 
   const method = input.client.tokenEndpointAuthMethod

@@ -15,6 +15,12 @@ export const INSTANCE_CONSOLE_ROUTES: readonly ConsoleRouteEntry[] = [
     description: 'Instance-level console overview.',
   },
   {
+    path: '/console/managed-projects',
+    label: 'Managed projects',
+    scope: 'instance',
+    description: 'Operate only the project and project-grant scopes delegated to the current user.',
+  },
+  {
     path: '/console/users',
     label: 'Users',
     scope: 'instance',
@@ -102,6 +108,12 @@ export const ORGANIZATION_CONSOLE_ROUTES: readonly ConsoleRouteEntry[] = [
     description: 'OAuth/OIDC client applications.',
   },
   {
+    path: '/console/org/projects',
+    label: 'Projects',
+    scope: 'organization',
+    description: 'Business RBAC projects, cross-organization grants, and delegated managers.',
+  },
+  {
     path: '/console/org/api-keys',
     label: 'API keys',
     scope: 'organization',
@@ -133,15 +145,21 @@ export const ORGANIZATION_CONSOLE_ROUTES: readonly ConsoleRouteEntry[] = [
   },
   {
     path: '/console/org/roles',
-    label: 'Roles',
+    label: 'Roles and permissions',
     scope: 'organization',
-    description: 'Roles and permissions.',
+    description: 'Project roles, permissions, and conditional role mappings.',
   },
   {
     path: '/console/org/audit-events',
     label: 'Audit events',
     scope: 'organization',
     description: 'Organization audit log.',
+  },
+  {
+    path: '/console/org/compliance',
+    label: 'Compliance',
+    scope: 'organization',
+    description: 'Published compliance evidence and DPA acceptance.',
   },
 ] as const
 
@@ -165,6 +183,12 @@ export const PLATFORM_CONSOLE_ROUTES: readonly ConsoleRouteEntry[] = [
     description: 'Cross-tenant user search.',
   },
   {
+    path: '/console/platform/managers',
+    label: 'Instance managers',
+    scope: 'platform',
+    description: 'Provision and revoke platform-wide instance managers.',
+  },
+  {
     path: '/console/platform/events',
     label: 'Event stream',
     scope: 'platform',
@@ -181,6 +205,36 @@ export const PLATFORM_CONSOLE_ROUTES: readonly ConsoleRouteEntry[] = [
     label: 'Billing',
     scope: 'platform',
     description: 'Usage and billing views.',
+  },
+  {
+    path: '/console/platform/plans',
+    label: 'Plans and quotas',
+    scope: 'platform',
+    description: 'Plan accounting labels and hard resource quotas.',
+  },
+  {
+    path: '/console/platform/announcements',
+    label: 'Announcements',
+    scope: 'platform',
+    description: 'Console-wide operational announcements.',
+  },
+  {
+    path: '/console/platform/status',
+    label: 'Status incidents',
+    scope: 'platform',
+    description: 'Public status incident and update management.',
+  },
+  {
+    path: '/console/platform/compliance',
+    label: 'Compliance',
+    scope: 'platform',
+    description: 'Compliance evidence publication and lifecycle management.',
+  },
+  {
+    path: '/console/platform/dead-letters',
+    label: 'Dead letters',
+    scope: 'platform',
+    description: 'Inspect and deliberately replay encrypted queue failures.',
   },
   {
     path: '/console/platform/settings',

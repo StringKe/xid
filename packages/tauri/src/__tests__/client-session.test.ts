@@ -1,4 +1,4 @@
-// Tests for getSession, getAccessToken (refresh), signOut, buildSignOutUrl, setTokenStorage.
+// Tests for getSession, getAccessToken, signOut, buildSignOutUrl, and setTokenStorage.
 import { describe, expect, it } from 'vitest'
 
 import { createMemoryKeychainAdapter } from '../keychain'
@@ -12,14 +12,13 @@ const BASE_OPTIONS = {
   now: () => 1_000_000,
 }
 
-function makeTokenFetcher(accessToken = 'at.jwt', refreshToken = 'rt.xyz', expiresIn = 3600) {
+function makeTokenFetcher(accessToken = 'at.jwt', expiresIn = 3600) {
   return async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> =>
     new Response(
       JSON.stringify({
         access_token: accessToken,
         token_type: 'Bearer',
         expires_in: expiresIn,
-        refresh_token: refreshToken,
       }),
       { status: 200 },
     )
@@ -60,47 +59,30 @@ describe('createXidTauriClient.getAccessToken', () => {
     expect(await client.getAccessToken()).toBeNull()
   })
 
-  it('transparently refreshes an expired access token', async () => {
-    let fetchCount = 0
-    const fetcher = async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
-      fetchCount++
-      const body =
-        fetchCount === 1
-          ? { access_token: 'at.old', token_type: 'Bearer', expires_in: 0, refresh_token: 'rt.1' }
-          : {
-              access_token: 'at.fresh',
-              token_type: 'Bearer',
-              expires_in: 3600,
-              refresh_token: 'rt.2',
-            }
-      return new Response(JSON.stringify(body), { status: 200 })
-    }
-
+  it('deletes a legacy refresh key while preserving a fresh authorization-code session', async () => {
     const keychain = createMemoryKeychainAdapter()
     const client = createXidTauriClient({
       ...BASE_OPTIONS,
       keychain,
-      fetcher,
-      now: () => 1_000_000,
+      fetcher: makeTokenFetcher(),
     })
-
     await signInFully(client)
+    await keychain.setItem('xid.refresh_token', 'rt.legacy')
 
-    expect(await client.getAccessToken()).toBe('at.fresh')
+    await expect(client.getAccessToken()).resolves.toBe('at.jwt')
+    expect(await keychain.getItem('xid.refresh_token')).toBeNull()
   })
 
-  it('returns null and clears session when refresh token is invalid', async () => {
-    const fetcher = async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const body = init?.body?.toString() ?? ''
-      if (body.includes('refresh_token')) {
-        return new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })
-      }
+  it('clears an expired session without making a refresh request', async () => {
+    let fetchCount = 0
+    const fetcher = async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+      fetchCount++
       return new Response(
         JSON.stringify({
           access_token: 'at.expired',
           token_type: 'Bearer',
           expires_in: 0,
-          refresh_token: 'rt.bad',
+          refresh_token: 'rt.unexpected',
         }),
         { status: 200 },
       )
@@ -117,18 +99,37 @@ describe('createXidTauriClient.getAccessToken', () => {
     await signInFully(client)
 
     expect(await client.getAccessToken()).toBeNull()
+    expect(fetchCount).toBe(1)
+    expect(await keychain.getItem('xid.access_token')).toBeNull()
+    expect(await keychain.getItem('xid.refresh_token')).toBeNull()
+    expect(await keychain.getItem('xid.session')).toBeNull()
   })
 })
 
 describe('createXidTauriClient.signOut', () => {
-  it('clears the stored access token', async () => {
+  it('clears local credentials without making a revocation request', async () => {
+    let fetchCount = 0
+    const fetcher = async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+      fetchCount++
+      return new Response(
+        JSON.stringify({
+          access_token: 'at.jwt',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        }),
+        { status: 200 },
+      )
+    }
     const keychain = createMemoryKeychainAdapter()
-    const client = createXidTauriClient({ ...BASE_OPTIONS, keychain, fetcher: makeTokenFetcher() })
+    const client = createXidTauriClient({ ...BASE_OPTIONS, keychain, fetcher })
 
     await signInFully(client)
+    await keychain.setItem('xid.refresh_token', 'rt.legacy')
     await client.signOut()
 
     expect(await client.getAccessToken()).toBeNull()
+    expect(await keychain.getItem('xid.refresh_token')).toBeNull()
+    expect(fetchCount).toBe(1)
   })
 
   it('returns null from getSession after sign-out', async () => {

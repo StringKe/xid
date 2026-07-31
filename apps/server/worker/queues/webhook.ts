@@ -16,6 +16,7 @@ import {
   base64UrlEncodeString,
 } from '@xid-kit/crypto'
 import { isPublicHttpsUrl } from '../lib/validate'
+import { logWorkerError } from '../lib/safe-log'
 
 const MAX_ATTEMPTS = 5
 const BACKOFF_BASE_SECONDS = 2
@@ -107,7 +108,11 @@ async function findSubscriptions(
       row.signing_secret_tag === null
     ) {
       // 旧行缺少信封加密列,跳过投递避免用错误密钥签名。
-      console.error(`[webhook] webhook ${row.id} 缺少 signing_secret 信封加密列,跳过投递`)
+      logWorkerError('webhook.signing_secret.missing', undefined, {
+        component: 'webhook',
+        operation: 'load-subscription',
+        outcome: 'skipped',
+      })
       continue
     }
     const blob = {
@@ -168,6 +173,13 @@ type DeliveryClaim = {
 
 type DeliveryClaimResult = DeliveryClaim | 'retry' | null
 
+function serializeWebhookPayload(message: WebhookQueueMessage): string {
+  return JSON.stringify({
+    type: message.event,
+    data: message.payload,
+  })
+}
+
 async function claimDelivery(input: {
   env: Env
   message: WebhookQueueMessage
@@ -191,7 +203,7 @@ async function claimDelivery(input: {
       input.message.tenantId,
       input.sub.id,
       input.message.event,
-      JSON.stringify(input.message.payload),
+      serializeWebhookPayload(input.message),
       input.attempts,
       leaseUntil,
       now,
@@ -326,7 +338,7 @@ async function deliverMessage(args: {
 }): Promise<DeliverResult> {
   const { env, queueMessageId, message, timestampSeconds, attempts } = args
   const subs = await findSubscriptions(env, message.tenantId, message.event)
-  const payload = JSON.stringify(message.payload)
+  const payload = serializeWebhookPayload(message)
   let allOk = true
   let mustRetry = false
   for (const sub of subs) {

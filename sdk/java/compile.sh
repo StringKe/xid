@@ -29,6 +29,7 @@ MAIN_SOURCES=(
     "${SRC_MAIN}/dev/xid/sdk/XidException.java"
     "${SRC_MAIN}/dev/xid/sdk/XidTokenException.java"
     "${SRC_MAIN}/dev/xid/sdk/XidJwksException.java"
+    "${SRC_MAIN}/dev/xid/sdk/XidSessionTokenExchangeException.java"
     "${SRC_MAIN}/dev/xid/sdk/XidWebhookException.java"
     "${SRC_MAIN}/dev/xid/sdk/JsonParser.java"
     "${SRC_MAIN}/dev/xid/sdk/XidClaims.java"
@@ -37,6 +38,8 @@ MAIN_SOURCES=(
     "${SRC_MAIN}/dev/xid/sdk/WebhookVerifier.java"
     "${SRC_MAIN}/dev/xid/sdk/XidClientOptions.java"
     "${SRC_MAIN}/dev/xid/sdk/AuthResult.java"
+    "${SRC_MAIN}/dev/xid/sdk/SessionTokenHttpResponse.java"
+    "${SRC_MAIN}/dev/xid/sdk/SessionTokenTransport.java"
     "${SRC_MAIN}/dev/xid/sdk/XidClient.java"
 )
 
@@ -53,6 +56,7 @@ TEST_SOURCES=(
     "${SRC_TEST}/dev/xid/sdk/JsonParserTest.java"
     "${SRC_TEST}/dev/xid/sdk/TokenVerifierTest.java"
     "${SRC_TEST}/dev/xid/sdk/WebhookVerifierTest.java"
+    "${SRC_TEST}/dev/xid/sdk/RequestAuthContractTest.java"
 )
 
 echo ""
@@ -90,10 +94,11 @@ run_test() {
 run_test "dev.xid.sdk.JsonParserTest"
 run_test "dev.xid.sdk.TokenVerifierTest"
 run_test "dev.xid.sdk.WebhookVerifierTest"
+run_test "dev.xid.sdk.RequestAuthContractTest"
 
 echo ""
 echo "=== SUMMARY ==="
-echo "Total test classes run: 3"
+echo "Total test classes run: 4"
 if [ "${TOTAL_FAILED}" -eq 0 ]; then
     echo "All tests PASSED"
     exit 0

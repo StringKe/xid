@@ -36,7 +36,12 @@ vi.mock('../../auth/otp', () => ({
   recordOtpFailure: vi.fn(),
 }))
 
-vi.mock('../../lib/session', () => ({ readSession: vi.fn() }))
+vi.mock('../../lib/session', () => ({
+  readSession: vi.fn(),
+  ACTIVE_SESSION_STATUS: 'active',
+  PENDING_MFA_SESSION_STATUS: 'pending_mfa',
+  PENDING_MFA_SETUP_SESSION_STATUS: 'pending_mfa_setup',
+}))
 
 import { createTenantDb } from '@xid-kit/db'
 import { issueStepUpToken, verifyTotp } from '../../auth/mfa'

@@ -9,10 +9,13 @@ import {
   requestIp,
   requestUserAgent,
   SEND_PER_HOUR_POLICY,
+  publicTurnstileSiteKey,
+  turnstileConfiguration,
   verifyTurnstile,
 } from '../shared'
 import { POLICIES } from '../../durable-objects/rate-limit-store'
 import { makeRateLimitNs, makeSession } from './helpers'
+import { TURNSTILE_ACTION } from '../../../shared/turnstile'
 
 function makeCtx(
   options: {
@@ -116,7 +119,7 @@ describe('verifyTurnstile', () => {
     globalThis.fetch = originalFetch
   })
 
-  it('skips verification when TURNSTILE_SECRET is not configured', async () => {
+  it('skips verification when Turnstile is not configured', async () => {
     const fetchMock = vi.fn()
     globalThis.fetch = fetchMock as unknown as typeof fetch
     const env = {} as Env
@@ -127,10 +130,27 @@ describe('verifyTurnstile', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('fails closed when only one half of the Turnstile configuration exists', async () => {
+    expect(() =>
+      turnstileConfiguration({ TURNSTILE_SITE_KEY: 'test-site-key' } as Env),
+    ).toThrowError(expect.objectContaining({ code: 'server_error' }))
+    expect(() => publicTurnstileSiteKey({ TURNSTILE_SECRET: 'test-secret' } as Env)).toThrowError(
+      expect.objectContaining({ code: 'server_error' }),
+    )
+    await expect(
+      verifyTurnstile('token-value', { TURNSTILE_SECRET: 'test-secret' } as Env),
+    ).rejects.toMatchObject({ code: 'server_error' })
+  })
+
   it('passes when siteverify returns success=true', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ success: true }))
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ success: true, action: TURNSTILE_ACTION }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const env = { TURNSTILE_SECRET: 'test-secret' } as unknown as Env
+    const env = {
+      TURNSTILE_SITE_KEY: 'test-site-key',
+      TURNSTILE_SECRET: 'test-secret',
+    } as unknown as Env
 
     await expect(verifyTurnstile('token-value', env, '203.0.113.10')).resolves.toBeUndefined()
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
@@ -142,7 +162,10 @@ describe('verifyTurnstile', () => {
   })
 
   it('rejects with captcha_required when secret is configured but token missing', async () => {
-    const env = { TURNSTILE_SECRET: 'test-secret' } as unknown as Env
+    const env = {
+      TURNSTILE_SITE_KEY: 'test-site-key',
+      TURNSTILE_SECRET: 'test-secret',
+    } as unknown as Env
 
     await expect(verifyTurnstile(null, env)).rejects.toMatchObject({ code: 'captcha_required' })
     await expect(verifyTurnstile('', env)).rejects.toMatchObject({ code: 'captcha_required' })
@@ -152,7 +175,10 @@ describe('verifyTurnstile', () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(Response.json({ success: false })) as unknown as typeof fetch
-    const env = { TURNSTILE_SECRET: 'test-secret' } as unknown as Env
+    const env = {
+      TURNSTILE_SITE_KEY: 'test-site-key',
+      TURNSTILE_SECRET: 'test-secret',
+    } as unknown as Env
 
     await expect(verifyTurnstile('token-value', env)).rejects.toMatchObject({
       code: 'captcha_failed',
@@ -163,7 +189,26 @@ describe('verifyTurnstile', () => {
     globalThis.fetch = vi
       .fn()
       .mockRejectedValue(new Error('network_down')) as unknown as typeof fetch
-    const env = { TURNSTILE_SECRET: 'test-secret' } as unknown as Env
+    const env = {
+      TURNSTILE_SITE_KEY: 'test-site-key',
+      TURNSTILE_SECRET: 'test-secret',
+    } as unknown as Env
+
+    await expect(verifyTurnstile('token-value', env)).rejects.toMatchObject({
+      code: 'captcha_failed',
+    })
+  })
+
+  it('rejects a successful token minted for a different action', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ success: true, action: 'different-action' }),
+      ) as unknown as typeof fetch
+    const env = {
+      TURNSTILE_SITE_KEY: 'test-site-key',
+      TURNSTILE_SECRET: 'test-secret',
+    } as unknown as Env
 
     await expect(verifyTurnstile('token-value', env)).rejects.toMatchObject({
       code: 'captcha_failed',

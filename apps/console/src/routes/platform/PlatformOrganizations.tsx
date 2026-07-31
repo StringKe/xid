@@ -23,6 +23,7 @@ const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 
 const PLAN_TONE: Record<PlatformOrganization['plan'], BadgeTone> = {
   free: 'neutral',
+  starter: 'warning',
   pro: 'info',
   enterprise: 'success',
 }
@@ -180,6 +181,12 @@ const columns: ColumnDef<PlatformOrganization>[] = [
             {...stylex.props(styles.actionLink)}
           >
             <Trans>Social providers</Trans>
+          </Link>
+          <Link
+            to={`/console/platform/plans?tenantId=${encodeURIComponent(row.original.id)}`}
+            {...stylex.props(styles.actionLink)}
+          >
+            <Trans>Plans and quotas</Trans>
           </Link>
         </div>
       )

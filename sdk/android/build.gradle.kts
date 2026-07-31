@@ -7,6 +7,9 @@ plugins {
     id("maven-publish")
 }
 
+group = "dev.xid"
+version = "0.1.0-alpha.0"
+
 android {
     namespace = "dev.xid.sdk"
     compileSdk = 35
@@ -58,7 +61,7 @@ dependencies {
     // Biometric (optional extension point for Keystore unlock with biometrics)
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
 
-    // Coroutines -- async token refresh and network requests
+    // Coroutines -- async authorization and network requests
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // HTTP -- OkHttp (supports certificate pinning)
@@ -85,7 +88,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "dev.xid"
             artifactId = "xid-android"
-            version = "0.1.0-alpha"
+            version = project.version.toString()
 
             afterEvaluate {
                 from(components["release"])
@@ -103,6 +106,17 @@ publishing {
                         name.set("MIT License")
                         url.set("https://opensource.org/licenses/MIT")
                     }
+                }
+                developers {
+                    developer {
+                        id.set("StringKe")
+                        name.set("StringKe")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:https://github.com/StringKe/xid.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/StringKe/xid.git")
+                    url.set("https://github.com/StringKe/xid")
                 }
             }
         }

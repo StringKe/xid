@@ -11,10 +11,26 @@ export {
   clearRefreshTokenCookie,
   readRefreshTokenCookie,
   readAllRefreshTokenCookies,
+  setActiveSessionCookie,
+  readActiveSessionCookie,
+  clearActiveSessionCookie,
+  readRefreshTokenCookiesInPriorityOrder,
 } from './cookies'
 
 export type { IssueSessionInput, IssuedSession } from './session'
-export { issueSession, readSession, readSessionById, revokeSession } from './session'
+export {
+  issueSession,
+  readSession,
+  readSessionById,
+  readBrowserSessions,
+  selectSessionById,
+  revokeSession,
+} from './session'
 
 export type { AppErrorOptions } from './errors'
 export { AppError, isAppError, httpStatusForCode } from './errors'
+
+export { logWorkerError, logWorkerWarning } from './safe-log'
+
+export type { PersistedIdKind } from './persisted-id'
+export { createPersistedId, isPersistedId, PERSISTED_ID_PREFIXES } from './persisted-id'

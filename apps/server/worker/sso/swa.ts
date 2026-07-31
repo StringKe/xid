@@ -9,9 +9,11 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { decodeKek } from '../oidc/shared'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody } from '../lib/validate'
+import { requestIp, verifyTurnstile } from '../me-auth/shared'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import { fakeSwaAuthenticate } from '../test-harness/fake-swa'
 import { requireApiKeyOrOrgManager } from '../v1/shared'
@@ -30,6 +32,7 @@ const swaAuthBodySchema = v.object({
   username: v.optional(v.string()),
   password: v.optional(v.string()),
   redirectAfterLogin: v.optional(v.string()),
+  turnstileToken: v.optional(v.nullable(v.string())),
 })
 
 type SwaAuthBody = v.InferOutput<typeof swaAuthBodySchema>
@@ -162,6 +165,7 @@ async function handleSwaAuthenticate(c: Context<XidHonoEnv>): Promise<Response> 
       username: form['username'],
       password: form['password'],
       redirectAfterLogin: form['redirectAfterLogin'],
+      turnstileToken: form['turnstileToken'],
     })
     body = parsed.success ? parsed.output : {}
   }
@@ -173,9 +177,24 @@ async function handleSwaAuthenticate(c: Context<XidHonoEnv>): Promise<Response> 
 
   const tenant = await resolveSsoConnectionTenant(c, connectionId)
   return withTenant(c, tenant, async () => {
+    await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
+    const account = `${connectionId}:${username.toLowerCase()}`
+    await enforceVerifyRateLimit({
+      env: c.env,
+      tenantId: tenant.tenantId,
+      scope: 'sso_swa',
+      account,
+      ip: requestIp(c),
+    })
     const connection = await resolveLegacyConnection(c, connectionId, 'swa')
     const profile = await verifySwaCredentials(c, connection, username, password)
     if (!profile) throw new AppError('invalid_credentials')
+    await resetVerifyAccountRateLimit({
+      env: c.env,
+      tenantId: tenant.tenantId,
+      scope: 'sso_swa',
+      account,
+    })
     return completeLegacyLogin({
       c,
       connection,

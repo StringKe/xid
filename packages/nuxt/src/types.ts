@@ -1,7 +1,8 @@
 // @xid-kit/nuxt 内部类型:Nuxt 适配层公共契约。
 // 对标 @xid-kit/nextjs 的 AuthResult 模型,但用于 Nuxt/H3 event context。
 
-import type { AccessTokenClaims } from '@xid-kit/types'
+import type { AccessTokenClaims, OrganizationMembershipRole } from '@xid-kit/types'
+import type { OidcXidClientOptions, SameOriginXidClientOptions } from '@xid-kit/core'
 
 // 认证结果注入到 H3 event.context 时使用的键。
 export const XID_AUTH_CONTEXT_KEY = 'xidAuth' as const
@@ -11,7 +12,7 @@ export type AuthObject = {
   userId: string
   sessionId: string | undefined
   orgId: string | undefined
-  orgRole: string | undefined
+  orgRole: OrganizationMembershipRole | undefined
   orgPermissions: readonly string[] | undefined
   claims: AccessTokenClaims
 }
@@ -29,10 +30,14 @@ export type UnauthenticatedAuthObject = {
 export type AuthResult = AuthObject | UnauthenticatedAuthObject
 
 // XidNuxtModuleOptions:nuxt.config.ts 中的配置项。
+export type XidNuxtBrowserOptions =
+  | Omit<SameOriginXidClientOptions, 'fetcher' | 'now' | 'secretKey'>
+  | Omit<OidcXidClientOptions, 'fetcher' | 'now' | 'tokenCache'>
+
 export type XidNuxtModuleOptions = {
-  // 客户端 publishable key(pk_live_xxx / pk_test_xxx)。
-  publishableKey?: string
-  // 认证 API 根,默认同域相对路径(自托管场景填绝对 URL)。
+  // 跨域开发者应用使用 oidc + clientId；同源反向代理可使用 same-origin。
+  browser?: XidNuxtBrowserOptions
+  // 兼容旧同源配置；只能是相对 URL 或当前页面 exact same-origin,与 browser 互斥。
   apiUrl?: string
   // server middleware 所需 JWKS 公钥;不填则 server middleware 跳过验签。
   jwtKey?: string
@@ -42,8 +47,10 @@ export type XidNuxtModuleOptions = {
   protectedRoutes?: readonly string[]
   // 登录页路径;未认证访问受保护路由时重定向;默认 /sign-in。
   signInUrl?: string
-  // session cookie 名;默认 __session。
-  cookieName?: string
+  // 应用自己持有的 short-lived JWT cookie。无默认值。
+  jwtCookieName?: string
+  // 同源 Core session-token endpoint;例如 /v1/sessions/token。
+  sessionTokenEndpoint?: string
 }
 
 // H3 event 最小类型声明(h3 peer dep,运行时由 nuxt/h3 提供)。
@@ -55,6 +62,14 @@ export type H3EventContext = {
 
 export type H3Event = {
   context: H3EventContext
+  // H3 v2 web-standard request and parsed URL.
+  req?: unknown
+  url?: unknown
+  // H3 v1 web adapter context. Node adapters may leave this absent.
+  web?: {
+    request?: Request
+    url?: URL
+  }
   node: {
     req: {
       headers: Record<string, string | string[] | undefined>

@@ -2,11 +2,12 @@
 //!
 //! 提取顺序:
 //! 1. Authorization: Bearer <token>
-//! 2. Cookie(名称由配置指定,默认 "__session")
+//! 2. 应用显式配置名称的 short-lived JWT Cookie
 //!
 //! 返回 AuthState,区分已登录 / 未登录 / 错误三态。
 //! 调用方可根据业务决定如何处理 AuthState::Unauthenticated / Error。
 
+use std::future::Future;
 use std::sync::Arc;
 
 use crate::error::{XidError, XidResult};
@@ -21,9 +22,8 @@ pub struct XidClientConfig {
     /// 期望的 audience(通常是你的应用 client_id 或 API resource)
     /// 留 None 则跳过 aud 校验(内部服务间信任场景)
     pub audience: Option<String>,
-    /// Cookie 名称,用于从请求 cookie 中提取 token
-    /// 默认:"__session"
-    pub session_cookie_name: String,
+    /// 应用自己持有的 short-lived JWT cookie 名。None 时禁用 cookie fallback。
+    pub session_cookie_name: Option<String>,
     /// nbf/exp 宽松窗口(秒),用于处理时钟轻微不同步
     pub leeway_seconds: u64,
 }
@@ -34,7 +34,7 @@ impl XidClientConfig {
         Self {
             issuer: issuer.into(),
             audience: None,
-            session_cookie_name: "__session".to_owned(),
+            session_cookie_name: None,
             leeway_seconds: 0,
         }
     }
@@ -45,7 +45,7 @@ impl XidClientConfig {
     }
 
     pub fn with_session_cookie(mut self, name: impl Into<String>) -> Self {
-        self.session_cookie_name = name.into();
+        self.session_cookie_name = Some(name.into());
         self
     }
 
@@ -89,6 +89,13 @@ pub struct XidClient {
     jwks_cache: Arc<JwksCache>,
 }
 
+/// 注入 transport 返回的最小 HTTP response。SDK 自己校验 status 和 JSON wire shape。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionTokenHttpResponse {
+    pub status: u16,
+    pub body: Vec<u8>,
+}
+
 impl XidClient {
     /// 使用默认 reqwest::Client 构建
     pub fn new(config: XidClientConfig) -> XidResult<Self> {
@@ -128,8 +135,12 @@ impl XidClient {
         let cookies: Vec<_> = cookies.into_iter().collect();
 
         // 优先取 Authorization: Bearer
-        let token = extract_bearer(&headers)
-            .or_else(|| extract_cookie(&cookies, &self.config.session_cookie_name));
+        let token = extract_bearer(&headers).or_else(|| {
+            self.config
+                .session_cookie_name
+                .as_deref()
+                .and_then(|name| extract_cookie(&cookies, name))
+        });
 
         let token = match token {
             Some(t) => t,
@@ -148,6 +159,66 @@ impl XidClient {
             audience: self.config.audience.clone(),
             leeway_seconds: self.config.leeway_seconds,
         }
+    }
+
+    /// 使用标准 reqwest transport 完成 exact same-origin Core session-token exchange。
+    pub async fn exchange_session_token(
+        &self,
+        incoming_request_url: &str,
+        cookie_header: &str,
+        endpoint: Option<&str>,
+    ) -> XidResult<String> {
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|error| XidError::SessionTokenExchange(error.to_string()))?;
+        self.exchange_session_token_with(
+            incoming_request_url,
+            cookie_header,
+            endpoint,
+            move |url, cookie| async move {
+                let response = http
+                    .post(url)
+                    .header(reqwest::header::ACCEPT, "application/json")
+                    .header(reqwest::header::COOKIE, cookie)
+                    .send()
+                    .await
+                    .map_err(|error| XidError::SessionTokenExchange(error.to_string()))?;
+                let status = response.status().as_u16();
+                let body = response
+                    .bytes()
+                    .await
+                    .map_err(|error| XidError::SessionTokenExchange(error.to_string()))?;
+                Ok(SessionTokenHttpResponse {
+                    status,
+                    body: body.to_vec(),
+                })
+            },
+        )
+        .await
+    }
+
+    /// 使用显式 transport adapter 交换 session token。origin/path/wire 校验仍由 SDK 执行。
+    pub async fn exchange_session_token_with<F, Fut>(
+        &self,
+        incoming_request_url: &str,
+        cookie_header: &str,
+        endpoint: Option<&str>,
+        transport: F,
+    ) -> XidResult<String>
+    where
+        F: FnOnce(String, String) -> Fut,
+        Fut: Future<Output = XidResult<SessionTokenHttpResponse>>,
+    {
+        let resolved = resolve_session_token_endpoint(incoming_request_url, endpoint)?;
+        let response = transport(resolved, cookie_header.to_owned()).await?;
+        if response.status != 200 {
+            return Err(XidError::SessionTokenExchange(format!(
+                "Core returned HTTP {}",
+                response.status
+            )));
+        }
+        parse_session_token_response(&response.body)
     }
 }
 
@@ -172,6 +243,61 @@ fn extract_cookie(cookies: &[(String, String)], name: &str) -> Option<String> {
         .iter()
         .find(|(k, _)| k == name)
         .map(|(_, v)| v.clone())
+}
+
+fn resolve_session_token_endpoint(
+    incoming_request_url: &str,
+    endpoint: Option<&str>,
+) -> XidResult<String> {
+    let incoming = reqwest::Url::parse(incoming_request_url).map_err(|_| {
+        XidError::SessionTokenExchange(
+            "incoming request URL must be an absolute HTTP(S) URL".to_owned(),
+        )
+    })?;
+    if !is_http_url(&incoming) || !incoming.username().is_empty() || incoming.password().is_some() {
+        return Err(XidError::SessionTokenExchange(
+            "incoming request URL must be an absolute HTTP(S) URL".to_owned(),
+        ));
+    }
+    let resolved = incoming
+        .join(endpoint.unwrap_or("/v1/sessions/token"))
+        .map_err(|error| XidError::SessionTokenExchange(error.to_string()))?;
+    if !is_http_url(&resolved)
+        || resolved.origin() != incoming.origin()
+        || !resolved.username().is_empty()
+        || resolved.password().is_some()
+        || resolved.path() != "/v1/sessions/token"
+        || resolved.query().is_some()
+        || resolved.fragment().is_some()
+    {
+        return Err(XidError::SessionTokenExchange(
+            "endpoint must be exact same-origin /v1/sessions/token".to_owned(),
+        ));
+    }
+    Ok(resolved.into())
+}
+
+fn is_http_url(url: &reqwest::Url) -> bool {
+    matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
+}
+
+fn parse_session_token_response(body: &[u8]) -> XidResult<String> {
+    let value: serde_json::Value = serde_json::from_slice(body)
+        .map_err(|error| XidError::SessionTokenExchange(error.to_string()))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| XidError::SessionTokenExchange("response must be an object".to_owned()))?;
+    if object.len() != 1 {
+        return Err(XidError::SessionTokenExchange(
+            "response must contain only token".to_owned(),
+        ));
+    }
+    let token = object
+        .get("token")
+        .and_then(serde_json::Value::as_str)
+        .filter(|token| !token.trim().is_empty())
+        .ok_or_else(|| XidError::SessionTokenExchange("invalid token response".to_owned()))?;
+    Ok(token.to_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +374,7 @@ mod tests {
         let cfg = XidClientConfig::new("https://xid.dev");
         assert_eq!(cfg.issuer, "https://xid.dev");
         assert!(cfg.audience.is_none());
-        assert_eq!(cfg.session_cookie_name, "__session");
+        assert!(cfg.session_cookie_name.is_none());
         assert_eq!(cfg.leeway_seconds, 0);
     }
 
@@ -259,7 +385,7 @@ mod tests {
             .with_session_cookie("__tok")
             .with_leeway(60);
         assert_eq!(cfg.audience, Some("my_client".to_owned()));
-        assert_eq!(cfg.session_cookie_name, "__tok");
+        assert_eq!(cfg.session_cookie_name, Some("__tok".to_owned()));
         assert_eq!(cfg.leeway_seconds, 60);
     }
 
@@ -271,6 +397,101 @@ mod tests {
     fn auth_state_unauthenticated_is_not_authenticated() {
         assert!(!AuthState::Unauthenticated.is_authenticated());
         assert!(AuthState::Unauthenticated.claims().is_none());
+    }
+
+    #[tokio::test]
+    async fn authenticate_request_ignores_implicit_and_core_cookies() {
+        let client = XidClient::new(XidClientConfig::new("https://xid.dev")).unwrap();
+        let state = client
+            .authenticate_request(
+                Vec::new(),
+                vec![
+                    h("__session", "not.a.jwt"),
+                    h("__Host-xid.rt.abcdefgh", "not.a.jwt"),
+                ],
+            )
+            .await;
+        assert!(matches!(state, AuthState::Unauthenticated));
+    }
+
+    #[tokio::test]
+    async fn authenticate_request_uses_explicit_app_jwt_cookie() {
+        let config = XidClientConfig::new("https://xid.dev").with_session_cookie("__app_xid_jwt");
+        let client = XidClient::new(config).unwrap();
+        let state = client
+            .authenticate_request(Vec::new(), vec![h("__app_xid_jwt", "not.a.jwt")])
+            .await;
+        assert!(matches!(state, AuthState::Invalid(_)));
+    }
+
+    #[tokio::test]
+    async fn session_exchange_enforces_origin_redirect_and_exact_response() {
+        let client = XidClient::new(XidClientConfig::new("https://app.example")).unwrap();
+        let token = client
+            .exchange_session_token_with(
+                "https://app.example/api",
+                "__Host-xid.rt.abc=opaque; __Host-xid.active=sess_abc",
+                None,
+                |url, cookie| async move {
+                    assert_eq!(url, "https://app.example/v1/sessions/token");
+                    assert_eq!(
+                        cookie,
+                        "__Host-xid.rt.abc=opaque; __Host-xid.active=sess_abc"
+                    );
+                    Ok(SessionTokenHttpResponse {
+                        status: 200,
+                        body: br#"{"token":"jwt-value"}"#.to_vec(),
+                    })
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(token, "jwt-value");
+
+        let cross_origin = client
+            .exchange_session_token_with(
+                "https://app.example/api",
+                "__Host-xid.rt.abc=opaque",
+                Some("https://xid.dev/v1/sessions/token"),
+                |_url, _cookie| async {
+                    panic!("cross-origin transport must not run");
+                    #[allow(unreachable_code)]
+                    Ok(SessionTokenHttpResponse {
+                        status: 200,
+                        body: Vec::new(),
+                    })
+                },
+            )
+            .await;
+        assert!(matches!(
+            cross_origin,
+            Err(XidError::SessionTokenExchange(message)) if message.contains("same-origin")
+        ));
+
+        for response in [
+            SessionTokenHttpResponse {
+                status: 302,
+                body: br#"{"token":"jwt"}"#.to_vec(),
+            },
+            SessionTokenHttpResponse {
+                status: 200,
+                body: br#"{"jwt":"wrong"}"#.to_vec(),
+            },
+            SessionTokenHttpResponse {
+                status: 200,
+                body: br#"{"token":"jwt","extra":true}"#.to_vec(),
+            },
+        ] {
+            let result = client
+                .exchange_session_token_with(
+                    "https://app.example/api",
+                    "__Host-xid.rt.abc=opaque",
+                    None,
+                    |_url, _cookie| async { Ok(response) },
+                )
+                .await;
+            assert!(matches!(result, Err(XidError::SessionTokenExchange(_))));
+        }
     }
 }
 

@@ -64,4 +64,58 @@ final class PKCETests: XCTestCase {
         XCTAssertGreaterThanOrEqual(pkce.verifier.count, 43)
         XCTAssertLessThanOrEqual(pkce.verifier.count, 128)
     }
+
+    func testAuthorizationURLIncludesNonceAndProtectsReservedParameters() throws {
+        let pkce = try PKCE()
+        let url = AuthorizationURLBuilder.build(
+            authorizationEndpoint: URL(string: "https://issuer.example/authorize")!,
+            clientId: "client_expected",
+            redirectUri: URL(string: "com.example.app://callback")!,
+            scopes: ["openid"],
+            pkce: pkce,
+            state: "state_expected",
+            nonce: "nonce_expected",
+            additionalParams: [
+                "prompt": "login",
+                "state": "state_attacker",
+                "nonce": "nonce_attacker",
+            ]
+        )
+        let items = URLComponents(url: try XCTUnwrap(url), resolvingAgainstBaseURL: false)?
+            .queryItems ?? []
+        let values = Dictionary(uniqueKeysWithValues: items.compactMap { item in
+            item.value.map { (item.name, $0) }
+        })
+
+        XCTAssertEqual(values["state"], "state_expected")
+        XCTAssertEqual(values["nonce"], "nonce_expected")
+        XCTAssertEqual(values["prompt"], "login")
+    }
+
+    func testPublicClientDefaultScopesExcludeOfflineAccess() {
+        let config = XidConfiguration(
+            issuer: URL(string: "https://xid.dev")!,
+            clientId: "client_test",
+            redirectUri: URL(string: "com.example.app://callback")!
+        )
+
+        XCTAssertEqual(config.scopes, ["openid", "profile", "email"])
+    }
+
+    func testPublicClientRejectsOfflineAccessWithoutDPoP() {
+        let config = XidConfiguration(
+            issuer: URL(string: "https://xid.dev")!,
+            clientId: "client_test",
+            redirectUri: URL(string: "com.example.app://callback")!,
+            scopes: ["openid", "offline_access"]
+        )
+
+        XCTAssertThrowsError(try config.validatePublicClientScopes()) { error in
+            guard case XidError.oauthError(let code, let description) = error else {
+                return XCTFail("Expected invalid_scope, got \(error)")
+            }
+            XCTAssertEqual(code, "invalid_scope")
+            XCTAssertTrue(description?.contains("DPoP") == true)
+        }
+    }
 }

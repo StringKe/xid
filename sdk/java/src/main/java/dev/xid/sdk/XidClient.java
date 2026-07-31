@@ -1,7 +1,12 @@
 package dev.xid.sdk;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * XID 服务端 SDK 主入口。
@@ -40,6 +45,7 @@ public final class XidClient {
     private final JwksCache         jwksCache;
     private final TokenVerifier     tokenVerifier;
     private final WebhookVerifier   webhookVerifier;
+    private final HttpClient         sessionHttpClient;
 
     private XidClient(XidClientOptions options) {
         this.options = options;
@@ -53,6 +59,10 @@ public final class XidClient {
         this.webhookVerifier = options.getWebhookSecret() != null
                 ? new WebhookVerifier(options.getWebhookSecret())
                 : null;
+        this.sessionHttpClient = HttpClient.newBuilder()
+                .connectTimeout(options.getConnectTimeout())
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
     }
 
     /**
@@ -102,7 +112,7 @@ public final class XidClient {
      *
      * 优先级:
      *   1. Authorization: Bearer <token> header
-     *   2. cookieValue 参数(调用方从 Cookie header 解析后传入)
+     *   2. cookieValue 参数,但仅在 options 中显式配置 sessionCookieName 时启用
      *
      * 返回结构化 {@link AuthResult},不抛异常,调用方根据 status 判断:
      *   - AUTHENTICATED:token 有效,通过 {@link AuthResult#getClaims()} 取 claims
@@ -110,11 +120,14 @@ public final class XidClient {
      *   - INVALID:token 存在但验证失败,应返回 401
      *
      * @param authorizationHeader HTTP Authorization header 值(可为 null)
-     * @param cookieValue         cookie 中的 token 值(可为 null)
+     * @param cookieValue         已配置应用 JWT cookie 中的 token 值(可为 null)
      * @return 认证结果
      */
     public AuthResult authenticateRequest(String authorizationHeader, String cookieValue) {
-        String token = extractToken(authorizationHeader, cookieValue);
+        String configuredCookieValue = options.getSessionCookieName() == null
+                ? null
+                : cookieValue;
+        String token = extractToken(authorizationHeader, configuredCookieValue);
 
         if (token == null) {
             return AuthResult.unauthenticated();
@@ -134,7 +147,7 @@ public final class XidClient {
     /**
      * 便捷方法:从 headers Map 中自动提取 Authorization 和 Cookie。
      *
-     * Cookie 解析:查找名为 {@link XidClientOptions#getSessionCookieName()} 的 cookie。
+     * Cookie 解析仅在显式配置 {@link XidClientOptions#getSessionCookieName()} 后启用。
      *
      * @param headers HTTP request headers(key 不区分大小写需由调用方保证)
      * @return 认证结果
@@ -149,6 +162,73 @@ public final class XidClient {
         String cookieValue = extractSessionCookie(cookieHeader, options.getSessionCookieName());
 
         return authenticateRequest(authHeader, cookieValue);
+    }
+
+    /**
+     * 使用 JDK HttpClient 完成 exact same-origin Core cookie -> JWT exchange。
+     */
+    public String exchangeSessionToken(
+            String incomingRequestUrl,
+            String cookieHeader,
+            String endpoint
+    ) throws XidSessionTokenExchangeException {
+        return exchangeSessionToken(incomingRequestUrl, cookieHeader, endpoint, (uri, cookie) -> {
+            HttpRequest request = HttpRequest.newBuilder(uri)
+                    .timeout(options.getReadTimeout())
+                    .header("Accept", "application/json")
+                    .header("Cookie", cookie)
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .build();
+            HttpResponse<String> response = sessionHttpClient.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            return new SessionTokenHttpResponse(response.statusCode(), response.body());
+        });
+    }
+
+    /**
+     * 使用显式 transport adapter 交换 session token。SDK 仍执行全部 origin/path/wire 校验。
+     */
+    public String exchangeSessionToken(
+            String incomingRequestUrl,
+            String cookieHeader,
+            String endpoint,
+            SessionTokenTransport transport
+    ) throws XidSessionTokenExchangeException {
+        URI resolved = resolveSessionTokenEndpoint(incomingRequestUrl, endpoint);
+        SessionTokenHttpResponse response;
+        try {
+            response = transport.post(resolved, cookieHeader);
+        } catch (XidSessionTokenExchangeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new XidSessionTokenExchangeException(
+                    "session token exchange request failed",
+                    e
+            );
+        }
+        if (response.statusCode() != 200) {
+            throw new XidSessionTokenExchangeException(
+                    "session token exchange returned HTTP " + response.statusCode()
+            );
+        }
+        final Map<String, Object> body;
+        try {
+            body = JsonParser.parseObject(response.body());
+        } catch (RuntimeException e) {
+            throw new XidSessionTokenExchangeException(
+                    "session token exchange returned invalid JSON",
+                    e
+            );
+        }
+        Object token = body.get("token");
+        if (body.size() != 1 || !(token instanceof String) || ((String) token).isBlank()) {
+            throw new XidSessionTokenExchangeException(
+                    "session token exchange returned an invalid response"
+            );
+        }
+        return (String) token;
     }
 
     // ------------------------------------------------------------------
@@ -236,5 +316,49 @@ public final class XidClient {
             }
         }
         return null;
+    }
+
+    private static URI resolveSessionTokenEndpoint(
+            String incomingRequestUrl,
+            String endpoint
+    ) throws XidSessionTokenExchangeException {
+        final URI incoming;
+        final URI resolved;
+        try {
+            incoming = URI.create(incomingRequestUrl);
+            resolved = incoming.resolve(
+                    endpoint == null || endpoint.isBlank()
+                            ? "/v1/sessions/token"
+                            : endpoint
+            );
+        } catch (IllegalArgumentException e) {
+            throw new XidSessionTokenExchangeException("invalid session token exchange URL", e);
+        }
+        if (!isAbsoluteHttpUri(incoming)
+                || incoming.getRawUserInfo() != null
+                || !isAbsoluteHttpUri(resolved)
+                || resolved.getRawUserInfo() != null
+                || !origin(incoming).equals(origin(resolved))
+                || !"/v1/sessions/token".equals(resolved.getRawPath())
+                || resolved.getRawQuery() != null
+                || resolved.getRawFragment() != null) {
+            throw new XidSessionTokenExchangeException(
+                    "session token endpoint must be exact same-origin /v1/sessions/token"
+            );
+        }
+        return resolved;
+    }
+
+    private static boolean isAbsoluteHttpUri(URI uri) {
+        if (!uri.isAbsolute() || uri.getHost() == null) return false;
+        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+        return "http".equals(scheme) || "https".equals(scheme);
+    }
+
+    private static String origin(URI uri) {
+        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+        int port = uri.getPort();
+        if (port == -1) port = "https".equals(scheme) ? 443 : 80;
+        return scheme + "://" + uri.getHost().toLowerCase(Locale.ROOT) + ":" + port;
     }
 }

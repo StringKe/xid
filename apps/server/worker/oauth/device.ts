@@ -107,10 +107,12 @@ app.post('/device_authorization', async (c) => {
   const clientResult = await authenticateClient(c)
   if (!clientResult.ok) {
     return oauthError(c, {
-      status: 401,
-      error: 'invalid_client',
+      status: clientResult.error.httpStatus,
+      error: clientResult.error.code,
       description: clientResult.error.message,
-      extraHeaders: { 'www-authenticate': BASIC_AUTH_CHALLENGE },
+      ...(clientResult.error.basicChallenge
+        ? { extraHeaders: { 'www-authenticate': BASIC_AUTH_CHALLENGE } }
+        : {}),
     })
   }
 

@@ -175,7 +175,9 @@ function makeScimD1(
     const rows = get(t)
     const lower = sql.toLowerCase()
     if (lower.startsWith('insert') || lower.startsWith('with')) {
-      const newRow = { id: crypto.randomUUID() }
+      const newRow = {
+        id: typeof params[0] === 'string' ? params[0] : crypto.randomUUID(),
+      }
       if (capture) capture.inserts.push(newRow)
       return rows.slice(-1).length ? rows.slice(-1) : [newRow]
     }
@@ -1838,7 +1840,7 @@ describe('SCIM Bulk', () => {
     return { ctx, token, env }
   }
 
-  it('POST /Bulk 创建用户并返回 multi-status Operations', async () => {
+  it('POST /Bulk 创建用户和组时返回带公开前缀的 SCIM ids', async () => {
     const { ctx, token, env } = await makeBulkEnv()
     const { app } = buildScimApp(ctx, env)
     const res = await app.request(
@@ -1858,6 +1860,12 @@ describe('SCIM Bulk', () => {
               bulkId: 'user1',
               data: { userName: 'bulk.user@example.com', active: true },
             },
+            {
+              method: 'POST',
+              path: '/Groups',
+              bulkId: 'group1',
+              data: { displayName: 'Bulk Group' },
+            },
           ],
         }),
       },
@@ -1868,6 +1876,13 @@ describe('SCIM Bulk', () => {
     expect(body['schemas']).toContain('urn:ietf:params:scim:api:messages:2.0:BulkResponse')
     const ops = body['Operations'] as Record<string, unknown>[]
     expect(ops[0]?.['status']).toBe('201')
+    const userResponse = ops[0]?.['response']
+    expect(userResponse).toBeTypeOf('object')
+    expect((userResponse as Record<string, unknown>)['id']).toMatch(/^dusr_[A-Za-z0-9]{21}$/)
+    expect(ops[1]?.['status']).toBe('201')
+    const groupResponse = ops[1]?.['response']
+    expect(groupResponse).toBeTypeOf('object')
+    expect((groupResponse as Record<string, unknown>)['id']).toMatch(/^dgrp_[A-Za-z0-9]{21}$/)
   })
 
   it('POST /Bulk bulkId 跨操作引用 POST 后 PATCH', async () => {

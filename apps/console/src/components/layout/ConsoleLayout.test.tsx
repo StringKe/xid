@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import type { AuthOrg, AuthUser } from '@xid-kit/web-ui/session'
+import type { AuthOrg, AuthSession, AuthUser } from '@xid-kit/web-ui/session'
 import { ConsoleLayout } from './ConsoleLayout'
 
 const routeState = vi.hoisted(() => ({
@@ -18,6 +18,10 @@ const authState = vi.hoisted(
     user: AuthUser
     activeOrg: AuthOrg
     organizations: readonly AuthOrg[]
+    session: AuthSession | null
+    apiPost: ReturnType<typeof vi.fn>
+    refresh: ReturnType<typeof vi.fn>
+    returnFromImpersonation: ReturnType<typeof vi.fn>
     openEmailVerification: ReturnType<typeof vi.fn>
   } => ({
     user: {
@@ -38,6 +42,10 @@ const authState = vi.hoisted(
       permissions: [],
     },
     organizations: [],
+    session: null,
+    apiPost: vi.fn(),
+    refresh: vi.fn(),
+    returnFromImpersonation: vi.fn(),
     openEmailVerification: vi.fn(),
   }),
 )
@@ -70,10 +78,17 @@ vi.mock('@xid-kit/web-ui/session', () => ({
     user: authState.user,
     activeOrg: authState.activeOrg,
     organizations: authState.organizations,
+    session: authState.session,
+    api: { post: authState.apiPost },
+    refresh: authState.refresh,
     setActiveOrganization: async () => true,
     signOut: async () => undefined,
     openEmailVerification: authState.openEmailVerification,
   }),
+}))
+
+vi.mock('../../lib/impersonation-handoff', () => ({
+  returnFromImpersonation: authState.returnFromImpersonation,
 }))
 
 vi.mock('@xid-kit/web-ui/theme', () => ({
@@ -92,6 +107,12 @@ vi.mock('../LanguageSwitcher', () => ({
   LanguageSwitcher: () => <span>Language</span>,
 }))
 
+vi.mock('../ActiveAnnouncementsBanner', () => ({
+  ActiveAnnouncementsBanner: ({ enabled }: { enabled: boolean }) => (
+    <span data-active-announcements={String(enabled)}>Announcements</span>
+  ),
+}))
+
 vi.mock('@xid-kit/web-ui/ui', () => ({
   Alert: ({ title, children }: { title?: ReactNode; children: ReactNode }) => (
     <div role="status">
@@ -99,8 +120,18 @@ vi.mock('@xid-kit/web-ui/ui', () => ({
       {children}
     </div>
   ),
-  Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>
+  Button: ({
+    children,
+    disabled,
+    isLoading,
+    onClick,
+  }: {
+    children: ReactNode
+    disabled?: boolean
+    isLoading?: boolean
+    onClick?: () => void
+  }) => (
+    <button type="button" disabled={disabled || isLoading} onClick={onClick}>
       {children}
     </button>
   ),
@@ -131,6 +162,10 @@ describe('ConsoleLayout', () => {
   beforeEach(() => {
     authState.user = { ...authState.user, emailVerified: true, instanceManager: false }
     authState.organizations = [authState.activeOrg]
+    authState.session = null
+    authState.apiPost.mockReset()
+    authState.refresh.mockReset()
+    authState.returnFromImpersonation.mockReset()
     authState.openEmailVerification.mockClear()
   })
 
@@ -149,6 +184,7 @@ describe('ConsoleLayout', () => {
 
     expect(html).toContain('Social providers')
     expect(html).toContain('Default organization')
+    expect(html).toContain('data-active-announcements="true"')
     expect(html).not.toContain('isActive')
     expect(html).not.toContain('=&gt;')
     expect(html).not.toContain('e=&gt;')
@@ -267,6 +303,59 @@ describe('ConsoleLayout', () => {
       verifyButton.click()
     })
     expect(authState.openEmailVerification).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('shows a global impersonation banner, pins the organization, and ends the session', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    authState.session = {
+      id: 'session_impersonation',
+      status: 'active',
+      expiresAt: '2026-07-28T00:15:00.000Z',
+      isImpersonation: true,
+      userId: 'user_target',
+      activeOrganizationId: 'org_1',
+      lastActiveAt: '2026-07-28T00:00:00.000Z',
+    }
+    authState.user = { ...authState.user, emailVerified: false }
+    authState.apiPost.mockResolvedValue({
+      ok: true,
+      value: { ok: true, redirectUrl: 'https://xid.dev/console/platform/users' },
+    })
+    authState.refresh.mockResolvedValue(undefined)
+    authState.returnFromImpersonation.mockReturnValue(true)
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(
+        <ConsoleLayout navItems={[{ to: '/console/org', label: 'Overview', end: true }]}>
+          <span>Content</span>
+        </ConsoleLayout>,
+      )
+    })
+
+    expect(container.textContent).toContain('Impersonation session')
+    expect(container.textContent).toContain('Management changes are disabled.')
+    expect(container.textContent).not.toContain('Verify email')
+    expect(container.querySelector('select')?.disabled).toBe(true)
+    const endButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'End impersonation',
+    )
+    if (!endButton) throw new Error('End impersonation button was not rendered')
+
+    await act(async () => {
+      endButton.click()
+    })
+
+    expect(authState.apiPost).toHaveBeenCalledWith('/auth/impersonation/end')
+    expect(authState.returnFromImpersonation).toHaveBeenCalledWith(
+      'https://xid.dev/console/platform/users',
+    )
+    expect(authState.refresh).not.toHaveBeenCalled()
 
     await act(async () => root.unmount())
     container.remove()

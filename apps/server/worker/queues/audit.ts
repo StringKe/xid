@@ -4,6 +4,7 @@
 
 import type { AuditQueueMessage } from '@xid-kit/types'
 import { sha256Hex } from '@xid-kit/crypto'
+import { completePlatformAuditOutbox } from '../platform/audit-outbox'
 import { redactAuditPayload } from './audit-redaction'
 
 const MAX_ATTEMPTS = 5
@@ -180,6 +181,7 @@ async function handleMessage(env: Env, message: Message<AuditQueueMessage>): Pro
       message.retry()
       return
     }
+    await completePlatformAuditOutbox(env, sourceId)
     message.ack()
   } catch {
     if (message.attempts + 1 <= MAX_ATTEMPTS) {
@@ -198,6 +200,7 @@ async function handleMessage(env: Env, message: Message<AuditQueueMessage>): Pro
         message.retry()
         return
       }
+      await completePlatformAuditOutbox(env, sourceId)
       message.ack()
     } catch {
       message.retry()

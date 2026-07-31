@@ -1,7 +1,7 @@
 // Metering Queue Consumer 测试:Queue 至少一次投递不会重复累计 DAU。
 
 import { describe, expect, it, vi } from 'vitest'
-import type { MeteringQueueMessage } from '@xid-kit/types'
+import type { MeteringQueueEnvelope, MeteringQueueMessage } from '@xid-kit/types'
 import { handleMeteringBatch } from '../metering'
 
 type FakeMessage = {
@@ -61,8 +61,8 @@ function makeEnv(state: FakeMeteringState, usageDaily: FakeUsageDaily): Env {
   } as unknown as Env
 }
 
-function makeBatch(messages: FakeMessage[]): MessageBatch<MeteringQueueMessage> {
-  return { messages } as unknown as MessageBatch<MeteringQueueMessage>
+function makeBatch(messages: FakeMessage[]): MessageBatch<MeteringQueueEnvelope> {
+  return { messages } as unknown as MessageBatch<MeteringQueueEnvelope>
 }
 
 describe('handleMeteringBatch', () => {

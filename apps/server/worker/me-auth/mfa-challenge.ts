@@ -17,7 +17,12 @@ import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
 import { readSession } from '../lib/session'
-import { addMfaToAuthContext, PASSWORD_AUTH_CONTEXT } from '../lib/auth-context'
+import {
+  addMfaToAuthContext,
+  normalizeAuthAssuranceLevel,
+  normalizeIssuedAcr,
+  PASSWORD_AUTH_CONTEXT,
+} from '../lib/auth-context'
 import { issueStepUpToken, verifyTotp } from '../auth/mfa'
 import { verifyAndConsumeBackupCode } from '../auth/backup-codes'
 import {
@@ -97,7 +102,7 @@ async function verifyTotpFactor(
   const result = await verifyTotp({
     ctx: tenant,
     d1: c.env.DB,
-    cache: c.env.CACHE,
+    replayStore: c.env.WEBAUTHN_CHALLENGE,
     kekRaw: c.env.KEK,
     userId,
     factorId: factor.id,
@@ -213,9 +218,9 @@ export async function handleMfaVerify(c: Context<XidHonoEnv>): Promise<Response>
   const db = createTenantDb(c.env.DB, tenant)
   const nextAuthContext = addMfaToAuthContext(
     {
-      acr: session.acr ?? PASSWORD_AUTH_CONTEXT.acr,
+      acr: normalizeIssuedAcr(session.acr) ?? PASSWORD_AUTH_CONTEXT.acr,
       amr: session.amr ?? PASSWORD_AUTH_CONTEXT.amr,
-      aal: session.aal === 1 || session.aal === 2 || session.aal === 3 ? session.aal : 1,
+      aal: normalizeAuthAssuranceLevel(session.aal) ?? 1,
     },
     method,
   )

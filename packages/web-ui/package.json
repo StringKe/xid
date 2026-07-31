@@ -45,6 +45,7 @@
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-table": "catalog:",
+    "@xid-kit/core": "workspace:*",
     "@xid-kit/i18n": "workspace:*",
     "@xid-kit/types": "workspace:*",
     "motion": "catalog:"

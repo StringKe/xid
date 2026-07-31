@@ -5,6 +5,7 @@
 // 重放 / InResponseTo 一次性消费依赖 DO,本层只产出 assertionId/inResponseTo,DO 交互在 worker 完成。
 
 import { parseSecureXml } from './precheck'
+import { validateSamlAssertionStructure, validateSamlResponseStructure } from './schema'
 import { loadIdpVerifyKeys } from './cert'
 import type { IdpVerifyKey } from './cert'
 import { selectSingleSignature, loadAndCheckSignature } from './structure'
@@ -34,6 +35,8 @@ export type VerifySamlOptions = {
   // attributeMapping(connection 级)。
   attributeMapping?: AttributeMapping
   now?: number
+  // connection 配置的证书与 Assertion 时钟容忍,默认 +-3min,最大 +-5min。
+  clockSkewToleranceMs?: number
 }
 
 // 用任一 IdP 公钥验过 signedXml(轮换期任一验过即可,8.5 step 1)。返回命中证书指纹。
@@ -82,6 +85,8 @@ async function resolveAssertion(
     if (!decrypted.ok) return failResult(decrypted.error.code, decrypted.error.reason)
     const parsed = parseSecureXml(decrypted.value, 'Assertion')
     if (!parsed.ok) return failResult(parsed.error.code, parsed.error.reason)
+    const structure = validateSamlAssertionStructure(parsed.value.documentElement)
+    if (!structure.ok) return failResult(structure.error.code, structure.error.reason)
     return okResult({ assertion: parsed.value.documentElement, doc: parsed.value })
   }
   const assertion = plaintextAssertion(responseRoot)
@@ -104,6 +109,8 @@ async function verifyAndResolve(
   const parsed = parseSecureXml(samlResponseXml, 'Response')
   if (!parsed.ok) return failResult(parsed.error.code, parsed.error.reason)
   const responseRoot = parsed.value.documentElement
+  const structure = validateSamlResponseStructure(responseRoot)
+  if (!structure.ok) return failResult(structure.error.code, structure.error.reason)
 
   // SAML 安全基线:至少 assertion 必须被签。双 false 配置(两个开关都关)会跳过全部验签,
   // 等于接受任意伪造 Response,回退到强制 assertion 签名(见 8.6「默认拒绝只签 Response」)。
@@ -139,7 +146,13 @@ export async function verifySamlResponse(
   samlResponseXml: string,
   options: VerifySamlOptions,
 ): Promise<SamlResult<SamlVerifiedAssertion>> {
-  const keysResult = await loadIdpVerifyKeys(options.idpCertificatesB64)
+  const now = options.now ?? Date.now()
+  const keysResult = await loadIdpVerifyKeys(options.idpCertificatesB64, {
+    now,
+    ...(options.clockSkewToleranceMs !== undefined
+      ? { toleranceMs: options.clockSkewToleranceMs }
+      : {}),
+  })
   if (!keysResult.ok) return failResult(keysResult.error.code, keysResult.error.reason)
 
   const ctx = await verifyAndResolve(samlResponseXml, keysResult.value, options)
@@ -152,7 +165,10 @@ export async function verifySamlResponse(
     expectedAudience: options.expectedAudience,
     acsUrl: options.acsUrl,
     spInitiated: options.spInitiated,
-    now: options.now ?? Date.now(),
+    now,
+    ...(options.clockSkewToleranceMs !== undefined
+      ? { clockSkewToleranceMs: options.clockSkewToleranceMs }
+      : {}),
   })
   if (!semantic.ok) return { ok: false, error: semantic.error }
 

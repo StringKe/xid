@@ -15,6 +15,7 @@ type OAuthFlowRecord = {
   redirectAfterLogin?: string
   returnToOrigin?: string
   createdAt?: number
+  interactionStartedAt?: number
   // 暂存的 /authorize 请求参数(未登录时挂起,登录后恢复,见 06 章 authorize 状态机)
   pendingParams?: AuthorizePendingParams
   expiresAt: number // ms since epoch
@@ -69,6 +70,7 @@ function buildRecord(input: Record<string, unknown>, expiresAt: number): OAuthFl
     redirectAfterLogin,
     returnToOrigin,
     createdAt,
+    interactionStartedAt,
   } = input
   const record: OAuthFlowRecord = { state: state as string, expiresAt }
   if (typeof nonce === 'string' && nonce.length > 0) record.nonce = nonce
@@ -91,6 +93,9 @@ function buildRecord(input: Record<string, unknown>, expiresAt: number): OAuthFl
     record.returnToOrigin = returnToOrigin
   }
   if (typeof createdAt === 'number' && Number.isFinite(createdAt)) record.createdAt = createdAt
+  if (typeof interactionStartedAt === 'number' && Number.isFinite(interactionStartedAt)) {
+    record.interactionStartedAt = interactionStartedAt
+  }
   if (pendingParams !== undefined && typeof pendingParams === 'object' && pendingParams !== null) {
     record.pendingParams = pendingParams as AuthorizePendingParams
   }

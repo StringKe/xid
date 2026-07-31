@@ -1,6 +1,6 @@
 // MFA 核心:TOTP(RFC 6238,30s,+-1 步容忍)+ step-up token(acr:step-up,5min)。
 // TOTP secret AES-256-GCM 加密(信封加密,KEK 从 env.KEK);
-// 防重放:已用 code 存 KV TTL=60s(见 password-auth rule)。
+// 防重放:已用 code 在 ChallengeStore DO 内原子 claim,TTL 覆盖该 counter 的完整容忍窗口。
 // 密码学原语只用 Web Crypto(crypto.subtle),不自研原语(见 crypto-boundary rule)。
 // step-up token 独立颁发,不复用登录 session token(见 01 章 5 设计决策)。
 
@@ -14,7 +14,9 @@ import {
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { Result, TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
-import { TOTP_REPLAY_KV_TTL_SEC, TOTP_STEP_SEC } from '../lib/ttl'
+import { constantTimeEqualStr } from './otp'
+import { AppError } from '../lib/errors'
+import { TOTP_REPLAY_TTL_MS, TOTP_STEP_SEC } from '../lib/ttl'
 
 // ---- TOTP 参数(RFC 6238) ----
 const TOTP_DIGITS = 6
@@ -110,23 +112,66 @@ export async function decryptTotpSecret(
   return envelopeDecrypt({ iv, ciphertext: ct, tag, kekVersion }, kek)
 }
 
-// ---- KV replay cache key ----
-function replayKey(tenantId: string, userId: string, factorId: string, code: string): string {
-  return `totp:replay:${tenantId}:${userId}:${factorId}:${code}`
+// 每个 factor 是一个强一致协调原子,同一个 code 作为该 DO 内的 claim key。
+function replayStub(
+  replayStore: DurableObjectNamespace,
+  tenantId: string,
+  userId: string,
+  factorId: string,
+): DurableObjectStub {
+  const id = replayStore.idFromName(`totp-replay:${tenantId}:${userId}:${factorId}`)
+  return replayStore.get(id)
 }
 
-// 时钟容忍:遍历 [now-drift, now+drift] 步长,检查是否有匹配 code。
+async function claimTotpCode(input: {
+  replayStore: DurableObjectNamespace
+  tenantId: string
+  userId: string
+  factorId: string
+  code: string
+  ttlMs: number
+}): Promise<boolean> {
+  const response = await replayStub(
+    input.replayStore,
+    input.tenantId,
+    input.userId,
+    input.factorId,
+  ).fetch('https://challenge-store/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: input.code, value: 'used', ttlMs: input.ttlMs }),
+  })
+  if (response.status === 201) return true
+  if (response.status === 409) return false
+  throw new AppError('server_error')
+}
+
+// 时钟容忍:固定遍历 [now-drift, now+drift] 的全部步长。即使前一个窗口已经匹配，也必须
+// 完成剩余 HMAC 和 constant-time compare，避免由返回时间泄露 code 命中的 drift 位置。
 async function totpCodeMatches(
   secretBytes: Uint8Array,
   code: string,
   nowSec: number,
-): Promise<boolean> {
+): Promise<bigint[]> {
+  const matchedCounters: bigint[] = []
   for (let drift = -TOTP_CLOCK_DRIFT_STEPS; drift <= TOTP_CLOCK_DRIFT_STEPS; drift++) {
     const counter = totpCounter(nowSec + drift * TOTP_STEP_SEC)
     const expected = await hotp(secretBytes, counter)
-    if (expected === code) return true
+    if (constantTimeEqualStr(expected, code)) matchedCounters.push(counter)
   }
-  return false
+  return matchedCounters
+}
+
+// counter C 在当前 counter 为 C-1、C、C+1 时都可接受,所以 claim 必须保留到
+// counter C+1 结束。code 仍作为 claim key,避免 6 位 code 在相邻 counter 碰撞时绕过重放保护。
+function totpReplayTtlMs(matchedCounters: bigint[], nowSec: number): number {
+  const latestCounter = matchedCounters.reduce(
+    (latest, counter) => (counter > latest ? counter : latest),
+    matchedCounters[0] ?? 0n,
+  )
+  const expiresAtSec = Number(latestCounter + BigInt(TOTP_CLOCK_DRIFT_STEPS + 1)) * TOTP_STEP_SEC
+  const remainingMs = Math.max(1_000, (expiresAtSec - nowSec) * 1_000)
+  return Math.min(remainingMs, TOTP_REPLAY_TTL_MS)
 }
 
 // TOTP secret ciphertext 转 Uint8Array(兼容 Buffer/Uint8Array)。
@@ -144,7 +189,7 @@ export type TotpVerifyResult =
 async function verifyTotpWithStatus(opts: {
   ctx: TenantContext
   d1: D1Database
-  cache: KVNamespace
+  replayStore: DurableObjectNamespace
   kekRaw: string
   userId: string
   factorId: string
@@ -152,7 +197,7 @@ async function verifyTotpWithStatus(opts: {
   expectedStatus: 'active' | 'pending'
   nowSec?: number
 }): Promise<TotpVerifyResult> {
-  const { ctx, d1, cache, kekRaw, userId, factorId, code, expectedStatus, nowSec } = opts
+  const { ctx, d1, replayStore, kekRaw, userId, factorId, code, expectedStatus, nowSec } = opts
   const now = nowSec ?? Math.floor(Date.now() / 1000)
 
   const db = createTenantDb(d1, ctx)
@@ -171,20 +216,25 @@ async function verifyTotpWithStatus(opts: {
     return { ok: false, reason: 'decrypt_failed' }
   }
 
-  const rk = replayKey(ctx.tenantId, userId, factorId, code)
-  if ((await cache.get(rk)) !== null) return { ok: false, reason: 'replayed' }
+  const matchedCounters = await totpCodeMatches(secretBytes, code, now)
+  if (matchedCounters.length === 0) return { ok: false, reason: 'invalid_code' }
 
-  if (!(await totpCodeMatches(secretBytes, code, now))) return { ok: false, reason: 'invalid_code' }
-
-  // 写入 replay cache(TTL 60s,覆盖有效验证窗口)
-  await cache.put(rk, '1', { expirationTtl: TOTP_REPLAY_KV_TTL_SEC })
+  const claimed = await claimTotpCode({
+    replayStore,
+    tenantId: ctx.tenantId,
+    userId,
+    factorId,
+    code,
+    ttlMs: totpReplayTtlMs(matchedCounters, now),
+  })
+  if (!claimed) return { ok: false, reason: 'replayed' }
   return { ok: true }
 }
 
 export async function verifyTotp(opts: {
   ctx: TenantContext
   d1: D1Database
-  cache: KVNamespace
+  replayStore: DurableObjectNamespace
   kekRaw: string
   userId: string
   factorId: string
@@ -256,13 +306,13 @@ export type ActivateTotpResult = Result<
 export async function activateTotp(opts: {
   ctx: TenantContext
   d1: D1Database
-  cache: KVNamespace
+  replayStore: DurableObjectNamespace
   kekRaw: string
   userId: string
   factorId: string
   code: string
 }): Promise<ActivateTotpResult> {
-  const { ctx, d1, cache, kekRaw, userId, factorId, code } = opts
+  const { ctx, d1, replayStore, kekRaw, userId, factorId, code } = opts
   const db = createTenantDb(d1, ctx)
   const factor = await db.mfaFactors.findOne(
     and(eq(schema.mfaFactors.userId, userId), eq(schema.mfaFactors.id, factorId)) as ReturnType<
@@ -276,7 +326,7 @@ export async function activateTotp(opts: {
   const verifyResult = await verifyTotpWithStatus({
     ctx,
     d1,
-    cache,
+    replayStore,
     kekRaw,
     userId,
     factorId,

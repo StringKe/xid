@@ -16,6 +16,8 @@ import { POLICIES } from '../durable-objects/rate-limit-store'
 import type { RateLimitPolicy } from '../durable-objects/rate-limit-store'
 import { smsOtpQueuePayload, whatsappOtpQueuePayload } from './delivery-channels'
 import { OTP_EMAIL_TTL_MS, OTP_MAX_ATTEMPTS, OTP_PHONE_TTL_MS } from '../lib/ttl'
+import type { PasswordlessFlowContext } from './passwordless-flow'
+import { serializePasswordlessFlowContext } from './passwordless-flow'
 
 // Phone 国家前缀白名单(默认 US +1 / CA +1)
 const PHONE_ALLOWED_PREFIXES = ['+1']
@@ -84,8 +86,9 @@ export async function persistAndSendOtp(opts: {
   channel: OtpChannel
   target: string
   userId: string
+  flowContext?: PasswordlessFlowContext
 }): Promise<void> {
-  const { c, db, tenantId, channel, target, userId } = opts
+  const { c, db, tenantId, channel, target, userId, flowContext } = opts
   const code = generateOtp()
   const ttlMs = channel === 'email' ? OTP_EMAIL_TTL_MS : OTP_PHONE_TTL_MS
   const tokenId = crypto.randomUUID()
@@ -100,6 +103,7 @@ export async function persistAndSendOtp(opts: {
       userId,
       tokenHash: tokenId,
       codeHash: await sha256Hex(code),
+      ...(flowContext ? { flowContext: serializePasswordlessFlowContext(flowContext) } : {}),
       channel,
       purpose: 'otp',
       attemptCount: 0,
@@ -157,6 +161,7 @@ export async function replaceActiveVerificationToken(opts: {
     userId: string
     tokenHash: string
     codeHash?: string
+    flowContext?: string
     channel?: OtpChannel
     purpose: 'magic_link' | 'otp'
     attemptCount?: number

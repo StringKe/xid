@@ -73,8 +73,8 @@ export function makeState(overrides: Partial<ClientStateResponse> = {}): ClientS
 
 export function makeTokenResponse(overrides: Partial<TokenResponse> = {}): TokenResponse {
   // exp 远在未来,leeway 内不触发刷新。
-  const jwt = makeJwt({ exp: 9_999_999_999, sub: 'user_1' })
-  return { jwt, ...overrides }
+  const token = makeJwt({ exp: 9_999_999_999, sub: 'user_1' })
+  return { token, ...overrides }
 }
 
 export function makeJwt(payload: Record<string, unknown>): string {

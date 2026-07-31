@@ -9,7 +9,8 @@
 //   x-xid-auth(防止外部伪造);(3) 生产配置 XID_AUTH_HMAC_SECRET 开启签名校验(见 auth-header.ts)。
 
 import { authenticateRequest } from '@xid-kit/backend'
-import type { JwtKey } from '@xid-kit/backend'
+import type { JwtKey, SessionTokenExchangeOptions } from '@xid-kit/backend'
+import { isOrganizationMembershipRole } from '@xid-kit/types'
 
 import { resolveAuthSecret, serializeAuthHeader } from './auth-header'
 import type { AuthResult } from './types'
@@ -88,8 +89,10 @@ export type XidMiddlewareOptions = {
   supportedLocales?: readonly string[]
   // fallback locale;默认 en。
   defaultLocale?: string
-  // session cookie 名;默认 __session。
-  cookieName?: string
+  // 应用自己持有的 short-lived JWT cookie。Core 的 opaque refresh cookie 不得填在这里。
+  jwtCookieName?: string
+  // 同源 Core cookie -> short-lived JWT exchange。endpoint 必须与当前请求 exact same-origin。
+  sessionTokenExchange?: SessionTokenExchangeOptions
   // 注入自定义 handler(在认证后执行);返回 Response 可短路。
   afterAuth?: (auth: AuthResult, request: NextRequest) => Response | null | undefined | void
   // x-xid-auth HMAC 签名 secret(纵深防御,见 auth-header.ts)。
@@ -115,7 +118,8 @@ export function xidMiddleware(options: XidMiddlewareOptions) {
     publicRoutes = [],
     supportedLocales,
     defaultLocale = 'en',
-    cookieName,
+    jwtCookieName,
+    sessionTokenExchange,
     afterAuth,
     authHeaderSecret,
   } = options
@@ -128,7 +132,8 @@ export function xidMiddleware(options: XidMiddlewareOptions) {
       jwtKey,
       ...(issuer ? { issuer } : {}),
       ...(authorizedParties ? { authorizedParties } : {}),
-      ...(cookieName ? { cookieName } : {}),
+      ...(jwtCookieName ? { jwtCookieName } : {}),
+      ...(sessionTokenExchange ? { sessionTokenExchange } : {}),
     })
 
     let authResult: AuthResult
@@ -138,7 +143,7 @@ export function xidMiddleware(options: XidMiddlewareOptions) {
         userId: requestState.userId,
         sessionId: requestState.sessionId,
         orgId: typeof claims['active_org_id'] === 'string' ? claims['active_org_id'] : undefined,
-        orgRole: typeof claims['org_role'] === 'string' ? claims['org_role'] : undefined,
+        orgRole: isOrganizationMembershipRole(claims.org_role) ? claims.org_role : undefined,
         orgPermissions: Array.isArray(claims['org_permissions'])
           ? (claims['org_permissions'] as string[])
           : undefined,

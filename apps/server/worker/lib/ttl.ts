@@ -15,6 +15,8 @@ export const DEVICE_CODE_POLL_INTERVAL_SEC = 5
 export const CIBA_AUTH_REQ_TTL_SEC = 300
 // CIBA polling 最小间隔
 export const CIBA_POLL_INTERVAL_SEC = 5
+// CIBA token 签发 reservation lease。超时后由同一个 CibaStore 原子 fencing 并允许重试。
+export const CIBA_ISSUANCE_RESERVATION_TTL_SEC = 30
 // RFC9449:jti 防重放窗口,与 proof iat 窗口一致
 export const DPOP_PROOF_WINDOW_SEC = 60
 // private_key_jwt assertion jti 一次性窗口,覆盖 exp<=5min 约束(03 章 9.6)
@@ -27,6 +29,8 @@ export const BACKCHANNEL_LOGOUT_TOKEN_TTL_SEC = 120
 export const TOKEN_EXCHANGE_ID_TOKEN_TTL_SEC = 300
 // WebAuthn challenge TTL(01 章:5-10min 范围内取 7min)
 export const WEBAUTHN_CHALLENGE_TTL_MS = 7 * 60 * 1000
+// Hosted Auth guest 入口 capability:短期、一次性，仅覆盖 config -> submit 的交互窗口。
+export const GUEST_ENTRY_CAPABILITY_TTL_MS = 5 * 60 * 1000
 // magic link token 有效期(01 章 4:15min 单次有效)
 export const MAGIC_LINK_TTL_MS = 15 * 60 * 1000
 // Email OTP 有效期(01 章 4:10min)
@@ -41,10 +45,15 @@ export const PASSWORD_RESET_TTL_MS = 15 * 60 * 1000
 export const EMAIL_VERIFY_TTL_MS = 15 * 60 * 1000
 // org invitation 默认有效期(06 章 invitations 资源)
 export const INVITATION_TTL_DAYS = 7
+// invitation Email proof:短期、一次性，仅证明当次 invitation 的精确目标 Email。
+export const INVITATION_EMAIL_CLAIM_TTL_MS = 15 * 60 * 1000
+// 完成 primary authentication 后跨 MFA challenge/setup 传递 invitation 的短期 session-bound capability。
+export const INVITATION_AUTH_CONTINUATION_TTL_MS = 60 * 60 * 1000
 // TOTP 步长(RFC 6238)
 export const TOTP_STEP_SEC = 30
-// TOTP 防重放 KV TTL:缓存最近一步已用 code(见 password-auth rule)
-export const TOTP_REPLAY_KV_TTL_SEC = 60
+// TOTP 防重放 DO claim TTL 上限:30s step 与 +-1 容忍下,一个 counter 最长可接受 90s。
+// 实际 claim TTL 由命中的 counter 动态收窄到其剩余有效时间。
+export const TOTP_REPLAY_TTL_MS = 90 * 1000
 // SCIM token 轮换时旧 token 宽限窗口(07 章:轮换不中断在途同步)
 export const SCIM_TOKEN_ROTATE_GRACE_MS = 30 * 60 * 1000
 // JWKS KV 缓存 TTL 1h(signing-keys rule:SDK networkless 验证直读 KV 不回源)

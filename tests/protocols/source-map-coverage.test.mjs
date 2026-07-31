@@ -1444,6 +1444,7 @@ function providerCompatibilityRow(provider) {
     if (!line.startsWith(`| ${provider}`)) continue
     const cells = splitTableRow(line)
     return {
+      boundary: cells[7] ?? '',
       code: cells[4] ?? '',
       evidence: cells[3] ?? '',
       feature: cells[0] ?? '',
@@ -2076,6 +2077,15 @@ describe('protocol source map coverage', () => {
       ).toBe(true)
       expect(row?.gap?.includes('real'), `${provider} real SaaS boundary`).toBe(true)
     }
+  })
+
+  it('keeps provider SCIM concurrency claims aligned with the implemented protocol matrix', () => {
+    const row = providerCompatibilityRow('Microsoft Entra ID')
+
+    expect(row, 'Microsoft Entra ID provider row').toBeDefined()
+    expect(row?.boundary).toContain('ETag')
+    expect(row?.boundary).toContain('If-Match')
+    expect(row?.boundary).not.toContain('not supported')
   })
 
   it('keeps required security profile decisions', () => {

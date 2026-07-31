@@ -7,6 +7,7 @@
 //   此处达上限主动落 D1 失败表保证可观测(见 cloudflare-bindings rule 通知节)。
 
 import type { EmailQueueMessage } from '@xid-kit/types'
+import * as v from 'valibot'
 import { renderTemplate } from './mustache'
 import { executeNotificationDelivery, DELIVERY_RETRY_SECONDS } from './notification-delivery-state'
 import { recordNotificationSent } from './notification-audit'
@@ -406,6 +407,28 @@ XID`,
 const DEFAULT_LOCALE = 'en'
 const DEFAULT_FROM: EmailAddress = { email: 'no-reply@xid.dev', name: 'XID' }
 const TEMPLATE_KEY_PREFIX = 'email-templates'
+const emailFromAddressSchema = v.pipe(v.string(), v.trim(), v.maxLength(254), v.email())
+const emailFromNameSchema = v.pipe(
+  v.string(),
+  v.trim(),
+  v.minLength(1),
+  v.maxLength(100),
+  v.regex(/^[^\r\n]+$/u),
+)
+
+function resolveConfiguredFrom(env: Env): EmailAddress {
+  const address = v.safeParse(emailFromAddressSchema, env.EMAIL_FROM_ADDRESS ?? DEFAULT_FROM.email)
+  if (!address.success) {
+    throw new TypeError('EMAIL_FROM_ADDRESS must be a valid email address')
+  }
+
+  const name = v.safeParse(emailFromNameSchema, env.EMAIL_FROM_NAME ?? DEFAULT_FROM.name)
+  if (!name.success) {
+    throw new TypeError('EMAIL_FROM_NAME must be 1-100 characters without line breaks')
+  }
+
+  return { email: address.output, name: name.output }
+}
 
 function selectTemplate(type: string, locale: string): EmailTemplate | undefined {
   const byLocale = TEMPLATES[type]
@@ -451,12 +474,16 @@ async function loadR2Template(
   return undefined
 }
 
-function renderTemplateInput(message: EmailQueueMessage, template: EmailTemplate): EmailSendInput {
+function renderTemplateInput(
+  message: EmailQueueMessage,
+  template: EmailTemplate,
+  defaultFrom: EmailAddress,
+): EmailSendInput {
   const payload = message.payload
   const from =
     typeof payload.from === 'object' && payload.from !== null
       ? (payload.from as EmailAddress)
-      : DEFAULT_FROM
+      : defaultFrom
   return {
     to: message.recipient,
     from,
@@ -473,7 +500,7 @@ export function renderEmail(message: EmailQueueMessage): EmailSendInput | undefi
   if (template === undefined) {
     return undefined
   }
-  return renderTemplateInput(message, template)
+  return renderTemplateInput(message, template, DEFAULT_FROM)
 }
 
 export async function renderEmailWithTemplates(
@@ -488,7 +515,7 @@ export async function renderEmailWithTemplates(
   if (template === undefined) {
     return undefined
   }
-  return renderTemplateInput(message, template)
+  return renderTemplateInput(message, template, resolveConfiguredFrom(env))
 }
 
 function backoffSeconds(attempt: number): number {
@@ -563,7 +590,9 @@ async function processEmailMessage(
     return
   }
   const delivery = {
-    messageId: message.id,
+    // Producer-side outbox retries carry a stable logical id. Legacy messages fall back to the
+    // Cloudflare Queue id, so existing deliveries keep their original idempotency identity.
+    messageId: message.body.deliveryId ?? message.id,
     tenantId:
       typeof message.body.payload.tenantId === 'string' ? message.body.payload.tenantId : undefined,
     channel: 'email' as const,

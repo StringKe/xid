@@ -1,12 +1,15 @@
 // OIDC CIBA (Client Initiated Backchannel Authentication) minimal subset.
 
+import { base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import type { IssuedRefreshToken } from '@xid-kit/protocol'
 import { eq } from 'drizzle-orm'
 import type { Result, TenantContext, XidError } from '@xid-kit/types'
 import type { Context, Hono } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
-import { authenticateClient, parseBasicAuth } from './client-auth'
-import type { ClientCredentials } from './client-auth'
+import { AppError, isAppError } from '../lib/errors'
+import type { CibaRecord } from '../durable-objects/ciba-store'
+import { authenticateClient, extractClientCredentials } from './client-auth'
 import { findClient, findDisallowedScope, oauthError, parseUniqueForm } from './shared'
 import type { ClientRow } from './shared'
 import {
@@ -15,43 +18,46 @@ import {
   fail,
   issueAccessToken,
   issueIdToken,
-  issueRefreshIfAllowed,
+  persistRefresh,
+  prepareRefreshIfAllowed,
   tokenResponseBody,
 } from './token-issue'
 import type { TokenContext } from './token-issue'
-import { CIBA_AUTH_REQ_TTL_SEC, CIBA_POLL_INTERVAL_SEC } from '../lib/ttl'
-import { claimReplayKey } from './replay-claim'
+import {
+  CIBA_AUTH_REQ_TTL_SEC,
+  CIBA_ISSUANCE_RESERVATION_TTL_SEC,
+  CIBA_POLL_INTERVAL_SEC,
+} from '../lib/ttl'
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'
+const CIBA_AUTH_REQ_ID_BYTES = 32
 
-type CibaRecord = {
-  clientId: string
-  scope: string
-  loginHint: string
-  status: 'pending' | 'approved' | 'denied' | 'consumed'
-  userId?: string
-  expiresAt: number
-  // 上次 pending 轮询时间(epoch 秒):CIBA Core 11 要求客户端按 interval 轮询,过快回 slow_down。
-  lastPollAt?: number
-}
-
-function cibaKey(tenantId: string, authReqId: string): string {
-  return `ciba:${tenantId}:${authReqId}`
+function cibaStub(env: Env, tenantId: string, authReqId: string): DurableObjectStub {
+  const ns = env.CIBA_STATE
+  return ns.get(ns.idFromName(`ciba:${tenantId}:${authReqId}`))
 }
 
 async function readCiba(env: Env, tenantId: string, authReqId: string): Promise<CibaRecord | null> {
-  const raw = await env.CACHE.get(cibaKey(tenantId, authReqId), 'json')
-  return (raw as CibaRecord | null) ?? null
+  const response = await cibaStub(env, tenantId, authReqId).fetch('https://ciba-store/read', {
+    method: 'POST',
+  })
+  if (response.status === 404 || response.status === 410) return null
+  if (response.status !== 200) throw new AppError('server_error')
+  return readRecordResponse(response)
 }
 
-async function writeCiba(
+async function createCiba(
   env: Env,
   tenantId: string,
   authReqId: string,
   record: CibaRecord,
 ): Promise<void> {
-  const ttl = Math.max(1, record.expiresAt - Math.floor(Date.now() / 1000))
-  await env.CACHE.put(cibaKey(tenantId, authReqId), JSON.stringify(record), { expirationTtl: ttl })
+  const response = await cibaStub(env, tenantId, authReqId).fetch('https://ciba-store/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(record),
+  })
+  if (response.status !== 201) throw new AppError('server_error')
 }
 
 export async function lookupCibaRequest(
@@ -95,10 +101,17 @@ export async function approveCibaRequest(input: {
   if (!(await loginHintMatchesUser(input.env, input.ctx, record.loginHint, input.userId))) {
     return false
   }
-  record.status = 'approved'
-  record.userId = input.userId
-  await writeCiba(input.env, input.ctx.tenantId, input.authReqId, record)
-  return true
+  const response = await cibaStub(input.env, input.ctx.tenantId, input.authReqId).fetch(
+    'https://ciba-store/approve',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: input.userId }),
+    },
+  )
+  if (response.status === 200) return true
+  if (response.status === 404 || response.status === 409 || response.status === 410) return false
+  throw new AppError('server_error')
 }
 
 export async function denyCibaRequest(input: {
@@ -106,41 +119,156 @@ export async function denyCibaRequest(input: {
   tenantId: string
   authReqId: string
 }): Promise<boolean> {
-  const record = await readCiba(input.env, input.tenantId, input.authReqId)
-  if (!record || record.status !== 'pending') return false
-  record.status = 'denied'
-  await writeCiba(input.env, input.tenantId, input.authReqId, record)
-  return true
+  const response = await cibaStub(input.env, input.tenantId, input.authReqId).fetch(
+    'https://ciba-store/deny',
+    { method: 'POST' },
+  )
+  if (response.status === 200) return true
+  if (response.status === 404 || response.status === 409 || response.status === 410) return false
+  throw new AppError('server_error')
 }
 
-// Atomically claim auth_req_id redemption via OAuthFlowDO.
-async function claimCibaRedemption(
-  c: Context<XidHonoEnv>,
-  tenantId: string,
-  authReqId: string,
-): Promise<Result<true, XidError>> {
-  const ns = c.env.OAUTH_STATE
-  const claim = await claimReplayKey({
-    stub: ns.get(ns.idFromName(`ciba:${tenantId}`)),
-    key: authReqId,
-    ttlMs: CIBA_AUTH_REQ_TTL_SEC * 1000,
-  })
-  if (!claim.ok) return { ok: false, error: claim.error }
-  if (!claim.claimed) return fail('invalid_grant', 'auth_req_id already consumed')
-  return { ok: true, value: true }
+type CibaReservation = {
+  record: CibaRecord
+  reservationId: string
 }
 
-function extractCredentials(
-  authHeader: string | undefined,
-  form: Record<string, string>,
-): ClientCredentials {
-  return {
-    basic: parseBasicAuth(authHeader),
-    postClientId: form['client_id'] ?? null,
-    postSecret: form['client_secret'] ?? null,
-    assertionType: form['client_assertion_type'] ?? null,
-    assertion: form['client_assertion'] ?? null,
+async function reserveCiba(input: {
+  env: Env
+  tenantId: string
+  authReqId: string
+  clientId: string
+  nowSec: number
+}): Promise<Result<CibaReservation, XidError>> {
+  const response = await cibaStub(input.env, input.tenantId, input.authReqId).fetch(
+    'https://ciba-store/poll',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: input.clientId,
+        nowSec: input.nowSec,
+        intervalSec: CIBA_POLL_INTERVAL_SEC,
+        reservationTtlSec: CIBA_ISSUANCE_RESERVATION_TTL_SEC,
+      }),
+    },
+  )
+  if (response.status === 404) return fail('invalid_grant', 'unknown auth_req_id')
+  if (response.status === 410) return fail('expired_token', 'auth_req_id expired')
+  if (response.status === 202) return fail('authorization_pending', 'authentication pending')
+  if (response.status === 429) {
+    return fail('slow_down', `polling interval is ${CIBA_POLL_INTERVAL_SEC} seconds`)
   }
+  if (response.status === 403) return fail('access_denied', 'authentication denied')
+  if (response.status === 409) return fail('invalid_grant', 'auth_req_id already consumed')
+  if (response.status !== 200) return fail('server_error', 'CIBA state unavailable', 500)
+  return { ok: true, value: await readReservationResponse(response) }
+}
+
+async function mutateCibaReservation(input: {
+  env: Env
+  tenantId: string
+  authReqId: string
+  clientId: string
+  reservationId: string
+  action: 'abort' | 'finalize'
+}): Promise<'updated' | 'ownership_lost'> {
+  const attempts = input.action === 'finalize' ? 2 : 1
+  let lastFailure: unknown = new Error(`CIBA ${input.action} did not run`)
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    let response: Response
+    try {
+      response = await cibaStub(input.env, input.tenantId, input.authReqId).fetch(
+        `https://ciba-store/${input.action}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId: input.clientId,
+            reservationId: input.reservationId,
+          }),
+        },
+      )
+    } catch (error) {
+      lastFailure = error
+      continue
+    }
+    if (response.status === 200) return 'updated'
+    if (
+      input.action === 'abort' &&
+      (response.status === 404 || response.status === 409 || response.status === 410)
+    ) {
+      return 'ownership_lost'
+    }
+    lastFailure = new Error(`CIBA ${input.action} failed with status ${response.status}`)
+    if (response.status < 500) break
+  }
+  if (input.action === 'finalize') {
+    try {
+      const record = await readCiba(input.env, input.tenantId, input.authReqId)
+      if (record?.status === 'consumed' && record.finalizedReservationId === input.reservationId) {
+        return 'updated'
+      }
+    } catch (confirmationError) {
+      lastFailure = new AggregateError(
+        [lastFailure, confirmationError],
+        'CIBA finalize outcome could not be confirmed',
+      )
+    }
+  }
+  throw new AppError('server_error', { cause: lastFailure })
+}
+
+async function readRecordResponse(response: Response): Promise<CibaRecord> {
+  const body: unknown = await response.json()
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('record' in body) ||
+    !isCibaRecord(body.record)
+  ) {
+    throw new AppError('server_error')
+  }
+  return body.record
+}
+
+async function readReservationResponse(response: Response): Promise<CibaReservation> {
+  const body: unknown = await response.json()
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('record' in body) ||
+    !isCibaRecord(body.record) ||
+    !('reservationId' in body) ||
+    typeof body.reservationId !== 'string' ||
+    body.reservationId.length === 0
+  ) {
+    throw new AppError('server_error')
+  }
+  return { record: body.record, reservationId: body.reservationId }
+}
+
+function isCibaRecord(value: unknown): value is CibaRecord {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record['clientId'] === 'string' &&
+    typeof record['scope'] === 'string' &&
+    typeof record['loginHint'] === 'string' &&
+    typeof record['expiresAt'] === 'number' &&
+    (record['status'] === 'pending' ||
+      record['status'] === 'approved' ||
+      record['status'] === 'issuing' ||
+      record['status'] === 'denied' ||
+      record['status'] === 'consumed') &&
+    (record['userId'] === undefined || typeof record['userId'] === 'string') &&
+    (record['lastPollAt'] === undefined || typeof record['lastPollAt'] === 'number') &&
+    (record['reservationId'] === undefined || typeof record['reservationId'] === 'string') &&
+    (record['reservationExpiresAt'] === undefined ||
+      typeof record['reservationExpiresAt'] === 'number') &&
+    (record['finalizedReservationId'] === undefined ||
+      typeof record['finalizedReservationId'] === 'string')
+  )
 }
 
 async function resolveBackchannelClient(
@@ -149,7 +277,7 @@ async function resolveBackchannelClient(
   now: number,
 ): Promise<{ client: ClientRow; clientId: string } | Response> {
   const ctx = c.get('tenant')
-  const creds = extractCredentials(c.req.header('authorization'), form)
+  const creds = extractClientCredentials(c.req.header('authorization'), form)
   const clientId = creds.basic?.clientId ?? creds.postClientId ?? form['client_id']
   if (!clientId) {
     return oauthError(c, {
@@ -220,7 +348,7 @@ async function handleBackchannelAuthentication(c: Context<XidHonoEnv>): Promise<
     })
   }
 
-  const authReqId = crypto.randomUUID()
+  const authReqId = base64UrlEncode(crypto.getRandomValues(new Uint8Array(CIBA_AUTH_REQ_ID_BYTES)))
   const ctx = c.get('tenant')
   const record: CibaRecord = {
     clientId,
@@ -229,7 +357,7 @@ async function handleBackchannelAuthentication(c: Context<XidHonoEnv>): Promise<
     status: 'pending',
     expiresAt: now + CIBA_AUTH_REQ_TTL_SEC,
   }
-  await writeCiba(c.env, ctx.tenantId, authReqId, record)
+  await createCiba(c.env, ctx.tenantId, authReqId, record)
 
   return c.json(
     {
@@ -248,63 +376,85 @@ export async function grantCiba(
   const authReqId = tc.form['auth_req_id']
   if (!authReqId) return fail('invalid_request', 'auth_req_id is required')
   const ctx = tc.c.get('tenant')
-  const record = await readCiba(tc.c.env, ctx.tenantId, authReqId)
-  if (!record) return fail('invalid_grant', 'unknown auth_req_id')
-  if (record.clientId !== tc.clientId)
-    return fail('invalid_grant', 'auth_req_id not bound to this client')
-  if (record.expiresAt <= tc.now) return fail('expired_token', 'auth_req_id expired')
-  if (record.status === 'pending') {
-    // 轮询限速只对 pending 生效:终态(approved/denied/consumed)响应是最终语义,不拦。
-    if (record.lastPollAt !== undefined && tc.now - record.lastPollAt < CIBA_POLL_INTERVAL_SEC) {
-      return fail('slow_down', `polling interval is ${CIBA_POLL_INTERVAL_SEC} seconds`)
-    }
-    record.lastPollAt = tc.now
-    await writeCiba(tc.c.env, ctx.tenantId, authReqId, record)
-    return fail('authorization_pending', 'authentication pending')
+  const reserved = await reserveCiba({
+    env: tc.c.env,
+    tenantId: ctx.tenantId,
+    authReqId,
+    clientId: tc.clientId,
+    nowSec: tc.now,
+  })
+  if (!reserved.ok) return reserved
+  const { record, reservationId } = reserved.value
+  const mutation = {
+    env: tc.c.env,
+    tenantId: ctx.tenantId,
+    authReqId,
+    clientId: tc.clientId,
+    reservationId,
   }
-  if (record.status === 'denied') return fail('access_denied', 'authentication denied')
-  if (record.status === 'consumed') return fail('invalid_grant', 'auth_req_id already consumed')
-  if (!record.userId) return fail('invalid_grant', 'authentication incomplete')
+  let issuedRefresh: IssuedRefreshToken | null = null
 
-  const redemption = await claimCibaRedemption(tc.c, ctx.tenantId, authReqId)
-  if (!redemption.ok) return redemption
+  try {
+    if (!record.userId) throw new AppError('server_error')
 
-  const activeUser = await assertActiveTokenUser(tc, record.userId)
-  if (!activeUser.ok) return activeUser
+    const activeUser = await assertActiveTokenUser(tc, record.userId)
+    if (!activeUser.ok) {
+      await mutateCibaReservation({ ...mutation, action: 'finalize' })
+      return activeUser
+    }
 
-  const accessToken = await issueAccessToken(tc, {
-    userId: record.userId,
-    scope: record.scope,
-    audience: tc.clientId,
-  })
-  const idToken = record.scope.split(' ').includes('openid')
-    ? await issueIdToken(tc, {
-        userId: record.userId,
-        scope: record.scope,
-        nonce: null,
-        authTime: tc.now,
-        accessToken,
-      })
-    : null
-  const refreshToken = await issueRefreshIfAllowed(tc, {
-    userId: record.userId,
-    scope: record.scope,
-    grantContext: null,
-  })
+    const accessToken = await issueAccessToken(tc, {
+      userId: record.userId,
+      scope: record.scope,
+      audience: tc.clientId,
+    })
+    const idToken = record.scope.split(' ').includes('openid')
+      ? await issueIdToken(tc, {
+          userId: record.userId,
+          scope: record.scope,
+          nonce: null,
+          authTime: tc.now,
+          accessToken,
+        })
+      : null
+    issuedRefresh = await prepareRefreshIfAllowed(tc, {
+      userId: record.userId,
+      scope: record.scope,
+      grantContext: null,
+    })
+    if (issuedRefresh) await persistRefresh(tc, issuedRefresh.record)
 
-  record.status = 'consumed'
-  await writeCiba(tc.c.env, ctx.tenantId, authReqId, record)
-
-  return {
-    ok: true,
-    value: tokenResponseBody({
+    const response = tokenResponseBody({
       accessToken,
       jkt: tc.dpopJkt,
       ttlSec: accessTtl(tc),
       scope: record.scope,
-      refreshToken,
+      refreshToken: issuedRefresh?.token ?? null,
       idToken,
-    }),
+    })
+    await mutateCibaReservation({ ...mutation, action: 'finalize' })
+    return { ok: true, value: response }
+  } catch (error) {
+    const recoveryErrors: unknown[] = []
+    if (issuedRefresh) {
+      try {
+        const db = createTenantDb(tc.c.env.DB, ctx)
+        await db.refreshTokens.hardDelete(eq(schema.refreshTokens.id, issuedRefresh.record.id))
+      } catch (rollbackError) {
+        recoveryErrors.push(rollbackError)
+      }
+    }
+    try {
+      await mutateCibaReservation({ ...mutation, action: 'abort' })
+    } catch (abortError) {
+      recoveryErrors.push(abortError)
+    }
+    if (recoveryErrors.length > 0) {
+      throw new AppError('server_error', {
+        cause: new AggregateError([error, ...recoveryErrors], 'CIBA issuance recovery failed'),
+      })
+    }
+    throw isAppError(error) ? error : new AppError('server_error', { cause: error })
   }
 }
 

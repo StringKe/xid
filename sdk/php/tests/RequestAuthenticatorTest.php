@@ -58,6 +58,23 @@ final class RequestAuthenticatorTest extends TestCase
         $this->assertSame('usr_123', $result->claims()->sub());
     }
 
+    public function test_implicit_and_core_cookies_are_not_verified_locally(): void
+    {
+        $token = TestHelpers::buildEs256Jwt($this->ecKey, TestHelpers::validPayload());
+        $authenticator = new RequestAuthenticator($this->verifier);
+        $request = (new ServerRequest('GET', 'https://example.com/api'))
+            ->withCookieParams([
+                '__xid_session' => $token,
+                '__session' => $token,
+                '__Host-xid.rt.abcdefgh' => $token,
+            ]);
+
+        $result = $authenticator->authenticate($request);
+
+        $this->assertFalse($result->isAuthenticated());
+        $this->assertStringContainsString('No token found', $result->reason() ?? '');
+    }
+
     public function test_no_token_returns_unauthenticated(): void
     {
         $authenticator = new RequestAuthenticator($this->verifier);

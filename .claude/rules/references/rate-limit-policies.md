@@ -26,13 +26,18 @@ Design source: `docs/design/01-authentication.md` section 7 and
   `https://challenges.cloudflare.com/turnstile/v0/siteverify` with a 5s `AbortSignal.timeout`. It
   sits on the login critical path, so the timeout MUST stay short -- a Cloudflare-side stall must
   not drag auth P99.
-- When `env.TURNSTILE_SECRET` is unset, verification is skipped (dev/test friendly). When it is set,
-  siteverify is mandatory and MUST NOT be bypassed.
+- `TURNSTILE_SITE_KEY` is a public Worker variable and `TURNSTILE_SECRET` is a Workers Secret. Both
+  absent skips verification for dev/test. Both present enables it. A partial pair is a
+  `server_error`; it never silently degrades to disabled.
+- Hosted Auth gets the public site key from `/auth/config`, renders explicitly with
+  `appearance=interaction-only`, and resets after each server check because tokens are single use.
+  Siteverify requires `success=true` and action `turnstile-spin-v2`.
 - Failures raise `captcha_required` / `captcha_failed` only. The remote reason goes into `cause` for
   server logs, never into the response body.
 - Enforced on: password sign-in and sign-up (`/auth/password`), password reset request
-  (`/auth/forgot-password`), passwordless send and verify. The sign-in page mounts an invisible
-  widget so the challenge costs no layout shift.
+  (`/auth/forgot-password`), passwordless send, passkey assertion, social authorization, enterprise
+  SSO discovery and guest creation. OTP/code verification remains protected by single-use
+  challenges plus RateLimitStore rather than consuming a second Turnstile token.
 
 ## Rate limit policies
 
@@ -42,14 +47,14 @@ distributed brute force overshoot any threshold. `docs/design/01-authentication.
 says KV -- the Durable Object is the implementation and the correct choice (see cloudflare-bindings
 rule).
 
-| Policy                       | Window / limit        | Lockout                                    |
-| ---------------------------- | --------------------- | ------------------------------------------ |
-| `ACCOUNT_FAILURE`            | 10 / 15 min           | exponential backoff 5 / 15 / 30 / 60 min   |
-| `IP_FAILURE`                 | 50 / min              | 1 h                                        |
-| `OTP_SEND`                   | 1 / min per recipient | none, natural window expiry                |
-| OTP hourly quota             | 5 / h per recipient   | none, natural window expiry                |
-| `DCR_REGISTER` (RFC 7591)    | 10 / h per IP         | 1 h                                        |
-| Self-service org creation    | 10 / day per user     | none, natural window expiry                |
+| Policy                    | Window / limit        | Lockout                                  |
+| ------------------------- | --------------------- | ---------------------------------------- |
+| `ACCOUNT_FAILURE`         | 10 / 15 min           | exponential backoff 5 / 15 / 30 / 60 min |
+| `IP_FAILURE`              | 50 / min              | 1 h                                      |
+| `OTP_SEND`                | 1 / min per recipient | none, natural window expiry              |
+| OTP hourly quota          | 5 / h per recipient   | none, natural window expiry              |
+| `DCR_REGISTER` (RFC 7591) | 10 / h per IP         | 1 h                                      |
+| Self-service org creation | 10 / day per user     | none, natural window expiry              |
 
 - Backoff steps escalate per key through a persisted `backoff_count`. `reset(key)` after a
   successful login clears the count, the lock, and the backoff tier -- all three, or the next

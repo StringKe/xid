@@ -5,14 +5,14 @@ module Xid
   #
   # 提取优先级：
   #   1. Authorization: Bearer <token>（RFC 6750）
-  #   2. cookie 名 __xid_token（可配置）
+  #   2. 应用显式配置名称的 short-lived JWT cookie
   #
   # 本类不抛异常 -- 所有失败以 AuthState.unauthenticated 返回，
   # 方便 Rack/Sinatra/Rails 中间件直接使用。
   class RequestAuthenticator
     # @param token_verifier  [Xid::TokenVerifier]
-    # @param cookie_name     [String]  cookie 键名，默认 "__xid_token"
-    def initialize(token_verifier:, cookie_name: "__xid_token")
+    # @param cookie_name     [String, nil] 应用自有 JWT cookie 名；nil 禁用 fallback
+    def initialize(token_verifier:, cookie_name: nil)
       @verifier    = token_verifier
       @cookie_name = cookie_name
     end
@@ -85,6 +85,7 @@ module Xid
     # -- Cookie 提取 -------------------------------------------------------
 
     def extract_cookie(request)
+      return nil if @cookie_name.to_s.empty?
       return nil unless request.respond_to?(:cookies)
 
       cookies = request.cookies
@@ -94,6 +95,7 @@ module Xid
     end
 
     def extract_cookie_from_env(env)
+      return nil if @cookie_name.to_s.empty?
       # 解析 Rack HTTP_COOKIE 字符串
       cookie_string = env["HTTP_COOKIE"].to_s
       return nil if cookie_string.empty?

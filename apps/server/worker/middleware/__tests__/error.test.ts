@@ -71,6 +71,34 @@ describe('errorHandler', () => {
     expect(JSON.stringify(body)).not.toContain('SQL')
   })
 
+  it('maps the migration-owned seat limit sentinel to a typed opaque business error', async () => {
+    const res = await errorHandler(new Error('D1_ERROR: seat_limit_exceeded'), {
+      get: () => ({ _: (descriptor: { id?: string }) => `localized:${descriptor.id}` }),
+      json: (body: unknown, status: number, headers: HeadersInit) =>
+        Response.json(body, { status, headers }),
+    } as never)
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({
+      code: 'seat_limit_exceeded',
+      message: 'localized:seat_limit_exceeded',
+    })
+  })
+
+  it('maps the migration-owned resource quota sentinel to a typed opaque business error', async () => {
+    const res = await errorHandler(new Error('D1_ERROR: resource_quota_exceeded'), {
+      get: () => ({ _: (descriptor: { id?: string }) => `localized:${descriptor.id}` }),
+      json: (body: unknown, status: number, headers: HeadersInit) =>
+        Response.json(body, { status, headers }),
+    } as never)
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({
+      code: 'resource_quota_exceeded',
+      message: 'localized:resource_quota_exceeded',
+    })
+  })
+
   it('生产环境未知错误同样打日志(有迹可循),AppError 不打', async () => {
     await buildApp().request('/unknown', {}, { ENVIRONMENT: 'production' } as Env)
     expect(console.error).toHaveBeenCalled()

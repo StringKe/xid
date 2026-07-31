@@ -46,7 +46,10 @@ export function registerDiscoveryRoutes(app: Hono<XidHonoEnv>): void {
             ctx.policy.oidcProfiles?.browserBasedAppsProfileSupported === true,
         }),
     })
-    return c.json(meta, 200, { 'cache-control': `public, max-age=${DISCOVERY_CACHE_TTL_SEC}` })
+    return c.json(meta, 200, {
+      'cache-control': `public, max-age=${DISCOVERY_CACHE_TTL_SEC}`,
+      'access-control-allow-origin': '*',
+    })
   }
 
   app.get('/.well-known/openid-configuration', handler)

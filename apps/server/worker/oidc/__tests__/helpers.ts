@@ -6,6 +6,9 @@ import type { TenantContext } from '@xid-kit/types'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { SessionData, XidHonoEnv } from '../../lib/types'
+import { isAppError } from '../../lib/errors'
+import { CibaStore } from '../../durable-objects/ciba-store'
+import { MockDurableObjectState } from '../../durable-objects/__tests__/mock-do-state'
 
 export type TestTenant = { ctx: TenantContext; kekB64: string }
 
@@ -68,6 +71,7 @@ export type TableSet = {
   projects?: Record<string, unknown>[]
   project_grants?: Record<string, unknown>[]
   user_grants?: Record<string, unknown>[]
+  roles?: Record<string, unknown>[]
   role_permissions?: Record<string, unknown>[]
   permissions?: Record<string, unknown>[]
   manager_assignments?: Record<string, unknown>[]
@@ -92,6 +96,7 @@ function tableForSql(sql: string): keyof TableSet {
   if (l.includes('memberships')) return 'memberships'
   if (l.includes('project_grants')) return 'project_grants'
   if (l.includes('role_permissions')) return 'role_permissions'
+  if (l.includes('roles')) return 'roles'
   if (l.includes('user_grants')) return 'user_grants'
   if (l.includes('permissions')) return 'permissions'
   if (l.includes('manager_assignments')) return 'manager_assignments'
@@ -123,6 +128,51 @@ export function makeFakeD1(tables: TableSet, capture?: D1Capture): D1Database {
       return rows.filter(
         (row) =>
           ids.has(String(row['id'])) && row['status'] === 'active' && row['deleted_at'] == null,
+      )
+    }
+    if (table === 'role_permissions' && lower.includes('role_id in')) {
+      const tenantId = params.find((value) => rows.some((row) => row['tenant_id'] === value))
+      const roleIds = new Set(
+        params.filter(
+          (value): value is string =>
+            typeof value === 'string' && rows.some((row) => row['role_id'] === value),
+        ),
+      )
+      return rows.filter(
+        (row) => row['tenant_id'] === tenantId && roleIds.has(String(row['role_id'])),
+      )
+    }
+    if (table === 'roles' && lower.includes('"roles"."id" in')) {
+      const ids = new Set(
+        params.filter(
+          (value): value is string =>
+            typeof value === 'string' && rows.some((row) => row['id'] === value),
+        ),
+      )
+      return rows.filter(
+        (row) =>
+          ids.has(String(row['id'])) &&
+          params.includes(row['tenant_id']) &&
+          params.includes(row['project_id']) &&
+          row['status'] === 'active' &&
+          row['deleted_at'] == null,
+      )
+    }
+    if (table === 'permissions' && lower.includes('"permissions"."id" in')) {
+      const tenantId = params.find((value) => rows.some((row) => row['tenant_id'] === value))
+      const ids = new Set(
+        params.filter(
+          (value): value is string =>
+            typeof value === 'string' && rows.some((row) => row['id'] === value),
+        ),
+      )
+      return rows.filter(
+        (row) =>
+          row['tenant_id'] === tenantId &&
+          ids.has(String(row['id'])) &&
+          params.includes(row['project_id']) &&
+          row['status'] === 'active' &&
+          row['deleted_at'] == null,
       )
     }
     const sp = params.filter((v): v is string => typeof v === 'string')
@@ -221,6 +271,7 @@ export type EnvOverrides = {
   PEPPER?: string
   AUDIT_QUEUE?: Queue
   OAUTH_STATE?: DurableObjectNamespace
+  CIBA_STATE?: DurableObjectNamespace
   PAR_STORE?: DurableObjectNamespace
   DEVICE_FLOW?: DurableObjectNamespace
   SESSION_REVOCATION?: DurableObjectNamespace
@@ -236,10 +287,39 @@ export function makeEnv(overrides: EnvOverrides): Env {
     PEPPER: overrides.PEPPER,
     AUDIT_QUEUE: overrides.AUDIT_QUEUE ?? { send: async () => undefined },
     OAUTH_STATE: overrides.OAUTH_STATE ?? makeOauthStateNs(),
+    CIBA_STATE: overrides.CIBA_STATE ?? makeCibaStateNs(),
     PAR_STORE: overrides.PAR_STORE,
     DEVICE_FLOW: overrides.DEVICE_FLOW,
     SESSION_REVOCATION: overrides.SESSION_REVOCATION,
     RATE_LIMITER: overrides.RATE_LIMITER,
+  })
+}
+
+// CIBA_STATE DO fake:每个 auth_req_id 使用真实 CibaStore,并串行同一 DO 的 fetch 事件。
+export function makeCibaStateNs(): DurableObjectNamespace {
+  type Entry = { instance: CibaStore; tail: Promise<void> }
+  const objects = new Map<string, Entry>()
+  return asUnknown<DurableObjectNamespace>({
+    idFromName: (name: string) => name,
+    get: (id: string) => ({
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+        let entry = objects.get(id)
+        if (!entry) {
+          const state = new MockDurableObjectState()
+          const instance = new CibaStore(asUnknown<DurableObjectState>(state))
+          state.setAlarmHandler(() => instance.alarm())
+          entry = { instance, tail: Promise.resolve() }
+          objects.set(id, entry)
+        }
+        const request = new Request(input, init)
+        const response = entry.tail.then(() => entry.instance.fetch(request))
+        entry.tail = response.then(
+          () => undefined,
+          () => undefined,
+        )
+        return response
+      },
+    }),
   })
 }
 
@@ -275,6 +355,12 @@ export function makeApp(
     c.set('session', session)
     await next()
   })
+  // Mirror the production AppError status mapping without coupling protocol tests to i18n setup.
+  app.onError((error, c) =>
+    isAppError(error)
+      ? c.json({ code: error.code }, error.httpStatus as 400)
+      : c.json({ code: 'server_error' }, 500),
+  )
   register(app)
   return app
 }

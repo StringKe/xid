@@ -34,12 +34,22 @@ relationship.
 - Guest sign-in and credential sign-up with `intent=sign-up` both route to the same create
   Organization flow. Only a provisional user with `is_new_user = true` and no Membership may use
   it.
+- This product onboarding intent is distinct from an RP asking the OIDC SDK to show registration.
+  The SDK sends `xid_intent=sign-up`; `/authorize` maps it to the internal Hosted Auth
+  `application-sign-up` intent after validating `client_id`. That flow creates the end user and a
+  default member Membership inside the Application owner's existing top-level Tenant, then resumes
+  the stashed authorization request. It never creates or migrates a top-level Tenant and never
+  enters `/create-organization`.
 - Self-service creation makes a new isolation root, not a child of the resolver's provisional
   Organization. Its invariant is `id = tenant_id = new_organization_id` and
   `parent_org_id = null`. Child Organization creation remains an explicit operation with
   `parent_org_id` set and the parent's top-level `tenant_id`.
 - A top-level Organization slug is unique within its Instance because it participates in host
   resolution. Tenant-local uniqueness alone is insufficient.
+- Management API child creation therefore requires an explicit `parent_org_id` equal to the current
+  active top-level Organization. It never infers a parent, never reparents a deleted slug, and never
+  accepts a child as a parent. Top-level suspend/delete/restore remains an Instance Manager
+  operation on the separate platform path.
 - The creation transaction migrates the provisional user's user-owned rows and sessions to the new
   Tenant, creates one active owner Membership, and selects that Organization for every migrated
   session. The session id and opaque cookie remain stable, and the Instance root resolver resolves
@@ -79,11 +89,29 @@ pending -> expired
 
 - Invitation tokens are stored in the database (not as JWTs) so they can be revoked, and a bulk
   invitation API is supported
+- Organization Membership has exactly three fixed roles: `owner`, `admin`, and `member`. The shared
+  `ORGANIZATION_MEMBERSHIP_ROLES` contract drives Worker validation, DB types, SDK session shapes,
+  and Console choices. `viewer` is a Project business-role example, not an Organization Membership
+  role.
+- Owner assignment is a human-principal privilege boundary. A Management API key cannot create,
+  promote, restore, or reactivate an `owner`; an owner invitation requires an authenticated
+  Organization `owner` or its exact `org_manager`. Demoting, deactivating, or deleting an active
+  owner is allowed only when another active owner backed by an active user remains in the same
+  Organization. The replacement-owner check and mutation execute in one conditional D1 statement
+  so concurrent changes cannot remove the last owner.
+- An invitation token carries a versioned, encoded Tenant locator so an anonymous Instance-root
+  request can select one candidate Tenant without a global token lookup. The database stores the
+  SHA-256 hash of the complete opaque token, including the locator. The locator is never
+  authorization: preview and acceptance must find that complete hash through the selected
+  Tenant-scoped query layer. Changing the locator therefore invalidates the token.
 - External collaborators (guests) are users whose email domain does not belong to the org's verified
   domains. They are flagged separately and can be capped (mirroring WorkOS's domain-managed versus
   domain-guest distinction)
-- Seat management: the active member count is the billing dimension, tracked as `seat_limit` and
-  `seat_used`. Deprovisioning frees a seat, and re-provisioning restores the historical roles
+- Seat management: one seat is one distinct user with any active membership across the complete
+  Tenant, including child Organizations. Multiple memberships for the same user consume one seat.
+  `organization_quotas(seats)` is authoritative; the root `organizations.seat_limit` is a
+  compatibility mirror and `seat_used` is legacy only. Deprovisioning the user's last active
+  membership frees a seat, and re-provisioning restores the historical roles
 - SCIM deprovisioning is a soft delete (inactive) rather than a physical delete, which preserves the
   audit trail
 
@@ -98,6 +126,33 @@ invitations, and organization email domains.
 
 Four levels, aligned with Zitadel: Instance Manager (across all orgs), Org Manager (a single org),
 Project Manager (a single Project), and Project Grant Manager (managing a granted Project).
+
+The current authorization consumers preserve those exact scopes:
+
+- `instance_manager` enters only the separate `/v1/platform/*` management path.
+- `org_manager` is equivalent to an Organization owner for the assigned Organization only.
+- `project_manager` can manage Role and Permission definitions, ProjectGrants, and UserGrants for the
+  assigned Project, but is not promoted to Organization Admin.
+- `project_grant_manager` can read its exact active ProjectGrant and the granted Project's Role and
+  Permission definitions, and can assign or revoke UserGrants under that Grant. It cannot mutate the
+  Project definitions or revoke the ProjectGrant itself.
+
+The same-origin Console and Management API expose the control plane that owns these rows:
+
+- `/v1/projects` provides reversible Project CRUD. Organization owners/admins create Projects;
+  exact `project_manager` assignments may read, update, delete, and restore only their Project.
+- `/v1/role-permissions` manages the Role-to-Permission mapping. Both targets must be active and
+  belong to the same Project, and the ABAC v1 grammar is rejected at the write boundary when invalid.
+- `/v1/manager-assignments` provisions, lists, and revokes tenant-scoped `org_manager`,
+  `project_manager`, and `project_grant_manager` assignments. Roles and scope types are a fixed
+  one-to-one pair, target users and scopes must exist in the current tenant, and a cookie actor
+  cannot assign or revoke itself.
+- `/v1/platform/manager-assignments` is the separate cookie-only `instance_manager` path. It is
+  never mounted through the tenant business API and never accepts a Management API key.
+
+Provisioning a Project or ProjectGrant manager is an Organization-level privilege; holding the same
+Project manager role is not delegation authority. There is still one Console product, not a separate
+admin application or tenant.
 
 ### Business RBAC (Project/Application layer)
 
@@ -448,6 +503,9 @@ condition on several separate RolePermission rows; the union produces the same e
   granted and an error entry is written to the AuditLog (token issuance is not interrupted)
 - An unsupported operator: treated as a configuration error. The permission is not granted and an
   error entry is written to the AuditLog
+- An unsupported variable path, empty `and`, extra object key, or non-array `in`/`not_in` operand is
+  also a configuration error and fails closed. This is distinct from a supported metadata path whose
+  key is absent and therefore resolves to `undefined`.
 
 **Reserved for v2** (not in the first release): top-level `or` and `not` composition; resource
 attribute variables `resource.<type>.<attr>`; and the numeric comparisons `gt`, `gte`, `lt`, `lte`.
@@ -516,10 +574,14 @@ section 6). In the Project Grant scenario:
 
 **Where UserGrants are managed**:
 
-- org A's Project Manager or Project Grant Manager can assign UserGrants to org B users under the
-  ProjectGrant
-- Self-service for org B users: once an org B administrator accepts the ProjectGrant invitation, they
-  can assign roles under that Grant to their own org's members from the org B management UI
+- `POST /v1/user-grants` and its list/detail/revoke routes accept an API key with
+  `user_grants:read` / `user_grants:write`, or a cookie session authorized at the exact Project or
+  ProjectGrant scope
+- org A's Project Manager and the exact Project Grant Manager can assign UserGrants to org B users
+  under the ProjectGrant
+- An org B owner or administrator can assign roles under that Grant only to active members of org B.
+  The API path is implemented; a dedicated org B ProjectGrant management page in Console is not
+  implemented
 - UserGrant deletion path: when a ProjectGrant is revoked, every UserGrant under it is invalidated in
   cascade (not physically deleted, but marked with `revoked_at`)
 

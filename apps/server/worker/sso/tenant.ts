@@ -11,12 +11,21 @@ import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 
+function shouldResolveProtocolPathTenant(c: Context<XidHonoEnv>, current: TenantVar): boolean {
+  if (current.resolution?.unresolvedRoot) return true
+  if (!current.resolution?.primaryDomain) return false
+  // A root refresh cookie may have resolved a different tenant before the callback handler runs.
+  // At the instance issuer origin the protocol-owned path identifier is authoritative; tenant
+  // subdomains and custom hostnames remain host-scoped and are checked again by the scoped query.
+  return new URL(c.req.raw.url).origin === new URL(current.issuer).origin
+}
+
 export async function resolveSsoConnectionTenant(
   c: Context<XidHonoEnv>,
   connectionId: string,
 ): Promise<TenantVar> {
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
+  if (!shouldResolveProtocolPathTenant(c, current)) return current
   const result = await resolveTenantContextBySsoConnection(c.req.raw, c.env, connectionId)
   if (!result.ok) throw new AppError('connection_not_found')
   return result.value.tenant
@@ -38,7 +47,7 @@ export async function resolveSamlServiceProviderTenant(
   appId: string,
 ): Promise<TenantVar> {
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
+  if (!shouldResolveProtocolPathTenant(c, current)) return current
   const result = await resolveTenantContextBySamlServiceProvider(c.req.raw, c.env, appId)
   if (!result.ok) throw new AppError('connection_not_found')
   return result.value.tenant

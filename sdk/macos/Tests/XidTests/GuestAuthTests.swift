@@ -60,6 +60,24 @@ final class InMemoryTokenStorage: TokenStorageAdapter, @unchecked Sendable {
     func delete(key: String) throws { values.removeValue(forKey: key) }
 }
 
+private enum SimulatedStorageError: Error {
+    case guestUserWriteFailed
+}
+
+private final class WriteThenFailTokenStorage: TokenStorageAdapter, @unchecked Sendable {
+    private var values: [String: String] = [:]
+
+    func save(key: String, value: String) throws {
+        values[key] = value
+        if key == StorageKey.guestUser {
+            throw SimulatedStorageError.guestUserWriteFailed
+        }
+    }
+
+    func load(key: String) throws -> String? { values[key] }
+    func delete(key: String) throws { values.removeValue(forKey: key) }
+}
+
 // MARK: - Shared helpers
 
 private final class RequestRecorder: @unchecked Sendable {
@@ -141,6 +159,12 @@ final class GuestAuthTests: XCTestCase {
         MockURLProtocol.handler = { [recorder] request in
             recorder?.record(request)
             switch request.url?.path {
+            case "/auth/config":
+                XCTAssertEqual(request.url?.query, "intent=sign-up")
+                return httpResponse(
+                    url: request.url!, status: 200,
+                    json: #"{"guest":{"capabilityToken":"guest_capability_1"}}"#
+                )
             case "/auth/guest":
                 var headers: [String: String] = [:]
                 if let setCookie { headers["Set-Cookie"] = setCookie }
@@ -171,6 +195,10 @@ final class GuestAuthTests: XCTestCase {
         XCTAssertNil(session.accessToken)
         XCTAssertNil(session.idToken)
 
+        let configRequest = recorder.requests.first { $0.url?.path == "/auth/config" }
+        XCTAssertEqual(configRequest?.httpMethod, "GET")
+        XCTAssertEqual(configRequest?.url?.query, "intent=sign-up")
+
         // Guest request shape: POST /auth/guest with JSON body
         let guestRequest = recorder.requests.first { $0.url?.path == "/auth/guest" }
         XCTAssertNotNil(guestRequest)
@@ -181,6 +209,7 @@ final class GuestAuthTests: XCTestCase {
         let body = bodyData(of: guestRequest!)
         XCTAssertNotNil(body)
         let bodyObject = try JSONSerialization.jsonObject(with: body!) as? [String: Any]
+        XCTAssertEqual(bodyObject?["capabilityToken"] as? String, "guest_capability_1")
         XCTAssertTrue(bodyObject?.keys.contains("turnstileToken") ?? false)
 
         // /v1/me must carry the captured session cookie
@@ -221,8 +250,8 @@ final class GuestAuthTests: XCTestCase {
         let second = try await Xid.shared.signInAnonymously()
 
         XCTAssertEqual(first.user.sub, second.user.sub)
-        // Only the first call hits the network: 1 guest POST + 1 /v1/me
-        XCTAssertEqual(recorder.requests.count, 2)
+        // Only the first call hits the network: 1 config GET + 1 guest POST + 1 /v1/me
+        XCTAssertEqual(recorder.requests.count, 3)
     }
 
     func testSignInAnonymouslyLazyWhenTokenSessionExists() async throws {
@@ -267,6 +296,49 @@ final class GuestAuthTests: XCTestCase {
         }
         XCTAssertNil(try storage.load(key: StorageKey.guestSessionCookie))
         XCTAssertNil(try storage.load(key: StorageKey.guestUser))
+    }
+
+    func testSignInAnonymouslyMissingCapabilityDoesNotPostOrPersist() async throws {
+        MockURLProtocol.handler = { [recorder] request in
+            recorder?.record(request)
+            return httpResponse(url: request.url!, status: 200, json: #"{"guest":null}"#)
+        }
+
+        await XCTAssertThrowsAnonymousError {
+            try await Xid.shared.signInAnonymously()
+        }
+
+        XCTAssertEqual(recorder.requests.map { $0.url?.path }, ["/auth/config"])
+        XCTAssertNil(try storage.load(key: StorageKey.guestSessionCookie))
+        XCTAssertNil(try storage.load(key: StorageKey.guestUser))
+    }
+
+    func testSignInAnonymouslyStorageFailureRollsBackBothGuestKeys() async throws {
+        installGuestFlowHandler()
+        let failingStorage = WriteThenFailTokenStorage()
+        Xid.shared.configure(
+            options: XidConfiguration(
+                issuer: issuer,
+                clientId: "test_client",
+                redirectUri: URL(string: "dev.xid.test://callback")!,
+                tokenStorage: failingStorage
+            )
+        )
+        Xid.shared.guestAuthClient = GuestAuthClient(urlSession: MockURLProtocol.mockedSession())
+
+        var didFail = false
+        do {
+            _ = try await Xid.shared.signInAnonymously()
+            XCTFail("Storage failure should throw")
+        } catch SimulatedStorageError.guestUserWriteFailed {
+            didFail = true
+        } catch {
+            XCTFail("Expected original storage error, got \(error)")
+        }
+
+        XCTAssertTrue(didFail)
+        XCTAssertNil(try failingStorage.load(key: StorageKey.guestSessionCookie))
+        XCTAssertNil(try failingStorage.load(key: StorageKey.guestUser))
     }
 
     func testSignOutClearsGuestSession() async throws {

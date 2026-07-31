@@ -133,6 +133,20 @@ describe('recordAuthenticatedSession', () => {
     expect(writeDataPoint).not.toHaveBeenCalled()
   })
 
+  it('does not count support impersonation as a login or billable active user', async () => {
+    const { env, queueSend, writeDataPoint } = makeEnv()
+    await recordAuthenticatedSession({
+      env,
+      tenant: tenant(),
+      userId: 'user_target',
+      status: 'active',
+      timestamp: 1,
+      isImpersonation: true,
+    })
+    expect(queueSend).not.toHaveBeenCalled()
+    expect(writeDataPoint).not.toHaveBeenCalled()
+  })
+
   it('excludes guest (provisioned_by anonymous) sessions from MAU metering but keeps analytics', async () => {
     vi.mocked(createTenantDb).mockClear()
     const { env, queueSend, writeDataPoint } = makeEnv({ queueRejects: true })

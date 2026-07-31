@@ -3,12 +3,13 @@
 // requireAuth(request, options): 未登录时 throw Response redirect,已登录返回 AuthObject。
 // xidClient(options): server 端 Management API 入口(sk_ 认证)。
 //
-// 认证优先级:Authorization: Bearer header -> session cookie token -> XID session storage token。
+// 认证优先级:Authorization: Bearer -> 显式应用 JWT cookie -> 可选同源 Core exchange ->
+// XID session storage token。Core opaque refresh cookie 永不在本地验签。
 // 见 docs/design/06-developer-experience.md SDK 分层、api-sdk-conventions rule。
 
 import { trimTrailingSlashes } from '@xid-kit/core'
 import type { XidUser } from '@xid-kit/core'
-import type { Result } from '@xid-kit/types'
+import { isOrganizationMembershipRole, type Result } from '@xid-kit/types'
 
 import { authenticateRequest } from '@xid-kit/backend'
 import type { AuthenticateRequestOptions, SignedInState } from '@xid-kit/backend'
@@ -31,7 +32,7 @@ export const UNAUTHENTICATED: UnauthenticatedAuthObject = {
 
 // getAuth 配置:验证选项 + 可选 sessionStorage 集成。
 export type GetAuthOptions = AuthenticateRequestOptions & {
-  // 如未传 session cookie 或 Authorization header,则在 sessionStorage 中查找 token。
+  // 如前述来源均未认证,则在 sessionStorage 中查找应用保存的 short-lived JWT。
   sessionStorage?: {
     getSession: (
       cookie: string | null | undefined,
@@ -47,7 +48,7 @@ function toAuthResult(state: { isSignedIn: boolean } & Partial<SignedInState>): 
 
   const { claims } = state
   const orgId = typeof claims['active_org_id'] === 'string' ? claims['active_org_id'] : undefined
-  const orgRole = typeof claims['org_role'] === 'string' ? claims['org_role'] : undefined
+  const orgRole = isOrganizationMembershipRole(claims.org_role) ? claims.org_role : undefined
   const orgPermissions = Array.isArray(claims['org_permissions'])
     ? (claims['org_permissions'] as string[])
     : undefined
@@ -75,7 +76,7 @@ function toAuthResult(state: { isSignedIn: boolean } & Partial<SignedInState>): 
 export async function getAuth(request: Request, options: GetAuthOptions): Promise<AuthResult> {
   const { sessionStorage, sessionTokenKey = 'xid:access_token', ...verifyOptions } = options
 
-  // 先尝试 Authorization header / 内置 session cookie。
+  // 先尝试 Bearer / 显式 JWT cookie / 同源 Core exchange。
   const state = await authenticateRequest(request, verifyOptions)
   if (state.isSignedIn) return toAuthResult(state)
 

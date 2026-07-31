@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
+  resolveTenantContextByApplicationClientId: vi.fn(),
   resolveTenantContextById: vi.fn(),
   USER_PROVISIONED_BY_ANONYMOUS: 'anonymous',
   schema: {
@@ -42,6 +43,19 @@ vi.mock('../../lib/mfa-session', async (importOriginal) => {
   return { ...actual, resolvePostAuthMfaGate: vi.fn().mockResolvedValue({}) }
 })
 
+vi.mock('../invitations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../invitations')>()
+  return {
+    ...actual,
+    requirePendingInvitationByToken: vi.fn(),
+    resolveInvitationTenant: vi.fn(),
+  }
+})
+
+vi.mock('../account-provisioning', () => ({
+  provisionAccountAtomically: vi.fn(async (input: { user: { id: string } }) => input.user.id),
+}))
+
 vi.mock('../social-providers', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../social-providers')>()
   return {
@@ -61,12 +75,18 @@ vi.mock('../social-providers', async (importOriginal) => {
   }
 })
 
-import { createTenantDb, resolveTenantContextById } from '@xid-kit/db'
+import {
+  createTenantDb,
+  resolveTenantContextByApplicationClientId,
+  resolveTenantContextById,
+} from '@xid-kit/db'
 import { Hono } from 'hono'
 import type { ErrorHandler } from 'hono'
 import type { TenantVar, XidHonoEnv } from '../../lib/types'
 import { isAppError } from '../../lib/errors'
 import { exchangeCode, resolveProfile } from '../social-providers'
+import { provisionAccountAtomically } from '../account-provisioning'
+import { requirePendingInvitationByToken, resolveInvitationTenant } from '../invitations'
 
 const testErrorHandler: ErrorHandler<XidHonoEnv> = (err, c) => {
   if (isAppError(err)) {
@@ -422,6 +442,10 @@ describe('GET /auth/google/callback -- state 防重放', () => {
       return new Response(null, { status: 201 })
     })
     vi.mocked(createTenantDb).mockReturnValue({} as unknown as ReturnType<typeof createTenantDb>)
+    vi.mocked(resolveTenantContextById).mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'tenant_not_found', message: 'tenant_not_found' },
+    })
 
     const app = await makeApp('tenant-1')
     const res = await app.request(
@@ -434,6 +458,22 @@ describe('GET /auth/google/callback -- state 防重放', () => {
 })
 
 describe('GET /auth/github/authorize', () => {
+  it('requires a Turnstile token before provider or state processing when configured', async () => {
+    const stateFetch = vi.fn(async () => new Response(null, { status: 201 }))
+    const env = {
+      ...makeEnv(stateFetch),
+      TURNSTILE_SITE_KEY: 'site-key',
+      TURNSTILE_SECRET: 'secret',
+    } as unknown as Env
+    const app = await makeApp()
+
+    const res = await app.request('/auth/github/authorize', { method: 'GET' }, env)
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('captcha_required')
+    expect(stateFetch).not.toHaveBeenCalled()
+  })
+
   it('未配置 provider 返回 400', async () => {
     const env = makeEnv(async () => new Response(null, { status: 201 }))
     vi.mocked(createTenantDb).mockReturnValue({} as unknown as ReturnType<typeof createTenantDb>)
@@ -753,6 +793,120 @@ describe('GET /auth/:provider/authorize', () => {
     expect(res.headers.get('location')).toContain('client_id=github-client')
   })
 
+  it('root sign-up ignores organization candidates and stores the default staging Tenant', async () => {
+    let stored: Record<string, unknown> | null = null
+    const env = makeEnv(async (req) => {
+      const url = new URL(req.url)
+      if (url.pathname === '/store') {
+        stored = (await req.json()) as Record<string, unknown>
+        return new Response(null, { status: 201 })
+      }
+      return new Response(null, { status: 404 })
+    })
+    const rootTenant = {
+      ...makeAdminTenant(),
+      tenantId: 'org_app',
+      resolution: {
+        kind: 'instance_entry' as const,
+        primaryDomain: 'xid.dev',
+        unresolvedRoot: true,
+      },
+    }
+    vi.mocked(resolveTenantContextById).mockClear()
+    vi.mocked(createTenantDb).mockReturnValue({} as unknown as ReturnType<typeof createTenantDb>)
+    const { registerSocialRoutes } = await import('../social')
+    const app = new Hono<XidHonoEnv>()
+    app.onError(testErrorHandler)
+    app.use('*', async (c, next) => {
+      c.set('tenant', rootTenant as unknown as TenantVar)
+      c.set('session', null)
+      await next()
+    })
+    registerSocialRoutes(app)
+
+    const res = await app.request(
+      'https://xid.dev/auth/github/authorize?organization_id=org_admin&login_hint=owner%40verified.example&intent=sign-up&continue=/create-organization',
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    expect(stored?.['tenantId']).toBe('org_app')
+    expect(stored?.['intent']).toBe('sign-up')
+    expect(stored?.['skipDefaultMembership']).toBe(true)
+    expect(resolveTenantContextById).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'client-bound product sign-up',
+      query:
+        'intent=sign-up&client_id=application_client&continue=%2Fauthorize%3Fauthz_request_id%3Dreq_1%26client_id%3Dapplication_client',
+    },
+    {
+      name: 'Application sign-up without client binding',
+      query: 'intent=application-sign-up&continue=%2Fauthorize%3Fauthz_request_id%3Dreq_1',
+    },
+    {
+      name: 'authorize continuation without client binding',
+      query: 'intent=sign-in&continue=%2Fauthorize%3Fauthz_request_id%3Dreq_1',
+    },
+  ])('rejects $name before OAuth state is stored', async ({ query }) => {
+    let stored = false
+    const env = makeEnv(async (req) => {
+      if (new URL(req.url).pathname === '/store') stored = true
+      return new Response(null, { status: 201 })
+    })
+    vi.mocked(createTenantDb).mockReturnValue({} as unknown as ReturnType<typeof createTenantDb>)
+    const app = await makeGithubPolicyApp({})
+
+    const res = await app.request(
+      `https://test.xid.dev/auth/github/authorize?${query}`,
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(400)
+    expect(stored).toBe(false)
+  })
+
+  it.each([
+    {
+      name: 'invitation_token parameter',
+      query: 'invitation_token=raw-secret',
+    },
+    {
+      name: 'raw token continue path',
+      query: 'continue=%2Faccept-invitation%3Ftoken%3Draw-secret',
+    },
+    {
+      name: 'invitation path with a fragment secret',
+      query: 'continue=%2Faccept-invitation%23claim_token%3Draw-secret',
+    },
+    {
+      name: 'invitation path with a parameter alias',
+      query: 'continue=%2Faccept-invitation%3Fclaim_token%3Draw-secret',
+    },
+  ])('rejects $name before tenant lookup or OAuth state storage', async ({ query }) => {
+    const stateFetch = vi.fn(async () => new Response(null, { status: 201 }))
+    const env = makeEnv(stateFetch)
+    const app = await makeGithubPolicyApp({})
+    vi.mocked(resolveInvitationTenant).mockClear()
+    vi.mocked(requirePendingInvitationByToken).mockClear()
+
+    const res = await app.request(
+      `https://test.xid.dev/auth/github/authorize?${query}`,
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(400)
+    expect((await res.json())['code']).toBe('invalid_request')
+    expect(resolveInvitationTenant).not.toHaveBeenCalled()
+    expect(requirePendingInvitationByToken).not.toHaveBeenCalled()
+    expect(stateFetch).not.toHaveBeenCalled()
+  })
+
   it('root callback restores tenant from OAuth state before issuing session', async () => {
     const env = makeEnv(async (req) => {
       const url = new URL(req.url)
@@ -966,6 +1120,68 @@ describe('GET /auth/:provider/authorize', () => {
     expect(res.headers.get('location')).toBe('https://test.xid.dev/create-organization')
     expect(db.sessions.insert).toHaveBeenCalledWith(expect.objectContaining({ activeOrgId: null }))
   })
+
+  it.each([
+    {
+      name: 'legacy raw token',
+      overrides: { invitationToken: 'raw-secret' },
+    },
+    {
+      name: 'legacy frozen invitation id',
+      overrides: { invitationId: 'invitation_1' },
+    },
+    {
+      name: 'legacy raw token continuation',
+      overrides: { redirectAfterLogin: '/accept-invitation?token=raw-secret' },
+    },
+    {
+      name: 'legacy invitation fragment secret',
+      overrides: { redirectAfterLogin: '/accept-invitation#claim_token=raw-secret' },
+    },
+    {
+      name: 'legacy invitation parameter alias',
+      overrides: { redirectAfterLogin: '/accept-invitation?claim_token=raw-secret' },
+    },
+  ])(
+    'rejects $name state before provider exchange, profile resolution, or writes',
+    async ({ overrides }) => {
+      const env = makeEnv(async (req) => {
+        if (new URL(req.url).pathname !== '/consume') {
+          return new Response(null, { status: 201 })
+        }
+        return Response.json({
+          record: {
+            tenantId: 'tenant-1',
+            provider: 'github',
+            codeVerifier: 'cv',
+            nonce: 'nonce',
+            redirectAfterLogin: '/console',
+            returnToOrigin: 'https://test.xid.dev',
+            createdAt: Date.now(),
+            ...overrides,
+          },
+        })
+      })
+      vi.mocked(exchangeCode).mockClear()
+      vi.mocked(resolveProfile).mockClear()
+      vi.mocked(createTenantDb).mockClear()
+      vi.mocked(provisionAccountAtomically).mockClear()
+      const app = await makeGithubPolicyApp({})
+
+      const res = await app.request(
+        'https://test.xid.dev/auth/github/callback?code=authcode&state=valid-state',
+        { method: 'GET' },
+        env,
+      )
+
+      expect(res.status).toBe(400)
+      expect((await res.json())['code']).toBe('invalid_request')
+      expect(exchangeCode).not.toHaveBeenCalled()
+      expect(resolveProfile).not.toHaveBeenCalled()
+      expect(createTenantDb).not.toHaveBeenCalled()
+      expect(provisionAccountAtomically).not.toHaveBeenCalled()
+    },
+  )
 
   it('guest 转正:分支 D 持有效 guest session -> identity 挂到 guest user,不新建 user', async () => {
     const auditSend = vi.fn().mockResolvedValue(undefined)
@@ -1472,6 +1688,66 @@ describe('GET /auth/:provider/authorize', () => {
     expect(auditSend).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { verified: false, verificationStatus: 'verified' },
+    { verified: true, verificationStatus: 'unverified' },
+  ])(
+    'provider email 已验证但本地 email 状态为 $verified/$verificationStatus 时拒绝自动绑定',
+    async ({ verified, verificationStatus }) => {
+      vi.mocked(resolveProfile).mockResolvedValueOnce({
+        idpUserId: 'github-123',
+        email: 'existing@example.com',
+        emailVerified: true,
+        name: 'Existing User',
+        profileRaw: {},
+      })
+      const auditSend = vi.fn()
+      const env = githubCallbackEnv(auditSend)
+      const identityInsert = vi.fn()
+      const userUpdate = vi.fn()
+      const userInsert = vi.fn()
+      const sessionInsert = vi.fn()
+      const db = {
+        userIdentities: {
+          findOne: vi.fn().mockResolvedValue(undefined),
+          insert: identityInsert,
+        },
+        userEmails: {
+          findOne: vi.fn().mockResolvedValue({
+            id: 'email-1',
+            userId: 'user-existing',
+            verified,
+            verificationStatus,
+          }),
+        },
+        users: {
+          findOne: vi.fn(),
+          insert: userInsert,
+          update: userUpdate,
+        },
+        sessions: { insert: sessionInsert },
+      }
+      vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+      vi.mocked(provisionAccountAtomically).mockClear()
+      const app = await makeGithubPolicyApp({})
+
+      const res = await app.request(
+        '/auth/github/callback?code=authcode&state=valid-state',
+        { method: 'GET' },
+        env,
+      )
+
+      expect(res.status).toBe(401)
+      expect((await res.json())['code']).toBe('invalid_credentials')
+      expect(identityInsert).not.toHaveBeenCalled()
+      expect(userUpdate).not.toHaveBeenCalled()
+      expect(userInsert).not.toHaveBeenCalled()
+      expect(sessionInsert).not.toHaveBeenCalled()
+      expect(provisionAccountAtomically).not.toHaveBeenCalled()
+      expect(auditSend).not.toHaveBeenCalled()
+    },
+  )
+
   it('tenant blocked email domain applies to social callback user creation', async () => {
     vi.mocked(resolveProfile).mockResolvedValueOnce({
       idpUserId: 'github-123',
@@ -1606,7 +1882,7 @@ describe('GET /auth/:provider/authorize', () => {
       }),
     )
   })
-  it('OAuth resume user creation skips default tenant membership', async () => {
+  it('Application sign-up resume creates default tenant membership and preserves authorize state', async () => {
     const membershipsInsert = vi.fn().mockResolvedValue(undefined)
     const auditSend = vi.fn()
     const env = makeEnv(async (req) => {
@@ -1619,10 +1895,13 @@ describe('GET /auth/:provider/authorize', () => {
               provider: 'github',
               codeVerifier: 'cv',
               nonce: 'nonce',
-              redirectAfterLogin: '/authorize?authz_request_id=authz_1',
+              redirectAfterLogin:
+                '/authorize?authz_request_id=authz_1&client_id=application_client',
               returnToOrigin: 'https://test.xid.dev',
               createdAt: Date.now(),
-              skipDefaultMembership: true,
+              intent: 'application-sign-up',
+              applicationClientId: 'application_client',
+              skipDefaultMembership: false,
             },
           }),
           { status: 200 },
@@ -1664,6 +1943,16 @@ describe('GET /auth/:provider/authorize', () => {
       },
     }
     vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    vi.mocked(resolveTenantContextByApplicationClientId).mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...makeTenant(),
+        policy: {
+          hostedAuth: makeHostedAuthPolicy({ requireVerifiedEmail: true }),
+          socialProviders: { github: makeGithubPolicy() },
+        },
+      } as unknown as TenantVar,
+    })
     const app = await makeGithubPolicyApp({})
 
     const res = await app.request(
@@ -1673,8 +1962,26 @@ describe('GET /auth/:provider/authorize', () => {
     )
 
     expect(res.status).toBe(302)
-    expect(db.users.insert).toHaveBeenCalled()
-    expect(membershipsInsert).not.toHaveBeenCalled()
+    expect(res.headers.get('location')).toBe(
+      'https://test.xid.dev/authorize?authz_request_id=authz_1&client_id=application_client',
+    )
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-1',
+        primaryEmail: expect.objectContaining({
+          email: 'new@example.com',
+          verified: true,
+        }),
+        socialIdentity: expect.objectContaining({
+          provider: 'github',
+          providerUserId: 'github-123',
+        }),
+        defaultMembership: expect.objectContaining({
+          id: expect.stringMatching(/^mem_[A-Za-z0-9]{21}$/),
+          orgId: 'tenant-1',
+        }),
+      }),
+    )
     expect(db.sessions.insert).toHaveBeenCalledWith(expect.objectContaining({ activeOrgId: null }))
   })
 })

@@ -42,14 +42,19 @@ class FakeD1 {
   }
 }
 
-function idpMetadataXml(cert: string): string {
+function idpMetadataXml(
+  cert: string,
+  ssoUrl = 'https://idp.example.com/sso',
+  sloUrl = 'https://idp.example.com/slo',
+): string {
   return [
     '<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="https://idp.example.com/metadata">',
     '<md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">',
     '<md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>',
     cert,
     '</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>',
-    '<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>',
+    `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${ssoUrl}"/>`,
+    `<md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${sloUrl}"/>`,
     '</md:IDPSSODescriptor>',
     '</md:EntityDescriptor>',
   ].join('')
@@ -90,6 +95,76 @@ describe('pollSamlIdpMetadata negative paths', () => {
 
   it('skips UPDATE when metadata fetch returns non-OK', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response('', { status: 503 })) as typeof fetch
+    const db = new FakeD1([
+      {
+        id: 'conn_1',
+        tenant_id: 'tenant_1',
+        org_id: 'org_1',
+        idp_metadata_url: 'https://idp.example.com/metadata.xml',
+        idp_certificates: '[]',
+      },
+    ])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://idp.example.com/metadata.xml',
+      expect.objectContaining({
+        redirect: 'manual',
+        signal: expect.any(AbortSignal),
+      }),
+    )
+  })
+
+  it('does not fetch a non-public stored metadata URL', async () => {
+    const fetchMock = vi.fn()
+    globalThis.fetch = fetchMock as typeof fetch
+    const db = new FakeD1([
+      {
+        id: 'conn_1',
+        tenant_id: 'tenant_1',
+        org_id: 'org_1',
+        idp_metadata_url: 'https://169.254.169.254/latest/meta-data',
+        idp_certificates: '[]',
+      },
+    ])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+  })
+
+  it('does not persist a non-public SSO URL from otherwise valid metadata', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(idpMetadataXml('CERT_OK', 'https://127.0.0.1/sso')),
+      ) as typeof fetch
+    const db = new FakeD1([
+      {
+        id: 'conn_1',
+        tenant_id: 'tenant_1',
+        org_id: 'org_1',
+        idp_metadata_url: 'https://idp.example.com/metadata.xml',
+        idp_certificates: '[]',
+      },
+    ])
+
+    await pollSamlIdpMetadata(makeEnv(db))
+
+    expect(db.runs.some((run) => run.sql.includes('UPDATE sso_connections'))).toBe(false)
+  })
+
+  it('does not persist a non-public SLO URL from otherwise valid metadata', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          idpMetadataXml('CERT_OK', 'https://idp.example.com/sso', 'https://127.0.0.1/slo'),
+        ),
+      ) as typeof fetch
     const db = new FakeD1([
       {
         id: 'conn_1',
@@ -153,7 +228,7 @@ describe('pollSamlIdpMetadata negative paths', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const updates = db.runs.filter((run) => run.sql.includes('UPDATE sso_connections'))
     expect(updates).toHaveLength(1)
-    expect(updates[0]?.args[4]).toBe('conn_b')
+    expect(updates[0]?.args[5]).toBe('conn_b')
   })
 
   it('paginates active SAML connections in id order', async () => {

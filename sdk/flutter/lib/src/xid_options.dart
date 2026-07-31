@@ -15,6 +15,7 @@ class XidOptions {
   final String? postLogoutRedirectUri;
 
   /// 请求 scope 列表,默认包含 openid、profile、email。
+  /// 当前 SDK 尚未实现 DPoP,因此不支持 offline_access。
   final List<String> scopes;
 
   /// 附加 authorize 参数(audience、login_hint、prompt 等)。

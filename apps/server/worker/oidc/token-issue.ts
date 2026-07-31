@@ -9,12 +9,15 @@ import {
   signAccessTokenClaims,
   signClaims,
 } from '@xid-kit/protocol'
-import type { AccessTokenOptions, RefreshTokenRecord } from '@xid-kit/protocol'
+import type { AccessTokenOptions, IssuedRefreshToken, RefreshTokenRecord } from '@xid-kit/protocol'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ActClaim, AmrValue, AuthorizationDetails, Result, XidError } from '@xid-kit/types'
 import type { Context } from 'hono'
+import { normalizeIssuedAcr } from '../lib/auth-context'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
+import { logWorkerError } from '../lib/safe-log'
 import { buildRbacClaims } from '../rbac'
 import type { GrantContext } from '../rbac'
 import { refreshTtlSecOf, resolveAccessTtlSec } from './shared'
@@ -106,8 +109,9 @@ export function accessOptions(input: {
   else if (input.tc.mtlsCertThumbprint) opts.cnf = { 'x5t#S256': input.tc.mtlsCertThumbprint }
   if (input.sid) opts.sid = input.sid
   if (input.authContext) {
+    const acr = normalizeIssuedAcr(input.authContext.acr)
     opts.authContext = {
-      ...(input.authContext.acr ? { acr: input.authContext.acr } : {}),
+      ...(acr ? { acr } : {}),
       ...(input.authContext.amr ? { amr: input.authContext.amr } : {}),
       ...(input.authContext.authTime !== null && input.authContext.authTime !== undefined
         ? { authTime: input.authContext.authTime }
@@ -313,6 +317,32 @@ export async function issueUserAccessTokenWithMetadata(
       activeOrg: rbac.activeOrg ?? null,
       grant: rbac.grant ?? null,
     },
+    onInvalidConditions: ({ projectId, permissionKeys }) => {
+      const audit = tc.c.env.AUDIT_QUEUE.send({
+        tenantId: ctx.tenantId,
+        ...(rbac.activeOrg ? { orgId: rbac.activeOrg.id } : {}),
+        action: 'rbac.condition_invalid',
+        actorId: rbac.userId,
+        ts: Date.now(),
+        payload: {
+          projectId,
+          clientId: tc.clientId,
+          permissionKeys: [...permissionKeys].sort(),
+        },
+      })
+      const loggedAudit = audit.catch((error: unknown) => {
+        logWorkerError('rbac.condition_invalid.audit_queue_failed', error, {
+          component: 'rbac',
+          queue: 'audit',
+        })
+        throw error
+      })
+      try {
+        tc.c.executionCtx.waitUntil(loggedAudit)
+      } catch {
+        void loggedAudit.catch(() => undefined)
+      }
+    },
   })
   if (!claimsResult.ok) return claimsResult
   const issued = await issueAccessTokenWithMetadata(tc, {
@@ -383,6 +413,7 @@ export async function issueIdToken(
 ): Promise<string> {
   const ctx = tc.c.get('tenant')
   const atHash = await leftHalfHash(input.accessToken)
+  const acr = normalizeIssuedAcr(input.acr)
   const claims = buildIdTokenClaims({
     ctx,
     subject: { userId: input.userId },
@@ -390,7 +421,7 @@ export async function issueIdToken(
     authContext: {
       ...(input.nonce !== null ? { nonce: input.nonce } : {}),
       ...(input.authTime !== null ? { authTime: input.authTime } : {}),
-      ...(input.acr ? { acr: input.acr } : {}),
+      ...(acr ? { acr } : {}),
       ...(input.amr ? { amr: input.amr } : {}),
       ...(input.sid ? { sid: input.sid } : {}),
     },
@@ -423,7 +454,7 @@ export async function persistRefresh(tc: TokenContext, rec: RefreshTokenRecord):
     resource: rec.resource ? [...rec.resource] : null,
     authorizationDetails: rec.authorizationDetails ? [...rec.authorizationDetails] : null,
     authTime: rec.authTime,
-    acr: rec.acr,
+    acr: normalizeIssuedAcr(rec.acr),
     amr: rec.amr ? [...rec.amr] : null,
     revokedAt: rec.revokedAt === null ? null : new Date(rec.revokedAt),
     expiresAt: new Date(rec.expiresAt * 1000),
@@ -468,7 +499,7 @@ export async function persistAuthorizationCodeRefresh(
       rec.resource === null ? null : JSON.stringify(rec.resource),
       rec.authorizationDetails === null ? null : JSON.stringify(rec.authorizationDetails),
       rec.authTime,
-      rec.acr,
+      normalizeIssuedAcr(rec.acr),
       rec.amr === null ? null : JSON.stringify(rec.amr),
       rec.revokedAt === null ? null : rec.revokedAt * 1000,
       rec.expiresAt * 1000,
@@ -481,26 +512,28 @@ export async function persistAuthorizationCodeRefresh(
   return result.meta.changes === undefined || result.meta.changes === 1
 }
 
-// 首发 refresh token(scope 含 offline_access 且 client 允许 refresh_token):写 D1 新 family。
-export async function issueRefreshIfAllowed(
+export type InitialRefreshInput = {
+  userId: string
+  scope: string
+  grantContext?: TokenGrantContext | null
+  sessionId?: string | null
+  resource?: readonly string[] | null
+  authorizationDetails?: readonly AuthorizationDetails[] | null
+  authContext?: TokenAuthContext | null
+  authorizationCode?: string | null
+}
+
+// 只准备首发 refresh token 材料,不做 I/O。需要跨存储协调的 grant 可在最终提交前自行持久化。
+export async function prepareRefreshIfAllowed(
   tc: TokenContext,
-  input: {
-    userId: string
-    scope: string
-    grantContext?: TokenGrantContext | null
-    sessionId?: string | null
-    resource?: readonly string[] | null
-    authorizationDetails?: readonly AuthorizationDetails[] | null
-    authContext?: TokenAuthContext | null
-    authorizationCode?: string | null
-  },
-): Promise<string | null> {
+  input: InitialRefreshInput,
+): Promise<IssuedRefreshToken | null> {
   if (!input.scope.split(' ').includes('offline_access')) return null
   if (!tc.client.allowedGrantTypes.includes('refresh_token')) return null
   if (tc.client.clientType === 'public' && tc.dpopJkt === null) return null
   const ctx = tc.c.get('tenant')
   const refreshTtl = refreshTtlSecOf(ctx)
-  const issued = await issueRefreshFamily({
+  return issueRefreshFamily({
     tenantId: ctx.tenantId,
     userId: input.userId,
     clientId: tc.clientId,
@@ -512,14 +545,23 @@ export async function issueRefreshIfAllowed(
     resource: input.resource ?? null,
     authorizationDetails: input.authorizationDetails ?? null,
     authTime: input.authContext?.authTime ?? null,
-    acr: input.authContext?.acr ?? null,
+    acr: normalizeIssuedAcr(input.authContext?.acr),
     amr: input.authContext?.amr ?? null,
     now: tc.now,
     idleTtlSec: refreshTtl.idleTtlSec,
     absoluteTtlSec: refreshTtl.absoluteTtlSec,
-    newId: crypto.randomUUID(),
+    newId: createPersistedId('refreshToken'),
     familyId: crypto.randomUUID(),
   })
+}
+
+// 首发 refresh token(scope 含 offline_access 且 client 允许 refresh_token):写 D1 新 family。
+export async function issueRefreshIfAllowed(
+  tc: TokenContext,
+  input: InitialRefreshInput,
+): Promise<string | null> {
+  const issued = await prepareRefreshIfAllowed(tc, input)
+  if (!issued) return null
   if (input.authorizationCode !== null && input.authorizationCode !== undefined) {
     const persisted = await persistAuthorizationCodeRefresh(
       tc,

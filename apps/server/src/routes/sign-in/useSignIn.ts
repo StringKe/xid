@@ -1,7 +1,7 @@
 // useSignIn:登录页业务逻辑(TanStack Router useSearch + Query useMutation)。
 // 五条认证路径:passkey(委托 usePasskeySignIn)/ 密码 / magic-link / email+WhatsApp+SMS OTP / 社交。
 // 枚举防护(铁律):认证失败统一模糊 key,magic-link/OTP 成功不泄露联系方式是否存在。
-// Turnstile invisible token 由 SignInPage 在 callback 中注入(setTurnstileToken)。
+// Turnstile token 由 SignInPage 注入;每次服务端校验后清空并让 widget 生成新的单次 token。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
@@ -37,10 +37,18 @@ import {
 import { usePasskeySignIn } from './usePasskeySignIn'
 import type { PasskeySupport } from './usePasskeySignIn'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from './auth-config'
+import {
+  isProductSignUpIntent,
+  isSignUpIntent,
+  type HostedAuthIntent,
+} from '../../../shared/hosted-auth-intent'
 
 export type { SignInMethod, SignInErrorKey } from './shared'
 
-type SignInResult = Result<{ redirectUrl?: string }>
+type SignInResult = Result<{
+  redirectUrl?: string
+  nextStep?: 'verify_email' | 'complete'
+}>
 type PasswordResult = Result<{ redirectUrl?: string; nextStep?: 'verify_email' | 'complete' }>
 type HrdResult = {
   organizationId?: string
@@ -53,18 +61,53 @@ export function buildSocialAuthorizeUrl(input: {
   origin: string
   provider: string
   hostedReturn: string
-  signUpIntent: boolean
+  intent?: HostedAuthIntent | null
+  applicationClientId?: string | null
   identifier: string
   organizationId?: string
+  invitationToken?: string | null
   turnstileToken: string | null
 }): URL {
   const url = new URL(`/auth/${input.provider}/authorize`, input.origin)
-  url.searchParams.set('continue', input.signUpIntent ? '/create-organization' : input.hostedReturn)
-  if (input.signUpIntent) url.searchParams.set('intent', 'sign-up')
+  url.searchParams.set(
+    'continue',
+    isProductSignUpIntent(input.intent) ? '/create-organization' : input.hostedReturn,
+  )
+  if (input.intent) url.searchParams.set('intent', input.intent)
+  if (input.applicationClientId) url.searchParams.set('client_id', input.applicationClientId)
   if (input.identifier.trim()) url.searchParams.set('login_hint', input.identifier.trim())
   if (input.organizationId) url.searchParams.set('organization_id', input.organizationId)
+  if (input.invitationToken) url.searchParams.set('invitation_token', input.invitationToken)
   if (input.turnstileToken) url.searchParams.set('turnstile', input.turnstileToken)
   return url
+}
+
+export function buildAuthConfigPath(input: {
+  loginHint?: string | null
+  organizationId?: string | null
+  intent?: string | null
+  invitationToken?: string | null
+  authzRequestId?: string | null
+  applicationClientId?: string | null
+}): string {
+  const params = new URLSearchParams()
+  if (input.loginHint) params.set('login_hint', input.loginHint)
+  if (input.organizationId) params.set('organization_id', input.organizationId)
+  if (input.intent) params.set('intent', input.intent)
+  if (input.invitationToken) params.set('invitation_token', input.invitationToken)
+  if (input.authzRequestId) params.set('authz_request_id', input.authzRequestId)
+  if (input.applicationClientId) params.set('client_id', input.applicationClientId)
+  return params.size > 0 ? `/auth/config?${params.toString()}` : '/auth/config'
+}
+
+export function enabledSignInMethodsForIntent(
+  config: PublicHostedAuthConfig,
+  intent: string | null | undefined,
+): readonly SignInMethod[] {
+  const methods = enabledSignInMethods(config)
+  // Passkey registration is a separate authenticated account ceremony. Until Hosted Auth has an
+  // explicit registration flow, a sign-up intent must never execute the passkey sign-in ceremony.
+  return isSignUpIntent(intent) ? methods.filter((method) => method !== 'passkey') : methods
 }
 
 export type SignInState = {
@@ -119,6 +162,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     login_hint?: string
     redirect?: string
     organization_id?: string
+    client_id?: string
     intent?: string
     invitation_token?: string
   }
@@ -126,10 +170,11 @@ export function useSignIn(): [SignInState, SignInActions] {
   const redirectParam = search.redirect ?? null
   const authzRequestId = search.authz_request_id ?? null
   const selectedOrganizationId = search.organization_id ?? null
-  const hostedReturn = resolveHostedReturn(continueParam, authzRequestId)
+  const hostedReturn = resolveHostedReturn(continueParam, authzRequestId, search.client_id)
   const signInFlowExtras = {
     ...(continueParam ? { continue: continueParam } : {}),
     ...(search.intent ? { intent: search.intent } : {}),
+    ...(search.client_id ? { clientId: search.client_id } : {}),
     ...(search.invitation_token ? { invitationToken: search.invitation_token } : {}),
   }
 
@@ -146,14 +191,27 @@ export function useSignIn(): [SignInState, SignInActions] {
   const [otpStep, setOtpStep] = useState<'input' | 'sent'>('input')
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const [error, setError] = useState<SignInErrorKey | null>(null)
+  const resetTurnstile = useCallback((): void => setTurnstileToken(null), [])
 
   const authConfigQuery = useQuery<PublicHostedAuthConfig, never>({
-    queryKey: ['auth-config', search.login_hint ?? null, search.organization_id ?? null],
+    queryKey: [
+      'auth-config',
+      search.login_hint ?? null,
+      search.organization_id ?? null,
+      search.client_id ?? null,
+      search.intent ?? null,
+      search.invitation_token ?? null,
+      authzRequestId,
+    ],
     queryFn: async () => {
-      const params = new URLSearchParams()
-      if (search.login_hint) params.set('login_hint', search.login_hint)
-      if (search.organization_id) params.set('organization_id', search.organization_id)
-      const configPath = params.size > 0 ? `/auth/config?${params.toString()}` : '/auth/config'
+      const configPath = buildAuthConfigPath({
+        loginHint: search.login_hint,
+        organizationId: search.organization_id,
+        intent: search.intent,
+        invitationToken: search.invitation_token,
+        authzRequestId,
+        applicationClientId: search.client_id,
+      })
       const result = await api.get<PublicHostedAuthConfig>(configPath)
       return result.ok ? result.value : DEFAULT_PUBLIC_AUTH_CONFIG
     },
@@ -161,14 +219,18 @@ export function useSignIn(): [SignInState, SignInActions] {
   })
   const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
   const enabledMethods = useMemo<readonly SignInMethod[]>(() => {
-    return enabledSignInMethods(authConfig)
-  }, [authConfig])
+    return enabledSignInMethodsForIntent(
+      authConfig,
+      search.invitation_token ? 'sign-up' : search.intent,
+    )
+  }, [authConfig, search.intent, search.invitation_token])
 
   useEffect(() => {
     if (!enabledMethods.includes(method)) setMethodState(enabledMethods[0] ?? 'enterprise-sso')
   }, [enabledMethods, method])
 
-  const authFlowIntent = search.intent === 'sign-up' ? 'sign_up' : 'sign_in'
+  const authFlowIntent =
+    search.invitation_token || isSignUpIntent(search.intent) ? 'sign_up' : 'sign_in'
   const analyticsAuthIntent = authFlowIntent === 'sign_up' ? 'sign_up' : 'sign_in'
 
   function signInMethodToAuthMethod(signInMethod: SignInMethod): AuthMethod {
@@ -208,6 +270,10 @@ export function useSignIn(): [SignInState, SignInActions] {
         setError(apiErrorToKey(result.error.code))
         return
       }
+      if (result.value.nextStep === 'verify_email') {
+        setError('verify_email_sent')
+        return
+      }
       const otpMethod: AuthMethod =
         method === 'otp-email'
           ? 'otp_email'
@@ -224,6 +290,9 @@ export function useSignIn(): [SignInState, SignInActions] {
     enabled: enabledMethods.includes('passkey'),
     identifier,
     organizationId: selectedOrganizationId,
+    applicationClientId: search.client_id,
+    turnstileToken,
+    onTurnstileConsumed: resetTurnstile,
     onSuccess: async (redirectUrl) => {
       await finishSignIn(redirectUrl, 'passkey')
     },
@@ -254,6 +323,7 @@ export function useSignIn(): [SignInState, SignInActions] {
       }
       await finishSignIn(result.value.redirectUrl, 'password')
     },
+    onSettled: resetTurnstile,
   })
 
   const magicLinkMutation = useMutation({
@@ -273,6 +343,7 @@ export function useSignIn(): [SignInState, SignInActions] {
       // 成功不区分邮箱是否存在(枚举防护),统一显示"已发送"。
       setError(result.ok ? 'magic_link_sent' : apiErrorToKey(result.error.code))
     },
+    onSettled: resetTurnstile,
   })
 
   const otpRequestMutation = useMutation({
@@ -312,6 +383,7 @@ export function useSignIn(): [SignInState, SignInActions] {
       setOtpStep('sent')
       setError('otp_sent')
     },
+    onSettled: resetTurnstile,
   })
 
   const otpVerifyMutation = useMutation({
@@ -336,7 +408,10 @@ export function useSignIn(): [SignInState, SignInActions] {
               ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
               ...signInFlowExtras,
             }
-      return api.post<{ redirectUrl?: string }>(endpoint, body)
+      return api.post<{ redirectUrl?: string; nextStep?: 'verify_email' | 'complete' }>(
+        endpoint,
+        body,
+      )
     },
     onSuccess: handleAuthResult,
   })
@@ -346,6 +421,10 @@ export function useSignIn(): [SignInState, SignInActions] {
       api.post<HrdResult>('/sso/hrd', {
         email: identifier,
         ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
+        ...(search.invitation_token ? { invitationToken: search.invitation_token } : {}),
+        ...(search.intent ? { intent: search.intent } : {}),
+        ...(search.client_id ? { clientId: search.client_id } : {}),
+        turnstileToken,
       }),
     onSuccess: (result) => {
       if (!result.ok || !result.value.connectionId || !result.value.protocol) {
@@ -360,24 +439,38 @@ export function useSignIn(): [SignInState, SignInActions] {
       setPendingAuthCompletion({ method: 'enterprise_sso', intent: analyticsAuthIntent })
       const url = new URL(path, globalThis.location.origin)
       url.searchParams.set('continue', hostedReturn)
+      if (search.invitation_token) {
+        url.searchParams.set('invitation_token', search.invitation_token)
+      }
+      if (search.intent) url.searchParams.set('intent', search.intent)
+      if (search.client_id) url.searchParams.set('client_id', search.client_id)
       if (result.value.organizationId) {
         url.searchParams.set('organization_id', result.value.organizationId)
       }
       globalThis.location.href = url.toString()
     },
+    onSettled: resetTurnstile,
   })
 
   // 访客登录:无凭证建立 guest session(契约:POST /auth/guest,Set-Cookie 建会话,
   // 成功响应对齐既有登录成功形态 { redirectUrl? }),收尾走统一 finishSignIn。
   // Turnstile 随请求体提交(与 password/OTP 同一模式),服务端配置 TURNSTILE_SECRET 时强制校验。
   const guestMutation = useMutation({
-    mutationFn: () => api.post<{ redirectUrl?: string }>('/auth/guest', { turnstileToken }),
+    mutationFn: (capabilityToken: string) =>
+      api.post<{ redirectUrl: string }>('/auth/guest', {
+        capabilityToken,
+        turnstileToken,
+      }),
     onSuccess: async (result) => {
       if (!result.ok) {
         setError(apiErrorToKey(result.error.code))
         return
       }
-      await finishSignIn('/create-organization', 'guest')
+      await finishSignIn(result.value.redirectUrl, 'guest')
+    },
+    onSettled: async () => {
+      resetTurnstile()
+      await authConfigQuery.refetch()
     },
   })
 
@@ -390,9 +483,15 @@ export function useSignIn(): [SignInState, SignInActions] {
         origin: globalThis.location.origin,
         provider,
         hostedReturn,
-        signUpIntent: authFlowIntent === 'sign_up',
+        intent: isSignUpIntent(search.intent)
+          ? search.intent
+          : search.intent === 'sign-in'
+            ? 'sign-in'
+            : null,
+        applicationClientId: search.client_id,
         identifier,
         organizationId: search.organization_id,
+        invitationToken: search.invitation_token ?? null,
         turnstileToken,
       })
       globalThis.location.href = url.toString()
@@ -403,6 +502,8 @@ export function useSignIn(): [SignInState, SignInActions] {
       hostedReturn,
       identifier,
       search.organization_id,
+      search.client_id,
+      search.invitation_token,
       turnstileToken,
     ],
   )
@@ -419,6 +520,8 @@ export function useSignIn(): [SignInState, SignInActions] {
         continueParam: search.continue ?? null,
         redirect: redirectParam,
         authzRequestId,
+        intent: search.intent ?? null,
+        invitationToken: search.invitation_token ?? null,
       })
     },
     [
@@ -428,6 +531,8 @@ export function useSignIn(): [SignInState, SignInActions] {
       redirectParam,
       search.continue,
       search.login_hint,
+      search.intent,
+      search.invitation_token,
     ],
   )
 
@@ -488,7 +593,9 @@ export function useSignIn(): [SignInState, SignInActions] {
     submitOtpRequest: () => otpRequestMutation.mutate(),
     submitOtpVerify: () => otpVerifyMutation.mutate(),
     submitEnterpriseSso: () => enterpriseSsoMutation.mutate(),
-    submitGuest: () => guestMutation.mutate(),
+    submitGuest: () => {
+      if (authConfig.guest) guestMutation.mutate(authConfig.guest.capabilityToken)
+    },
     triggerPasskeyButton: passkey.triggerButton,
     handleSocial,
     selectOrganizationContext,

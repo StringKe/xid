@@ -1,0 +1,1 @@
+ALTER TABLE `verification_tokens` ADD `flow_context` text;

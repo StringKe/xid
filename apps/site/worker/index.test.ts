@@ -81,6 +81,38 @@ describe('site worker', () => {
   })
 
   it.each([
+    'https://xid.dev/?source=contract',
+    'https://xid.dev/getting-started?source=contract',
+    'https://xid.dev/llms.txt?source=contract',
+    'https://xid.dev/status?source=contract',
+    'https://xid.dev/zh-hans?source=contract',
+    'https://xid.dev/scim?source=contract',
+  ])('serves an exact Site path query without changing the request %s', async (source) => {
+    const { env, fetch } = envWith(new Response('site'))
+    const request = new Request(source)
+    const response = await worker.fetch(request, env, {} as ExecutionContext)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-xid-route-owner')).toBe('site')
+    expect(fetch).toHaveBeenCalledWith(request)
+  })
+
+  it.each([
+    'https://xid.dev/getting-startedx?source=contract',
+    'https://xid.dev/llms.txtx?source=contract',
+    'https://xid.dev/statusx?source=contract',
+    'https://xid.dev/zh-hansx?source=contract',
+    'https://tenant.xid.dev/getting-started?source=contract',
+  ])('rejects a non-Site path without touching static assets %s', async (source) => {
+    const { env, fetch } = envWith(new Response('site'))
+    const response = await worker.fetch(new Request(source), env, {} as ExecutionContext)
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('x-xid-route-owner')).toBe('site')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
     ['https://xid.dev/index.md', 'text/markdown; charset=utf-8'],
     ['https://xid.dev/index.mdx', 'text/markdown; charset=utf-8'],
     ['https://xid.dev/getting-started/index.md', 'text/markdown; charset=utf-8'],

@@ -2,6 +2,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import type { AmrValue } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
+import { isProductSignUpIntent } from '../../shared/hosted-auth-intent'
 import { smsDeliveryReady } from '../auth/delivery-channels'
 import {
   PENDING_MFA_SESSION_STATUS,
@@ -101,7 +102,7 @@ export function postAuthRedirectPath(opts: {
 }): string {
   const token = opts.invitationToken?.trim()
   if (token) return `/accept-invitation?token=${encodeURIComponent(token)}`
-  if (opts.intent === 'sign-up') return '/create-organization'
+  if (isProductSignUpIntent(opts.intent)) return '/create-organization'
   return sanitizeLocalReturn(opts.continueParam)
 }
 

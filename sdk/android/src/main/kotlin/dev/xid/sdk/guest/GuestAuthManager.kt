@@ -1,5 +1,6 @@
 package dev.xid.sdk.guest
 
+import dev.xid.sdk.model.GuestCapabilityResponse
 import dev.xid.sdk.model.GuestSessionResponse
 import dev.xid.sdk.model.MeResponse
 import dev.xid.sdk.model.MeUser
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit
  * 匿名访客(Firebase 式 guest)登录。
  *
  * 与 OIDC token 流程的差异:
+ * - 每次真正建号先从 /auth/config?intent=sign-up 获取一次性 capability, 不缓存或复用。
  * - guest 不签发 access/refresh/id token, 会话凭证是 /auth/guest 通过 Set-Cookie 下发的
  *   服务端 session cookie。OkHttp 默认不持久化 cookie, 因此显式捕获 Set-Cookie 并存入
  *   [TokenStorageAdapter](底层加密存储), 后续 /v1/me 请求以 Cookie header 重放。
@@ -56,7 +58,8 @@ internal class GuestAuthManager(
         withContext(Dispatchers.IO) {
             loadSession()?.let { return@withContext it }
 
-            val (sessionId, cookies) = requestGuestSession(turnstileToken)
+            val capabilityToken = requestGuestCapability()
+            val (sessionId, cookies) = requestGuestSession(capabilityToken, turnstileToken)
             val me = fetchMe(cookies)
             val user = me.toXidUser()
 
@@ -74,13 +77,55 @@ internal class GuestAuthManager(
     }
 
     private suspend fun persist(sessionId: String, cookies: String, me: MeUser) {
-        storage.set(StorageKeys.GUEST_SESSION_ID, sessionId)
-        storage.set(StorageKeys.GUEST_SESSION_COOKIES, cookies)
-        storage.set(StorageKeys.GUEST_USER, json.encodeToString(MeUser.serializer(), me))
+        try {
+            storage.set(StorageKeys.GUEST_SESSION_ID, sessionId)
+            storage.set(StorageKeys.GUEST_SESSION_COOKIES, cookies)
+            storage.set(StorageKeys.GUEST_USER, json.encodeToString(MeUser.serializer(), me))
+        } catch (error: Exception) {
+            try {
+                clear(storage)
+            } catch (cleanupError: Exception) {
+                error.addSuppressed(cleanupError)
+            }
+            throw error
+        }
     }
 
-    private fun requestGuestSession(turnstileToken: String?): Pair<String, String> {
+    private fun requestGuestCapability(): String {
+        val request = Request.Builder()
+            .url("$baseUrl/auth/config?intent=sign-up")
+            .get()
+            .header("Accept", "application/json")
+            .build()
+
+        return try {
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw XidException.GuestSignInFailed("/auth/config 返回 HTTP ${response.code}")
+                }
+                val body = response.body?.string()
+                    ?: throw XidException.GuestSignInFailed("/auth/config 响应体为空")
+                val token = runCatching {
+                    json.decodeFromString<GuestCapabilityResponse>(body).guest?.capabilityToken
+                }.getOrElse { error ->
+                    throw XidException.GuestSignInFailed("解析 guest capability 失败", error)
+                }
+                token?.takeIf { it.isNotBlank() }
+                    ?: throw XidException.GuestSignInFailed("guest capability 不可用")
+            }
+        } catch (e: XidException) {
+            throw e
+        } catch (e: Exception) {
+            throw XidException.NetworkError("guest capability 请求失败", e)
+        }
+    }
+
+    private fun requestGuestSession(
+        capabilityToken: String,
+        turnstileToken: String?,
+    ): Pair<String, String> {
         val bodyJson = buildJsonObject {
+            put("capabilityToken", capabilityToken)
             turnstileToken?.let { put("turnstileToken", it) }
         }.toString()
 

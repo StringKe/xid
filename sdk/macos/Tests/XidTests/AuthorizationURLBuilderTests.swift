@@ -65,4 +65,53 @@ final class AuthorizationURLBuilderTests: XCTestCase {
         let promptValue = components?.queryItems?.first(where: { $0.name == "prompt" })?.value
         XCTAssertEqual(promptValue, "login")
     }
+
+    func testAdditionalParamsCannotOverrideReservedScope() throws {
+        let pkce = try makePKCE()
+        let url = try XCTUnwrap(AuthorizationURLBuilder.build(
+            authorizationEndpoint: authEndpoint,
+            clientId: "c",
+            redirectUri: redirectUri,
+            scopes: ["openid", "profile", "email"],
+            pkce: pkce,
+            state: "s",
+            additionalParams: [
+                "scope": "openid offline_access",
+                "redirect_uri": "https://attacker.example/callback",
+                "prompt": "login",
+            ]
+        ))
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: true)?.queryItems ?? []
+
+        XCTAssertEqual(items.filter { $0.name == "scope" }.map(\.value), ["openid profile email"])
+        XCTAssertEqual(items.filter { $0.name == "redirect_uri" }.map(\.value), [redirectUri.absoluteString])
+        XCTAssertEqual(items.first(where: { $0.name == "prompt" })?.value, "login")
+    }
+
+    func testPublicClientDefaultScopesExcludeOfflineAccess() {
+        let config = XidConfiguration(
+            issuer: URL(string: "https://xid.dev")!,
+            clientId: "client_test",
+            redirectUri: redirectUri
+        )
+
+        XCTAssertEqual(config.scopes, ["openid", "profile", "email"])
+    }
+
+    func testPublicClientRejectsOfflineAccessWithoutDPoP() {
+        let config = XidConfiguration(
+            issuer: URL(string: "https://xid.dev")!,
+            clientId: "client_test",
+            redirectUri: redirectUri,
+            scopes: ["openid", "offline_access"]
+        )
+
+        XCTAssertThrowsError(try config.validatePublicClientScopes()) { error in
+            guard case XidError.oauthError(let code, let description) = error else {
+                return XCTFail("Expected invalid_scope, got \(error)")
+            }
+            XCTAssertEqual(code, "invalid_scope")
+            XCTAssertTrue(description?.contains("DPoP") == true)
+        }
+    }
 }

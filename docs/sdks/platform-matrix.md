@@ -8,12 +8,23 @@ The coverage target is the mainstream server runtimes and languages, plus client
 
 ## Distribution
 
-- `@xid-kit/*` are npm workspace packages published with the repository.
-- The 13 native SDKs under `sdk/` (go, java, rust, php, ruby, python, dotnet, ios, android, macos, windows, linux, flutter) are **not published to any registry**: not crates.io, PyPI, Maven, RubyGems, Packagist, NuGet, CocoaPods or pub.dev. They ship as source inside the repository. CI runs no language toolchain and none of their test suites: `pnpm check` chains `pnpm native:verify`, which only asserts that every platform in the contract matrix of `tests/native-sdk-contract.test.mjs` points at a directory that exists. Running a platform's real suite is a local opt-in (`XID_NATIVE_SDK_PLATFORM=go pnpm native:verify`); see [../deployment.md](../deployment.md). To use one, vendor the source or reference it from a local path as described in its own README.
+- The 15 public TypeScript SDKs and their three required runtime kernels (`types`, `crypto`, and
+  `protocol`) produce audited `0.1.0-alpha.0` npm tarballs. **No npm publish has been performed or
+  authorized.** `pnpm run sdk:distribution:verify` builds with `vp pack`, audits every tarball, and
+  installs representative tarball dependency closures into fresh consumers for strict type,
+  runtime, browser, Worker, and native peer-resolution checks. See
+  [distribution.md](distribution.md).
+- The 13 native SDKs under `sdk/` (go, java, rust, php, ruby, python, dotnet, ios, android, macos,
+  windows, linux, flutter) are **not published to any registry**: not crates.io, PyPI, Maven Central,
+  RubyGems, Packagist, NuGet, CocoaPods, Swift Package Registry or pub.dev. They ship as source.
+  `pnpm native:verify` checks every directory, package manifest, package-format metadata, and honest
+  source-only README wording. Native language test suites remain a local opt-in
+  (`XID_NATIVE_SDK_PLATFORM=go pnpm native:verify`); see [../deployment.md](../deployment.md).
 
 ## Status vocabulary
 
-- `current package`: the repository has the package, the source, a test entry point and the workspace configuration.
+- `current package`: the repository has the package, source, test entry point, workspace
+  configuration, and a locally verified release artifact. It does not imply registry publication.
 - `implemented`: the toolchain compiles and every unit test is PASS. **The real-IdP round trip (L4) is not verified, so do not treat it as a complete production SDK.**
 - `scaffold`: the repository has a starting skeleton with a minimal package, types, README or sample. **It is not a complete production SDK.** The source exists but the tests have not been validated. Before production use it must compile in the real toolchain and be verified against a real IdP round trip.
 - `planned design`: only the platform design and integration flow exist, with no code skeleton in the repository. (Every platform is currently at least scaffold; this status is reserved for platforms added in future.)
@@ -46,35 +57,50 @@ Server SDKs perform networkless JWT verification, request authentication and web
 
 The framework layer sits on top of `@xid-kit/core` (the browser core) and supplies providers, hooks/composables/stores and prebuilt components. Every `@xid-kit/*` framework package is a current package with a provider, hooks and type exports; the higher-level prebuilt UI components are still evolving.
 
-| Framework          | Package or directory | Status          | Test coverage                                                          | Responsibilities                                                  |
-| ------------------ | -------------------- | --------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Vanilla JS / Web   | `@xid-kit/core`      | current package | -                                                                      | Browser client, session store, token cache, Management API helper |
-| React              | `@xid-kit/react`     | current package | `vp test` exports test PASS; public exports match `docs/sdks/react.md` | Provider, hooks, control components, user UI, organization UI     |
-| Next.js            | `@xid-kit/nextjs`    | current package | -                                                                      | Middleware, App Router helper, Pages Router helper, server auth   |
-| Vue                | `@xid-kit/vue`       | current package | -                                                                      | Plugin, composables, prebuilt components                          |
-| Nuxt               | `@xid-kit/nuxt`      | current package | -                                                                      | Module, server middleware, composables                            |
-| Svelte / SvelteKit | `@xid-kit/svelte`    | current package | -                                                                      | Stores, actions, prebuilt components                              |
-| Angular            | `@xid-kit/angular`   | current package | -                                                                      | Provider, guards, services, components                            |
-| Remix              | `@xid-kit/remix`     | current package | -                                                                      | Loader/action helpers, session integration                        |
-| Astro              | `@xid-kit/astro`     | current package | -                                                                      | Integration, middleware, island components                        |
-| SolidJS            | `@xid-kit/solid`     | current package | -                                                                      | Provider, primitives, components                                  |
+| Framework          | Package or directory | Status          | Test coverage                                                          | Responsibilities                                                   |
+| ------------------ | -------------------- | --------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Vanilla JS / Web   | `@xid-kit/core`      | current package | -                                                                      | Browser client, session store, token cache, Management API helper  |
+| React              | `@xid-kit/react`     | current package | `vp test` exports test PASS; public exports match `docs/sdks/react.md` | Provider, hooks, control components, user UI, organization UI      |
+| Next.js            | `@xid-kit/nextjs`    | current package | -                                                                      | Middleware, App Router helper, Pages Router helper, server auth    |
+| Vue                | `@xid-kit/vue`       | current package | -                                                                      | Plugin, composables, prebuilt components                           |
+| Nuxt               | `@xid-kit/nuxt`      | current package | -                                                                      | Module, server middleware, composables                             |
+| Svelte / SvelteKit | `@xid-kit/svelte`    | current package | -                                                                      | Stores, actions, prebuilt components                               |
+| Angular            | `@xid-kit/angular`   | current package | -                                                                      | Provider, guards, services, components                             |
+| Remix              | `@xid-kit/remix`     | implemented     | Unit tests plus check and typecheck                                    | Loader/action helpers, session integration, PKCE callback exchange |
+| Astro              | `@xid-kit/astro`     | current package | -                                                                      | Integration, middleware, island components                         |
+| SolidJS            | `@xid-kit/solid`     | current package | -                                                                      | Provider, primitives, components                                   |
+
+The Remix callback exchanges authorization codes at the Core root `POST /token` endpoint. Its
+hosted default is `https://xid.dev/token`; self-hosted instances override `tokenEndpoint` with their
+issuer's `/token` URL. Unit tests cover both URL branches, PKCE, state, session persistence, error
+handling, and redirect safety. A real-IdP L4 round trip remains unverified.
 
 ## Client matrix: mobile
 
-| Platform         | Package or directory    | Status          | Test coverage                                                     | Responsibilities                                                                         |
-| ---------------- | ----------------------- | --------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| React Native     | `@xid-kit/react-native` | implemented     | Unit tests plus typecheck                                         | Hosted redirect, deep link callback, state-keyed PKCE S256, secure token storage adapter |
-| Expo             | `@xid-kit/expo`         | current package | -                                                                 | Expo Router integration, AuthSession, SecureStore adapter                                |
-| Flutter          | `sdk/flutter`           | implemented     | `flutter test`                                                    | Hosted redirect, state-keyed PKCE S256, secure storage adapter, JWKS signature check     |
-| iOS (Swift)      | `sdk/ios`               | implemented     | `swift test` (compiled on macOS; the Keychain runner needs Xcode) | ASWebAuthenticationSession, Keychain storage, state-keyed PKCE S256                      |
-| Android (Kotlin) | `sdk/android`           | implemented     | `gradle testDebugUnitTest` (JVM unit tests)                       | Custom Tabs, JWKS signature check, RP-initiated logout, Keystore storage, PKCE S256      |
+| Platform         | Package or directory    | Status      | Test coverage                                                     | Responsibilities                                                                                |
+| ---------------- | ----------------------- | ----------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| React Native     | `@xid-kit/react-native` | implemented | Unit tests, typecheck and package build                           | Hosted redirect, state + nonce PKCE, JWKS verify, authorization-code-only native session        |
+| Expo             | `@xid-kit/expo`         | implemented | Unit tests and typecheck                                          | React Native authorization-code session plus SecureStore, WebBrowser and Expo Router adapters   |
+| Flutter          | `sdk/flutter`           | implemented | `flutter test`                                                    | Hosted redirect, state + nonce PKCE, secure storage adapter, native-backend ES256 verify        |
+| iOS (Swift)      | `sdk/ios`               | implemented | `swift test` (compiled on macOS; the Keychain runner needs Xcode) | ASWebAuthenticationSession, Keychain, state + nonce PKCE, JWKS verify and refresh single-flight |
+| Android (Kotlin) | `sdk/android`           | implemented | `gradle testDebugUnitTest` (JVM unit tests)                       | Custom Tabs, state + nonce PKCE, JWKS verify, RP-initiated logout and Keystore storage          |
+
+`@xid-kit/react-native` and `@xid-kit/expo` require React 19 but do not reuse the web-cookie
+runtime from `@xid-kit/react` or `@xid-kit/core`. Native-only consumers do not install
+`react-dom`.
 
 ### Mobile gaps
 
 - **iOS**: the tests run on the macOS platform. `ASWebAuthenticationSession`, `UIApplication` and real Keychain behaviour need an iOS simulator or a device. `KeychainTokenStorageTests` depends on a Keychain entitlement, so its result has to be confirmed inside Xcode.
 - **Android**: JVM unit tests only (PKCE, State and InMemoryStorage). `EncryptedSharedPreferences` (Keystore AES-256-GCM), the `CustomTabs` browser session and the App Links callback all need an Android device or emulator. `testInstrumentationRunner` has not been run.
-- **React Native**: TokenCache and BrowserInterface are both injected adapters. Real SecureStore, Keychain, EncryptedSharedPreferences, deep links and the real-IdP round trip need a device or emulator.
-- **Flutter**: the tests do not cover the real platform paths of `flutter_secure_storage` or `flutter_web_auth_2` (only the pure Dart logic in InMemoryStorageAdapter, Pkce and XidSession). Platform channels and the real-IdP round trip need a device or emulator.
+- **React Native / Expo**: TokenCache and BrowserInterface are injected adapters. Real SecureStore,
+  Keychain, EncryptedSharedPreferences, deep links and the real-IdP round trip need a device or
+  emulator. One local account per storage namespace is supported; organization management hooks
+  and native organization UI are not implemented. These SDKs do not implement DPoP, reject
+  `offline_access`, and require reauthorization after access-token expiry.
+- **Flutter**: unit tests cover the state/nonce claims chain and session logic, but not the real
+  `flutter_secure_storage`, `flutter_web_auth_2` or `cryptography_flutter` native platform channels.
+  Those paths and the real-IdP round trip need a device or emulator.
 
 ## Client matrix: desktop
 
@@ -91,6 +117,8 @@ The framework layer sits on top of `@xid-kit/core` (the browser core) and suppli
 - **macOS**: the Keychain tests run on the local machine. The `ASWebAuthenticationSession` OAuth callback flow needs a running XID server endpoint. The L4 round trip is not verified.
 - **Windows**: the `net8.0` cross-platform target compiles, and JWKS signature verification plus `/end_session` are implemented. The Windows-specific APIs (`WebView2`, `DPAPI`, `WinUI 3`) compile only under the `net8.0-windows10.0.19041.0` TFM and need a Windows build environment to verify. `DpapiTokenStorage` cannot run on a non-Windows system.
 - **Linux**: the `secret-service-storage` feature is not enabled. `SecretServiceStorage` needs a `gnome-keyring` or `kwallet` D-Bus daemon. In a headless environment (CI, no desktop) it falls back to `InMemoryStorage`.
+- **Electron / Tauri**: neither SDK implements DPoP. They reject `offline_access` and operate as
+  authorization-code-only public clients; access-token expiry requires a new sign-in.
 
 ## Shared native contract
 
@@ -102,7 +130,6 @@ JS/TS native common API surface (Provider props / hook returns):
 
 ```text
 XidProvider props:
-  publishableKey
   issuer
   clientId
   redirectUri
@@ -134,6 +161,11 @@ user
 organization
 ```
 
+Public native clients may request `offline_access` only when their registration and token requests
+use DPoP sender binding. A client with no DPoP proof implementation is authorization-code-only and
+must reauthorize after access-token expiry. This is a server-enforced protocol boundary, not an
+optional SDK optimization.
+
 Common adapter interfaces (JS/TS):
 
 ```text
@@ -141,6 +173,7 @@ TokenCache:
   getToken(key)           -> Promise<string | null>
   saveToken(key, value)   -> Promise<void>
   deleteToken(key)        -> Promise<void>
+  coordinationNamespace?  -> string
 
 BrowserInterface:
   openAuthSession(url, redirectUri) -> Promise<BrowserResult>
@@ -163,9 +196,15 @@ independent tenant-local account, not an SDK merge or ownership-transfer flow. T
 Hosted UI behavior does not change any SDK support level in the table below; the existing
 sub-comparison helper remains available for application-specific identity transitions.
 
-| Platform surface                                                                             | Guest sign-in status                                                                                                                                                                |
-| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@xid-kit/core` and `@xid-kit/react`                                                         | implemented: `signInAnonymously()`, `isAnonymous`, `isGuestUser`/`isSameUser`, `<GuestUpgradeBanner />`; other web framework packages not started                                   |
-| `@xid-kit/backend` and every server native SDK (`sdk/{go,java,rust,php,ruby,python,dotnet}`) | implemented: guest detection on the verified principal (`IsGuest()` / `is_guest` / `guest?` via the `amr` claim); `signInAnonymously()` is not applicable to backend SDKs by design |
-| Mobile (`sdk/flutter`, `sdk/ios`, `sdk/android`)                                             | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/react-native`, `@xid-kit/expo` not started                                 |
-| Desktop (`sdk/macos`, `sdk/windows`, `sdk/linux`)                                            | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/electron`, `@xid-kit/tauri` not started                                    |
+Every SDK that creates a guest follows the same entry-capability contract: if no local session can
+be lazily reused, GET `/auth/config?intent=sign-up`, require a non-empty
+`guest.capabilityToken`, then include that one-time token in POST `/auth/guest` together with the
+optional `turnstileToken`. The capability is fetched per creation attempt and is never cached or
+reused. A missing capability or any later failure leaves no persisted partial guest session.
+
+| Platform surface                                                                             | Guest sign-in status                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@xid-kit/core` and `@xid-kit/react`                                                         | implemented: `signInAnonymously()`, `isAnonymous`, `isGuestUser`/`isSameUser`, `<GuestUpgradeBanner />`; other web framework packages not started                                             |
+| `@xid-kit/backend` and every server native SDK (`sdk/{go,java,rust,php,ruby,python,dotnet}`) | implemented: guest detection on the verified principal (`IsGuest()` / `is_guest` / `guest?` via the `amr` claim); `signInAnonymously()` is not applicable to backend SDKs by design           |
+| Mobile (`sdk/flutter`, `sdk/ios`, `sdk/android`)                                             | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; React Native / Expo expose `isAnonymous` from verified claims but do not create guest sessions |
+| Desktop (`sdk/macos`, `sdk/windows`, `sdk/linux`)                                            | implemented: `signInAnonymously()` with lazy reuse, session-cookie persistence, `isAnonymous`; `@xid-kit/electron`, `@xid-kit/tauri` not started                                              |

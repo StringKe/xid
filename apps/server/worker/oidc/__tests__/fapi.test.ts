@@ -15,7 +15,7 @@ function clientRow(over: Record<string, unknown> = {}) {
     jwks: null,
     redirect_uris: JSON.stringify(['https://rp.example/cb']),
     post_logout_redirect_uris: JSON.stringify([]),
-    allowed_grant_types: JSON.stringify(['authorization_code', 'client_credentials']),
+    allowed_grant_types: JSON.stringify(['authorization_code']),
     allowed_response_types: JSON.stringify(['code']),
     allowed_scopes: JSON.stringify(['openid']),
     require_pkce: 1,

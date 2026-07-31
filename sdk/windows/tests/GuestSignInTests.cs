@@ -20,7 +20,7 @@ public class GuestSignInTests
 
     // -- 辅助:构造已注入 mock 的 client --
 
-    private static XidClient CreateClient(GuestMockHandler handler, InMemoryGuestStorage storage)
+    private static XidClient CreateClient(GuestMockHandler handler, ITokenStorage storage)
     {
         var ctor = typeof(XidClient).GetConstructor(
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
@@ -50,15 +50,21 @@ public class GuestSignInTests
         XidSession session = await client.SignInAnonymouslyAsync(
             new SignInAnonymouslyOptions { TurnstileToken = "ts-token-1" });
 
+        Assert.Equal(3, handler.Requests.Count);
+        RecordedRequest configReq = handler.Requests[0];
+        Assert.Equal(HttpMethod.Get, configReq.Method);
+        Assert.Equal("/auth/config?intent=sign-up", configReq.Path);
+
         // POST /auth/guest 请求形状
-        Assert.Equal(2, handler.Requests.Count);
-        RecordedRequest guestReq = handler.Requests[0];
+        RecordedRequest guestReq = handler.Requests[1];
         Assert.Equal(HttpMethod.Post, guestReq.Method);
         Assert.Equal("/auth/guest", guestReq.Path);
-        Assert.Equal("{\"turnstileToken\":\"ts-token-1\"}", guestReq.Body);
+        Assert.Equal(
+            "{\"capabilityToken\":\"guest-capability-1\",\"turnstileToken\":\"ts-token-1\"}",
+            guestReq.Body);
 
         // /v1/me 必须带捕获到的会话 cookie
-        RecordedRequest meReq = handler.Requests[1];
+        RecordedRequest meReq = handler.Requests[2];
         Assert.Equal(HttpMethod.Get, meReq.Method);
         Assert.Equal("/v1/me", meReq.Path);
         Assert.Equal(SessionCookie, meReq.Cookie);
@@ -83,7 +89,7 @@ public class GuestSignInTests
         Assert.Equal("anonymous", stored.Guest.ProvisionedBy);
     }
 
-    // -- 不传 TurnstileToken 时 body 为 {} --
+    // -- 不传 TurnstileToken 时仍携带 capability --
 
     [Fact]
     public async Task SignInAnonymously_WithoutTurnstile_SendsEmptyObject()
@@ -93,7 +99,9 @@ public class GuestSignInTests
 
         await client.SignInAnonymouslyAsync();
 
-        Assert.Equal("{}", handler.Requests[0].Body);
+        Assert.Equal(
+            "{\"capabilityToken\":\"guest-capability-1\"}",
+            handler.Requests[1].Body);
     }
 
     // -- 惰性:内存中已有 guest 会话时不发请求 --
@@ -172,6 +180,34 @@ public class GuestSignInTests
         Assert.Equal("rate_limited", ex.Code);
     }
 
+    [Fact]
+    public async Task SignInAnonymously_MissingCapability_DoesNotPostOrPersist()
+    {
+        var handler = new GuestMockHandler { ConfigBody = "{\"guest\":null}" };
+        var storage = new InMemoryGuestStorage();
+        XidClient client = CreateClient(handler, storage);
+
+        await Assert.ThrowsAsync<GuestSignInException>(() => client.SignInAnonymouslyAsync());
+
+        Assert.Single(handler.Requests);
+        Assert.Equal("/auth/config?intent=sign-up", handler.Requests[0].Path);
+        Assert.Null(await storage.LoadAsync());
+        Assert.Null(await client.GetSession());
+    }
+
+    [Fact]
+    public async Task SignInAnonymously_StorageFailure_ClearsPartialState()
+    {
+        var handler = new GuestMockHandler();
+        var storage = new WriteThenFailGuestStorage();
+        XidClient client = CreateClient(handler, storage);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.SignInAnonymouslyAsync());
+
+        Assert.Null(await storage.LoadAsync());
+        Assert.Null(await client.GetSession());
+    }
+
     // -- 失败:/v1/me 401 --
 
     [Fact]
@@ -220,6 +256,9 @@ internal sealed class GuestMockHandler : HttpMessageHandler
     public List<RecordedRequest> Requests { get; } = [];
 
     public HttpStatusCode GuestStatus { get; init; } = HttpStatusCode.Created;
+    public HttpStatusCode ConfigStatus { get; init; } = HttpStatusCode.OK;
+    public string ConfigBody { get; init; } =
+        "{\"guest\":{\"capabilityToken\":\"guest-capability-1\"}}";
     public string GuestBody { get; init; } = "{\"sessionId\":\"sess-123\"}";
     public bool GuestSetCookie { get; init; } = true;
 
@@ -236,7 +275,15 @@ internal sealed class GuestMockHandler : HttpMessageHandler
         string? cookie = request.Headers.TryGetValues("Cookie", out IEnumerable<string>? values)
             ? string.Join("; ", values)
             : null;
-        Requests.Add(new RecordedRequest(request.Method, request.RequestUri!.AbsolutePath, body, cookie));
+        Requests.Add(new RecordedRequest(request.Method, request.RequestUri!.PathAndQuery, body, cookie));
+
+        if (request.RequestUri.AbsolutePath == "/auth/config")
+        {
+            return new HttpResponseMessage(ConfigStatus)
+            {
+                Content = new StringContent(ConfigBody, Encoding.UTF8, "application/json"),
+            };
+        }
 
         if (request.RequestUri.AbsolutePath == "/auth/guest")
         {
@@ -273,6 +320,32 @@ internal sealed class InMemoryGuestStorage : ITokenStorage
     public Task SaveAsync(StoredTokenSet tokens, CancellationToken ct = default)
     {
         _stored = tokens;
+        return Task.CompletedTask;
+    }
+
+    public Task<StoredTokenSet?> LoadAsync(CancellationToken ct = default) =>
+        Task.FromResult(_stored);
+
+    public Task ClearAsync(CancellationToken ct = default)
+    {
+        _stored = null;
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class WriteThenFailGuestStorage : ITokenStorage
+{
+    private StoredTokenSet? _stored;
+    private bool _failNextSave = true;
+
+    public Task SaveAsync(StoredTokenSet tokens, CancellationToken ct = default)
+    {
+        _stored = tokens;
+        if (_failNextSave)
+        {
+            _failNextSave = false;
+            throw new InvalidOperationException("simulated storage failure");
+        }
         return Task.CompletedTask;
     }
 

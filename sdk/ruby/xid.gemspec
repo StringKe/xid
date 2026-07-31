@@ -15,6 +15,11 @@ Gem::Specification.new do |spec|
   DESC
   spec.homepage    = "https://xid.dev"
   spec.license     = "MIT"
+  spec.metadata = {
+    "source_code_uri" => "https://github.com/StringKe/xid/tree/main/sdk/ruby",
+    "bug_tracker_uri" => "https://github.com/StringKe/xid/issues",
+    "rubygems_mfa_required" => "true"
+  }
 
   # Ruby 2.6+ 兼容（系统 Ruby 版本下限）
   spec.required_ruby_version = ">= 2.6.0"

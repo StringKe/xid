@@ -311,10 +311,12 @@ describe('Hosted Auth return target helpers', () => {
             continueParam: '/console',
             redirect: null,
             authzRequestId: 'authz_123',
+            intent: 'sign-up',
+            invitationToken: 'invite-token',
           },
         ),
       ).toBe(
-        'https://xid.dev/sign-in?organization_id=org_default&login_hint=shared&authz_request_id=authz_123&continue=%2Fconsole',
+        'https://xid.dev/sign-in?organization_id=org_default&login_hint=shared&authz_request_id=authz_123&continue=%2Fconsole&intent=sign-up&invitation_token=invite-token',
       )
     } finally {
       Object.defineProperty(globalThis, 'location', {

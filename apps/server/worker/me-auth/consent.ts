@@ -12,8 +12,10 @@ import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { AuthorizationDetails } from '@xid-kit/types'
 import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
+import { normalizeIssuedAcr, UNSUPPORTED_ACR_AAL3 } from '../lib/auth-context'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import { findClient, loadActiveSigner } from '../oidc/shared'
 import {
@@ -30,6 +32,7 @@ import {
   consumeStashedAuthorizeParams,
   restoreStashedAuthorizeParams,
 } from '../oidc/pending-params'
+import { requestsAcr } from '../oidc/requested-acr'
 import { requireSession } from './shared'
 
 // 暂存的 /authorize 原始 query 参数(authorize.ts stashAndRedirect 存的 RawParams 平铺记录)。
@@ -140,7 +143,9 @@ async function resolveClientDisplay(
 ): Promise<{ name: string | null; logoUrl: string | null }> {
   if (!projectId) return { name: null, logoUrl: null }
   const db = createTenantDb(c.env.DB, tenant)
-  const project = await db.projects.findOne(eq(schema.projects.id, projectId))
+  const project = await db.projects.findOne(
+    and(eq(schema.projects.id, projectId), eq(schema.projects.status, 'active')),
+  )
   if (!project) return { name: null, logoUrl: null }
   const org = await db.organizations.findOne(eq(schema.organizations.id, project.orgId))
   return { name: project.name, logoUrl: org?.logoUrl ?? null }
@@ -172,7 +177,7 @@ async function persistConsent(
       return
     }
     await db.oauthConsents.insert({
-      id: crypto.randomUUID(),
+      id: createPersistedId('userConsent'),
       tenantId: tenant.tenantId,
       userId,
       clientId,
@@ -195,7 +200,7 @@ async function persistConsent(
        updated_at = excluded.updated_at`,
   )
     .bind(
-      crypto.randomUUID(),
+      createPersistedId('userConsent'),
       tenant.tenantId,
       userId,
       clientId,
@@ -232,7 +237,7 @@ async function buildCodeRedirect(input: {
     codeChallengeMethod: input.pending['code_challenge_method'] ?? null,
     dpopJkt: input.pending['dpop_jkt'] ?? null,
     authTime: new Date(now * 1000),
-    acr: input.session.acr,
+    acr: normalizeIssuedAcr(input.session.acr),
     amr: input.session.amr ? [...input.session.amr] : null,
     resource: boundResources(input.pending, input.authorizationDetails.resources),
     authorizationDetails:
@@ -257,6 +262,22 @@ async function buildDenyRedirect(
   const params: Record<string, string> = {
     error: 'access_denied',
     error_description: 'The user denied the authorization request.',
+    iss: tenant.issuer,
+  }
+  if (pending['state'] !== undefined) params['state'] = pending['state']
+  return redirectUrlString(c, redirectUri, pending, params)
+}
+
+async function buildUnsupportedAcrRedirect(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+  pending: PendingParams,
+): Promise<string> {
+  const redirectUri = pending['redirect_uri'] ?? ''
+  const params: Record<string, string> = {
+    error: 'interaction_required',
+    error_description:
+      'requested acr urn:xid:aal3 is not supported; maximum supported assurance is urn:xid:aal2',
     iss: tenant.issuer,
   }
   if (pending['state'] !== undefined) params['state'] = pending['state']
@@ -317,6 +338,14 @@ export async function handleConsent(c: Context<XidHonoEnv>): Promise<Response> {
   // 不复用 authorize 阶段的校验结论(TOCTOU),findClient 只查 status='active'。
   const client = await findClient(c, clientId)
   if (!client) throw new AppError('invalid_client', { httpStatus: 400 })
+  if (
+    requestsAcr(
+      { acrValues: pending['acr_values'], claims: pending['claims'] },
+      UNSUPPORTED_ACR_AAL3,
+    )
+  ) {
+    return c.json({ redirectUrl: await buildUnsupportedAcrRedirect(c, tenant, pending) })
+  }
   const authorizationDetails = await resolvePendingAuthorizationDetails(c, pending)
   const scope = mergeScopes(pending['scope'] ?? '', authorizationDetails.scopes)
   const allowedScopes = new Set(client.allowedScopes)

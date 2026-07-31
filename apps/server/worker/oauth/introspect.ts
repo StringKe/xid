@@ -48,10 +48,19 @@ app.post('/introspect', async (c) => {
   const clientResult = await authenticateClient(c, { requireConfidential: true })
   if (!clientResult.ok) {
     return oauthError(c, {
+      status: clientResult.error.httpStatus,
+      error: clientResult.error.code,
+      description: clientResult.error.message,
+      ...(clientResult.error.basicChallenge
+        ? { extraHeaders: { 'www-authenticate': BASIC_AUTH_CHALLENGE } }
+        : {}),
+    })
+  }
+  if (!clientResult.value.firstParty) {
+    return oauthError(c, {
       status: 401,
       error: 'invalid_client',
-      description: clientResult.error.message,
-      extraHeaders: { 'www-authenticate': BASIC_AUTH_CHALLENGE },
+      description: 'token introspection requires a trusted first-party client',
     })
   }
 

@@ -59,8 +59,8 @@ public final class XidClientOptions {
     private final Duration clockSkewTolerance;
 
     /**
-     * Session cookie 名称,用于从 Cookie header 提取 access token。
-     * 默认 "__session"(与 XID Hosted UI 约定对齐)。
+     * 应用自己持有的 short-lived JWT cookie 名称。
+     * 默认 null,即只接受 Authorization: Bearer。
      */
     private final String sessionCookieName;
 
@@ -105,7 +105,7 @@ public final class XidClientOptions {
         private Duration connectTimeout     = Duration.ofSeconds(5);
         private Duration readTimeout        = Duration.ofSeconds(10);
         private Duration clockSkewTolerance = Duration.ofSeconds(30);
-        private String   sessionCookieName  = "__session";
+        private String   sessionCookieName  = null;
 
         public Builder issuer(String issuer) {
             this.issuer = issuer;

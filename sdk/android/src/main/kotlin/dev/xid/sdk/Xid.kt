@@ -72,7 +72,7 @@ object Xid {
     private var storage: TokenStorageAdapter? = null
     private var discovery: OidcDiscovery? = null
 
-    // 用于保护 discovery 缓存和 token 刷新的并发安全
+    // 用于保护 discovery 缓存和 guest 建号的并发安全
     private val mutex = Mutex()
 
     private val json = Json {
@@ -164,8 +164,9 @@ object Xid {
     /**
      * 匿名访客登录(Firebase 式 guest 模式)。
      *
-     * 调用 POST {issuer}/auth/guest 建立服务端会话, 捕获 Set-Cookie 中的会话 cookie
-     * 并持久化到安全存储, 再调 GET /v1/me 取回用户信息。
+     * 先 GET {issuer}/auth/config?intent=sign-up 获取一次性 capability, 再调用
+     * POST {issuer}/auth/guest 建立服务端会话, 捕获 Set-Cookie 中的会话 cookie
+     * 并持久化到安全存储, 最后调 GET /v1/me 取回用户信息。
      *
      * 惰性语义: 本地已存在 guest 会话时直接返回, 不发任何网络请求。
      * guest 不签发 OAuth token, 返回 [XidGuestSession](cookie 会话), 与 OIDC 登录的
@@ -223,6 +224,7 @@ object Xid {
                     codeVerifier = callbackResult.codeVerifier,
                     clientId = cfg.clientId,
                     redirectUri = cfg.redirectUri,
+                    nonce = callbackResult.nonce,
                 )
                 // 正式登录成功后丢弃本地 guest 会话, 避免后续 signInAnonymously 复用旧身份
                 GuestAuthManager.clear(stor)
@@ -236,29 +238,23 @@ object Xid {
     // ---------------------------------------------------------------------------
 
     /**
-     * 获取当前会话。如果 access token 过期且有 refresh token, 自动刷新。
+     * 获取当前会话。access token 过期后清除本地 token 并返回 null,调用方需重新授权。
      *
      * @return 当前 [XidSession], 或 null 表示未登录。
      */
     suspend fun getSession(): XidSession? {
-        val cfg = config ?: return null
+        if (config == null) return null
         val stor = storage ?: return null
 
-        val disc = runCatching { ensureDiscovery(cfg) }.getOrNull() ?: return null
-        val tokenManager = TokenManager(storage = stor, discovery = disc)
+        val tokenManager = TokenManager(storage = stor)
 
         val session = tokenManager.loadSession() ?: return null
 
-        // access token 提前 30 秒视为过期, 避免边界情况
-        val isExpired = session.accessTokenExpiresAt - System.currentTimeMillis() < 30_000L
+        val isExpired = session.accessTokenExpiresAt <= System.currentTimeMillis()
         if (!isExpired) return session
 
-        // 尝试刷新
-        if (session.refreshToken == null) return null
-
-        return runCatching {
-            mutex.withLock { tokenManager.refresh(cfg.clientId) }
-        }.getOrNull()
+        tokenManager.clearAll()
+        return null
     }
 
     // ---------------------------------------------------------------------------
@@ -266,30 +262,28 @@ object Xid {
     // ---------------------------------------------------------------------------
 
     /**
-     * 获取当前有效的 access token(JWT 字符串)。
-     * 如果 token 过期, 自动使用 refresh token 刷新。
+     * 获取尚未过期的 access token(JWT 字符串)。
+     * token 过期或请求 forceRefresh 时清除本地 token,调用方需重新授权。
      *
      * @param options  [GetAccessTokenOptions], 可强制刷新。
      * @return access token 字符串。
      * @throws [XidException.NoSession]          未登录。
-     * @throws [XidException.TokenRefreshFailed] 刷新失败(refresh token 失效)。
+     * @throws [XidException.NoSession] token 已过期、要求刷新或当前未登录。
      */
     suspend fun getAccessToken(options: GetAccessTokenOptions = GetAccessTokenOptions()): String {
-        val cfg = requireConfigured()
+        requireConfigured()
         val stor = storage!!
-        val disc = ensureDiscovery(cfg)
-        val tokenManager = TokenManager(storage = stor, discovery = disc)
+        val tokenManager = TokenManager(storage = stor)
 
         val session = tokenManager.loadSession() ?: throw XidException.NoSession()
 
-        val isExpired = session.accessTokenExpiresAt - System.currentTimeMillis() < 30_000L
+        val isExpired = session.accessTokenExpiresAt <= System.currentTimeMillis()
         if (!options.forceRefresh && !isExpired) {
             return session.accessToken
         }
 
-        if (session.refreshToken == null) throw XidException.NoSession()
-
-        return mutex.withLock { tokenManager.refresh(cfg.clientId) }.accessToken
+        tokenManager.clearAll()
+        throw XidException.NoSession()
     }
 
     // ---------------------------------------------------------------------------

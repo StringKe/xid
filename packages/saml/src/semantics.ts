@@ -6,9 +6,9 @@ import { SAMLP_NS, SAML_ASSERTION_NS } from './precheck'
 import { assertionChild, assertionChildren } from './extract'
 import { failResult, okResult } from './errors'
 import type { SamlResult } from './errors'
+import { DEFAULT_SAML_CLOCK_SKEW_MS, MAX_SAML_CLOCK_SKEW_MS } from './cert'
+import { parseSamlInstant } from './instant'
 
-// 时钟偏差容忍 +-3min(8.7 step 2)。
-const CLOCK_SKEW_MS = 3 * 60 * 1000
 const STATUS_SUCCESS = 'urn:oasis:names:tc:SAML:2.0:status:Success'
 const SUBJECT_CONFIRMATION_BEARER = 'urn:oasis:names:tc:SAML:2.0:cm:bearer'
 const A = SAML_ASSERTION_NS
@@ -28,12 +28,8 @@ export type SemanticInput = {
   spInitiated: boolean | 'auto'
   // 当前时间(ms),便于测试注入。
   now: number
-}
-
-function parseInstant(value: string | null): number | null {
-  if (!value) return null
-  const ms = Date.parse(value)
-  return Number.isNaN(ms) ? null : ms
+  // connection 配置的时钟容忍,默认 +-3min,最大 +-5min。
+  clockSkewToleranceMs?: number
 }
 
 // 8.7 step 5:samlp:Status/StatusCode/@Value == Success,否则透传 IdP 状态码报错。
@@ -67,14 +63,16 @@ function checkConditions(
   assertion: Element,
   expectedAudience: string,
   now: number,
+  clockSkewToleranceMs: number,
 ): SamlResult<{ notBefore: number; notOnOrAfter: number }> {
   const conditions = assertionChild(assertion, A, 'Conditions')
   if (!conditions) return failResult('assertion_expired', 'Conditions missing')
-  const nb = parseInstant(conditions.getAttribute('NotBefore'))
-  const noa = parseInstant(conditions.getAttribute('NotOnOrAfter'))
+  const nb = parseSamlInstant(conditions.getAttribute('NotBefore'))
+  const noa = parseSamlInstant(conditions.getAttribute('NotOnOrAfter'))
   if (nb === null || noa === null) return failResult('assertion_expired', 'Conditions time missing')
-  if (now + CLOCK_SKEW_MS < nb) return failResult('assertion_expired', 'NotBefore in future')
-  if (now - CLOCK_SKEW_MS >= noa) return failResult('assertion_expired', 'NotOnOrAfter passed')
+  if (now + clockSkewToleranceMs < nb) return failResult('assertion_expired', 'NotBefore in future')
+  if (now - clockSkewToleranceMs >= noa)
+    return failResult('assertion_expired', 'NotOnOrAfter passed')
 
   const audiences: string[] = []
   for (const restriction of assertionChildren(conditions, A, 'AudienceRestriction')) {
@@ -107,7 +105,10 @@ function checkInResponseTo(
 }
 
 // 8.7 step 4:SubjectConfirmationData @Recipient/@NotOnOrAfter/@InResponseTo。返回 InResponseTo(SP-initiated)。
-function checkSubjectConfirmation(input: SemanticInput): SamlResult<{ inResponseTo?: string }> {
+function checkSubjectConfirmation(
+  input: SemanticInput,
+  clockSkewToleranceMs: number,
+): SamlResult<{ inResponseTo?: string }> {
   const subject = assertionChild(input.assertion, A, 'Subject')
   const confirmation = subject ? assertionChild(subject, A, 'SubjectConfirmation') : null
   if (!confirmation) return failResult('recipient_mismatch', 'SubjectConfirmation missing')
@@ -120,11 +121,35 @@ function checkSubjectConfirmation(input: SemanticInput): SamlResult<{ inResponse
   if ((data.getAttribute('Recipient') ?? '') !== input.acsUrl) {
     return failResult('recipient_mismatch', 'Recipient != ACS')
   }
-  const noa = parseInstant(data.getAttribute('NotOnOrAfter'))
-  if (noa !== null && input.now - CLOCK_SKEW_MS >= noa) {
+  const noa = parseSamlInstant(data.getAttribute('NotOnOrAfter'))
+  if (noa === null) {
+    return failResult('assertion_expired', 'SubjectConfirmation NotOnOrAfter invalid')
+  }
+  if (input.now - clockSkewToleranceMs >= noa) {
     return failResult('assertion_expired', 'SubjectConfirmation NotOnOrAfter passed')
   }
   return checkInResponseTo(data.getAttribute('InResponseTo'), input.spInitiated)
+}
+
+function checkAuthnStatement(
+  assertion: Element,
+  now: number,
+  freshnessNotBefore: number,
+  clockSkewToleranceMs: number,
+): SamlResult<true> {
+  const statements = assertionChildren(assertion, A, 'AuthnStatement')
+  if (statements.length !== 1) {
+    return failResult('assertion_expired', 'exactly one AuthnStatement is required')
+  }
+  const authnInstant = parseSamlInstant(statements[0]?.getAttribute('AuthnInstant') ?? null)
+  if (authnInstant === null) return failResult('assertion_expired', 'AuthnInstant invalid')
+  if (authnInstant > now + clockSkewToleranceMs) {
+    return failResult('assertion_expired', 'AuthnInstant in future')
+  }
+  if (authnInstant < freshnessNotBefore - clockSkewToleranceMs) {
+    return failResult('assertion_expired', 'AuthnInstant predates Assertion freshness window')
+  }
+  return okResult(true)
 }
 
 export type SemanticOk = {
@@ -138,6 +163,15 @@ export type SemanticOk = {
 
 // 顺序校验,任一失败立即返回(对应 8.8 错误分支)。返回 Assertion @ID 供重放集消费。
 export function validateAssertionSemantics(input: SemanticInput): SamlResult<SemanticOk> {
+  const clockSkewToleranceMs = input.clockSkewToleranceMs ?? DEFAULT_SAML_CLOCK_SKEW_MS
+  if (
+    !Number.isSafeInteger(clockSkewToleranceMs) ||
+    clockSkewToleranceMs < 0 ||
+    clockSkewToleranceMs > MAX_SAML_CLOCK_SKEW_MS
+  ) {
+    return failResult('assertion_expired', 'invalid SAML clock tolerance')
+  }
+
   const status = checkStatus(input.responseRoot)
   if (!status.ok) return failResult(status.error.code, status.error.reason, status.error.idpStatus)
 
@@ -147,11 +181,24 @@ export function validateAssertionSemantics(input: SemanticInput): SamlResult<Sem
   const issuer = checkIssuer(input.assertion, input.expectedIssuer)
   if (!issuer.ok) return failResult(issuer.error.code, issuer.error.reason)
 
-  const cond = checkConditions(input.assertion, input.expectedAudience, input.now)
+  const cond = checkConditions(
+    input.assertion,
+    input.expectedAudience,
+    input.now,
+    clockSkewToleranceMs,
+  )
   if (!cond.ok) return failResult(cond.error.code, cond.error.reason)
 
-  const confirm = checkSubjectConfirmation(input)
+  const confirm = checkSubjectConfirmation(input, clockSkewToleranceMs)
   if (!confirm.ok) return failResult(confirm.error.code, confirm.error.reason)
+
+  const authn = checkAuthnStatement(
+    input.assertion,
+    input.now,
+    cond.value.notBefore,
+    clockSkewToleranceMs,
+  )
+  if (!authn.ok) return failResult(authn.error.code, authn.error.reason)
 
   const assertionId = input.assertion.getAttribute('ID') ?? ''
   if (!assertionId) return failResult('signature_invalid', 'Assertion ID missing')

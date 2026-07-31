@@ -4,6 +4,7 @@
 import { SIGNING_ALGS } from '@xid-kit/types'
 import type { SigningAlg, TenantContext } from '@xid-kit/types'
 import { ALLOWED_DPOP_ALGS } from './dpop'
+import { STANDARD_OIDC_SCOPES } from './scopes'
 
 // 本实现支持的算法/方法集合(对齐 03 章 endpoint 表 + grant 表)。
 const RESPONSE_TYPES = ['code', 'code id_token'] as const
@@ -17,8 +18,6 @@ const GRANT_TYPES = [
   'urn:openid:params:grant-type:ciba',
 ] as const
 const SUBJECT_TYPES = ['public'] as const
-// address 无用户数据模型支撑不声明;organization 有真实语义(authorize 组织选择分流)。
-const SCOPES = ['openid', 'profile', 'email', 'phone', 'offline_access', 'organization'] as const
 const TOKEN_AUTH_METHODS = [
   'client_secret_basic',
   'client_secret_post',
@@ -138,7 +137,7 @@ export function buildDiscoveryMetadata(input: {
     response_modes_supported: RESPONSE_MODES,
     grant_types_supported: GRANT_TYPES,
     subject_types_supported: SUBJECT_TYPES,
-    scopes_supported: SCOPES,
+    scopes_supported: STANDARD_OIDC_SCOPES,
     token_endpoint_auth_methods_supported:
       input.mtlsSupported === false
         ? TOKEN_AUTH_METHODS.filter(

@@ -118,6 +118,23 @@ export type TrustedDevice = {
   lastSeenAt: string
 }
 
+// --- Privacy requests ---
+
+export type PrivacyRequest = {
+  id: string
+  type: 'export' | 'delete'
+  status: 'pending' | 'processing' | 'completed' | 'canceled' | 'expired'
+  availableAt: string | null
+  expiresAt: string | null
+  scheduledFor: string | null
+  completedAt: string | null
+  canceledAt: string | null
+  errorCode: string | null
+  downloadUrl: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 // --- hook 工厂:简单列表拉取 ---
 
 function useRemoteList<T>(api: ApiClient, path: string): [RemoteData<T[]>, () => void] {

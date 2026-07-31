@@ -77,6 +77,7 @@ export const TENANCY_ERROR_CODES = [
   'permission_not_found',
   'cross_tenant_access_denied',
   'seat_limit_exceeded',
+  'resource_quota_exceeded',
 ] as const
 
 // 企业 SSO(SAML/SCIM,见 04 章 8.8 错误分支)

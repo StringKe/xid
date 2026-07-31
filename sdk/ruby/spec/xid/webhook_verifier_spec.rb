@@ -35,6 +35,17 @@ RSpec.describe Xid::WebhookVerifier do
       expect(result).to eq(body_hash)
     end
 
+    it "treats a legacy 64-character lowercase hex secret as UTF-8 key material" do
+      legacy_secret = "ab" * 32
+      legacy_verifier = described_class.new(secret: legacy_secret)
+      legacy_sig = OpenSSL::HMAC.digest("SHA256", legacy_secret, signed_content)
+      legacy_headers = headers.merge("svix-signature" => "v1,#{Base64.strict_encode64(legacy_sig)}")
+
+      result = legacy_verifier.verify!(legacy_headers, raw_body)
+
+      expect(result).to eq(body_hash)
+    end
+
     it "raises WebhookVerificationError when signature does not match" do
       bad_headers = headers.merge("svix-signature" => "v1,#{Base64.strict_encode64("bad_sig_bytes_pad")}")
       expect { verifier.verify!(bad_headers, raw_body) }

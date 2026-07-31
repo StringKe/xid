@@ -2,6 +2,8 @@
 // 对照 docs/design/03-oidc-oauth.md 第 3 节与 9.1、05 章 8.1 完整 claims 规格。
 // 铁律:禁止覆盖 IANA 标准 claims(iss/sub/aud/exp/iat/nbf/jti)。
 
+import type { OrganizationMembershipRole } from './rbac'
+
 // amr 认证方法(见 05 章 8.1:passkey=phr / 密码=pwd / OTP=otp;MFA 含多个;guest=匿名访客 session)
 export const AMR_VALUES = ['phr', 'pwd', 'otp', 'mfa', 'sms', 'email', 'guest'] as const
 export type AmrValue = (typeof AMR_VALUES)[number]
@@ -64,7 +66,7 @@ export type AccessTokenClaims = StandardClaims & {
   tenant_id?: string
   sid?: string
   active_org_id?: string | null
-  org_role?: string
+  org_role?: OrganizationMembershipRole
   org_permissions?: readonly string[]
   // RBAC permission 集(02 章 7.2):Permission.key 数组,空集仍注入 []。
   permissions?: readonly string[]

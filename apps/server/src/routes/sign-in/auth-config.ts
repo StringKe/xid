@@ -16,6 +16,10 @@ export type PublicSocialProvider = {
   blockedEmailDomains: readonly string[]
 }
 
+export type PublicGuestEntryCapability = {
+  capabilityToken: string
+}
+
 export type PublicHostedAuthConfig = {
   resolution:
     | { status: 'ready' }
@@ -31,6 +35,8 @@ export type PublicHostedAuthConfig = {
   forceSso: boolean
   allowUserCreation: boolean
   allowExistingUserLogin: boolean
+  turnstileSiteKey: string | null
+  guest: PublicGuestEntryCapability | null
   profileFields: HostedAuthPolicy['profileFields']
   methods: {
     password: HostedAuthMethodPolicy
@@ -59,6 +65,8 @@ export const DEFAULT_PUBLIC_AUTH_CONFIG: PublicHostedAuthConfig = {
   forceSso: false,
   allowUserCreation: true,
   allowExistingUserLogin: true,
+  turnstileSiteKey: null,
+  guest: null,
   profileFields: {
     email: 'required',
     username: 'hidden',

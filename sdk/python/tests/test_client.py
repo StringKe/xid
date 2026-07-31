@@ -9,11 +9,12 @@ from typing import Any
 
 import jwt
 import pytest
+import httpx
 from cryptography.hazmat.primitives.asymmetric.ec import SECP256R1, generate_private_key
 from jwt.algorithms import ECAlgorithm
 
-from xid.client import SESSION_COOKIE_PREFIX, XidClient
-from xid.exceptions import TokenVerificationError
+from xid.client import XidClient
+from xid.exceptions import SessionTokenExchangeError, TokenVerificationError
 from xid.jwks import JwksCache
 
 
@@ -73,7 +74,7 @@ class TestPresetJwks:
         assert key is not None
 
 
-class TestSessionCookiePrefix:
+class TestRequestAuthentication:
     async def test_extracts_bearer_before_cookie(self, ec_keypair):
         priv, pub = ec_keypair
         token = _make_token(priv)
@@ -85,7 +86,7 @@ class TestSessionCookiePrefix:
         try:
             status = await client.authenticate_request(
                 headers={"Authorization": f"Bearer {token}"},
-                cookies={f"{SESSION_COOKIE_PREFIX}01HZ9K2S": "opaque-refresh"},
+                cookies={"__Host-xid.rt.01HZ9K2S": "opaque-refresh"},
             )
             assert status.authenticated
             assert status.claims is not None
@@ -93,7 +94,7 @@ class TestSessionCookiePrefix:
         finally:
             await client.aclose()
 
-    async def test_extracts_session_cookie_by_prefix(self, ec_keypair):
+    async def test_does_not_treat_implicit_or_core_cookie_as_jwt(self, ec_keypair):
         priv, pub = ec_keypair
         token = _make_token(priv)
         client = XidClient(
@@ -106,12 +107,12 @@ class TestSessionCookiePrefix:
                 headers={},
                 cookies={
                     "other": "ignored",
-                    f"{SESSION_COOKIE_PREFIX}01HZ9K2S": token,
+                    "__session": token,
+                    "__Host-xid.rt.01HZ9K2S": token,
                 },
             )
-            assert status.authenticated
-            assert status.claims is not None
-            assert status.claims.sub == "usr_preset"
+            assert not status.authenticated
+            assert status.claims is None
         finally:
             await client.aclose()
 
@@ -128,13 +129,89 @@ class TestSessionCookiePrefix:
             status = await client.authenticate_request(
                 headers={},
                 cookies={
-                    f"{SESSION_COOKIE_PREFIX}01HZ9K2S": "ignored",
+                    "__Host-xid.rt.01HZ9K2S": "ignored",
                     "__custom_session": token,
                 },
             )
             assert status.authenticated
         finally:
             await client.aclose()
+
+
+class TestSessionTokenExchange:
+    async def test_exact_same_origin_success_and_complete_cookie_forwarding(self):
+        requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, json={"token": "jwt-value"})
+
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as http_client:
+            client = XidClient(issuer="https://app.example")
+            try:
+                token = await client.exchange_session_token(
+                    incoming_request_url="https://app.example/api",
+                    cookie_header="__Host-xid.rt.abc=opaque; __Host-xid.active=sess_abc",
+                    http_client=http_client,
+                )
+            finally:
+                await client.aclose()
+
+        assert token == "jwt-value"
+        assert len(requests) == 1
+        assert requests[0].method == "POST"
+        assert str(requests[0].url) == "https://app.example/v1/sessions/token"
+        assert requests[0].headers["cookie"] == (
+            "__Host-xid.rt.abc=opaque; __Host-xid.active=sess_abc"
+        )
+
+    async def test_rejects_cross_origin_before_transport(self):
+        called = False
+
+        async def handler(_request: httpx.Request) -> httpx.Response:
+            nonlocal called
+            called = True
+            return httpx.Response(200, json={"token": "jwt"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+            client = XidClient(issuer="https://app.example")
+            try:
+                with pytest.raises(SessionTokenExchangeError, match="same-origin"):
+                    await client.exchange_session_token(
+                        incoming_request_url="https://app.example/api",
+                        cookie_header="__Host-xid.rt.abc=opaque",
+                        endpoint="https://xid.dev/v1/sessions/token",
+                        http_client=http_client,
+                    )
+            finally:
+                await client.aclose()
+        assert not called
+
+    @pytest.mark.parametrize(
+        ("status", "body"),
+        [
+            (302, {"token": "jwt"}),
+            (200, {"jwt": "wrong"}),
+            (200, {"token": ""}),
+            (200, {"token": "jwt", "extra": True}),
+        ],
+    )
+    async def test_rejects_redirect_and_invalid_response(self, status, body):
+        async def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status, json=body, headers={"location": "/sign-in"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+            client = XidClient(issuer="https://app.example")
+            try:
+                with pytest.raises(SessionTokenExchangeError):
+                    await client.exchange_session_token(
+                        incoming_request_url="https://app.example/api",
+                        cookie_header="__Host-xid.rt.abc=opaque",
+                        http_client=http_client,
+                    )
+            finally:
+                await client.aclose()
 
 
 class TestExternalCache:

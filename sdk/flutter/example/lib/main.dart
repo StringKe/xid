@@ -52,7 +52,7 @@ class _HomePageState extends State<HomePage> {
         clientId: 'YOUR_CLIENT_ID',
         redirectUri: 'com.example.myapp://auth/callback',
         postLogoutRedirectUri: 'com.example.myapp://auth/callback',
-        scopes: ['openid', 'profile', 'email', 'offline_access'],
+        scopes: ['openid', 'profile', 'email'],
       ),
     );
 
@@ -98,7 +98,8 @@ class _HomePageState extends State<HomePage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_error != null)
-                        Text(_error!, style: const TextStyle(color: Colors.red)),
+                        Text(_error!,
+                            style: const TextStyle(color: Colors.red)),
                       ElevatedButton(
                         onPressed: _signIn,
                         child: const Text('Sign In'),
@@ -108,7 +109,8 @@ class _HomePageState extends State<HomePage> {
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Signed in as: ${_session!.user.email ?? _session!.user.id}'),
+                      Text(
+                          'Signed in as: ${_session!.user.email ?? _session!.user.id}'),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _signOut,

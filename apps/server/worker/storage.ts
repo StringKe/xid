@@ -1,7 +1,8 @@
 // 公开 R2 读取路由:org logo 经 worker 自 serve,URL 走 issuer 而非独立存储域。
 // 挂在公开路径不过 tenant 中间件:logo 在登录页未认证渲染,且 key 已含 tenantId/orgId。
 // key 末段是 uuid 不可枚举,属 capability URL;只放行 /storage/logos/ 前缀,
-// 同 bucket 还有邮件语言包/导出文件/GeoIP MMDB,不能经公开路由暴露。
+// 同 bucket 还有邮件 locale packs、私有 privacy exports 与不可变 compliance evidence,
+// 不能经公开路由暴露。Avatar 与 GeoIP MMDB 仍是 reserved capability,尚未实现。
 
 import type { Hono } from 'hono'
 import type { XidHonoEnv } from './lib/types'

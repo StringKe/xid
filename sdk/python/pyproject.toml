@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "XID Identity Platform - Python Server SDK"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 keywords = ["xid", "oidc", "jwt", "identity", "authentication"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
@@ -26,6 +26,7 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pytest-httpx>=0.30", "mypy>=1.10"
 [project.urls]
 Homepage = "https://xid.dev"
 Repository = "https://github.com/StringKe/xid"
+Issues = "https://github.com/StringKe/xid/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["xid"]

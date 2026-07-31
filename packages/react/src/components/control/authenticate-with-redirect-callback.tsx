@@ -4,6 +4,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import type { HandleRedirectCallbackResult } from '@xid-kit/core'
 
 import { useXidContext } from '../../context/xid-context'
 
@@ -13,13 +14,13 @@ export type AuthenticateWithRedirectCallbackProps = {
   // 注册成功后跳转(默认 '/')
   afterSignUpUrl?: string
   // 优先级高于 afterSignInUrl/afterSignUpUrl 的自定义成功回调
-  onSuccess?: () => void
+  onSuccess?: (result: HandleRedirectCallbackResult) => void
   // 失败回调
   onError?: (error: unknown) => void
 }
 
 export function AuthenticateWithRedirectCallback({
-  afterSignInUrl = '/',
+  afterSignInUrl,
   afterSignUpUrl,
   onSuccess,
   onError,
@@ -36,13 +37,18 @@ export function AuthenticateWithRedirectCallback({
 
     void (async (): Promise<void> => {
       try {
-        await client.load({ signal: ac.signal })
+        const result = await client.handleRedirectCallback(globalThis.location.href, {
+          signal: ac.signal,
+        })
+        if (!result.ok) throw result.error
         if (onSuccess) {
-          onSuccess()
+          onSuccess(result.value)
           return
         }
-        // afterSignUpUrl 优先用于首次注册场景;回退 afterSignInUrl。
-        const target = afterSignUpUrl ?? afterSignInUrl
+        const target =
+          result.value.intent === 'sign-up'
+            ? (afterSignUpUrl ?? result.value.returnUrl)
+            : (afterSignInUrl ?? result.value.returnUrl)
         window.location.replace(target)
       } catch (error) {
         if ((error as { name?: string }).name === 'AbortError') return

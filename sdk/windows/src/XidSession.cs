@@ -4,7 +4,7 @@
 //
 // 用户会话快照和用户信息结构。
 // 会话有两种形态:
-//   - OIDC 会话:access token / id token / refresh token 齐备。
+//   - OIDC 会话:access token / id token;access token 过期后需重新授权。
 //   - guest(匿名访客)会话:无 token,凭证是 cookie 会话(SessionId + SessionCookie)。
 
 namespace Xid.Windows;
@@ -21,8 +21,7 @@ public sealed class XidSession
     public string? AccessToken { get; }
 
     /// <summary>
-    /// refresh token。生命周期由服务端配置,默认 7 天绝对 / 30 天空闲。
-    /// XID 服务端执行轮换:每次刷新发新 token 并作废旧 token。
+    /// 保留字段。当前 SDK 未实现 DPoP,public client 会话始终为 null。
     /// </summary>
     public string? RefreshToken { get; }
 

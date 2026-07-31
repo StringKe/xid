@@ -41,7 +41,7 @@ const organization: XidOrganization = {
 const membership = {
   id: 'mem_1',
   organization,
-  role: 'org:admin',
+  role: 'admin' as const,
   permissions: ['org:member:read', 'org:member:write'],
   createdAt: 1,
 }
@@ -115,7 +115,7 @@ function makeContextValue(state: XidState): XidContextValue {
   const client = new XidClient()
   vi.spyOn(client, 'getSnapshot').mockReturnValue(state)
   vi.spyOn(client, 'subscribe').mockReturnValue(() => {})
-  return { client, publishableKey: 'pk_test_xxx' }
+  return { client, mode: 'same-origin' }
 }
 
 // withMockedContext: points useXidContext at a controlled client, runs fn inside
@@ -209,7 +209,7 @@ describe('createOrganization primitive (real implementation)', () => {
       if (result.isSignedIn) {
         expect(result.organization?.id).toBe('org_1')
         expect(result.membership?.id).toBe('mem_1')
-        expect(result.membership?.role).toBe('org:admin')
+        expect(result.membership?.role).toBe('admin')
         expect(result.membership?.permissions).toContain('org:member:read')
       }
     })
@@ -336,7 +336,7 @@ describe('XidStore subscription (signal source for createXidState)', () => {
 
 function shouldProtectRender(
   snap: XidState,
-  opts: { permission?: string; role?: string },
+  opts: { permission?: string; role?: 'owner' | 'admin' | 'member' },
 ): boolean {
   if (!snap.isLoaded || !snap.isSignedIn) return false
   if (opts.permission === undefined && opts.role === undefined) return true
@@ -357,11 +357,11 @@ describe('Protect RBAC guard logic', () => {
   })
 
   it('renders when role matches the active membership role', () => {
-    expect(shouldProtectRender(readyState, { role: 'org:admin' })).toBe(true)
+    expect(shouldProtectRender(readyState, { role: 'admin' })).toBe(true)
   })
 
   it('blocks when role does not match', () => {
-    expect(shouldProtectRender(readyState, { role: 'org:member' })).toBe(false)
+    expect(shouldProtectRender(readyState, { role: 'member' })).toBe(false)
   })
 
   it('renders when required permission is in the membership permissions', () => {
@@ -374,14 +374,14 @@ describe('Protect RBAC guard logic', () => {
 
   it('blocks when role passes but permission fails', () => {
     expect(
-      shouldProtectRender(readyState, { role: 'org:admin', permission: 'org:billing:write' }),
+      shouldProtectRender(readyState, { role: 'admin', permission: 'org:billing:write' }),
     ).toBe(false)
   })
 
   it('blocks when role fails even if permission would pass', () => {
-    expect(
-      shouldProtectRender(readyState, { role: 'org:member', permission: 'org:member:read' }),
-    ).toBe(false)
+    expect(shouldProtectRender(readyState, { role: 'member', permission: 'org:member:read' })).toBe(
+      false,
+    )
   })
 
   it('blocks when not signed in', () => {
@@ -399,6 +399,6 @@ describe('Protect RBAC guard logic', () => {
       session: { ...session, activeOrganizationId: null },
     }
 
-    expect(shouldProtectRender(stateNoOrg, { role: 'org:admin' })).toBe(false)
+    expect(shouldProtectRender(stateNoOrg, { role: 'admin' })).toBe(false)
   })
 })

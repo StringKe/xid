@@ -67,14 +67,12 @@ type MfaChallengeProps = {
 type MfaSearch = {
   method?: string
   step_up?: string
-  require_aal3?: string
   redirect_to?: string
 }
 
 function buildMethodSearch(method: MfaMethod, search: MfaSearch): string {
   const params = new URLSearchParams({ method })
   if (search.step_up === '1') params.set('step_up', '1')
-  if (search.require_aal3 === '1') params.set('require_aal3', '1')
   if (search.redirect_to) params.set('redirect_to', search.redirect_to)
   return `?${params.toString()}`
 }

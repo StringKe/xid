@@ -3,7 +3,7 @@
 //! 头部格式(与 XID api-sdk-conventions 对齐):
 //! - svix-id        消息唯一 ID
 //! - svix-timestamp Unix 时间戳(秒)
-//! - svix-signature v1,<base64-HMAC-SHA256> (逗号分隔,可多个)
+//! - svix-signature v1,<base64-HMAC-SHA256> (空格分隔,可多个)
 //!
 //! 签名输入:"<svix-id>.<svix-timestamp>.<raw-body>"
 //! 时间窗:5 分钟(300 秒),防重放
@@ -33,10 +33,16 @@ pub struct WebhookVerifier {
 impl WebhookVerifier {
     /// 使用 base64 编码的 secret 构建
     ///
-    /// 接受两种格式:
+    /// 接受三种格式:
     /// - "whsec_<base64>"(XID console 复制格式)
     /// - 裸 base64 字符串
+    /// - 旧版 64 位小写 hex(按 UTF-8 key material 使用)
     pub fn new(secret: &str) -> XidResult<Self> {
+        if !secret.starts_with("whsec_") && is_legacy_hex_secret(secret) {
+            return Ok(Self {
+                secret: secret.as_bytes().to_vec(),
+            });
+        }
         let b64 = secret.strip_prefix("whsec_").unwrap_or(secret);
         let bytes = BASE64
             .decode(b64.trim())
@@ -49,7 +55,7 @@ impl WebhookVerifier {
     /// # 参数
     /// - `svix_id` - `svix-id` 头部值
     /// - `svix_timestamp` - `svix-timestamp` 头部值(Unix 秒,字符串)
-    /// - `svix_signature` - `svix-signature` 头部值("v1,<base64>,..." 格式)
+    /// - `svix_signature` - `svix-signature` 头部值("v1,<base64> v1,<base64>" 格式)
     /// - `body` - 原始请求体字节
     pub fn verify(
         &self,
@@ -79,15 +85,13 @@ impl WebhookVerifier {
 
         // 3. 对比 svix-signature 中的每条签名(可能有多个,轮换期间并存)
         let verified = svix_signature
-            .split(',')
-            .filter_map(|part| {
-                // 格式:"v1,<base64>" 或 "<base64>"
-                let b64 = if let Some(v) = part.strip_prefix("v1,") {
-                    v
-                } else {
-                    part
-                };
-                BASE64.decode(b64.trim()).ok()
+            .split_ascii_whitespace()
+            .filter_map(|entry| {
+                let (version, encoded) = entry.split_once(',')?;
+                if version != "v1" {
+                    return None;
+                }
+                BASE64.decode(encoded).ok()
             })
             .any(|sig_bytes| constant_time_eq(&sig_bytes, &expected));
 
@@ -135,8 +139,8 @@ impl WebhookVerifier {
     /// 计算 HMAC-SHA256 签名
     fn compute_signature(&self, svix_id: &str, svix_timestamp: &str, body: &[u8]) -> Vec<u8> {
         // 签名输入格式:"<svix-id>.<svix-timestamp>.<body>"
-        let mut mac = HmacSha256::new_from_slice(&self.secret)
-            .expect("HMAC accepts any key length");
+        let mut mac =
+            HmacSha256::new_from_slice(&self.secret).expect("HMAC accepts any key length");
         mac.update(svix_id.as_bytes());
         mac.update(b".");
         mac.update(svix_timestamp.as_bytes());
@@ -144,6 +148,13 @@ impl WebhookVerifier {
         mac.update(body);
         mac.finalize().into_bytes().to_vec()
     }
+}
+
+fn is_legacy_hex_secret(secret: &str) -> bool {
+    secret.len() == 64
+        && secret
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 /// 常量时间字节比较,防止时序攻击
@@ -212,6 +223,59 @@ mod tests {
 
         let sig = make_signature(secret_bytes, id, &now, body);
         assert!(verifier.verify(id, &now, &sig, body).is_ok());
+    }
+
+    #[test]
+    fn legacy_hex_secret_uses_utf8_key_material() {
+        let legacy_secret = "ab".repeat(32);
+        let verifier = WebhookVerifier::new(&legacy_secret).unwrap();
+        let id = "msg_legacy";
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string();
+        let body = b"{\"type\":\"user.updated\",\"data\":{}}";
+        let sig = make_signature(legacy_secret.as_bytes(), id, &now, body);
+
+        assert!(verifier.verify(id, &now, &sig, body).is_ok());
+    }
+
+    #[test]
+    fn multiple_signatures_pass_when_first_v1_matches() {
+        let secret_bytes = b"test-secret-key";
+        let verifier = WebhookVerifier::new(&BASE64.encode(secret_bytes)).unwrap();
+        let id = "msg_multiple";
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string();
+        let body = b"{}";
+        let valid = make_signature(secret_bytes, id, &now, body);
+        let invalid = make_signature(b"wrong-secret", id, &now, body);
+        let signatures = format!("{valid} {invalid}");
+
+        assert!(verifier.verify(id, &now, &signatures, body).is_ok());
+    }
+
+    #[test]
+    fn unknown_signature_version_is_ignored() {
+        let secret_bytes = b"test-secret-key";
+        let verifier = WebhookVerifier::new(&BASE64.encode(secret_bytes)).unwrap();
+        let id = "msg_unknown_version";
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string();
+        let body = b"{}";
+        let signature = make_signature(secret_bytes, id, &now, body).replacen("v1,", "v2,", 1);
+
+        assert!(matches!(
+            verifier.verify(id, &now, &signature, body),
+            Err(XidError::WebhookSignatureInvalid)
+        ));
     }
 
     #[test]

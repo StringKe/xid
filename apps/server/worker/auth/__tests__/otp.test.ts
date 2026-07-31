@@ -49,6 +49,39 @@ function makeContext(locale = 'zh-Hans') {
 }
 
 describe('persistAndSendOtp', () => {
+  it('persists the server-resolved flow with the credential', async () => {
+    const db = makeDb()
+    const ctx = makeContext('en')
+
+    await persistAndSendOtp({
+      c: ctx.c as never,
+      db: db as never,
+      tenantId: 'tenant-1',
+      channel: 'email',
+      target: 'user@example.com',
+      userId: 'user-1',
+      flowContext: {
+        version: 1,
+        intent: 'sign-up',
+        continuePath: '/create-organization',
+        applicationClientId: null,
+        invitationId: null,
+      },
+    })
+
+    expect(db.verificationTokens.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flowContext: JSON.stringify({
+          version: 1,
+          intent: 'sign-up',
+          continuePath: '/create-organization',
+          applicationClientId: null,
+          invitationId: null,
+        }),
+      }),
+    )
+  })
+
   it('WhatsApp OTP 入队结构化 payload,不预渲染英文正文', async () => {
     const db = makeDb()
     const ctx = makeContext('zh-Hans')

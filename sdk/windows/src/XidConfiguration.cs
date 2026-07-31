@@ -32,11 +32,11 @@ public sealed class XidConfiguration
 
     /// <summary>
     /// 请求的 OAuth scope 列表。
-    /// 默认包含 openid / profile / email / offline_access。
-    /// offline_access 用于获取 refresh token。
+    /// 默认包含 openid / profile / email。
+    /// 当前 SDK 尚未实现 DPoP,因此不支持 offline_access。
     /// </summary>
     public IReadOnlyList<string> Scopes { get; init; } =
-        ["openid", "profile", "email", "offline_access"];
+        ["openid", "profile", "email"];
 
     /// <summary>
     /// token 持久化适配器。

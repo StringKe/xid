@@ -1,6 +1,10 @@
 # Flutter SDK
 
-**Status: implemented.** The Dart source, tests and pubspec under `sdk/flutter` are complete. `flutter test` covers PKCE, state-keyed pending authorization, refresh single-flight, JWKS ES256 signature verification and in-memory storage. Real secure storage, the platform callback and the real-IdP L4 round trip are not verified, so this is not a production SDK yet.
+**Status: implemented.** The Dart source, tests and pubspec under `sdk/flutter` are complete.
+`flutter test` covers PKCE, state-keyed pending authorization, exact nonce claim validation,
+access-token expiry handling and in-memory storage. ES256 uses the `cryptography_flutter` native backend
+on Android, iOS and macOS; that platform channel, secure storage, browser callback and a real-IdP
+L4 round trip still require device evidence.
 
 ## What is implemented
 
@@ -9,10 +13,12 @@
 - `flutter_secure_storage` backed token storage (Keychain/Keystore/DPAPI)
 - `InMemoryStorageAdapter` for testing
 - state-keyed PKCE pending authorization persisted by `TokenStorageAdapter`, with one-time consume and cross-process restore
-- state parameter CSRF guard in `handleRedirect`
+- independent state and nonce generation, persisted per pending authorization
+- state CSRF validation and exact nonce validation against the ID token before session persistence
 - OIDC discovery document fetch and in-process cache
-- JWKS ES256 ID token signature, issuer, audience, expiry and not-before validation
-- Automatic access token refresh on `getSession` / `getAccessToken` with storage-namespace single-flight coordination
+- JWKS ES256 ID token signature, issuer, audience, expiry, not-before and nonce validation through
+  the native `cryptography_flutter` backend
+- Access-token reads while valid; expiry clears the local token session and requires authorization again
 
 ## Install
 
@@ -68,7 +74,7 @@ await xidClient.configure(
     issuer: 'https://xid.dev',
     clientId: 'YOUR_CLIENT_ID',
     redirectUri: 'com.example.myapp://auth/callback',
-    scopes: ['openid', 'profile', 'email', 'offline_access'],
+    scopes: ['openid', 'profile', 'email'],
   ),
 );
 
@@ -111,15 +117,18 @@ Process App Link / custom scheme callback URL. Normally called internally by `si
 
 ### `getSession()`
 
-Returns `XidSession?`. Automatically triggers refresh token rotation when the access token is near expiry (default 60 s ahead). Returns `null` when not signed in.
+Returns `XidSession?` while the access token is valid. Expiry clears the local token session and
+returns `null`; call `signIn()` to authorize again.
 
 ### `getAccessToken({bool forceRefresh})`
 
-Returns a valid access token string. `forceRefresh: true` forces a refresh.
+Returns an unexpired access token string. The SDK does not implement DPoP refresh;
+`forceRefresh: true` or token expiry clears the local token session and returns `null`.
 
 ### `signOut({bool openLogoutUrl})`
 
-Signs out: revokes refresh token (RFC 7009), clears local secure storage, and opens `end_session_endpoint` (on by default) to clear server-side SSO session.
+Signs out: clears local secure storage and opens `end_session_endpoint` (on by default) to clear
+the server-side SSO session.
 
 ### `setTokenStorage(TokenStorageAdapter adapter)`
 
@@ -129,9 +138,11 @@ Replaces the token storage backend. Default: `SecureStorageAdapter` (flutter_sec
 
 - PKCE S256 only; no implicit flow or password grant.
 - No client secret stored in the app (public client).
-- Refresh tokens stored in platform secure storage (Keychain/Keystore/DPAPI/Secret Service).
-- Refresh token rotation on every use (XID server-side rotation + family policy).
+- The default scopes are `openid profile email`.
+- `offline_access` is rejected during `configure()` because this SDK does not implement DPoP yet.
 - state parameter CSRF guard per signIn.
+- An independent OIDC nonce is sent to `/authorize`; a missing ID token or mismatched nonce rejects
+  the callback before a session is stored.
 - No SAML, SCIM, or Management API business logic.
 
 ## Dependencies
@@ -141,14 +152,18 @@ Replaces the token storage backend. Default: `SecureStorageAdapter` (flutter_sec
 | `flutter_web_auth_2`     | ^4.0.0  | System browser auth session + callback            |
 | `flutter_secure_storage` | ^9.2.4  | Platform secure storage (Keychain/Keystore/DPAPI) |
 | `crypto`                 | ^3.0.3  | SHA-256 for PKCE S256 challenge                   |
+| `cryptography`           | ^2.7.0  | ID token ES256 verification API                   |
+| `cryptography_flutter`   | ^2.3.4  | Android/iOS/macOS native ECDSA backend             |
 | `http`                   | ^1.2.2  | HTTP client for discovery + token endpoints       |
 
 ## Known limits (pending before production use)
 
-- **Nonce anti-replay**: nonce is not generated on authorize or validated on token receipt.
 - **ID token algorithm coverage**: JWKS verifier accepts ES256 only. RS256 ID token support needs implementation and interoperability evidence before use.
+- **Native ECDSA evidence**: `cryptography_flutter` supplies the Android/iOS/macOS implementation,
+  but the platform channel is not exercised by the headless `flutter test` runner.
 - **Discovery cache TTL**: discovery has no TTL in the in-process cache; long-running processes should re-fetch periodically.
 - **Cross-platform App Links**: macOS / Linux callback receipt requires additional configuration per flutter_web_auth_2 docs.
 - **`flutter_secure_storage` / `flutter_web_auth_2` platform channels**: not covered by pure-Dart unit tests; require real device or simulator.
 - **Real IdP L4**: a real issuer, application registration, browser callback and token exchange have not been verified on a device or simulator.
-- **pub.dev publishing**: needs LICENSE, CHANGELOG.md, full doc comments, and complete test coverage.
+- **pub.dev publishing**: the `xid` registry name is already occupied and no registry ownership or
+  alternate package name has been approved.

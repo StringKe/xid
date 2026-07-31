@@ -9,6 +9,22 @@ import {
 } from '../token-exchange'
 import type { TokenCache } from '../token-cache'
 
+vi.mock('../id-token', () => ({
+  verifyNativeIdToken: vi.fn(
+    async (
+      _idToken: string,
+      input: { issuer: string; clientId: string; expectedNonce?: string },
+    ) => ({
+      iss: input.issuer,
+      sub: 'user_test',
+      aud: input.clientId,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000),
+      nonce: input.expectedNonce,
+    }),
+  ),
+}))
+
 function makeMockCache(): TokenCache & { store: Map<string, string> } {
   const store = new Map<string, string>()
   return {
@@ -28,14 +44,12 @@ describe('saveTokenSet', () => {
     const cache = makeMockCache()
     await saveTokenSet(cache, {
       accessToken: 'at_test',
-      refreshToken: 'rt_test',
       idToken: null,
       expiresIn: 3600,
     })
     expect(await cache.getToken(TOKEN_KEYS.session)).toContain('at_test')
     await expect(readTokenSet(cache)).resolves.toMatchObject({
       accessToken: 'at_test',
-      refreshToken: 'rt_test',
     })
   })
 
@@ -43,25 +57,22 @@ describe('saveTokenSet', () => {
     const cache = makeMockCache()
     await saveTokenSet(cache, {
       accessToken: 'at',
-      refreshToken: null,
       idToken: 'idt_test',
       expiresIn: 3600,
     })
     await expect(readTokenSet(cache)).resolves.toMatchObject({ idToken: 'idt_test' })
   })
 
-  it('skips refresh/id token storage when null', async () => {
+  it('stores a nullable ID token without adding refresh credentials', async () => {
     const cache = makeMockCache()
     await saveTokenSet(cache, {
       accessToken: 'at',
-      refreshToken: null,
       idToken: null,
       expiresIn: 3600,
     })
-    await expect(readTokenSet(cache)).resolves.toMatchObject({
-      refreshToken: null,
-      idToken: null,
-    })
+    const stored = await readTokenSet(cache)
+    expect(stored).toMatchObject({ idToken: null })
+    expect(stored).not.toHaveProperty('refreshToken')
   })
 
   it('keeps a pending marker when envelope save and cleanup both fail', async () => {
@@ -80,7 +91,6 @@ describe('saveTokenSet', () => {
     await expect(
       saveTokenSet(cache, {
         accessToken: 'at',
-        refreshToken: 'rt',
         idToken: null,
         expiresIn: 3600,
       }),
@@ -92,19 +102,18 @@ describe('saveTokenSet', () => {
   it('removes legacy token keys after persisting an envelope', async () => {
     const cache = makeMockCache()
     cache.store.set(TOKEN_KEYS.accessToken, 'legacy_access')
-    cache.store.set(TOKEN_KEYS.refreshToken, 'legacy_refresh')
+    cache.store.set(TOKEN_KEYS.legacyRefreshToken, 'legacy_refresh')
     cache.store.set(TOKEN_KEYS.idToken, 'legacy_id')
     cache.store.set(TOKEN_KEYS.expiresAt, 'legacy_expiry')
 
     await saveTokenSet(cache, {
       accessToken: 'at',
-      refreshToken: 'rt',
       idToken: null,
       expiresIn: 3600,
     })
 
     expect(await cache.getToken(TOKEN_KEYS.accessToken)).toBeNull()
-    expect(await cache.getToken(TOKEN_KEYS.refreshToken)).toBeNull()
+    expect(await cache.getToken(TOKEN_KEYS.legacyRefreshToken)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.idToken)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.expiresAt)).toBeNull()
   })
@@ -118,6 +127,24 @@ describe('saveTokenSet', () => {
     expect(await cache.getToken(TOKEN_KEYS.accessToken)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.expiresAt)).toBeNull()
   })
+
+  it('fails closed and deletes an old envelope containing a refresh credential', async () => {
+    const cache = makeMockCache()
+    cache.store.set(
+      TOKEN_KEYS.session,
+      JSON.stringify({
+        accessToken: 'at.legacy',
+        refreshToken: 'rt.legacy',
+        idToken: null,
+        expiresIn: 3600,
+        expiresAt: Date.now() + 3_600_000,
+        claims: null,
+      }),
+    )
+
+    await expect(readTokenSet(cache)).resolves.toBeNull()
+    expect(cache.store.size).toBe(0)
+  })
 })
 
 describe('clearTokenSet', () => {
@@ -126,7 +153,7 @@ describe('clearTokenSet', () => {
     cache.store.set(TOKEN_KEYS.accessToken, 'at')
     cache.store.set(TOKEN_KEYS.session, 'session')
     cache.store.set(TOKEN_KEYS.sessionPending, '1')
-    cache.store.set(TOKEN_KEYS.refreshToken, 'rt')
+    cache.store.set(TOKEN_KEYS.legacyRefreshToken, 'rt')
     cache.store.set(TOKEN_KEYS.idToken, 'idt')
     cache.store.set(TOKEN_KEYS.pkceVerifier, 'v')
     cache.store.set(TOKEN_KEYS.oauthState, 's')
@@ -136,7 +163,7 @@ describe('clearTokenSet', () => {
     expect(await cache.getToken(TOKEN_KEYS.accessToken)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.session)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.sessionPending)).toBeNull()
-    expect(await cache.getToken(TOKEN_KEYS.refreshToken)).toBeNull()
+    expect(await cache.getToken(TOKEN_KEYS.legacyRefreshToken)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.idToken)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.pkceVerifier)).toBeNull()
     expect(await cache.getToken(TOKEN_KEYS.oauthState)).toBeNull()
@@ -166,10 +193,11 @@ describe('exchangeCodeForTokens', () => {
       redirectUri: 'myapp://auth/callback',
       code: 'auth_code_abc',
       verifier: 'pkce_verifier_xyz',
+      nonce: 'nonce_xyz',
     })
 
     expect(result.accessToken).toBe('at_live')
-    expect(result.refreshToken).toBe('rt_live')
+    expect(result).not.toHaveProperty('refreshToken')
     expect(result.idToken).toBe('idt_live')
     expect(result.expiresIn).toBe(3600)
 
@@ -200,7 +228,33 @@ describe('exchangeCodeForTokens', () => {
         redirectUri: 'myapp://cb',
         code: 'bad_code',
         verifier: 'v',
+        nonce: 'n',
       }),
     ).rejects.toThrow('Token exchange failed')
+  })
+
+  it('requires an ID token so the authorization nonce can be verified', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          access_token: 'at_live',
+          refresh_token: 'rt_live',
+          expires_in: 3600,
+        }),
+      }),
+    )
+
+    await expect(
+      exchangeCodeForTokens({
+        issuer: 'https://xid.dev',
+        clientId: 'client_123',
+        redirectUri: 'myapp://auth/callback',
+        code: 'auth_code_abc',
+        verifier: 'pkce_verifier_xyz',
+        nonce: 'nonce_xyz',
+      }),
+    ).rejects.toThrow('missing id_token')
   })
 })

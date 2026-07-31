@@ -16,6 +16,7 @@ describe('discovery endpoint', () => {
 
     const oidc = await app.request('https://acme.xid.dev/.well-known/openid-configuration', {}, env)
     expect(oidc.status).toBe(200)
+    expect(oidc.headers.get('access-control-allow-origin')).toBe('*')
     const meta = (await oidc.json()) as Record<string, unknown>
     expect(meta['issuer']).toBe('https://acme.xid.dev')
     expect(meta['authorization_endpoint']).toBe('https://acme.xid.dev/authorize')
@@ -137,6 +138,7 @@ describe('jwks endpoint', () => {
     const app = makeApp(ctx, registerJwksRoutes)
     const res = await app.request('https://acme.xid.dev/jwks', {}, env)
     expect(res.status).toBe(200)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
     const body = (await res.json()) as { keys: Record<string, unknown>[] }
     expect(body.keys).toHaveLength(1)
     const key = body.keys[0] as Record<string, unknown>

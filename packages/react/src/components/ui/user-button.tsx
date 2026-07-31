@@ -43,6 +43,7 @@ export function UserButton({
   const state = useXidStore()
   const [open, setOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -82,14 +83,21 @@ export function UserButton({
   const handleSignOut = useCallback(async () => {
     if (signingOut) return
     setSigningOut(true)
+    setSignOutError(null)
     try {
-      await client.signOut()
+      const result = await client.signOut()
+      if (!result.ok) {
+        setSignOutError(result.error.message)
+        return
+      }
       setOpen(false)
       if (signOutRedirectUrl) window.location.assign(signOutRedirectUrl)
+    } catch {
+      setSignOutError(rt(_, sdkMessages.signOutFailed))
     } finally {
       setSigningOut(false)
     }
-  }, [client, signOutRedirectUrl, signingOut])
+  }, [_, client, signOutRedirectUrl, signingOut])
 
   if (!state.isLoaded || !state.isSignedIn || !state.user) return null
 
@@ -187,6 +195,11 @@ export function UserButton({
               <hr role="separator" />
 
               {/* 登出 */}
+              {signOutError && (
+                <p className="xid-user-button__sign-out-error" role="alert">
+                  {signOutError}
+                </p>
+              )}
               <button
                 type="button"
                 className={cx(

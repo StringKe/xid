@@ -4,7 +4,15 @@
 // - DAU:由 MeteringDO 返回精确日快照，D1 只做单调覆盖，Queue 重投不重复累计。
 // - MeteringDO.recordUser 幂等(per-user membership 键去重)，重复计量事件不增 MAU。
 
-import type { MeteringQueueMessage } from '@xid-kit/types'
+import type {
+  MeteringQueueEnvelope,
+  MeteringQueueMessage,
+  StripeMeteringQueueMessage,
+} from '@xid-kit/types'
+import { handleStripeMeteringQueueMessage } from '../billing/stripe-metering'
+import { logWorkerError } from '../lib/safe-log'
+
+const STRIPE_PROVIDER_CONCURRENCY = 10
 
 // MeteringDO RPC stub 形状(见 metering-do.ts)。
 type MeteringStub = {
@@ -55,6 +63,50 @@ function groupByTenant(
   return groups
 }
 
+function isStripeMeteringMessage(body: MeteringQueueEnvelope): body is StripeMeteringQueueMessage {
+  return (
+    'type' in body && (body.type === 'stripe_mau_dispatch' || body.type === 'stripe_mau_report')
+  )
+}
+
+async function handleStripeMessage(
+  message: Message<StripeMeteringQueueMessage>,
+  env: Env,
+): Promise<void> {
+  try {
+    await handleStripeMeteringQueueMessage(env, message.body)
+    message.ack()
+  } catch (cause) {
+    logWorkerError('billing.stripe_meter_queue_failed', cause, {
+      component: 'metering-queue',
+      operation: message.body.type,
+      outcome: 'queue_retry',
+    })
+    message.retry()
+  }
+}
+
+async function handleStripeMessages(
+  messages: ReadonlyArray<Message<StripeMeteringQueueMessage>>,
+  env: Env,
+): Promise<void> {
+  const dispatchMessages = messages.filter((message) => message.body.type === 'stripe_mau_dispatch')
+  const reportMessages = messages.filter((message) => message.body.type === 'stripe_mau_report')
+  const firstDispatch = dispatchMessages[0]
+  if (firstDispatch) await handleStripeMessage(firstDispatch, env)
+  for (const deferred of dispatchMessages.slice(1)) {
+    deferred.retry({ delaySeconds: 1 })
+  }
+
+  for (let offset = 0; offset < reportMessages.length; offset += STRIPE_PROVIDER_CONCURRENCY) {
+    await Promise.all(
+      reportMessages
+        .slice(offset, offset + STRIPE_PROVIDER_CONCURRENCY)
+        .map((message) => handleStripeMessage(message, env)),
+    )
+  }
+}
+
 // 将 DO 返回的按日精确快照单调覆盖到 D1。D1 成功而 ack 失败时，重投只会覆盖同一值。
 async function upsertDailyUsage(
   env: Env,
@@ -78,10 +130,20 @@ async function upsertDailyUsage(
 }
 
 export async function handleMeteringBatch(
-  batch: MessageBatch<MeteringQueueMessage>,
+  batch: MessageBatch<MeteringQueueEnvelope>,
   env: Env,
 ): Promise<void> {
-  const groups = groupByTenant(batch.messages)
+  const identityMessages: Array<Message<MeteringQueueMessage>> = []
+  const stripeMessages: Array<Message<StripeMeteringQueueMessage>> = []
+  for (const message of batch.messages) {
+    if (isStripeMeteringMessage(message.body)) {
+      stripeMessages.push(message as Message<StripeMeteringQueueMessage>)
+    } else {
+      identityMessages.push(message as Message<MeteringQueueMessage>)
+    }
+  }
+
+  const groups = groupByTenant(identityMessages)
   for (const [tenantId, messages] of groups) {
     try {
       const stub = getMeteringStub(env, tenantId)
@@ -103,4 +165,5 @@ export async function handleMeteringBatch(
       }
     }
   }
+  await handleStripeMessages(stripeMessages, env)
 }

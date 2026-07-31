@@ -27,9 +27,11 @@ void main() {
       final before = DateTime.now();
       final session = await XidSession.fromTokenResponse(makeTokenResponse());
       final after = DateTime.now();
-      expect(session.expiresAt.isAfter(before.add(const Duration(seconds: 3599))),
+      expect(
+          session.expiresAt.isAfter(before.add(const Duration(seconds: 3599))),
           isTrue);
-      expect(session.expiresAt.isBefore(after.add(const Duration(seconds: 3601))),
+      expect(
+          session.expiresAt.isBefore(after.add(const Duration(seconds: 3601))),
           isTrue);
     });
 
@@ -40,11 +42,10 @@ void main() {
       expect(session.isExpired, isTrue);
     });
 
-    test('needsRefresh: buffer 内视为需要刷新', () async {
-      // expires_in=30 -> 30s 后过期,默认 buffer 60s -> 需要刷新
-      final resp = makeTokenResponse(expiresIn: 30);
+    test('public client 丢弃没有 DPoP 绑定的 refresh_token', () async {
+      final resp = makeTokenResponse();
       final session = await XidSession.fromTokenResponse(resp);
-      expect(session.needsRefresh(), isTrue);
+      expect(session.refreshToken, isNull);
     });
 
     test('XidUser.fromClaims 映射 sub -> id', () {

@@ -61,6 +61,15 @@ module Xid
       end
     end
 
+    def exchange_session_token(incoming_request_url:, cookie_header:, endpoint: nil, transport: nil)
+      SessionTokenExchange.exchange(
+        incoming_request_url: incoming_request_url,
+        cookie_header: cookie_header,
+        endpoint: endpoint,
+        transport: transport
+      )
+    end
+
     # -- Webhook 验证 --------------------------------------------------------
 
     # 验证 Webhook 请求。需要在 Configuration 中设置 webhook_secret。

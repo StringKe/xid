@@ -4,6 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const consumeGuestEntryCapability = vi.hoisted(() => vi.fn(async () => true))
+
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   USER_PROVISIONED_BY_ANONYMOUS: 'anonymous',
@@ -13,11 +15,23 @@ vi.mock('@xid-kit/db', () => ({
   },
 }))
 
+vi.mock('../guest-entry-capability', () => ({
+  consumeGuestEntryCapability,
+  isRootGuestOnboardingTenant: (tenant: {
+    customHostname?: string
+    resolution?: { kind?: string; unresolvedRoot?: boolean }
+  }) =>
+    tenant.resolution?.kind === 'instance_entry' &&
+    tenant.resolution.unresolvedRoot === true &&
+    tenant.customHostname === undefined,
+}))
+
 import { createTenantDb } from '@xid-kit/db'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
 
 const ANON_COOKIE = '__Host-xid.anon=anon-x'
+const GUEST_CAPABILITY_TOKEN = 'a'.repeat(43)
 
 type GuestStoreBehavior = {
   lookupUserId?: string | null
@@ -30,6 +44,7 @@ type GuestStoreBehavior = {
 function makeGuestStoreFake(behavior: GuestStoreBehavior = {}) {
   const names: string[] = []
   const bindBodies: Record<string, unknown>[] = []
+  const actions: string[] = []
   const ns = {
     idFromName: (name: string) => {
       names.push(name)
@@ -39,6 +54,7 @@ function makeGuestStoreFake(behavior: GuestStoreBehavior = {}) {
       ({
         fetch: async (url: string, init?: RequestInit) => {
           const action = new URL(url).pathname.replace(/^\//, '')
+          actions.push(action)
           if (action === 'lookup') {
             return behavior.lookupUserId
               ? Response.json({ userId: behavior.lookupUserId })
@@ -61,7 +77,7 @@ function makeGuestStoreFake(behavior: GuestStoreBehavior = {}) {
         },
       }) as unknown as DurableObjectStub,
   } as unknown as DurableObjectNamespace
-  return { ns, names, bindBodies }
+  return { ns, names, bindBodies, actions }
 }
 
 function guestUserRow(id: string) {
@@ -110,21 +126,54 @@ function post(
   body?: unknown,
   headers: Record<string, string> = {},
 ) {
+  const requestBody =
+    body !== undefined && typeof body === 'object' && body !== null
+      ? { capabilityToken: GUEST_CAPABILITY_TOKEN, ...(body as Record<string, unknown>) }
+      : body
   return app.request(
-    'https://tenant-1.xid.dev/auth/guest',
+    'https://xid.dev/auth/guest',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(requestBody === undefined ? {} : { body: JSON.stringify(requestBody) }),
     },
     env,
     execCtx,
   )
 }
 
+function rootStagingTenant(tenantId = 'tenant-1') {
+  return {
+    ...makeTenant(tenantId),
+    issuer: 'https://xid.dev',
+    rpId: 'xid.dev',
+    resolution: {
+      kind: 'instance_entry' as const,
+      primaryDomain: 'xid.dev',
+      unresolvedRoot: true,
+    },
+  }
+}
+
+function makeGuestApp(options: Parameters<typeof makeApp>[1] = {}) {
+  const sourceTenant = options.tenant ?? rootStagingTenant()
+  const tenant = {
+    ...sourceTenant,
+    issuer: 'https://xid.dev',
+    rpId: 'xid.dev',
+    resolution: {
+      kind: 'instance_entry' as const,
+      primaryDomain: 'xid.dev',
+      unresolvedRoot: true,
+    },
+  }
+  return makeApp(registerSessionAuthRoutes, { ...options, tenant })
+}
+
 describe('POST /auth/guest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    consumeGuestEntryCapability.mockResolvedValue(true)
   })
 
   it('裸请求建号:insert anonymous user + 签发 amr 含 guest 的 session + 补种 anonKey cookie + guest.created 审计', async () => {
@@ -132,13 +181,19 @@ describe('POST /auth/guest', () => {
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const auditSend = vi.fn()
     const env = makeEnv({ auditSend })
-    const app = makeApp(registerSessionAuthRoutes)
+    const app = makeGuestApp()
 
     const res = await post(app, env, {})
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { sessionId?: string }
     expect(typeof body.sessionId).toBe('string')
+    expect(consumeGuestEntryCapability).toHaveBeenCalledWith({
+      env,
+      token: GUEST_CAPABILITY_TOKEN,
+      tenantId: 'tenant-1',
+      origin: 'https://xid.dev',
+    })
 
     expect(db.users.insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -158,13 +213,106 @@ describe('POST /auth/guest', () => {
     )
   })
 
+  it('capability 缺失、失效或重放时在创建 Tenant DB 前拒绝', async () => {
+    const db = makeDb()
+    vi.mocked(createTenantDb).mockReturnValue(db as never)
+    const env = makeEnv()
+    const app = makeGuestApp()
+
+    const missing = await post(app, env)
+    expect(missing.status).toBe(400)
+    expect(consumeGuestEntryCapability).not.toHaveBeenCalled()
+    expect(createTenantDb).not.toHaveBeenCalled()
+
+    consumeGuestEntryCapability.mockResolvedValueOnce(false)
+    const invalid = await post(app, env, {})
+    expect(invalid.status).toBe(400)
+    expect(createTenantDb).not.toHaveBeenCalled()
+    expect(db.users.insert).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['organization subdomain', makeTenant('tenant-1')],
+    [
+      'custom hostname',
+      {
+        ...rootStagingTenant(),
+        customHostname: 'login.customer.example',
+      },
+    ],
+  ])('%s 在 capability 消费和落库前拒绝 guest', async (_name, tenant) => {
+    const db = makeDb()
+    vi.mocked(createTenantDb).mockReturnValue(db as never)
+    const env = makeEnv()
+    const app = makeApp(registerSessionAuthRoutes, { tenant: tenant as never })
+
+    const res = await post(app, env, {})
+
+    expect(res.status).toBe(400)
+    expect(consumeGuestEntryCapability).not.toHaveBeenCalled()
+    expect(createTenantDb).not.toHaveBeenCalled()
+    expect(db.users.insert).not.toHaveBeenCalled()
+  })
+
+  it('forceSso 拒绝 guest 建号并记录 policy denied 审计', async () => {
+    const base = makeTenant('tenant-1')
+    const tenant = {
+      ...base,
+      policy: {
+        ...base.policy,
+        hostedAuth: { ...base.policy.hostedAuth, forceSso: true },
+      },
+    }
+    const db = makeDb()
+    vi.mocked(createTenantDb).mockReturnValue(db as never)
+    const auditSend = vi.fn()
+    const env = makeEnv({ auditSend })
+    const app = makeGuestApp({ tenant: tenant as never })
+
+    const res = await post(app, env, {})
+
+    expect(res.status).toBe(401)
+    expect(db.users.insert).not.toHaveBeenCalled()
+    expect(auditSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-1',
+        action: 'auth.policy_denied',
+        payload: expect.objectContaining({
+          method: 'guest',
+          action: 'user_creation',
+          reason: 'force_sso',
+        }),
+      }),
+    )
+  })
+
+  it('全局 allowUserCreation=false 拒绝 guest 建号', async () => {
+    const base = makeTenant('tenant-1')
+    const tenant = {
+      ...base,
+      policy: {
+        ...base.policy,
+        hostedAuth: { ...base.policy.hostedAuth, allowUserCreation: false },
+      },
+    }
+    const db = makeDb()
+    vi.mocked(createTenantDb).mockReturnValue(db as never)
+    const env = makeEnv()
+    const app = makeGuestApp({ tenant: tenant as never })
+
+    const res = await post(app, env, {})
+
+    expect(res.status).toBe(401)
+    expect(db.users.insert).not.toHaveBeenCalled()
+  })
+
   it('先查:已持有效 guest session -> 200 返回现有 sessionId,不建号、不绑定、不发审计', async () => {
     const db = makeDb({ findOne: vi.fn().mockResolvedValue(guestUserRow('user-guest')) })
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const auditSend = vi.fn()
     const guestStore = makeGuestStoreFake()
     const env = makeEnv({ auditSend, guestStoreNs: guestStore.ns })
-    const app = makeApp(registerSessionAuthRoutes, {
+    const app = makeGuestApp({
       session: makeSession('user-guest', 'sess-guest'),
     })
 
@@ -181,6 +329,29 @@ describe('POST /auth/guest', () => {
     expect(auditSend).not.toHaveBeenCalled()
   })
 
+  it('全局 allowExistingUserLogin=false 拒绝既有 guest session 复用', async () => {
+    const base = makeTenant('tenant-1')
+    const tenant = {
+      ...base,
+      policy: {
+        ...base.policy,
+        hostedAuth: { ...base.policy.hostedAuth, allowExistingUserLogin: false },
+      },
+    }
+    const db = makeDb({ findOne: vi.fn().mockResolvedValue(guestUserRow('user-guest')) })
+    vi.mocked(createTenantDb).mockReturnValue(db as never)
+    const env = makeEnv()
+    const app = makeGuestApp({
+      tenant: tenant as never,
+      session: makeSession('user-guest', 'sess-guest'),
+    })
+
+    const res = await post(app, env, {}, { cookie: ANON_COOKIE })
+
+    expect(res.status).toBe(401)
+    expect(db.sessions.insert).not.toHaveBeenCalled()
+  })
+
   it('已登录非 guest 用户(session provisioned_by 非 anonymous)-> 仍走建号路径', async () => {
     const db = makeDb({
       findOne: vi.fn().mockResolvedValue({
@@ -192,7 +363,7 @@ describe('POST /auth/guest', () => {
     })
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const env = makeEnv()
-    const app = makeApp(registerSessionAuthRoutes, {
+    const app = makeGuestApp({
       session: makeSession('user-regular', 'sess-regular'),
     })
 
@@ -209,7 +380,7 @@ describe('POST /auth/guest', () => {
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const guestStore = makeGuestStoreFake({ lookupUserId: 'user-bound' })
     const env = makeEnv({ guestStoreNs: guestStore.ns })
-    const app = makeApp(registerSessionAuthRoutes)
+    const app = makeGuestApp()
 
     const res = await post(app, env, {}, { cookie: ANON_COOKIE })
 
@@ -227,7 +398,7 @@ describe('POST /auth/guest', () => {
     const guestStore = makeGuestStoreFake({ bindCreated: false, bindUserId: 'user-winner' })
     const auditSend = vi.fn()
     const env = makeEnv({ guestStoreNs: guestStore.ns, auditSend })
-    const app = makeApp(registerSessionAuthRoutes)
+    const app = makeGuestApp()
 
     const res = await post(app, env, {}, { cookie: ANON_COOKIE })
 
@@ -244,12 +415,60 @@ describe('POST /auth/guest', () => {
     )
   })
 
+  it('并发落败后按 existing-user policy 拒绝 winner session', async () => {
+    const base = makeTenant('tenant-1')
+    const tenant = {
+      ...base,
+      policy: {
+        ...base.policy,
+        hostedAuth: { ...base.policy.hostedAuth, allowExistingUserLogin: false },
+      },
+    }
+    const db = makeDb({ findOne: vi.fn().mockResolvedValue(guestUserRow('user-winner')) })
+    vi.mocked(createTenantDb).mockReturnValue(db as never)
+    const guestStore = makeGuestStoreFake({ bindCreated: false, bindUserId: 'user-winner' })
+    const env = makeEnv({ guestStoreNs: guestStore.ns })
+    const app = makeGuestApp({ tenant: tenant as never })
+
+    const res = await post(app, env, {}, { cookie: ANON_COOKIE })
+
+    expect(res.status).toBe(401)
+    expect(db.users.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'deleted', deletedAt: expect.any(Date) }),
+      expect.anything(),
+    )
+    expect(db.sessions.insert).not.toHaveBeenCalled()
+  })
+
+  it('并发落败后 winner 已转正时解绑并 fail closed', async () => {
+    const db = makeDb({
+      findOne: vi.fn().mockResolvedValue({
+        ...guestUserRow('user-winner'),
+        provisionedBy: 'password',
+      }),
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db as never)
+    const guestStore = makeGuestStoreFake({ bindCreated: false, bindUserId: 'user-winner' })
+    const env = makeEnv({ guestStoreNs: guestStore.ns })
+    const app = makeGuestApp()
+
+    const res = await post(app, env, {}, { cookie: ANON_COOKIE })
+
+    expect(res.status).toBe(401)
+    expect(guestStore.actions).toEqual(['lookup', 'bind', 'unbind'])
+    expect(db.users.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'deleted', deletedAt: expect.any(Date) }),
+      expect.anything(),
+    )
+    expect(db.sessions.insert).not.toHaveBeenCalled()
+  })
+
   it('跨租户:DO 实例名带当前 tenantId,B 租户的 anonKey 绑定对 A 不可见', async () => {
     const db = makeDb({ findOne: vi.fn().mockResolvedValue(guestUserRow('user-new')) })
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const guestStore = makeGuestStoreFake()
     const env = makeEnv({ guestStoreNs: guestStore.ns })
-    const app = makeApp(registerSessionAuthRoutes, {
+    const app = makeGuestApp({
       tenant: makeTenant('tenant-a') as never,
     })
 
@@ -270,7 +489,7 @@ describe('POST /auth/guest', () => {
     const db = makeDb()
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const env = makeEnv({ rateLimitAllowed: false })
-    const app = makeApp(registerSessionAuthRoutes)
+    const app = makeGuestApp()
 
     const res = await post(app, env, {}, { 'cf-connecting-ip': '203.0.113.1' })
 
@@ -295,7 +514,7 @@ describe('POST /auth/guest', () => {
     } as unknown as DurableObjectNamespace
     const env = makeEnv()
     ;(env as { RATE_LIMITER: DurableObjectNamespace }).RATE_LIMITER = mintDenyNs
-    const app = makeApp(registerSessionAuthRoutes)
+    const app = makeGuestApp()
 
     const res = await post(app, env, {})
 
@@ -307,8 +526,9 @@ describe('POST /auth/guest', () => {
     const db = makeDb()
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const env = makeEnv()
+    ;(env as { TURNSTILE_SITE_KEY?: string }).TURNSTILE_SITE_KEY = 'turnstile-site-key'
     ;(env as { TURNSTILE_SECRET?: string }).TURNSTILE_SECRET = 'turnstile-secret'
-    const app = makeApp(registerSessionAuthRoutes)
+    const app = makeGuestApp()
 
     const res = await post(app, env, {})
 
@@ -322,7 +542,7 @@ describe('POST /auth/guest', () => {
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const guestStore = makeGuestStoreFake({ bindFailStatus: 500 })
     const env = makeEnv({ guestStoreNs: guestStore.ns })
-    const app = makeApp(registerSessionAuthRoutes)
+    const app = makeGuestApp()
 
     const res = await post(app, env, {}, { cookie: ANON_COOKIE })
 
@@ -348,7 +568,7 @@ describe('POST /auth/guest', () => {
     vi.mocked(createTenantDb).mockReturnValue(db as never)
     const guestStore = makeGuestStoreFake()
     const env = makeEnv({ guestStoreNs: guestStore.ns })
-    const app = makeApp(registerSessionAuthRoutes, { tenant: tenant as never })
+    const app = makeGuestApp({ tenant: tenant as never })
 
     const res = await post(app, env, {}, { cookie: ANON_COOKIE })
 
@@ -357,7 +577,7 @@ describe('POST /auth/guest', () => {
     expect(guestStore.bindBodies[0]).toMatchObject({ ttlMs: 7 * 24 * 60 * 60 * 1000 })
   })
 
-  it('guest TTL 取自租户 session policy:裸请求 anonKey cookie Max-Age 按 absoluteTimeoutDays', async () => {
+  it('guest TTL 取自租户 session policy:裸请求绑定新 anonKey 并按 absoluteTimeoutDays 写 cookie', async () => {
     const base = makeTenant('tenant-1')
     const tenant = {
       ...base,
@@ -368,8 +588,9 @@ describe('POST /auth/guest', () => {
     }
     const db = makeDb({ findOne: vi.fn().mockResolvedValue(guestUserRow('user-new')) })
     vi.mocked(createTenantDb).mockReturnValue(db as never)
-    const env = makeEnv()
-    const app = makeApp(registerSessionAuthRoutes, { tenant: tenant as never })
+    const guestStore = makeGuestStoreFake()
+    const env = makeEnv({ guestStoreNs: guestStore.ns })
+    const app = makeGuestApp({ tenant: tenant as never })
 
     const res = await post(app, env, {})
 
@@ -379,5 +600,13 @@ describe('POST /auth/guest', () => {
       .find((cookie) => cookie.startsWith('__Host-xid.anon='))
     expect(anonCookie).toBeDefined()
     expect(anonCookie).toContain(`Max-Age=${7 * 24 * 60 * 60}`)
+    const anonKey = anonCookie?.match(/^__Host-xid\.anon=([^;]+)/u)?.[1]
+    expect(anonKey).toBeTruthy()
+    expect(guestStore.names).toContain(`tenant-1:${anonKey}`)
+    expect(guestStore.bindBodies).toHaveLength(1)
+    expect(guestStore.bindBodies[0]).toMatchObject({
+      userId: expect.stringMatching(/^user_/u),
+      ttlMs: 7 * 24 * 60 * 60 * 1000,
+    })
   })
 })

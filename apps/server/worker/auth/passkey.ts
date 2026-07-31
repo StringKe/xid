@@ -16,6 +16,7 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
+import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { readJsonBody } from '../lib/validate'
@@ -35,6 +36,7 @@ import { assertMethodAllowed, assertTenantResolvedForWebAuthn } from './hosted-p
 import { auditPolicyDeniedError } from './hosted-audit'
 import { resolvePostAuthMfaGate, sanitizeLocalReturn } from '../lib/mfa-session'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
+import { verifyTurnstile } from '../me-auth/shared'
 
 const passkey = new Hono<XidHonoEnv>()
 
@@ -62,6 +64,7 @@ const assertionBodySchema = v.object({
   }),
   anonKey: v.pipe(v.string(), v.minLength(1)),
   sessionExpiryDays: v.optional(v.number()),
+  turnstileToken: v.optional(v.string()),
 })
 
 // ceremony body 统一入口:坏 JSON / 形状失败都映射为 invalid_credentials(不走 422,见上方注释)。
@@ -236,7 +239,7 @@ passkey.post('/register/verify', async (c) => {
       sessionAmr: PASSKEY_AUTH_CONTEXT.amr,
     })
     await issueSession(c, {
-      sessionId: crypto.randomUUID(),
+      sessionId: createPersistedId('session'),
       userId: guest.userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
       authContext: PASSKEY_AUTH_CONTEXT,
@@ -294,6 +297,7 @@ passkey.post('/login/verify', async (c) => {
   }
 
   const body = await readCeremonyBody(c, assertionBodySchema)
+  await verifyTurnstile(body.turnstileToken, c.env, c.req.header('cf-connecting-ip') ?? null)
 
   const anonKey = body.anonKey
   const credentialIdBase64 = body.rawId
@@ -323,7 +327,7 @@ passkey.post('/login/verify', async (c) => {
       ? undefined
       : new Date(now.getTime() + body.sessionExpiryDays * 24 * 60 * 60 * 1000)
   const { session } = await issueSession(c, {
-    sessionId: crypto.randomUUID(),
+    sessionId: createPersistedId('session'),
     userId,
     authContext: PASSKEY_AUTH_CONTEXT,
     authenticatedAt: now,

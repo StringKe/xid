@@ -1,39 +1,47 @@
-// XidProvider:注入 XidClient + publishableKey,启动时调用 client.load()。
+// XidProvider:注入 XidClient,启动时调用 client.load()。
 // 对标 @clerk/clerk-react ClerkProvider。
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
-import { XidClient, type XidClientOptions } from '@xid-kit/core'
+import {
+  XidClient,
+  type OidcXidClientOptions,
+  type SameOriginXidClientOptions,
+} from '@xid-kit/core'
 
 import { XidContext } from './xid-context'
 
-export type XidProviderProps = {
-  publishableKey: string
-  children: ReactNode
-  // 覆盖 API 根(自托管场景,默认同域相对路径)。
-  apiUrl?: string
-  // 注入 fetch(测试用)。
-  fetcher?: XidClientOptions['fetcher']
-}
+export type XidProviderProps =
+  | (Omit<SameOriginXidClientOptions, 'secretKey'> & { children: ReactNode })
+  | (OidcXidClientOptions & { children: ReactNode })
 
-export function XidProvider({
-  publishableKey,
-  children,
-  apiUrl,
-  fetcher,
-}: XidProviderProps): ReactNode {
-  // client 仅在 apiUrl 变化时重建,稳定引用减少重渲染。
-  const clientOptions = useMemo<XidClientOptions>(
-    () => ({
-      ...(apiUrl ? { apiUrl } : {}),
-      ...(fetcher ? { fetcher } : {}),
-    }),
-    // eslint 会警告 fetcher 不稳定引用,调用者应 useCallback 包裹
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [apiUrl],
+export function XidProvider(props: XidProviderProps): ReactNode {
+  const { children } = props
+  const [client] = useState(
+    () =>
+      new XidClient(
+        props.mode === 'oidc'
+          ? {
+              mode: 'oidc',
+              issuer: props.issuer,
+              clientId: props.clientId,
+              redirectUri: props.redirectUri,
+              ...(props.scopes ? { scopes: props.scopes } : {}),
+              ...(props.postLogoutRedirectUri
+                ? { postLogoutRedirectUri: props.postLogoutRedirectUri }
+                : {}),
+              ...(props.tokenCache ? { tokenCache: props.tokenCache } : {}),
+              ...(props.fetcher ? { fetcher: props.fetcher } : {}),
+              ...(props.now ? { now: props.now } : {}),
+            }
+          : {
+              mode: 'same-origin',
+              ...(props.apiUrl ? { apiUrl: props.apiUrl } : {}),
+              ...(props.fetcher ? { fetcher: props.fetcher } : {}),
+              ...(props.now ? { now: props.now } : {}),
+            },
+      ),
   )
-
-  const [client] = useState(() => new XidClient(clientOptions))
 
   // 首次挂载拉取登录态;AbortController 在卸载时取消。
   const abortRef = useRef<AbortController | null>(null)
@@ -47,7 +55,8 @@ export function XidProvider({
     }
   }, [client])
 
-  const value = useMemo(() => ({ client, publishableKey }), [client, publishableKey])
+  const mode: 'same-origin' | 'oidc' = props.mode === 'oidc' ? 'oidc' : 'same-origin'
+  const value = useMemo(() => ({ client, mode }), [client, mode])
 
   return <XidContext.Provider value={value}>{children}</XidContext.Provider>
 }

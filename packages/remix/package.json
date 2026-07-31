@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/remix",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Remix SDK for XID: session helpers and OAuth callback handling.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Remix client bindings, server authentication, and session helpers for XID.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/remix",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,25 +20,41 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/remix"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server.index.ts"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./server": {
+      "types": "./dist/server.index.d.mts",
+      "import": "./dist/server.index.mjs",
+      "default": "./dist/server.index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack src/index.ts src/server.index.ts --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test"
   },
   "dependencies": {
-    "@xid-kit/backend": "workspace:*",
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/crypto": "workspace:*",
-    "@xid-kit/react": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/backend": "workspace:^",
+    "@xid-kit/core": "workspace:^",
+    "@xid-kit/crypto": "workspace:^",
+    "@xid-kit/react": "workspace:^",
+    "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
     "@remix-run/node": "^2.17.5",

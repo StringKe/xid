@@ -81,6 +81,7 @@ export type IssuerTenantResolution =
 type InstanceRow = typeof schema.instances.$inferSelect
 type OrgRow = typeof schema.organizations.$inferSelect
 type InstanceSigningKeyRow = typeof schema.instanceSigningKeys.$inferSelect
+type CustomHostnameRow = typeof schema.customHostnames.$inferSelect
 
 const SIGNING_ALGS = new Set<SigningAlg>(['ES256', 'RS256', 'PS256'])
 const SIGNING_STATUSES = new Set<SigningKeyStatus>(['active', 'next', 'retiring'])
@@ -256,6 +257,42 @@ async function buildContext(
       : { hostedAuthOrigin: options.hostedAuthOrigin }),
     signingKeys: buildSigningKeySet(signingRows),
     policy: buildPolicy(instance, org, policy),
+  }
+}
+
+async function buildCustomHostnameContext(
+  db: Db,
+  instance: InstanceRow,
+  customHostname: CustomHostnameRow,
+): Promise<Result<TenantContext>> {
+  const orgs = await db
+    .select()
+    .from(schema.organizations)
+    .where(
+      and(
+        eq(schema.organizations.id, customHostname.orgId),
+        eq(schema.organizations.tenantId, customHostname.tenantId),
+        eq(schema.organizations.instanceId, instance.id),
+      ),
+    )
+    .limit(1)
+  const org = orgs[0]
+  if (!org) return err('tenant_not_found', 'Custom hostname does not map to a tenant', 404)
+  if (org.status !== 'active') return err('tenant_suspended', 'Tenant is not active', 403)
+
+  const context = await buildContext(db, instance, org, {
+    issuer: instanceIssuerFor(instance),
+    hostedAuthOrigin: `https://${customHostname.hostname}`,
+    rpId: customHostname.hostname,
+    resolution: { kind: 'tenant', primaryDomain: instance.primaryDomain },
+  })
+  return {
+    ok: true,
+    value: {
+      ...context,
+      customHostname: customHostname.hostname,
+      requiresPasskeyReregistration: customHostname.requiresPasskeyReregistration,
+    },
   }
 }
 
@@ -512,15 +549,42 @@ async function defaultTenantContext(
 async function instanceForRequest(
   db: Db,
   request: Request,
-): Promise<Result<{ hostname: string; instance: InstanceRow }>> {
+): Promise<
+  Result<{ hostname: string; instance: InstanceRow; customHostname?: CustomHostnameRow }>
+> {
   const hostname = hostnameOf(request)
   if (!hostname) return err('tenant_not_found', 'Missing Host header', 400)
 
-  const instanceRows = await db.select().from(schema.instances).limit(1)
+  const customHostnameRows = await db
+    .select()
+    .from(schema.customHostnames)
+    .where(
+      and(
+        eq(schema.customHostnames.hostname, hostname),
+        eq(schema.customHostnames.status, 'active'),
+        isNull(schema.customHostnames.deletedAt),
+      ),
+    )
+    .limit(1)
+  const customHostname = customHostnameRows[0]
+  const instanceRows = customHostname
+    ? await db
+        .select()
+        .from(schema.instances)
+        .where(eq(schema.instances.id, customHostname.instanceId))
+        .limit(1)
+    : await db.select().from(schema.instances).limit(1)
   const instance = instanceRows[0]
   if (!instance) return err('tenant_not_found', 'No instance provisioned', 404)
   if (instance.status !== 'active') return err('tenant_suspended', 'Instance is suspended', 403)
-  return { ok: true, value: { hostname, instance } }
+  return {
+    ok: true,
+    value: {
+      hostname,
+      instance,
+      ...(customHostname === undefined ? {} : { customHostname }),
+    },
+  }
 }
 
 function normalizeIdentifier(input: LoginIdentifier): LoginIdentifier {
@@ -767,6 +831,93 @@ export async function resolveTenantContextById(
   return { ok: true, value: { status: 'resolved', tenant: context.value } }
 }
 
+// Invitation tokens can arrive while the browser is authenticated to another Tenant on the same
+// Instance. The caller supplies the already-resolved, trusted Instance id and an untrusted token
+// locator. This resolver binds both in the organization lookup, so the locator cannot cross an
+// Instance boundary and request Host or cookie context cannot silently override the invitation.
+export async function resolveTenantContextByIdInInstance(
+  request: Request,
+  env: ResolveEnv,
+  tenantId: string,
+  instanceId: string,
+): Promise<Result<IssuerTenantResolution>> {
+  const normalizedTenantId = tenantId.trim()
+  const normalizedInstanceId = instanceId.trim()
+  if (!normalizedTenantId || !normalizedInstanceId) {
+    return err('tenant_not_found', 'Tenant and Instance hints are required', 404)
+  }
+
+  const db = drizzle(env.DB, { schema })
+  const instances = await db
+    .select()
+    .from(schema.instances)
+    .where(eq(schema.instances.id, normalizedInstanceId))
+    .limit(1)
+  const instance = instances[0]
+  if (!instance) return err('tenant_not_found', 'Instance is not provisioned', 404)
+  if (instance.status !== 'active') return err('tenant_suspended', 'Instance is suspended', 403)
+
+  const origin = instanceOriginForRequest(request, instance)
+  const context = await resolveOrgById(
+    db,
+    instance,
+    normalizedTenantId,
+    rootResolvedContextOptions(instance, origin),
+  )
+  if (!context.ok) return context
+  return { ok: true, value: { status: 'resolved', tenant: context.value } }
+}
+
+// OAuth/OIDC protocol requests are owned by the registered application, not by whichever
+// browser session cookie happens to be present. client_id is globally unique, but the request
+// Host still selects the Instance; both must agree before returning the application Tenant.
+export async function resolveTenantContextByApplicationClientId(
+  request: Request,
+  env: ResolveEnv,
+  clientId: string,
+): Promise<Result<TenantContext>> {
+  const normalizedClientId = clientId.trim()
+  if (!normalizedClientId) return err('tenant_not_found', 'Application client is required', 404)
+
+  const db = drizzle(env.DB, { schema })
+  const instanceResult = await instanceForRequest(db, request)
+  if (!instanceResult.ok) return instanceResult
+  const { instance } = instanceResult.value
+
+  const applications = await db
+    .select({ tenantId: schema.applications.tenantId, status: schema.applications.status })
+    .from(schema.applications)
+    .where(eq(schema.applications.clientId, normalizedClientId))
+    .limit(2)
+  if (applications.length !== 1 || applications[0]?.status !== 'active') {
+    return err('tenant_not_found', 'Application client is not active', 404)
+  }
+  const tenantId = applications[0].tenantId
+  const organizations = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations)
+    .where(
+      and(
+        eq(schema.organizations.tenantId, tenantId),
+        eq(schema.organizations.instanceId, instance.id),
+        eq(schema.organizations.id, tenantId),
+        eq(schema.organizations.status, 'active'),
+        isNull(schema.organizations.deletedAt),
+      ),
+    )
+    .limit(1)
+  if (!organizations[0]) {
+    return err('tenant_not_found', 'Application Tenant is not active in this Instance', 404)
+  }
+
+  return resolveOrgById(
+    db,
+    instance,
+    tenantId,
+    rootResolvedContextOptions(instance, instanceOriginForRequest(request, instance)),
+  )
+}
+
 export async function resolveTenantContextBySessionHash(
   request: Request,
   env: ResolveEnv,
@@ -776,8 +927,13 @@ export async function resolveTenantContextBySessionHash(
   const instanceResult = await instanceForRequest(db, request)
   if (!instanceResult.ok) return instanceResult
 
-  const { hostname, instance } = instanceResult.value
+  const { hostname, instance, customHostname } = instanceResult.value
   const origin = instanceOriginForRequest(request, instance)
+  if (customHostname) {
+    const tenant = await buildCustomHostnameContext(db, instance, customHostname)
+    if (!tenant.ok) return tenant
+    return { ok: true, value: { status: 'not_instance_entry', tenant: tenant.value } }
+  }
   if (instance.mode === 'single_tenant') {
     const tenant = await resolveSingleTenant(db, instance, origin)
     if (!tenant.ok) return tenant
@@ -894,8 +1050,10 @@ export async function resolveTenantContext(
   const db = drizzle(env.DB, { schema })
   const instanceResult = await instanceForRequest(db, request)
   if (!instanceResult.ok) return instanceResult
-  const { hostname, instance } = instanceResult.value
+  const { hostname, instance, customHostname } = instanceResult.value
   const origin = instanceOriginForRequest(request, instance)
+
+  if (customHostname) return buildCustomHostnameContext(db, instance, customHostname)
 
   return instance.mode === 'single_tenant'
     ? resolveSingleTenant(db, instance, origin)

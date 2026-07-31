@@ -4,6 +4,10 @@ import type { ReactNode } from 'react'
 import { createApiClient, observeApiClientErrors } from '../api'
 import type { ApiClient } from '../api'
 import type { XidError } from '@xid-kit/types'
+import type { SessionTokenResponse } from '@xid-kit/types'
+import type { BrowserManagerAssignment } from '@xid-kit/types'
+import { executeBrowserSamlLogout } from '@xid-kit/core'
+import type { SignOutResponse } from '@xid-kit/core'
 import { EmailVerificationPanel } from './EmailVerificationPanel'
 import {
   authStatusFromMe,
@@ -16,8 +20,6 @@ import {
 
 const ME_QUERY_KEY = ['me'] as const
 
-type TokenResponse = { token: string }
-
 export type SessionCallbacks = {
   onUnauthorized?: () => void
   onUserChange?: (user: AuthUser | null) => void
@@ -29,8 +31,12 @@ export type SessionContextValue = {
   user: AuthUser | null
   activeOrg: AuthOrg | null
   organizations: readonly AuthOrg[]
+  managerAssignments: readonly BrowserManagerAssignment[]
   session: AuthSession | null
+  activeSessionId: string | null
+  sessions: readonly AuthSession[]
   refresh: () => Promise<void>
+  setActiveSession: (sessionId: string) => Promise<boolean>
   setActiveOrganization: (organizationId: string | null) => Promise<boolean>
   getToken: () => Promise<string | null>
   signOut: () => Promise<void>
@@ -160,6 +166,16 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
     await loadSession()
   }, [loadSession])
 
+  const setActiveSession = useCallback(
+    async (sessionId: string): Promise<boolean> => {
+      const result = await apiClient.post<unknown>('/v1/sessions/active', { sessionId })
+      if (!result.ok) return false
+      await refresh()
+      return true
+    },
+    [apiClient, refresh],
+  )
+
   const setActiveOrganization = useCallback(
     async (organizationId: string | null): Promise<boolean> => {
       const result = await apiClient.post<unknown>('/v1/sessions/active-organization', {
@@ -173,15 +189,23 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   )
 
   const getToken = useCallback(async (): Promise<string | null> => {
-    const result = await apiClient.post<TokenResponse>('/v1/sessions/token')
+    const result = await apiClient.post<SessionTokenResponse>('/v1/sessions/token')
     return result.ok ? result.value.token : null
   }, [apiClient])
 
   const signOut = useCallback(async (): Promise<void> => {
-    await apiClient.post<unknown>('/auth/sign-out')
-    applySession(null)
+    const result = await apiClient.post<SignOutResponse>('/auth/sign-out')
+    if (!result.ok) return
+    if (result.value.samlLogout) {
+      applySession(null)
+      await callbacksRef.current?.onSignOut?.()
+      if (executeBrowserSamlLogout(result.value.samlLogout)) return
+      await loadSession()
+      return
+    }
+    await loadSession()
     await callbacksRef.current?.onSignOut?.()
-  }, [apiClient, applySession])
+  }, [apiClient, applySession, loadSession])
 
   const openEmailVerification = useCallback((): void => {
     setEmailVerificationOpen(true)
@@ -193,8 +217,12 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       user: me?.user ?? null,
       activeOrg: me?.activeOrg ?? null,
       organizations: me?.organizations ?? [],
+      managerAssignments: me?.managerAssignments ?? [],
       session: me?.session ?? null,
+      activeSessionId: me?.activeSessionId ?? null,
+      sessions: me?.sessions ?? [],
       refresh,
+      setActiveSession,
       setActiveOrganization,
       getToken,
       signOut,
@@ -205,6 +233,7 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       status,
       me,
       refresh,
+      setActiveSession,
       setActiveOrganization,
       getToken,
       signOut,

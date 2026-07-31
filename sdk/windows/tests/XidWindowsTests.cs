@@ -179,6 +179,83 @@ public class IdTokenDecoderTests
 
 public class XidClientConfigTests
 {
+    [Fact]
+    public void Configure_DefaultScopesExcludeOfflineAccess()
+    {
+        var options = new XidConfiguration
+        {
+            Issuer = new Uri("https://xid.dev"),
+            ClientId = "test-client",
+            RedirectUri = "myapp://auth/callback",
+        };
+
+        Assert.Equal(["openid", "profile", "email"], options.Scopes);
+        Assert.DoesNotContain("offline_access", options.Scopes);
+    }
+
+    [Fact]
+    public void Configure_OfflineAccessWithoutDpop_ThrowsUnsupportedScope()
+    {
+        var ctor = typeof(XidClient).GetConstructor(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null, Type.EmptyTypes, null);
+        var freshClient = (XidClient)ctor!.Invoke([]);
+
+        var error = Assert.Throws<XidException>(() =>
+            freshClient.Configure(new XidConfiguration
+            {
+                Issuer = new Uri("https://xid.dev"),
+                ClientId = "test-client",
+                RedirectUri = "myapp://auth/callback",
+                Scopes = ["openid", "offline_access"],
+            }));
+
+        Assert.Equal("unsupported_scope", error.Code);
+    }
+
+    [Fact]
+    public void SignInExtraParams_CannotOverrideReservedScope()
+    {
+        var ctor = typeof(XidClient).GetConstructor(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null, Type.EmptyTypes, null);
+        var freshClient = (XidClient)ctor!.Invoke([]);
+        freshClient.Configure(new XidConfiguration
+        {
+            Issuer = new Uri("https://xid.dev"),
+            ClientId = "test-client",
+            RedirectUri = "myapp://auth/callback",
+        });
+
+        var buildAuthorizeUrl = typeof(XidClient).GetMethod(
+            "BuildAuthorizeUrl",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(buildAuthorizeUrl);
+        var url = (string)buildAuthorizeUrl!.Invoke(freshClient,
+        [
+            "https://xid.dev/authorize",
+            PkceParameters.Generate(),
+            "state",
+            "nonce",
+            new SignInOptions
+            {
+                ExtraParams = new Dictionary<string, string>
+                {
+                    ["scope"] = "openid offline_access",
+                    ["redirect_uri"] = "https://attacker.example/callback",
+                    ["prompt"] = "login",
+                },
+            },
+        ])!;
+
+        Assert.DoesNotContain("offline_access", url);
+        Assert.DoesNotContain("attacker.example", url);
+        Assert.Single(
+            url.Split('&'),
+            part => part.StartsWith("scope=", StringComparison.Ordinal));
+        Assert.Contains("prompt=login", url);
+    }
+
     // -- 未初始化调用抛 XidNotConfiguredException --
 
     [Fact]

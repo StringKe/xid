@@ -1,19 +1,16 @@
-// XidProvider(React Native):组合 @xid-kit/react XidProvider 与 RN 专属上下文。
+// XidProvider(React Native):以 secure TokenCache 驱动 native 登录态。
 // tokenCache 和 browser 由调用方注入(DI),不硬绑任何 native 模块。
-// 网络请求走 @xid-kit/core XidClient;token 存储走 tokenCache;OAuth 浏览器走 browser。
 
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-
-import { XidProvider as WebXidProvider } from '@xid-kit/react'
-import type { XidProviderProps as WebXidProviderProps } from '@xid-kit/react'
 
 import type { BrowserInterface } from './browser-interface'
 import type { TokenCache } from './token-cache'
 import { XidSessionManager } from './session-manager'
-import type { StoredTokenSet } from './token-exchange'
+import type { StoredTokenSet, TokenSet } from './token-exchange'
 import { XidRnContext } from './xid-rn-context'
 
-export type XidProviderProps = WebXidProviderProps & {
+export type XidProviderProps = {
+  children: ReactNode
   // 安全 token 存储适配器(iOS: Keychain, Android: EncryptedSharedPreferences)。
   tokenCache: TokenCache
   // 浏览器适配器(InAppBrowser / Linking / expo-web-browser)。
@@ -26,6 +23,8 @@ export type XidProviderProps = WebXidProviderProps & {
   redirectUri: string
   // OAuth scopes,默认 ["openid", "profile", "email"]。
   scopes?: readonly string[]
+  // 注入 fetch(测试、代理或 observability 用)。
+  fetcher?: typeof fetch
 }
 
 export function XidProvider({
@@ -35,13 +34,10 @@ export function XidProvider({
   clientId,
   redirectUri,
   scopes = ['openid', 'profile', 'email'],
+  fetcher = fetch,
   children,
-  ...webProps
 }: XidProviderProps): ReactNode {
-  const manager = useMemo(
-    () => new XidSessionManager({ tokenCache, issuer, clientId }),
-    [tokenCache, issuer, clientId],
-  )
+  const manager = useMemo(() => new XidSessionManager({ tokenCache }), [tokenCache])
   const [session, setSession] = useState<StoredTokenSet | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
@@ -57,8 +53,19 @@ export function XidProvider({
     return restored?.accessToken ?? null
   }, [restoreSession])
 
+  const commitAuthorizationSession = useCallback(
+    async (tokens: TokenSet): Promise<StoredTokenSet> => manager.commitAuthorizationSession(tokens),
+    [manager],
+  )
+
   const clearSession = useCallback(async (): Promise<void> => {
     await manager.clear()
+    setSession(null)
+    setIsLoaded(true)
+  }, [manager])
+
+  const signOut = useCallback(async (): Promise<void> => {
+    await manager.signOut()
     setSession(null)
     setIsLoaded(true)
   }, [manager])
@@ -90,11 +97,14 @@ export function XidProvider({
       clientId,
       redirectUri,
       scopes,
+      fetcher,
       isLoaded,
       session,
       restoreSession,
+      commitAuthorizationSession,
       getAccessToken,
       clearSession,
+      signOut,
     }),
     [
       tokenCache,
@@ -103,17 +113,16 @@ export function XidProvider({
       clientId,
       redirectUri,
       scopes,
+      fetcher,
       isLoaded,
       session,
       restoreSession,
+      commitAuthorizationSession,
       getAccessToken,
       clearSession,
+      signOut,
     ],
   )
 
-  return (
-    <WebXidProvider {...webProps}>
-      <XidRnContext.Provider value={rnContextValue}>{children}</XidRnContext.Provider>
-    </WebXidProvider>
-  )
+  return <XidRnContext.Provider value={rnContextValue}>{children}</XidRnContext.Provider>
 }

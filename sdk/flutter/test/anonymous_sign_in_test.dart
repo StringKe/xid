@@ -8,14 +8,23 @@ import 'package:xid/src/xid_client.dart';
 import 'package:xid/src/xid_options.dart';
 
 class GuestFlowClient extends http.BaseClient {
+  int configRequests = 0;
   int guestRequests = 0;
   int meRequests = 0;
+  http.Request? lastConfigRequest;
   http.Request? lastGuestRequest;
   String? lastMeCookie;
+  int configStatus;
+  String? capabilityToken;
   int guestStatus;
   int meStatus;
 
-  GuestFlowClient({this.guestStatus = 201, this.meStatus = 200});
+  GuestFlowClient({
+    this.configStatus = 200,
+    this.capabilityToken = 'guest_capability_1',
+    this.guestStatus = 201,
+    this.meStatus = 200,
+  });
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -26,6 +35,18 @@ class GuestFlowClient extends http.BaseClient {
         'token_endpoint': 'https://issuer.example/token',
         'jwks_uri': 'https://issuer.example/jwks',
       });
+    }
+    if (request.url.path == '/auth/config') {
+      configRequests += 1;
+      lastConfigRequest = request as http.Request;
+      return _jsonResponse(
+        {
+          'guest': capabilityToken == null
+              ? null
+              : {'capabilityToken': capabilityToken},
+        },
+        status: configStatus,
+      );
     }
     if (request.url.path == '/auth/guest') {
       guestRequests += 1;
@@ -91,6 +112,29 @@ class NoRequestClient extends http.BaseClient {
   }
 }
 
+class WriteThenFailStorage implements TokenStorageAdapter {
+  final Map<String, String> values = {};
+  bool failNextWrite = true;
+
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = value;
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw StateError('simulated storage failure');
+    }
+  }
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> delete(String key) async => values.remove(key);
+
+  @override
+  Future<void> clear() async => values.clear();
+}
+
 Future<void> configureClient(
   XidClient client,
   TokenStorageAdapter storage,
@@ -106,8 +150,7 @@ Future<void> configureClient(
 }
 
 void main() {
-  test('signInAnonymously 建号:请求形状、cookie 捕获回传、持久化、isAnonymous',
-      () async {
+  test('signInAnonymously 建号:请求形状、cookie 捕获回传、持久化、isAnonymous', () async {
     final storage = InMemoryStorageAdapter();
     final httpClient = GuestFlowClient();
     final client = XidClient(httpClient: httpClient);
@@ -116,16 +159,26 @@ void main() {
     final session =
         await client.signInAnonymously(turnstileToken: 'turnstile_x');
 
-    // POST /auth/guest 请求形状:JSON body 携带 turnstileToken。
+    // 每次真正建号先获取一次性 capability,再 POST /auth/guest。
+    expect(httpClient.configRequests, equals(1));
+    expect(httpClient.lastConfigRequest!.method, equals('GET'));
+    expect(
+      httpClient.lastConfigRequest!.url.toString(),
+      equals('https://issuer.example/auth/config?intent=sign-up'),
+    );
     expect(httpClient.guestRequests, equals(1));
     final guestRequest = httpClient.lastGuestRequest!;
     expect(guestRequest.method, equals('POST'));
     expect(guestRequest.url.toString(),
         equals('https://issuer.example/auth/guest'));
-    expect(guestRequest.headers['content-type'],
-        contains('application/json'));
-    expect(jsonDecode(guestRequest.body),
-        equals({'turnstileToken': 'turnstile_x'}));
+    expect(guestRequest.headers['content-type'], contains('application/json'));
+    expect(
+      jsonDecode(guestRequest.body),
+      equals({
+        'capabilityToken': 'guest_capability_1',
+        'turnstileToken': 'turnstile_x',
+      }),
+    );
 
     // Set-Cookie 被捕获为 name=value 对,随 /v1/me 的 Cookie 头回传。
     expect(httpClient.meRequests, equals(1));
@@ -147,9 +200,10 @@ void main() {
     expect(reused.user.id, equals('user_guest_1'));
     expect(httpClient.guestRequests, equals(1));
     expect(httpClient.meRequests, equals(1));
+    expect(httpClient.configRequests, equals(1));
   });
 
-  test('signInAnonymously 不传 turnstileToken 时 body 为空对象', () async {
+  test('signInAnonymously 不传 turnstileToken 时仍携带 capabilityToken', () async {
     final storage = InMemoryStorageAdapter();
     final httpClient = GuestFlowClient();
     final client = XidClient(httpClient: httpClient);
@@ -157,7 +211,10 @@ void main() {
 
     await client.signInAnonymously();
 
-    expect(jsonDecode(httpClient.lastGuestRequest!.body), equals({}));
+    expect(
+      jsonDecode(httpClient.lastGuestRequest!.body),
+      equals({'capabilityToken': 'guest_capability_1'}),
+    );
   });
 
   test('signInAnonymously 惰性复用:已有 guest session 不发任何请求', () async {
@@ -192,6 +249,22 @@ void main() {
     expect(await SessionStore(storage).loadGuestSession(), isNull);
   });
 
+  test('signInAnonymously capability 缺失:不调用 /auth/guest 且不持久化', () async {
+    final storage = InMemoryStorageAdapter();
+    final httpClient = GuestFlowClient(capabilityToken: null);
+    final client = XidClient(httpClient: httpClient);
+    await configureClient(client, storage);
+
+    await expectLater(
+      client.signInAnonymously(),
+      throwsA(isA<XidNetworkException>()),
+    );
+    expect(httpClient.configRequests, equals(1));
+    expect(httpClient.guestRequests, equals(0));
+    expect(httpClient.meRequests, equals(0));
+    expect(await SessionStore(storage).loadGuestSession(), isNull);
+  });
+
   test('signInAnonymously /v1/me 失败:抛出且不持久化', () async {
     final storage = InMemoryStorageAdapter();
     final httpClient = GuestFlowClient(meStatus: 401);
@@ -203,6 +276,20 @@ void main() {
       throwsA(isA<XidNetworkException>()
           .having((e) => e.statusCode, 'statusCode', equals(401))),
     );
+    expect(await SessionStore(storage).loadGuestSession(), isNull);
+  });
+
+  test('signInAnonymously 持久化中途失败会回滚半截 guest session', () async {
+    final storage = WriteThenFailStorage();
+    final client = XidClient(httpClient: GuestFlowClient());
+    await configureClient(client, storage);
+
+    await expectLater(
+      client.signInAnonymously(),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(storage.values, isEmpty);
     expect(await SessionStore(storage).loadGuestSession(), isNull);
   });
 }

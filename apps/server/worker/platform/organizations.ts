@@ -19,11 +19,13 @@ import {
   parsePlatformPagination,
   requireInstanceManager,
 } from './shared'
+import { loadOrganizationPlanMap, type OrganizationPlan } from './plans'
+import {
+  enqueuePersistedPlatformAudit,
+  prepareConditionalPlatformAuditOutboxInsert,
+} from './audit-outbox'
 
 const app = new Hono<XidHonoEnv>()
-
-const ORGANIZATION_PLANS = ['free', 'pro', 'enterprise'] as const
-type OrganizationPlan = (typeof ORGANIZATION_PLANS)[number]
 
 const ORGANIZATION_STATUSES = ['active', 'suspended', 'deleted'] as const
 type OrganizationStatus = (typeof ORGANIZATION_STATUSES)[number]
@@ -46,6 +48,7 @@ type OrganizationItem = {
 
 function toOrganizationItem(
   row: typeof schema.organizations.$inferSelect,
+  plan: OrganizationPlan,
   users: Map<string, number>,
   orgs: Map<string, number>,
 ): OrganizationItem {
@@ -53,7 +56,7 @@ function toOrganizationItem(
     id: row.id,
     slug: row.slug,
     name: row.name,
-    plan: 'free',
+    plan,
     status: toOrganizationStatus(row.status),
     userCount: users.get(row.id) ?? 0,
     orgCount: orgs.get(row.id) ?? 0,
@@ -153,13 +156,19 @@ app.get('/', async (c) => {
     db,
     pageRows.map((row) => row.id),
   )
-  const data: OrganizationItem[] = pageRows.map((row) => toOrganizationItem(row, users, orgs))
+  const plans = await loadOrganizationPlanMap(
+    c.env,
+    pageRows.map((row) => row.id),
+  )
+  const data: OrganizationItem[] = pageRows.map((row) =>
+    toOrganizationItem(row, plans.get(row.id) ?? 'free', users, orgs),
+  )
 
   return c.json({ data, nextCursor, total: totalRow?.value ?? 0 })
 })
 
 app.patch('/:organizationId', async (c) => {
-  await requireInstanceManager(c)
+  const session = await requireInstanceManager(c)
   const db = managementDb(c.env)
   const organizationId = c.req.param('organizationId')
   const json = await readJsonBody(c)
@@ -177,15 +186,67 @@ app.patch('/:organizationId', async (c) => {
 
   const status = body.status
   assertMutableOrganizationStatus(existing, status)
+  const now = Date.now()
+  const audit = prepareConditionalPlatformAuditOutboxInsert(
+    c.env,
+    {
+      tenantId: existing.tenantId,
+      action: 'platform.tenant_status_changed',
+      actorId: session.userId,
+      payload: {
+        targetType: 'organization',
+        targetId: existing.id,
+        fromStatus: existing.status,
+        toStatus: status,
+      },
+    },
+    {
+      sql: `EXISTS (
+        SELECT 1
+          FROM organizations
+         WHERE tenant_id = ? AND id = ? AND parent_org_id IS NULL AND status = ?
+      )`,
+      bindings: [existing.tenantId, organizationId, existing.status],
+    },
+    now,
+  )
+  const [auditResult, mutation] = await c.env.DB.batch([
+    audit.statement,
+    c.env.DB.prepare(
+      `UPDATE organizations
+       SET status = ?, deleted_at = ?, updated_at = ?
+       WHERE tenant_id = ? AND id = ? AND parent_org_id IS NULL AND status = ?
+         AND ${audit.mutationGate.sql}`,
+    ).bind(
+      status,
+      status === 'deleted' ? now : null,
+      now,
+      existing.tenantId,
+      organizationId,
+      existing.status,
+      ...audit.mutationGate.bindings,
+    ),
+  ])
+  if (auditResult?.meta.changes !== 1 || mutation?.meta.changes !== 1) {
+    throw new AppError('not_found', { httpStatus: 404 })
+  }
+  await enqueuePersistedPlatformAudit(c.env, audit)
   const [updated] = await db
-    .update(schema.organizations)
-    .set({ status, deletedAt: status === 'deleted' ? new Date() : null })
-    .where(eq(schema.organizations.id, organizationId))
-    .returning()
+    .select()
+    .from(schema.organizations)
+    .where(
+      and(
+        eq(schema.organizations.tenantId, existing.tenantId),
+        eq(schema.organizations.id, organizationId),
+        isNull(schema.organizations.parentOrgId),
+      ),
+    )
+    .limit(1)
   if (!updated) throw new AppError('not_found', { httpStatus: 404 })
 
   const { users, orgs } = await countsByTenant(db, [updated.tenantId])
-  return c.json(toOrganizationItem(updated, users, orgs))
+  const plans = await loadOrganizationPlanMap(c.env, [updated.tenantId])
+  return c.json(toOrganizationItem(updated, plans.get(updated.tenantId) ?? 'free', users, orgs))
 })
 
 export function registerPlatformOrganizationsRoutes(honoApp: Hono<XidHonoEnv>): void {

@@ -1,5 +1,8 @@
 # XID Java SDK
 
+> Registry status: UNPUBLISHED. No Maven Central release is verified or authorized.
+> Install the artifact into a local Maven repository before using the coordinate below.
+
 > **Status: implemented (verified locally)**
 > 本机 main() 自测全部 PASS(见 `docs/sdks/platform-matrix.md`)。
 > 真实 IdP round-trip(L4)尚未验证,生产使用前必须完整测试,见下方"后续增强"。
@@ -9,7 +12,8 @@ XID 身份平台 Java 服务端 SDK。支持 Java 17+,Maven 构建。
 功能:
 
 - networkless JWT 验证(ES256 主,RS256/PS256 兼容)
-- 从 HTTP 请求提取并验证 access token
+- 默认从 `Authorization: Bearer` 提取并验证 access token;应用自有 JWT cookie 必须显式配置
+- Core opaque browser session -> short-lived JWT 显式 exchange
 - webhook HMAC-SHA256 签名验证(svix 风格,5 分钟时间窗防重放)
 - JWKS 内存缓存(默认 1h TTL,与 XID 服务端 KV 缓存对齐)
 
@@ -19,13 +23,20 @@ XID 身份平台 Java 服务端 SDK。支持 Java 17+,Maven 构建。
 
 ## 安装
 
-将如下依赖加入 `pom.xml`:
+先从源码 checkout 安装到本地 Maven repository:
+
+```bash
+cd sdk/java
+mvn install
+```
+
+然后将本地 artifact 加入应用 `pom.xml`:
 
 ```xml
 <dependency>
   <groupId>dev.xid</groupId>
   <artifactId>xid-sdk-java</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0-alpha.0</version>
 </dependency>
 ```
 
@@ -34,12 +45,6 @@ XID 身份平台 Java 服务端 SDK。支持 Java 17+,Maven 构建。
 - `com.nimbusds:nimbus-jose-jwt:9.40` -- JWT/JWKS 验证
 - `com.fasterxml.jackson.core:jackson-databind:2.17.1` -- JSON 解析
 - `org.slf4j:slf4j-api:2.0.13` -- 日志门面(调用方自选实现)
-
-本地构建:
-
-```
-mvn clean package
-```
 
 ---
 
@@ -59,6 +64,10 @@ XidClient xid = XidClient.create(
         .build()
 );
 ```
+
+默认不读取任何 cookie。只有显式设置
+`.sessionCookieName("__Host-myapp.xid-jwt")` 时才读取应用自己持有的 JWT cookie。
+`__Host-xid.rt.*` 是 opaque Core browser session,SDK 不会扫描或本地验证它。
 
 ### 2. 验证 access token
 
@@ -103,7 +112,21 @@ if (result.isAuthenticated()) {
 }
 ```
 
-### 4. 验证 webhook
+### 4. 将 Core browser session 交换为 JWT
+
+```java
+String token = xid.exchangeSessionToken(
+    request.getRequestURL().toString(),
+    request.getHeader("Cookie"),
+    "/v1/sessions/token"
+);
+```
+
+SDK 强制 exact same-origin `POST /v1/sessions/token`,完整转发 `Cookie` header,不跟随
+redirect,并且只接受 HTTP 200 与 exact `{"token":"..."}` response。特殊 HTTP runtime
+可传入 `SessionTokenTransport`,安全校验仍由 SDK 执行。
+
+### 5. 验证 webhook
 
 ```java
 import dev.xid.sdk.XidWebhookException;
@@ -141,6 +164,7 @@ try {
 | `.connectTimeout(Duration)`     | 5 秒              | HTTP 连接超时                               |
 | `.readTimeout(Duration)`        | 10 秒             | HTTP 读超时                                 |
 | `.clockSkewTolerance(Duration)` | 30 秒             | exp/nbf 时钟偏差容忍量                      |
+| `.sessionCookieName(String)`    | null              | 应用自有 JWT cookie;null 禁用 fallback      |
 
 ### XidClient
 
@@ -148,7 +172,8 @@ try {
 | --------------------------------------------------------- | ---------------------------------------------------- |
 | `verifyToken(String token)`                               | 验证 JWT access token,返回 XidClaims                 |
 | `authenticateRequest(String authHeader, String cookie)`   | 从 header/cookie 提取并验证 token                    |
-| `authenticateRequest(Map<String, String> headers)`        | 从 headers Map 自动提取并验证(含 \_\_session cookie) |
+| `authenticateRequest(Map<String, String> headers)`        | 默认从 Bearer header 提取并验证 token       |
+| `exchangeSessionToken(...)`                              | Core opaque session -> short-lived JWT       |
 | `verifyWebhook(Map<String, String> headers, byte[] body)` | 验证 webhook 签名                                    |
 | `invalidateJwksCache()`                                   | 强制使 JWKS 缓存失效                                 |
 
@@ -187,6 +212,7 @@ try {
 XidException
   +-- XidTokenException (Reason: EXPIRED/NOT_YET_VALID/INVALID_ISSUER/INVALID_AUDIENCE/INVALID_SIGNATURE/MALFORMED/JWKS_ERROR)
   +-- XidJwksException
+  +-- XidSessionTokenExchangeException
   +-- XidWebhookException (Reason: MISSING_HEADERS/TIMESTAMP_EXPIRED/INVALID_SIGNATURE)
 ```
 
@@ -206,6 +232,7 @@ sdk/java/
     JwksCache.java          -- JWKS 内存缓存(读写锁保护,TTL 1h)
     TokenVerifier.java      -- JWT 验证核心(nimbus-jose-jwt)
     WebhookVerifier.java    -- webhook HMAC-SHA256 验证
+    SessionTokenTransport.java -- session exchange transport adapter
     XidException.java       -- 顶层异常基类
     XidTokenException.java  -- JWT 验证失败异常
     XidJwksException.java   -- JWKS 拉取失败异常
@@ -221,7 +248,8 @@ sdk/java/
 
 - kid-miss 时强制刷新 JWKS 再重试(`TokenVerifier.resolveKey`)
 - RS256 / PS256 验证路径与测试(`TokenVerifierTest`)
-- 自定义 session cookie 名(`XidClientOptions.sessionCookieName`)
+- 显式应用自有 JWT cookie 名(`XidClientOptions.sessionCookieName`)
+- exact same-origin Core session token exchange
 
 ---
 

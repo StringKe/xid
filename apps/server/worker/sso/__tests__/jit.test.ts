@@ -154,7 +154,12 @@ describe('jitProvision -- 分支 A/B', () => {
   it('分支 B:email 关联(已验证) -> 返回 userId,不新建', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
     mockUserIdentitiesFindOne.mockResolvedValue(undefined)
-    mockUserEmailsFindOne.mockResolvedValue({ id: 'email-1', userId: 'user-email-match' })
+    mockUserEmailsFindOne.mockResolvedValue({
+      id: 'email-1',
+      userId: 'user-email-match',
+      verified: true,
+      verificationStatus: 'verified',
+    })
     mockUserIdentitiesInsert.mockResolvedValue({})
     mockUsersUpdate.mockResolvedValue([])
     mockMembershipsFindOne.mockResolvedValue({ id: 'mem-1', role: 'member' })
@@ -178,6 +183,36 @@ describe('jitProvision -- 分支 A/B', () => {
         isAppError(err) && err.code === 'invalid_credentials' && err.longMessage === undefined,
     )
   })
+
+  it.each([
+    { verified: false, verificationStatus: 'verified' },
+    { verified: true, verificationStatus: 'unverified' },
+  ])(
+    '分支 B 失败:provider email 已验证但本地 email 状态为 $verified/$verificationStatus',
+    async ({ verified, verificationStatus }) => {
+      mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
+      mockUserIdentitiesFindOne.mockResolvedValue(undefined)
+      mockUserEmailsFindOne.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-local-unverified',
+        verified,
+        verificationStatus,
+      })
+
+      await expect(
+        jitProvision(makeContext(), makeAssertion({ emailVerified: true })),
+      ).rejects.toSatisfy(
+        (err: unknown) =>
+          isAppError(err) && err.code === 'invalid_credentials' && err.longMessage === undefined,
+      )
+
+      expect(mockUserIdentitiesInsert).not.toHaveBeenCalled()
+      expect(mockUsersUpdate).not.toHaveBeenCalled()
+      expect(mockUsersInsert).not.toHaveBeenCalled()
+      expect(mockMembershipsInsert).not.toHaveBeenCalled()
+      expect(mockMembershipsUpdate).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe('jitProvision -- 分支 C', () => {
@@ -226,16 +261,15 @@ describe('jitProvision -- 分支 D', () => {
 
   it('分支 D:全新用户 -> 新建并标 provisionedBy=jit_sso', async () => {
     const newUserId = 'new-user-uuid'
-    vi.spyOn(crypto, 'randomUUID').mockReturnValueOnce(
-      newUserId as unknown as `${string}-${string}-${string}-${string}-${string}`,
-    )
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
     setupNewUserDeps(newUserId)
 
     const result = await jitProvision(makeContext(), makeAssertion())
 
     expect(result.provisioned).toBe(true)
+    expect(result.userId).toMatch(/^user_[A-Za-z0-9]{21}$/)
     const insertCall = mockUsersInsert.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(insertCall['id']).toBe(result.userId)
     expect(insertCall['provisionedBy']).toBe('jit_sso')
     expect(fakeAuditQueue.send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -253,6 +287,18 @@ describe('jitProvision -- 分支 D', () => {
     await jitProvision(makeContext(), makeAssertion({ groups: ['Engineering'] }))
     const insertCall = mockMembershipsInsert.mock.calls[0]?.[0] as Record<string, unknown>
     expect(insertCall['role']).toBe('admin')
+  })
+
+  it('roleMapping 非 Organization Membership role 时降为 member', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(
+      makeConnection({ roleMapping: { Engineering: 'viewer' } }),
+    )
+    setupNewUserDeps('u1')
+
+    await jitProvision(makeContext(), makeAssertion({ groups: ['Engineering'] }))
+
+    const insertCall = mockMembershipsInsert.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(insertCall['role']).toBe('member')
   })
 
   it('enterprise SSO JIT user creation disabled -> 不创建用户并写策略拒绝审计', async () => {

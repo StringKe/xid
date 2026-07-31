@@ -42,7 +42,7 @@ export type SignInOptions = {
 export type TauriSession = {
   userId: string
   organizationId: string | null
-  // Access token JWT; may be refreshed transparently on expiry.
+  // Access token JWT. Reauthorize after expiry.
   accessToken: string
   expiresAt: number // epoch seconds
 }
@@ -58,15 +58,15 @@ export type XidTauriClient = {
   // Exchanges the authorization code and persists tokens to the keychain.
   handleRedirect(url: string): Promise<void>
 
-  // Retrieve the active session, transparently refreshing the access token if needed.
+  // Retrieve the active unexpired session.
   // Returns null if not signed in.
   getSession(): Promise<TauriSession | null>
 
   // Retrieve the current access token string (null if signed out).
-  // Transparently refreshes if the stored token is near expiry.
+  // Returns null when the token is expired and reauthorization is required.
   getAccessToken(options?: { skipCache?: boolean }): Promise<string | null>
 
-  // Sign out: revoke the server session and clear all keychain entries.
+  // Sign out by clearing all local keychain entries.
   signOut(): Promise<void>
 
   // Build the OIDC RP-initiated logout URL (for post-sign-out redirect).

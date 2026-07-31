@@ -24,8 +24,10 @@ tuning any limit.
 
 - Layers: Cloudflare Rate Limiting / WAF (edge, outside this repo) + Turnstile (forms) +
   RateLimitStore Durable Object (business). Business counters live in the DO, never in KV.
-- Turnstile is mandatory whenever `env.TURNSTILE_SECRET` is set and MUST NOT be bypassed; its remote
-  failure reason never reaches the response body.
+- Turnstile is configured only as the pair `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET`. Both absent is
+  the dev/test bypass; either value missing is a fail-closed configuration error. When configured,
+  every protected flow MUST validate both `success=true` and the expected action. The remote failure
+  reason never reaches the response body.
 - Fails closed: DO unavailability MUST NOT be read as "allowed".
 - The DO `check` action is check-and-increment, not a read -- call it exactly once per attempt.
 

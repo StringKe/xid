@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/astro",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Astro integration for XID: middleware, locals typing and client/server auth helpers.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Astro integration, middleware, server helpers, and client bindings for XID.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/astro",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,26 +20,62 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/astro"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./src/index.ts",
-    "./integration": "./src/integration.ts",
-    "./middleware": "./src/middleware.ts",
-    "./client": "./src/client.ts",
-    "./server": "./src/server.ts"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./integration": {
+      "types": "./dist/integration.d.mts",
+      "import": "./dist/integration.mjs",
+      "default": "./dist/integration.mjs"
+    },
+    "./integration-middleware": {
+      "types": "./dist/integration-middleware.d.mts",
+      "import": "./dist/integration-middleware.mjs",
+      "default": "./dist/integration-middleware.mjs"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.mts",
+      "import": "./dist/middleware.mjs",
+      "default": "./dist/middleware.mjs"
+    },
+    "./client": {
+      "types": "./dist/client.d.mts",
+      "import": "./dist/client.mjs",
+      "default": "./dist/client.mjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs",
+      "default": "./dist/server.mjs"
+    },
+    "./locals": {
+      "types": "./dist/locals.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack src/index.ts src/integration.ts src/integration-middleware.ts src/middleware.ts src/client.ts src/server.ts --copy ../../LICENSE --copy src/locals.d.ts",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test"
   },
   "dependencies": {
-    "@xid-kit/backend": "workspace:*",
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/backend": "workspace:^",
+    "@xid-kit/core": "workspace:^",
+    "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "catalog:",

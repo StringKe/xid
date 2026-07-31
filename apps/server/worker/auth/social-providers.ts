@@ -44,6 +44,46 @@ export type ProviderConfig = {
 
 export const GITHUB_EMU_ISSUER_BOUNDARIES = ['https://token.actions.githubusercontent.com'] as const
 
+export const BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS = {
+  google: 'GOOGLE_CLIENT_SECRET',
+  github: 'GITHUB_CLIENT_SECRET',
+  microsoft: 'MICROSOFT_CLIENT_SECRET',
+  apple: 'APPLE_CLIENT_SECRET',
+  github_emu: 'GITHUB_EMU_CLIENT_SECRET',
+} as const
+
+const CUSTOM_SOCIAL_SECRET_BINDING = /^SOCIAL_[A-Z0-9_]+_CLIENT_SECRET$/
+const PROVIDER_KEY = /^[a-z0-9_-]+$/
+
+function operatorSocialProviderBindings(env: Env): Readonly<Record<string, string>> {
+  const raw = env.SOCIAL_PROVIDER_SECRET_BINDINGS
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (entry): entry is [string, string] =>
+          PROVIDER_KEY.test(entry[0]) &&
+          typeof entry[1] === 'string' &&
+          CUSTOM_SOCIAL_SECRET_BINDING.test(entry[1]),
+      ),
+    )
+  } catch {
+    return {}
+  }
+}
+
+// Secret binding names are deployment-controlled. Tenant policy can select a provider but cannot
+// turn an arbitrary Env key into a credential oracle.
+export function socialProviderSecretBinding(env: Env, provider: string): string | undefined {
+  const builtIn =
+    BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS[
+      provider as keyof typeof BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS
+    ]
+  return builtIn ?? operatorSocialProviderBindings(env)[provider]
+}
+
 // SSRF 防护:provider 端点来自租户策略(org admin 可写,写面校验管不到所有路径),
 // worker 出网 fetch / 302 前必须确认 https + 公网,防内网与云 metadata 探测。
 // 抛 HostedAuthPolicyError:social.ts 统一经 auditPolicyDeniedError 记 auth.policy_denied 审计。
@@ -176,11 +216,15 @@ function readClaimString(claims: Record<string, unknown>, key: string): string |
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-function providerConfigFromPolicy(env: Env, policy: SocialProviderPolicy): ProviderConfig {
-  const secretRef = policy.clientSecretRef
+function providerConfigFromPolicy(
+  env: Env,
+  provider: string,
+  policy: SocialProviderPolicy,
+): ProviderConfig {
+  const secretRef = socialProviderSecretBinding(env, provider)
   const envRecord = env as unknown as Record<string, unknown>
   const secretValue = secretRef ? envRecord[secretRef] : undefined
-  if (secretRef && typeof secretValue !== 'string') throw new AppError('invalid_request')
+  if (!secretRef || typeof secretValue !== 'string') throw new AppError('invalid_request')
   return {
     authorizationEndpoint: policy.authorizationEndpoint,
     tokenEndpoint: policy.tokenEndpoint,
@@ -196,8 +240,12 @@ function providerConfigFromPolicy(env: Env, policy: SocialProviderPolicy): Provi
   }
 }
 
-export function hasProviderSecret(env: Env, policy: SocialProviderPolicy): boolean {
-  const secretRef = policy.clientSecretRef
+export function hasProviderSecret(
+  env: Env,
+  _policy: SocialProviderPolicy,
+  provider: string,
+): boolean {
+  const secretRef = socialProviderSecretBinding(env, provider)
   if (!secretRef) return false
   const envRecord = env as unknown as Record<string, unknown>
   return typeof envRecord[secretRef] === 'string'
@@ -210,10 +258,34 @@ export function getProviderConfig(
   provider: Provider,
 ): ProviderConfig | null {
   const policy = tenant.policy.socialProviders?.[provider]
-  return policy ? providerConfigFromPolicy(env, policy) : null
+  return policy ? providerConfigFromPolicy(env, provider, policy) : null
 }
 
-// GitHub non-OIDC:调 /user + /user/emails 取 profile(01 章 3 GitHub fallback)。
+type GitHubEmail = {
+  email: string
+  primary: true
+  verified: true
+}
+
+function primaryVerifiedGitHubEmail(value: unknown): GitHubEmail | null {
+  if (!Array.isArray(value)) throw new AppError('internal_error')
+  for (const candidate of value) {
+    if (
+      candidate &&
+      typeof candidate === 'object' &&
+      (candidate as Record<string, unknown>)['primary'] === true &&
+      (candidate as Record<string, unknown>)['verified'] === true
+    ) {
+      const email = (candidate as Record<string, unknown>)['email']
+      if (typeof email === 'string' && email.trim().length > 0) {
+        return { email: email.trim(), primary: true, verified: true }
+      }
+    }
+  }
+  return null
+}
+
+// GitHub non-OIDC:/user 提供 profile，/user/emails 是 Email 验证状态的唯一可信来源。
 async function fetchGitHubProfile(accessToken: string): Promise<ProviderProfile> {
   const headers = {
     Authorization: `Bearer ${accessToken}`,
@@ -225,31 +297,14 @@ async function fetchGitHubProfile(accessToken: string): Promise<ProviderProfile>
   const user = (await userRes.json()) as Record<string, unknown>
   const idpUserId = String(user['id'])
 
-  let email: string | null = (user['email'] as string | null) ?? null
-  let emailVerified = false
-
-  if (!email) {
-    const emailsRes = await fetch('https://api.github.com/user/emails', { headers })
-    if (emailsRes.ok) {
-      const emails = (await emailsRes.json()) as Array<{
-        email: string
-        primary: boolean
-        verified: boolean
-      }>
-      const primary = emails.find((e) => e.primary && e.verified)
-      if (primary) {
-        email = primary.email
-        emailVerified = primary.verified
-      }
-    }
-  } else {
-    emailVerified = Boolean(user['email_verified'])
-  }
+  const emailsRes = await fetch('https://api.github.com/user/emails', { headers })
+  if (!emailsRes.ok) throw new AppError('internal_error')
+  const primaryEmail = primaryVerifiedGitHubEmail(await emailsRes.json())
 
   return {
     idpUserId,
-    email,
-    emailVerified,
+    email: primaryEmail?.email ?? null,
+    emailVerified: primaryEmail !== null,
     name: (user['name'] as string | null) ?? null,
     profileRaw: user,
   }

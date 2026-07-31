@@ -12,6 +12,7 @@ import type {
   BackupCodesResponse,
   MfaFactor,
   PasskeyCredential,
+  PrivacyRequest,
   SocialConnection,
   TotpSetupResponse,
   TrustedDevice,
@@ -168,6 +169,30 @@ export function useRevokeTrustedDevice(): UseMutationResult<unknown, XidError, s
   return useApiMutation<unknown, string>(
     (api, id) => api.del<unknown>(`/v1/me/trusted-devices/${id}`),
     { invalidate: [queryKeys.meTrustedDevices] },
+  )
+}
+
+export function usePrivacyRequestsQuery(): UseQueryResult<PrivacyRequest[], XidError> {
+  return useApiQuery<PrivacyRequest[]>(queryKeys.mePrivacyRequests, '/v1/me/privacy/requests')
+}
+
+export function useCreatePrivacyRequest(): UseMutationResult<
+  PrivacyRequest,
+  XidError,
+  { type: 'export' } | { type: 'delete'; confirmation: 'DELETE' }
+> {
+  return useApiMutation<
+    PrivacyRequest,
+    { type: 'export' } | { type: 'delete'; confirmation: 'DELETE' }
+  >((api, payload) => api.post<PrivacyRequest>('/v1/me/privacy/requests', payload), {
+    invalidate: [queryKeys.mePrivacyRequests],
+  })
+}
+
+export function useCancelPrivacyRequest(): UseMutationResult<PrivacyRequest, XidError, string> {
+  return useApiMutation<PrivacyRequest, string>(
+    (api, id) => api.post<PrivacyRequest>(`/v1/me/privacy/requests/${id}/cancel`),
+    { invalidate: [queryKeys.mePrivacyRequests] },
   )
 }
 

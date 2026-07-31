@@ -17,6 +17,12 @@ final class GuestSignInTests: XCTestCase {
         let session = Self.mockSession(recorder: recorder) { request in
             let url = try XCTUnwrap(request.url)
             switch (request.httpMethod, url.path) {
+            case ("GET", "/auth/config"):
+                XCTAssertEqual(url.query, "intent=sign-up")
+                return (
+                    Self.jsonResponse(url: url, statusCode: 200),
+                    Data(#"{"guest":{"capabilityToken":"guest_capability_1"}}"#.utf8)
+                )
             case ("POST", "/auth/guest"):
                 return (
                     Self.jsonResponse(url: url, statusCode: 201, headers: [
@@ -40,20 +46,26 @@ final class GuestSignInTests: XCTestCase {
         let result = try await xid.signInAnonymously()
 
         let requests = recorder.requests
-        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests.count, 3)
+
+        XCTAssertEqual(requests[0].httpMethod, "GET")
+        XCTAssertEqual(
+            requests[0].url?.absoluteString,
+            "https://xid.example/auth/config?intent=sign-up"
+        )
 
         // /auth/guest 请求形状
-        XCTAssertEqual(requests[0].httpMethod, "POST")
-        XCTAssertEqual(requests[0].url?.absoluteString, "https://xid.example/auth/guest")
-        XCTAssertEqual(requests[0].value(forHTTPHeaderField: "Content-Type"), "application/json")
-        let guestBody = try XCTUnwrap(recorder.bodies[0])
+        XCTAssertEqual(requests[1].httpMethod, "POST")
+        XCTAssertEqual(requests[1].url?.absoluteString, "https://xid.example/auth/guest")
+        XCTAssertEqual(requests[1].value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let guestBody = try XCTUnwrap(recorder.bodies[1])
         let guestBodyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: guestBody) as? [String: String])
-        XCTAssertEqual(guestBodyObject, [:])
+        XCTAssertEqual(guestBodyObject, ["capabilityToken": "guest_capability_1"])
 
         // /v1/me 回放捕获到的会话 cookie
-        XCTAssertEqual(requests[1].httpMethod, "GET")
-        XCTAssertEqual(requests[1].url?.absoluteString, "https://xid.example/v1/me")
-        XCTAssertEqual(requests[1].value(forHTTPHeaderField: "Cookie"), "__Host-xid.session=cookie_value")
+        XCTAssertEqual(requests[2].httpMethod, "GET")
+        XCTAssertEqual(requests[2].url?.absoluteString, "https://xid.example/v1/me")
+        XCTAssertEqual(requests[2].value(forHTTPHeaderField: "Cookie"), "__Host-xid.session=cookie_value")
 
         // 会话已持久化
         let stored = try XCTUnwrap(GuestSessionStorage.load(storage: storage))
@@ -78,6 +90,12 @@ final class GuestSignInTests: XCTestCase {
         let recorder = RequestRecorder()
         let session = Self.mockSession(recorder: recorder) { request in
             let url = try XCTUnwrap(request.url)
+            if url.path == "/auth/config" {
+                return (
+                    Self.jsonResponse(url: url, statusCode: 200),
+                    Data(#"{"guest":{"capabilityToken":"guest_capability_ts"}}"#.utf8)
+                )
+            }
             return (
                 Self.jsonResponse(url: url, statusCode: 200),
                 Data(#"{"sessionId":"sess_ts"}"#.utf8)
@@ -88,9 +106,15 @@ final class GuestSignInTests: XCTestCase {
         let result = try await client.createGuestSession(issuer: issuer, turnstileToken: "ts_token")
 
         XCTAssertEqual(result.sessionId, "sess_ts")
-        let body = try XCTUnwrap(recorder.bodies.first)
+        let body = try XCTUnwrap(recorder.bodies.last)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
-        XCTAssertEqual(object, ["turnstileToken": "ts_token"])
+        XCTAssertEqual(
+            object,
+            [
+                "capabilityToken": "guest_capability_ts",
+                "turnstileToken": "ts_token",
+            ]
+        )
     }
 
     // MARK: - 惰性复用
@@ -149,6 +173,12 @@ final class GuestSignInTests: XCTestCase {
         let recorder = RequestRecorder()
         let session = Self.mockSession(recorder: recorder) { request in
             let url = try XCTUnwrap(request.url)
+            if url.path == "/auth/config" {
+                return (
+                    Self.jsonResponse(url: url, statusCode: 200),
+                    Data(#"{"guest":{"capabilityToken":"guest_capability_1"}}"#.utf8)
+                )
+            }
             return (Self.jsonResponse(url: url, statusCode: 500), Data())
         }
         let storage = InMemoryTokenStorage()
@@ -169,6 +199,11 @@ final class GuestSignInTests: XCTestCase {
         let session = Self.mockSession(recorder: recorder) { request in
             let url = try XCTUnwrap(request.url)
             switch (request.httpMethod, url.path) {
+            case ("GET", "/auth/config"):
+                return (
+                    Self.jsonResponse(url: url, statusCode: 200),
+                    Data(#"{"guest":{"capabilityToken":"guest_capability_1"}}"#.utf8)
+                )
             case ("POST", "/auth/guest"):
                 return (
                     Self.jsonResponse(url: url, statusCode: 201),
@@ -191,6 +226,75 @@ final class GuestSignInTests: XCTestCase {
         }
 
         XCTAssertNil(try GuestSessionStorage.load(storage: storage))
+    }
+
+    func testSignInAnonymouslyRejectsMissingCapabilityBeforeGuestPost() async throws {
+        let recorder = RequestRecorder()
+        let session = Self.mockSession(recorder: recorder) { request in
+            let url = try XCTUnwrap(request.url)
+            guard url.path == "/auth/config" else {
+                throw MockError.unexpectedRequest
+            }
+            return (
+                Self.jsonResponse(url: url, statusCode: 200),
+                Data(#"{"guest":null}"#.utf8)
+            )
+        }
+        let storage = InMemoryTokenStorage()
+        let xid = Self.makeXid(issuer: issuer, storage: storage, urlSession: session)
+
+        do {
+            _ = try await xid.signInAnonymously()
+            XCTFail("缺少 capability 时应抛出错误")
+        } catch let XidError.guestSignInFailed(reason) {
+            XCTAssertEqual(reason, "访客登录能力不可用")
+        }
+
+        XCTAssertEqual(recorder.requests.map { $0.url?.path }, ["/auth/config"])
+        XCTAssertNil(try GuestSessionStorage.load(storage: storage))
+    }
+
+    func testSignInAnonymouslyStorageFailureRollsBackPartialGuestSession() async throws {
+        let recorder = RequestRecorder()
+        let session = Self.mockSession(recorder: recorder) { request in
+            let url = try XCTUnwrap(request.url)
+            switch url.path {
+            case "/auth/config":
+                return (
+                    Self.jsonResponse(url: url, statusCode: 200),
+                    Data(#"{"guest":{"capabilityToken":"guest_capability_1"}}"#.utf8)
+                )
+            case "/auth/guest":
+                return (
+                    Self.jsonResponse(url: url, statusCode: 201, headers: [
+                        "Set-Cookie": "__Host-xid.session=cookie_value; Path=/; HttpOnly; Secure",
+                    ]),
+                    Data(#"{"sessionId":"sess_123"}"#.utf8)
+                )
+            case "/v1/me":
+                return (
+                    Self.jsonResponse(url: url, statusCode: 200),
+                    Data(#"{"user":{"sub":"user_guest_1","provisioned_by":"anonymous"}}"#.utf8)
+                )
+            default:
+                throw MockError.unexpectedRequest
+            }
+        }
+        let storage = WriteThenFailTokenStorage()
+        let xid = Self.makeXid(issuer: issuer, storage: storage, urlSession: session)
+
+        var didFail = false
+        do {
+            _ = try await xid.signInAnonymously()
+            XCTFail("持久化失败应抛出错误")
+        } catch SimulatedStorageError.writeFailed {
+            didFail = true
+        } catch {
+            XCTFail("应保留原始持久化错误,实际为 \(error)")
+        }
+
+        XCTAssertTrue(didFail)
+        XCTAssertNil(try storage.load(key: StorageKey.guestSession))
     }
 
     // MARK: - Set-Cookie 拆分
@@ -330,6 +434,31 @@ private final class InMemoryTokenStorage: TokenStorageAdapter, @unchecked Sendab
 
     func save(key: String, value: String) throws {
         values[key] = value
+    }
+
+    func load(key: String) throws -> String? {
+        values[key]
+    }
+
+    func delete(key: String) throws {
+        values.removeValue(forKey: key)
+    }
+}
+
+private enum SimulatedStorageError: Error {
+    case writeFailed
+}
+
+private final class WriteThenFailTokenStorage: TokenStorageAdapter, @unchecked Sendable {
+    private var values: [String: String] = [:]
+    private var shouldFail = true
+
+    func save(key: String, value: String) throws {
+        values[key] = value
+        if shouldFail {
+            shouldFail = false
+            throw SimulatedStorageError.writeFailed
+        }
     }
 
     func load(key: String) throws -> String? {

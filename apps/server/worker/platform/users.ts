@@ -2,14 +2,16 @@
 // q 必填(前端 enabled:Boolean(query) 空 q 不发请求,端点假定 q 非空;空则返回空页)。
 // 跨 organization 走独立管理路径(requireInstanceManager + managementDb,见 shared.ts、tenant-isolation rule)。
 // GDPR:跨租户访问用户须审计落库(前端文案明示),经 AUDIT_QUEUE 异步写不阻塞响应(见 cloudflare-bindings 审计链)。
-// email 取 primary user_emails;name 取 display_name 回退 first+last;organizationName 取 org.name(LEFT JOIN)。
+// email 取 primary user_emails;name 取 display_name 回退 first+last;organizations 取 active Membership。
 
 import { schema } from '@xid-kit/db'
-import { and, count, eq, gt, isNull, like, ne, or } from 'drizzle-orm'
+import { and, count, eq, gt, inArray, isNull, like, ne, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
+import { logWorkerError } from '../lib/safe-log'
+import { recordPlatformAudit } from './audit-outbox'
 import {
   decodeCursor,
   encodeCursor,
@@ -23,12 +25,17 @@ const app = new Hono<XidHonoEnv>()
 const USER_STATUSES = ['active', 'inactive', 'banned'] as const
 type UserStatus = (typeof USER_STATUSES)[number]
 
+type GlobalUserOrganization = {
+  id: string
+  slug: string
+  name: string
+}
+
 type GlobalUser = {
   id: string
   email: string
   name: string | null
-  organizationId: string
-  organizationName: string
+  organizations: GlobalUserOrganization[]
   status: UserStatus
   createdAt: string
 }
@@ -71,14 +78,65 @@ function buildWhere(q: string, cursor: string | null): SQL {
 // GDPR 审计:跨 organization 用户访问落审计队列(actorId=Instance Manager userId,不阻塞响应)。
 function auditGlobalUserAccess(c: Context<XidHonoEnv>, actorId: string, q: string): void {
   c.executionCtx.waitUntil(
-    c.env.AUDIT_QUEUE.send({
+    recordPlatformAudit(c.env, {
       tenantId: 'platform',
       action: 'platform.users.searched',
       actorId,
-      ts: Date.now(),
       payload: { query: q },
+    }).catch((error) => {
+      logWorkerError('platform.users.search_audit_failed', error, {
+        component: 'platform-users',
+      })
     }),
   )
+}
+
+async function loadActiveMembershipOrganizations(
+  db: ReturnType<typeof managementDb>,
+  users: { id: string; tenantId: string }[],
+): Promise<Map<string, GlobalUserOrganization[]>> {
+  if (users.length === 0) return new Map()
+
+  const tenantIdByUserId = new Map(users.map((user) => [user.id, user.tenantId]))
+  const rows = await db
+    .select({
+      userId: schema.memberships.userId,
+      tenantId: schema.memberships.tenantId,
+      id: schema.organizations.id,
+      slug: schema.organizations.slug,
+      name: schema.organizations.name,
+    })
+    .from(schema.memberships)
+    .innerJoin(
+      schema.organizations,
+      and(
+        eq(schema.organizations.id, schema.memberships.orgId),
+        eq(schema.organizations.tenantId, schema.memberships.tenantId),
+      ),
+    )
+    .where(
+      and(
+        inArray(
+          schema.memberships.userId,
+          users.map((user) => user.id),
+        ),
+        eq(schema.memberships.status, 'active'),
+        eq(schema.organizations.status, 'active'),
+        isNull(schema.organizations.deletedAt),
+      ),
+    )
+    .orderBy(schema.memberships.userId, schema.organizations.name, schema.organizations.id)
+
+  const organizationsByUserId = new Map<string, GlobalUserOrganization[]>()
+  for (const row of rows) {
+    // Platform search is intentionally cross-tenant, so preserve the same tenant binding as the
+    // Membership -> Organization join before exposing a selectable impersonation target.
+    if (tenantIdByUserId.get(row.userId) !== row.tenantId) continue
+    const organizations = organizationsByUserId.get(row.userId) ?? []
+    organizations.push({ id: row.id, slug: row.slug, name: row.name })
+    organizationsByUserId.set(row.userId, organizations)
+  }
+  return organizationsByUserId
 }
 
 app.get('/', async (c) => {
@@ -102,14 +160,12 @@ app.get('/', async (c) => {
       status: schema.users.status,
       createdAt: schema.users.createdAt,
       email: schema.userEmails.email,
-      organizationName: schema.organizations.name,
     })
     .from(schema.users)
     .leftJoin(
       schema.userEmails,
       and(eq(schema.userEmails.userId, schema.users.id), eq(schema.userEmails.isPrimary, true)),
     )
-    .leftJoin(schema.organizations, eq(schema.organizations.id, schema.users.tenantId))
     .where(where)
     .orderBy(schema.users.id)
     .limit(limit + 1)
@@ -128,13 +184,13 @@ app.get('/', async (c) => {
   const pageRows = hasMore ? rows.slice(0, limit) : rows
   const last = pageRows[pageRows.length - 1]
   const nextCursor = hasMore && last !== undefined ? encodeCursor(last.id) : null
+  const organizationsByUserId = await loadActiveMembershipOrganizations(db, pageRows)
 
   const data: GlobalUser[] = pageRows.map((row) => ({
     id: row.id,
     email: row.email ?? '',
     name: displayNameOf(row),
-    organizationId: row.tenantId,
-    organizationName: row.organizationName ?? '',
+    organizations: organizationsByUserId.get(row.id) ?? [],
     status: toUserStatus(row.status),
     createdAt: row.createdAt.toISOString(),
   }))

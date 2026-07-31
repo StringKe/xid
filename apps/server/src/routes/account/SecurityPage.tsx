@@ -11,6 +11,8 @@ import { tokens } from '../../styles/tokens.stylex'
 import { ChangePasswordSection } from './ChangePasswordSection'
 import { MfaSection } from './MfaSection'
 import { PasskeySection } from './PasskeySection'
+import { useAuth } from '../../lib/auth-context'
+import { useNavigate } from '../../lib/router'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
@@ -49,8 +51,14 @@ const styles = stylex.create({
 })
 
 export default function SecurityPage(): ReactNode {
-  const search = useSearch({ strict: false }) as { setup?: string }
+  const search = useSearch({ strict: false }) as { setup?: string; redirect_to?: string }
   const showMfaSetupBanner = search.setup === 'mfa'
+  const { refresh } = useAuth()
+  const navigate = useNavigate()
+  const redirectTo =
+    search.redirect_to?.startsWith('/') && !search.redirect_to.startsWith('//')
+      ? search.redirect_to
+      : '/console'
 
   return (
     <div {...stylex.props(styles.root)}>
@@ -72,7 +80,16 @@ export default function SecurityPage(): ReactNode {
       </div>
 
       <div {...stylex.props(styles.sectionZone)}>
-        <MfaSection />
+        <MfaSection
+          onTotpActivated={
+            showMfaSetupBanner
+              ? async () => {
+                  await refresh()
+                  navigate(redirectTo, { replace: true })
+                }
+              : undefined
+          }
+        />
       </div>
 
       <div {...stylex.props(styles.sectionZone)}>

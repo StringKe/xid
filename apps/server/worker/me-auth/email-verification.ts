@@ -2,7 +2,12 @@
 // signed email_hash 把一次性 token 绑定到一个精确 Email，pending Email 验证成功后才创建 user_emails 行。
 
 import { sha256Hex } from '@xid-kit/crypto'
-import { createTenantDb, schema, USER_PROVISIONED_BY_ANONYMOUS } from '@xid-kit/db'
+import {
+  createTenantDb,
+  resolveTenantContextByApplicationClientId,
+  schema,
+  USER_PROVISIONED_BY_ANONYMOUS,
+} from '@xid-kit/db'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -10,6 +15,7 @@ import { readAnonKey } from '../auth/passkey-helpers'
 import { constantTimeEqualStr } from '../auth/otp'
 import { clearRefreshTokenCookie } from '../lib/cookies'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import { readSession, sessionDoRevokeAll } from '../lib/session'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
@@ -22,6 +28,8 @@ import { unbindGuestAnonKey } from './guest'
 import { withTenant } from './instance-login'
 import { enforceSendRateLimit } from './shared'
 import { resolveTokenTenant } from './token-tenant'
+import { issuePasswordResetToken } from './password-reset'
+import { shouldSkipDefaultMembership } from './passwordless-users'
 
 const PURPOSE = 'email_verification'
 const verifyBodySchema = v.object({ token: v.pipe(v.string(), v.minLength(1)) })
@@ -31,6 +39,31 @@ type EmailRow = typeof schema.userEmails.$inferSelect
 type VerificationTarget =
   | { kind: 'primary'; email: string; emailId: string }
   | { kind: 'pending'; email: string; emailId: string }
+
+function verifiedEmailSignInPath(input: {
+  tenantId: string
+  intent: string | null
+  continuePath: string | null
+  applicationClientId: string | null
+}): string | undefined {
+  if (!input.intent && !input.continuePath && !input.applicationClientId) return undefined
+  const params = new URLSearchParams()
+  if (input.intent) params.set('intent', input.intent)
+  if (input.applicationClientId) {
+    params.set('client_id', input.applicationClientId)
+    params.set('organization_id', input.tenantId)
+  }
+  if (input.continuePath) {
+    const continuation = new URL(input.continuePath, 'https://xid.local')
+    const authzRequestId =
+      continuation.pathname === '/authorize'
+        ? continuation.searchParams.get('authz_request_id')
+        : null
+    if (authzRequestId) params.set('authz_request_id', authzRequestId)
+    else params.set('continue', input.continuePath)
+  }
+  return `/sign-in${params.size > 0 ? `?${params.toString()}` : ''}`
+}
 
 function d1Changes(result: D1Result<unknown> | undefined): number {
   return result?.meta.changes ?? 0
@@ -96,9 +129,10 @@ function buildVerificationStatements(opts: {
   tokenHash: string
   target: VerificationTarget
   wasGuest: boolean
+  defaultMembershipId: string | null
   nowMs: number
 }): D1PreparedStatement[] {
-  const { env, tenantId, userId, tokenHash, target, wasGuest, nowMs } = opts
+  const { env, tenantId, userId, tokenHash, target, wasGuest, defaultMembershipId, nowMs } = opts
   const consumeToken = env.DB.prepare(
     `UPDATE verification_tokens
         SET consumed_at = ?
@@ -217,6 +251,38 @@ function buildVerificationStatements(opts: {
       ).bind(tenantId, userId, tenantId, tokenHash, nowMs),
     )
   }
+  if (defaultMembershipId) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO memberships (
+           id, tenant_id, org_id, user_id, role, membership_type, status,
+           is_managed, joined_at, created_at, updated_at
+         )
+         SELECT ?, ?, ?, ?, 'member', 'member', 'active', 0, ?, ?, ?
+          WHERE ${tokenConsumedPredicate()}
+            AND NOT EXISTS (
+              SELECT 1 FROM memberships
+               WHERE tenant_id = ?
+                 AND org_id = ?
+                 AND user_id = ?
+            )`,
+      ).bind(
+        defaultMembershipId,
+        tenantId,
+        tenantId,
+        userId,
+        nowMs,
+        nowMs,
+        nowMs,
+        tenantId,
+        tokenHash,
+        nowMs,
+        tenantId,
+        tenantId,
+        userId,
+      ),
+    )
+  }
   return statements
 }
 
@@ -247,6 +313,19 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
 
   return withTenant(c, tenant, async () => {
     const verified = await verifyEmailVerifyJwt(tenant, rawToken)
+    // Invitation ownership is proved only by the dedicated claim-token ceremony.
+    // Reject legacy verification JWTs before loading or consuming any persisted token.
+    if (verified.invitationId) throw new AppError('token_invalid')
+    if (verified.applicationClientId) {
+      const applicationTenant = await resolveTenantContextByApplicationClientId(
+        c.req.raw,
+        c.env,
+        verified.applicationClientId,
+      )
+      if (!applicationTenant.ok || applicationTenant.value.tenantId !== tenant.tenantId) {
+        throw new AppError('token_invalid')
+      }
+    }
     const db = createTenantDb(c.env.DB, tenant)
     const [tokenRow, user] = await Promise.all([
       loadEmailVerifyToken(db, verified.jti),
@@ -263,6 +342,11 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
 
     const target = await resolveVerificationTarget(db, user, verified.emailHash)
     const wasGuest = user.provisionedBy === USER_PROVISIONED_BY_ANONYMOUS
+    const hostedPasswordProof = user.provisionedBy === 'hosted_password'
+    const skipDefaultMembership = shouldSkipDefaultMembership({
+      redirectAfterLogin: verified.continuePath,
+      intent: verified.intent,
+    })
     const currentSession = wasGuest ? (c.get('session') ?? (await readSession(c))) : null
     if (wasGuest) await sessionDoRevokeAll(c.env, user.id)
 
@@ -274,6 +358,8 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
       tokenHash,
       target,
       wasGuest,
+      defaultMembershipId:
+        hostedPasswordProof && !skipDefaultMembership ? createPersistedId('membership') : null,
       nowMs: Date.now(),
     })
     const results = await c.env.DB.batch(statements)
@@ -291,10 +377,28 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
       }
       emitGuestConverted(c, tenant.tenantId, user.id)
     }
-    return c.json({
-      ok: true,
-      ...(verified.intent === 'sign-up' ? { redirectUrl: '/sign-in?intent=sign-up' } : {}),
+    if (hostedPasswordProof) {
+      const password = await db.passwords.findOne(eq(schema.passwords.userId, user.id))
+      if (!password) {
+        const setup = await issuePasswordResetToken({
+          env: c.env,
+          tenant,
+          db,
+          userId: user.id,
+        })
+        return c.json({
+          ok: true,
+          redirectUrl: `/reset-password?token=${encodeURIComponent(setup.token)}`,
+        })
+      }
+    }
+    const redirectUrl = verifiedEmailSignInPath({
+      tenantId: tenant.tenantId,
+      intent: verified.intent,
+      continuePath: verified.continuePath,
+      applicationClientId: verified.applicationClientId,
     })
+    return c.json({ ok: true, ...(redirectUrl ? { redirectUrl } : {}) })
   })
 }
 

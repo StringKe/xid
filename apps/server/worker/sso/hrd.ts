@@ -18,6 +18,7 @@ import { firstIssuePath, readJsonBody } from '../lib/validate'
 import { emailDomain } from '../auth/hosted-policy'
 import { recordHostedAuthPolicyDenied } from '../auth/hosted-audit'
 import { resolveEntryTenant } from '../me-auth/instance-login'
+import { requestIp, verifyTurnstile } from '../me-auth/shared'
 
 // 从邮箱地址提取域名部分(如 user@example.com -> example.com)。
 // 无 @ 时返回 null。
@@ -174,6 +175,10 @@ const hrdBodySchema = v.object({
     v.check((value) => value.includes('@')),
   ),
   organizationId: v.optional(v.nullable(v.string())),
+  clientId: v.optional(v.nullable(v.string())),
+  invitationToken: v.optional(v.nullable(v.string())),
+  intent: v.optional(v.nullable(v.string())),
+  turnstileToken: v.optional(v.nullable(v.string())),
 })
 
 // POST /sso/hrd -- 按邮箱做 Home Realm Discovery。
@@ -190,8 +195,13 @@ async function handleHrd(c: Context<XidHonoEnv>): Promise<Response> {
     })
   }
 
-  const { email, organizationId } = parsed.output
-  const tenant = await resolveEntryTenant(c, { kind: 'email', value: email }, organizationId)
+  const { email, organizationId, clientId, invitationToken, intent, turnstileToken } = parsed.output
+  await verifyTurnstile(turnstileToken, c.env, requestIp(c))
+  const tenant = await resolveEntryTenant(c, { kind: 'email', value: email }, organizationId, {
+    invitationToken,
+    intent,
+    applicationClientId: clientId,
+  })
   await recordHrdPolicyDenied(c, tenant, email)
   const result = await resolveHrd(c.env, tenant, email)
   return c.json(result ?? { connectionId: null })

@@ -9,6 +9,8 @@ const EXPECTED_EXPORTS = [
   'JwksCache',
   'verifyToken',
   'authenticateRequest',
+  'exchangeSessionToken',
+  'hasCoreSessionCookie',
   'verifyWebhook',
 ] as const
 

@@ -4,6 +4,11 @@ import { AppError } from '../lib/errors'
 import { OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
 
 export type StashedAuthorizeParams = Record<string, string>
+export type StashedAuthorizeRecord = {
+  params: StashedAuthorizeParams
+  createdAt: number | null
+  interactionStartedAt: number | null
+}
 
 function flowStub(env: Env, tenantId: string, authzRequestId: string): DurableObjectStub {
   const ns = env.OAUTH_STATE
@@ -25,19 +30,34 @@ function parsePendingParams(value: unknown): StashedAuthorizeParams {
   return params as StashedAuthorizeParams
 }
 
-function parseConsumedPendingBody(value: unknown): StashedAuthorizeParams {
+function parseConsumedPendingBody(value: unknown): StashedAuthorizeRecord {
   const body = asObject(value)
   const record = asObject(body['record'])
-  return parsePendingParams(record['pendingParams'])
+  const createdAt = record['createdAt']
+  const interactionStartedAt = record['interactionStartedAt']
+  if (createdAt !== undefined && (typeof createdAt !== 'number' || !Number.isFinite(createdAt))) {
+    throw new AppError('server_error')
+  }
+  if (
+    interactionStartedAt !== undefined &&
+    (typeof interactionStartedAt !== 'number' || !Number.isFinite(interactionStartedAt))
+  ) {
+    throw new AppError('server_error')
+  }
+  return {
+    params: parsePendingParams(record['pendingParams']),
+    createdAt: typeof createdAt === 'number' ? createdAt : null,
+    interactionStartedAt: typeof interactionStartedAt === 'number' ? interactionStartedAt : null,
+  }
 }
 
 // 只有 404(不存在)/ 410(过期)是"暂存请求确实没了"的正常结论,可返回 null 让调用方按失效处理;
 // 其余状态与坏 body 都是 DO 故障,静默当作失效会让调用方退回无参数路径(丢掉 PKCE / acr 约束)。
-export async function consumeStashedAuthorizeParams(
+export async function consumeStashedAuthorizeRecord(
   env: Env,
   tenantId: string,
   authzRequestId: string,
-): Promise<StashedAuthorizeParams | null> {
+): Promise<StashedAuthorizeRecord | null> {
   const res = await flowStub(env, tenantId, authzRequestId).fetch('https://oauth-flow-do/consume', {
     method: 'POST',
     body: JSON.stringify({ state: authzRequestId }),
@@ -53,23 +73,47 @@ export async function consumeStashedAuthorizeParams(
   return parseConsumedPendingBody(body)
 }
 
+export async function consumeStashedAuthorizeParams(
+  env: Env,
+  tenantId: string,
+  authzRequestId: string,
+): Promise<StashedAuthorizeParams | null> {
+  const record = await consumeStashedAuthorizeRecord(env, tenantId, authzRequestId)
+  return record?.params ?? null
+}
+
+export async function restoreStashedAuthorizeRecord(
+  env: Env,
+  tenantId: string,
+  authzRequestId: string,
+  record: StashedAuthorizeRecord,
+): Promise<void> {
+  const res = await flowStub(env, tenantId, authzRequestId).fetch('https://oauth-flow-do/store', {
+    method: 'POST',
+    body: JSON.stringify({
+      state: authzRequestId,
+      pendingParams: record.params,
+      createdAt: record.createdAt ?? Date.now(),
+      ...(record.interactionStartedAt === null
+        ? {}
+        : { interactionStartedAt: record.interactionStartedAt }),
+      ttlMs: OAUTH_FLOW_STATE_TTL_MS,
+    }),
+  })
+  if (res.status !== 201) throw new AppError('server_error')
+}
+
 export async function restoreStashedAuthorizeParams(
   env: Env,
   tenantId: string,
   authzRequestId: string,
   params: StashedAuthorizeParams,
 ): Promise<void> {
-  const res = await flowStub(env, tenantId, authzRequestId).fetch('https://oauth-flow-do/store', {
-    method: 'POST',
-    body: JSON.stringify({
-      state: authzRequestId,
-      pendingParams: params,
-      ttlMs: OAUTH_FLOW_STATE_TTL_MS,
-    }),
+  await restoreStashedAuthorizeRecord(env, tenantId, authzRequestId, {
+    params,
+    createdAt: Date.now(),
+    interactionStartedAt: null,
   })
-  // consume 已删除记录:re-store 失败必须拒绝请求,否则调用方拿着"读到了"的结论继续,
-  // 而后续步骤(consent 提交 / MFA 续跑)再也读不到暂存参数。
-  if (res.status !== 201) throw new AppError('server_error')
 }
 
 export async function peekStashedAuthorizeParams(
@@ -77,10 +121,10 @@ export async function peekStashedAuthorizeParams(
   tenantId: string,
   authzRequestId: string,
 ): Promise<StashedAuthorizeParams | null> {
-  const pending = await consumeStashedAuthorizeParams(env, tenantId, authzRequestId)
-  if (!pending) return null
-  await restoreStashedAuthorizeParams(env, tenantId, authzRequestId, pending)
-  return pending
+  const record = await consumeStashedAuthorizeRecord(env, tenantId, authzRequestId)
+  if (!record) return null
+  await restoreStashedAuthorizeRecord(env, tenantId, authzRequestId, record)
+  return record.params
 }
 
 export function parseAuthzRequestId(redirectTo?: string): string | null {

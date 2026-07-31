@@ -10,6 +10,7 @@ import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { assertActiveSessionUser, issueSession } from '../lib/session'
 import { PASSWORD_AUTH_CONTEXT } from '../lib/auth-context'
@@ -44,6 +45,42 @@ const resetBodySchema = v.object({
 })
 
 const RESET_PURPOSE = 'password_reset'
+
+export async function issuePasswordResetToken(opts: {
+  env: Env
+  tenant: TenantVar
+  db: ReturnType<typeof createTenantDb>
+  userId: string
+}): Promise<{ token: string; expiresAt: Date }> {
+  const { env, tenant, db, userId } = opts
+  const signer = await loadActiveSigner(tenant, env.KEK)
+  const { token, tokenHash, expiresAt } = await createResetToken(userId, signer, {
+    issuer: tenant.issuer,
+    tenantId: tenant.tenantId,
+  })
+  await db.passwordResetTokens.hardDelete(
+    and(
+      eq(schema.passwordResetTokens.userId, userId),
+      eq(schema.passwordResetTokens.purpose, RESET_PURPOSE),
+    ),
+  )
+  await db.passwordResetTokens.insert({
+    id: crypto.randomUUID(),
+    tenantId: tenant.tenantId,
+    userId,
+    tokenHash,
+    purpose: RESET_PURPOSE,
+    expiresAt,
+  })
+  await recordAuthTokenIssued({
+    env,
+    tenant,
+    purpose: RESET_PURPOSE,
+    userId,
+    kid: signer.kid,
+  })
+  return { token, expiresAt }
+}
 
 export async function handleForgotPassword(c: Context<XidHonoEnv>): Promise<Response> {
   const json = await readJsonBody(c)
@@ -84,33 +121,11 @@ export async function handleForgotPassword(c: Context<XidHonoEnv>): Promise<Resp
   const emailRow = await db.userEmails.findOne(eq(schema.userEmails.email, email))
   if (!emailRow) return c.json({ ok: true })
 
-  const signer = await loadActiveSigner(tenant, c.env.KEK)
-  const { token, tokenHash, expiresAt } = await createResetToken(emailRow.userId, signer, {
-    issuer: tenant.issuer,
-    tenantId: tenant.tenantId,
-  })
-
-  // 删旧重置 token(防堆积),写新 token 哈希(明文不入 DB)。
-  await db.passwordResetTokens.hardDelete(
-    and(
-      eq(schema.passwordResetTokens.userId, emailRow.userId),
-      eq(schema.passwordResetTokens.purpose, RESET_PURPOSE),
-    ),
-  )
-  await db.passwordResetTokens.insert({
-    id: crypto.randomUUID(),
-    tenantId: tenant.tenantId,
-    userId: emailRow.userId,
-    tokenHash,
-    purpose: RESET_PURPOSE,
-    expiresAt,
-  })
-  await recordAuthTokenIssued({
+  const { token } = await issuePasswordResetToken({
     env: c.env,
     tenant,
-    purpose: RESET_PURPOSE,
+    db,
     userId: emailRow.userId,
-    kid: signer.kid,
   })
 
   await c.env.EMAIL_QUEUE.send({
@@ -268,7 +283,7 @@ export async function handleResetPassword(c: Context<XidHonoEnv>): Promise<Respo
       returnPath: '/console',
     })
     await issueSession(c, {
-      sessionId: crypto.randomUUID(),
+      sessionId: createPersistedId('session'),
       userId: verified.userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
       authContext: PASSWORD_AUTH_CONTEXT,

@@ -13,13 +13,17 @@ vi.mock('@xid-kit/db', () => ({
 vi.mock('../../lib/session', () => ({
   readSession: vi.fn(),
   revokeSession: vi.fn().mockResolvedValue(undefined),
+  ACTIVE_SESSION_STATUS: 'active',
+  PENDING_MFA_SESSION_STATUS: 'pending_mfa',
+  PENDING_MFA_SETUP_SESSION_STATUS: 'pending_mfa_setup',
 }))
 
 vi.mock('../../sso/outbound-saml', () => ({
-  initiateOutboundSamlLogout: vi.fn().mockResolvedValue(undefined),
+  initiateOutboundSamlLogout: vi.fn().mockResolvedValue(null),
 }))
 
 import { readSession, revokeSession } from '../../lib/session'
+import { initiateOutboundSamlLogout } from '../../sso/outbound-saml'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeSession } from './helpers'
 
@@ -35,6 +39,7 @@ describe('POST /auth/sign-out', () => {
     const app = makeApp(registerSessionAuthRoutes, { session })
     const res = await request(app, makeEnv())
     expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ ok: true, samlLogout: null })
     expect(revokeSession).toHaveBeenCalledOnce()
   })
 
@@ -43,6 +48,31 @@ describe('POST /auth/sign-out', () => {
     const app = makeApp(registerSessionAuthRoutes, { session: null })
     const res = await request(app, makeEnv())
     expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ ok: true, samlLogout: null })
     expect(revokeSession).not.toHaveBeenCalled()
+  })
+
+  it('returns a browser SAML logout action only after revoking the local session', async () => {
+    vi.mocked(initiateOutboundSamlLogout).mockResolvedValue({
+      binding: 'redirect',
+      url: 'https://saas.example.com/slo?SAMLRequest=value',
+    })
+    const session = makeSession()
+    const app = makeApp(registerSessionAuthRoutes, { session })
+    const res = await request(app, makeEnv())
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      samlLogout: {
+        binding: 'redirect',
+        url: 'https://saas.example.com/slo?SAMLRequest=value',
+      },
+    })
+    expect(initiateOutboundSamlLogout).toHaveBeenCalledOnce()
+    expect(revokeSession).toHaveBeenCalledOnce()
+    expect(vi.mocked(initiateOutboundSamlLogout).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(revokeSession).mock.invocationCallOrder[0]!,
+    )
   })
 })

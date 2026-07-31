@@ -227,9 +227,11 @@ export function resolveRedirect(continueUrl: string | null | undefined): string 
 export function resolveHostedReturn(
   continueUrl: string | null | undefined,
   authzRequestId: string | null | undefined,
+  applicationClientId?: string | null,
 ): string {
   if (authzRequestId) {
     const params = new URLSearchParams({ authz_request_id: authzRequestId })
+    if (applicationClientId) params.set('client_id', applicationClientId)
     return `/authorize?${params.toString()}`
   }
   return resolveRedirect(continueUrl)
@@ -242,6 +244,8 @@ export function organizationSignInUrl(
     continueParam?: string | null
     redirect?: string | null
     authzRequestId?: string | null
+    intent?: string | null
+    invitationToken?: string | null
   },
 ): string {
   const url = new URL('/sign-in', globalThis.location.origin)
@@ -250,5 +254,7 @@ export function organizationSignInUrl(
   if (input.authzRequestId) url.searchParams.set('authz_request_id', input.authzRequestId)
   if (input.continueParam) url.searchParams.set('continue', input.continueParam)
   if (input.redirect) url.searchParams.set('redirect', input.redirect)
+  if (input.intent) url.searchParams.set('intent', input.intent)
+  if (input.invitationToken) url.searchParams.set('invitation_token', input.invitationToken)
   return url.toString()
 }

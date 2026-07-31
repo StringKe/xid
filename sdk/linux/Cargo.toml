@@ -5,6 +5,7 @@ edition = "2021"
 description = "XID Linux SDK -- Hosted Auth + OIDC Authorization Code + PKCE S256"
 license = "MIT"
 repository = "https://github.com/StringKe/xid"
+readme = "README.md"
 keywords = ["oidc", "oauth2", "pkce", "authentication", "identity"]
 categories = ["authentication", "web-programming"]
 

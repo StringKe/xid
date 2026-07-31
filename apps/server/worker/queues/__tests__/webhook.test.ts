@@ -9,6 +9,8 @@ import {
   envelopeDecrypt,
   base64UrlEncode,
 } from '@xid-kit/crypto'
+import { verifyWebhook } from '../../../../../packages/backend/src/verify-webhook'
+import { generateWebhookSigningSecret } from '../../v1/webhooks'
 import { signWebhook } from '../webhook'
 
 const secret = new TextEncoder().encode('whsec_test_key')
@@ -46,6 +48,36 @@ describe('signWebhook:svix 头', () => {
     const a = await signWebhook(secret, 'm', 1, 'p')
     const b = await signWebhook(secret, 'm', 2, 'p')
     expect(a['svix-signature']).not.toBe(b['svix-signature'])
+  })
+
+  it('管理 API secret -> Queue 签名 -> Backend SDK 验签共享同一契约', async () => {
+    const generated = generateWebhookSigningSecret()
+    const timestamp = 1_700_000_000
+    const body = JSON.stringify({ type: 'user.created', data: { userId: 'user_1' } })
+    try {
+      const headers = await signWebhook(generated.key, 'msg_contract', timestamp, body)
+      const request = new Request('https://receiver.example.com/webhook', {
+        method: 'POST',
+        headers,
+        body,
+      })
+
+      const result = await verifyWebhook(request, {
+        secret: generated.publicValue,
+        now: timestamp,
+      })
+
+      expect(result).toEqual({
+        ok: true,
+        value: {
+          id: 'msg_contract',
+          timestamp,
+          payload: { type: 'user.created', data: { userId: 'user_1' } },
+        },
+      })
+    } finally {
+      generated.key.fill(0)
+    }
   })
 })
 
@@ -236,6 +268,7 @@ describe('webhook delivery idempotency', () => {
     const retryInit = fetchMock.mock.calls[1]?.[1] as RequestInit
     const firstHeaders = firstInit.headers as Record<string, string>
     const retryHeaders = retryInit.headers as Record<string, string>
+    expect(firstInit.body).toBe(JSON.stringify({ type: 'user.created', data: { id: 'user_1' } }))
     expect(firstHeaders['svix-id']).toBe(retryHeaders['svix-id'])
     expect(firstHeaders['svix-id']).toMatch(/^msg_/)
     expect(first.retry).toHaveBeenCalledOnce()

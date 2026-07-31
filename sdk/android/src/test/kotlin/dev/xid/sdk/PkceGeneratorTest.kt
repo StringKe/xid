@@ -14,12 +14,14 @@
 
 package dev.xid.sdk
 
+import dev.xid.sdk.model.XidConfig
 import dev.xid.sdk.pkce.PkceCore
 import dev.xid.sdk.pkce.PkceGenerator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class PkceGeneratorTest {
@@ -128,5 +130,30 @@ class PkceGeneratorTest {
         val verifier = PkceCore.generateVerifier()
         val challenge = PkceCore.deriveChallenge(verifier)
         assertEquals("challenge must be exactly 43 characters (SHA-256 Base64URL)", 43, challenge.length)
+    }
+
+    @Test
+    fun `public client default scopes exclude offline_access`() {
+        val config = XidConfig(
+            issuer = "https://xid.dev",
+            clientId = "client_test",
+            redirectUri = "com.example.app://callback",
+        )
+
+        assertEquals(listOf("openid", "profile", "email"), config.scopes)
+    }
+
+    @Test
+    fun `public client rejects offline_access without DPoP`() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            XidConfig(
+                issuer = "https://xid.dev",
+                clientId = "client_test",
+                redirectUri = "com.example.app://callback",
+                scopes = listOf("openid", "offline_access"),
+            )
+        }
+
+        assertTrue(error.message?.contains("DPoP") == true)
     }
 }

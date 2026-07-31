@@ -42,6 +42,12 @@ describe('serializeAuthHeader / parseAuthHeader (unsigned)', () => {
     expect(await parseAuthHeader(raw)).toEqual(AUTH_OBJ)
   })
 
+  it('fails closed when the serialized Organization role is not a membership role', async () => {
+    const raw = JSON.stringify({ ...AUTH_OBJ, orgRole: 'viewer' })
+
+    expect(await parseAuthHeader(raw)).toEqual(UNAUTHENTICATED)
+  })
+
   it('round-trips unauthenticated state', async () => {
     const raw = await serializeAuthHeader(UNAUTHENTICATED)
     expect(await parseAuthHeader(raw)).toEqual(UNAUTHENTICATED)

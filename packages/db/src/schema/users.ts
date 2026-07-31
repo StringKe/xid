@@ -6,7 +6,8 @@ import { blob, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-
 import { boolCol, numCol, tenantId, timestamps, tsMs } from './common'
 
 // users.provisioned_by 取值登记:text 字段无枚举,新值在此登记后才允许写入。
-// 既有值:hosted_password / hosted_passwordless / hosted_passkey / jit_sso / bootstrap / scim。
+// 既有值:hosted_password / hosted_passwordless / hosted_passkey / invitation_email_claim /
+// jit_sso / bootstrap / scim。
 // hosted_passkey:guest 转正经 passkey 注册仪式(passkey 无独立建号路径,仅转正使用)。
 export const USER_PROVISIONED_BY_ANONYMOUS = 'anonymous'
 
@@ -53,6 +54,7 @@ export const users = sqliteTable(
     mergedIntoUserId: text('merged_into_user_id'),
     provisionedBy: text('provisioned_by'),
     deletedAt: tsMs('deleted_at'),
+    erasedAt: tsMs('erased_at'),
     ...timestamps(),
   },
   (t) => [
@@ -93,6 +95,9 @@ export const userEmails = sqliteTable(
     verificationStatus: text('verification_status').notNull().default('unverified'),
     isPrimary: boolCol('is_primary').notNull().default(false),
     verifiedAt: tsMs('verified_at'),
+    ownershipProof: text('ownership_proof').$type<'invitation_email_claim_v1'>(),
+    ownershipProofCeremonyId: text('ownership_proof_ceremony_id'),
+    ownershipProvenAt: tsMs('ownership_proven_at'),
     ...timestamps(),
   },
   (t) => [
@@ -107,6 +112,10 @@ export const userEmails = sqliteTable(
       t.id,
     ),
     index('user_emails_tenant_user_idx').on(t.tenantId, t.userId),
+    uniqueIndex('user_emails_tenant_ownership_ceremony_unq')
+      .on(t.tenantId, t.ownershipProofCeremonyId)
+      .where(sql`${t.ownershipProofCeremonyId} IS NOT NULL`),
+    index('user_emails_tenant_ownership_proof_idx').on(t.tenantId, t.ownershipProof, t.userId),
   ],
 )
 

@@ -12,6 +12,16 @@
     "webhook"
   ],
   "homepage": "https://xid.dev",
+  "authors": [
+    {
+      "name": "StringKe",
+      "homepage": "https://github.com/StringKe"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/StringKe/xid/issues",
+    "source": "https://github.com/StringKe/xid"
+  },
   "require": {
     "php": ">=8.1",
     "firebase/php-jwt": "^7.0",

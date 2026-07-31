@@ -1,5 +1,4 @@
 ---
-import { config } from "virtual:nimbus/config";
 import Header from "./Header.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { getSiteLocale, localizeSitePath } from "@/lib/site-locale";
@@ -21,12 +20,12 @@ const homeHref = localizeSitePath("/", getSiteLocale(pathname));
 ---
 
 <BaseLayout
-  title={`${pageNotFound} - ${config.title}`}
+  title={pageNotFound}
   description={pageNotFoundDescription}
   noindex
 >
   <div class="flex flex-col min-h-screen">
-    <Header showSidebar={false} />
+    <Header showMobileMenu={false} />
     <main
       id="main-content"
       data-pagefind-ignore

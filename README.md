@@ -66,16 +66,23 @@ single-tenant deployment or a multi-tenant instance, by configuration rather tha
 
 ### Integrating an application
 
-The `@xid-kit/*` packages are **not published to npm**; they are workspace packages, so using them
-in your own application today means vendoring the source or adding this repository to your
-workspace. The API below is the current public surface. From `@xid-kit/react`:
+Eighteen `@xid-kit/*` TypeScript packages are configured as publishable and pass the clean local
+tarball consumer gate (`pnpm run sdk:distribution:verify`). No checked-in release evidence proves
+their current state in an external registry, so npm publication is `UNKNOWN`; use the workspace or
+a locally produced tarball unless you independently verify the registry. The API below is the
+current public surface. From `@xid-kit/react`:
 
 ```tsx
 import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
 
 function App() {
   return (
-    <XidProvider publishableKey="pk_test_..." apiUrl="https://auth.example.com">
+    <XidProvider
+      mode="oidc"
+      issuer="https://auth.example.com"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
+    >
       <SignedOut>
         <SignInButton />
       </SignedOut>
@@ -117,12 +124,12 @@ Workers Free tiers, but sending mail to arbitrary recipients through the `send_e
 requires Workers Paid, so any deployment that actually delivers verification mail, magic links, or
 one-time codes needs the paid plan.
 
-Bootstrap enables **only** email magic link and email OTP by default. The Worker defaults the
-sender to `no-reply@xid.dev`. On a self-hosted fork you must onboard **your** sending domain
-(`npx wrangler email sending enable <your-domain>`, with DKIM/SPF/DMARC) and point the default
-`from` at that domain (today by editing `DEFAULT_FROM` in `apps/server/worker/queues/email.ts`)
-before anyone can receive a login message. Details: [`docs/deployment.md`](docs/deployment.md)
-section **Sending domain**.
+Bootstrap enables **only** email magic link and email OTP by default. The Worker falls back to
+`no-reply@xid.dev`. On a self-hosted deployment you must onboard **your** sending domain
+(`npx wrangler email sending enable <your-domain>`, with DKIM/SPF/DMARC), then set the non-secret
+Core Worker variables `EMAIL_FROM_ADDRESS=no-reply@<your-domain>` and `EMAIL_FROM_NAME=XID` before
+anyone can receive a login message. No source edit is required. Details:
+[`docs/deployment.md`](docs/deployment.md) section **Sending domain**.
 
 ```bash
 git clone https://github.com/StringKe/xid.git
@@ -133,35 +140,45 @@ cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
 npx wrangler r2 bucket create xid-storage
-for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-dlq; do
-  npx wrangler queues create "$q"
-done
+pnpm --dir ../.. run cloudflare:queues:create
 ```
+
+The Queue script derives all 24 required resources from `apps/server/wrangler.jsonc`: 8 source
+Queues, 8 per-source dead-letter Queues, and 8 persistence-failure quarantine Queues. It does not
+create or delete the obsolete shared `xid-dlq`. Re-running it lists the account first, skips
+matching resources, and creates only missing Queue names.
 
 Then replace the upstream account and route values in `apps/server/wrangler.jsonc`,
 `apps/console/wrangler.jsonc`, and `apps/site/wrangler.jsonc`. Set the canonical public origin in
 `apps/site/astro.config.ts` to your HTTPS apex URL as well. The Core configuration also needs your
 D1 `database_id` and KV namespace `id`. There is no self-hosting template to copy, and **the three
-Workers will not deploy correctly while these upstream values remain**. The eight Durable Object
+Workers will not deploy correctly while these upstream values remain**. The eleven Durable Object
 bindings, the Analytics Engine dataset, the `send_email` binding, and the two cron triggers belong
 only to Core and are already declared.
 
-Set the secrets, migrate, deploy, and initialize. Losing `KEK` makes every signing key and stored
-provider credential undecryptable; losing `PEPPER` invalidates every password hash. Back both up
-outside Cloudflare first.
+Set the secrets, verify locally, connect Workers Builds, and initialize after the three production
+builds succeed. Losing `KEK` makes every signing key and stored provider credential undecryptable;
+losing `PEPPER` invalidates every password hash. Back both up outside Cloudflare first.
 
 ```bash
 openssl rand -base64 32 | npx wrangler secret put KEK
 openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
-npx wrangler d1 migrations apply DB --remote
 cd ../..
+pnpm check
+pnpm test
 pnpm run build
-pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
+pnpm smoke:three-workers
+```
 
+Connect `xid`, `xid-console`, and `xid-site` as three Cloudflare Workers Builds projects backed by
+this Git repository. Set their production branch to `main`, disable non-production branch builds and
+Worker Preview URLs, and use the root, build, and deploy commands in
+[`docs/deployment.md`](docs/deployment.md). Merge a reviewed, signed commit into `main`; Workers
+Builds applies the remote D1 migrations and deploys all three Workers. After the builds succeed:
+
+```bash
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
   -H 'X-Bootstrap-Token: <BOOTSTRAP_TOKEN>' \
@@ -211,15 +228,16 @@ apps/console/      Binding-free static management UI for /console and /console/*
 apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
   src/             React SPA for Hosted Auth and account pages
-packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
+packages/          23 workspace packages: 15 TypeScript SDKs + 3 public runtime kernels + 5 private implementation packages
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-The kernel libraries -- `protocol`, `crypto`, `webauthn`, `saml`, `db`, `i18n`, `types` -- are
-internal to the Core Worker. Cryptographic primitives always come from Web Crypto and XML-DSig is
-delegated to `xmldsigjs`; the protocol and business logic in between are written here.
+The public runtime kernels are `protocol`, `crypto`, and `types`. The private implementation
+packages are `webauthn`, `saml`, `db`, `i18n`, and `web-ui`. Cryptographic primitives always come
+from Web Crypto and XML-DSig is delegated to `xmldsigjs`; the protocol and business logic in
+between are written here.
 
 ## Protocol support
 
@@ -241,9 +259,13 @@ Every row maps to files and tests in [`docs/protocols/source-map.md`](docs/proto
 
 ## SDKs
 
-Fifteen TypeScript packages under `packages/`: `core` and `backend` plus framework bindings for
-React, Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo, Electron, and
-Tauri -- all workspace-private and **not published to npm**.
+Fifteen TypeScript SDK packages live under `packages/`: `core` and `backend` plus framework
+bindings for React, Next.js, Remix, Astro, Vue, Nuxt, Svelte, Solid, Angular, React Native, Expo,
+Electron, and Tauri. Together with the 3 public runtime kernels (`crypto`, `protocol`, and `types`),
+18 packages are configured as publishable and pass clean local tarball installation tests. The
+remaining 5 packages (`db`, `i18n`, `saml`, `web-ui`, and `webauthn`) are private implementation
+packages. External npm registry publication remains `UNKNOWN`; local distribution evidence is not
+a registry release claim.
 
 Thirteen native SDKs under `sdk/`: Go, Rust, Python, Ruby, PHP, Java, .NET, Windows, iOS, macOS,
 Linux, Android, and Flutter. **None are published to crates.io, PyPI, Maven Central, RubyGems,

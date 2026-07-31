@@ -1,5 +1,5 @@
 // useProtectedRoute:Expo Router layout-level route guard hook。
-// 基于 @xid-kit/react useAuth 的 isLoaded/isSignedIn 状态驱动重定向,
+// 基于 @xid-kit/react-native useAuth 的 isLoaded/isSignedIn 状态驱动重定向,
 // 不依赖 expo-router 的类型 -- 接受任何 router.replace 兼容函数以便于测试。
 
 import { useEffect } from 'react'

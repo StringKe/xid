@@ -1,14 +1,19 @@
-// authenticateRequest:从 Request 提取 token(Authorization header 或 session cookie)并验证(见 06 章 6、api-sdk-conventions rule)。
-// 检查 Authorization: Bearer 优先,其次 cookie;验 JWT 签名/exp/azp(委托 verifyToken,networkless)。
+// authenticateRequest:从 Request 提取短期 JWT 并验证(见 06 章 6、api-sdk-conventions rule)。
+// 检查 Authorization: Bearer 优先,其次调用方显式声明的 JWT cookie,最后可选同源 Core
+// session-token exchange。Core 的 __Host-xid.rt.* 是 opaque refresh token,永不在本地验签。
 // 返回判别联合 RequestState:isSignedIn=true 携带 userId/sessionId/claims;false 携带未认证原因。
 
 import type { AccessTokenClaims } from '@xid-kit/types'
 
 import type { JwtKey } from './jwks'
+import type {
+  SessionTokenExchangeError,
+  SessionTokenExchangeOptions,
+} from './session-token-exchange'
+import { exchangeSessionToken } from './session-token-exchange'
 import type { VerifyTokenError } from './verify-token'
 import { verifyToken } from './verify-token'
 
-const DEFAULT_COOKIE_NAME = '__session'
 const BEARER_PREFIX = 'Bearer '
 
 export type AuthenticateRequestOptions = {
@@ -18,8 +23,10 @@ export type AuthenticateRequestOptions = {
   authorizedParties?: readonly string[]
   clockToleranceSec?: number
   now?: number
-  // session cookie 名,默认 __session(对齐 Clerk 约定)。
-  cookieName?: string
+  // 应用自己持有的 short-lived JWT cookie。无默认值,避免把 Core opaque refresh cookie 当 JWT。
+  jwtCookieName?: string
+  // 可选同源 cookie -> JWT exchange。endpoint 必须解析到 request 的 exact origin。
+  sessionTokenExchange?: SessionTokenExchangeOptions
 }
 
 // 已认证态:携带从 claims 提取的 userId(sub)/sessionId(sid)与完整 claims。
@@ -33,7 +40,7 @@ export type SignedInState = {
 // 未认证态:reason=no_token(无凭证)或具体验证失败原因(签名/过期/azp 等)。
 export type SignedOutState = {
   isSignedIn: false
-  reason: 'no_token' | VerifyTokenError
+  reason: 'no_token' | SessionTokenExchangeError | VerifyTokenError
 }
 
 export type RequestState = SignedInState | SignedOutState
@@ -72,8 +79,20 @@ export async function authenticateRequest(
   request: Request,
   options: AuthenticateRequestOptions,
 ): Promise<RequestState> {
-  const cookieName = options.cookieName ?? DEFAULT_COOKIE_NAME
-  const token = tokenFromHeader(request) ?? tokenFromCookie(request, cookieName)
+  let token = tokenFromHeader(request)
+  if (!token && options.jwtCookieName) {
+    token = tokenFromCookie(request, options.jwtCookieName)
+  }
+  if (!token && options.sessionTokenExchange) {
+    const exchanged = await exchangeSessionToken(request, options.sessionTokenExchange)
+    if (!exchanged.ok) {
+      return {
+        isSignedIn: false,
+        reason: exchanged.error === 'no_core_session' ? 'no_token' : exchanged.error,
+      }
+    }
+    token = exchanged.value.token
+  }
   if (!token) {
     return { isSignedIn: false, reason: 'no_token' }
   }

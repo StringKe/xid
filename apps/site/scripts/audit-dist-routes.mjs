@@ -1,12 +1,16 @@
 import { existsSync } from 'node:fs'
 import { readFile, readdir } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { renderEntryAsMarkdown } from '@cloudflare/nimbus-docs'
+import { hasGeneratedDocsBase } from '../src/lib/content-config-contract.ts'
 
 const SITE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const GENERATED_DOCS_ROOT = path.join(SITE_ROOT, 'src/content/generated/docs')
+const SITE_SHELL_MESSAGES_FILE = path.join(SITE_ROOT, 'src/lib/site-shell-messages.ts')
+const I18N_CATALOG_ROOT = path.join(REPOSITORY_ROOT, 'packages/i18n/locales')
 const DIST_ROOT = process.argv[2] ? path.resolve(process.argv[2]) : path.join(SITE_ROOT, 'dist')
 const SITE_ORIGIN = 'https://xid.dev'
 const LEGACY_CORE_DOCS_SOURCE = ['apps', 'server', 'src', 'routes', 'docs'].join('/')
@@ -21,14 +25,14 @@ const REQUIRED_STATIC_HEADERS = [
 ].join('\n')
 
 const LOCALES = [
-  { locale: 'en', segment: '' },
-  { locale: 'zh-Hans', segment: 'zh-hans' },
-  { locale: 'ja', segment: 'ja' },
-  { locale: 'ko', segment: 'ko' },
-  { locale: 'fr', segment: 'fr' },
-  { locale: 'de', segment: 'de' },
-  { locale: 'es', segment: 'es' },
-  { locale: 'pt-BR', segment: 'pt-br' },
+  { locale: 'en', segment: '', openGraphLocale: 'en_US' },
+  { locale: 'zh-Hans', segment: 'zh-hans', openGraphLocale: 'zh_CN' },
+  { locale: 'ja', segment: 'ja', openGraphLocale: 'ja_JP' },
+  { locale: 'ko', segment: 'ko', openGraphLocale: 'ko_KR' },
+  { locale: 'fr', segment: 'fr', openGraphLocale: 'fr_FR' },
+  { locale: 'de', segment: 'de', openGraphLocale: 'de_DE' },
+  { locale: 'es', segment: 'es', openGraphLocale: 'es_ES' },
+  { locale: 'pt-BR', segment: 'pt-br', openGraphLocale: 'pt_BR' },
 ]
 
 const LEGACY_ALIASES = {
@@ -83,6 +87,16 @@ function sectionAgentPath(locale, suffix) {
   return `/${segment}/${suffix}`
 }
 
+function contentSectionAgentPath(locale, section, suffix) {
+  return `${localePrefix(locale.segment)}/${section}/${suffix}`
+}
+
+function pageAgentIndexPath(locale, slug) {
+  return slug !== null && (slug === 'sdks' || slug.startsWith('sdks/'))
+    ? contentSectionAgentPath(locale, 'sdks', 'llms.txt')
+    : sectionAgentPath(locale, 'llms.txt')
+}
+
 async function listFiles(directory) {
   const files = []
   const visit = async (current) => {
@@ -135,8 +149,58 @@ function generatedSourceFile(locale, slug) {
   return path.join(GENERATED_DOCS_ROOT, ...localeParts, ...slugParts, leaf)
 }
 
+function ogRouteFile(locale, slug) {
+  const localeParts = locale.segment === '' ? [] : [locale.segment]
+  return path.join(DIST_ROOT, 'og', ...localeParts, ...slug.split('/')) + '.png'
+}
+
 function countOccurrences(source, pattern) {
   return source.split(pattern).length - 1
+}
+
+function linguiMessageId(message, context = '') {
+  return createHash('sha256').update(`${message}\u001f${context}`).digest('base64url').slice(0, 6)
+}
+
+function parseSiteShellMessageIds(source) {
+  const messages = [...source.matchAll(/\bmsg`([^`]*)`/gu)].map((match) => match[1])
+  invariant(messages.length > 0, 'site shell message descriptors are unreadable')
+  return new Map(messages.map((message) => [linguiMessageId(message), message]))
+}
+
+function containsStandaloneMessageId(source, id) {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+  return new RegExp(`(^|[^A-Za-z0-9_-])${escaped}([^A-Za-z0-9_-]|$)`, 'u').test(source)
+}
+
+async function loadSiteShellCatalogs(messageIds) {
+  const catalogs = new Map()
+  for (const locale of LOCALES) {
+    const catalogFile = path.join(I18N_CATALOG_ROOT, locale.locale, 'messages.mjs')
+    const module = await import(`${pathToFileURL(catalogFile).href}?audit=${Date.now()}`)
+    for (const [id, message] of messageIds) {
+      invariant(
+        Object.hasOwn(module.messages, id),
+        `${locale.locale} compiled catalog is missing Site shell message ${JSON.stringify(message)}`,
+      )
+    }
+    catalogs.set(locale.locale, module.messages)
+  }
+  return catalogs
+}
+
+function findSingleTag(html, tagName, attribute, value, route) {
+  const tags = [...html.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, 'gu'))]
+    .map((match) => match[0])
+    .filter((tag) => tag.includes(`${attribute}="${value}"`))
+  invariant(tags.length === 1, `${route} must have exactly one ${tagName} ${attribute}=${value}`)
+  return tags[0]
+}
+
+function attributeValue(tag, attribute, route) {
+  const match = new RegExp(`${attribute}="([^"]*)"`, 'u').exec(tag)
+  invariant(match, `${route} ${tag} has no ${attribute}`)
+  return match[1]
 }
 
 function extractRelativeLinks(html) {
@@ -148,7 +212,7 @@ function extractRelativeLinks(html) {
   })
 }
 
-function assertPublishedHtmlMetadata(html, route) {
+function assertPublishedHtmlMetadata(html, route, locale, { indexable = true } = {}) {
   const canonicalPath = route === '/' ? '/' : route.replace(/\/+$/u, '')
   const canonical = new URL(canonicalPath, SITE_ORIGIN).href
   invariant(/<title>[^<]+<\/title>/.test(html), `${route} has no title`)
@@ -161,17 +225,61 @@ function assertPublishedHtmlMetadata(html, route) {
     'og:title',
     'og:type',
     'og:site_name',
-    'og:locale',
     'og:description',
     'og:url',
     'og:image',
   ]) {
     invariant(html.includes(`<meta property="${property}"`), `${route} has no ${property}`)
   }
+  const ogLocaleTag = findSingleTag(html, 'meta', 'property', 'og:locale', route)
   invariant(
-    !html.includes('<meta name="robots" content="noindex"'),
-    `${route} unexpectedly emits noindex`,
+    attributeValue(ogLocaleTag, 'content', route) === locale.openGraphLocale,
+    `${route} Open Graph locale is incorrect`,
   )
+  const ogTitle = attributeValue(
+    findSingleTag(html, 'meta', 'property', 'og:title', route),
+    'content',
+    route,
+  )
+  const ogDescription = attributeValue(
+    findSingleTag(html, 'meta', 'property', 'og:description', route),
+    'content',
+    route,
+  )
+  const ogImageAlt = attributeValue(
+    findSingleTag(html, 'meta', 'property', 'og:image:alt', route),
+    'content',
+    route,
+  )
+  const twitterImageAlt = attributeValue(
+    findSingleTag(html, 'meta', 'name', 'twitter:image:alt', route),
+    'content',
+    route,
+  )
+  invariant(ogImageAlt.length > 0, `${route} Open Graph image alt is empty`)
+  invariant(ogImageAlt === twitterImageAlt, `${route} Open Graph and Twitter image alt differ`)
+  invariant(
+    ogImageAlt === `${ogTitle}. ${ogDescription}`,
+    `${route} social image alt does not match localized page metadata`,
+  )
+  if (indexable) {
+    const llmsIndexTag = findSingleTag(html, 'link', 'type', 'text/plain', route)
+    const expectedLlmsIndex = new URL(sectionAgentPath(locale, 'llms.txt'), SITE_ORIGIN).href
+    invariant(
+      attributeValue(llmsIndexTag, 'href', route) === expectedLlmsIndex,
+      `${route} agent index alternate is incorrect`,
+    )
+    invariant(
+      !html.includes('<meta name="robots" content="noindex"'),
+      `${route} unexpectedly emits noindex`,
+    )
+  } else {
+    invariant(html.includes('<meta name="robots" content="noindex"'), `${route} must emit noindex`)
+    invariant(
+      !html.includes('<link rel="alternate" type="text/plain"'),
+      `${route} must not expose an agent index alternate`,
+    )
+  }
   const structuredDataMatch = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)
   invariant(structuredDataMatch, `${route} has no JSON-LD`)
   const structuredData = JSON.parse(structuredDataMatch[1])
@@ -182,11 +290,7 @@ function assertPublishedHtmlMetadata(html, route) {
   const typedNode = structuredNodes.find((node) => node?.['@type'] === expectedType)
   invariant(typedNode, `${route} JSON-LD type is incorrect`)
   invariant(typedNode.url === canonical, `${route} JSON-LD URL is incorrect`)
-  invariant(
-    (typeof typedNode.inLanguage === 'string' && typedNode.inLanguage.length > 0) ||
-      (Array.isArray(typedNode.inLanguage) && typedNode.inLanguage.length > 0),
-    `${route} JSON-LD has no language`,
-  )
+  invariant(typedNode.inLanguage === locale.locale, `${route} JSON-LD language is incorrect`)
 }
 
 async function audit() {
@@ -200,6 +304,7 @@ async function audit() {
     publicHeaders,
     distHeaders,
     agentInstructions,
+    siteShellMessagesSource,
   ] = await Promise.all([
     readFile(path.join(SITE_ROOT, 'src/content-source/docs/documents.json'), 'utf8'),
     readFile(path.join(REPOSITORY_ROOT, 'packages/types/src/public-docs.ts'), 'utf8'),
@@ -210,11 +315,20 @@ async function audit() {
     readFile(path.join(SITE_ROOT, 'public/_headers'), 'utf8'),
     readRequired(path.join(DIST_ROOT, '_headers')),
     readFile(path.join(SITE_ROOT, 'AGENT.md'), 'utf8'),
+    readFile(SITE_SHELL_MESSAGES_FILE, 'utf8'),
   ])
   const documents = JSON.parse(documentsSource)
   const sitePackage = JSON.parse(sitePackageSource)
+  const siteShellMessageIds = parseSiteShellMessageIds(siteShellMessagesSource)
+  const siteShellCatalogs = await loadSiteShellCatalogs(siteShellMessageIds)
   const registrySlugs = parsePublicDocRegistry(registrySource)
-  const astSlugs = documents.documents.map((document) => document.slug)
+  const astDocuments = documents.documents
+  const publishedDocuments = astDocuments.filter((document) => document.draft !== true)
+  const agentDocuments = publishedDocuments.filter((document) => document.noindex !== true)
+  const noindexDocuments = publishedDocuments.filter((document) => document.noindex === true)
+  const draftDocuments = astDocuments.filter((document) => document.draft === true)
+  const astSlugs = astDocuments.map((document) => document.slug)
+  const agentSlugs = agentDocuments.map((document) => document.slug)
 
   invariant(documents.locales.length === 8, 'documents.json must contain 8 locales')
   invariant(astSlugs.length === 40, 'documents.json must contain 40 public docs')
@@ -235,7 +349,7 @@ async function audit() {
     'static assets must preserve the no-trailing-slash canonical contract',
   )
   invariant(
-    contentConfigSource.includes('base: "generated/docs"'),
+    hasGeneratedDocsBase(contentConfigSource),
     'Astro docs collection must be isolated to generated/docs',
   )
   invariant(
@@ -271,10 +385,15 @@ async function audit() {
   }
 
   const routeLocale = new Map()
+  const draftRoutes = new Set()
   for (const locale of LOCALES) {
     routeLocale.set(documentRoute(locale.segment, null), locale.locale)
-    for (const slug of astSlugs) {
+    routeLocale.set(documentRoute(locale.segment, 'status'), locale.locale)
+    for (const slug of publishedDocuments.map((document) => document.slug)) {
       routeLocale.set(documentRoute(locale.segment, slug), locale.locale)
+    }
+    for (const document of draftDocuments) {
+      draftRoutes.add(documentRoute(locale.segment, document.slug))
     }
   }
 
@@ -290,22 +409,26 @@ async function audit() {
 
   for (const locale of LOCALES) {
     const pages = [
-      { route: documentRoute(locale.segment, null), slug: null },
-      ...astSlugs.map((slug) => ({
-        route: documentRoute(locale.segment, slug),
-        slug,
+      { route: documentRoute(locale.segment, null), slug: null, document: null, indexable: true },
+      ...publishedDocuments.map((document) => ({
+        route: documentRoute(locale.segment, document.slug),
+        slug: document.slug,
+        document,
+        indexable: document.noindex !== true,
       })),
     ]
+    const agentPages = pages.filter((page) => page.indexable)
     const sectionLlmsIndexPath = sectionAgentPath(locale, 'llms.txt')
     const sectionLlmsFullPath = sectionAgentPath(locale, 'llms-full.txt')
+    const sdkSlugs = agentSlugs.filter((slug) => slug === 'sdks' || slug.startsWith('sdks/'))
+    const sdkLlmsIndexPath = contentSectionAgentPath(locale, 'sdks', 'llms.txt')
+    const sdkLlmsFullPath = contentSectionAgentPath(locale, 'sdks', 'llms-full.txt')
 
     for (const page of pages) {
-      const { route, slug } = page
+      const { route, slug, document, indexable } = page
       const authoredSourcePath = generatedSourceFile(locale.locale, slug)
-      const [html, markdown, mdx, authoredSource] = await Promise.all([
+      const [html, authoredSource] = await Promise.all([
         readRequired(routeFile(route, 'index.html')),
-        readRequired(routeFile(route, 'index.md')),
-        readRequired(routeFile(route, 'index.mdx')),
         readFile(authoredSourcePath, 'utf8'),
       ])
       const canonicalRoute = route === '/' ? '/' : route
@@ -318,22 +441,12 @@ async function audit() {
         authoredSource,
         path.relative(SITE_ROOT, authoredSourcePath),
       )
-      const markdownParts = splitFrontmatter(markdown, `${route}/index.md`)
-      const mdxParts = splitFrontmatter(mdx, `${route}/index.mdx`)
 
-      expectedCorpusUrls.add(pageUrl)
-      expectedPublishedUrls.add(pageUrl)
-      expectedMarkdownUrls.add(markdownUrl)
       invariant(
         html.includes(`lang="${locale.locale}"`),
         `${route} does not use BCP locale ${locale.locale}`,
       )
-      assertPublishedHtmlMetadata(html, route)
-      invariant(html.includes('data-pagefind-body'), `${route} is absent from Pagefind`)
-      invariant(
-        html.includes(`type="text/markdown" href="${markdownUrl}"`),
-        `${route} does not expose its Markdown alternate`,
-      )
+      assertPublishedHtmlMetadata(html, route, locale, { indexable })
       invariant(
         !html.includes('component-url="/src/react/') &&
           !html.includes('SiteApp') &&
@@ -341,6 +454,7 @@ async function audit() {
         `${route} still contains the marketing React runtime`,
       )
       for (const href of extractRelativeLinks(html)) {
+        invariant(!draftRoutes.has(href), `${route} links to unpublished draft ${href}`)
         const linkedLocale = routeLocale.get(href)
         invariant(
           !linkedLocale || linkedLocale === locale.locale,
@@ -348,28 +462,77 @@ async function audit() {
         )
       }
       localeScopedNavigationCount += 1
-      invariant(
-        markdown.trimEnd().endsWith(`Source: ${sourceUrl}`),
-        `${route} Markdown does not point to its MDX twin`,
-      )
-      invariant(
-        mdx.includes(`locale: ${JSON.stringify(locale.locale)}`),
-        `${route} MDX locale metadata is incorrect`,
-      )
-      invariant(
-        markdown.includes(renderEntryAsMarkdown({ body: authoredSource }).trim()),
-        `${route} Markdown is not the localized downlevel of its authored source`,
-      )
-      invariant(
-        mdxParts.body.trim() === authoredParts.body.trim(),
-        `${route} MDX twin is not the generated raw authored source`,
-      )
+
+      let markdown
+      let mdx
+      let markdownParts
+      let mdxParts
+      if (indexable) {
+        const twins = await Promise.all([
+          readRequired(routeFile(route, 'index.md')),
+          readRequired(routeFile(route, 'index.mdx')),
+        ])
+        markdown = twins[0]
+        mdx = twins[1]
+        markdownParts = splitFrontmatter(markdown, `${route}/index.md`)
+        mdxParts = splitFrontmatter(mdx, `${route}/index.mdx`)
+        expectedCorpusUrls.add(pageUrl)
+        expectedPublishedUrls.add(pageUrl)
+        expectedMarkdownUrls.add(markdownUrl)
+        invariant(html.includes('data-pagefind-body'), `${route} is absent from Pagefind`)
+        invariant(
+          html.includes(`type="text/markdown" href="${markdownUrl}"`),
+          `${route} does not expose its Markdown alternate`,
+        )
+        invariant(
+          markdown.trimEnd().endsWith(`Source: ${sourceUrl}`),
+          `${route} Markdown does not point to its MDX twin`,
+        )
+        invariant(
+          markdown.includes(
+            `> Fetch the relevant documentation index at: ${new URL(pageAgentIndexPath(locale, slug), SITE_ORIGIN).href}`,
+          ),
+          `${route} Markdown does not point to its most specific agent index`,
+        )
+        invariant(
+          mdx.includes(`locale: ${JSON.stringify(locale.locale)}`),
+          `${route} MDX locale metadata is incorrect`,
+        )
+        invariant(
+          markdown.includes(renderEntryAsMarkdown({ body: authoredSource }).trim()),
+          `${route} Markdown is not the localized downlevel of its authored source`,
+        )
+        invariant(
+          mdx === authoredSource,
+          `${route} MDX twin is not byte-identical to the generated authored source`,
+        )
+        markdownCount += 1
+        mdxCount += 1
+      } else {
+        invariant(
+          html.includes('data-pagefind-ignore') && !html.includes('data-pagefind-body'),
+          `${route} noindex page must be excluded from Pagefind`,
+        )
+        invariant(
+          !html.includes('type="text/markdown"'),
+          `${route} noindex page must not expose a Markdown alternate`,
+        )
+        invariant(
+          !existsSync(routeFile(route, 'index.md')) && !existsSync(routeFile(route, 'index.mdx')),
+          `${route} noindex page must not publish Markdown twins`,
+        )
+      }
       if (slug !== null && MERMAID_DOC_SLUGS.has(slug)) {
-        for (const [surface, source] of [
+        const surfaces = [
           ['generated raw MDX', authoredSource],
-          ['published MDX twin', mdx],
-          ['downleveled Markdown twin', markdown],
-        ]) {
+          ...(indexable
+            ? [
+                ['published MDX twin', mdx],
+                ['downleveled Markdown twin', markdown],
+              ]
+            : []),
+        ]
+        for (const [surface, source] of surfaces) {
           invariant(
             countOccurrences(source, '```mermaid') === 1,
             `${route} ${surface} must retain one Mermaid fence`,
@@ -381,11 +544,13 @@ async function audit() {
         )
         mermaidPageCount += 1
       }
-      for (const [label, frontmatter] of [
-        [`${route}/index.md`, markdownParts.frontmatter],
-        [`${route}/index.mdx`, mdxParts.frontmatter],
-        [path.relative(SITE_ROOT, authoredSourcePath), authoredParts.frontmatter],
-      ]) {
+      const publishedFrontmatters = indexable
+        ? [
+            [`${route}/index.md`, markdownParts.frontmatter],
+            [`${route}/index.mdx`, mdxParts.frontmatter],
+          ]
+        : []
+      for (const [label, frontmatter] of publishedFrontmatters) {
         invariant(
           !hasFrontmatterField(frontmatter, 'version'),
           `${label} fabricates version frontmatter`,
@@ -396,16 +561,110 @@ async function audit() {
           `${label} is draft or noindex but entered the public collection`,
         )
       }
+      invariant(
+        !hasFrontmatterField(authoredParts.frontmatter, 'version'),
+        `${path.relative(SITE_ROOT, authoredSourcePath)} fabricates version frontmatter`,
+      )
+      invariant(
+        hasFrontmatterField(authoredParts.frontmatter, 'draft') === (document?.draft === true) &&
+          hasFrontmatterField(authoredParts.frontmatter, 'noindex') ===
+            (document?.noindex === true),
+        `${path.relative(SITE_ROOT, authoredSourcePath)} publication frontmatter differs from documents.json`,
+      )
       htmlCount += 1
-      markdownCount += 1
-      mdxCount += 1
     }
+
+    for (const document of draftDocuments) {
+      const route = documentRoute(locale.segment, document.slug)
+      invariant(
+        !existsSync(routeFile(route, 'index.html')) &&
+          !existsSync(routeFile(route, 'index.md')) &&
+          !existsSync(routeFile(route, 'index.mdx')) &&
+          !existsSync(ogRouteFile(locale, document.slug)),
+        `${route} draft must not be published in production`,
+      )
+    }
+
+    const statusRoute = documentRoute(locale.segment, 'status')
+    const statusMarkdownUrl = new URL(`${statusRoute}/index.md`, SITE_ORIGIN).href
+    const statusSourceUrl = new URL(`${statusRoute}/index.mdx`, SITE_ORIGIN).href
+    const statusPageUrl = new URL(statusRoute, SITE_ORIGIN).href
+    const [statusHtml, statusMarkdown, statusMdx] = await Promise.all([
+      readRequired(routeFile(statusRoute, 'index.html')),
+      readRequired(routeFile(statusRoute, 'index.md')),
+      readRequired(routeFile(statusRoute, 'index.mdx')),
+    ])
+    const statusMarkdownParts = splitFrontmatter(statusMarkdown, `${statusRoute}/index.md`)
+    const statusMdxParts = splitFrontmatter(statusMdx, `${statusRoute}/index.mdx`)
+    expectedCorpusUrls.add(statusPageUrl)
+    expectedPublishedUrls.add(statusPageUrl)
+    expectedMarkdownUrls.add(statusMarkdownUrl)
+    invariant(
+      statusHtml.includes(`lang="${locale.locale}"`),
+      `${statusRoute} does not use BCP locale ${locale.locale}`,
+    )
+    assertPublishedHtmlMetadata(statusHtml, statusRoute, locale)
+    invariant(statusHtml.includes('data-pagefind-body'), `${statusRoute} is absent from Pagefind`)
+    invariant(
+      statusHtml.includes(`type="text/markdown" href="${statusMarkdownUrl}"`),
+      `${statusRoute} does not expose its Markdown alternate`,
+    )
+    for (const alternate of LOCALES) {
+      const alternateRoute = documentRoute(alternate.segment, 'status')
+      const alternateTag = findSingleTag(
+        statusHtml,
+        'link',
+        'hreflang',
+        alternate.locale,
+        statusRoute,
+      )
+      invariant(
+        attributeValue(alternateTag, 'href', statusRoute) ===
+          new URL(alternateRoute, SITE_ORIGIN).href,
+        `${statusRoute} hreflang ${alternate.locale} is incorrect`,
+      )
+    }
+    invariant(
+      statusMarkdown.trimEnd().endsWith(`Source: ${statusSourceUrl}`),
+      `${statusRoute} Markdown does not point to its MDX twin`,
+    )
+    invariant(
+      statusMarkdown.includes(
+        `> Fetch the relevant documentation index at: ${new URL(sectionAgentPath(locale, 'llms.txt'), SITE_ORIGIN).href}`,
+      ),
+      `${statusRoute} Markdown does not point to its locale agent index`,
+    )
+    invariant(
+      statusMdx.includes(`locale: ${JSON.stringify(locale.locale)}`),
+      `${statusRoute} MDX locale metadata is incorrect`,
+    )
+    invariant(
+      statusMdxParts.body.includes('<StatusSurface endpoint="/v1/public/status" />'),
+      `${statusRoute} MDX source does not retain the status component contract`,
+    )
+    invariant(
+      !hasFrontmatterField(statusMarkdownParts.frontmatter, 'version') &&
+        !hasFrontmatterField(statusMdxParts.frontmatter, 'version'),
+      `${statusRoute} fabricates version frontmatter`,
+    )
+    for (const href of extractRelativeLinks(statusHtml)) {
+      invariant(!draftRoutes.has(href), `${statusRoute} links to unpublished draft ${href}`)
+      const linkedLocale = routeLocale.get(href)
+      invariant(
+        !linkedLocale || linkedLocale === locale.locale,
+        `${statusRoute} navigation leaks locale ${linkedLocale} through ${href}`,
+      )
+    }
+    localeScopedNavigationCount += 1
+    htmlCount += 1
+    markdownCount += 1
+    mdxCount += 1
 
     const [sectionLlmsIndex, sectionLlmsFull] = await Promise.all([
       readRequired(path.join(DIST_ROOT, sectionLlmsIndexPath.slice(1))),
       readRequired(path.join(DIST_ROOT, sectionLlmsFullPath.slice(1))),
     ])
-    for (const page of pages) {
+    for (const page of agentPages) {
       const route = page.route
       const markdownPath = route === '/' ? '/index.md' : `${route}/index.md`
       const corpusPath = route
@@ -420,18 +679,69 @@ async function audit() {
       )
     }
     invariant(
-      countOccurrences(sectionLlmsIndex, '/index.md)') === 41,
-      `${sectionLlmsIndexPath} must contain exactly 41 Markdown twins`,
+      countOccurrences(sectionLlmsIndex, '/index.md)') === agentPages.length + 1,
+      `${sectionLlmsIndexPath} has an unexpected Markdown twin count`,
     )
     invariant(
-      countOccurrences(sectionLlmsFull, '<!-- xid-doc-path:') === 41,
-      `${sectionLlmsFullPath} must contain exactly 41 corpus blocks`,
+      countOccurrences(sectionLlmsFull, '<!-- xid-doc-path:') === agentPages.length + 1,
+      `${sectionLlmsFullPath} has an unexpected corpus block count`,
+    )
+    invariant(
+      sectionLlmsIndex.includes(statusMarkdownUrl),
+      `${sectionLlmsIndexPath} is missing ${statusRoute}`,
+    )
+    invariant(
+      sectionLlmsFull.includes(`<!-- xid-doc-path: ${statusRoute} -->`),
+      `${sectionLlmsFullPath} is missing ${statusRoute}`,
     )
     invariant(
       !/^Generated(?: at| on):/im.test(sectionLlmsFull) &&
         !/^Build timestamp:/im.test(sectionLlmsFull),
       `${sectionLlmsFullPath} contains a generation timestamp`,
     )
+    invariant(
+      sectionLlmsIndex.includes(new URL(sdkLlmsIndexPath, SITE_ORIGIN).href),
+      `${sectionLlmsIndexPath} is missing its SDK section index`,
+    )
+
+    const [sdkLlmsIndex, sdkLlmsFull] = await Promise.all([
+      readRequired(path.join(DIST_ROOT, sdkLlmsIndexPath.slice(1))),
+      readRequired(path.join(DIST_ROOT, sdkLlmsFullPath.slice(1))),
+    ])
+    for (const slug of sdkSlugs) {
+      const route = documentRoute(locale.segment, slug)
+      const markdownUrl = new URL(`${route}/index.md`, SITE_ORIGIN).href
+      invariant(sdkLlmsIndex.includes(markdownUrl), `${sdkLlmsIndexPath} is missing ${route}`)
+      invariant(
+        sdkLlmsFull.includes(`<!-- xid-doc-path: ${route} -->`),
+        `${sdkLlmsFullPath} is missing corpus block ${route}`,
+      )
+    }
+    invariant(
+      countOccurrences(sdkLlmsIndex, '/index.md)') === sdkSlugs.length,
+      `${sdkLlmsIndexPath} has an unexpected Markdown twin count`,
+    )
+    invariant(
+      countOccurrences(sdkLlmsFull, '<!-- xid-doc-path:') === sdkSlugs.length,
+      `${sdkLlmsFullPath} has an unexpected corpus block count`,
+    )
+    invariant(
+      !/^Generated(?: at| on):/im.test(sdkLlmsFull) && !/^Build timestamp:/im.test(sdkLlmsFull),
+      `${sdkLlmsFullPath} contains a generation timestamp`,
+    )
+    for (const slug of agentSlugs.filter(
+      (candidate) => candidate !== 'sdks' && !candidate.startsWith('sdks/'),
+    )) {
+      const route = documentRoute(locale.segment, slug)
+      invariant(
+        !sdkLlmsIndex.includes(new URL(`${route}/index.md`, SITE_ORIGIN).href),
+        `${sdkLlmsIndexPath} contains non-SDK page ${route}`,
+      )
+      invariant(
+        !sdkLlmsFull.includes(`<!-- xid-doc-path: ${route} -->`),
+        `${sdkLlmsFullPath} contains non-SDK corpus block ${route}`,
+      )
+    }
     for (const other of LOCALES) {
       if (other.locale === locale.locale) continue
       const otherHub = documentRoute(other.segment, null)
@@ -445,23 +755,48 @@ async function audit() {
         !sectionLlmsFull.includes(`<!-- xid-doc-path: ${otherHubPath} -->`),
         `${sectionLlmsFullPath} contains another locale corpus`,
       )
+      for (const slug of sdkSlugs) {
+        const otherRoute = documentRoute(other.segment, slug)
+        invariant(
+          !sdkLlmsIndex.includes(new URL(`${otherRoute}/index.md`, SITE_ORIGIN).href),
+          `${sdkLlmsIndexPath} contains another locale page`,
+        )
+        invariant(
+          !sdkLlmsFull.includes(`<!-- xid-doc-path: ${otherRoute} -->`),
+          `${sdkLlmsFullPath} contains another locale corpus`,
+        )
+      }
     }
   }
 
-  invariant(htmlCount === 328, `expected 328 docs HTML files, received ${htmlCount}`)
-  invariant(markdownCount === 328, `expected 328 docs Markdown twins, received ${markdownCount}`)
-  invariant(mdxCount === 328, `expected 328 docs MDX twins, received ${mdxCount}`)
+  const expectedHtmlCount = LOCALES.length * (publishedDocuments.length + 2)
+  const expectedAgentPageCount = LOCALES.length * (agentDocuments.length + 2)
   invariant(
-    mermaidPageCount === MERMAID_DOC_SLUGS.size * LOCALES.length,
-    `expected 32 localized Mermaid pages, received ${mermaidPageCount}`,
+    htmlCount === expectedHtmlCount,
+    `expected ${expectedHtmlCount} HTML files, received ${htmlCount}`,
+  )
+  invariant(
+    markdownCount === expectedAgentPageCount,
+    `expected ${expectedAgentPageCount} Markdown twins, received ${markdownCount}`,
+  )
+  invariant(
+    mdxCount === expectedAgentPageCount,
+    `expected ${expectedAgentPageCount} MDX twins, received ${mdxCount}`,
+  )
+  invariant(
+    mermaidPageCount ===
+      publishedDocuments.filter((document) => MERMAID_DOC_SLUGS.has(document.slug)).length *
+        LOCALES.length,
+    'localized Mermaid page count differs from published Mermaid documents',
   )
 
   const generatedMdxFiles = (await listFiles(GENERATED_DOCS_ROOT)).filter((file) =>
     file.endsWith('.mdx'),
   )
+  const expectedGeneratedMdxCount = LOCALES.length * (astDocuments.length + 1)
   invariant(
-    generatedMdxFiles.length === 328,
-    `generated collection must contain exactly 328 MDX files, received ${generatedMdxFiles.length}`,
+    generatedMdxFiles.length === expectedGeneratedMdxCount,
+    `generated collection must contain ${expectedGeneratedMdxCount} MDX files, received ${generatedMdxFiles.length}`,
   )
   invariant(
     generatedMdxFiles.every(
@@ -474,12 +809,12 @@ async function audit() {
   const allMarkdownTwins = distFiles.filter((file) => path.basename(file) === 'index.md')
   const allMdxTwins = distFiles.filter((file) => path.basename(file) === 'index.mdx')
   invariant(
-    allMarkdownTwins.length === 328,
-    `dist must contain 328 Markdown twins, received ${allMarkdownTwins.length}`,
+    allMarkdownTwins.length === expectedAgentPageCount,
+    `dist must contain ${expectedAgentPageCount} Markdown twins, received ${allMarkdownTwins.length}`,
   )
   invariant(
-    allMdxTwins.length === 328,
-    `dist must contain 328 MDX twins, received ${allMdxTwins.length}`,
+    allMdxTwins.length === expectedAgentPageCount,
+    `dist must contain ${expectedAgentPageCount} MDX twins, received ${allMdxTwins.length}`,
   )
   invariant(
     !existsSync(path.join(DIST_ROOT, 'docs')),
@@ -489,6 +824,26 @@ async function audit() {
     !distFiles.some((file) => file.includes(`${path.sep}src${path.sep}react${path.sep}`)),
     'dist contains a Site React runtime artifact',
   )
+  const agentAndHumanSurfaceFiles = distFiles.filter((file) => {
+    const extension = path.extname(file)
+    const basename = path.basename(file)
+    return (
+      extension === '.html' ||
+      extension === '.md' ||
+      extension === '.mdx' ||
+      basename === 'llms.txt' ||
+      basename === 'llms-full.txt'
+    )
+  })
+  for (const file of agentAndHumanSurfaceFiles) {
+    const source = await readFile(file, 'utf8')
+    for (const [id, message] of siteShellMessageIds) {
+      invariant(
+        !containsStandaloneMessageId(source, id),
+        `${path.relative(DIST_ROOT, file)} leaks unresolved Site message ${JSON.stringify(message)}`,
+      )
+    }
+  }
 
   const [globalLlmsIndex, globalLlmsFull] = await Promise.all([
     readRequired(path.join(DIST_ROOT, 'llms.txt')),
@@ -504,13 +859,24 @@ async function audit() {
       `root llms-full.txt is missing ${pathname}`,
     )
   }
+  for (const locale of LOCALES) {
+    for (const document of [...noindexDocuments, ...draftDocuments]) {
+      const route = documentRoute(locale.segment, document.slug)
+      const markdownUrl = new URL(`${route}/index.md`, SITE_ORIGIN).href
+      invariant(
+        !globalLlmsIndex.includes(markdownUrl) &&
+          !globalLlmsFull.includes(`<!-- xid-doc-path: ${route} -->`),
+        `${route} unpublished agent surface leaked into the global corpus`,
+      )
+    }
+  }
   invariant(
-    countOccurrences(globalLlmsIndex, '/index.md)') === 328,
-    'root llms.txt must enumerate exactly 328 Markdown twins',
+    countOccurrences(globalLlmsIndex, '/index.md)') === expectedAgentPageCount,
+    `root llms.txt must enumerate exactly ${expectedAgentPageCount} Markdown twins`,
   )
   invariant(
-    countOccurrences(globalLlmsFull, '<!-- xid-doc-path:') === 328,
-    'root llms-full.txt must contain exactly 328 corpus blocks',
+    countOccurrences(globalLlmsFull, '<!-- xid-doc-path:') === expectedAgentPageCount,
+    `root llms-full.txt must contain exactly ${expectedAgentPageCount} corpus blocks`,
   )
   invariant(
     !/\]\(https:\/\/xid\.dev\/(?:zh-hans\/|ja\/|ko\/|fr\/|de\/|es\/|pt-br\/)?docs(?:\/|\))/u.test(
@@ -522,6 +888,13 @@ async function audit() {
     !/^Generated(?: at| on):/im.test(globalLlmsFull) && !/^Build timestamp:/im.test(globalLlmsFull),
     'root llms-full.txt must not contain generation timestamps',
   )
+  for (const locale of LOCALES) {
+    const sdkLlmsIndexPath = contentSectionAgentPath(locale, 'sdks', 'llms.txt')
+    invariant(
+      globalLlmsIndex.includes(new URL(sdkLlmsIndexPath, SITE_ORIGIN).href),
+      `root llms.txt is missing ${sdkLlmsIndexPath}`,
+    )
+  }
 
   const distTopLevelNames = new Set(await readdir(DIST_ROOT))
   invariant(
@@ -546,17 +919,23 @@ async function audit() {
     (total, language) => total + language.page_count,
     0,
   )
-  invariant(pagefindCount === 328, `Pagefind must index 328 docs, received ${pagefindCount}`)
   invariant(
-    Object.values(pagefind.languages).every((language) => language.page_count === 41),
-    'Pagefind must index one hub plus 40 pages for every locale',
+    pagefindCount === expectedAgentPageCount,
+    `Pagefind must index ${expectedAgentPageCount} pages, received ${pagefindCount}`,
+  )
+  const expectedAgentPagesPerLocale = agentDocuments.length + 2
+  invariant(
+    Object.values(pagefind.languages).every(
+      (language) => language.page_count === expectedAgentPagesPerLocale,
+    ),
+    `Pagefind must index ${expectedAgentPagesPerLocale} pages per locale`,
   )
   const pagefindFragments = (await listFiles(path.join(DIST_ROOT, 'pagefind/fragment'))).filter(
     (file) => file.endsWith('.pf_fragment'),
   )
   invariant(
-    pagefindFragments.length === 328,
-    `Pagefind must emit 328 fragments, received ${pagefindFragments.length}`,
+    pagefindFragments.length === expectedAgentPageCount,
+    `Pagefind must emit ${expectedAgentPageCount} fragments, received ${pagefindFragments.length}`,
   )
 
   const [sitemap, sitemapIndex, sitemapPart, robots] = await Promise.all([
@@ -570,8 +949,8 @@ async function audit() {
     extractXmlLocations(sitemapPart).map(normalizePublishedUrl),
   )
   invariant(
-    sitemapLocations.size === 328,
-    `compatibility sitemap must contain 328 docs, received ${sitemapLocations.size}`,
+    sitemapLocations.size === expectedAgentPageCount,
+    `compatibility sitemap must contain ${expectedAgentPageCount} pages, received ${sitemapLocations.size}`,
   )
   invariant(
     sitemapLocations.size === expectedPublishedUrls.size &&
@@ -647,6 +1026,19 @@ async function audit() {
       /<meta name="robots" content="noindex"/.test(notFoundHtml),
       `${notFoundPath} must be noindex`,
     )
+    const pageNotFoundId = linguiMessageId('Page not found')
+    const pageNotFoundMessage = siteShellCatalogs.get(locale.locale)?.[pageNotFoundId]
+    invariant(
+      Array.isArray(pageNotFoundMessage) &&
+        pageNotFoundMessage.length === 1 &&
+        typeof pageNotFoundMessage[0] === 'string',
+      `${locale.locale} Page not found message must compile to one static string`,
+    )
+    const title = /<title>([^<]*)<\/title>/u.exec(notFoundHtml)
+    invariant(
+      title?.[1] === `${pageNotFoundMessage[0]} | XID`,
+      `${notFoundPath} title must be exactly ${JSON.stringify(`${pageNotFoundMessage[0]} | XID`)}`,
+    )
     localized404Count += 1
   }
   invariant(localized404Count === LOCALES.length, 'localized 404 page count mismatch')
@@ -660,13 +1052,17 @@ async function audit() {
     mdxTwins: allMdxTwins.length,
     globalAgentPages: expectedMarkdownUrls.size,
     localeAgentIndexes: LOCALES.length,
-    localeAgentPages: 41,
+    localeAgentPages: expectedAgentPagesPerLocale,
+    contentSectionAgentIndexes: LOCALES.length,
+    sdkSectionPages: agentSlugs.filter((slug) => slug === 'sdks' || slug.startsWith('sdks/'))
+      .length,
     pagefindPages: pagefindCount,
     sitemapUrls: sitemapLocations.size,
     contentTypeRules: 3,
     mermaidPages: mermaidPageCount,
     localeScopedNavigationPages: localeScopedNavigationCount,
     localized404Pages: localized404Count,
+    resolvedSiteShellMessages: siteShellMessageIds.size,
     legacyAliases: Object.keys(LEGACY_ALIASES).length * LOCALES.length,
   }
 }

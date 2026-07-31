@@ -5,6 +5,7 @@
 import { msg } from '@lingui/core/macro'
 import { useLingui } from '@lingui/react/macro'
 import type { MessageDescriptor } from '@lingui/core'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 // --- 成员 / 邀请状态 ---
 
@@ -42,14 +43,13 @@ export function useInvitationStatusLabel(): (status: InvitationStatus) => string
 
 // --- 成员角色 ---
 
-const ROLE_LABELS: Record<string, MessageDescriptor> = {
+const ROLE_LABELS: Record<OrganizationMembershipRole, MessageDescriptor> = {
   member: msg`Member`,
   admin: msg`Admin`,
-  viewer: msg`Viewer`,
   owner: msg`Owner`,
 }
 
-export function useRoleLabel(): (role: string) => string {
+export function useRoleLabel(): (role: OrganizationMembershipRole) => string {
   const { i18n } = useLingui()
   return (role) => {
     const descriptor = ROLE_LABELS[role]

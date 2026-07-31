@@ -13,51 +13,37 @@ import { and, eq } from 'drizzle-orm'
 import * as v from 'valibot'
 import { sha256Hex, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import { normalizePublicJwks, STANDARD_OIDC_SCOPES } from '@xid-kit/protocol'
+import type { NormalizedPublicJwks } from '@xid-kit/protocol'
 import { TOKEN_POLICY_BOUNDS } from '@xid-kit/types'
 import type { Result } from '@xid-kit/types'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import { checkRateLimitStore } from '../lib/rate-limit'
-import { isPublicHttpsUrl, readJsonBody, validateRedirectUris } from '../lib/validate'
+import {
+  isPublicHttpsUrl,
+  readJsonBody,
+  validatePostLogoutRedirectUris,
+  validateRedirectUris,
+} from '../lib/validate'
 import { oauthError, oauthInvalidRequest } from '../oidc/shared'
 import { POLICIES } from '../durable-objects/rate-limit-store'
+import {
+  VALID_AUTH_METHODS,
+  VALID_GRANT_TYPES,
+  VALID_RESPONSE_TYPES,
+  validatePublicGrantPolicy,
+} from '../oidc/client-registration-policy'
 
 const app = new Hono<XidHonoEnv>()
 
 const SECRET_BYTES = 32
 const RAT_BYTES = 32
 
-// 标准 OIDC scope 六件(03 章);自定义 scope 必须来自已注册 resource_servers(08 章 15.6)。
-const STANDARD_OIDC_SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'address',
-  'phone',
-  'offline_access',
-] as const
-
 // RFC7592:管理端点 RAT(Bearer)认证失败的 401 必须带 WWW-Authenticate。
 const RAT_AUTH_CHALLENGE = 'Bearer realm="xid", error="invalid_client"'
-
-const VALID_AUTH_METHODS = [
-  'client_secret_basic',
-  'client_secret_post',
-  'private_key_jwt',
-  'tls_client_auth',
-  'self_signed_tls_client_auth',
-  'none',
-] as const
-const VALID_GRANT_TYPES = [
-  'authorization_code',
-  'refresh_token',
-  'client_credentials',
-  'urn:ietf:params:oauth:grant-type:device_code',
-  'urn:ietf:params:oauth:grant-type:token-exchange',
-  'urn:openid:params:grant-type:ciba',
-] as const
-const VALID_RESPONSE_TYPES = ['code', 'code id_token'] as const
 
 // 顶层形状:只卡字段类型(strings/arrays/booleans/nullable number);v.object 忽略未知扩展字段
 // (RFC7591 允许客户端带扩展元数据)。domain 校验(auth method / grant / response_type 白名单、
@@ -78,6 +64,7 @@ const registrationBodySchema = v.object({
   backchannel_logout_uri: v.optional(v.string()),
   backchannel_logout_session_required: v.optional(v.boolean()),
   tls_client_auth_subject_dn: v.optional(v.string()),
+  tls_client_auth_cert_thumbprints: v.optional(v.array(v.string())),
   dpop_bound_access_tokens: v.optional(v.boolean()),
   access_token_ttl_sec: v.optional(v.nullable(v.number())),
   fapi_profile: v.optional(v.boolean()),
@@ -244,14 +231,8 @@ function validatePublicRefreshPolicy(input: {
   grantTypes: readonly string[]
   dpopBoundAccessTokens: boolean
 }): DcrError | null {
-  if (
-    input.authMethod === 'none' &&
-    input.grantTypes.includes('refresh_token') &&
-    !input.dpopBoundAccessTokens
-  ) {
-    return metaErr('public clients with refresh_token require dpop_bound_access_tokens=true')
-  }
-  return null
+  const violation = validatePublicGrantPolicy(input)
+  return violation ? metaErr(violation.message) : null
 }
 
 function validateOidcMetadata(body: Partial<RegistrationRequest>): DcrError | null {
@@ -274,10 +255,18 @@ function validateOidcMetadata(body: Partial<RegistrationRequest>): DcrError | nu
     const err = validateFrontchannelLogoutUri(body.frontchannel_logout_uri)
     if (err) return err
   }
+  if (body.post_logout_redirect_uris !== undefined) {
+    const check = validatePostLogoutRedirectUris(body.post_logout_redirect_uris)
+    if (!check.ok) return redirectErr(check.error)
+  }
   // logout_token 恒含 sid,backchannel_logout_session_required=true 与行为一致,直接接受。
   if (body.tls_client_auth_subject_dn !== undefined) {
     const err = validateTlsSubjectDn(body.tls_client_auth_subject_dn)
     if (err) return err
+  }
+  if (body.tls_client_auth_cert_thumbprints !== undefined) {
+    const normalized = normalizeTlsThumbprints(body.tls_client_auth_cert_thumbprints)
+    if (!normalized.ok) return normalized.error
   }
   if (body.backchannel_logout_uri !== undefined) {
     const err = validateBackchannelLogoutUri(body.backchannel_logout_uri)
@@ -304,6 +293,23 @@ function validateTlsSubjectDn(dn: string): DcrError | null {
     return metaErr('tls_client_auth_subject_dn must be a non-empty string')
   }
   return null
+}
+
+function normalizeTlsThumbprints(values: readonly string[]): Result<string[], DcrError> {
+  const normalized: string[] = []
+  for (const value of values) {
+    const thumbprint = value.replaceAll(':', '').toLowerCase()
+    if (!/^[0-9a-f]{64}$/.test(thumbprint)) {
+      return {
+        ok: false,
+        error: metaErr(
+          'tls_client_auth_cert_thumbprints entries must be SHA-256 certificate thumbprints',
+        ),
+      }
+    }
+    if (!normalized.includes(thumbprint)) normalized.push(thumbprint)
+  }
+  return { ok: true, value: normalized }
 }
 
 // backchannel_logout_uri 是 worker 服务端 POST logout_token 的目标(RP-Init Logout 03 章):
@@ -350,20 +356,17 @@ function resolveApplicationType(value: string | undefined): Result<'web' | 'nati
   return { ok: false, error: metaErr(`unsupported application_type: ${value}`) }
 }
 
-async function genCredentials(
-  authMethod: string,
-  jwks?: Record<string, unknown>,
-): Promise<{
+async function genCredentials(authMethod: string): Promise<{
   clientSecret: string | null
   clientSecretHash: string | null
   rat: string
   ratHash: string
 }> {
-  const isPublic = authMethod === 'none'
-  const isPrivateKeyJwt = authMethod === 'private_key_jwt'
+  const requiresSharedSecret =
+    authMethod === 'client_secret_basic' || authMethod === 'client_secret_post'
   let clientSecret: string | null = null
   let clientSecretHash: string | null = null
-  if (!isPublic && !isPrivateKeyJwt && jwks === undefined) {
+  if (requiresSharedSecret) {
     clientSecret = genSecret()
     clientSecretHash = await sha256Hex(clientSecret)
   }
@@ -375,6 +378,10 @@ function buildCustomClaimsConfig(body: RegistrationRequest): Record<string, unkn
   const config: Record<string, unknown> = {}
   if (body.tls_client_auth_subject_dn)
     config.tlsClientAuthSubjectDn = body.tls_client_auth_subject_dn
+  if (body.tls_client_auth_cert_thumbprints !== undefined) {
+    const normalized = normalizeTlsThumbprints(body.tls_client_auth_cert_thumbprints)
+    if (normalized.ok) config.tlsClientAuthCertThumbprints = normalized.value
+  }
   if (body.fapi_profile === true) config.fapiProfile = true
   return config
 }
@@ -394,20 +401,20 @@ function buildInsert(opts: {
   grantTypes: string[]
   dpopBoundAccessTokens: boolean
   accessTokenTtlSec: number | null
+  jwks: NormalizedPublicJwks | null
 }): AppInsert {
   const { authMethod, tenantId, clientId, body, clientSecretHash, ratHash, grantTypes } = opts
   const isPublic = authMethod === 'none'
-  const isPrivateKeyJwt = authMethod === 'private_key_jwt'
   const now = new Date()
   const allowedScopes = requestedScopesOf(body)
   return {
-    id: crypto.randomUUID(),
+    id: createPersistedId('application'),
     tenantId,
     clientId,
     clientSecretHash,
     clientType: isPublic ? 'public' : 'confidential',
     tokenEndpointAuthMethod: authMethod,
-    jwks: isPrivateKeyJwt && body.jwks ? body.jwks : null,
+    jwks: opts.jwks,
     redirectUris: body.redirect_uris ?? [],
     postLogoutRedirectUris: body.post_logout_redirect_uris ?? [],
     allowedGrantTypes: grantTypes,
@@ -424,6 +431,7 @@ function buildInsert(opts: {
     customClaimsConfig: buildCustomClaimsConfig(body),
     registrationAccessTokenHash: ratHash,
     backchannelLogoutUri: body.backchannel_logout_uri ?? null,
+    backchannelLogoutSessionRequired: body.backchannel_logout_session_required ?? false,
     frontchannelLogoutUri: body.frontchannel_logout_uri ?? null,
     status: 'active',
     createdAt: now,
@@ -456,6 +464,17 @@ async function buildInsertValues(
       error: metaErr('tls_client_auth_subject_dn is required for mTLS client authentication'),
     }
   }
+  if (
+    authMethod === 'self_signed_tls_client_auth' &&
+    (body.tls_client_auth_cert_thumbprints?.length ?? 0) === 0
+  ) {
+    return {
+      ok: false,
+      error: metaErr(
+        'tls_client_auth_cert_thumbprints requires at least one SHA-256 thumbprint for self_signed_tls_client_auth',
+      ),
+    }
+  }
   const grantTypes = resolveGrantTypes(authMethod, body)
   const metadataErr =
     validateGrantTypes(grantTypes) ??
@@ -477,11 +496,18 @@ async function buildInsertValues(
   if (!ttl.ok) return ttl
   const scopeErr = validateScopesAgainstCatalog(requestedScopesOf(body), scopeCatalog)
   if (scopeErr) return { ok: false, error: scopeErr }
+  const normalizedJwks = body.jwks === undefined ? null : normalizePublicJwks(body.jwks)
+  if (normalizedJwks !== null && !normalizedJwks.ok) {
+    return { ok: false, error: metaErr(normalizedJwks.error.message) }
+  }
+  if (authMethod === 'private_key_jwt' && normalizedJwks === null) {
+    return {
+      ok: false,
+      error: metaErr('private_key_jwt requires a non-empty public jwks'),
+    }
+  }
   const clientId = genClientId()
-  const { clientSecret, clientSecretHash, rat, ratHash } = await genCredentials(
-    authMethod,
-    body.jwks,
-  )
+  const { clientSecret, clientSecretHash, rat, ratHash } = await genCredentials(authMethod)
   const insert = buildInsert({
     authMethod,
     tenantId,
@@ -492,6 +518,7 @@ async function buildInsertValues(
     grantTypes,
     dpopBoundAccessTokens,
     accessTokenTtlSec: ttl.value ?? null,
+    jwks: normalizedJwks?.value ?? null,
   })
   return { ok: true, value: { insert, clientSecret, rat, clientId } }
 }
@@ -530,13 +557,18 @@ app.post('/register', async (c) => {
     post_logout_redirect_uris: insert.postLogoutRedirectUris,
     backchannel_logout_uri: insert.backchannelLogoutUri,
     frontchannel_logout_uri: insert.frontchannelLogoutUri,
-    backchannel_logout_session_required: body.backchannel_logout_session_required === true,
+    backchannel_logout_session_required: insert.backchannelLogoutSessionRequired,
+    tls_client_auth_subject_dn:
+      (insert.customClaimsConfig as Record<string, unknown>)['tlsClientAuthSubjectDn'] ?? null,
+    tls_client_auth_cert_thumbprints:
+      (insert.customClaimsConfig as Record<string, unknown>)['tlsClientAuthCertThumbprints'] ?? [],
     dpop_bound_access_tokens: insert.dpopBoundAccessTokens,
     access_token_ttl_sec: insert.accessTokenTtlSec,
     subject_type: 'public',
     id_token_signed_response_alg: insert.idTokenSignedAlg,
     scope: (insert.allowedScopes as string[]).join(' '),
   }
+  if (insert.jwks !== null) respBody.jwks = insert.jwks
   if (clientSecret !== null) {
     respBody.client_secret = clientSecret
     respBody.client_secret_expires_at = 0
@@ -574,6 +606,7 @@ function validatePatchPolicy(
 
 function buildPatchValues(
   updates: Partial<RegistrationRequest>,
+  normalizedJwks: NormalizedPublicJwks | undefined,
 ): Result<Partial<AppInsert>, DcrError> {
   const patchValues: Partial<AppInsert> = { updatedAt: new Date() }
   if (updates.redirect_uris !== undefined) patchValues.redirectUris = updates.redirect_uris
@@ -591,11 +624,13 @@ function buildPatchValues(
   }
   if (updates.scope !== undefined)
     patchValues.allowedScopes = updates.scope.split(' ').filter(Boolean)
-  if (updates.jwks !== undefined) patchValues.jwks = updates.jwks
+  if (normalizedJwks !== undefined) patchValues.jwks = normalizedJwks
   if (updates.id_token_signed_response_alg !== undefined)
     patchValues.idTokenSignedAlg = updates.id_token_signed_response_alg
   if (updates.backchannel_logout_uri !== undefined)
     patchValues.backchannelLogoutUri = updates.backchannel_logout_uri
+  if (updates.backchannel_logout_session_required !== undefined)
+    patchValues.backchannelLogoutSessionRequired = updates.backchannel_logout_session_required
   if (updates.frontchannel_logout_uri !== undefined)
     patchValues.frontchannelLogoutUri = updates.frontchannel_logout_uri
   if (updates.dpop_bound_access_tokens !== undefined)
@@ -629,6 +664,32 @@ app.patch('/register/:clientId', async (c) => {
   const updates = parsed.output
   const metadataErr = validateOidcMetadata(updates) ?? validatePatchPolicy(row, updates)
   if (metadataErr) return dcrFail(c, metadataErr)
+  const effectiveJwks = updates.jwks ?? row.jwks
+  const normalizedJwks =
+    effectiveJwks === null || effectiveJwks === undefined
+      ? null
+      : normalizePublicJwks(effectiveJwks)
+  if (normalizedJwks !== null && !normalizedJwks.ok) {
+    return dcrFail(c, metaErr(normalizedJwks.error.message))
+  }
+  if (row.tokenEndpointAuthMethod === 'private_key_jwt' && normalizedJwks === null) {
+    return dcrFail(c, metaErr('private_key_jwt requires a non-empty public jwks'))
+  }
+  const currentMtlsConfig = row.customClaimsConfig as Record<string, unknown>
+  const currentThumbprints = Array.isArray(currentMtlsConfig['tlsClientAuthCertThumbprints'])
+    ? currentMtlsConfig['tlsClientAuthCertThumbprints']
+    : []
+  if (
+    row.tokenEndpointAuthMethod === 'self_signed_tls_client_auth' &&
+    (updates.tls_client_auth_cert_thumbprints ?? currentThumbprints).length === 0
+  ) {
+    return dcrFail(
+      c,
+      metaErr(
+        'tls_client_auth_cert_thumbprints requires at least one SHA-256 thumbprint for self_signed_tls_client_auth',
+      ),
+    )
+  }
   const applicationType = resolveApplicationType(updates.application_type)
   if (!applicationType.ok) return dcrFail(c, applicationType.error)
   if (updates.redirect_uris !== undefined) {
@@ -645,13 +706,25 @@ app.patch('/register/:clientId', async (c) => {
     )
     if (scopeErr) return dcrFail(c, scopeErr)
   }
-  const patched = buildPatchValues(updates)
+  const patched = buildPatchValues(
+    updates,
+    updates.jwks === undefined ? undefined : (normalizedJwks?.value ?? undefined),
+  )
   if (!patched.ok) return dcrFail(c, patched.error)
   const patchValues = patched.value
-  if (updates.tls_client_auth_subject_dn !== undefined || updates.fapi_profile !== undefined) {
+  if (
+    updates.tls_client_auth_subject_dn !== undefined ||
+    updates.tls_client_auth_cert_thumbprints !== undefined ||
+    updates.fapi_profile !== undefined
+  ) {
     const current = { ...(row.customClaimsConfig as Record<string, unknown>) }
     if (updates.tls_client_auth_subject_dn !== undefined) {
       current.tlsClientAuthSubjectDn = updates.tls_client_auth_subject_dn
+    }
+    if (updates.tls_client_auth_cert_thumbprints !== undefined) {
+      const normalized = normalizeTlsThumbprints(updates.tls_client_auth_cert_thumbprints)
+      if (!normalized.ok) return dcrFail(c, normalized.error)
+      current.tlsClientAuthCertThumbprints = normalized.value
     }
     if (updates.fapi_profile !== undefined) current.fapiProfile = updates.fapi_profile
     patchValues.customClaimsConfig = current
@@ -682,6 +755,7 @@ app.delete('/register/:clientId', async (c) => {
 function buildClientResponse(
   row: typeof schema.applications.$inferSelect,
 ): Record<string, unknown> {
+  const mtlsConfig = row.customClaimsConfig as Record<string, unknown>
   return {
     client_id: row.clientId,
     client_id_issued_at: Math.floor(row.createdAt.getTime() / 1000),
@@ -692,12 +766,15 @@ function buildClientResponse(
     post_logout_redirect_uris: row.postLogoutRedirectUris,
     backchannel_logout_uri: row.backchannelLogoutUri,
     frontchannel_logout_uri: row.frontchannelLogoutUri,
-    backchannel_logout_session_required: false,
+    backchannel_logout_session_required: row.backchannelLogoutSessionRequired,
+    tls_client_auth_subject_dn: mtlsConfig['tlsClientAuthSubjectDn'] ?? null,
+    tls_client_auth_cert_thumbprints: mtlsConfig['tlsClientAuthCertThumbprints'] ?? [],
     dpop_bound_access_tokens: row.dpopBoundAccessTokens,
     access_token_ttl_sec: row.accessTokenTtlSec,
     subject_type: 'public',
     id_token_signed_response_alg: row.idTokenSignedAlg,
     scope: row.allowedScopes.join(' '),
+    jwks: row.jwks,
   }
 }
 

@@ -4,7 +4,7 @@
 // Quick start (app.config.ts):
 //   import { provideXid } from '@xid-kit/angular'
 //   export const appConfig: ApplicationConfig = {
-//     providers: [provideXid({ apiUrl: 'https://app.xid.dev' })]
+//     providers: [provideXid({ mode: 'same-origin' })]
 //   }
 
 // --- Provider / DI ---
@@ -59,3 +59,5 @@ export type {
   GetTokenOptions,
   XidClientOptions,
 } from '@xid-kit/core'
+
+export type { OrganizationMembershipRole } from '@xid-kit/types'

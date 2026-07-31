@@ -13,6 +13,15 @@ function makeMeResponse(activeOrgId: string | null): MeResponse {
     role: 'admin',
     permissions: ['org:read'],
   }
+  const session = {
+    id: 'sess_1',
+    status: 'active' as const,
+    expiresAt: '2030-01-01T00:00:00.000Z',
+    isImpersonation: false,
+    userId: 'user_1',
+    activeOrganizationId: activeOrgId,
+    lastActiveAt: '2029-01-01T00:00:00.000Z',
+  }
   return {
     user: {
       id: 'user_1',
@@ -26,12 +35,9 @@ function makeMeResponse(activeOrgId: string | null): MeResponse {
     },
     activeOrg: activeOrgId ? org : null,
     organizations: [org],
-    session: {
-      id: 'sess_1',
-      status: 'active',
-      expiresAt: '2030-01-01T00:00:00.000Z',
-      isImpersonation: false,
-    },
+    session,
+    activeSessionId: 'sess_1',
+    sessions: [session],
   }
 }
 

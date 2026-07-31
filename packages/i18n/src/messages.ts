@@ -74,6 +74,7 @@ export const errorMessages: ErrorMessages = {
   permission_not_found: msg`The specified permission could not be found.`,
   cross_tenant_access_denied: msg`Cross-organization access is not permitted.`,
   seat_limit_exceeded: msg`The organization has reached its seat limit.`,
+  resource_quota_exceeded: msg`The organization has reached a configured resource quota.`,
 
   // 企业 SSO (SAML / SCIM)
   malformed_request: msg`The request is malformed.`,

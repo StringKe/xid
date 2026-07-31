@@ -81,16 +81,92 @@ describe('createXidServerMiddleware', () => {
     expect(auth).toMatchObject({ userId: null, sessionId: null })
   })
 
-  it('injects authenticated auth when valid JWT is in cookie', async () => {
+  it('injects authenticated auth when valid JWT is in an explicit app cookie', async () => {
     const key = await makeKey('kid2')
     const token = await mintToken(key)
-    const mw = createXidServerMiddleware({ jwtKey: key.publicJwk })
+    const mw = createXidServerMiddleware({
+      jwtKey: key.publicJwk,
+      jwtCookieName: '__Host-app.xid.jwt',
+    })
 
-    const event = makeEvent('https://app.com/api/data', `__session=${token}`)
+    const event = makeEvent('https://app.com/api/data', `__Host-app.xid.jwt=${token}`)
     await mw(event)
 
     const auth = event.context[XID_AUTH_CONTEXT_KEY]
     expect(auth).toMatchObject({ userId: 'user_nuxt', sessionId: 'sess_nuxt' })
+  })
+
+  it('exchanges an opaque Core cookie at the configured same-origin endpoint', async () => {
+    const key = await makeKey('kid_exchange')
+    const token = await mintToken(key, 'user_exchange')
+    let exchangeUrl = ''
+    const mw = createXidServerMiddleware({
+      jwtKey: key.publicJwk,
+      sessionTokenExchange: {
+        endpoint: '/v1/sessions/token',
+        fetcher: (async (input) => {
+          exchangeUrl = String(input)
+          return Response.json({ token })
+        }) as typeof fetch,
+      },
+    })
+
+    const event = makeEvent('https://app.com/api/data', '__Host-xid.rt.sess_nuxt=opaque-refresh')
+    await mw(event)
+
+    const auth = event.context[XID_AUTH_CONTEXT_KEY]
+    expect(auth).toMatchObject({ userId: 'user_exchange', sessionId: 'sess_nuxt' })
+    expect(exchangeUrl).toBe('https://app.com/v1/sessions/token')
+  })
+
+  it('uses configured requestOrigin for relative H3 v1 Node URLs', async () => {
+    const key = await makeKey('kid_relative_exchange')
+    const token = await mintToken(key, 'user_relative_exchange')
+    let exchangeUrl = ''
+    const mw = createXidServerMiddleware({
+      jwtKey: key.publicJwk,
+      requestOrigin: 'https://app.example.com',
+      sessionTokenExchange: {
+        endpoint: '/v1/sessions/token',
+        fetcher: (async (input) => {
+          exchangeUrl = String(input)
+          return Response.json({ token })
+        }) as typeof fetch,
+      },
+    })
+
+    const event = makeEvent('/api/data', '__Host-xid.rt.sess_nuxt=opaque-refresh')
+    await mw(event)
+
+    expect(exchangeUrl).toBe('https://app.example.com/v1/sessions/token')
+    expect(event.context[XID_AUTH_CONTEXT_KEY]).toMatchObject({
+      userId: 'user_relative_exchange',
+    })
+  })
+
+  it('fails closed for relative H3 v1 exchange requests without a trusted origin', async () => {
+    const key = await makeKey('kid_relative_reject')
+    const fetcher = async () => Response.json({ token: 'must-not-run' })
+    const mw = createXidServerMiddleware({
+      jwtKey: key.publicJwk,
+      sessionTokenExchange: {
+        endpoint: '/v1/sessions/token',
+        fetcher: fetcher as typeof fetch,
+      },
+    })
+
+    const event = makeEvent('/api/data', '__Host-xid.rt.sess_nuxt=opaque-refresh')
+    await expect(mw(event)).rejects.toThrow('requires requestOrigin')
+  })
+
+  it('rejects a requestOrigin containing a path', async () => {
+    const key = await makeKey('kid_bad_origin')
+    expect(() =>
+      createXidServerMiddleware({
+        jwtKey: key.publicJwk,
+        requestOrigin: 'https://app.example.com/base',
+      }),
+    ).toThrow('requestOrigin must be an origin')
   })
 
   it('injects authenticated auth when valid JWT is in Authorization header', async () => {
@@ -124,10 +200,11 @@ describe('createXidServerMiddleware', () => {
     const token = await mintToken(key)
     const mw = createXidServerMiddleware({
       jwtKey: key.publicJwk,
+      jwtCookieName: '__Host-app.xid.jwt',
       protectedRoutes: ['/api/admin'],
     })
 
-    const event = makeEvent('https://app.com/api/admin/users', `__session=${token}`)
+    const event = makeEvent('https://app.com/api/admin/users', `__Host-app.xid.jwt=${token}`)
     const result = await mw(event)
 
     // No 401 response returned; middleware passes through.

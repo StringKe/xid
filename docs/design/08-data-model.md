@@ -25,23 +25,26 @@ This chapter has two parts:
 - Short-lived strongly consistent data (challenges, state, nonce, PAR, session revocation sets, rate
   limit counters) belongs in Durable Objects rather than relational tables
 
-The 8 current Durable Objects (binding -> class):
+The 11 current Durable Objects (binding -> class):
 
-| Binding            | Class           | Purpose                                                                        |
-| ------------------ | --------------- | ------------------------------------------------------------------------------ |
-| SESSION_REVOCATION | SessionDO       | Per-user session revocation set (the source of truth for revocation, see 17.1) |
-| WEBAUTHN_CHALLENGE | ChallengeStore  | WebAuthn challenge (destroyed after verification, see the webauthn rule)       |
-| OAUTH_STATE        | OAuthFlowDO     | Authorize parameters staged before sign-in, plus state/nonce CSRF defense      |
-| PAR_STORE          | ParStore        | PAR request_uri parameters (60s, single use, see 15.3)                         |
-| DEVICE_FLOW        | DeviceFlowStore | device_code/user_code state machine (see 15.2)                                 |
-| RATE_LIMITER       | RateLimitStore  | Per-tenant rate limit counters                                                 |
-| AUDIT_SEQ          | AuditSeqDO      | Audit seq issuance (sharded by `audit-seq:{tenantId}`, see 17.2)               |
-| METERING           | MeteringDO      | Exact DAU/MAU deduplication (sharded by `metering:{tenantId}`, see 17.3)       |
-
-| GUEST_STORE | GuestStore | Guest sign-in concurrency dedup keyed by `idFromName("{tenant_id}:{anonKey}")` (see chapter 01 section 8) |
+| Binding              | Class                | Purpose                                                                        |
+| -------------------- | -------------------- | ------------------------------------------------------------------------------ |
+| SESSION_REVOCATION   | SessionDO            | Per-user session revocation set (the source of truth for revocation, see 17.1) |
+| WEBAUTHN_CHALLENGE   | ChallengeStore       | WebAuthn challenges plus atomic TOTP replay claims                             |
+| OAUTH_STATE          | OAuthFlowDO          | Authorize parameters staged before sign-in, plus state/nonce CSRF defense      |
+| PAR_STORE            | ParStore             | PAR request_uri parameters (60s, single use, see 15.3)                         |
+| DEVICE_FLOW          | DeviceFlowStore      | device_code/user_code state machine (see 15.2)                                 |
+| RATE_LIMITER         | RateLimitStore       | Per-tenant rate limit counters                                                 |
+| AUDIT_SEQ            | AuditSeqDO           | Audit seq issuance (sharded by `audit-seq:{tenantId}`, see 17.2)               |
+| METERING             | MeteringDO           | Exact DAU/MAU deduplication (sharded by `metering:{tenantId}`, see 17.3)       |
+| GUEST_STORE          | GuestStore           | Guest sign-in concurrency dedup keyed by tenant and anonymous session          |
+| CIBA_STATE           | CibaStore            | Per-auth_req_id CIBA state, polling throttle and atomic token redemption       |
+| IMPERSONATION_GRANTS | ImpersonationGrantDO | Two-minute secret-hash-only, exact-target-host handoff consumed once           |
 
 The GuestStore binding reuses the WebAuthn `__Host-xid.anon` cookie plus anonKey infrastructure.
-The binding record TTL aligns with the session TTL and a Durable Object alarm cleans up.
+Its record TTL aligns with the session TTL. CibaStore records expire with `auth_req_id`; Durable
+Object alarms clean up both stores. ImpersonationGrantDO stores no plaintext secret or target user
+identity and atomically consumes each manager grant once.
 
 ## Entity relationship backbone
 
@@ -135,6 +138,7 @@ User -> Session -> Token
 | SamlServiceProvider            | Downstream SAML SP registration (when XID acts as the IdP)                          |
 | SamlSessionBinding             | SAML SLO SessionIndex/NameID to session mapping                                     |
 | ScimTarget                     | Outbound SCIM target (XID acting as a SCIM client pushing to downstream SaaS)       |
+| ScimTargetResource             | Stable local-to-downstream User/Group identity mapping for one SCIM target          |
 
 ### Keys and sessions
 
@@ -154,6 +158,13 @@ User -> Session -> Token
 | ApiKey                    | API keys (scoped, hashed storage)                             |
 | PlatformAdmin             | Platform administrator (platform-level)                       |
 | FeatureFlag               | Rollout switches (stored in KV, not a relational table)       |
+| OrganizationPlan / Quota  | Optional accounting labels and resource-creation limits       |
+| StripeCheckoutReservation | Durable guard against duplicate hosted subscription Checkout  |
+| PlatformAnnouncement      | Scheduled, explicitly targeted operator announcements         |
+| StatusIncident / Update   | Public service-status incidents and their timeline            |
+| PrivacyRequest            | User export and delayed-erasure workflow state                |
+| ComplianceDocument        | Versioned compliance artifacts and acceptance metadata        |
+| PlatformAuditOutbox       | Durable, redacted audit handoff for platform mutations        |
 
 ---
 
@@ -163,7 +174,7 @@ The sections below are the **single source of truth** for `packages/db` (the Dri
 `packages/types` (the TypeScript types). Each core entity gets a complete field table plus index
 declarations plus foreign key ON DELETE policies. Once a field name and physical type are settled, the
 implementation MUST NOT deviate; adding, removing, or changing a field means changing this chapter
-first and the implementation second. There are currently 57 D1 tables (matching
+first and the implementation second. There are currently 71 D1 tables (matching
 `packages/db/src/schema` and the `packages/db/drizzle` migrations); device_codes and par_requests are
 logical structures inside Durable Objects and do not count as tables.
 
@@ -171,13 +182,21 @@ logical structures inside Durable Objects and do not count as tables.
 
 ### 9.1 IDs and primary keys
 
-- Every primary key `id` is `text`, holding a prefixed nanoid (the external identifier, which does not
-  expose an auto-increment value; see the sub convention in chapter 05 section 8.1). The prefix table
-  is in 9.6.
-- Primary key nanoid generation: 21 characters from a base62 alphabet (`A-Za-z0-9`) with the prefix
-  followed by `_` (for example `user_V1StGXR8Z5jdHi6BmyT`), unique across the table. UUIDs are not used
-  as primary keys (prefixed nanoids are URL-friendly and smaller); UUIDs are used only where a protocol
-  requires UUID v4, such as jti and audit.id.
+- Every externally addressable entity primary key listed in 9.6 is `text` holding a prefixed nanoid.
+  It does not expose an auto-increment value; see the sub convention in chapter 05 section 8.1.
+  Internal bookkeeping rows not listed in 9.6 may retain UUID primary keys, and protocol correlation
+  values such as `jti` remain UUIDs where the protocol requires them.
+- An operation or correlation value with no resource route, such as the outbound SCIM sync `runId`,
+  is not an entity identifier and may remain a UUID. `audit_events.id` is likewise a deterministic
+  SHA-256 idempotency and hash-chain value addressed by `(tenant_id, seq)`, not a resource locator.
+  In contrast, `queue_dead_letters.id` is used by `/v1/platform/dead-letters/:id`, so it is listed in
+  9.6 and uses the shared public identifier generator.
+- Prefixed nanoid generation uses 21 characters from a base62 alphabet (`A-Za-z0-9`) after the prefix
+  and `_` (for example `user_V1StGXR8Z5jdHi6BmyT`), unique across the table. These public identifiers
+  are URL-friendly and smaller than UUIDs.
+- Production Worker writes for the entities in 9.6 use the single
+  `apps/server/worker/lib/persisted-id.ts` Web Crypto generator. Existing UUID rows remain readable;
+  adopting prefixed IDs does not rewrite or destructively migrate stored identifiers.
 
 ### 9.2 Physical type mapping (Drizzle SQLite; per the monorepo-toolchain rule, the ORM is Drizzle on D1)
 
@@ -212,12 +231,12 @@ timestamp defaults to `null`.
 
 ### 9.4 Foreign key ON DELETE policy
 
-| Relationship type                                                          | ON DELETE                                                       | Rationale                                                                                                           |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| A child that dies with its parent (a user's credentials, emails, sessions) | `cascade`                                                       | Deleting a user MUST clear every credential, leaving nothing dangling                                               |
-| A reference that must retain history (audit.actor_id, token.user_id)       | `no action` (soft delete or anonymize at the application layer) | The audit chain cannot be cascade-deleted; GDPR replaces the value with `[deleted_user]` (see chapter 07 section 8) |
-| An optional association (session.active_org_id)                            | `set null`                                                      | After an org is deleted, the session falls back to having no org context                                            |
-| Configuration ownership (application -> project)                           | `cascade`                                                       | Deleting a project deletes its applications too                                                                     |
+| Relationship type                                                          | ON DELETE                                                                        | Rationale                                                                                                                                             |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A child that dies with its parent (a user's credentials, emails, sessions) | `cascade`                                                                        | Deleting a user MUST clear every credential, leaving nothing dangling                                                                                 |
+| A reference that must retain history (audit.actor_id, token.user_id)       | `no action` (soft delete or remove the identity lookup at the application layer) | The audit chain cannot be cascade-deleted or rewritten; after GDPR erasure an unresolved actor renders as `[deleted_user]` (see chapter 07 section 8) |
+| An optional association (session.active_org_id)                            | `set null`                                                                       | After an org is deleted, the session falls back to having no org context                                                                              |
+| Configuration ownership (application -> project)                           | `cascade`                                                                        | Deleting a project deletes its applications too                                                                                                       |
 
 D1 does **not** enforce foreign key constraints by default (SQLite `PRAGMA foreign_keys`). Drizzle
 migrations emit FK declarations for schema documentation and type inference, but **the application
@@ -281,17 +300,26 @@ Exports and full synchronization are explicit full-scan scenarios and MUST use c
 | Membership              | `mem_`   | UserConsent                         | `cons_`                                       |
 | Invitation              | `inv_`   | ResourceServer                      | `rs_`                                         |
 | Role                    | `role_`  | SsoConnection                       | `conn_`                                       |
-| Permission              | `perm_`  | Directory                           | `dir_`                                        |
+| Permission              | `perm_`  | RolePermission                      | `rp_`                                         |
+| Directory               | `dir_`   |                                     |                                               |
 | UserGrant               | `ug_`    | SigningKey (id)                     | `sk_`                                         |
 | ManagerAssignment       | `mgr_`   | CertStore                           | `cert_`                                       |
 | MfaFactor               | `mfa_`   | Webhook                             | `wh_`                                         |
 | TrustedDevice           | `dev_`   | ApiKey (id)                         | `ak_`                                         |
 | PasskeyCredential       | `pk_`    | PlatformAdmin                       | `padmin_`                                     |
 | UserIdentity            | `idn_`   | Instance                            | `inst_`                                       |
+| CustomHostname          | `ch_`    | PlatformAnnouncement                | `ann_`                                        |
+| StatusIncident          | `inc_`   | StatusIncidentUpdate                | `incu_`                                       |
+| PrivacyRequest          | `prv_`   | ComplianceDocument                  | `cmp_`                                        |
+| PlatformAuditOutbox     | `paud_`  |                                     |                                               |
+| OrganizationDomain      | `dom_`   | SamlServiceProvider                 | `sp_`                                         |
+| ScimTarget              | `st_`    | QueueDeadLetter                     | `dlq_`                                        |
+| DirectoryUser           | `dusr_`  | DirectoryGroup                      | `dgrp_`                                       |
 
-> Note: `pk_test_` and `sk_live_` are the prefixes of the **plaintext token** for an ApiKey or a
-> publishable key (see the api-sdk-conventions rule). They are a separate namespace from this table's
-> internal id prefixes (`ak_`) and the two MUST NOT be conflated.
+> Note: `sk_test_` and `sk_live_` are the **plaintext token** prefixes for an ApiKey (see the
+> api-sdk-conventions rule). XID has no separate publishable-key database. These tokens use a
+> separate namespace from this table's internal id prefix (`ak_`), and the two MUST NOT be
+> conflated.
 
 ## 10. Tenancy and hierarchy entities
 
@@ -327,8 +355,8 @@ Indexes: `UNIQUE(primary_domain)`. No foreign keys (this is the platform root).
 | logo_url                | text            | nullable                                           | null                | R2 logo URL (branding lives in OrgBranding)                                                          |
 | public_metadata         | text json       | NOT NULL                                           | `{}`                | Readable by the frontend (see chapter 02 section 5)                                                  |
 | private_metadata        | text json       | NOT NULL                                           | `{}`                | Server and admin only                                                                                |
-| seat_limit              | integer number  | nullable                                           | null                | Billing seat cap; null means unlimited (see chapter 02 section 2)                                    |
-| seat_used               | integer number  | NOT NULL                                           | `0`                 | The current active member count                                                                      |
+| seat_limit              | integer number  | nullable                                           | null                | Compatibility mirror of the root tenant's `organization_quotas(seats)` limit; null means unlimited   |
+| seat_used               | integer number  | NOT NULL                                           | `0`                 | Legacy compatibility counter; billing derives tenant-wide distinct active users from memberships     |
 | enrollment_mode         | text            | NOT NULL                                           | `'invite_required'` | `automatic`/`invite_required` (automatic domain assignment, see chapter 02 section 2)                |
 | allow_org_self_service  | integer boolean | NOT NULL                                           | `1`                 | When off, an org admin cannot change SSO or MFA (see chapter 02 section 6)                           |
 | status                  | text            | NOT NULL                                           | `'active'`          | `active`/`suspended`/`deleted`                                                                       |
@@ -338,52 +366,95 @@ Indexes: `UNIQUE(primary_domain)`. No foreign keys (this is the platform root).
 Indexes: `UNIQUE(tenant_id, slug)`, `UNIQUE(instance_id, slug)`, `INDEX(instance_id)`, `INDEX(parent_org_id)`,
 `INDEX(tenant_id, status)`.
 
+Hierarchy is a database invariant, not only a handler convention. A top-level row must satisfy
+`id = tenant_id` and `parent_org_id IS NULL`. A child must satisfy `id <> tenant_id`,
+`parent_org_id = tenant_id`, and reference an active same-Instance top-level row when it is created
+or restored. The migration-owned insert/update guards reject deep nesting, cross-Instance parents,
+Tenant changes, and reparenting.
+
+### 10.2a custom_hostnames (Cloudflare for SaaS binding)
+
+| Field                                  | Type            | Constraints               | Default          | Notes                                                                                           |
+| -------------------------------------- | --------------- | ------------------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
+| id                                     | text            | PK                        | `ch_`+nanoid     | Local durable identity                                                                          |
+| tenant_id                              | text            | NOT NULL                  | --               | Tenant isolation key                                                                            |
+| org_id                                 | text            | NOT NULL                  | --               | Owning organization                                                                             |
+| instance_id                            | text            | NOT NULL                  | --               | Instance whose Core Worker serves the hostname                                                  |
+| hostname                               | text            | NOT NULL, globally UNIQUE | --               | Lowercase concrete external hostname; wildcard and platform-owned hosts are rejected            |
+| cloudflare_hostname_id                 | text            | globally UNIQUE, nullable | null             | Cloudflare Custom Hostname id                                                                   |
+| status                                 | text            | NOT NULL                  | `'provisioning'` | `provisioning`/`pending`/`active`/`provisioning_failed`/`deletion_failed`/`deleted`             |
+| hostname_status                        | text            | NOT NULL                  | `'pending'`      | Cloudflare hostname ownership status                                                            |
+| ssl_status                             | text            | nullable                  | null             | Cloudflare `ssl.status`; local `active` requires both this and `hostname_status` to be `active` |
+| ownership_verification_type/name/value | text            | nullable                  | null             | Provider ownership TXT instruction, bound to this tenant                                        |
+| ownership_expires_at                   | integer ts_ms   | nullable                  | null             | 24-hour local reservation deadline until ownership becomes active                               |
+| dcv_delegation_records                 | text json       | NOT NULL                  | `[]`             | Provider DCV CNAME records; may arrive asynchronously after create                              |
+| validation_records                     | text json       | NOT NULL                  | `[]`             | Provider certificate validation records                                                         |
+| traffic_cname_target                   | text            | NOT NULL                  | --               | Configured friendly CNAME target, otherwise the active Cloudflare fallback origin               |
+| verification_errors                    | text json       | NOT NULL                  | `[]`             | Provider status codes only; no secret or raw provider response                                  |
+| requires_passkey_reregistration        | integer boolean | NOT NULL                  | `1`              | Explicit WebAuthn RPID migration warning                                                        |
+| activated_at / last_polled_at          | integer ts_ms   | nullable                  | null             | First full activation and latest provider poll                                                  |
+| deleted_at                             | integer ts_ms   | nullable                  | null             | Explicit deletion tombstone; preserved to prevent stale-DNS takeover                            |
+| created_at / updated_at                | integer ts_ms   | NOT NULL                  | See 9.3          |                                                                                                 |
+
+Indexes: `UNIQUE(hostname)`, `UNIQUE(cloudflare_hostname_id)`,
+`INDEX(tenant_id, org_id, status, id)`, `INDEX(status, ownership_expires_at, id)`,
+`INDEX(instance_id, status, id)`.
+
+`hostname` is intentionally the exception to the usual tenant-first uniqueness rule. One external
+DNS name can be attached to only one Cloudflare Custom Hostname. An explicit delete keeps the row as
+a global tombstone so stale DNS cannot be claimed by a different tenant. Expired, never-verified
+reservations are physically removed only after the remote Cloudflare delete succeeds.
+
 ### 10.3 projects (role namespace)
 
-| Field                   | Type          | Constraints                                        | Default        | Notes                             |
-| ----------------------- | ------------- | -------------------------------------------------- | -------------- | --------------------------------- |
-| id                      | text          | PK                                                 | `proj_`+nanoid |                                   |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --             | Isolation key                     |
-| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | The owning org (may be a sub-org) |
-| name                    | text          | NOT NULL                                           | --             |                                   |
-| description             | text          | nullable                                           | null           |                                   |
-| created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3        |                                   |
+| Field                   | Type          | Constraints                                        | Default        | Notes                                           |
+| ----------------------- | ------------- | -------------------------------------------------- | -------------- | ----------------------------------------------- |
+| id                      | text          | PK                                                 | `proj_`+nanoid |                                                 |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --             | Isolation key                                   |
+| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | The owning org (may be a sub-org)               |
+| name                    | text          | NOT NULL                                           | --             |                                                 |
+| description             | text          | nullable                                           | null           |                                                 |
+| status                  | text          | NOT NULL                                           | `'active'`     | `active`/`deleted`; runtime accepts active only |
+| deleted_at              | integer ts_ms | nullable                                           | null           | Reversible Management API deletion marker       |
+| created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3        |                                                 |
 
-Indexes: `INDEX(tenant_id, org_id)`.
+Indexes: `INDEX(tenant_id, org_id)`, `INDEX(tenant_id, status, id)`,
+`INDEX(tenant_id, org_id, status, id)`.
 
 ### 10.4 applications (= OAuthClient, the OIDC/SAML client)
 
 Chapter 02's Application and chapter 03's OAuthClient are merged into one table (two views of the same
 entity).
 
-| Field                          | Type            | Constraints                                   | Default                                         | Notes                                                                                                                                                  |
-| ------------------------------ | --------------- | --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| id                             | text            | PK                                            | `app_`+nanoid                                   |                                                                                                                                                        |
-| tenant_id                      | text            | NOT NULL, FK -> organizations.id              | --                                              | Isolation key                                                                                                                                          |
-| project_id                     | text            | FK -> projects.id ON DELETE cascade, nullable | null                                            | Bound project (inheriting its role set, see chapter 02 section 1); a platform-level app may be null                                                    |
-| client_id                      | text            | NOT NULL, UNIQUE                              | = id or an independent string                   | The OAuth client_id, exposed externally                                                                                                                |
-| client_secret_hash             | text            | nullable                                      | null                                            | Hashed storage (see chapter 03 section 4; plaintext is never stored); null for public clients                                                          |
-| client_type                    | text            | NOT NULL                                      | `'confidential'`                                | `confidential`/`public`/`native`/`m2m` (see chapter 03 section 4)                                                                                      |
-| token_endpoint_auth_method     | text            | NOT NULL                                      | `'client_secret_basic'`                         | `client_secret_basic`/`client_secret_post`/`private_key_jwt`/`tls_client_auth`/`self_signed_tls_client_auth`/`none` (see chapter 03 section 9.6)       |
-| jwks                           | text json       | nullable                                      | null                                            | The client's public key set for private_key_jwt                                                                                                        |
-| redirect_uris                  | text json       | NOT NULL                                      | `[]`                                            | An exact-match array; wildcards are forbidden (see the oidc-oauth rule)                                                                                |
-| post_logout_redirect_uris      | text json       | NOT NULL                                      | `[]`                                            | Used by end_session                                                                                                                                    |
-| frontchannel_logout_uri        | text            | nullable                                      | null                                            | (see chapter 03 section 7)                                                                                                                             |
-| backchannel_logout_uri         | text            | nullable                                      | null                                            |                                                                                                                                                        |
-| allowed_grant_types            | text json       | NOT NULL                                      | `["authorization_code","refresh_token"]`        | Allowlist (see chapter 03 section 9.0 step 5)                                                                                                          |
-| allowed_response_types         | text json       | NOT NULL                                      | `["code"]`                                      |                                                                                                                                                        |
-| allowed_scopes                 | text json       | NOT NULL                                      | `["openid","profile","email","offline_access"]` | The client_credentials scope allowlist                                                                                                                 |
-| require_pkce                   | integer boolean | NOT NULL                                      | `1`                                             | Mandatory for public clients; configurable for confidential ones (PKCE downgrade defense, see chapter 03 section 9.1)                                  |
-| dpop_bound_access_tokens       | integer boolean | NOT NULL                                      | `0`                                             | Registration requires DPoP (see chapter 03 section 9.0 step 6)                                                                                         |
-| access_token_format            | text            | NOT NULL                                      | `'jwt'`                                         | `jwt`/`opaque` (see chapter 03 section 3)                                                                                                              |
-| access_token_ttl_sec           | integer number  | nullable                                      | null                                            | Nullable; NULL means inherit the tenant token policy (the three-level chain application -> org -> instance, bounds 60-86400, see chapter 03 section 3) |
-| id_token_signed_alg            | text            | NOT NULL                                      | `'ES256'`                                       | Overridable per client (`RS256`/`PS256`)                                                                                                               |
-| first_party                    | integer boolean | NOT NULL                                      | `0`                                             | First-party clients skip consent (see chapter 03 section 10.5)                                                                                         |
-| require_org_context            | integer boolean | NOT NULL                                      | `0`                                             | Force org selection (see chapter 02 section 4)                                                                                                         |
-| custom_claims_config           | text json       | NOT NULL                                      | `{}`                                            | Client-level custom claim injection declaration (see chapter 02 section 7.1; keys MUST be declared explicitly)                                         |
-| registration_access_token_hash | text            | nullable                                      | null                                            | The RFC 7592 dynamic registration management token hash                                                                                                |
-| status                         | text            | NOT NULL                                      | `'active'`                                      | `active`/`inactive`                                                                                                                                    |
-| created_at / updated_at        | integer ts_ms   | NOT NULL                                      | See 9.3                                         |                                                                                                                                                        |
+| Field                               | Type            | Constraints                                   | Default                                         | Notes                                                                                                                                                  |
+| ----------------------------------- | --------------- | --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| id                                  | text            | PK                                            | `app_`+nanoid                                   |                                                                                                                                                        |
+| tenant_id                           | text            | NOT NULL, FK -> organizations.id              | --                                              | Isolation key                                                                                                                                          |
+| project_id                          | text            | FK -> projects.id ON DELETE cascade, nullable | null                                            | Bound project (inheriting its role set, see chapter 02 section 1); a platform-level app may be null                                                    |
+| client_id                           | text            | NOT NULL, UNIQUE                              | = id or an independent string                   | The OAuth client_id, exposed externally                                                                                                                |
+| client_secret_hash                  | text            | nullable                                      | null                                            | Hashed storage (see chapter 03 section 4; plaintext is never stored); null for public clients                                                          |
+| client_type                         | text            | NOT NULL                                      | `'confidential'`                                | `confidential`/`public`/`native`/`m2m` (see chapter 03 section 4)                                                                                      |
+| token_endpoint_auth_method          | text            | NOT NULL                                      | `'client_secret_basic'`                         | `client_secret_basic`/`client_secret_post`/`private_key_jwt`/`tls_client_auth`/`self_signed_tls_client_auth`/`none` (see chapter 03 section 9.6)       |
+| jwks                                | text json       | nullable                                      | null                                            | The client's public key set for private_key_jwt                                                                                                        |
+| redirect_uris                       | text json       | NOT NULL                                      | `[]`                                            | An exact-match array; wildcards are forbidden (see the oidc-oauth rule)                                                                                |
+| post_logout_redirect_uris           | text json       | NOT NULL                                      | `[]`                                            | Used by end_session                                                                                                                                    |
+| frontchannel_logout_uri             | text            | nullable                                      | null                                            | (see chapter 03 section 7)                                                                                                                             |
+| backchannel_logout_uri              | text            | nullable                                      | null                                            |                                                                                                                                                        |
+| backchannel_logout_session_required | integer boolean | NOT NULL                                      | `0`                                             | RFC 7591/7592 client metadata; supported because every logout_token carries sid                                                                        |
+| allowed_grant_types                 | text json       | NOT NULL                                      | `["authorization_code","refresh_token"]`        | Allowlist (see chapter 03 section 9.0 step 5)                                                                                                          |
+| allowed_response_types              | text json       | NOT NULL                                      | `["code"]`                                      |                                                                                                                                                        |
+| allowed_scopes                      | text json       | NOT NULL                                      | `["openid","profile","email","offline_access"]` | The client_credentials scope allowlist                                                                                                                 |
+| require_pkce                        | integer boolean | NOT NULL                                      | `1`                                             | Mandatory for public clients; configurable for confidential ones (PKCE downgrade defense, see chapter 03 section 9.1)                                  |
+| dpop_bound_access_tokens            | integer boolean | NOT NULL                                      | `0`                                             | Registration requires DPoP (see chapter 03 section 9.0 step 6)                                                                                         |
+| access_token_format                 | text            | NOT NULL                                      | `'jwt'`                                         | `jwt`/`opaque` (see chapter 03 section 3)                                                                                                              |
+| access_token_ttl_sec                | integer number  | nullable                                      | null                                            | Nullable; NULL means inherit the tenant token policy (the three-level chain application -> org -> instance, bounds 60-86400, see chapter 03 section 3) |
+| id_token_signed_alg                 | text            | NOT NULL                                      | `'ES256'`                                       | Overridable per client (`RS256`/`PS256`)                                                                                                               |
+| first_party                         | integer boolean | NOT NULL                                      | `0`                                             | First-party clients skip consent (see chapter 03 section 10.5)                                                                                         |
+| require_org_context                 | integer boolean | NOT NULL                                      | `0`                                             | Force org selection (see chapter 02 section 4)                                                                                                         |
+| custom_claims_config                | text json       | NOT NULL                                      | `{}`                                            | Client-level custom claim injection declaration (see chapter 02 section 7.1; keys MUST be declared explicitly)                                         |
+| registration_access_token_hash      | text            | nullable                                      | null                                            | The RFC 7592 dynamic registration management token hash                                                                                                |
+| status                              | text            | NOT NULL                                      | `'active'`                                      | `active`/`inactive`                                                                                                                                    |
+| created_at / updated_at             | integer ts_ms   | NOT NULL                                      | See 9.3                                         |                                                                                                                                                        |
 
 Indexes: `UNIQUE(client_id)`, `INDEX(tenant_id, project_id)`, `INDEX(tenant_id, status)`.
 
@@ -458,7 +529,7 @@ tenant it belongs to (in B2C it hangs directly off the instance's root org).
 | failed_login_count        | integer number  | NOT NULL                                          | `0`            | Consecutive failure counter (triggers lockout)                                                                                                                                                                                                                                     |
 | last_login_at             | integer ts_ms   | nullable                                          | null           |                                                                                                                                                                                                                                                                                    |
 | merged_into_user_id       | text            | FK -> users.id ON DELETE set null, nullable       | null           | Account merging: the secondary account points at the primary (see chapter 05 section 3)                                                                                                                                                                                            |
-| provisioned_by            | text            | nullable                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin`/`anonymous`/`hosted_password`/`hosted_passwordless`/`hosted_passkey` (see chapter 04 section 4; `anonymous` = guest user, see chapter 01 section 8; `hosted_*` = hosted-UI credential provisioning, also written when a guest converts) |
+| provisioned_by            | text            | nullable                                          | null           | `jit_sso`/`scim`/`signup`/`invite`/`admin`/`anonymous`/`hosted_password`/`hosted_passwordless`/`hosted_passkey`/`invitation_email_claim` (see chapter 04 section 4; `anonymous` = guest user, `hosted_*` = hosted-UI credential provisioning, and `invitation_email_claim` marks a credential-free identity created only after exact invitation Email proof) |
 | deleted_at                | integer ts_ms   | nullable                                          | null           | Soft delete (PII hard-deleted after 30 days, see chapter 05 section 7)                                                                                                                                                                                                             |
 | created_at / updated_at   | integer ts_ms   | NOT NULL                                          | See 9.3        |                                                                                                                                                                                                                                                                                    |
 
@@ -494,9 +565,20 @@ skipped intact.
 | verification_status     | text            | NOT NULL                                   | `'unverified'` | `unverified`/`pending`/`verified`/`expired`                                                     |
 | is_primary              | integer boolean | NOT NULL                                   | `0`            | Whether it is the primary email (redundant; the main table's primary_email_id is authoritative) |
 | verified_at             | integer ts_ms   | nullable                                   | null           |                                                                                                 |
+| ownership_proof         | text            | nullable                                   | null           | `invitation_email_claim_v1` only when this exact Email row was created by the proof-first claim ceremony |
+| ownership_proof_ceremony_id | text        | nullable, partial UNIQUE                   | null           | The invitation id whose successful Email ceremony established this row; never copied during Email change |
+| ownership_proven_at     | integer ts_ms   | nullable                                   | null           | When the exact Email/User binding was proven                                                     |
 | created_at / updated_at | integer ts_ms   | NOT NULL                                   | See 9.3        |                                                                                                 |
 
-Indexes: `UNIQUE(tenant_id, email)`, `INDEX(tenant_id, user_id)`.
+Indexes: `UNIQUE(tenant_id, email)`, `INDEX(tenant_id, user_id)`, partial
+`UNIQUE(tenant_id, ownership_proof_ceremony_id) WHERE ownership_proof_ceremony_id IS NOT NULL`, and
+`INDEX(tenant_id, ownership_proof, user_id)`.
+
+Invitation-claim reuse requires the whole provenance tuple, not `verified` alone: this row must be
+the User's exact verified primary Email, `ownership_proof = invitation_email_claim_v1` and
+`ownership_proof_ceremony_id`/`ownership_proven_at` must remain present, while the owning User must
+still be active, unmerged, and `provisioned_by = invitation_email_claim`. Changing or detaching the
+Email does not transfer these fields to another row.
 
 ### 11.3 user_phones (multi-valued phone, see chapter 05 section 1)
 
@@ -617,23 +699,32 @@ Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id)`.
 
 ### 12.3a verification_tokens (the shared short-lived token table for magic link and OTP, = the OtpCode/MagicLinkToken entities, see chapter 01 section 4)
 
-| Field         | Type           | Constraints                                | Default | Notes                                                                        |
-| ------------- | -------------- | ------------------------------------------ | ------- | ---------------------------------------------------------------------------- |
-| id            | text           | PK                                         | nanoid  |                                                                              |
-| tenant_id     | text           | NOT NULL, FK -> organizations.id           | --      |                                                                              |
-| user_id       | text           | NOT NULL, FK -> users.id ON DELETE cascade | --      |                                                                              |
-| token_hash    | text           | NOT NULL, UNIQUE                           | --      | The magic link token SHA-256; the plaintext never enters the database        |
-| code_hash     | text           | nullable                                   | null    | OTP HMAC-SHA256 (null for non-OTP purposes)                                  |
-| channel       | text           | nullable                                   | null    | `email`/`sms`                                                                |
-| purpose       | text           | NOT NULL                                   | --      | `magic_link`/`otp` and so on, distinguishing the purpose                     |
-| attempt_count | integer number | NOT NULL                                   | `0`     | OTP failure counter; invalidated after at most 5 (see chapter 01 section 4)  |
-| consumed_at   | integer ts_ms  | nullable                                   | null    | Single use; filled in on consumption                                         |
-| expires_at    | integer ts_ms  | NOT NULL                                   | --      | magic link 15min / email OTP 10min / sms OTP 5min (see chapter 01 section 4) |
-| created_at    | integer ts_ms  | NOT NULL                                   | See 9.3 |                                                                              |
+| Field         | Type           | Constraints                                | Default | Notes                                                                                                                    |
+| ------------- | -------------- | ------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| id            | text           | PK                                         | nanoid  |                                                                                                                          |
+| tenant_id     | text           | NOT NULL, FK -> organizations.id           | --      |                                                                                                                          |
+| user_id       | text           | NOT NULL, FK -> users.id ON DELETE cascade | --      |                                                                                                                          |
+| token_hash    | text           | NOT NULL, UNIQUE                           | --      | Magic link `SHA-256(jti)` or the opaque OTP row token; the plaintext magic-link JWT never enters the database            |
+| code_hash     | text           | nullable                                   | null    | OTP SHA-256 (null for non-OTP purposes)                                                                                  |
+| flow_context  | text json      | nullable                                   | null    | Versioned `PasswordlessFlowContext` frozen at send time: intent, safe continuation, and application client id            |
+| channel       | text           | nullable                                   | null    | `email`/`sms`/`whatsapp`                                                                                                 |
+| purpose       | text           | NOT NULL                                   | --      | `magic_link`/`otp` and so on, distinguishing the purpose                                                                 |
+| attempt_count | integer number | NOT NULL                                   | `0`     | OTP failure counter; invalidated after at most 5 (see chapter 01 section 4)                                              |
+| consumed_at   | integer ts_ms  | nullable                                   | null    | Single use; filled in on consumption                                                                                     |
+| expires_at    | integer ts_ms  | NOT NULL                                   | --      | magic link 15min / email OTP 10min / phone OTP 5min (see chapter 01 section 4)                                           |
+| created_at    | integer ts_ms  | NOT NULL                                   | See 9.3 |                                                                                                                          |
 
 Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id)`, and the partial
 `UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose IN ('magic_link','otp')`
 (at most one active row per user, purpose, and channel; a resend invalidates the old row first).
+
+New passwordless `magic_link` and `otp` rows require `flow_context`; an SMS OTP row used only as an
+MFA factor may leave it null. It stores only bounded, normalized control data and never an invitation
+token or row id. Invitation Email ownership uses the separate proof-first fields on `invitations`
+below and cannot be resumed through an ordinary passwordless verification row. For magic links, the
+identical serialization is signed into the JWT and MUST equal the D1 value before consumption. The
+verifier uses this frozen context rather than any changed continuation parameters on the verification
+request.
 
 For `purpose = 'email_verification'`, the signed JWT carries `email_hash`, the SHA-256 of the exact
 normalized Email targeted at issue time. D1 continues to store only the jti hash in
@@ -659,7 +750,7 @@ token, and resend invalidates the prior active token before issuing a replacemen
 | backed_up                       | integer boolean | NOT NULL                                   | `0`          | Derived from the BS bit (credentialBackedUp)                                                                                                                                                                                 |
 | device_name                     | text            | nullable                                   | null         | User-nameable                                                                                                                                                                                                                |
 | attestation_fmt                 | text            | NOT NULL                                   | `'none'`     | `none`/`packed`/`tpm`/`apple`... (parsed for enterprise attestation, see registration step 6 in chapter 01)                                                                                                                  |
-| enterprise_attestation_verified | integer boolean | NOT NULL                                   | `0`          | The result of the enterprise attestation chain check performed by `verifyRegistration`, gating AAL3 `direct` mode                                                                                                            |
+| enterprise_attestation_verified | integer boolean | NOT NULL                                   | `0`          | The result of the enterprise attestation chain check performed by `verifyRegistration`. It records authenticator trust metadata but does not by itself elevate a session above AAL2                                          |
 | last_used_at                    | integer ts_ms   | nullable                                   | null         |                                                                                                                                                                                                                              |
 | revoked_at                      | integer ts_ms   | nullable                                   | null         | Credential revocation (deleting a passkey sets this marker; active queries use a partial index)                                                                                                                              |
 | created_at / updated_at         | integer ts_ms   | NOT NULL                                   | See 9.3      |                                                                                                                                                                                                                              |
@@ -757,16 +848,16 @@ Indexes: `UNIQUE(tenant_id, project_id, key)`, `INDEX(tenant_id, project_id)`.
 
 ### 13.3 role_permissions (the role-permission mapping plus the ABAC condition, see chapter 02 sections 7.2 and 7.3)
 
-| Field                | Type          | Constraints                                      | Default | Notes                                                                                                                       |
-| -------------------- | ------------- | ------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------- |
-| id                   | text          | PK                                               | nanoid  |                                                                                                                             |
-| tenant_id            | text          | NOT NULL, FK -> organizations.id                 | --      |                                                                                                                             |
-| role_id              | text          | NOT NULL, FK -> roles.id ON DELETE cascade       | --      |                                                                                                                             |
-| permission_id        | text          | NOT NULL, FK -> permissions.id ON DELETE cascade | --      |                                                                                                                             |
-| condition_expression | text json     | nullable                                         | null    | The ABAC v1 condition (a single condition or `{and:[...]}`, see chapter 02 section 7.3); null means granted unconditionally |
-| created_at           | integer ts_ms | NOT NULL                                         | See 9.3 |                                                                                                                             |
+| Field                | Type          | Constraints                                      | Default      | Notes                                                                                                                       |
+| -------------------- | ------------- | ------------------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| id                   | text          | PK                                               | `rp_`+nanoid |                                                                                                                             |
+| tenant_id            | text          | NOT NULL, FK -> organizations.id                 | --           |                                                                                                                             |
+| role_id              | text          | NOT NULL, FK -> roles.id ON DELETE cascade       | --           |                                                                                                                             |
+| permission_id        | text          | NOT NULL, FK -> permissions.id ON DELETE cascade | --           |                                                                                                                             |
+| condition_expression | text json     | nullable                                         | null         | The ABAC v1 condition (a single condition or `{and:[...]}`, see chapter 02 section 7.3); null means granted unconditionally |
+| created_at           | integer ts_ms | NOT NULL                                         | See 9.3      |                                                                                                                             |
 
-Indexes: `UNIQUE(role_id, permission_id)`, `INDEX(tenant_id, role_id)`.
+Indexes: `UNIQUE(tenant_id, role_id, permission_id)`, `INDEX(tenant_id, role_id)`.
 
 ### 13.4 user_grants (user role grants, see chapter 02 sections 7.2 and 7.4)
 
@@ -801,8 +892,10 @@ the root AGENTS.md).
 | scope_id                | text          | nullable                                   | null          | The scope target id (org_id/project_id/grant_id); null for instance_manager (global)                  |
 | created_at / updated_at | integer ts_ms | NOT NULL                                   | See 9.3       |                                                                                                       |
 
-Indexes: `UNIQUE(user_id, manager_role, scope_type, scope_id)`, `INDEX(tenant_id, user_id)`,
-`INDEX(scope_type, scope_id)`.
+Indexes: partial `UNIQUE(tenant_id, user_id, manager_role, scope_type, scope_id) WHERE scope_id IS
+NOT NULL`, partial `UNIQUE(tenant_id, user_id, manager_role, scope_type) WHERE manager_role =
+'instance_manager' AND scope_type = 'instance' AND scope_id IS NULL`,
+`INDEX(tenant_id, user_id)`, `INDEX(scope_type, scope_id)`.
 
 ## 14. Organization membership entities (see chapter 02 section 2)
 
@@ -814,7 +907,7 @@ Indexes: `UNIQUE(user_id, manager_role, scope_type, scope_id)`, `INDEX(tenant_id
 | tenant_id               | text            | NOT NULL, FK -> organizations.id                   | --            |                                                                                           |
 | org_id                  | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --            | The org the member belongs to                                                             |
 | user_id                 | text            | NOT NULL, FK -> users.id ON DELETE cascade         | --            |                                                                                           |
-| role                    | text            | NOT NULL                                           | `'member'`    | The org-level role (independent per org, see chapter 02 section 4)                        |
+| role                    | text            | NOT NULL                                           | `'member'`    | Fixed `owner`/`admin`/`member` Organization Membership role                               |
 | membership_type         | text            | NOT NULL                                           | `'member'`    | `member`/`guest` (an out-of-domain collaborator, see chapter 02 section 2)                |
 | status                  | text            | NOT NULL                                           | `'active'`    | `invited`/`pending`/`active`/`inactive`/`expired` (state machine in chapter 02 section 2) |
 | is_managed              | integer boolean | NOT NULL                                           | `0`           | A managed member created by a verified domain (see chapter 02 section 5)                  |
@@ -832,19 +925,55 @@ Indexes: `UNIQUE(org_id, user_id)` (one row per user per org), `INDEX(tenant_id,
 | id                      | text           | PK                                                 | `inv_`+nanoid |                                                                                                                                                                    |
 | tenant_id               | text           | NOT NULL, FK -> organizations.id                   | --            |                                                                                                                                                                    |
 | org_id                  | text           | NOT NULL, FK -> organizations.id ON DELETE cascade | --            |                                                                                                                                                                    |
-| email                   | text           | NOT NULL                                           | --            | The invited email (bound, pre-filled on acceptance, see chapter 05 section 2)                                                                                      |
-| role                    | text           | NOT NULL                                           | `'member'`    | The invited role                                                                                                                                                   |
+| email                   | text           | NOT NULL                                           | --            | Exact normalized Email claim destination; the invitation capability itself does not prove ownership (see chapter 05 section 2)                                   |
+| role                    | text           | NOT NULL                                           | `'member'`    | Fixed `owner`/`admin`/`member` Organization Membership role                                                                                                        |
 | token_hash              | text           | NOT NULL, UNIQUE                                   | --            | The invitation token SHA-256 (stored in the database rather than as a JWT so it can be revoked, see chapter 02 section 2); the plaintext never enters the database |
+| token_version           | text           | NOT NULL                                           | `'legacy'`    | `locator_v1` for tenant-bound `xid_inv_v1` capabilities; migration 0006 revokes every pending `legacy` capability and requires resend                              |
 | invite_type             | text           | NOT NULL                                           | `'email'`     | `email`/`link` (a link invitation can be reusable or single use)                                                                                                   |
 | max_uses                | integer number | nullable                                           | null          | Use limit for a link invitation; null means unlimited                                                                                                              |
 | used_count              | integer number | NOT NULL                                           | `0`           |                                                                                                                                                                    |
-| status                  | text           | NOT NULL                                           | `'pending'`   | `pending`/`accepted`/`revoked`/`expired`                                                                                                                           |
+| status                  | text           | NOT NULL                                           | `'pending'`   | `pending`/`claim_verified`/`accepted`/`revoked`/`expired`; `claim_verified` means Email/User provenance is durable but session/Membership acceptance may still require recovery |
 | invited_by_user_id      | text           | FK -> users.id ON DELETE set null, nullable        | null          |                                                                                                                                                                    |
-| accepted_by_user_id     | text           | FK -> users.id ON DELETE set null, nullable        | null          |                                                                                                                                                                    |
+| accepted_by_user_id     | text           | FK -> users.id ON DELETE set null, nullable        | null          | The exact claim-proven result User that won acceptance                                                                                                             |
+| email_claim_token_hash  | text           | nullable, partial UNIQUE                           | null          | `SHA-256(jti)` for the current signed `invitation_email_claim`; the plaintext claim JWT never enters D1                                                           |
+| email_claim_email_hash  | text           | nullable                                           | null          | SHA-256 of the exact normalized `email`; both JWT and row must match                                                                                                |
+| email_claim_expires_at  | integer ts_ms  | nullable                                           | null          | Claim expiry, 15 minutes after issue                                                                                                                               |
+| email_claim_consumed_at | integer ts_ms  | nullable                                           | null          | Single-use marker; reset only when a new claim rotates the prior one                                                                                               |
+| email_claim_consumption_id | text        | nullable, partial UNIQUE                           | null          | Random winning-consumption id used to gate all proof-stage mutations; it is not a bearer credential                                                               |
+| email_claim_user_id     | text           | nullable                                           | null          | Result User bound by the winning proof stage; either exact reusable proven identity or the new credential-free User                                                |
+| email_claim_recovery_hash | text         | nullable, partial UNIQUE                           | null          | SHA-256 of the browser-owned random `recoveryKey`; the raw key is never persisted and must accompany the original signed claim on retry                            |
+| email_claim_session_id  | text           | nullable                                           | null          | Reserved/recoverable result session id                                                                                                                             |
+| email_claim_session_reserved_at | integer ts_ms | nullable                                     | null          | Reservation lease start; a stale reservation may be replaced only after its old session identity is revoked                                                       |
+| email_claim_finalization_id | text       | nullable, partial UNIQUE                           | null          | Random single-winner marker that gates Membership/session updates and the `claim_verified -> accepted` batch                                                       |
+| displaced_user_id       | text           | nullable                                           | null          | Audit correlation for an exact Email collision only; never authorizes reuse, merge, transfer, or credential cleanup                                               |
+| displaced_email_id      | text           | nullable                                           | null          | The detached `user_emails.id` for collision audit; never becomes the new User's Email row                                                                          |
 | expires_at              | integer ts_ms  | NOT NULL                                           | now+72h       | Valid 24-72 hours (see chapter 02 section 2)                                                                                                                       |
 | created_at / updated_at | integer ts_ms  | NOT NULL                                           | See 9.3       |                                                                                                                                                                    |
 
-Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, org_id, status)`, `INDEX(tenant_id, email)`.
+Indexes: `UNIQUE(token_hash)`, partial unique indexes for non-null `email_claim_token_hash`,
+`email_claim_consumption_id`, `email_claim_recovery_hash`, and `email_claim_finalization_id`, partial
+`UNIQUE(tenant_id, org_id, email) WHERE status IN ('pending', 'claim_verified')`,
+`INDEX(tenant_id, org_id, status)`, and `INDEX(tenant_id, email)`.
+
+Migration 0011 normalizes the Email of every historical pending row and deterministically retains the
+newest `(tenant_id, org_id, email)` invitation, revoking older duplicates before creating the
+partial unique index. This makes the index deployable on an existing database instead of assuming
+that historical rows were already deduplicated.
+
+The proof stage may reuse only the exact `user_emails`/User tuple described in section 11.2.
+Otherwise an exact Email collision is handled inside the same conditional D1 batch as claim
+consumption and clean User/verified Email provenance creation: invalidate the displaced User's
+outstanding Email-bound verification, passwordless, and password-reset artifacts, clear a matching
+`users.primary_email_id` or `users.pending_email`, delete only the conflicting `user_emails` row,
+and create a new verified Email row for the credential-free User. The displaced User's credentials,
+identities, sessions, Memberships, metadata, and other data are neither transferred nor scrubbed.
+
+That proof batch commits `pending -> claim_verified`; session reservation/issuance and Membership
+creation or reactivation are recoverable follow-up work. Only a conditional winner with the bound
+result User, recovery hash, and usable session commits `claim_verified -> accepted`. The session
+may be `active`, `pending_mfa_setup`, or `pending_mfa`, but pending status cannot authorize business
+operations. Accepted retries may repair the same browser result but never repeat Membership creation
+or the acceptance webhook.
 
 ### 14.3 organization_domains (organization email domains, see chapter 02 section 5 and chapter 04 section 5)
 
@@ -852,7 +981,7 @@ Shared by SSO routing and automatic domain assignment.
 
 | Field                   | Type            | Constraints                                        | Default             | Notes                                                                                     |
 | ----------------------- | --------------- | -------------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
-| id                      | text            | PK                                                 | nanoid              |                                                                                           |
+| id                      | text            | PK                                                 | `dom_`+nanoid       |                                                                                           |
 | tenant_id               | text            | NOT NULL, FK -> organizations.id                   | --                  |                                                                                           |
 | org_id                  | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --                  |                                                                                           |
 | domain                  | text            | NOT NULL                                           | --                  | See 9.5 `UNIQUE(domain)` (globally unique, one domain per org, see chapter 04 section 5)  |
@@ -1055,6 +1184,7 @@ Indexes: `UNIQUE(tenant_id, audience)`, `INDEX(tenant_id)`.
 | protocol                      | text            | NOT NULL                                           | --             | `saml`/`oidc`                                                                                                                        |
 | idp_entity_id                 | text            | nullable                                           | null           | The SAML IdP EntityID (matched exactly against the Issuer, see chapter 04 section 9.7 step 1)                                        |
 | idp_sso_url                   | text            | nullable                                           | null           | The SAML SSO URL or the OIDC authorization_endpoint                                                                                  |
+| idp_slo_url                   | text            | nullable                                           | null           | The SAML IdP SingleLogoutService URL; public HTTPS and never inferred from the SSO URL                                               |
 | idp_metadata_url              | text            | nullable                                           | null           | Polled and refreshed every 24 hours (see chapter 04 section 1)                                                                       |
 | idp_certificates              | text json       | NOT NULL                                           | `[]`           | IdP X.509 verification certificates (an array of base64 DER; old and new coexist during rotation, see chapter 04 section 9.5 step 1) |
 | oidc_client_id                | text            | nullable                                           | null           | The OIDC RP client_id                                                                                                                |
@@ -1063,6 +1193,7 @@ Indexes: `UNIQUE(tenant_id, audience)`, `INDEX(tenant_id)`.
 | sp_cert_id                    | text            | FK -> cert_store.id ON DELETE set null, nullable   | null           | The SP signing/decryption certificate (see 16.2 and chapter 04 section 1)                                                            |
 | want_authn_response_signed    | integer boolean | NOT NULL                                           | `1`            | Require the Response to be signed (see chapter 04 section 9.3)                                                                       |
 | want_assertions_signed        | integer boolean | NOT NULL                                           | `1`            | Require the Assertion to be signed                                                                                                   |
+| saml_clock_skew_ms            | integer         | NOT NULL, `0..300000`                              | `180000`       | Connection tolerance for IdP certificate and Assertion validity checks                                                               |
 | attribute_mapping             | text json       | NOT NULL                                           | `{}`           | IdP attributes to XID fields (email/firstName/lastName/groups, see chapter 04 section 1)                                             |
 | role_mapping                  | text json       | NOT NULL                                           | `{}`           | IdP groups to org_role (see chapter 04 section 4)                                                                                    |
 | jit_enabled                   | integer boolean | NOT NULL                                           | `1`            | The JIT provisioning switch (some enterprises want SCIM only, see chapter 04 section 4)                                              |
@@ -1084,7 +1215,7 @@ certificates in the signing-keys rule).
 | ----------------------- | -------------- | -------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | id                      | text           | PK                               | `cert_`+nanoid |                                                                                                                                     |
 | tenant_id               | text           | NOT NULL, FK -> organizations.id | --             |                                                                                                                                     |
-| usage                   | text           | NOT NULL                         | --             | `sp_signing`/`sp_encryption`/`idp_signing` (XID as the IdP)                                                                         |
+| usage                   | text           | NOT NULL                         | --             | `saml_sp_signing`/`saml_sp_encryption`/`saml_idp_signing` (XID as the IdP)                                                          |
 | certificate             | text           | NOT NULL                         | --             | The X.509 public certificate (base64 DER)                                                                                           |
 | private_key_iv          | blob buffer    | NOT NULL                         | --             | The AES-256-GCM IV (12 bytes)                                                                                                       |
 | private_key_ciphertext  | blob buffer    | NOT NULL                         | --             | The envelope-encrypted private key ciphertext (decrypted with the KEK on load; the plaintext private key never enters the database) |
@@ -1096,7 +1227,9 @@ certificates in the signing-keys rule).
 | fingerprint             | text           | NOT NULL                         | --             | The SHA-256 fingerprint (for incident response, see chapter 04 section 9.5 step 3)                                                  |
 | created_at / updated_at | integer ts_ms  | NOT NULL                         | See 9.3        |                                                                                                                                     |
 
-Indexes: `INDEX(tenant_id, usage, status)`.
+Indexes: `UNIQUE(tenant_id, usage) WHERE status='active' AND usage='saml_idp_signing'` (the
+concurrent auto-provisioning winner; it intentionally excludes both SP usages),
+`INDEX(tenant_id, usage, status)`.
 
 > Decision: the SAML private key and the OIDC signing private key use the **same envelope encryption
 > structure but live in separate tables**. CertStore splits iv, ciphertext, and tag into **three blob
@@ -1151,35 +1284,35 @@ Indexes: `INDEX(tenant_id, org_id)`. SCIM queries MUST inject
 
 ### 16.6 directory_users (SCIM-synced users, bidirectionally bound, see chapter 04 section 6)
 
-| Field                   | Type            | Constraints                                      | Default    | Notes                                                                                   |
-| ----------------------- | --------------- | ------------------------------------------------ | ---------- | --------------------------------------------------------------------------------------- |
-| id                      | text            | PK                                               | nanoid     | The SCIM User.id                                                                        |
-| tenant_id               | text            | NOT NULL, FK -> organizations.id                 | --         |                                                                                         |
-| directory_id            | text            | NOT NULL, FK -> directories.id ON DELETE cascade | --         |                                                                                         |
-| user_id                 | text            | FK -> users.id ON DELETE set null, nullable      | null       | The bidirectional binding (the directory_user_id foreign key, see chapter 04 section 6) |
-| external_id             | text            | nullable                                         | null       | The SCIM externalId                                                                     |
-| user_name               | text            | NOT NULL                                         | --         | The SCIM userName (the primary sign-in identifier)                                      |
-| scim_raw                | text json       | NOT NULL                                         | `{}`       | The raw SCIM resource (meta.version, ETag, and so on)                                   |
-| active                  | integer boolean | NOT NULL                                         | `1`        | active=false means deprovisioned (a soft delete, see chapter 04 section 10.1.2)         |
-| status                  | text            | NOT NULL                                         | `'active'` | `active`/`deactivated`/`deleted`                                                        |
-| deleted_at              | integer ts_ms   | nullable                                         | null       | The SCIM DELETE soft delete marker                                                      |
-| created_at / updated_at | integer ts_ms   | NOT NULL                                         | See 9.3    |                                                                                         |
+| Field                   | Type            | Constraints                                      | Default        | Notes                                                                                   |
+| ----------------------- | --------------- | ------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------- |
+| id                      | text            | PK                                               | `dusr_`+nanoid | The SCIM User.id                                                                        |
+| tenant_id               | text            | NOT NULL, FK -> organizations.id                 | --             |                                                                                         |
+| directory_id            | text            | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                                                         |
+| user_id                 | text            | FK -> users.id ON DELETE set null, nullable      | null           | The bidirectional binding (the directory_user_id foreign key, see chapter 04 section 6) |
+| external_id             | text            | nullable                                         | null           | The SCIM externalId                                                                     |
+| user_name               | text            | NOT NULL                                         | --             | The SCIM userName (the primary sign-in identifier)                                      |
+| scim_raw                | text json       | NOT NULL                                         | `{}`           | The raw SCIM resource (meta.version, ETag, and so on)                                   |
+| active                  | integer boolean | NOT NULL                                         | `1`            | active=false means deprovisioned (a soft delete, see chapter 04 section 10.1.2)         |
+| status                  | text            | NOT NULL                                         | `'active'`     | `active`/`deactivated`/`deleted`                                                        |
+| deleted_at              | integer ts_ms   | nullable                                         | null           | The SCIM DELETE soft delete marker                                                      |
+| created_at / updated_at | integer ts_ms   | NOT NULL                                         | See 9.3        |                                                                                         |
 
 Indexes: `UNIQUE(directory_id, user_name)`, `UNIQUE(directory_id, external_id)`,
 `INDEX(tenant_id, directory_id)`, `INDEX(user_id)`.
 
 ### 16.7 directory_groups (SCIM-synced groups plus the group-to-role mapping, see chapter 04 section 6)
 
-| Field                   | Type          | Constraints                                      | Default    | Notes                                                                                                  |
-| ----------------------- | ------------- | ------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------ |
-| id                      | text          | PK                                               | nanoid     | The SCIM Group.id                                                                                      |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                 | --         |                                                                                                        |
-| directory_id            | text          | NOT NULL, FK -> directories.id ON DELETE cascade | --         |                                                                                                        |
-| display_name            | text          | NOT NULL                                         | --         | The group-to-role mapping key (a change updates the mapping in step, see chapter 04 sections 6 and 10) |
-| mapped_role             | text          | nullable                                         | null       | The mapped org role                                                                                    |
-| status                  | text          | NOT NULL                                         | `'active'` | `active`/`deleted`                                                                                     |
-| deleted_at              | integer ts_ms | nullable                                         | null       | The SCIM DELETE soft delete marker                                                                     |
-| created_at / updated_at | integer ts_ms | NOT NULL                                         | See 9.3    |                                                                                                        |
+| Field                   | Type          | Constraints                                      | Default        | Notes                                                                                                  |
+| ----------------------- | ------------- | ------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------ |
+| id                      | text          | PK                                               | `dgrp_`+nanoid | The SCIM Group.id                                                                                      |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                 | --             |                                                                                                        |
+| directory_id            | text          | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                                                                        |
+| display_name            | text          | NOT NULL                                         | --             | The group-to-role mapping key (a change updates the mapping in step, see chapter 04 sections 6 and 10) |
+| mapped_role             | text          | nullable                                         | null           | The mapped org role                                                                                    |
+| status                  | text          | NOT NULL                                         | `'active'`     | `active`/`deleted`                                                                                     |
+| deleted_at              | integer ts_ms | nullable                                         | null           | The SCIM DELETE soft delete marker                                                                     |
+| created_at / updated_at | integer ts_ms | NOT NULL                                         | See 9.3        |                                                                                                        |
 
 Indexes: `UNIQUE(directory_id, display_name)`, `INDEX(tenant_id, directory_id)`.
 
@@ -1220,7 +1353,7 @@ chapter 04 section 2).
 
 | Field                   | Type          | Constraints                                        | Default                                                    | Notes                                                                                              |
 | ----------------------- | ------------- | -------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| id                      | text          | PK                                                 | nanoid                                                     |                                                                                                    |
+| id                      | text          | PK                                                 | `sp_`+nanoid                                               |                                                                                                    |
 | tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --                                                         |                                                                                                    |
 | org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --                                                         | The org the SP belongs to                                                                          |
 | sp_entity_id            | text          | NOT NULL                                           | --                                                         | The per-SP EntityID (see chapter 04 section 2)                                                     |
@@ -1230,7 +1363,7 @@ chapter 04 section 2).
 | sp_certificates         | text json     | NOT NULL                                           | `[]`                                                       | SP X.509 certificates (an array of base64 DER, used for SLO signature verification and encryption) |
 | attribute_mapping       | text json     | NOT NULL                                           | `{}`                                                       | Assertion field mapping                                                                            |
 | name_id_format          | text          | NOT NULL                                           | `'urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress'` |                                                                                                    |
-| idp_signing_cert_id     | text          | FK -> cert_store.id ON DELETE set null, nullable   | null                                                       | The XID IdP signing certificate (usage=idp_signing)                                                |
+| idp_signing_cert_id     | text          | FK -> cert_store.id ON DELETE set null, nullable   | null                                                       | The XID IdP signing certificate (`usage=saml_idp_signing`)                                         |
 | created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3                                                    |                                                                                                    |
 
 Indexes: `UNIQUE(tenant_id, org_id, sp_entity_id)`, `INDEX(tenant_id, org_id)`.
@@ -1260,20 +1393,44 @@ Indexes: `UNIQUE(tenant_id, direction, scope_id, session_index)`,
 
 ### 16.11 scim_targets (outbound SCIM targets, XID as a SCIM client pushing users and groups to downstream SaaS, see chapter 04 section 3)
 
-| Field                   | Type          | Constraints                                        | Default    | Notes                                                                                                                     |
-| ----------------------- | ------------- | -------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
-| id                      | text          | PK                                                 | nanoid     |                                                                                                                           |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --         |                                                                                                                           |
-| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --         |                                                                                                                           |
-| provider                | text          | NOT NULL                                           | --         | The downstream SaaS identifier (see chapter 04 section 3)                                                                 |
-| base_url                | text          | NOT NULL                                           | --         | The downstream SCIM endpoint base URL                                                                                     |
-| token_secret_ref        | text          | NOT NULL                                           | --         | The secret reference for the downstream bearer token (stored in Workers Secrets; the plaintext never enters the database) |
-| user_filter             | text json     | NOT NULL                                           | `{}`       | The push scope filter (which users and groups go outbound)                                                                |
-| status                  | text          | NOT NULL                                           | `'active'` | `active` (outbound sync reads only active rows)                                                                           |
-| last_sync_at            | integer ts_ms | nullable                                           | null       |                                                                                                                           |
-| created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3    |                                                                                                                           |
+| Field                   | Type          | Constraints                                        | Default      | Notes                                                                                                                                                 |
+| ----------------------- | ------------- | -------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                      | text          | PK                                                 | `st_`+nanoid |                                                                                                                                                       |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --           |                                                                                                                                                       |
+| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --           |                                                                                                                                                       |
+| provider                | text          | NOT NULL                                           | --           | The downstream SaaS identifier (see chapter 04 section 3)                                                                                             |
+| base_url                | text          | NOT NULL                                           | --           | The downstream SCIM endpoint base URL                                                                                                                 |
+| token_secret_ref        | text          | NOT NULL                                           | --           | Server-derived `SCIM_TARGET_TOKEN_<normalized id>` reference. The API rejects caller-selected values; the bearer token exists only in Workers Secrets |
+| user_filter             | text json     | NOT NULL                                           | `{}`         | The push scope filter (which users and groups go outbound)                                                                                            |
+| status                  | text          | NOT NULL                                           | `'active'`   | `active` (outbound sync reads only active rows)                                                                                                       |
+| last_sync_at            | integer ts_ms | nullable                                           | null         |                                                                                                                                                       |
+| created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3      |                                                                                                                                                       |
 
 Indexes: `INDEX(tenant_id, org_id)`, `INDEX(tenant_id, status)`.
+
+### 16.12 scim_target_resources (stable outbound SCIM identity mapping, see chapter 04 section 3)
+
+| Field                   | Type          | Constraints                                        | Default    | Notes                                                                                         |
+| ----------------------- | ------------- | -------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------- |
+| id                      | text          | PK                                                 | UUID       |                                                                                               |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --         |                                                                                               |
+| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --         | The Organization whose Membership intersection owns the outbound resource                     |
+| target_id               | text          | NOT NULL, FK -> scim_targets.id ON DELETE cascade  | --         | The downstream SaaS target                                                                    |
+| resource_type           | text          | NOT NULL                                           | --         | `User` or `Group`                                                                             |
+| local_resource_id       | text          | NOT NULL                                           | --         | XID User id for `User`; deterministic `role:<role>` for a role-derived `Group`                |
+| external_id             | text          | NOT NULL                                           | --         | Stable SCIM `externalId`, used to recover a missing/stale mapping without creating duplicates |
+| downstream_id           | text          | NOT NULL                                           | --         | The downstream SCIM resource `id`; never used across targets                                  |
+| status                  | text          | NOT NULL                                           | `'active'` | `active` or `deprovisioned`; mappings are retained so later reactivation uses the same id     |
+| last_synced_at          | integer ts_ms | NOT NULL                                           | --         | Last completed upsert or deprovision operation for this resource                              |
+| created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3    |                                                                                               |
+
+Indexes:
+`UNIQUE(tenant_id, target_id, resource_type, local_resource_id)`,
+`UNIQUE(tenant_id, target_id, resource_type, downstream_id)`,
+`INDEX(tenant_id, org_id, target_id, status, id)`.
+The leading `tenant_id` on both unique keys is mandatory because D1 has no RLS. Deprovision reads
+only mappings for the current `(tenant_id, org_id, target_id)` and runs only after the current run's
+complete upsert phase succeeds.
 
 ## 17. Session and platform operations entities
 
@@ -1284,7 +1441,7 @@ stored as a hash; status drives revocation.**
 
 | Field                   | Type            | Constraints                                         | Default        | Notes                                                                                                                                        |
 | ----------------------- | --------------- | --------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| id                      | text            | PK                                                  | `sess_`+nanoid | The JWT sid; the first 8 characters form the cookie namespace (see chapter 05 section 8.4)                                                   |
+| id                      | text            | PK                                                  | `sess_`+nanoid | The JWT sid; the first 8 random suffix characters form the cookie namespace (see chapter 05 section 8.4)                                     |
 | tenant_id               | text            | NOT NULL, FK -> organizations.id                    | --             | Tenant-scoped isolation (see chapter 03 section 7)                                                                                           |
 | user_id                 | text            | NOT NULL, FK -> users.id ON DELETE cascade          | --             |                                                                                                                                              |
 | refresh_token_hash      | text            | NOT NULL                                            | --             | The SHA-256 of the current active opaque refresh token (see chapter 05 section 8.2); the plaintext appears only in Set-Cookie                |
@@ -1300,7 +1457,7 @@ stored as a hash; status drives revocation.**
 | impersonator_user_id    | text            | FK -> users.id ON DELETE set null, nullable         | null           | The source of the act claim (see act in chapter 05 section 8.1)                                                                              |
 | acr                     | text            | nullable                                            | null           | Authentication context class, the source for the authorization code and token claims                                                         |
 | amr                     | text json       | nullable                                            | null           | Authentication methods array, the source for the authorization code and token claims                                                         |
-| aal                     | integer number  | nullable                                            | null           | The NIST AAL level 1/2/3; AAL3 is issued only by the passkey MFA hardware-assured path                                                       |
+| aal                     | integer number  | nullable                                            | null           | The current NIST AAL mapping, 1 or 2. New writes never use 3; a legacy 3 is normalized to AAL2 before new authorization or token issuance    |
 | authenticated_at        | integer ts_ms   | NOT NULL                                            | --             | The time of full authentication (the source of auth_time; a token refresh does not update it, see chapter 05 section 8.1)                    |
 | last_active_at          | integer ts_ms   | NOT NULL                                            | now            | The idle timeout baseline (updated asynchronously on each refresh, see chapter 05 section 8.3)                                               |
 | expires_at              | integer ts_ms   | NOT NULL                                            | --             | Absolute timeout (+7d by default; +24h as the fallback when remember me is off, see chapter 05 section 8.4)                                  |
@@ -1317,27 +1474,31 @@ The fields match the D1 schema in chapter 07 section 5.1.1 (restated here as a f
 **`occurred_at` is the exception and uses ISO 8601 TEXT** because it feeds the hash input, see chapter
 07 section 5.1.2):
 
-| Field             | Type           | Constraints | Default                       | Notes                                                                                                     |
-| ----------------- | -------------- | ----------- | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
-| seq               | integer number | NOT NULL    | Issued by AuditSeqDO          | Monotonic within a tenant (AuditSeqDO is sharded by `audit-seq:{tenantId}`, see chapter 07 section 5.1.3) |
-| id                | text           | NOT NULL    | UUID v4                       |                                                                                                           |
-| source_message_id | text           | nullable    | null                          | The producer-side idempotency key (for deduplication; a partial `UNIQUE(tenant_id,source_message_id)`)    |
-| tenant_id         | text           | NOT NULL    | --                            | The first column of the composite primary key                                                             |
-| org_id            | text           | nullable    | null                          | Null for platform-level events (partitioned by org, see chapter 02 section 6)                             |
-| event_type        | text           | NOT NULL    | --                            | `<domain>.<action>` (the enumeration is in chapter 07 section 5.1.5)                                      |
-| actor_id          | text           | nullable    | null                          | The user_id or `system`; GDPR deletion replaces it with `[deleted_user]` (see chapter 07 section 8)       |
-| actor_ip          | text           | nullable    | null                          |                                                                                                           |
-| target_type       | text           | nullable    | null                          |                                                                                                           |
-| target_id         | text           | nullable    | null                          |                                                                                                           |
-| meta              | text json      | NOT NULL    | `{}`                          | Extra business fields (the hash uses the canonical form, see chapter 07 section 5.1.2)                    |
-| occurred_at       | text           | NOT NULL    | ISO 8601 ms                   | The exception: TEXT (it feeds the hash input, with millisecond precision in UTC)                          |
-| prev_hash         | text           | NOT NULL    | 64 zeros for the first record | The previous record's hash                                                                                |
-| hash              | text           | NOT NULL    | --                            | This record's SHA-256 (see chapter 07 section 5.1.2)                                                      |
+| Field             | Type           | Constraints | Default                                | Notes                                                                                                                               |
+| ----------------- | -------------- | ----------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| seq               | integer number | NOT NULL    | Issued by AuditSeqDO                   | Monotonic within a tenant (AuditSeqDO is sharded by `audit-seq:{tenantId}`, see chapter 07 section 5.1.3)                           |
+| id                | text           | NOT NULL    | SHA-256(tenant_id + source_message_id) | Deterministic idempotency and hash-chain input; not a resource locator                                                              |
+| source_message_id | text           | nullable    | null                                   | The producer-side idempotency key (for deduplication; a partial `UNIQUE(tenant_id,source_message_id)`)                              |
+| tenant_id         | text           | NOT NULL    | --                                     | The first column of the composite primary key                                                                                       |
+| org_id            | text           | nullable    | null                                   | Null for platform-level events (partitioned by org, see chapter 02 section 6)                                                       |
+| event_type        | text           | NOT NULL    | --                                     | `<domain>.<action>` (the enumeration is in chapter 07 section 5.1.5)                                                                |
+| actor_id          | text           | nullable    | null                                   | Immutable user_id or `system`; after GDPR erasure a missing identity mapping renders as `[deleted_user]` (see chapter 07 section 8) |
+| actor_ip          | text           | nullable    | null                                   |                                                                                                                                     |
+| target_type       | text           | nullable    | null                                   |                                                                                                                                     |
+| target_id         | text           | nullable    | null                                   |                                                                                                                                     |
+| meta              | text json      | NOT NULL    | `{}`                                   | Extra business fields (the hash uses the canonical form, see chapter 07 section 5.1.2)                                              |
+| occurred_at       | text           | NOT NULL    | ISO 8601 ms                            | The exception: TEXT (it feeds the hash input, with millisecond precision in UTC)                                                    |
+| prev_hash         | text           | NOT NULL    | 64 zeros for the first record          | The previous record's hash                                                                                                          |
+| hash              | text           | NOT NULL    | --                                     | This record's SHA-256 (see chapter 07 section 5.1.2)                                                                                |
 
 Primary key: `PRIMARY KEY (tenant_id, seq)`. Indexes: `INDEX(tenant_id, occurred_at)`,
 `INDEX(tenant_id, actor_id)`, `INDEX(tenant_id, event_type)`. **INSERT only, with no UPDATE or
 DELETE** (protected by a read-only account at the DDL layer, see chapter 07 section 5.1.1). No foreign
 keys (the chain cannot be cascade-deleted).
+
+GDPR erasure does not update `actor_id`, `meta`, `hash`, or any other field in an existing row. The
+identity lookup is deleted, the read model renders an unresolved actor as `[deleted_user]`, and a new
+`user.erasure_completed` row is appended to record completion.
 
 ### 17.2b audit_dead_letters (audit poison message dead letters, see chapter 07 section 5)
 
@@ -1413,6 +1574,221 @@ the DAU figure.
 Indexes: `UNIQUE(tenant_id, user_id, day)`, `INDEX(delivered_at, created_at)` (for scanning pending
 recoveries).
 
+### 17.3c organization_plans / organization_quotas (optional service accounting)
+
+These tables are operator accounting metadata, not a license system. Authentication and configured
+protocols never read them as feature gates. A missing plan row resolves to the `free` label without
+creating data. Applying a label can apply its default seat/API quotas; explicit quota values remain
+operator-controlled.
+
+organization_plans:
+
+| Field                   | Type          | Constraints                    | Default  | Notes                                      |
+| ----------------------- | ------------- | ------------------------------ | -------- | ------------------------------------------ |
+| tenant_id               | text          | PK                             | --       | Top-level organization id                  |
+| plan                    | text          | NOT NULL                       | `free`   | free / starter / pro / enterprise          |
+| status                  | text          | NOT NULL                       | `active` | active / trialing / past_due / canceled    |
+| source                  | text          | NOT NULL                       | `manual` | Accounting adapter source                  |
+| external_customer_id    | text          | nullable, UNIQUE when non-null | null     | Optional deployer billing-customer id      |
+| trial_ends_at           | integer ts_ms | nullable                       | null     |                                            |
+| effective_at            | integer ts_ms | NOT NULL                       | --       | When the accounting label became effective |
+| updated_by              | text          | nullable                       | null     | Instance Manager user id                   |
+| created_at / updated_at | integer ts_ms | NOT NULL                       | See 9.3  |                                            |
+
+Indexes: partial `UNIQUE(external_customer_id)` when non-null,
+`INDEX(plan, status, tenant_id)`.
+
+organization_quotas:
+
+| Field                   | Type           | Constraints  | Default   | Notes                                                              |
+| ----------------------- | -------------- | ------------ | --------- | ------------------------------------------------------------------ |
+| tenant_id               | text           | composite PK | --        |                                                                    |
+| quota_key               | text           | composite PK | --        | seats / organizations / sso_connections / api_calls / emails / mau |
+| limit                   | integer number | nullable     | null      | null means unlimited                                               |
+| enforcement             | text           | NOT NULL     | `observe` | observe / block_creation                                           |
+| updated_by              | text           | nullable     | null      | Instance Manager user id                                           |
+| created_at / updated_at | integer ts_ms  | NOT NULL     | See 9.3   |                                                                    |
+
+Primary key: `PRIMARY KEY(tenant_id, quota_key)`. Index:
+`INDEX(quota_key, tenant_id)`. The `seats` row is the authoritative hard seat-creation quota;
+`organizations.seat_limit` on the root organization is updated in the same plan mutation as a
+compatibility mirror. Seats are distinct active `memberships.user_id` values across the complete
+tenant, including child organizations. Migration-owned BEFORE triggers atomically enforce new
+distinct active seats, child-organization creation/restoration, and SSO-connection
+creation/restoration. The membership UPDATE trigger excludes `OLD.id` and evaluates the destination
+tenant, preserving moves while preventing cross-tenant bypasses. Only `seats`, `organizations`, and
+`sso_connections` may use `block_creation`; `api_calls`, `emails`, and `mau` are observational
+because they must not interrupt authentication, token issuance, refresh, transactional
+authentication delivery, or an already configured protocol.
+
+Top-level tenant creation inserts its Free `seats` quota and root compatibility mirror in the same
+D1 batch. A child organization never owns a seat quota: Management API create and patch requests
+that try to set its `seat_limit` are rejected. Migration 0005 backfills one hard `seats` row from
+each existing root mirror, preserving null as unlimited rather than silently imposing a new limit.
+
+billing_meter_reports:
+
+| Field                      | Type           | Constraints               | Default | Notes                                                     |
+| -------------------------- | -------------- | ------------------------- | ------- | --------------------------------------------------------- |
+| tenant_id                  | text           | composite PK              | --      | Top-level organization id                                 |
+| meter_key                  | text           | composite PK              | --      | Provider meter identity                                   |
+| period                     | text           | composite PK              | --      | Accounting period such as `YYYY-MM`                       |
+| reported_value             | integer number | NOT NULL                  | `0`     | Provider-acknowledged cumulative target                   |
+| pending_identifier         | text           | nullable, globally UNIQUE | null    | Stable provider idempotency identifier                    |
+| pending_value              | integer number | nullable                  | null    | Delta reserved for the pending report                     |
+| pending_target             | integer number | nullable                  | null    | Cumulative target committed after provider acknowledgment |
+| pending_customer_id        | text           | nullable                  | null    | Customer frozen when the pending report is reserved       |
+| pending_event_name         | text           | nullable                  | null    | Meter event name frozen when the report is reserved       |
+| pending_timestamp          | integer number | nullable                  | null    | Provider payload timestamp frozen with the report         |
+| pending_reserved_at        | integer ts_ms  | nullable                  | null    | Start of the provider idempotency retry window            |
+| provider_accepted_at       | integer ts_ms  | nullable                  | null    | Provider acceptance persisted before local finalization   |
+| reconciliation_required_at | integer ts_ms  | nullable                  | null    | Operator reconciliation required; provider resend blocked |
+| created_at / updated_at    | integer ts_ms  | NOT NULL                  | See 9.3 |                                                           |
+
+Primary key: `PRIMARY KEY(tenant_id, meter_key, period)`. Indexes: partial
+`UNIQUE(pending_identifier)` when non-null, `INDEX(period, meter_key, tenant_id)`. A reporter
+persists every pending field before the provider call and reuses the complete first payload,
+including the identifier, customer, event name, value, and timestamp, on every retry. It advances
+`reported_value` and clears the pending fields only after provider acknowledgment. A successful
+provider response first persists `provider_accepted_at`; a retry with that marker performs only the
+local finalization and never calls the provider again. When acceptance could not be persisted,
+provider retries are allowed only inside the 24-hour provider deduplication window. Crossing that
+boundary sets `reconciliation_required_at` and fails closed instead of risking a duplicate charge.
+
+stripe_checkout_reservations:
+
+| Field                    | Type          | Constraints      | Default    | Notes                                                            |
+| ------------------------ | ------------- | ---------------- | ---------- | ---------------------------------------------------------------- |
+| tenant_id                | text          | PK               | --         | One active Checkout reservation per top-level organization       |
+| request_id               | text          | NOT NULL         | --         | Caller attempt identifier retained for operational tracing       |
+| plan                     | text          | NOT NULL         | --         | Frozen starter / pro / enterprise selection                      |
+| customer_id              | text          | nullable         | null       | Frozen existing Stripe customer binding                          |
+| provider_idempotency_key | text          | NOT NULL, UNIQUE | --         | Server-generated key persisted before the provider call          |
+| session_id               | text          | nullable         | null       | Stripe Checkout Session id                                       |
+| session_url              | text          | nullable         | null       | Validated Stripe-hosted redirect URL                             |
+| expires_at               | integer ts_ms | nullable         | null       | Provider session expiry                                          |
+| status                   | text          | NOT NULL         | `reserved` | reserved / ready / completed / expired / reconciliation_required |
+| created_at / updated_at  | integer ts_ms | NOT NULL         | See 9.3    |                                                                  |
+
+Indexes: `UNIQUE(provider_idempotency_key)`,
+`INDEX(status, expires_at, tenant_id)`. Core persists the server-generated provider key before
+creating a Checkout Session, so concurrent caller retries reuse the same provider operation. A live
+`ready` session is returned rather than replaced. Once its local expiry passes, Core retrieves the
+authoritative Stripe Session: `complete` fails closed, and only an explicit provider `expired`
+status permits a replacement reservation. An unresolved `reserved` row that outlives Stripe's
+idempotency retention becomes `reconciliation_required`, and an active customer subscription blocks
+new Checkout creation.
+
+stripe_webhook_events:
+
+| Field                   | Type          | Constraints | Default | Notes                                          |
+| ----------------------- | ------------- | ----------- | ------- | ---------------------------------------------- |
+| event_id                | text          | PK          | --      | Stripe event id and durable idempotency key    |
+| event_type              | text          | NOT NULL    | --      | Provider event type                            |
+| tenant_id               | text          | nullable    | null    | Resolved top-level organization when available |
+| event_created           | integer ts_ms | NOT NULL    | --      | Provider event creation time                   |
+| status                  | text          | NOT NULL    | --      | pending / processed / failed / ignored         |
+| error_code              | text          | nullable    | null    | Static operational code only                   |
+| processed_at            | integer ts_ms | nullable    | null    | Successful processing time                     |
+| created_at / updated_at | integer ts_ms | NOT NULL    | See 9.3 |                                                |
+
+Indexes: `INDEX(status, created_at, event_id)`,
+`INDEX(tenant_id, event_created, event_id)`. The handler claims `event_id` before applying a billing
+transition, so provider retries cannot apply the same transition twice.
+
+### 17.3d platform_announcements
+
+| Field                    | Type          | Constraints         | Default       | Notes                                      |
+| ------------------------ | ------------- | ------------------- | ------------- | ------------------------------------------ |
+| id                       | text          | PK                  | `ann_` id     |                                            |
+| scope_type / scope_value | text / text   | NOT NULL / nullable | global / null | Explicit global, tenant, or plan targeting |
+| title / body             | text / text   | NOT NULL            | --            | Localizable operator-authored content      |
+| severity                 | text          | NOT NULL            | `info`        | info / success / warning / critical        |
+| status                   | text          | NOT NULL            | `draft`       | draft / published / archived               |
+| starts_at / ends_at      | integer ts_ms | NOT NULL / nullable | -- / null     | Active window                              |
+| created_by / updated_by  | text          | NOT NULL            | --            | Instance Manager user ids                  |
+| created_at / updated_at  | integer ts_ms | NOT NULL            | See 9.3       |                                            |
+
+Indexes: `INDEX(status, starts_at, ends_at)`,
+`INDEX(scope_type, scope_value, status)`.
+
+### 17.3e status_incidents / status_incident_updates
+
+status_incidents stores the current incident summary; status_incident_updates is the append-only
+public timeline.
+
+| Table                   | Fields                                                                                                                                  | Indexes                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| status_incidents        | `id` (`inc_`, PK), `title`, `status`, `impact`, `summary`, `started_at`, nullable `resolved_at`, `created_by`, `updated_by`, timestamps | `INDEX(status, started_at, id)`, `INDEX(started_at, id)` |
+| status_incident_updates | `id` (`incu_`, PK), `incident_id`, `status`, `message`, `created_by`, `created_at`                                                      | `INDEX(incident_id, created_at, id)`                     |
+
+Incident status is investigating / identified / monitoring / resolved. Impact is none / minor /
+major / critical. The public status endpoint and Nimbus `/status` read these records; an independent
+external availability probe and historical uptime series remain separate external evidence.
+
+### 17.3f privacy_requests
+
+| Field                                              | Type          | Constraints | Default   | Notes                                        |
+| -------------------------------------------------- | ------------- | ----------- | --------- | -------------------------------------------- |
+| id                                                 | text          | PK          | `prv_` id |                                              |
+| tenant_id / user_id                                | text / text   | NOT NULL    | --        | Request owner                                |
+| request_type                                       | text          | NOT NULL    | --        | export / erasure                             |
+| status                                             | text          | NOT NULL    | `pending` | Workflow state                               |
+| storage_key / content_type                         | text / text   | nullable    | null      | R2 export artifact metadata                  |
+| available_at / expires_at                          | integer ts_ms | nullable    | null      | Export download window                       |
+| scheduled_for                                      | integer ts_ms | nullable    | null      | Erasure time after the 30-day grace period   |
+| processing_started_at / completed_at / canceled_at | integer ts_ms | nullable    | null      | Lifecycle timestamps                         |
+| error_code                                         | text          | nullable    | null      | Static retry-safe code, never exception text |
+| created_at / updated_at                            | integer ts_ms | NOT NULL    | See 9.3   |                                              |
+
+Indexes: `INDEX(tenant_id, user_id, created_at, id)`,
+`INDEX(request_type, status, scheduled_for, id)`.
+
+Deletion scheduling and execution both query `memberships`, `manager_assignments`, and active
+`users`. A request cannot erase the sole active owner of any affected Organization or the last active
+platform `instance_manager` in the same Instance scope. Replacement ManagerAssignment rows require
+equal `scope_id` values, with null matching only null. The execution check is repeated as the first statement of the D1 batch;
+the `privacy_requests.id` NOT NULL invariant acts as the atomic abort guard when roles changed
+during the grace period, rolling back the user erasure and completion audit outbox together.
+
+### 17.3g compliance_documents
+
+| Field                     | Type                 | Constraints | Default     | Notes                             |
+| ------------------------- | -------------------- | ----------- | ----------- | --------------------------------- |
+| id                        | text                 | PK          | `cmp_` id   |                                   |
+| tenant_id                 | text                 | nullable    | null        | null means instance-wide          |
+| document_type / title     | text / text          | NOT NULL    | --          | Artifact classification and label |
+| status                    | text                 | NOT NULL    | `available` | draft / available / retired       |
+| storage_key / checksum    | text / text          | nullable    | null        | R2 key and integrity checksum     |
+| version                   | text                 | NOT NULL    | --          | Tenant/type/version identity      |
+| accepted_by / accepted_at | text / integer ts_ms | nullable    | null        | Optional acceptance record        |
+| generated_by              | text                 | nullable    | null        | Generator or operator identity    |
+| created_at / updated_at   | integer ts_ms        | NOT NULL    | See 9.3     |                                   |
+
+Indexes: `UNIQUE(tenant_id, document_type, version)`,
+`INDEX(document_type, status, tenant_id)`.
+
+### 17.3h platform_audit_outbox
+
+Every platform mutation persists a redacted audit intent before or atomically with its state change.
+Queue dispatch uses `platform-audit:{id}` as a stable source id; hourly recovery retries pending rows,
+and the audit consumer marks the row delivered only after AuditSeqDO appends or terminalizes it.
+
+| Field                    | Type           | Constraints         | Default    | Notes                          |
+| ------------------------ | -------------- | ------------------- | ---------- | ------------------------------ |
+| id                       | text           | PK                  | `paud_` id | Stable audit delivery identity |
+| tenant_id / org_id       | text / text    | NOT NULL / nullable | -- / null  | Audit scope                    |
+| action / actor_id        | text / text    | NOT NULL / nullable | -- / null  | Event name and operator        |
+| payload                  | text json      | NOT NULL            | `{}`       | Redacted before persistence    |
+| status                   | text           | NOT NULL            | `pending`  | pending / queued / delivered   |
+| available_at / queued_at | integer ts_ms  | NOT NULL / nullable | -- / null  | Retry and dispatch timestamps  |
+| attempt_count            | integer number | NOT NULL            | `0`        | Queue handoff failures         |
+| last_error_code          | text           | nullable            | null       | Static code only               |
+| created_at / updated_at  | integer ts_ms  | NOT NULL            | See 9.3    |                                |
+
+Indexes: `INDEX(status, available_at, id)`,
+`INDEX(tenant_id, created_at, id)`.
+
 ### 17.4 webhooks + webhook_deliveries (see the api-sdk-conventions rule and chapter 07 section 5)
 
 webhooks (subscriptions):
@@ -1458,9 +1834,9 @@ Indexes: `INDEX(tenant_id, webhook_id, status)`, `INDEX(status, next_retry_at)`.
 | id                      | text          | PK                               | `ak_`+nanoid |                                                                                                                                                |
 | tenant_id               | text          | NOT NULL, FK -> organizations.id | --           |                                                                                                                                                |
 | name                    | text          | NOT NULL                         | --           |                                                                                                                                                |
-| key_hash                | text          | NOT NULL, UNIQUE                 | --           | `SHA-256(sk_live_xxx)` (the plaintext carries the `sk_live_`/`pk_test_` prefix, see the api-sdk-conventions rule); the plaintext is shown once |
+| key_hash                | text          | NOT NULL, UNIQUE                 | --           | `SHA-256(sk_live_xxx)` (the plaintext carries the `sk_live_`/`sk_test_` prefix, see the api-sdk-conventions rule); the plaintext is shown once |
 | key_prefix              | text          | NOT NULL                         | --           | A plaintext prefix fragment (such as `sk_live_a1b2`) for recognition, never the full value                                                     |
-| environment             | text          | NOT NULL                         | `'live'`     | `live`/`test` (`pk_test_`/`sk_live_`)                                                                                                          |
+| environment             | text          | NOT NULL                         | `'live'`     | `live`/`test` (`sk_live_`/`sk_test_`)                                                                                                          |
 | scopes                  | text json     | NOT NULL                         | `[]`         | The restricted capabilities                                                                                                                    |
 | last_used_at            | integer ts_ms | nullable                         | null         |                                                                                                                                                |
 | expires_at              | integer ts_ms | nullable                         | null         | null means it never expires                                                                                                                    |
@@ -1570,13 +1946,47 @@ result MUST NOT be resent to the external provider.
 Indexes: `UNIQUE(tenant_id, delivery_identity)`, `INDEX(tenant_id, outcome, failed_at)`,
 `INDEX(channel, source_message_id)`.
 
+### 17.11 queue_dead_letters (encrypted business Queue dead letters)
+
+The platform-level operational record is readable only through the `instance_manager` path. A
+nullable `tenant_id` lets malformed or instance-level messages be retained, while tenant-scoped code
+can access tenant-owned rows through `createTenantDb`.
+
+| Field                     | Type                 | Constraints | Default                      | Notes                                                                    |
+| ------------------------- | -------------------- | ----------- | ---------------------------- | ------------------------------------------------------------------------ |
+| id                        | text                 | PK          | `dlq_`+nanoid                |                                                                          |
+| source_queue              | text                 | NOT NULL    | --                           | One of the eight business Queue names                                    |
+| dead_letter_queue         | text                 | NOT NULL    | --                           | The independent DLQ observed in `MessageBatch.queue`                     |
+| message_id                | text                 | NOT NULL    | --                           | `UNIQUE(source_queue, message_id)`                                       |
+| tenant_id / org_id        | text                 | nullable    | null                         | Bounded routing metadata only                                            |
+| event_type                | text                 | NOT NULL    | `'unknown'`                  | Bounded template/action/event name, never a message body                 |
+| error_code                | text                 | NOT NULL    | `consumer_retries_exhausted` | Static operational code, never a provider response                       |
+| status                    | text                 | NOT NULL    | `'pending'`                  | `pending`/`replaying`/`replayed`                                         |
+| attempts                  | integer number       | NOT NULL    | `1`                          | Attempt count exposed by the DLQ consumer message                        |
+| payload_iv                | text                 | NOT NULL    | --                           | Existing KEK AES-256-GCM envelope, base64url                             |
+| payload_ciphertext        | text                 | NOT NULL    | --                           | There is no plaintext payload/body/recipient column                      |
+| payload_tag               | text                 | NOT NULL    | --                           |                                                                          |
+| payload_kek_version       | integer number       | NOT NULL    | `1`                          |                                                                          |
+| source_enqueued_at        | integer ts_ms        | NOT NULL    | --                           | Queue message timestamp                                                  |
+| failed_at                 | integer ts_ms        | NOT NULL    | --                           | DLQ persistence time                                                     |
+| replay_requested_at       | integer ts_ms        | nullable    | null                         | Atomic replay claim time and five-minute lease start                     |
+| replayed_at / replayed_by | integer ts_ms / text | nullable    | null                         | Completion and Instance Manager actor                                    |
+| replay_count              | integer number       | NOT NULL    | `0`                          | Observable completed replay transitions; lease recovery is at-least-once |
+| last_replay_error_code    | text                 | nullable    | null                         | Static retry-safe code; never exception text                             |
+| created_at / updated_at   | integer ts_ms        | NOT NULL    | See 9.3                      |                                                                          |
+
+Indexes: `UNIQUE(source_queue, message_id)`, `INDEX(status, failed_at, id)`,
+`INDEX(tenant_id, failed_at, id)`, `INDEX(source_queue, status)`.
+
 > FeatureFlag lives in KV (`flag:{tenant_id}:{flag_name}` / `flag:global:{flag_name}`, see chapter 07
 > section 1 and the cloudflare-bindings rule) and **has no D1 table**. OrgBranding lives in KV
 > (`brand:{tenant_id}` / `brand:{tenant_id}:{org_id}`, see chapter 07 section 2) plus R2 (logo and
-> CSS) and has no D1 table. Of the OrgBranding, OrgMetadata, and OrgQuota entries in this chapter's
-> entity inventory, OrgMetadata has been folded into organizations.public/private_metadata (section 11
-> does not give it its own table) and OrgQuota has been folded into
-> organizations.seat_limit/seat_used.
+> CSS) and has no D1 table. Of the OrgBranding and OrgMetadata entries in this chapter's entity
+> inventory, OrgMetadata has been folded into organizations.public/private_metadata (section 11 does
+> not give it its own table). OrganizationQuota has its own `organization_quotas` table for
+> operator-configured resource limits. Its `seats` row is authoritative; the root
+> `organizations.seat_limit` is a compatibility mirror, while billing computes seat usage from
+> tenant-wide distinct active membership users.
 
 ## 18. Field decision summary (settled items affecting security and interoperability)
 

@@ -1,7 +1,11 @@
 import { renderEntryAsMarkdown, type IndexedEntry } from '@cloudflare/nimbus-docs'
 import { config } from 'virtual:nimbus/config'
 import { loadPublicDocsIndex } from '../../lib/docs-index-runtime'
-import { flattenPublicDocsIndex, parsePublicDocsRoute } from '../../lib/docs-registry'
+import {
+  flattenPublicDocsIndex,
+  getPublicDocsAgentIndexPath,
+  parsePublicDocsRoute,
+} from '../../lib/docs-registry'
 
 export const prerender = true
 
@@ -26,8 +30,7 @@ export async function GET({ props }: { props: SlugProps }) {
     typeof rawImage === 'string' && rawImage.length > 0 ? rawImage : config.socialImage
   const route = parsePublicDocsRoute(item.url)
   if (!route) throw new TypeError(`unknown public documentation route ${item.url}`)
-  const llmsIndexPath =
-    route.routeSegment === '' ? '/en/llms.txt' : `/${route.routeSegment}/llms.txt`
+  const llmsIndexPath = getPublicDocsAgentIndexPath(route.locale, route.slug)
   const markdown = renderEntryAsMarkdown(entry)
 
   const body = [
@@ -40,7 +43,7 @@ export async function GET({ props }: { props: SlugProps }) {
     '---',
     '',
     '> Documentation Index',
-    `> Fetch the locale documentation index at: ${new URL(llmsIndexPath, config.site).href}`,
+    `> Fetch the relevant documentation index at: ${new URL(llmsIndexPath, config.site).href}`,
     '> Use this file to discover all available pages before exploring further.',
     '',
     `# ${title}`,

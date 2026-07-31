@@ -25,11 +25,19 @@ you are about to promise a webhook feature and need to check whether it exists. 
   that exist, and add new ones to both places at once.
 - Delivery goes through `WEBHOOK_QUEUE` (`emitWebhookAsync`), decoupled so it **never blocks the login
   path**. The send is handed to `executionCtx.waitUntil` when available.
+- The HTTP body is the JSON envelope `{ type, data }`; `xid-webhook-event` repeats the exact event
+  name in a header. Do not deliver the internal Queue message or a bare data object.
 - Signature verification: svix-style headers `svix-id` / `svix-timestamp` / `svix-signature`,
-  HMAC-SHA256 over `${id}.${timestamp}.${body}` with a `whsec_` secret, 5-minute replay window. The
-  signature header may carry several `v1,<sig>` entries so secret rotation stays verifiable.
+  HMAC-SHA256 over `${id}.${timestamp}.${body}` with a `whsec_<standard-base64>` secret and a
+  5-minute replay window. D1 stores only the envelope-encrypted raw 32-byte HMAC key. Official SDKs
+  also accept the legacy 64-character lowercase hex value as UTF-8 key material until those secrets
+  are rotated. The signature header may carry several space-separated `v1,<sig>` entries so secret
+  rotation stays verifiable; unknown versions are ignored.
 - Retries: exponential backoff; state lives in D1 `webhook_deliveries` keyed by `delivery_key`, with
-  exhausted deliveries marked `status = 'dead'`. Queue-level exhaustion also lands in `xid-dlq`.
-- Manual replay (by message or time range) and the pull-based Events API are designed in chapter 06 but
-  NOT implemented. There is no replay endpoint today; the closest read surface is
-  `GET /v1/organizations/:id/audit-events`.
+  exhausted deliveries marked `status = 'dead'`. Queue-level exhaustion lands in the
+  source-specific `xid-webhook-dlq`; Core persists redacted metadata and the KEK-encrypted message in
+  `queue_dead_letters`, and an Instance Manager may replay that Queue message from
+  `/v1/platform/dead-letters/:id/replay`.
+- Webhook-delivery replay by delivery id or time range and the pull-based Events API are designed in
+  chapter 06 but NOT implemented. The Queue-level dead-letter replay above is an operational
+  recovery surface, not that product-level Events API.

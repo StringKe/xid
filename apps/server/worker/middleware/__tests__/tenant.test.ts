@@ -2,15 +2,22 @@
 import { Hono } from 'hono'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { TenantContext } from '@xid-kit/types'
+import { sha256Hex } from '@xid-kit/crypto'
 import type { XidHonoEnv } from '../../lib/types'
 import { tenantMiddleware } from '../tenant'
 
 const resolveTenantContext = vi.hoisted(() => vi.fn())
+const resolveTenantContextByApplicationClientId = vi.hoisted(() => vi.fn())
 const resolveTenantContextBySessionHash = vi.hoisted(() => vi.fn())
 
 vi.mock('@xid-kit/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xid-kit/db')>()
-  return { ...actual, resolveTenantContext, resolveTenantContextBySessionHash }
+  return {
+    ...actual,
+    resolveTenantContext,
+    resolveTenantContextByApplicationClientId,
+    resolveTenantContextBySessionHash,
+  }
 })
 
 const TENANT: TenantContext = {
@@ -25,12 +32,14 @@ function buildApp(): Hono<XidHonoEnv> {
   const app = new Hono<XidHonoEnv>()
   app.use('*', tenantMiddleware)
   app.get('/probe', (c) => c.json({ tenantId: c.get('tenant').tenantId }))
+  app.get('/authorize', (c) => c.json({ tenantId: c.get('tenant').tenantId }))
   return app
 }
 
 describe('tenantMiddleware', () => {
   beforeEach(() => {
     resolveTenantContext.mockReset()
+    resolveTenantContextByApplicationClientId.mockReset()
     resolveTenantContextBySessionHash.mockReset()
   })
 
@@ -93,5 +102,73 @@ describe('tenantMiddleware', () => {
     expect(res.status).toBe(200)
     expect(resolveTenantContextBySessionHash).toHaveBeenCalledOnce()
     expect(resolveTenantContext).not.toHaveBeenCalled()
+  })
+
+  it('resolves the active-session pointer before earlier refresh cookies', async () => {
+    resolveTenantContextBySessionHash.mockResolvedValue({
+      ok: true,
+      value: { status: 'resolved', tenant: TENANT },
+    })
+    const tokenBHash = await sha256Hex('token_b')
+
+    const res = await buildApp().request(
+      'https://xid.dev/probe',
+      {
+        headers: {
+          cookie: [
+            '__Host-xid.rt.aaaaaaaa=token_a',
+            '__Host-xid.rt.bbbbbbbb=token_b',
+            '__Host-xid.active=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          ].join('; '),
+        },
+      },
+      {} as Env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(resolveTenantContextBySessionHash).toHaveBeenCalledWith(
+      expect.any(Request),
+      expect.anything(),
+      tokenBHash,
+    )
+  })
+
+  it('resolves a unique client_id before an unrelated browser session', async () => {
+    const appTenant = { ...TENANT, tenantId: 'application_tenant' }
+    resolveTenantContextByApplicationClientId.mockResolvedValue({
+      ok: true,
+      value: appTenant,
+    })
+
+    const res = await buildApp().request(
+      'https://xid.dev/authorize?client_id=rp_client',
+      { headers: { cookie: '__Host-xid.rt.session_1=token_1' } },
+      {} as Env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ tenantId: 'application_tenant' })
+    expect(resolveTenantContextByApplicationClientId).toHaveBeenCalledWith(
+      expect.any(Request),
+      expect.anything(),
+      'rp_client',
+    )
+    expect(resolveTenantContextBySessionHash).not.toHaveBeenCalled()
+  })
+
+  it('duplicate client_id never falls through to an unrelated browser session', async () => {
+    const hostTenant = { ...TENANT, tenantId: 'instance_entry' }
+    resolveTenantContext.mockResolvedValue({ ok: true, value: hostTenant })
+
+    const res = await buildApp().request(
+      'https://xid.dev/authorize?client_id=rp_a&client_id=rp_b',
+      { headers: { cookie: '__Host-xid.rt.session_1=token_1' } },
+      {} as Env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ tenantId: 'instance_entry' })
+    expect(resolveTenantContextByApplicationClientId).not.toHaveBeenCalled()
+    expect(resolveTenantContextBySessionHash).not.toHaveBeenCalled()
   })
 })

@@ -62,8 +62,99 @@ describe('verifyEmailVerifyJwt', () => {
       userId: 'user_1',
       emailHash,
       intent: 'sign-up',
+      applicationClientId: null,
+      continuePath: '/create-organization',
+      invitationId: null,
     })
     expect(buildVerifyKeySet).toHaveBeenCalledWith(TENANT)
+  })
+
+  it('accepts a canonical invitation locator without preserving a raw invitation path', async () => {
+    const emailHash = 'a'.repeat(64)
+    vi.mocked(verifyJwt).mockResolvedValue({
+      ok: true,
+      value: {
+        payload: {
+          sub: 'user_1',
+          jti: 'jti_abc',
+          purpose: 'email_verification',
+          email_hash: emailHash,
+          intent: 'sign-up',
+          continue_path: '/console',
+          invitation_id: 'invitation_1',
+        },
+        header: { alg: 'ES256', kid: 'k1' },
+      },
+    })
+
+    await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).resolves.toEqual({
+      jti: 'jti_abc',
+      userId: 'user_1',
+      emailHash,
+      intent: 'sign-up',
+      continuePath: '/console',
+      applicationClientId: null,
+      invitationId: 'invitation_1',
+    })
+  })
+
+  it.each([
+    {
+      name: 'client-bound product sign-up',
+      flow: {
+        intent: 'sign-up',
+        continue_path: '/authorize?authz_request_id=req_1&client_id=client_1',
+        client_id: 'client_1',
+      },
+    },
+    {
+      name: 'Application sign-up without client binding',
+      flow: {
+        intent: 'application-sign-up',
+        continue_path: '/authorize?authz_request_id=req_1',
+      },
+    },
+    {
+      name: 'mismatched Application client binding',
+      flow: {
+        intent: 'application-sign-up',
+        continue_path: '/authorize?authz_request_id=req_1&client_id=other_client',
+        client_id: 'client_1',
+      },
+    },
+    {
+      name: 'unbound authorize continuation',
+      flow: {
+        intent: 'sign-in',
+        continue_path: '/authorize?authz_request_id=req_1',
+      },
+    },
+    {
+      name: 'raw invitation capability path',
+      flow: {
+        intent: 'sign-up',
+        continue_path: '/accept-invitation?token=raw-secret',
+        invitation_id: 'invitation_1',
+      },
+    },
+  ])('rejects an invalid signed flow contract: $name', async ({ flow }) => {
+    vi.mocked(verifyJwt).mockResolvedValue({
+      ok: true,
+      value: {
+        payload: {
+          sub: 'user_1',
+          jti: 'jti_abc',
+          purpose: 'email_verification',
+          email_hash: 'a'.repeat(64),
+          ...flow,
+        },
+        header: { alg: 'ES256', kid: 'k1' },
+      },
+    })
+
+    await expect(verifyEmailVerifyJwt(TENANT, 'jwt.token.sig')).rejects.toMatchObject({
+      code: 'token_invalid',
+    })
   })
 
   it('rejects a token without the exact email_hash target', async () => {
