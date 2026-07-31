@@ -42,6 +42,40 @@ describe('production wildcard route probe', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
+  it('follows the console-owned trailing-slash redirect before asserting the shell', async () => {
+    const fetchImpl = vi.fn(async (url) => {
+      const parsed = new URL(url)
+      if (parsed.pathname === '/auth/config') {
+        return new Response(JSON.stringify({ error: 'not_found' }), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (parsed.pathname === '/console') {
+        return new Response(null, {
+          status: 307,
+          headers: {
+            location: `/console/${parsed.search}`,
+            'x-xid-route-owner': 'console',
+          },
+        })
+      }
+      return new Response('<!doctype html><div id="root"></div>', {
+        status: 200,
+        headers: { 'x-xid-route-owner': 'console' },
+      })
+    })
+
+    const results = await runWildcardRouteProbe({
+      environment: {},
+      nonce: 'redirect-hop',
+      fetchImpl,
+    })
+    expect(results.map((result) => result.status)).toEqual(['PASS', 'PASS'])
+    expect(results[1]).toMatchObject({ name: 'wildcard-console-shell', httpStatus: 200 })
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+  })
+
   it('fails closed when either response is owned by the wrong Worker', async () => {
     const fetchImpl = vi.fn(async (url) => {
       const path = new URL(url).pathname

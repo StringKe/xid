@@ -40,14 +40,35 @@ async function probeCoreUnknownTenant(fetchImpl, origin) {
   }
 }
 
+const CONSOLE_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+const CONSOLE_MAX_REDIRECTS = 3
+
 async function probeConsoleWildcard(fetchImpl, origin) {
   const name = 'wildcard-console-shell'
   const url = `${origin}/console?source=wildcard-preflight`
   try {
-    const res = await fetchImpl(url, {
-      redirect: 'manual',
-      headers: { accept: 'text/html,application/xhtml+xml' },
-    })
+    let current = url
+    let res
+    let hops = 0
+    // The assets binding canonicalizes /console to /console/ with a redirect,
+    // so follow redirects manually and fail closed if any hop leaves the
+    // Console Worker.
+    for (;;) {
+      res = await fetchImpl(current, {
+        redirect: 'manual',
+        headers: { accept: 'text/html,application/xhtml+xml' },
+      })
+      const location = res.headers.get('location')
+      const followsRedirect =
+        CONSOLE_REDIRECT_STATUSES.has(res.status) &&
+        location !== null &&
+        webRouteOwnerMatches(res.headers, 'console') &&
+        hops < CONSOLE_MAX_REDIRECTS
+      if (!followsRedirect) break
+      await res.text()
+      current = new URL(location, current).toString()
+      hops += 1
+    }
     const text = await res.text()
     const ok =
       res.status === 200 &&
