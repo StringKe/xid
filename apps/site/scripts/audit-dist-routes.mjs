@@ -360,7 +360,7 @@ async function audit() {
   )
   invariant(
     sitePackage.scripts?.build ===
-      'astro build && node scripts/generate-localized-404s.mjs && node scripts/audit-dist-routes.mjs',
+      'pnpm --dir ../.. exec turbo run build --filter=@xid-kit/site^... && astro build && node scripts/generate-localized-404s.mjs && node scripts/audit-dist-routes.mjs',
     'Site build must audit Nimbus output without a marketing twin postprocessor',
   )
   invariant(
