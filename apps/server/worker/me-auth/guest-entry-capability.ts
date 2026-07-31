@@ -16,9 +16,12 @@ function capabilityKey(token: string): string {
   return `guest-entry:${token}`
 }
 
-function capabilityStub(env: Env, token: string): DurableObjectStub {
+// 固定 per-tenant DO id:同一租户的 claim/consume 复用同一 DO 实例(保温)。
+// 若按 token 派生 id,每次铸造都冷启动一个新 DO,把冷启动延迟加在 /auth/config 关键路径上。
+// 存储仍按 token key 隔离(见 capabilityKey),一次性语义不变。
+function capabilityStub(env: Env, tenantId: string): DurableObjectStub {
   const namespace = env.WEBAUTHN_CHALLENGE
-  return namespace.get(namespace.idFromName(capabilityKey(token)))
+  return namespace.get(namespace.idFromName(`guest-entry:${tenantId}`))
 }
 
 function isCapabilityRecord(value: unknown): value is GuestEntryCapabilityRecord {
@@ -55,15 +58,18 @@ export async function createGuestEntryCapability(input: {
     flow: GUEST_ENTRY_FLOW,
     origin: input.origin,
   }
-  const response = await capabilityStub(input.env, token).fetch('https://challenge-store/claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      key,
-      value: JSON.stringify(value),
-      ttlMs: GUEST_ENTRY_CAPABILITY_TTL_MS,
-    }),
-  })
+  const response = await capabilityStub(input.env, input.tenantId).fetch(
+    'https://challenge-store/claim',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify(value),
+        ttlMs: GUEST_ENTRY_CAPABILITY_TTL_MS,
+      }),
+    },
+  )
   if (response.status !== 201) throw new AppError('server_error')
   return token
 }
@@ -75,7 +81,7 @@ export async function consumeGuestEntryCapability(input: {
   origin: string
 }): Promise<boolean> {
   const key = capabilityKey(input.token)
-  const response = await capabilityStub(input.env, input.token).fetch(
+  const response = await capabilityStub(input.env, input.tenantId).fetch(
     'https://challenge-store/consume',
     {
       method: 'POST',

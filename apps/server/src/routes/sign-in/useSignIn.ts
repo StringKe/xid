@@ -37,6 +37,7 @@ import {
 import { usePasskeySignIn } from './usePasskeySignIn'
 import type { PasskeySupport } from './usePasskeySignIn'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from './auth-config'
+import { authConfigQueryOptions } from './auth-config-query'
 import {
   isProductSignUpIntent,
   isSignUpIntent,
@@ -44,6 +45,7 @@ import {
 } from '../../../shared/hosted-auth-intent'
 
 export type { SignInMethod, SignInErrorKey } from './shared'
+export { buildAuthConfigPath } from './auth-config-query'
 
 type SignInResult = Result<{
   redirectUrl?: string
@@ -82,24 +84,6 @@ export function buildSocialAuthorizeUrl(input: {
   return url
 }
 
-export function buildAuthConfigPath(input: {
-  loginHint?: string | null
-  organizationId?: string | null
-  intent?: string | null
-  invitationToken?: string | null
-  authzRequestId?: string | null
-  applicationClientId?: string | null
-}): string {
-  const params = new URLSearchParams()
-  if (input.loginHint) params.set('login_hint', input.loginHint)
-  if (input.organizationId) params.set('organization_id', input.organizationId)
-  if (input.intent) params.set('intent', input.intent)
-  if (input.invitationToken) params.set('invitation_token', input.invitationToken)
-  if (input.authzRequestId) params.set('authz_request_id', input.authzRequestId)
-  if (input.applicationClientId) params.set('client_id', input.applicationClientId)
-  return params.size > 0 ? `/auth/config?${params.toString()}` : '/auth/config'
-}
-
 export function enabledSignInMethodsForIntent(
   config: PublicHostedAuthConfig,
   intent: string | null | undefined,
@@ -125,6 +109,8 @@ export type SignInState = {
   error: SignInErrorKey | null
   otpStep: 'input' | 'sent'
   turnstileToken: string | null
+  // /auth/config 未返回且 URL 参数不排除 guest 时为 true:SignInPage 据此渲染固定高度占位,防 CLS。
+  guestEntryPending: boolean
   tenantSelection: {
     loginHint: string | null
     continueParam: string | null
@@ -193,30 +179,7 @@ export function useSignIn(): [SignInState, SignInActions] {
   const [error, setError] = useState<SignInErrorKey | null>(null)
   const resetTurnstile = useCallback((): void => setTurnstileToken(null), [])
 
-  const authConfigQuery = useQuery<PublicHostedAuthConfig, never>({
-    queryKey: [
-      'auth-config',
-      search.login_hint ?? null,
-      search.organization_id ?? null,
-      search.client_id ?? null,
-      search.intent ?? null,
-      search.invitation_token ?? null,
-      authzRequestId,
-    ],
-    queryFn: async () => {
-      const configPath = buildAuthConfigPath({
-        loginHint: search.login_hint,
-        organizationId: search.organization_id,
-        intent: search.intent,
-        invitationToken: search.invitation_token,
-        authzRequestId,
-        applicationClientId: search.client_id,
-      })
-      const result = await api.get<PublicHostedAuthConfig>(configPath)
-      return result.ok ? result.value : DEFAULT_PUBLIC_AUTH_CONFIG
-    },
-    retry: false,
-  })
+  const authConfigQuery = useQuery(authConfigQueryOptions(search, api))
   const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
   const enabledMethods = useMemo<readonly SignInMethod[]>(() => {
     return enabledSignInMethodsForIntent(
@@ -572,6 +535,15 @@ export function useSignIn(): [SignInState, SignInActions] {
     error: passkey.error ?? error,
     otpStep,
     turnstileToken,
+    // 对齐服务端 permitsRootGuestOnboarding 的 URL 参数维度:org/client/invitation/authz
+    // 任一存在即不可能出现 guest 入口,不占位。租户维度只能等 config,占位期间保持未知。
+    guestEntryPending:
+      authConfigQuery.isPending &&
+      !search.organization_id &&
+      !search.client_id &&
+      !search.invitation_token &&
+      !authzRequestId &&
+      (search.intent === undefined || search.intent === 'sign-up'),
     tenantSelection: {
       loginHint: search.login_hint ?? null,
       continueParam: search.continue ?? null,

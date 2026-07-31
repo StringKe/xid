@@ -62,10 +62,10 @@ describe('guest entry capability', () => {
     ).resolves.toBe(false)
   })
 
-  it.each([
-    ['different Tenant', 'tenant-other', 'https://xid.dev'],
-    ['different origin', 'tenant-default', 'https://login.customer.example'],
-  ])('rejects and consumes a capability bound to a %s', async (_name, tenantId, origin) => {
+  // capability 存储在 per-tenant DO(见 guest-entry-capability.ts capabilityStub 注释):
+  // 跨租户消费根本找不到 token,fail closed 返回 false,但不销毁 -- token 对正当租户仍有效
+  // (与 session cookie 跨租户提交不失效同理;跨租户提交本身永远拿不到任何东西)。
+  it('rejects a capability presented to a different Tenant without consuming it', async () => {
     const binding = env()
     const token = await createGuestEntryCapability({
       env: binding,
@@ -74,7 +74,39 @@ describe('guest entry capability', () => {
     })
 
     await expect(
-      consumeGuestEntryCapability({ env: binding, token, tenantId, origin }),
+      consumeGuestEntryCapability({
+        env: binding,
+        token,
+        tenantId: 'tenant-other',
+        origin: 'https://xid.dev',
+      }),
+    ).resolves.toBe(false)
+    await expect(
+      consumeGuestEntryCapability({
+        env: binding,
+        token,
+        tenantId: 'tenant-default',
+        origin: 'https://xid.dev',
+      }),
+    ).resolves.toBe(true)
+  })
+
+  // 同租户但 origin 不匹配:token 在本租户 DO 内被找到并销毁,正当 origin 也无法重放。
+  it('rejects and consumes a capability bound to a different origin', async () => {
+    const binding = env()
+    const token = await createGuestEntryCapability({
+      env: binding,
+      tenantId: 'tenant-default',
+      origin: 'https://xid.dev',
+    })
+
+    await expect(
+      consumeGuestEntryCapability({
+        env: binding,
+        token,
+        tenantId: 'tenant-default',
+        origin: 'https://login.customer.example',
+      }),
     ).resolves.toBe(false)
     await expect(
       consumeGuestEntryCapability({

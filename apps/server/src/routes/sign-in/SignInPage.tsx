@@ -554,9 +554,11 @@ function SignInPage(): ReactNode {
           </div>
         ) : null}
 
-        {ambiguousResolution || !state.authConfig.guest ? null : (
+        {ambiguousResolution ? null : state.authConfig.guest ? (
           <SignInGuestButton onContinue={actions.submitGuest} isLoading={state.isLoading} />
-        )}
+        ) : state.guestEntryPending ? (
+          <div aria-hidden="true" {...stylex.props(styles.guestEntryPlaceholder)} />
+        ) : null}
 
         <div ref={containerRef} {...stylex.props(styles.turnstile)} />
       </div>

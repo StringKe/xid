@@ -228,6 +228,11 @@ export const styles = stylex.create({
     justifyContent: 'center',
     width: '100%',
   },
+  // guest 入口占位:/auth/config 未返回时固定高度占位(separator + 按钮 + 说明文案),
+  // config 返回后无论是否出现 guest 入口都不产生 layout shift(对齐页头注释的 CLS 防护约定)。
+  guestEntryPlaceholder: {
+    height: '7rem',
+  },
   // --- OTP 面板 ---
   otpSwitchRow: {
     display: 'flex',

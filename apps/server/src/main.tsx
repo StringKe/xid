@@ -19,9 +19,16 @@ import { queryClient } from '@xid-kit/web-ui/query'
 import { NavigationRuntimeProvider } from '@xid-kit/web-ui/tanstack-router'
 import { ThemeProvider } from '@xid-kit/web-ui/theme'
 import { AuthProvider } from './lib/auth-context'
+import { prefetchAuthConfig } from './routes/sign-in/auth-config-query'
 import { router } from './router'
 import './fonts/inter-latin.css'
 import './styles.css'
+
+// /sign-in 的游客入口硬依赖 /auth/config 响应:在主 chunk 即预热,使配置请求与
+// locale catalog、SignInPage 懒 chunk 下载并行,而不是排在整个加载瀑布末端。
+if (window.location.pathname === '/sign-in') {
+  prefetchAuthConfig(queryClient, Object.fromEntries(new URLSearchParams(window.location.search)))
+}
 
 function mountApp(locale: SupportedLocale): void {
   document.documentElement.setAttribute('lang', locale)
