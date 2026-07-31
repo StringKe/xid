@@ -10,6 +10,7 @@ import type { XidHonoEnv } from '../types'
 import {
   emailSchema,
   httpsUrlSchema,
+  isLoopbackHttpUrl,
   isPublicHttpsUrl,
   otpCodeSchema,
   paginationQuerySchema,
@@ -175,8 +176,13 @@ describe('publicHttpsUrlSchema(SSRF 防护)', () => {
     expect(v.safeParse(publicHttpsUrlSchema, 'https://172.15.0.1/').success).toBe(true)
   })
 
-  it('拒绝明文 http 与非法 URL', () => {
+  it('拒绝明文 http、credentials、localhost 与非法 URL', () => {
     expect(v.safeParse(publicHttpsUrlSchema, 'http://hooks.example.com').success).toBe(false)
+    expect(v.safeParse(publicHttpsUrlSchema, 'https://user:pass@hooks.example.com').success).toBe(
+      false,
+    )
+    expect(v.safeParse(publicHttpsUrlSchema, 'https://localhost/callback').success).toBe(false)
+    expect(v.safeParse(publicHttpsUrlSchema, 'https://idp.localhost/callback').success).toBe(false)
     expect(v.safeParse(publicHttpsUrlSchema, 'not-a-url').success).toBe(false)
   })
 
@@ -209,10 +215,13 @@ describe('publicHttpsUrlSchema(SSRF 防护)', () => {
       'https://[fd12:3456::1]/',
       'https://[::ffff:127.0.0.1]/',
       'https://[::ffff:10.0.0.1]/',
+      'https://[::ffff:169.254.169.254]/',
+      'https://[::ffff:192.168.1.20]/',
     ]
     for (const url of blocked) {
       expect(v.safeParse(publicHttpsUrlSchema, url).success).toBe(false)
     }
+    expect(v.safeParse(publicHttpsUrlSchema, 'https://[::ffff:8.8.8.8]/').success).toBe(true)
   })
 
   it('isPublicHttpsUrl 与 schema 行为一致', () => {
@@ -220,6 +229,25 @@ describe('publicHttpsUrlSchema(SSRF 防护)', () => {
     expect(isPublicHttpsUrl('https://192.168.0.1')).toBe(false)
     expect(isPublicHttpsUrl('http://example.com')).toBe(false)
     expect(isPublicHttpsUrl('https://')).toBe(false)
+  })
+
+  it('isLoopbackHttpUrl 只识别 HTTP loopback host', () => {
+    for (const url of [
+      'http://localhost:8787/callback',
+      'http://127.0.0.1:8787/callback',
+      'http://127.9.8.7/callback',
+      'http://[::1]:8787/callback',
+    ]) {
+      expect(isLoopbackHttpUrl(url)).toBe(true)
+    }
+    for (const url of [
+      'https://localhost/callback',
+      'http://example.com/callback',
+      'http://10.0.0.1/callback',
+      'not-a-url',
+    ]) {
+      expect(isLoopbackHttpUrl(url)).toBe(false)
+    }
   })
 })
 

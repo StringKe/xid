@@ -1,10 +1,15 @@
 # @xid-kit/tauri
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 XID identity SDK for [Tauri](https://tauri.app/) v2 desktop apps.
 
 Provides:
 
-- JS bridge (WebView side): PKCE S256 authorization URL, deeplink callback handler, token exchange, refresh rotation, session storage via OS keychain
+- JS bridge (WebView side): PKCE S256 authorization URL, deeplink callback handler,
+  authorization-code token exchange, and session storage via OS keychain
 - Rust plugin template (src-tauri side): `plugin:xid-keychain` backed by OS-native secret store
 
 ## Installation
@@ -78,7 +83,7 @@ await client.signIn({ openUrl: open })
 ### 4. Token retrieval
 
 ```ts
-// Get current access token (transparently refreshes if near expiry)
+// Get the current unexpired access token; sign in again after expiry.
 const token = await client.getAccessToken()
 
 // Get full session (includes userId, organizationId, expiresAt)
@@ -91,7 +96,7 @@ if (session) {
 ### 5. Sign-out
 
 ```ts
-// Revokes server session and clears all keychain entries
+// Clears all local keychain entries
 await client.signOut()
 
 // OIDC RP-initiated logout URL (opens in system browser for full IdP sign-out)
@@ -136,9 +141,9 @@ Returns an `XidTauriClient`:
 | --------------------------- | ---------------------------------------------------------------- |
 | `signIn(options?)`          | Build PKCE authorize URL; optionally open via `openUrl` callback |
 | `handleRedirect(url)`       | Parse deeplink, validate state, exchange code for tokens         |
-| `getSession()`              | Return `TauriSession` or `null`; refreshes token if near expiry  |
-| `getAccessToken(options?)`  | Return access token string or `null`; refreshes if near expiry   |
-| `signOut()`                 | Revoke server session and clear keychain                         |
+| `getSession()`              | Return the current unexpired `TauriSession` or `null`            |
+| `getAccessToken(options?)`  | Return the unexpired access token or `null`                      |
+| `signOut()`                 | Clear local keychain credentials                                 |
 | `buildSignOutUrl(options?)` | Build OIDC end_session URL                                       |
 | `setTokenStorage(adapter)`  | Swap keychain adapter at runtime                                 |
 
@@ -170,17 +175,22 @@ The SDK posts to `{issuer}/token` (the XID server registers this path in `tenant
 
 PKCE S256 is always used. `plain` is never generated. Verifier entropy is 64 bytes (512 bits, well above the RFC 7636 minimum of 32 bytes). Web Crypto (`crypto.subtle.digest('SHA-256', ...)`) is used for the challenge derivation.
 
+This SDK does not implement DPoP, so `offline_access` is rejected and the public client is
+authorization-code-only. Re-run `signIn()` after access-token expiry.
+
 ## Token storage keys
 
 All keys are namespaced under `xid.*`:
 
-| Key                 | Contents                                                      |
-| ------------------- | ------------------------------------------------------------- |
-| `xid.access_token`  | Current access token JWT                                      |
-| `xid.refresh_token` | Refresh token (rotation: new token replaces old on every use) |
-| `xid.session`       | JSON-serialised `StoredSession` (userId, orgId, expiresAt)    |
-| `xid.pkce_verifier` | Ephemeral PKCE verifier (cleared after exchange)              |
-| `xid.oauth_state`   | Ephemeral OAuth state (cleared after exchange)                |
+| Key                 | Contents                                                   |
+| ------------------- | ---------------------------------------------------------- |
+| `xid.access_token`  | Current access token JWT                                   |
+| `xid.session`       | JSON-serialised `StoredSession` (userId, orgId, expiresAt) |
+| `xid.pkce_verifier` | Ephemeral PKCE verifier (cleared after exchange)           |
+| `xid.oauth_state`   | Ephemeral OAuth state (cleared after exchange)             |
+
+Session reads, new code exchange, `signOut()` and expired-session cleanup remove the legacy
+`xid.refresh_token` key written by older SDK builds. The current SDK never reads or writes that key.
 
 ## Re-exports from @xid-kit/core
 

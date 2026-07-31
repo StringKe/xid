@@ -14,6 +14,7 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
+import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { PASSKEY_AUTH_CONTEXT } from '../lib/auth-context'
@@ -26,7 +27,7 @@ import {
   createChallenge,
   persistSignCount,
 } from '../auth/passkey-helpers'
-import { requestIp, requestUserAgent } from './shared'
+import { requestIp, requestUserAgent, verifyTurnstile } from './shared'
 import { assertMethodAllowed, assertTenantResolvedForWebAuthn } from '../auth/hosted-policy'
 import { auditPolicyDeniedError } from '../auth/hosted-audit'
 import { loginHintCandidates, resolveEntryTenant, withTenant } from './instance-login'
@@ -57,6 +58,8 @@ function decodeWebAuthnBytes(value: string): Uint8Array {
 
 const verifyBodySchema = v.object({
   organizationId: v.optional(v.string()),
+  clientId: v.optional(v.string()),
+  turnstileToken: v.optional(v.nullable(v.string())),
   sessionId: v.string(),
   id: v.optional(v.string()),
   rawId: v.string(),
@@ -72,6 +75,7 @@ const verifyBodySchema = v.object({
 const challengeBodySchema = v.object({
   identifier: v.optional(v.string()),
   organizationId: v.optional(v.nullable(v.string())),
+  clientId: v.optional(v.nullable(v.string())),
 })
 
 async function resolvePasskeyChallengeTenant(c: Context<XidHonoEnv>): Promise<TenantVar> {
@@ -89,6 +93,11 @@ async function resolvePasskeyChallengeTenant(c: Context<XidHonoEnv>): Promise<Te
   }
   const body = parsed.output
   const selectedOrganizationId = body.organizationId?.trim()
+  if (body.clientId?.trim()) {
+    return resolveEntryTenant(c, [], selectedOrganizationId, {
+      applicationClientId: body.clientId,
+    })
+  }
   if (selectedOrganizationId) {
     const result = await resolveTenantContextById(c.req.raw, c.env, selectedOrganizationId)
     if (!result.ok) throw new AppError('cross_tenant_access_denied')
@@ -102,7 +111,11 @@ async function resolvePasskeyChallengeTenant(c: Context<XidHonoEnv>): Promise<Te
 async function resolvePasskeyVerifyTenant(
   c: Context<XidHonoEnv>,
   organizationId: string | undefined,
+  applicationClientId: string | undefined,
 ): Promise<TenantVar> {
+  if (applicationClientId?.trim()) {
+    return resolveEntryTenant(c, [], organizationId, { applicationClientId })
+  }
   const current = c.get('tenant')
   if (!current.resolution?.unresolvedRoot) return current
   if (!organizationId) return current
@@ -182,7 +195,8 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
     code: 'invalid_credentials',
     credentialFields: ['sessionId', 'rawId', 'id', 'type', 'response'],
   })
-  const tenant = await resolvePasskeyVerifyTenant(c, body.organizationId)
+  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
+  const tenant = await resolvePasskeyVerifyTenant(c, body.organizationId, body.clientId)
   try {
     assertTenantResolvedForWebAuthn(tenant)
     assertMethodAllowed(tenant, 'passkey', 'login')
@@ -228,7 +242,7 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
       sessionAmr: PASSKEY_AUTH_CONTEXT.amr,
     })
     await issueSession(c, {
-      sessionId: crypto.randomUUID(),
+      sessionId: createPersistedId('session'),
       userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
       authContext: PASSKEY_AUTH_CONTEXT,

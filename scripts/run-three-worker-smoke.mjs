@@ -567,7 +567,7 @@ async function runChecks(baseUrl, ports) {
     owner: 'site',
     status: 200,
     contentType: 'text/plain; charset=utf-8',
-    includes: 'Published pages: 41',
+    includes: '<!-- xid-doc-path: /status -->',
     excludes: '<!-- xid-doc-path: /zh-hans/ -->',
   })
   await check(baseUrl, {
@@ -728,6 +728,13 @@ async function runChecks(baseUrl, ports) {
     contentType: 'text/html',
     includes: '<div id="root"></div>',
     excludes: 'data-xid-home',
+  })
+  await check(baseUrl, {
+    name: 'Core unknown route 404',
+    path: '/xid-three-worker-not-a-route',
+    owner: 'core',
+    status: 404,
+    excludes: '<div id="root"></div>',
   })
   await check(baseUrl, {
     name: 'Core well-known LLM redirect',

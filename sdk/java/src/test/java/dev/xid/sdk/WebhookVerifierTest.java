@@ -55,6 +55,28 @@ public final class WebhookVerifierTest {
         System.out.println("  PASS test_passes_valid_signature");
     }
 
+    static void test_accepts_legacy_hex_secret_as_utf8_key_material() throws Exception {
+        String legacySecret = "ab".repeat(32);
+        WebhookVerifier legacyVerifier =
+                new WebhookVerifier(legacySecret, Duration.ofMinutes(5), fixedClock);
+        String msgId        = "msg_legacy";
+        String msgTimestamp = String.valueOf(FIXED_NOW.getEpochSecond());
+        byte[] body         = "{\"type\":\"user.updated\"}".getBytes(StandardCharsets.UTF_8);
+        String sig = computeExpectedSig(
+                legacySecret.getBytes(StandardCharsets.UTF_8),
+                msgId,
+                msgTimestamp,
+                body);
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("svix-id",        msgId);
+        headers.put("svix-timestamp", msgTimestamp);
+        headers.put("svix-signature", "v1," + sig);
+
+        legacyVerifier.verify(headers, body);
+        System.out.println("  PASS test_accepts_legacy_hex_secret_as_utf8_key_material");
+    }
+
     static void test_rejects_wrong_signature() {
         Map<String, String> headers = new HashMap<>();
         headers.put("svix-id",        "msg_01HVXXX");
@@ -155,6 +177,7 @@ public final class WebhookVerifierTest {
 
         String[] tests = {
             "test_passes_valid_signature",
+            "test_accepts_legacy_hex_secret_as_utf8_key_material",
             "test_rejects_wrong_signature",
             "test_rejects_expired_timestamp",
             "test_rejects_missing_headers",

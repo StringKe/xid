@@ -8,7 +8,7 @@ const TOKEN_PATH = '/v1/sessions/token'
 
 function setup(jwtPayload: Record<string, unknown>, now: () => number) {
   const fetcher = makeFetch({
-    [TOKEN_PATH]: () => ({ status: 200, json: { jwt: makeJwt(jwtPayload) } }),
+    [TOKEN_PATH]: () => ({ status: 200, json: { token: makeJwt(jwtPayload) } }),
   })
   const api = new XidApiClient({ fetcher })
   const manager = new TokenManager({ api, now })
@@ -63,6 +63,34 @@ describe('TokenManager.getToken', () => {
     await manager.getToken()
 
     expect(fetcher.calls.filter((c) => c.path === TOKEN_PATH)).toHaveLength(2)
+  })
+
+  it('does not let a cleared in-flight request repopulate the next session cache', async () => {
+    let releaseFirstRequest: (() => void) | undefined
+    const firstRequestGate = new Promise<void>((resolve) => {
+      releaseFirstRequest = resolve
+    })
+    let calls = 0
+    const fetcher = (async (): Promise<Response> => {
+      calls += 1
+      if (calls === 1) await firstRequestGate
+      return new Response(
+        JSON.stringify({ data: { token: makeJwt({ exp: 9000, call: calls }) } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as typeof fetch
+    const manager = new TokenManager({
+      api: new XidApiClient({ fetcher }),
+      now: () => 1000,
+    })
+
+    const staleRequest = manager.getToken()
+    manager.clear()
+    releaseFirstRequest?.()
+    await staleRequest
+    await manager.getToken()
+
+    expect(calls).toBe(2)
   })
 
   it('propagates a structured error result on a failed token request', async () => {

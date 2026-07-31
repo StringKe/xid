@@ -11,7 +11,6 @@ pub struct TokenResponse {
     pub access_token: String,
     pub token_type: String,
     pub expires_in: Option<u64>,
-    pub refresh_token: Option<String>,
     pub id_token: Option<String>,
     pub scope: Option<String>,
 }
@@ -22,9 +21,10 @@ pub struct StoredTokens {
     pub access_token: String,
     /// Unix timestamp (秒) token 过期时间;None 表示未知
     pub access_token_expires_at: Option<i64>,
+    /// 旧版本兼容字段。新 public client 会话始终保存 None。
     pub refresh_token: Option<String>,
     pub id_token: Option<String>,
-    /// 最后一次成功换取/刷新的 Unix timestamp
+    /// 最后一次成功换取 token 的 Unix timestamp
     pub obtained_at: i64,
 }
 
@@ -36,19 +36,19 @@ impl StoredTokens {
         Self {
             access_token: resp.access_token.clone(),
             access_token_expires_at,
-            refresh_token: resp.refresh_token.clone(),
+            refresh_token: None,
             id_token: resp.id_token.clone(),
             obtained_at: now,
         }
     }
 
-    /// 检查 access_token 是否已过期(留 30 秒缓冲)
+    /// 检查 access_token 是否已经过期
     pub fn access_token_expired(&self) -> bool {
         match self.access_token_expires_at {
             None => false, // 未知过期时间,乐观认为有效
             Some(exp) => {
                 let now = OffsetDateTime::now_utc().unix_timestamp();
-                now >= exp - 30
+                now >= exp
             }
         }
     }
@@ -79,7 +79,6 @@ mod tests {
             access_token: "at".to_owned(),
             token_type: "Bearer".to_owned(),
             expires_in: Some(expires_in),
-            refresh_token: Some("rt".to_owned()),
             id_token: None,
             scope: Some("openid".to_owned()),
         }
@@ -121,7 +120,7 @@ mod tests {
         let resp = token_response_with_expiry(300);
         let stored = StoredTokens::from_response(&resp);
         assert_eq!(stored.access_token, "at");
-        assert_eq!(stored.refresh_token, Some("rt".to_owned()));
+        assert_eq!(stored.refresh_token, None);
         assert!(stored.access_token_expires_at.is_some());
         // expires_at should be in the future
         let now = time::OffsetDateTime::now_utc().unix_timestamp();

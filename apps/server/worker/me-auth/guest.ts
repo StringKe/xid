@@ -1,10 +1,11 @@
-// POST /auth/guest:Firebase 式访客(匿名)登录,无认证入口。
+// POST /auth/guest:Firebase 式访客(匿名)登录,仅供 Instance root staging onboarding。
 // 行为契约(docs/design/01-authentication.md guest 模式):
-//   1. 先查后建:请求已带有效 guest session(user provisioned_by = 'anonymous')直接 200 返回,不建号。
-//   2. 否则建号:users.insert(provisionedBy = 'anonymous',走 createTenantDb)+ issueSession(amr 含 'guest')。
-//   3. 并发去重:带 anonKey cookie 走 GuestStore DO 串行 check-and-set;裸请求直接建(限流兜底)。
-//   4. 防护:Turnstile(TURNSTILE_SECRET 配置时强制)+ RateLimitStore(IP + anonKey 维度)+ 每租户每日铸造上限。
-//   5. 审计:guest.created 走 AUDIT_QUEUE(waitUntil 不阻塞登录链路,见 cloudflare-bindings rule)。
+//   1. /auth/config 签发短期一次性 capability,绑定 Tenant + root onboarding flow + origin。
+//   2. 先查后建:请求已带有效 guest session(user provisioned_by = 'anonymous')直接 200 返回,不建号。
+//   3. 否则建号:users.insert(provisionedBy = 'anonymous',走 createTenantDb)+ issueSession(amr 含 'guest')。
+//   4. 并发去重:请求已有或本次生成的 anonKey 都写入 GuestStore DO;并发裸请求各自生成 key。
+//   5. 防护:Turnstile(TURNSTILE_SECRET 配置时强制)+ RateLimitStore(IP + anonKey 维度)+ 每租户每日铸造上限。
+//   6. 审计:guest.created 走 AUDIT_QUEUE(waitUntil 不阻塞登录链路,见 cloudflare-bindings rule)。
 // 枚举防护:响应只含本次签发的 sessionId,绝不携带任何既有账号信息。
 
 import { createTenantDb, schema, USER_PROVISIONED_BY_ANONYMOUS } from '@xid-kit/db'
@@ -12,6 +13,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { ACTIVE_SESSION_STATUS, issueSession, readSession, sessionPolicyOf } from '../lib/session'
 import { GUEST_AUTH_CONTEXT } from '../lib/auth-context'
@@ -21,8 +23,18 @@ import { GUEST_DAILY_MINT_LIMIT } from '../lib/ttl'
 import type { RateLimitPolicy } from '../durable-objects/rate-limit-store'
 import { ANON_KEY_COOKIE, getOrCreateAnonKey, readAnonKey } from '../auth/passkey-helpers'
 import { checkRateLimit, requestIp, requestUserAgent, verifyTurnstile } from './shared'
+import { assertGuestAllowed } from '../auth/hosted-policy'
+import { auditPolicyDeniedError } from '../auth/hosted-audit'
+import { logWorkerError } from '../lib/safe-log'
+import { consumeGuestEntryCapability, isRootGuestOnboardingTenant } from './guest-entry-capability'
 
 const guestBodySchema = v.object({
+  capabilityToken: v.pipe(
+    v.string(),
+    v.minLength(43),
+    v.maxLength(128),
+    v.regex(/^[A-Za-z0-9_-]+$/u),
+  ),
   turnstileToken: v.optional(v.nullable(v.string())),
 })
 
@@ -126,7 +138,7 @@ export async function loadLiveGuestUser(
 }
 
 async function issueGuestSession(c: Context<XidHonoEnv>, userId: string): Promise<Response> {
-  const sessionId = crypto.randomUUID()
+  const sessionId = createPersistedId('session')
   await issueSession(c, {
     sessionId,
     userId,
@@ -152,7 +164,12 @@ function emitGuestCreatedAudit(c: Context<XidHonoEnv>, tenantId: string, userId:
   try {
     c.executionCtx.waitUntil(task)
   } catch {
-    void task.catch((error: unknown) => console.error('[guest] audit queue send failed', error))
+    void task.catch((error: unknown) =>
+      logWorkerError('guest.audit_queue.send_failed', error, {
+        component: 'guest',
+        queue: 'audit',
+      }),
+    )
   }
 }
 
@@ -166,7 +183,7 @@ function setAnonKeyCookie(c: Context<XidHonoEnv>, anonKey: string, maxAgeSec: nu
 }
 
 async function createGuestUser(db: GuestDb, tenant: TenantVar): Promise<string> {
-  const userId = crypto.randomUUID()
+  const userId = createPersistedId('user')
   await db.users.insert({
     id: userId,
     tenantId: tenant.tenantId,
@@ -177,17 +194,34 @@ async function createGuestUser(db: GuestDb, tenant: TenantVar): Promise<string> 
   return userId
 }
 
-export async function handleGuestSignIn(c: Context<XidHonoEnv>): Promise<Response> {
-  // body 可空:POST 无 body 视为 {}(访客入口不强制任何字段)。
-  const json = await readJsonBody(c)
-  const body = json.ok
-    ? validateCredentialBody(guestBodySchema, json.value, {
-        code: 'invalid_request',
-        credentialFields: [],
-      })
-    : { turnstileToken: null }
+async function enforceGuestPolicy(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+  action: 'login' | 'user_creation',
+): Promise<void> {
+  try {
+    assertGuestAllowed(tenant, action)
+  } catch (error) {
+    throw await auditPolicyDeniedError(c, error, { tenant, method: 'guest', action })
+  }
+}
 
+export async function handleGuestSignIn(c: Context<XidHonoEnv>): Promise<Response> {
+  const json = await readJsonBody(c)
   const tenant = c.get('tenant')
+  if (!json.ok || !isRootGuestOnboardingTenant(tenant)) throw new AppError('invalid_request')
+  const body = validateCredentialBody(guestBodySchema, json.value, {
+    code: 'invalid_request',
+    credentialFields: [],
+  })
+  const capabilityValid = await consumeGuestEntryCapability({
+    env: c.env,
+    token: body.capabilityToken,
+    tenantId: tenant.tenantId,
+    origin: new URL(c.req.url).origin,
+  })
+  if (!capabilityValid) throw new AppError('invalid_request')
+
   const ip = requestIp(c)
   await verifyTurnstile(body.turnstileToken ?? null, c.env, ip)
 
@@ -206,6 +240,7 @@ export async function handleGuestSignIn(c: Context<XidHonoEnv>): Promise<Respons
   // 1. 先查:已持有效 guest session 直接返回,不建号。
   const current = c.get('session') ?? (await readSession(c, [ACTIVE_SESSION_STATUS]))
   if (current?.status === ACTIVE_SESSION_STATUS && (await loadLiveGuestUser(db, current.userId))) {
+    await enforceGuestPolicy(c, tenant, 'login')
     return c.json({ sessionId: current.sessionId, redirectUrl: GUEST_ONBOARDING_PATH })
   }
 
@@ -215,6 +250,7 @@ export async function handleGuestSignIn(c: Context<XidHonoEnv>): Promise<Respons
     const boundUserId = await lookupGuestBinding(c.env, target)
     if (boundUserId) {
       if (await loadLiveGuestUser(db, boundUserId)) {
+        await enforceGuestPolicy(c, tenant, 'login')
         return issueGuestSession(c, boundUserId)
       }
       await postGuestStore(c.env, target, 'unbind')
@@ -222,6 +258,7 @@ export async function handleGuestSignIn(c: Context<XidHonoEnv>): Promise<Respons
   }
 
   // 3. 建号:先扣每日铸造配额(只在真正铸造时计),再插 user。
+  await enforceGuestPolicy(c, tenant, 'user_creation')
   if (
     !(await checkRateLimit(c.env, `guest:mint:day:${tenant.tenantId}`, GUEST_MINT_PER_DAY_POLICY))
   ) {
@@ -229,30 +266,35 @@ export async function handleGuestSignIn(c: Context<XidHonoEnv>): Promise<Respons
   }
   const userId = await createGuestUser(db, tenant)
 
-  // 4. 并发去重:DO check-and-set;落败则软删刚建的用户,改用既有绑定续签。
+  // 4. 并发去重与重试恢复:即使请求起初没有 anonKey,也先生成 key 再绑定到 DO。
+  // 这样客户端丢失 session cookie 但保留 anonKey 时仍能恢复同一个 guest,不会重复建号。
   // bind 失败(DO 故障)时必须软删刚建的用户,否则残留无 session 无绑定的孤儿账号。
-  if (anonKey) {
-    const guestTtlMs = sessionPolicyOf(tenant).absoluteTimeoutDays * DAY_MS
-    let bound: { userId: string; created: boolean }
-    try {
-      bound = await bindGuestUser(c.env, { tenantId: tenant.tenantId, anonKey }, userId, guestTtlMs)
-    } catch (error) {
-      await db.users.update(
-        { deletedAt: new Date(), status: 'deleted' },
-        eq(schema.users.id, userId),
-      )
-      throw error
+  const guestAnonKey = anonKey ?? getOrCreateAnonKey(c)
+  const guestTtlMs = sessionPolicyOf(tenant).absoluteTimeoutDays * DAY_MS
+  let bound: { userId: string; created: boolean }
+  try {
+    bound = await bindGuestUser(
+      c.env,
+      { tenantId: tenant.tenantId, anonKey: guestAnonKey },
+      userId,
+      guestTtlMs,
+    )
+  } catch (error) {
+    await db.users.update({ deletedAt: new Date(), status: 'deleted' }, eq(schema.users.id, userId))
+    throw error
+  }
+  if (!anonKey) setAnonKeyCookie(c, guestAnonKey, guestTtlMs / 1000)
+  if (!bound.created) {
+    await db.users.update({ deletedAt: new Date(), status: 'deleted' }, eq(schema.users.id, userId))
+    const winner = await loadLiveGuestUser(db, bound.userId)
+    if (!winner) {
+      await postGuestStore(c.env, { tenantId: tenant.tenantId, anonKey: guestAnonKey }, 'unbind')
+      throw new AppError('unauthorized', { httpStatus: 401 })
     }
-    if (!bound.created) {
-      await db.users.update(
-        { deletedAt: new Date(), status: 'deleted' },
-        eq(schema.users.id, userId),
-      )
-      return issueGuestSession(c, bound.userId)
-    }
-  } else {
-    const guestTtlMs = sessionPolicyOf(tenant).absoluteTimeoutDays * DAY_MS
-    setAnonKeyCookie(c, getOrCreateAnonKey(c), guestTtlMs / 1000)
+    // The winner is now an existing account. Re-evaluate the login half of the policy instead of
+    // inheriting the user-creation decision made for this request before the DO race was resolved.
+    await enforceGuestPolicy(c, tenant, 'login')
+    return issueGuestSession(c, winner.id)
   }
 
   emitGuestCreatedAudit(c, tenant.tenantId, userId)

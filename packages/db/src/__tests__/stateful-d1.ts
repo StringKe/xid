@@ -130,6 +130,21 @@ export function makeStatefulD1(store: Store): D1Database {
         .map((row) => ({ tenant_id: row['tenant_id'], tenantId: row['tenant_id'] }))
       return { rows: matches, changes: 0 }
     }
+    if (hasFrom(lower, 'custom_hostnames')) {
+      const hostnames = new Set(
+        get('custom_hostnames')
+          .map((row) => row['hostname'])
+          .filter((value): value is string => typeof value === 'string'),
+      )
+      const hostname = params.find(
+        (value): value is string => typeof value === 'string' && hostnames.has(value),
+      )
+      const matches = get('custom_hostnames').filter(
+        (row) =>
+          row['hostname'] === hostname && row['status'] === 'active' && row['deleted_at'] == null,
+      )
+      return { rows: matches, changes: 0 }
+    }
     if (lower.includes('from "organizations"')) {
       const rows = get('organizations')
       if (lower.includes('"organizations"."id"')) {

@@ -2,12 +2,24 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
+  CONSOLE_EXACT_PATH,
   EXPECTED_WORKER_ROUTE_CONFIGS,
+  EXPECTED_WORKER_SERVICE_BINDINGS,
+  SITE_EXACT_PATHS,
+  SITE_PUBLIC_DOC_EXACT_PATHS,
+  SITE_SCIM_DOC_EXACT_PATHS,
+  XID_SITE_LOCALE_ROUTE_SEGMENTS,
+  XID_SITE_LOCALES,
   resolveWebRouteOwnership,
 } from '../packages/types/src/web-route-ownership.ts'
 import { PUBLIC_DOC_SLUGS } from '../packages/types/src/public-docs.ts'
 
 const OWNER_NAMES = ['site', 'console', 'core']
+const EXPECTED_WORKER_NAMES = {
+  site: 'xid-site',
+  console: 'xid-console',
+  core: 'xid',
+}
 const DEFAULT_CONFIG_PATHS = {
   site: 'apps/site/wrangler.jsonc',
   console: 'apps/console/wrangler.jsonc',
@@ -152,6 +164,31 @@ function routeKey(route) {
   return `${route.customDomain ? 'custom-domain' : 'route'}:${route.pattern}`
 }
 
+function normalizeServices(config, owner, errors) {
+  if (config.services === undefined) return []
+  if (!Array.isArray(config.services)) {
+    errors.push(`${owner}: services must be an array`)
+    return []
+  }
+
+  return config.services.flatMap((service, index) => {
+    if (
+      !service ||
+      typeof service !== 'object' ||
+      typeof service.binding !== 'string' ||
+      typeof service.service !== 'string'
+    ) {
+      errors.push(`${owner}: services[${index}] must declare string binding and service`)
+      return []
+    }
+    return [{ binding: service.binding, service: service.service }]
+  })
+}
+
+function serviceKey(service) {
+  return `${service.binding}:${service.service}`
+}
+
 function routeWitnessUrl(route) {
   if (route.customDomain) return `https://${route.pattern}/core-route-contract`
 
@@ -169,7 +206,7 @@ function routeMatchesUrl(route, url) {
     .split('*')
     .map((part) => part.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&'))
   const pattern = new RegExp(`^${escapedParts.join('.*')}$`, 'u')
-  return pattern.test(`${url.hostname}${url.pathname}`)
+  return pattern.test(`${url.hostname}${url.pathname}${url.search}`)
 }
 
 function routeSpecificity(route) {
@@ -177,7 +214,7 @@ function routeSpecificity(route) {
   return route.pattern.replaceAll('*', '').length
 }
 
-function verifyEffectiveOwnership(actualByOwner, errors) {
+function verifyEffectiveOwnership(actualByOwner, actualServicesByOwner, errors) {
   const configuredRoutes = OWNER_NAMES.flatMap((owner) =>
     actualByOwner[owner].map((route) => ({ ...route, owner })),
   )
@@ -190,10 +227,19 @@ function verifyEffectiveOwnership(actualByOwner, errors) {
     'https://www.xid.dev/console',
     'https://www.xid.dev/console/settings',
     'https://xid.dev/docs/not-a-public-doc',
+    'https://xid.dev/status/',
     'https://xid.dev/en/llms.txt',
     'https://xid.dev/en/llms-full.txt',
     'https://xid.dev/scim/v2/Users',
     'https://xid.dev/scim/outbound/route-contract',
+    ...[
+      ...SITE_EXACT_PATHS,
+      ...SITE_PUBLIC_DOC_EXACT_PATHS,
+      ...SITE_SCIM_DOC_EXACT_PATHS,
+      ...XID_SITE_LOCALES.map((locale) => `/${XID_SITE_LOCALE_ROUTE_SEGMENTS[locale]}`),
+      CONSOLE_EXACT_PATH,
+    ].map((pathname) => `https://xid.dev${pathname}?source=route-contract`),
+    `https://tenant.xid.dev${CONSOLE_EXACT_PATH}?source=route-contract`,
     ...PUBLIC_DOC_SLUGS.flatMap((slug) => [
       `https://xid.dev/${slug}`,
       `https://xid.dev/${slug}/`,
@@ -224,8 +270,27 @@ function verifyEffectiveOwnership(actualByOwner, errors) {
       continue
     }
 
-    const expectedOwner = resolveWebRouteOwnership(url).owner
-    if (winner.owner !== expectedOwner) {
+    // `*/*` is scoped to the provider zone by Wrangler. For an external Cloudflare for SaaS
+    // hostname, the pure URL ownership model cannot know whether DNS entered that zone, but inside
+    // this config verifier the route itself is that missing context.
+    const expectedOwner =
+      resolveWebRouteOwnership(url).owner ??
+      (matchingRoutes.some((route) => route.owner === 'core' && route.pattern === '*/*')
+        ? 'core'
+        : null)
+    const delegatedFrontendOwner =
+      winner.owner === 'core' && (expectedOwner === 'site' || expectedOwner === 'console')
+        ? expectedOwner
+        : null
+    const hasDelegationBinding =
+      delegatedFrontendOwner !== null &&
+      actualServicesByOwner.core.some(
+        (service) =>
+          service.binding ===
+            (delegatedFrontendOwner === 'site' ? 'SITE_WORKER' : 'CONSOLE_WORKER') &&
+          service.service === (delegatedFrontendOwner === 'site' ? 'xid-site' : 'xid-console'),
+      )
+    if (winner.owner !== expectedOwner && !hasDelegationBinding) {
       errors.push(
         `route owner mismatch for ${value}: config=${winner.owner}, contract=${expectedOwner}`,
       )
@@ -238,9 +303,19 @@ export function verifyWorkerRouteConfigs(configs) {
   const actualByOwner = Object.fromEntries(
     OWNER_NAMES.map((owner) => [owner, normalizeRoutes(configs[owner], owner, errors)]),
   )
+  const actualServicesByOwner = Object.fromEntries(
+    OWNER_NAMES.map((owner) => [owner, normalizeServices(configs[owner], owner, errors)]),
+  )
   const patternOwners = new Map()
 
   for (const owner of OWNER_NAMES) {
+    if (configs[owner]?.name !== EXPECTED_WORKER_NAMES[owner]) {
+      errors.push(`${owner}: name must be ${EXPECTED_WORKER_NAMES[owner]}`)
+    }
+    if (configs[owner]?.preview_urls !== false) {
+      errors.push(`${owner}: preview_urls must be false`)
+    }
+
     const actual = actualByOwner[owner]
     const expected = EXPECTED_WORKER_ROUTE_CONFIGS[owner]
     const actualKeys = new Set()
@@ -264,6 +339,21 @@ export function verifyWorkerRouteConfigs(configs) {
       const key = routeKey(route)
       if (!expectedKeys.has(key)) errors.push(`${owner}: over-wide or unowned route ${key}`)
     }
+
+    const actualServices = actualServicesByOwner[owner]
+    const expectedServices = EXPECTED_WORKER_SERVICE_BINDINGS[owner]
+    const actualServiceKeys = new Set(actualServices.map(serviceKey))
+    const expectedServiceKeys = new Set(expectedServices.map(serviceKey))
+    for (const service of expectedServices) {
+      const key = serviceKey(service)
+      if (!actualServiceKeys.has(key)) errors.push(`${owner}: missing service binding ${key}`)
+    }
+    for (const service of actualServices) {
+      const key = serviceKey(service)
+      if (!expectedServiceKeys.has(key)) {
+        errors.push(`${owner}: unexpected service binding ${key}`)
+      }
+    }
   }
 
   for (const [pattern, owners] of patternOwners) {
@@ -273,7 +363,7 @@ export function verifyWorkerRouteConfigs(configs) {
     }
   }
 
-  verifyEffectiveOwnership(actualByOwner, errors)
+  verifyEffectiveOwnership(actualByOwner, actualServicesByOwner, errors)
   return errors
 }
 

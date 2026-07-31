@@ -723,6 +723,40 @@ describe('POST /auth/passkey/register/verify', () => {
 })
 
 describe('POST /auth/passkey/login/verify -- 枚举防护', () => {
+  it('Turnstile 配置后缺 token -> 401 且不消费 challenge', async () => {
+    vi.mocked(verifyAuthentication).mockClear()
+    const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
+    const env = {
+      ...makeEnv(challengeHandler),
+      TURNSTILE_SITE_KEY: 'site-key',
+      TURNSTILE_SECRET: 'secret',
+    } as unknown as Env
+    const app = await makeApp(null)
+
+    const res = await app.request(
+      '/auth/passkey/login/verify',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawId: 'Y3JlZC1pZA',
+          anonKey: 'anon-key-123',
+          response: {
+            clientDataJSON: 'Y2xpZW50RGF0YQ',
+            authenticatorData: 'YXV0aERhdGE',
+            signature: 'c2ln',
+          },
+        }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('captcha_required')
+    expect(challengeHandler).not.toHaveBeenCalled()
+    expect(verifyAuthentication).not.toHaveBeenCalled()
+  })
+
   it('root entry 未解析 tenant 时拒绝登录 options 并写审计', async () => {
     const auditSend = vi.fn()
     const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))

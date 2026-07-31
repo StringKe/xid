@@ -119,11 +119,7 @@ function getDiagramLabel(diagram: HTMLPreElement): string {
   const root = diagram.closest('.docs-content') ?? document.body
   let label = ''
   for (const heading of root.querySelectorAll<HTMLElement>('h1, h2, h3, h4')) {
-    if (
-      (heading.compareDocumentPosition(diagram) &
-        Node.DOCUMENT_POSITION_FOLLOWING) ===
-      0
-    ) {
+    if ((heading.compareDocumentPosition(diagram) & Node.DOCUMENT_POSITION_FOLLOWING) === 0) {
       continue
     }
     const clone = heading.cloneNode(true) as HTMLElement
@@ -183,9 +179,7 @@ async function openDiagram(diagram: HTMLPreElement): Promise<void> {
 }
 
 function getFontFamily(): string {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue('--nb-font-sans')
-    .trim()
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--nb-font-sans').trim()
   return value || 'system-ui, sans-serif'
 }
 

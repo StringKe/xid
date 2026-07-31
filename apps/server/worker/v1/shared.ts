@@ -7,12 +7,15 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, gt } from 'drizzle-orm'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { Context } from 'hono'
+import type { OrganizationAdminRole } from '@xid-kit/types'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import type { RateLimitPolicy } from '../durable-objects/rate-limit-store'
 import { AppError } from '../lib/errors'
 import { requireVerifiedManagementMutation } from '../lib/management-access'
 import { checkRateLimitStore } from '../lib/rate-limit'
 import { readSession } from '../lib/session'
+import { logWorkerError } from '../lib/safe-log'
+import { redactAuditPayload } from '../queues/audit-redaction'
 
 // Management API 每页最大条数。
 export const MAX_PAGE_SIZE = 100
@@ -92,15 +95,20 @@ const API_KEY_SCOPE_RESOURCES = new Set([
   'audit_events',
   'branding',
   'connections',
+  'custom_hostnames',
   'directories',
   'invitations',
   'memberships',
   'organization_domains',
   'organizations',
   'permissions',
+  'projects',
   'project_grants',
+  'role_permissions',
   'roles',
   'sessions',
+  'manager_assignments',
+  'user_grants',
   'users',
   'webhooks',
 ])
@@ -176,7 +184,7 @@ export async function requireApiKey(
 }
 
 // org_console 调用者的管理角色:membership owner/admin,或平台层 org_manager(视同 owner 级,见 02 章 Manager Roles)。
-export type OrgManagerRole = 'owner' | 'admin' | 'org_manager'
+export type OrgManagerRole = OrganizationAdminRole | 'org_manager'
 
 export type OrgScopedAuth =
   | { kind: 'api_key'; apiKeyId: string; scopes: string[] }
@@ -310,7 +318,61 @@ export function emitWebhookAsync(
     executionCtx.waitUntil(task)
     return
   }
-  void task.catch((error: unknown) => console.error('webhook queue send failed', error))
+  void task.catch((error: unknown) =>
+    logWorkerError('management.webhook_queue.send_failed', error, {
+      component: 'management-api',
+      queue: 'webhook',
+    }),
+  )
+}
+
+// Tenant-scoped control-plane mutations do not yet have a relational outbox shared with the
+// scoped Drizzle accessors. Queue the smallest useful audit record after persistence and keep
+// delivery off the response path. Instance-wide privilege mutations use the atomic platform
+// audit outbox instead.
+export function emitManagementAuditAsync(
+  c: Context<XidHonoEnv>,
+  msg: {
+    action: string
+    actorId?: string
+    orgId?: string
+    targetType: string
+    targetId: string
+    details?: Record<string, unknown>
+  },
+): void {
+  const queue = c.env.AUDIT_QUEUE
+  if (!queue) {
+    logWorkerError(
+      'management.audit_queue.binding_missing',
+      new Error('AUDIT_QUEUE binding is unavailable'),
+      { component: 'management-api', queue: 'audit' },
+    )
+    return
+  }
+  const task = queue.send({
+    tenantId: c.get('tenant').tenantId,
+    ...(msg.orgId ? { orgId: msg.orgId } : {}),
+    action: msg.action,
+    ...(msg.actorId ? { actorId: msg.actorId } : {}),
+    ts: Date.now(),
+    payload: redactAuditPayload({
+      targetType: msg.targetType,
+      targetId: msg.targetId,
+      ...msg.details,
+    }),
+  })
+  const executionCtx = readExecutionContext(c)
+  if (executionCtx !== undefined) {
+    executionCtx.waitUntil(task)
+    return
+  }
+  void task.catch((error: unknown) =>
+    logWorkerError('management.audit_queue.send_failed', error, {
+      component: 'management-api',
+      queue: 'audit',
+    }),
+  )
 }
 
 function readExecutionContext(c: Context<XidHonoEnv> | Env) {

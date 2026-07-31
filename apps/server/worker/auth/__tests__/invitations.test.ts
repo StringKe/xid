@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { Hono } from 'hono'
 import { sha256Hex } from '@xid-kit/crypto'
+import type { XidHonoEnv } from '../../lib/types'
+import { createTenantBoundInvitationToken } from '../../lib/invitation-token'
 
 vi.mock('@xid-kit/crypto', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xid-kit/crypto')>()
@@ -13,15 +16,15 @@ const invitationsFindOne = vi.fn()
 const invitationsUpdate = vi.fn()
 const organizationsFindOne = vi.fn()
 const membershipsFindOne = vi.fn()
-const membershipsInsert = vi.fn()
-const membershipsUpdate = vi.fn()
+const resolveTenantContextByIdInInstance = vi.hoisted(() => vi.fn())
 
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
+  resolveTenantContextByIdInInstance,
   schema: {
     invitations: { tokenHash: 'tokenHash', id: 'id', status: 'status' },
     organizations: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
-    memberships: { userId: 'userId', id: 'id', status: 'status' },
+    memberships: { userId: 'userId' },
     userEmails: { id: 'id', userId: 'userId' },
     users: { id: 'id', primaryEmailId: 'primaryEmailId' },
   },
@@ -38,27 +41,28 @@ import {
   assertInvitationEmailMatches,
   invitationAcceptContinuePath,
   loadInvitationPreview,
+  resolveInvitationTenant,
 } from '../invitations'
 import { postAuthRedirectPath } from '../../lib/mfa-session'
 
 function makeDb() {
-  const orgDb = {
-    memberships: {
-      findOne: membershipsFindOne,
-      insert: membershipsInsert,
-      update: membershipsUpdate,
-    },
-  }
   return {
     invitations: { findOne: invitationsFindOne, update: invitationsUpdate },
     organizations: { findOne: organizationsFindOne },
-    forOrg: () => orgDb,
+    forOrg: () => ({
+      memberships: { findOne: membershipsFindOne },
+    }),
   }
 }
 
 describe('loadInvitationPreview', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    membershipsFindOne.mockResolvedValue({
+      id: 'membership-1',
+      role: 'member',
+      status: 'active',
+    })
     vi.mocked(createTenantDb).mockReturnValue(makeDb() as never)
   })
 
@@ -104,7 +108,11 @@ describe('assertInvitationEmailMatches', () => {
         {
           email: 'invited@example.com',
         } as never,
-        'other@example.com',
+        {
+          email: 'other@example.com',
+          verified: true,
+          verificationStatus: 'verified',
+        },
       ),
     ).rejects.toMatchObject({ code: 'invitation_email_mismatch' })
   })
@@ -113,20 +121,29 @@ describe('assertInvitationEmailMatches', () => {
 describe('acceptInvitation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    membershipsFindOne.mockResolvedValue(null)
-    membershipsInsert.mockResolvedValue(undefined)
-    invitationsUpdate.mockResolvedValue([{ id: 'inv-1', status: 'accepted' }])
   })
 
   it('creates membership and marks invitation accepted', async () => {
     const db = makeDb()
     const expiresAt = new Date(Date.now() + 86_400_000)
+    const batch = vi.fn().mockResolvedValue([
+      { success: true, meta: { changes: 0 } },
+      { success: true, meta: { changes: 1 } },
+      { success: true, meta: { changes: 1 } },
+    ])
+    const prepare = vi.fn((_sql: string) => {
+      const statement = {
+        bind: vi.fn(() => statement),
+      }
+      return statement
+    })
     const result = await acceptInvitation({
       db: db as never,
-      env: {} as Env,
+      env: { DB: { batch, prepare } as unknown as D1Database } as Env,
       tenantId: 'tenant-1',
       invitation: {
         id: 'inv-1',
+        tokenHash: 'hashed-token',
         orgId: 'org-1',
         email: 'user@example.com',
         role: 'member',
@@ -135,12 +152,16 @@ describe('acceptInvitation', () => {
         usedCount: 0,
       } as never,
       userId: 'user-1',
-      userEmail: 'user@example.com',
+      userEmail: {
+        email: 'user@example.com',
+        verified: true,
+        verificationStatus: 'verified',
+      },
     })
 
     expect(result.orgId).toBe('org-1')
-    expect(membershipsInsert).toHaveBeenCalled()
-    expect(invitationsUpdate).toHaveBeenCalled()
+    expect(prepare).toHaveBeenCalledTimes(3)
+    expect(batch).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -176,10 +197,129 @@ describe('tenant isolation', () => {
         tenantId: 'tenant-a',
         rawToken: 'cross-tenant-token',
         userId: 'user-1',
-        userEmail: 'user@example.com',
+        userEmail: {
+          email: 'user@example.com',
+          verified: true,
+          verificationStatus: 'verified',
+        },
       }),
     ).rejects.toMatchObject({ code: 'invitation_invalid' })
-    expect(membershipsInsert).not.toHaveBeenCalled()
+  })
+
+  it('prioritizes the bound locator over a signed-in tenant, then requires a scoped tokenHash match', async () => {
+    const target = {
+      tenantId: 'tenant-invite',
+      instanceId: 'instance-1',
+      issuer: 'https://xid.dev',
+      rpId: 'tenant-invite.xid.dev',
+      signingKeys: { activeKid: 'k1', defaultAlg: 'ES256', keys: [] },
+      policy: {},
+    }
+    resolveTenantContextByIdInInstance.mockResolvedValue({
+      ok: true,
+      value: { status: 'resolved', tenant: target },
+    })
+    invitationsFindOne.mockResolvedValue({
+      id: 'inv-1',
+      tenantId: 'tenant-invite',
+      tokenHash: 'hashed-token',
+    })
+    vi.mocked(createTenantDb).mockReturnValue(makeDb() as never)
+    const token = createTenantBoundInvitationToken('tenant-invite')
+    const signedInTenant = {
+      ...target,
+      tenantId: 'tenant-a',
+      rpId: 'tenant-a.xid.dev',
+    }
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('tenant', signedInTenant as never)
+      await next()
+    })
+    app.get('/probe', async (c) => {
+      const tenant = await resolveInvitationTenant(c, token)
+      return c.json({ tenantId: tenant?.tenantId ?? null })
+    })
+    const env = { DB: {} as D1Database } as Env
+
+    const res = await app.request('https://xid.dev/probe', {}, env)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ tenantId: 'tenant-invite' })
+    expect(resolveTenantContextByIdInInstance).toHaveBeenCalledWith(
+      expect.any(Request),
+      env,
+      'tenant-invite',
+      'instance-1',
+    )
+    expect(createTenantDb).toHaveBeenCalledWith(env.DB, target)
+    expect(sha256Hex).toHaveBeenCalledWith(token)
+  })
+
+  it('allows a legacy token only through an already concrete Tenant scoped lookup', async () => {
+    const current = {
+      tenantId: 'tenant-a',
+      instanceId: 'instance-1',
+      issuer: 'https://xid.dev',
+      rpId: 'tenant-a.xid.dev',
+      signingKeys: { activeKid: 'k1', defaultAlg: 'ES256', keys: [] },
+      policy: {},
+    }
+    invitationsFindOne.mockResolvedValue({
+      id: 'legacy-invitation',
+      tenantId: 'tenant-a',
+      tokenHash: 'hashed-token',
+      tokenVersion: 'legacy',
+      status: 'revoked',
+    })
+    vi.mocked(createTenantDb).mockReturnValue(makeDb() as never)
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('tenant', current as never)
+      await next()
+    })
+    app.get('/probe', async (c) => {
+      const tenant = await resolveInvitationTenant(c, 'legacy-opaque-token')
+      return c.json({ tenantId: tenant?.tenantId ?? null })
+    })
+    const env = { DB: {} as D1Database } as Env
+
+    const res = await app.request('https://tenant-a.xid.dev/probe', {}, env)
+
+    expect(await res.json()).toEqual({ tenantId: 'tenant-a' })
+    expect(createTenantDb).toHaveBeenCalledWith(env.DB, current)
+    expect(resolveTenantContextByIdInInstance).not.toHaveBeenCalled()
+  })
+
+  it('rejects a legacy token at the unresolved Instance root without a global hash lookup', async () => {
+    const root = {
+      tenantId: 'default',
+      instanceId: 'instance-1',
+      issuer: 'https://xid.dev',
+      rpId: 'xid.dev',
+      signingKeys: { activeKid: 'k1', defaultAlg: 'ES256', keys: [] },
+      policy: {},
+      resolution: {
+        kind: 'instance_entry' as const,
+        primaryDomain: 'xid.dev',
+        unresolvedRoot: true,
+      },
+    }
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('tenant', root as never)
+      await next()
+    })
+    app.get('/probe', async (c) => {
+      const tenant = await resolveInvitationTenant(c, 'legacy-opaque-token')
+      return c.json({ tenantId: tenant?.tenantId ?? null })
+    })
+
+    const res = await app.request('https://xid.dev/probe', {}, { DB: {} as D1Database } as Env)
+
+    expect(await res.json()).toEqual({ tenantId: null })
+    expect(createTenantDb).not.toHaveBeenCalled()
+    expect(resolveTenantContextByIdInInstance).not.toHaveBeenCalled()
   })
 })
 

@@ -28,7 +28,7 @@ describe('production public content checks', () => {
   })
 
   it.each(PUBLIC_DOC_SECTIONS)(
-    'accepts the 41-page $locale section indexes',
+    'accepts the 42-page $locale section indexes',
     async ({ section }) => {
       const [llms, llmsFull] = await Promise.all([
         readFile(new URL(`../../apps/site/dist/${section}/llms.txt`, import.meta.url), 'utf8'),

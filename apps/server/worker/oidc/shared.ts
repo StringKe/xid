@@ -12,6 +12,7 @@ import type { Context } from 'hono'
 import type { BaseIssue } from 'valibot'
 import { firstIssuePath } from '../lib/validate'
 import type { XidHonoEnv } from '../lib/types'
+import { storedClientPolicy, validateClientRegistrationPolicy } from './client-registration-policy'
 
 // applications 行 = OAuthClient 注册元数据(08 章 10.4)。
 export type ClientRow = typeof schema.applications.$inferSelect
@@ -58,7 +59,9 @@ export function decodeKek(kekB64: string): Uint8Array {
   return bytes
 }
 
-// 按 client_id 查 application(租户隔离:走租户查询层自动注入 tenant_id)。未找到/非 active 返回 null。
+// 按 client_id 查 application(租户隔离:走租户查询层自动注入 tenant_id)。Project-linked
+// client 还要求所属 Project active，这一共享边界覆盖 authorize/token/userinfo/CIBA 等所有
+// 调用方，避免 Project 软删除后 refresh/client_credentials 继续签发。
 export async function findClient(
   c: Context<XidHonoEnv>,
   clientId: string,
@@ -68,7 +71,15 @@ export async function findClient(
   const row = await db.applications.findOne(
     and(eq(schema.applications.clientId, clientId), eq(schema.applications.status, 'active')),
   )
-  return row ?? null
+  if (!row) return null
+  if (validateClientRegistrationPolicy(storedClientPolicy(row))) return null
+  if (row.projectId !== null) {
+    const project = await db.projects.findOne(
+      and(eq(schema.projects.id, row.projectId), eq(schema.projects.status, 'active')),
+    )
+    if (!project) return null
+  }
+  return row
 }
 
 // 从 TenantContext active 密钥集载入签名私钥(信封解密 -> 不可导出 importKey,见 signing-keys rule)。

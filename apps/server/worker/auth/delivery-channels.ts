@@ -35,13 +35,12 @@ function hasValue(value: string | undefined): boolean {
 export function whatsappDeliverySecretRefs(
   policy: DeliveryChannelProviderPolicy,
 ): readonly string[] {
-  if (policy.secretRefs.length > 0) return policy.secretRefs
   if (policy.provider === 'twilio') return WHATSAPP_PROVIDER_REFS.twilio
-  return WHATSAPP_PROVIDER_REFS.meta
+  if (policy.provider === 'meta') return WHATSAPP_PROVIDER_REFS.meta
+  return WHATSAPP_PROVIDER_REFS.test
 }
 
 export function smsDeliverySecretRefs(policy: DeliveryChannelProviderPolicy): readonly string[] {
-  if (policy.secretRefs.length > 0) return policy.secretRefs
   if (
     policy.provider === 'vonage' ||
     policy.provider === 'infobip' ||
@@ -49,7 +48,8 @@ export function smsDeliverySecretRefs(policy: DeliveryChannelProviderPolicy): re
   ) {
     return SMS_PROVIDER_REFS[policy.provider]
   }
-  return SMS_PROVIDER_REFS.twilio
+  if (policy.provider === 'twilio') return SMS_PROVIDER_REFS.twilio
+  return SMS_PROVIDER_REFS.test
 }
 
 function whatsappSenderReady(policy: DeliveryChannelProviderPolicy | undefined, env: Env): boolean {

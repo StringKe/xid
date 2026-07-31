@@ -32,12 +32,13 @@ Status: implemented; compiled and unit-tested locally, real IdP round-trip pendi
     )
 """
 
-from xid.client import SESSION_COOKIE_PREFIX, XidClient
+from xid.client import XidClient
 from xid.jwks import get_logger, set_logger
 from xid.models import AuthStatus, TokenClaims, WebhookPayload
 from xid.exceptions import (
     XidError,
     JwksError,
+    SessionTokenExchangeError,
     TokenVerificationError,
     WebhookVerificationError,
 )
@@ -45,12 +46,12 @@ from xid.types import JtiStore, JwksExternalCache, MessageIdStore
 
 __all__ = [
     "XidClient",
-    "SESSION_COOKIE_PREFIX",
     "AuthStatus",
     "TokenClaims",
     "WebhookPayload",
     "XidError",
     "JwksError",
+    "SessionTokenExchangeError",
     "TokenVerificationError",
     "WebhookVerificationError",
     "JtiStore",

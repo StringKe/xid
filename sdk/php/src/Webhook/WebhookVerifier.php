@@ -127,13 +127,17 @@ final class WebhookVerifier
 
     /**
      * 从 secret 字符串派生原始签名 key 字节。
-     * 支持 "whsec_<base64>" 前缀格式与裸 Base64。
+     * 支持 "whsec_<base64>" 前缀格式、裸 Base64 与旧版 64 位小写 hex。
      *
      * @throws WebhookException
      */
     private function deriveSigningKey(): string
     {
         $secret = $this->secret;
+
+        if (!str_starts_with($secret, 'whsec_') && preg_match('/\A[0-9a-f]{64}\z/D', $secret) === 1) {
+            return $secret;
+        }
 
         if (str_starts_with($secret, 'whsec_')) {
             $encoded = substr($secret, 6);

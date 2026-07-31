@@ -41,8 +41,8 @@ public sealed class SignInOptions
 public sealed class GetAccessTokenOptions
 {
     /// <summary>
-    /// 若为 true,无论是否即将过期都强制刷新 access token。
-    /// 默认 false:仅在 token 即将过期(剩余 < 60 秒)时自动刷新。
+    /// 当前 public client 不支持 DPoP refresh。
+    /// 若为 true,清除本地 token 并要求调用方重新授权。
     /// </summary>
     public bool ForceRefresh { get; init; }
 }
@@ -63,7 +63,7 @@ public sealed class SignInAnonymouslyOptions
 /// <summary>
 /// XID Windows SDK 主客户端。
 /// 通过 <see cref="Configure"/> 初始化,然后调用 <see cref="SignInAsync"/> 开始登录流程。
-/// 线程安全:刷新 token 路径有锁保护,可安全跨线程调用。
+/// 线程安全:会话状态不包含可轮换的 refresh token。
 /// </summary>
 public sealed class XidClient
 {
@@ -89,8 +89,6 @@ public sealed class XidClient
     private string? _pendingState;
     private string? _pendingNonce;
 
-    private readonly SemaphoreSlim _refreshLock = new(1, 1);
-
     private ITokenStorage ActiveStorage => _tokenStorageOverride ?? _config!.TokenStorage;
     private IBrowserSession? ActiveBrowser => _browserSessionOverride ?? _config!.BrowserSession;
 
@@ -104,6 +102,7 @@ public sealed class XidClient
     public void Configure(XidConfiguration options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ValidatePublicClientScopes(options.Scopes);
         _config = options;
         _http = new HttpClient { Timeout = options.HttpTimeout };
         _discovery = new OidcDiscovery(_http, options.Issuer);
@@ -151,7 +150,8 @@ public sealed class XidClient
     // -- SignInAnonymouslyAsync --
 
     /// <summary>
-    /// 匿名访客 (guest) 登录:POST /auth/guest 建立 cookie 会话,再用 /v1/me 取用户信息。
+    /// 匿名访客 (guest) 登录:先取一次性 guest capability,再 POST /auth/guest
+    /// 建立 cookie 会话,最后用 /v1/me 取用户信息。
     /// Firebase 语义:本地已有有效会话(token 或 guest)时不发请求,直接返回现有会话。
     /// guest 不签发 access token,返回会话的 <see cref="XidSession.AccessToken"/> 为 null,
     /// 调用方用 <see cref="XidSession.SessionCookie"/> 访问 cookie 认证的 API。
@@ -191,8 +191,26 @@ public sealed class XidClient
             result.SessionId,
             result.SessionCookie);
 
+        try
+        {
+            await ActiveStorage.SaveAsync(SessionToStored(session), ct).ConfigureAwait(false);
+        }
+        catch (Exception saveError)
+        {
+            try
+            {
+                await ActiveStorage.ClearAsync(ct).ConfigureAwait(false);
+            }
+            catch (Exception cleanupError)
+            {
+                throw new AggregateException(
+                    "guest 会话持久化失败且无法清理半截会话。",
+                    saveError,
+                    cleanupError);
+            }
+            throw;
+        }
         _session = session;
-        await ActiveStorage.SaveAsync(SessionToStored(session), ct).ConfigureAwait(false);
 
         return session;
     }
@@ -211,6 +229,7 @@ public sealed class XidClient
         CancellationToken ct = default)
     {
         RequireConfigured();
+        ValidatePublicClientScopes(options?.AdditionalScopes ?? []);
         RequireBrowserSession();
 
         OidcDiscoveryDocument doc = await _discovery!.GetAsync(ct).ConfigureAwait(false);
@@ -294,7 +313,7 @@ public sealed class XidClient
 
     /// <summary>
     /// 获取当前有效会话。
-    /// 内存缓存无效时从持久存储恢复;access token 即将过期时自动刷新。
+    /// 内存缓存无效时从持久存储恢复;access token 过期后清除并要求重新授权。
     /// </summary>
     /// <param name="ct">取消令牌。</param>
     /// <returns>有效会话,或 null(未登录)。</returns>
@@ -303,7 +322,7 @@ public sealed class XidClient
         RequireConfigured();
 
         // 1. 优先内存缓存
-        if (_session is not null && !_session.IsNearExpiry)
+        if (_session is not null && !_session.IsExpired)
             return _session;
 
         // 2. 尝试从持久存储恢复
@@ -317,9 +336,13 @@ public sealed class XidClient
             if (_session is null) return null;
         }
 
-        // 3. access token 即将过期则刷新
-        if (_session.IsNearExpiry)
-            _session = await RefreshSessionAsync(ct).ConfigureAwait(false);
+        // 3. 当前 SDK 尚未实现 DPoP refresh,过期 token 不可继续使用
+        if (_session.IsExpired)
+        {
+            _session = null;
+            await ActiveStorage.ClearAsync(ct).ConfigureAwait(false);
+            return null;
+        }
 
         return _session;
     }
@@ -341,8 +364,14 @@ public sealed class XidClient
         XidSession? session = await GetSession(ct).ConfigureAwait(false);
         if (session is null) return null;
 
-        if (options?.ForceRefresh == true)
-            session = await RefreshSessionAsync(ct).ConfigureAwait(false);
+        if (options?.ForceRefresh == true && session.AccessToken is not null)
+        {
+            _session = null;
+            await ActiveStorage.ClearAsync(ct).ConfigureAwait(false);
+            throw new XidException(
+                "当前 Windows SDK 尚未实现 DPoP refresh,请重新授权。",
+                "reauthorization_required");
+        }
 
         return session?.AccessToken;
     }
@@ -419,8 +448,22 @@ public sealed class XidClient
 
         if (options?.ExtraParams is not null)
         {
+            var reservedParameters = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "response_type",
+                "client_id",
+                "redirect_uri",
+                "scope",
+                "state",
+                "nonce",
+                "code_challenge",
+                "code_challenge_method",
+            };
             foreach (var kv in options.ExtraParams)
-                query.Add((kv.Key, kv.Value));
+            {
+                if (!reservedParameters.Contains(kv.Key))
+                    query.Add((kv.Key, kv.Value));
+            }
         }
 
         var sb = new System.Text.StringBuilder(authorizationEndpoint);
@@ -453,38 +496,6 @@ public sealed class XidClient
         return await BuildSessionAsync(doc, tokenResp, _pendingNonce, ct).ConfigureAwait(false);
     }
 
-    // -- 内部:refresh token 轮换 --
-
-    private async Task<XidSession> RefreshSessionAsync(CancellationToken ct)
-    {
-        await _refreshLock.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            // double-check:可能已被其他并发调用刷新
-            if (_session is not null && !_session.IsNearExpiry)
-                return _session;
-
-            if (_session?.RefreshToken is null)
-                throw new TokenExchangeException("无 refresh token,需要重新登录。");
-
-            OidcDiscoveryDocument doc = await _discovery!.GetAsync(ct).ConfigureAwait(false);
-            TokenResponse tokenResp = await _tokenClient!.RefreshAsync(
-                new Uri(doc.TokenEndpoint),
-                _session.RefreshToken,
-                ct).ConfigureAwait(false);
-
-            XidSession newSession = await BuildSessionAsync(doc, tokenResp, expectedNonce: null, ct)
-                .ConfigureAwait(false);
-            _session = newSession;
-            await ActiveStorage.SaveAsync(SessionToStored(newSession), ct).ConfigureAwait(false);
-            return newSession;
-        }
-        finally
-        {
-            _refreshLock.Release();
-        }
-    }
-
     // -- 内部:会话构建与转换 --
 
     private async Task<XidSession> BuildSessionAsync(
@@ -515,7 +526,7 @@ public sealed class XidClient
 
         return new XidSession(
             tokenResp.AccessToken,
-            tokenResp.RefreshToken,
+            refreshToken: null,
             idToken,
             expiresAt,
             user);
@@ -531,7 +542,7 @@ public sealed class XidClient
     private static StoredTokenSet SessionToStored(XidSession s) => new()
     {
         AccessToken = s.AccessToken,
-        RefreshToken = s.RefreshToken,
+        RefreshToken = null,
         IdToken = s.IdToken,
         ExpiresAt = s.ExpiresAt,
         Guest = s.SessionId is null || s.SessionCookie is null
@@ -584,7 +595,7 @@ public sealed class XidClient
 
         return new XidSession(
             stored.AccessToken,
-            stored.RefreshToken,
+            refreshToken: null,
             stored.IdToken,
             stored.ExpiresAt,
             user);
@@ -603,6 +614,16 @@ public sealed class XidClient
             throw new XidException(
                 "未配置 IBrowserSession 实现。非 Windows 平台请调用 SetBrowserSession() 注入实现。",
                 "no_browser_session");
+    }
+
+    private static void ValidatePublicClientScopes(IEnumerable<string> scopes)
+    {
+        if (scopes.Contains("offline_access", StringComparer.Ordinal))
+        {
+            throw new XidException(
+                "offline_access 需要 DPoP,当前 Windows SDK 尚未实现 DPoP。",
+                "unsupported_scope");
+        }
     }
 
     private static string GenerateState()

@@ -43,7 +43,7 @@ Design source: `docs/design/01-authentication.md` sections 2 and 5. Implementati
   do not add one just to render a meter. Strength display is advisory; the enforced gates are
   length, HIBP, and history.
 - Breach detection: HIBP k-anonymity (`https://api.pwnedpasswords.com/range/<first 5 SHA-1 hex
-  chars>`, with `Add-Padding: true`). MANDATORY and blocking on sign-up, password reset, and
+chars>`, with `Add-Padding: true`). MANDATORY and blocking on sign-up, password reset, and
   password change -- reject with `password_breached`. On sign-in it runs inside
   `c.executionCtx.waitUntil` and MUST NOT block; a hit only sets `passwords.breached` and
   `breach_checked_at`. Network failure fails open (returns false).
@@ -75,8 +75,10 @@ Design source: `docs/design/01-authentication.md` sections 2 and 5. Implementati
   `crypto.subtle`. The secret is AES-256-GCM envelope-encrypted with `env.KEK` and stored in
   `mfa_factors.secret_ciphertext`. Enrollment returns an `otpauth://totp/...` URI for the QR code;
   the factor stays `pending` until one valid code activates it.
-- TOTP replay protection: a used code is written to KV under a per (tenant, user, factor, code) key
-  with TTL 60s (`TOTP_REPLAY_KV_TTL_SEC`); a second presentation is rejected as `replayed`.
+- TOTP replay protection: each factor resolves to one `ChallengeStore` Durable Object and a used code
+  is atomically claimed with a TTL derived from the code's remaining accepted counter window, capped
+  at 90s (`TOTP_REPLAY_TTL_MS`); a second presentation is rejected as `replayed`, while coordination
+  failures fail closed as `server_error`.
 - MFA second-factor whitelist: TOTP, SMS OTP, backup codes, passkey. Email OTP and WhatsApp OTP are
   passwordless sign-in methods only and MUST NOT be accepted as MFA factors.
 - Backup codes: 10 codes, 8 characters drawn from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (O/0/I/1

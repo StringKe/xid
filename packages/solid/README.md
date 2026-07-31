@@ -1,5 +1,9 @@
 # @xid-kit/solid
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 SolidJS integration for [XID](https://xid.dev) - a multi-tenant identity platform.
 
 Wraps `@xid-kit/core` to expose SolidJS-native primitives: a context provider,
@@ -27,7 +31,12 @@ import { XidProvider } from '@xid-kit/solid'
 
 export function App() {
   return (
-    <XidProvider publishableKey="pk_live_...">
+    <XidProvider
+      mode="oidc"
+      issuer="https://auth.example.com"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
+    >
       <Routes />
     </XidProvider>
   )
@@ -125,8 +134,8 @@ if (session().isSignedIn) {
 ```tsx
 import { SignInButton } from '@xid-kit/solid'
 
-// Navigates to /sign-in by default.
-;<SignInButton signInUrl="/auth/sign-in" redirectUrl="/dashboard">
+// OIDC mode starts /authorize; same-origin mode navigates to signInUrl.
+;<SignInButton signInUrl="/sign-in" redirectUrl="/dashboard">
   Log in
 </SignInButton>
 ```
@@ -151,7 +160,7 @@ import { Protect } from '@xid-kit/solid'
 </Protect>
 
 // Requires a specific role.
-<Protect role="org:admin" fallback={<p>Admins only</p>}>
+<Protect role="admin" fallback={<p>Admins only</p>}>
   <Settings />
 </Protect>
 
@@ -181,15 +190,23 @@ for networkless edge verification.
 
 ## Token storage
 
-Tokens are managed by `@xid-kit/core`. Session tokens are `HttpOnly` cookies set
-by the XID worker. `getToken()` returns a short-lived JWT (60s) obtained via the
-`/v1/token` endpoint and cached by `TokenManager`. No secrets are stored in
-localStorage or in this package.
+Tokens are managed by `@xid-kit/core`. The XID Worker stores an opaque refresh credential in an
+`HttpOnly` cookie; that cookie is not a JWT and the SDK never reads it from JavaScript.
+`getToken()` exchanges the cookie through `/v1/sessions/token` and keeps the returned short-lived
+JWT only in `TokenManager` memory. No secrets are stored in `localStorage` or in this package.
 
 ## Self-hosted deployment
 
 ```tsx
-<XidProvider publishableKey="pk_live_..." apiUrl="https://auth.yourdomain.com">
+<XidProvider
+  mode="oidc"
+  issuer="https://auth.yourdomain.com"
+  clientId="client_abc123"
+  redirectUri="https://app.yourdomain.com/auth/callback"
+>
   <App />
 </XidProvider>
 ```
+
+If the application deliberately serves Core authentication routes on its exact origin, use
+`<XidProvider mode="same-origin">` instead. Do not point same-origin mode at a different origin.

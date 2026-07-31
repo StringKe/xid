@@ -10,8 +10,6 @@ import { XidClient, type XidClientOptions } from '@xid-kit/core'
 export const XID_INJECTION_KEY: InjectionKey<XidClient> = Symbol('xid-client')
 
 export type XidPluginOptions = XidClientOptions & {
-  // Override API root (self-hosted scenario).
-  apiUrl?: string
   // Pre-built client instance (testing / SSR: skip internal factory).
   client?: XidClient
 }
@@ -28,7 +26,7 @@ export function useXidClient(): XidClient {
   if (!client) {
     throw new Error(
       '[xid-kit] useXidClient: must be called inside a component with XidPlugin installed. ' +
-        "Install it via app.use(XidPlugin, { apiUrl: 'https://...' }).",
+        "Install it via app.use(XidPlugin, { mode: 'same-origin' }).",
     )
   }
   return client

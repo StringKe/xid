@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/react-native",
-  "version": "0.0.0",
-  "private": true,
-  "description": "React Native SDK for XID: native PKCE flow, secure token cache and session manager.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "React Native Hosted Auth and PKCE bindings for XID.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/react-native",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,20 +20,33 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/react-native"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test --passWithNoTests"
   },
   "dependencies": {
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/crypto": "workspace:*",
-    "@xid-kit/protocol": "workspace:*",
-    "@xid-kit/react": "workspace:*"
+    "@xid-kit/crypto": "workspace:^",
+    "@xid-kit/protocol": "workspace:^"
   },
   "devDependencies": {
     "@testing-library/react": "catalog:",
@@ -41,7 +60,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "react": ">=18",
+    "react": "^19",
     "react-native": ">=0.73"
   }
 }

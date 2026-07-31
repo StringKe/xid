@@ -1,8 +1,16 @@
 # MIT
 name: xid
 description: XID identity platform Flutter SDK. Hosted Auth + OIDC Authorization Code + PKCE S256.
-version: 0.1.0-alpha
+version: 0.1.0-alpha.0
 homepage: https://github.com/StringKe/xid
+repository: https://github.com/StringKe/xid
+issue_tracker: https://github.com/StringKe/xid/issues
+topics:
+  - authentication
+  - identity
+  - oauth2
+  - oidc
+  - pkce
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -23,6 +31,8 @@ dependencies:
 
   # ES256 ID token signature verification
   cryptography: ^2.7.0
+  # Native ECDSA implementation on Android, iOS, and macOS.
+  cryptography_flutter: ^2.3.4
 
   # HTTP client
   http: ^1.2.2

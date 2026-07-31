@@ -4,6 +4,7 @@ import { getClient, initClient, resetClient } from '../client'
 
 beforeEach(() => {
   resetClient()
+  globalThis.__XID_CONFIG = undefined
 })
 
 describe('initClient', () => {
@@ -16,8 +17,8 @@ describe('initClient', () => {
   })
 
   it('returns the same singleton on repeated calls with same options', () => {
-    const a = initClient({ apiUrl: 'https://test.xid.dev', publishableKey: 'pk_test_abc' })
-    const b = initClient({ apiUrl: 'https://test.xid.dev', publishableKey: 'pk_test_abc' })
+    const a = initClient({ apiUrl: 'https://test.xid.dev' })
+    const b = initClient({ apiUrl: 'https://test.xid.dev' })
     expect(a).toBe(b)
   })
 
@@ -27,10 +28,34 @@ describe('initClient', () => {
     expect(a).not.toBe(b)
   })
 
-  it('returns a new instance when publishableKey changes', () => {
-    const a = initClient({ publishableKey: 'pk_test_1' })
-    const b = initClient({ publishableKey: 'pk_test_2' })
-    expect(a).not.toBe(b)
+  it('reuses matching OIDC options and rebuilds when the client changes', () => {
+    const base = {
+      mode: 'oidc' as const,
+      issuer: 'https://issuer.example',
+      clientId: 'client_a',
+      redirectUri: 'https://app.example/callback',
+      scopes: ['openid', 'profile'],
+    }
+    const first = initClient(base)
+    const matching = initClient({ ...base, scopes: ['openid', 'profile'] })
+    const changed = initClient({ ...base, clientId: 'client_b' })
+
+    expect(matching).toBe(first)
+    expect(changed).not.toBe(first)
+  })
+
+  it('uses the browser options injected by the Astro integration', () => {
+    globalThis.__XID_CONFIG = {
+      mode: 'oidc',
+      issuer: 'https://issuer.example',
+      clientId: 'client_a',
+      redirectUri: 'https://app.example/callback',
+    }
+
+    const initialized = initClient()
+    const retrieved = getClient()
+
+    expect(retrieved).toBe(initialized)
   })
 })
 

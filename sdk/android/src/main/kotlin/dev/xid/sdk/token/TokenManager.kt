@@ -22,7 +22,7 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
 /**
- * Handles token exchange, refresh, session reconstruction, and sign-out.
+ * Handles token exchange, session reconstruction, and sign-out.
  *
  * Security guarantees:
  * - ID tokens are fully verified (signature + exp/iat/iss/aud/nonce) via [IdTokenVerifier].
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit
  */
 internal class TokenManager(
     private val storage: TokenStorageAdapter,
-    private val discovery: OidcDiscovery,
+    private val discovery: OidcDiscovery? = null,
     private val clientId: String? = null,
 ) {
     private val json = Json {
@@ -67,6 +67,8 @@ internal class TokenManager(
         redirectUri: String,
         nonce: String? = null,
     ): XidSession = withContext(Dispatchers.IO) {
+        val discovery = discovery
+            ?: throw XidException.DiscoveryFailed("token exchange requires discovery")
         val body = FormBody.Builder()
             .add("grant_type", "authorization_code")
             .add("code", code)
@@ -75,35 +77,13 @@ internal class TokenManager(
             .add("code_verifier", codeVerifier)
             .build()
 
-        val tokenResponse = postToTokenEndpoint(body)
-        persistAndBuildSession(tokenResponse, clientId = clientId, nonce = nonce)
-    }
-
-    // ---------------------------------------------------------------------------
-    // Token Refresh
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Refreshes the access token using the stored refresh token.
-     *
-     * Implements rotation: the server issues a new refresh token on each use.
-     * The old refresh token is replaced immediately on success.
-     *
-     * @param clientId  OAuth2 client ID.
-     * @throws [XidException.TokenRefreshFailed] when no refresh token is stored or refresh fails.
-     */
-    suspend fun refresh(clientId: String): XidSession = withContext(Dispatchers.IO) {
-        val refreshToken = storage.get(StorageKeys.REFRESH_TOKEN)
-            ?: throw XidException.TokenRefreshFailed("No stored refresh token -- re-authentication required")
-
-        val body = FormBody.Builder()
-            .add("grant_type", "refresh_token")
-            .add("refresh_token", refreshToken)
-            .add("client_id", clientId)
-            .build()
-
-        val tokenResponse = postToTokenEndpoint(body)
-        persistAndBuildSession(tokenResponse, clientId = clientId, nonce = null)
+        val tokenResponse = postToTokenEndpoint(body, discovery)
+        persistAndBuildSession(
+            tokenResponse,
+            discovery = discovery,
+            clientId = clientId,
+            nonce = nonce,
+        )
     }
 
     // ---------------------------------------------------------------------------
@@ -113,7 +93,7 @@ internal class TokenManager(
     /**
      * Reconstructs a [XidSession] from persisted EncryptedSharedPreferences.
      *
-     * Does NOT perform JWT re-verification on load (signature was verified at exchange/refresh time).
+     * Does NOT perform JWT re-verification on load (signature was verified at code exchange time).
      * The access token expiry is checked by the caller before using the session.
      *
      * @return Stored [XidSession] or null if no session exists.
@@ -121,7 +101,6 @@ internal class TokenManager(
     suspend fun loadSession(): XidSession? {
         val accessToken = storage.get(StorageKeys.ACCESS_TOKEN) ?: return null
         val idToken = storage.get(StorageKeys.ID_TOKEN) ?: return null
-        val refreshToken = storage.get(StorageKeys.REFRESH_TOKEN)
         val expiresAt = storage.get(StorageKeys.ACCESS_TOKEN_EXPIRES_AT)?.toLongOrNull() ?: 0L
 
         val user = parseUserFromIdTokenPayload(idToken) ?: return null
@@ -130,7 +109,7 @@ internal class TokenManager(
             user = user,
             accessToken = accessToken,
             accessTokenExpiresAt = expiresAt,
-            refreshToken = refreshToken,
+            refreshToken = null,
             idToken = idToken,
         )
     }
@@ -145,13 +124,14 @@ internal class TokenManager(
         storage.clear(StorageKeys.ID_TOKEN)
         storage.clear(StorageKeys.PKCE_STATE)
         storage.clear(StorageKeys.PKCE_VERIFIER)
+        storage.clear(StorageKeys.OIDC_NONCE)
     }
 
     // ---------------------------------------------------------------------------
     // Internal
     // ---------------------------------------------------------------------------
 
-    private fun postToTokenEndpoint(body: FormBody): TokenResponse {
+    private fun postToTokenEndpoint(body: FormBody, discovery: OidcDiscovery): TokenResponse {
         val request = Request.Builder()
             .url(discovery.tokenEndpoint)
             .post(body)
@@ -180,6 +160,7 @@ internal class TokenManager(
 
     private suspend fun persistAndBuildSession(
         tokenResponse: TokenResponse,
+        discovery: OidcDiscovery,
         clientId: String,
         nonce: String?,
     ): XidSession {
@@ -200,11 +181,12 @@ internal class TokenManager(
         storage.set(StorageKeys.ACCESS_TOKEN, tokenResponse.accessToken)
         storage.set(StorageKeys.ACCESS_TOKEN_EXPIRES_AT, expiresAt.toString())
         storage.set(StorageKeys.ID_TOKEN, idToken)
-        tokenResponse.refreshToken?.let { storage.set(StorageKeys.REFRESH_TOKEN, it) }
+        storage.clear(StorageKeys.REFRESH_TOKEN)
 
         // Clear PKCE ephemeral data after successful exchange.
         storage.clear(StorageKeys.PKCE_STATE)
         storage.clear(StorageKeys.PKCE_VERIFIER)
+        storage.clear(StorageKeys.OIDC_NONCE)
 
         val user = XidUser(
             sub = claims.subject
@@ -220,7 +202,7 @@ internal class TokenManager(
             user = user,
             accessToken = tokenResponse.accessToken,
             accessTokenExpiresAt = expiresAt,
-            refreshToken = tokenResponse.refreshToken,
+            refreshToken = null,
             idToken = idToken,
         )
     }
@@ -229,7 +211,7 @@ internal class TokenManager(
      * Extracts basic user claims from the ID token payload without signature verification.
      *
      * This is used ONLY when reconstructing a session from storage (loadSession), where the
-     * signature was already verified at exchange/refresh time. The payload decode here is
+     * signature was already verified at code exchange time. The payload decode here is
      * intentionally unverified -- it reads only non-security-sensitive display fields.
      */
     private fun parseUserFromIdTokenPayload(idToken: String): XidUser? {

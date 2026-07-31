@@ -29,6 +29,7 @@ export function registerJwksRoutes(app: Hono<XidHonoEnv>): void {
     return c.json(jwks, 200, {
       'content-type': 'application/jwk-set+json',
       'cache-control': `public, max-age=${JWKS_CACHE_TTL_SEC}`,
+      'access-control-allow-origin': '*',
     })
   })
 }

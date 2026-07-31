@@ -27,6 +27,8 @@
     "@xid-kit/crypto": "workspace:*",
     "@xid-kit/types": "workspace:*",
     "@xmldom/xmldom": "catalog:",
+    "asn1js": "catalog:",
+    "pkijs": "catalog:",
     "xml-core": "^1.2.5",
     "xmldsigjs": "catalog:",
     "xpath": "^0.0.34"

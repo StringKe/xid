@@ -29,7 +29,7 @@ enum TokenSessionStorage {
 
     private enum SessionState: String, Codable {
         case active
-        case refreshPending = "refresh_pending"
+        case cleared
     }
 
     static func load(storage: TokenStorageAdapter) throws -> StoredTokenSet? {
@@ -70,27 +70,33 @@ enum TokenSessionStorage {
         try storage.save(key: StorageKey.session, value: value)
     }
 
-    static func markRefreshPending(storage: TokenStorageAdapter) throws {
-        let record = SessionRecord(state: .refreshPending, session: nil)
+    static func markCleared(storage: TokenStorageAdapter) throws {
+        let record = SessionRecord(state: .cleared, session: nil)
         let data = try JSONEncoder().encode(record)
         guard let value = String(data: data, encoding: .utf8) else {
-            throw XidError.tokenStorageError("无法将刷新状态转换为 UTF-8 数据")
+            throw XidError.tokenStorageError("无法将清理状态转换为 UTF-8 数据")
         }
         try storage.save(key: StorageKey.session, value: value)
     }
 
-    static func isRefreshPending(storage: TokenStorageAdapter) throws -> Bool {
+    static func isCleared(storage: TokenStorageAdapter) throws -> Bool {
         guard let value = try storage.load(key: StorageKey.session),
               let data = value.data(using: .utf8),
               let record = try? JSONDecoder().decode(SessionRecord.self, from: data)
         else {
             return false
         }
-        return record.state == .refreshPending
+        return record.state == .cleared
+    }
+
+    static func loadIdToken(storage: TokenStorageAdapter) throws -> String? {
+        try load(storage: storage)?.idToken
     }
 
     static func clear(storage: TokenStorageAdapter) throws {
-        try markRefreshPending(storage: storage)
+        // Write a tombstone before clearing legacy keys so a partial delete cannot restore a
+        // mixed old session after restart.
+        try markCleared(storage: storage)
         for key in StorageKey.legacySessionKeys {
             try storage.delete(key: key)
         }
@@ -206,29 +212,46 @@ enum StorageKey {
 enum PendingAuthorizationStorage {
     private static let lock = NSLock()
 
+    struct Record: Codable, Equatable {
+        let verifier: String
+        let nonce: String
+    }
+
     static func save(
         state: String,
         verifier: String,
+        nonce: String,
         storage: TokenStorageAdapter
     ) throws {
         lock.lock()
         defer { lock.unlock() }
-        try storage.save(key: StorageKey.pendingAuthorization(state: state), value: verifier)
+        let value = try JSONEncoder().encode(Record(verifier: verifier, nonce: nonce))
+        guard let encoded = String(data: value, encoding: .utf8) else {
+            throw XidError.tokenStorageError("无法将授权状态转换为 UTF-8 数据")
+        }
+        try storage.save(key: StorageKey.pendingAuthorization(state: state), value: encoded)
     }
 
     static func consume(
         state: String,
         storage: TokenStorageAdapter
-    ) throws -> String? {
+    ) throws -> Record? {
         lock.lock()
         defer { lock.unlock() }
 
         let key = StorageKey.pendingAuthorization(state: state)
-        guard let verifier = try storage.load(key: key) else {
+        guard let value = try storage.load(key: key) else {
             return nil
         }
         try storage.delete(key: key)
-        return verifier
+        guard let data = value.data(using: .utf8),
+              let record = try? JSONDecoder().decode(Record.self, from: data),
+              !record.verifier.isEmpty,
+              !record.nonce.isEmpty
+        else {
+            return nil
+        }
+        return record
     }
 
     static func clear(

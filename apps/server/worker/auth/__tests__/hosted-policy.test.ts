@@ -5,6 +5,7 @@ import { DEFAULT_HOSTED_AUTH_POLICY } from '@xid-kit/types'
 import {
   assertEmailAllowed,
   assertEnterpriseSsoAllowed,
+  assertGuestAllowed,
   assertMethodAllowedWithCapabilities,
   assertMethodAvailableWithCapabilities,
   assertSocialProviderAllowed,
@@ -142,6 +143,27 @@ describe('assertMethodAvailableWithCapabilities', () => {
   })
 })
 
+describe('assertGuestAllowed', () => {
+  it('denies guest login and creation when force_sso is enabled', () => {
+    const tenant = makeTenant({ forceSso: true })
+    expect(() => assertGuestAllowed(tenant, 'login')).toThrow(
+      expect.objectContaining({ policyReason: 'force_sso' }),
+    )
+    expect(() => assertGuestAllowed(tenant, 'user_creation')).toThrow(
+      expect.objectContaining({ policyReason: 'force_sso' }),
+    )
+  })
+
+  it('applies global login and user creation switches independently', () => {
+    expect(() =>
+      assertGuestAllowed(makeTenant({ allowExistingUserLogin: false }), 'login'),
+    ).toThrow(expect.objectContaining({ policyReason: 'global_login_disabled' }))
+    expect(() =>
+      assertGuestAllowed(makeTenant({ allowUserCreation: false }), 'user_creation'),
+    ).toThrow(expect.objectContaining({ policyReason: 'global_user_creation_disabled' }))
+  })
+})
+
 describe('assertSocialProviderAllowed', () => {
   it('denies unconfigured provider', () => {
     const tenant = makeTenant({}, { policy: { hostedAuth: DEFAULT_HOSTED_AUTH_POLICY } })
@@ -276,6 +298,7 @@ describe('publicHostedAuthConfig', () => {
     )
     expect(config.methods.smsOtp.enabled).toBe(false)
     expect(config.methods.whatsappOtp.enabled).toBe(false)
+    expect(config.guest).toBeNull()
   })
 
   it('hides social providers when force_sso', () => {
@@ -310,6 +333,7 @@ describe('ambiguousHostedAuthConfig', () => {
     expect(config.resolution.status).toBe('ambiguous')
     expect(config.methods.password.enabled).toBe(false)
     expect(config.socialProviders).toHaveLength(0)
+    expect(config.guest).toBeNull()
   })
 })
 

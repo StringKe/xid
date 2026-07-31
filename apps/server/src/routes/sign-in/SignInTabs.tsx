@@ -31,6 +31,7 @@ export type SignInTabsProps = {
   method: SignInMethod
   passkeySupport: PasskeySupport
   enabledMethods: readonly SignInMethod[]
+  isSignUpFlow: boolean
   onSelect: (method: SignInMethod) => void
 }
 
@@ -38,6 +39,7 @@ export function SignInTabs({
   method,
   passkeySupport,
   enabledMethods,
+  isSignUpFlow,
   onSelect,
 }: SignInTabsProps): ReactNode {
   const { t } = useLingui()
@@ -47,11 +49,17 @@ export function SignInTabs({
     enabledMethods.includes('otp-whatsapp') ||
     enabledMethods.includes('otp-sms')
   const tabs = TABS.filter(
-    (tab) => enabledMethods.includes(tab.id) || (tab.id === 'otp-email' && hasOtp),
+    (tab) =>
+      (!isSignUpFlow || tab.id !== 'passkey') &&
+      (enabledMethods.includes(tab.id) || (tab.id === 'otp-email' && hasOtp)),
   )
 
   return (
-    <div role="tablist" aria-label={t`Sign-in method`} {...stylex.props(styles.tablist)}>
+    <div
+      role="tablist"
+      aria-label={isSignUpFlow ? t`Create your account` : t`Sign-in method`}
+      {...stylex.props(styles.tablist)}
+    >
       {tabs.map((tab) => {
         const visible = !tab.passkeyOnly || passkeySupport === 'yes'
         const active = tab.id === method || (tab.id === 'otp-email' && isOtp)

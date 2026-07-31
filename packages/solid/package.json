@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/solid",
-  "version": "0.0.0",
-  "private": true,
-  "description": "SolidJS SDK for XID: provider, primitives and auth components.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "SolidJS primitives and components for the XID identity platform.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/solid",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,26 +20,40 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/solid"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack --from-vite --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test"
   },
   "dependencies": {
     "@lingui/core": "catalog:",
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/core": "workspace:^",
+    "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
     "solid-js": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {

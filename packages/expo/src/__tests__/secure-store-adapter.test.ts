@@ -89,4 +89,14 @@ describe('createSecureStoreAdapter', () => {
     expect(isValidSecureStoreKey('myapp:xid.access_token')).toBe(false)
     expect(isValidSecureStoreKey('myapp.xid.access_token')).toBe(true)
   })
+
+  it('coordinates refreshes across wrappers that address the same secure store namespace', () => {
+    const secureStore = makeSecureStore()
+    const first = createSecureStoreAdapter({ secureStore, keyPrefix: 'myapp' })
+    const second = createSecureStoreAdapter({ secureStore, keyPrefix: 'myapp' })
+    const other = createSecureStoreAdapter({ secureStore, keyPrefix: 'other' })
+
+    expect(first.coordinationNamespace).toBe(second.coordinationNamespace)
+    expect(first.coordinationNamespace).not.toBe(other.coordinationNamespace)
+  })
 })

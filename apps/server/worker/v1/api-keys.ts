@@ -8,6 +8,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm'
 import { Hono, type Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
 import {
@@ -119,7 +120,7 @@ app.post('/', async (c) => {
   }
 
   const row = await db.apiKeys.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('apiKey'),
     tenantId: tenant.tenantId,
     name,
     keyHash,

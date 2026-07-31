@@ -14,6 +14,17 @@ final class TokenSessionStorageTests: XCTestCase {
         XCTAssertEqual(try TokenSessionStorage.load(storage: storage)?.accessToken, "access_old")
     }
 
+    func testLoadIdTokenReadsTheActiveSessionEnvelope() throws {
+        let storage = FailingTokenStorage()
+        try TokenSessionStorage.save(makeSession(accessToken: "access"), storage: storage)
+
+        XCTAssertEqual(
+            try TokenSessionStorage.loadIdToken(storage: storage),
+            "id_token"
+        )
+        XCTAssertNil(try storage.load(key: StorageKey.idToken))
+    }
+
     func testCorruptSessionIsClearedInsteadOfReturningMixedLegacyTokens() throws {
         let storage = FailingTokenStorage()
         try storage.save(key: StorageKey.session, value: "not-json")
@@ -21,22 +32,17 @@ final class TokenSessionStorageTests: XCTestCase {
         try storage.save(key: StorageKey.expiresAt, value: "invalid-date")
 
         XCTAssertNil(try TokenSessionStorage.load(storage: storage))
-        let isRefreshPending = try TokenSessionStorage.isRefreshPending(storage: storage)
-        XCTAssertTrue(isRefreshPending)
+        XCTAssertTrue(try TokenSessionStorage.isCleared(storage: storage))
         XCTAssertNil(try storage.load(key: StorageKey.accessToken))
     }
 
-    func testRotationWriteFailureLeavesFailClosedMarkerAfterRestart() throws {
+    func testClearedTombstonePreventsPreviousSessionRestore() throws {
         let storage = FailingTokenStorage()
         try TokenSessionStorage.save(makeSession(accessToken: "access_old"), storage: storage)
-        try TokenSessionStorage.markRefreshPending(storage: storage)
-
-        storage.failNextSave = true
-        XCTAssertThrowsError(try TokenSessionStorage.save(makeSession(accessToken: "access_new"), storage: storage))
+        try TokenSessionStorage.markCleared(storage: storage)
 
         XCTAssertNil(try TokenSessionStorage.load(storage: storage))
-        let isRefreshPending = try TokenSessionStorage.isRefreshPending(storage: storage)
-        XCTAssertTrue(isRefreshPending)
+        XCTAssertTrue(try TokenSessionStorage.isCleared(storage: storage))
     }
 
     func testClearFailureLeavesFailClosedMarkerAfterRestart() throws {
@@ -49,8 +55,7 @@ final class TokenSessionStorageTests: XCTestCase {
         XCTAssertThrowsError(try TokenSessionStorage.clear(storage: storage))
 
         XCTAssertNil(try TokenSessionStorage.load(storage: storage))
-        let isRefreshPending = try TokenSessionStorage.isRefreshPending(storage: storage)
-        XCTAssertTrue(isRefreshPending)
+        XCTAssertTrue(try TokenSessionStorage.isCleared(storage: storage))
         XCTAssertEqual(try storage.load(key: StorageKey.refreshToken), "legacy_refresh")
     }
 
@@ -59,11 +64,13 @@ final class TokenSessionStorageTests: XCTestCase {
         try PendingAuthorizationStorage.save(
             state: "state_first",
             verifier: "verifier_first",
+            nonce: "nonce_first",
             storage: storage
         )
         try PendingAuthorizationStorage.save(
             state: "state_second",
             verifier: "verifier_second",
+            nonce: "nonce_second",
             storage: storage
         )
 
@@ -80,8 +87,20 @@ final class TokenSessionStorageTests: XCTestCase {
             storage: storage
         )
 
-        XCTAssertEqual(second, "verifier_second")
-        XCTAssertEqual(first, "verifier_first")
+        XCTAssertEqual(
+            second,
+            PendingAuthorizationStorage.Record(
+                verifier: "verifier_second",
+                nonce: "nonce_second"
+            )
+        )
+        XCTAssertEqual(
+            first,
+            PendingAuthorizationStorage.Record(
+                verifier: "verifier_first",
+                nonce: "nonce_first"
+            )
+        )
         XCTAssertNil(replay)
     }
 

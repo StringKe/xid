@@ -1,14 +1,14 @@
-// token exchange:PKCE authorization code -> access_token + refresh_token。
-// 调用 /token endpoint,存储结果到 tokenCache。
-// 无 refresh token 自动轮换(bridge 到 @xid-kit/core XidClient)。
+// token exchange:PKCE authorization code -> verified native token session。
+// 调用 /token endpoint，ID token 验签和 nonce 校验通过后再存储到 tokenCache。
 
 import type { TokenCache } from './token-cache'
+import { verifyNativeIdToken, type NativeIdTokenClaims } from './id-token'
 
 const TOKEN_KEYS = {
   session: 'xid.session.v1',
   sessionPending: 'xid.session.pending.v1',
   accessToken: 'xid.access_token',
-  refreshToken: 'xid.refresh_token',
+  legacyRefreshToken: 'xid.refresh_token',
   idToken: 'xid.id_token',
   expiresAt: 'xid.expires_at',
   pkceVerifier: 'xid.pkce_verifier',
@@ -26,25 +26,27 @@ export type TokenExchangeInput = {
   redirectUri: string
   code: string
   verifier: string
+  nonce: string
+  fetcher?: typeof fetch
   signal?: AbortSignal
 }
 
 export type TokenSet = {
   accessToken: string
-  refreshToken: string | null
   idToken: string | null
   expiresIn: number
+  claims?: NativeIdTokenClaims | null
 }
 
-export type StoredTokenSet = TokenSet & {
+export type StoredTokenSet = Omit<TokenSet, 'claims'> & {
   expiresAt: number
+  claims: NativeIdTokenClaims | null
 }
 
 type TokenEndpointResponse = {
-  access_token: string
-  refresh_token?: string
-  id_token?: string
-  expires_in?: number
+  access_token?: unknown
+  id_token?: unknown
+  expires_in?: unknown
 }
 
 export async function exchangeCodeForTokens(input: TokenExchangeInput): Promise<TokenSet> {
@@ -57,7 +59,7 @@ export async function exchangeCodeForTokens(input: TokenExchangeInput): Promise<
     code_verifier: input.verifier,
   })
 
-  const response = await fetch(url.toString(), {
+  const response = await (input.fetcher ?? fetch)(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -70,11 +72,26 @@ export async function exchangeCodeForTokens(input: TokenExchangeInput): Promise<
   }
 
   const data = (await response.json()) as TokenEndpointResponse
+  if (typeof data.access_token !== 'string' || data.access_token.length === 0) {
+    throw new Error('[xid-kit/react-native] Token response is missing access_token.')
+  }
+  if (typeof data.id_token !== 'string' || data.id_token.length === 0) {
+    throw new Error('[xid-kit/react-native] OIDC token response is missing id_token.')
+  }
+  const claims = await verifyNativeIdToken(data.id_token, {
+    issuer: input.issuer,
+    clientId: input.clientId,
+    expectedNonce: input.nonce,
+    ...(input.fetcher ? { fetcher: input.fetcher } : {}),
+  })
   return {
     accessToken: data.access_token,
-    refreshToken: data.refresh_token ?? null,
-    idToken: data.id_token ?? null,
-    expiresIn: data.expires_in ?? 3600,
+    idToken: data.id_token,
+    expiresIn:
+      typeof data.expires_in === 'number' && Number.isFinite(data.expires_in)
+        ? Math.max(0, data.expires_in)
+        : 3600,
+    claims,
   }
 }
 
@@ -82,6 +99,7 @@ export async function saveTokenSet(cache: TokenCache, tokens: TokenSet): Promise
   const session: StoredTokenSet = {
     ...tokens,
     expiresAt: Date.now() + tokens.expiresIn * 1000,
+    claims: tokens.claims ?? null,
   }
 
   await markSessionPending(cache)
@@ -104,27 +122,37 @@ export async function readTokenSet(cache: TokenCache): Promise<StoredTokenSet | 
   }
 
   try {
-    const parsed = JSON.parse(rawSession) as Partial<StoredTokenSet>
+    const parsed = JSON.parse(rawSession) as Partial<StoredTokenSet> & {
+      refreshToken?: unknown
+    }
+    // Earlier local builds persisted this field inside the envelope. Current authorization-code-only
+    // sessions fail closed and delete that credential instead of silently retaining it.
+    if (Object.hasOwn(parsed, 'refreshToken')) {
+      await clearTokenSet(cache)
+      return null
+    }
     if (
       typeof parsed.accessToken !== 'string' ||
-      (typeof parsed.refreshToken !== 'string' && parsed.refreshToken !== null) ||
       (typeof parsed.idToken !== 'string' && parsed.idToken !== null) ||
       typeof parsed.expiresAt !== 'number' ||
       !Number.isFinite(parsed.expiresAt) ||
       parsed.expiresAt <= 0 ||
       typeof parsed.expiresIn !== 'number' ||
-      !Number.isFinite(parsed.expiresIn)
+      !Number.isFinite(parsed.expiresIn) ||
+      (parsed.claims !== null &&
+        (typeof parsed.claims !== 'object' || Array.isArray(parsed.claims)))
     ) {
       await clearTokenSet(cache)
       return null
     }
 
+    await discardLegacyTokenSet(cache)
     return {
       accessToken: parsed.accessToken,
-      refreshToken: parsed.refreshToken,
       idToken: parsed.idToken,
       expiresAt: parsed.expiresAt,
       expiresIn: Math.max(0, Math.ceil((parsed.expiresAt - Date.now()) / 1000)),
+      claims: parsed.claims,
     }
   } catch {
     await clearTokenSet(cache)
@@ -150,7 +178,7 @@ export async function clearTokenSet(cache: TokenCache): Promise<boolean> {
 
 const LEGACY_SESSION_KEYS = [
   TOKEN_KEYS.accessToken,
-  TOKEN_KEYS.refreshToken,
+  TOKEN_KEYS.legacyRefreshToken,
   TOKEN_KEYS.idToken,
   TOKEN_KEYS.expiresAt,
 ] as const

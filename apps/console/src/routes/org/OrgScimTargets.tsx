@@ -74,7 +74,6 @@ const styles = stylex.create({
 type TargetForm = {
   provider: string
   baseUrl: string
-  tokenSecretRef: string
   gateMode: AssignmentGate['mode']
   allowedRoles: string
   allowedUserIds: string
@@ -83,7 +82,6 @@ type TargetForm = {
 const EMPTY_FORM: TargetForm = {
   provider: 'slack',
   baseUrl: '',
-  tokenSecretRef: '',
   gateMode: 'all',
   allowedRoles: '',
   allowedUserIds: '',
@@ -109,7 +107,6 @@ function formFromTarget(target: ScimTarget): TargetForm {
   return {
     provider: target.provider,
     baseUrl: target.baseUrl,
-    tokenSecretRef: '',
     gateMode: target.assignmentGate.mode,
     allowedRoles: target.assignmentGate.allowed_roles.join(', '),
     allowedUserIds: target.assignmentGate.allowed_user_ids.join(', '),
@@ -143,11 +140,9 @@ const columns: ColumnDef<ScimTarget>[] = [
 function TargetFormFields({
   form,
   setForm,
-  tokenPlaceholder,
 }: {
   form: TargetForm
   setForm: (updater: (current: TargetForm) => TargetForm) => void
-  tokenPlaceholder: string
 }): ReactNode {
   const { t } = useLingui()
 
@@ -164,15 +159,6 @@ function TargetFormFields({
           value={form.baseUrl}
           onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))}
           placeholder="https://example.com/scim/v2"
-        />
-      </Field>
-      <Field label={t`Token secret ref`}>
-        <Input
-          value={form.tokenSecretRef}
-          onChange={(event) =>
-            setForm((current) => ({ ...current, tokenSecretRef: event.target.value }))
-          }
-          placeholder={tokenPlaceholder}
         />
       </Field>
       <Field label={t`Assignment mode`}>
@@ -254,14 +240,13 @@ export default function OrgScimTargets(): ReactNode {
 
   const onCreate = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
-    if (!createForm.baseUrl.trim() || !createForm.tokenSecretRef.trim()) {
-      setMessage({ tone: 'error', text: t`Base URL and token secret ref are required.` })
+    if (!createForm.baseUrl.trim()) {
+      setMessage({ tone: 'error', text: t`Base URL is required.` })
       return
     }
     const target = await createTarget.mutateAsync({
       provider: createForm.provider.trim(),
       base_url: createForm.baseUrl.trim(),
-      token_secret_ref: createForm.tokenSecretRef.trim(),
       assignment_gate: gateFromForm(createForm),
     })
     setCreateForm(EMPTY_FORM)
@@ -279,25 +264,21 @@ export default function OrgScimTargets(): ReactNode {
     const payload: {
       provider?: string
       base_url: string
-      token_secret_ref?: string
       assignment_gate?: AssignmentGate
     } = {
       provider: editForm.provider.trim(),
       base_url: editForm.baseUrl.trim(),
       assignment_gate: gateFromForm(editForm),
     }
-    if (editForm.tokenSecretRef.trim()) {
-      payload.token_secret_ref = editForm.tokenSecretRef.trim()
-    }
     await updateTarget.mutateAsync({ targetId: selected.id, payload })
     setMessage({ tone: 'success', text: t`SCIM target saved.` })
   }
 
   const onSync = async (targetId: string): Promise<void> => {
-    const summary = await syncTarget.mutateAsync(targetId)
+    await syncTarget.mutateAsync(targetId)
     setMessage({
       tone: 'success',
-      text: t`Synced ${summary.users} users and ${summary.groups} groups.`,
+      text: t`SCIM sync queued.`,
     })
   }
 
@@ -345,11 +326,7 @@ export default function OrgScimTargets(): ReactNode {
           <Trans>Add SCIM target</Trans>
         </h2>
         <form {...stylex.props(styles.form)} onSubmit={onCreate}>
-          <TargetFormFields
-            form={createForm}
-            setForm={setCreateForm}
-            tokenPlaceholder="SCIM_TARGET_TOKEN"
-          />
+          <TargetFormFields form={createForm} setForm={setCreateForm} />
           <Button type="submit" disabled={createTarget.isPending}>
             {createTarget.isPending ? <Trans>Creating…</Trans> : <Trans>Add SCIM target</Trans>}
           </Button>
@@ -362,15 +339,10 @@ export default function OrgScimTargets(): ReactNode {
             <Trans>Edit SCIM target</Trans>
           </h2>
           <form {...stylex.props(styles.form)} onSubmit={onUpdate}>
-            <TargetFormFields
-              form={editForm}
-              setForm={setEditForm}
-              tokenPlaceholder={
-                selected.hasTokenSecret
-                  ? t`Leave blank to keep current secret ref`
-                  : 'SCIM_TARGET_TOKEN'
-              }
-            />
+            <TargetFormFields form={editForm} setForm={setEditForm} />
+            <Field label={t`Token secret ref`}>
+              <code>{selected.requiredTokenSecretName}</code>
+            </Field>
             <div {...stylex.props(styles.targetActions)}>
               <Button type="submit" disabled={updateTarget.isPending}>
                 {updateTarget.isPending ? <Trans>Saving…</Trans> : <Trans>Save changes</Trans>}

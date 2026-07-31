@@ -67,6 +67,7 @@ export const verificationTokens = sqliteTable(
     userId: text('user_id').notNull(),
     tokenHash: text('token_hash').notNull(),
     codeHash: text('code_hash'),
+    flowContext: text('flow_context'),
     channel: text('channel'),
     purpose: text('purpose').notNull(),
     attemptCount: numCol('attempt_count').notNull().default(0),

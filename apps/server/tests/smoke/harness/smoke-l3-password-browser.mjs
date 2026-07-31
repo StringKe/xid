@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer } from 'node:net'
 import { mkdtemp } from 'node:fs/promises'
-import { networkInterfaces, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { inflateRawSync } from 'node:zlib'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
@@ -154,25 +154,42 @@ async function importSamlIdpSigningKey() {
   )
 }
 
-function buildSamlResponseXml({ audience, recipient, email }) {
+function escapeXml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+}
+
+function buildSamlResponseXml({ audience, recipient, email, inResponseTo }) {
   const now = new Date().toISOString()
   const expires = new Date(Date.now() + 5 * 60 * 1000).toISOString()
   const responseId = `_resp_${crypto.randomUUID().replaceAll('-', '')}`
   const assertionId = `_assert_${crypto.randomUUID().replaceAll('-', '')}`
+  const sessionIndex = `_session_${crypto.randomUUID().replaceAll('-', '')}`
+  const escapedAudience = escapeXml(audience)
+  const escapedRecipient = escapeXml(recipient)
+  const escapedEmail = escapeXml(email)
+  const escapedInResponseTo = escapeXml(inResponseTo)
   const assertion = [
     `<saml:Assertion ID="${assertionId}" Version="2.0" IssueInstant="${now}">`,
     `<saml:Issuer>${SAML_IDP_ENTITY_ID}</saml:Issuer>`,
     `<saml:Subject>`,
-    `<saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress">${email}</saml:NameID>`,
+    `<saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress">${escapedEmail}</saml:NameID>`,
     `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">`,
-    `<saml:SubjectConfirmationData Recipient="${recipient}" NotOnOrAfter="${expires}"/>`,
+    `<saml:SubjectConfirmationData Recipient="${escapedRecipient}" InResponseTo="${escapedInResponseTo}" NotOnOrAfter="${expires}"/>`,
     `</saml:SubjectConfirmation>`,
     `</saml:Subject>`,
     `<saml:Conditions NotBefore="${now}" NotOnOrAfter="${expires}">`,
-    `<saml:AudienceRestriction><saml:Audience>${audience}</saml:Audience></saml:AudienceRestriction>`,
+    `<saml:AudienceRestriction><saml:Audience>${escapedAudience}</saml:Audience></saml:AudienceRestriction>`,
     `</saml:Conditions>`,
+    `<saml:AuthnStatement AuthnInstant="${now}" SessionIndex="${sessionIndex}">`,
+    `<saml:AuthnContext><saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></saml:AuthnContext>`,
+    `</saml:AuthnStatement>`,
     `<saml:AttributeStatement>`,
-    `<saml:Attribute Name="email"><saml:AttributeValue>${email}</saml:AttributeValue></saml:Attribute>`,
+    `<saml:Attribute Name="email"><saml:AttributeValue>${escapedEmail}</saml:AttributeValue></saml:Attribute>`,
     `<saml:Attribute Name="firstName"><saml:AttributeValue>Local</saml:AttributeValue></saml:Attribute>`,
     `<saml:Attribute Name="groups"><saml:AttributeValue>Engineering</saml:AttributeValue></saml:Attribute>`,
     `</saml:AttributeStatement>`,
@@ -180,7 +197,7 @@ function buildSamlResponseXml({ audience, recipient, email }) {
   ].join('')
   return [
     `<samlp:Response xmlns:samlp="${SAML_PROTOCOL_NS}" xmlns:saml="${SAML_ASSERTION_NS}"`,
-    ` ID="${responseId}" Version="2.0" IssueInstant="${now}">`,
+    ` ID="${responseId}" Version="2.0" IssueInstant="${now}" Destination="${escapedRecipient}" InResponseTo="${escapedInResponseTo}">`,
     `<saml:Issuer>${SAML_IDP_ENTITY_ID}</saml:Issuer>`,
     `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>`,
     assertion,
@@ -204,7 +221,8 @@ async function signSamlElement(doc, target, key) {
   })
   const sig = signedXml.GetXml()
   if (!sig) throw new Error('SAML signature not produced')
-  target.appendChild(sig)
+  const issuer = firstChildByLocalName(target, 'Issuer')
+  target.insertBefore(sig, issuer?.nextSibling ?? target.firstChild)
 }
 
 async function buildSignedSamlResponse(input) {
@@ -318,10 +336,17 @@ async function passwordReuseTag(password, pepperRaw) {
 }
 
 function parseDevVars() {
-  const { XID_SMOKE_KEK: KEK, XID_SMOKE_PEPPER: PEPPER } = process.env
-  if (!KEK || !PEPPER)
-    throw new Error('XID smoke KEK and PEPPER must be provided through the process environment')
-  return { KEK, PEPPER }
+  const {
+    XID_SMOKE_KEK: KEK,
+    XID_SMOKE_PEPPER: PEPPER,
+    XID_SMOKE_SOCIAL_CLIENT_SECRET: SOCIAL_CLIENT_SECRET,
+  } = process.env
+  if (!KEK || !PEPPER || !SOCIAL_CLIENT_SECRET) {
+    throw new Error(
+      'XID smoke KEK, PEPPER and social client secret must be provided through the process environment',
+    )
+  }
+  return { KEK, PEPPER, SOCIAL_CLIENT_SECRET }
 }
 
 async function run(command, args, name) {
@@ -607,6 +632,7 @@ async function startLocalSamlProvider() {
   let issuer = ''
   const state = {
     lastRequest: null,
+    lastRequestId: null,
     lastRelayState: null,
     lastAcsUrl: null,
     pendingPostPayload: null,
@@ -624,11 +650,13 @@ async function startLocalSamlProvider() {
           return
         }
         const requestXml = inflateRawSync(Buffer.from(samlRequest, 'base64')).toString('utf8')
-        const acsMatch = requestXml.match(/AssertionConsumerServiceURL="([^"]+)"/)
-        const acsUrl = acsMatch?.[1]
-        if (!acsUrl) {
+        const requestDocument = Parse(requestXml)
+        const requestRoot = requestDocument.documentElement
+        const requestId = requestRoot.getAttribute('ID')
+        const acsUrl = requestRoot.getAttribute('AssertionConsumerServiceURL')
+        if (requestRoot.localName !== 'AuthnRequest' || !requestId || !acsUrl) {
           res.writeHead(400, { 'content-type': 'text/plain' })
-          res.end('missing ACS URL')
+          res.end('invalid AuthnRequest')
           return
         }
         const expectedAcsUrl = `${baseUrl}/sso/saml/${samlConnectionId}/acs`
@@ -638,12 +666,14 @@ async function startLocalSamlProvider() {
           return
         }
         state.lastRequest = requestXml
+        state.lastRequestId = requestId
         state.lastRelayState = relayState
         state.lastAcsUrl = acsUrl
         const responseXml = await buildSignedSamlResponse({
           audience: `${baseUrl}/saml/${samlConnectionId}`,
           recipient: acsUrl,
           email: samlEmail,
+          inResponseTo: requestId,
         })
         const samlResponse = base64EncodeString(responseXml)
         state.pendingPostPayload = createSamlPostPayload({
@@ -710,11 +740,6 @@ async function startLocalSamlProvider() {
 }
 
 function localProviderHost() {
-  for (const entries of Object.values(networkInterfaces())) {
-    for (const entry of entries ?? []) {
-      if (entry.family === 'IPv4' && !entry.internal) return entry.address
-    }
-  }
   return '127.0.0.1'
 }
 
@@ -770,7 +795,13 @@ async function prepareLocalPassword() {
     'upsert local password',
   )
   printResult('PASS', 'local password fixture', `user=${row.user_id}`)
-  return { tenantId: row.tenant_id, userId: row.user_id, originalMetadata, pepper: vars.PEPPER }
+  return {
+    tenantId: row.tenant_id,
+    userId: row.user_id,
+    originalMetadata,
+    pepper: vars.PEPPER,
+    socialClientSecret: vars.SOCIAL_CLIENT_SECRET,
+  }
 }
 
 async function prepareLocalSocialProvider(fixture, oidcIssuer) {
@@ -787,7 +818,7 @@ async function prepareLocalSocialProvider(fixture, oidcIssuer) {
       authorizationEndpoint: `${oidcIssuer}/authorize`,
       tokenEndpoint: `${oidcIssuer}/token`,
       clientId: 'local-social-client',
-      clientSecretRef: 'PEPPER',
+      clientSecretRef: 'SOCIAL_LOCALOIDC_CLIENT_SECRET',
       scopes: ['openid', 'email', 'profile'],
       usesPkce: true,
       issuer: oidcIssuer,
@@ -1531,11 +1562,7 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   )
   const providers = await page.snapshot()
   const providersText = providers.text.toLowerCase()
-  for (const text of [
-    'Client secret reference',
-    'Authorization endpoint',
-    'Save social providers',
-  ]) {
+  for (const text of ['Client secret binding', 'Authorization endpoint', 'Save social providers']) {
     if (!providersText.includes(text.toLowerCase())) {
       throw new Error(`social providers page missing ${text}`)
     }
@@ -1551,10 +1578,13 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   if (!providersApi.body.socialProviders) {
     throw new Error('social providers api missing socialProviders')
   }
-  if (providersApi.body.socialProviders.localoidc?.clientSecretRef !== 'PEPPER') {
+  if (
+    providersApi.body.socialProviders.localoidc?.clientSecretRef !==
+    'SOCIAL_LOCALOIDC_CLIENT_SECRET'
+  ) {
     throw new Error('social providers api did not preserve clientSecretRef name')
   }
-  if (JSON.stringify(providersApi.body).includes(fixture.pepper)) {
+  if (JSON.stringify(providersApi.body).includes(fixture.socialClientSecret)) {
     throw new Error('social providers api leaked secret value')
   }
 
@@ -1570,7 +1600,7 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   const delivery = await page.snapshot()
   const deliveryText = delivery.text.toLowerCase()
   for (const text of [
-    'Secret references',
+    'Secret bindings',
     'Save delivery channels',
     'Twilio',
     'Vonage',
@@ -2019,6 +2049,9 @@ async function verifyBrowserEnterpriseSamlSso(page, tenantId, providerState) {
   if (!samlState.lastRequest?.includes('<samlp:AuthnRequest')) {
     throw new Error('local SAML IdP did not receive AuthnRequest')
   }
+  if (!samlState.lastRequestId) {
+    throw new Error('local SAML IdP did not preserve AuthnRequest ID')
+  }
   if (samlState.lastRelayState !== '/console') {
     throw new Error(`local SAML IdP RelayState mismatch: ${String(samlState.lastRelayState)}`)
   }
@@ -2071,7 +2104,11 @@ async function verifyBrowserEnterpriseSamlSso(page, tenantId, providerState) {
     'browser enterprise saml me active organization',
     `org=${meBody.activeOrg.id}`,
   )
-  printResult('PASS', 'browser enterprise saml signed response', 'xml_dsig=true relay_state=true')
+  printResult(
+    'PASS',
+    'browser enterprise saml signed response',
+    'xml_dsig=true in_response_to=true relay_state=true',
+  )
   printResult('PASS', 'browser enterprise saml role mapping', 'role=admin')
 }
 
@@ -2088,7 +2125,7 @@ export async function runL3PasswordBrowserSmoke() {
     await ensureSeeded()
     fixture = await prepareLocalPassword()
     await verifyPasswordAuthConfig()
-    localOidcProvider = await startLocalOidcProvider(fixture.pepper)
+    localOidcProvider = await startLocalOidcProvider(fixture.socialClientSecret)
     await prepareLocalSocialProvider(fixture, localOidcProvider.issuer)
     await prepareLocalEnterpriseSso(fixture, localOidcProvider.issuer)
     localSamlProvider = await startLocalSamlProvider()

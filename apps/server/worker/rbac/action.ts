@@ -50,11 +50,14 @@ const FORBIDDEN_CLAIM_KEYS = new Set([
   'azp',
   'at_hash',
   'c_hash',
+  'org_role',
 ])
 
 // ---- ABAC condition 求值(02 章 7.3)----
 const ABAC_OPS = ['eq', 'in', 'not_eq', 'not_in'] as const
 type AbacOp = (typeof ABAC_OPS)[number]
+const ABAC_VAR =
+  /^(?:user\.(?:public_metadata|unsafe_metadata)\.[^.]+|org\.(?:id|slug|public_metadata\.[^.]+))$/
 
 type Leaf = { op: AbacOp; var: string; value: unknown }
 type AndNode = { and: unknown[] }
@@ -88,7 +91,12 @@ function readKey(bag: Record<string, unknown>, key: string | undefined): unknown
 function isLeaf(node: unknown): node is Leaf {
   if (typeof node !== 'object' || node === null) return false
   const n = node as Record<string, unknown>
-  return typeof n['op'] === 'string' && typeof n['var'] === 'string' && 'value' in n
+  if (Object.keys(n).some((key) => !['op', 'var', 'value'].includes(key))) return false
+  if (typeof n['op'] !== 'string' || !ABAC_OPS.includes(n['op'] as AbacOp)) return false
+  if (typeof n['var'] !== 'string' || !ABAC_VAR.test(n['var'])) return false
+  if (!Object.hasOwn(n, 'value')) return false
+  if ((n['op'] === 'in' || n['op'] === 'not_in') && !Array.isArray(n['value'])) return false
+  return true
 }
 
 // 单 leaf 求值(7.3 操作符语义 + undefined 处理):eq/in 对 undefined 为 false,not_eq/not_in 为 true。
@@ -113,6 +121,7 @@ export function evalCondition(
   ctx: PreAccessTokenContext,
 ): boolean | null {
   if (expr === null) return true
+  if (!isValidAbacCondition(expr)) return null
   if (Array.isArray((expr as AndNode).and)) {
     let result = true
     for (const child of (expr as AndNode).and) {
@@ -126,6 +135,15 @@ export function evalCondition(
   return null
 }
 
+// Management writes and runtime evaluation share one grammar predicate. This prevents a condition
+// accepted by the control plane from becoming an evaluator configuration error later.
+export function isValidAbacCondition(expr: Record<string, unknown> | null): boolean {
+  if (expr === null || isLeaf(expr)) return true
+  if (Object.keys(expr).length !== 1 || !Array.isArray((expr as AndNode).and)) return false
+  const children = (expr as AndNode).and
+  return children.length > 0 && children.every(isLeaf)
+}
+
 // 对解析出的 permission 应用 condition 过滤(7.2):求值 true 入集去重;false/配置错误丢弃。
 // 返回去重 key 集 + 配置错误的 key(调用方写 AuditLog,本函数不副作用)。
 export function applyConditions(
@@ -135,11 +153,15 @@ export function applyConditions(
   const granted = new Set<string>()
   const invalid: string[] = []
   for (const p of perms) {
+    if (p.invalidCondition) {
+      invalid.push(p.key)
+      continue
+    }
     const verdict = evalCondition(p.condition, ctx)
     if (verdict === null) invalid.push(p.key)
     else if (verdict) granted.add(p.key)
   }
-  return { permissions: [...granted], invalid }
+  return { permissions: [...granted], invalid: [...new Set(invalid)] }
 }
 
 // 平台内置 PreAccessTokenHook(v1):不追加 extra_claims,不覆写 rbac(用户覆盖作 P1,见 7.1)。

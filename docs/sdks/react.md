@@ -4,7 +4,13 @@
 
 ## Install
 
+Registry status is `UNPUBLISHED`: local release artifacts are verified, but no npm publication has
+been performed or authorized. The registry command below is post-publication only and becomes valid
+after an independently verified authorized release. Until then, install from a source checkout or
+audited tarball as described in [SDK Distribution](./distribution.md).
+
 ```sh
+# Post-publication only
 pnpm add @xid-kit/react
 ```
 
@@ -17,7 +23,12 @@ import { XidProvider, useAuth, SignedIn, SignedOut, SignInButton } from '@xid-ki
 
 function App() {
   return (
-    <XidProvider publishableKey="pk_live_..." apiUrl="https://xid.dev">
+    <XidProvider
+      mode="oidc"
+      issuer="https://xid.dev"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
+    >
       <Layout />
     </XidProvider>
   )
@@ -44,7 +55,7 @@ function Layout() {
 | Export             | Kind      | Description                                                               |
 | ------------------ | --------- | ------------------------------------------------------------------------- |
 | `XidProvider`      | component | Root provider; wraps the application to supply XID context                |
-| `XidProviderProps` | type      | Props for `XidProvider`: publishableKey, apiUrl, appearance, children     |
+| `XidProviderProps` | type      | Core `same-origin` or `oidc` client options plus children                 |
 | `useXidContext`    | hook      | Access the raw `XidContextValue` (advanced use; prefer typed hooks below) |
 | `XidContextValue`  | type      | Shape of the context value exposed by `XidProvider`                       |
 
@@ -71,40 +82,40 @@ function Layout() {
 
 ### Control components
 
-| Export                                  | Kind      | Description                                                  |
-| --------------------------------------- | --------- | ------------------------------------------------------------ |
-| `SignedIn`                              | component | Renders children only when a session is active               |
-| `SignedOut`                             | component | Renders children only when no session is active              |
-| `Protect`                               | component | Enforces role or permission check with optional fallback UI  |
-| `RedirectToSignIn`                      | component | Redirects anonymous users to Hosted Auth                     |
-| `RedirectToSignUp`                      | component | Redirects anonymous users to Hosted Auth sign-up entry       |
-| `RedirectToUserProfile`                 | component | Redirects signed-in users to account profile                 |
-| `RedirectToOrganizationProfile`         | component | Redirects signed-in users to organization profile            |
-| `RedirectToCreateOrganization`          | component | Redirects signed-in users to organization creation           |
-| `AuthenticateWithRedirectCallback`      | component | Handles OAuth redirect callback in customer apps             |
-| `SignInButton`                          | component | Triggers Hosted Auth sign-in flow                            |
-| `SignOutButton`                         | component | Triggers sign-out                                            |
-| `SignUpButton`                          | component | Triggers Hosted Auth sign-up flow                            |
-| `XidLoaded`                             | component | Renders children after SDK hydration (status ready/degraded) |
-| `XidLoading`                            | component | Renders children while SDK is loading (isLoaded === false)   |
-| `XidFailed`                             | component | Renders children on unrecoverable SDK load error             |
-| `XidDegraded`                           | component | Renders children when SDK is in degraded state               |
-| `SignedInProps`                         | type      | Props for `SignedIn`                                         |
-| `SignedOutProps`                        | type      | Props for `SignedOut`                                        |
-| `ProtectProps`                          | type      | Props for `Protect`: role, permission, fallback              |
-| `RedirectToSignInProps`                 | type      | Props for `RedirectToSignIn`                                 |
-| `RedirectToSignUpProps`                 | type      | Props for `RedirectToSignUp`                                 |
-| `RedirectToUserProfileProps`            | type      | Props for `RedirectToUserProfile`                            |
-| `RedirectToOrganizationProfileProps`    | type      | Props for `RedirectToOrganizationProfile`                    |
-| `RedirectToCreateOrganizationProps`     | type      | Props for `RedirectToCreateOrganization`                     |
-| `AuthenticateWithRedirectCallbackProps` | type      | Props for `AuthenticateWithRedirectCallback`                 |
-| `SignInButtonProps`                     | type      | Props for `SignInButton`                                     |
-| `SignOutButtonProps`                    | type      | Props for `SignOutButton`                                    |
-| `SignUpButtonProps`                     | type      | Props for `SignUpButton`                                     |
-| `XidLoadedProps`                        | type      | Props for `XidLoaded`                                        |
-| `XidLoadingProps`                       | type      | Props for `XidLoading`                                       |
-| `XidFailedProps`                        | type      | Props for `XidFailed`                                        |
-| `XidDegradedProps`                      | type      | Props for `XidDegraded`                                      |
+| Export                                  | Kind      | Description                                                                                                            |
+| --------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `SignedIn`                              | component | Renders children only when a session is active                                                                         |
+| `SignedOut`                             | component | Renders children only when no session is active                                                                        |
+| `Protect`                               | component | Enforces an Organization membership role (`owner`, `admin`, or `member`) or permission check with optional fallback UI |
+| `RedirectToSignIn`                      | component | Redirects anonymous users to Hosted Auth                                                                               |
+| `RedirectToSignUp`                      | component | Redirects anonymous users to Hosted Auth sign-up entry                                                                 |
+| `RedirectToUserProfile`                 | component | Redirects signed-in users to account profile                                                                           |
+| `RedirectToOrganizationProfile`         | component | Redirects signed-in users to organization profile                                                                      |
+| `RedirectToCreateOrganization`          | component | Redirects signed-in users to organization creation                                                                     |
+| `AuthenticateWithRedirectCallback`      | component | Handles OAuth redirect callback in customer apps                                                                       |
+| `SignInButton`                          | component | Triggers Hosted Auth sign-in flow                                                                                      |
+| `SignOutButton`                         | component | Triggers sign-out                                                                                                      |
+| `SignUpButton`                          | component | Triggers Hosted Auth sign-up flow                                                                                      |
+| `XidLoaded`                             | component | Renders children after SDK hydration (status ready/degraded)                                                           |
+| `XidLoading`                            | component | Renders children while SDK is loading (isLoaded === false)                                                             |
+| `XidFailed`                             | component | Renders children on unrecoverable SDK load error                                                                       |
+| `XidDegraded`                           | component | Renders children when SDK is in degraded state                                                                         |
+| `SignedInProps`                         | type      | Props for `SignedIn`                                                                                                   |
+| `SignedOutProps`                        | type      | Props for `SignedOut`                                                                                                  |
+| `ProtectProps`                          | type      | Props for `Protect`: `OrganizationMembershipRole`, permission, fallback                                                |
+| `RedirectToSignInProps`                 | type      | Props for `RedirectToSignIn`                                                                                           |
+| `RedirectToSignUpProps`                 | type      | Props for `RedirectToSignUp`                                                                                           |
+| `RedirectToUserProfileProps`            | type      | Props for `RedirectToUserProfile`                                                                                      |
+| `RedirectToOrganizationProfileProps`    | type      | Props for `RedirectToOrganizationProfile`                                                                              |
+| `RedirectToCreateOrganizationProps`     | type      | Props for `RedirectToCreateOrganization`                                                                               |
+| `AuthenticateWithRedirectCallbackProps` | type      | Props for `AuthenticateWithRedirectCallback`                                                                           |
+| `SignInButtonProps`                     | type      | Props for `SignInButton`                                                                                               |
+| `SignOutButtonProps`                    | type      | Props for `SignOutButton`                                                                                              |
+| `SignUpButtonProps`                     | type      | Props for `SignUpButton`                                                                                               |
+| `XidLoadedProps`                        | type      | Props for `XidLoaded`                                                                                                  |
+| `XidLoadingProps`                       | type      | Props for `XidLoading`                                                                                                 |
+| `XidFailedProps`                        | type      | Props for `XidFailed`                                                                                                  |
+| `XidDegradedProps`                      | type      | Props for `XidDegraded`                                                                                                |
 
 ### UI components
 
@@ -150,17 +161,15 @@ The following are designed and committed to the public roadmap but are not expor
 
 ## i18n and appearance
 
-All user-visible strings use Lingui runtime descriptors. Pass `appearance` to `XidProvider` to override CSS variables for white-label embeds:
+All user-visible strings use Lingui runtime descriptors. Appearance is configured on the UI
+component being rendered, not on `XidProvider`:
 
 ```tsx
-<XidProvider
-  publishableKey="pk_live_..."
+<SignIn
   appearance={{
     variables: { colorPrimary: '#0f172a', borderRadius: '8px' },
   }}
->
-  {children}
-</XidProvider>
+/>
 ```
 
 ## Security boundaries

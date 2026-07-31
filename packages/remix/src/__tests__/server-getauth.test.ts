@@ -52,17 +52,20 @@ describe('getAuth via Authorization: Bearer header', () => {
   })
 })
 
-// ---- getAuth: session cookie path ----
+// ---- getAuth: explicit application JWT cookie path ----
 
-describe('getAuth via session cookie', () => {
-  it('returns authenticated AuthObject for valid token in cookie', async () => {
+describe('getAuth via application JWT cookie', () => {
+  it('returns authenticated AuthObject for valid token in an explicitly named cookie', async () => {
     const key = await makeEs256Key('kid_cookie')
     const token = await mintAccessToken(key)
 
     const request = makeRequest('https://app.example.com/dashboard', {
-      cookie: `__session=${encodeURIComponent(token)}`,
+      cookie: `__Host-app.xid.jwt=${encodeURIComponent(token)}`,
     })
-    const auth = await getAuth(request, { jwtKey: key.publicJwk })
+    const auth = await getAuth(request, {
+      jwtKey: key.publicJwk,
+      jwtCookieName: '__Host-app.xid.jwt',
+    })
 
     expect(auth.userId).toBe('user_test')
   })
@@ -72,11 +75,44 @@ describe('getAuth via session cookie', () => {
     const expired = await mintExpiredToken(key)
 
     const request = makeRequest('https://app.example.com/dashboard', {
-      cookie: `__session=${encodeURIComponent(expired)}`,
+      cookie: `__Host-app.xid.jwt=${encodeURIComponent(expired)}`,
     })
+    const auth = await getAuth(request, {
+      jwtKey: key.publicJwk,
+      jwtCookieName: '__Host-app.xid.jwt',
+    })
+
+    expect(auth.userId).toBeNull()
+  })
+
+  it('does not try to verify a Core opaque refresh cookie locally', async () => {
+    const key = await makeEs256Key('kid_opaque')
+    const request = makeRequest('https://app.example.com/dashboard', {
+      cookie: '__Host-xid.rt.sess_test=opaque-refresh',
+    })
+
     const auth = await getAuth(request, { jwtKey: key.publicJwk })
 
     expect(auth.userId).toBeNull()
+  })
+
+  it('exchanges a Core opaque cookie when the same-origin endpoint is configured', async () => {
+    const key = await makeEs256Key('kid_opaque_exchange')
+    const token = await mintAccessToken(key)
+    const request = makeRequest('https://app.example.com/dashboard', {
+      cookie: '__Host-xid.rt.sess_test=opaque-refresh',
+    })
+
+    const auth = await getAuth(request, {
+      jwtKey: key.publicJwk,
+      sessionTokenExchange: {
+        endpoint: '/v1/sessions/token',
+        fetcher: (async () => Response.json({ token })) as typeof fetch,
+      },
+    })
+
+    expect(auth.userId).toBe('user_test')
+    expect(auth.sessionId).toBe('sess_test')
   })
 })
 

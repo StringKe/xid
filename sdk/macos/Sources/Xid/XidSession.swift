@@ -10,8 +10,7 @@ public struct XidSession: Sendable, Codable {
     /// nil for anonymous (guest) sessions: guests are cookie-based and hold no tokens.
     public let accessToken: String?
 
-    /// Refresh token. Used to rotate access tokens; lifetime is configured server-side (default 7 days).
-    /// Persisted in Keychain secure storage.
+    /// Reserved field. It is always nil until the SDK implements DPoP for public clients.
     public let refreshToken: String?
 
     /// ID token (JWT). Contains identity claims.

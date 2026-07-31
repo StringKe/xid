@@ -31,14 +31,18 @@ function decodeKek(b64: string): Uint8Array {
   return out
 }
 
-async function mintIdToken(ctx: TenantContext, kekB64: string): Promise<string> {
+async function mintIdToken(
+  ctx: TenantContext,
+  kekB64: string,
+  aud: string | string[] = CLIENT_ID,
+): Promise<string> {
   const material = ctx.signingKeys.keys[0]!
   const key = await loadSigningKey(material.encryptedPrivateKey, decodeKek(kekB64))
   const now = Math.floor(Date.now() / 1000)
   return signClaims(ctx, key, {
     iss: ctx.issuer,
     sub: 'u_1',
-    aud: CLIENT_ID,
+    aud,
     exp: now + 3600,
     iat: now,
     jti: 'jti_1',
@@ -46,7 +50,12 @@ async function mintIdToken(ctx: TenantContext, kekB64: string): Promise<string> 
   })
 }
 
-function appTables(input: { backchannelLogoutUri?: string | null } = {}): TableSet {
+function appTables(
+  input: {
+    backchannelLogoutUri?: string | null
+    postLogoutRedirectUris?: string[]
+  } = {},
+): TableSet {
   return {
     applications: [
       {
@@ -58,7 +67,7 @@ function appTables(input: { backchannelLogoutUri?: string | null } = {}): TableS
         token_endpoint_auth_method: 'none',
         jwks: null,
         redirect_uris: JSON.stringify(['https://rp.example/cb']),
-        post_logout_redirect_uris: JSON.stringify([POST_LOGOUT]),
+        post_logout_redirect_uris: JSON.stringify(input.postLogoutRedirectUris ?? [POST_LOGOUT]),
         allowed_grant_types: JSON.stringify(['authorization_code']),
         allowed_response_types: JSON.stringify(['code']),
         allowed_scopes: JSON.stringify(['openid']),
@@ -152,6 +161,59 @@ describe('/end_session', () => {
     expect(((await res.json()) as Record<string, boolean>)['logged_out']).toBe(true)
   })
 
+  it('explicit client_id must match a string or array id_token_hint audience', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const mismatched = await mintIdToken(ctx, kekB64, 'different-client')
+    const env = makeEnv({
+      DB: makeFakeD1(appTables()),
+      KEK: kekB64,
+      SESSION_REVOCATION: sessionNoop(),
+    })
+    const app = makeApp(ctx, registerEndSessionRoutes)
+    const rejected = await app.request(
+      `https://acme.xid.dev/end_session?${new URLSearchParams({
+        id_token_hint: mismatched,
+        client_id: CLIENT_ID,
+      }).toString()}`,
+      {},
+      env,
+    )
+    expect(rejected.status).toBe(400)
+
+    const arrayAudience = await mintIdToken(ctx, kekB64, ['resource-api', CLIENT_ID])
+    const accepted = await app.request(
+      `https://acme.xid.dev/end_session?${new URLSearchParams({
+        id_token_hint: arrayAudience,
+        client_id: CLIENT_ID,
+      }).toString()}`,
+      {},
+      env,
+    )
+    expect(accepted.status).toBe(200)
+  })
+
+  it('legacy unsafe registered post_logout_redirect_uri is refused at runtime', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const idToken = await mintIdToken(ctx, kekB64)
+    const unsafe = 'https://user:pass@rp.example/after-logout'
+    const env = makeEnv({
+      DB: makeFakeD1(appTables({ postLogoutRedirectUris: [unsafe] })),
+      KEK: kekB64,
+      SESSION_REVOCATION: sessionNoop(),
+    })
+    const app = makeApp(ctx, registerEndSessionRoutes)
+    const res = await app.request(
+      `https://acme.xid.dev/end_session?${new URLSearchParams({
+        id_token_hint: idToken,
+        post_logout_redirect_uri: unsafe,
+      }).toString()}`,
+      {},
+      env,
+    )
+    expect(res.status).toBe(200)
+    expect((await res.json<Record<string, unknown>>())['logged_out']).toBe(true)
+  })
+
   it('已注册 backchannel_logout_uri -> POST logout_token', async () => {
     const { ctx, kekB64 } = await buildTestTenant()
     const idToken = await mintIdToken(ctx, kekB64)
@@ -208,6 +270,42 @@ describe('/end_session', () => {
     const res = await app.request(url, {}, env)
     expect(res.status).toBe(200)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'timeout',
+      response: () => Promise.reject(new DOMException('timed out', 'TimeoutError')),
+    },
+    {
+      name: 'non-2xx',
+      response: () => Promise.resolve(new Response(null, { status: 503 })),
+    },
+  ])('back-channel $name does not turn completed local logout into 500', async ({ response }) => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const idToken = await mintIdToken(ctx, kekB64)
+    const auditSend = vi.fn(async () => undefined)
+    vi.stubGlobal('fetch', vi.fn(response))
+    const env = makeEnv({
+      DB: makeFakeD1(appTables({ backchannelLogoutUri: BACKCHANNEL_LOGOUT })),
+      KEK: kekB64,
+      SESSION_REVOCATION: sessionNoop(),
+      AUDIT_QUEUE: { send: auditSend } as unknown as Queue,
+    })
+    const app = makeApp(ctx, registerEndSessionRoutes)
+    const res = await app.request(
+      `https://acme.xid.dev/end_session?${new URLSearchParams({
+        id_token_hint: idToken,
+        client_id: CLIENT_ID,
+      }).toString()}`,
+      {},
+      env,
+    )
+    expect(res.status).toBe(200)
+    expect((await res.json<Record<string, unknown>>())['logged_out']).toBe(true)
+    expect(auditSend).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'oidc.backchannel_logout_failed' }),
+    )
   })
 })
 

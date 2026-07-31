@@ -74,3 +74,5 @@ export type {
   GetTokenOptions,
   XidClientOptions,
 } from '@xid-kit/core'
+
+export type { OrganizationMembershipRole } from '@xid-kit/types'

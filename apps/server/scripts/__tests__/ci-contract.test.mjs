@@ -3,12 +3,38 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
+import {
+  assertActiveDeployment,
+  assertRequiredCiConclusions,
+  assertSuccessfulWorkersBuilds,
+  PRODUCTION_WORKER_KEYS,
+  readCloudflareSecurityRulesState,
+  readConfiguredDeploymentTargets,
+  REQUIRED_CI_CHECKS,
+  verifiedRemoteD1MigrationArgs,
+} from '../production-target.mjs'
+import { parseJsonc } from '../../../../scripts/verify-worker-routes.mjs'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(scriptDir, '..', '..', '..', '..')
 const workflowPath = join(repoRoot, '.github', 'workflows', 'ci.yml')
 const packageJsonPath = join(repoRoot, 'package.json')
 const secretScannerPath = join(scriptDir, '..', 'check-repository-secrets.mjs')
+const productionWranglerPaths = [
+  'apps/server/wrangler.jsonc',
+  'apps/console/wrangler.jsonc',
+  'apps/site/wrangler.jsonc',
+]
+const readmePaths = [
+  'README.md',
+  'README.zh-Hans.md',
+  'README.ja.md',
+  'README.ko.md',
+  'README.fr.md',
+  'README.de.md',
+  'README.es.md',
+  'README.pt-BR.md',
+]
 
 function isImmutableActionReference(value) {
   return /^[^@\s]+@[a-f0-9]{40}$/u.test(value)
@@ -39,6 +65,20 @@ describe('CI release contract', () => {
     expect(packageJson.scripts['security:secret-scan']).toBe(
       'node apps/server/scripts/check-repository-secrets.mjs',
     )
+  })
+
+  it('keeps production on main-only Workers Builds without public Preview URLs', () => {
+    for (const relativePath of productionWranglerPaths) {
+      const source = readFileSync(join(repoRoot, relativePath), 'utf8')
+      expect(parseJsonc(source, relativePath).preview_urls, relativePath).toBe(false)
+    }
+
+    for (const relativePath of readmePaths) {
+      const source = readFileSync(join(repoRoot, relativePath), 'utf8')
+      expect(source, relativePath).toContain('Cloudflare Workers Builds')
+      expect(source, relativePath).not.toContain('pnpm exec wrangler deploy --config apps/')
+      expect(source, relativePath).not.toContain('npx wrangler d1 migrations apply DB --remote')
+    }
   })
 
   it('keeps the non-deterministic dependency audit off the blocking security job', () => {
@@ -107,6 +147,164 @@ describe('CI release contract', () => {
     expect(workflow).toContain('- run: pnpm build')
     expect(workflow).toContain('- run: pnpm smoke:l2-l3')
     expect(workflow).not.toContain('quality:')
+  })
+
+  it('binds production evidence to every deterministic main CI verdict', () => {
+    const workflow = readFileSync(workflowPath, 'utf8')
+    const head = 'a'.repeat(40)
+    const output = JSON.stringify({
+      check_runs: REQUIRED_CI_CHECKS.map((name) => ({
+        name,
+        head_sha: head,
+        status: 'completed',
+        conclusion: 'success',
+      })),
+    })
+
+    for (const name of REQUIRED_CI_CHECKS) {
+      expect(
+        jobBlock(workflow, name),
+        `missing required production evidence job ${name}`,
+      ).toBeDefined()
+    }
+    expect(assertRequiredCiConclusions(output, head)).toEqual({
+      check: 'success',
+      test: 'success',
+      build: 'success',
+      smoke: 'success',
+      security: 'success',
+    })
+
+    const missingSmoke = JSON.stringify({
+      check_runs: JSON.parse(output).check_runs.filter((check) => check.name !== 'smoke'),
+    })
+    expect(() => assertRequiredCiConclusions(missingSmoke, head)).toThrow(
+      `required CI check smoke must appear exactly once for ${head}`,
+    )
+  })
+
+  it('binds production evidence to Core, Console, and Site Workers Builds', () => {
+    const head = 'b'.repeat(40)
+    const targets = {
+      core: { workerName: 'xid' },
+      console: { workerName: 'xid-console' },
+      site: { workerName: 'xid-site' },
+    }
+    const requiredChecks = REQUIRED_CI_CHECKS.map((name) => ({
+      name,
+      head_sha: head,
+      status: 'completed',
+      conclusion: 'success',
+    }))
+    const workerChecks = PRODUCTION_WORKER_KEYS.map((key, index) => ({
+      name: `Workers Builds: ${targets[key].workerName}`,
+      head_sha: head,
+      status: 'completed',
+      conclusion: 'success',
+      id: index + 1,
+      external_id: `build-${key}`,
+      output: { summary: `Version ID: 00000000-0000-4000-8000-00000000000${index}` },
+    }))
+    const output = JSON.stringify({ check_runs: [...requiredChecks, ...workerChecks] })
+
+    expect(assertSuccessfulWorkersBuilds(output, head, targets).workers).toEqual({
+      core: {
+        buildId: 'build-core',
+        checkRunId: 1,
+        workerVersionId: '00000000-0000-4000-8000-000000000000',
+      },
+      console: {
+        buildId: 'build-console',
+        checkRunId: 2,
+        workerVersionId: '00000000-0000-4000-8000-000000000001',
+      },
+      site: {
+        buildId: 'build-site',
+        checkRunId: 3,
+        workerVersionId: '00000000-0000-4000-8000-000000000002',
+      },
+    })
+
+    expect(() =>
+      assertSuccessfulWorkersBuilds(
+        JSON.stringify({ check_runs: [...requiredChecks, ...workerChecks.slice(0, 2)] }),
+        head,
+        targets,
+      ),
+    ).toThrow(`Workers Builds: xid-site must appear exactly once for ${head}`)
+  })
+
+  it('locks all three production Worker targets to the same account', () => {
+    const targets = readConfiguredDeploymentTargets()
+
+    expect(Object.keys(targets)).toEqual(PRODUCTION_WORKER_KEYS)
+    expect(targets.core.workerName).toBe('xid')
+    expect(targets.console.workerName).toBe('xid-console')
+    expect(targets.site.workerName).toBe('xid-site')
+    expect(new Set(PRODUCTION_WORKER_KEYS.map((key) => targets[key].accountId))).toHaveLength(1)
+    expect(targets.core.databaseId).toMatch(/^[a-f0-9-]{36}$/u)
+    expect(targets.console.databaseId).toBeNull()
+    expect(targets.site.databaseId).toBeNull()
+  })
+
+  it('binds the security manifest and remote migration command to verified production inputs', () => {
+    const controls = readCloudflareSecurityRulesState()
+    const target = readConfiguredDeploymentTargets().core
+
+    expect(controls.manifestDigest).toMatch(/^[a-f0-9]{64}$/u)
+    expect(['EXTERNAL', 'RECONCILED']).toContain(controls.deploymentState)
+    expect(verifiedRemoteD1MigrationArgs(target.configPath)).toEqual([
+      '--filter',
+      '@xid-kit/server',
+      'exec',
+      'wrangler',
+      'd1',
+      'migrations',
+      'list',
+      'DB',
+      '--remote',
+      '--config',
+      target.configPath,
+    ])
+  })
+
+  it('requires one exact 100 percent deployment for each Workers Builds version', () => {
+    const expectedVersionId = '00000000-0000-4000-8000-000000000001'
+    const active = {
+      id: 'deployment-current',
+      versions: [{ version_id: expectedVersionId, percentage: 100 }],
+    }
+
+    expect(assertActiveDeployment(JSON.stringify(active), expectedVersionId, 'xid-site')).toEqual({
+      deploymentId: 'deployment-current',
+      workerVersionId: expectedVersionId,
+      activePercentage: 100,
+    })
+    expect(() =>
+      assertActiveDeployment(
+        JSON.stringify({
+          ...active,
+          versions: [
+            { version_id: expectedVersionId, percentage: 100 },
+            { version_id: 'other-version', percentage: 100 },
+          ],
+        }),
+        expectedVersionId,
+        'xid-site',
+      ),
+    ).toThrow('xid-site must have exactly one 100 percent active Worker version')
+    expect(() =>
+      assertActiveDeployment(
+        JSON.stringify({
+          ...active,
+          versions: [{ version_id: 'stale-version', percentage: 100 }],
+        }),
+        expectedVersionId,
+        'xid-site',
+      ),
+    ).toThrow(
+      `xid-site active Worker version stale-version does not match Workers Builds version ${expectedVersionId}`,
+    )
   })
 
   it('passes the verified Linux Chrome path to every smoke command', () => {

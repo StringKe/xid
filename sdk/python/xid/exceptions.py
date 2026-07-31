@@ -23,6 +23,13 @@ class TokenVerificationError(XidError):
         super().__init__(message, code="token_verification_error")
 
 
+class SessionTokenExchangeError(XidError):
+    """Core opaque session cookie exchange failed closed."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="session_token_exchange_error")
+
+
 class WebhookVerificationError(XidError):
     """webhook 签名验证失败或时间窗超限。"""
 

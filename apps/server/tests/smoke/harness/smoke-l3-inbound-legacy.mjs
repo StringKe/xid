@@ -56,8 +56,9 @@ const legacyConnections = {
 
 async function prepareLegacyConnection(fixture, connection) {
   const now = Date.now()
+  const idpSsoUrl = connection.idpSsoUrl ? sqlString(connection.idpSsoUrl) : 'NULL'
   await d1(
-    `INSERT INTO sso_connections (id, tenant_id, org_id, protocol, idp_entity_id, idp_sso_url, idp_slo_url, idp_metadata_url, idp_certificates, oidc_client_id, oidc_discovery_url, want_authn_response_signed, want_assertions_signed, attribute_mapping, role_mapping, jit_enabled, relay_state_url, status, created_at, updated_at) VALUES (${sqlString(connectionId)}, ${sqlString(fixture.tenantId)}, ${sqlString(fixture.tenantId)}, ${sqlString(connection.protocol)}, NULL, ${sqlString(connection.idpSsoUrl ?? null)}, NULL, NULL, '[]', NULL, NULL, 1, 1, ${sqlJson(connection.mapping)}, ${sqlJson({})}, 1, NULL, 'active', ${now}, ${now}) ON CONFLICT(org_id) DO UPDATE SET protocol = excluded.protocol, idp_sso_url = excluded.idp_sso_url, attribute_mapping = excluded.attribute_mapping, status = 'active', updated_at = excluded.updated_at;`,
+    `INSERT INTO sso_connections (id, tenant_id, org_id, protocol, idp_entity_id, idp_sso_url, idp_slo_url, idp_metadata_url, idp_certificates, oidc_client_id, oidc_discovery_url, want_authn_response_signed, want_assertions_signed, attribute_mapping, role_mapping, jit_enabled, relay_state_url, status, created_at, updated_at) VALUES (${sqlString(connectionId)}, ${sqlString(fixture.tenantId)}, ${sqlString(fixture.tenantId)}, ${sqlString(connection.protocol)}, NULL, ${idpSsoUrl}, NULL, NULL, '[]', NULL, NULL, 1, 1, ${sqlJson(connection.mapping)}, ${sqlJson({})}, 1, NULL, 'active', ${now}, ${now}) ON CONFLICT(org_id) DO UPDATE SET id = excluded.id, tenant_id = excluded.tenant_id, protocol = excluded.protocol, idp_sso_url = excluded.idp_sso_url, attribute_mapping = excluded.attribute_mapping, status = 'active', updated_at = excluded.updated_at;`,
     `upsert ${connection.protocol} legacy connection`,
   )
 }
@@ -115,7 +116,7 @@ async function runLegacyFlows(fixture) {
     body: JSON.stringify({ username: 'ldap.user@example.com', password: 'ldap-pass' }),
   })
   if (ldap.res.status !== 302 || !hasSessionCookie(ldap.res)) {
-    throw new Error(`LDAP login failed http=${ldap.res.status}`)
+    throw new Error(`LDAP login failed http=${ldap.res.status} body=${ldap.text}`)
   }
   printResult('PASS', 'legacy LDAP login', `http=${ldap.res.status}`)
 
@@ -131,8 +132,9 @@ async function runLegacyFlows(fixture) {
   }
   const callbackLocation = idpRes.headers.get('location') ?? ''
   const wsfedCallback = await fetch(callbackLocation, { redirect: 'manual' })
+  const wsfedCallbackBody = await wsfedCallback.text()
   if (wsfedCallback.status !== 302 || !hasSessionCookie(wsfedCallback)) {
-    throw new Error(`WS-Fed callback failed http=${wsfedCallback.status}`)
+    throw new Error(`WS-Fed callback failed http=${wsfedCallback.status} body=${wsfedCallbackBody}`)
   }
   printResult('PASS', 'legacy WS-Fed callback', `http=${wsfedCallback.status}`)
 

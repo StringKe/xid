@@ -20,13 +20,21 @@ YES; advanced items carry a priority.
 | /end_session                            | OIDC RP-Init Logout  | YES  | Accepts id_token_hint and post_logout_redirect_uri                                                                                                                                                                                                                                                                      |
 | /device_authorization                   | RFC 8628             | YES  | Includes interval and expires_in, with polling rate limits                                                                                                                                                                                                                                                              |
 | /par                                    | RFC 9126             | YES  | Returns a request_uri valid for 60 seconds and usable once; successful responses also carry `Pragma: no-cache`                                                                                                                                                                                                          |
-| /register                               | RFC 7591 / RFC 7592  | YES  | Dynamic registration plus management endpoints (read/update/delete); an initial access token or software_statement is rejected until a trust root is configured; accepts backchannel_logout_session_required (logout_token always carries sid, but the field is not persisted, so GET returns false)                    |
+| /register                               | RFC 7591 / RFC 7592  | YES  | Dynamic registration plus management endpoints (read/update/delete); an initial access token or software_statement is rejected until a trust root is configured; persists backchannel_logout_session_required across create, read, and update because every logout_token carries sid                    |
 
 Multi-tenancy follows Zitadel's instance issuer model. Hosted production defaults to
 `issuer = https://xid.dev`. An Organization is the boundary for policy, membership, RBAC, data
 isolation, and branding -- it is not a default issuer. The `admin` org and the `app` org do not
 produce independent OIDC issuers. A future custom issuer can only be designed separately as an
 explicit enterprise capability and MUST NOT affect the default xid.dev hosted behavior.
+
+Every protocol transaction resolves its Application-owner Tenant from the validated, globally
+unique `client_id` and the request Instance before considering session cookies. The browser actor
+must have a session in that same top-level Tenant; a cookie belonging to another Tenant is ignored
+and the user is asked to authenticate. ProjectGrant can authorize users from another Organization
+inside the same top-level Tenant, but it does not cross the `tenant_id` isolation boundary. Supporting
+cross-top-level-Tenant RPs would require separate ProtocolContext and ActorContext data-access
+boundaries and is not implemented.
 
 Downstream SaaS OIDC IdP is a separate capability. XID currently has a generic OIDC/OAuth IdP
 baseline plus a fake OIDC RP at L3, which serves as the local protocol foundation for downstream OIDC
@@ -75,16 +83,16 @@ Microsoft custom enterprise app, Atlassian, Salesforce, or Zoom being production
 
 ## 2. Grant types and flows
 
-| Flow                      | Specification       | Supported           | Decision                                                                                                                                                                                                                                   |
-| ------------------------- | ------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| authorization_code + PKCE | RFC 6749 + RFC 7636 | YES, PKCE mandatory | S256 only; `plain` is rejected. Public clients are required to use it unconditionally                                                                                                                                                      |
-| client_credentials        | RFC 6749            | YES                 | Confidential clients only; scope is constrained by the client allowlist                                                                                                                                                                    |
-| refresh_token             | RFC 6749            | YES                 | Rotating, with family detection                                                                                                                                                                                                            |
-| device_code               | RFC 8628            | YES                 | IoT/CLI; device_code and user_code are stored separately                                                                                                                                                                                   |
-| token exchange            | RFC 8693            | YES                 | Impersonation plus delegation; subject_token_type is limited to access and id tokens                                                                                                                                                       |
-| CIBA                      | OIDC CIBA           | YES (poll mode)     | auth_req_id lives in KV; a repeated poll within 5 seconds of a pending state returns slow_down (lastPollAt in KV); successful /backchannel_authentication responses also carry `Pragma: no-cache`; ping and push modes are not implemented |
-| implicit / hybrid         | OIDC Core           | Conditional         | Retained for Hybrid OP certification, marked deprecated, and not recommended for new applications                                                                                                                                          |
-| resource owner password   | RFC 6749            | Not implemented     | Removed by OAuth 2.1                                                                                                                                                                                                                       |
+| Flow                      | Specification       | Supported           | Decision                                                                                                                                                                                                                                  |
+| ------------------------- | ------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| authorization_code + PKCE | RFC 6749 + RFC 7636 | YES, PKCE mandatory | S256 only; `plain` is rejected. Public clients are required to use it unconditionally                                                                                                                                                     |
+| client_credentials        | RFC 6749            | YES                 | Confidential clients only; scope is constrained by the client allowlist                                                                                                                                                                   |
+| refresh_token             | RFC 6749            | YES                 | Rotating, with family detection                                                                                                                                                                                                           |
+| device_code               | RFC 8628            | YES                 | IoT/CLI; device_code and user_code are stored separately                                                                                                                                                                                  |
+| token exchange            | RFC 8693            | YES                 | Impersonation plus delegation; subject_token_type is limited to access and id tokens                                                                                                                                                      |
+| CIBA                      | OIDC CIBA           | YES (poll mode)     | each auth_req_id uses one `CibaStore` Durable Object; pending poll throttling is atomic, while approved redemption uses a fenced `issuing` lease and finalizes only after token signing and optional refresh persistence succeed; failures abort for retry, active leases return authorization_pending, and finalize is fencing-token-idempotent; successful /backchannel_authentication responses also carry `Pragma: no-cache`; ping and push modes are not implemented |
+| implicit / hybrid         | OIDC Core           | Conditional         | Retained for Hybrid OP certification, marked deprecated, and not recommended for new applications                                                                                                                                         |
+| resource owner password   | RFC 6749            | Not implemented     | Removed by OAuth 2.1                                                                                                                                                                                                                      |
 
 PKCE downgrade defense: once a client has registered a code_challenge, every subsequent
 authorization_code request MUST carry a challenge, and the token endpoint rejects the request when it
@@ -98,6 +106,13 @@ MUST contain iss, sub, aud, exp, and iat; conditionally contains auth_time (trig
 nonce, acr, amr, at_hash, and c_hash. `amr` is `phr` for passkey sign-in and `otp` for OTP. Signing
 defaults to ES256 (RS256 and PS256 are also supported for compatibility). JWE encryption is an
 advanced option (RSA-OAEP + A256GCM).
+
+XID currently maps authentication only to the private `urn:xid:aal1` and `urn:xid:aal2` ACR values.
+It does not issue or advertise `urn:xid:aal3`: the available WebAuthn signals do not prove the
+non-exportable, hardware-protected key required by NIST AAL3. An authorization request that asks for
+`urn:xid:aal3` through `acr_values` or `claims.id_token.acr` returns `interaction_required` with an
+explicit unsupported-ACR description. A legacy stored AAL3 value is normalized to AAL2 before any
+new authorization code, access token, ID token, refresh token, or session token is issued.
 
 ### Access token
 
@@ -133,14 +148,23 @@ for the id_token, access_token, and userinfo. Overriding IANA standard claims is
 | Native / mobile           | Mandatory              | None                         |
 | M2M (service account)     | N/A                    | Required, or private_key_jwt |
 
-Client authentication methods: client_secret_basic, client_secret_post, private_key_jwt (RS256/ES256,
+Client authentication methods: client_secret_basic, client_secret_post, private_key_jwt (ES256/RS256/PS256,
 exp <= 5 minutes), tls_client_auth (mTLS, advanced), self_signed_tls_client_auth (advanced), and
 `none` (public clients, which MUST use PKCE).
 
 Other client-level configuration: redirect_uris match exactly and wildcards are not allowed (native
 clients may use loopback IPs and custom schemes only); independently configurable token lifetimes,
 allowed grant_types, response_types, scope sets, and ID token signing algorithm. Dynamic registration
-issues a registration_access_token.
+issues a registration_access_token. A submitted `jwks` is accepted only as a non-empty, normalized
+public signing JWKS: `alg` and `kty` must match, `use` is `sig`, `key_ops` is `verify`, every `kid`
+is non-empty and unique, and private or symmetric members (`d/p/q/dp/dq/qi/oth/k`) are rejected.
+`private_key_jwt` requires this JWKS. Registering a JWKS never changes credential generation:
+`client_secret_basic` and `client_secret_post` still receive a shared secret. Management API and
+Dynamic Client Registration enforce the same registration invariant: `public` means
+`token_endpoint_auth_method=none`, PKCE is mandatory, and no shared secret is generated or retained;
+all other client types require an authenticated token endpoint method. A public client may register
+`refresh_token` only with `dpop_bound_access_tokens=true`. Invalid stored registrations fail closed
+at protocol runtime and cannot be restored or rotated through the Management API.
 
 ## 5. Advanced security
 
@@ -422,6 +446,12 @@ allowed:
   `400 invalid_request`.
 - A `client_id` that disagrees with the client in the `Authorization` header returns
   `400 invalid_request`.
+- The same preflight applies to `/token`, `/par`, `/backchannel_authentication`,
+  `/device_authorization`, `/introspect`, and `/revoke`. A client cannot authenticate with a method
+  different from its registered method, and a `none` client cannot attach a secret or assertion.
+- `/introspect` additionally requires an authenticated confidential client with
+  `first_party=true`. Anonymous DCR clients are created with `first_party=false`, so they cannot
+  enumerate tenant token state; the manager-controlled first-party trust decision fails closed.
 
 ### 9.7 OAuth error code enumeration and HTTP status codes (RFC 6749 5.2 plus extensions)
 

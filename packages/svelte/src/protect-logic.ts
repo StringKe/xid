@@ -3,12 +3,13 @@
 // 纯函数方便单元测试,不依赖 Svelte runtime。
 
 import type { XidState } from '@xid-kit/core'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 export type ProtectOptions = {
   // 要求拥有该 permission(org 权限字符串,如 "org:member:read")。
   permission?: string
-  // 要求拥有该 role(如 "org:admin")。
-  role?: string
+  // 要求拥有该 Organization membership role。
+  role?: OrganizationMembershipRole
 }
 
 // isAllowed:检查 XidState 是否通过保护条件。

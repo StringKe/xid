@@ -17,7 +17,7 @@ describe('getXidAuth', () => {
       userId: 'user_1',
       sessionId: 'sess_1',
       orgId: 'org_1',
-      orgRole: 'org:admin',
+      orgRole: 'admin',
       orgPermissions: ['org:member:read'],
       claims: null,
     }
@@ -65,7 +65,7 @@ describe('handleXid', () => {
         isSignedIn: true,
         userId: 'user_1',
         sessionId: 'sess_1',
-        claims: { active_org_id: 'org_1', org_role: 'org:admin', org_permissions: ['read'] },
+        claims: { active_org_id: 'org_1', org_role: 'admin', org_permissions: ['read'] },
       }),
     }))
 
@@ -85,6 +85,33 @@ describe('handleXid', () => {
     const auth = event.locals['xidAuth']
     expect((auth as { userId: string }).userId).toBe('user_1')
     expect((auth as { orgId: string }).orgId).toBe('org_1')
+  })
+
+  it('clears a Project custom role supplied as org_role', async () => {
+    vi.doMock('@xid-kit/backend', () => ({
+      authenticateRequest: vi.fn().mockResolvedValue({
+        isSignedIn: true,
+        userId: 'user_1',
+        sessionId: 'sess_1',
+        claims: { active_org_id: 'org_1', org_role: 'viewer', org_permissions: ['read'] },
+      }),
+    }))
+
+    const { handleXid } = await import('../server')
+    const handle = handleXid({ jwtKey: { n: 'stub' } })
+    const event = {
+      request: new Request('https://app.example.com/dashboard'),
+      url: new URL('https://app.example.com/dashboard'),
+      locals: {} as Record<string, unknown>,
+    }
+
+    await handle({
+      event,
+      resolve: vi.fn().mockResolvedValue(new Response('OK')),
+    })
+
+    const auth = event.locals['xidAuth'] as { orgRole: unknown }
+    expect(auth.orgRole).toBeNull()
   })
 
   it('redirects to signInUrl for protected routes when not signed in', async () => {

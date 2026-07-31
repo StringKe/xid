@@ -2,6 +2,8 @@
 // Connector registry covers non-SCIM provisioning transports; only header SSO and connector
 // validation are locally implemented. LDAP/SQL/REST/SOAP/PowerShell connectors remain stubs.
 
+import { createTenantDb, schema } from '@xid-kit/db'
+import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -10,10 +12,11 @@ import type { XidHonoEnv } from '../lib/types'
 import { firstIssuePath, readJsonBody } from '../lib/validate'
 import {
   completeLegacyLogin,
-  constantTimeEqual,
   legacyConfig,
   resolveLegacyConnection,
+  trustedProxySecretConfigured,
   type LegacyProfile,
+  verifyTrustedProxySecret,
 } from './legacy-shared'
 import { resolveSsoConnectionTenant, withTenant } from './tenant'
 
@@ -31,7 +34,7 @@ export const DIRECTORY_CONNECTOR_TYPES: DirectoryConnectorType[] = [
     displayName: 'Header-based SSO',
     transport: 'header',
     support: 'implemented',
-    description: 'Trusted reverse-proxy headers mapped to XID users with optional shared secret.',
+    description: 'Trusted reverse-proxy headers mapped to XID users with a required shared secret.',
   },
   {
     key: 'ldap_bind',
@@ -113,15 +116,32 @@ function profileFromHeaders(
   }
 }
 
-function assertTrustedProxy(c: Context<XidHonoEnv>, secret: string | undefined): void {
-  if (!secret?.trim()) {
-    throw new AppError('invalid_credentials', { longMessage: 'trusted_proxy_secret_required' })
-  }
+async function assertTrustedProxy(
+  c: Context<XidHonoEnv>,
+  connection: Awaited<ReturnType<typeof resolveLegacyConnection>>,
+): Promise<void> {
+  const config = legacyConfig(connection)
   const presented =
     c.req.header('X-Trusted-Proxy-Secret') ?? c.req.header('X-Forwarded-Auth-Secret') ?? ''
-  if (!presented || !constantTimeEqual(presented, secret)) {
+  const verified = await verifyTrustedProxySecret(presented, config)
+  if (!verified.valid) {
     throw new AppError('invalid_credentials', { longMessage: 'trusted_proxy_secret_invalid' })
   }
+  if (!verified.migrationDigest) return
+
+  const mapping = { ...(connection.attributeMapping ?? {}) }
+  const currentLegacy =
+    mapping['_legacy'] && typeof mapping['_legacy'] === 'object'
+      ? { ...(mapping['_legacy'] as Record<string, unknown>) }
+      : {}
+  delete currentLegacy['trustedProxySecret']
+  currentLegacy['trustedProxySecretDigest'] = verified.migrationDigest
+  mapping['_legacy'] = currentLegacy
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  await db.ssoConnections.update(
+    { attributeMapping: mapping },
+    eq(schema.ssoConnections.id, connection.id),
+  )
 }
 
 async function handleConnectorTypes(c: Context<XidHonoEnv>): Promise<Response> {
@@ -163,7 +183,7 @@ async function handleConnectorValidate(c: Context<XidHonoEnv>): Promise<Response
         connector: connector.key,
         tenantId: tenant.tenantId,
         connectionId: connection.id,
-        hasTrustedProxySecret: Boolean(config.trustedProxySecret),
+        hasTrustedProxySecret: trustedProxySecretConfigured(connection.attributeMapping),
         hasLdapGateway: Boolean(config.ldapGatewayUrl),
       },
       200,
@@ -179,7 +199,7 @@ async function handleHeaderAuthenticate(c: Context<XidHonoEnv>): Promise<Respons
   return withTenant(c, tenant, async () => {
     const connection = await resolveLegacyConnection(c, connectionId, 'header')
     const config = legacyConfig(connection)
-    assertTrustedProxy(c, config.trustedProxySecret)
+    await assertTrustedProxy(c, connection)
     const profile = profileFromHeaders(c, config)
     if (!profile)
       throw new AppError('invalid_credentials', { longMessage: 'header_identity_missing' })

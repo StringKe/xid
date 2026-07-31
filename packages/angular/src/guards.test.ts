@@ -82,7 +82,7 @@ const ACTIVE_USER = {
         publicMetadata: {},
         createdAt: 0,
       },
-      role: 'admin',
+      role: 'admin' as const,
       permissions: ['org:settings:write', 'org:members:read'],
       createdAt: 0,
     },
@@ -200,7 +200,7 @@ describe('hasPermissionState', () => {
         {
           id: 'mem_2',
           organization: otherOrg,
-          role: 'member',
+          role: 'member' as const,
           permissions: [],
           createdAt: 0,
         },

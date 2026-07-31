@@ -159,7 +159,10 @@ function isReservedIpv6(input: string): boolean {
   if (segments.every((s, i) => (i === 7 ? s === 1 : s === 0))) return true // ::1 loopback
   // IPv4 映射(::ffff:a.b.c.d):按内嵌 IPv4 判定,防 [::ffff:127.0.0.1] 绕过。
   if (segments.slice(0, 5).every((s) => s === 0) && segments[5] === 0xffff) {
-    return isReservedIpv4Value(((segments[6] ?? 0) << 16) | (segments[7] ?? 0))
+    // Do not use bitwise composition here: JavaScript bitwise operators coerce values to signed
+    // int32, so mapped addresses whose first embedded octet is >= 128 could become negative.
+    const embeddedIpv4 = (segments[6] ?? 0) * 0x10000 + (segments[7] ?? 0)
+    return isReservedIpv4Value(embeddedIpv4)
   }
   const first = segments[0] ?? 0
   return first >= 0xfc00 && first <= 0xfdff // fc00::/7 ULA
@@ -175,13 +178,30 @@ export function isPublicHttpsUrl(value: string): boolean {
     return false
   }
   if (url.protocol !== 'https:') return false
+  if (url.username !== '' || url.password !== '') return false
   const hostname = url.hostname
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) return false
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
     return !isReservedIpv6(hostname.slice(1, -1))
   }
   const ipv4 = parseIpv4Value(hostname)
   if (ipv4 !== null) return !isReservedIpv4Value(ipv4)
   return hostname.length > 0
+}
+
+// Local integration harnesses may need to call a loopback upstream over HTTP. Keep this predicate
+// separate from isPublicHttpsUrl so production callers must opt in explicitly by environment.
+export function isLoopbackHttpUrl(value: string): boolean {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'http:') return false
+  if (url.hostname === 'localhost' || url.hostname === '[::1]') return true
+  const ipv4 = parseIpv4Value(url.hostname)
+  return ipv4 !== null && ipv4 >= 0x7f000000 && ipv4 <= 0x7fffffff
 }
 
 // valibot 版:形状层直接产出 validation_failed(paramName 映射回表单字段)。
@@ -213,6 +233,7 @@ function validateSingleRedirectUri(uri: string, applicationType: 'web' | 'native
   } catch {
     return `redirect_uri must be an absolute URL: ${uri}`
   }
+  if (url.username || url.password) return `redirect_uri must not include credentials: ${uri}`
   if (url.hash !== '') return `redirect_uri must not include fragment: ${uri}`
   if (url.protocol === 'https:') return null
   if (applicationType === 'native') {
@@ -243,6 +264,27 @@ export function validateRedirectUris(
   for (const uri of uris) {
     const error = validateSingleRedirectUri(uri, options.applicationType)
     if (error) return { ok: false, error }
+  }
+  return { ok: true }
+}
+
+export function isValidPostLogoutRedirectUri(uri: string): boolean {
+  if (!isPublicHttpsUrl(uri)) return false
+  const url = new URL(uri)
+  return !url.username && !url.password && !url.hash
+}
+
+export function validatePostLogoutRedirectUris(
+  uris: readonly string[],
+): { ok: true } | { ok: false; error: string } {
+  for (const uri of uris) {
+    if (!isValidPostLogoutRedirectUri(uri)) {
+      return {
+        ok: false,
+        error:
+          'post_logout_redirect_uris entries must be public HTTPS URLs without credentials or fragments',
+      }
+    }
   }
   return { ok: true }
 }

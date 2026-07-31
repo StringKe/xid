@@ -2,10 +2,15 @@
 // 把认证结果注入 locals.xidAuth,支持路由保护重定向。
 //
 // 安全模型:locals 是 Astro 服务端私有作用域,不暴露给客户端。
-// session token 存 HttpOnly cookie,middleware 只验签并把只读视图写 locals。
+// short-lived JWT 来自 Bearer、应用自有 JWT cookie,或显式同源 Core cookie-to-JWT exchange。
+// Core __Host-xid.rt.* 是 opaque refresh token,本 middleware 永不本地验证它。
 
 import { authenticateRequest } from '@xid-kit/backend'
-import type { AccessTokenClaims } from '@xid-kit/types'
+import {
+  isOrganizationMembershipRole,
+  type AccessTokenClaims,
+  type OrganizationMembershipRole,
+} from '@xid-kit/types'
 
 import type { AuthResult, XidMiddlewareOptions } from './types'
 
@@ -40,7 +45,7 @@ type SignedInFields = {
   sessionId: string | undefined
   claims: AccessTokenClaims
   orgId: string | undefined
-  orgRole: string | undefined
+  orgRole: OrganizationMembershipRole | undefined
   orgPermissions: string[] | undefined
 }
 
@@ -66,7 +71,8 @@ export function createXidMiddleware(options: XidMiddlewareOptions): AstroMiddlew
     jwtKey,
     issuer,
     authorizedParties,
-    cookieName,
+    jwtCookieName,
+    sessionTokenExchange,
     protectedRoutes = [],
     signInUrl = '/sign-in',
     publicRoutes = [],
@@ -80,7 +86,8 @@ export function createXidMiddleware(options: XidMiddlewareOptions): AstroMiddlew
       jwtKey,
       ...(issuer ? { issuer } : {}),
       ...(authorizedParties ? { authorizedParties } : {}),
-      ...(cookieName ? { cookieName } : {}),
+      ...(jwtCookieName ? { jwtCookieName } : {}),
+      ...(sessionTokenExchange ? { sessionTokenExchange } : {}),
     })
 
     let authResult: AuthResult
@@ -88,7 +95,7 @@ export function createXidMiddleware(options: XidMiddlewareOptions): AstroMiddlew
       const { claims } = requestState
       // active_org_id / org_role / org_permissions are typed optional fields on AccessTokenClaims.
       const orgId = typeof claims.active_org_id === 'string' ? claims.active_org_id : undefined
-      const orgRole = typeof claims.org_role === 'string' ? claims.org_role : undefined
+      const orgRole = isOrganizationMembershipRole(claims.org_role) ? claims.org_role : undefined
       const orgPermissions = Array.isArray(claims.org_permissions)
         ? (claims.org_permissions as string[])
         : undefined
@@ -125,10 +132,3 @@ export function createXidMiddleware(options: XidMiddlewareOptions): AstroMiddlew
     return next()
   }
 }
-
-// onRequest: Astro-required named export for middleware entrypoints.
-// This no-op pass-through satisfies the addMiddleware entrypoint contract when consumers
-// rely on xidIntegration but have not configured jwtKey (authentication is skipped).
-// Consumers who need JWT verification should use createXidMiddleware in their own
-// src/middleware.ts and not depend on this default export.
-export const onRequest: AstroMiddlewareHandler = (_context, next) => next()

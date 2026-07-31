@@ -17,10 +17,13 @@ vi.mock('@lingui/core/macro', () => ({
 import { CONSOLE_SPA_ROUTE_PATHS, router } from './router'
 
 describe('isolated Console router', () => {
-  it('registers the 27 SPA routes and leaves account aliases to the Worker', () => {
+  it('registers the 36 SPA routes and leaves account aliases to the Worker', () => {
     const registeredPaths = Object.keys(router.routesByPath)
 
-    expect(CONSOLE_SPA_ROUTE_PATHS).toHaveLength(27)
+    expect(CONSOLE_SPA_ROUTE_PATHS).toHaveLength(36)
+    expect(registeredPaths).toContain('/console/managed-projects')
+    expect(registeredPaths).toContain('/console/org/projects')
+    expect(registeredPaths).toContain('/console/platform/managers')
     expect(registeredPaths).toEqual(expect.arrayContaining(CONSOLE_SPA_ROUTE_PATHS))
     expect(registeredPaths).not.toContain('/console/sessions')
     expect(registeredPaths).not.toContain('/console/security')

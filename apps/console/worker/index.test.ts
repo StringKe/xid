@@ -109,6 +109,20 @@ describe('console worker', () => {
     expect(fetchAsset).toHaveBeenCalledWith(request)
   })
 
+  it.each([
+    'https://xid.dev/console?source=contract',
+    'https://tenant.xid.dev/console?source=contract',
+  ])('serves the exact Console root query without changing the request %s', async (source) => {
+    const { env, fetchAsset } = createEnv(() => new Response('console shell'))
+    const request = new Request(source)
+    const response = await worker.fetch(request, env)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('console shell')
+    expectSecurityHeaders(response)
+    expect(fetchAsset).toHaveBeenCalledWith(request)
+  })
+
   it('keeps an asset 404 instead of returning the SPA shell', async () => {
     const { env, fetchAsset } = createEnv(() => new Response(null, { status: 404 }))
     const request = new Request('https://xid.dev/console/assets/missing.js', {

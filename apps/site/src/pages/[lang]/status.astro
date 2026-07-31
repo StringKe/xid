@@ -1,0 +1,11 @@
+---
+import type { GetStaticPaths } from "astro";
+import StatusPage from "@/components/StatusPage.astro";
+import { getLocalizedStatusStaticPaths } from "@/lib/status-surface";
+
+export const prerender = true;
+export const getStaticPaths: GetStaticPaths = () =>
+  getLocalizedStatusStaticPaths();
+---
+
+<StatusPage />

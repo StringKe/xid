@@ -31,17 +31,48 @@ type TableSet = {
   sessions?: Rows
   manager_assignments?: Rows
   organizations?: Rows
+  memberships?: Rows
   users?: Rows
   user_emails?: Rows
   audit_events?: Rows
   usage_daily?: Rows
   usage_monthly?: Rows
   instances?: Rows
+  queue_dead_letters?: Rows
+  organization_plans?: Rows
+  organization_quotas?: Rows
+  platform_audit_outbox?: Rows
 }
 
 function tableNameForSql(sql: string): keyof TableSet | 'unknown' {
   const l = sql.toLowerCase()
+  const mutationTarget = /^\s*(?:update|delete\s+from|insert\s+into)\s+"?([a-z_]+)"?/u.exec(l)?.[1]
+  if (
+    mutationTarget &&
+    [
+      'sessions',
+      'manager_assignments',
+      'organizations',
+      'memberships',
+      'users',
+      'user_emails',
+      'audit_events',
+      'usage_daily',
+      'usage_monthly',
+      'instances',
+      'queue_dead_letters',
+      'organization_plans',
+      'organization_quotas',
+      'platform_audit_outbox',
+    ].includes(mutationTarget)
+  ) {
+    return mutationTarget as keyof TableSet
+  }
+  if (/^\s*insert\s+into\s+platform_audit_outbox\b/u.test(l)) {
+    return 'platform_audit_outbox'
+  }
   const from = /\bfrom\s+"?([a-z_]+)"?/i.exec(l)?.[1]
+  if (from === 'memberships') return 'memberships'
   if (from === 'users') return 'users'
   if (from === 'organizations') return 'organizations'
   if (from === 'sessions') return 'sessions'
@@ -51,13 +82,22 @@ function tableNameForSql(sql: string): keyof TableSet | 'unknown' {
   if (from === 'usage_daily') return 'usage_daily'
   if (from === 'usage_monthly') return 'usage_monthly'
   if (from === 'instances') return 'instances'
+  if (from === 'queue_dead_letters') return 'queue_dead_letters'
+  if (from === 'organization_plans') return 'organization_plans'
+  if (from === 'organization_quotas') return 'organization_quotas'
+  if (from === 'platform_audit_outbox') return 'platform_audit_outbox'
   // 顺序敏感:更具体的表名先判,避免 'users' 命中 'user_emails'。
+  if (l.includes('memberships')) return 'memberships'
   if (l.includes('manager_assignments')) return 'manager_assignments'
   if (l.includes('user_emails')) return 'user_emails'
   if (l.includes('audit_events')) return 'audit_events'
   if (l.includes('usage_daily')) return 'usage_daily'
   if (l.includes('usage_monthly')) return 'usage_monthly'
   if (l.includes('instances')) return 'instances'
+  if (l.includes('queue_dead_letters')) return 'queue_dead_letters'
+  if (l.includes('organization_plans')) return 'organization_plans'
+  if (l.includes('organization_quotas')) return 'organization_quotas'
+  if (l.includes('platform_audit_outbox')) return 'platform_audit_outbox'
   if (l.includes('organizations')) return 'organizations'
   if (l.includes('sessions')) return 'sessions'
   if (l.includes('users')) return 'users'
@@ -93,7 +133,7 @@ function updateSetColumns(sql: string): string[] {
   const match = /^update\s+"?[a-z_]+"?\s+set\s+(.+?)\s+where\s/i.exec(sql.toLowerCase())
   const setClause = match?.[1]
   if (!setClause) return []
-  return [...setClause.matchAll(/"([a-z_]+)"\s*=/g)].map((m) => m[1] ?? '')
+  return [...setClause.matchAll(/"?([a-z_]+)"?\s*=/g)].map((m) => m[1] ?? '')
 }
 
 function filterNoParamPredicates(sql: string, table: keyof TableSet | 'unknown', rows: Rows): Rows {
@@ -124,9 +164,19 @@ function groupedCountRows(sql: string, rows: Rows): unknown[][] | null {
   const l = sql.toLowerCase()
   if (!isAggregateCount(sql) || !l.includes('group by') || !l.includes('"tenant_id"')) return null
   const counts = new Map<unknown, number>()
+  const distinctUsers = new Map<unknown, Set<unknown>>()
   for (const row of rows) {
     const tenantId = row['tenant_id']
+    if (l.includes('count(distinct')) {
+      const users = distinctUsers.get(tenantId) ?? new Set()
+      users.add(row['user_id'])
+      distinctUsers.set(tenantId, users)
+      continue
+    }
     counts.set(tenantId, (counts.get(tenantId) ?? 0) + 1)
+  }
+  if (l.includes('count(distinct')) {
+    return [...distinctUsers.entries()].map(([tenantId, users]) => [tenantId, users.size])
   }
   return [...counts.entries()].map(([tenantId, value]) => [tenantId, value])
 }
@@ -165,7 +215,10 @@ function makeFakeD1(tables: TableSet): D1Database {
         }))
       rows = [...rows, ...verifiedDefaults]
     }
-    const stringParams = params.slice(skipParams).filter((v): v is string => typeof v === 'string')
+    const predicateParams = params
+      .slice(skipParams)
+      .slice(0, sql.includes('mutation_audit_gate') ? -1 : undefined)
+    const stringParams = predicateParams.filter((v): v is string => typeof v === 'string')
     return stringParams.length === 0
       ? rows
       : rows.filter((r) => stringParams.every((v) => rowMatchesParam(r, sql, v)))
@@ -180,6 +233,71 @@ function makeFakeD1(tables: TableSet): D1Database {
       })
     }
     return rows
+  }
+
+  const applyInsert = (sql: string, params: unknown[]): number => {
+    const table = tableNameForSql(sql)
+    if (table === 'organization_plans') {
+      const target = (tables.organization_plans ??= [])
+      const tenantId = String(params[0])
+      const row =
+        target.find((candidate) => candidate['tenant_id'] === tenantId) ??
+        (() => {
+          const created: Record<string, unknown> = { tenant_id: tenantId }
+          target.push(created)
+          return created
+        })()
+      Object.assign(row, {
+        plan: params[1],
+        status: params[2],
+        source: 'manual',
+        trial_ends_at: params[3],
+        effective_at: params[4],
+        updated_by: params[5],
+        created_at: row['created_at'] ?? params[6],
+        updated_at: params[7],
+      })
+      return 1
+    }
+    if (table === 'organization_quotas') {
+      const target = (tables.organization_quotas ??= [])
+      const tenantId = String(params[0])
+      const quotaKey = String(params[1])
+      const row =
+        target.find(
+          (candidate) => candidate['tenant_id'] === tenantId && candidate['quota_key'] === quotaKey,
+        ) ??
+        (() => {
+          const created: Record<string, unknown> = {
+            tenant_id: tenantId,
+            quota_key: quotaKey,
+          }
+          target.push(created)
+          return created
+        })()
+      Object.assign(row, {
+        limit: params[2],
+        enforcement: params[3],
+        updated_by: params[4],
+        created_at: row['created_at'] ?? params[5],
+        updated_at: params[6],
+      })
+      return 1
+    }
+    if (table === 'platform_audit_outbox') {
+      const target = (tables.platform_audit_outbox ??= [])
+      target.push({
+        id: params[0],
+        tenant_id: params[1],
+        org_id: params[2],
+        action: params[3],
+        actor_id: params[4],
+        payload: params[5],
+        status: 'pending',
+      })
+      return 1
+    }
+    return 1
   }
 
   const rawRows = (sql: string, params: unknown[]): unknown[][] => {
@@ -201,12 +319,24 @@ function makeFakeD1(tables: TableSet): D1Database {
       },
       raw: async () => rawRows(sql, bound),
       all: async () => ({ results: match(sql, bound), success: true, meta: {} }),
-      run: async () => ({ results: [], success: true, meta: {} }),
+      run: async () => {
+        const statementType = sql.trimStart().toLowerCase()
+        const changes = statementType.startsWith('update')
+          ? applyUpdate(sql, bound).length
+          : statementType.startsWith('insert')
+            ? applyInsert(sql, bound)
+            : 0
+        return { results: [], success: true, meta: { changes } }
+      },
       first: async () => match(sql, bound)[0] ?? null,
     }
     return stmt
   }
-  return asUnknown<D1Database>({ prepare, batch: async () => [] })
+  return asUnknown<D1Database>({
+    prepare,
+    batch: async (statements: D1PreparedStatement[]) =>
+      Promise.all(statements.map((statement) => statement.run())),
+  })
 }
 
 // SessionDO fake:is-active 永远 true(测试关注门控分支,非 DO 撤销逻辑)。
@@ -363,14 +493,36 @@ function doPatch(opts: {
   )
 }
 
+function doPost(
+  app: Hono<XidHonoEnv>,
+  env: Env,
+  path: string,
+  cookie?: { name: string; value: string },
+): Promise<Response> {
+  return Promise.resolve(
+    app.request(
+      `https://xid.dev${path}`,
+      {
+        method: 'POST',
+        headers: cookie ? { Cookie: `${cookie.name}=${cookie.value}` } : undefined,
+      },
+      env,
+      execCtx,
+    ),
+  )
+}
+
 const GET_ENDPOINTS = [
   '/v1/platform/stats',
   '/v1/platform/organizations',
   '/v1/platform/users?q=alice',
   '/v1/platform/audit-events',
+  '/v1/platform/audit/verify?tenant_id=org_admin',
   '/v1/platform/billing',
   '/v1/platform/feature-flags',
   '/v1/platform/settings',
+  '/v1/platform/dead-letters',
+  '/v1/platform/plans/org_admin',
 ] as const
 
 describe('platform-console 门控:cookie 缺失 -> 401 unauthorized', () => {
@@ -429,6 +581,37 @@ describe('platform-console 越权:org A 普通用户(无 instance_manager 分配
       expect(body['code']).toBe('forbidden')
     })
   }
+})
+
+describe('platform dead-letter replay authorization', () => {
+  it('POST replay without a session is rejected before record lookup', async () => {
+    const response = await doPost(
+      buildApp(),
+      makeEnv({ queue_dead_letters: [{ id: 'dlq_1' }] }),
+      '/v1/platform/dead-letters/dlq_1/replay',
+    )
+    expect(response.status).toBe(401)
+    expect(await response.json()).toMatchObject({ code: 'unauthorized' })
+  })
+
+  it('POST replay rejects an organization user without instance_manager', async () => {
+    const { token, cookieName, row } = await makeSessionRow({
+      tenantId: 'org_admin',
+      userId: 'user_a',
+    })
+    const response = await doPost(
+      buildApp(),
+      makeEnv({
+        sessions: [row],
+        users: [activeUserRow('user_a')],
+        queue_dead_letters: [{ id: 'dlq_1' }],
+      }),
+      '/v1/platform/dead-letters/dlq_1/replay',
+      { name: cookieName, value: token },
+    )
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ code: 'forbidden' })
+  })
 })
 
 describe('platform-console happy path:instance_manager 放行 + 契约响应形状', () => {
@@ -604,6 +787,35 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
           created_at: now,
         },
       ],
+      memberships: [
+        {
+          user_id: 'user_active_alice',
+          tenant_id: 'org_a',
+          id: 'org_child_1',
+          slug: 'alpha',
+          name: 'Alpha',
+          status: 'active',
+          deleted_at: null,
+        },
+        {
+          user_id: 'user_active_alice',
+          tenant_id: 'org_a',
+          id: 'org_child_2',
+          slug: 'beta',
+          name: 'Beta',
+          status: 'active',
+          deleted_at: null,
+        },
+        {
+          user_id: 'user_active_alice',
+          tenant_id: 'org_other',
+          id: 'org_cross_tenant',
+          slug: 'cross-tenant',
+          name: 'Cross tenant',
+          status: 'active',
+          deleted_at: null,
+        },
+      ],
     })
     const app = buildApp()
 
@@ -613,6 +825,11 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const body = (await res.json()) as Record<string, unknown>
     const data = body['data'] as Record<string, unknown>[]
     expect(data.map((row) => row['id'])).toEqual(['user_active_alice'])
+    expect(data[0]?.['organizations']).toEqual([
+      { id: 'org_child_1', slug: 'alpha', name: 'Alpha' },
+      { id: 'org_child_2', slug: 'beta', name: 'Beta' },
+    ])
+    expect(data[0]).not.toHaveProperty('organizationId')
     expect(body['total']).toBe(1)
   })
 
@@ -625,6 +842,84 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     expect(Array.isArray(body['data'])).toBe(true)
     expect('nextCursor' in body).toBe(true)
     expect(body['total']).toBeTypeOf('number')
+  })
+
+  it('GET /v1/platform/audit/verify -> 200 + empty valid chain contract', async () => {
+    const { env, cookie } = await instanceManagerEnv({})
+    const res = await doRequest(
+      buildApp(),
+      env,
+      '/v1/platform/audit/verify?tenant_id=org_admin',
+      cookie,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      tenant_id: 'org_admin',
+      verified_range: { from: 1, to: 0 },
+      chain_valid: true,
+      broken_at_seq: null,
+      failure_reason: null,
+      record_count: 0,
+    })
+  })
+
+  it('GET /v1/platform/audit/verify rejects an explicit non-empty range for an empty chain', async () => {
+    const { env, cookie } = await instanceManagerEnv({})
+    const res = await doRequest(
+      buildApp(),
+      env,
+      '/v1/platform/audit/verify?tenant_id=org_admin&to_seq=1',
+      cookie,
+    )
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({
+      code: 'validation_failed',
+    })
+  })
+
+  it('GET /v1/platform/dead-letters -> 200 + redacted Page<QueueDeadLetter>', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      queue_dead_letters: [
+        {
+          id: 'dlq_1',
+          source_queue: 'xid-email',
+          dead_letter_queue: 'xid-email-dlq',
+          message_id: 'message_1',
+          tenant_id: 'org_admin',
+          org_id: null,
+          event_type: 'verify_email',
+          error_code: 'consumer_retries_exhausted',
+          status: 'pending',
+          attempts: 1,
+          payload_iv: 'secret-iv',
+          payload_ciphertext: 'secret-ciphertext',
+          payload_tag: 'secret-tag',
+          payload_kek_version: 1,
+          source_enqueued_at: Date.now() - 1000,
+          failed_at: Date.now(),
+          replay_requested_at: null,
+          replayed_at: null,
+          replayed_by: null,
+          replay_count: 0,
+          last_replay_error_code: null,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        },
+      ],
+    })
+    const app = buildApp()
+    const res = await doRequest(app, env, '/v1/platform/dead-letters', cookie)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(Array.isArray(body['data'])).toBe(true)
+    expect('nextCursor' in body).toBe(true)
+    expect(body['total']).toBeTypeOf('number')
+    const serialized = JSON.stringify(body)
+    expect(serialized).toContain('xid-email')
+    expect(serialized).not.toContain('payloadCiphertext')
+    expect(serialized).not.toContain('secret-ciphertext')
   })
 
   it('GET /v1/platform/billing -> 200 + Page<BillingOverview>', async () => {
@@ -642,6 +937,44 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
           created_at: Date.now(),
         },
       ],
+      organization_quotas: [
+        {
+          tenant_id: 'org_admin',
+          quota_key: 'seats',
+          limit: 2,
+          enforcement: 'block_creation',
+        },
+      ],
+      memberships: [
+        {
+          id: 'mem_1',
+          tenant_id: 'org_admin',
+          org_id: 'org_admin',
+          user_id: 'user_a',
+          status: 'active',
+        },
+        {
+          id: 'mem_2',
+          tenant_id: 'org_admin',
+          org_id: 'org_child',
+          user_id: 'user_a',
+          status: 'active',
+        },
+        {
+          id: 'mem_3',
+          tenant_id: 'org_admin',
+          org_id: 'org_child',
+          user_id: 'user_b',
+          status: 'active',
+        },
+        {
+          id: 'mem_4',
+          tenant_id: 'org_admin',
+          org_id: 'org_admin',
+          user_id: 'user_c',
+          status: 'inactive',
+        },
+      ],
     })
     const app = buildApp()
     const res = await doRequest(app, env, '/v1/platform/billing', cookie)
@@ -650,6 +983,222 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     expect(Array.isArray(body['data'])).toBe(true)
     expect('nextCursor' in body).toBe(true)
     expect(body['total']).toBeTypeOf('number')
+    expect(body['data']).toEqual([
+      expect.objectContaining({ organizationId: 'org_admin', seatUsed: 2, seatLimit: 2 }),
+    ])
+  })
+
+  it('GET /v1/platform/plans/:tenantId -> 200 + default accounting label without feature gating', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [
+        {
+          id: 'org_admin',
+          tenant_id: 'org_admin',
+          parent_org_id: null,
+          status: 'active',
+          slug: 'admin',
+          name: 'Admin',
+          seat_used: 1,
+          seat_limit: null,
+          created_at: Date.now(),
+        },
+      ],
+    })
+    const response = await doRequest(buildApp(), env, '/v1/platform/plans/org_admin', cookie)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      tenantId: 'org_admin',
+      plan: 'free',
+      status: 'active',
+      supportLabel: 'community',
+      seatLimit: null,
+      quotas: [{ key: 'seats', limit: null, enforcement: 'block_creation' }],
+    })
+  })
+
+  it('PATCH /v1/platform/plans/:tenantId atomically persists plan, seat, quota and audit outbox', async () => {
+    const organization = {
+      id: 'org_admin',
+      tenant_id: 'org_admin',
+      parent_org_id: null,
+      status: 'active',
+      slug: 'admin',
+      name: 'Admin',
+      seat_used: 1,
+      seat_limit: null,
+      created_at: Date.now(),
+    }
+    const tables: TableSet = {
+      organizations: [organization],
+      organization_plans: [],
+      organization_quotas: [],
+      platform_audit_outbox: [],
+    }
+    const { env, cookie } = await instanceManagerEnv(tables)
+    const response = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/plans/org_admin',
+      body: {
+        plan: 'starter',
+        status: 'trialing',
+        seatLimit: 50,
+        quotas: [{ key: 'api_calls', limit: 1_000_000, enforcement: 'observe' }],
+      },
+      cookie,
+    })
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body).toMatchObject({
+      tenantId: 'org_admin',
+      plan: 'starter',
+      status: 'trialing',
+      seatLimit: 50,
+      quotas: expect.arrayContaining([
+        { key: 'seats', limit: 50, enforcement: 'block_creation' },
+        { key: 'api_calls', limit: 1_000_000, enforcement: 'observe' },
+      ]),
+    })
+    expect(organization['seat_limit']).toBe(50)
+    expect(tables.organization_plans).toHaveLength(1)
+    expect(tables.organization_quotas).toHaveLength(2)
+    expect(tables.platform_audit_outbox).toHaveLength(1)
+  })
+
+  it('PATCH plan-only applies the accounting label defaults without a license gate', async () => {
+    const organization = {
+      id: 'org_admin',
+      tenant_id: 'org_admin',
+      parent_org_id: null,
+      status: 'active',
+      slug: 'admin',
+      name: 'Admin',
+      seat_used: 1,
+      seat_limit: null,
+      created_at: Date.now(),
+    }
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [organization],
+      organization_plans: [],
+      organization_quotas: [],
+      platform_audit_outbox: [],
+    })
+    const response = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/plans/org_admin',
+      body: { plan: 'pro' },
+      cookie,
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      plan: 'pro',
+      supportLabel: 'priority',
+      seatLimit: 250,
+      quotas: expect.arrayContaining([
+        { key: 'seats', limit: 250, enforcement: 'block_creation' },
+        { key: 'api_calls', limit: 10_000_000, enforcement: 'observe' },
+      ]),
+    })
+  })
+
+  it.each(['api_calls', 'emails', 'mau'])(
+    'PATCH rejects block_creation for observational quota %s',
+    async (key) => {
+      const { env, cookie } = await instanceManagerEnv({
+        organizations: [
+          {
+            id: 'org_admin',
+            tenant_id: 'org_admin',
+            parent_org_id: null,
+            status: 'active',
+            slug: 'admin',
+            name: 'Admin',
+            seat_used: 1,
+            seat_limit: null,
+            created_at: Date.now(),
+          },
+        ],
+        organization_plans: [],
+        organization_quotas: [],
+        platform_audit_outbox: [],
+      })
+      const response = await doPatch({
+        app: buildApp(),
+        env,
+        path: '/v1/platform/plans/org_admin',
+        body: { quotas: [{ key, limit: 1, enforcement: 'block_creation' }] },
+        cookie,
+      })
+
+      expect(response.status).toBe(422)
+    },
+  )
+
+  it('PATCH rejects an observational seats quota alias', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [
+        {
+          id: 'org_admin',
+          tenant_id: 'org_admin',
+          parent_org_id: null,
+          status: 'active',
+          slug: 'admin',
+          name: 'Admin',
+          seat_used: 1,
+          seat_limit: null,
+          created_at: Date.now(),
+        },
+      ],
+      organization_plans: [],
+      organization_quotas: [],
+      platform_audit_outbox: [],
+    })
+    const response = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/plans/org_admin',
+      body: { quotas: [{ key: 'seats', limit: 10, enforcement: 'observe' }] },
+      cookie,
+    })
+
+    expect(response.status).toBe(422)
+  })
+
+  it('PATCH rejects conflicting seatLimit and seats quota aliases', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [
+        {
+          id: 'org_admin',
+          tenant_id: 'org_admin',
+          parent_org_id: null,
+          status: 'active',
+          slug: 'admin',
+          name: 'Admin',
+          seat_used: 1,
+          seat_limit: null,
+          created_at: Date.now(),
+        },
+      ],
+      organization_plans: [],
+      organization_quotas: [],
+      platform_audit_outbox: [],
+    })
+    const response = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/plans/org_admin',
+      body: {
+        seatLimit: 10,
+        quotas: [{ key: 'seats', limit: 20, enforcement: 'block_creation' }],
+      },
+      cookie,
+    })
+
+    expect(response.status).toBe(422)
   })
 
   it('GET /v1/platform/feature-flags -> 200 + FeatureFlag[](裸数组)', async () => {

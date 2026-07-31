@@ -15,6 +15,9 @@ export async function requireVerifiedManagementMutation(
     throw new AppError('unauthorized', { httpStatus: 401 })
   }
   if (SAFE_MANAGEMENT_METHODS.has(c.req.method.toUpperCase())) return
+  if (session.isImpersonation) {
+    throw new AppError('forbidden', { httpStatus: 403 })
+  }
 
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const user = await db.users.findOne(eq(schema.users.id, session.userId))

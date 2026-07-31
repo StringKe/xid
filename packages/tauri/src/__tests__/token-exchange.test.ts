@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { TauriTokenError, exchangeCodeForTokens, refreshAccessToken } from '../token-exchange'
+import { TauriTokenError, exchangeCodeForTokens } from '../token-exchange'
 
 // Build a minimal fake fetch that returns a fixed JSON response.
 function makeFakeFetch(status: number, body: unknown): typeof fetch {
@@ -33,19 +33,10 @@ describe('exchangeCodeForTokens', () => {
     const result = await exchangeCodeForTokens({ ...BASE_EXCHANGE_OPTIONS, fetcher })
 
     expect(result.accessToken).toBe('at.jwt')
-    expect(result.refreshToken).toBe('rt.xyz')
+    expect(result).not.toHaveProperty('refreshToken')
     expect(result.idToken).toBe('it.jwt')
     // expiresAt = now() + expires_in = 1_000_000 + 3600
     expect(result.expiresAt).toBe(1_003_600)
-  })
-
-  it('sets refreshToken to null when response omits refresh_token', async () => {
-    const body = { ...VALID_TOKEN_RESPONSE, refresh_token: undefined }
-    const fetcher = makeFakeFetch(200, body)
-
-    const result = await exchangeCodeForTokens({ ...BASE_EXCHANGE_OPTIONS, fetcher })
-
-    expect(result.refreshToken).toBeNull()
   })
 
   it('throws TauriTokenError on server error response', async () => {
@@ -101,36 +92,5 @@ describe('exchangeCodeForTokens', () => {
     await exchangeCodeForTokens({ ...BASE_EXCHANGE_OPTIONS, fetcher })
 
     expect(capturedBody).toContain('code_verifier=verifier-abc')
-  })
-})
-
-describe('refreshAccessToken', () => {
-  const BASE_REFRESH_OPTIONS = {
-    issuer: 'https://xid.dev',
-    clientId: 'client_123',
-    refreshToken: 'rt.old',
-    now: () => 1_000_000,
-  }
-
-  it('returns a new TokenSet with rotated tokens', async () => {
-    const fetcher = makeFakeFetch(200, {
-      access_token: 'at.new',
-      token_type: 'Bearer',
-      expires_in: 3600,
-      refresh_token: 'rt.new',
-    })
-
-    const result = await refreshAccessToken({ ...BASE_REFRESH_OPTIONS, fetcher })
-
-    expect(result.accessToken).toBe('at.new')
-    expect(result.refreshToken).toBe('rt.new')
-  })
-
-  it('throws TauriTokenError when refresh token is invalid', async () => {
-    const fetcher = makeFakeFetch(400, { error: 'invalid_grant' })
-
-    await expect(refreshAccessToken({ ...BASE_REFRESH_OPTIONS, fetcher })).rejects.toThrow(
-      TauriTokenError,
-    )
   })
 })

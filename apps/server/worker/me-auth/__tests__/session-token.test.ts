@@ -20,7 +20,12 @@ vi.mock('../../oidc/shared', async (importOriginal) => {
   }
 })
 
-vi.mock('../../lib/session', () => ({ readSession: vi.fn(), ACTIVE_SESSION_STATUS: 'active' }))
+vi.mock('../../lib/session', () => ({
+  readSession: vi.fn(),
+  ACTIVE_SESSION_STATUS: 'active',
+  PENDING_MFA_SESSION_STATUS: 'pending_mfa',
+  PENDING_MFA_SETUP_SESSION_STATUS: 'pending_mfa_setup',
+}))
 
 import { buildAccessTokenClaims } from '@xid-kit/protocol'
 import { loadActiveSigner } from '../../oidc/shared'
@@ -45,13 +50,71 @@ describe('POST /v1/sessions/token', () => {
   })
 
   it('claims:scope=openid + ttl=60s + sid=sessionId', async () => {
-    const app = makeApp(registerSessionAuthRoutes, { session: makeSession('user-1', 'sess-42') })
+    const session = {
+      ...makeSession('user-1', 'sess-42'),
+      activeOrgId: 'org-1',
+      authenticatedAt: new Date('2026-07-28T00:00:00Z'),
+      acr: 'urn:xid:aal2',
+      amr: ['pwd', 'otp'] as const,
+    }
+    const app = makeApp(registerSessionAuthRoutes, { session })
     await post(app, makeEnv())
     expect(buildAccessTokenClaims).toHaveBeenCalledWith(
       expect.objectContaining({
         scope: 'openid',
         ttlSec: 60,
-        options: { sid: 'sess-42' },
+        options: {
+          sid: 'sess-42',
+          activeOrgId: 'org-1',
+          authContext: {
+            authTime: Math.floor(session.authenticatedAt.getTime() / 1000),
+            acr: 'urn:xid:aal2',
+            amr: ['pwd', 'otp'],
+          },
+        },
+      }),
+    )
+  })
+
+  it('does not propagate a legacy urn:xid:aal3 session into a new session token', async () => {
+    const session = {
+      ...makeSession('user-1', 'sess-legacy-aal3'),
+      acr: 'urn:xid:aal3',
+      aal: 3,
+      amr: ['phr', 'mfa'] as const,
+    }
+    const app = makeApp(registerSessionAuthRoutes, { session })
+    await post(app, makeEnv())
+
+    expect(buildAccessTokenClaims).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          authContext: expect.objectContaining({ acr: 'urn:xid:aal2' }),
+        }),
+      }),
+    )
+  })
+
+  it('adds an act claim for an impersonation session without changing the target subject', async () => {
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: {
+        ...makeSession('user-target', 'sess-impersonation'),
+        activeOrgId: 'org-target',
+        isImpersonation: true,
+        impersonatorUserId: 'user-manager',
+      },
+    })
+
+    await post(app, makeEnv())
+
+    expect(buildAccessTokenClaims).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: { userId: 'user-target' },
+        options: expect.objectContaining({
+          sid: 'sess-impersonation',
+          activeOrgId: 'org-target',
+          act: { sub: 'user-manager' },
+        }),
       }),
     )
   })

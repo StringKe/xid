@@ -1,6 +1,6 @@
-<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=5d55b0c source-blob=db7339f4608db277618000265d6f277b53a32bb5 -->
+<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=working-tree source-blob=1be431aea13c668193696b5dc32e184762830e20 -->
 
-> Translation of `docs/sdks/platform-matrix.md` at commit `5d55b0c`. The English version is authoritative.
+> Translation of `docs/sdks/platform-matrix.md`. The English version is authoritative.
 > 本文是 [`docs/sdks/platform-matrix.md`](../../sdks/platform-matrix.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
 
 # SDK 平台矩阵
@@ -11,12 +11,23 @@
 
 ## 分发方式
 
-- `@xid-kit/*` 是 npm workspace 包,随仓库发布。
-- `sdk/` 下的 13 个原生 SDK(go、java、rust、php、ruby、python、dotnet、ios、android、macos、windows、linux、flutter)**不发布到任何 registry**,不上 crates.io / PyPI / Maven / RubyGems / Packagist / NuGet / CocoaPods / pub.dev。它们以源码形式内置在仓库中。CI 不安装任何语言工具链,也不运行它们的测试套件:`pnpm check` 串了 `pnpm native:verify`,它只断言 `tests/native-sdk-contract.test.mjs` 契约矩阵里的每个平台都指向一个真实存在的目录。跑某个平台的真实测试套件是本地按需动作(`XID_NATIVE_SDK_PLATFORM=go pnpm native:verify`),见 [../deployment.md](../deployment.md)。要用就 vendor 源码或按各自 README 从本地路径引用。
+- 15 个公开 TypeScript SDK 及其 3 个必需 runtime kernel(`types`、`crypto`、`protocol`)可以生成
+  经审计的 `0.1.0-alpha.0` npm tarball。**当前没有执行或授权 npm publish。**
+  `pnpm run sdk:distribution:verify` 使用 `vp pack` 构建并审计全部 tarball,然后把代表性 tarball
+  dependency closure 安装到全新 consumer,严格检查类型、runtime、browser、Worker 与 native peer
+  resolution。见
+  [distribution.md](distribution.md)。
+- `sdk/` 下的 13 个原生 SDK(go、java、rust、php、ruby、python、dotnet、ios、android、macos、
+  windows、linux、flutter)**没有发布到任何 registry**,包括 crates.io、PyPI、Maven Central、
+  RubyGems、Packagist、NuGet、CocoaPods、Swift Package Registry、pub.dev。它们以源码分发。
+  `pnpm native:verify` 检查目录、package manifest、package-format metadata 与真实的 source-only
+  README 文案。各语言真实测试套件继续由本地显式触发
+  (`XID_NATIVE_SDK_PLATFORM=go pnpm native:verify`),见 [../deployment.md](../deployment.md)。
 
 ## 状态规则
 
-- `current package`:仓库中已有 package、源码、测试入口和 workspace 配置。
+- `current package`:仓库中已有 package、源码、测试入口、workspace 配置与本地验证过的 release
+  artifact,不代表已发布到 registry。
 - `implemented`:工具链编译通过 + 单元测试全部 PASS。**真实 IdP round-trip(L4)尚未验证,不要按完整 production SDK 预期**。
 - `scaffold`:仓库中已有最小 package、类型、README 或 sample 的起步骨架,**不是完整 production SDK**。源码存在但测试未通过验证。生产前必须真实工具链编译 + 对真实 IdP round-trip 验证。
 - `planned design`:只有平台设计和集成流程,仓库中没有任何代码骨架(当前全部平台已至少 scaffold,本状态保留给未来新增平台)。
@@ -58,26 +69,41 @@ Web 框架层在 `@xid-kit/core`(浏览器核心)之上提供 provider、hooks/c
 | Nuxt               | `@xid-kit/nuxt`    | current package | -                                                                | Module、server middleware、composables                            |
 | Svelte / SvelteKit | `@xid-kit/svelte`  | current package | -                                                                | Stores、actions、prebuilt components                              |
 | Angular            | `@xid-kit/angular` | current package | -                                                                | Provider、guards、services、components                            |
-| Remix              | `@xid-kit/remix`   | current package | -                                                                | Loader/action helpers、session 集成                               |
+| Remix              | `@xid-kit/remix`   | implemented     | 单元测试 + check + typecheck                                     | Loader/action helpers、session 集成、PKCE callback exchange       |
 | Astro              | `@xid-kit/astro`   | current package | -                                                                | Integration、middleware、islands 组件                             |
 | SolidJS            | `@xid-kit/solid`   | current package | -                                                                | Provider、primitives、components                                  |
 
+Remix callback 在 Core 根 `POST /token` endpoint 交换 authorization code。Hosted 默认值是
+`https://xid.dev/token`;self-hosted instance 通过 `tokenEndpoint` 覆盖为其 issuer 的
+`/token` URL。单元测试覆盖两种 URL 分支、PKCE、state、session 持久化、错误处理与 redirect
+安全性。真实 IdP L4 round trip 仍未验证。
+
 ## 客户端矩阵:移动端
 
-| 平台             | 包或目录                | 状态            | 测试覆盖                                               | 主要职责                                                                                 |
-| ---------------- | ----------------------- | --------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| React Native     | `@xid-kit/react-native` | implemented     | 单测 + typecheck                                       | Hosted redirect、deep link callback、state-keyed PKCE S256、secure token storage adapter |
-| Expo             | `@xid-kit/expo`         | current package | -                                                      | Expo Router 集成、AuthSession、SecureStore adapter                                       |
-| Flutter          | `sdk/flutter`           | implemented     | `flutter test`                                         | Hosted redirect、state-keyed PKCE S256、secure storage adapter、JWKS 验签                |
-| iOS (Swift)      | `sdk/ios`               | implemented     | `swift test`(macOS 编译;Keychain runner 需 Xcode 环境) | ASWebAuthenticationSession、Keychain storage、state-keyed PKCE S256                      |
-| Android (Kotlin) | `sdk/android`           | implemented     | `gradle testDebugUnitTest`(JVM 单测)                   | Custom Tabs、JWKS 验签、RP-initiated logout、Keystore storage、PKCE S256                 |
+| 平台             | 包或目录                | 状态        | 测试覆盖                                               | 主要职责                                                                                   |
+| ---------------- | ----------------------- | ----------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| React Native     | `@xid-kit/react-native` | implemented | 单测、typecheck 与 package build                       | Hosted redirect、state + nonce PKCE、JWKS 验签、authorization-code-only native session     |
+| Expo             | `@xid-kit/expo`         | implemented | 单测 + typecheck                                       | React Native authorization-code session + SecureStore、WebBrowser、Expo Router adapters    |
+| Flutter          | `sdk/flutter`           | implemented | `flutter test`                                         | Hosted redirect、state + nonce PKCE、secure storage adapter、原生 backend ES256 验签       |
+| iOS (Swift)      | `sdk/ios`               | implemented | `swift test`(macOS 编译;Keychain runner 需 Xcode 环境) | ASWebAuthenticationSession、Keychain、state + nonce PKCE、JWKS 验签、refresh single-flight |
+| Android (Kotlin) | `sdk/android`           | implemented | `gradle testDebugUnitTest`(JVM 单测)                   | Custom Tabs、state + nonce PKCE、JWKS 验签、RP-initiated logout、Keystore storage          |
+
+`@xid-kit/react-native` 与 `@xid-kit/expo` 要求 React 19,但不复用
+`@xid-kit/react` / `@xid-kit/core` 的 web-cookie runtime。纯 native consumer 不安装
+`react-dom`。
 
 ### 移动端缺口说明
 
 - **iOS**:测试在 macOS 平台运行;`ASWebAuthenticationSession`、`UIApplication`、真实 Keychain 行为需 iOS 模拟器或真机验证。`KeychainTokenStorageTests` 依赖 Keychain entitlement,结果需 Xcode 环境确认。
 - **Android**:仅 JVM 单元测试(PKCE/State/InMemoryStorage 三套);`EncryptedSharedPreferences`(Keystore AES-256-GCM)、`CustomTabs` 浏览器会话、App Links 回调均需 Android 设备/模拟器验证。`testInstrumentationRunner` 未运行。
-- **React Native**:TokenCache 与 BrowserInterface 均为注入适配器;真实 SecureStore、Keychain、EncryptedSharedPreferences、deep link 与真实 IdP round-trip 需设备或模拟器验证。
-- **Flutter**:测试不含 `flutter_secure_storage`、`flutter_web_auth_2` 真实平台路径(仅 InMemoryStorageAdapter、Pkce、XidSession 纯 Dart 逻辑);平台通道与真实 IdP round-trip 需真机或模拟器验证。
+- **React Native / Expo**:TokenCache 与 BrowserInterface 均为注入适配器;真实 SecureStore、
+  Keychain、EncryptedSharedPreferences、deep link 与真实 IdP round-trip 需设备或模拟器验证。
+  每个 storage namespace 只支持一个本地账号;organization management hooks 与 native
+  organization UI 尚未实现。这些 SDK 不实现 DPoP,拒绝 `offline_access`,并要求 access
+  token 过期后重新 authorization。
+- **Flutter**:单测覆盖 state/nonce claims 链路与 session 逻辑,不覆盖
+  `flutter_secure_storage`、`flutter_web_auth_2`、`cryptography_flutter` 的真实 native
+  platform channel;这些路径与真实 IdP round-trip 需真机或模拟器验证。
 
 ## 客户端矩阵:桌面端
 
@@ -94,6 +120,8 @@ Web 框架层在 `@xid-kit/core`(浏览器核心)之上提供 provider、hooks/c
 - **macOS**:Keychain 测试在本机运行;`ASWebAuthenticationSession` 的 OAuth 回调流程需运行中的 XID 服务端端点。L4 round-trip 未验证。
 - **Windows**:`net8.0` 跨平台目标编译成功;JWKS 验签与 `/end_session` 已实现。Windows 专属 API(`WebView2`、`DPAPI`、`WinUI 3`)仅在 `net8.0-windows10.0.19041.0` TFM 下编译,需 Windows 构建环境验证。`DpapiTokenStorage` 在非 Windows 系统无法运行。
 - **Linux**:`secret-service-storage` feature 未启用;`SecretServiceStorage` 需 `gnome-keyring`/`kwallet` D-Bus 守护进程。无头环境(CI/无桌面)默认降级 `InMemoryStorage`。
+- **Electron / Tauri**:两个 SDK 都未实现 DPoP。它们拒绝 `offline_access`,并作为
+  authorization-code-only public client 运行;access token 过期后必须重新登录。
 
 ## Shared native contract
 
@@ -105,7 +133,6 @@ JS/TS native common API surface (Provider props / hook returns):
 
 ```text
 XidProvider props:
-  publishableKey
   issuer
   clientId
   redirectUri
@@ -137,6 +164,11 @@ user
 organization
 ```
 
+Public native client 只有在 registration 与 token request 使用 DPoP sender binding 时才能
+请求 `offline_access`。没有 DPoP proof 实现的 client 只能使用 authorization code,并且必须在
+access token 过期后重新 authorization。这是 server 强制的 protocol boundary,不是可选 SDK
+optimization。
+
 Common adapter interfaces (JS/TS):
 
 ```text
@@ -144,6 +176,7 @@ TokenCache:
   getToken(key)           -> Promise<string | null>
   saveToken(key, value)   -> Promise<void>
   deleteToken(key)        -> Promise<void>
+  coordinationNamespace?  -> string
 
 BrowserInterface:
   openAuthSession(url, redirectUri) -> Promise<BrowserResult>
@@ -159,9 +192,15 @@ onboarding。guest Email 在新 Tenant 内验证前保持 pending,验证转正�
 与 Hosted UI 行为不改变下表任何 SDK 支持等级;现有 sub 对比 helper 继续服务应用自定义 identity
 transition。
 
-| 平台面                                                                           | guest 登录状态                                                                                                          |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| @xid-kit/core 与 @xid-kit/react                                                  | 已实现:signInAnonymously()、isAnonymous、isGuestUser/isSameUser、<GuestUpgradeBanner />;其余 web 框架包未开始           |
-| @xid-kit/backend 与全部服务端原生 SDK(sdk/{go,java,rust,php,ruby,python,dotnet}) | 已实现:验证结果主体上的 guest 判定(IsGuest() / is_guest / guest?,经 amr claim);signInAnonymously() 按设计不属于后端 SDK |
-| 移动端(sdk/flutter、sdk/ios、sdk/android)                                        | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);@xid-kit/react-native、@xid-kit/expo 未开始     |
-| 桌面端(sdk/macos、sdk/windows、sdk/linux)                                        | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);@xid-kit/electron、@xid-kit/tauri 未开始        |
+所有创建 guest 的 SDK 都遵循同一 entry-capability contract:如果没有可惰性复用的本地 session,
+先 GET `/auth/config?intent=sign-up`,要求返回非空 `guest.capabilityToken`,再在
+POST `/auth/guest` 时携带这个 one-time token 与可选 `turnstileToken`。每次创建都重新获取
+capability,绝不缓存或复用。capability 缺失或后续任一步失败时,不持久化任何 partial guest
+session。
+
+| 平台面                                                                           | guest 登录状态                                                                                                                                        |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| @xid-kit/core 与 @xid-kit/react                                                  | 已实现:signInAnonymously()、isAnonymous、isGuestUser/isSameUser、<GuestUpgradeBanner />;其余 web 框架包未开始                                         |
+| @xid-kit/backend 与全部服务端原生 SDK(sdk/{go,java,rust,php,ruby,python,dotnet}) | 已实现:验证结果主体上的 guest 判定(IsGuest() / is_guest / guest?,经 amr claim);signInAnonymously() 按设计不属于后端 SDK                               |
+| 移动端(sdk/flutter、sdk/ios、sdk/android)                                        | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);React Native / Expo 可从已验证 claims 暴露 isAnonymous,但不创建 guest session |
+| 桌面端(sdk/macos、sdk/windows、sdk/linux)                                        | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);@xid-kit/electron、@xid-kit/tauri 未开始                                      |

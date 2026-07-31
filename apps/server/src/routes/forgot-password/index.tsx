@@ -12,7 +12,7 @@ import { useCallback, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { Link, useNavigate } from '../../lib/router'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
@@ -21,6 +21,8 @@ import { useAuth } from '../../lib/auth-context'
 import { PasswordStrength } from '../sign-up/PasswordStrength'
 import { trackPasswordResetRequest } from '../../lib/google-analytics-funnel'
 import { handleResetPasswordSuccess } from './reset-success'
+import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
+import { useTurnstile } from '../sign-in/useTurnstile'
 
 type RequestStepProps = {
   organizationId?: string | null
@@ -90,6 +92,11 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     textWrap: 'pretty',
   },
+  turnstile: {
+    display: 'flex',
+    justifyContent: 'center',
+    width: '100%',
+  },
 })
 
 function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
@@ -98,25 +105,45 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const authConfigQuery = useQuery<PublicHostedAuthConfig, never>({
+    queryKey: ['auth-config', 'forgot-password', organizationId ?? null],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (organizationId) params.set('organization_id', organizationId)
+      const path = params.size > 0 ? `/auth/config?${params.toString()}` : '/auth/config'
+      const result = await api.get<PublicHostedAuthConfig>(path)
+      return result.ok ? result.value : DEFAULT_PUBLIC_AUTH_CONFIG
+    },
+    retry: false,
+  })
+  const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
+  const { containerRef } = useTurnstile(
+    authConfig.turnstileSiteKey,
+    turnstileToken,
+    setTurnstileToken,
+  )
 
   const requestMutation = useMutation({
     mutationFn: (emailValue: string) =>
       api.post('/auth/forgot-password', {
         email: emailValue,
         ...(organizationId ? { organizationId } : {}),
+        turnstileToken,
       }),
     onSuccess: (result) => {
       if (!result.ok) {
-        // 枚举防护:即使请求失败也不区分原因,仅在严重错误时提示。
         if (result.error.code === 'rate_limited') {
           setGlobalError(t`Too many requests. Please wait a minute before trying again.`)
           return
         }
-        // 其它错误统一走成功态(不泄露邮箱存在性)。
+        setGlobalError(t`Security verification failed. Please refresh and try again.`)
+        return
       }
       trackPasswordResetRequest()
       onDone()
     },
+    onSettled: () => setTurnstileToken(null),
   })
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -156,6 +183,7 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
         <Button type="submit" fullWidth isLoading={isSubmitting}>
           <Trans>Send reset link</Trans>
         </Button>
+        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
       </div>
     </form>
   )

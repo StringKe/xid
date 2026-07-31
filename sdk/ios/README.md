@@ -1,5 +1,8 @@
 # XID iOS Swift SDK
 
+> Registry status: UNPUBLISHED. No standalone Swift package release or CocoaPods release is
+> verified or authorized. Use a local package path from a source checkout.
+
 > **Status: implemented (verified locally)**
 > 本机 `swift test` 全部 PASS(macOS 编译,模拟 iOS 目标,见 `docs/sdks/platform-matrix.md`)。
 > 真实 IdP round-trip(L4)尚未验证,生产集成前请完成下方"后续增强"项。
@@ -19,22 +22,15 @@
 
 ### Swift Package Manager
 
-在 Xcode 中:File -> Add Package Dependencies,输入仓库 URL:
-
-```
-https://github.com/StringKe/xid
-```
-
-选择 `sdk/ios` 路径下的 `Package.swift`,添加 `Xid` 到目标。
-
-或在 `Package.swift` 中手动添加:
+Swift Package Manager 不能从 monorepo URL 选择任意子目录。先 checkout 仓库,再从 Xcode 选择
+`sdk/ios` 作为 local package,或在 `Package.swift` 中使用本地 path:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/StringKe/xid", from: "0.1.0"),
+    .package(path: "../xid/sdk/ios"),
 ],
 targets: [
-    .target(name: "YourApp", dependencies: [.product(name: "Xid", package: "xid")]),
+    .target(name: "YourApp", dependencies: [.product(name: "Xid", package: "ios")]),
 ]
 ```
 
@@ -60,7 +56,7 @@ struct MyApp: App {
             issuer: URL(string: "https://xid.dev")!,
             clientId: "your_client_id",
             redirectUri: URL(string: "com.example.app://auth/callback")!,
-            scopes: ["openid", "profile", "email", "offline_access"]
+            scopes: ["openid", "profile", "email"]
         ))
     }
 
@@ -114,12 +110,16 @@ if let session = try await Xid.shared.getSession() {
 }
 ```
 
-### 5. 获取 Access Token(自动刷新)
+### 5. 获取 Access Token
 
 ```swift
 let token = try await Xid.shared.getAccessToken()
 // 用于 API 请求:Authorization: Bearer <token>
 ```
+
+当前 SDK 尚未实现 DPoP,因此不请求 refresh token。access token 过期后,
+`getSession()` 返回 nil、`getAccessToken()` 抛 `noActiveSession`,应用应重新调用 `signIn()`。
+显式配置 `offline_access` 会在授权开始前返回 `invalid_scope`。
 
 ### 6. 登出
 
@@ -141,6 +141,7 @@ if session.isAnonymous {
 语义与边界:
 
 - **惰性复用**:本地已有任何有效会话(token 或 guest)时,`signInAnonymously()` 不发请求直接返回该会话,重复调用不会创建第二个 guest。
+- **建号能力**:真正创建或续签 guest 前先 GET `/auth/config?intent=sign-up`,严格读取一次性 `guest.capabilityToken`,再随 POST `/auth/guest` 提交;capability 不缓存或复用。
 - **没有 access token**:guest 会话的凭证是服务端 session cookie,SDK 自动捕获、持久化到 Keychain 并在 `/v1/me` 请求上回放;`session.accessToken` 为 nil,`getAccessToken()` 对 guest 会话会抛 `noActiveSession`。
 - **不可恢复、单设备**:guest 没有凭证,登出或清除数据即永久丢失,服务端 GC 也会回收长期不活跃的 guest。产品应持续引导用户转正。
 - **sub 连续性**:在 guest 会话内完成任一正式登录(转正)后 `session.user.sub` 不变,RP 侧数据自然延续;若用户转而登入另一个既有账号,sub 会变——对比新旧 `session.user.sub` 即可识别,数据合并由 RP 应用层负责。
@@ -173,8 +174,8 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 | `signIn(options:) async throws`                        | 启动授权流程,打开系统浏览器           |
 | `signInAnonymously(turnstileToken:) async throws -> XidSession` | 匿名登录,惰性复用本地有效会话 |
 | `handleRedirect(url:) async throws -> XidSession`      | 处理回调 URL,完成 code 换 token       |
-| `getSession() async throws -> XidSession?`             | 获取当前会话,token 即将过期时与 getAccessToken 共享单次自动刷新 |
-| `getAccessToken(forceRefresh:) async throws -> String` | 获取有效 access token                 |
+| `getSession() async throws -> XidSession?`             | 获取未过期会话;过期后返回 nil并要求重新授权 |
+| `getAccessToken(forceRefresh:) async throws -> String` | 获取未过期 access token;过期或 forceRefresh 时要求重新授权 |
 | `signOut(callEndSession:) async throws`                | 登出,清除本地 token                   |
 | `setTokenStorage(_:) throws`                           | 替换 token 持久化适配器               |
 
@@ -185,7 +186,7 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 | `issuer`       | `URL`                 | XID issuer,如 `https://xid.dev`                         |
 | `clientId`     | `String`              | Public client ID,无 client secret                       |
 | `redirectUri`  | `URL`                 | 注册的回调 URI                                          |
-| `scopes`       | `[String]`            | 默认 `["openid", "profile", "email", "offline_access"]` |
+| `scopes`       | `[String]`            | 默认 `["openid", "profile", "email"]`;拒绝 `offline_access` |
 | `tokenStorage` | `TokenStorageAdapter` | 默认 `KeychainTokenStorage`                             |
 
 ### `XidSession`
@@ -193,7 +194,7 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 | 属性           | 类型      | 说明                       |
 | -------------- | --------- | -------------------------- |
 | `accessToken`  | `String?` | JWT access token;guest 会话为 nil |
-| `refreshToken` | `String?` | Refresh token(存 Keychain) |
+| `refreshToken` | `String?` | 保留字段;DPoP 支持完成前始终为 nil |
 | `idToken`      | `String`  | JWT id token;guest 会话为空串 |
 | `expiresAt`    | `Date`    | Access token 过期时间      |
 | `user`         | `XidUser` | 用户信息快照               |
@@ -220,6 +221,8 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 - **Public client**:不存储 client secret,不支持 implicit flow 或 password grant。
 - **PKCE S256**:每次 signIn 生成随机 code_verifier,SHA-256 后作 code_challenge 发给服务端。
 - **state 验证**:每次授权请求随机生成 state,回调时精确比对防止 CSRF。
+- **OIDC nonce**:每次授权独立生成 32 字节 nonce,与 verifier 一起按 state 一次性持久化,
+  并在 JWKS 验签后精确比对;缺少 ID token 时不写入 session。
 - **Keychain 存储**:token 使用 `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` 保存,不同步到 iCloud Keychain。
 - **ASWebAuthenticationSession**:默认启用 `prefersEphemeralWebBrowserSession = true`,不共享浏览器 cookie。
 - **code_verifier 生命周期**:仅在授权流程期间存 Keychain,回调处理后立即删除。
@@ -232,7 +235,7 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 2. **RP-initiated logout** -- `EndSessionClient` + `Xid.signOut`
 3. **/userinfo 回退** -- `Xid.resolveUser` 在 ID token 缺失或验签后补充 claims
 4. **AuthorizationSession** -- 取消错误码、多 scene `presentationAnchor` 改进
-5. **refresh token 并发保护** -- `getSession` 与 `getAccessToken` 复用单次 inflight refresh
+5. **OIDC nonce 防重放** -- authorize 提交、跨进程恢复、ID token 精确校验
 
 ---
 
@@ -262,12 +265,12 @@ sdk/ios/
     PKCE.swift                PKCE S256 生成 (CryptoKit SHA-256)
     TokenStorage.swift        TokenStorageAdapter 协议 + KeychainTokenStorage 默认实现
     OIDCDiscovery.swift       OIDC Discovery 文档加载与缓存
-    TokenEndpoint.swift       /token 端点:authorization_code + refresh_token grant
+    TokenEndpoint.swift       /token 端点:authorization_code + PKCE grant
     IDTokenDecoder.swift      id token payload 解码(恢复会话用;登录路径走 JWKS 验签)
     JwksCache.swift           JWKS 拉取与缓存
     EndSessionClient.swift    RP-initiated logout
     UserInfoClient.swift      /userinfo 回退
-    GuestAuthClient.swift     匿名登录:/auth/guest + /v1/me + guest 会话 cookie 持久化
+    GuestAuthClient.swift     匿名登录:/auth/config capability + /auth/guest + /v1/me + guest 会话 cookie 持久化
     AuthorizationSession.swift ASWebAuthenticationSession 封装 + authorization URL 构造
   Tests/XidTests/
     PKCETests.swift

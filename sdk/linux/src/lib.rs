@@ -8,9 +8,9 @@
 //! - 生成 PKCE S256 code_verifier / code_challenge
 //! - 使用系统默认浏览器打开 /authorize 端点
 //! - 监听 loopback redirect_uri 接收 authorization code
-//! - 用 code 换取 access_token / id_token / refresh_token
+//! - 用 code 换取 access_token / id_token
 //! - 通过 Secret Service (freedesktop.org D-Bus) 安全持久化 token
-//! - refresh token 轮换
+//! - access token 过期后要求重新授权;DPoP 支持完成前不请求 offline_access
 
 pub mod config;
 pub mod error;

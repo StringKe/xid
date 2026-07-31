@@ -6,6 +6,7 @@ import {
   buildIdTokenClaims,
   evaluateAuthorize,
   generateAuthorizationCode,
+  hasScope,
   leftHalfHash,
   signClaims,
 } from '@xid-kit/protocol'
@@ -23,7 +24,12 @@ import { findClient, loadActiveSigner, resolveAccessTtlSec } from './shared'
 import type { ClientRow } from './shared'
 import { resolveResponseMode, respondToRp, signAuthorizationResponseJwt } from './authorize-respond'
 import { resolvePar } from './par'
-import { consumeStashedAuthorizeParams } from './pending-params'
+import {
+  consumeStashedAuthorizeRecord,
+  peekStashedAuthorizeParams,
+  restoreStashedAuthorizeRecord,
+  type StashedAuthorizeRecord,
+} from './pending-params'
 import { resolveRequestObject } from './request-object'
 import {
   authorizationDetailsResources,
@@ -34,16 +40,18 @@ import type { AuthorizationDetails } from '@xid-kit/types'
 import { verifyStepUpToken } from '../auth/mfa'
 import {
   ACR_AAL2,
-  ACR_AAL3,
   addMfaToAuthContext,
-  buildPasskeyMfaAuthContext,
+  normalizeAuthAssuranceLevel,
+  normalizeIssuedAcr,
   PASSWORD_AUTH_CONTEXT,
   sessionSatisfiesAal2,
-  sessionSatisfiesAal3,
+  UNSUPPORTED_ACR_AAL3,
 } from '../lib/auth-context'
 import type { AuthContextData } from '../lib/auth-context'
 import { ACTIVE_SESSION_STATUS, PENDING_MFA_SETUP_SESSION_STATUS } from '../lib/session'
 import { AUTH_CODE_TTL_SEC, OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
+import { requestsAcr } from './requested-acr'
+import { APPLICATION_SIGN_UP_INTENT } from '../../shared/hosted-auth-intent'
 
 const ACTIVE_ORG_LOOKUP_BATCH_SIZE = 100
 const SUPPORTED_RESPONSE_TYPES = ['code', 'code id_token'] as const
@@ -195,7 +203,9 @@ async function resolveAuthorizeRbacContext(
   }
 
   const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const project = await db.projects.findOne(eq(schema.projects.id, input.client.projectId))
+  const project = await db.projects.findOne(
+    and(eq(schema.projects.id, input.client.projectId), eq(schema.projects.status, 'active')),
+  )
   if (!project) return authzFail('unauthorized_client', 'application project not found')
   if (project.orgId === active.value.id) {
     return { ok: true, value: { activeOrgId: active.value.id, projectGrantId: null } }
@@ -246,6 +256,9 @@ async function stashAndRedirect(
 ): Promise<Response> {
   const ctx = c.get('tenant')
   const authzRequestId = crypto.randomUUID()
+  const createdAt = Date.now()
+  const interactionStartedAt =
+    input.path === '/sign-in' && requiresFreshAuthentication(input.params) ? createdAt : null
   const ns = c.env.OAUTH_STATE
   const stub = ns.get(ns.idFromName(`authz:${ctx.tenantId}:${authzRequestId}`))
   const storeRes = await stub.fetch('https://oauth-flow-do/store', {
@@ -253,6 +266,8 @@ async function stashAndRedirect(
     body: JSON.stringify({
       state: authzRequestId,
       pendingParams: input.params,
+      createdAt,
+      ...(interactionStartedAt === null ? {} : { interactionStartedAt }),
       ttlMs: OAUTH_FLOW_STATE_TTL_MS,
     }),
   })
@@ -263,12 +278,23 @@ async function stashAndRedirect(
   }
   const url = new URL(`${ctx.issuer}${input.path}`)
   url.searchParams.set('authz_request_id', authzRequestId)
+  url.searchParams.set('organization_id', ctx.tenantId)
+  const clientId = input.params['client_id']
+  if (clientId) url.searchParams.set('client_id', clientId)
+  if (input.path === '/sign-in') {
+    const hostedIntent = hostedIntentForAuthorize(input.params)
+    if (hostedIntent) url.searchParams.set('intent', hostedIntent)
+    if (interactionStartedAt !== null) url.searchParams.set('reauthenticate', '1')
+  }
   if (
     input.path === '/mfa' ||
     input.path === '/select-organization' ||
     input.path === '/account/security'
   ) {
-    url.searchParams.set('redirect_to', `/authorize?authz_request_id=${authzRequestId}`)
+    url.searchParams.set(
+      'redirect_to',
+      authorizeResumePath(authzRequestId, input.params['client_id']),
+    )
   }
   if (input.path === '/account/security') {
     url.searchParams.set('setup', 'mfa')
@@ -277,8 +303,6 @@ async function stashAndRedirect(
     if (input.stepUp) url.searchParams.set('step_up', '1')
     const method = input.params['method']
     if (method) url.searchParams.set('method', method)
-    const requireAal3 = input.params['require_aal3']
-    if (requireAal3) url.searchParams.set('require_aal3', requireAal3)
   }
   if (input.selectAccount) url.searchParams.set('select_account', '1')
   const loginHint = input.params['login_hint']
@@ -286,51 +310,62 @@ async function stashAndRedirect(
   return c.redirect(url.toString(), 302)
 }
 
-function parseRequestedAcrs(req: AuthorizeRequest): Set<string> {
-  const requested = new Set<string>()
-  for (const value of req.acrValues?.split(' ').filter(Boolean) ?? []) requested.add(value)
-  if (req.claims === undefined) return requested
-  try {
-    const parsed = JSON.parse(req.claims) as unknown
-    if (!isRecord(parsed)) return requested
-    const idToken = parsed['id_token']
-    if (!isRecord(idToken)) return requested
-    const acr = idToken['acr']
-    if (!isRecord(acr)) return requested
-    const value = acr['value']
-    if (typeof value === 'string') requested.add(value)
-    const values = acr['values']
-    if (Array.isArray(values)) {
-      for (const entry of values) {
-        if (typeof entry === 'string') requested.add(entry)
-      }
-    }
-  } catch {
-    return requested
-  }
-  return requested
-}
-
 function promptIncludesNone(req: AuthorizeRequest): boolean {
   return req.prompt?.split(' ').filter(Boolean).includes('none') ?? false
 }
 
+function promptValues(params: RawParams): string[] {
+  return params['prompt']?.split(' ').filter(Boolean) ?? []
+}
+
+function hostedIntentForAuthorize(
+  params: RawParams,
+): 'sign-in' | typeof APPLICATION_SIGN_UP_INTENT {
+  return params['xid_intent'] === 'sign-up' ? APPLICATION_SIGN_UP_INTENT : 'sign-in'
+}
+
+function validXidIntent(params: RawParams): boolean {
+  const intent = params['xid_intent']
+  return intent === undefined || intent === 'sign-up'
+}
+
+function requiresFreshAuthentication(params: RawParams): boolean {
+  const prompts = promptValues(params)
+  return (
+    params['xid_intent'] === 'sign-up' ||
+    prompts.includes('login') ||
+    prompts.includes('select_account')
+  )
+}
+
+function stripSatisfiedFreshAuthentication(params: RawParams): RawParams {
+  const next = { ...params }
+  delete next['xid_intent']
+  const prompts = promptValues(next).filter(
+    (value) => value !== 'login' && value !== 'select_account',
+  )
+  if (prompts.length > 0) next['prompt'] = prompts.join(' ')
+  else delete next['prompt']
+  return next
+}
+
+function authorizeResumePath(authzRequestId: string, clientId: string | undefined): string {
+  const params = new URLSearchParams({ authz_request_id: authzRequestId })
+  if (clientId) params.set('client_id', clientId)
+  return `/authorize?${params.toString()}`
+}
+
 function requestedAal2(req: AuthorizeRequest): boolean {
-  return parseRequestedAcrs(req).has(ACR_AAL2)
+  return requestsAcr({ acrValues: req.acrValues, claims: req.claims }, ACR_AAL2)
 }
 
 function requestedAal3(req: AuthorizeRequest): boolean {
-  return parseRequestedAcrs(req).has(ACR_AAL3)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return requestsAcr({ acrValues: req.acrValues, claims: req.claims }, UNSUPPORTED_ACR_AAL3)
 }
 
 async function readStepUpAuthContext(
   c: Context<XidHonoEnv>,
   session: SessionData,
-  requestedAal3: boolean,
 ): Promise<{ authTime: number; acr: string; amr: SessionData['amr'] } | null> {
   const token = getCookie(c, STEP_UP_COOKIE_NAME)
   if (!token) return null
@@ -340,19 +375,11 @@ async function readStepUpAuthContext(
     return null
   }
   const base: AuthContextData = {
-    acr: session.acr ?? PASSWORD_AUTH_CONTEXT.acr,
+    acr: normalizeIssuedAcr(session.acr) ?? PASSWORD_AUTH_CONTEXT.acr,
     amr: session.amr ?? PASSWORD_AUTH_CONTEXT.amr,
-    aal: session.aal === 1 || session.aal === 2 || session.aal === 3 ? session.aal : 1,
+    aal: normalizeAuthAssuranceLevel(session.aal) ?? 1,
   }
-  const tenant = c.get('tenant')
-  const attestationMode = tenant.policy.hostedAuth?.attestationMode ?? 'none'
-  const upgraded =
-    verified.payload.method === 'passkey' && requestedAal3 && verified.payload.passkeyAssurance
-      ? buildPasskeyMfaAuthContext(base, {
-          ...verified.payload.passkeyAssurance,
-          requireEnterpriseAttestation: attestationMode === 'direct',
-        })
-      : addMfaToAuthContext(base, verified.payload.method)
+  const upgraded = addMfaToAuthContext(base, verified.payload.method)
   return { authTime: verified.payload.iat, acr: upgraded.acr, amr: upgraded.amr }
 }
 
@@ -374,55 +401,14 @@ async function resolveAcrContext(
 > {
   const sessionContext = {
     authTime: Math.floor(input.session.authenticatedAt.getTime() / 1000),
-    acr: input.session.acr,
+    acr: normalizeIssuedAcr(input.session.acr),
     amr: input.session.amr,
     clearStepUp: false,
-  }
-  const wantsAal3 = requestedAal3(input.req)
-
-  if (wantsAal3) {
-    if (sessionSatisfiesAal3(input.session)) return sessionContext
-    const stepUpContext = await readStepUpAuthContext(c, input.session, true)
-    if (stepUpContext?.acr === ACR_AAL3) return { ...stepUpContext, clearStepUp: true }
-    if (stepUpContext?.acr === ACR_AAL2) {
-      const token = getCookie(c, STEP_UP_COOKIE_NAME)
-      if (token) {
-        const verified = await verifyStepUpToken(token, c.env.PEPPER)
-        if (
-          verified.ok &&
-          verified.payload.method === 'passkey' &&
-          verified.payload.passkeyAssurance
-        ) {
-          return { ...stepUpContext, clearStepUp: true }
-        }
-      }
-    }
-    if (promptIncludesNone(input.req)) {
-      return emitRedirectError(c, {
-        redirectUri: input.req.redirectUri,
-        responseType: input.req.responseType,
-        responseMode: input.effective['response_mode'],
-        clientId: input.req.clientId,
-        error: 'interaction_required',
-        description: 'additional authentication required for requested acr',
-        state: input.req.state,
-      })
-    }
-    const mfaParams = new URLSearchParams(input.effective as Record<string, string>)
-    mfaParams.set('method', 'passkey')
-    mfaParams.set('require_aal3', '1')
-    mfaParams.set('step_up', '1')
-    return stashAndRedirect(c, {
-      params: Object.fromEntries(mfaParams.entries()),
-      path: '/mfa',
-      selectAccount: false,
-      stepUp: true,
-    })
   }
 
   if (!requestedAal2(input.req)) return sessionContext
   if (sessionSatisfiesAal2(input.session)) return sessionContext
-  const stepUpContext = await readStepUpAuthContext(c, input.session, false)
+  const stepUpContext = await readStepUpAuthContext(c, input.session)
   if (stepUpContext) return { ...stepUpContext, clearStepUp: true }
   if (promptIncludesNone(input.req)) {
     return emitRedirectError(c, {
@@ -446,15 +432,27 @@ async function resolveAcrContext(
 async function consumeStashedAuthorize(
   c: Context<XidHonoEnv>,
   authzRequestId: string,
-): Promise<RawParams | null> {
+): Promise<StashedAuthorizeRecord | null> {
   const ctx = c.get('tenant')
-  return consumeStashedAuthorizeParams(c.env, ctx.tenantId, authzRequestId)
+  return consumeStashedAuthorizeRecord(c.env, ctx.tenantId, authzRequestId)
 }
 
-function redirectToStashedSignIn(c: Context<XidHonoEnv>, authzRequestId: string): Response {
+function redirectToStashedSignIn(
+  c: Context<XidHonoEnv>,
+  authzRequestId: string,
+  params: RawParams,
+): Response {
   const ctx = c.get('tenant')
   const url = new URL(`${ctx.issuer}/sign-in`)
   url.searchParams.set('authz_request_id', authzRequestId)
+  url.searchParams.set('organization_id', ctx.tenantId)
+  const clientId = params['client_id']
+  if (clientId) url.searchParams.set('client_id', clientId)
+  url.searchParams.set('intent', hostedIntentForAuthorize(params))
+  if (requiresFreshAuthentication(params)) url.searchParams.set('reauthenticate', '1')
+  if (promptValues(params).includes('select_account')) url.searchParams.set('select_account', '1')
+  const loginHint = params['login_hint']
+  if (loginHint) url.searchParams.set('login_hint', loginHint)
   return c.redirect(url.toString(), 302)
 }
 
@@ -681,6 +679,12 @@ async function runAuthorize(c: Context<XidHonoEnv>, params: RawParams): Promise<
   if (!responseModeSupported(resolved)) {
     return localErrorPage(c, 'invalid_request', 'response_mode is not supported')
   }
+  if (!validXidIntent(resolved)) {
+    return localErrorPage(c, 'invalid_request', 'xid_intent is not supported')
+  }
+  if (resolved['xid_intent'] === 'sign-up' && promptValues(resolved).includes('none')) {
+    return localErrorPage(c, 'invalid_request', 'xid_intent=sign-up requires user interaction')
+  }
   const authorizationDetails = await resolveAuthorizationDetails(c, resolved)
   if (!authorizationDetails.ok) {
     return localErrorPage(c, authorizationDetails.error.code, authorizationDetails.error.message)
@@ -695,6 +699,13 @@ async function runAuthorize(c: Context<XidHonoEnv>, params: RawParams): Promise<
   const registration = toClientRegistration(client)
 
   const session = c.get('session')
+  if (session?.status === ACTIVE_SESSION_STATUS && resolved['xid_intent'] === 'sign-up') {
+    return stashAndRedirect(c, {
+      params: resolved,
+      path: '/sign-in',
+      selectAccount: false,
+    })
+  }
   // pending 会话(pending_mfa/pending_mfa_setup)不是完整认证:MFA 门控在登录链路和此处必须
   // 双重强制,否则持密码不过第二因子即可走完授权码流程。先 stash 续跑参数,重定向完成
   // MFA 挑战/绑定(session 升 active)后回 /authorize 续跑。prompt=none 不可弹交互,
@@ -737,16 +748,51 @@ async function runAuthorize(c: Context<XidHonoEnv>, params: RawParams): Promise<
 // 主 handler:恢复登录前暂存的 authorize 请求,或按当前 query 直接运行。
 async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
   const url = new URL(c.req.url)
-  const authzRequestId = url.searchParams.get('authz_request_id')
+  const authzRequestIds = url.searchParams.getAll('authz_request_id')
+  const clientIds = url.searchParams.getAll('client_id')
+  if (authzRequestIds.length > 1 || clientIds.length > 1) {
+    return localErrorPage(c, 'invalid_request', 'duplicate authorization request parameter')
+  }
+  const authzRequestId = authzRequestIds[0] ?? null
   if (authzRequestId) {
-    if (!c.get('session')) return redirectToStashedSignIn(c, authzRequestId)
-    const pending = await consumeStashedAuthorize(c, authzRequestId)
-    if (!pending) {
+    const session = c.get('session')
+    if (!session) {
+      const pending = await peekStashedAuthorizeParams(
+        c.env,
+        c.get('tenant').tenantId,
+        authzRequestId,
+      )
+      if (!pending) {
+        return localErrorPage(c, 'invalid_request', 'authorization request expired or not found')
+      }
+      return redirectToStashedSignIn(c, authzRequestId, pending)
+    }
+    const record = await consumeStashedAuthorize(c, authzRequestId)
+    if (!record) {
       return localErrorPage(c, 'invalid_request', 'authorization request expired or not found')
+    }
+    const queryClientId = clientIds[0] ?? null
+    if (queryClientId && record.params['client_id'] !== queryClientId) {
+      return localErrorPage(c, 'invalid_request', 'authorization request client mismatch')
+    }
+    let pending = record.params
+    if (record.interactionStartedAt !== null && requiresFreshAuthentication(pending)) {
+      if (session.authenticatedAt.getTime() < record.interactionStartedAt) {
+        await restoreStashedAuthorizeRecord(c.env, c.get('tenant').tenantId, authzRequestId, record)
+        return redirectToStashedSignIn(c, authzRequestId, pending)
+      }
+      pending = stripSatisfiedFreshAuthentication(pending)
     }
     return runAuthorize(c, pending)
   }
 
+  const seen = new Set<string>()
+  for (const key of url.searchParams.keys()) {
+    if (seen.has(key)) {
+      return localErrorPage(c, 'invalid_request', 'duplicate authorization request parameter')
+    }
+    seen.add(key)
+  }
   const params = Object.fromEntries(url.searchParams) as RawParams
   return runAuthorize(c, params)
 }
@@ -764,6 +810,22 @@ function dispatchDirective(
   },
 ): Response | Promise<Response> {
   const { directive, req, client, effective, session, authorizationDetails } = input
+  if (
+    requestedAal3(req) &&
+    directive.kind !== 'local_error' &&
+    directive.kind !== 'redirect_error'
+  ) {
+    return emitRedirectError(c, {
+      redirectUri: req.redirectUri,
+      responseType: req.responseType,
+      responseMode: effective['response_mode'],
+      clientId: req.clientId,
+      error: 'interaction_required',
+      description:
+        'requested acr urn:xid:aal3 is not supported; maximum supported assurance is urn:xid:aal2',
+      state: req.state,
+    })
+  }
   switch (directive.kind) {
     case 'local_error':
       return localErrorPage(c, directive.error.code, directive.error.message)
@@ -791,7 +853,7 @@ function dispatchDirective(
 }
 
 function scopeRequiresOrganization(scope: string): boolean {
-  return scope.split(/\s+/).filter(Boolean).includes('organization')
+  return hasScope(scope, 'organization')
 }
 
 async function listActiveOrgIds(c: Context<XidHonoEnv>, userId: string): Promise<string[]> {

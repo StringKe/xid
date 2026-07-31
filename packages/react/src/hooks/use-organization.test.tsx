@@ -23,7 +23,7 @@ const organization = {
 const membership = {
   id: 'mem_1',
   organization,
-  role: 'admin',
+  role: 'admin' as const,
   permissions: ['org:read'],
   createdAt: 1,
 }
@@ -79,9 +79,7 @@ function makeClient() {
 
 function renderWithClient(children: ReactNode, client: XidClient): void {
   renderToStaticMarkup(
-    <XidContext.Provider value={{ client, publishableKey: 'pk_test' }}>
-      {children}
-    </XidContext.Provider>,
+    <XidContext.Provider value={{ client, mode: 'same-origin' }}>{children}</XidContext.Provider>,
   )
 }
 

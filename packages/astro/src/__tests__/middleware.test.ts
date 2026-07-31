@@ -139,6 +139,23 @@ describe('createXidMiddleware - locals injection', () => {
     expect(auth.orgRole).toBeUndefined()
     expect(auth.orgPermissions).toBeUndefined()
   })
+
+  it('clears a Project custom role supplied as org_role', async () => {
+    ;(authenticateRequest as MockedAuthReq).mockResolvedValue({
+      isSignedIn: true,
+      userId: 'user_test',
+      sessionId: 'sess_test',
+      claims: { ...MOCK_CLAIMS, active_org_id: 'org_abc', org_role: 'viewer' } as never,
+    })
+
+    const handler = createXidMiddleware(MIDDLEWARE_OPTIONS)
+    const ctx = makeContext('/org-page')
+    await handler(ctx, mockNext)
+
+    const auth = ctx.locals['xidAuth'] as Record<string, unknown>
+    expect(auth.userId).toBe('user_test')
+    expect(auth.orgRole).toBeUndefined()
+  })
 })
 
 describe('createXidMiddleware - route protection', () => {
@@ -220,15 +237,17 @@ describe('createXidMiddleware - route protection', () => {
 })
 
 describe('createXidMiddleware - passes options to authenticateRequest', () => {
-  it('passes jwtKey, issuer, authorizedParties, cookieName to authenticateRequest', async () => {
+  it('passes verification and explicit JWT/exchange options to authenticateRequest', async () => {
     ;(authenticateRequest as MockedAuthReq).mockResolvedValue(SIGNED_OUT_STATE)
 
     const customKey: JwtKey = { ...mockJwtKey, kid: 'kid_custom' }
+    const sessionTokenExchange = { endpoint: '/v1/sessions/token' }
     const opts: XidMiddlewareOptions = {
       jwtKey: customKey,
       issuer: 'https://custom.xid.dev',
       authorizedParties: ['app_abc'],
-      cookieName: 'custom_session',
+      jwtCookieName: '__Host-app.xid.jwt',
+      sessionTokenExchange,
     }
     const handler = createXidMiddleware(opts)
     const ctx = makeContext('/')
@@ -240,7 +259,8 @@ describe('createXidMiddleware - passes options to authenticateRequest', () => {
         jwtKey: customKey,
         issuer: 'https://custom.xid.dev',
         authorizedParties: ['app_abc'],
-        cookieName: 'custom_session',
+        jwtCookieName: '__Host-app.xid.jwt',
+        sessionTokenExchange,
       }),
     )
   })
@@ -259,6 +279,7 @@ describe('createXidMiddleware - passes options to authenticateRequest', () => {
     expect(callArgs['jwtKey']).toBe(mockJwtKey)
     expect(Object.keys(callArgs)).not.toContain('issuer')
     expect(Object.keys(callArgs)).not.toContain('authorizedParties')
-    expect(Object.keys(callArgs)).not.toContain('cookieName')
+    expect(Object.keys(callArgs)).not.toContain('jwtCookieName')
+    expect(Object.keys(callArgs)).not.toContain('sessionTokenExchange')
   })
 })

@@ -2,19 +2,20 @@
 // 调 GET /v1/platform/audit-events?cursor=&limit=30(TanStack Query + DataTable)。
 // 全宽锚定版式:零 padding 壳,各节自持 gutter;hairline 分节;mono tabular-nums 时间戳。
 
-import { Trans } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Alert } from '@xid-kit/web-ui/ui'
+import { Alert, Button, Field, Input } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useGlobalAuditEventsQuery } from './queries'
+import { useAuditChainVerificationQuery, useGlobalAuditEventsQuery } from './queries'
 import type { AuditEvent } from './types'
+import PlatformDeadLetters from './PlatformDeadLetters'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
@@ -46,6 +47,35 @@ const styles = stylex.create({
   tableSection: {
     paddingInline: GUTTER,
     paddingBlock: SECTION_PAD,
+  },
+  verifySection: {
+    paddingInline: GUTTER,
+    paddingBlock: SECTION_PAD,
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  verifyForm: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(12rem, 2fr) minmax(7rem, 1fr) minmax(7rem, 1fr) auto',
+    alignItems: 'end',
+    gap: '0.75rem',
+    '@media (max-width: 48rem)': {
+      gridTemplateColumns: '1fr',
+    },
+  },
+  verifyResult: {
+    marginTop: '1rem',
+  },
+  verifyPayload: {
+    margin: '0.5rem 0 0',
+    padding: '0.75rem',
+    overflowX: 'auto',
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: '0.75rem',
+    lineHeight: 1.5,
+    backgroundColor: tokens['--xid-muted'],
+    borderRadius: tokens['--xid-radius-sm'],
   },
   paginationWrap: {
     marginTop: '0.75rem',
@@ -145,9 +175,16 @@ const columns: ColumnDef<AuditEvent>[] = [
     header: () => <Trans>Actor</Trans>,
     cell: ({ row }) => (
       <span {...stylex.props(styles.mutedSmall)}>
-        {row.original.actorId ? (
-          <span {...stylex.props(styles.actorId)} title={row.original.actorId}>
-            {row.original.actorId}
+        {row.original.actorDisplay ? (
+          <span
+            {...stylex.props(styles.actorId)}
+            title={
+              row.original.actorDisplay === row.original.actorId
+                ? (row.original.actorId ?? undefined)
+                : undefined
+            }
+          >
+            {row.original.actorDisplay}
           </span>
         ) : (
           <Trans>system</Trans>
@@ -178,8 +215,29 @@ const columns: ColumnDef<AuditEvent>[] = [
 ]
 
 export default function PlatformAuditEvents(): ReactNode {
+  const { t } = useLingui()
   const [cursor, setCursor] = useState<string | undefined>()
+  const [tenantId, setTenantId] = useState('')
+  const [fromSeq, setFromSeq] = useState('')
+  const [toSeq, setToSeq] = useState('')
+  const [verification, setVerification] = useState<{
+    tenantId: string
+    fromSeq?: number
+    toSeq?: number
+  } | null>(null)
   const { data, isLoading, isError } = useGlobalAuditEventsQuery(cursor)
+  const verificationQuery = useAuditChainVerificationQuery(verification)
+
+  const onVerify = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault()
+    const normalizedTenantId = tenantId.trim()
+    if (!normalizedTenantId) return
+    setVerification({
+      tenantId: normalizedTenantId,
+      ...(fromSeq ? { fromSeq: Number(fromSeq) } : {}),
+      ...(toSeq ? { toSeq: Number(toSeq) } : {}),
+    })
+  }
 
   return (
     <div {...stylex.props(styles.root)}>
@@ -188,6 +246,53 @@ export default function PlatformAuditEvents(): ReactNode {
           <Trans>Global event stream</Trans>
         </h1>
       </div>
+
+      <section {...stylex.props(styles.verifySection)}>
+        <form aria-label={t`Audit events`} {...stylex.props(styles.verifyForm)} onSubmit={onVerify}>
+          <Field label={t`Tenant ID`} required>
+            <Input
+              value={tenantId}
+              onChange={(event) => setTenantId(event.target.value)}
+              autoComplete="off"
+            />
+          </Field>
+          <Field label={t`From`}>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={fromSeq}
+              onChange={(event) => setFromSeq(event.target.value)}
+            />
+          </Field>
+          <Field label={t`To`}>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={toSeq}
+              onChange={(event) => setToSeq(event.target.value)}
+            />
+          </Field>
+          <Button type="submit" disabled={!tenantId.trim() || verificationQuery.isLoading}>
+            <Trans>Verify</Trans>
+          </Button>
+        </form>
+        {verificationQuery.isError ? (
+          <div {...stylex.props(styles.verifyResult)}>
+            <Alert tone="error">{verificationQuery.error.message}</Alert>
+          </div>
+        ) : verificationQuery.data ? (
+          <div {...stylex.props(styles.verifyResult)}>
+            <Alert tone={verificationQuery.data.chain_valid ? 'success' : 'error'}>
+              <Trans>Status</Trans>: <code>{String(verificationQuery.data.chain_valid)}</code>
+              <pre {...stylex.props(styles.verifyPayload)}>
+                {JSON.stringify(verificationQuery.data, null, 2)}
+              </pre>
+            </Alert>
+          </div>
+        ) : null}
+      </section>
 
       {isError ? (
         <div {...stylex.props(styles.messageZone)}>
@@ -218,6 +323,7 @@ export default function PlatformAuditEvents(): ReactNode {
           ) : null}
         </section>
       )}
+      <PlatformDeadLetters />
     </div>
   )
 }

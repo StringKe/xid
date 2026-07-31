@@ -7,10 +7,17 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
+import { ORGANIZATION_MEMBERSHIP_ROLES } from '@xid-kit/types'
+import { DEFAULT_SAML_CLOCK_SKEW_MS, MAX_SAML_CLOCK_SKEW_MS } from '@xid-kit/saml'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { publicHttpsUrlSchema, readJsonBody, validateBody } from '../lib/validate'
-import { assertHeaderConnectionConfig, INBOUND_SSO_PROTOCOLS } from '../sso/legacy-shared'
+import {
+  INBOUND_SSO_PROTOCOLS,
+  prepareLegacyAttributeMapping,
+  trustedProxySecretConfigured,
+} from '../sso/legacy-shared'
 import { idAfterCursor, requireApiKey, paginate, parsePagination, requireOrg } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -18,32 +25,44 @@ const app = new Hono<XidHonoEnv>()
 const attributeMappingSchema = v.record(v.string(), v.unknown())
 
 // 形状校验只管字段类型/必填性;protocol 枚举与 header 配置等业务校验见 handler。
-// idp_metadata_url / oidc_discovery_url 是 worker 出网拉取目标(SAML metadata / OIDC discovery),
+// IdP URL 会进入浏览器跳转或 Worker 出网请求(SAML SSO / metadata / OIDC discovery),
 // 必须 https + 公网,防 SSRF 打内网/云 metadata(见 validate.ts publicHttpsUrlSchema)。
 const createConnectionBodySchema = v.object({
   org_id: v.pipe(v.string(), v.minLength(1)),
   protocol: v.picklist(INBOUND_SSO_PROTOCOLS),
   idp_entity_id: v.optional(v.string()),
-  idp_sso_url: v.optional(v.string()),
+  idp_sso_url: v.optional(publicHttpsUrlSchema),
+  idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
   oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   attribute_mapping: v.optional(attributeMappingSchema),
-  role_mapping: v.optional(v.record(v.string(), v.unknown())),
+  role_mapping: v.optional(v.record(v.string(), v.picklist(ORGANIZATION_MEMBERSHIP_ROLES))),
   jit_enabled: v.optional(v.boolean()),
+  want_authn_response_signed: v.optional(v.boolean()),
+  want_assertions_signed: v.optional(v.boolean()),
+  saml_clock_skew_ms: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
+  ),
 })
 
 const patchConnectionBodySchema = v.object({
   idp_entity_id: v.optional(v.string()),
-  idp_sso_url: v.optional(v.string()),
+  idp_sso_url: v.optional(publicHttpsUrlSchema),
+  idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
   oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   attribute_mapping: v.optional(attributeMappingSchema),
-  role_mapping: v.optional(v.record(v.string(), v.unknown())),
+  role_mapping: v.optional(v.record(v.string(), v.picklist(ORGANIZATION_MEMBERSHIP_ROLES))),
   jit_enabled: v.optional(v.boolean()),
+  want_authn_response_signed: v.optional(v.boolean()),
+  want_assertions_signed: v.optional(v.boolean()),
+  saml_clock_skew_ms: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
+  ),
   status: v.optional(v.string()),
 })
 
@@ -62,13 +81,16 @@ function toResponse(row: typeof schema.ssoConnections.$inferSelect) {
     protocol: row.protocol,
     idp_entity_id: row.idpEntityId,
     idp_sso_url: row.idpSsoUrl,
+    idp_slo_url: row.idpSloUrl,
     idp_metadata_url: row.idpMetadataUrl,
     idp_certificates: row.idpCertificates,
     oidc_client_id: row.oidcClientId,
     oidc_discovery_url: row.oidcDiscoveryUrl,
     want_authn_response_signed: row.wantAuthnResponseSigned,
     want_assertions_signed: row.wantAssertionsSigned,
+    saml_clock_skew_ms: row.samlClockSkewMs,
     attribute_mapping: stripInternalAttributeMapping(row.attributeMapping),
+    trusted_proxy_secret_configured: trustedProxySecretConfigured(row.attributeMapping),
     role_mapping: row.roleMapping,
     jit_enabled: row.jitEnabled,
     status: row.status,
@@ -106,8 +128,10 @@ app.post('/', async (c) => {
 
   const orgId = body.org_id
   const protocol = body.protocol
-  const attributeMapping = body.attribute_mapping ?? {}
-  assertHeaderConnectionConfig(protocol, attributeMapping)
+  const attributeMapping = await prepareLegacyAttributeMapping(
+    protocol,
+    body.attribute_mapping ?? {},
+  )
 
   // org_id 必须属于当前 TenantContext 的 tenant(requireOrg 走查询层注入 tenant_id;跨租户/不存在 -> 404)。
   await requireOrg(c, orgId)
@@ -120,6 +144,7 @@ app.post('/', async (c) => {
         protocol,
         idpEntityId: body.idp_entity_id,
         idpSsoUrl: body.idp_sso_url,
+        idpSloUrl: body.idp_slo_url,
         idpMetadataUrl: body.idp_metadata_url,
         idpCertificates: body.idp_certificates ?? [],
         oidcClientId: body.oidc_client_id,
@@ -127,6 +152,9 @@ app.post('/', async (c) => {
         attributeMapping,
         roleMapping: body.role_mapping ?? {},
         jitEnabled: body.jit_enabled !== false,
+        wantAuthnResponseSigned: body.want_authn_response_signed ?? true,
+        wantAssertionsSigned: body.want_assertions_signed ?? true,
+        samlClockSkewMs: body.saml_clock_skew_ms ?? DEFAULT_SAML_CLOCK_SKEW_MS,
         status: 'active',
       },
       eq(schema.ssoConnections.id, existing.id),
@@ -137,12 +165,13 @@ app.post('/', async (c) => {
     throw new AppError('already_exists', { longMessage: 'org already has a SSO connection' })
 
   const row = await db.ssoConnections.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('ssoConnection'),
     tenantId: tenant.tenantId,
     orgId,
     protocol,
     idpEntityId: body.idp_entity_id,
     idpSsoUrl: body.idp_sso_url,
+    idpSloUrl: body.idp_slo_url,
     idpMetadataUrl: body.idp_metadata_url,
     idpCertificates: body.idp_certificates ?? [],
     oidcClientId: body.oidc_client_id,
@@ -150,6 +179,9 @@ app.post('/', async (c) => {
     attributeMapping,
     roleMapping: body.role_mapping ?? {},
     jitEnabled: body.jit_enabled !== false,
+    wantAuthnResponseSigned: body.want_authn_response_signed ?? true,
+    wantAssertionsSigned: body.want_assertions_signed ?? true,
+    samlClockSkewMs: body.saml_clock_skew_ms ?? DEFAULT_SAML_CLOCK_SKEW_MS,
     status: 'active',
   })
 
@@ -189,16 +221,25 @@ app.patch('/:id', async (c) => {
   const patch: Partial<typeof schema.ssoConnections.$inferInsert> = {}
   if (body.idp_entity_id !== undefined) patch.idpEntityId = body.idp_entity_id
   if (body.idp_sso_url !== undefined) patch.idpSsoUrl = body.idp_sso_url
+  if (body.idp_slo_url !== undefined) patch.idpSloUrl = body.idp_slo_url
   if (body.idp_metadata_url !== undefined) patch.idpMetadataUrl = body.idp_metadata_url
   if (body.idp_certificates !== undefined) patch.idpCertificates = body.idp_certificates
   if (body.oidc_client_id !== undefined) patch.oidcClientId = body.oidc_client_id
   if (body.oidc_discovery_url !== undefined) patch.oidcDiscoveryUrl = body.oidc_discovery_url
   if (body.attribute_mapping !== undefined) {
-    assertHeaderConnectionConfig(existing.protocol, body.attribute_mapping)
-    patch.attributeMapping = body.attribute_mapping
+    patch.attributeMapping = await prepareLegacyAttributeMapping(
+      existing.protocol,
+      body.attribute_mapping,
+      existing.attributeMapping,
+    )
   }
   if (body.role_mapping !== undefined) patch.roleMapping = body.role_mapping
   if (body.jit_enabled !== undefined) patch.jitEnabled = body.jit_enabled
+  if (body.want_authn_response_signed !== undefined)
+    patch.wantAuthnResponseSigned = body.want_authn_response_signed
+  if (body.want_assertions_signed !== undefined)
+    patch.wantAssertionsSigned = body.want_assertions_signed
+  if (body.saml_clock_skew_ms !== undefined) patch.samlClockSkewMs = body.saml_clock_skew_ms
   if (body.status !== undefined) patch.status = body.status
 
   const updated = await db.ssoConnections.update(patch, where)

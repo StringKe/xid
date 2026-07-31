@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=98eb6e28f5f6fb97df2c84b29316c8e297fe52d1 -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=c672e2e36b3b9c128b4d8a3fbce55581866c8c9c -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -31,11 +31,19 @@ Instance(平台运营层,IAM 运营视角,可跨所有 org 管理)
 
 - guest sign-in 与携带 `intent=sign-up` 的凭证注册进入同一个创建 Organization 流程。只有
   `is_new_user = true` 且没有 Membership 的 provisional user 可以使用。
+- 这个产品 onboarding intent 与 RP 通过 OIDC SDK 请求展示注册界面是两种流程。SDK 发送
+  `xid_intent=sign-up`;`/authorize` 验证 `client_id` 后把它映射为内部 Hosted Auth
+  `application-sign-up` intent。该流程在 Application owner 的现有顶层 Tenant 内创建 end user
+  和默认 member Membership,然后恢复暂存的 authorization request。它不会创建或迁移顶层
+  Tenant,也不会进入 `/create-organization`。
 - self-service 创建的是新隔离根,不是 resolver provisional Organization 的子组织。不变量是
   `id = tenant_id = new_organization_id`、`parent_org_id = null`。子 Organization 创建仍是显式
   操作,必须设置 `parent_org_id`,并继承父级顶层 `tenant_id`。
 - 顶层 Organization slug 参与 host 解析,所以必须在所属 Instance 内唯一。只做 Tenant 内唯一不足以
   保证解析正确。
+- 因此 Management API 创建子 Organization 时必须显式提供等于当前 active 顶层 Organization 的
+  `parent_org_id`。系统不推断父级、不借已删除 slug 重新挂载,也不接受子 Organization 作为父级。
+  顶层 suspend/delete/restore 仍由独立 platform 路径上的 Instance Manager 执行。
 - 创建事务把 provisional user 的 user-owned 行和 sessions 迁移到新 Tenant,创建一个 active owner
   Membership,并把该 Organization 设为全部迁移 session 的当前上下文。session id 与 opaque cookie
   保持不变,实例根域通过 refresh token hash 解析新的 TenantContext。流程不创建
@@ -68,8 +76,23 @@ pending -> expired
 ### 设计决策
 
 - 邀请 token 存 DB(非 JWT),可撤销,支持批量邀请 API
+- Organization Membership 固定只有 `owner`、`admin`、`member` 三种角色。Worker 校验、DB 类型、
+  SDK session 形状与 Console 选项统一使用 `ORGANIZATION_MEMBERSHIP_ROLES` contract。`viewer`
+  是 Project 业务角色示例,不是 Organization Membership role。
+- owner 分配是 human principal 权限边界。Management API key 不能创建、提升、restore 或
+  reactivate `owner`;owner invitation 只允许已认证的 Organization `owner` 或该 Organization
+  的精确 `org_manager` 创建。降级、停用或删除 active owner 时,同一 Organization 必须保留
+  另一条由 active user 持有的 active owner membership。replacement owner 检查与 mutation
+  在同一条 conditional D1 statement 中执行,避免并发移除最后一个 owner。
+- invitation token 携带版本化、编码的 Tenant locator,让 Instance 根域的匿名请求在不做全局
+  token 查询的前提下选择一个候选 Tenant。数据库存储包含 locator 在内的完整 opaque token 的
+  SHA-256 hash。locator 不是授权依据:preview 和 accept 必须通过选中 Tenant 的 scoped query
+  layer 命中完整 hash;修改 locator 会使 token 失效。
 - 外部协作者(guest):邮箱域不属 org 已验证域,单独标记,可设上限(对标 WorkOS domain-managed vs domain-guest)
-- seat 管理:active 成员数计费维度,seat_limit/seat_used;deprovision 释放 seat,重新 provision 恢复历史角色
+- seat 管理:一个 seat 是完整 Tenant(包含 child Organization)内拥有任一 active membership 的
+  distinct user,同一用户的多个 membership 只占一个 seat。`organization_quotas(seats)` 是权威值,
+  root `organizations.seat_limit` 是兼容镜像,`seat_used` 仅为 legacy。用户最后一个 active
+  membership deprovision 后释放 seat,重新 provision 恢复历史角色
 - SCIM deprovision 软删除(inactive)不物理删除,保留审计
 
 ### 数据模型
@@ -81,6 +104,31 @@ pending -> expired
 ### 平台管理层(Manager Roles,不注入业务 token)
 
 四级(对齐 Zitadel):Instance Manager(跨所有 org)、Org Manager(单 org)、Project Manager(单 Project)、Project Grant Manager(管理被授权 Project)。
+
+当前授权 consumer 保持精确 scope:
+
+- `instance_manager` 只进入独立 `/v1/platform/*` management path
+- `org_manager` 只在被分配的 Organization 内等价于 Organization owner
+- `project_manager` 可管理被分配 Project 的 Role、Permission、ProjectGrant 与 UserGrant,
+  但不会提升为 Organization Admin
+- `project_grant_manager` 可读取精确 active ProjectGrant 及被授权 Project 的 Role 和
+  Permission 定义,并在该 Grant 下分配或撤销 UserGrant;不能修改 Project 定义或撤销
+  ProjectGrant 本身
+
+同源 Console 与 Management API 提供拥有这些 row 的 control plane:
+
+- `/v1/projects` 提供可恢复的 Project CRUD。Organization owner/admin 创建 Project;精确
+  `project_manager` 只能读取、更新、删除与恢复自己被分配的 Project
+- `/v1/role-permissions` 管理 Role-to-Permission mapping。Role 与 Permission 必须 active
+  且属于同一 Project,ABAC v1 grammar 在写入边界不合法即拒绝
+- `/v1/manager-assignments` provision、list 与 revoke tenant-scoped `org_manager`、
+  `project_manager`、`project_grant_manager`。role 与 scope type 固定一一对应,目标 user
+  与 scope 必须存在于当前 tenant,cookie actor 不能给自己赋权或撤销自己的 assignment
+- `/v1/platform/manager-assignments` 是独立的 cookie-only `instance_manager` path,不挂载到
+  tenant business API,也不接受 Management API key
+
+Project 或 ProjectGrant manager 的 provisioning 属于 Organization-level privilege;持有同级
+Project manager role 不代表可转授。仍然只有一个 Console product,没有独立 admin app 或 tenant。
 
 ### 业务 RBAC(Project/Application 层)
 
@@ -366,6 +414,7 @@ v1 不支持 `or` / `not` 顶层组合。需要 OR 语义时，在多个 RolePer
   - `not_eq`/`not_in` 对 undefined：求值为 true，授予
 - condition_expression JSON 解析失败：视为配置错误，permission 不授予，写入 AuditLog error 条目（不中断 token 签发）
 - 不支持的操作符：视为配置错误，permission 不授予，写入 AuditLog error 条目
+- 不支持的变量路径、空 `and`、额外 object key、`in`/`not_in` 使用非数组 operand 也属于配置错误并 fail closed。这与合法 metadata 路径中的 key 不存在而解析为 `undefined` 不同。
 
 **v2 扩展预留**（不在首版实现）：`or`、`not` 顶层组合；资源属性变量 `resource.<type>.<attr>`；`gt`/`gte`/`lt`/`lte` 数值比较。
 
@@ -420,8 +469,13 @@ WHERE ug.user_id = :user_id
 
 **UserGrant 管理入口**：
 
-- org A 的 Project Manager 或 Project Grant Manager 可为 ProjectGrant 下的 org B 用户分配 UserGrant
-- org B 的用户自助场景：org B 管理员接受 ProjectGrant 邀请后，可在 org B 管理界面为自己 org 的成员分配该 Grant 下的角色
+- `POST /v1/user-grants` 及 list/detail/revoke routes 接受具有
+  `user_grants:read` / `user_grants:write` 的 API key,或按精确 Project/ProjectGrant scope
+  授权的 cookie session
+- org A 的 Project Manager 与精确 Project Grant Manager 可为 ProjectGrant 下的 org B
+  用户分配 UserGrant
+- org B owner 或 admin 只能为 org B 的 active member 分配该 Grant 下的角色。API path
+  已实现;Console 中独立的 org B ProjectGrant 管理页尚未实现
 - UserGrant 删除路径：ProjectGrant 被撤销时，级联失效对应 Grant 下所有 UserGrant（不物理删除，标记 revoked_at）
 
 **多 Active Org 与 Grant 共存**：

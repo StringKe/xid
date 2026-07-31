@@ -1,30 +1,42 @@
 # @xid-kit/react-native
 
-**Status: current package.** This package implements the core Hosted Auth redirect flow with PKCE S256, secure token storage adapter contract, and the OAuth callback/token exchange layer. It does not provide automatic session refresh, organisation management UI, or online auth-state synchronisation -- those require a network-connected `XidClient`, which is not viable in the mobile React Native fetch context where cookie-based session state does not flow from an in-app browser back to the app's JS process.
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
+**Status: implemented locally.** This package owns a secure native OIDC token session. It
+implements Hosted Auth, state-keyed PKCE S256 and nonce, JWKS ID token verification, restart
+restore, native auth hooks and local sign-out. Real device
+adapters and a real-IdP L4 round trip remain pending.
 
 See `docs/sdks/platform-matrix.md` for the full capability matrix.
 
 ## What works
 
 - `XidProvider` -- wraps your app with RN-specific auth context (tokenCache, browser adapters).
-- `useSignIn` -- builds the PKCE S256 authorize URL, opens the browser, and exchanges the code for tokens stored in `TokenCache`.
-- `useSignOut` -- clears local token storage and calls the server session revocation endpoint via `@xid-kit/react`.
-- `useAuth()`, `useUser()`, `useSession()`, etc. -- re-exported from `@xid-kit/react`. **Note:** `isSignedIn` reflects the `XidClient` web-cookie session state. In a typical RN setup, the `XidClient` cannot read the Hosted Auth session cookie (set in the in-app browser context, not the JS process). These hooks are wired and will work once an application-level mechanism updates the client state after token exchange -- see the architecture note below.
+- `useSignIn` -- persists verifier, redirect URI and nonce under random state, opens the browser,
+  verifies the callback ID token, then stores one session envelope.
+- `useAuth`, `useUser`, `useSession` -- read the verified native token session; no browser-cookie
+  synchronization is required.
+- `useSignOut` -- deterministic local session clearing with no refresh or revoke network path.
+- Expired authorization-code-only sessions are cleared and require a new sign-in.
+- Authorization commits, clear and sign-out are coordinated per storage namespace.
 
-## What is not yet implemented (scaffold items)
+## Not implemented
 
-- Automatic session refresh on token expiry.
-- `isSignedIn` / `useUser` live state driven from the local `TokenCache` instead of web cookie session.
-- Organisation context population from stored tokens.
-- Server revocation call on sign-out (only local storage is cleared today).
+- Organization management/list hooks and native organization UI.
+- Multiple simultaneous local accounts or account switching.
+- Device/emulator and real-IdP L4 verification.
+- DPoP sender binding and therefore `offline_access` / refresh tokens.
 
 ## Installation
 
 ```sh
-pnpm add @xid-kit/react-native @xid-kit/react @xid-kit/core
-# Peer deps:
-pnpm add react-native react
+pnpm add @xid-kit/react-native
+pnpm add react@^19 react-native
 ```
+
+The package does not depend on `@xid-kit/react`, `@xid-kit/core` or `react-dom`.
 
 ## Quick start
 
@@ -61,7 +73,6 @@ const linkingBrowser: BrowserInterface = {
 export default function App() {
   return (
     <XidProvider
-      publishableKey="pk_live_..."
       issuer="https://xid.dev"
       clientId="your_client_id"
       redirectUri="myapp://auth/callback"
@@ -135,8 +146,12 @@ Use `@xid-kit/expo` for ready-made `createSecureStoreAdapter()` (`expo-secure-st
 
 ## Architecture note
 
-`XidProvider` wraps `@xid-kit/react` `XidProvider` and adds `XidRnContext` (the tokenCache and browser adapters). The inner `XidClient` from `@xid-kit/core` uses the same cookie/session model as the web SDK. In a mobile context the session cookie is set in the in-app browser process and does not propagate to the React Native JS fetch context. As a result `useAuth().isSignedIn` reflects the XidClient's loaded session, not the presence of tokens in TokenCache.
-
-The intended production pattern is to reload the client state (or call `client.load()`) after successful token exchange, using the access token to authenticate the subsequent session fetch. This wiring is not yet implemented in the scaffold.
+`XidProvider` creates an `XidSessionManager` around the injected `TokenCache`. The provider restores
+that envelope on startup and updates all native hooks after sign-in or sign-out. ID token claims are
+stored only after signature, issuer, audience, time and authorization nonce validation. This public
+client does not implement DPoP, so `offline_access` is rejected and access-token expiry requires
+reauthorization. The historical `xid.refresh_token` key is delete-only migration cleanup; current
+code never reads or writes a refresh credential and never calls refresh or revoke endpoints. The web
+SDK's cookie session is deliberately not part of this state machine.
 
 PKCE uses `crypto.subtle.digest` and `crypto.getRandomValues` (Web Crypto, available in React Native >= 0.73 via the built-in Hermes polyfill or `react-native-quick-crypto`).

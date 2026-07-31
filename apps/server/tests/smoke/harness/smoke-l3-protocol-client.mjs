@@ -3,11 +3,13 @@
 import { argon2id } from '@noble/hashes/argon2.js'
 import { spawn } from 'node:child_process'
 import { createServer as createHttpServer } from 'node:http'
+import { deflateRawSync } from 'node:zlib'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 import { setNodeDependencies } from 'xml-core'
 import { Application, Parse, SignedXml } from 'xmldsigjs'
 import xpath from 'xpath'
 import { parseD1Json } from './d1-json.mjs'
+import { pollUntil } from './poll-until.mjs'
 import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
@@ -28,6 +30,7 @@ const scimToken = 'scim_l3_protocol_token'
 const scimDirectoryId = 'dir_l3_protocol'
 const outboundSamlAppId = 'saml_sp_l3_protocol'
 const outboundScimTargetId = 'scim_target_l3_protocol'
+const outboundScimTokenSecretName = 'SCIM_TARGET_TOKEN_scim_target_l3_protocol'
 const outboundDeactivatedUserId = 'user_l3_scim_deactivated'
 
 const ARGON2_MEMORY_KB = 65536
@@ -55,6 +58,15 @@ function base64UrlEncode(bytes) {
 
 function base64UrlEncodeString(value) {
   return base64UrlEncode(new TextEncoder().encode(value))
+}
+
+function xmlEscape(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
 }
 
 function b64ToBytes(b64) {
@@ -145,10 +157,17 @@ async function sha256Bytes(input) {
 }
 
 function parseDevVars() {
-  const { XID_SMOKE_KEK: KEK, XID_SMOKE_PEPPER: PEPPER } = process.env
-  if (!KEK || !PEPPER)
-    throw new Error('XID smoke KEK and PEPPER must be provided through the process environment')
-  return { KEK, PEPPER }
+  const {
+    XID_SMOKE_KEK: KEK,
+    XID_SMOKE_PEPPER: PEPPER,
+    XID_SMOKE_SCIM_TARGET_TOKEN: SCIM_TARGET_TOKEN,
+  } = process.env
+  if (!KEK || !PEPPER || !SCIM_TARGET_TOKEN) {
+    throw new Error(
+      'XID smoke KEK, PEPPER, and SCIM target token must be provided through the process environment',
+    )
+  }
+  return { KEK, PEPPER, SCIM_TARGET_TOKEN }
 }
 
 async function run(command, args, name) {
@@ -291,7 +310,10 @@ async function verifyOutboundSamlResponse(samlResponse, expected) {
   await verifySignedElement(doc, assertion, verifyKey)
   await verifySignedElement(doc, response, verifyKey)
   const issuer = firstXmlChild(response, 'Issuer')?.textContent ?? ''
-  const subject = firstXmlChild(firstXmlChild(assertion, 'Subject'), 'NameID')?.textContent ?? ''
+  const subjectElement = firstXmlChild(assertion, 'Subject')
+  const subject = firstXmlChild(subjectElement, 'NameID')?.textContent ?? ''
+  const confirmation = firstXmlChild(subjectElement, 'SubjectConfirmation')
+  const confirmationData = firstXmlChild(confirmation, 'SubjectConfirmationData')
   const audience =
     firstXmlChild(
       firstXmlChild(firstXmlChild(assertion, 'Conditions'), 'AudienceRestriction'),
@@ -300,11 +322,22 @@ async function verifyOutboundSamlResponse(samlResponse, expected) {
   if (issuer !== expected.issuer) throw new Error(`SAML issuer mismatch: ${issuer}`)
   if (subject !== adminEmail) throw new Error(`SAML subject mismatch: ${subject}`)
   if (audience !== expected.audience) throw new Error(`SAML audience mismatch: ${audience}`)
+  if (
+    expected.inResponseTo &&
+    (response.getAttribute('InResponseTo') !== expected.inResponseTo ||
+      confirmationData?.getAttribute('InResponseTo') !== expected.inResponseTo)
+  ) {
+    throw new Error(`SAML InResponseTo mismatch: ${expected.inResponseTo}`)
+  }
   if (!xml.includes('User.Email')) throw new Error('SAML User.Email attribute missing')
 }
 
 async function startFakeSaasServer(expectedScimToken) {
   const calls = []
+  const scimResources = {
+    Users: new Map(),
+    Groups: new Map(),
+  }
   const server = createHttpServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
@@ -338,19 +371,66 @@ async function startFakeSaasServer(expectedScimToken) {
         const bodyText = await readRequestBody(req)
         const body = bodyText ? JSON.parse(bodyText) : {}
         calls.push({ kind: 'scim', method: req.method, path: url.pathname, body })
-        if (url.pathname === '/scim/v2/Users' && req.method === 'POST') {
-          res.writeHead(201, { 'content-type': 'application/scim+json' })
-          res.end(JSON.stringify({ ...body, id: body.externalId ?? crypto.randomUUID() }))
-          return
-        }
-        if (url.pathname.startsWith('/scim/v2/Users/') && req.method === 'PATCH') {
+        const collectionMatch = /^\/scim\/v2\/(Users|Groups)$/u.exec(url.pathname)
+        const resourceMatch = /^\/scim\/v2\/(Users|Groups)\/([^/]+)$/u.exec(url.pathname)
+        if (collectionMatch && req.method === 'GET') {
+          const collection = scimResources[collectionMatch[1]]
+          const filter = url.searchParams.get('filter') ?? ''
+          const externalId = /^externalId eq "([^"]+)"$/u.exec(filter)?.[1]
+          const resources =
+            externalId === undefined
+              ? [...collection.values()]
+              : [...collection.values()].filter((resource) => resource.externalId === externalId)
           res.writeHead(200, { 'content-type': 'application/scim+json' })
-          res.end(JSON.stringify({ id: url.pathname.split('/').pop(), active: false }))
+          res.end(
+            JSON.stringify({
+              schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
+              totalResults: resources.length,
+              startIndex: 1,
+              itemsPerPage: resources.length,
+              Resources: resources,
+            }),
+          )
           return
         }
-        if (url.pathname === '/scim/v2/Groups' && req.method === 'POST') {
+        if (collectionMatch && req.method === 'POST') {
+          const collection = scimResources[collectionMatch[1]]
+          const existing = [...collection.values()].find(
+            (resource) => resource.externalId === body.externalId,
+          )
+          if (existing) {
+            res.writeHead(409, { 'content-type': 'application/scim+json' })
+            res.end(JSON.stringify({ status: '409', detail: 'Resource already exists' }))
+            return
+          }
+          const id = body.externalId ?? crypto.randomUUID()
+          const resource = { ...body, id }
+          collection.set(id, resource)
           res.writeHead(201, { 'content-type': 'application/scim+json' })
-          res.end(JSON.stringify({ ...body, id: body.externalId ?? crypto.randomUUID() }))
+          res.end(JSON.stringify(resource))
+          return
+        }
+        if (resourceMatch && req.method === 'PUT') {
+          const collection = scimResources[resourceMatch[1]]
+          const id = decodeURIComponent(resourceMatch[2])
+          if (!collection.has(id)) {
+            res.writeHead(404, { 'content-type': 'application/scim+json' })
+            res.end(JSON.stringify({ status: '404', detail: 'Resource not found' }))
+            return
+          }
+          const resource = { ...body, id }
+          collection.set(id, resource)
+          res.writeHead(200, { 'content-type': 'application/scim+json' })
+          res.end(JSON.stringify(resource))
+          return
+        }
+        if (resourceMatch?.[1] === 'Users' && req.method === 'PATCH') {
+          const id = decodeURIComponent(resourceMatch[2])
+          const existing = scimResources.Users.get(id) ?? { id }
+          const resource = { ...existing, active: false }
+          scimResources.Users.set(id, resource)
+          res.writeHead(200, { 'content-type': 'application/scim+json' })
+          res.end(JSON.stringify(resource))
           return
         }
       }
@@ -502,8 +582,12 @@ async function configureFakeSaasTargets(fixture, fakeSaas) {
     'configure fake SAML ACS',
   )
   await d1(
-    `INSERT INTO scim_targets (id, tenant_id, org_id, provider, base_url, token_secret_ref, user_filter, status, last_sync_at, created_at, updated_at) VALUES (${sqlString(outboundScimTargetId)}, ${sqlString(fixture.tenantId)}, ${sqlString(fixture.tenantId)}, 'fake-saas', ${sqlString(`${fakeSaas.baseUrl}/scim/v2`)}, 'PEPPER', '{}', 'active', NULL, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET tenant_id = excluded.tenant_id, org_id = excluded.org_id, provider = excluded.provider, base_url = excluded.base_url, token_secret_ref = excluded.token_secret_ref, user_filter = '{}', status = 'active', updated_at = excluded.updated_at;`,
+    `INSERT INTO scim_targets (id, tenant_id, org_id, provider, base_url, token_secret_ref, user_filter, status, last_sync_at, created_at, updated_at) VALUES (${sqlString(outboundScimTargetId)}, ${sqlString(fixture.tenantId)}, ${sqlString(fixture.tenantId)}, 'fake-saas', ${sqlString(`${fakeSaas.baseUrl}/scim/v2`)}, ${sqlString(outboundScimTokenSecretName)}, '{}', 'active', NULL, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET tenant_id = excluded.tenant_id, org_id = excluded.org_id, provider = excluded.provider, base_url = excluded.base_url, token_secret_ref = excluded.token_secret_ref, user_filter = '{}', status = 'active', updated_at = excluded.updated_at;`,
     'configure fake SCIM target',
+  )
+  await d1(
+    `INSERT INTO scim_target_resources (id, tenant_id, org_id, target_id, resource_type, local_resource_id, external_id, downstream_id, status, last_synced_at, created_at, updated_at) VALUES ('str_l3_deactivated', ${sqlString(fixture.tenantId)}, ${sqlString(fixture.tenantId)}, ${sqlString(outboundScimTargetId)}, 'User', ${sqlString(outboundDeactivatedUserId)}, ${sqlString(outboundDeactivatedUserId)}, ${sqlString(outboundDeactivatedUserId)}, 'active', ${now}, ${now}, ${now}) ON CONFLICT(tenant_id, target_id, resource_type, local_resource_id) DO UPDATE SET downstream_id = excluded.downstream_id, status = 'active', last_synced_at = excluded.last_synced_at, updated_at = excluded.updated_at;`,
+    'configure stale outbound SCIM mapping',
   )
   printResult('PASS', 'fake SaaS target fixture', fakeSaas.baseUrl)
 }
@@ -529,6 +613,10 @@ async function restoreFixture(fixture) {
   await d1(
     `DELETE FROM authorization_codes WHERE tenant_id = ${sqlString(fixture.tenantId)} AND client_id = ${sqlString(clientId)};`,
     'cleanup local OAuth codes',
+  )
+  await d1(
+    `DELETE FROM scim_target_resources WHERE tenant_id = ${sqlString(fixture.tenantId)} AND target_id = ${sqlString(outboundScimTargetId)};`,
+    'cleanup outbound SCIM resource mappings',
   )
   await d1(
     `DELETE FROM scim_targets WHERE tenant_id = ${sqlString(fixture.tenantId)} AND id = ${sqlString(outboundScimTargetId)};`,
@@ -953,9 +1041,43 @@ async function runOutboundSaml(cookie, fixture, fakeSaas) {
   }
   printResult('PASS', 'outbound SAML IdP metadata', `http=${metadata.res.status}`)
 
-  const sso = await fetchText(`/sso/outbound/saml/${outboundSamlAppId}/sso?RelayState=l3-relay`, {
-    cookie,
-  })
+  const requestId = `_l3_${crypto.randomUUID().replaceAll('-', '')}`
+  const destination = `${baseUrl}/sso/outbound/saml/${outboundSamlAppId}/sso`
+  const requestXml = [
+    `<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"`,
+    ` xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"`,
+    ` ID="${xmlEscape(requestId)}" Version="2.0" IssueInstant="${new Date().toISOString()}"`,
+    ` Destination="${xmlEscape(destination)}"`,
+    ` ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"`,
+    ` AssertionConsumerServiceURL="${xmlEscape(`${fakeSaas.baseUrl}/saml/acs`)}">`,
+    `<saml:Issuer>https://fake-saas.example/saml/metadata</saml:Issuer>`,
+    `<samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress" AllowCreate="true"/>`,
+    `</samlp:AuthnRequest>`,
+  ].join('')
+  const mismatched = requestXml.replace(
+    'https://fake-saas.example/saml/metadata',
+    'https://attacker.example/saml/metadata',
+  )
+  const rejected = await fetchText(
+    `/sso/outbound/saml/${outboundSamlAppId}/sso?${new URLSearchParams({
+      SAMLRequest: deflateRawSync(Buffer.from(mismatched)).toString('base64'),
+    })}`,
+    { cookie },
+  )
+  if (rejected.res.status !== 400) {
+    throw new Error(
+      `outbound SAML mismatched AuthnRequest accepted http=${rejected.res.status} body=${rejected.text}`,
+    )
+  }
+  printResult('PASS', 'outbound SAML rejects unregistered SP request', 'http=400')
+
+  const sso = await fetchText(
+    `/sso/outbound/saml/${outboundSamlAppId}/sso?${new URLSearchParams({
+      SAMLRequest: deflateRawSync(Buffer.from(requestXml)).toString('base64'),
+      RelayState: 'l3-relay',
+    })}`,
+    { cookie },
+  )
   if (sso.res.status !== 200) {
     throw new Error(`outbound SAML SSO failed http=${sso.res.status} body=${sso.text}`)
   }
@@ -974,24 +1096,47 @@ async function runOutboundSaml(cookie, fixture, fakeSaas) {
   await verifyOutboundSamlResponse(call.samlResponse, {
     issuer: `${baseUrl}/sso/outbound/saml/${outboundSamlAppId}`,
     audience: 'https://fake-saas.example/saml/metadata',
+    inResponseTo: requestId,
   })
   if (call.relayState !== 'l3-relay') throw new Error(`RelayState mismatch: ${call.relayState}`)
-  printResult('PASS', 'outbound SAML signed response', `org=${fixture.tenantId}`)
+  printResult('PASS', 'outbound SAML SP-initiated signed response', `org=${fixture.tenantId}`)
 }
 
-async function runOutboundScim(cookie, fakeSaas) {
+async function runOutboundScim(cookie, fakeSaas, fixture) {
   const sync = await fetchText(`/scim/outbound/${outboundScimTargetId}/sync`, {
     method: 'POST',
     cookie,
   })
-  if (sync.res.status !== 200) {
+  if (sync.res.status !== 202) {
     throw new Error(`outbound SCIM sync failed http=${sync.res.status} body=${sync.text}`)
   }
   const body = parseJson(sync.text, 'outbound SCIM sync')
-  if (body.users < 2 || body.groups < 1 || body.deactivations < 1) {
-    throw new Error(`outbound SCIM summary mismatch: ${sync.text}`)
+  if (
+    body.status !== 'queued' ||
+    body.targetId !== outboundScimTargetId ||
+    typeof body.runId !== 'string' ||
+    body.runId.length === 0
+  ) {
+    throw new Error(`outbound SCIM enqueue response mismatch: ${sync.text}`)
   }
-  const scimCalls = fakeSaas.calls.filter((entry) => entry.kind === 'scim')
+  const scimCalls = await pollUntil(
+    async () => fakeSaas.calls.filter((entry) => entry.kind === 'scim'),
+    {
+      isReady: (calls) => {
+        const userPost = calls.some(
+          (entry) => entry.method === 'POST' && entry.path === '/scim/v2/Users',
+        )
+        const groupPost = calls.some(
+          (entry) => entry.method === 'POST' && entry.path === '/scim/v2/Groups',
+        )
+        const patch = calls.some(
+          (entry) => entry.method === 'PATCH' && entry.path.includes(outboundDeactivatedUserId),
+        )
+        return userPost && groupPost && patch
+      },
+      label: 'outbound SCIM queue delivery',
+    },
+  )
   const userPost = scimCalls.find(
     (entry) => entry.method === 'POST' && entry.path === '/scim/v2/Users',
   )
@@ -1004,7 +1149,23 @@ async function runOutboundScim(cookie, fakeSaas) {
   if (!userPost || !groupPost || !patch) {
     throw new Error(`outbound SCIM calls incomplete: ${JSON.stringify(scimCalls)}`)
   }
-  printResult('PASS', 'outbound SCIM target sync', `users=${body.users} groups=${body.groups}`)
+  const persisted = await pollUntil(
+    async () =>
+      d1(
+        `SELECT scim_targets.last_sync_at AS last_sync_at, scim_target_resources.status AS mapping_status FROM scim_targets JOIN scim_target_resources ON scim_target_resources.target_id = scim_targets.id AND scim_target_resources.tenant_id = scim_targets.tenant_id WHERE scim_targets.tenant_id = ${sqlString(fixture.tenantId)} AND scim_targets.id = ${sqlString(outboundScimTargetId)} AND scim_target_resources.local_resource_id = ${sqlString(outboundDeactivatedUserId)} LIMIT 1;`,
+        'load outbound SCIM completion evidence',
+      ),
+    {
+      isReady: (rows) =>
+        rows[0]?.last_sync_at != null && rows[0]?.mapping_status === 'deprovisioned',
+      label: 'outbound SCIM persistence',
+    },
+  )
+  printResult(
+    'PASS',
+    'outbound SCIM target sync',
+    `run=${body.runId} mapping=${persisted[0].mapping_status}`,
+  )
 }
 
 export async function runL3ProtocolClientSmoke() {
@@ -1020,14 +1181,14 @@ export async function runL3ProtocolClientSmoke() {
     await ensureSeeded()
     fixture = await prepareFixture()
     const vars = parseDevVars()
-    fakeSaas = await startFakeSaasServer(vars.PEPPER)
+    fakeSaas = await startFakeSaasServer(vars.SCIM_TARGET_TOKEN)
     await configureFakeSaasTargets(fixture, fakeSaas)
     await runDcrClientCredentials()
     const cookie = await login()
     await runOAuthClient(cookie, fixture, fakeSaas)
     await runScimClient(fixture)
     await runOutboundSaml(cookie, fixture, fakeSaas)
-    await runOutboundScim(cookie, fakeSaas)
+    await runOutboundScim(cookie, fakeSaas, fixture)
     await restoreFixture(fixture)
     await fakeSaas.close()
   } catch (error) {

@@ -4,10 +4,12 @@
 // 铁律:所有 D1 查询走 @xid-kit/db 租户查询层(自动注入 tenant_id);membership 走 org 级隔离视图。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import type { SamlAttributes, SamlSubject } from '@xid-kit/types'
+import { isOrganizationMembershipRole } from '@xid-kit/types'
+import type { OrganizationMembershipRole, SamlAttributes, SamlSubject } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { SamlConnection } from './saml-connection'
 import type { XidHonoEnv } from '../lib/types'
 import { enforceEnterpriseSsoPolicy } from './enterprise-policy'
@@ -23,10 +25,13 @@ export type JitInput = {
 }
 
 // group displayName -> org role 映射(connection.roleMapping 是 { "<group>": "<role>" })。命中首个 group。
-function mapRole(roleMapping: Record<string, unknown>, groups: readonly string[]): string | null {
+function mapRole(
+  roleMapping: Record<string, unknown>,
+  groups: readonly string[],
+): OrganizationMembershipRole | null {
   for (const g of groups) {
     const role = roleMapping[g]
-    if (typeof role === 'string') return role
+    if (isOrganizationMembershipRole(role)) return role
   }
   return null
 }
@@ -67,7 +72,7 @@ async function matchByEmail(
 async function createUser(input: JitInput, db: Db): Promise<string> {
   const { c, attributes } = input
   const tenantId = c.get('tenant').tenantId
-  const userId = crypto.randomUUID()
+  const userId = createPersistedId('user')
   await db.users.insert({
     id: userId,
     tenantId,
@@ -113,7 +118,7 @@ async function upsertIdentity(input: JitInput, db: Db, userId: string): Promise<
     return
   }
   await db.userIdentities.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('userIdentity'),
     tenantId,
     userId,
     identityType: 'saml',
@@ -145,7 +150,7 @@ async function ensureMembership(input: JitInput, db: Db, userId: string): Promis
     return
   }
   await orgDb.memberships.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('membership'),
     tenantId,
     orgId: connection.orgId,
     userId,

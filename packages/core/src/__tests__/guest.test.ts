@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import type { Result, XidError } from '@xid-kit/types'
 
 import { XidClient } from '../client'
 import { isGuestToken, isGuestUser, isSameUser } from '../guest'
 import { decodeTokenClaims } from '../jwt-decode'
+import type { XidState } from '../types'
 import { makeFetch, makeJwt, makeState, makeUser, type RouteHandler } from './fixtures'
 
 function client(routes: Record<string, RouteHandler>) {
@@ -20,38 +22,88 @@ describe('XidClient.signInAnonymously', () => {
     const result = await instance.signInAnonymously()
 
     expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.state).toBe(instance.getSnapshot())
+      expect(result.value.sessionId).toBe('sess_1')
+      expect(result.value.redirectUrl).toBeNull()
+      expect(result.value.nextStep).toBe('complete')
+      expect(result.value.user?.id).toBe('user_1')
+    }
     expect(fetcher.calls.map((call) => call.path)).toEqual(['/v1/me'])
   })
 
   it('posts /auth/guest with the turnstile token and refreshes state', async () => {
     const { fetcher, instance } = client({
-      '/auth/guest': () => ({ status: 201, json: null }),
-      '/v1/me': () => ({
+      '/auth/config?intent=sign-up': () => ({
         status: 200,
-        json: {
-          user: {
-            id: 'user_guest',
-            provisioned_by: 'anonymous',
-          },
-          activeOrg: null,
-          organizations: [],
-          session: {
-            id: 'sess_guest',
-            expiresAt: '2030-01-01T00:00:00.000Z',
-            isImpersonation: false,
-          },
-        },
+        json: { guest: { capabilityToken: 'guest_capability' } },
       }),
+      '/auth/guest': ({ body }) => {
+        expect(body).toEqual({
+          capabilityToken: 'guest_capability',
+          turnstileToken: 'ts_token',
+        })
+        return {
+          status: 201,
+          json: {
+            sessionId: 'sess_guest',
+            redirectUrl: '/create-organization?source=worker',
+          },
+        }
+      },
+      '/v1/me': () => {
+        const session = {
+          id: 'sess_guest',
+          status: 'active',
+          expiresAt: '2030-01-01T00:00:00.000Z',
+          isImpersonation: false,
+          userId: 'user_guest',
+          activeOrganizationId: null,
+          lastActiveAt: '2029-01-01T00:00:00.000Z',
+        }
+        return {
+          status: 200,
+          json: {
+            user: {
+              id: 'user_guest',
+              email: 'guest@example.com',
+              emailVerified: false,
+              name: null,
+              imageUrl: null,
+              locale: null,
+              hasMfa: false,
+              instanceManager: false,
+              provisioned_by: 'anonymous',
+            },
+            activeOrg: null,
+            organizations: [],
+            session,
+            activeSessionId: session.id,
+            sessions: [session],
+          },
+        }
+      },
     })
 
     const result = await instance.signInAnonymously({ turnstileToken: 'ts_token' })
+    const legacyCompatibleResult: Result<XidState, XidError> = result
 
-    expect(result.ok).toBe(true)
+    expect(legacyCompatibleResult.ok).toBe(true)
+    if (legacyCompatibleResult.ok && result.ok) {
+      expect(result.value.sessionId).toBe('sess_guest')
+      expect(result.value.redirectUrl).toBe('/create-organization?source=worker')
+      expect(result.value.nextStep).toBe('redirect')
+      expect(result.value.state).toBe(instance.getSnapshot())
+      // 兼容旧调用:result.value 仍然保持 XidState 的扁平字段。
+      expect(result.value.status).toBe('ready')
+      expect(result.value.user?.id).toBe('user_guest')
+    }
     expect(instance.isSignedIn).toBe(true)
     expect(instance.user?.id).toBe('user_guest')
     expect(instance.user?.provisionedBy).toBe('anonymous')
     expect(instance.isAnonymous).toBe(true)
     expect(fetcher.calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+      'GET /auth/config?intent=sign-up',
       'POST /auth/guest',
       'GET /v1/me',
     ])
@@ -59,6 +111,10 @@ describe('XidClient.signInAnonymously', () => {
 
   it('returns the error and keeps the signed-out state when the request fails', async () => {
     const { fetcher, instance } = client({
+      '/auth/config?intent=sign-up': () => ({
+        status: 200,
+        json: { guest: { capabilityToken: 'guest_capability' } },
+      }),
       '/auth/guest': () => ({
         status: 429,
         json: { error: { code: 'rate_limited', message: 'slow down', httpStatus: 429 } },
@@ -71,18 +127,43 @@ describe('XidClient.signInAnonymously', () => {
     if (!result.ok) expect(result.error.code).toBe('rate_limited')
     expect(instance.isSignedIn).toBe(false)
     // 失败路径不得触发状态重拉。
-    expect(fetcher.calls.map((call) => call.path)).toEqual(['/auth/guest'])
+    expect(fetcher.calls.map((call) => call.path)).toEqual([
+      '/auth/config?intent=sign-up',
+      '/auth/guest',
+    ])
   })
 
   it('treats a non-guest user as not anonymous after refresh', async () => {
     const { instance } = client({
-      '/auth/guest': () => ({ status: 200, json: null }),
+      '/auth/config?intent=sign-up': () => ({
+        status: 200,
+        json: { guest: { capabilityToken: 'guest_capability' } },
+      }),
+      '/auth/guest': () => ({
+        status: 200,
+        json: {
+          sessionId: 'sess_regular',
+          redirectUrl: '/create-organization',
+        },
+      }),
       '/v1/me': () => ({ status: 200, json: { data: makeState() } }),
     })
 
     await instance.signInAnonymously()
 
     expect(instance.isAnonymous).toBe(false)
+  })
+
+  it('does not call /auth/guest when the entry capability is unavailable', async () => {
+    const { fetcher, instance } = client({
+      '/auth/config?intent=sign-up': () => ({ status: 200, json: { guest: null } }),
+    })
+
+    const result = await instance.signInAnonymously()
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_request')
+    expect(fetcher.calls.map((call) => call.path)).toEqual(['/auth/config?intent=sign-up'])
   })
 })
 

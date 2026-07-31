@@ -12,6 +12,14 @@ import { resolveTokenTenant } from '../../me-auth/token-tenant'
 import { loadActiveSigner } from '../../oidc/shared'
 import { createPasswordlessEmailUser } from '../../me-auth/passwordless-users'
 
+const LOGIN_FLOW_CONTEXT = JSON.stringify({
+  version: 1,
+  intent: null,
+  continuePath: '/console',
+  applicationClientId: null,
+  invitationId: null,
+})
+
 vi.mock('@xid-kit/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xid-kit/db')>()
   return { ...actual, createTenantDb: vi.fn() }
@@ -253,6 +261,7 @@ describe('handleMagicLinkVerify', () => {
             tokenHash,
             userId: 'user-1',
             purpose: 'magic_link',
+            flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: null,
             expiresAt: new Date(Date.now() + 600_000),
           }),
@@ -271,7 +280,13 @@ describe('handleMagicLinkVerify', () => {
       ok: true,
       value: {
         header: {},
-        payload: { sub: 'user-1', jti: verifyJti, purpose: 'magic_link', action: 'login' },
+        payload: {
+          sub: 'user-1',
+          jti: verifyJti,
+          purpose: 'magic_link',
+          action: 'login',
+          flow_context: LOGIN_FLOW_CONTEXT,
+        },
       },
     } as never)
   })
@@ -296,6 +311,7 @@ describe('handleMagicLinkVerify', () => {
             tokenHash,
             userId: 'user-1',
             purpose: 'magic_link',
+            flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: new Date(),
             expiresAt: new Date(Date.now() + 600_000),
           }),
@@ -317,7 +333,7 @@ describe('handleMagicLinkVerify', () => {
     expect(((await res.json()) as { code: string }).code).toBe('magic_link_invalid')
   })
 
-  it('sanitizes continue path and blocks protocol-relative open redirects', async () => {
+  it('ignores a rewritten continue query and follows the signed server flow', async () => {
     const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
     const app = verifyApp(tenant)
     const res = await app.request(

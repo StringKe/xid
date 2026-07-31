@@ -12,7 +12,15 @@ vi.mock('@xid-kit/db', () => ({
   schema: {
     users: { id: 'id' },
     userEmails: { id: 'id', userId: 'userId', isPrimary: 'isPrimary' },
+    invitations: {
+      id: 'id',
+      email: 'email',
+      status: 'status',
+      expiresAt: 'expiresAt',
+    },
+    sessions: { id: 'id' },
     verificationTokens: { tokenHash: 'tokenHash' },
+    passwords: { userId: 'userId' },
   },
 }))
 
@@ -23,9 +31,29 @@ vi.mock('../email-verify-token', () => ({
 }))
 
 vi.mock('../../lib/session', () => ({
+  ACTIVE_SESSION_STATUS: 'active',
+  PENDING_MFA_SESSION_STATUS: 'pending_mfa',
+  PENDING_MFA_SETUP_SESSION_STATUS: 'pending_mfa_setup',
+  issueSession: vi.fn().mockResolvedValue({ session: { sessionId: 'session-victim' } }),
   readSession: vi.fn(),
+  revokeSessionByIdentity: vi.fn().mockResolvedValue(undefined),
   sessionDoRevokeAll: vi.fn().mockResolvedValue(undefined),
 }))
+
+vi.mock('../../lib/mfa-session', () => ({
+  resolvePostAuthMfaGate: vi.fn().mockResolvedValue({}),
+}))
+
+vi.mock('../password-reset', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../password-reset')>()
+  return {
+    ...actual,
+    issuePasswordResetToken: vi.fn().mockResolvedValue({
+      token: 'setup.token.sig',
+      expiresAt: new Date(Date.now() + 900_000),
+    }),
+  }
+})
 
 import { createTenantDb, resolveTenantContextByIssuer } from '@xid-kit/db'
 import {
@@ -35,12 +63,13 @@ import {
 } from '../email-verify-token'
 import { readSession, sessionDoRevokeAll } from '../../lib/session'
 import { AppError } from '../../lib/errors'
+import { issuePasswordResetToken } from '../password-reset'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
 
 type BoundStatement = { sql: string; params: unknown[] }
 
-function makeD1() {
+function makeD1(order?: string[]) {
   const batches: BoundStatement[][] = []
   const db = {
     prepare(sql: string) {
@@ -51,6 +80,7 @@ function makeD1() {
       }
     },
     async batch(statements: BoundStatement[]) {
+      order?.push('credential-reset-batch')
       batches.push(statements)
       return statements.map(() => ({
         success: true,
@@ -96,6 +126,7 @@ function mockVerificationDb(options: {
   email?: string
   pendingEmail?: string | null
   provisionedBy?: string | null
+  hasPassword?: boolean
 }) {
   const email = options.email
   const emailFindOne = vi.fn().mockResolvedValue(
@@ -121,6 +152,11 @@ function mockVerificationDb(options: {
       }),
     },
     userEmails: { findOne: emailFindOne },
+    passwords: {
+      findOne: vi
+        .fn()
+        .mockResolvedValue(options.hasPassword === false ? undefined : { id: 'password-1' }),
+    },
   } as unknown as ReturnType<typeof createTenantDb>)
 }
 
@@ -128,6 +164,10 @@ describe('POST /auth/verify-email', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(loadEmailVerifyToken).mockResolvedValue(tokenRow() as never)
+    vi.mocked(issuePasswordResetToken).mockResolvedValue({
+      token: 'setup.token.sig',
+      expiresAt: new Date(Date.now() + 900_000),
+    })
   })
 
   it('signed email_hash 只验证绑定的 primary Email', async () => {
@@ -182,6 +222,51 @@ describe('POST /auth/verify-email', () => {
     expect(batches[0]?.some((statement) => statement.sql.includes("status = 'revoked'"))).toBe(true)
   })
 
+  it('hosted password Email proof 后才签发一次性 password setup continuation', async () => {
+    const order: string[] = []
+    const emailHash = await sha256Hex('owner@example.com')
+    vi.mocked(verifyEmailVerifyJwt).mockResolvedValue({
+      jti: 'jti-1',
+      userId: 'user-1',
+      emailHash,
+      intent: null,
+    })
+    mockVerificationDb({
+      email: 'owner@example.com',
+      provisionedBy: 'hosted_password',
+      hasPassword: false,
+    })
+    vi.mocked(issuePasswordResetToken).mockImplementationOnce(async () => {
+      order.push('password-setup-token')
+      return {
+        token: 'setup.token.sig',
+        expiresAt: new Date(Date.now() + 900_000),
+      }
+    })
+    const { db, batches } = makeD1(order)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, { ...makeEnv(), DB: db }, '/auth/verify-email', {
+      token: 'valid.jwt.sig',
+    })
+
+    expect(res.status).toBe(200)
+    expect(order).toEqual(['credential-reset-batch', 'password-setup-token'])
+    expect(batches[0]?.some((statement) => statement.sql.includes('INSERT INTO memberships'))).toBe(
+      true,
+    )
+    expect(issuePasswordResetToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        tenant: expect.objectContaining({ tenantId: 'tenant-1' }),
+      }),
+    )
+    expect(await res.json()).toEqual({
+      ok: true,
+      redirectUrl: '/reset-password?token=setup.token.sig',
+    })
+  })
+
   it('email_hash 与当前目标不一致时拒绝且不消费 token', async () => {
     vi.mocked(verifyEmailVerifyJwt).mockResolvedValue({
       jti: 'jti-1',
@@ -197,6 +282,29 @@ describe('POST /auth/verify-email', () => {
     })
 
     expect((await res.json()) as { code: string }).toMatchObject({ code: 'token_invalid' })
+    expect(batches).toHaveLength(0)
+  })
+
+  it('拒绝 legacy invitation verification token 且不读取或消费持久化 token', async () => {
+    vi.mocked(verifyEmailVerifyJwt).mockResolvedValue({
+      jti: 'jti-legacy',
+      userId: 'user-1',
+      emailHash: await sha256Hex('owner@example.com'),
+      intent: null,
+      continuePath: null,
+      applicationClientId: null,
+      invitationId: 'invitation-legacy',
+    })
+    const app = makeApp(registerSessionAuthRoutes)
+    const { db, batches } = makeD1()
+
+    const res = await post(app, { ...makeEnv(), DB: db }, '/auth/verify-email', {
+      token: 'legacy.jwt.sig',
+    })
+
+    expect((await res.json()) as { code: string }).toMatchObject({ code: 'token_invalid' })
+    expect(loadEmailVerifyToken).not.toHaveBeenCalled()
+    expect(createTenantDb).not.toHaveBeenCalled()
     expect(batches).toHaveLength(0)
   })
 

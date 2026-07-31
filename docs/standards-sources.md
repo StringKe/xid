@@ -207,7 +207,10 @@ Status: SAML baseline `implemented`, downstream OIDC baseline `provider-ready`, 
 - `saml_service_providers` is used as the downstream SP registry.
 - Fake SaaS SP L3 covers metadata, signed response, RelayState and ACS POST.
 - Real admin L4 for Slack, GitHub Enterprise Cloud, Microsoft custom enterprise app, Atlassian, Salesforce and Zoom is still missing.
-- SAML Single Logout is currently `not-supported` and must not be written as supported.
+- Generic inbound and outbound SAML Single Logout has local L1/L2 implementation evidence:
+  signed LogoutRequest verification, SessionIndex mapping, session revocation, signed
+  LogoutResponse, and outbound SP notification. Real IdP and SaaS callback L4 is still missing.
+  Slack is an explicit provider exception because Slack does not support Single Logout.
 - The downstream OIDC app catalog stays `provider-ready` on top of the existing OIDC/OAuth IdP baseline and fake SaaS OIDC RP callback L3. SaaS-specific presets, assignment UI and real SaaS OIDC L4 are still missing.
 
 ### P0-D SCIM Service Provider

@@ -10,8 +10,7 @@ public struct XidSession: Sendable, Codable {
     /// guest(匿名)会话没有 access token,为 nil;会话凭证由 SDK 持久化的 session cookie 承担。
     public let accessToken: String?
 
-    /// refresh token。用于换取新 access token,生命周期由服务端配置(默认 7 天)。
-    /// 存入 Keychain secure storage。
+    /// 保留字段。当前 SDK 未实现 DPoP,public client 会话始终为 nil。
     public let refreshToken: String?
 
     /// id token (JWT)。包含用户身份声明。

@@ -74,6 +74,14 @@ export {
 export type { DiscoveryMetadata, ProtectedResourceMetadata } from './discovery'
 export { buildDiscoveryMetadata, buildProtectedResourceMetadata } from './discovery'
 
+// DCR/discovery/authorize/userinfo 共用的标准 scope 目录。
+export type { StandardOidcScope } from './scopes'
+export { STANDARD_OIDC_SCOPES, parseScopeSet, hasScope } from './scopes'
+
+// DCR 与运行时 private_key_jwt 共用的严格 public JWKS 规范化。
+export type { NormalizedPublicJwk, NormalizedPublicJwks, PublicJwksError } from './client-jwks'
+export { normalizePublicJwks } from './client-jwks'
+
 // Shared Signals Framework SET signing
 export type { SetDelivery, SetEventInput } from './set'
 export { signSet, CAEP_SESSION_REVOKED, RISC_ACCOUNT_CREDENTIAL_CHANGE } from './set'

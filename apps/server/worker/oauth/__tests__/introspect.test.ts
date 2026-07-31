@@ -44,7 +44,7 @@ async function appRow(overrides: Record<string, unknown> = {}): Promise<Record<s
     access_token_format: 'jwt',
     access_token_ttl_sec: 3600,
     id_token_signed_alg: 'ES256',
-    first_party: 0,
+    first_party: 1,
     require_org_context: 0,
     custom_claims_config: JSON.stringify({}),
     registration_access_token_hash: null,
@@ -433,6 +433,43 @@ describe('/introspect: refresh token', () => {
 })
 
 describe('/introspect: client gate and request validation', () => {
+  it('Basic 与 body 同时认证时保留 400 invalid_request 端点错误形状', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const tables: TableSet = { applications: [await appRow()] }
+    const env = makeEnv({ DB: makeFakeD1(tables), KEK: kekB64 })
+    const app = makeApp(ctx)
+    const res = await postIntrospect(app, env, {
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      token: 'not-reached',
+    })
+
+    expect(res.status).toBe(400)
+    expect(res.headers.get('www-authenticate')).toBeNull()
+    expect(await res.json()).toEqual({
+      error: 'invalid_request',
+      error_description: 'multiple client authentication methods presented',
+    })
+  })
+
+  it('匿名 DCR confidential client 不是 trusted first-party,无法内省 tenant token', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const tables: TableSet = {
+      applications: [await appRow({ first_party: 0 })],
+    }
+    const env = makeEnv({ DB: makeFakeD1(tables), KEK: kekB64 })
+    const app = makeApp(ctx)
+    const res = await postIntrospect(app, env, { token: 'rt_cross_tenant_inventory' })
+
+    expect(res.status).toBe(401)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(res.headers.get('pragma')).toBe('no-cache')
+    expect(await res.json()).toEqual({
+      error: 'invalid_client',
+      error_description: 'token introspection requires a trusted first-party client',
+    })
+  })
+
   it('public client 被 requireConfidential 拒绝', async () => {
     const { ctx, kekB64 } = await buildTestTenant()
     const tables: TableSet = {

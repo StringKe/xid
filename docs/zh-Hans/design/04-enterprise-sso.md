@@ -1,6 +1,6 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=5d55b0c source-blob=3ec163e698f674a8959b4d7cf3b6fcad8657b336 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=8a7e519afb6a6e6fc54f2cf6bd7ad0f36c436ac8 -->
 
-> Translation of `docs/design/04-enterprise-sso.md` at commit `5d55b0c`. The English version is authoritative.
+> Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
 
 # 04 - 企业 SSO 联邦与目录同步
@@ -15,7 +15,7 @@
 - OIDC RP:authorization/token/userinfo,PKCE
 - SP-initiated:重定向到 IdP authorize,带 RelayState,处理回调换 code/assertion
 - IdP-initiated:接受 IdP POST 到 ACS,用 connection 的 relay_state_url 决定跳转
-- IdP metadata 导入:URL 自动拉取(定期刷新)+ XML 上传,解析 entityID/SSO URL/证书
+- IdP metadata 导入:URL 自动拉取(定期刷新)+ XML 上传,解析 entityID/SSO URL/SLO URL/证书
 - 属性映射:标准字段(email/firstName/lastName/idp_id)自动 + 自定义字段管理员配置
 - 证书管理:SP 私钥对 AuthnRequest 签名(可选);验证 IdP assertion 签名(必须);证书轮换期新旧并存;EncryptedAssertion 解密
 
@@ -25,6 +25,11 @@
 - 主键用 idp_id(SAML NameID / OIDC sub),禁止仅靠 email 匹配(防 email 变更孤立账户)
 - RelayState 最大 2KB,超长截断记日志
 - IdP metadata URL 每 24h 后台轮询刷新,证书变更触发告警 webhook
+- 所有 IdP SSO、SLO、metadata、OIDC discovery URL 必须是 public HTTPS。management 写入路径先校验,
+  SAML/OIDC runtime 再校验已存记录,旧数据或直接导入不能绕过边界。metadata fetch 禁止
+  redirect,限制 response 大小并设置 timeout;从 metadata 解析出的 SSO 和可选 SLO URL 在持久化前
+  再次校验。inbound SLO 只使用显式配置或 metadata 提供的 `SingleLogoutService`,绝不从 SSO URL
+  或 EntityID 猜 endpoint
 
 ### 数据模型
 
@@ -38,27 +43,55 @@
 | Inbound OIDC    | OIDC RP               | 同上 OIDC-capable IdP                                                                                               | provider-ready      | 缺真实 IdP discovery、client config、callback L4 |
 | Inbound SCIM    | SCIM Service Provider | 外部 IdP 或 directory                                                                                               | implemented         | 缺真实 provisioning into XID L4                  |
 | Downstream SAML | SAML IdP              | Slack、GitHub Enterprise Cloud、Microsoft custom app、Atlassian、Salesforce、Zoom                                   | local-mock verified | 缺真实 SaaS admin L4                             |
-| Downstream OIDC | OIDC IdP              | Microsoft custom app、Salesforce、Zoom 等 OIDC-capable SaaS                                                         | provider-ready      | 缺 SaaS-specific preset 和真实 SaaS L4           |
+| Downstream OIDC | OIDC IdP              | Microsoft custom app、Salesforce、Zoom 等 OIDC-capable SaaS                                                         | provider-ready      | 缺 SaaS OIDC 自动注册和真实 SaaS L4              |
 | Outbound SCIM   | SCIM client           | Slack、GitHub Enterprise Cloud、Atlassian、Salesforce、Zoom                                                         | local-mock verified | 缺真实 SaaS SCIM target L4                       |
 
 ## 2. 下游 SaaS SSO(我们作为 IdP)
 
 场景:企业客户把 XID 配成 Slack、GitHub Enterprise Cloud、Microsoft Entra custom enterprise app、Atlassian、Salesforce、Zoom 等下游 SaaS 的身份提供方。此角色与第 1 节相反:第 1 节是 XID 作为 SP/RP 接入企业上游 IdP,本节是 XID 作为 SAML IdP 或 OIDC IdP 给下游 SaaS 发断言或 token。
 
-当前状态:outbound SAML IdP 已落地(本地 L1-L3),公开 docs 不承诺 Slack/GitHub Enterprise/Microsoft custom app/Atlassian/Salesforce/Zoom production-supported。`saml_service_providers` schema 已作为下游 SP 注册表使用。真实 SaaS L4、SaaS-specific preset UI、assignment UI 和完整 app catalog 仍缺。
+当前状态:outbound SAML IdP 已落地(本地 L1-L3),公开 docs 不承诺 Slack/GitHub Enterprise/Microsoft custom app/Atlassian/Salesforce/Zoom production-supported。`saml_service_providers` schema 已作为下游 SP 注册表使用。Console 已实现首批六个 SaaS preset form 和按 app 的 user/role assignment gate。真实 SaaS L4、provider 自动配置和完整 app catalog 仍缺。
 
 SAML IdP baseline 已落地的能力:
 
 - IdP metadata XML:entityID、SSO URL、签名证书、NameIDFormat。
-- SP 注册:每个下游 SaaS 独立记录 ACS URL、SP EntityID、Audience、Recipient、attribute mapping、NameID policy。
-- SSO endpoint:接收 SP-initiated SAMLRequest 或 IdP-initiated app launch,验证用户 session 和 org membership。
+- IdP 签名证书 provisioning:创建下游 SAML app 时若未显式提供 `idp_signing_cert_id`,会复用
+  tenant 内仍有效的证书或自动生成证书,以 `saml_idp_signing` usage 写入 `cert_store`,并使用
+  Workers Secret KEK 对私钥做信封加密。runtime signing 接受仍有效的 `active` 和 `retiring`
+  证书;自动选择只分配 `active`,而 `retiring` 在 trust rollover 期间继续服务已配置的 app。
+  有效期以 X.509 证书本身为准,不信任可空的数据库边界。唯一 active IdP 证书尚未生效或剩余
+  有效期不超过 30 天时,provisioning 会在同一个 D1 batch 中把该 exact certificate 原子改为
+  `retiring` 并插入 replacement。active certificate partial unique index 只作用于
+  `saml_idp_signing`,不会改变 SP signing 或 encryption certificate 的状态。
+- SP 注册:每个下游 SaaS 独立记录 ACS URL、SP EntityID、Audience、Recipient、attribute
+  mapping、NameID policy。ACS 和可选 SLO URL 在注册时必须是 public HTTPS,发断言或登出前
+  runtime 再次校验。
+- SSO endpoint:接收 SP-initiated SAMLRequest 或 IdP-initiated app launch,验证用户 session 和
+  org membership。SP-initiated 请求先经过同一套安全 XML 预检查和专用 closed AuthnRequest
+  grammar,再对注册 SP 的 Issuer、Destination、HTTP-POST binding 和 ACS 做精确匹配。Metadata
+  当前广告 `WantAuthnRequestsSigned=false`,因此允许 unsigned 请求;一旦携带 embedded XMLDSig
+  或 Redirect `Signature`/`SigAlg`,就必须用 SP certificate 验签。
 - Assertion 签发:签名 Response 和 Assertion,设置 Issuer、Subject、NameID、AudienceRestriction、Recipient、Destination、NotOnOrAfter、email、name。
 - 验证:package-level XML 签名测试、Worker route L2、fake SaaS SP L3 已覆盖。真实 Slack/GitHub/Microsoft/Atlassian/Salesforce/Zoom admin L4 仍缺。
+- Preset 与 assignment UI:Console 已提供 Slack、GitHub Enterprise Cloud、Microsoft custom
+  app、Atlassian、Salesforce、Zoom preset,以及 `all` 或受限 user/role assignment gate。
+- Outbound SLO 由浏览器驱动。`/auth/sign-out` 准备第一个已签名的 HTTP-Redirect 或
+  HTTP-POST LogoutRequest action,在返回前撤销本地 XID session,不会对 SP 执行 server-side
+  fetch。Core 和 Web UI SDK 在 user agent 中执行该 action。选择第一个可用 action 时,缺失
+  或非法的已存 SP endpoint 会记录审计并跳过,不能阻断本地 sign-out。
+- 每个已发出的 LogoutRequest 都在 `ChallengeStore` 保存一次性 context,绑定 tenant、app、
+  request ID、SessionIndex、精确 RelayState、同源 return URL 和剩余 SP target。
+  `/sso/outbound/saml/:appId/slo` callback 要求注册 SP 返回已签名且匹配的 LogoutResponse,
+  通过 `InResponseTo` 消费 context,并拒绝 replay 或 RelayState 不匹配。Success response
+  会撤销映射的 SAML session binding;已签名的 non-Success response 会记录审计但不撤销该
+  binding,同时仍进入下一个浏览器 action,避免单个 SP 阻断其他 SP 的本地登出。链路完成后
+  只重定向到 issuer-origin `/sign-in`。
 
 仍缺能力:
 
-- SaaS 模板 UI:Slack、GitHub Enterprise Cloud、Microsoft custom SAML app、Atlassian、Salesforce、Zoom 首批模板。
-- App assignment gate:按 org/app 细粒度限制可登录的用户和组。
+- 面向真实 Slack、GitHub Enterprise Cloud、Microsoft、Atlassian、Salesforce、Zoom admin
+  环境的 provider-side 自动配置和验证。
+- 超出已实现显式 user-id 与 membership-role gate 的 directory group assignment。
 - Groups/roles claim mapping:把 XID membership 或 directory groups 映射成每个 SaaS 期望的 attribute。
 
 不支持边界:SAML Single Logout 当前不支持对 Slack production-supported 声称;Slack 官方 custom SAML 文档说明 Slack 不支持 Single Logout,因此 outbound SAML IdP 不得对 Slack 声称 SLO production-supported。通用 SP 的 inbound/outbound SAML SLO 已实现(验签、SessionIndex 映射、LogoutResponse),真实 IdP/SaaS SLO callback L4 仍缺。
@@ -71,16 +104,38 @@ SAML IdP baseline 已落地的能力:
 
 Outbound SCIM client baseline 已落地的能力:
 
-- Target 注册:每个下游 SaaS 独立记录 SCIM base URL、token secret ref、attribute mapping、group mapping、assignment gate。
-- Token 存储:SaaS SCIM bearer token 只用 secret ref 或信封加密,日志和审计必须 redaction。
-- Sync endpoint:通过 `/scim/outbound/:targetId/sync` 推送 Users、Groups,并用 PATCH 映射 deactivation。
-- 验证:fake SaaS SCIM L3 覆盖 Users push、Groups push、deactivation PATCH。真实 Slack/GitHub Enterprise/Atlassian/Salesforce/Zoom admin L4 仍缺。
+- Target 注册:每个下游 SaaS 独立记录 public HTTPS SCIM base URL、服务端派生的 token secret ref、attribute mapping、group mapping、assignment gate。
+- Token 存储:SaaS SCIM bearer token 只保存在 target 专属 Workers Secret
+  `SCIM_TARGET_TOKEN_<normalized target id>`。API 创建 target 后返回这个必需名称,拒绝调用方提交
+  `token_secret_ref`,tenant 数据不能选择任意 Worker binding。日志和审计必须 redaction。
+- Sync endpoints:`/scim/outbound/:targetId/sync` 与
+  `/v1/organizations/:orgId/scim-targets/:targetId/sync` 只负责鉴权并入队一个
+  `ScimSyncQueueMessage`,返回 `202` 和稳定 `runId`;请求链路不调用下游 SaaS。
+- 稳定 resource mapping:`scim_target_resources` 把本地 User 或 role-derived Group 绑定到下游
+  SCIM `id`。consumer 优先用 mapping;mapping 缺失或失效时先按确定性 `externalId` discovery,
+  零结果才 `POST`,已有资源统一 `PUT`。
+- Group payload 的成员使用同一 target mapping 中的 downstream User id,不发送 XID User id。
+- 安全 deprovision:只有本轮 Organization Membership 与 assignment gate 交集中的全部 User 和
+  Group upsert 都成功,才处理本轮范围外的旧 mapping。User 执行 `PATCH active=false`,旧 role
+  Group 清空 members 并保留 mapping 供后续恢复;partial run 不执行 deprovision。
+- Retry 与 audit:网络错误、`408`、`429`、`5xx` 通过 `SCIM_QUEUE` retry;`429` 同时支持
+  `Retry-After` delta-seconds 与 HTTP-date,并限制在 Queue delay 范围。accepted、
+  retry-scheduled、succeeded、terminal-failed 使用同一 `runId` 写入 `AUDIT_QUEUE`,不记录
+  response body 或 bearer token。
+- 验证:fake SaaS SCIM L3 覆盖 discovery/create、mapped update、幂等 retry、downstream-id
+  Group members、deprovision 和 `Retry-After`。真实 Slack/GitHub
+  Enterprise/Atlassian/Salesforce/Zoom admin L4 仍缺。
+
+SCIM consumer 配置为 `max_batch_size = 1`、`max_concurrency = 1`,避免两个 run 同时观察到
+mapping 不存在后重复创建。Queue 仍是 at-least-once,真正幂等边界是确定性 `externalId`
+discovery 加持久化 mapping。新 mapping 只保证 schema 上线后的 run;不会推断或修改上线前
+已经存在但未知的 SaaS 账号,生产历史清理必须是单独且显式的 reconciliation。
 
 仍缺能力:
 
 - SaaS 模板 UI:Slack、GitHub Enterprise Cloud、Atlassian、Salesforce、Zoom 首批 SCIM target templates。
-- Queue 或 Durable Object 串行化、retry、rate limit、conflict、cursor 和 audit correlation id。
 - 细粒度 assignment gate 和 attribute/group mapping UI。
+- Provider-specific bulk cursors 与真实 SaaS conflict/429 行为的 L4 验证。
 
 ## 4. JIT Provisioning
 
@@ -224,6 +279,18 @@ ACS 端点:`POST /saml/acs/{connection_id}`,`Content-Type: application/x-www-for
 
 注:第 8 节明确 Workers 不能跑 xmllint 原生二进制。本步用纯 JS schema validator(对 `@xmldom/xmldom` DOM 做结构断言)或在 spike 阶段评估纯 JS XSD 库;若纯 JS XSD 不可得,**降级为对关键路径的硬编码结构白名单断言**(只允许已知元素出现在 Response/Assertion 的固定位置),绝不放行未知扩展点。这是 P0,不允许"先放行后处理"。
 
+HTTP-POST 与 HTTP-Redirect 的 SLO 同样必须经过该闭集 grammar。安全解析完成后立即校验,
+且必须发生在选择或验证 embedded/Redirect-binding signature 之前。每个 binding field
+必须唯一,重复的 `SAMLRequest`、`SAMLResponse` 或 `RelayState` 一律拒绝。HTTP-Redirect
+验签必须使用原始 percent-encoded wire value,不能使用 query parser 重新序列化后的值。
+LogoutRequest 只在有界 IssueInstant/NotOnOrAfter window 内接受,request ID 在该 window
+到期前只能 claim 一次。`LogoutRequest` 只接受
+`Issuer`、可选 `ds:Signature`、`NameID`、零个或多个 protocol namespace `SessionIndex` 的固定
+顺序;`LogoutResponse` 只接受 `Issuer`、可选 `ds:Signature`、`Status`。两种 root 都使用属性
+闭集,要求 `ID`、`Version="2.0"` 和有效 `IssueInstant`;`LogoutResponse` 还要求
+`InResponseTo`。`Extensions`、未知或重复 child、mixed content、signature 移出固定位置均在
+验签前以 `schema_invalid` fail closed。
+
 ### 9.3 选择签名节点(envelope vs assertion 优先级)
 
 SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个开关(默认均 true,见第 1 节证书管理):
@@ -255,7 +322,10 @@ SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个�
 
 1. 取验签证书:**只用 connection 配置中存的 IdP 证书**(metadata 导入时落库的 X.509),**忽略文档内 `ds:KeyInfo` / `ds:X509Certificate`**(对照 OWASP StaticKeySelector:期望单签名密钥时从 IdP 直接获取并存本地,忽略文档内 KeyInfo)。证书轮换期 connection 存新旧两证书,任一验过即可。
 2. exclusive C14N 规范化 `ds:SignedInfo` -> 用证书公钥(`crypto.subtle.verify`,RSASSA-PKCS1-v1_5 + SHA-256 等)验 `ds:SignatureValue`。失败 -> 拒。
-3. 证书有效性:检查 `notBefore`/`notAfter`(允许 connection 配置的容忍窗口);吊销检查(CRL/OCSP)是 P1,首版记录证书指纹用于事故响应。
+3. 证书有效性:检查 `notBefore`/`notAfter`,使用 connection 的 `saml_clock_skew_ms`
+   容忍值。默认 `180000`(+-3min),允许范围 `0..300000`,Assertion 时间校验使用同一值。
+   证书轮换时忽略当前无效的证书,任一当前有效的已配置证书验签成功即可。吊销检查(CRL/OCSP)
+   是 P1,首版记录证书指纹用于事故响应。
 4. **验签通过后,只从已验证的签名节点对应的元素(9.4 步 2 定位的那个 Assertion)中提取数据**。绝不在文档全局 `getElementsByTagName` 再取 NameID/Attribute。这是 XSW 防护的最后一道(签名验对了但用错节点)。
 
 ### 9.6 EncryptedAssertion 解密
@@ -274,12 +344,25 @@ SAML 允许签 Response、签 Assertion 或两者都签。connection 级两个�
 对已验签 Assertion 顺序校验,任一失败按 9.8 返回:
 
 1. `saml:Issuer` == connection 配置的 IdP EntityID(精确字符串匹配)。
-2. `saml:Conditions/@NotBefore` <= now < `@NotOnOrAfter`,时钟偏差容忍 +-3min(`NotOnOrAfter` 是排他上界)。
+2. `saml:Conditions/@NotBefore` <= now < `@NotOnOrAfter`,使用 connection 的
+   `saml_clock_skew_ms` 容忍值(默认 +-3min,最大 +-5min;`NotOnOrAfter` 是排他上界)。
 3. `saml:Conditions/saml:AudienceRestriction/saml:Audience` 包含本 SP 的 EntityID(我们的 ACS 对应 SP EntityID,从 TenantContext + connection 取)。
-4. `saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData`:`@Recipient` == 本 ACS URL(精确);`@NotOnOrAfter` 未过期;`@InResponseTo`(SP-initiated 时)== 我们发出且未消费的 AuthnRequest ID(存 Durable Object,一次性,防重放),IdP-initiated 时该属性必须缺省(出现则拒,防混淆)。
-5. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` == `urn:oasis:names:tc:SAML:2.0:status:Success`,否则按 IdP 报错处理(403)。
-6. 重放防护:`Assertion/@ID` 记入已消费集(Durable Object,TTL = `NotOnOrAfter` + 偏差窗口),重复出现 -> 拒。
-7. 提取 NameID(主键 idp_id,见第 1 节)与映射属性(email/firstName/lastName/groups),进入 JIT(第 4 节)。
+4. `saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData` 必须携带非空
+   `@Recipient` 与语法有效的 `@NotOnOrAfter`;缺失、空白或非法值均 fail closed。
+   `@Recipient` 必须精确等于本 ACS URL,`@NotOnOrAfter` 使用同一 connection clock-skew
+   tolerance 且尚未过期。`@InResponseTo`(SP-initiated 时)必须等于我们发出且未消费的
+   AuthnRequest ID(存 Durable Object,一次性,防重放);IdP-initiated 时该属性必须缺省,
+   出现即拒(防混淆)。
+5. 登录 Assertion 必须恰好包含一个 `saml:AuthnStatement`;其 `@AuthnInstant` 必填且必须是
+   有效 date-time。该时间不能晚于 `now + saml_clock_skew_ms`,也不能早于已签名 Assertion
+   freshness window(`Conditions/@NotBefore - saml_clock_skew_ms`)。缺失、重复、非法、
+   future 或 stale authentication evidence 均 fail closed。
+6. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` ==
+   `urn:oasis:names:tc:SAML:2.0:status:Success`,否则按 IdP 报错处理(403)。
+7. 重放防护:`Assertion/@ID` 记入已消费集(Durable Object,TTL =
+   `NotOnOrAfter` + 偏差窗口),重复出现 -> 拒。
+8. 提取 NameID(主键 idp_id,见第 1 节)与映射属性
+   (email/firstName/lastName/groups),进入 JIT(第 4 节)。
 
 ### 9.8 ACS 端点错误分支(HTTP 状态映射)
 

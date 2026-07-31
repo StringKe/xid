@@ -11,6 +11,7 @@ import { Hono } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import { readJsonBody, validateBody, validateQuery } from '../lib/validate'
 import { requireApiKey, parsePagination, paginate, idAfterCursor, emitWebhookAsync } from './shared'
 
@@ -232,7 +233,7 @@ app.post('/', async (c) => {
       throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'external_id' } })
   }
 
-  const id = crypto.randomUUID()
+  const id = createPersistedId('user')
   const user = await db.users.insert({
     id,
     tenantId: tenant.tenantId,

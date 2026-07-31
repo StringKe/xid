@@ -25,8 +25,10 @@ import { handleConsent, handleConsentParams } from './consent'
 import { handleDeviceActivation, handleDeviceActivationParams } from './device-activation'
 import { handleCibaActivation, handleCibaActivationParams } from './ciba-activation'
 import { handleSessionToken } from './session-token'
+import { handleActiveSession } from './active-session'
 import { handleActiveOrganization } from './active-organization'
 import { handleInvitationAccept, handleInvitationPreview } from './invitation-accept'
+import { handleInvitationClaimStart, handleInvitationClaimVerify } from './invitation-claim'
 import { handleSelfOrganizationCreate } from './organization-self'
 import { handleGuestSignIn } from './guest'
 
@@ -78,10 +80,13 @@ export function registerSessionAuthRoutes(app: Hono<XidHonoEnv>): void {
 
   // 组织邀请 / 自助建 org
   app.get('/auth/invitation/preview', handleInvitationPreview)
+  app.post('/auth/invitation/claim', handleInvitationClaimStart)
+  app.post('/auth/invitation/claim/verify', handleInvitationClaimVerify)
   app.post('/auth/invitation/accept', handleInvitationAccept)
   app.post('/v1/organizations/self', handleSelfOrganizationCreate)
 
   // short-lived session token(cookie 认证,非 sk_live)
   app.post('/v1/sessions/token', handleSessionToken)
+  app.post('/v1/sessions/active', handleActiveSession)
   app.post('/v1/sessions/active-organization', handleActiveOrganization)
 }

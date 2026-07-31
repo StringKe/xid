@@ -11,6 +11,8 @@ import {
   PUBLIC_DOCS_LOCALES,
   flattenPublicDocsIndex,
   getPublicDocPath,
+  getPublicDocsAgentIndexPath,
+  getPublicDocsIndexedSections,
   isPublicDocsAgentIndexable,
   parsePublicDocsRoute,
   resolvePublicDocsAliasPath,
@@ -67,6 +69,9 @@ describe('public docs route registry', () => {
     ])
     expect(getPublicDocPath('zh-Hans', 'oidc-oauth')).toBe('/zh-hans/oidc-oauth')
     expect(getPublicDocPath('pt-BR', 'sdks/react')).toBe('/pt-br/sdks/react')
+    expect(getPublicDocsAgentIndexPath('en', 'sdks/react')).toBe('/sdks/llms.txt')
+    expect(getPublicDocsAgentIndexPath('zh-Hans', 'sdks/react')).toBe('/zh-hans/sdks/llms.txt')
+    expect(getPublicDocsAgentIndexPath('fr', 'oidc-oauth')).toBe('/fr/llms.txt')
   })
 
   it('parses only the hub and 40 public detail routes', () => {
@@ -118,6 +123,13 @@ describe('public docs route registry', () => {
     for (const group of groups) {
       expect(group.documents.map((entry) => entry.slug)).toEqual(PUBLIC_DOC_SLUGS)
       expect(group.documents).toHaveLength(40)
+      const [section] = getPublicDocsIndexedSections(group)
+      expect(section).toMatchObject({
+        locale: group.locale,
+        slug: 'sdks',
+        docsRoot: group.routeSegment === '' ? '/sdks' : `/${group.routeSegment}/sdks`,
+      })
+      expect(section?.documents).toHaveLength(29)
     }
   })
 
@@ -138,9 +150,21 @@ describe('public docs route registry', () => {
   })
 
   it.each(['draft', 'noindex'] as const)('excludes %s entries from agent indexes', (field) => {
-    const hidden = indexedFixture('en', 'getting-started')
-    hidden.entry.data = { ...hidden.entry.data, [field]: true }
-    expect(isPublicDocsAgentIndexable(hidden)).toBe(false)
-    expect(() => validatePublicDocsIndex([hidden])).toThrow('public docs index must contain')
+    const hiddenSlug = PUBLIC_DOC_SLUGS[0]
+    const expectedSlugs = PUBLIC_DOC_SLUGS.filter((slug) => slug !== hiddenSlug)
+    const indexed = completeIndex()
+    for (const item of indexed) {
+      const route = parsePublicDocsRoute(item.url)
+      if (route?.kind === 'document' && route.slug === hiddenSlug) {
+        item.entry.data = { ...item.entry.data, [field]: true }
+      }
+    }
+    const visible = indexed.filter(isPublicDocsAgentIndexable)
+    const groups = validatePublicDocsIndex(visible, expectedSlugs)
+
+    expect(visible).toHaveLength(DOCUMENT_LOCALES.length * (expectedSlugs.length + 1))
+    expect(groups.every((group) => group.documents.every(({ slug }) => slug !== hiddenSlug))).toBe(
+      true,
+    )
   })
 })

@@ -222,9 +222,11 @@ export const styles = stylex.create({
     textDecorationLine: 'underline',
     textUnderlineOffset: '0.1875rem',
   },
-  // Turnstile invisible 占位:脚本挂载不产生视觉占位或 reflow。
+  // interaction-only 平时无视觉占位;Cloudflare 要求交互时保持容器可见、可访问。
   turnstile: {
-    display: 'none',
+    display: 'flex',
+    justifyContent: 'center',
+    width: '100%',
   },
   // --- OTP 面板 ---
   otpSwitchRow: {

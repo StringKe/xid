@@ -1,5 +1,8 @@
 # xid - XID 身份平台 Rust 服务端 SDK
 
+> Registry status: UNPUBLISHED. No crates.io release is verified or authorized.
+> Use the local path dependency below.
+
 > **Status: implemented (verified locally)**
 > 本机 `cargo test` 全部 PASS(见 `docs/sdks/platform-matrix.md`)。
 > 真实 IdP round-trip(L4)尚未验证:投入生产前仍需对接真实 XID issuer 做集成测试。
@@ -9,7 +12,11 @@
 服务端 SDK,职责:
 
 - **networkless JWT 验证**:从 `/jwks` 拉取 JWKS 后在本地验签(带内存缓存,TTL 1 小时),无需每次请求调用 XID API。
-- **请求认证**:从 `Authorization: Bearer` 或 Cookie 中提取并验证 access token。
+- **请求认证**:默认只读取 `Authorization: Bearer`;只有显式调用
+  `with_session_cookie` 时才读取应用自己持有的 JWT cookie。
+- **Core session exchange**:将完整 `Cookie` header 只转发到 exact same-origin
+  `POST /v1/sessions/token`,换取 short-lived JWT。不会扫描或本地验证
+  `__Host-xid.rt.*` opaque Core browser session cookie。
 - **webhook 验证**:svix 风格 HMAC-SHA256 签名校验(5 分钟时间窗防重放)。
 
 不实现 OAuth 授权流程(授权流程属于客户端侧)。
@@ -22,7 +29,7 @@
 
 ```toml
 [dependencies]
-xid = { path = "../sdk/rust" }   # 本地路径引用(发布到 crates.io 后改为版本号)
+xid = { path = "../sdk/rust" }
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -60,7 +67,7 @@ async fn main() {
 use xid::{XidClient, XidClientConfig, AuthState};
 
 async fn handle_request(client: &XidClient, raw_headers: Vec<(String, String)>) {
-    // cookies 从框架解析后以 (name, value) 传入
+    // 默认 Bearer-only;未显式配置 cookie 名时 cookies 会被忽略
     let cookies: Vec<(String, String)> = vec![];
 
     let state = client.authenticate_request(raw_headers, cookies).await;
@@ -83,7 +90,32 @@ async fn handle_request(client: &XidClient, raw_headers: Vec<(String, String)>) 
 }
 ```
 
-### 3. Webhook 验证
+如需应用自有 JWT cookie fallback,显式配置:
+
+```rust
+let config = XidClientConfig::new("https://xid.dev")
+    .with_session_cookie("__Host-myapp.xid-jwt");
+```
+
+Core 的 `__Host-xid.rt.*` cookie 是 opaque session handle,不能作为 JWT 验证。
+
+### 3. 将 Core browser session 交换为 JWT
+
+```rust
+let token = client
+    .exchange_session_token(
+        "https://app.example.com/account",
+        raw_cookie_header,
+        Some("/v1/sessions/token"),
+    )
+    .await?;
+```
+
+SDK 强制 exact same-origin、禁用 redirect,转发完整 `Cookie` header,并且只接受 HTTP 200 与
+exact `{"token":"..."}` response。特殊 HTTP runtime 可使用
+`exchange_session_token_with` 注入 transport,origin/path/wire 校验仍由 SDK 执行。
+
+### 4. Webhook 验证
 
 ```rust
 use xid::WebhookVerifier;
@@ -118,7 +150,7 @@ fn handle_webhook(headers: Vec<(String, String)>, body: &[u8]) {
 | --------------------------- | ----------------------------------- |
 | `new(issuer)`               | 最小构造,指定 XID issuer            |
 | `with_audience(aud)`        | 设置期望的 audience(aud claim 校验) |
-| `with_session_cookie(name)` | 设置 Cookie 名称(默认 `__session`)  |
+| `with_session_cookie(name)` | 显式设置应用自有 JWT cookie 名称;默认关闭 |
 | `with_leeway(seconds)`      | 设置 exp/nbf 宽松窗口(秒)           |
 
 ### `XidClient`
@@ -129,6 +161,8 @@ fn handle_webhook(headers: Vec<(String, String)>, body: &[u8]) {
 | `with_http_client(config, http)`                      | 使用自定义 reqwest::Client(测试 mock) |
 | `verify_token(token) -> XidResult<VerifiedToken>`     | 验证 token 字符串                     |
 | `authenticate_request(headers, cookies) -> AuthState` | 从请求提取并验证 token                |
+| `exchange_session_token(...) -> XidResult<String>`    | Core opaque session -> short-lived JWT |
+| `exchange_session_token_with(...)`                    | 使用显式 transport adapter 交换 token |
 
 ### `AuthState`
 
@@ -192,6 +226,7 @@ pub struct WebhookPayload {
 - `KeyNotFound` - JWKS 中找不到对应 kid
 - `IssuerMismatch` / `AudienceMismatch` / `TokenExpired` / `NotYetValid`
 - `WebhookSignatureInvalid` / `WebhookTimestampExpired` / `WebhookMissingHeader`
+- `SessionTokenExchange` - session exchange origin、HTTP 或 response wire 失败
 
 ---
 
@@ -199,7 +234,7 @@ pub struct WebhookPayload {
 
 | 项目 | 状态 |
 | ---- | ---- |
-| `cargo test` 本机编译通过 | 25 passed |
+| `cargo test` 本机编译通过 | 31 passed |
 | `feature = "axum"` → `auth::axum_extract::Auth` (`FromRequestParts`) | 已实现 |
 | `feature = "actix-web"` → `auth::actix_extract::Auth` (`FromRequest`) | 已实现 |
 | JWKS 单条 key 解析失败 `tracing::warn!` | 已实现 |

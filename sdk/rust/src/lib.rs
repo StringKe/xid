@@ -7,17 +7,17 @@
 //!
 //! 不实现 OAuth 授权流程(属于客户端侧)。
 
+pub mod auth;
 pub mod error;
 pub mod jwks;
 pub mod token;
-pub mod auth;
 pub mod webhook;
 
-pub use error::{XidError, XidResult};
-pub use token::{Claims, VerifiedToken};
-pub use auth::{AuthState, XidClient, XidClientConfig};
-#[cfg(feature = "axum")]
-pub use auth::axum_extract;
 #[cfg(feature = "actix-web")]
 pub use auth::actix_extract;
-pub use webhook::{WebhookVerifier, WebhookPayload};
+#[cfg(feature = "axum")]
+pub use auth::axum_extract;
+pub use auth::{AuthState, SessionTokenHttpResponse, XidClient, XidClientConfig};
+pub use error::{XidError, XidResult};
+pub use token::{Claims, VerifiedToken};
+pub use webhook::{WebhookPayload, WebhookVerifier};

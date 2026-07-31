@@ -6,7 +6,8 @@ import { useCallback, useState } from 'react'
 
 import { useXidRnContext } from './xid-rn-context'
 import { createPkceVerifier, createPkceChallenge, createRandomString } from './pkce'
-import { exchangeCodeForTokens, pendingAuthorizationKey, saveTokenSet } from './token-exchange'
+import { exchangeCodeForTokens, pendingAuthorizationKey } from './token-exchange'
+import type { TokenSet } from './token-exchange'
 import type { TokenCache } from './token-cache'
 
 const pendingAuthorizationTails = new Map<string, Promise<void>>()
@@ -31,15 +32,21 @@ export type UseSignInReturn = {
   handleRedirect: (url: string) => Promise<void>
 }
 
+type PendingAuthorization = {
+  verifier: string
+  nonce: string
+  redirectUri: string
+}
+
 // Parses the callback URL, validates CSRF state, exchanges code for tokens.
 // Extracted as module-level function to avoid unstable closure in useCallback deps.
 async function processCallback(input: {
   url: string
-  redirectUri: string
   tokenCache: TokenCache
   issuer: string
   clientId: string
-}): Promise<void> {
+  fetcher: typeof fetch
+}): Promise<TokenSet> {
   const callbackUrl = new URL(input.url)
   const code = callbackUrl.searchParams.get('code')
   const returnedState = callbackUrl.searchParams.get('state')
@@ -47,7 +54,7 @@ async function processCallback(input: {
     throw new Error('[xid-kit/react-native] Redirect state mismatch (CSRF guard).')
   }
 
-  const verifier = await consumePendingAuthorization(input.tokenCache, returnedState)
+  const pending = await consumePendingAuthorization(input.tokenCache, returnedState)
   const error = callbackUrl.searchParams.get('error')
   if (error) {
     throw new Error(`[xid-kit/react-native] OAuth error: ${error}`)
@@ -56,17 +63,21 @@ async function processCallback(input: {
     throw new Error('[xid-kit/react-native] Redirect is missing authorization code.')
   }
 
-  const tokens = await exchangeCodeForTokens({
+  return exchangeCodeForTokens({
     issuer: input.issuer,
     clientId: input.clientId,
-    redirectUri: input.redirectUri,
+    redirectUri: pending.redirectUri,
     code,
-    verifier,
+    verifier: pending.verifier,
+    nonce: pending.nonce,
+    fetcher: input.fetcher,
   })
-  await saveTokenSet(input.tokenCache, tokens)
 }
 
-async function consumePendingAuthorization(cache: TokenCache, state: string): Promise<string> {
+async function consumePendingAuthorization(
+  cache: TokenCache,
+  state: string,
+): Promise<PendingAuthorization> {
   const namespace = tokenCacheNamespace(cache)
   const previous = pendingAuthorizationTails.get(namespace) ?? Promise.resolve()
   let release: () => void = () => undefined
@@ -81,12 +92,31 @@ async function consumePendingAuthorization(cache: TokenCache, state: string): Pr
   await previous
   try {
     const key = pendingAuthorizationKey(state)
-    const verifier = await cache.getToken(key)
-    if (!verifier) {
+    const value = await cache.getToken(key)
+    if (!value) {
       throw new Error('[xid-kit/react-native] PKCE verifier missing from token cache.')
     }
     await cache.deleteToken(key)
-    return verifier
+    try {
+      const record = JSON.parse(value) as Partial<PendingAuthorization>
+      if (
+        typeof record.verifier !== 'string' ||
+        record.verifier.length === 0 ||
+        typeof record.nonce !== 'string' ||
+        record.nonce.length === 0 ||
+        typeof record.redirectUri !== 'string' ||
+        record.redirectUri.length === 0
+      ) {
+        throw new Error()
+      }
+      return {
+        verifier: record.verifier,
+        nonce: record.nonce,
+        redirectUri: record.redirectUri,
+      }
+    } catch {
+      throw new Error('[xid-kit/react-native] Pending authorization record is invalid.')
+    }
   } finally {
     release()
     if (pendingAuthorizationTails.get(namespace) === tail) {
@@ -115,7 +145,9 @@ export function useSignIn(): UseSignInReturn {
     clientId,
     redirectUri: defaultRedirectUri,
     scopes: defaultScopes,
+    fetcher,
     restoreSession,
+    commitAuthorizationSession,
   } = useXidRnContext()
   const [signInState, setSignInState] = useState<SignInState>({ status: 'idle' })
 
@@ -127,10 +159,19 @@ export function useSignIn(): UseSignInReturn {
       try {
         const redirectUri = options.redirectUri ?? defaultRedirectUri
         const scopes = options.scopes ?? defaultScopes
+        if (!scopes.includes('openid')) {
+          throw new Error('[xid-kit/react-native] OIDC sign-in requires the openid scope.')
+        }
+        if (scopes.includes('offline_access')) {
+          throw new Error(
+            '[xid-kit/react-native] offline_access requires DPoP sender binding, which this SDK does not implement.',
+          )
+        }
 
         // All PKCE + tokenCache + browser calls inside try: any failure -> error state.
         const verifier = createPkceVerifier(64)
         const state = createRandomString(32)
+        const nonce = createRandomString(43)
         const challenge = await createPkceChallenge(verifier)
 
         const authorizeUrl = new URL('/authorize', issuer)
@@ -139,11 +180,15 @@ export function useSignIn(): UseSignInReturn {
         authorizeUrl.searchParams.set('response_type', 'code')
         authorizeUrl.searchParams.set('scope', scopes.join(' '))
         authorizeUrl.searchParams.set('state', state)
+        authorizeUrl.searchParams.set('nonce', nonce)
         authorizeUrl.searchParams.set('code_challenge', challenge)
         authorizeUrl.searchParams.set('code_challenge_method', 'S256')
 
         pendingKey = pendingAuthorizationKey(state)
-        await tokenCache.saveToken(pendingKey, verifier)
+        await tokenCache.saveToken(
+          pendingKey,
+          JSON.stringify({ verifier, nonce, redirectUri } satisfies PendingAuthorization),
+        )
 
         const result = await browser.openAuthSession(authorizeUrl.toString(), redirectUri)
 
@@ -153,13 +198,14 @@ export function useSignIn(): UseSignInReturn {
           return
         }
 
-        await processCallback({
+        const tokens = await processCallback({
           url: result.url,
-          redirectUri,
           tokenCache,
           issuer,
           clientId,
+          fetcher,
         })
+        await commitAuthorizationSession(tokens)
         await restoreSession()
         setSignInState({ status: 'complete' })
       } catch (err) {
@@ -172,19 +218,30 @@ export function useSignIn(): UseSignInReturn {
         })
       }
     },
-    [tokenCache, browser, issuer, clientId, defaultRedirectUri, defaultScopes, restoreSession],
+    [
+      tokenCache,
+      browser,
+      issuer,
+      clientId,
+      defaultRedirectUri,
+      defaultScopes,
+      fetcher,
+      restoreSession,
+      commitAuthorizationSession,
+    ],
   )
 
   const handleRedirect = useCallback(
     async (url: string): Promise<void> => {
       try {
-        await processCallback({
+        const tokens = await processCallback({
           url,
-          redirectUri: defaultRedirectUri,
           tokenCache,
           issuer,
           clientId,
+          fetcher,
         })
+        await commitAuthorizationSession(tokens)
         await restoreSession()
         setSignInState({ status: 'complete' })
       } catch (err) {
@@ -194,7 +251,7 @@ export function useSignIn(): UseSignInReturn {
         })
       }
     },
-    [tokenCache, issuer, clientId, defaultRedirectUri, restoreSession],
+    [tokenCache, issuer, clientId, fetcher, commitAuthorizationSession, restoreSession],
   )
 
   return { signInState, signIn, handleRedirect }

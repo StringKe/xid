@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import {
+  createSmokeWranglerConfigs,
+  testSecrets,
+} from '../../../apps/server/scripts/run-l2-l3-smoke.mjs'
 import { delay, printResult } from '../../production/harness/production-auth.mjs'
 import { trimTrailingSlashes } from '../../helpers/url.mjs'
 
@@ -90,30 +94,131 @@ async function waitForHttp(url, name) {
   throw lastError ?? new Error(`${name} did not become ready`)
 }
 
+async function runCommand(command, args, options = {}) {
+  const child = spawn(command, args, {
+    cwd: process.cwd(),
+    env: options.env ?? process.env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let stdout = ''
+  let stderr = ''
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk
+  })
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk
+  })
+  const code = await new Promise((resolve, reject) => {
+    child.once('error', reject)
+    child.once('exit', resolve)
+  })
+  if (code !== 0) {
+    throw new Error(
+      `${command} ${args.join(' ')} failed code=${String(code)}\n${stdout}\n${stderr}`.trim(),
+    )
+  }
+}
+
+async function bootstrapLocalTenant(targetBaseUrl) {
+  const response = await fetch(`${targetBaseUrl}/admin/bootstrap`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      host: 'localhost',
+    },
+    body: JSON.stringify({
+      instanceName: 'XID i18n Runtime',
+      primaryDomain: 'localhost',
+      mode: 'single_tenant',
+      adminEmail: 'admin@localhost.test',
+    }),
+  })
+  if (response.status !== 201) {
+    throw new Error(
+      `local i18n bootstrap failed http=${response.status} body=${await response.text()}`,
+    )
+  }
+}
+
 async function withTargetBaseUrl(fn) {
   if (PROVIDED_BASE_URL) return await fn(trimTrailingSlashes(PROVIDED_BASE_URL))
 
   const port = await freePort()
   const targetBaseUrl = `http://127.0.0.1:${port}`
-  const child = spawn('pnpm', [
-    '--filter',
-    '@xid-kit/server',
-    'dev',
-    '--host',
-    '127.0.0.1',
-    '--port',
-    String(port),
+  const persistPath = await mkdtemp(join(tmpdir(), 'xid-i18n-runtime-'))
+  const entryConfigPath = join(persistPath, 'entry.wrangler.jsonc')
+  const consumerConfigPath = join(persistPath, 'queue-consumer.wrangler.jsonc')
+  const sourceConfig = await readFile(
+    join(process.cwd(), 'apps/server/wrangler.jsonc'),
+    'utf8',
+  )
+  const smokeConfigs = createSmokeWranglerConfigs(sourceConfig)
+  const secrets = testSecrets()
+  await Promise.all([
+    writeFile(entryConfigPath, smokeConfigs.entry, 'utf8'),
+    writeFile(consumerConfigPath, smokeConfigs.queueConsumer, 'utf8'),
+    writeFile(
+      join(persistPath, '.dev.vars'),
+      `KEK=${secrets.KEK}\nPEPPER=${secrets.PEPPER}\n`,
+      'utf8',
+    ),
   ])
+  const runtimeEnv = {
+    ...process.env,
+    XID_SMOKE_PERSIST_PATH: persistPath,
+    XID_SMOKE_WRANGLER_CONFIG_PATH: entryConfigPath,
+    XID_SMOKE_QUEUE_CONSUMER_WRANGLER_CONFIG_PATH: consumerConfigPath,
+    XID_SMOKE_KEK: secrets.KEK,
+    XID_SMOKE_PEPPER: secrets.PEPPER,
+  }
+  await runCommand(
+    'pnpm',
+    [
+      '--filter',
+      '@xid-kit/server',
+      'exec',
+      'wrangler',
+      'd1',
+      'migrations',
+      'apply',
+      'DB',
+      '--local',
+      '--persist-to',
+      persistPath,
+      '--config',
+      entryConfigPath,
+    ],
+    { env: runtimeEnv },
+  )
+  const child = spawn(
+    'pnpm',
+    [
+      '--filter',
+      '@xid-kit/server',
+      'dev',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      String(port),
+    ],
+    { env: runtimeEnv },
+  )
 
+  let stdout = ''
   let stderr = ''
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk
+  })
   child.stderr.on('data', (chunk) => {
     stderr += chunk
   })
 
   try {
     await waitForHttp(`${targetBaseUrl}/`, 'local i18n dev server')
+    await bootstrapLocalTenant(targetBaseUrl)
     return await fn(targetBaseUrl)
   } catch (error) {
+    if (stdout) process.stderr.write(stdout)
     if (stderr) process.stderr.write(stderr)
     throw error
   } finally {
@@ -122,6 +227,7 @@ async function withTargetBaseUrl(fn) {
       child.once('exit', resolve)
       setTimeout(resolve, 3000)
     })
+    await rm(persistPath, { recursive: true, force: true })
   }
 }
 

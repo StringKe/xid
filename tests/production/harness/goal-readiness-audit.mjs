@@ -2,7 +2,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import {
   EVIDENCE_KEYS,
   EVIDENCE_MARKERS,
@@ -11,18 +11,38 @@ import {
 } from './production-evidence.mjs'
 import { productionBaseUrl } from './production-auth.mjs'
 import {
-  assertRequiredCiConclusions,
-  readConfiguredDeploymentTarget,
+  assertActiveDeployment,
+  assertSuccessfulWorkersBuilds,
+  parsePendingD1Migrations,
+  PRODUCTION_WORKER_KEYS,
+  readCloudflareSecurityRulesState,
+  readConfiguredDeploymentTargets,
   readMigrationDigest,
   VERIFIED_WRANGLER_CONFIG_PATH,
+  verifiedRemoteD1MigrationArgs,
   verifiedWranglerConfigArgs,
 } from '../../../apps/server/scripts/production-target.mjs'
+import {
+  readQueueNames,
+  readRemoteQueueNames,
+  reconcileQueueNames,
+} from '../../../scripts/setup-cloudflare-queues.mjs'
+import { PUBLIC_SDK_PACKAGES } from '../../../scripts/sdk-public-packages.mjs'
+import { llmsFullOk, llmsOk, llmsSectionOk } from './public-content-checks.mjs'
+import { docsAuthActionsOk, docsLocaleMetadataOk } from './public-doc-html.mjs'
 import { webRouteOwnerMatches } from './web-route-owner.mjs'
+import { runWildcardRouteProbe } from './wildcard-route-probe.mjs'
 
 const baseUrl = productionBaseUrl()
 const repo = process.env['XID_GITHUB_REPO'] ?? 'StringKe/xid'
 const DB_BINDING = 'DB'
 const WORKER_FILTER = '@xid-kit/server'
+const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org'
+const PUBLIC_NPM_REGISTRY_TIMEOUT_MS = 10_000
+const PUBLIC_PACKAGES_URL = new URL('../../../packages/', import.meta.url)
+const PUBLIC_NPM_PACKAGE_NAMES = PUBLIC_SDK_PACKAGES.map((item) => item.name).sort((left, right) =>
+  left.localeCompare(right),
+)
 // 包管理器入口只能来自环境变量或 PATH:仓库里写死开发机绝对路径会让 CI 直接崩。
 const configuredPackageManager = process.env['XID_L3_PACKAGE_MANAGER']?.trim()
 
@@ -57,9 +77,15 @@ function print(status, name, detail = '') {
   process.stdout.write(`${status} ${name}${detail ? ` ${detail}` : ''}\n`)
 }
 
-async function run(command, args) {
+async function run(command, args, options = {}) {
   return await new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] })
+    const { env, ...spawnOptions } = options
+    const child = spawn(command, args, {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...spawnOptions,
+      env: env ? { ...process.env, ...env } : process.env,
+    })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk) => {
@@ -99,9 +125,9 @@ function packageManagerArgs(args) {
   return { command: 'pnpm', args }
 }
 
-async function pnpm(args) {
+async function pnpm(args, options) {
   const invocation = packageManagerArgs(args)
-  return await run(invocation.command, invocation.args)
+  return await run(invocation.command, invocation.args, options)
 }
 
 function parseJson(text, name) {
@@ -118,6 +144,31 @@ function methodEnabled(config, name) {
 
 function hasSecret(secretSet, name) {
   return secretSet.has(name)
+}
+
+export const TURNSTILE_PUBLIC_KEY_GAP = 'Turnstile public site key missing from /auth/config'
+export const TURNSTILE_SECRET_GAP = 'TURNSTILE_SECRET missing from production Worker secrets'
+export const CLOUDFLARE_SECURITY_RULES_GAP =
+  'Cloudflare WAF and coarse rate-limit rules are not reconciled'
+
+export function turnstileReadinessGaps(config, secretSet) {
+  const gaps = []
+  if (typeof config?.turnstileSiteKey !== 'string' || config.turnstileSiteKey.trim().length === 0) {
+    gaps.push(TURNSTILE_PUBLIC_KEY_GAP)
+  }
+  if (!secretSet.has('TURNSTILE_SECRET')) gaps.push(TURNSTILE_SECRET_GAP)
+  return gaps
+}
+
+export function cloudflareSecurityRulesReadinessGaps(state) {
+  return state?.deploymentState === 'RECONCILED'
+    ? []
+    : [`${CLOUDFLARE_SECURITY_RULES_GAP}: deploymentState=${state?.deploymentState ?? 'UNKNOWN'}`]
+}
+
+export function remoteD1MigrationReadinessGaps(pending) {
+  if (!Array.isArray(pending)) throw new Error('pending D1 migrations must be an array')
+  return pending.map((name) => `Production D1 migration pending: ${name}`)
 }
 
 function hasConfig(config, name) {
@@ -542,31 +593,19 @@ async function readGitHead() {
   return (await run('git', ['rev-parse', 'HEAD'])).trim()
 }
 
-async function checkWorkersBuild(head) {
-  const raw = await run('gh', ['api', `repos/${repo}/commits/${head}/check-runs`])
-  const body = parseJson(raw, 'GitHub check-runs')
-  const ciConclusions = assertRequiredCiConclusions(raw, head)
-  const check = body.check_runs?.find((item) => item.name === 'Workers Builds: xid')
-  if (!check) throw new Error(`Workers Builds: xid check-run missing for ${head}`)
-  if (check.status !== 'completed' || check.conclusion !== 'success') {
-    throw new Error(
-      `Workers Builds: xid not successful status=${check.status} conclusion=${check.conclusion}`,
+async function checkWorkersBuild(head, targets) {
+  const raw = await run('gh', ['api', `repos/${repo}/commits/${head}/check-runs?per_page=100`])
+  const result = assertSuccessfulWorkersBuilds(raw, head, targets)
+  for (const key of PRODUCTION_WORKER_KEYS) {
+    const target = targets[key]
+    const worker = result.workers[key]
+    print(
+      'PASS',
+      'workers builds',
+      `worker=${target.workerName} head=${head.slice(0, 7)} id=${worker.checkRunId} build=${worker.buildId} version=${worker.workerVersionId}`,
     )
   }
-  const summary = String(check.output?.summary ?? '')
-  const versionId = summary.match(/Version ID:\s*([a-f0-9-]+)/u)?.[1]
-  if (!versionId) throw new Error(`Workers Builds: xid missing Version ID for ${head}`)
-  print(
-    'PASS',
-    'workers builds',
-    `head=${head.slice(0, 7)} id=${check.id} build=${check.external_id ?? 'unknown'} version=${versionId}`,
-  )
-  return {
-    buildId: check.external_id ?? 'unknown',
-    checkRunId: check.id,
-    versionId,
-    ciConclusions,
-  }
+  return result
 }
 
 async function checkActiveDeployment(expectedVersionId, target) {
@@ -580,25 +619,18 @@ async function checkActiveDeployment(expectedVersionId, target) {
     '--name',
     target.workerName,
     '--json',
-    ...verifiedWranglerConfigArgs(),
+    ...verifiedWranglerConfigArgs(target.configPath),
   ])
-  const deployment = parseJson(raw, 'wrangler deployments status')
-  const active = deployment.versions?.find((version) => Number(version.percentage) === 100)
-  if (!active) throw new Error('Worker has no 100 percent active deployment')
-  if (active.version_id !== expectedVersionId) {
-    throw new Error(
-      `active Worker version ${active.version_id} does not match Workers Builds version ${expectedVersionId}`,
-    )
-  }
+  const deployment = assertActiveDeployment(raw, expectedVersionId, target.workerName)
   print(
     'PASS',
     'active deployment',
-    `deployment=${deployment.id} version=${active.version_id} percentage=${active.percentage} matches_workers_build=true`,
+    `worker=${target.workerName} deployment=${deployment.deploymentId} version=${deployment.workerVersionId} percentage=${deployment.activePercentage} matches_workers_build=true`,
   )
   return {
-    deploymentId: deployment.id,
-    versionId: active.version_id,
-    activePercentage: Number(active.percentage),
+    deploymentId: deployment.deploymentId,
+    versionId: deployment.workerVersionId,
+    activePercentage: deployment.activePercentage,
   }
 }
 
@@ -618,6 +650,144 @@ async function readSecretSet(target) {
   const names = new Set(secrets.map((secret) => secret.name))
   print('PASS', 'production secrets listed', `count=${names.size}`)
   return names
+}
+
+async function readRemoteD1Migrations(target) {
+  const raw = await pnpm(verifiedRemoteD1MigrationArgs(target.configPath), {
+    env: { CLOUDFLARE_ACCOUNT_ID: target.accountId },
+  })
+  return parsePendingD1Migrations(raw)
+}
+
+async function auditRemoteD1MigrationReadiness(target, incomplete) {
+  try {
+    const pending = await readRemoteD1Migrations(target)
+    const gaps = remoteD1MigrationReadinessGaps(pending)
+    if (gaps.length === 0) {
+      print('PASS', 'production D1 migrations', 'pending=0')
+      return pending
+    }
+    incomplete.push(...gaps)
+    return pending
+  } catch (error) {
+    incomplete.push(
+      `Production D1 migration check failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return null
+  }
+}
+
+function auditCloudflareSecurityRulesReadiness(state, incomplete) {
+  const gaps = cloudflareSecurityRulesReadinessGaps(state)
+  if (gaps.length === 0) {
+    print('PASS', 'Cloudflare security rules reconciliation', `manifest=${state.manifestDigest}`)
+    return
+  }
+  incomplete.push(...gaps)
+}
+
+async function readPublicNpmPackageTargets() {
+  const entries = await readdir(PUBLIC_PACKAGES_URL, { withFileTypes: true })
+  const targets = []
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const manifestUrl = new URL(`${entry.name}/package.json`, PUBLIC_PACKAGES_URL)
+    let manifest
+    try {
+      manifest = JSON.parse(await readFile(manifestUrl, 'utf8'))
+    } catch (error) {
+      if (error && typeof error === 'object' && error.code === 'ENOENT') continue
+      throw new Error(`invalid package manifest ${manifestUrl.pathname}`, { cause: error })
+    }
+    if (manifest.private !== false || !String(manifest.name).startsWith('@xid-kit/')) continue
+    if (!hasValue(manifest.version)) {
+      throw new Error(`public package ${String(manifest.name)} is missing a version`)
+    }
+    targets.push({ name: manifest.name, version: manifest.version })
+  }
+  if (targets.length === 0) throw new Error('no public @xid-kit packages found')
+  targets.sort((left, right) => left.name.localeCompare(right.name))
+  const names = targets.map((target) => target.name)
+  if (JSON.stringify(names) !== JSON.stringify(PUBLIC_NPM_PACKAGE_NAMES)) {
+    throw new Error(`public @xid-kit package set mismatch: ${names.join(',')}`)
+  }
+  return targets
+}
+
+export function npmRegistryVersionMatches(manifest, target) {
+  return manifest?.name === target.name && manifest?.version === target.version
+}
+
+async function auditPublicNpmRegistryReadiness(incomplete) {
+  let targets
+  try {
+    targets = await readPublicNpmPackageTargets()
+  } catch (error) {
+    incomplete.push(
+      `npm registry target discovery failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return
+  }
+  const results = await Promise.all(
+    targets.map(async (target) => {
+      const url = `${PUBLIC_NPM_REGISTRY}/${encodeURIComponent(target.name)}/${encodeURIComponent(target.version)}`
+      try {
+        const response = await fetch(url, {
+          headers: { accept: 'application/json' },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(PUBLIC_NPM_REGISTRY_TIMEOUT_MS),
+        })
+        if (response.status !== 200) {
+          return { target, gap: `npm package unpublished: ${target.name}@${target.version}` }
+        }
+        const manifest = parseJson(await response.text(), `npm package ${target.name}`)
+        if (!npmRegistryVersionMatches(manifest, target)) {
+          return {
+            target,
+            gap: `npm package version mismatch: ${target.name}@${target.version}`,
+          }
+        }
+        return { target }
+      } catch (error) {
+        return {
+          target,
+          gap: `npm registry check failed for ${target.name}@${target.version}: ${error instanceof Error ? error.message : String(error)}`,
+        }
+      }
+    }),
+  )
+  for (const result of results) {
+    if (result.gap) incomplete.push(result.gap)
+    else print('PASS', 'npm package published', `${result.target.name}@${result.target.version}`)
+  }
+}
+
+function auditCloudflareQueueReadiness(incomplete) {
+  try {
+    const required = readQueueNames()
+    const remote = readRemoteQueueNames(required.configPath)
+    const reconciliation = reconcileQueueNames(required.names, remote)
+    if (reconciliation.missing.length === 0) {
+      print(
+        'PASS',
+        'production Queue inventory',
+        `required=${String(required.names.length)} existing=${String(reconciliation.existing.length)}`,
+      )
+    } else {
+      for (const name of reconciliation.missing) {
+        incomplete.push(`Cloudflare Queue missing: ${name}`)
+      }
+    }
+    for (const name of reconciliation.obsolete) {
+      incomplete.push(
+        `Obsolete Cloudflare Queue requires reviewed disposition: ${name}; no deletion was attempted`,
+      )
+    }
+  } catch (error) {
+    incomplete.push(
+      `Cloudflare Queue inventory check failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 }
 
 async function readAuthConfig() {
@@ -646,6 +816,15 @@ function auditDefaultAuthConfig(config, incomplete) {
   const socialCount = Array.isArray(config.socialProviders) ? config.socialProviders.length : 0
   if (socialCount !== 0) incomplete.push(`default auth exposes ${socialCount} social providers`)
   else print('PASS', 'default social providers hidden')
+}
+
+function auditTurnstileReadiness(config, secretSet, incomplete) {
+  const gaps = new Set(turnstileReadinessGaps(config, secretSet))
+  if (gaps.has(TURNSTILE_PUBLIC_KEY_GAP)) incomplete.push(TURNSTILE_PUBLIC_KEY_GAP)
+  else print('PASS', 'Turnstile public site key configured')
+
+  if (gaps.has(TURNSTILE_SECRET_GAP)) incomplete.push(TURNSTILE_SECRET_GAP)
+  else print('PASS', 'TURNSTILE_SECRET configured')
 }
 
 async function fetchProduction(path, options = {}) {
@@ -682,9 +861,16 @@ async function auditProductionHttpReadiness(incomplete) {
   if (
     docs.res.status === 200 &&
     webRouteOwnerMatches(docs.res.headers, 'site') &&
-    bodyIsNimbusDocs(docs.text)
+    bodyIsNimbusDocs(docs.text) &&
+    docsAuthActionsOk(docs.text, 'en') &&
+    docsLocaleMetadataOk(docs.text, {
+      language: 'en',
+      ogLocale: 'en_US',
+      canonicalUrl: 'https://xid.dev/',
+      llmsIndexUrl: 'https://xid.dev/en/llms.txt',
+    })
   ) {
-    print('PASS', 'production HTTP docs root', 'path=/')
+    print('PASS', 'production HTTP docs root', 'path=/ auth_actions=true seo_geo=true')
   } else {
     incomplete.push(`production docs root invalid http=${docs.res.status}`)
   }
@@ -705,11 +891,67 @@ async function auditProductionHttpReadiness(incomplete) {
     localizedDocsScim.res.status === 200 &&
     webRouteOwnerMatches(localizedDocsScim.res.headers, 'site') &&
     bodyIsNimbusDocs(localizedDocsScim.text) &&
-    localizedDocsScim.text.includes('<html lang="zh-Hans"')
+    docsAuthActionsOk(localizedDocsScim.text, 'zh-Hans') &&
+    docsLocaleMetadataOk(localizedDocsScim.text, {
+      language: 'zh-Hans',
+      ogLocale: 'zh_CN',
+      canonicalUrl: 'https://xid.dev/zh-hans/scim',
+      llmsIndexUrl: 'https://xid.dev/zh-hans/llms.txt',
+    })
   ) {
-    print('PASS', 'production HTTP localized docs scim route', 'path=/zh-hans/scim')
+    print(
+      'PASS',
+      'production HTTP localized docs scim route',
+      'path=/zh-hans/scim auth_actions=true seo_geo=true',
+    )
   } else {
     incomplete.push(`production /zh-hans/scim route invalid http=${localizedDocsScim.res.status}`)
+  }
+
+  const agentSurfaces = [
+    {
+      path: '/llms.txt',
+      contentType: 'text/plain',
+      valid: llmsOk,
+    },
+    {
+      path: '/llms-full.txt',
+      contentType: 'text/plain',
+      valid: llmsFullOk,
+    },
+    {
+      path: '/zh-hans/llms.txt',
+      contentType: 'text/plain',
+      valid: (body) => llmsSectionOk(body, 'zh-hans'),
+    },
+    {
+      path: '/index.md',
+      contentType: 'text/markdown',
+      valid: (body) =>
+        body.includes('Source: https://xid.dev/index.mdx') &&
+        body.includes('Fetch the relevant documentation index at: https://xid.dev/en/llms.txt'),
+    },
+    {
+      path: '/index.mdx',
+      contentType: 'text/markdown',
+      valid: (body) =>
+        body.startsWith('---\n') &&
+        body.includes('title: "XID Identity Platform"') &&
+        !body.includes('Source: https://xid.dev/index.mdx'),
+    },
+  ]
+  for (const surface of agentSurfaces) {
+    const result = await fetchProduction(surface.path, { accept: surface.contentType })
+    if (
+      result.res.status === 200 &&
+      webRouteOwnerMatches(result.res.headers, 'site') &&
+      result.res.headers.get('content-type')?.includes(surface.contentType) &&
+      surface.valid(result.text)
+    ) {
+      print('PASS', 'production agent surface', `path=${surface.path}`)
+    } else {
+      incomplete.push(`production agent surface ${surface.path} invalid http=${result.res.status}`)
+    }
   }
 
   for (const path of [
@@ -732,6 +974,19 @@ async function auditProductionHttpReadiness(incomplete) {
     }
   }
 
+  const unknownPath = `/__xid-readiness-missing-${crypto.randomUUID()}`
+  const unknown = await fetchProduction(unknownPath)
+  if (
+    unknown.res.status === 404 &&
+    webRouteOwnerMatches(unknown.res.headers, 'core') &&
+    !unknown.text.includes('<div id="root"') &&
+    !unknown.text.includes('Sign in to XID')
+  ) {
+    print('PASS', 'production HTTP Core not found', `path=${unknownPath}`)
+  } else {
+    incomplete.push(`production Core unknown route invalid http=${unknown.res.status}`)
+  }
+
   const magicInvalid = await fetchProduction('/auth/magic-link/verify?token=invalid', {
     accept: 'application/json',
   })
@@ -746,12 +1001,29 @@ async function auditProductionHttpReadiness(incomplete) {
   }
 }
 
+async function auditWildcardRouteReadiness(incomplete) {
+  const results = await runWildcardRouteProbe()
+  for (const result of results) {
+    if (result.status === 'PASS') {
+      print(
+        'PASS',
+        result.name,
+        `http=${result.httpStatus} owner=${result.routeOwner} url=${result.url}`,
+      )
+      continue
+    }
+    incomplete.push(
+      `${result.name} failed http=${result.httpStatus} owner=${result.routeOwner ?? 'unknown'} url=${result.url}${result.error ? ` error=${result.error}` : ''}`,
+    )
+  }
+}
+
 async function auditRecordedP0Evidence({ evidence, context, incomplete }) {
   if (magicLinkFullEvidenceReady(evidence, context))
     print('PASS', 'magic link full L4 evidence present')
   else {
     incomplete.push(
-      'Magic Link full L4 evidence missing for current HEAD and active Worker version',
+      'Magic Link full L4 evidence missing for current HEAD and all three active Worker versions',
     )
   }
 
@@ -759,7 +1031,7 @@ async function auditRecordedP0Evidence({ evidence, context, incomplete }) {
     print('PASS', 'production browser P0 evidence present')
   } else {
     incomplete.push(
-      'production browser P0 evidence missing for current HEAD and active Worker version',
+      'production browser P0 evidence missing for current HEAD and all three active Worker versions',
     )
   }
 
@@ -767,8 +1039,40 @@ async function auditRecordedP0Evidence({ evidence, context, incomplete }) {
     print('PASS', 'public docs browser evidence present')
   } else {
     incomplete.push(
-      'public docs browser evidence missing for current HEAD and active Worker version',
+      'public docs browser evidence missing for current HEAD and all three active Worker versions',
     )
+  }
+}
+
+function auditOperationalEvidence({ evidence, context, incomplete }) {
+  const required = [
+    {
+      key: EVIDENCE_KEYS.observabilityOperations,
+      markers: EVIDENCE_MARKERS.observabilityOperations,
+      pass: 'observability operational L4 evidence present',
+      gap: 'observability access, retention, redaction, and alert-drill L4 evidence missing',
+    },
+    {
+      key: EVIDENCE_KEYS.outboundScimSaas,
+      markers: EVIDENCE_MARKERS.outboundScimSaas,
+      pass: 'outbound SCIM real SaaS L4 evidence present',
+      gap: 'outbound SCIM real SaaS lifecycle and retry L4 evidence missing',
+    },
+    {
+      key: EVIDENCE_KEYS.deadLetterOperations,
+      markers: EVIDENCE_MARKERS.deadLetterOperations,
+      pass: 'dead-letter operational L4 evidence present',
+      gap: 'dead-letter delivery, persistence, alert, and replay L4 evidence missing',
+    },
+  ]
+  for (const item of required) {
+    if (productionEvidenceReady(evidence, item.key, context, item.markers)) {
+      print('PASS', item.pass)
+    } else {
+      incomplete.push(
+        `${item.gap} for current HEAD, controls, migrations, and all three active Worker versions`,
+      )
+    }
   }
 }
 
@@ -898,34 +1202,66 @@ async function auditExternalInputs({
 
 export async function runGoalReadinessAudit() {
   const incomplete = []
-  const target = readConfiguredDeploymentTarget()
+  const targets = readConfiguredDeploymentTargets()
+  const target = targets.core
   const head = await readGitHead()
-  const workersBuild = await checkWorkersBuild(head)
-  const activeDeployment = await checkActiveDeployment(workersBuild.versionId, target)
+  const workersBuild = await checkWorkersBuild(head, targets)
+  const workers = {}
+  for (const key of PRODUCTION_WORKER_KEYS) {
+    const build = workersBuild.workers[key]
+    const deployment = await checkActiveDeployment(build.workerVersionId, targets[key])
+    workers[key] = {
+      buildId: build.buildId,
+      checkRunId: build.checkRunId,
+      deploymentId: deployment.deploymentId,
+      workerVersionId: deployment.versionId,
+      activePercentage: deployment.activePercentage,
+    }
+  }
+  const cloudflareSecurityRules = readCloudflareSecurityRulesState()
+  auditCloudflareSecurityRulesReadiness(cloudflareSecurityRules, incomplete)
+  const pendingRemoteD1Migrations = await auditRemoteD1MigrationReadiness(target, incomplete)
+  const remoteD1Migrations = {
+    state:
+      pendingRemoteD1Migrations === null
+        ? 'UNKNOWN'
+        : pendingRemoteD1Migrations.length === 0
+          ? 'APPLIED'
+          : 'PENDING',
+    pending: pendingRemoteD1Migrations ?? [],
+  }
   const evidence = await readProductionEvidenceFile()
   const evidenceContext = {
     baseUrl,
     head,
-    buildId: workersBuild.buildId,
-    checkRunId: workersBuild.checkRunId,
-    deploymentId: activeDeployment.deploymentId,
-    workerVersionId: activeDeployment.versionId,
-    activePercentage: activeDeployment.activePercentage,
+    workers,
     accountId: target.accountId,
     databaseId: target.databaseId,
     migrationDigest: readMigrationDigest(),
-    wranglerConfigDigest: target.configDigest,
-    qualityConclusion: workersBuild.ciConclusions.quality,
+    remoteD1Migrations,
+    cloudflareSecurityRules,
+    wranglerConfigDigests: Object.fromEntries(
+      PRODUCTION_WORKER_KEYS.map((key) => [key, targets[key].configDigest]),
+    ),
+    checkConclusion: workersBuild.ciConclusions.check,
+    testConclusion: workersBuild.ciConclusions.test,
+    buildConclusion: workersBuild.ciConclusions.build,
+    smokeConclusion: workersBuild.ciConclusions.smoke,
     securityConclusion: workersBuild.ciConclusions.security,
   }
   const productionVars = await readProductionConfigVars()
   const secretSet = await readSecretSet(target)
+  auditCloudflareQueueReadiness(incomplete)
+  await auditPublicNpmRegistryReadiness(incomplete)
   const config = await readAuthConfig()
   const providerState = await readProviderReadinessState()
   const passwordResetReady = passwordResetFullEvidenceReady(evidence, evidenceContext)
   auditDefaultAuthConfig(config, incomplete)
+  auditTurnstileReadiness(config, secretSet, incomplete)
   await auditProductionHttpReadiness(incomplete)
+  await auditWildcardRouteReadiness(incomplete)
   await auditRecordedP0Evidence({ evidence, context: evidenceContext, incomplete })
+  auditOperationalEvidence({ evidence, context: evidenceContext, incomplete })
   await auditExternalInputs({
     providerState,
     productionVars,

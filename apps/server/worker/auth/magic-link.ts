@@ -11,6 +11,7 @@ import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { MAGIC_LINK_AUTH_CONTEXT } from '../lib/auth-context'
@@ -23,12 +24,6 @@ import { auditPolicyDeniedError } from './hosted-audit'
 import { normalizeProfileFields } from './profile-fields'
 import type { ProfileFieldInput } from './profile-fields'
 import {
-  acceptInvitationByToken,
-  invitationAcceptContinuePath,
-  loadPrimaryEmailForUserId,
-  requirePendingInvitationForEmail,
-} from './invitations'
-import {
   createPasswordlessEmailUser,
   markPrimaryEmailVerified,
   shouldSkipDefaultMembership,
@@ -40,13 +35,18 @@ import { replaceActiveVerificationToken } from './otp'
 import { reserveRateLimitWindows } from '../lib/rate-limit'
 import { MAGIC_LINK_TTL_MS } from '../lib/ttl'
 import { SEND_PER_HOUR_POLICY } from '../me-auth/shared'
+import {
+  createPasswordlessFlowContext,
+  parsePasswordlessFlowContext,
+  serializePasswordlessFlowContext,
+  type PasswordlessFlowContext,
+} from './passwordless-flow'
 
 // 限流:1/min per 邮箱
 const RL_PER_MIN_KEY = (email: string, tenantId: string) => `ml:min:${tenantId}:${email}`
 // 限流:5/hour per 邮箱
 const RL_PER_HOUR_KEY = (email: string, tenantId: string) => `ml:hour:${tenantId}:${email}`
 
-const DEFAULT_MAGIC_LINK_CONTINUE_PATH = '/console'
 const VERIFY_REDIRECT_HEADERS = { 'cache-control': 'no-store' } as const
 
 type SignMagicTokenInput = {
@@ -55,6 +55,7 @@ type SignMagicTokenInput = {
   userId: string
   action: MagicLinkAction
   tenantId: string
+  flow: PasswordlessFlowContext
 }
 
 type MagicLinkAction = 'login' | 'user_creation'
@@ -64,17 +65,6 @@ async function resolveMagicLinkTenant(
   rawToken: string,
 ): Promise<TenantVar> {
   return resolveTokenTenant(c, rawToken, 'magic_link_invalid')
-}
-
-function safeContinuePath(value: string | undefined): string {
-  if (!value) return DEFAULT_MAGIC_LINK_CONTINUE_PATH
-  if (!value.startsWith('/') || value.startsWith('//')) return DEFAULT_MAGIC_LINK_CONTINUE_PATH
-  try {
-    const parsed = new URL(value, 'https://xid.local')
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`
-  } catch {
-    return DEFAULT_MAGIC_LINK_CONTINUE_PATH
-  }
 }
 
 function magicLinkHostedOrigin(tenant: TenantVar): string {
@@ -98,8 +88,6 @@ function magicLinkHostedAuthRedirect(
 ): Response {
   const redirectUrl = new URL('/auth/magic-link/verify', hostedAuthOriginForTenant(tenant))
   redirectUrl.searchParams.set('token', rawToken)
-  const continuePath = c.req.query('continue')
-  if (continuePath) redirectUrl.searchParams.set('continue', safeContinuePath(continuePath))
   return noStoreRedirect(c, redirectUrl.toString())
 }
 
@@ -132,6 +120,7 @@ async function signMagicToken(opts: SignMagicTokenInput): Promise<{ token: strin
     purpose: 'magic_link',
     action,
     tenant_id: opts.tenantId,
+    flow_context: serializePasswordlessFlowContext(opts.flow),
   }
   const token = await signJwt(
     { header: { alg: signer.alg, kid: signer.kid }, payload },
@@ -145,6 +134,8 @@ export type SendMagicLinkOptions = {
   invitationToken?: string | null
   skipDefaultMembership?: boolean
   continuePath?: string | null
+  intent?: string | null
+  applicationClientId?: string | null
 }
 
 // magic link 发送核心:限流 + 枚举防护 + 签 token + 存 jti 哈希 + 入队发信。
@@ -156,6 +147,9 @@ export async function sendMagicLink(
 ): Promise<void> {
   const profileInput = options.profileInput ?? {}
   const tenant = c.get('tenant')
+  // Raw invitation tokens belong exclusively to the proof-first invitation claim route.
+  // Fail before rate-limit reservations, account lookup, user creation, or token issuance.
+  if (options.invitationToken?.trim()) throw new AppError('invalid_request')
 
   // 限流检查(枚举防护:限流后仍返回 200 不泄露邮箱是否存在)
   await reserveRateLimitWindows(c.env, `ml:send:${tenant.tenantId}:${email}`, [
@@ -164,14 +158,16 @@ export async function sendMagicLink(
   ])
 
   const db = createTenantDb(c.env.DB, tenant)
-  if (options.invitationToken) {
-    await requirePendingInvitationForEmail(db, options.invitationToken, email)
-  }
+  const flow = createPasswordlessFlowContext({
+    intent: options.intent,
+    continuePath: options.continuePath,
+    applicationClientId: options.applicationClientId,
+  })
   const skipDefaultMembership =
     options.skipDefaultMembership ??
     shouldSkipDefaultMembership({
-      redirectAfterLogin: options.continuePath,
-      invitationToken: options.invitationToken,
+      redirectAfterLogin: flow.continuePath,
+      intent: flow.intent,
     })
 
   // 枚举防护:无论用户存在与否,接口均返回 200(不区分"不存在"与"已发送")。
@@ -211,6 +207,7 @@ export async function sendMagicLink(
       userId = await createPasswordlessEmailUser({
         db,
         tenantId: tenant.tenantId,
+        d1: c.env.DB,
         email,
         profile,
         skipDefaultMembership,
@@ -235,6 +232,7 @@ export async function sendMagicLink(
     userId,
     action,
     tenantId: tenant.tenantId,
+    flow,
   })
   // 只存 jti 的 SHA-256 哈希,token 明文不入 DB(01 章 / password-auth rule)。
   const tokenHash = await sha256Hex(jti)
@@ -248,6 +246,7 @@ export async function sendMagicLink(
       tenantId: tenant.tenantId,
       userId,
       tokenHash,
+      flowContext: serializePasswordlessFlowContext(flow),
       purpose: 'magic_link',
       expiresAt: new Date(Date.now() + MAGIC_LINK_TTL_MS),
     },
@@ -262,11 +261,6 @@ export async function sendMagicLink(
 
   const verifyUrl = new URL('/auth/magic-link/verify', hostedAuthOriginForTenant(tenant))
   verifyUrl.searchParams.set('token', token)
-  const continuePath = options.continuePath ?? null
-  if (continuePath) verifyUrl.searchParams.set('continue', safeContinuePath(continuePath))
-  if (options.invitationToken) {
-    verifyUrl.searchParams.set('invitation_token', options.invitationToken.trim())
-  }
 
   // 异步发邮件(不阻塞主链路,见 cloudflare-bindings rule)。
   await c.env.EMAIL_QUEUE.send({
@@ -287,7 +281,12 @@ export async function sendMagicLink(
 async function verifyMagicJwt(
   tenant: TenantVar,
   rawToken: string,
-): Promise<{ jti: string; action: MagicLinkAction }> {
+): Promise<{
+  jti: string
+  userId: string
+  action: MagicLinkAction
+  flow: PasswordlessFlowContext
+}> {
   const verifyKeys = await buildVerifyKeySet(tenant)
   const verified = await verifyJwt(rawToken, verifyKeys, { expectedIssuer: tenant.issuer })
   if (!verified.ok) {
@@ -295,16 +294,24 @@ async function verifyMagicJwt(
       verified.error.reason === 'expired' ? 'magic_link_expired' : 'magic_link_invalid',
     )
   }
-  const { sub: userId, jti, purpose, action } = verified.value.payload
+  const { sub: userId, jti, purpose, action, flow_context: rawFlowContext } = verified.value.payload
   if (!userId || !jti || purpose !== 'magic_link') throw new AppError('magic_link_invalid')
   if (action !== 'login' && action !== 'user_creation') throw new AppError('magic_link_invalid')
-  return { jti, action }
+  if (typeof rawFlowContext !== 'string') throw new AppError('magic_link_invalid')
+  return {
+    jti,
+    userId,
+    action,
+    flow: parsePasswordlessFlowContext(rawFlowContext, 'magic_link_invalid'),
+  }
 }
 
 // jti 一次性消费:按 tokenHash 查行 + 状态校验 + 标记 consumed,返回绑定 userId(防签名有效 token 重放)。
 async function consumeMagicToken(
   db: ReturnType<typeof createTenantDb>,
   jti: string,
+  signedUserId: string,
+  signedFlow: PasswordlessFlowContext,
 ): Promise<string> {
   const tokenHash = await sha256Hex(jti)
   const tokenRow = await db.verificationTokens.findOne(
@@ -313,6 +320,12 @@ async function consumeMagicToken(
   if (!tokenRow || tokenRow.consumedAt !== null) throw new AppError('magic_link_invalid')
   if (tokenRow.expiresAt.getTime() <= Date.now()) throw new AppError('magic_link_expired')
   if (tokenRow.purpose !== 'magic_link') throw new AppError('magic_link_invalid')
+  if (
+    tokenRow.userId !== signedUserId ||
+    tokenRow.flowContext !== serializePasswordlessFlowContext(signedFlow)
+  ) {
+    throw new AppError('magic_link_invalid')
+  }
   const consumed = await db.verificationTokens.update(
     { consumedAt: new Date() },
     and(
@@ -349,7 +362,9 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
   })
 
   return withTenant(c, tenant, async () => {
-    const { jti, action } = await verifyMagicJwt(tenant, rawToken)
+    const { jti, userId: signedUserId, action, flow } = await verifyMagicJwt(tenant, rawToken)
+    // Legacy magic-link tokens carrying an invitation continuation must never consume or accept it.
+    if (flow.invitationId) throw new AppError('magic_link_invalid')
     try {
       assertMethodAllowed(tenant, 'magicLink', action)
     } catch (error) {
@@ -361,18 +376,15 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
     }
 
     const db = createTenantDb(c.env.DB, tenant)
-    const userId = await consumeMagicToken(db, jti)
+    const userId = await consumeMagicToken(db, jti, signedUserId, flow)
     await markPrimaryEmailVerified(db, userId)
 
     const now = new Date()
-    const invitationToken = c.req.query('invitation_token')
-    let continuePath = safeContinuePath(c.req.query('continue'))
-    if (invitationToken?.trim()) {
-      continuePath = `/accept-invitation?token=${encodeURIComponent(invitationToken.trim())}`
-    }
+    const sessionId = createPersistedId('session')
+    const continuePath = flow.continuePath
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath: continuePath })
-    const issued = await issueSession(c, {
-      sessionId: crypto.randomUUID(),
+    await issueSession(c, {
+      sessionId,
       userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
       authContext: MAGIC_LINK_AUTH_CONTEXT,
@@ -381,28 +393,6 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
       userAgent: c.req.header('user-agent') ?? null,
     })
 
-    if (invitationToken && !mfaGate.redirectUrl) {
-      const user = await db.users.findOne(eq(schema.users.id, userId))
-      const userEmail = user
-        ? await loadPrimaryEmailForUserId(db, user.id, user.primaryEmailId)
-        : null
-      const accepted = await acceptInvitationByToken({
-        db,
-        env: c.env,
-        tenantId: tenant.tenantId,
-        rawToken: invitationToken,
-        userId,
-        userEmail,
-      })
-      await db.sessions.update(
-        { activeOrgId: accepted.orgId },
-        eq(schema.sessions.id, issued.session.sessionId),
-      )
-      const org = await db.organizations.findOne(eq(schema.organizations.id, accepted.orgId))
-      const orgName = org?.name ?? org?.slug ?? accepted.orgId
-      continuePath = invitationAcceptContinuePath(accepted.orgId, orgName)
-    }
-
-    return noStoreRedirect(c, mfaGate.redirectUrl ?? continuePath)
+    return noStoreRedirect(c, mfaGate.redirectUrl ?? flow.continuePath)
   })
 }

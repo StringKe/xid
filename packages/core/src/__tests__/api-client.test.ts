@@ -5,6 +5,108 @@ import { XidNetworkError } from '../errors'
 import { makeFetch, makeState } from './fixtures'
 
 describe('XidApiClient', () => {
+  it('returns the real guest session and server-owned onboarding directive', async () => {
+    const fetcher = makeFetch({
+      '/auth/config?intent=sign-up': () => ({
+        status: 200,
+        json: { guest: { capabilityToken: 'guest_capability' } },
+      }),
+      '/auth/guest': () => ({
+        status: 201,
+        json: {
+          sessionId: 'sess_guest',
+          redirectUrl: '/create-organization?source=worker',
+        },
+      }),
+    })
+    const api = new XidApiClient({ fetcher })
+
+    await expect(api.signInAnonymously()).resolves.toEqual({
+      ok: true,
+      value: {
+        sessionId: 'sess_guest',
+        redirectUrl: '/create-organization?source=worker',
+      },
+    })
+  })
+
+  it.each([
+    null,
+    {},
+    { sessionId: 'sess_guest' },
+    { redirectUrl: '/create-organization' },
+    { sessionId: '', redirectUrl: '/create-organization' },
+    { sessionId: 'sess_guest', redirectUrl: '' },
+  ])('rejects a malformed successful /auth/guest response', async (json) => {
+    const fetcher = makeFetch({
+      '/auth/config?intent=sign-up': () => ({
+        status: 200,
+        json: { guest: { capabilityToken: 'guest_capability' } },
+      }),
+      '/auth/guest': () => ({ status: 201, json }),
+    })
+    const api = new XidApiClient({ fetcher })
+
+    await expect(api.signInAnonymously()).rejects.toMatchObject({
+      name: 'XidNetworkError',
+      message: 'Invalid /auth/guest response',
+    })
+  })
+
+  it('validates the shared session-token response before returning it', async () => {
+    const fetcher = makeFetch({
+      '/v1/sessions/token': () => ({ status: 200, json: { token: 'header.payload.signature' } }),
+    })
+    const api = new XidApiClient({ fetcher })
+
+    await expect(api.getToken()).resolves.toEqual({
+      ok: true,
+      value: { token: 'header.payload.signature' },
+    })
+  })
+
+  it.each([null, {}, { jwt: 'legacy' }, { token: '' }, { token: '   ' }, { token: 42 }])(
+    'rejects a malformed successful /v1/sessions/token response',
+    async (json) => {
+      const fetcher = makeFetch({ '/v1/sessions/token': () => ({ status: 200, json }) })
+      const api = new XidApiClient({ fetcher })
+
+      await expect(api.getToken()).rejects.toMatchObject({
+        name: 'XidNetworkError',
+        message: 'Invalid /v1/sessions/token response',
+      })
+    },
+  )
+
+  it('rejects an invalid Organization role in /v1/me', async () => {
+    const organization = {
+      id: 'org_1',
+      slug: 'acme',
+      name: 'Acme',
+      role: 'viewer',
+      permissions: [],
+    }
+    const fetcher = makeFetch({
+      '/v1/me': () => ({
+        status: 200,
+        json: {
+          user: { id: 'user_1' },
+          activeOrg: organization,
+          organizations: [organization],
+          session: { id: 'sess_1' },
+          activeSessionId: 'sess_1',
+          sessions: [],
+        },
+      }),
+    })
+    const api = new XidApiClient({ fetcher })
+
+    await expect(api.loadState()).rejects.toMatchObject({
+      name: 'XidNetworkError',
+      message: 'Invalid /v1/me response',
+    })
+  })
+
   it('unwraps the data envelope on success', async () => {
     const fetcher = makeFetch({ '/v1/me': () => ({ status: 200, json: { data: makeState() } }) })
     const api = new XidApiClient({ fetcher })
@@ -14,6 +116,43 @@ describe('XidApiClient', () => {
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value.activeSessionId).toBe('sess_1')
   })
+
+  it('normalizes the real anonymous /v1/me shell without dereferencing null user or session', async () => {
+    const fetcher = makeFetch({
+      '/v1/me': () => ({
+        status: 200,
+        json: {
+          user: null,
+          activeOrg: null,
+          organizations: [],
+          session: null,
+          activeSessionId: null,
+          sessions: [],
+        },
+      }),
+    })
+    const api = new XidApiClient({ fetcher })
+
+    const result = await api.loadState()
+
+    expect(result).toEqual({
+      ok: true,
+      value: { activeSessionId: null, sessions: [], user: null },
+    })
+  })
+
+  it.each([null, {}, { user: null, session: null }])(
+    'throws XidNetworkError for a malformed successful /v1/me response',
+    async (json) => {
+      const fetcher = makeFetch({ '/v1/me': () => ({ status: 200, json }) })
+      const api = new XidApiClient({ fetcher })
+
+      await expect(api.loadState()).rejects.toMatchObject({
+        name: 'XidNetworkError',
+        message: 'Invalid /v1/me response',
+      })
+    },
+  )
 
   it('maps a structured XidError error body to a Result error', async () => {
     const fetcher = makeFetch({

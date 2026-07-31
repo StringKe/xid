@@ -1,12 +1,30 @@
 # React Native SDK
 
-**Status: current package.** `@xid-kit/react-native` implements the Hosted Auth redirect flow, deep-link callback parsing with CSRF guard, PKCE S256 challenge generation, token exchange with `TokenCache` persistence, server-side session cleanup on `signOut`, and re-exports the full `@xid-kit/react` hook set (`useAuth` / `useUser` / `useOrganization` / `useSession`) backed by the core client. Known limits: no automatic refresh-token rotation (the refresh token is stored; exchange is manual), and `isSignedIn` is driven by the client session state rather than local token presence.
+**Status: implemented.** `@xid-kit/react-native` owns a native OIDC session rather than reusing
+the web-cookie state from `@xid-kit/react`. Hosted Auth uses Authorization Code + PKCE S256,
+state and nonce are persisted per pending authorization, the ID token is verified from JWKS before
+storage, and `useAuth` / `useUser` / `useSession` restore from the injected secure `TokenCache`.
+This public client does not implement DPoP, so it rejects `offline_access`; access-token expiry
+clears the local session and requires reauthorization. Real Keychain, EncryptedSharedPreferences,
+deep-link and real-IdP device evidence remain pending.
 
 ## Install
 
+Registry status is `UNPUBLISHED`: local release artifacts are verified, but no npm publication has
+been performed or authorized. The XID registry command below is post-publication only and becomes
+valid after an independently verified authorized release. Until then, install XID from a source
+checkout or audited tarball as described in [SDK Distribution](./distribution.md). React and React
+Native keep their normal registry installation.
+
 ```sh
-pnpm add @xid-kit/react-native @xid-kit/react @xid-kit/core
+# Post-publication only
+pnpm add @xid-kit/react-native
+
+# Public peer dependencies
+pnpm add react@^19 react-native
 ```
+
+This package has no runtime dependency on `@xid-kit/react`, `@xid-kit/core` or `react-dom`.
 
 ## Quickstart
 
@@ -30,7 +48,6 @@ const browser: BrowserInterface = {
 export default function App() {
   return (
     <XidProvider
-      publishableKey="pk_live_..."
       issuer="https://xid.dev"
       clientId="your_client_id"
       redirectUri="myapp://oauth/callback"
@@ -48,37 +65,36 @@ export default function App() {
 
 ### Provider
 
-| Export             | Description                                                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `XidProvider`      | Root provider -- wraps `@xid-kit/react` XidProvider and adds RN adapter context.                                                |
-| `XidProviderProps` | Props type: extends `@xid-kit/react` XidProviderProps + `tokenCache`, `browser`, `issuer`, `clientId`, `redirectUri`, `scopes`. |
+| Export             | Description                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| `XidProvider`      | Restores the native token session, then publishes auth state to native hooks.                  |
+| `XidProviderProps` | `tokenCache`, `browser`, `issuer`, `clientId`, `redirectUri`, optional `scopes` and `fetcher`. |
 
 ### Hooks (RN-specific)
 
 | Export       | Description                                                                                                                                                      |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `useSignIn`  | Returns `{ signIn, handleRedirect, signInState }`. `signIn()` opens the browser for PKCE S256 authorize; `handleRedirect(url)` processes the deep-link callback. |
-| `useSignOut` | Returns `{ signOut, signOutState }`. Clears local token cache and calls server session revocation.                                                               |
+| `useSignOut` | Returns `{ signOut, signOutState }`. Deterministically clears local state without a refresh or revoke network path.                                              |
 
-### Hooks (re-exported from @xid-kit/react)
+### Native token-session hooks
 
-`useAuth`, `useUser`, `useSession`, `useSessionList`, `useOrganization`, `useOrganizationList`, `useAPIKeys`.
+- `useAuth()` exposes `isLoaded`, `isSignedIn`, `isAnonymous`, verified `userId` / `sessionId`,
+  `getToken()` and native `signOut()`.
+- `useUser()` maps verified ID token claims to `NativeUser`.
+- `useSession()` exposes the stored token envelope; `getToken()` returns `null` after expiry.
+- `SignedIn`, `SignedOut`, `XidLoaded` and `XidLoading` use this native session state.
 
-**Note:** `useAuth().isSignedIn` reflects the `XidClient` session loaded from the server, not the presence of tokens in `TokenCache`. In a typical React Native setup the Hosted Auth session cookie set in the in-app browser does not propagate back to the JS fetch context, so `isSignedIn` will be false after sign-in until the client is explicitly reloaded with the stored access token.
-
-### Control components (re-exported from @xid-kit/react)
-
-`SignedIn`, `SignedOut`, `Protect`, `XidLoaded`, `XidLoading`, `XidFailed`, `XidDegraded`.
-
-**Note:** `SignedIn` and `SignedOut` depend on `useAuth().isSignedIn` -- see above.
+Organization CRUD/list hooks and web UI components are not exported by this package. Use the
+Management API with the verified access token when an application needs those flows.
 
 ### Adapter types
 
-| Export | Description |
-| ------------------ | --------------------------------------------------------------------------- | ------------------ | -------------------- |
-| `TokenCache` | `{ getToken, saveToken, deleteToken }` -- secure storage adapter interface. |
-| `BrowserInterface` | `{ openAuthSession(url, redirectUri) }` -- in-app browser adapter interface. |
-| `BrowserResult` | `{ type: 'success'; url: string }                                           | { type: 'cancel' } | { type: 'dismiss' }` |
+| Export             | Description                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| `TokenCache`       | `{ getToken, saveToken, deleteToken, coordinationNamespace? }` secure storage adapter. |
+| `BrowserInterface` | `{ openAuthSession(url, redirectUri) }` in-app browser adapter.                        |
+| `BrowserResult`    | Success with callback URL, or a `cancel` / `dismiss` result.                           |
 
 ### PKCE utilities (advanced / testing)
 
@@ -86,18 +102,32 @@ export default function App() {
 | ------------------------------- | ------------------------------------------------------------------- |
 | `createPkceVerifier(length?)`   | Generate RFC 7636 code_verifier (delegates to `@xid-kit/protocol`). |
 | `createPkceChallenge(verifier)` | Compute S256 code_challenge (delegates to `@xid-kit/protocol`).     |
-| `createRandomString(length)`    | Generate URL-safe random string for OAuth state.                    |
+| `createRandomString(length)`    | Generate URL-safe random state/nonce material.                      |
 
 ## Security
 
 - Authorization Code with PKCE S256 only. No implicit grant, no password grant.
 - Public clients never store client secrets.
-- PKCE verifier and OAuth state stored in the injected `TokenCache`, not in-memory.
-- CSRF protection: `handleRedirect` validates `state` against the stored value before exchanging the code.
+- PKCE verifier, redirect URI and an independent nonce are stored under the random state key.
+- Pending authorization records are consumed once, so replayed callbacks cannot exchange again.
+- CSRF protection validates `state` before exchange; OIDC replay protection validates nonce after
+  JWKS signature, issuer, audience and time checks.
+- The active session is one fail-closed envelope. A pending marker prevents restart from observing
+  a partially replaced token set.
+- Authorization session commits, clear and sign-out share a per-namespace mutation queue.
+- XID requires DPoP sender binding before a public client can receive a refresh token. This SDK has
+  no DPoP proof implementation, rejects `offline_access`, and never advertises automatic refresh.
+- Sign-out clears local state and any legacy credential storage without making a revoke request.
+- The historical `xid.refresh_token` key is delete-only migration cleanup; current code never reads
+  or writes a refresh credential.
 
 ## Known limits
 
-- No automatic refresh-token rotation on expiry: the refresh token is persisted in `TokenCache`, but the exchange must be triggered by the caller.
-- `isSignedIn` reflects the core client session state (network-backed), not local `TokenCache` token presence.
+- Real secure-storage, browser and deep-link adapters require device or emulator verification.
+- The real-IdP L4 authorize -> callback -> token round trip is not verified.
+- DPoP sender binding and refresh-token support are not implemented.
+- One active local account is supported per `TokenCache` namespace. Multi-session and account
+  switching are not implemented.
+- Organization management hooks and native organization UI are not implemented.
 
-Status: current package (real device / real IdP round-trip pending).
+Status: implemented locally; real device / real IdP round-trip pending.

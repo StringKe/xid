@@ -2,9 +2,14 @@
 // token 只存 SHA-256 哈希(见 password-auth rule / v1/invitations.ts)。
 
 import { sha256Hex } from '@xid-kit/crypto'
-import { createTenantDb, schema } from '@xid-kit/db'
+import { createTenantDb, resolveTenantContextByIdInInstance, schema } from '@xid-kit/db'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
+import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
+import { invitationTenantIdFromToken } from '../lib/invitation-token'
+import { createPersistedId } from '../lib/persisted-id'
+import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { emitWebhookAsync } from '../v1/shared'
 
 export type InvitationPreview = {
@@ -12,14 +17,20 @@ export type InvitationPreview = {
   email: string | null
   orgId: string | null
   orgName: string | null
-  role: string | null
+  role: OrganizationMembershipRole | null
   expiresAt: string | null
 }
 
 export type AcceptInvitationResult = {
   orgId: string
   membershipId: string
-  role: string
+  role: OrganizationMembershipRole
+}
+
+export type VerifiedInvitationEmail = {
+  email: string
+  verified: true
+  verificationStatus: 'verified'
 }
 
 export async function findInvitationByRawToken(
@@ -31,9 +42,75 @@ export async function findInvitationByRawToken(
   return row ?? null
 }
 
+export async function findInvitationById(
+  db: ReturnType<typeof createTenantDb>,
+  invitationId: string,
+): Promise<typeof schema.invitations.$inferSelect | null> {
+  const row = await db.invitations.findOne(eq(schema.invitations.id, invitationId))
+  return row ?? null
+}
+
+// Instance-root invitation routing is a two-step proof:
+// 1. decode the untrusted locator and resolve one candidate Tenant in the current Instance;
+// 2. require the complete opaque token hash to exist through that Tenant's scoped DB.
+// The locator alone never grants access and there is no global invitation-token lookup.
+export async function resolveInvitationTenant(
+  c: Context<XidHonoEnv>,
+  rawToken: string,
+): Promise<TenantVar | null> {
+  const token = rawToken.trim()
+  if (!token) return null
+
+  const current = c.get('tenant')
+  const tenantId = invitationTenantIdFromToken(token)
+  if (!tenantId) {
+    // A legacy opaque token has no recoverable Tenant locator. It is safe only when Host/cookie
+    // resolution has already produced a concrete Tenant, because the complete hash lookup remains
+    // scoped there. The cutover migration revokes every pre-existing pending legacy row; this path
+    // exists only for explicit same-Tenant diagnosis and never performs a global lookup.
+    if (current.resolution?.unresolvedRoot) return null
+    const currentDb = createTenantDb(c.env.DB, current)
+    const legacyInvitation = await findInvitationByRawToken(currentDb, token)
+    return legacyInvitation?.tokenVersion === 'legacy' ? current : null
+  }
+
+  let candidate = current
+  if (tenantId !== current.tenantId) {
+    if (!current.instanceId) return null
+    const result = await resolveTenantContextByIdInInstance(
+      c.req.raw,
+      c.env,
+      tenantId,
+      current.instanceId,
+    )
+    if (!result.ok || result.value.status !== 'resolved') return null
+    candidate = result.value.tenant
+  }
+
+  const db = createTenantDb(c.env.DB, candidate)
+  const invitation = await findInvitationByRawToken(db, token)
+  return invitation ? candidate : null
+}
+
 export async function loadInvitationPreview(
   db: ReturnType<typeof createTenantDb>,
   rawToken: string,
+): Promise<InvitationPreview> {
+  const invitation = await findInvitationByRawToken(db, rawToken)
+  return loadInvitationPreviewForRow(db, invitation)
+}
+
+export async function loadInvitationPreviewById(
+  db: ReturnType<typeof createTenantDb>,
+  invitationId: string,
+): Promise<InvitationPreview> {
+  const invitation = await findInvitationById(db, invitationId)
+  return loadInvitationPreviewForRow(db, invitation)
+}
+
+async function loadInvitationPreviewForRow(
+  db: ReturnType<typeof createTenantDb>,
+  invitation: typeof schema.invitations.$inferSelect | null,
 ): Promise<InvitationPreview> {
   const invalid: InvitationPreview = {
     status: 'invalid',
@@ -43,9 +120,6 @@ export async function loadInvitationPreview(
     role: null,
     expiresAt: null,
   }
-  if (!rawToken.trim()) return invalid
-
-  const invitation = await findInvitationByRawToken(db, rawToken)
   if (!invitation) return invalid
   if (invitation.status === 'accepted' || invitation.status === 'revoked') return invalid
   if (invitation.expiresAt.getTime() <= Date.now()) {
@@ -89,20 +163,31 @@ export async function loadPrimaryEmailForUserId(
   db: ReturnType<typeof createTenantDb>,
   userId: string,
   primaryEmailId: string | null,
-): Promise<string | null> {
+): Promise<VerifiedInvitationEmail | null> {
   if (!primaryEmailId) return null
   const row = await db.userEmails.findOne(
     and(eq(schema.userEmails.id, primaryEmailId), eq(schema.userEmails.userId, userId)),
   )
-  return row?.email ?? null
+  if (!row || row.verified !== true || row.verificationStatus !== 'verified') return null
+  return { email: row.email, verified: true, verificationStatus: 'verified' }
 }
 
 export async function assertInvitationEmailMatches(
   invitation: typeof schema.invitations.$inferSelect,
-  userEmail: string | null,
+  userEmail: VerifiedInvitationEmail | null,
 ): Promise<void> {
+  if (userEmail?.verified !== true || userEmail.verificationStatus !== 'verified') {
+    throw new AppError('invitation_email_mismatch', { httpStatus: 403 })
+  }
+  assertInvitationTargetEmailMatches(invitation, userEmail.email)
+}
+
+export function assertInvitationTargetEmailMatches(
+  invitation: typeof schema.invitations.$inferSelect,
+  email: string,
+): void {
   const inviteEmail = invitation.email.trim().toLowerCase()
-  const normalized = userEmail?.trim().toLowerCase() ?? ''
+  const normalized = email.trim().toLowerCase()
   if (!normalized || normalized !== inviteEmail) {
     throw new AppError('invitation_email_mismatch', { httpStatus: 403 })
   }
@@ -114,7 +199,7 @@ export async function acceptInvitation(opts: {
   tenantId: string
   invitation: typeof schema.invitations.$inferSelect
   userId: string
-  userEmail: string | null
+  userEmail: VerifiedInvitationEmail | null
 }): Promise<AcceptInvitationResult> {
   const { db, env, tenantId, invitation, userId, userEmail } = opts
 
@@ -134,40 +219,122 @@ export async function acceptInvitation(opts: {
 
   await assertInvitationEmailMatches(invitation, userEmail)
 
-  const orgDb = db.forOrg(invitation.orgId)
-  const existing = await orgDb.memberships.findOne(eq(schema.memberships.userId, userId))
-  let membershipId: string
+  const membershipIdCandidate = createPersistedId('membership')
+  const nowMs = Date.now()
+  const invitationStillPending = `
+    SELECT 1
+      FROM invitations
+     WHERE tenant_id = ?
+       AND org_id = ?
+       AND id = ?
+       AND token_hash = ?
+       AND status = 'pending'
+       AND expires_at > ?`
 
-  if (existing?.status === 'active') {
-    membershipId = existing.id
-    if (existing.role !== invitation.role) {
-      await orgDb.memberships.update(
-        { role: invitation.role },
-        eq(schema.memberships.id, existing.id),
-      )
-    }
-  } else if (existing) {
-    const updated = await orgDb.memberships.update(
-      {
-        role: invitation.role,
-        status: 'active',
-        joinedAt: new Date(),
-      },
-      eq(schema.memberships.id, existing.id),
-    )
-    membershipId = updated[0]?.id ?? existing.id
-  } else {
-    membershipId = crypto.randomUUID()
-    await orgDb.memberships.insert({
-      id: membershipId,
-      tenantId,
-      orgId: invitation.orgId,
-      userId,
-      role: invitation.role,
-      membershipType: 'member',
-      status: 'active',
-      joinedAt: new Date(),
-    })
+  // D1 batch is one transaction. Every membership mutation is guarded by the same pending
+  // invitation predicate used by the final consume. A concurrent loser therefore executes zero
+  // membership writes after the winner commits, instead of changing a role and only then learning
+  // that the capability was already consumed.
+  const updateMembership = env.DB.prepare(
+    `UPDATE memberships
+        SET role = ?,
+            status = 'active',
+            joined_at = CASE WHEN status = 'active' THEN joined_at ELSE ? END,
+            updated_at = ?
+      WHERE tenant_id = ?
+        AND org_id = ?
+        AND user_id = ?
+        AND EXISTS (${invitationStillPending})`,
+  ).bind(
+    invitation.role,
+    nowMs,
+    nowMs,
+    tenantId,
+    invitation.orgId,
+    userId,
+    tenantId,
+    invitation.orgId,
+    invitation.id,
+    invitation.tokenHash,
+    nowMs,
+  )
+  const insertMembership = env.DB.prepare(
+    `INSERT INTO memberships (
+       id, tenant_id, org_id, user_id, role, membership_type, status, is_managed,
+       invited_by_user_id, joined_at, created_at, updated_at
+     )
+     SELECT ?, ?, ?, ?, ?, 'member', 'active', 0, ?, ?, ?, ?
+      WHERE EXISTS (${invitationStillPending})
+        AND NOT EXISTS (
+          SELECT 1
+            FROM memberships
+           WHERE tenant_id = ? AND org_id = ? AND user_id = ?
+        )`,
+  ).bind(
+    membershipIdCandidate,
+    tenantId,
+    invitation.orgId,
+    userId,
+    invitation.role,
+    invitation.invitedByUserId,
+    nowMs,
+    nowMs,
+    nowMs,
+    tenantId,
+    invitation.orgId,
+    invitation.id,
+    invitation.tokenHash,
+    nowMs,
+    tenantId,
+    invitation.orgId,
+    userId,
+  )
+  const consumeInvitation = env.DB.prepare(
+    `UPDATE invitations
+        SET status = 'accepted',
+            accepted_by_user_id = ?,
+            used_count = used_count + 1,
+            updated_at = ?
+      WHERE tenant_id = ?
+        AND org_id = ?
+        AND id = ?
+        AND token_hash = ?
+        AND status = 'pending'
+        AND expires_at > ?
+        AND EXISTS (
+          SELECT 1
+            FROM memberships
+           WHERE tenant_id = ?
+             AND org_id = ?
+             AND user_id = ?
+             AND role = ?
+             AND status = 'active'
+        )`,
+  ).bind(
+    userId,
+    nowMs,
+    tenantId,
+    invitation.orgId,
+    invitation.id,
+    invitation.tokenHash,
+    nowMs,
+    tenantId,
+    invitation.orgId,
+    userId,
+    invitation.role,
+  )
+
+  const results = await env.DB.batch([updateMembership, insertMembership, consumeInvitation])
+  if (Number(results[2]?.meta?.changes ?? 0) !== 1) {
+    throw new AppError('invitation_invalid')
+  }
+
+  const orgDb = db.forOrg(invitation.orgId)
+  const membership = await orgDb.memberships.findOne(eq(schema.memberships.userId, userId))
+  if (!membership || membership.status !== 'active' || membership.role !== invitation.role) {
+    throw new AppError('server_error')
+  }
+  if (Number(results[1]?.meta?.changes ?? 0) === 1) {
     emitWebhookAsync(env, {
       tenantId,
       event: 'organizationMembership.created',
@@ -175,23 +342,13 @@ export async function acceptInvitation(opts: {
     })
   }
 
-  const updatedInvite = await db.invitations.update(
-    {
-      status: 'accepted',
-      acceptedByUserId: userId,
-      usedCount: invitation.usedCount + 1,
-    },
-    and(eq(schema.invitations.id, invitation.id), eq(schema.invitations.status, 'pending')),
-  )
-  if (!updatedInvite[0]) throw new AppError('invitation_invalid')
-
   emitWebhookAsync(env, {
     tenantId,
     event: 'organizationInvitation.accepted',
     payload: { orgId: invitation.orgId, invitationId: invitation.id, userId },
   })
 
-  return { orgId: invitation.orgId, membershipId, role: invitation.role }
+  return { orgId: invitation.orgId, membershipId: membership.id, role: invitation.role }
 }
 
 export async function acceptInvitationByToken(opts: {
@@ -200,9 +357,22 @@ export async function acceptInvitationByToken(opts: {
   tenantId: string
   rawToken: string
   userId: string
-  userEmail: string | null
+  userEmail: VerifiedInvitationEmail | null
 }): Promise<AcceptInvitationResult> {
   const invitation = await findInvitationByRawToken(opts.db, opts.rawToken)
+  if (!invitation) throw new AppError('invitation_invalid')
+  return acceptInvitation({ ...opts, invitation })
+}
+
+export async function acceptInvitationById(opts: {
+  db: ReturnType<typeof createTenantDb>
+  env: Env
+  tenantId: string
+  invitationId: string
+  userId: string
+  userEmail: VerifiedInvitationEmail | null
+}): Promise<AcceptInvitationResult> {
+  const invitation = await findInvitationById(opts.db, opts.invitationId)
   if (!invitation) throw new AppError('invitation_invalid')
   return acceptInvitation({ ...opts, invitation })
 }
@@ -212,18 +382,49 @@ export function invitationAcceptContinuePath(orgId: string, orgName: string): st
   return `/console/org?${params.toString()}`
 }
 
-export async function requirePendingInvitationForEmail(
+export async function requirePendingInvitationByToken(
   db: ReturnType<typeof createTenantDb>,
   rawToken: string,
-  email: string,
 ): Promise<typeof schema.invitations.$inferSelect> {
   const invitation = await findInvitationByRawToken(db, rawToken.trim())
+  return requirePendingInvitation(invitation)
+}
+
+function requirePendingInvitation(
+  invitation: typeof schema.invitations.$inferSelect | null,
+): typeof schema.invitations.$inferSelect {
   if (!invitation || invitation.status !== 'pending') {
     throw new AppError('invitation_invalid')
   }
   if (invitation.expiresAt.getTime() <= Date.now()) {
     throw new AppError('invitation_expired')
   }
-  await assertInvitationEmailMatches(invitation, email)
+  return invitation
+}
+
+export async function requirePendingInvitationById(
+  db: ReturnType<typeof createTenantDb>,
+  invitationId: string,
+): Promise<typeof schema.invitations.$inferSelect> {
+  return requirePendingInvitation(await findInvitationById(db, invitationId))
+}
+
+export async function requirePendingInvitationForEmail(
+  db: ReturnType<typeof createTenantDb>,
+  rawToken: string,
+  email: string,
+): Promise<typeof schema.invitations.$inferSelect> {
+  const invitation = await requirePendingInvitationByToken(db, rawToken)
+  assertInvitationTargetEmailMatches(invitation, email)
+  return invitation
+}
+
+export async function requirePendingInvitationByIdForEmail(
+  db: ReturnType<typeof createTenantDb>,
+  invitationId: string,
+  email: string,
+): Promise<typeof schema.invitations.$inferSelect> {
+  const invitation = await requirePendingInvitationById(db, invitationId)
+  assertInvitationTargetEmailMatches(invitation, email)
   return invitation
 }

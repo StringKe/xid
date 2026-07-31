@@ -42,7 +42,7 @@ const BASE_STATE: XidState = {
           publicMetadata: {},
           createdAt: 1000,
         },
-        role: 'org:admin',
+        role: 'admin',
         permissions: ['org:member:read', 'org:member:write'],
         createdAt: 1000,
       },
@@ -80,11 +80,11 @@ describe('isAllowed', () => {
   })
 
   it('returns true when required role matches active membership', () => {
-    expect(isAllowed(BASE_STATE, { role: 'org:admin' })).toBe(true)
+    expect(isAllowed(BASE_STATE, { role: 'admin' })).toBe(true)
   })
 
   it('returns false when required role does not match', () => {
-    expect(isAllowed(BASE_STATE, { role: 'org:member' })).toBe(false)
+    expect(isAllowed(BASE_STATE, { role: 'member' })).toBe(false)
   })
 
   it('returns true when required permission is in active membership', () => {
@@ -96,13 +96,11 @@ describe('isAllowed', () => {
   })
 
   it('returns false when role matches but permission does not', () => {
-    expect(isAllowed(BASE_STATE, { role: 'org:admin', permission: 'org:billing:manage' })).toBe(
-      false,
-    )
+    expect(isAllowed(BASE_STATE, { role: 'admin', permission: 'org:billing:manage' })).toBe(false)
   })
 
   it('returns true when both role and permission match', () => {
-    expect(isAllowed(BASE_STATE, { role: 'org:admin', permission: 'org:member:write' })).toBe(true)
+    expect(isAllowed(BASE_STATE, { role: 'admin', permission: 'org:member:write' })).toBe(true)
   })
 
   it('returns false when user has no org memberships', () => {
@@ -110,7 +108,7 @@ describe('isAllowed', () => {
       ...BASE_STATE,
       user: BASE_STATE.user ? { ...BASE_STATE.user, organizationMemberships: [] } : null,
     }
-    expect(isAllowed(state, { role: 'org:admin' })).toBe(false)
+    expect(isAllowed(state, { role: 'admin' })).toBe(false)
   })
 
   it('returns false when active org does not match any membership', () => {
@@ -120,6 +118,6 @@ describe('isAllowed', () => {
         ? { ...BASE_STATE.organization, id: 'org_other' }
         : null,
     }
-    expect(isAllowed(state, { role: 'org:admin' })).toBe(false)
+    expect(isAllowed(state, { role: 'admin' })).toBe(false)
   })
 })

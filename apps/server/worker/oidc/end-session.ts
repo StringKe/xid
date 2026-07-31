@@ -6,11 +6,15 @@ import { signJwt, verifyJwt } from '@xid-kit/crypto'
 import type { Context, Hono } from 'hono'
 import { readSession, revokeSession } from '../lib/session'
 import { escapeHtml } from '../lib/error-page'
+import { AppError } from '../lib/errors'
+import { logWorkerError } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
+import { isPublicHttpsUrl, isValidPostLogoutRedirectUri } from '../lib/validate'
 import { buildVerifyKeySet, findClient, loadActiveSigner } from './shared'
 import { BACKCHANNEL_LOGOUT_TOKEN_TTL_SEC } from '../lib/ttl'
 
 const LOGOUT_EVENT = 'http://schemas.openid.net/event/backchannel-logout'
+const BACKCHANNEL_LOGOUT_TIMEOUT_MS = 5_000
 
 type RawParams = Record<string, string>
 
@@ -45,7 +49,10 @@ function resolveRedirect(
   requested: string | undefined,
 ): string | null {
   if (!client || !requested) return null
-  return client.postLogoutRedirectUris.includes(requested) ? requested : null
+  return client.postLogoutRedirectUris.includes(requested) &&
+    isValidPostLogoutRedirectUri(requested)
+    ? requested
+    : null
 }
 
 // 发 back-channel logout_token 到 RP backchannel_logout_uri(签名同 ID token 密钥,含 sid/sub)。
@@ -55,29 +62,70 @@ async function sendBackchannelLogout(
 ): Promise<void> {
   const client = input.client
   if (!client?.backchannelLogoutUri) return
+  if (!isPublicHttpsUrl(client.backchannelLogoutUri)) return
+  const backchannelUrl = new URL(client.backchannelLogoutUri)
+  if (backchannelUrl.username || backchannelUrl.password || backchannelUrl.hash) return
   if (!input.sub && !input.sid) return
-  const ctx = c.get('tenant')
-  const signer = await loadActiveSigner(ctx, c.env.KEK)
-  const now = Math.floor(Date.now() / 1000)
-  const payload: Record<string, unknown> = {
-    iss: ctx.issuer,
-    aud: client.clientId,
-    iat: now,
-    exp: now + BACKCHANNEL_LOGOUT_TOKEN_TTL_SEC,
-    jti: crypto.randomUUID(),
-    events: { [LOGOUT_EVENT]: {} },
+  try {
+    const ctx = c.get('tenant')
+    const signer = await loadActiveSigner(ctx, c.env.KEK)
+    const now = Math.floor(Date.now() / 1000)
+    const payload: Record<string, unknown> = {
+      iss: ctx.issuer,
+      aud: client.clientId,
+      iat: now,
+      exp: now + BACKCHANNEL_LOGOUT_TOKEN_TTL_SEC,
+      jti: crypto.randomUUID(),
+      events: { [LOGOUT_EVENT]: {} },
+    }
+    if (input.sub) payload['sub'] = input.sub
+    if (input.sid) payload['sid'] = input.sid
+    const logoutToken = await signJwt(
+      { header: { alg: signer.alg, kid: signer.kid, typ: 'logout+jwt' }, payload },
+      signer.privateKey,
+    )
+    const response = await fetch(client.backchannelLogoutUri, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ logout_token: logoutToken }).toString(),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(BACKCHANNEL_LOGOUT_TIMEOUT_MS),
+    })
+    if (!response.ok) throw new Error(`back-channel logout returned ${response.status}`)
+  } catch (error) {
+    try {
+      await c.env.AUDIT_QUEUE.send({
+        tenantId: c.get('tenant').tenantId,
+        action: 'oidc.backchannel_logout_failed',
+        ts: Date.now(),
+        payload: {
+          targetType: 'application',
+          targetId: client.clientId,
+        },
+      })
+    } catch (auditError) {
+      logWorkerError('oidc.backchannel_logout.audit_failed', auditError, {
+        component: 'oidc',
+        operation: 'backchannel_logout',
+      })
+    }
+    logWorkerError('oidc.backchannel_logout.delivery_failed', error, {
+      component: 'oidc',
+      operation: 'backchannel_logout',
+    })
   }
-  if (input.sub) payload['sub'] = input.sub
-  if (input.sid) payload['sid'] = input.sid
-  const logoutToken = await signJwt(
-    { header: { alg: signer.alg, kid: signer.kid, typ: 'logout+jwt' }, payload },
-    signer.privateKey,
-  )
-  await fetch(client.backchannelLogoutUri, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ logout_token: logoutToken }).toString(),
-  })
+}
+
+async function scheduleBackchannelLogout(
+  c: Context<XidHonoEnv>,
+  input: Parameters<typeof sendBackchannelLogout>[1],
+): Promise<void> {
+  const task = sendBackchannelLogout(c, input)
+  try {
+    c.executionCtx.waitUntil(task)
+  } catch {
+    await task
+  }
 }
 
 type HintPayload = Awaited<ReturnType<typeof verifyIdTokenHint>>
@@ -137,11 +185,25 @@ async function resolveLogoutClient(
   params: RawParams,
   hint: HintPayload,
 ): Promise<Awaited<ReturnType<typeof findClient>>> {
-  const hintAud = typeof hint?.aud === 'string' ? hint.aud : undefined
-  const clientId = params['client_id'] ?? hintAud
-  const client = clientId ? await findClient(c, clientId) : null
-  if (client) await sendBackchannelLogout(c, { client, sub: hint?.sub, sid: hint?.sid })
-  return client
+  const audiences =
+    typeof hint?.aud === 'string'
+      ? [hint.aud]
+      : Array.isArray(hint?.aud)
+        ? hint.aud.filter((value): value is string => typeof value === 'string')
+        : []
+  const explicitClientId = params['client_id']
+  if (explicitClientId && hint && !audiences.includes(explicitClientId)) {
+    throw new AppError('invalid_request', {
+      httpStatus: 400,
+      longMessage: 'client_id does not match id_token_hint audience',
+    })
+  }
+  const candidates = explicitClientId ? [explicitClientId] : audiences
+  for (const clientId of candidates) {
+    const client = await findClient(c, clientId)
+    if (client) return client
+  }
+  return null
 }
 
 async function handleEndSession(c: Context<XidHonoEnv>): Promise<Response> {
@@ -153,10 +215,12 @@ async function handleEndSession(c: Context<XidHonoEnv>): Promise<Response> {
     return renderLogoutConfirmPage(c, params)
   }
 
+  const client = await resolveLogoutClient(c, params, hintPayload)
   const session = await readSession(c)
   if (session) await revokeSession(c, session)
-
-  const client = await resolveLogoutClient(c, params, hintPayload)
+  if (client) {
+    await scheduleBackchannelLogout(c, { client, sub: hintPayload?.sub, sid: hintPayload?.sid })
+  }
   const redirect = resolveRedirect(client, params['post_logout_redirect_uri'])
   if (redirect) {
     const url = new URL(redirect)

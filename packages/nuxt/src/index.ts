@@ -4,7 +4,7 @@
 
 // --- Nuxt Module (default export for modules: ['@xid-kit/nuxt']) ---
 export { defineXidModule, setupXidModule, moduleMetadata } from './module'
-export type { XidNuxtModuleOptions } from './types'
+export type { XidNuxtBrowserOptions, XidNuxtModuleOptions } from './types'
 
 // Default export consumed by Nuxt's module loader.
 // modules: ['@xid-kit/nuxt'] -> Nuxt imports this file and calls the default export.
@@ -72,3 +72,5 @@ export type {
   GetTokenOptions,
   XidClientOptions,
 } from '@xid-kit/core'
+
+export type { OrganizationMembershipRole } from '@xid-kit/types'

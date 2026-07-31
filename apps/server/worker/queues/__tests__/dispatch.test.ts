@@ -58,6 +58,18 @@ describe('dispatchQueue:按队列名路由', () => {
     expect(batch.ackAll).not.toHaveBeenCalled()
   })
 
+  it('xid-scim-sync 路由到 outbound SCIM consumer', async () => {
+    const batch = makeBatch(QUEUE_NAMES.scimSync)
+    await dispatchQueue(batch as unknown as MessageBatch<never>, env)
+    expect(batch.ackAll).not.toHaveBeenCalled()
+  })
+
+  it('xid-privacy 路由到 privacy consumer', async () => {
+    const batch = makeBatch(QUEUE_NAMES.privacy)
+    await dispatchQueue(batch as unknown as MessageBatch<never>, env)
+    expect(batch.ackAll).not.toHaveBeenCalled()
+  })
+
   it('未知队列名 retryAll,不确认丢弃消息', async () => {
     const batch = makeBatch('xid-unknown')
     await dispatchQueue(batch as unknown as MessageBatch<never>, env)
@@ -73,6 +85,8 @@ describe('dispatchQueue:按队列名路由', () => {
       audit: 'xid-audit',
       webhook: 'xid-webhook',
       metering: 'xid-metering',
+      scimSync: 'xid-scim-sync',
+      privacy: 'xid-privacy',
     })
   })
 })

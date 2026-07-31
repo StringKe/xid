@@ -35,210 +35,92 @@ function makeSharedCacheWrappers(): [TokenCache & { store: Map<string, string> }
 }
 
 describe('XidSessionManager', () => {
-  it('restores a fresh persisted session', async () => {
+  it('restores a fresh authorization-code session after restart', async () => {
     const cache = makeCache()
     await saveTokenSet(cache, {
       accessToken: 'at.persisted',
-      refreshToken: 'rt.persisted',
       idToken: null,
       expiresIn: 3600,
     })
-    const firstManager = new XidSessionManager({
-      tokenCache: cache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
+
+    const firstManager = new XidSessionManager({ tokenCache: cache })
+    await expect(firstManager.restore()).resolves.toMatchObject({
+      accessToken: 'at.persisted',
     })
 
-    await expect(firstManager.restore()).resolves.toMatchObject({ accessToken: 'at.persisted' })
-
-    const restartedManager = new XidSessionManager({
-      tokenCache: cache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
-    await expect(restartedManager.restore()).resolves.toMatchObject({ accessToken: 'at.persisted' })
+    const restartedManager = new XidSessionManager({ tokenCache: cache })
+    await expect(restartedManager.getAccessToken()).resolves.toBe('at.persisted')
   })
 
-  it('shares one refresh request across wrappers with the same coordination namespace', async () => {
-    const [firstCache, secondCache] = makeSharedCacheWrappers()
-    await saveTokenSet(firstCache, {
-      accessToken: 'at.expired',
-      refreshToken: 'rt.valid',
-      idToken: null,
-      expiresIn: 0,
-    })
-    const mockFetch = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            access_token: 'at.refreshed',
-            refresh_token: 'rt.rotated',
-            expires_in: 3600,
-          }),
-          { status: 200 },
-        ),
-    )
-    vi.stubGlobal('fetch', mockFetch)
-    const firstManager = new XidSessionManager({
-      tokenCache: firstCache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
-
-    const secondManager = new XidSessionManager({
-      tokenCache: secondCache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
-
-    await expect(
-      Promise.all([firstManager.restore(), secondManager.getAccessToken()]),
-    ).resolves.toEqual([expect.objectContaining({ accessToken: 'at.refreshed' }), 'at.refreshed'])
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    vi.unstubAllGlobals()
-  })
-
-  it('waits for a shared refresh when a late wrapper finds the pending marker', async () => {
-    const [firstCache, secondCache] = makeSharedCacheWrappers()
-    await saveTokenSet(firstCache, {
-      accessToken: 'at.expired',
-      refreshToken: 'rt.valid',
-      idToken: null,
-      expiresIn: 0,
-    })
-    let startFetch: (() => void) | undefined
-    let releaseFetch: (() => void) | undefined
-    const fetchStarted = new Promise<void>((resolve) => {
-      startFetch = resolve
-    })
-    const fetchGate = new Promise<void>((resolve) => {
-      releaseFetch = resolve
-    })
-    const mockFetch = vi.fn(async () => {
-      startFetch?.()
-      await fetchGate
-      return new Response(
-        JSON.stringify({
-          access_token: 'at.refreshed',
-          refresh_token: 'rt.rotated',
-          expires_in: 3600,
-        }),
-        { status: 200 },
-      )
-    })
-    vi.stubGlobal('fetch', mockFetch)
-    const firstManager = new XidSessionManager({
-      tokenCache: firstCache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
-
-    const initialRestore = firstManager.restore()
-    await fetchStarted
-    const lateManager = new XidSessionManager({
-      tokenCache: secondCache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
-    const lateRestore = lateManager.restore()
-    const pendingResult = await Promise.race([
-      lateRestore.then(() => 'restored'),
-      Promise.resolve('pending'),
-    ])
-
-    expect(pendingResult).toBe('pending')
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-
-    releaseFetch?.()
-    await expect(initialRestore).resolves.toMatchObject({ accessToken: 'at.refreshed' })
-    await expect(lateRestore).resolves.toMatchObject({ accessToken: 'at.refreshed' })
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    vi.unstubAllGlobals()
-  })
-
-  it('clears credentials when refresh network request fails', async () => {
-    const cache = makeCache()
-    await saveTokenSet(cache, {
-      accessToken: 'at.expired',
-      refreshToken: 'rt.valid',
-      idToken: null,
-      expiresIn: 0,
-    })
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network unavailable')))
-    const manager = new XidSessionManager({
-      tokenCache: cache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
-
-    await expect(manager.restore()).resolves.toBeNull()
-    expect(await cache.getToken(TOKEN_KEYS.session)).toBeNull()
-    vi.unstubAllGlobals()
-  })
-
-  it('clears credentials when refresh response JSON is invalid', async () => {
-    const cache = makeCache()
-    await saveTokenSet(cache, {
-      accessToken: 'at.expired',
-      refreshToken: 'rt.valid',
-      idToken: null,
-      expiresIn: 0,
-    })
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('invalid-json', { status: 200 })))
-    const manager = new XidSessionManager({
-      tokenCache: cache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
-
-    await expect(manager.restore()).resolves.toBeNull()
-    expect(await cache.getToken(TOKEN_KEYS.session)).toBeNull()
-    vi.unstubAllGlobals()
-  })
-
-  it('keeps the pending marker across a new manager when refreshed session save and cleanup fail', async () => {
-    const cache = makeCache()
-    cache.store.set(
-      TOKEN_KEYS.session,
-      JSON.stringify({
+  it('clears an expired session and legacy refresh storage without a network request', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-29T00:00:00Z'))
+    try {
+      const cache = makeCache()
+      await saveTokenSet(cache, {
         accessToken: 'at.expired',
-        refreshToken: 'rt.valid',
         idToken: null,
-        expiresAt: Date.now(),
-        expiresIn: 0,
-      }),
-    )
-    cache.saveToken = async (key, value) => {
-      if (key === TOKEN_KEYS.session) {
-        throw new Error('storage unavailable')
-      }
-      cache.store.set(key, value)
-    }
-    cache.deleteToken = async () => {
-      throw new Error('storage unavailable')
-    }
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at.refreshed', expires_in: 3600 }), {
-        status: 200,
-      }),
-    )
-    vi.stubGlobal('fetch', mockFetch)
-    const manager = new XidSessionManager({
-      tokenCache: cache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-    })
+        expiresIn: 1,
+      })
+      cache.store.set(TOKEN_KEYS.legacyRefreshToken, 'legacy-only')
+      vi.advanceTimersByTime(1_001)
+      const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    await expect(manager.restore()).resolves.toBeNull()
-    expect(await cache.getToken(TOKEN_KEYS.sessionPending)).toBe('1')
+      const manager = new XidSessionManager({ tokenCache: cache })
 
-    const restartedManager = new XidSessionManager({
-      tokenCache: cache,
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
+      await expect(manager.restore()).resolves.toBeNull()
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(cache.store.size).toBe(0)
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('signs out by clearing local and legacy state without a revoke request', async () => {
+    const cache = makeCache()
+    await saveTokenSet(cache, {
+      accessToken: 'at.persisted',
+      idToken: null,
+      expiresIn: 3600,
     })
-    await expect(restartedManager.restore()).resolves.toBeNull()
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    vi.unstubAllGlobals()
+    cache.store.set(TOKEN_KEYS.legacyRefreshToken, 'legacy-only')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const manager = new XidSessionManager({ tokenCache: cache })
+
+    await expect(manager.signOut()).resolves.toBeUndefined()
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(cache.store.size).toBe(0)
+    vi.restoreAllMocks()
+  })
+
+  it('serializes authorization commit and clear across wrappers for one storage namespace', async () => {
+    const [firstCache, secondCache] = makeSharedCacheWrappers()
+    let releaseSessionWrite: () => void = () => undefined
+    const sessionWriteGate = new Promise<void>((resolve) => {
+      releaseSessionWrite = resolve
+    })
+    const originalSave = firstCache.saveToken
+    firstCache.saveToken = async (key, value) => {
+      if (key === TOKEN_KEYS.session) await sessionWriteGate
+      await originalSave(key, value)
+    }
+
+    const firstManager = new XidSessionManager({ tokenCache: firstCache })
+    const secondManager = new XidSessionManager({ tokenCache: secondCache })
+    const commit = firstManager.commitAuthorizationSession({
+      accessToken: 'at.new',
+      idToken: null,
+      expiresIn: 3600,
+    })
+    const clear = secondManager.clear()
+
+    releaseSessionWrite()
+    await commit
+    await clear
+
+    await expect(firstManager.restore()).resolves.toBeNull()
+    expect(firstCache.store.size).toBe(0)
   })
 })

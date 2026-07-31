@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=5d55b0c source-blob=52d73daaec755642da7e2dfd49f0cb6df0269d3a -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=65d67a98bd02f16541b440955d0547c4e300c8ae -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -6,6 +6,15 @@
 # 01 - 认证方式与凭证
 
 覆盖登录方式与凭证管理。passkey 为主推；密码、社交、passwordless、MFA、企业 SSO 的支持等级以 `docs/protocols/**` 矩阵和真实 L4 证据为准。
+
+密码、passwordless 或 social authentication 的新账户创建共用一套 account-provisioning
+事务。单个 D1 batch 一次创建 User、primary Email 或 Phone、credential 或 social identity,
+并在流程需要时创建 default Membership。Product sign-up 有意不创建 default Membership,以便
+继续进入顶层 Tenant onboarding。Invitation acceptance 是独立的 proof-first 流程:capability
+只授权尝试,不证明其 Email 控制权;精确邀请地址完成一次性 Email claim 前,不得创建或复用 User、
+credential、session 或 Membership。预生成 ID 使完全相同的重试具有幂等性;batch 失败或结果
+不明确时,只有 Tenant-scoped 完整关系图已经存在才视为成功,任何路径都不得留下孤立
+credential、不完整 profile 或缺失的必需 Membership。
 
 ## 1. Passkey / WebAuthn
 
@@ -181,7 +190,9 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 - GitHub 非 OIDC:调 `/user`,email 为空时 fallback `/user/emails`
 - Apple 仅首次返回 email/姓名,callback 时必须持久化
 - account linking 仅对已验证 email 生效,未验证不自动合并(防社工)
-- OAuth provider 凭证支持租户独立配置,覆盖平台默认
+- 租户可以选择 provider、client id、endpoint、scope 与 claim mapping,但不能选择任意
+  Workers Env key。内置 provider 使用部署固定的 secret binding;自定义 provider binding
+  只能由部署运营方配置
 
 ### 数据模型
 
@@ -195,12 +206,12 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 ### 实现规格:OAuth callback 处理流程
 
-规范基准:RFC 6749(OAuth 2.0)、RFC 7636(PKCE)、OpenID Connect Core 1.0、OAuth 2.1(state/PKCE 强制)。本节描述 XID 作为 **OAuth client(RP)** 对接上游 social provider 的回调处理(与 XID 作为 IdP 的 03 章相互独立)。所有路径走 `apps/server/worker/.../auth`,provider 配置从 TenantContext 取(租户可覆盖平台默认)。
+规范基准:RFC 6749(OAuth 2.0)、RFC 7636(PKCE)、OpenID Connect Core 1.0、OAuth 2.1(state/PKCE 强制)。本节描述 XID 作为 **OAuth client(RP)** 对接上游 social provider 的回调处理(与 XID 作为 IdP 的 03 章相互独立)。所有路径走 `apps/server/worker/.../auth`,provider 策略从 TenantContext 取。secret binding 名称不从 TenantContext 取:Google、GitHub、Microsoft、Apple、GitHub EMU 使用固定 binding;自定义 provider 只能通过运营方控制的 `SOCIAL_PROVIDER_SECRET_BINDINGS` 映射解析。租户提交的 `clientSecretRef` 不参与解析,management API 会拒绝与部署 binding 不一致的值。
 
 #### 发起授权(/authorize 上游跳转前)
 
 1. 生成 `state`(>= 32 字节随机 base64url)、`nonce`(OIDC provider 必带)、PKCE `code_verifier`(43-128 字符)与 `code_challenge = base64url(SHA-256(code_verifier))`,`code_challenge_method=S256`(全 provider 强制 PKCE,即使 provider 不支持也带,支持的校验)。
-2. **state 存储位置**:存 OAuthFlowDO(per 匿名 session,强一致防重放),value = `{tenant_id, provider, code_verifier, nonce, redirect_after_login, return_to_origin, created_at}`,**有效期 10min**(DO alarm 清理)。state 本身只作 DO 内 key,不把敏感参数编进 state 透传上游。回调时按 state 命中并**一次性消费**(命中后立即删,防重放)。
+2. **state 存储位置**:存 OAuthFlowDO(per 匿名 session,强一致防重放),value = `{tenant_id, provider, code_verifier, nonce, redirect_after_login, return_to_origin, created_at, intent?, application_client_id?}`,**有效期 10min**(DO alarm 清理)。原始 invitation capability 在 invitation Email claim 成功前不得进入 social authorization state,也不得据此选择 social account。claim 完成后追加 social identity 是独立的已认证 linking 流程,不是 invitation continuation。state 本身只作 DO 内 key,不把敏感参数编进 state 透传上游。回调时按 state 命中并**一次性消费**(命中后立即删,防重放)。
 3. 跳转上游 `authorization_endpoint`,带 `client_id`(租户配置)、`redirect_uri`(XID 固定回调,精确注册)、`scope`(默认最小 `openid profile email` 或 provider 等价集)、`state`、`code_challenge`、`code_challenge_method=S256`、`nonce`(OIDC)。
 
 #### 回调处理(GET /auth/{provider}/callback)
@@ -212,6 +223,7 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 5. OIDC provider:验证 `id_token` 签名(用 provider JWKS,缓存于 KV)、`iss` == provider issuer、`aud` == client_id、`exp` 未过、`nonce` == DO 中存的 nonce。提取 `sub`(= idp_user_id)、`email`、`email_verified`、`name` 等。
 6. non-OIDC provider(无 id_token,如 GitHub):见下"GitHub fallback",用 access_token 调 provider userinfo/REST API 取 idp_user_id 与 email、email_verified。
 7. 进入 account linking 判断树(见下)。
+8. Social callback 不核销 invitation,也不创建其 Membership。未认证 invitation holder 必须先完成下文的专用 Email claim;之后的 social connection 只能在所得已认证 user 下按正常 account-linking 规则执行。
 
 #### account linking 判断树
 
@@ -256,8 +268,18 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 ### 设计决策
 
-- magic link token = HMAC-SHA256 签名 JWT(sub/exp/jti),服务端只存 jti 哈希用于作废
-- OTP 存 HMAC-SHA256 哈希,验证后立即删
+- magic link 是 instance key 签名 JWT(`sub`/`exp`/`jti`),服务端只存 `SHA-256(jti)`,可作废
+  token 且不持久化明文 JWT
+- OTP 存 SHA-256 哈希,验证成功后立即标为 consumed
+- 发送 OTP 或 magic link 时冻结一个版本化 `PasswordlessFlowContext`:经过校验的 `intent`、
+  normalized local `continuePath` 和 application client id。
+  序列化 context 与 verification row 一起持久化;magic link 还把完全相同的序列化值放入签名
+  JWT,验证时要求签名值与存储值精确一致
+- verification request 不能改写已冻结流程。第二次请求携带的 `intent`、`continue`、
+  application continuation 或 invitation token 只是不可信 routing input。原始 invitation
+  capability 不是 passwordless sign-in input,必须使用下文的专用 claim 流程。post-auth
+  redirect 和 product sign-up 行为只能从已存 context 推导;locator 变化只会导致 Tenant
+  resolution 失败或对已认证 continuation 没有影响
 - WhatsApp 通过 Workers 调 Meta WhatsApp Cloud API 或 Twilio WhatsApp,费用归租户
 - SMS 通过 Workers 调 Twilio/Vonage,费用归租户
 - "相同设备"校验:生成时记 UA+IP,点击时比对(可配置不强制)
@@ -266,6 +288,59 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 核心实体 OtpCode、MagicLinkToken(见 08 章):哈希存储、一次性、短时效。
 
+### Invitation Email claim
+
+- 原始 invitation token 是加入一个 Organization 的可撤销尝试 capability,不是 authentication,
+  也不证明 invitation 中 Email 的所有权。
+- 未认证 holder 通过 `POST /auth/invitation/claim` 发起。XID 必须在目标 Tenant scoped database
+  内验证 capability,并只向 invitation 的精确 normalized Email 发送 claim。公开响应始终是不透明的
+  `{ ok: true }`;调用方提交的 profile 或 credential 字段不能改变发送目标。
+- send 与 verify 都必须在 token 的 trusted Instance 内解析 invitation target Organization,并要求
+  其保持 active。当前 Hosted Auth policy 是唯一准则:发送前检查 Email allow/deny 与 Magic Link
+  availability,proof 创建或复用 identity 前再次检查 method 与 `forceSso` policy。签发 session
+  status 时使用 target Organization 的 MFA policy,不得回退到 Instance-root policy。
+- 邮件携带 instance key 签名 JWT,包含 `purpose = invitation_email_claim`、`tenant_id`、
+  `sub = invitationId`、`jti` 和 `email_hash`,有效期 15 分钟且只能使用一次。D1 只保存消费该
+  `jti` 所需的 claim 记录,不得持久化明文 invitation token 或其可恢复副本。
+- `POST /auth/invitation/claim/verify` 证明该精确目标前,XID 不得创建或选择 User,不得写入
+  password、phone、social identity、passkey 或 MFA factor,不得签发 session,也不得写
+  Membership。Provider 声明的 Email 和 invitation URL 持有事实都不能替代该证明。
+- `verified` flag、active session 或仅凭 Email OTP/magic link 建立的 session 都不是 durable
+  ownership provenance,因为它们可能属于 password 或 identity 先被他人预设的 pre-hijacked
+  account。唯一允许复用的是先前由该 claim ceremony 创建的 exact active User 和 primary
+  `user_emails` row。XID 必须确认该 row 仍为 verified primary、User 仍指回该 exact row 且保持
+  active/unmerged,并且同一 ceremony 的 `invitation_email_claim_v1` provenance 仍附着在该 row。
+  因此一个已经安全证明的 identity 可以加入另一个 Organization,而无需把 Email 转给新 User。
+- 其他任何 exact Email collision,无论 verified 或 unverified,都只从旧 User 解除该 Email
+  association,随后创建没有 credential 的 invited User。同一 winning transaction 清空指向被解除
+  row 的旧 `primary_email_id`、清空 matching `pending_email`,并使所有可能重新占回该地址的
+  outstanding Email-bound verification、passwordless 和 password reset artifact 失效。绝不转移
+  或清空旧 User 的 credential、identity、session、Membership、metadata 或其他数据,也不把该
+  冲突当作 account merge。
+- Claim verification 是可恢复的两阶段状态机。第一个 winning D1 batch 把已存
+  `SHA-256(jti)` 标记为 consumed、冻结 random server-side consumption id,并在
+  `pending -> claim_verified` 时原子绑定 exact Email、result User、browser-owned
+  `SHA-256(recoveryKey)` 和 durable Email provenance,此时 invitation 尚未 accepted。重试必须
+  同时提交原始 signed claim JWT 和相同 random `recoveryKey`;不同 browser key 无法恢复结果。
+- proof 持久化后,XID 预留并签发 result User 的 session,执行 target Organization post-auth MFA
+  gate,再条件化创建或重新激活 invited Membership 并完成 `claim_verified -> accepted`。30 秒 session
+  reservation lease 允许 session write 失败或 HTTP response 丢失后恢复,又不会签发平行 session;
+  替换 stale reservation 前必须先 revoke 旧 session identity。Session 根据策略进入 `active`、
+  `pending_mfa_setup` 或 `pending_mfa`,pending session 在完成 required factor 前不能授权业务操作。
+- 原始 15 分钟 signed claim 仍有效时,accepted claim 重试返回相同 server-owned 结果,也可以修复
+  browser session,但不得再次创建 Membership 或发出 acceptance webhook。只有真实
+  `claim_verified -> accepted` winner 发出
+  `organizationInvitation.accepted`;该 transition 新建 Membership 时发出
+  `organizationMembership.created`,重新激活时发出 `organizationMembership.updated`。
+- `claim_verified` 是 internal recovery state,Management API 对外仍显示 pending。相同
+  `(tenant_id, org_id, email)` 的第二个 pending invitation 会被拒绝。Browser 丢失 recovery key
+  或 administrator 取消流程时,revoke/delete 可以把 `pending` 或 `claim_verified` 转为
+  `revoked`,并 revoke 已预留的 claim session;此后才能签发 fresh invitation。Expiry 会阻止
+  acceptance,但绝不能把未绑定的 recovery attempt 变成新的 bearer capability。
+- 该 provenance 只适用于 invitation acceptance,不能顺带证明普通 password sign-up、Social
+  OAuth account linking 或 enterprise JIT 安全。每条流程都必须独立执行 proof-before-link
+  boundary,不得把本 invitation design 当作其当前实现已经抵抗 pre-hijack 的证据。
+
 ## 5. MFA / 2FA
 
 ### 功能点
@@ -273,6 +348,7 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 - TOTP(RFC 6238,30s 步长,时钟偏差容忍 +-1 步)
 - SMS OTP 作 2FA 第二因子;Email OTP / WhatsApp OTP 仅用于 passwordless 登录,不作 MFA 因子
 - Passkey 登录可达到 AAL2,也可作 MFA 第二因子;MFA 第二因子白名单:TOTP / SMS OTP / backup codes / passkey
+- XID 当前不声明 NIST AAL3。WebAuthn UV 与 BE/BS flag 可以支撑当前 AAL2 路径,但不能证明私钥不可导出且受硬件保护。仅有 enterprise attestation 元数据也不能补齐该证据缺口
 - Backup / recovery codes:10 个,8 字符,每个一次性
 - 强制 MFA 策略:platform / tenant / org 三层继承
 - Step-up authentication(敏感操作二次验证,带 acr scope)
@@ -282,7 +358,9 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 ### 设计决策
 
 - TOTP secret AES-256-GCM 加密;绑定时展示 QR,确认一次有效 code 后激活
-- TOTP 防重放:缓存最近 30s 已用 code(KV TTL=60s),重复拒绝
+- TOTP 防重放:在每个 factor 的 Durable Object 中原子 claim 已用 code,并按命中的 counter
+  计算 TTL,覆盖 `+-1` 时钟容忍下该 counter 的完整可接受生命周期,
+  上限为 `TOTP_REPLAY_TTL_MS=90s`,重复拒绝
 - step-up:颁发含 `acr: step-up` 的短期 token(5min),API 网关校验 acr
 - 强制 MFA 开启后新用户进入 pending_mfa_setup,完成绑定前 access token scope 受限
 - backup codes HMAC-SHA256 哈希存储,展示一次,重新生成作废旧批次
@@ -320,7 +398,7 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 ### Bot 防护介入点
 
-- 登录页加载:Turnstile invisible challenge
+- 登录页加载:Turnstile 显式 widget,使用 `interaction-only` appearance
 - 注册:Turnstile + 可选 email 验证
 - 密码重置请求:Turnstile 防刷
 - OTP 发送接口:独立速率限制
@@ -333,7 +411,9 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 | IP 级失败  | 50 次 / 分钟         | 1 小时     |
 | OTP 发送   | 1 次 / 分钟 / 接收方 | 429,不报错 |
 
-计数器存 KV(TTL 自动过期),Worker 层拦截。
+业务计数器存放在 `RATE_LIMITER` `RateLimitStore` Durable Object,不存 KV。每次尝试只对 DO
+执行一次原子的 check-and-increment,并由 DO 的 expiry window 重置计数。KV 只承担读密集缓存,
+绝不是限流真相源。
 
 ### 账户枚举防护
 
@@ -358,14 +438,21 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
 
 ### POST /auth/guest(私有扩展,非 OIDC 标准能力)
 
-- 无认证端点:建 anonymous user + session;响应 JSON(session handle、expires 等,对齐既有 me-auth 登录响应形态),浏览器场景同时 Set-Cookie。
+- 无认证端点:创建 anonymous user + session,设置 HttpOnly session cookie,并精确返回
+  `{ sessionId, redirectUrl }`。响应不内嵌 User、Organization 或 expiry object;浏览器跟随
+  `redirectUrl` 后通过 `/v1/me` 获取当前 user 与 organization state。
 - 四层防重复(端点契约,四层均为必须):
   1. SDK 惰性复用:本地有有效 guest 凭证就不再调用端点(Firebase 语义)。
   2. 端点幂等:请求带有效 guest session 时 200 续签返回现有 session,不建号。
-  3. 并发去重:GuestStore Durable Object,idFromName("{tenant_id}:{anonKey}"),复用 WebAuthn 的 __Host-xid.anon cookie + anonKey 基建;DO 单线程串行 check-and-set,绑定记录 TTL 对齐 session TTL,alarm 清理;无 anonKey 的裸请求退化为每次新建,由第四层兜底。
-  4. 滥用防护:Turnstile(env.TURNSTILE_SECRET 存在时强制)+ RateLimitStore DO 按 IP + fingerprint 限流(一次 attempt 一次 check-and-increment)+ 每租户每日铸造上限,GC 兜底。
+  3. 并发去重:GuestStore Durable Object,idFromName("{tenant_id}:{anonKey}"),复用 WebAuthn 的
+     `__Host-xid.anon` cookie + anonKey 基建;DO 单线程串行 check-and-set,绑定记录 TTL 对齐
+     session TTL,alarm 清理。无 anonKey 的裸请求会先生成新 key,返回前完成绑定并写入 cookie;
+     并发裸请求仍各用独立 key,由第四层兜底。
+  4. 滥用防护:Turnstile(只有 `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET` 成对存在时启用,只配置一项会 fail closed)+ RateLimitStore DO 按 IP + fingerprint 限流(一次 attempt 一次 check-and-increment)+ 每租户每日铸造上限,GC 兜底。
 - 做不到的:换浏览器/清 cookie/隐身 = 新访客,不追求一人一 guest。
 - 枚举抗性:响应不携带任何既有账号信息。
+- 策略继承:`forceSso` 会阻断 guest 端点;复用既有 guest 遵守 `allowExistingUserLogin`,新建
+  guest 遵守 `allowUserCreation`,guest 不能绕过普通 Hosted Auth policy。
 - 审计事件 guest.created。
 
 ### 统一顶层 Tenant onboarding
@@ -374,11 +461,30 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
   统一进入 `/create-organization`。password verification token 保留签名的 sign-up intent,验证后
   回到 `/sign-in?intent=sign-up`。页面采集 Email、Organization name 和 URL slug。这是唯一创建
   隔离根的 self-service 路径;邀请、JIT、SCIM 和普通 sign-in 保持既有 membership 流程。
+- 在尚未解析的 Instance 根域,显式 `intent=sign-up` 必须先留在 default staging Tenant,不执行
+  identifier、verified domain 或多候选解析。这样已在其他 Tenant 使用的 Email 仍可创建独立的
+  Tenant-local identity。有效 invitation token 的优先级更高,因为接受邀请属于加入现有 Tenant
+  的 membership 流程。
+- invitation preview 和 claim 始终使用同一套 token-first Tenant resolver,即使浏览器当前持有
+  另一个 Tenant 的有效 cookie。token locator 只是受当前 Instance 边界约束的不可信路由 hint;
+  只有完整 token hash 能通过目标 Tenant scoped database 匹配时才成立。所有 holder,包括已登录
+  user,都必须完成上文的一次性 Email claim。raw `/auth/invitation/accept` 被禁用,原始 capability
+  本身绝不选择或创建 User,Membership 创建与 invitation 核销只原子绑定新的 proof-first claim。
+- `xid_inv_v1` 之前的 token 如果不执行被禁止的跨 Tenant hash lookup,就无法从 Instance apex
+  恢复路由。migration 0006 把对应 pending 行标为 revoked 并要求 resend,所有新 capability 通过
+  `token_version = locator_v1` 标识。已解析到 concrete Tenant 的请求仍可在自己的 scoped database
+  中检查 legacy hash,但该兼容路径不会恢复跨 Tenant 路由。
 - 只有 `is_new_user = true` 且没有 Membership 的 provisional user 可以完成该流程。事务创建满足
   `id = tenant_id = new_organization_id`、`parent_org_id = null` 的顶层 Organization,占用 Instance
   内唯一 slug,把 provisional 根下所有 user-owned D1 行迁移到新 Tenant,创建 owner Membership,
   并在同一 D1 batch 中把全部 session 行迁移到新 Tenant 且设为 active Organization。opaque cookie
   与 session id 不变;实例根域下一次请求通过 refresh token hash 解析新的 TenantContext。
+- 没有 Membership 的 provisional user 不能创建 privacy export 或 deletion request。
+  privacy scheduling 会在条件化 D1 insert 内重复校验该 eligibility predicate,onboarding user
+  claim 则在同一个 D1 batch 中原子要求不存在 `pending` 或 `processing` privacy request。若存在
+  legacy active work,onboarding 返回 conflict,且不迁移用户或创建 Tenant。terminal privacy
+  request history 随其他 user-owned 行迁移;仍携带 staging Tenant id 的延迟 Queue message 找不到
+  active row 后会安全终止。
 - guest 提交的 Email 存入 `users.pending_email`,不创建或占用 `user_emails` 行,不算凭证,创建组织时
   不发送验证。已有 primary Email 的正常注册用户复用该地址,页面预填且禁止修改。
 - Email 未验证时,新 owner 可以读取 Console 数据。Cookie session 的 `GET`/`HEAD`/`OPTIONS`

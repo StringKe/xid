@@ -6,7 +6,7 @@
 //   - bootstrap 后 resolveTenantContext 按 Host 解析到该租户;discovery / jwks 可用。
 // node 池无 Workers binding:用自包含有状态 in-memory D1 fake(解析 drizzle INSERT 列+值,SELECT 按字符串参数过滤)。
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { Hono } from 'hono'
 import { envelopeDecrypt, loadSigningKey } from '@xid-kit/crypto'
 import {
@@ -75,7 +75,8 @@ function rowToRaw(sql: string, row: Record<string, unknown>): unknown[] {
   return projectionColumns(sql).map((c) => row[c] ?? null)
 }
 
-function makeStatefulD1(store: Store): D1Database {
+function makeStatefulD1(store: Store, options: { failBatchAtOnce?: number } = {}): D1Database {
+  let batchFailureInjected = false
   const get = (t: string): Record<string, unknown>[] => (store[t] ??= [])
   const hasFrom = (sqlText: string, table: string): boolean =>
     sqlText.includes(`from "${table}"`) ||
@@ -277,7 +278,27 @@ function makeStatefulD1(store: Store): D1Database {
     }
     return stmt
   }
-  return asUnknown<D1Database>({ prepare, batch: async () => [] })
+  return asUnknown<D1Database>({
+    prepare,
+    batch: async (statements: D1PreparedStatement[]) => {
+      const snapshot = structuredClone(store)
+      try {
+        const results = []
+        for (const [index, statement] of statements.entries()) {
+          if (options.failBatchAtOnce === index && batchFailureInjected === false) {
+            batchFailureInjected = true
+            throw new Error('injected bootstrap batch failure')
+          }
+          results.push(await statement.run())
+        }
+        return results
+      } catch (error) {
+        for (const key of Object.keys(store)) delete store[key]
+        Object.assign(store, snapshot)
+        throw error
+      }
+    },
+  })
 }
 
 function makeEnv(over: {
@@ -381,9 +402,18 @@ describe('bootstrap idempotency + gating', () => {
     expect(result.issuer).toBe('https://xid.test')
     expect(result.kid.startsWith('key_')).toBe(true)
 
-    // 实体落库:1 instance、1 org(default)、1 instance signing key、1 user、1 email、1 membership、1 manager assignment。
+    // 实体落库:root org 与 authoritative seat quota 同 batch 初始化。
     expect(store['instances']).toHaveLength(1)
     expect(store['organizations']).toHaveLength(1)
+    expect(store['organizations']?.[0]?.['seat_limit']).toBe(10)
+    expect(store['organization_quotas']).toEqual([
+      expect.objectContaining({
+        tenant_id: result.tenantId,
+        quota_key: 'seats',
+        limit: 10,
+        enforcement: 'block_creation',
+      }),
+    ])
     expect(store['instance_signing_keys']).toHaveLength(1)
     expect(store['users']).toHaveLength(1)
     expect(store['user_emails']).toHaveLength(1)
@@ -438,6 +468,64 @@ describe('bootstrap idempotency + gating', () => {
     expect(((await second.json()) as { code: string }).code).toBe('already_initialized')
     expect(store['instances']).toHaveLength(1)
     expect(store['organizations']).toHaveLength(1)
+  })
+
+  it('中途写入失败会回滚全部资源,同一请求体重试可完整初始化', async () => {
+    const store: Store = {}
+    const kek = makeKekB64()
+    const env = makeEnv({
+      DB: makeStatefulD1(store, { failBatchAtOnce: 5 }),
+      KEK: kek,
+    })
+    const app = makeBootstrapApp()
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      const failed = await callBootstrap(app, env, {
+        primaryDomain: 'xid.test',
+        mode: 'multi_tenant',
+        defaultOrgSlug: 'default',
+      })
+
+      expect(failed.status).toBe(500)
+      const failureBody = await failed.text()
+      expect(failureBody).not.toContain(ADMIN_EMAIL)
+      expect(failureBody).not.toContain(kek)
+      for (const table of [
+        'instances',
+        'organizations',
+        'organization_quotas',
+        'instance_signing_keys',
+        'users',
+        'user_emails',
+        'memberships',
+        'manager_assignments',
+      ]) {
+        expect(store[table] ?? [], table).toHaveLength(0)
+      }
+
+      const retry = await callBootstrap(app, env, {
+        primaryDomain: 'xid.test',
+        mode: 'multi_tenant',
+        defaultOrgSlug: 'default',
+      })
+
+      expect(retry.status).toBe(201)
+      for (const table of [
+        'instances',
+        'organizations',
+        'organization_quotas',
+        'instance_signing_keys',
+        'users',
+        'user_emails',
+        'memberships',
+        'manager_assignments',
+      ]) {
+        expect(store[table] ?? [], table).toHaveLength(1)
+      }
+    } finally {
+      errorLog.mockRestore()
+    }
   })
 
   it('配置 BOOTSTRAP_TOKEN 时:缺失 token 401,错误 token 401,正确 token 201', async () => {

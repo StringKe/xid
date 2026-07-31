@@ -98,15 +98,15 @@ async function computePlatformPermissions(
   ctx: TenantContext,
   input: RbacClaimsInput,
   hookCtx: PreAccessTokenContext,
-): Promise<string[]> {
-  if (input.projectId === null) return []
+): Promise<{ permissions: string[]; invalid: string[] }> {
+  if (input.projectId === null) return { permissions: [], invalid: [] }
   const store = createRbacStore(d1, ctx)
   const resolved = await resolveUserPermissions(store, {
     userId: input.userId,
     projectId: input.projectId,
     grantId: input.grant?.grantId ?? null,
   })
-  return applyConditions(resolved, hookCtx).permissions
+  return applyConditions(resolved, hookCtx)
 }
 
 // org 上下文 claims(7.2/7.4):org_id/org_slug + Grant 场景的 project_id/granted_org_id。
@@ -130,6 +130,7 @@ export type BuildRbacClaimsArgs = {
   env: Env
   input: RbacClaimsInput
   hook?: PreAccessTokenHook
+  onInvalidConditions?: (input: { projectId: string; permissionKeys: readonly string[] }) => void
 }
 
 // 装配 access token RBAC + hook claims(7.2/7.4 全流程)。失败(forbidden claim key)返回 Result error。
@@ -142,7 +143,14 @@ export async function buildRbacClaims(
   const meta = await loadUserMeta(d1, ctx, input.userId)
   const orgMeta = input.activeOrg ? await loadOrgMeta(d1, ctx, input.activeOrg.id) : {}
   const hookCtx = buildHookContext(input, meta, orgMeta)
-  const platformPerms = await computePlatformPermissions(d1, ctx, input, hookCtx)
+  const evaluated = await computePlatformPermissions(d1, ctx, input, hookCtx)
+  const platformPerms = evaluated.permissions
+  if (input.projectId !== null && evaluated.invalid.length > 0) {
+    args.onInvalidConditions?.({
+      projectId: input.projectId,
+      permissionKeys: evaluated.invalid,
+    })
+  }
   hookCtx.rbac.permissions = platformPerms
 
   const hookResult = await hook(hookCtx, env)

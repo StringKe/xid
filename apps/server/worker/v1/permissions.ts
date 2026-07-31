@@ -7,9 +7,15 @@ import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
-import { idAfterCursor, requireApiKey, paginate, parsePagination } from './shared'
+import {
+  authorizeProjectManagement,
+  authorizeProjectRead,
+  requireProjectAccessActor,
+} from './project-access'
+import { emitManagementAuditAsync, idAfterCursor, paginate, parsePagination } from './shared'
 
 const app = new Hono<XidHonoEnv>()
 
@@ -30,6 +36,8 @@ function toResponse(row: typeof schema.permissions.$inferSelect) {
     project_id: row.projectId,
     key: row.key,
     description: row.description,
+    status: row.status,
+    deleted_at: row.deletedAt,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   }
@@ -37,14 +45,30 @@ function toResponse(row: typeof schema.permissions.$inferSelect) {
 
 // GET /v1/permissions
 app.get('/', async (c) => {
-  await requireApiKey(c, 'permissions:read')
+  const actor = await requireProjectAccessActor(c, 'permissions:read')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const { limit, cursor } = parsePagination(c)
   const projectId = c.req.query('project_id')
-  const active = eq(schema.permissions.status, 'active')
+  const status = c.req.query('status') ?? 'active'
+  if (!['active', 'deleted', 'all'].includes(status)) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'status' },
+    })
+  }
+  if (actor.kind === 'session' && !projectId) {
+    throw new AppError('validation_failed', {
+      httpStatus: 422,
+      meta: { paramName: 'project_id' },
+    })
+  }
+  if (projectId) {
+    await authorizeProjectRead(c, actor, projectId, c.req.query('grant_id'))
+  }
   const after = idAfterCursor(schema.permissions.id, cursor)
-  const filters = projectId ? [eq(schema.permissions.projectId, projectId), active] : [active]
+  const filters = projectId ? [eq(schema.permissions.projectId, projectId)] : []
+  if (status !== 'all') filters.push(eq(schema.permissions.status, status))
   if (after) filters.push(after)
   const rows = await db.permissions.findMany(and(...filters), {
     orderBy: asc(schema.permissions.id),
@@ -55,7 +79,7 @@ app.get('/', async (c) => {
 
 // POST /v1/permissions
 app.post('/', async (c) => {
-  await requireApiKey(c, 'permissions:write')
+  const actor = await requireProjectAccessActor(c, 'permissions:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -63,6 +87,7 @@ app.post('/', async (c) => {
   const body = validateBody(createPermissionBodySchema, json.value)
 
   const projectId = body.project_id
+  await authorizeProjectManagement(c, actor, projectId)
   const key = body.key
 
   // key 在 project 内唯一。
@@ -78,7 +103,14 @@ app.post('/', async (c) => {
       },
       eq(schema.permissions.id, existing.id),
     )
-    return c.json(toResponse(updated[0]!), 201)
+    const row = updated[0]!
+    emitManagementAuditAsync(c, {
+      action: 'management.permission.restored',
+      actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+      targetType: 'permission',
+      targetId: row.id,
+    })
+    return c.json(toResponse(row), 201)
   }
   if (existing)
     throw new AppError('already_exists', {
@@ -86,42 +118,53 @@ app.post('/', async (c) => {
     })
 
   const row = await db.permissions.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('permission'),
     tenantId: tenant.tenantId,
     projectId,
     key,
     description: body.description,
   })
 
+  emitManagementAuditAsync(c, {
+    action: 'management.permission.created',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'permission',
+    targetId: row.id,
+  })
   return c.json(toResponse(row), 201)
 })
 
 // GET /v1/permissions/:id
 app.get('/:id', async (c) => {
-  await requireApiKey(c, 'permissions:read')
+  const actor = await requireProjectAccessActor(c, 'permissions:read')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const row = await db.permissions.findOne(
     and(eq(schema.permissions.id, c.req.param('id')), eq(schema.permissions.status, 'active')),
   )
   if (!row) throw new AppError('not_found')
+  await authorizeProjectRead(c, actor, row.projectId, c.req.query('grant_id'))
   return c.json(toResponse(row))
 })
 
 // PATCH /v1/permissions/:id
 app.patch('/:id', async (c) => {
-  await requireApiKey(c, 'permissions:write')
+  const actor = await requireProjectAccessActor(c, 'permissions:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(patchPermissionBodySchema, json.value)
+  if (Object.keys(body).length === 0) {
+    throw new AppError('validation_failed', { httpStatus: 422 })
+  }
   const where = and(
     eq(schema.permissions.id, c.req.param('id')),
     eq(schema.permissions.status, 'active'),
   )
   const existing = await db.permissions.findOne(where)
   if (!existing) throw new AppError('not_found')
+  await authorizeProjectManagement(c, actor, existing.projectId)
 
   const patch: Partial<typeof schema.permissions.$inferInsert> = {}
   if (body.description !== undefined) patch.description = body.description
@@ -129,12 +172,18 @@ app.patch('/:id', async (c) => {
   const updated = await db.permissions.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  emitManagementAuditAsync(c, {
+    action: 'management.permission.updated',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'permission',
+    targetId: row.id,
+  })
   return c.json(toResponse(row))
 })
 
 // DELETE /v1/permissions/:id
 app.delete('/:id', async (c) => {
-  await requireApiKey(c, 'permissions:write')
+  const actor = await requireProjectAccessActor(c, 'permissions:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -143,13 +192,20 @@ app.delete('/:id', async (c) => {
   )
   const existing = await db.permissions.findOne(where)
   if (!existing) throw new AppError('not_found')
+  await authorizeProjectManagement(c, actor, existing.projectId)
   await db.permissions.update({ status: 'deleted', deletedAt: new Date() }, where)
+  emitManagementAuditAsync(c, {
+    action: 'management.permission.deleted',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'permission',
+    targetId: existing.id,
+  })
   return new Response(null, { status: 204 })
 })
 
 // POST /v1/permissions/:id/restore
 app.post('/:id/restore', async (c) => {
-  await requireApiKey(c, 'permissions:write')
+  const actor = await requireProjectAccessActor(c, 'permissions:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -158,9 +214,16 @@ app.post('/:id/restore', async (c) => {
   )
   const existing = await db.permissions.findOne(where)
   if (!existing) throw new AppError('not_found')
+  await authorizeProjectManagement(c, actor, existing.projectId)
   const updated = await db.permissions.update({ status: 'active', deletedAt: null }, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  emitManagementAuditAsync(c, {
+    action: 'management.permission.restored',
+    actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+    targetType: 'permission',
+    targetId: row.id,
+  })
   return c.json(toResponse(row))
 })
 

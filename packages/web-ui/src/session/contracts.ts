@@ -1,36 +1,14 @@
-export type AuthUser = {
-  id: string
-  email: string
-  emailVerified: boolean
-  name: string | null
-  imageUrl: string | null
-  locale: string | null
-  hasMfa: boolean
-  instanceManager: boolean
-  provisioned_by?: 'anonymous' | (string & {})
-}
+import type {
+  BrowserAuthOrganization,
+  BrowserAuthSession,
+  BrowserAuthUser,
+  BrowserMeResponse,
+} from '@xid-kit/types'
 
-export type AuthOrg = {
-  id: string
-  slug: string
-  name: string
-  role: string
-  permissions: readonly string[]
-}
-
-export type AuthSession = {
-  id: string
-  status: 'active' | 'pending_mfa' | 'pending_mfa_setup'
-  expiresAt: string
-  isImpersonation: boolean
-}
-
-export type MeResponse = {
-  user: AuthUser | null
-  activeOrg: AuthOrg | null
-  organizations: readonly AuthOrg[]
-  session: AuthSession | null
-}
+export type AuthUser = BrowserAuthUser
+export type AuthOrg = BrowserAuthOrganization
+export type AuthSession = BrowserAuthSession
+export type MeResponse = BrowserMeResponse
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 

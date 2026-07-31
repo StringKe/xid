@@ -20,7 +20,7 @@ data class XidConfig(
     val issuer: String,
     val clientId: String,
     val redirectUri: String,
-    val scopes: List<String> = listOf("openid", "profile", "email", "offline_access"),
+    val scopes: List<String> = listOf("openid", "profile", "email"),
     val postLogoutRedirectUri: String? = null,
     val additionalParameters: Map<String, String> = emptyMap(),
     val requireBiometricUnlock: Boolean = false,
@@ -30,6 +30,9 @@ data class XidConfig(
         require(clientId.isNotBlank()) { "clientId 不能为空" }
         require(redirectUri.isNotBlank()) { "redirectUri 不能为空" }
         require("openid" in scopes) { "scopes 必须包含 openid" }
+        require("offline_access" !in scopes) {
+            "offline_access 需要 DPoP,当前 Android SDK 尚未实现 DPoP"
+        }
     }
 }
 
@@ -59,7 +62,7 @@ data class SignInAnonymouslyOptions(
 /**
  * getAccessToken 调用选项。
  *
- * @param forceRefresh  强制刷新 token, 即使当前 token 未过期。
+ * @param forceRefresh  当前 public client 不支持刷新。设为 true 时要求重新授权。
  */
 data class GetAccessTokenOptions(
     val forceRefresh: Boolean = false,
@@ -71,7 +74,7 @@ data class GetAccessTokenOptions(
  * @param user          已登录用户信息(来自 OIDC userinfo 或 ID token claims)。
  * @param accessToken   当前 access token(JWT)。
  * @param accessTokenExpiresAt  access token 过期时间(Unix epoch ms)。
- * @param refreshToken  refresh token(存储于 EncryptedSharedPreferences, 此字段内存临时持有)。
+ * @param refreshToken  保留字段。当前 SDK 未实现 DPoP,public client 会话始终为 null。
  * @param idToken       ID token 原始字符串。
  */
 data class XidSession(
@@ -152,7 +155,6 @@ internal data class TokenResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("token_type") val tokenType: String,
     @SerialName("expires_in") val expiresIn: Int,
-    @SerialName("refresh_token") val refreshToken: String? = null,
     @SerialName("id_token") val idToken: String? = null,
     @SerialName("scope") val scope: String? = null,
 )
@@ -179,6 +181,17 @@ internal data class UserinfoResponse(
 @Serializable
 internal data class GuestSessionResponse(
     @SerialName("sessionId") val sessionId: String,
+)
+
+/** GET /auth/config?intent=sign-up 返回的一次性 guest capability 子集。 */
+@Serializable
+internal data class GuestCapabilityResponse(
+    @SerialName("guest") val guest: GuestCapability? = null,
+)
+
+@Serializable
+internal data class GuestCapability(
+    @SerialName("capabilityToken") val capabilityToken: String? = null,
 )
 
 /** GET /v1/me 响应子集(cookie session 认证)。*/
@@ -228,10 +241,6 @@ sealed class XidException(message: String, cause: Throwable? = null) : Exception
     /** Token 端点请求失败。*/
     class TokenExchangeFailed(val errorCode: String, val description: String?) :
         XidException("Token 交换失败 $errorCode: ${description ?: "(无描述)"}")
-
-    /** Token 刷新失败(refresh token 失效或过期)。*/
-    class TokenRefreshFailed(message: String, cause: Throwable? = null) :
-        XidException("Token 刷新失败: $message", cause)
 
     /** 没有活跃会话。*/
     class NoSession : XidException("没有活跃会话, 请先调用 signIn()")

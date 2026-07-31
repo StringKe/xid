@@ -8,7 +8,7 @@
 //
 // peerDep:@sveltejs/kit >= 2.0.0(可选);@xid-kit/backend(动态 import)。
 
-import type { AccessTokenClaims } from '@xid-kit/types'
+import { isOrganizationMembershipRole, type AccessTokenClaims } from '@xid-kit/types'
 
 import type { AuthResult } from './types'
 
@@ -30,7 +30,7 @@ type BackendRequestState =
       isSignedIn: true
       userId: string
       sessionId?: string
-      claims: Record<string, unknown>
+      claims: AccessTokenClaims
     }
   | {
       isSignedIn: false
@@ -43,7 +43,12 @@ type AuthenticateRequestFn = (
     jwtKey: unknown
     issuer?: string
     authorizedParties?: readonly string[]
-    cookieName?: string
+    jwtCookieName?: string
+    sessionTokenExchange?: {
+      endpoint?: string
+      fetcher?: typeof fetch
+      signal?: AbortSignal
+    }
   },
 ) => Promise<BackendRequestState>
 
@@ -53,7 +58,14 @@ export type HandleXidOptions = {
   jwtKey: unknown
   issuer?: string
   authorizedParties?: readonly string[]
-  cookieName?: string
+  // 应用自己持有的 short-lived JWT cookie。无默认值。
+  jwtCookieName?: string
+  // 同源 Core opaque cookie -> short-lived JWT exchange。
+  sessionTokenExchange?: {
+    endpoint?: string
+    fetcher?: typeof fetch
+    signal?: AbortSignal
+  }
   // 受保护路由 pathname 前缀;匹配且未登录则 302 到 signInUrl。
   protectedRoutes?: readonly string[]
   signInUrl?: string
@@ -79,11 +91,9 @@ function buildAuthResult(rs: BackendRequestState): AuthResult {
     userId: rs.userId,
     sessionId: rs.sessionId ?? null,
     orgId: typeof c['active_org_id'] === 'string' ? c['active_org_id'] : null,
-    orgRole: typeof c['org_role'] === 'string' ? c['org_role'] : null,
+    orgRole: isOrganizationMembershipRole(c.org_role) ? c.org_role : null,
     orgPermissions: Array.isArray(c['org_permissions']) ? (c['org_permissions'] as string[]) : null,
-    // BackendRequestState.claims is Record<string,unknown>; the actual runtime shape is AccessTokenClaims.
-    // Cast via unknown to satisfy the discriminated union branch for AuthObject.
-    claims: c as unknown as AccessTokenClaims,
+    claims: c,
   }
 }
 
@@ -98,7 +108,8 @@ export function handleXid(options: HandleXidOptions) {
     jwtKey,
     issuer,
     authorizedParties,
-    cookieName,
+    jwtCookieName,
+    sessionTokenExchange,
     protectedRoutes = [],
     signInUrl = '/sign-in',
     publicRoutes = [],
@@ -126,7 +137,8 @@ export function handleXid(options: HandleXidOptions) {
       jwtKey,
       ...(issuer ? { issuer } : {}),
       ...(authorizedParties ? { authorizedParties } : {}),
-      ...(cookieName ? { cookieName } : {}),
+      ...(jwtCookieName ? { jwtCookieName } : {}),
+      ...(sessionTokenExchange ? { sessionTokenExchange } : {}),
     })
 
     const authResult = buildAuthResult(requestState)

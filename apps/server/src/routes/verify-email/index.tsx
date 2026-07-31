@@ -7,8 +7,8 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createLazyRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { Link } from '../../lib/router'
+import { createLazyRoute, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate } from '../../lib/router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { XidErrorCode } from '@xid-kit/types'
 import * as stylex from '@stylexjs/stylex'
@@ -88,16 +88,12 @@ function VerifyEmailPage(): ReactNode {
   // 验证成功后短暂停留再跳转,让用户看到成功提示。
   useEffect(() => {
     if (!verification.isSuccess) return
-    const search =
-      verification.data.redirectUrl === '/sign-in?intent=sign-up'
-        ? ({ intent: 'sign-up' } as never)
-        : ({} as never)
-    const timer = globalThis.setTimeout(
-      () => void navigate({ to: '/sign-in' as never, search, replace: true }),
-      2000,
-    )
+    const redirectUrl = verification.data.redirectUrl
+    const target =
+      redirectUrl?.startsWith('/') && !redirectUrl.startsWith('//') ? redirectUrl : '/sign-in'
+    const timer = globalThis.setTimeout(() => navigate(target, { replace: true }), 2000)
     return () => globalThis.clearTimeout(timer)
-  }, [verification.data?.redirectUrl, verification.isSuccess, navigate])
+  }, [navigate, verification.data?.redirectUrl, verification.isSuccess])
 
   const errorKind: VerifyErrorKind | null =
     verification.error && typeof verification.error === 'object' && 'code' in verification.error

@@ -29,7 +29,7 @@ import { XidAuthService } from './xid-auth.service'
 export class SignOutButton {
   readonly #auth = inject(XidAuthService)
 
-  // Target session to sign out; omit to sign out all sessions.
+  // Target a browser-held session; omit to sign out the current active session.
   @Input() sessionId?: string
   // Navigate here after a successful sign-out; omit to stay on the page.
   @Input() redirectUrl?: string

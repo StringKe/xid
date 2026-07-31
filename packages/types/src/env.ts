@@ -1,10 +1,19 @@
-/// <reference types="@cloudflare/workers-types" />
-// 第 7 组契约:Cloudflare Worker bindings(Env)。
-// 对照 docs/design/00-overview.md 第 8 节服务映射、cloudflare-bindings rule。
-// 铁律:binding 不在业务代码裸调,走封装(此处只声明类型)。
+// Queue message contracts shared by the Worker and public server-side SDKs.
+// Cloudflare runtime bindings are intentionally isolated in the type-only
+// `@xid-kit/types/cloudflare` subpath so browser consumers do not load Worker ambient types.
+
+// Core owns the apex Custom Domain fallback. Cloudflare Worker Route matching includes the query
+// string, so an exact Site or Console route without a trailing wildcard can fall through to Core
+// when a query is present. These names are the one-way Service Bindings Core uses to preserve the
+// shared route ownership contract without giving either frontend Worker a Core binding.
+export const FRONTEND_WORKER_SERVICE_BINDING_NAMES = {
+  site: 'SITE_WORKER',
+  console: 'CONSOLE_WORKER',
+} as const
 
 // Queue 消息体(异步不阻塞登录链路,见 cloudflare-bindings rule:邮件/审计/webhook/计量)
 export type EmailQueueMessage = {
+  deliveryId?: string
   type: string
   recipient: string
   payload: Record<string, unknown>
@@ -56,57 +65,56 @@ export type MeteringQueueMessage = {
   ts: number
 }
 
-// Cloudflare bindings。D1/KV/R2/DO/Queues/Analytics 全局类型来自 @cloudflare/workers-types。
-// secret(KEK/pepper/provider 凭证)注入为 string(见 00 章第 8 节 Workers Secrets)。
-export type Env = {
-  // D1:关系数据(用户/应用/凭证/授权码/refresh token/审计/租户/密钥密文/会话)
-  DB: D1Database
-  // KV:JWKS / discovery / 品牌配置 / feature flag 缓存
-  CACHE: KVNamespace
-  // R2:头像 / logo / 邮件语言包 / 导出文件 / GeoIP MMDB
-  STORAGE: R2Bucket
+export type StripeMeteringQueueMessage =
+  | {
+      type: 'stripe_mau_dispatch'
+      period: string
+      cursor?: string
+      requestedAt: number
+    }
+  | {
+      type: 'stripe_mau_report'
+      tenantId: string
+      period: string
+      requestedAt: number
+    }
 
-  // Durable Objects(强一致 / 防重放 / 串行,见 cloudflare-bindings rule),与 wrangler.jsonc 8 个 binding 对齐
-  WEBAUTHN_CHALLENGE: DurableObjectNamespace
-  OAUTH_STATE: DurableObjectNamespace
-  SESSION_REVOCATION: DurableObjectNamespace
-  RATE_LIMITER: DurableObjectNamespace
-  PAR_STORE: DurableObjectNamespace
-  DEVICE_FLOW: DurableObjectNamespace
-  AUDIT_SEQ: DurableObjectNamespace
-  METERING: DurableObjectNamespace
-  GUEST_STORE: DurableObjectNamespace
+export type MeteringQueueEnvelope = MeteringQueueMessage | StripeMeteringQueueMessage
 
-  // Queues(异步,见 cloudflare-bindings rule)
-  EMAIL_QUEUE: Queue<EmailQueueMessage>
-  WHATSAPP_QUEUE: Queue<WhatsappQueueMessage>
-  SMS_QUEUE: Queue<SmsQueueMessage>
-  AUDIT_QUEUE: Queue<AuditQueueMessage>
-  WEBHOOK_QUEUE: Queue<WebhookQueueMessage>
-  METERING_QUEUE: Queue<MeteringQueueMessage>
+export type ScimSyncQueueMessage = {
+  tenantId: string
+  orgId: string
+  targetId: string
+  issuer: string
+  actorId?: string
+  runId: string
+  requestedAt: number
+}
 
-  // Email Sending:Cloudflare Email Service 出站事务邮件(send_email binding,见 07 章 3.1)
-  EMAIL: SendEmail
+export type PrivacyQueueMessage = {
+  requestId: string
+  tenantId: string
+  userId: string
+  operation: 'export' | 'delete'
+  requestedAt: number
+}
 
-  // Analytics Engine:实时指标(登录成功率 / MFA 采用率 / 活跃数)
-  ANALYTICS: AnalyticsEngineDataset
+// Optional Cloudflare for SaaS runtime contract. zone/cname target are vars; API token is a
+// Workers Secret. Consumers must treat an entirely absent group as disabled and a partial group as
+// a configuration error.
+export type CloudflareForSaasEnv = {
+  CLOUDFLARE_FOR_SAAS_ZONE_ID?: string
+  CLOUDFLARE_FOR_SAAS_API_TOKEN?: string
+  CLOUDFLARE_FOR_SAAS_CNAME_TARGET?: string
+}
 
-  // Workers Secrets(信封加密主密钥 KEK + 密码 pepper,见 signing-keys / password-auth rule)
-  KEK: string
-  PEPPER: string
-  WHATSAPP_PROVIDER?: WhatsappProviderName
-  WHATSAPP_FROM?: string
-  WHATSAPP_META_PHONE_NUMBER_ID?: string
-  WHATSAPP_META_ACCESS_TOKEN?: string
-  WHATSAPP_META_API_VERSION?: string
-  SMS_PROVIDER?: SmsProviderName
-  SMS_FROM?: string
-  TWILIO_ACCOUNT_SID?: string
-  TWILIO_AUTH_TOKEN?: string
-  TWILIO_MESSAGING_SERVICE_SID?: string
-  VONAGE_API_KEY?: string
-  VONAGE_API_SECRET?: string
-  INFOBIP_API_KEY?: string
-  INFOBIP_BASE_URL?: string
-  MESSAGEBIRD_ACCESS_KEY?: string
+// Optional managed-service billing adapter. None of these values is a license or authentication
+// feature gate. Deployers that do not operate a paid service leave the whole group unset.
+export type StripeBillingEnv = {
+  STRIPE_SECRET_KEY?: string
+  STRIPE_WEBHOOK_SECRET?: string
+  STRIPE_STARTER_PRICE_ID?: string
+  STRIPE_PRO_PRICE_ID?: string
+  STRIPE_ENTERPRISE_PRICE_ID?: string
+  STRIPE_METER_EVENT_NAME?: string
 }

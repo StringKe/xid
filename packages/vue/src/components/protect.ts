@@ -1,15 +1,16 @@
 // Protect:权限门控容器(对标 @clerk/vue Protect 的 Vue 版)。
 // 检查 isSignedIn + 可选 permission/role;不满足时渲染 fallback slot 或 null。
 
-import { computed, defineComponent, h } from 'vue'
+import { computed, defineComponent, h, type PropType } from 'vue'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 import { useXidState } from '../composables/use-xid-state'
 
 export type ProtectProps = {
   // 要求拥有该 permission(org 权限字符串,如 "org:member:read")
   permission?: string
-  // 要求拥有该 role(如 "org:admin")
-  role?: string
+  // 要求拥有该 Organization membership role。
+  role?: OrganizationMembershipRole
 }
 
 export const Protect = defineComponent({
@@ -21,7 +22,7 @@ export const Protect = defineComponent({
       default: undefined,
     },
     role: {
-      type: String,
+      type: String as PropType<OrganizationMembershipRole>,
       default: undefined,
     },
   },

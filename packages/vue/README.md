@@ -1,5 +1,9 @@
 # @xid-kit/vue
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 Vue 3 SDK for the XID identity platform. Provides Plugin, composables, and prebuilt components
 on top of `@xid-kit/core`.
 
@@ -27,11 +31,17 @@ import App from './App.vue'
 
 const app = createApp(App)
 app.use(XidPlugin, {
-  // omit apiUrl for same-origin deployment (default)
-  apiUrl: 'https://your-tenant.xid.dev',
+  // This example requires Core routes on the Vue application's exact origin.
+  mode: 'same-origin',
 })
 app.mount('#app')
 ```
+
+The prebuilt `SignInButton` navigates to a same-origin Hosted Auth path. Use this setup only when
+Core is served on the application origin or intentionally reverse-routed there. For a normal
+cross-origin application, configure `XidPlugin` with
+`{ mode: 'oidc', issuer, clientId, redirectUri }` and start login with
+`useXidClient().createAuthorizationUrl()`.
 
 The plugin:
 
@@ -79,7 +89,7 @@ const sessionRef = useSession()
   <SignOutButton redirect-url="/"> Log out </SignOutButton>
 
   <!-- Protect by role -->
-  <Protect role="org:admin">
+  <Protect role="admin">
     <AdminPanel />
     <template #fallback>
       <p>Access denied.</p>

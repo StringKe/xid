@@ -2,6 +2,7 @@
 // 仅 status='active';secret_ciphertext 不外泄;backup_codes remaining 走 countRemainingBackupCodes。
 
 import { describe, it, expect } from 'vitest'
+import { isPersistedId } from '../../lib/persisted-id'
 import { registerMfaFactorsRoutes } from '../mfa-factors'
 import { buildApp, makeFakeD1, makeSession, TENANT } from './harness'
 
@@ -332,7 +333,7 @@ describe('POST /v1/me/mfa-factors/totp/setup', () => {
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body['factorId']).toMatch(/^mf_/)
+    expect(isPersistedId('mfaFactor', String(body['factorId']))).toBe(true)
     expect(body['secret']).toMatch(/^[A-Z2-7]+$/)
     expect(body['otpauthUri']).toContain('otpauth://totp/')
     expect(body).not.toHaveProperty('secretCiphertext')

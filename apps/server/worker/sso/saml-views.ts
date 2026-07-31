@@ -11,11 +11,13 @@ import { readAllById } from '../lib/db-pagination'
 import { acsUrl, sloUrl, spEntityId } from './saml-connection'
 import type { SamlConnection } from './saml-connection'
 import type { XidHonoEnv } from '../lib/types'
+import type { SamlAuthnRequestContext } from './saml-do'
 
 type StoreAuthnRequestId = (
   c: Context<XidHonoEnv>,
   connectionId: string,
   requestId: string,
+  context?: SamlAuthnRequestContext,
 ) => Promise<void>
 
 // 取 connection 的 SP 证书集(CertStore,public X.509 base64 DER),按 usage 过滤,轮换期可多把。
@@ -70,6 +72,7 @@ export async function redirectToIdp(
   c: Context<XidHonoEnv>,
   connection: SamlConnection,
   storeAuthnRequestId: StoreAuthnRequestId,
+  flowContext: SamlAuthnRequestContext,
 ): Promise<Response> {
   const ctx = c.get('tenant')
   if (!connection.idpSsoUrl) throw new AppError('connection_not_found', { httpStatus: 404 })
@@ -79,12 +82,11 @@ export async function redirectToIdp(
     idpSsoUrl: connection.idpSsoUrl,
     acsUrl: acsUrl(ctx, connection.id),
   })
-  await storeAuthnRequestId(c, connection.id, request.id)
+  await storeAuthnRequestId(c, connection.id, request.id, flowContext)
 
   const samlRequest = await deflateBase64(request.xml)
   const params = new URLSearchParams({ SAMLRequest: samlRequest })
-  const relayState = c.req.query('relay_state') ?? c.req.query('continue')
-  if (relayState) params.set('RelayState', relayState.slice(0, 2048))
+  params.set('RelayState', flowContext.continuePath.slice(0, 2048))
   const sep = connection.idpSsoUrl.includes('?') ? '&' : '?'
   return c.redirect(`${connection.idpSsoUrl}${sep}${params.toString()}`)
 }

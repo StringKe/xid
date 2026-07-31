@@ -3,17 +3,24 @@ import { describe, expect, it, vi } from 'vitest'
 import { createTenantDb } from '@xid-kit/db'
 import {
   createPasswordlessEmailUser,
-  ensureDefaultMembership,
+  createPasswordlessPhoneUser,
   shouldSkipDefaultMembership,
 } from '../passwordless-users'
 
+vi.mock('../../auth/account-provisioning', () => ({
+  provisionAccountAtomically: vi.fn(async (input: { user: { id: string } }) => input.user.id),
+}))
+
+import { provisionAccountAtomically } from '../../auth/account-provisioning'
+
 describe('shouldSkipDefaultMembership', () => {
-  it('skips when invitation token, sign-up intent, OAuth redirect, or create-org path', () => {
+  it('skips for invitation and product onboarding, but not Application authorization', () => {
     expect(shouldSkipDefaultMembership({ invitationToken: ' inv ' })).toBe(true)
     expect(shouldSkipDefaultMembership({ intent: 'sign-up' })).toBe(true)
     expect(
       shouldSkipDefaultMembership({ redirectAfterLogin: '/authorize?authz_request_id=abc' }),
-    ).toBe(true)
+    ).toBe(false)
+    expect(shouldSkipDefaultMembership({ intent: 'application-sign-up' })).toBe(false)
     expect(shouldSkipDefaultMembership({ redirectAfterLogin: '/create-organization' })).toBe(true)
     expect(shouldSkipDefaultMembership({ redirectAfterLogin: '/create-organization?step=1' })).toBe(
       true,
@@ -26,49 +33,20 @@ describe('shouldSkipDefaultMembership', () => {
   })
 })
 
-describe('ensureDefaultMembership', () => {
-  it('inserts default org membership when not skipped', async () => {
-    const insert = vi.fn().mockResolvedValue(undefined)
-    const db = { memberships: { insert } } as unknown as ReturnType<typeof createTenantDb>
-    await ensureDefaultMembership({ db, tenantId: 'tenant_1', userId: 'user_1' })
-    expect(insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: 'tenant_1',
-        orgId: 'tenant_1',
-        userId: 'user_1',
-        role: 'member',
-        status: 'active',
-      }),
-    )
-  })
-
-  it('no-ops when skip flag set', async () => {
-    const insert = vi.fn()
-    const db = { memberships: { insert } } as unknown as ReturnType<typeof createTenantDb>
-    await ensureDefaultMembership({ db, tenantId: 'tenant_1', userId: 'user_1', skip: true })
-    expect(insert).not.toHaveBeenCalled()
-  })
-})
-
 describe('createPasswordlessEmailUser', () => {
-  it('creates user, primary email, and default membership', async () => {
-    const usersInsert = vi.fn().mockResolvedValue(undefined)
-    const emailsInsert = vi.fn().mockResolvedValue(undefined)
-    const membershipsInsert = vi.fn().mockResolvedValue(undefined)
-    const db = {
-      users: { insert: usersInsert },
-      userEmails: { insert: emailsInsert },
-      memberships: { insert: membershipsInsert },
-    } as unknown as ReturnType<typeof createTenantDb>
+  it('provisions user, primary email, optional phone, and default membership atomically', async () => {
+    const db = {} as ReturnType<typeof createTenantDb>
+    const d1 = {} as D1Database
 
     const userId = await createPasswordlessEmailUser({
+      d1,
       db,
       tenantId: 'tenant_1',
       email: 'user@example.com',
       profile: {
         email: 'user@example.com',
         username: null,
-        phone: null,
+        phone: '+15555550100',
         firstName: 'Ada',
         lastName: 'Lovelace',
         displayName: 'Ada Lovelace',
@@ -76,11 +54,51 @@ describe('createPasswordlessEmailUser', () => {
       },
     })
 
-    expect(userId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
-    expect(usersInsert).toHaveBeenCalled()
-    expect(emailsInsert).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'user@example.com', isPrimary: true, verified: false }),
+    expect(userId).toMatch(/^user_[A-Za-z0-9]{21}$/)
+    expect(provisionAccountAtomically).toHaveBeenCalledWith(
+      expect.objectContaining({
+        d1,
+        tenantId: 'tenant_1',
+        user: expect.objectContaining({
+          id: userId,
+          primaryEmailId: expect.any(String),
+          primaryPhoneId: expect.any(String),
+          provisionedBy: 'hosted_passwordless',
+        }),
+        primaryEmail: expect.objectContaining({
+          email: 'user@example.com',
+          verified: false,
+        }),
+        primaryPhone: expect.objectContaining({ phone: '+15555550100', verified: false }),
+        defaultMembership: expect.objectContaining({
+          id: expect.stringMatching(/^mem_[A-Za-z0-9]{21}$/),
+          orgId: 'tenant_1',
+        }),
+      }),
     )
-    expect(membershipsInsert).toHaveBeenCalled()
+  })
+
+  it('provisions a phone-first account without a membership for product onboarding', async () => {
+    const db = {} as ReturnType<typeof createTenantDb>
+    const d1 = {} as D1Database
+
+    const userId = await createPasswordlessPhoneUser({
+      d1,
+      db,
+      tenantId: 'tenant_1',
+      phone: '+15555550100',
+      skipDefaultMembership: true,
+    })
+
+    expect(provisionAccountAtomically).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        d1,
+        tenantId: 'tenant_1',
+        user: expect.objectContaining({ id: userId, primaryPhoneId: expect.any(String) }),
+        primaryEmail: null,
+        primaryPhone: expect.objectContaining({ phone: '+15555550100' }),
+        defaultMembership: null,
+      }),
+    )
   })
 })

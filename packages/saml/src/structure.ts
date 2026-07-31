@@ -3,6 +3,7 @@
 // transforms 仅 enveloped + exclusive-c14n、URI=#id 且 id 文档内唯一、被引元素就是签名父元素。
 
 import { SignedXml } from 'xmldsigjs'
+import type { IdpVerifyKey } from './cert'
 import { DS_NS } from './precheck'
 import { failResult, okResult } from './errors'
 import type { SamlResult } from './errors'
@@ -124,4 +125,23 @@ export function loadAndCheckSignature(
   const target = checkReferenceTarget(doc, signedElement, shape.value.uri)
   if (!target.ok) return failResult(target.error.code, target.error.reason)
   return okResult(signedXml)
+}
+
+export async function verifySignedElement(
+  doc: Document,
+  signedElement: Element,
+  keys: readonly IdpVerifyKey[],
+): Promise<SamlResult<true>> {
+  const selected = selectSingleSignature(signedElement)
+  if (!selected.ok) return failResult(selected.error.code, selected.error.reason)
+  const loaded = loadAndCheckSignature(doc, selected.value.signature, signedElement)
+  if (!loaded.ok) return failResult(loaded.error.code, loaded.error.reason)
+  for (const key of keys) {
+    try {
+      if (await loaded.value.Verify(key.publicKey)) return okResult(true)
+    } catch {
+      // Certificate rotation permits trying every configured key.
+    }
+  }
+  return failResult('signature_invalid', 'no configured key verified XML signature')
 }

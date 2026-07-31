@@ -8,6 +8,7 @@
 import { Icon } from "astro-icon/components";
 import BaseLayout from "./BaseLayout.astro";
 import Header from "@/components/Header.astro";
+import SiteAuthActions from "@/components/SiteAuthActions.astro";
 import { Banner } from "@/components/ui/banner";
 import { Sidebar, SidebarFilter } from "@/components/ui/sidebar";
 import { TOC, MobileTOC } from "@/components/ui/toc";
@@ -92,7 +93,7 @@ const hasPagination = Astro.slots.has("pagination");
 
 <BaseLayout title={title} description={description} noindex={noindex || draft} markdownUrl={markdownUrl} socialImage={socialImage} lastUpdated={lastUpdated} head={head} collection={collection} entryId={entryId}>
   <div class="flex flex-col min-h-screen">
-    {hasHeader ? <slot name="header" /> : <Header collection={collection} entryId={entryId} showSidebar={showSidebar} />}
+    {hasHeader ? <slot name="header" /> : <Header collection={collection} entryId={entryId} />}
 
     {isCustom ? (
       <main id="main-content" class="flex-1">
@@ -251,8 +252,7 @@ const hasPagination = Astro.slots.has("pagination");
 
   </div>
 
-  {showSidebar && (
-    /* Mobile sidebar — native <dialog> for free focus trap, escape, backdrop. */
+  {/* Mobile navigation — native <dialog> for free focus trap, escape, backdrop. */}
     <dialog
       data-mobile-sidebar
       data-state="closed"
@@ -266,17 +266,19 @@ const hasPagination = Astro.slots.has("pagination");
             <Icon name="ph:x" class="w-5 h-5" />
           </button>
         </div>
-        <nav class="px-4 pb-8 pt-5">
-          {hasSidebar ? <slot name="sidebar" /> : (
-            <Fragment>
-              <SidebarFilter />
-              <Sidebar items={sidebar} />
-            </Fragment>
-          )}
-        </nav>
+        <SiteAuthActions mobile class="border-b border-border p-4" />
+        {showSidebar && (
+          <nav class="px-4 pb-8 pt-5">
+            {hasSidebar ? <slot name="sidebar" /> : (
+              <Fragment>
+                <SidebarFilter />
+                <Sidebar items={sidebar} />
+              </Fragment>
+            )}
+          </nav>
+        )}
       </div>
     </dialog>
-  )}
 
   <script>
     import { mount, lockScroll, unlockScroll } from "@cloudflare/nimbus-docs/client";

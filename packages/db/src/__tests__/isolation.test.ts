@@ -120,6 +120,7 @@ function makeMockTenantDb(tenantId: string, captured: CapturedCall[]): TenantDb 
     memberships: makeTable(),
     invitations: makeTable(),
     organizationDomains: makeTable(),
+    customHostnames: makeTable(),
     authorizationCodes: makeTable(),
     refreshTokens: makeTable(),
     oauthConsents: makeTable(),
@@ -147,6 +148,7 @@ function makeMockTenantDb(tenantId: string, captured: CapturedCall[]): TenantDb 
         memberships: makeOrgTable(),
         invitations: makeOrgTable(),
         organizationDomains: makeOrgTable(),
+        customHostnames: makeOrgTable(),
         ssoConnections: makeOrgTable(),
         directories: makeOrgTable(),
       }
@@ -163,6 +165,13 @@ async function fetchUsersForOrg(db: TenantDb): Promise<unknown[]> {
 async function fetchMembersInWrongOrg(db: TenantDb, foreignOrgId: string): Promise<unknown[]> {
   const orgDb = db.forOrg(foreignOrgId)
   return orgDb.memberships.findMany()
+}
+
+async function fetchCustomHostnamesInWrongOrg(
+  db: TenantDb,
+  foreignOrgId: string,
+): Promise<unknown[]> {
+  return db.forOrg(foreignOrgId).customHostnames.findMany()
 }
 
 describe('tenant isolation: TenantDb scope enforcement', () => {
@@ -233,6 +242,21 @@ describe('cross-tenant access prevention (403/404 isolation)', () => {
     expect(call?.scopeValues['tenantId']).not.toBe(orgB.tenantId)
     // 实际结果为空(因为 tenant A 下不存在 orgB 的 membership)
     // -> 返回 [] 等价于 404 not found,不泄露 orgB 存在性
+  })
+
+  it('org A cannot turn an org B custom hostname id into org B tenant scope', async () => {
+    const orgA = createOrgAContext()
+    const orgB = createOrgBContext()
+    const captured: CapturedCall[] = []
+    const dbA = makeMockTenantDb(orgA.tenantId, captured)
+
+    await fetchCustomHostnamesInWrongOrg(dbA, orgB.orgId)
+
+    expect(captured[0]?.scopeValues).toEqual({
+      tenantId: orgA.tenantId,
+      orgId: orgB.orgId,
+    })
+    expect(captured[0]?.scopeValues['tenantId']).not.toBe(orgB.tenantId)
   })
 
   it('different tenants get distinct TenantDb instances', () => {

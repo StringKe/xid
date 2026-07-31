@@ -2,7 +2,7 @@
   "apps/server/src/routes/docs/index.tsx:102": "js",
   "apps/server/src/routes/docs/index.tsx:628": "shell",
   "apps/server/src/routes/docs/index.tsx:829": "json",
-  "apps/server/src/routes/docs/index.tsx:866": "js",
+  "apps/server/src/routes/docs/index.tsx:866": "ts",
   "apps/server/src/routes/docs/index.tsx:923": "shell",
   "apps/server/src/routes/docs/index.tsx:938": "shell",
   "apps/server/src/routes/docs/index.tsx:1026": "shell",

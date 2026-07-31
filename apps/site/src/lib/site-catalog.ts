@@ -8,8 +8,7 @@ function normalizeCatalog(module: unknown): Messages {
 
 const CATALOG_LOADERS: Readonly<Record<SiteLocale, () => Promise<Messages>>> = {
   en: () => import('@xid-kit/i18n/locales/en/messages.mjs').then(normalizeCatalog),
-  'zh-Hans': () =>
-    import('@xid-kit/i18n/locales/zh-Hans/messages.mjs').then(normalizeCatalog),
+  'zh-Hans': () => import('@xid-kit/i18n/locales/zh-Hans/messages.mjs').then(normalizeCatalog),
   ja: () => import('@xid-kit/i18n/locales/ja/messages.mjs').then(normalizeCatalog),
   ko: () => import('@xid-kit/i18n/locales/ko/messages.mjs').then(normalizeCatalog),
   fr: () => import('@xid-kit/i18n/locales/fr/messages.mjs').then(normalizeCatalog),

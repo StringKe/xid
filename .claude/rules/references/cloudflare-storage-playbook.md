@@ -18,8 +18,9 @@ version below is the full original text of that list.
 ## Selection Rules (MUST follow)
 
 - **Strong consistency, replay protection, serialization -> Durable Objects**: challenges, OAuth
-  state/nonce/PKCE, PAR, device flow, session revocation sets, rate limiting, audit sequence, metering.
-  Short-lived strongly consistent data MUST NOT go into D1 relational tables.
+  state/nonce/PKCE, PAR, device flow, impersonation handoff grants, session revocation sets, rate
+  limiting, audit sequence, metering. Short-lived strongly consistent data MUST NOT go into D1
+  relational tables.
 - **Read-heavy caching -> KV**: JWKS (`jwks:{issuer}:{active_kid}`, TTL 3600s), discovery and
   protected-resource metadata (TTL 3600s), branding (`brand:{tenant_id}:{org_id}`), feature flags
   (`flag:{tenant_id}:{flag_name}` for per-org overrides, `flag:global:{flag_name}` for the global
@@ -27,13 +28,21 @@ version below is the full original text of that list.
   anchors (TTL 86400s). TTL constants live in `apps/server/worker/lib/ttl.ts` -- add new ones there,
   never as inline literals.
 - **Async work off the critical path -> Queues**: email, SMS, WhatsApp, audit persistence, webhooks,
-  metering. The login path MUST NOT synchronously await any of them. Audit writes go through the queue
-  so login stays under the P99 budget.
+  metering, privacy exports, and privacy erasure. The login path MUST NOT synchronously await any of
+  them. Audit writes go through the queue so login stays under the P99 budget.
 - **Large objects -> R2**: org logos (`PUT` on org logo upload, public read served by
   `worker/storage.ts` at `/storage/logos/*`) and email locale packs (`loadR2Template`, falling back to
-  the built-in en / zh-Hans templates). Avatars, export files, and the GeoIP MMDB are reserved uses of
-  the same bucket and are NOT implemented yet -- `GET /v1/users/export` streams NDJSON directly in the
-  response and never touches R2. Do not write code that assumes those objects exist.
+  the built-in en / zh-Hans templates). Self-service privacy exports are private JSON objects under
+  `privacy-exports/{tenantId}/{userId}/{requestId}.json`; they are readable only through the
+  authenticated account API for 48 hours and daily Cron removes expired objects. Compliance evidence
+  is an immutable private object below `compliance/`; D1 carries its metadata and required lowercase
+  `sha256:` checksum. The authenticated Core proxy rejects unsafe keys and objects over 10 MiB,
+  re-hashes the complete object, and returns it only on an exact checksum match. R2 is never a public
+  origin for compliance artifacts. The separate Management API `GET /v1/users/export` still streams
+  NDJSON directly and never touches R2. Avatars and the GeoIP MMDB remain reserved and are NOT
+  implemented. Email and phone templates are read from deployment-wide R2 prefixes only. There is no
+  authenticated upload/list/delete API, no Console editor, and no per-tenant locale-pack namespace;
+  tenant-uploaded white-label language packs are NOT implemented.
 
 ## Session Storage
 
@@ -41,6 +50,11 @@ version below is the full original text of that list.
 - `SessionDO` (per user) holds that user's active session id set. Revocation updates the DO first and
   persists to D1 afterward; the DO serializes all operations for one user so concurrent revokes cannot
   race. An already-issued JWT stays valid for up to its 60s window.
+- `ImpersonationGrantDO` (per random grant id) stores only the SHA-256 bearer-secret hash for at
+  most two minutes. Consume validates the exact target tenant, instance, and origin and atomically
+  deletes the grant. The resulting 15-minute session is fixed to one active Organization, marks
+  `isImpersonation`, and may only call `GET` / `HEAD` / `OPTIONS` below `/v1/*` or explicitly end
+  impersonation. Token exchange, protocol, auth, SSO, and every mutation path fail closed.
 - KV caches JWKS public keys (TTL 1h) so JWT verification reads KV instead of going back to origin.
 
 ## Audit Chain
@@ -54,6 +68,16 @@ identity boundary -- retries may split or reorder it -- so the DO persists pendi
 `source_message_id`, writes D1, and only then advances `next`. Unconfirmed predecessors block their
 successors, which guarantees the chain has no duplicates and no gaps. The audit consumer runs with
 `max_concurrency: 1` so hashing stays single-threaded and ordered.
+
+`GET /v1/platform/audit/verify` is the read-only Instance Manager verifier. It reads a bounded seq
+range in batches of at most 1000 rows, recomputes each hash, and reports the first hash break, seq
+gap, or invalid genesis. Ranges after seq 1 use the stored predecessor as their anchor; a full
+integrity check starts at seq 1. This is synchronous; there is no Queue/KV verification job.
+
+Platform mutations, including every impersonation grant/start/end stage, first persist a redacted
+record in D1 `platform_audit_outbox`. Queue acceptance marks it queued; send failure leaves it
+pending for Cron redelivery with a stable `sourceMessageId`, so an operational audit is never
+silently lost on transient Queue failure.
 
 ## Email Delivery
 
@@ -73,7 +97,12 @@ successors, which guarantees the chain has no duplicates and no gaps. The audit 
 - Notifications are async through Queues: `queue.send({ type, recipient, payload })`. The consumer
   renders the Mustache-subset template (R2 locale pack first, built-in fallback second) and sends via
   `EmailProvider`. Failures retry with exponential backoff up to 5 attempts; exhausted messages land in
-  D1 `notification_failures` (and in the `xid-dlq` dead letter queue).
+  D1 `notification_failures` and the channel's source-specific DLQ. The generic operations consumer
+  persists KEK-encrypted replay material in `queue_dead_letters`; plaintext recipient and payload are
+  forbidden. Manual replay uses a five-minute claim lease. The hourly cron releases stale
+  `replaying` claims, and a manual retry may reclaim an expired lease directly. Recovery is
+  at-least-once because Queue acceptance can precede the D1 completion write; source consumers keep
+  their own idempotency boundary.
 - Metering: on a successful authentication the worker writes `{ tenantId, userId, ts }` to
   `METERING_QUEUE`. If the queue send fails, the event is persisted to the D1 `metering_outbox` table
   and redelivered by the hourly cron -- the auth path never fails because metering is unavailable.
@@ -83,4 +112,25 @@ successors, which guarantees the chain has no duplicates and no gaps. The audit 
   **HyperLogLog is NOT used** -- 0.8% error is unacceptable for billing.
 - The hourly cron aggregates DAU into `usage_daily`; the daily cron snapshots and reports monthly MAU
   into `usage_monthly` and prunes old rows.
+- `ANALYTICS.writeDataPoint` records a low-cardinality authentication-success signal. The Worker
+  binding has no read API, and this repository has no Analytics Engine SQL client or historical SQL
+  aggregation. Current Console DAU/MAU reads the exact D1 metering facts; do not claim an
+  Analytics-SQL reporting surface.
+
+## Privacy Export and Erasure
+
+- `POST /v1/me/privacy/requests` creates an export or deletion request scoped to the authenticated
+  tenant and user. Queue messages carry identifiers and operation metadata only; they never carry
+  exported rows, credentials, tokens, cookies, or other plaintext secrets.
+- An export consumer pages explicit safe projections from D1 into a streamed JSON R2 object. Secret
+  hashes, password material, WebAuthn public-key bytes, OAuth token values, encrypted provider
+  tokens, and encrypted MFA secrets are excluded. The authenticated download endpoint uses
+  `private, no-store`, and the object and storage reference expire after 48 hours.
+- The Account UI uses a second confirmation dialog, while the API independently requires the exact
+  `confirmation: "DELETE"` field. A deletion request then remains `pending` for 30 days and can be
+  canceled while pending. Daily Cron enqueues due work and re-enqueues stale processing leases. The
+  consumer revokes the user's SessionDO state, impersonation sessions they created, and OAuth
+  credentials; deletes credentials and identity lookups; pseudonymizes accepted-invitation Email;
+  leaves a minimal erased `users` tombstone; never updates or deletes existing `audit_events`; and
+  appends `user.erasure_completed` through the durable platform audit outbox.
 <!-- /Generated by stdagent -->

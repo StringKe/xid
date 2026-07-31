@@ -5,8 +5,7 @@
 import { base64UrlEncode } from '@xid-kit/crypto'
 import type { Context, Hono } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
-import { authenticateClient, parseBasicAuth } from './client-auth'
-import type { ClientCredentials } from './client-auth'
+import { authenticateClient, extractClientCredentials } from './client-auth'
 import { findClient, oauthError, parseUniqueForm } from './shared'
 import { resolveRequestObject } from './request-object'
 import { parseAuthorizationDetails } from './authorization-details'
@@ -23,23 +22,13 @@ function parStub(c: Context<XidHonoEnv>): DurableObjectStub {
   return ns.get(ns.idFromName(ctx.tenantId))
 }
 
-// 从 token endpoint 风格的凭证抽取(PAR 客户端认证同 /token 9.6)。
-function extractCredentials(authHeader: string | undefined, form: RawParams): ClientCredentials {
-  return {
-    basic: parseBasicAuth(authHeader),
-    postClientId: form['client_id'] ?? null,
-    postSecret: form['client_secret'] ?? null,
-    assertionType: form['client_assertion_type'] ?? null,
-    assertion: form['client_assertion'] ?? null,
-  }
-}
-
 // POST /par:认证 client -> 存参数 -> 返回 { request_uri, expires_in }。
 async function handlePar(c: Context<XidHonoEnv>): Promise<Response> {
   const ctx = c.get('tenant')
   const form = await parseUniqueForm(c)
   if (form instanceof Response) return form
-  const clientId = form['client_id'] ?? parseBasicAuth(c.req.header('authorization'))?.clientId
+  const creds = extractClientCredentials(c.req.header('authorization'), form)
+  const clientId = creds.basic?.clientId ?? creds.postClientId
   if (!clientId) {
     return oauthError(c, {
       status: 400,
@@ -53,7 +42,6 @@ async function handlePar(c: Context<XidHonoEnv>): Promise<Response> {
     return oauthError(c, { status: 401, error: 'invalid_client', description: 'unknown client' })
   }
 
-  const creds = extractCredentials(c.req.header('authorization'), form)
   const auth = await authenticateClient({
     c,
     client,

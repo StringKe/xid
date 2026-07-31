@@ -11,10 +11,16 @@ describe('console route catalog', () => {
     )
 
     expect(managerRoutes).toContain('/console/platform/users')
+    expect(managerRoutes).toContain('/console/platform/managers')
+    expect(managerRoutes).toContain('/console/managed-projects')
+    expect(managerRoutes).toContain('/console/org/projects')
+    expect(memberRoutes).toContain('/console/managed-projects')
     expect(memberRoutes).not.toContain('/console/platform/users')
+    expect(memberRoutes).not.toContain('/console/platform/managers')
   })
 
   it('allows only known console paths', () => {
+    expect(isAllowedConsolePath('/console/managed-projects')).toBe(true)
     expect(isAllowedConsolePath('/console/org/members')).toBe(true)
     expect(isAllowedConsolePath('/console/secret-panel')).toBe(false)
   })

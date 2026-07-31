@@ -14,6 +14,7 @@ const POST_BINDING = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
 export type ParsedIdpMetadata = {
   entityId: string
   ssoUrl: string
+  sloUrl: string | null
   certificates: string[]
 }
 
@@ -53,8 +54,8 @@ function findIdpDescriptor(entity: Element): Element | null {
   return childElements(entity, MD_NS, 'IDPSSODescriptor')[0] ?? null
 }
 
-function findSsoUrl(idp: Element): string | null {
-  const services = childElements(idp, MD_NS, 'SingleSignOnService')
+function findServiceUrl(idp: Element, localName: string): string | null {
+  const services = childElements(idp, MD_NS, localName)
   const redirect = services.find((service) => service.getAttribute('Binding') === REDIRECT_BINDING)
   const post = services.find((service) => service.getAttribute('Binding') === POST_BINDING)
   return redirect?.getAttribute('Location') ?? post?.getAttribute('Location') ?? null
@@ -97,13 +98,14 @@ export function parseIdpMetadataXml(xml: string): SamlResult<ParsedIdpMetadata> 
     if (!idp) continue
     const entityId = entity.getAttribute('entityID')
     if (!entityId) return failResult('schema_invalid', 'metadata entityID missing')
-    const ssoUrl = findSsoUrl(idp)
+    const ssoUrl = findServiceUrl(idp, 'SingleSignOnService')
     if (!ssoUrl) return failResult('schema_invalid', 'metadata SSO URL missing')
+    const sloUrl = findServiceUrl(idp, 'SingleLogoutService')
     const certificates = findCertificates(idp)
     if (certificates.length === 0) {
       return failResult('schema_invalid', 'metadata signing certificate missing')
     }
-    return okResult({ entityId, ssoUrl, certificates })
+    return okResult({ entityId, ssoUrl, sloUrl, certificates })
   }
 
   return failResult('schema_invalid', 'metadata IDPSSODescriptor missing')

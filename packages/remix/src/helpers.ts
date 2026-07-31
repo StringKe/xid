@@ -14,7 +14,7 @@ export { getAuth, requireAuth, xidClient } from './server'
 //
 // 用法(entry.server.tsx):
 //   import { createXidClient } from '@xid-kit/remix'
-//   const xid = createXidClient({ publishableKey: process.env.XID_PUBLISHABLE_KEY! })
+//   const xid = createXidClient({ mode: 'same-origin' })
 export function createXidClient(options: XidClientOptions): XidClient {
   return new XidClient(options)
 }

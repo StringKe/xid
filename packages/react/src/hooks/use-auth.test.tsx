@@ -47,7 +47,7 @@ function probe(client: XidClient): { isAnonymous: boolean } {
     return null
   }
   renderToStaticMarkup(
-    <XidContext.Provider value={{ client, publishableKey: 'pk_test' }}>
+    <XidContext.Provider value={{ client, mode: 'same-origin' }}>
       <Probe />
     </XidContext.Provider>,
   )

@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { authStatusFromMe, type MeResponse } from './auth-context'
 
 describe('authStatusFromMe', () => {
+  const session = {
+    id: 'sess_1',
+    status: 'active',
+    expiresAt: '2030-01-01T00:00:00.000Z',
+    isImpersonation: false,
+    userId: 'user_1',
+    activeOrganizationId: null,
+    lastActiveAt: '2029-01-01T00:00:00.000Z',
+  } as const
   const me: MeResponse = {
     user: {
       id: 'user_1',
@@ -15,12 +24,9 @@ describe('authStatusFromMe', () => {
     },
     activeOrg: null,
     organizations: [],
-    session: {
-      id: 'sess_1',
-      status: 'active',
-      expiresAt: '2030-01-01T00:00:00.000Z',
-      isImpersonation: false,
-    },
+    session,
+    activeSessionId: 'sess_1',
+    sessions: [session],
   }
 
   it('uses resolved /v1/me data for auth status', () => {
@@ -33,6 +39,8 @@ describe('authStatusFromMe', () => {
         activeOrg: null,
         organizations: [],
         session: null,
+        activeSessionId: null,
+        sessions: [],
       }),
     ).toBe('unauthenticated')
   })
@@ -43,6 +51,8 @@ describe('authStatusFromMe', () => {
       activeOrg: null,
       organizations: [],
       session: null,
+      activeSessionId: null,
+      sessions: [],
     }
 
     expect(() => anonymousShell.user?.id).not.toThrow()

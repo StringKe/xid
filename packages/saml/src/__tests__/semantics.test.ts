@@ -6,13 +6,14 @@ import { validateAssertionSemantics } from '../semantics'
 import {
   ACS_URL,
   IDP_ENTITY_ID,
+  IDP_CERT_VALID_NOW,
   SP_ENTITY_ID,
   buildResponseXml,
   importIdpSigningKey,
   signResponse,
 } from './fixtures'
 
-const NOW = Date.parse('2026-06-01T08:01:00Z')
+const NOW = IDP_CERT_VALID_NOW
 const ASSERT_NS = 'urn:oasis:names:tc:SAML:2.0:assertion'
 
 async function signedParts(parts: Record<string, unknown> = {}) {

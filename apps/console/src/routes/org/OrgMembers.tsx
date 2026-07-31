@@ -29,6 +29,7 @@ import {
 } from './queries'
 import type { OrgInvitation, OrgMember } from './types'
 import { useOrgTarget } from './useOrgTarget'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
@@ -227,7 +228,7 @@ export default function OrgMembers(): ReactNode {
   const removeMember = useRemoveOrgMember(orgId)
 
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('member')
+  const [inviteRole, setInviteRole] = useState<OrganizationMembershipRole>('member')
   const [inviteSuccess, setInviteSuccess] = useState(false)
 
   const [pendingRemoveMember, setPendingRemoveMember] = useState<OrgMember | null>(null)
@@ -466,13 +467,12 @@ export default function OrgMembers(): ReactNode {
                   <Field label={<Trans>Role</Trans>}>
                     <select
                       value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
+                      onChange={(e) => setInviteRole(e.target.value as OrganizationMembershipRole)}
                       aria-label={t`Select role for new member`}
                       {...stylex.props(styles.select)}
                     >
                       <option value="member">{roleLabel('member')}</option>
                       <option value="admin">{roleLabel('admin')}</option>
-                      <option value="viewer">{roleLabel('viewer')}</option>
                     </select>
                   </Field>
                 </div>

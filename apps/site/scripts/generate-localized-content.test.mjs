@@ -7,11 +7,14 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
+  assertDocumentMessageIds,
+  documentMessageId,
   generateLocalizedContent,
   loadSourceAst,
   renderMessageDescriptors,
 } from './generate-localized-content.mjs'
 import { renderHtmlDocument } from '../src/content-source/docs/render-html.ts'
+import { DOCUMENT_LOCALE_ROUTE_SEGMENTS } from '../src/content-source/docs/types.ts'
 
 const SITE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const MERMAID_BLOCKS = [
@@ -43,6 +46,35 @@ const MERMAID_BLOCKS = [
     signature: 'flowchart LR',
   },
 ]
+const TYPESCRIPT_SDK_SLUGS = [
+  'sdks/core',
+  'sdks/backend',
+  'sdks/react',
+  'sdks/nextjs',
+  'sdks/react-native',
+  'sdks/vue',
+  'sdks/nuxt',
+  'sdks/svelte',
+  'sdks/solid',
+  'sdks/angular',
+  'sdks/astro',
+  'sdks/remix',
+  'sdks/expo',
+  'sdks/electron',
+  'sdks/tauri',
+]
+const PUBLIC_NATIVE_SDK_SLUGS = [
+  'sdks/react-native',
+  'sdks/expo',
+  'sdks/electron',
+  'sdks/tauri',
+  'sdks/ios',
+  'sdks/android',
+  'sdks/flutter',
+  'sdks/macos',
+  'sdks/windows',
+  'sdks/linux',
+]
 
 function visitRichText(value, visitor) {
   if (value.kind === 'sequence') {
@@ -57,6 +89,15 @@ function collectContentContract(bundle) {
   const codePositions = new Set()
   const values = { static: 0, literal: 0 }
   const tags = { inlineCode: 0, strong: 0, link: 0 }
+  const contentStats = {
+    documents: bundle.documents.length,
+    sections: 0,
+    paragraphs: 0,
+    listItems: 0,
+    tables: 0,
+    tableRows: 0,
+    codeBlocks: 0,
+  }
 
   const visit = (value) => {
     if (value.kind !== 'message') return
@@ -71,9 +112,7 @@ function collectContentContract(bundle) {
   for (const section of bundle.hub.sections) {
     visitRichText(section.heading, visit)
     if (section.kind === 'product') {
-      section.paragraphs.forEach((paragraph) =>
-        visitRichText(paragraph, visit),
-      )
+      section.paragraphs.forEach((paragraph) => visitRichText(paragraph, visit))
     } else if (section.kind === 'capabilities') {
       section.items.forEach((item) => visitRichText(item, visit))
     } else {
@@ -83,22 +122,32 @@ function collectContentContract(bundle) {
   for (const document of bundle.documents) {
     visitRichText(document.title, visit)
     visitRichText(document.summary, visit)
+    contentStats.sections += document.sections.length
     for (const section of document.sections) {
       visitRichText(section.heading, visit)
       for (const block of section.blocks) {
-        if (block.kind === 'paragraph') visitRichText(block.content, visit)
+        if (block.kind === 'paragraph') {
+          contentStats.paragraphs += 1
+          visitRichText(block.content, visit)
+        }
         if (block.kind === 'list') {
+          contentStats.listItems += block.items.length
           block.items.forEach((item) => visitRichText(item, visit))
         }
         if (block.kind === 'table') {
+          contentStats.tables += 1
+          contentStats.tableRows += block.rows.length
           block.headers.forEach((header) => visitRichText(header, visit))
           block.rows.forEach((row) => row.forEach((cell) => visitRichText(cell, visit)))
         }
-        if (block.kind === 'code') codePositions.add(block.sourcePosition)
+        if (block.kind === 'code') {
+          contentStats.codeBlocks += 1
+          codePositions.add(block.sourcePosition)
+        }
       }
     }
   }
-  return { messageIds, codePositions, values, tags }
+  return { messageIds, codePositions, values, tags, contentStats }
 }
 
 async function listFiles(directory) {
@@ -138,21 +187,30 @@ test('committed AST exhausts every audited contract without legacy source access
   assert.deepEqual(committed.stats, {
     documents: 40,
     sections: 273,
-    paragraphs: 111,
+    paragraphs: 147,
     listItems: 174,
     tables: 70,
-    tableRows: 476,
+    tableRows: 477,
     codeBlocks: 123,
-    richTags: { inlineCode: 289, strong: 17, link: 16 },
+    richTags: { inlineCode: 291, strong: 17, link: 15 },
     staticValues: 2,
     literalValues: 3,
-    catalogMessages: 1135,
+    catalogMessages: 1136,
   })
 
   const contract = collectContentContract(committed)
-  assert.equal(contract.messageIds.size, 1129)
-  assert.equal(committed.messageCatalog.length, 1135)
-  assert.deepEqual(contract.tags, { inlineCode: 289, strong: 17, link: 16 })
+  assert.deepEqual(contract.contentStats, {
+    documents: committed.stats.documents,
+    sections: committed.stats.sections,
+    paragraphs: committed.stats.paragraphs,
+    listItems: committed.stats.listItems,
+    tables: committed.stats.tables,
+    tableRows: committed.stats.tableRows,
+    codeBlocks: committed.stats.codeBlocks,
+  })
+  assert.equal(contract.messageIds.size, 1131)
+  assert.equal(committed.messageCatalog.length, 1136)
+  assert.deepEqual(contract.tags, { inlineCode: 291, strong: 17, link: 15 })
   assert.deepEqual(contract.values, { static: 2, literal: 3 })
   assert.equal(contract.codePositions.size, 123)
 
@@ -191,6 +249,10 @@ test('committed AST exhausts every audited contract without legacy source access
   )
   assert.equal(committedDescriptors, renderMessageDescriptors(committed))
   assert.equal(committedDescriptors.match(/\/\*i18n\*\//g)?.length, committed.messageCatalog.length)
+  assert.doesNotThrow(() => assertDocumentMessageIds(committed))
+  for (const entry of committed.messageCatalog) {
+    assert.equal(entry.id, documentMessageId(entry.message))
+  }
 
   for (const locale of committed.locales) {
     const po = await readFile(
@@ -206,8 +268,127 @@ test('committed AST exhausts every audited contract without legacy source access
       )
     assert.equal(
       activeDocsMessages.length,
-      1135,
+      1136,
       `${locale} catalog must retain all AST messages after Lingui extraction`,
+    )
+  }
+})
+
+test('every public TypeScript SDK discloses source-only unpublished distribution', async () => {
+  const bundle = await loadSourceAst()
+  const documents = new Map(bundle.documents.map((document) => [document.slug, document]))
+
+  for (const slug of TYPESCRIPT_SDK_SLUGS) {
+    const document = documents.get(slug)
+    assert.ok(document, `${slug} public document is missing`)
+    const disclosure = document.sections[0]?.blocks[0]
+    assert.equal(disclosure?.kind, 'paragraph', `${slug} disclosure must precede package usage`)
+    assert.equal(disclosure.content.kind, 'message')
+    assert.equal(disclosure.content.id, 'Rafp8j')
+    assert.equal(
+      disclosure.content.message,
+      'Registry status: UNPUBLISHED. Install this SDK only from the repository source checkout; do not use an external package registry.',
+    )
+  }
+})
+
+test('public browser SDK examples use the implemented client configuration contracts', async () => {
+  const bundle = await loadSourceAst()
+  const documents = new Map(bundle.documents.map((document) => [document.slug, document]))
+  const codeFor = (slug) =>
+    documents
+      .get(slug)
+      ?.sections.flatMap((section) =>
+        section.blocks.filter((block) => block.kind === 'code').map((block) => block.value),
+      )
+      .join('\n') ?? ''
+
+  const browserSdkCode = [
+    'sdks/core',
+    'sdks/react',
+    'sdks/react-native',
+    'sdks/vue',
+    'sdks/nuxt',
+    'sdks/svelte',
+    'sdks/solid',
+    'sdks/angular',
+    'sdks/astro',
+    'sdks/remix',
+    'sdks/expo',
+  ]
+    .map(codeFor)
+    .join('\n')
+  assert.doesNotMatch(
+    browserSdkCode,
+    /publishableKey|pk_live_|PUBLIC_XID_PK|XID_PUBLISHABLE_KEY|xidApiUrl/u,
+  )
+  assert.doesNotMatch(browserSdkCode, /(?:XidPlugin|provideXid)\(\{[^}]*apiUrl:\s*['"]https:\/\//u)
+
+  for (const slug of ['sdks/core', 'sdks/nuxt']) {
+    assert.match(codeFor(slug), /mode:\s*'oidc'/u, `${slug} must show explicit OIDC mode`)
+    assert.match(codeFor(slug), /issuer:/u, `${slug} must show an issuer`)
+    assert.match(codeFor(slug), /clientId:/u, `${slug} must show an OAuth client_id`)
+    assert.match(codeFor(slug), /redirectUri:/u, `${slug} must show an exact redirect URI`)
+  }
+  for (const slug of ['sdks/react', 'sdks/solid', 'sdks/remix']) {
+    assert.match(codeFor(slug), /mode="oidc"/u, `${slug} must show explicit OIDC mode`)
+    assert.match(codeFor(slug), /issuer=/u, `${slug} must show an issuer`)
+    assert.match(codeFor(slug), /clientId=/u, `${slug} must show an OAuth client_id`)
+    assert.match(codeFor(slug), /redirectUri=/u, `${slug} must show an exact redirect URI`)
+  }
+  for (const slug of ['sdks/vue', 'sdks/svelte', 'sdks/angular', 'sdks/astro']) {
+    assert.match(
+      codeFor(slug),
+      /mode:\s*'same-origin'/u,
+      `${slug} same-origin example must declare its mode`,
+    )
+  }
+
+  const coreCode = codeFor('sdks/core')
+  assert.match(coreCode, /if \(!authorization\.ok\)/u)
+  assert.match(coreCode, /if \(!created\.ok\)/u)
+  assert.match(coreCode, /created\.value\.id/u)
+  assert.match(coreCode, /revokeApiKey\(\{ id:/u)
+  assert.match(coreCode, /secretKey:\s*process\.env\.XID_SECRET_KEY/u)
+
+  const solidCode = codeFor('sdks/solid')
+  assert.match(solidCode, /if \(!activated\.ok\)/u)
+  assert.match(solidCode, /if \(!token\.ok\)/u)
+
+  const astroCode = codeFor('sdks/astro')
+  assert.match(astroCode, /if \(!result\.ok\)/u)
+})
+
+test('public native SDK documents match the authorization-code-only client contract', async () => {
+  const bundle = await loadSourceAst()
+  const documents = new Map(bundle.documents.map((document) => [document.slug, document]))
+
+  for (const slug of PUBLIC_NATIVE_SDK_SLUGS) {
+    const document = documents.get(slug)
+    assert.ok(document, `${slug} public document is missing`)
+    const serialized = JSON.stringify(document)
+    const code = document.sections
+      .flatMap((section) =>
+        section.blocks.filter((block) => block.kind === 'code').map((block) => block.value),
+      )
+      .join('\n')
+
+    assert.match(serialized, /offline_access/u, `${slug} must disclose the offline_access boundary`)
+    assert.match(serialized, /DPoP/u, `${slug} must explain why offline_access is rejected`)
+    assert.match(
+      serialized,
+      /reauthoriz|new authorization flow|new sign-in|SessionExpired/u,
+      `${slug} must disclose the access-token expiry behavior`,
+    )
+    assert.doesNotMatch(
+      serialized,
+      /auto-refresh(?:es)?|refreshes transparently|refreshing automatically|refresh token rotation|force renewal|revokes? refresh|revocation endpoint|refresh single-flight|stored refresh token is available|offline_access must be included|TokenRefreshFailed/u,
+      `${slug} must not promise an unimplemented refresh or revoke path`,
+    )
+    assert.doesNotMatch(
+      code,
+      /scopes\s*[:=]\s*(?:listOf\s*\()?\[[^\]]*offline_access/isu,
+      `${slug} example must not request offline_access`,
     )
   }
 })
@@ -271,6 +452,50 @@ test('localized generation writes 328 complete MDX files and is repeatable', asy
     assert.match(content, /^---\n/)
     assert.doesNotMatch(content, /<Localized|<DocsPage|<React/)
     assert.doesNotMatch(content, /<\/?\d+>/)
+  }
+})
+
+test('localized generation carries draft and noindex publication controls to every locale', async (context) => {
+  const outputDirectory = await mkdtemp(path.join(os.tmpdir(), 'xid-publication-flags-'))
+  context.after(() => {
+    if (process.platform === 'darwin') execFileSync('/usr/bin/trash', [outputDirectory])
+  })
+
+  const bundle = structuredClone(await loadSourceAst())
+  const draft = bundle.documents[0]
+  const noindex = bundle.documents[1]
+  assert.ok(draft)
+  assert.ok(noindex)
+  draft.draft = true
+  noindex.noindex = true
+
+  await generateLocalizedContent({ outputDirectory, bundle })
+
+  for (const locale of bundle.locales) {
+    const localeDirectory = locale === 'en' ? '' : locale
+    const draftSource = await readFile(
+      path.join(outputDirectory, localeDirectory, `${draft.slug}.mdx`),
+      'utf8',
+    )
+    const noindexSource = await readFile(
+      path.join(outputDirectory, localeDirectory, `${noindex.slug}.mdx`),
+      'utf8',
+    )
+    const hubSource = await readFile(
+      path.join(outputDirectory, localeDirectory, 'index.mdx'),
+      'utf8',
+    )
+    assert.match(draftSource, /^draft: true$/m)
+    assert.doesNotMatch(draftSource, /^noindex:/m)
+    assert.match(noindexSource, /^noindex: true$/m)
+    assert.doesNotMatch(noindexSource, /^draft:/m)
+    assert.doesNotMatch(hubSource, /^(?:draft|noindex):/m)
+    const routeSegment = DOCUMENT_LOCALE_ROUTE_SEGMENTS[locale]
+    const prefix = routeSegment === '' ? '' : `/${routeSegment}`
+    const draftHref = `${prefix}/${draft.slug}`
+    const noindexHref = `${prefix}/${noindex.slug}`
+    assert.doesNotMatch(hubSource, new RegExp(`\\]\\(${draftHref}\\)`))
+    assert.match(hubSource, new RegExp(`\\]\\(${noindexHref}\\)`))
   }
 })
 

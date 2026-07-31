@@ -13,6 +13,7 @@ import { readAllById } from '../lib/db-pagination'
 import type { XidHonoEnv } from '../lib/types'
 import type { TenantContext } from '@xid-kit/types'
 import type { WebhookQueueMessage } from '@xid-kit/types'
+import { logWorkerError } from '../lib/safe-log'
 export { readAllById }
 
 // SCIM 错误体(RFC7644 3.12)
@@ -1159,7 +1160,12 @@ export function emitWebhookAsync(c: Context<XidHonoEnv> | Env, msg: WebhookQueue
     executionCtx.waitUntil(task)
     return
   }
-  void task.catch((error: unknown) => console.error('webhook queue send failed', error))
+  void task.catch((error: unknown) =>
+    logWorkerError('scim.webhook_queue.send_failed', error, {
+      component: 'scim',
+      queue: 'webhook',
+    }),
+  )
 }
 
 function readExecutionContext(c: Context<XidHonoEnv> | Env) {

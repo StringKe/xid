@@ -257,6 +257,35 @@ describe('POST /sso/hrd', () => {
     mockFindOne.mockReset()
   })
 
+  it('requires Turnstile before tenant discovery when configured', async () => {
+    const app = new Hono<XidHonoEnv>()
+    app.onError(testErrorHandler)
+    app.use('*', async (c, next) => {
+      c.set('tenant', makeTenant() as unknown as TenantVar)
+      c.set('session', null)
+      await next()
+    })
+    registerHrdRoutes(app)
+
+    const res = await app.request(
+      '/sso/hrd',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'user@corp.example.com' }),
+      },
+      {
+        DB: {},
+        TURNSTILE_SITE_KEY: 'site-key',
+        TURNSTILE_SECRET: 'secret',
+      } as unknown as Env,
+    )
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('captcha_required')
+    expect(mockFindOne).not.toHaveBeenCalled()
+  })
+
   it('enterprise SSO 未启用时返回 null 并写策略拒绝审计', async () => {
     const auditSend = vi.fn()
     const tenant = makeTenant({ enabled: false })

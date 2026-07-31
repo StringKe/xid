@@ -14,6 +14,7 @@ import { useOrgDomainsQuery } from './queries'
 import { useApiMutation } from '@xid-kit/web-ui/queries'
 import type { OrgDomain } from './types'
 import { useOrgTarget } from './useOrgTarget'
+import { OrgCustomHostnames } from './OrgCustomHostnames'
 
 // 全宽规范常量
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
@@ -304,6 +305,8 @@ export default function OrgDomains(): ReactNode {
           </form>
         </div>
       </section>
+
+      <OrgCustomHostnames orgId={orgId} />
     </div>
   )
 }

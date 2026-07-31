@@ -141,7 +141,7 @@ export const directoryPendingMembers = sqliteTable(
   ],
 )
 
-// 16.9 scim_targets(XID 作为 SCIM client 向下游 SaaS 推送用户和组)
+// 16.11 scim_targets(XID 作为 SCIM client 向下游 SaaS 推送用户和组)
 export const scimTargets = sqliteTable(
   'scim_targets',
   {
@@ -162,5 +162,44 @@ export const scimTargets = sqliteTable(
   (t) => [
     index('scim_targets_tenant_org_idx').on(t.tenantId, t.orgId),
     index('scim_targets_tenant_status_idx').on(t.tenantId, t.status),
+  ],
+)
+
+// 16.12 scim_target_resources(下游 SCIM User/Group 稳定 identity mapping)
+export const scimTargetResources = sqliteTable(
+  'scim_target_resources',
+  {
+    id: text('id').primaryKey(),
+    tenantId: tenantId(),
+    orgId: text('org_id').notNull(),
+    targetId: text('target_id').notNull(),
+    resourceType: text('resource_type').$type<'User' | 'Group'>().notNull(),
+    localResourceId: text('local_resource_id').notNull(),
+    externalId: text('external_id').notNull(),
+    downstreamId: text('downstream_id').notNull(),
+    status: text('status').$type<'active' | 'deprovisioned'>().notNull().default('active'),
+    lastSyncedAt: tsMs('last_synced_at').notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('scim_target_resources_local_unq').on(
+      t.tenantId,
+      t.targetId,
+      t.resourceType,
+      t.localResourceId,
+    ),
+    uniqueIndex('scim_target_resources_downstream_unq').on(
+      t.tenantId,
+      t.targetId,
+      t.resourceType,
+      t.downstreamId,
+    ),
+    index('scim_target_resources_tenant_org_target_status_id_idx').on(
+      t.tenantId,
+      t.orgId,
+      t.targetId,
+      t.status,
+      t.id,
+    ),
   ],
 )

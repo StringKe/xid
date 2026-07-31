@@ -70,6 +70,16 @@ export type PublicDocsIndexedLocale = PublicDocsLocaleDescriptor & {
   documents: readonly PublicDocsIndexedDocument[]
 }
 
+export type PublicDocsIndexedSection = {
+  locale: DocumentLocale
+  routeSegment: string
+  slug: string
+  docsRoot: string
+  llmsIndexPath: string
+  llmsFullPath: string
+  documents: readonly PublicDocsIndexedDocument[]
+}
+
 export function isPublicDocsAgentIndexable(item: IndexedEntry): boolean {
   const data = (item.entry.data ?? {}) as Record<string, unknown>
   return data.draft !== true && data.noindex !== true
@@ -90,6 +100,54 @@ export function getPublicDocsLocaleDescriptor(locale: DocumentLocale): PublicDoc
 export function getPublicDocPath(locale: DocumentLocale, slug: PublicDocSlug): string {
   const { docsRoot } = getPublicDocsLocaleDescriptor(locale)
   return docsRoot === '/' ? `/${slug}` : `${docsRoot}/${slug}`
+}
+
+function publicDocTopLevelSlug(slug: PublicDocSlug): string {
+  return slug.split('/')[0] ?? slug
+}
+
+export function getPublicDocsAgentIndexPath(
+  locale: DocumentLocale,
+  slug: PublicDocSlug | null = null,
+): string {
+  const descriptor = getPublicDocsLocaleDescriptor(locale)
+  if (slug !== null) {
+    const topLevelSlug = publicDocTopLevelSlug(slug)
+    const memberCount = PUBLIC_DOC_SLUGS.filter(
+      (candidate) => publicDocTopLevelSlug(candidate) === topLevelSlug,
+    ).length
+    if (memberCount > 1) {
+      const prefix = descriptor.routeSegment === '' ? '' : `/${descriptor.routeSegment}`
+      return `${prefix}/${topLevelSlug}/llms.txt`
+    }
+  }
+  return locale === 'en' ? '/en/llms.txt' : descriptor.llmsIndexPath
+}
+
+export function getPublicDocsIndexedSections(
+  group: PublicDocsIndexedLocale,
+): readonly PublicDocsIndexedSection[] {
+  const buckets = new Map<string, PublicDocsIndexedDocument[]>()
+  for (const document of group.documents) {
+    const topLevelSlug = publicDocTopLevelSlug(document.slug)
+    const bucket = buckets.get(topLevelSlug)
+    if (bucket) bucket.push(document)
+    else buckets.set(topLevelSlug, [document])
+  }
+
+  const prefix = group.routeSegment === '' ? '' : `/${group.routeSegment}`
+  return [...buckets.entries()]
+    .filter(([, documents]) => documents.length > 1)
+    .map(([slug, documents]) => ({
+      locale: group.locale,
+      routeSegment: group.routeSegment,
+      slug,
+      docsRoot: `${prefix}/${slug}`,
+      llmsIndexPath: `${prefix}/${slug}/llms.txt`,
+      llmsFullPath: `${prefix}/${slug}/llms-full.txt`,
+      documents,
+    }))
+    .sort((left, right) => left.slug.localeCompare(right.slug))
 }
 
 export function parsePublicDocsRoute(pathname: string): PublicDocsRoute | null {
@@ -205,10 +263,21 @@ function assertIndexedRoute(item: IndexedEntry): PublicDocsRoute {
 
 export function validatePublicDocsIndex(
   indexed: readonly IndexedEntry[],
+  expectedDocumentSlugs: readonly PublicDocSlug[] = PUBLIC_DOC_SLUGS,
 ): readonly PublicDocsIndexedLocale[] {
-  if (indexed.length !== PUBLIC_DOCS_INDEXED_TOTAL) {
+  const expectedSlugSet = new Set<PublicDocSlug>(expectedDocumentSlugs)
+  if (expectedSlugSet.size !== expectedDocumentSlugs.length) {
+    throw new TypeError('public docs expected publication list contains duplicate slugs')
+  }
+  for (const slug of expectedDocumentSlugs) {
+    if (!PUBLIC_DOC_SLUG_SET.has(slug)) {
+      throw new TypeError(`public docs expected publication list contains unknown slug ${slug}`)
+    }
+  }
+  const expectedIndexedTotal = DOCUMENT_LOCALES.length * (expectedSlugSet.size + 1)
+  if (indexed.length !== expectedIndexedTotal) {
     throw new TypeError(
-      `public docs index must contain ${PUBLIC_DOCS_INDEXED_TOTAL} entries, received ${indexed.length}`,
+      `public docs index must contain ${expectedIndexedTotal} entries, received ${indexed.length}`,
     )
   }
 
@@ -231,6 +300,9 @@ export function validatePublicDocsIndex(
       group.hub = item
       continue
     }
+    if (!expectedSlugSet.has(route.slug)) {
+      throw new TypeError(`agent index exposed unpublished documentation page ${item.url}`)
+    }
     if (group.documents.has(route.slug)) {
       throw new TypeError(`duplicate documentation page ${route.locale}/${route.slug}`)
     }
@@ -242,16 +314,16 @@ export function validatePublicDocsIndex(
     if (!group?.hub) {
       throw new TypeError(`documentation locale ${descriptor.locale} has no hub`)
     }
-    const documents = PUBLIC_DOC_SLUGS.map((slug) => {
+    const documents = expectedDocumentSlugs.map((slug) => {
       const item = group.documents.get(slug)
       if (!item) {
         throw new TypeError(`documentation locale ${descriptor.locale} is missing ${slug}`)
       }
       return { slug, item }
     })
-    if (group.documents.size !== PUBLIC_DOCS_PER_LOCALE) {
+    if (group.documents.size !== expectedSlugSet.size) {
       throw new TypeError(
-        `documentation locale ${descriptor.locale} must contain ${PUBLIC_DOCS_PER_LOCALE} pages`,
+        `documentation locale ${descriptor.locale} must contain ${expectedSlugSet.size} pages`,
       )
     }
     return { ...descriptor, hub: group.hub, documents }

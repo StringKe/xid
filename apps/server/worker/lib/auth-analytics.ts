@@ -2,6 +2,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import type { TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import type { ReadSessionStatus } from './session'
+import { logWorkerError } from './safe-log'
 
 type AuthAnalyticsInput = {
   env: Env
@@ -11,6 +12,8 @@ type AuthAnalyticsInput = {
   timestamp: number
   // guest(provisioned_by = 'anonymous')不计 MAU/DAU:调用方从 users 行带来,缺失按普通用户计。
   provisionedBy?: string | null
+  // Support impersonation is not a target-user authentication or billable active-user event.
+  isImpersonation?: boolean
 }
 
 function utcDay(timestamp: number): string {
@@ -42,7 +45,7 @@ async function persistMeteringOutbox(input: AuthAnalyticsInput): Promise<void> {
 }
 
 export async function recordAuthenticatedSession(input: AuthAnalyticsInput): Promise<void> {
-  if (input.status !== 'active') return
+  if (input.status !== 'active' || input.isImpersonation) return
 
   // 计量排除:guest 不计 MAU/DAU( queue 与 outbox 兜底同路径跳过);Analytics 登录事件照记。
   if (input.provisionedBy !== schema.USER_PROVISIONED_BY_ANONYMOUS) {
@@ -55,8 +58,10 @@ export async function recordAuthenticatedSession(input: AuthAnalyticsInput): Pro
     } catch {
       try {
         await persistMeteringOutbox(input)
-      } catch {
-        console.error('[auth-analytics] metering outbox persistence failed')
+      } catch (error) {
+        logWorkerError('auth_analytics.metering_outbox.persistence_failed', error, {
+          component: 'auth-analytics',
+        })
       }
     }
   }
@@ -67,7 +72,9 @@ export async function recordAuthenticatedSession(input: AuthAnalyticsInput): Pro
       blobs: ['auth.login_success'],
       doubles: [1],
     })
-  } catch {
-    console.error('[auth-analytics] analytics engine write failed')
+  } catch (error) {
+    logWorkerError('auth_analytics.analytics_engine.write_failed', error, {
+      component: 'auth-analytics',
+    })
   }
 }

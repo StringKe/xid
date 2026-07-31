@@ -1,6 +1,14 @@
 import { Hono } from 'hono'
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_HOSTED_AUTH_PROFILE_FIELDS } from '@xid-kit/types'
+import {
+  CORE_SPA_ROUTE_PATHS,
+  DEFAULT_HOSTED_AUTH_PROFILE_FIELDS,
+  SITE_EXACT_PATHS,
+  SITE_PUBLIC_DOC_EXACT_PATHS,
+  SITE_SCIM_DOC_EXACT_PATHS,
+  XID_SITE_LOCALE_ROUTE_SEGMENTS,
+  XID_SITE_LOCALES,
+} from '@xid-kit/types'
 import type { SigningKeyMaterial } from '@xid-kit/types'
 import { generateTenantSigningKey } from '@xid-kit/crypto'
 import type { XidHonoEnv } from '../lib/types'
@@ -15,7 +23,7 @@ import {
 import { tenantMiddleware } from '../middleware/tenant'
 import { sessionMiddleware } from '../middleware/session'
 import { TENANT_ROUTE_PATTERNS } from '../tenant-routes'
-import { registerPublicAssetRoutes } from '../public-assets'
+import { registerFrontendRouteDelegation, registerPublicAssetRoutes } from '../public-assets'
 import { registerCanonicalHostRedirect, registerPublicMetadataRoutes } from '../public-metadata'
 
 type RouteTable = Record<string, Record<string, unknown>[]>
@@ -43,14 +51,9 @@ function rowToRaw(sql: string, row: Record<string, unknown>): unknown[] {
 }
 
 function tableForSql(sql: string): string {
-  const l = sql.toLowerCase()
-  if (l.includes('user_emails')) return 'user_emails'
-  if (l.includes('user_phones')) return 'user_phones'
-  if (l.includes('users')) return 'users'
-  if (l.includes('instance_signing_keys')) return 'instance_signing_keys'
-  if (l.includes('org_policies')) return 'org_policies'
-  if (l.includes('organizations')) return 'organizations'
-  return 'instances'
+  const table = /\bfrom\s+"?([a-z_][a-z0-9_]*)"?/i.exec(sql)?.[1]
+  if (!table) throw new Error(`Unsupported fake D1 query: ${sql}`)
+  return table
 }
 
 function makeRouteD1(tables: RouteTable): D1Database {
@@ -87,12 +90,15 @@ function matchRows(tables: RouteTable, sql: string, params: unknown[]): Record<s
       )
       .map((row) => ({ tenant_id: row['tenant_id'], tenantId: row['tenant_id'] }))
   }
-  if (lower.includes('from "users"') && lower.includes('username')) {
+  if (
+    lower.includes('from "users"') &&
+    (lower.includes('"users"."username"') || lower.includes('"users"."external_id"'))
+  ) {
+    const field = lower.includes('"users"."username"') ? 'username' : 'external_id'
     const value = params.find((v): v is string => typeof v === 'string' && v !== 'active')
     return (tables['users'] ?? [])
       .filter(
-        (row) =>
-          row['username'] === value && row['status'] === 'active' && row['deleted_at'] == null,
+        (row) => row[field] === value && row['status'] === 'active' && row['deleted_at'] == null,
       )
       .map((row) => ({ tenant_id: row['tenant_id'], tenantId: row['tenant_id'] }))
   }
@@ -116,14 +122,46 @@ function matchRows(tables: RouteTable, sql: string, params: unknown[]): Record<s
 
 function makeAssets(): Fetcher {
   return asUnknown<Fetcher>({
-    fetch: async () =>
-      new Response(
-        '<!doctype html><main data-seo-fallback><h1>XID</h1></main><div id="root"></div>',
-        {
+    fetch: async (input: Request | string) => {
+      const url = new URL(typeof input === 'string' ? input : input.url)
+      if (url.pathname === '/') {
+        return new Response(
+          '<!doctype html><main data-seo-fallback><h1>XID</h1></main><div id="root"></div>',
+          {
+            status: 200,
+            headers: { 'content-type': 'text/html;charset=UTF-8', etag: '"asset"' },
+          },
+        )
+      }
+      if (url.pathname === '/_core/app.js') {
+        return new Response('console.log("core asset")', {
           status: 200,
-          headers: { 'content-type': 'text/html;charset=UTF-8', etag: '"asset"' },
-        },
-      ),
+          headers: { 'content-type': 'text/javascript;charset=UTF-8', etag: '"asset-js"' },
+        })
+      }
+      return new Response(null, { status: 404 })
+    },
+  })
+}
+
+function makeFrontendWorker(owner: 'site' | 'console'): Fetcher {
+  return asUnknown<Fetcher>({
+    fetch: async (input: Request | string) => {
+      const request = typeof input === 'string' ? new Request(input) : input
+      const pathname = new URL(request.url).pathname
+      if (
+        owner === 'site' &&
+        ['/docs/design', '/docs/goal', '/docs/verification', '/docs/deployment'].includes(pathname)
+      ) {
+        return new Response(null, {
+          status: 404,
+          headers: { 'x-xid-route-owner': owner },
+        })
+      }
+      return new Response(`delegated:${owner}:${request.url}`, {
+        headers: { 'x-xid-route-owner': owner },
+      })
+    },
   })
 }
 
@@ -134,11 +172,26 @@ function makeKv(): KVNamespace {
   })
 }
 
+function makeGuestCapabilityChallengeNs(): DurableObjectNamespace {
+  return asUnknown<DurableObjectNamespace>({
+    idFromName: (name: string) => name,
+    get: () => ({
+      fetch: async (input: RequestInfo | URL) => {
+        const request = input instanceof Request ? input : new Request(input)
+        return new URL(request.url).pathname === '/claim'
+          ? new Response(null, { status: 201 })
+          : new Response(null, { status: 404 })
+      },
+    }),
+  })
+}
+
 function makeRouteSplitApp(): Hono<XidHonoEnv> {
   const app = new Hono<XidHonoEnv>()
   registerCanonicalHostRedirect(app)
   registerPublicMetadataRoutes(app)
   app.get('/v1/health', (c) => c.json({ ok: true }))
+  registerFrontendRouteDelegation(app)
   for (const pattern of TENANT_ROUTE_PATTERNS) {
     app.use(pattern, async (c, next) => {
       c.set('locale', 'en')
@@ -175,7 +228,10 @@ async function makeRouteEnv(): Promise<Env> {
     DB: makeRouteD1(routeTables(material)),
     CACHE: makeKv(),
     ASSETS: makeAssets(),
+    SITE_WORKER: makeFrontendWorker('site'),
+    CONSOLE_WORKER: makeFrontendWorker('console'),
     GOOGLE_CLIENT_SECRET: 'google-secret',
+    WEBAUTHN_CHALLENGE: makeGuestCapabilityChallengeNs(),
   })
 }
 
@@ -733,33 +789,55 @@ describe('GET /auth/config', () => {
 })
 
 describe('createApp public and organization route split', () => {
-  it('serves only Core human routes and Core error UI through ASSETS', async () => {
+  it('serves every declared Core SPA route through the explicit shell entry', async () => {
     const env = await makeRouteEnv()
     const app = makeRouteSplitApp()
 
-    for (const path of [
-      '/sign-in',
-      '/sign-up',
-      '/forgot-password',
-      '/reset-password',
-      '/verify-email',
-      '/accept-invitation',
-      '/create-organization',
-      '/select-organization',
-      '/mfa',
-      '/consent',
-      '/activate',
-      '/ciba-activation',
-      '/account',
-      '/account/security',
-      '/_core/app.js',
-      '/unknown-core-error',
-    ]) {
+    for (const path of CORE_SPA_ROUTE_PATHS) {
       const res = await app.request(`https://xid.dev${path}`, {}, env)
 
       expect(res.status, path).toBe(200)
       expect(await res.text(), path).toContain('<div id="root"></div>')
     }
+  })
+
+  it('serves real Core assets without falling back to the SPA shell', async () => {
+    const env = await makeRouteEnv()
+    const app = makeRouteSplitApp()
+
+    const res = await app.request('https://xid.dev/_core/app.js', {}, env)
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/javascript')
+    expect(await res.text()).toContain('core asset')
+  })
+
+  it('returns a real 404 for unknown Core routes and missing assets', async () => {
+    const env = await makeRouteEnv()
+    const app = makeRouteSplitApp()
+
+    for (const path of [
+      '/unknown-core-error',
+      '/account/typo',
+      '/sign-in/typo',
+      '/_core/missing.js',
+    ]) {
+      const res = await app.request(`https://xid.dev${path}`, {}, env)
+      const body = await res.text()
+
+      expect(res.status, path).toBe(404)
+      expect(body, path).not.toContain('<div id="root"></div>')
+    }
+  })
+
+  it('does not serve the SPA shell for non-document methods', async () => {
+    const env = await makeRouteEnv()
+    const app = makeRouteSplitApp()
+
+    const res = await app.request('https://xid.dev/sign-in', { method: 'POST' }, env)
+
+    expect(res.status).toBe(404)
+    expect(await res.text()).not.toContain('<div id="root"></div>')
   })
 
   it('does not serve public docs from the Core SPA', async () => {
@@ -769,8 +847,9 @@ describe('createApp public and organization route split', () => {
     const res = await app.request('https://xid.dev/docs/enterprise-sso', {}, env)
     const body = await res.text()
 
-    expect(res.status).toBe(404)
-    expect(res.headers.get('x-xid-core-route-status')).toBe('owned-by-site')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('x-xid-route-owner')).toBe('site')
+    expect(body).toBe('delegated:site:https://xid.dev/docs/enterprise-sso')
     expect(body).not.toContain('<div id="root"></div>')
   })
 
@@ -833,10 +912,12 @@ describe('createApp public and organization route split', () => {
       resolution: { status: string }
       methods: { magicLink: { enabled: boolean } }
       socialProviders: unknown[]
+      guest: { capabilityToken: string } | null
     }
     expect(body.resolution.status).toBe('ready')
     expect(body.methods.magicLink.enabled).toBe(true)
     expect(body.socialProviders).toEqual([])
+    expect(body.guest?.capabilityToken).toMatch(/^[A-Za-z0-9_-]{43}$/u)
   })
 
   it('resolves root Hosted Auth config with super admin email login_hint to default org policy', async () => {
@@ -895,6 +976,7 @@ describe('createApp public and organization route split', () => {
         matches: Array<{ organizationId: string; slug: string; name: string; issuer: string }>
       }
       methods: { magicLink: { enabled: boolean }; password: { enabled: boolean } }
+      guest: { capabilityToken: string } | null
     }
     expect(body.resolution.status).toBe('ambiguous')
     expect(body.resolution.matchedBy).toBe('username')
@@ -916,6 +998,7 @@ describe('createApp public and organization route split', () => {
     )
     expect(body.methods.magicLink.enabled).toBe(false)
     expect(body.methods.password.enabled).toBe(false)
+    expect(body.guest).toBeNull()
   })
 
   it('resolves root Hosted Auth config with organization_id resolver hint to selected organization policy', async () => {
@@ -932,10 +1015,12 @@ describe('createApp public and organization route split', () => {
     const body = (await res.json()) as {
       resolution: { status: string }
       methods: { password: { enabled: boolean }; magicLink: { enabled: boolean } }
+      guest: { capabilityToken: string } | null
     }
     expect(body.resolution.status).toBe('ready')
     expect(body.methods.password.enabled).toBe(false)
     expect(body.methods.magicLink.enabled).toBe(true)
+    expect(body.guest).toBeNull()
   })
 
   it('keeps default subdomain Hosted Auth config on the default tenant', async () => {
@@ -949,44 +1034,59 @@ describe('createApp public and organization route split', () => {
     )
 
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { methods: { emailOtp: { enabled: boolean } } }
+    const body = (await res.json()) as {
+      methods: { emailOtp: { enabled: boolean } }
+      guest: { capabilityToken: string } | null
+    }
     expect(body.methods.emailOtp.enabled).toBe(true)
+    expect(body.guest).toBeNull()
   })
 
-  it('rejects Site and Console document routes at the Core fallback', async () => {
+  it('delegates Site and Console query variants from the Core fallback without changing the URL', async () => {
     const env = await makeRouteEnv()
     const app = makeRouteSplitApp()
 
-    for (const [url, owner] of [
-      ['https://xid.dev/', 'site'],
-      ['https://xid.dev/robots.txt', 'site'],
-      ['https://xid.dev/brand/logo.svg', 'site'],
-      ['https://xid.dev/console', 'console'],
-      ['https://xid.dev/console/settings', 'console'],
-      ['https://team.xid.dev/console', 'console'],
-      ['https://team.xid.dev/console/settings', 'console'],
-    ] as const) {
+    const exactSitePaths = [
+      ...SITE_EXACT_PATHS,
+      ...SITE_PUBLIC_DOC_EXACT_PATHS,
+      ...SITE_SCIM_DOC_EXACT_PATHS,
+      ...XID_SITE_LOCALES.flatMap((locale) => {
+        const segment = XID_SITE_LOCALE_ROUTE_SEGMENTS[locale]
+        return [`/${segment}`, `/${segment}/`]
+      }),
+    ]
+    const checks: Array<readonly [string, 'site' | 'console']> = [
+      ...exactSitePaths.map(
+        (pathname) => [`https://xid.dev${pathname}?source=contract`, 'site'] as const,
+      ),
+      ['https://xid.dev/console?source=contract', 'console'],
+      ['https://team.xid.dev/console?source=contract', 'console'],
+    ]
+
+    for (const [url, owner] of checks) {
       const res = await app.request(url, {}, env)
       const body = await res.text()
 
-      expect(res.status, url).toBe(404)
-      expect(res.headers.get('x-xid-core-route-status'), url).toBe(`owned-by-${owner}`)
+      expect(res.status, url).toBe(200)
+      expect(res.headers.get('x-xid-route-owner'), url).toBe(owner)
+      expect(body, url).toBe(`delegated:${owner}:${url}`)
       expect(body, url).not.toContain('<div id="root"></div>')
     }
   })
 
-  it('rejects docs on both apex and tenant hosts', async () => {
+  it('delegates apex docs while rejecting the non-owned tenant docs namespace', async () => {
     const env = await makeRouteEnv()
     const app = makeRouteSplitApp()
 
-    for (const url of ['https://xid.dev/docs/scim', 'https://team.xid.dev/docs/scim']) {
-      const res = await app.request(url, {}, env)
-      const body = await res.text()
+    const apex = await app.request('https://xid.dev/docs/scim?source=contract', {}, env)
+    expect(apex.status).toBe(200)
+    expect(apex.headers.get('x-xid-route-owner')).toBe('site')
+    expect(await apex.text()).toBe('delegated:site:https://xid.dev/docs/scim?source=contract')
 
-      expect(res.status, url).toBe(404)
-      expect(res.headers.get('x-xid-core-route-status'), url).toBe('owned-by-site')
-      expect(body, url).not.toContain('<div id="root"></div>')
-    }
+    const tenant = await app.request('https://team.xid.dev/docs/scim?source=contract', {}, env)
+    expect(tenant.status).toBe(404)
+    expect(tenant.headers.get('x-xid-core-route-status')).toBe('owned-by-site')
+    expect(await tenant.text()).not.toContain('<div id="root"></div>')
   })
 
   it('blocks repository docs paths from the public XID docs namespace', async () => {
@@ -998,7 +1098,7 @@ describe('createApp public and organization route split', () => {
       const html = await res.text()
 
       expect(res.status).toBe(404)
-      expect(res.headers.get('x-xid-core-route-status')).toBe('owned-by-site')
+      expect(res.headers.get('x-xid-route-owner')).toBe('site')
       expect(html).toBe('')
     }
   })
@@ -1011,8 +1111,40 @@ describe('createApp public and organization route split', () => {
     const html = await res.text()
 
     expect(res.status).toBe(404)
-    expect(res.headers.get('x-xid-core-route-status')).toBe('owned-by-site')
+    expect(res.headers.get('x-xid-route-owner')).toBe('site')
     expect(html).toBe('')
+  })
+
+  it('keeps exact-route overmatches in Core instead of delegating them to a frontend Worker', async () => {
+    const siteFetch = vi.fn(async () => new Response('site'))
+    const consoleFetch = vi.fn(async () => new Response('console'))
+    const env = {
+      ...(await makeRouteEnv()),
+      SITE_WORKER: asUnknown<Fetcher>({ fetch: siteFetch }),
+      CONSOLE_WORKER: asUnknown<Fetcher>({ fetch: consoleFetch }),
+    }
+    const app = makeRouteSplitApp()
+
+    for (const path of [
+      '/getting-startedx?source=contract',
+      '/llms.txtx?source=contract',
+      '/statusx?source=contract',
+      '/zh-hansx?source=contract',
+      '/consolex?source=contract',
+    ]) {
+      const res = await app.request(`https://xid.dev${path}`, {}, env)
+      expect(res.status, path).toBe(404)
+    }
+
+    const customHostnameConsole = await app.request(
+      'https://login.customer.example/console?source=contract',
+      {},
+      env,
+    )
+    expect(customHostnameConsole.status).toBe(404)
+
+    expect(siteFetch).not.toHaveBeenCalled()
+    expect(consoleFetch).not.toHaveBeenCalled()
   })
 
   it('does not serve SPA fallback for unknown protocol paths', async () => {
@@ -1039,7 +1171,7 @@ describe('createApp public and organization route split', () => {
       expectStatus: number
     }> = [
       { path: '/.well-known/ssf-configuration', expectStatus: 501 },
-      { path: '/check_session', expectStatus: 200 },
+      { path: '/check_session', expectStatus: 400 },
       {
         path: '/backchannel_authentication',
         init: {

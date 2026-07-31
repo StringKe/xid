@@ -9,7 +9,15 @@ import type { Context } from 'hono'
 import { sha256Hex } from '@xid-kit/crypto'
 import type { TenantContext } from '@xid-kit/types'
 import { AppError } from '../errors'
-import { issueSession, readSession, readSessionById, revokeSession } from '../session'
+import {
+  issueSession,
+  readBrowserSessions,
+  readSession,
+  readSessionById,
+  readSessionForTenant,
+  revokeSession,
+  selectSessionById,
+} from '../session'
 import type { SessionData, XidHonoEnv } from '../types'
 
 vi.mock('@xid-kit/db', async (importOriginal) => {
@@ -1186,6 +1194,70 @@ describe('readSessionById', () => {
 })
 
 describe('readSession (多 cookie 枚举)', () => {
+  it('active-session pointer wins over request cookie insertion order', async () => {
+    const tokenA = 'tok_a'
+    const tokenB = 'tok_b'
+    const now = Date.now()
+    const rows: SessionRow[] = [
+      {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        tenant_id: 't_1',
+        user_id: 'u_a',
+        refresh_token_hash: await sha256Hex(tokenA),
+        active_org_id: null,
+        device_fingerprint_hash: null,
+        device_name: null,
+        user_agent: null,
+        ip: null,
+        location: null,
+        status: 'active',
+        remember_me: 0,
+        is_impersonation: 0,
+        impersonator_user_id: null,
+        authenticated_at: now - 1000,
+        last_active_at: now,
+        expires_at: now + 3600_000,
+        created_at: now,
+      },
+      {
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        tenant_id: 't_1',
+        user_id: 'u_b',
+        refresh_token_hash: await sha256Hex(tokenB),
+        active_org_id: null,
+        device_fingerprint_hash: null,
+        device_name: null,
+        user_agent: null,
+        ip: null,
+        location: null,
+        status: 'active',
+        remember_me: 0,
+        is_impersonation: 0,
+        impersonator_user_id: null,
+        authenticated_at: now - 1000,
+        last_active_at: now,
+        expires_at: now + 3600_000,
+        created_at: now,
+      },
+    ]
+    const env = makeEnv(
+      makeFakeD1({
+        sessions: rows,
+        users: [activeUser('u_a'), activeUser('u_b')],
+      }),
+      makeFakeSessionNs({ active: true }),
+    )
+    const cookie = [
+      `__Host-xid.rt.aaaaaaaa=${tokenA}`,
+      `__Host-xid.rt.bbbbbbbb=${tokenB}`,
+      '__Host-xid.active=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    ].join('; ')
+
+    const { result } = await runWithContext(env, cookie, (c) => readSession(c))
+
+    expect((result as SessionData | null)?.sessionId).toBe('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+  })
+
   it('root instance entry resolves session tenant from refresh token hash', async () => {
     const token = 'tok_root_admin'
     const hash = await sha256Hex(token)
@@ -1253,6 +1325,99 @@ describe('readSession (多 cookie 枚举)', () => {
     const session = result as SessionData | null
     expect(session?.sessionId).toBe('s_admin')
     expect(session?.userId).toBe('u_admin')
+  })
+
+  it('invitation target lookup skips the active cookie from another Tenant', async () => {
+    const tokenA = 'tenant_a_token'
+    const tokenB = 'tenant_b_token'
+    const hashA = await sha256Hex(tokenA)
+    const hashB = await sha256Hex(tokenB)
+    const now = Date.now()
+    const sourceTenant: TenantContext = {
+      ...TENANT,
+      tenantId: 'tenant-a',
+      instanceId: 'instance-1',
+    }
+    const targetTenant: TenantContext = {
+      ...TENANT,
+      tenantId: 'tenant-b',
+      instanceId: 'instance-1',
+    }
+    const sessionRow = (tenantId: string, userId: string, sessionId: string, hash: string) => ({
+      id: sessionId,
+      tenantId,
+      userId,
+      refreshTokenHash: hash,
+      activeOrgId: null,
+      deviceFingerprintHash: null,
+      deviceName: null,
+      userAgent: null,
+      ip: null,
+      location: null,
+      status: 'active',
+      rememberMe: false,
+      isImpersonation: false,
+      impersonatorUserId: null,
+      acr: null,
+      amr: null,
+      aal: null,
+      authenticatedAt: new Date(now - 1000),
+      lastActiveAt: new Date(now),
+      expiresAt: new Date(now + 3600_000),
+      createdAt: new Date(now),
+    })
+    vi.mocked(resolveTenantContextBySessionHash)
+      .mockReset()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: {
+          status: 'resolved',
+          tenant: sourceTenant,
+          session: sessionRow('tenant-a', 'user-a', 'session-a', hashA),
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: {
+          status: 'resolved',
+          tenant: targetTenant,
+          session: sessionRow('tenant-b', 'user-b', 'session-b', hashB),
+        },
+      })
+    const env = makeEnv(
+      makeFakeD1({
+        sessions: [],
+        users: [tenantUser('user-b', 'tenant-b')],
+      }),
+      makeFakeSessionNs({ active: true }),
+    )
+    const cookie = [
+      `__Host-xid.rt.session-a=${tokenA}`,
+      `__Host-xid.rt.session-b=${tokenB}`,
+      '__Host-xid.active=session-a',
+    ].join('; ')
+
+    const { result } = await runWithContext(
+      env,
+      cookie,
+      (c) => readSessionForTenant(c, targetTenant),
+      sourceTenant,
+    )
+
+    expect((result as SessionData | null)?.sessionId).toBe('session-b')
+    expect((result as SessionData | null)?.userId).toBe('user-b')
+    expect(resolveTenantContextBySessionHash).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Request),
+      env,
+      hashA,
+    )
+    expect(resolveTenantContextBySessionHash).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Request),
+      env,
+      hashB,
+    )
   })
 
   it('从多个 __Host-xid.rt.* cookie 中返回首个有效 session', async () => {
@@ -1327,6 +1492,152 @@ describe('readSession (多 cookie 枚举)', () => {
   })
 })
 
+describe('readBrowserSessions', () => {
+  it('只返回浏览器持有有效 refresh cookie 的 sessions，并按 active pointer 排序', async () => {
+    const tokenA = 'browser_token_a'
+    const tokenB = 'browser_token_b'
+    const now = Date.now()
+    const rows: SessionRow[] = [
+      {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        tenant_id: 't_1',
+        user_id: 'u_a',
+        refresh_token_hash: await sha256Hex(tokenA),
+        active_org_id: 'org_a',
+        device_fingerprint_hash: null,
+        device_name: null,
+        user_agent: null,
+        ip: null,
+        location: null,
+        status: 'active',
+        remember_me: 0,
+        is_impersonation: 0,
+        impersonator_user_id: null,
+        authenticated_at: now - 2000,
+        last_active_at: now - 1000,
+        expires_at: now + 3600_000,
+        created_at: now - 2000,
+      },
+      {
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        tenant_id: 't_1',
+        user_id: 'u_b',
+        refresh_token_hash: await sha256Hex(tokenB),
+        active_org_id: 'org_b',
+        device_fingerprint_hash: null,
+        device_name: null,
+        user_agent: null,
+        ip: null,
+        location: null,
+        status: 'active',
+        remember_me: 0,
+        is_impersonation: 0,
+        impersonator_user_id: null,
+        authenticated_at: now - 1000,
+        last_active_at: now,
+        expires_at: now + 3600_000,
+        created_at: now - 1000,
+      },
+      {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        tenant_id: 't_1',
+        user_id: 'u_c',
+        refresh_token_hash: await sha256Hex('server_only_token'),
+        active_org_id: null,
+        device_fingerprint_hash: null,
+        device_name: null,
+        user_agent: null,
+        ip: null,
+        location: null,
+        status: 'active',
+        remember_me: 0,
+        is_impersonation: 0,
+        impersonator_user_id: null,
+        authenticated_at: now,
+        last_active_at: now,
+        expires_at: now + 3600_000,
+        created_at: now,
+      },
+    ]
+    const env = makeEnv(
+      makeFakeD1({
+        sessions: rows,
+        users: [activeUser('u_a'), activeUser('u_b'), activeUser('u_c')],
+      }),
+      makeFakeSessionNs({ active: true }),
+    )
+    const cookie = [
+      `__Host-xid.rt.aaaaaaaa=${tokenA}`,
+      `__Host-xid.rt.bbbbbbbb=${tokenB}`,
+      '__Host-xid.active=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    ].join('; ')
+
+    const { result } = await runWithContext(env, cookie, (c) => readBrowserSessions(c))
+
+    expect(result.map((session) => session.sessionId)).toEqual([
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ])
+    expect(result.map((session) => session.userId)).toEqual(['u_b', 'u_a'])
+    expect(result.some((session) => session.sessionId.startsWith('cccccccc'))).toBe(false)
+  })
+})
+
+describe('selectSessionById', () => {
+  it('resolves a target Tenant from its credential before validating the exact session id', async () => {
+    const sessionId = '019f5cd4-e5f3-7b91-901a-33f6c7260525'
+    const token = 'target_refresh_token'
+    const hash = await sha256Hex(token)
+    const targetTenant: TenantContext = { ...TENANT, tenantId: 'tenant_target' }
+    const now = Date.now()
+    const row: SessionRow = {
+      id: sessionId,
+      tenant_id: 'tenant_target',
+      user_id: 'u_target',
+      refresh_token_hash: hash,
+      active_org_id: null,
+      device_fingerprint_hash: null,
+      device_name: null,
+      user_agent: null,
+      ip: null,
+      location: null,
+      status: 'active',
+      remember_me: 0,
+      is_impersonation: 0,
+      impersonator_user_id: null,
+      authenticated_at: now - 1000,
+      last_active_at: now,
+      expires_at: now + 3600_000,
+      created_at: now,
+    }
+    vi.mocked(resolveTenantContextBySessionHash).mockResolvedValueOnce({
+      ok: true,
+      value: { status: 'resolved', tenant: targetTenant },
+    })
+    const env = makeEnv(
+      makeFakeD1({
+        sessions: [row],
+        users: [tenantUser('u_target', 'tenant_target')],
+      }),
+      makeFakeSessionNs({ active: true }),
+    )
+
+    const { result } = await runWithContext(
+      env,
+      `__Host-xid.rt.${sessionId.slice(0, 8)}=${token}`,
+      async (c) => ({
+        session: await selectSessionById(c, sessionId),
+        tenantId: c.get('tenant').tenantId,
+      }),
+      ROOT_TENANT,
+    )
+
+    expect(resolveTenantContextBySessionHash).toHaveBeenCalledWith(expect.any(Request), env, hash)
+    expect(result.tenantId).toBe('tenant_target')
+    expect(result.session?.sessionId).toBe(sessionId)
+  })
+})
+
 describe('revokeSession', () => {
   it('调用 DO revoke + D1 update status=revoked + 清 cookie', async () => {
     const calls: { action: string; body: unknown }[] = []
@@ -1358,7 +1669,34 @@ describe('revokeSession', () => {
     expect(setCookie ?? '').toContain('Max-Age=0')
   })
 
-  it('SessionDO revoke 返回 500 时 fail closed:不清 cookie 也不改 D1 status', async () => {
+  it('clears the active-session pointer when revoking the selected session', async () => {
+    const env = makeEnv(makeFakeD1([]), makeFakeSessionNs({ active: true }))
+    const session: SessionData = {
+      sessionId: 's_active',
+      userId: 'u_active',
+      status: 'active',
+      activeOrgId: null,
+      authenticatedAt: new Date(),
+      lastActiveAt: new Date(),
+      expiresAt: new Date(Date.now() + 1000),
+      rememberMe: false,
+      isImpersonation: false,
+      impersonatorUserId: null,
+      acr: null,
+      amr: null,
+      aal: null,
+    }
+
+    const { setCookie } = await runWithContext(env, '__Host-xid.active=s_active', async (c) => {
+      await revokeSession(c, session)
+      return null
+    })
+
+    expect(setCookie ?? '').toContain('__Host-xid.rt.s_active=;')
+    expect(setCookie ?? '').toContain('__Host-xid.active=;')
+  })
+
+  it('SessionDO revoke 返回 500 时 fail closed:D1 已 revoked 且不清 cookie', async () => {
     const row: SessionRow = {
       id: 's_500',
       tenant_id: 't_1',
@@ -1404,6 +1742,6 @@ describe('revokeSession', () => {
     expect(error).toBeInstanceOf(AppError)
     expect(error).toMatchObject({ code: 'server_error' })
     expect(setCookie).toBeNull()
-    expect(row.status).toBe('active')
+    expect(row.status).toBe('revoked')
   })
 })

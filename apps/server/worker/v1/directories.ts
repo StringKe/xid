@@ -9,6 +9,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
 import { idAfterCursor, requireApiKey, paginate, parsePagination, requireOrg } from './shared'
@@ -82,7 +83,7 @@ app.post('/', async (c) => {
   const tokenHash = await sha256Hex(token)
 
   const row = await db.directories.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('directory'),
     tenantId: tenant.tenantId,
     orgId,
     provider: body.provider ?? 'generic',

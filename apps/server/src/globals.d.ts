@@ -1,14 +1,17 @@
-// 全局类型补充:Cloudflare Turnstile widget API + 运行时注入的公开配置。
+// 全局类型补充:Cloudflare Turnstile widget API。
 // Turnstile 通过 <script> 动态注入到 window.turnstile,不随 npm 包分发。
-// __XID_TURNSTILE_SITE_KEY__ 由 vite define 或 wrangler env 注入。
+// Site key 从同源 /auth/config 读取,不使用 build-time global。
 
 type TurnstileRenderOptions = {
   sitekey: string
   callback?: (token: string) => void
+  'expired-callback'?: () => void
   'error-callback'?: () => void
   'refresh-expired'?: 'auto' | 'manual' | 'never'
   theme?: 'light' | 'dark' | 'auto'
-  size?: 'normal' | 'compact' | 'invisible'
+  size?: 'normal' | 'flexible' | 'compact'
+  action?: string
+  appearance?: 'always' | 'execute' | 'interaction-only'
 }
 
 type TurnstileAPI = {
@@ -21,15 +24,12 @@ type TurnstileAPI = {
 declare global {
   interface Window {
     turnstile?: TurnstileAPI
-    __XID_TURNSTILE_SITE_KEY__?: string
   }
 
-  // globalThis 访问:Turnstile 脚本注入 + vite define 注入的公开配置。
-  // 用 var 声明使其挂到 typeof globalThis(globalThis.turnstile / globalThis.__XID_...)。
+  // Turnstile 脚本把 API 注入 globalThis。
+  // 用 var 声明使其挂到 typeof globalThis。
   // eslint-disable-next-line no-var
   var turnstile: TurnstileAPI | undefined
-  // eslint-disable-next-line no-var
-  var __XID_TURNSTILE_SITE_KEY__: string | undefined
 }
 
 export {}

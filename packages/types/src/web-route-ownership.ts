@@ -1,3 +1,5 @@
+import { FRONTEND_WORKER_SERVICE_BINDING_NAMES } from './env.ts'
+
 export const XID_APEX_HOST = 'xid.dev'
 export const XID_WWW_HOST = 'www.xid.dev'
 
@@ -20,6 +22,10 @@ export const SITE_EXACT_PATHS = [
   '/index.md',
   '/index.mdx',
   '/docs',
+  '/status',
+  '/status/',
+  '/status/index.md',
+  '/status/index.mdx',
   '/og.png',
   '/robots.txt',
   '/sitemap-index.xml',
@@ -84,6 +90,34 @@ export const CONSOLE_EXACT_PATH = '/console'
 export const CONSOLE_PREFIX_PATH = '/console/'
 export const CORE_UI_ASSET_PREFIX = '/_core/'
 export const WELL_KNOWN_LLMS_PATH = '/.well-known/llms.txt'
+
+export const CORE_SPA_ROUTE_PATHS = [
+  '/sign-in',
+  '/sign-up',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+  '/accept-invitation',
+  '/create-organization',
+  '/select-organization',
+  '/mfa',
+  '/consent',
+  '/activate',
+  '/ciba-activation',
+  '/account',
+  '/account/security',
+  '/account/connections',
+  '/account/sessions',
+  '/account/devices',
+] as const
+
+const CORE_SPA_ROUTE_PATH_SET = new Set<string>(CORE_SPA_ROUTE_PATHS)
+
+export function isCoreSpaRoute(pathname: string): boolean {
+  const normalized =
+    pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+  return CORE_SPA_ROUTE_PATH_SET.has(normalized)
+}
 
 export const CORE_RESERVED_EXACT_PATHS = [
   '/jwks',
@@ -415,6 +449,11 @@ export type ExpectedWorkerRoute = {
   customDomain: boolean
 }
 
+export type ExpectedWorkerServiceBinding = {
+  binding: string
+  service: string
+}
+
 const siteExactWorkerRoutes: ExpectedWorkerRoute[] = SITE_EXACT_PATHS.map((pathname) => ({
   pattern: `${XID_APEX_HOST}${pathname}`,
   customDomain: false,
@@ -478,5 +517,17 @@ export const EXPECTED_WORKER_ROUTE_CONFIGS: Readonly<
   core: [
     { pattern: XID_APEX_HOST, customDomain: true },
     { pattern: `*.${XID_APEX_HOST}/*`, customDomain: false },
+    { pattern: '*/*', customDomain: false },
+  ],
+}
+
+export const EXPECTED_WORKER_SERVICE_BINDINGS: Readonly<
+  Record<WebRouteOwner, readonly ExpectedWorkerServiceBinding[]>
+> = {
+  site: [],
+  console: [],
+  core: [
+    { binding: FRONTEND_WORKER_SERVICE_BINDING_NAMES.site, service: 'xid-site' },
+    { binding: FRONTEND_WORKER_SERVICE_BINDING_NAMES.console, service: 'xid-console' },
   ],
 }

@@ -16,7 +16,7 @@ sign in with their own company IdP (Okta, Azure AD, Google Workspace), and XID a
 - IdP-initiated: accept an IdP POST to the ACS and decide the landing page from the connection's
   `relay_state_url`
 - IdP metadata import: automatic fetch by URL (refreshed periodically) plus XML upload, parsing the
-  entityID, SSO URL, and certificate
+  entityID, SSO URL, SLO URL, and certificate
 - Attribute mapping: standard fields (email, firstName, lastName, idp_id) automatically, plus
   administrator-configured custom fields
 - Certificate management: an SP private key signs the AuthnRequest (optional); the IdP assertion
@@ -32,6 +32,12 @@ sign in with their own company IdP (Okta, Azure AD, Google Workspace), and XID a
 - RelayState is capped at 2 KB; anything longer is truncated and logged
 - The IdP metadata URL is polled and refreshed every 24 hours, and a certificate change fires an alert
   webhook
+- Every configured IdP SSO, SLO, metadata, and OIDC discovery URL MUST be public HTTPS. The management
+  write paths validate it, and the SAML/OIDC runtime validates stored rows again so a legacy or
+  directly imported record cannot bypass the boundary. Metadata fetches reject redirects, use a
+  bounded response, and enforce a timeout; SSO and optional SLO URLs parsed from metadata are
+  validated before they are persisted. Inbound SLO uses only the configured or metadata-derived
+  `SingleLogoutService`; it never guesses an endpoint from the SSO URL or EntityID
 
 ### Data model
 
@@ -47,7 +53,7 @@ chapter 08.
 | Inbound OIDC    | OIDC RP               | The same OIDC-capable IdPs                                                                                          | provider-ready      | Missing real IdP discovery, client config, and callback L4 |
 | Inbound SCIM    | SCIM Service Provider | An external IdP or directory                                                                                        | implemented         | Missing real provisioning into XID L4                      |
 | Downstream SAML | SAML IdP              | Slack, GitHub Enterprise Cloud, Microsoft custom app, Atlassian, Salesforce, Zoom                                   | local-mock verified | Missing real SaaS admin L4                                 |
-| Downstream OIDC | OIDC IdP              | Microsoft custom app, Salesforce, Zoom, and other OIDC-capable SaaS                                                 | provider-ready      | Missing SaaS-specific presets and real SaaS L4             |
+| Downstream OIDC | OIDC IdP              | Microsoft custom app, Salesforce, Zoom, and other OIDC-capable SaaS                                                 | provider-ready      | Missing automated SaaS OIDC registration and real SaaS L4  |
 | Outbound SCIM   | SCIM client           | Slack, GitHub Enterprise Cloud, Atlassian, Salesforce, Zoom                                                         | local-mock verified | Missing real SaaS SCIM target L4                           |
 
 ## 2. Downstream SaaS SSO (XID as the IdP)
@@ -61,28 +67,58 @@ issuing assertions or tokens to downstream SaaS.
 Current status: the outbound SAML IdP has shipped (local L1-L3). Public documentation does not promise
 that Slack, GitHub Enterprise, a Microsoft custom app, Atlassian, Salesforce, or Zoom are
 production-supported. The `saml_service_providers` schema is already in use as the downstream SP
-registry. Real SaaS L4 evidence, SaaS-specific preset UI, assignment UI, and a complete app catalog
-are all still missing.
+registry. The first six SaaS preset forms and the per-app user/role assignment gate are implemented
+in Console. Real SaaS L4 evidence, automated provider configuration, and a complete app catalog are
+still missing.
 
 Capabilities already shipped in the SAML IdP baseline:
 
 - IdP metadata XML: entityID, SSO URL, signing certificate, and NameIDFormat.
+- IdP signing certificate provisioning: creating a downstream SAML app without an explicit
+  `idp_signing_cert_id` reuses a valid tenant certificate or generates one, stores it in
+  `cert_store` with usage `saml_idp_signing`, and envelope-encrypts the private key under the
+  Workers Secret KEK. Runtime signing accepts valid `active` and `retiring` certificates; automatic
+  selection provisions from `active`, while `retiring` keeps an already configured app working
+  during trust rollover. Validity is read from the X.509 certificate rather than trusting nullable
+  database bounds. When the sole active IdP certificate is not yet valid or has 30 days or less
+  remaining, provisioning atomically changes that exact certificate to `retiring` and inserts its
+  replacement in one D1 batch. The active-certificate partial unique index applies only to
+  `saml_idp_signing`; it never changes SP signing or encryption certificate state.
 - SP registration: each downstream SaaS gets its own record of the ACS URL, SP EntityID, Audience,
-  Recipient, attribute mapping, and NameID policy.
+  Recipient, attribute mapping, and NameID policy. ACS and optional SLO URLs MUST be public HTTPS at
+  registration and are revalidated before assertion delivery or logout.
 - SSO endpoint: accepts an SP-initiated SAMLRequest or an IdP-initiated app launch, and verifies the
-  user session and org membership.
+  user session and org membership. SP-initiated requests pass the same secure XML precheck and a
+  dedicated closed AuthnRequest grammar before exact Issuer, Destination, HTTP-POST binding, and ACS
+  matching against the registered SP. Metadata currently advertises
+  `WantAuthnRequestsSigned=false`; unsigned requests are therefore accepted, while any embedded
+  XMLDSig or Redirect `Signature`/`SigAlg` that is present must verify against the SP certificates.
 - Assertion issuance: signs the Response and the Assertion, and sets Issuer, Subject, NameID,
   AudienceRestriction, Recipient, Destination, NotOnOrAfter, email, and name.
 - Verification: package-level XML signature tests, Worker route L2, and a fake SaaS SP at L3 are all
   covered. Real Slack, GitHub, Microsoft, Atlassian, Salesforce, and Zoom admin L4 evidence is still
   missing.
+- Preset and assignment UI: Console provides Slack, GitHub Enterprise Cloud, Microsoft custom app,
+  Atlassian, Salesforce, and Zoom presets, plus `all` or restricted user/role assignment gates.
+- Outbound SLO is browser-mediated. `/auth/sign-out` prepares the first signed HTTP-Redirect or
+  HTTP-POST LogoutRequest action, revokes the local XID session before returning, and never performs
+  a server-side fetch to an SP. The Core and Web UI SDKs execute that action in the user agent. A
+  missing or invalid stored SP endpoint is audited and skipped while selecting the first usable
+  action, so it cannot block local sign-out.
+- Every emitted LogoutRequest stores a one-time `ChallengeStore` context bound to the tenant, app,
+  request ID, SessionIndex, exact RelayState, same-origin return URL, and remaining SP targets. The
+  `/sso/outbound/saml/:appId/slo` callback requires a signed matching LogoutResponse from the
+  registered SP, consumes the context by `InResponseTo`, and rejects replay or RelayState mismatch.
+  A Success response revokes the mapped SAML session binding. A signed non-Success response is
+  audited without revoking that binding, but still advances to the next browser action so one SP
+  cannot block local logout from the others. When the chain is empty it redirects only to the
+  issuer-origin `/sign-in`.
 
 Capabilities still missing:
 
-- SaaS template UI: the first batch of templates for Slack, GitHub Enterprise Cloud, Microsoft custom
-  SAML app, Atlassian, Salesforce, and Zoom.
-- App assignment gate: fine-grained restriction of which users and groups can sign in, per org and
-  per app.
+- Automated provider-side setup and validation against real Slack, GitHub Enterprise Cloud,
+  Microsoft, Atlassian, Salesforce, and Zoom admin environments.
+- Directory-group assignment beyond the implemented explicit user-id and membership-role gate.
 - Groups/roles claim mapping: mapping XID membership or directory groups to the attribute each SaaS
   expects.
 
@@ -107,22 +143,49 @@ provisioning L4 MUST NOT be reused as outbound SCIM target L4.
 
 Capabilities already shipped in the outbound SCIM client baseline:
 
-- Target registration: each downstream SaaS gets its own record of the SCIM base URL, token secret
-  reference, attribute mapping, group mapping, and assignment gate.
-- Token storage: the SaaS SCIM bearer token is held only as a secret reference or under envelope
-  encryption, and logs and audit records MUST redact it.
-- Sync endpoint: `/scim/outbound/:targetId/sync` pushes Users and Groups and maps deactivation through
-  PATCH.
-- Verification: a fake SaaS SCIM at L3 covers Users push, Groups push, and the deactivation PATCH.
-  Real Slack, GitHub Enterprise, Atlassian, Salesforce, and Zoom admin L4 evidence is still missing.
+- Target registration: each downstream SaaS gets its own record of the SCIM base URL, server-derived
+  token secret reference, attribute mapping, group mapping, and assignment gate. The base URL MUST
+  be public HTTPS.
+- Token storage: the SaaS SCIM bearer token is held only in the target-specific Workers Secret
+  `SCIM_TARGET_TOKEN_<normalized target id>`. The API returns that required name after target
+  creation, rejects a caller-supplied `token_secret_ref`, and never lets tenant data select an
+  arbitrary Worker binding. Logs and audit records MUST redact the token.
+- Sync endpoints: `/scim/outbound/:targetId/sync` and
+  `/v1/organizations/:orgId/scim-targets/:targetId/sync` authorize the caller, enqueue one
+  `ScimSyncQueueMessage`, and return `202` with the stable `runId`; downstream HTTP never runs in the
+  request path.
+- Stable resource mapping: `scim_target_resources` binds each local User or role-derived Group to the
+  downstream SCIM `id`. A retry first uses that mapping; when it is absent or stale, the consumer
+  discovers by the deterministic `externalId` before creating anything. `POST` is therefore only the
+  last step after a zero-result discovery, while mapped resources use `PUT`.
+- Group payloads reference downstream User ids from the same target's mappings, never XID User ids.
+- Safe deprovision: only after every currently eligible User and Group upsert succeeds may the
+  consumer process mappings absent from the current Organization Membership plus assignment-gate
+  intersection. Stale Users receive `PATCH active=false`; stale role Groups are replaced with an
+  empty member set and retain their mapping for later reactivation. A partial run never deprovisions.
+- Retry and audit: network failures, `408`, `429`, and `5xx` retry through `SCIM_QUEUE`. `429` honors
+  either `Retry-After` delta-seconds or HTTP-date, clamped to the Queue delay range; other retries use
+  bounded exponential backoff. Accepted, retry-scheduled, succeeded, and terminal-failed transitions
+  carry the same `runId` through the append-only `AUDIT_QUEUE`; response bodies and bearer tokens are
+  never copied into audit payloads.
+- Verification: a fake SaaS SCIM at L3 covers discovery/create, mapped update, idempotent retry,
+  downstream-id Group members, deprovision, and `Retry-After` Queue behavior. Real Slack, GitHub
+  Enterprise, Atlassian, Salesforce, and Zoom admin L4 evidence is still missing.
+
+The SCIM consumer runs with `max_batch_size = 1` and `max_concurrency = 1`. This intentionally
+serializes target runs so two accepted requests cannot both observe an absent mapping and create the
+same downstream resource. Queue delivery is still at-least-once, so this serialization is not the
+idempotency mechanism by itself; deterministic `externalId` discovery plus the persisted mapping is.
+The mapping closes correctness for runs after this schema is deployed. It does not infer or mutate
+unknown historical SaaS accounts created before the mapping existed; production history cleanup is a
+separate, explicit reconciliation operation.
 
 Capabilities still missing:
 
 - SaaS template UI: the first batch of SCIM target templates for Slack, GitHub Enterprise Cloud,
   Atlassian, Salesforce, and Zoom.
-- Queue or Durable Object serialization, retry, rate limiting, conflict handling, cursors, and an
-  audit correlation id.
 - A fine-grained assignment gate and an attribute/group mapping UI.
+- Provider-specific bulk cursors and real-SaaS conflict/429 behavior validated at L4.
 
 ## 4. JIT provisioning
 
@@ -344,6 +407,19 @@ available, **degrade to hard-coded structural allowlist assertions on the critic
 only known elements at fixed positions inside Response and Assertion. Unknown extension points are
 never let through. This is P0 and "let it through now, handle it later" is not acceptable.
 
+The same closed grammar applies to SLO under both HTTP-POST and HTTP-Redirect. It MUST run immediately
+after secure parsing and before selecting or verifying any embedded or Redirect-binding signature.
+Every binding field is unique; duplicate `SAMLRequest`, `SAMLResponse`, or `RelayState` values reject.
+HTTP-Redirect verification signs the exact percent-encoded wire values rather than values
+re-serialized through a query parser. A LogoutRequest is accepted only inside its bounded
+IssueInstant/NotOnOrAfter window, and its request ID is claimed once until that window expires.
+The accepted `LogoutRequest` sequence is `Issuer`, optional `ds:Signature`, `NameID`, then zero or
+more protocol-namespace `SessionIndex` children. The accepted `LogoutResponse` sequence is `Issuer`,
+optional `ds:Signature`, then `Status`. Both roots use a closed attribute allowlist, require `ID`,
+`Version="2.0"`, and a valid `IssueInstant`; `LogoutResponse` also requires `InResponseTo`.
+`Extensions`, unknown or duplicate children, mixed content, and a signature moved outside its fixed
+position all reject with `schema_invalid` before signature verification.
+
 ### 9.3 Selecting the signature node (envelope versus assertion precedence)
 
 SAML allows signing the Response, the Assertion, or both. There are two connection-level switches
@@ -411,8 +487,11 @@ For the selected signature node:
 2. Canonicalize `ds:SignedInfo` with exclusive C14N and verify `ds:SignatureValue` with the
    certificate's public key (`crypto.subtle.verify`, RSASSA-PKCS1-v1_5 + SHA-256 and so on). Failure
    rejects.
-3. Certificate validity: check `notBefore` and `notAfter` (allowing the tolerance window configured on
-   the connection). Revocation checking (CRL/OCSP) is P1; the first release records the certificate
+3. Certificate validity: check `notBefore` and `notAfter`, using the connection's
+   `saml_clock_skew_ms` tolerance. The default is `180000` (+-3 minutes), the accepted range is
+   `0..300000`, and the same value is used for Assertion time checks. During rotation, invalid
+   certificates are ignored and any currently valid configured certificate may verify the
+   signature. Revocation checking (CRL/OCSP) is P1; the first release records the certificate
    fingerprint for incident response.
 4. **Once the signature verifies, extract data only from the element corresponding to the verified
    signature node** (the Assertion located in 9.4 step 2). Never call a document-wide
@@ -450,20 +529,28 @@ When the Response contains a `saml:EncryptedAssertion` in place of a plaintext A
 Validate the verified Assertion in order; any failure returns per 9.8:
 
 1. `saml:Issuer` equals the IdP EntityID configured on the connection (exact string match).
-2. `saml:Conditions/@NotBefore` <= now < `@NotOnOrAfter`, with a clock skew tolerance of +-3 minutes
-   (`NotOnOrAfter` is an exclusive upper bound).
+2. `saml:Conditions/@NotBefore` <= now < `@NotOnOrAfter`, using the connection's
+   `saml_clock_skew_ms` tolerance (default +-3 minutes, maximum +-5 minutes;
+   `NotOnOrAfter` is an exclusive upper bound).
 3. `saml:Conditions/saml:AudienceRestriction/saml:Audience` contains this SP's EntityID (the SP
    EntityID corresponding to our ACS, taken from TenantContext plus the connection).
-4. `saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData`: `@Recipient` equals our ACS
-   URL exactly; `@NotOnOrAfter` has not passed; `@InResponseTo` (in the SP-initiated case) equals an
-   AuthnRequest ID that we issued and have not consumed (stored in a Durable Object, single use,
-   replay defense). In the IdP-initiated case that attribute MUST be absent, and its presence rejects
-   (confusion defense).
-5. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` equals
+4. `saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData` MUST carry a non-empty
+   `@Recipient` and a syntactically valid `@NotOnOrAfter`. Missing, blank, or malformed values fail
+   closed. `@Recipient` equals our ACS URL exactly and `@NotOnOrAfter` has not passed, using the same
+   connection clock-skew tolerance. `@InResponseTo` (in the SP-initiated case) equals an AuthnRequest
+   ID that we issued and have not consumed (stored in a Durable Object, single use, replay defense).
+   In the IdP-initiated case that attribute MUST be absent, and its presence rejects (confusion
+   defense).
+5. A login Assertion MUST contain exactly one `saml:AuthnStatement`. Its `@AuthnInstant` is required
+   and MUST be a valid date-time. It MUST NOT be later than `now + saml_clock_skew_ms`, and it MUST
+   NOT predate the signed Assertion freshness window
+   (`Conditions/@NotBefore - saml_clock_skew_ms`). Missing, duplicate, malformed, future, or stale
+   authentication evidence fails closed.
+6. `samlp:Response/samlp:Status/samlp:StatusCode/@Value` equals
    `urn:oasis:names:tc:SAML:2.0:status:Success`, otherwise handle it as an IdP-reported error (403).
-6. Replay defense: record `Assertion/@ID` in the consumed set (a Durable Object, with TTL =
+7. Replay defense: record `Assertion/@ID` in the consumed set (a Durable Object, with TTL =
    `NotOnOrAfter` plus the skew window); a repeat rejects.
-7. Extract the NameID (the primary key idp_id, see section 1) and the mapped attributes (email,
+8. Extract the NameID (the primary key idp_id, see section 1) and the mapped attributes (email,
    firstName, lastName, groups) and enter JIT provisioning (section 4).
 
 ### 9.8 ACS endpoint error branches (HTTP status mapping)

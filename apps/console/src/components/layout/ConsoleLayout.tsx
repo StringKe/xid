@@ -18,6 +18,11 @@ import { useTheme } from '@xid-kit/web-ui/theme'
 import { BrandLogo } from '@xid-kit/web-ui/BrandLogo'
 import { LanguageSwitcher } from '../LanguageSwitcher'
 import { Alert, Button, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  returnFromImpersonation,
+  type ImpersonationEndResponse,
+} from '../../lib/impersonation-handoff'
+import { ActiveAnnouncementsBanner } from '../ActiveAnnouncementsBanner'
 
 // 单个侧栏导航项(to 为路由路径,label 已本地化)。
 // groupKey:稳定字符串键,相邻相同 groupKey 的 item 合并为同一分组(ReactNode 不可用 === 比较)。
@@ -508,6 +513,9 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
     user,
     activeOrg,
     organizations,
+    session,
+    api,
+    refresh,
     setActiveOrganization,
     signOut,
     openEmailVerification,
@@ -515,6 +523,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   const { t } = useLingui()
   const navigate = useNavigate()
   const [switchingOrganizationId, setSwitchingOrganizationId] = useState<string | null>(null)
+  const [endingImpersonation, setEndingImpersonation] = useState(false)
   const appName = brand.appName ?? 'XID'
 
   async function switchOrganization(organizationId: string): Promise<void> {
@@ -524,6 +533,19 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
     setSwitchingOrganizationId(null)
     if (!switched) return
     navigate(`/console/org?orgId=${encodeURIComponent(organizationId)}`, { replace: true })
+  }
+
+  async function endImpersonation(): Promise<void> {
+    if (endingImpersonation) return
+    setEndingImpersonation(true)
+    const ended = await api.post<ImpersonationEndResponse>('/auth/impersonation/end')
+    if (ended.ok) {
+      if (!returnFromImpersonation(ended.value.redirectUrl)) {
+        await refresh()
+        navigate('/console', { replace: true })
+      }
+    }
+    setEndingImpersonation(false)
   }
 
   return (
@@ -538,7 +560,8 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
             disabled={
               status !== 'authenticated' ||
               organizations.length === 0 ||
-              switchingOrganizationId !== null
+              switchingOrganizationId !== null ||
+              session?.isImpersonation === true
             }
             onChange={(event) => void switchOrganization(event.currentTarget.value)}
             value={activeOrg?.id ?? ''}
@@ -592,7 +615,29 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
       </aside>
 
       <main {...stylex.props(styles.content)}>
-        {user && !user.emailVerified ? (
+        <ActiveAnnouncementsBanner enabled={status === 'authenticated'} />
+        {session?.isImpersonation ? (
+          <section aria-label={t`Impersonation session`} {...stylex.props(styles.verificationBand)}>
+            <div {...stylex.props(styles.verificationNotice)}>
+              <div {...stylex.props(styles.verificationMessage)}>
+                <Alert tone="warning" title={<Trans>Impersonation session</Trans>}>
+                  <Trans>
+                    You are viewing this organization as another user. Management changes are
+                    disabled.
+                  </Trans>
+                </Alert>
+              </div>
+              <Button
+                variant="secondary"
+                isLoading={endingImpersonation}
+                onClick={() => void endImpersonation()}
+              >
+                <Trans>End impersonation</Trans>
+              </Button>
+            </div>
+          </section>
+        ) : null}
+        {user && !user.emailVerified && !session?.isImpersonation ? (
           <section
             aria-label={t`Email verification required`}
             {...stylex.props(styles.verificationBand)}

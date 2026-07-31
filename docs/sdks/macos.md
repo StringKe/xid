@@ -11,12 +11,12 @@ Uses the same implementation pattern as `sdk/ios`: `ASWebAuthenticationSession`,
 - `Xid.shared.configure` / `signIn` / `handleRedirect` / `getSession` / `getAccessToken` / `signOut` / `setTokenStorage`
 - `ASWebAuthenticationSession`-based Hosted Auth + OIDC Authorization Code + PKCE S256 flow
 - Authorization URL builder (`AuthorizationURLBuilder`)
-- `/token` authorization code exchange and refresh token rotation (`TokenEndpoint`)
+- `/token` authorization code + PKCE exchange (`TokenEndpoint`)
 - Keychain token storage (`KeychainTokenStorage`)
 - `TokenStorageAdapter` protocol for custom storage backends
 - OIDC discovery document fetch and cache (`OIDCDiscovery`)
 - state CSRF guard in `handleRedirect`
-- Automatic access token refresh in `getSession` / `getAccessToken`
+- Access-token reads while valid; expiry clears the local token session and requires authorization again
 
 ## Install
 
@@ -69,10 +69,13 @@ func application(_ app: NSApplication, open urls: [URL]) {
 - `configure(_ options:)` -- set issuer / clientId / redirectUri / scopes
 - `signIn(options:)` -- OIDC + PKCE via `ASWebAuthenticationSession`
 - `handleRedirect(_ url:)` -- handle authorization callback, exchange code for tokens
-- `getSession()` -- read current session (auto-refreshes near expiry)
-- `getAccessToken(forceRefresh:)` -- return valid access token
+- `getSession()` -- read the current session while its access token is valid
+- `getAccessToken(forceRefresh:)` -- return an unexpired token; expiry or forceRefresh requires authorization
 - `signOut(callEndSession:)` -- clear local session
 - `setTokenStorage(_:)` -- replace token persistence adapter
+
+The default scopes are `openid profile email`. The SDK does not implement DPoP yet, so it rejects
+`offline_access` before starting authorization and never sends an unbound refresh grant.
 
 ## Security
 
@@ -87,7 +90,7 @@ func application(_ app: NSApplication, open urls: [URL]) {
 - **ID token signature verification**: implemented via `JwksCache` + `IDTokenVerifier` on login path; `IDTokenDecoder` remains decode-only for session restore.
 - **`/end_session` network call**: implemented via `EndSessionClient` when `signOut(callEndSession: true)`.
 - **`/userinfo` fallback**: implemented via `UserInfoClient` when ID token claims are insufficient.
-- **Concurrent refresh race**: multiple simultaneous `getAccessToken()` calls may each trigger a refresh; needs a lock.
+- **Access-token renewal**: DPoP is not implemented; an expired token requires a new Hosted Auth authorization.
 - **Swift strict concurrency**: some `@unchecked Sendable` annotations are temporary; need actor model.
 - **Real IdP round-trip**: L4 end-to-end test against a running XID server endpoint not yet done.
 - **Shared Swift core with `sdk/ios`**: the two packages share the same implementation pattern but have not yet been refactored into a shared Swift package.
@@ -105,7 +108,7 @@ sdk/macos/
     PKCE.swift                 PKCE S256 (CryptoKit SHA-256)
     TokenStorage.swift         TokenStorageAdapter protocol + KeychainTokenStorage
     OIDCDiscovery.swift        OIDC discovery document load and cache
-    TokenEndpoint.swift        /token endpoint: authorization_code + refresh_token grant
+    TokenEndpoint.swift        /token endpoint: authorization_code + PKCE grant
     IDTokenDecoder.swift       ID token payload decode (no signature verification -- see Known limits)
     AuthorizationSession.swift ASWebAuthenticationSession + authorization URL builder
   Tests/XidTests/

@@ -16,9 +16,13 @@ Implementation: `packages/db/src/tenant-db.ts` and `packages/db/src/schema/`. De
 
 ## Scoped query layer API
 
-- `createTenantDb(d1, ctx)` -> `TenantDb`: one `TenantScoped` accessor per tenant table (51 tables in `TENANT_TABLES`), plus `tenantId` and `forOrg(orgId)`.
+- `createTenantDb(d1, ctx)` -> `TenantDb`: one `TenantScoped` accessor per tenant table (53 tables in `TENANT_TABLES`), plus `tenantId` and `forOrg(orgId)`.
 - `TenantScoped<T>` exposes only pre-scoped operations: `findMany`, `findOne`, `count`, `countDistinct`, `countBy`, `insert`, `insertMany`, `insertManyIgnore`, `update`, `hardDelete`. There is no raw query builder to escape through, and a caller-supplied `SQL` predicate is `AND`-ed onto the tenant predicate, so it can only narrow.
-- `forOrg(orgId)` -> `OrgScopedDb`: the 8 entities that carry a real `org_id` column (`projects`, `orgPolicies`, `memberships`, `invitations`, `organizationDomains`, `ssoConnections`, `directories`, `scimTargets`) re-scoped to `tenant_id + org_id`. `applications` belongs to an org indirectly through `project_id` and is deliberately not in this list.
+- `forOrg(orgId)` -> `OrgScopedDb`: the 10 entities that carry a real `org_id` column
+  (`projects`, `orgPolicies`, `memberships`, `invitations`, `organizationDomains`,
+  `ssoConnections`, `directories`, `scimTargets`, `scimTargetResources`, `customHostnames`)
+  re-scoped to `tenant_id + org_id`. `applications` belongs to an org indirectly through
+  `project_id` and is deliberately not in this list.
 - The method is named `hardDelete` on purpose: soft delete is a column-level concern (`deleted_at`, see `docs/soft-delete.md`), so a physical delete has to be spelled out.
 
 ## Isolation principles
@@ -43,7 +47,12 @@ Every "unique within a tenant" constraint is a composite UNIQUE whose **first co
 | `roles`               | `UNIQUE (tenant_id, project_id, key)`            |
 | `permissions`         | `UNIQUE (tenant_id, project_id, key)`            |
 
-SQLite treats multiple NULLs in a UNIQUE index as distinct, so `username` and `external_id` stay nullable while the constraint still holds. Two constraints are deliberately global, not per-tenant: `organization_domains.domain` (a domain can be claimed by exactly one org) and `refresh_tokens.token_hash`.
+SQLite treats multiple NULLs in a UNIQUE index as distinct, so `username` and `external_id` stay
+nullable while the constraint still holds. The deliberately global constraints are
+`organization_domains.domain`, `custom_hostnames.hostname`,
+`custom_hostnames.cloudflare_hostname_id`, and `refresh_tokens.token_hash`. A concrete customer DNS
+name and one Cloudflare object can be bound only once; an explicit custom-hostname delete preserves
+the hostname tombstone to prevent cross-tenant stale-DNS takeover.
 
 ## How isolation shows up in the product
 

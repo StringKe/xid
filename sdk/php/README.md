@@ -1,5 +1,8 @@
 # xid/xid -- PHP Server SDK
 
+> Registry status: UNPUBLISHED. No Packagist release is verified or authorized.
+> Use a Composer path repository from a source checkout.
+
 **Status: implemented (verified locally)**
 本机 `run-tests.php` 与 PHPUnit 全部 PASS(见 `docs/sdks/platform-matrix.md`)。核心流程已完整。
 真实 IdP round-trip(L4)尚未验证,生产使用前请完成以下外部/延迟项。
@@ -8,9 +11,20 @@
 
 ## 安装
 
-```bash
-composer require xid/xid
+在应用 `composer.json` 中添加本地 path repository:
+
+```json
+{
+  "repositories": [
+    { "type": "path", "url": "../xid/sdk/php" }
+  ],
+  "require": {
+    "xid/xid": "dev-main"
+  }
+}
 ```
+
+然后运行 `composer update xid/xid`。
 
 **运行时依赖:**
 
@@ -46,6 +60,10 @@ $xid = new XidClient([
 ]);
 ```
 
+默认不读取任何 cookie。只有显式设置
+`'cookie_name' => '__Host-myapp.xid-jwt'` 时,请求认证才会读取这个应用自己持有的 JWT
+cookie。`__Host-xid.rt.*` 是 opaque Core browser session,SDK 不会扫描或本地验证它。
+
 ### 2. 验证 JWT access token
 
 ```php
@@ -73,7 +91,7 @@ try {
 ### 3. 认证 PSR-7 请求
 
 ```php
-// 提取顺序: Authorization: Bearer <token> -> cookie __xid_session
+// 默认只读取 Authorization: Bearer <token>
 $result = $xid->authenticateRequest($psrRequest);
 
 if ($result->isAuthenticated()) {
@@ -84,7 +102,32 @@ if ($result->isAuthenticated()) {
 }
 ```
 
-### 4. 验证 Webhook 签名
+### 4. 将 Core browser session 交换为 JWT
+
+```php
+use Xid\Http\SessionTokenHttpResponse;
+use Xid\Http\SessionTokenTransport;
+
+$transport = new class implements SessionTokenTransport {
+    public function post(string $url, string $cookieHeader): SessionTokenHttpResponse
+    {
+        // 用应用的 HTTP client 发送 POST,不跟随 redirect。
+        return new SessionTokenHttpResponse($statusCode, $responseBody);
+    }
+};
+
+$token = $xid->exchangeSessionToken(
+    'https://app.example.com/account',
+    $psrRequest->getHeaderLine('Cookie'),
+    $transport,
+);
+```
+
+PHP SDK 通过显式 transport adapter 发送请求,但仍强制 exact same-origin
+`POST /v1/sessions/token`,完整转发 `Cookie` header,并且只接受 HTTP 200 与 exact
+`{"token":"..."}` response。
+
+### 5. 验证 Webhook 签名
 
 ```php
 use Xid\Exception\WebhookException;
@@ -101,7 +144,7 @@ try {
 }
 ```
 
-### 5. Laravel / Symfony 集成示例(骨架)
+### 6. Laravel / Symfony 集成示例(骨架)
 
 ```php
 // Laravel Middleware 示例
@@ -143,7 +186,7 @@ new XidClient(array $config)
 | `cache`        | CacheInterface\|null | 否   | null            | PSR-16 缓存实现             |
 | `jwks_ttl`     | int                  | 否   | 3600            | JWKS 缓存 TTL(秒)           |
 | `clock_leeway` | int                  | 否   | 0               | JWT 时钟偏差容忍(秒)        |
-| `cookie_name`  | string               | 否   | `__xid_session` | Session cookie 名称         |
+| `cookie_name`  | string\|null          | 否   | null            | 应用自有 JWT cookie;null 禁用 fallback |
 | `http_client`  | ClientInterface\|null | 否  | null            | PSR-18 HTTP client(JWKS)    |
 | `request_factory` | RequestFactoryInterface\|null | 否 | null     | 与 http_client 配套         |
 | `logger`       | LoggerInterface\|null | 否  | null            | JWKS 失败时记录 warning     |
@@ -154,6 +197,7 @@ new XidClient(array $config)
 | ---------------------------------------------------------------- | ---------------- | ------------------------ |
 | `verifyToken(string $token)`                                     | `Claims`         | 验证 JWT 字符串          |
 | `authenticateRequest(ServerRequestInterface $request)`           | `AuthResult`     | 认证 PSR-7 请求,不抛异常 |
+| `exchangeSessionToken(string $incomingRequestUrl, string $cookieHeader, SessionTokenTransport $transport, ?string $endpoint = null)` | string | Core session -> JWT |
 | `verifyWebhook(ServerRequestInterface $request, string $secret)` | `WebhookPayload` | 验证 webhook 签名        |
 | `refreshJwks()`                                                  | void             | 强制刷新 JWKS 缓存       |
 
@@ -206,6 +250,7 @@ $payload->get(string $key): mixed
 | `Xid\Exception\XidException`     | 基类,可统一 catch              |
 | `Xid\Exception\TokenException`   | JWT 验证失败(签名/claims/过期) |
 | `Xid\Exception\JwksException`    | JWKS 拉取或解析失败            |
+| `Xid\Exception\SessionTokenExchangeException` | session exchange 失败 |
 | `Xid\Exception\WebhookException` | Webhook 签名验证失败或重放     |
 
 ---

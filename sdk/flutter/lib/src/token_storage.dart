@@ -18,7 +18,7 @@ abstract class TokenStorageAdapter {
 }
 
 /// 相同物理存储空间的 adapter 实现此接口并返回相同值,
-/// 以便多个 [XidClient] 共享 refresh single-flight。
+/// 以便多个 [XidClient] 串行消费一次性授权状态。
 abstract interface class TokenStorageNamespace {
   String get storageNamespace;
 }
@@ -106,11 +106,13 @@ class PendingAuthData {
   final String state;
   final String codeVerifier;
   final String codeChallenge;
+  final String nonce;
 
   const PendingAuthData({
     required this.state,
     required this.codeVerifier,
     required this.codeChallenge,
+    required this.nonce,
   });
 }
 
@@ -129,24 +131,12 @@ class SessionStore {
         }));
   }
 
-  Future<void> markRefreshPending() async {
-    await _adapter.write(
-        _StorageKey.session, jsonEncode({'state': 'refresh_pending'}));
-  }
-
   Future<XidSessionData?> loadSession() async {
     final encoded = await _adapter.read(_StorageKey.session);
     if (encoded == null) return null;
     final record = jsonDecode(encoded) as Map<String, dynamic>;
     if (record['state'] != 'active') return null;
     return XidSessionData.fromJson(record['data'] as Map<String, dynamic>);
-  }
-
-  Future<bool> isRefreshPending() async {
-    final encoded = await _adapter.read(_StorageKey.session);
-    if (encoded == null) return false;
-    final record = jsonDecode(encoded) as Map<String, dynamic>;
-    return record['state'] == 'refresh_pending';
   }
 
   Future<void> clearSession() => _adapter.clear();
@@ -176,6 +166,7 @@ class SessionStore {
         'state': data.state,
         'codeVerifier': data.codeVerifier,
         'codeChallenge': data.codeChallenge,
+        'nonce': data.nonce,
       }),
     );
   }
@@ -191,16 +182,20 @@ class SessionStore {
       final storedState = record['state'];
       final codeVerifier = record['codeVerifier'];
       final codeChallenge = record['codeChallenge'];
+      final nonce = record['nonce'];
       if (storedState is! String ||
           storedState != state ||
           codeVerifier is! String ||
-          codeChallenge is! String) {
+          codeChallenge is! String ||
+          nonce is! String ||
+          nonce.isEmpty) {
         return null;
       }
       return PendingAuthData(
         state: storedState,
         codeVerifier: codeVerifier,
         codeChallenge: codeChallenge,
+        nonce: nonce,
       );
     } catch (_) {
       return null;
@@ -245,6 +240,8 @@ class XidGuestSessionData {
 class XidSessionData {
   final String accessToken;
   final String? idToken;
+
+  /// Backward-compatible serialized field. New public-client sessions store null.
   final String? refreshToken;
   final DateTime expiresAt;
   final List<String> scopes;

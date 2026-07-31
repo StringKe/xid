@@ -5,6 +5,7 @@ edition = "2021"
 description = "XID identity platform server-side SDK for Rust"
 license = "MIT"
 repository = "https://github.com/StringKe/xid"
+readme = "README.md"
 keywords = ["xid", "auth", "jwt", "oidc", "identity"]
 categories = ["authentication", "web-programming"]
 

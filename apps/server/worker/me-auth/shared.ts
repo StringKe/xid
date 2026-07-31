@@ -4,6 +4,7 @@
 // 铁律:tenant 从 c.get('tenant') 取;D1 走 createTenantDb 租户层;枚举防护统一模糊响应。
 
 import type { Context } from 'hono'
+import { TURNSTILE_ACTION } from '../../shared/turnstile'
 import { AppError } from '../lib/errors'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { ACTIVE_SESSION_STATUS, readSession } from '../lib/session'
@@ -69,8 +70,31 @@ const TURNSTILE_SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0
 // siteverify 在登录关键路径上,超时必须短,避免 Cloudflare 侧抖动拖垮认证 P99。
 const TURNSTILE_VERIFY_TIMEOUT_MS = 5000
 
+type TurnstileConfiguration = {
+  siteKey: string
+  secret: string
+}
+
+function configuredValue(value: string | undefined): string | null {
+  const normalized = value?.trim() ?? ''
+  return normalized.length > 0 ? normalized : null
+}
+
+// Site key 与 secret 是一项原子配置。只配其中一项会让前端无法取 token 或让后端
+// 无法验证 token,所以不允许静默降级为未启用。
+export function turnstileConfiguration(env: Env): TurnstileConfiguration | null {
+  const siteKey = configuredValue(env.TURNSTILE_SITE_KEY)
+  const secret = configuredValue(env.TURNSTILE_SECRET)
+  if ((siteKey === null) !== (secret === null)) throw new AppError('server_error')
+  return siteKey && secret ? { siteKey, secret } : null
+}
+
+export function publicTurnstileSiteKey(env: Env): string | null {
+  return turnstileConfiguration(env)?.siteKey ?? null
+}
+
 // Turnstile 校验(01 章 7:登录/注册/密码重置/OTP 发送介入点)。
-// TURNSTILE_SECRET 未配置时跳过(dev/test 友好);已配置则强制 siteverify 真校验。
+// site key + secret 均未配置时跳过(dev/test 友好);已配置则强制 siteverify 真校验。
 // 失败统一抛模糊认证错误(captcha_required / captcha_failed),不区分用户存在性;
 // 远端失败原因只进 cause 供服务端日志,不外泄给客户端(枚举防护,见 anti-abuse rule)。
 export async function verifyTurnstile(
@@ -78,22 +102,22 @@ export async function verifyTurnstile(
   env: Env,
   ip?: string | null,
 ): Promise<void> {
-  const secret = env.TURNSTILE_SECRET
-  if (!secret) return
+  const config = turnstileConfiguration(env)
+  if (!config) return
   if (!token) throw new AppError('captcha_required')
-  const body = new URLSearchParams({ secret, response: token })
+  const body = new URLSearchParams({ secret: config.secret, response: token })
   if (ip) body.set('remoteip', ip)
-  let success = false
+  let verified = false
   try {
     const res = await fetch(TURNSTILE_SITEVERIFY_URL, {
       method: 'POST',
       body,
       signal: AbortSignal.timeout(TURNSTILE_VERIFY_TIMEOUT_MS),
     })
-    const result = (await res.json()) as { success?: boolean }
-    success = result.success === true
+    const result = (await res.json()) as { success?: boolean; action?: string }
+    verified = result.success === true && result.action === TURNSTILE_ACTION
   } catch (err) {
     throw new AppError('captcha_failed', { cause: err })
   }
-  if (!success) throw new AppError('captcha_failed')
+  if (!verified) throw new AppError('captcha_failed')
 }

@@ -17,6 +17,8 @@ export {
   resolveInstanceLogin,
   resolveInstanceLoginCandidates,
   resolveTenantContextById,
+  resolveTenantContextByIdInInstance,
+  resolveTenantContextByApplicationClientId,
   resolveTenantContextByIssuer,
   resolveTenantContextBySessionHash,
   resolveTenantContextBySsoConnection,

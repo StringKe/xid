@@ -15,6 +15,7 @@ import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { readJsonBody, validateBody } from '../lib/validate'
+import { recordPlatformAudit } from './audit-outbox'
 import { managementDb, requireInstanceManager } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -134,7 +135,7 @@ app.get('/', async (c) => {
 })
 
 app.patch('/', async (c) => {
-  await requireInstanceManager(c)
+  const session = await requireInstanceManager(c)
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
   const body = validateBody(patchSettingsBodySchema, json.value)
@@ -162,6 +163,16 @@ app.patch('/', async (c) => {
     .where(eq(schema.instances.id, current.id))
     .returning()
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
+  await recordPlatformAudit(c.env, {
+    tenantId: 'platform',
+    action: 'platform.settings_changed',
+    actorId: session.userId,
+    payload: {
+      targetType: 'instance',
+      targetId: row.id,
+      fields: Object.keys(body),
+    },
+  })
 
   return c.json(mapInstance(row))
 })

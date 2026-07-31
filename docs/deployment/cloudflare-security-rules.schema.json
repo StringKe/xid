@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xid:cloudflare-security-rules:v1",
+  "title": "XID Cloudflare zone security rule manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "deploymentState",
+    "scope",
+    "planLimits",
+    "authoritativeBusinessLimiter",
+    "sourceDocumentation",
+    "rulesets"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./cloudflare-security-rules.schema.json"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "deploymentState": {
+      "enum": ["EXTERNAL", "RECONCILED"]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "zoneName", "minimumWafPlan"],
+      "properties": {
+        "type": {
+          "const": "zone"
+        },
+        "zoneName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minimumWafPlan": {
+          "const": "free"
+        }
+      }
+    },
+    "planLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["customRules", "rateLimitingRules"],
+      "properties": {
+        "customRules": {
+          "const": 5
+        },
+        "rateLimitingRules": {
+          "const": 1
+        }
+      }
+    },
+    "authoritativeBusinessLimiter": {
+      "const": "RateLimitStore"
+    },
+    "sourceDocumentation": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "rulesets": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase", "kind", "rules"],
+        "properties": {
+          "phase": {
+            "enum": ["http_request_firewall_custom", "http_ratelimit"]
+          },
+          "kind": {
+            "const": "zone"
+          },
+          "rules": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "description", "expression", "action", "enabled"],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^xid-[a-z0-9-]+$"
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "expression": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "action": {
+                  "const": "block"
+                },
+                "enabled": {
+                  "const": true
+                },
+                "ratelimit": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "characteristics",
+                    "period",
+                    "requests_per_period",
+                    "mitigation_timeout"
+                  ],
+                  "properties": {
+                    "characteristics": {
+                      "const": ["cf.colo.id", "ip.src"]
+                    },
+                    "period": {
+                      "const": 10
+                    },
+                    "requests_per_period": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "mitigation_timeout": {
+                      "const": 10
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

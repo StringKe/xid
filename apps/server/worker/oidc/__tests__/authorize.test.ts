@@ -6,7 +6,7 @@ import type { TenantContext } from '@xid-kit/types'
 import { exportPublicJwk, importJwkForVerify, signJwt, verifyJwt } from '@xid-kit/crypto'
 import { leftHalfHash } from '@xid-kit/protocol'
 import type { SessionData } from '../../lib/types'
-import { issueStepUpToken, type StepUpPasskeyAssurance } from '../../auth/mfa'
+import { issueStepUpToken } from '../../auth/mfa'
 import { registerAuthorizeRoutes } from '../authorize'
 import {
   buildTestTenant,
@@ -130,7 +130,6 @@ async function stepUpCookie(
     userId?: string
     sessionId?: string
     method?: 'totp' | 'backup' | 'sms' | 'passkey'
-    passkeyAssurance?: StepUpPasskeyAssurance
   } = {},
 ): Promise<string> {
   const { token } = await issueStepUpToken({
@@ -138,16 +137,8 @@ async function stepUpCookie(
     sessionId: input.sessionId ?? 's_1',
     method: input.method ?? 'totp',
     pepperRaw: PEPPER_RAW,
-    passkeyAssurance: input.passkeyAssurance,
   })
   return `__Host-xid.acr=${token}`
-}
-
-const AAL3_PASSKEY_ASSURANCE: StepUpPasskeyAssurance = {
-  userVerified: true,
-  credentialBackedUp: false,
-  credentialDeviceType: 'singleDevice',
-  enterpriseAttestationVerified: false,
 }
 
 async function verifyIdPayload(
@@ -323,14 +314,9 @@ describe('/authorize', () => {
     expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
   })
 
-  it('acr_values 请求 AAL3 + AAL1 session -> 暂存请求并 302 到 passkey step-up MFA', async () => {
+  it('acr_values 请求 AAL3 -> 立即明确返回无法满足且不进入登录或 MFA', async () => {
     const { ctx } = await buildTestTenant()
-    const { app, env, capture, stored } = setup({ applications: [appRow()] }, ctx, {
-      ...session(),
-      acr: 'urn:xid:aal1',
-      amr: ['pwd'],
-      aal: 1,
-    })
+    const { app, env, capture, stored } = setup({ applications: [appRow()] }, ctx, null)
     const res = await app.request(
       authorizeUrl({ ...PKCE_PARAMS, acr_values: 'urn:xid:aal3' }),
       {},
@@ -339,75 +325,34 @@ describe('/authorize', () => {
 
     expect(res.status).toBe(302)
     const location = new URL(res.headers.get('location') ?? '')
-    expect(location.pathname).toBe('/mfa')
-    expect(location.searchParams.get('step_up')).toBe('1')
-    expect(location.searchParams.get('method')).toBe('passkey')
-    expect(location.searchParams.get('require_aal3')).toBe('1')
-    expect(stored).toHaveLength(1)
+    expect(location.origin + location.pathname).toBe('https://rp.example/cb')
+    expect(location.searchParams.get('error')).toBe('interaction_required')
+    expect(location.searchParams.get('error_description')).toContain('not supported')
+    expect(location.searchParams.get('state')).toBe('st_abc')
+    expect(stored).toHaveLength(0)
     expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
   })
 
-  it('acr_values 请求 AAL3 + 有效 passkey step-up cookie -> 签发 AAL3 code', async () => {
+  it('claims.id_token.acr 请求 AAL3 -> 明确返回无法满足', async () => {
     const { ctx } = await buildTestTenant()
     const sess = { ...session(), acr: 'urn:xid:aal1', amr: ['pwd'] as const, aal: 1 }
     const { app, env, capture } = setup({ applications: [appRow()] }, ctx, sess)
-    const res = await app.request(
-      authorizeUrl({ ...PKCE_PARAMS, acr_values: 'urn:xid:aal3' }),
-      {
-        headers: {
-          Cookie: await stepUpCookie({
-            method: 'passkey',
-            passkeyAssurance: AAL3_PASSKEY_ASSURANCE,
-          }),
-        },
-      },
-      env,
-    )
+    const claims = JSON.stringify({ id_token: { acr: { value: 'urn:xid:aal3' } } })
+    const res = await app.request(authorizeUrl({ ...PKCE_PARAMS, claims }), {}, env)
 
     expect(res.status).toBe(302)
     const location = new URL(res.headers.get('location') ?? '')
-    expect(location.searchParams.get('code')).toMatch(/^ac_/)
-    const insert = capture.inserts.find((i) => i.table === 'authorization_codes')
-    expect(insert?.params).toContain('urn:xid:aal3')
-    expect(insert?.params).toContain(JSON.stringify(['pwd', 'phr', 'mfa']))
+    expect(location.searchParams.get('error')).toBe('interaction_required')
+    expect(location.searchParams.get('error_description')).toContain('not supported')
+    expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
   })
 
-  it('acr_values 请求 AAL3 + backed-up passkey step-up cookie -> 仅签发 AAL2 code', async () => {
+  it('已有 legacy AAL3 session 也不能满足新的 AAL3 请求', async () => {
     const { ctx } = await buildTestTenant()
-    const sess = { ...session(), acr: 'urn:xid:aal1', amr: ['pwd'] as const, aal: 1 }
+    const sess = { ...session(), acr: 'urn:xid:aal3', amr: ['phr', 'mfa'] as const, aal: 3 }
     const { app, env, capture } = setup({ applications: [appRow()] }, ctx, sess)
     const res = await app.request(
       authorizeUrl({ ...PKCE_PARAMS, acr_values: 'urn:xid:aal3' }),
-      {
-        headers: {
-          Cookie: await stepUpCookie({
-            method: 'passkey',
-            passkeyAssurance: {
-              ...AAL3_PASSKEY_ASSURANCE,
-              credentialBackedUp: true,
-            },
-          }),
-        },
-      },
-      env,
-    )
-
-    expect(res.status).toBe(302)
-    const insert = capture.inserts.find((i) => i.table === 'authorization_codes')
-    expect(insert?.params).toContain('urn:xid:aal2')
-    expect(insert?.params).not.toContain('urn:xid:aal3')
-  })
-
-  it('prompt=none + unmet acr_values AAL3 -> redirect error interaction_required', async () => {
-    const { ctx } = await buildTestTenant()
-    const { app, env, capture } = setup({ applications: [appRow()] }, ctx, {
-      ...session(),
-      acr: 'urn:xid:aal1',
-      amr: ['pwd'],
-      aal: 1,
-    })
-    const res = await app.request(
-      authorizeUrl({ ...PKCE_PARAMS, prompt: 'none', acr_values: 'urn:xid:aal3' }),
       {},
       env,
     )
@@ -416,6 +361,22 @@ describe('/authorize', () => {
     const location = new URL(res.headers.get('location') ?? '')
     expect(location.searchParams.get('error')).toBe('interaction_required')
     expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
+  })
+
+  it('普通请求不会把 legacy AAL3 session 重新写入 authorization code', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env, capture } = setup({ applications: [appRow()] }, ctx, {
+      ...session(),
+      acr: 'urn:xid:aal3',
+      amr: ['phr', 'mfa'],
+      aal: 3,
+    })
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+
+    expect(res.status).toBe(302)
+    const insert = capture.inserts.find((i) => i.table === 'authorization_codes')
+    expect(insert?.params).toContain('urn:xid:aal2')
+    expect(insert?.params).not.toContain('urn:xid:aal3')
   })
 
   it('prompt=none + unmet acr_values AAL2 -> redirect error interaction_required', async () => {
@@ -672,7 +633,7 @@ describe('/authorize', () => {
             status: 'active',
           },
         ],
-        projects: [{ id: 'proj_a', tenant_id: 't_1', org_id: 'org_a' }],
+        projects: [{ id: 'proj_a', tenant_id: 't_1', org_id: 'org_a', status: 'active' }],
         project_grants: [
           {
             id: 'grant_1',
@@ -731,6 +692,16 @@ describe('/authorize errors', () => {
     )
     expect(res.status).toBe(400)
     expect(res.headers.get('location')).toBeNull()
+  })
+
+  it('重复 client_id -> 本地错误页且不采用后一个值', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = setup({ applications: [appRow()] }, ctx, session())
+    const url = `${authorizeUrl(PKCE_PARAMS)}&client_id=attacker_client`
+    const res = await app.request(url, {}, env)
+    expect(res.status).toBe(400)
+    expect(res.headers.get('location')).toBeNull()
+    expect(await res.text()).toContain('duplicate authorization request parameter')
   })
 
   it('redirect_uri 不精确匹配时不执行 Grant 重定向错误', async () => {
@@ -960,7 +931,7 @@ describe('/authorize errors', () => {
             status: 'active',
           },
         ],
-        projects: [{ id: 'proj_a', tenant_id: 't_1', org_id: 'org_a' }],
+        projects: [{ id: 'proj_a', tenant_id: 't_1', org_id: 'org_a', status: 'active' }],
       },
       ctx,
       activeOrgSession(),

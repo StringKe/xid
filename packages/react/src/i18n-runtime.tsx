@@ -109,6 +109,10 @@ export const sdkMessages = {
     id: 'sdk.signOut',
     message: 'Sign out',
   },
+  signOutFailed: /*i18n*/ {
+    id: 'sdk.signOutFailed',
+    message: 'Could not sign out. Try again.',
+  },
   signUp: /*i18n*/ {
     id: 'sdk.signUp',
     message: 'Sign up',

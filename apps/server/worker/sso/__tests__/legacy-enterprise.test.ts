@@ -90,6 +90,9 @@ function makeConnection(protocol: string, overrides: Record<string, unknown> = {
       _legacy: {
         trustedProxySecret: 'proxy-secret',
         ldapGatewayUrl: 'https://ldap-gw.example.com/bind',
+        wsfedRealm: 'urn:xid:test:wsfed',
+        wsfedReplyUrl: 'https://tenant-1.xid.dev/sso/wsfed/{connectionId}/callback',
+        wsfedAllowIdpInitiated: true,
       },
       _swaVault: {
         'vault.user@example.com': {
@@ -146,16 +149,70 @@ function buildApp() {
   return app
 }
 
+function makeAllowedRateLimiter(): DurableObjectNamespace {
+  return {
+    idFromName: (name: string) => name as unknown as DurableObjectId,
+    get: () => ({
+      fetch: () =>
+        Promise.resolve(Response.json({ allowed: true, retryAfter: 0, count: 1 }, { status: 200 })),
+    }),
+  } as unknown as DurableObjectNamespace
+}
+
+function makeChallengeStore(): DurableObjectNamespace {
+  return {
+    idFromName: (name: string) => name as unknown as DurableObjectId,
+    get: () => ({
+      fetch: (_url: string | URL | Request, init?: RequestInit) =>
+        Promise.resolve(new Response(null, { status: init?.method === 'POST' ? 201 : 404 })),
+    }),
+  } as unknown as DurableObjectNamespace
+}
+
+function makeOauthStateStore(): DurableObjectNamespace {
+  const records = new Map<string, Record<string, unknown>>()
+  return {
+    idFromName: (name: string) => name as unknown as DurableObjectId,
+    get: () => ({
+      fetch: async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+        const state = typeof body['state'] === 'string' ? body['state'] : ''
+        if (String(url).endsWith('/store')) {
+          records.set(state, {
+            state,
+            ...(typeof body['tenantId'] === 'string' ? { tenantId: body['tenantId'] } : {}),
+            ...(typeof body['connectionId'] === 'string'
+              ? { connectionId: body['connectionId'] }
+              : {}),
+            ...(typeof body['createdAt'] === 'number' ? { createdAt: body['createdAt'] } : {}),
+          })
+          return new Response(null, { status: 201 })
+        }
+        const record = records.get(state)
+        if (!record) return new Response(null, { status: 404 })
+        records.delete(state)
+        return Response.json({ record })
+      },
+    }),
+  } as unknown as DurableObjectNamespace
+}
+
 const fakeEnv = {
   DB: {},
   ENVIRONMENT: 'test',
   KEK: INSTANCE_KEK,
+  RATE_LIMITER: makeAllowedRateLimiter(),
+  WEBAUTHN_CHALLENGE: makeChallengeStore(),
+  OAUTH_STATE: makeOauthStateStore(),
 } as unknown as Env
 
 const productionEnv = {
   DB: {},
   ENVIRONMENT: 'production',
   KEK: INSTANCE_KEK,
+  RATE_LIMITER: makeAllowedRateLimiter(),
+  WEBAUTHN_CHALLENGE: makeChallengeStore(),
+  OAUTH_STATE: makeOauthStateStore(),
 } as unknown as Env
 
 describe('enterprise legacy protocols', () => {
@@ -249,6 +306,32 @@ describe('enterprise legacy protocols', () => {
     expect(location).toContain('xid_fake_wsfed=1')
   })
 
+  it('WS-Fed login rejects a non-public stored IdP SSO URL', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(
+      makeConnection('wsfed', { idpSsoUrl: 'https://127.0.0.1/wsfed/login' }),
+    )
+    const app = buildApp()
+
+    const res = await app.request('/sso/wsfed/conn-1/login', {}, fakeEnv)
+
+    expect(res.status).toBe(404)
+    await expect(res.json()).resolves.toEqual({ code: 'connection_not_found' })
+  })
+
+  it('WS-Fed login allows loopback HTTP only for a development or test harness', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(
+      makeConnection('wsfed', { idpSsoUrl: 'http://127.0.0.1:8787/fake-wsfed/login' }),
+    )
+    const app = buildApp()
+
+    const local = await app.request('/sso/wsfed/conn-1/login', {}, fakeEnv)
+    const production = await app.request('/sso/wsfed/conn-1/login', {}, productionEnv)
+
+    expect(local.status).toBe(302)
+    expect(production.status).toBe(404)
+    await expect(production.json()).resolves.toEqual({ code: 'connection_not_found' })
+  })
+
   it('WS-Fed callback parses wresult and issues session', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('wsfed'))
     const wresult = buildFakeWresult('wsfed.user@example.com')
@@ -264,9 +347,17 @@ describe('enterprise legacy protocols', () => {
 
   it('WS-Fed callback can consume fake harness state', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection('wsfed'))
-    storeFakeWsfedState('state-123', 'wsfed.user@example.com')
     const app = buildApp()
-    const res = await app.request('/sso/wsfed/conn-1/callback?wctx=state-123', {}, fakeEnv)
+    const login = await app.request('/sso/wsfed/conn-1/login', {}, fakeEnv)
+    const state = new URL(login.headers.get('location')!).searchParams.get('wctx')!
+    storeFakeWsfedState(state, 'wsfed.user@example.com')
+
+    const res = await app.request(
+      `/sso/wsfed/conn-1/callback?wctx=${encodeURIComponent(state)}`,
+      {},
+      fakeEnv,
+    )
+
     expect(res.status).toBe(302)
   })
 

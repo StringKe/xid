@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '@xid-kit/web-ui/api'
 import { createConsoleShellWebMcpTools, createConsoleWebMcpTools } from './register-console-tools'
 
+const sessionFixture = {
+  id: 'sess_1',
+  status: 'active' as const,
+  expiresAt: '2099-01-01T00:00:00.000Z',
+  isImpersonation: false,
+  userId: 'user_1',
+  activeOrganizationId: 'org_1',
+  lastActiveAt: '2098-01-01T00:00:00.000Z',
+}
+
 const meFixture = {
   user: {
     id: 'user_1',
@@ -29,18 +39,18 @@ const meFixture = {
       permissions: ['org:read'],
     },
   ],
-  session: {
-    id: 'sess_1',
-    status: 'active' as const,
-    expiresAt: '2099-01-01T00:00:00.000Z',
-    isImpersonation: false,
-  },
+  managerAssignments: [],
+  session: sessionFixture,
+  activeSessionId: sessionFixture.id,
+  sessions: [sessionFixture],
 }
 
 describe('console WebMCP tools', () => {
   it('defines authenticated management tools', () => {
     const tools = createConsoleWebMcpTools({
       navigate: vi.fn<(to: string) => void>(),
+      getPathname: () => '/console/managed-projects',
+      getPageTitle: () => 'Managed projects | Console | XID',
       api: {
         get: vi.fn<ApiClient['get']>(),
         post: vi.fn<ApiClient['post']>(),
@@ -70,6 +80,43 @@ describe('console WebMCP tools', () => {
     const result = await navigateTool?.execute({ path: '/console/secret-panel' })
     expect(navigate).not.toHaveBeenCalled()
     expect(result).toContain('not an allowed console route')
+  })
+
+  it('exposes the current user exact delegated project scopes', async () => {
+    const tools = createConsoleWebMcpTools({
+      navigate: vi.fn<(to: string) => void>(),
+      getPathname: () => '/console/managed-projects',
+      getPageTitle: () => 'Managed projects | Console | XID',
+      api: {
+        get: vi.fn<ApiClient['get']>(),
+        post: vi.fn<ApiClient['post']>(),
+        patch: vi.fn<ApiClient['patch']>(),
+        del: vi.fn<ApiClient['del']>(),
+        request: vi.fn<ApiClient['request']>(),
+      },
+      setActiveOrganization: vi.fn<(organizationId: string | null) => Promise<boolean>>(
+        async () => true,
+      ),
+      me: {
+        ...meFixture,
+        managerAssignments: [
+          {
+            id: 'manager_assignment_1',
+            managerRole: 'project_manager',
+            scopeType: 'project',
+            scopeId: 'project_1',
+            scopeStatus: 'deleted',
+          },
+        ],
+      },
+    })
+
+    const contextTool = tools.find((tool) => tool.name === 'get_console_context')
+    const result = await contextTool?.execute({})
+
+    expect(result).toContain('"managerRole": "project_manager"')
+    expect(result).toContain('"scopeId": "project_1"')
+    expect(result).toContain('"scopeStatus": "deleted"')
   })
 
   it('exposes shell tools before authentication completes', async () => {

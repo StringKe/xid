@@ -4,6 +4,7 @@ import {
   printResult,
   productionBaseUrl,
   productionSurfaceBaseUrl,
+  productionTenantBaseUrl,
   requireProductionEmail,
   sqlString,
 } from './production-auth.mjs'
@@ -17,11 +18,13 @@ import {
   sitemapOk,
 } from './public-content-checks.mjs'
 import { webRedirectLocationMatches, webRouteOwnerMatches } from './web-route-owner.mjs'
+import { runWildcardRouteProbe } from './wildcard-route-probe.mjs'
 
 const baseUrl = productionBaseUrl()
 const siteBaseUrl = productionSurfaceBaseUrl('XID_PRODUCTION_SITE_BASE_URL')
 const consoleBaseUrl = productionSurfaceBaseUrl('XID_PRODUCTION_CONSOLE_BASE_URL')
 const coreBaseUrl = productionSurfaceBaseUrl('XID_PRODUCTION_CORE_BASE_URL')
+const tenantBaseUrl = productionTenantBaseUrl()
 const surfaceBaseUrls = {
   site: siteBaseUrl,
   console: consoleBaseUrl,
@@ -166,7 +169,7 @@ const docsHomeSeoPatternRequired = [
   /<meta\s+[^>]*property="og:title"[^>]*content="XID Identity Platform \| XID"[^>]*>/u,
   /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/og\/[^"]+\.png"[^>]*>/u,
   /<meta\s+[^>]*name="twitter:card"[^>]*content="summary_large_image"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="https:\/\/xid\.dev\/llms\.txt"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="https:\/\/xid\.dev\/en\/llms\.txt"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*type="text\/markdown"[^>]*href="https:\/\/xid\.dev\/index\.md"[^>]*>/u,
 ]
 
@@ -351,6 +354,20 @@ const checks = [
     expectBody: docsHomeOk,
   },
   {
+    name: 'docs-root-query-fallback',
+    surface: 'site',
+    path: '/?source=production-smoke',
+    expectStatus: 200,
+    expectBody: docsHomeOk,
+  },
+  {
+    name: 'docs-getting-started-query-fallback',
+    surface: 'site',
+    path: '/getting-started?source=production-smoke',
+    expectStatus: 200,
+    expectBody: publicDocsBodyOk,
+  },
+  {
     name: 'robots',
     surface: 'site',
     path: '/robots.txt',
@@ -368,6 +385,13 @@ const checks = [
     name: 'llms',
     surface: 'site',
     path: '/llms.txt',
+    expectStatus: 200,
+    expectBody: llmsOk,
+  },
+  {
+    name: 'llms-query-fallback',
+    surface: 'site',
+    path: '/llms.txt?source=production-smoke',
     expectStatus: 200,
     expectBody: llmsOk,
   },
@@ -442,6 +466,20 @@ const checks = [
     expectBody: (body) => body.includes('<div id="root">'),
   },
   {
+    name: 'console-shell-query-fallback',
+    surface: 'console',
+    path: '/console?source=production-smoke',
+    expectStatus: 200,
+    expectBody: (body) => body.includes('<div id="root">'),
+  },
+  {
+    name: 'tenant-console-shell-query-fallback',
+    surface: 'console',
+    url: `${tenantBaseUrl}/console?source=production-smoke`,
+    expectStatus: 200,
+    expectBody: (body) => body.includes('<div id="root">'),
+  },
+  {
     name: 'console-sessions-account-alias',
     surface: 'console',
     path: '/console/sessions?from=smoke',
@@ -472,9 +510,23 @@ const checks = [
     expectBody: (body) => body.includes('XID') || body.includes('root'),
   },
   {
+    name: 'core-unknown-route',
+    surface: 'core',
+    path: '/xid-production-smoke-not-a-route',
+    expectStatus: 404,
+    expectBody: (body) => !body.includes('<div id="root">'),
+  },
+  {
     name: 'auth-config-root-default-org',
     surface: 'core',
     path: '/auth/config',
+    expectStatus: 200,
+    expectJson: defaultAuthConfigOk,
+  },
+  {
+    name: 'auth-config-tenant-host',
+    surface: 'core',
+    url: `${tenantBaseUrl}/auth/config?source=production-smoke`,
     expectStatus: 200,
     expectJson: defaultAuthConfigOk,
   },
@@ -675,6 +727,12 @@ export async function runProductionSmoke() {
         error: error instanceof Error ? error.message : String(error),
       })
     }
+  }
+
+  const wildcardResults = await runWildcardRouteProbe()
+  for (const result of wildcardResults) {
+    if (result.status !== 'PASS') failed = true
+    results.push(result)
   }
 
   for (const check of gateChecks) {

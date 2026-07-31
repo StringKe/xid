@@ -3,7 +3,7 @@
   "name": "xid-console",
   "account_id": "86e4d320a5d69fb54f9721fb219a4902",
   "main": "worker/index.ts",
-  "preview_urls": true,
+  "preview_urls": false,
   "routes": [
     { "pattern": "xid.dev/console", "zone_name": "xid.dev" },
     { "pattern": "xid.dev/console/*", "zone_name": "xid.dev" },
@@ -19,5 +19,16 @@
   },
   "observability": {
     "enabled": true,
+    "head_sampling_rate": 0.1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 0.1,
+      "persist": true,
+      "invocation_logs": false,
+    },
+    "traces": {
+      "enabled": false,
+      "persist": false,
+    },
   },
 }

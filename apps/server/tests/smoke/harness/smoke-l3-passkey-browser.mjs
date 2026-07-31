@@ -305,6 +305,7 @@ class CdpPage {
     this.id = 0
     this.pending = new Map()
     this.events = []
+    this.responses = []
   }
 
   async connect() {
@@ -338,6 +339,19 @@ class CdpPage {
     ) {
       this.events.push(message)
     }
+    if (message.method === 'Network.responseReceived') {
+      const response = message.params?.response
+      this.responses.push({
+        url: String(response?.url ?? ''),
+        status: Number(response?.status ?? 0),
+        type: String(message.params?.type ?? ''),
+        routeOwner: String(
+          response?.headers?.['x-xid-route-owner'] ??
+            response?.headers?.['X-XID-Route-Owner'] ??
+            '',
+        ),
+      })
+    }
   }
 
   send(method, params = {}) {
@@ -370,8 +384,19 @@ class CdpPage {
     throw new Error(`${name} timed out`)
   }
 
+  async waitForDocumentResponse(url, timeoutMs, name) {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      const response = this.responses.find((item) => item.type === 'Document' && item.url === url)
+      if (response) return response
+      await delay(250)
+    }
+    throw new Error(`${name} timed out`)
+  }
+
   async navigate(path) {
     this.events = []
+    this.responses = []
     await this.send('Page.navigate', { url: `${baseUrl}${path}` })
     await this.waitFor(() => document.readyState === 'complete', 15_000, `load ${path}`)
     await this.waitFor(() => document.body.innerText.trim().length > 0, 15_000, `body ${path}`)
@@ -721,6 +746,7 @@ async function verifyPasskeyRegistration(page, fixture) {
 async function verifyPasskeySignIn(page) {
   await page.clearSessionCookies()
   await page.navigate('/sign-in?locale=en&continue=/console')
+  await page.installFetchLog()
   await page.waitFor(
     () =>
       document.body.innerText.includes('Passkey') && document.body.innerText.includes('Sign in'),
@@ -733,9 +759,46 @@ async function verifyPasskeySignIn(page) {
     adminEmail,
   )
   await page.clickVisibleButton('Sign in with passkey')
-  await page.waitFor(() => location.pathname.startsWith('/console'), 15_000, 'console redirect')
-  await page.navigate('/console?locale=en')
-  await page.waitFor(() => document.body.innerText.includes('Sign out'), 15_000, 'signed in UI')
+  let consoleHandoff
+  try {
+    consoleHandoff = await page.waitForDocumentResponse(
+      `${baseUrl}/console`,
+      15_000,
+      'console handoff',
+    )
+  } catch (error) {
+    const snapshot = await page.snapshot()
+    const me = await page.browserMe().catch((cause) => ({
+      error: cause instanceof Error ? cause.message : String(cause),
+    }))
+    const fetchLog = await page
+      .fetchLog()
+      .catch((cause) => [{ error: cause instanceof Error ? cause.message : String(cause) }])
+    throw new Error(
+      `${error.message}; snapshot=${JSON.stringify({
+        href: snapshot.href,
+        text: snapshot.text.slice(0, 1200),
+      })}; me=${JSON.stringify(me)}; fetch=${JSON.stringify(fetchLog)}; responses=${JSON.stringify(page.responses)}; console=${JSON.stringify(page.events)}`,
+    )
+  }
+  const servesTestConsole = Boolean(process.env.XID_SMOKE_CONSOLE_DIST_PATH)
+  const expectedStatus = servesTestConsole ? 200 : 404
+  if (consoleHandoff.status !== expectedStatus) {
+    throw new Error(
+      `Console handoff boundary changed expected=${expectedStatus} actual=${consoleHandoff.status}`,
+    )
+  }
+  if (servesTestConsole && consoleHandoff.routeOwner !== 'console') {
+    throw new Error(
+      `Console handoff route owner changed owner=${consoleHandoff.routeOwner || 'missing'}`,
+    )
+  }
+  await page.navigate('/account/security?locale=en')
+  await page.waitFor(
+    () => document.body.innerText.toLowerCase().includes('passkeys'),
+    15_000,
+    'signed in account UI',
+  )
 
   const cookie = await page.sessionCookieHeader()
   const me = await page.browserMe()
@@ -750,19 +813,20 @@ async function verifyPasskeySignIn(page) {
   }
 
   const snapshot = await page.snapshot()
-  if (!snapshot.pathname.startsWith('/console')) {
-    throw new Error(`passkey default target mismatch: ${snapshot.href}`)
+  if (snapshot.pathname !== '/account/security') {
+    throw new Error(`passkey account session target mismatch: ${snapshot.href}`)
   }
-  if (!snapshot.text.includes(adminEmail)) throw new Error('console missing signed in admin email')
-  if (!snapshot.text.toLowerCase().includes('default organization')) {
-    throw new Error('console missing default organization')
-  }
-  if (snapshot.text.includes('Sign in')) throw new Error('console shows Sign in after passkey')
-  if (snapshot.hasPlaceholderHref) throw new Error('console has placeholder href')
+  if (snapshot.text.includes('Sign in')) throw new Error('account shows Sign in after passkey')
+  if (snapshot.hasPlaceholderHref) throw new Error('account has placeholder href')
   if (snapshot.badClass || snapshot.htmlHasFunctionClass)
-    throw new Error('console has function class')
+    throw new Error('account has function class')
   assertNoConsoleErrors(page, 'browser passkey sign-in')
-  printResult('PASS', 'browser passkey sign-in default console', `url=${snapshot.pathname}`)
+  printResult(
+    'PASS',
+    'browser passkey default console handoff',
+    `http=${consoleHandoff.status} owner=${consoleHandoff.routeOwner || 'core-boundary'}`,
+  )
+  printResult('PASS', 'browser passkey account session', `url=${snapshot.pathname}`)
   printResult('PASS', 'browser passkey cookie', cookie.split('; ')[0].split('=')[0])
   printResult('PASS', 'browser passkey me active organization', `org=${meBody.activeOrg.id}`)
 }

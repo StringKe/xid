@@ -1,18 +1,27 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import {
-  assertRequiredCiConclusions,
-  readConfiguredDeploymentTarget,
+  assertActiveDeployment,
+  assertSuccessfulWorkersBuilds,
+  parsePendingD1Migrations,
+  PRODUCTION_WORKER_KEYS,
+  readCloudflareSecurityRulesState,
+  readConfiguredDeploymentTargets,
   readMigrationDigest,
+  verifiedRemoteD1MigrationArgs,
   verifiedWranglerConfigArgs,
 } from '../../../apps/server/scripts/production-target.mjs'
-import { baseUrl, parseJson, run } from './production-auth.mjs'
+import { baseUrl, run } from './production-auth.mjs'
 
 const DEFAULT_EVIDENCE_PATH = '.xid/production-evidence.json'
 const DEFAULT_REPO = 'StringKe/xid'
 const WORKER_FILTER = '@xid-kit/server'
+const PRODUCTION_EVIDENCE_SCHEMA_VERSION = 3
 
 export const EVIDENCE_KEYS = {
+  deadLetterOperations: 'dead-letter-operations-l4',
+  observabilityOperations: 'observability-operations-l4',
+  outboundScimSaas: 'outbound-scim-saas-l4',
   magicLinkFull: 'magic-link-full-l4',
   passwordResetFull: 'password-reset-full-l4',
   productionBrowserP0: 'production-browser-p0-l4',
@@ -25,6 +34,29 @@ export const EVIDENCE_KEYS = {
 }
 
 export const EVIDENCE_MARKERS = {
+  deadLetterOperations: [
+    'source_dlq_delivery',
+    'encrypted_persistence',
+    'console_list_detail',
+    'manual_replay',
+    'replay_completed',
+    'alert_delivery',
+    'cleanup',
+  ],
+  observabilityOperations: [
+    'worker_logs_access_reviewed',
+    'retention_policy_verified',
+    'alert_delivery_drill',
+    'sensitive_data_redaction_verified',
+  ],
+  outboundScimSaas: [
+    'real_saas_target',
+    'user_lifecycle',
+    'group_lifecycle',
+    'rate_limit_retry',
+    'audit_recorded',
+    'cleanup',
+  ],
   magicLinkFull: [
     'browser_default_console',
     'session_me_200',
@@ -91,25 +123,9 @@ async function readGitHead() {
   return (await run('git', ['rev-parse', 'HEAD'])).trim()
 }
 
-async function readWorkersBuild(head) {
+async function readWorkersBuild(head, targets) {
   const raw = await run('gh', ['api', `repos/${repo()}/commits/${head}/check-runs?per_page=100`])
-  const body = parseJson(raw, 'GitHub check-runs')
-  const check = body.check_runs?.find((item) => item.name === 'Workers Builds: xid')
-  if (!check) throw new Error(`Workers Builds: xid check-run missing for ${head}`)
-  if (check.status !== 'completed' || check.conclusion !== 'success') {
-    throw new Error(
-      `Workers Builds: xid not successful status=${check.status} conclusion=${check.conclusion}`,
-    )
-  }
-  const summary = String(check.output?.summary ?? '')
-  const versionId = summary.match(/Version ID:\s*([a-f0-9-]+)/u)?.[1]
-  if (!versionId) throw new Error(`Workers Builds: xid missing Version ID for ${head}`)
-  return {
-    buildId: check.external_id ?? 'unknown',
-    checkRunId: check.id,
-    workerVersionId: versionId,
-    ciConclusions: assertRequiredCiConclusions(raw, head),
-  }
+  return assertSuccessfulWorkersBuilds(raw, head, targets)
 }
 
 async function readActiveDeployment(expectedVersionId, target) {
@@ -123,41 +139,56 @@ async function readActiveDeployment(expectedVersionId, target) {
     '--name',
     target.workerName,
     '--json',
-    ...verifiedWranglerConfigArgs(),
+    ...verifiedWranglerConfigArgs(target.configPath),
   ])
-  const deployment = parseJson(raw, 'wrangler deployments status')
-  const active = deployment.versions?.find((version) => Number(version.percentage) === 100)
-  if (!active) throw new Error('Worker has no 100 percent active deployment')
-  if (active.version_id !== expectedVersionId) {
-    throw new Error(
-      `active Worker version ${active.version_id} does not match Workers Builds version ${expectedVersionId}`,
-    )
-  }
+  return assertActiveDeployment(raw, expectedVersionId, target.workerName)
+}
+
+async function readRemoteD1Migrations(target) {
+  const raw = await run('pnpm', verifiedRemoteD1MigrationArgs(target.configPath), {
+    env: {
+      ...process.env,
+      CLOUDFLARE_ACCOUNT_ID: target.accountId,
+    },
+  })
+  const pending = parsePendingD1Migrations(raw)
   return {
-    deploymentId: deployment.id,
-    workerVersionId: active.version_id,
-    percentage: Number(active.percentage),
+    state: pending.length === 0 ? 'APPLIED' : 'PENDING',
+    pending,
   }
 }
 
 export async function readProductionEvidenceContext() {
-  const target = readConfiguredDeploymentTarget()
+  const targets = readConfiguredDeploymentTargets()
   const head = await readGitHead()
-  const workersBuild = await readWorkersBuild(head)
-  const activeDeployment = await readActiveDeployment(workersBuild.workerVersionId, target)
+  const workersBuild = await readWorkersBuild(head, targets)
+  const workers = {}
+  for (const key of PRODUCTION_WORKER_KEYS) {
+    const build = workersBuild.workers[key]
+    const deployment = await readActiveDeployment(build.workerVersionId, targets[key])
+    workers[key] = {
+      ...build,
+      deploymentId: deployment.deploymentId,
+      workerVersionId: deployment.workerVersionId,
+      activePercentage: deployment.activePercentage,
+    }
+  }
   return {
     baseUrl,
     head,
-    buildId: workersBuild.buildId,
-    checkRunId: workersBuild.checkRunId,
-    deploymentId: activeDeployment.deploymentId,
-    workerVersionId: activeDeployment.workerVersionId,
-    activePercentage: activeDeployment.percentage,
-    accountId: target.accountId,
-    databaseId: target.databaseId,
+    workers,
+    accountId: targets.core.accountId,
+    databaseId: targets.core.databaseId,
     migrationDigest: readMigrationDigest(),
-    wranglerConfigDigest: target.configDigest,
-    qualityConclusion: workersBuild.ciConclusions.quality,
+    remoteD1Migrations: await readRemoteD1Migrations(targets.core),
+    cloudflareSecurityRules: readCloudflareSecurityRulesState(),
+    wranglerConfigDigests: Object.fromEntries(
+      PRODUCTION_WORKER_KEYS.map((key) => [key, targets[key].configDigest]),
+    ),
+    checkConclusion: workersBuild.ciConclusions.check,
+    testConclusion: workersBuild.ciConclusions.test,
+    buildConclusion: workersBuild.ciConclusions.build,
+    smokeConclusion: workersBuild.ciConclusions.smoke,
     securityConclusion: workersBuild.ciConclusions.security,
   }
 }
@@ -172,32 +203,77 @@ export async function readProductionEvidenceFile({
 } = {}) {
   try {
     const parsed = JSON.parse(await readFileFn(path, 'utf8'))
-    if (parsed?.schemaVersion !== 1 || typeof parsed.entries !== 'object') {
+    if (
+      parsed?.schemaVersion !== PRODUCTION_EVIDENCE_SCHEMA_VERSION ||
+      typeof parsed.entries !== 'object'
+    ) {
       throw new Error('production evidence schema is invalid')
     }
     return parsed
   } catch (error) {
     if (error && typeof error === 'object' && error.code === 'ENOENT') {
-      return { schemaVersion: 1, entries: {} }
+      return { schemaVersion: PRODUCTION_EVIDENCE_SCHEMA_VERSION, entries: {} }
     }
     throw new Error(`production evidence file is invalid: ${path}`, { cause: error })
   }
+}
+
+function workerContextsMatch(left, right) {
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  return PRODUCTION_WORKER_KEYS.every((key) => {
+    const leftWorker = left[key]
+    const rightWorker = right[key]
+    return (
+      leftWorker &&
+      rightWorker &&
+      leftWorker.buildId === rightWorker.buildId &&
+      leftWorker.checkRunId === rightWorker.checkRunId &&
+      leftWorker.deploymentId === rightWorker.deploymentId &&
+      leftWorker.workerVersionId === rightWorker.workerVersionId &&
+      leftWorker.activePercentage === rightWorker.activePercentage
+    )
+  })
+}
+
+function configDigestsMatch(left, right) {
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  return PRODUCTION_WORKER_KEYS.every(
+    (key) => typeof left[key] === 'string' && left[key] === right[key],
+  )
+}
+
+function remoteD1MigrationsMatch(left, right) {
+  if (!left || !right || left.state !== right.state) return false
+  if (!Array.isArray(left.pending) || !Array.isArray(right.pending)) return false
+  return (
+    left.pending.length === right.pending.length &&
+    left.pending.every((migration, index) => migration === right.pending[index])
+  )
+}
+
+function cloudflareSecurityRulesMatch(left, right) {
+  return (
+    typeof left?.manifestDigest === 'string' &&
+    left.manifestDigest === right?.manifestDigest &&
+    left.deploymentState === right?.deploymentState
+  )
 }
 
 function evidenceContextMatches(left, right) {
   return (
     left?.baseUrl === right?.baseUrl &&
     left?.head === right?.head &&
-    left?.buildId === right?.buildId &&
-    left?.checkRunId === right?.checkRunId &&
-    left?.deploymentId === right?.deploymentId &&
-    left?.workerVersionId === right?.workerVersionId &&
-    left?.activePercentage === right?.activePercentage &&
+    workerContextsMatch(left?.workers, right?.workers) &&
     left?.accountId === right?.accountId &&
     left?.databaseId === right?.databaseId &&
     left?.migrationDigest === right?.migrationDigest &&
-    left?.wranglerConfigDigest === right?.wranglerConfigDigest &&
-    left?.qualityConclusion === right?.qualityConclusion &&
+    remoteD1MigrationsMatch(left?.remoteD1Migrations, right?.remoteD1Migrations) &&
+    cloudflareSecurityRulesMatch(left?.cloudflareSecurityRules, right?.cloudflareSecurityRules) &&
+    configDigestsMatch(left?.wranglerConfigDigests, right?.wranglerConfigDigests) &&
+    left?.checkConclusion === right?.checkConclusion &&
+    left?.testConclusion === right?.testConclusion &&
+    left?.buildConclusion === right?.buildConclusion &&
+    left?.smokeConclusion === right?.smokeConclusion &&
     left?.securityConclusion === right?.securityConclusion
   )
 }
@@ -230,6 +306,14 @@ export async function recordProductionEvidence(key, markers, preSmokeContext) {
 }
 
 export function productionEvidenceReady(evidence, key, context, requiredMarkers) {
+  if (evidence?.schemaVersion !== PRODUCTION_EVIDENCE_SCHEMA_VERSION) return false
+  if (context?.cloudflareSecurityRules?.deploymentState !== 'RECONCILED') return false
+  if (
+    context?.remoteD1Migrations?.state !== 'APPLIED' ||
+    context.remoteD1Migrations.pending?.length !== 0
+  ) {
+    return false
+  }
   const entry = evidence?.entries?.[key]
   if (!entry) return false
   const markers = Array.isArray(entry.markers) ? entry.markers : []

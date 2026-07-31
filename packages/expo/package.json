@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/expo",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Expo SDK for XID: SecureStore token adapter, WebBrowser auth flow and protected route hook.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Expo adapters and React Native bindings for the XID identity platform.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/expo",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,19 +20,32 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/expo"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test --passWithNoTests"
   },
   "dependencies": {
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/react": "workspace:*",
-    "@xid-kit/react-native": "workspace:*"
+    "@xid-kit/react-native": "workspace:^"
   },
   "devDependencies": {
     "@testing-library/react": "catalog:",
@@ -46,7 +65,7 @@
     "expo": ">=51",
     "expo-secure-store": ">=13",
     "expo-web-browser": ">=14",
-    "react": ">=18",
+    "react": "^19",
     "react-native": ">=0.73"
   }
 }

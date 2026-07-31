@@ -1,6 +1,7 @@
 // __Host- 前缀 cookie 读写辅助(对照 docs/design/05-users-sessions.md 8.2)。
 // RFC 6265bis __Host- prefix 强制:Secure + Path=/ + 无 Domain attribute;防子域 cookie 注入。
-// session refresh token cookie 名结构:__Host-xid.rt.{session_id[0:8]}(多 tab/多 session namespace,见 05 章 8.4)。
+// session refresh token cookie 名结构:__Host-xid.rt.{8-char random suffix prefix}
+// (多 tab/多 session namespace,见 05 章 8.4)。
 // 铁律:HttpOnly 防 XSS 读取,SameSite=Lax 兼容 OAuth redirect。
 
 import { getCookie, setCookie } from 'hono/cookie'
@@ -8,7 +9,10 @@ import type { Context } from 'hono'
 
 // refresh token cookie 命名空间前缀(__Host- prefix 不允许 dot 作首字符,xid.rt. 加在其后)。
 const RT_COOKIE_PREFIX = '__Host-xid.rt.'
-// session_id 前缀长度(取前 8 字符作 cookie namespace,见 05 章 8.4)。
+// Active session pointer contains only a session id, never a credential. HttpOnly keeps browser
+// state selection server-owned and makes every same-origin request choose the same refresh cookie.
+const ACTIVE_SESSION_COOKIE = '__Host-xid.active'
+// namespace 保留 8 个随机字符。当前 sess_ ID 跳过固定前缀,legacy UUID 仍取前 8 字符。
 const SESSION_ID_PREFIX_LEN = 8
 
 // __Host- cookie 固定 attribute(Secure/Path/HttpOnly/SameSite),Domain 必须省略。
@@ -19,9 +23,14 @@ const HOST_COOKIE_BASE = {
   sameSite: 'Lax',
 } as const
 
-// session_id -> refresh token cookie 名(__Host-xid.rt.{prefix})。
+function sessionCookieNamespace(sessionId: string): string {
+  const randomPart = sessionId.startsWith('sess_') ? sessionId.slice('sess_'.length) : sessionId
+  return randomPart.slice(0, SESSION_ID_PREFIX_LEN)
+}
+
+// session_id -> refresh token cookie 名(__Host-xid.rt.{random-prefix})。
 export function rtCookieName(sessionId: string): string {
-  return `${RT_COOKIE_PREFIX}${sessionId.slice(0, SESSION_ID_PREFIX_LEN)}`
+  return `${RT_COOKIE_PREFIX}${sessionCookieNamespace(sessionId)}`
 }
 
 // 设置 refresh token cookie。maxAgeSec 控制记住我(7d/30d)或会话生命周期(省略)。
@@ -55,4 +64,32 @@ export function readAllRefreshTokenCookies(c: Context): Record<string, string> {
     }
   }
   return result
+}
+
+export function setActiveSessionCookie(c: Context, sessionId: string): void {
+  setCookie(c, ACTIVE_SESSION_COOKIE, sessionId, HOST_COOKIE_BASE)
+}
+
+export function readActiveSessionCookie(c: Context): string | undefined {
+  return getCookie(c, ACTIVE_SESSION_COOKIE)
+}
+
+export function clearActiveSessionCookie(c: Context): void {
+  setCookie(c, ACTIVE_SESSION_COOKIE, '', { ...HOST_COOKIE_BASE, maxAge: 0 })
+}
+
+// Tenant and session middleware must inspect refresh cookies in the same order. A missing or stale
+// pointer falls back to the remaining valid credentials so one revoked session cannot hide another.
+export function readRefreshTokenCookiesInPriorityOrder(c: Context): readonly string[] {
+  const all = readAllRefreshTokenCookies(c)
+  const activeSessionId = readActiveSessionCookie(c)
+  if (!activeSessionId) return Object.values(all)
+
+  const activePrefix = sessionCookieNamespace(activeSessionId)
+  const activeToken = all[activePrefix]
+  if (!activeToken) return Object.values(all)
+  return [
+    activeToken,
+    ...Object.entries(all).flatMap(([prefix, token]) => (prefix === activePrefix ? [] : [token])),
+  ]
 }

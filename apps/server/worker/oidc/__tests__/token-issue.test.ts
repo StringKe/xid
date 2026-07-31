@@ -82,6 +82,22 @@ describe('token-issue helpers', () => {
     expect(opts.authorizationDetails).toHaveLength(1)
   })
 
+  it('accessOptions never re-issues the unsupported XID AAL3 mapping', () => {
+    const opts = accessOptions({
+      tc: makeTokenContext(),
+      authContext: {
+        acr: 'urn:xid:aal3',
+        amr: ['phr', 'mfa'],
+        authTime: 100,
+      },
+    })
+    expect(opts.authContext).toEqual({
+      acr: 'urn:xid:aal2',
+      amr: ['phr', 'mfa'],
+      authTime: 100,
+    })
+  })
+
   it('tokenResponseBody includes optional refresh and id tokens', () => {
     const body = tokenResponseBody({
       accessToken: 'at',

@@ -18,9 +18,6 @@ public enum XidError: Error, LocalizedError, Sendable {
     /// Authorization code -> token exchange failed.
     case tokenExchangeFailed(String)
 
-    /// Refresh token rotation failed.
-    case tokenRefreshFailed(String)
-
     /// Server returned an OAuth error response (RFC 6749 Section 5.2).
     case oauthError(String, String?)
 
@@ -67,8 +64,6 @@ public enum XidError: Error, LocalizedError, Sendable {
             return "OIDC Discovery load failed: \(reason)"
         case .tokenExchangeFailed(let reason):
             return "Token exchange failed: \(reason)"
-        case .tokenRefreshFailed(let reason):
-            return "Token refresh failed: \(reason)"
         case .oauthError(let code, let description):
             return "OAuth error [\(code)]: \(description ?? "no detail")"
         case .authSessionCancelled:

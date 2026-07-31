@@ -1,4 +1,4 @@
-import { cloudflare } from '@cloudflare/vite-plugin'
+import { cloudflare, type PluginConfig } from '@cloudflare/vite-plugin'
 import babel from '@rolldown/plugin-babel'
 import { lingui, linguiTransformerBabelPreset } from '@lingui/vite-plugin'
 import stylex from '@stylexjs/unplugin'
@@ -20,6 +20,12 @@ const smokeQueueConfig = createSmokeQueueConfig({
 const smokeConsoleStaticPlugin = createSmokeConsoleStaticPlugin(
   process.env.XID_SMOKE_CONSOLE_DIST_PATH,
 )
+const cloudflareConfig = {
+  ...(smokeQueueConfig ?? {}),
+  // The Vite plugin emits the deployment snapshot consumed by plain `wrangler deploy`.
+  // Keep this explicit because the source Wrangler flag alone is not carried into that snapshot.
+  config: { keep_vars: true },
+} satisfies PluginConfig
 
 export default defineConfig({
   build: {
@@ -34,7 +40,7 @@ export default defineConfig({
       runtimeInjection: false,
     }),
     react(),
-    cloudflare(smokeQueueConfig),
+    cloudflare(cloudflareConfig),
     lingui(),
     babel({ presets: [linguiTransformerBabelPreset()] }),
     injectPreloadHintsPlugin(),

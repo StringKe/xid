@@ -12,9 +12,9 @@ import dev.xid.sdk.model.SignInOptions
 import dev.xid.sdk.model.XidConfig
 import dev.xid.sdk.model.XidException
 import dev.xid.sdk.pkce.PkcePair
+import dev.xid.sdk.pkce.PkceCore
 import dev.xid.sdk.storage.StorageKeys
 import dev.xid.sdk.storage.TokenStorageAdapter
-import java.util.UUID
 
 /**
  * 管理 Chrome Custom Tabs 授权会话。
@@ -51,13 +51,15 @@ internal class AuthSession(
         pkce: PkcePair,
         options: SignInOptions,
     ): String {
-        val state = UUID.randomUUID().toString().replace("-", "")
+        val state = PkceCore.generateNonce()
+        val nonce = PkceCore.generateNonce()
 
-        // 持久化 PKCE 临时数据, 防止 Activity 被系统回收后丢失
+        // 持久化授权临时数据, 防止 Activity 被系统回收后丢失
         storage.set(StorageKeys.PKCE_STATE, state)
         storage.set(StorageKeys.PKCE_VERIFIER, pkce.verifier)
+        storage.set(StorageKeys.OIDC_NONCE, nonce)
 
-        val authUrl = buildAuthorizationUrl(config, pkce, state, options)
+        val authUrl = buildAuthorizationUrl(config, pkce, state, nonce, options)
 
         warmupCustomTabs(context)
 
@@ -104,8 +106,12 @@ internal class AuthSession(
             ?: return CallbackResult.Error(
                 XidException.AuthorizationError("missing_verifier", "PKCE verifier 已丢失, 请重新登录")
             )
+        val nonce = storage.get(StorageKeys.OIDC_NONCE)
+            ?: return CallbackResult.Error(
+                XidException.AuthorizationError("missing_nonce", "OIDC nonce 已丢失, 请重新登录")
+            )
 
-        return CallbackResult.Success(code = code, codeVerifier = verifier)
+        return CallbackResult.Success(code = code, codeVerifier = verifier, nonce = nonce)
     }
 
     /**
@@ -139,25 +145,38 @@ internal class AuthSession(
         config: XidConfig,
         pkce: PkcePair,
         state: String,
+        nonce: String,
         options: SignInOptions,
     ): String {
         val builder = Uri.parse(discovery.authorizationEndpoint).buildUpon()
 
+        val reservedParameters = setOf(
+            "response_type",
+            "client_id",
+            "redirect_uri",
+            "scope",
+            "state",
+            "nonce",
+            "code_challenge",
+            "code_challenge_method",
+        )
+        config.additionalParameters
+            .filterKeys { it !in reservedParameters }
+            .forEach { (k, v) ->
+                builder.appendQueryParameter(k, v)
+            }
         builder.appendQueryParameter("response_type", "code")
         builder.appendQueryParameter("client_id", config.clientId)
         builder.appendQueryParameter("redirect_uri", config.redirectUri)
         builder.appendQueryParameter("scope", config.scopes.joinToString(" "))
         builder.appendQueryParameter("state", state)
+        builder.appendQueryParameter("nonce", nonce)
         builder.appendQueryParameter("code_challenge", pkce.challenge)
         builder.appendQueryParameter("code_challenge_method", "S256")
 
         options.loginHint?.let { builder.appendQueryParameter("login_hint", it) }
         options.prompt?.let { builder.appendQueryParameter("prompt", it) }
         options.organization?.let { builder.appendQueryParameter("organization", it) }
-
-        config.additionalParameters.forEach { (k, v) ->
-            builder.appendQueryParameter(k, v)
-        }
 
         return builder.build().toString()
     }
@@ -167,6 +186,10 @@ internal class AuthSession(
  * 授权回调解析结果。
  */
 internal sealed class CallbackResult {
-    data class Success(val code: String, val codeVerifier: String) : CallbackResult()
+    data class Success(
+        val code: String,
+        val codeVerifier: String,
+        val nonce: String,
+    ) : CallbackResult()
     data class Error(val exception: XidException) : CallbackResult()
 }

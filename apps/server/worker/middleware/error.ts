@@ -6,7 +6,13 @@ import { errorMessages } from '@xid-kit/i18n'
 import type { XidError, XidErrorCode } from '@xid-kit/types'
 import type { ErrorHandler } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { AppError, isAppError } from '../lib/errors'
+import {
+  AppError,
+  isAppError,
+  isResourceQuotaConstraintError,
+  isSeatLimitConstraintError,
+} from '../lib/errors'
+import { logWorkerError } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
 
 // 判别一个 throw 值是否为结构化 XidError 形状(可预期失败被 throw 出来时)。
@@ -34,7 +40,9 @@ function renderErrorMessage(
     return c.get('i18n')._(errorMessages[code])
   } catch (error) {
     // 错误响应必须可用；服务端记录渲染故障，但绝不将内部细节发给客户端。
-    console.error('failed to render localized error message', error)
+    logWorkerError('error.localization.render_failed', error, {
+      component: 'error-middleware',
+    })
     return 'An unexpected server error occurred. Please try again.'
   }
 }
@@ -62,13 +70,20 @@ function bodyFromUnknown(c: Parameters<ErrorHandler<XidHonoEnv>>[1]): MappedErro
 // Hono onError:三类来源映射;响应 Cache-Control: no-store(协议端 token/错误不缓存)。
 // 未知错误恒打日志:生产同样必须有迹可循;结构化错误不打,那是预期失败。
 export const errorHandler: ErrorHandler<XidHonoEnv> = (err, c) => {
-  if (!isAppError(err) && !isXidErrorShape(err)) {
-    console.error(err)
+  const normalized = isSeatLimitConstraintError(err)
+    ? new AppError('seat_limit_exceeded')
+    : isResourceQuotaConstraintError(err)
+      ? new AppError('resource_quota_exceeded')
+      : err
+  if (!isAppError(normalized) && !isXidErrorShape(normalized)) {
+    logWorkerError('request.unhandled_exception', err, {
+      component: 'error-middleware',
+    })
   }
-  const mapped = isAppError(err)
-    ? bodyFromAppError(c, err)
-    : isXidErrorShape(err)
-      ? bodyFromXidError(c, err)
+  const mapped = isAppError(normalized)
+    ? bodyFromAppError(c, normalized)
+    : isXidErrorShape(normalized)
+      ? bodyFromXidError(c, normalized)
       : bodyFromUnknown(c)
 
   return c.json(mapped.body, mapped.status, { 'cache-control': 'no-store' })

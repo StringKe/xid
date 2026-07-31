@@ -10,9 +10,12 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import type { Context } from 'hono'
 import { enforceEnterpriseSsoPolicy } from './enterprise-policy'
+import { isOrganizationMembershipRole } from '@xid-kit/types'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 // SSO 认证成功后的标准化断言(SAML NameID 或 OIDC sub + 属性映射结果)。
 export type SsoAssertion = {
@@ -38,10 +41,13 @@ export type JitResult = {
 // 从 connection.roleMapping 按 groups 解析 org_role。
 // roleMapping 格式:{ "Engineering": "admin", "Developers": "member" }
 // 取第一个命中的 group 对应的 role,未命中回退 'member'。
-function resolveOrgRole(groups: string[], roleMapping: Record<string, unknown>): string {
+function resolveOrgRole(
+  groups: string[],
+  roleMapping: Record<string, unknown>,
+): OrganizationMembershipRole {
   for (const group of groups) {
     const role = roleMapping[group]
-    if (typeof role === 'string' && role.length > 0) return role
+    if (isOrganizationMembershipRole(role)) return role
   }
   return 'member'
 }
@@ -85,7 +91,7 @@ async function upsertSsoIdentity(
     return
   }
   await db.userIdentities.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('userIdentity'),
     tenantId,
     userId,
     identityType: 'sso',
@@ -123,7 +129,7 @@ type MembershipParams = {
   tenantId: string
   userId: string
   orgId: string
-  role: string
+  role: OrganizationMembershipRole
 }
 
 // 确保 membership 存在并同步 role。
@@ -138,7 +144,7 @@ async function upsertMembership(p: MembershipParams): Promise<void> {
     return
   }
   await orgDb.memberships.insert({
-    id: crypto.randomUUID(),
+    id: createPersistedId('membership'),
     tenantId,
     orgId,
     userId,
@@ -157,7 +163,7 @@ type SyncParams = {
   orgId: string
   userId: string
   assertion: SsoAssertion
-  orgRole: string
+  orgRole: OrganizationMembershipRole
 }
 
 // 已存在用户的属性同步 + identity + membership(分支 A/B 共用)。
@@ -176,14 +182,14 @@ type ProvisionParams = {
   tenantId: string
   orgId: string
   assertion: SsoAssertion
-  orgRole: string
+  orgRole: OrganizationMembershipRole
   skipDefaultMembership?: boolean
 }
 
 // 分支 D:新建用户 + 邮箱 + identity + membership。
 async function provisionNewUser(p: ProvisionParams): Promise<JitResult> {
   const { c, db, tenantId, orgId, assertion, orgRole, skipDefaultMembership = false } = p
-  const userId = crypto.randomUUID()
+  const userId = createPersistedId('user')
   await db.users.insert({
     id: userId,
     tenantId,
@@ -265,7 +271,12 @@ export async function jitProvision(
   // 分支 B:email 关联(已验证)。
   if (assertion.email) {
     const emailRow = await db.userEmails.findOne(eq(schema.userEmails.email, assertion.email))
-    if (emailRow && assertion.emailVerified) {
+    if (
+      emailRow &&
+      assertion.emailVerified &&
+      emailRow.verified &&
+      emailRow.verificationStatus === 'verified'
+    ) {
       await enforceEnterpriseSsoPolicy({ c, action: 'login', email: assertion.email })
       return syncExistingUser({ db, tenantId, orgId, userId: emailRow.userId, assertion, orgRole })
     }

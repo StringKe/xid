@@ -107,7 +107,7 @@ describe('Protect permission/role logic', () => {
         publicMetadata: {},
         createdAt: 0,
       },
-      role: 'org:admin',
+      role: 'admin' as const,
       permissions: ['org:member:read'],
       createdAt: 0,
     }
@@ -145,7 +145,7 @@ describe('Protect permission/role logic', () => {
       (m) => m.organization.id === stateRef?.value.organization?.id,
     )
 
-    expect(activeMembership?.role).toBe('org:admin')
+    expect(activeMembership?.role).toBe('admin')
     expect(activeMembership?.permissions).toContain('org:member:read')
     scope.stop()
   })
@@ -163,7 +163,7 @@ describe('Protect permission/role logic', () => {
         publicMetadata: {},
         createdAt: 0,
       },
-      role: 'org:member',
+      role: 'member' as const,
       permissions: [],
       createdAt: 0,
     }
@@ -201,8 +201,8 @@ describe('Protect permission/role logic', () => {
       (m) => m.organization.id === stateRef?.value.organization?.id,
     )
 
-    // Required role is 'org:admin', actual is 'org:member' -> block
-    expect(activeMembership?.role).not.toBe('org:admin')
+    // Required role is 'admin', actual is 'member' -> block
+    expect(activeMembership?.role).not.toBe('admin')
     scope.stop()
   })
 })

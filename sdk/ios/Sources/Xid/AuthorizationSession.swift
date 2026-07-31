@@ -99,23 +99,34 @@ struct AuthorizationURLBuilder {
         scopes: [String],
         pkce: PKCE,
         state: String,
+        nonce: String,
         additionalParams: [String: String] = [:]
     ) -> URL? {
         var components = URLComponents(url: authorizationEndpoint, resolvingAgainstBaseURL: true)
 
-        var queryItems: [URLQueryItem] = [
+        let reservedParameters: Set<String> = [
+            "response_type",
+            "client_id",
+            "redirect_uri",
+            "scope",
+            "state",
+            "nonce",
+            "code_challenge",
+            "code_challenge_method",
+        ]
+        var queryItems = additionalParams
+            .filter { !reservedParameters.contains($0.key) }
+            .map { URLQueryItem(name: $0.key, value: $0.value) }
+        queryItems.append(contentsOf: [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: clientId),
             URLQueryItem(name: "redirect_uri", value: redirectUri.absoluteString),
             URLQueryItem(name: "scope", value: scopes.joined(separator: " ")),
             URLQueryItem(name: "state", value: state),
+            URLQueryItem(name: "nonce", value: nonce),
             URLQueryItem(name: "code_challenge", value: pkce.challenge),
             URLQueryItem(name: "code_challenge_method", value: pkce.method),
-        ]
-
-        for (key, value) in additionalParams {
-            queryItems.append(URLQueryItem(name: key, value: value))
-        }
+        ])
 
         components?.queryItems = queryItems
         return components?.url

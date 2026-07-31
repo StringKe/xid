@@ -9,7 +9,7 @@ pre.mermaid:not([data-processed]) {
 }
 
 pre.mermaid:not([data-processed])::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(

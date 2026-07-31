@@ -1,5 +1,8 @@
 # xid-go -- XID 身份平台 Go 服务端 SDK
 
+> Registry status: UNPUBLISHED. Go resolves this module from the Git repository, not from an XID
+> package registry. Pin a commit or future `sdk/go/v*` module tag for reproducible builds.
+
 > **Status: implemented (verified locally)**
 > 本机 `go test ./...` 全部 PASS(见 `docs/sdks/platform-matrix.md`)。
 > 真实 IdP round-trip(L4)尚未验证,不得宣称完整 production SDK。
@@ -11,7 +14,10 @@
 本 SDK 覆盖**服务端职责**:
 
 - **JWT 验证**:从 issuer 的 `/jwks` 拉取公钥(带本地缓存,默认 TTL 1h),验证 access token 签名(ES256 主,RS256 兼容)与 `iss`/`aud`/`exp`/`iat`/`nbf` claims。
-- **请求认证**:从 `Authorization: Bearer` 或 `__session` cookie 中提取并验证 token,返回结构化认证状态。
+- **请求认证**:默认只读取 `Authorization: Bearer`;仅在显式配置 `CookieName` 时读取应用自己持有的 JWT cookie。
+- **Core session exchange**:将完整 `Cookie` header 只转发到 exact same-origin
+  `POST /v1/sessions/token`,换取 short-lived JWT。不会扫描或本地验证
+  `__Host-xid.rt.*` opaque Core browser session cookie。
 - **Webhook 验证**:svix 风格头(`svix-id`/`svix-timestamp`/`svix-signature`),HMAC-SHA256,5 分钟时间窗防重放。
 
 不实现 OAuth 授权流程(PKCE/authorization_code 等),那是客户端/网关的职责。
@@ -21,7 +27,7 @@
 ## 安装
 
 ```bash
-go get github.com/StringKe/xid/sdk/go
+go get github.com/StringKe/xid/sdk/go@main
 ```
 
 依赖:
@@ -75,6 +81,32 @@ if err != nil {
 fmt.Println(claims.Subject, claims.OrgID)
 ```
 
+### 显式使用应用自有 JWT cookie
+
+```go
+client, err := xid.NewClient(xid.ClientOptions{
+    Issuer:     "https://xid.dev",
+    CookieName: "__Host-myapp.xid-jwt",
+})
+```
+
+不配置 `CookieName` 时 cookie fallback 关闭。Core 的 `__Host-xid.rt.*` cookie 是 opaque
+session handle,不能作为 JWT 验证。
+
+### 将 Core browser session 交换为 JWT
+
+```go
+token, err := client.ExchangeSessionToken(
+    r.Context(),
+    "https://app.example.com/account",
+    r.Header.Get("Cookie"),
+    "/v1/sessions/token",
+)
+```
+
+SDK 只允许 exact same-origin `POST /v1/sessions/token`,转发完整 `Cookie` header,禁用 redirect,
+并且只接受 HTTP 200 与 exact `{"token":"..."}` response。
+
 ### 验证 webhook
 
 ```go
@@ -108,6 +140,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 | `WebhookSecret` | `string`        | 空                 | Webhook HMAC 签名密钥               |
 | `JWKSCacheTTL`  | `time.Duration` | 1h                 | JWKS 本地缓存有效期                 |
 | `HTTPClient`    | `*http.Client`  | 10s 超时默认客户端 | 拉取 JWKS 用的 HTTP 客户端          |
+| `CookieName`    | `string`        | 空                 | 应用自有 JWT cookie;空值禁用 fallback |
 
 ### `(*Client).VerifyAccessToken(ctx, tokenStr) (*Claims, error)`
 
@@ -115,7 +148,8 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 
 ### `(*Client).AuthenticateRequest(ctx, r) AuthState`
 
-从 HTTP 请求中提取并验证 token。始终返回 `AuthState`,不 panic。
+默认从 Bearer header 提取并验证 token。只有显式配置 `CookieName` 时才读取该应用自有 JWT
+cookie。始终返回 `AuthState`,不 panic。
 
 `AuthState` 字段:
 
@@ -136,6 +170,11 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 ### `(*Client).VerifyWebhook(r) (*WebhookEvent, error)`
 
 验证 webhook 请求签名。成功返回 `*WebhookEvent`(含原始 body)。
+
+### `(*Client).ExchangeSessionToken(ctx, incomingRequestURL, cookieHeader, endpoint) (string, error)`
+
+将 Core opaque browser session 显式交换为 short-lived JWT。`endpoint` 留空时使用
+`/v1/sessions/token`;SDK 强制 exact same-origin、禁止 redirect,并验证 exact response wire。
 
 ### 匿名访客(guest)判定
 
@@ -168,6 +207,7 @@ sdk/go/
     client.go         Client 结构体 + JWKS 缓存 + HTTP 拉取
     keys.go           JWK 解析(EC P-256 + RSA)
     verify.go         JWT 验证 + 请求认证 + HTTP 中间件
+    session_exchange.go Core session -> JWT exchange
     webhook.go        Webhook HMAC-SHA256 验证
     errors.go         结构化错误类型
 ```
@@ -184,7 +224,6 @@ sdk/go/
 
 1. **OIDC Discovery 自动发现**:当前直接拼接 `issuer + "/jwks"`;可改为先读 discovery 取 `jwks_uri`。
 2. **JWKS kid 负缓存**:对未知 kid 强制刷新时缺少 per-kid negative TTL。
-3. **可配置 cookie 名**:`ClientOptions.CookieName` 已支持,文档待补充示例。
 6. **webhook v2 签名**:`matchWebhookSignature` 仅支持 `v1` 版本前缀。
 7. **完整单元测试**:覆盖四验证路径、过期 token、错误 kid、webhook 重放等边界场景。
 8. **上下文传播 AbortSignal**:JWKS 拉取已传 `context.Context`,但没有对网络超时做更细粒度控制。

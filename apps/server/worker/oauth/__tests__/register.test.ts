@@ -80,6 +80,107 @@ describe('POST /register', () => {
     expect(body['grant_types']).toEqual(['authorization_code'])
   })
 
+  it.each(['client_secret_basic', 'client_secret_post'])(
+    '%s 即使注册 public JWKS 仍生成 shared secret',
+    async (authMethod) => {
+      const { app, env } = makeEmptyApp()
+      const res = await postRegister(app, env, {
+        token_endpoint_auth_method: authMethod,
+        redirect_uris: ['https://example.com/cb'],
+        jwks: {
+          keys: [
+            {
+              kid: 'ec-1',
+              kty: 'EC',
+              alg: 'ES256',
+              crv: 'P-256',
+              x: 'AQID',
+              y: 'BAUG',
+              ext: true,
+            },
+          ],
+        },
+      })
+
+      expect(res.status).toBe(201)
+      const body = await res.json<Record<string, unknown>>()
+      expect(typeof body['client_secret']).toBe('string')
+      expect(body['jwks']).toEqual({
+        keys: [
+          {
+            kid: 'ec-1',
+            kty: 'EC',
+            alg: 'ES256',
+            use: 'sig',
+            key_ops: ['verify'],
+            crv: 'P-256',
+            x: 'AQID',
+            y: 'BAUG',
+          },
+        ],
+      })
+    },
+  )
+
+  it('private_key_jwt requires non-empty public JWKS and never generates a secret', async () => {
+    const { app, env } = makeEmptyApp()
+    for (const jwks of [undefined, { keys: [] }]) {
+      const rejected = await postRegister(app, env, {
+        token_endpoint_auth_method: 'private_key_jwt',
+        redirect_uris: ['https://example.com/cb'],
+        ...(jwks === undefined ? {} : { jwks }),
+      })
+      expect(rejected.status).toBe(400)
+      expect((await rejected.json<{ error: string }>()).error).toBe('invalid_client_metadata')
+    }
+
+    const accepted = await postRegister(app, env, {
+      token_endpoint_auth_method: 'private_key_jwt',
+      redirect_uris: ['https://example.com/cb'],
+      jwks: {
+        keys: [
+          {
+            kid: 'ec-1',
+            kty: 'EC',
+            alg: 'ES256',
+            crv: 'P-256',
+            x: 'AQID',
+            y: 'BAUG',
+          },
+        ],
+      },
+    })
+    expect(accepted.status).toBe(201)
+    expect((await accepted.json<Record<string, unknown>>())['client_secret']).toBeUndefined()
+  })
+
+  it.each(['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth', 'k'])(
+    '拒绝 JWKS private/symmetric member %s',
+    async (member) => {
+      const { app, env } = makeEmptyApp()
+      const res = await postRegister(app, env, {
+        token_endpoint_auth_method: 'private_key_jwt',
+        redirect_uris: ['https://example.com/cb'],
+        jwks: {
+          keys: [
+            {
+              kid: 'ec-1',
+              kty: 'EC',
+              alg: 'ES256',
+              crv: 'P-256',
+              x: 'AQID',
+              y: 'BAUG',
+              [member]: 'secret',
+            },
+          ],
+        },
+      })
+
+      expect(res.status).toBe(400)
+      expect((await res.json<{ error: string }>()).error).toBe('invalid_client_metadata')
+    },
+  )
+
   it('public client refresh_token 必须显式启用 DPoP sender constraint', async () => {
     const { app, env } = makeEmptyApp()
     const rejected = await postRegister(app, env, {
@@ -131,6 +232,55 @@ describe('POST /register', () => {
       redirect_uris: ['https://example.com/cb'],
     })
     expect(res.status).toBe(201)
+  })
+
+  it('self_signed_tls_client_auth requires and persists an exact SHA-256 certificate pin', async () => {
+    const { app, env } = makeEmptyApp()
+    const missingPin = await postRegister(app, env, {
+      token_endpoint_auth_method: 'self_signed_tls_client_auth',
+      tls_client_auth_subject_dn: 'CN=client.example.com',
+      redirect_uris: ['https://example.com/cb'],
+    })
+    expect(missingPin.status).toBe(400)
+    expect((await missingPin.json<{ error: string }>()).error).toBe('invalid_client_metadata')
+
+    const thumbprint = 'AB:'.repeat(31) + 'AB'
+    const accepted = await postRegister(app, env, {
+      token_endpoint_auth_method: 'self_signed_tls_client_auth',
+      tls_client_auth_subject_dn: 'CN=client.example.com',
+      tls_client_auth_cert_thumbprints: [thumbprint],
+      redirect_uris: ['https://example.com/cb'],
+    })
+    expect(accepted.status).toBe(201)
+    const body = await accepted.json<Record<string, unknown>>()
+    expect(body['tls_client_auth_cert_thumbprints']).toEqual(['ab'.repeat(32)])
+  })
+
+  it('rejects malformed self-signed certificate thumbprints', async () => {
+    const { app, env } = makeEmptyApp()
+    const res = await postRegister(app, env, {
+      token_endpoint_auth_method: 'self_signed_tls_client_auth',
+      tls_client_auth_subject_dn: 'CN=client.example.com',
+      tls_client_auth_cert_thumbprints: ['not-sha256'],
+      redirect_uris: ['https://example.com/cb'],
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json<{ error: string }>()).error).toBe('invalid_client_metadata')
+  })
+
+  it.each([
+    'http://rp.example/logout',
+    'https://user:pass@rp.example/logout',
+    'https://rp.example/logout#fragment',
+    'com.example.app:/logout',
+  ])('rejects unsafe post_logout_redirect_uri %s', async (uri) => {
+    const { app, env } = makeEmptyApp()
+    const res = await postRegister(app, env, {
+      redirect_uris: ['https://example.com/cb'],
+      post_logout_redirect_uris: [uri],
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json<{ error: string }>()).error).toBe('invalid_redirect_uri')
   })
 
   it('匿名注册超 IP 限流返回 429', async () => {
@@ -236,7 +386,7 @@ describe('POST /register', () => {
     }
   })
 
-  it('接受 backchannel_logout_session_required=true 并回显(logout_token 恒含 sid)', async () => {
+  it('持久化 backchannel_logout_session_required=true 并在 RFC7592 GET 回读', async () => {
     const { app, env } = makeEmptyApp()
     const res = await postRegister(app, env, {
       redirect_uris: ['https://example.com/cb'],
@@ -246,6 +396,16 @@ describe('POST /register', () => {
     expect(res.status).toBe(201)
     const body = await res.json<Record<string, unknown>>()
     expect(body['backchannel_logout_session_required']).toBe(true)
+
+    const get = await app.request(
+      `http://test.xid.dev/register/${String(body['client_id'])}`,
+      { headers: { authorization: `Bearer ${String(body['registration_access_token'])}` } },
+      env,
+    )
+    expect(get.status).toBe(200)
+    expect((await get.json<Record<string, unknown>>())['backchannel_logout_session_required']).toBe(
+      true,
+    )
   })
 
   it('形状校验失败返回 invalid_request(RFC 错误形状 + 缓存头)', async () => {
@@ -374,6 +534,7 @@ describe('PATCH /register/:clientId', () => {
         body: JSON.stringify({
           post_logout_redirect_uris: ['https://example.com/logout'],
           backchannel_logout_uri: 'https://example.com/backchannel-logout',
+          backchannel_logout_session_required: true,
           id_token_signed_response_alg: 'ES256',
         }),
       },
@@ -383,6 +544,33 @@ describe('PATCH /register/:clientId', () => {
     const body = await res.json<Record<string, unknown>>()
     expect(body['id_token_signed_response_alg']).toBe('ES256')
     expect(body['backchannel_logout_uri']).toBe('https://example.com/backchannel-logout')
+    expect(body['backchannel_logout_session_required']).toBe(true)
+
+    const getEnabled = await makeApp(env).request(
+      'http://test.xid.dev/register/client_abc',
+      { headers: { authorization: `Bearer ${rat}` } },
+      env,
+    )
+    expect(getEnabled.status).toBe(200)
+    expect(
+      (await getEnabled.json<Record<string, unknown>>())['backchannel_logout_session_required'],
+    ).toBe(true)
+
+    const disabled = await makeApp(env).request(
+      'http://test.xid.dev/register/client_abc',
+      {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${rat}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ backchannel_logout_session_required: false }),
+      },
+      env,
+    )
+    const disabledBody = await disabled.json<Record<string, unknown>>()
+    expect(disabled.status, JSON.stringify(disabledBody)).toBe(200)
+    expect(disabledBody['backchannel_logout_session_required']).toBe(false)
   })
 
   it('PATCH 接受 hybrid response_type 并回显', async () => {
@@ -624,9 +812,19 @@ describe('POST /register scope catalog 收敛', () => {
     const { app, env } = makeEmptyApp()
     const res = await postRegister(app, env, {
       redirect_uris: ['https://example.com/cb'],
-      scope: 'openid profile email address phone offline_access',
+      scope: 'openid profile email phone offline_access organization',
     })
     expect(res.status).toBe(201)
+  })
+
+  it('没有数据模型支撑的 address scope 被拒绝', async () => {
+    const { app, env } = makeEmptyApp()
+    const res = await postRegister(app, env, {
+      redirect_uris: ['https://example.com/cb'],
+      scope: 'openid address',
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json<{ error: string }>()).error).toBe('invalid_client_metadata')
   })
 
   it('已注册 resource server 的 scope 放行并回显', async () => {
@@ -682,5 +880,56 @@ describe('PATCH /register/:clientId redirect_uris 与 scope 校验', () => {
       scope: 'openid profile',
     })
     expect(res.status).toBe(200)
+  })
+
+  it('PATCH JWKS 同样拒绝 private material并规范化 public key', async () => {
+    const patch = await makePatchableApp()
+    const rejected = await patch({
+      jwks: {
+        keys: [
+          {
+            kid: 'ec-1',
+            kty: 'EC',
+            alg: 'ES256',
+            crv: 'P-256',
+            x: 'AQID',
+            y: 'BAUG',
+            d: 'secret',
+          },
+        ],
+      },
+    })
+    expect(rejected.status).toBe(400)
+
+    const accepted = await patch({
+      jwks: {
+        keys: [
+          {
+            kid: 'ec-1',
+            kty: 'EC',
+            alg: 'ES256',
+            crv: 'P-256',
+            x: 'AQID',
+            y: 'BAUG',
+            ext: true,
+          },
+        ],
+      },
+    })
+    expect(accepted.status).toBe(200)
+    expect((await accepted.json<Record<string, unknown>>())['jwks']).toEqual({
+      keys: [
+        {
+          kid: 'ec-1',
+          kty: 'EC',
+          alg: 'ES256',
+          use: 'sig',
+          key_ops: ['verify'],
+          crv: 'P-256',
+          x: 'AQID',
+          y: 'BAUG',
+        },
+      ],
+    })
   })
 })

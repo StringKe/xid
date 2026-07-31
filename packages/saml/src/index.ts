@@ -42,8 +42,14 @@ export type { SamlError, SamlErrorCode, SamlResult, SamlVerifiedAssertion } from
 export { decodeBase64Xml, securityPrecheck, parseSecureXml } from './precheck'
 
 // IdP 证书 -> 验签公钥 + 指纹(8.5)。
-export { loadIdpVerifyKey, loadIdpVerifyKeys } from './cert'
-export type { IdpVerifyKey } from './cert'
+export {
+  DEFAULT_SAML_CLOCK_SKEW_MS,
+  MAX_SAML_CLOCK_SKEW_MS,
+  generateSelfSignedSamlCertificate,
+  loadIdpVerifyKey,
+  loadIdpVerifyKeys,
+} from './cert'
+export type { CertificateValidityOptions, GeneratedSamlCertificate, IdpVerifyKey } from './cert'
 
 // 端到端验签 + 解密 + 语义校验(8.0-8.7)。
 export { verifySamlResponse, readAssertionId } from './verify'
@@ -58,8 +64,13 @@ export { extractSessionIndex, extractSubject, mapAttributes } from './extract'
 export type { AttributeMapping } from './extract'
 
 // SP-initiated AuthnRequest 生成 + 可选签名。
-export { generateAuthnRequest, signAuthnRequest } from './authn-request'
-export type { AuthnRequestInput, GeneratedAuthnRequest } from './authn-request'
+export { generateAuthnRequest, signAuthnRequest, verifySamlAuthnRequest } from './authn-request'
+export type {
+  AuthnRequestInput,
+  GeneratedAuthnRequest,
+  VerifiedAuthnRequest,
+  VerifyAuthnRequestOptions,
+} from './authn-request'
 
 // SP metadata XML(8.9)。
 export { buildSpMetadataXml } from './metadata'
@@ -84,7 +95,10 @@ export {
   verifySamlLogoutResponse,
   buildRedirectBindingSignatureString,
   buildRedirectBindingResponseSignatureString,
+  signRedirectBindingRequest,
+  signRedirectBindingResponse,
   verifyRedirectBindingSignature,
+  REDIRECT_BINDING_RSA_SHA256,
   POST_BINDING as SAML_POST_BINDING,
   REDIRECT_BINDING as SAML_REDIRECT_BINDING,
 } from './logout'
@@ -92,7 +106,10 @@ export type {
   LogoutRequestInput,
   LogoutResponseInput,
   RedirectBindingSignature,
+  RedirectBindingResponseSignature,
+  SignedRedirectBinding,
   SignedLogoutMessage,
+  WireEncodedRedirectSignatureInput,
   VerifiedLogoutRequest,
   VerifiedLogoutResponse,
   VerifyLogoutRequestOptions,

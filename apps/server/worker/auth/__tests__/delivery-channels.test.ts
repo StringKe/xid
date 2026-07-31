@@ -36,7 +36,7 @@ describe('deliveryChannelHasSecrets', () => {
 })
 
 describe('smsDeliverySecretRefs', () => {
-  it('uses custom secretRefs when provided', () => {
+  it('ignores tenant-supplied refs and uses the provider binding contract', () => {
     expect(
       smsDeliverySecretRefs({
         enabled: true,
@@ -44,7 +44,7 @@ describe('smsDeliverySecretRefs', () => {
         secretRefs: ['CUSTOM_KEY'],
         from: '+15550000000',
       }),
-    ).toEqual(['CUSTOM_KEY'])
+    ).toEqual(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'])
   })
 
   it('maps vonage provider to vonage refs', () => {

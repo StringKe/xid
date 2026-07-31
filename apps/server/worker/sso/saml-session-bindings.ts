@@ -4,12 +4,18 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
+import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
 import { readAllById } from '../lib/db-pagination'
 
 export type SamlSessionBinding = {
   userId: string
   sessionId: string
+}
+
+export type ConsumedSamlSessionBinding = SamlSessionBinding & {
+  bindingId: string
+  consumedAt: number
 }
 
 export type OutboundSamlSessionBinding = SamlSessionBinding & {
@@ -22,33 +28,73 @@ export type TrackedOutboundSamlSession = OutboundSamlSessionBinding & {
   sessionIndex: string
 }
 
-function inboundLookupWhere(connectionId: string, extra?: ReturnType<typeof eq>) {
-  const base = and(
-    eq(schema.samlSessionBindings.direction, 'inbound'),
-    eq(schema.samlSessionBindings.scopeId, connectionId),
-    isNull(schema.samlSessionBindings.consumedAt),
-    gt(schema.samlSessionBindings.expiresAt, new Date()),
+type SamlSessionDirection = 'inbound' | 'outbound'
+type SamlSessionLookupColumn = 'session_index' | 'name_id'
+
+async function consumeBindings(
+  c: Context<XidHonoEnv>,
+  input: {
+    direction: SamlSessionDirection
+    scopeId: string
+    column: SamlSessionLookupColumn
+    value: string
+  },
+): Promise<ConsumedSamlSessionBinding[]> {
+  const now = Date.now()
+  // The conditional UPDATE and row capture must be one SQLite statement so concurrent SLO
+  // requests cannot both claim the same mapping.
+  const result = await c.env.DB.prepare(
+    `UPDATE saml_session_bindings
+     SET consumed_at = ?, updated_at = ?
+     WHERE tenant_id = ?
+       AND direction = ?
+       AND scope_id = ?
+       AND ${input.column} = ?
+       AND consumed_at IS NULL
+       AND expires_at > ?
+     RETURNING id AS bindingId, user_id AS userId, session_id AS sessionId,
+               consumed_at AS consumedAt`,
   )
-  return extra ? and(base, extra) : base
+    .bind(now, now, c.get('tenant').tenantId, input.direction, input.scopeId, input.value, now)
+    .all<ConsumedSamlSessionBinding>()
+  return result.results
 }
 
-async function consumeBinding(
+export async function restoreConsumedSamlSessionBindings(
   c: Context<XidHonoEnv>,
-  id: string,
-): Promise<SamlSessionBinding | null> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const row = await db.samlSessionBindings.findOne(eq(schema.samlSessionBindings.id, id))
-  if (!row || row.consumedAt || row.expiresAt <= new Date()) return null
-  const consumed = await db.samlSessionBindings.update(
-    { consumedAt: new Date() },
-    and(
-      eq(schema.samlSessionBindings.id, id),
-      isNull(schema.samlSessionBindings.consumedAt),
-      gt(schema.samlSessionBindings.expiresAt, new Date()),
+  input: {
+    direction: SamlSessionDirection
+    scopeId: string
+    bindings: readonly ConsumedSamlSessionBinding[]
+  },
+): Promise<void> {
+  if (input.bindings.length === 0) return
+  const tenantId = c.get('tenant').tenantId
+  const updatedAt = Date.now()
+  const statements = input.bindings.map((binding) =>
+    c.env.DB.prepare(
+      `UPDATE saml_session_bindings
+       SET consumed_at = NULL, updated_at = ?
+       WHERE id = ?
+         AND tenant_id = ?
+         AND direction = ?
+         AND scope_id = ?
+         AND consumed_at = ?`,
+    ).bind(
+      updatedAt,
+      binding.bindingId,
+      tenantId,
+      input.direction,
+      input.scopeId,
+      binding.consumedAt,
     ),
   )
-  if (consumed && consumed.length === 0 && row.id) return null
-  return { userId: row.userId, sessionId: row.sessionId }
+  const results = await c.env.DB.batch(statements)
+  if (results.some((result) => result.meta.changes !== 1)) {
+    throw new AppError('server_error', {
+      cause: new Error('SAML session binding recovery did not restore every claimed row'),
+    })
+  }
 }
 
 async function upsertSessionBinding(input: {
@@ -137,26 +183,30 @@ export async function resolveInboundSamlSessionIndex(
   c: Context<XidHonoEnv>,
   connectionId: string,
   sessionIndex: string,
-): Promise<SamlSessionBinding | null> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const row = await db.samlSessionBindings.findOne(
-    inboundLookupWhere(connectionId, eq(schema.samlSessionBindings.sessionIndex, sessionIndex)),
+): Promise<ConsumedSamlSessionBinding | null> {
+  return (
+    (
+      await consumeBindings(c, {
+        direction: 'inbound',
+        scopeId: connectionId,
+        column: 'session_index',
+        value: sessionIndex,
+      })
+    )[0] ?? null
   )
-  if (!row) return null
-  return consumeBinding(c, row.id)
 }
 
 export async function resolveInboundSamlSessionByNameId(
   c: Context<XidHonoEnv>,
   connectionId: string,
   nameId: string,
-): Promise<SamlSessionBinding | null> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const row = await db.samlSessionBindings.findOne(
-    inboundLookupWhere(connectionId, eq(schema.samlSessionBindings.nameId, nameId)),
-  )
-  if (!row) return null
-  return consumeBinding(c, row.id)
+): Promise<ConsumedSamlSessionBinding[]> {
+  return consumeBindings(c, {
+    direction: 'inbound',
+    scopeId: connectionId,
+    column: 'name_id',
+    value: nameId,
+  })
 }
 
 // 出站 IdP:SessionIndex -> user/session/NameID 映射(供 SLO 发 LogoutRequest)。
@@ -228,17 +278,28 @@ export async function resolveOutboundSamlSessionIndex(
   c: Context<XidHonoEnv>,
   appId: string,
   sessionIndex: string,
-): Promise<SamlSessionBinding | null> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const row = await db.samlSessionBindings.findOne(
-    and(
-      eq(schema.samlSessionBindings.direction, 'outbound'),
-      eq(schema.samlSessionBindings.scopeId, appId),
-      eq(schema.samlSessionBindings.sessionIndex, sessionIndex),
-      isNull(schema.samlSessionBindings.consumedAt),
-      gt(schema.samlSessionBindings.expiresAt, new Date()),
-    ),
+): Promise<ConsumedSamlSessionBinding | null> {
+  return (
+    (
+      await consumeBindings(c, {
+        direction: 'outbound',
+        scopeId: appId,
+        column: 'session_index',
+        value: sessionIndex,
+      })
+    )[0] ?? null
   )
-  if (!row) return null
-  return consumeBinding(c, row.id)
+}
+
+export async function resolveOutboundSamlSessionByNameId(
+  c: Context<XidHonoEnv>,
+  appId: string,
+  nameId: string,
+): Promise<ConsumedSamlSessionBinding[]> {
+  return consumeBindings(c, {
+    direction: 'outbound',
+    scopeId: appId,
+    column: 'name_id',
+    value: nameId,
+  })
 }

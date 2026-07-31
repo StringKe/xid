@@ -5,14 +5,17 @@
 // ttl=租户 token 策略 sessionTokenTtlSec(默认 60s,见 api-sdk-conventions:getToken 返回 short-lived JWT)。
 
 import { buildAccessTokenClaims, signAccessTokenClaims } from '@xid-kit/protocol'
+import type { SessionTokenResponse } from '@xid-kit/types'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
+import { normalizeIssuedAcr } from '../lib/auth-context'
 import { loadActiveSigner, tokenPolicyOf } from '../oidc/shared'
 import { requireSession } from './shared'
 
 export async function handleSessionToken(c: Context<XidHonoEnv>): Promise<Response> {
   const tenant = c.get('tenant')
   const session = await requireSession(c)
+  const acr = normalizeIssuedAcr(session.acr)
 
   const signer = await loadActiveSigner(tenant, c.env.KEK)
   const now = Math.floor(Date.now() / 1000)
@@ -24,9 +27,21 @@ export async function handleSessionToken(c: Context<XidHonoEnv>): Promise<Respon
     audience: tenant.issuer,
     now,
     ttlSec: tokenPolicyOf(tenant).sessionTokenTtlSec,
-    options: { sid: session.sessionId },
+    options: {
+      sid: session.sessionId,
+      activeOrgId: session.activeOrgId,
+      authContext: {
+        authTime: Math.floor(session.authenticatedAt.getTime() / 1000),
+        ...(acr ? { acr } : {}),
+        ...(session.amr ? { amr: session.amr } : {}),
+      },
+      ...(session.isImpersonation && session.impersonatorUserId
+        ? { act: { sub: session.impersonatorUserId } }
+        : {}),
+    },
   })
   const token = await signAccessTokenClaims(tenant, signer.privateKey, claims)
 
-  return c.json({ token })
+  const response: SessionTokenResponse = { token }
+  return c.json(response)
 }

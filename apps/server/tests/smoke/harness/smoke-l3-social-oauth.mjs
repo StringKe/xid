@@ -13,6 +13,12 @@ import {
 } from './smoke-l3-shared.mjs'
 
 const providers = ['google', 'github_emu', 'microsoft', 'apple']
+const providerSecretBindings = {
+  google: 'GOOGLE_CLIENT_SECRET',
+  github_emu: 'GITHUB_EMU_CLIENT_SECRET',
+  microsoft: 'MICROSOFT_CLIENT_SECRET',
+  apple: 'APPLE_CLIENT_SECRET',
+}
 
 async function enableFakeSocialProviders(fixture) {
   const rows = await d1(
@@ -29,7 +35,7 @@ async function enableFakeSocialProviders(fixture) {
       allowUserCreation: true,
       requireVerifiedEmail: false,
       clientId: 'fake-social-client',
-      clientSecretRef: 'PEPPER',
+      clientSecretRef: providerSecretBindings[provider],
       authorizationEndpoint: `${issuer}/test/fake-social/${provider}/authorize`,
       tokenEndpoint: `${issuer}/test/fake-social/${provider}/token`,
       userInfoEndpoint: `${issuer}/test/fake-social/${provider}/userinfo`,

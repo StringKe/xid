@@ -119,6 +119,7 @@ function idpMetadataXml(cert: string): string {
     cert,
     '</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>',
     '<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>',
+    '<md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/slo"/>',
     '</md:IDPSSODescriptor>',
     '</md:EntityDescriptor>',
   ].join('')
@@ -238,9 +239,10 @@ describe('pollSamlIdpMetadata', () => {
     await pollSamlIdpMetadata(env)
 
     const update = db.runs.find((run) => run.sql.includes('UPDATE sso_connections'))
-    expect(update?.args.slice(0, 3)).toEqual([
+    expect(update?.args.slice(0, 4)).toEqual([
       'https://idp.example.com/metadata',
       'https://idp.example.com/sso',
+      'https://idp.example.com/slo',
       JSON.stringify([cert]),
     ])
     expect(sent[0]?.['event']).toBe('connection.saml_certificate_renewed')

@@ -180,6 +180,8 @@ export type OrgScopedDb = {
   ssoConnections: TenantScoped<typeof schema.ssoConnections>
   directories: TenantScoped<typeof schema.directories>
   scimTargets: TenantScoped<typeof schema.scimTargets>
+  scimTargetResources: TenantScoped<typeof schema.scimTargetResources>
+  customHostnames: TenantScoped<typeof schema.customHostnames>
 }
 
 function buildOrgScoped(db: Db, tenantId: string, orgId: string): OrgScopedDb {
@@ -193,6 +195,8 @@ function buildOrgScoped(db: Db, tenantId: string, orgId: string): OrgScopedDb {
     ssoConnections: orgScoped(db, schema.ssoConnections, tenantId, orgId),
     directories: orgScoped(db, schema.directories, tenantId, orgId),
     scimTargets: orgScoped(db, schema.scimTargets, tenantId, orgId),
+    scimTargetResources: orgScoped(db, schema.scimTargetResources, tenantId, orgId),
+    customHostnames: orgScoped(db, schema.customHostnames, tenantId, orgId),
   }
 }
 
@@ -214,6 +218,7 @@ const TENANT_TABLES = {
   trustedDevices: schema.trustedDevices,
   meteringOutbox: schema.meteringOutbox,
   organizations: schema.organizations,
+  customHostnames: schema.customHostnames,
   projects: schema.projects,
   applications: schema.applications,
   projectGrants: schema.projectGrants,
@@ -238,6 +243,7 @@ const TENANT_TABLES = {
   samlSessionBindings: schema.samlSessionBindings,
   directories: schema.directories,
   scimTargets: schema.scimTargets,
+  scimTargetResources: schema.scimTargetResources,
   directoryUsers: schema.directoryUsers,
   directoryGroups: schema.directoryGroups,
   directoryGroupMembers: schema.directoryGroupMembers,
@@ -249,6 +255,7 @@ const TENANT_TABLES = {
   webhooks: schema.webhooks,
   webhookDeliveries: schema.webhookDeliveries,
   apiKeys: schema.apiKeys,
+  queueDeadLetters: schema.queueDeadLetters,
 } as const
 
 type TenantTableMap = typeof TENANT_TABLES

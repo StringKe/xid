@@ -10,6 +10,8 @@ import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { decodeKek } from '../oidc/shared'
 import type { XidHonoEnv } from '../lib/types'
+import { isLoopbackHttpUrl, isPublicHttpsUrl } from '../lib/validate'
+import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 
 export type SamlConnection = typeof schema.ssoConnections.$inferSelect
 type CertRow = typeof schema.certStore.$inferSelect
@@ -37,7 +39,20 @@ export async function resolveConnection(
   const ctx = c.get('tenant')
   const db = createTenantDb(c.env.DB, ctx)
   const row = await db.ssoConnections.findOne(eq(schema.ssoConnections.id, connectionId))
-  if (!row || row.protocol !== 'saml' || row.status !== 'active') {
+  const permitsLoopbackHttp = isDevOrTestEnvironment(c.env)
+  const endpointAllowed = (url: string): boolean =>
+    isPublicHttpsUrl(url) || (permitsLoopbackHttp && isLoopbackHttpUrl(url))
+  if (
+    !row ||
+    row.protocol !== 'saml' ||
+    row.status !== 'active' ||
+    !row.idpSsoUrl ||
+    !endpointAllowed(row.idpSsoUrl) ||
+    (row.idpSloUrl !== null && row.idpSloUrl !== undefined && !endpointAllowed(row.idpSloUrl)) ||
+    (row.idpMetadataUrl !== null &&
+      row.idpMetadataUrl !== undefined &&
+      !endpointAllowed(row.idpMetadataUrl))
+  ) {
     throw new AppError('connection_not_found', { httpStatus: 404 })
   }
   return row

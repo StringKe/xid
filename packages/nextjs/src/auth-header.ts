@@ -15,6 +15,7 @@
 //   - 签名(有 secret):  v1.<payloadB64url>.<sigBase64>   sig = HMAC-SHA256(secret, payloadB64url)
 
 import { hmacSha256Base64, hmacSha256Verify } from '@xid-kit/crypto'
+import { isOrganizationMembershipRole } from '@xid-kit/types'
 
 import type { AuthObject, AuthResult, UnauthenticatedAuthObject } from './types'
 import { XID_AUTH_HEADER } from './types'
@@ -119,12 +120,22 @@ export async function readAuthFromHeaders(headers: Headers, secret?: string): Pr
 }
 
 function isAuthObject(v: unknown): v is AuthObject {
-  return (
-    typeof v === 'object' &&
-    v !== null &&
-    'userId' in v &&
-    typeof (v as Record<string, unknown>)['userId'] === 'string'
-  )
+  if (typeof v !== 'object' || v === null) return false
+  const record = v as Record<string, unknown>
+  if (typeof record['userId'] !== 'string') return false
+  if (record['orgRole'] !== undefined && !isOrganizationMembershipRole(record['orgRole'])) {
+    return false
+  }
+  const claims = record['claims']
+  if (
+    typeof claims === 'object' &&
+    claims !== null &&
+    (claims as Record<string, unknown>)['org_role'] !== undefined &&
+    !isOrganizationMembershipRole((claims as Record<string, unknown>)['org_role'])
+  ) {
+    return false
+  }
+  return true
 }
 
 function isUnauthenticated(v: unknown): v is UnauthenticatedAuthObject {

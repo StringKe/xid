@@ -1,4 +1,5 @@
 import { createTenantDb, schema } from '@xid-kit/db'
+import type { ActiveOrganizationResponse } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -51,6 +52,9 @@ async function assertActiveOrganizationMembership(
 
 export async function handleActiveOrganization(c: Context<XidHonoEnv>): Promise<Response> {
   const session = await requireSession(c)
+  if (session.isImpersonation) {
+    throw new AppError('forbidden', { httpStatus: 403 })
+  }
   const json = await readJsonBody(c)
   // 非对象 body 一律 paramName=organizationId。
   if (!json.ok || typeof json.value !== 'object' || json.value === null) throw validationError()
@@ -73,12 +77,13 @@ export async function handleActiveOrganization(c: Context<XidHonoEnv>): Promise<
 
   const nextSession = { ...session, activeOrgId: organizationId }
   c.set('session', nextSession)
-  return c.json({
+  const response: ActiveOrganizationResponse = {
     session: {
       id: nextSession.sessionId,
       expiresAt: nextSession.expiresAt.toISOString(),
       isImpersonation: nextSession.isImpersonation,
     },
     activeOrganizationId: organizationId,
-  })
+  }
+  return c.json(response)
 }

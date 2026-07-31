@@ -2,7 +2,7 @@
 // 铁律:传 jwtKey(JWKS 公钥)本地验签跳过网络(@xid-kit/crypto verifyJwt),不回源;Edge 冷启动关键。
 // 校验 iss/exp/nbf/azp(见 06 章 6 节);可预期失败返回 Result,不抛(意外/配置误用才 throw AppError)。
 
-import type { AccessTokenClaims, Result } from '@xid-kit/types'
+import { isOrganizationMembershipRole, type AccessTokenClaims, type Result } from '@xid-kit/types'
 import type { JwtVerifyError } from '@xid-kit/crypto'
 import { verifyJwt } from '@xid-kit/crypto'
 
@@ -10,8 +10,12 @@ import { AppError } from './errors'
 import type { JwtKey } from './jwks'
 import { toVerifyKeySet } from './jwks'
 
-// 验证失败原因:复用 crypto JwtVerifyError 的 reason,加 typ_mismatch/azp_mismatch(SDK 层 access token profile/azp 校验)。
-export type VerifyTokenError = JwtVerifyError['reason'] | 'typ_mismatch' | 'azp_mismatch'
+// 验证失败原因:复用 crypto JwtVerifyError 的 reason,加 SDK 层 access token profile/claims 校验。
+export type VerifyTokenError =
+  | JwtVerifyError['reason']
+  | 'typ_mismatch'
+  | 'azp_mismatch'
+  | 'invalid_org_role'
 
 export type VerifyTokenOptions = {
   // networkless 公钥(必传):单条 JWK / JWKS / 已导入 CryptoKey。无 jwtKey -> throw(不静默回源)。
@@ -66,10 +70,16 @@ export async function verifyToken(
     return { ok: false, error: verified.error.reason }
   }
 
-  const claims = verified.value.payload as AccessTokenClaims
   if (!isAccessTokenJwtTyp(verified.value.header.typ)) {
     return { ok: false, error: 'typ_mismatch' }
   }
+  if (
+    verified.value.payload.org_role !== undefined &&
+    !isOrganizationMembershipRole(verified.value.payload.org_role)
+  ) {
+    return { ok: false, error: 'invalid_org_role' }
+  }
+  const claims = verified.value.payload as AccessTokenClaims
   if (!checkAuthorizedParties(claims, options.authorizedParties)) {
     return { ok: false, error: 'azp_mismatch' }
   }

@@ -158,7 +158,11 @@ function MfaEmptyState(): ReactNode {
   )
 }
 
-export function MfaSection(): ReactNode {
+export function MfaSection({
+  onTotpActivated,
+}: {
+  onTotpActivated?: () => void | Promise<void>
+}): ReactNode {
   const { t } = useLingui()
   const { data: factors, isPending, error } = useMfaFactorsQuery()
   const removeMfa = useRemoveMfaFactor()
@@ -199,6 +203,7 @@ export function MfaSection(): ReactNode {
       setTotpSetup(null)
       setTotpCode('')
       setTotpSuccess(t`Authenticator app added.`)
+      await onTotpActivated?.()
     } catch (err) {
       const xidErr = err as { message?: string; longMessage?: string }
       setTotpError(xidErr.longMessage || xidErr.message || t`Failed to verify authenticator code.`)

@@ -57,7 +57,7 @@ const SIGNED_IN_STATE: XidState = {
           publicMetadata: {},
           createdAt: 1000,
         },
-        role: 'org:admin',
+        role: 'admin',
         permissions: ['org:member:read', 'org:member:write'],
         createdAt: 1000,
       },
@@ -206,7 +206,7 @@ describe('createXidStores', () => {
       expect(last.isSignedIn).toBe(true)
       if (last.isSignedIn) {
         expect(last.organization?.id).toBe('org_1')
-        expect(last.membership?.role).toBe('org:admin')
+        expect(last.membership?.role).toBe('admin')
       }
     })
 

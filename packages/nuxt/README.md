@@ -1,5 +1,9 @@
 # @xid-kit/nuxt
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 Nuxt 3 integration for the XID identity platform. Provides a Nuxt module, server middleware
 (H3/Nitro), and auto-imported composables backed by `@xid-kit/vue`.
 
@@ -23,11 +27,12 @@ Nuxt 3 (`>=3.0.0`) and Vue 3 (`>=3.3.0`) are peer dependencies.
 // nuxt.config.ts
 export default defineNuxtConfig({
   modules: ['@xid-kit/nuxt'],
-
-  runtimeConfig: {
-    public: {
-      // omit for same-origin deployment
-      xidApiUrl: '',
+  xid: {
+    browser: {
+      mode: 'oidc',
+      issuer: 'https://auth.example.com',
+      clientId: 'client_abc123',
+      redirectUri: 'https://app.example.com/auth/callback',
     },
   },
 })
@@ -37,6 +42,11 @@ The module:
 
 - Auto-registers a client-only plugin that installs `XidPlugin` into the Vue app
 - Auto-imports `useXid / useAuth / useUser / useOrganization / useSession` composables
+- Writes only the serializable `browser` configuration to public runtime config
+
+Use `xid: { browser: { mode: 'same-origin' } }` only when Core authentication routes are served on
+the Nuxt application's exact origin. The legacy `apiUrl` option is also same-origin only and cannot
+be combined with `browser`.
 
 ### 2. Composables (auto-imported)
 
@@ -67,6 +77,10 @@ export default createXidServerMiddleware({
   // jwtKey: PublicJwk | PublicJwk[] -- JWKS public key(s) for networkless verification
   jwtKey: JSON.parse(process.env.XID_JWKS_PUBLIC_KEY!),
   issuer: 'https://acme.xid.dev',
+  // Required for Core browser sessions when this path is routed to Core on the same origin.
+  sessionTokenExchange: { endpoint: '/v1/sessions/token' },
+  // Required on H3 v1 Node/Nitro when req.url is relative.
+  requestOrigin: process.env.XID_APP_ORIGIN!,
   // Optional: protect server API routes (returns 401 if unauthenticated)
   protectedRoutes: ['/api/admin'],
 })
@@ -100,6 +114,10 @@ export default defineEventHandler((event) => {
 | `defineXidModule()` | Nuxt module factory (used by Nuxt module system) |
 | `moduleMetadata`    | Module name/configKey/compatibility metadata     |
 
+`XidNuxtModuleOptions.browser` accepts the serializable Core OIDC/same-origin union. Runtime-only
+hooks such as `fetcher`, `tokenCache`, `now`, and `secretKey` are intentionally unavailable in
+`nuxt.config.ts`.
+
 ### Server Middleware
 
 | Export                               | Description                                    |
@@ -110,14 +128,16 @@ export default defineEventHandler((event) => {
 
 #### `XidServerMiddlewareOptions`
 
-| Field                | Type                                         | Description                                                  |
-| -------------------- | -------------------------------------------- | ------------------------------------------------------------ |
-| `jwtKey`             | `JwtKey`                                     | JWKS public key(s) for networkless JWT verification          |
-| `issuer?`            | `string`                                     | Expected issuer (multi-tenant)                               |
-| `authorizedParties?` | `readonly string[]`                          | azp whitelist                                                |
-| `cookieName?`        | `string`                                     | Session cookie name, default `__session`                     |
-| `protectedRoutes?`   | `readonly string[]`                          | Route prefixes requiring auth (returns 401 if not signed in) |
-| `onUnauthenticated?` | `(event) => { statusCode, message } \| null` | Custom auth failure handler                                  |
+| Field                   | Type                                         | Description                                                   |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| `jwtKey`                | `JwtKey`                                     | JWKS public key(s) for networkless JWT verification           |
+| `issuer?`               | `string`                                     | Expected issuer (multi-tenant)                                |
+| `authorizedParties?`    | `readonly string[]`                          | azp whitelist                                                 |
+| `jwtCookieName?`        | `string`                                     | Explicit application-owned short-lived JWT cookie             |
+| `sessionTokenExchange?` | `SessionTokenExchangeOptions`                | Exact same-origin Core opaque-cookie to JWT exchange          |
+| `requestOrigin?`        | `string`                                     | Trusted app origin for relative H3 v1 Node/Nitro request URLs |
+| `protectedRoutes?`      | `readonly string[]`                          | Route prefixes requiring auth (returns 401 if not signed in)  |
+| `onUnauthenticated?`    | `(event) => { statusCode, message } \| null` | Custom auth failure handler                                   |
 
 ### Composables (re-exported from @xid-kit/vue)
 
@@ -135,5 +155,7 @@ export default defineEventHandler((event) => {
 
 - `event.context.xidAuth` is server-side only; it is never sent to the browser.
 - The middleware strips any client-supplied auth tokens and re-injects only the verified result.
+- The middleware never verifies `__Host-xid.rt.*` locally. Same-origin Core sessions use
+  `POST /v1/sessions/token`; separate origins require a Bearer/JWT handoff.
 - For production, ensure the server middleware is registered as a global Nitro middleware
   (file placed in `server/middleware/`) so it covers all routes.

@@ -39,24 +39,29 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "check": "turbo run check && turbo run typecheck && pnpm run native:verify && pnpm run i18n:audit && pnpm run protocols:source-map && pnpm run docs:translations && pnpm run test:web-routes && pnpm run test:key-paths && pnpm run test:quality-gate && pnpm run test:release-contracts && pnpm run test:coverage-gate && pnpm run test:worker-coverage-gate",
+    "check": "pnpm run sdk:distribution:contract && turbo run check && turbo run typecheck && pnpm run native:verify && pnpm run i18n:audit && pnpm run protocols:source-map && pnpm run docs:translations && pnpm run test:web-routes && pnpm run test:key-paths && pnpm run test:quality-gate && pnpm run test:release-contracts && pnpm run test:coverage-gate && pnpm run test:worker-coverage-gate",
     "test:coverage-gate": "vitest run --config vitest.coverage-gate.config.ts --coverage",
     "test:worker-coverage-gate": "XID_COVERAGE_GATE=worker vitest run --config vitest.coverage-gate.config.ts --coverage",
     "smoke:l2-l3": "node apps/server/scripts/run-l2-l3-smoke.mjs",
     "smoke:three-workers": "node scripts/run-three-worker-smoke.mjs",
     "smoke:three-workers:browser": "XID_THREE_WORKER_BROWSER_ONLY=1 node scripts/run-three-worker-smoke.mjs",
+    "cloudflare:queues:plan": "node scripts/setup-cloudflare-queues.mjs",
+    "cloudflare:queues:check": "node scripts/setup-cloudflare-queues.mjs --check",
+    "cloudflare:queues:create": "node scripts/setup-cloudflare-queues.mjs --apply",
     "native:verify": "node --test tests/native-sdk-contract.test.mjs",
     "native:verify:platform": "node --test tests/native-sdk-contract.test.mjs",
-    "test:key-paths": "vitest run tests/key-path-checklist.test.mjs",
+    "test:key-paths": "vitest run tests/key-path-checklist.test.mjs tests/cloudflare-queue-setup.test.mjs tests/cloudflare-security-rules.test.mjs tests/production/production-auth.test.mjs tests/production/wildcard-route-probe.test.mjs tests/production/goal-readiness-contract.test.mjs tests/production/web-route-owner.test.mjs",
     "test:web-routes": "vitest run tests/public-docs.test.mjs tests/web-route-ownership.test.mjs && node scripts/verify-worker-routes.mjs",
     "test:quality-gate": "vitest run tests/quality-gate-summary.test.mjs",
-    "test:release-contracts": "pnpm --filter @xid-kit/server exec vitest run scripts/__tests__/assert-migration-compatibility.test.mjs scripts/__tests__/ci-contract.test.mjs",
+    "test:release-contracts": "pnpm --filter @xid-kit/server exec vitest run scripts/__tests__/assert-migration-compatibility.test.mjs scripts/__tests__/ci-contract.test.mjs scripts/__tests__/observability-privacy-config.test.mjs",
     "security:dependencies": "pnpm audit --prod --audit-level high",
     "security:secret-scan": "node apps/server/scripts/check-repository-secrets.mjs",
-    "test:fuzz": "pnpm --filter @xid-kit/site build && vitest run packages/crypto/src/__tests__/random.property.test.ts packages/core/src/__tests__/url.property.test.ts apps/server/tests/smoke/harness/saml-post-form.property.test.mjs tests/production/harness/public-content-checks.property.test.mjs",
+    "test:fuzz": "turbo run build --filter=@xid-kit/site && vitest run packages/crypto/src/__tests__/random.property.test.ts packages/core/src/__tests__/url.property.test.ts apps/server/tests/smoke/harness/saml-post-form.property.test.mjs tests/production/harness/public-content-checks.property.test.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "pack": "turbo run pack",
+    "pack": "pnpm run sdk:distribution:verify",
+    "sdk:distribution:contract": "node scripts/verify-sdk-distribution.mjs --manifest-only",
+    "sdk:distribution:verify": "node scripts/verify-sdk-distribution.mjs",
     "fmt": "vp fmt",
     "lint": "vp lint",
     "i18n:extract": "lingui extract --clean",
@@ -67,7 +72,7 @@
     "seo:sitemap": "pnpm --filter @xid-kit/site build",
     "seo:llms": "pnpm --filter @xid-kit/site build",
     "protocols:source-map": "vitest run tests/protocols/source-map-coverage.test.mjs",
-    "docs:translations": "vitest run tests/docs/translation-drift.test.mjs",
+    "docs:translations": "vitest run tests/docs",
     "goal:readiness": "vitest run tests/production/goal-readiness.test.mjs",
     "smoke:production": "vitest run tests/production/smoke-production.test.mjs",
     "smoke:production:auth": "vitest run tests/production/smoke-production-auth.test.mjs",
@@ -105,6 +110,9 @@
       "esbuild",
       "workerd",
       "sharp"
-    ]
+    ],
+    "patchedDependencies": {
+      "@cloudflare/nimbus-docs@0.8.2": "patches/@cloudflare__nimbus-docs@0.8.2.patch"
+    }
   }
 }

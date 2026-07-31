@@ -6,8 +6,18 @@ import { USER_PROVISIONED_BY_ANONYMOUS } from '@xid-kit/db'
 import { parseIdpMetadataXml } from '@xid-kit/saml'
 import type { SigningAlg } from '@xid-kit/types'
 import { decodeKek } from '../oidc/shared'
+import { createPersistedId } from '../lib/persisted-id'
 import { sessionDoRevokeAll } from '../lib/session'
 import { GUEST_GC_INACTIVE_DAYS } from '../lib/ttl'
+import { isPublicHttpsUrl } from '../lib/validate'
+import {
+  cloudflareForSaasConfigFromEnv,
+  type CloudflareForSaasEnv,
+} from '../lib/cloudflare-custom-hostnames'
+import { logWorkerError } from '../lib/safe-log'
+import { maintainCustomHostnames } from './custom-hostnames'
+import { enqueueDuePrivacyRequests, expirePrivacyExports } from './privacy'
+import { reportStripeMauUsage } from '../billing/stripe-metering'
 
 // MeteringDO RPC stub(取最终 MAU 数值)。
 type MeteringCountStub = {
@@ -145,7 +155,7 @@ export async function rotateSigningKeysCheck(env: Env): Promise<void> {
          ON CONFLICT DO NOTHING`,
       )
         .bind(
-          `sk_${crypto.randomUUID()}`,
+          createPersistedId('signingKey'),
           row.instance_id,
           material.kid,
           material.alg,
@@ -177,12 +187,16 @@ export async function backfillRetiringKeyRetireAfter(env: Env): Promise<void> {
     .run()
 }
 
-// 证书状态轮询:cert_store 临近 not_after 的证书标记待续期。
+// 证书状态轮询:临近 not_after 的证书继续为现有 SP 签名,但不再分配给新 SP。
 export async function pollCertificateStatus(env: Env): Promise<void> {
   const soon = Date.now() + 1000 * 60 * 60 * 24 * 30 // 30 天内到期
   await env.DB.prepare(
-    `UPDATE cert_store SET status = 'expiring', updated_at = ?
-       WHERE status = 'active' AND not_after IS NOT NULL AND not_after < ?`,
+    `UPDATE cert_store SET status = 'retiring', updated_at = ?
+       WHERE tenant_id IS NOT NULL
+         AND usage = 'saml_idp_signing'
+         AND status = 'active'
+         AND not_after IS NOT NULL
+         AND not_after < ?`,
   )
     .bind(Date.now(), soon)
     .run()
@@ -257,24 +271,40 @@ async function readBoundedText(response: Response, maxBytes: number): Promise<st
 }
 
 async function refreshIdpMetadata(env: Env, row: IdpMetadataConnectionRow): Promise<void> {
+  if (!isPublicHttpsUrl(row.idp_metadata_url)) return
   const response = await fetch(row.idp_metadata_url, {
     headers: { accept: 'application/samlmetadata+xml, application/xml, text/xml' },
+    redirect: 'manual',
     signal: AbortSignal.timeout(SAML_METADATA_FETCH_TIMEOUT_MS),
   })
   if (!response.ok) return
   const xml = await readBoundedText(response, SAML_METADATA_MAX_BYTES)
   const parsed = parseIdpMetadataXml(xml)
-  if (!parsed.ok) return
+  if (
+    !parsed.ok ||
+    !isPublicHttpsUrl(parsed.value.ssoUrl) ||
+    (parsed.value.sloUrl !== null && !isPublicHttpsUrl(parsed.value.sloUrl))
+  ) {
+    return
+  }
 
   const oldCerts = parseStoredCertificates(row.idp_certificates)
   const newCerts = parsed.value.certificates
   const now = Date.now()
   await env.DB.prepare(
     `UPDATE sso_connections
-       SET idp_entity_id = ?, idp_sso_url = ?, idp_certificates = ?, updated_at = ?
+       SET idp_entity_id = ?, idp_sso_url = ?, idp_slo_url = ?,
+           idp_certificates = ?, updated_at = ?
        WHERE id = ? AND status = 'active' AND protocol = 'saml'`,
   )
-    .bind(parsed.value.entityId, parsed.value.ssoUrl, JSON.stringify(newCerts), now, row.id)
+    .bind(
+      parsed.value.entityId,
+      parsed.value.ssoUrl,
+      parsed.value.sloUrl,
+      JSON.stringify(newCerts),
+      now,
+      row.id,
+    )
     .run()
 
   if (certificateSetChanged(oldCerts, newCerts)) {
@@ -768,12 +798,60 @@ export async function gcInactiveGuests(env: Env, now: Date = new Date()): Promis
   )
 }
 
+async function runDailyPhase(
+  name: string,
+  run: () => Promise<void>,
+  failures: unknown[],
+): Promise<void> {
+  try {
+    await run()
+  } catch (error) {
+    failures.push(error)
+    logWorkerError('cron.daily.phase_failed', error, {
+      component: 'daily-cron',
+      operation: name,
+      outcome: 'continued_remaining_phases',
+    })
+  }
+}
+
 export async function runDaily(env: Env): Promise<void> {
-  await backfillRetiringKeyRetireAfter(env)
-  await rotateSigningKeysCheck(env)
-  await pollCertificateStatus(env)
-  await pollDomainVerification(env)
-  await pollSamlIdpMetadata(env)
-  await runMonthlyUsageMaintenance(env)
-  await gcInactiveGuests(env)
+  const failures: unknown[] = []
+
+  await runDailyPhase(
+    'signing_key_maintenance',
+    async () => {
+      await backfillRetiringKeyRetireAfter(env)
+      await rotateSigningKeysCheck(env)
+    },
+    failures,
+  )
+  await runDailyPhase('certificate_status', () => pollCertificateStatus(env), failures)
+  await runDailyPhase('domain_verification', () => pollDomainVerification(env), failures)
+  await runDailyPhase(
+    'custom_hostname_maintenance',
+    async () => {
+      if (cloudflareForSaasConfigFromEnv(env as CloudflareForSaasEnv)) {
+        await maintainCustomHostnames(env)
+      }
+    },
+    failures,
+  )
+  await runDailyPhase('saml_metadata', () => pollSamlIdpMetadata(env), failures)
+  await runDailyPhase('usage_maintenance', () => runMonthlyUsageMaintenance(env), failures)
+  await runDailyPhase('guest_gc', () => gcInactiveGuests(env), failures)
+  await runDailyPhase(
+    'privacy_maintenance',
+    async () => {
+      await expirePrivacyExports(env)
+      await enqueueDuePrivacyRequests(env)
+    },
+    failures,
+  )
+  // Optional managed-service adapter. Self-hosted deployments with no Stripe config return here.
+  await runDailyPhase('stripe_metering', () => reportStripeMauUsage(env), failures)
+
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'daily_cron_phase_failed')
+  }
 }

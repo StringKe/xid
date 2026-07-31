@@ -1,4 +1,5 @@
 import type { MessageDescriptor } from '@lingui/core'
+import { msg } from '@lingui/core/macro'
 import { useLingui } from '@lingui/react'
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
@@ -8,6 +9,7 @@ import { trackPageView } from '../lib/google-analytics'
 
 const TITLES: Readonly<Record<string, MessageDescriptor>> = {
   '/console': /*i18n*/ { id: 'kjo2do', message: 'Console overview | XID' },
+  '/console/managed-projects': msg`Managed projects | Console | XID`,
   '/console/users': /*i18n*/ { id: 'q4CxF4', message: 'Users | Console | XID' },
   '/console/organizations': /*i18n*/ {
     id: 'ZlJXTl',
@@ -16,6 +18,7 @@ const TITLES: Readonly<Record<string, MessageDescriptor>> = {
   '/console/settings': /*i18n*/ { id: '0QsJ5l', message: 'Settings | Console | XID' },
   '/console/org': /*i18n*/ { id: 'y-pBk0', message: 'Organization overview | Console | XID' },
   '/console/org/members': /*i18n*/ { id: 'lUBUZG', message: 'Members | Console | XID' },
+  '/console/org/projects': msg`Projects and access | Console | XID`,
   '/console/org/roles': /*i18n*/ { id: '3CjwFT', message: 'Roles | Console | XID' },
   '/console/org/auth-policy': /*i18n*/ {
     id: '6Fss-s',
@@ -54,6 +57,10 @@ const TITLES: Readonly<Record<string, MessageDescriptor>> = {
     id: '7u-mRS',
     message: 'Audit events | Console | XID',
   },
+  '/console/org/compliance': /*i18n*/ {
+    id: 'pv9mbs',
+    message: 'Compliance center | Console | XID',
+  },
   '/console/platform': /*i18n*/ { id: '1VwcCx', message: 'Platform overview | Console | XID' },
   '/console/platform/organizations': /*i18n*/ {
     id: 'Qesqz6',
@@ -63,11 +70,32 @@ const TITLES: Readonly<Record<string, MessageDescriptor>> = {
     id: 'TFOSQi',
     message: 'Platform users | Console | XID',
   },
+  '/console/platform/managers': msg`Instance managers | Console | XID`,
   '/console/platform/events': /*i18n*/ { id: 'm_6zdm', message: 'Event stream | Console | XID' },
   '/console/platform/flags': /*i18n*/ { id: 'u1fW7C', message: 'Feature flags | Console | XID' },
   '/console/platform/billing': /*i18n*/ {
     id: 'pJMmXv',
     message: 'Billing overview | Console | XID',
+  },
+  '/console/platform/plans': /*i18n*/ {
+    id: 'SnIN8s',
+    message: 'Plans and quotas | Console | XID',
+  },
+  '/console/platform/announcements': /*i18n*/ {
+    id: 'N4FfY6',
+    message: 'Announcements | Console | XID',
+  },
+  '/console/platform/status': /*i18n*/ {
+    id: '1GOxSA',
+    message: 'Status incidents | Console | XID',
+  },
+  '/console/platform/compliance': /*i18n*/ {
+    id: 'B393ii',
+    message: 'Platform compliance | Console | XID',
+  },
+  '/console/platform/dead-letters': /*i18n*/ {
+    id: 'hD149M',
+    message: 'Dead letters | Console | XID',
   },
   '/console/platform/settings': /*i18n*/ {
     id: '848QWZ',

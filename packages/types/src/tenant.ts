@@ -486,6 +486,8 @@ export type TenantContext = {
   instanceId?: string
   issuer: string
   rpId: string
+  customHostname?: string
+  requiresPasskeyReregistration?: boolean
   resolution?: {
     kind: 'tenant' | 'instance_entry'
     primaryDomain?: string

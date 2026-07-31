@@ -33,6 +33,8 @@ function makeDeviceEnv(
 ): Env {
   const app = makeAppRow({
     client_secret_hash: null,
+    client_type: 'public',
+    token_endpoint_auth_method: 'none',
     allowed_grant_types: JSON.stringify(['urn:ietf:params:oauth:grant-type:device_code']),
     first_party: 1,
   })

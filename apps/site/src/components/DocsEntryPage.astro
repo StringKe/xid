@@ -41,16 +41,21 @@ const breadcrumbs = rawBreadcrumbs.map((item) => ({
       : item.href,
 }));
 const editUrl = await getEditUrl(entry);
+// Generated locale artifacts have no independent Git history, so only explicit metadata is truthful.
+const hasGeneratedSource = /[/\\]content[/\\]generated[/\\]/.test(entry.filePath ?? "");
 const lastUpdated =
-  entry.data.lastUpdated ?? (await getLastUpdated(entry));
+  entry.data.lastUpdated ??
+  (hasGeneratedSource ? undefined : await getLastUpdated(entry));
 const tocConfig = entry.data.tableOfContents;
 const toc =
   tocOn && tocConfig !== false ? getTOC(headings, tocConfig) : false;
 const markdownPath =
   currentSlug === "/" ? "/index.md" : `${currentSlug}/index.md`;
-const markdownUrl = Astro.site
-  ? new URL(markdownPath, Astro.site).href
-  : markdownPath;
+const markdownUrl = entry.data.noindex
+  ? undefined
+  : Astro.site
+    ? new URL(markdownPath, Astro.site).href
+    : markdownPath;
 const socialImage = entry.data.socialImage ?? `/og/${entry.id}.png`;
 ---
 

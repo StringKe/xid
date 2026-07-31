@@ -14,6 +14,17 @@ describe('buildIdpMetadataXml', () => {
     expect(xml).toContain('https://idp.example.com/sso')
     expect(xml).toContain('SingleSignOnService')
     expect(xml).toContain(IDP_CERT_B64.replace(/\s+/g, ''))
+    expect(xml).toContain('WantAuthnRequestsSigned="false"')
+  })
+
+  it('advertises a required AuthnRequest signature when configured', () => {
+    const xml = buildIdpMetadataXml({
+      entityId: IDP_ENTITY_ID,
+      ssoUrl: 'https://idp.example.com/sso',
+      signingCertsB64: [IDP_CERT_B64],
+      wantAuthnRequestsSigned: true,
+    })
+    expect(xml).toContain('WantAuthnRequestsSigned="true"')
   })
 
   it('includes SingleLogoutService when sloUrl is provided', () => {

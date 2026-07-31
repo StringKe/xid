@@ -12,12 +12,17 @@ import { registerPermissions } from './permissions'
 import { registerWebhooks } from './webhooks'
 import { registerApiKeys } from './api-keys'
 import { registerProjectGrants } from './project-grants'
+import { registerUserGrants } from './user-grants'
 // 身份资源(users/organizations/memberships/invitations/sessions)
 import { registerUsersRoutes } from './users'
 import { registerOrganizationsRoutes } from './organizations'
 import { registerMembershipsRoutes } from './memberships'
 import { registerInvitationsRoutes } from './invitations'
 import { registerSessionsRoutes } from './sessions'
+import { registerCustomHostnameRoutes } from './custom-hostnames'
+import { registerProjects } from './projects'
+import { registerRolePermissions } from './role-permissions'
+import { registerManagerAssignments } from './manager-assignments'
 
 export function registerV1Routes(app: Hono<XidHonoEnv>): void {
   registerApplications(app)
@@ -28,10 +33,15 @@ export function registerV1Routes(app: Hono<XidHonoEnv>): void {
   registerWebhooks(app)
   registerApiKeys(app)
   registerProjectGrants(app)
+  registerUserGrants(app)
   // 身份资源
   registerUsersRoutes(app)
   registerOrganizationsRoutes(app)
   registerMembershipsRoutes(app)
   registerInvitationsRoutes(app)
   registerSessionsRoutes(app)
+  registerCustomHostnameRoutes(app)
+  registerProjects(app)
+  registerRolePermissions(app)
+  registerManagerAssignments(app)
 }

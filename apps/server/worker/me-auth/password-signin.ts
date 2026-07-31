@@ -11,6 +11,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { PASSWORD_AUTH_CONTEXT } from '../lib/auth-context'
@@ -23,14 +24,17 @@ import {
   validatePasswordLength,
   verifyPassword,
 } from '../auth/password'
+import { provisionAccountAtomically } from '../auth/account-provisioning'
 import { requestIp, requestUserAgent, verifyTurnstile } from './shared'
 import { assertEmailAllowed, assertMethodAllowed } from '../auth/hosted-policy'
 import { auditPolicyDeniedError } from '../auth/hosted-audit'
 import { normalizeProfileFields } from '../auth/profile-fields'
 import type { NormalizedProfileFields, ProfileFieldInput } from '../auth/profile-fields'
+import { isHostedAuthIntent, isProductSignUpIntent } from '../../shared/hosted-auth-intent'
+import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import { issueEmailVerification } from './email-verify-token'
 import { loginHintCandidates, resolveEntryTenant, withTenant } from './instance-login'
-import { ensureDefaultMembership, shouldSkipDefaultMembership } from './passwordless-users'
+import { shouldSkipDefaultMembership } from './passwordless-users'
 import { loadGuestConversionContext, markGuestConverted } from './guest-conversion'
 import type { GuestConversionContext } from './guest-conversion'
 import {
@@ -38,11 +42,7 @@ import {
   resolvePostAuthMfaGate,
   sanitizeLocalReturn,
 } from '../lib/mfa-session'
-import {
-  acceptInvitationByToken,
-  invitationAcceptContinuePath,
-  loadPrimaryEmailForUserId,
-} from '../auth/invitations'
+import { startInvitationEmailClaim } from './invitation-claim'
 
 const nullableString = v.optional(v.nullable(v.string()))
 
@@ -51,6 +51,7 @@ const passwordAuthBodySchema = v.object({
   password: v.optional(v.string()),
   rememberMe: v.optional(v.boolean()),
   organizationId: nullableString,
+  clientId: nullableString,
   turnstileToken: nullableString,
   invitationToken: nullableString,
   intent: nullableString,
@@ -187,9 +188,9 @@ async function createUserWithPassword(opts: {
   password: string
   rememberMe: boolean
   profileInput: ProfileFieldInput
-  invitationToken?: string | null
   intent?: string | null
   continueParam?: string | null
+  applicationClientId?: string | null
 }): Promise<PasswordAuthResponse> {
   const {
     c,
@@ -199,13 +200,12 @@ async function createUserWithPassword(opts: {
     password,
     rememberMe,
     profileInput,
-    invitationToken,
     intent,
     continueParam,
+    applicationClientId,
   } = opts
   const skipDefaultMembership = shouldSkipDefaultMembership({
     redirectAfterLogin: continueParam,
-    invitationToken,
     intent,
   })
   let profile
@@ -253,68 +253,69 @@ async function createUserWithPassword(opts: {
       rememberMe,
       profile,
       requireEmailVerification,
-      invitationToken,
       intent,
       continueParam,
+      applicationClientId,
     })
   }
 
-  const userId = crypto.randomUUID()
+  const userId = createPersistedId('user')
   const emailId = profile.email ? crypto.randomUUID() : null
   const phoneId = profile.phone ? crypto.randomUUID() : null
-  await db.users.insert({
-    id: userId,
+  const passwordProvisioning = requireEmailVerification
+    ? null
+    : await (async () => {
+        const passwordHash = await hashPassword(password, c.env.PEPPER)
+        return {
+          id: crypto.randomUUID(),
+          hash: passwordHash.hash,
+          algo: passwordHash.algo,
+          pepperVersion: passwordHash.pepperVersion,
+          reuseTag: await passwordReuseTag(password, c.env.PEPPER),
+        }
+      })()
+  await provisionAccountAtomically({
+    d1: c.env.DB,
     tenantId: tenant.tenantId,
-    username: profile.username,
-    externalId: identifier.kind === 'external_id' ? identifier.value : null,
-    primaryEmailId: emailId,
-    primaryPhoneId: phoneId,
-    firstName: profile.firstName,
-    lastName: profile.lastName,
-    displayName: profile.displayName,
-    status: 'active',
-    profileCompletionStatus: profile.profileCompletionStatus,
-    provisionedBy: 'hosted_password',
-    isNewUser: true,
-  })
-  if (profile.email && emailId) {
-    await db.userEmails.insert({
-      id: emailId,
-      tenantId: tenant.tenantId,
-      userId,
-      email: profile.email,
-      verified: false,
-      verificationStatus: 'unverified',
-      isPrimary: true,
-    })
-  }
-  if (profile.phone && phoneId) {
-    await db.userPhones.insert({
-      id: phoneId,
-      tenantId: tenant.tenantId,
-      userId,
-      phone: profile.phone,
-      verified: false,
-      verificationStatus: 'unverified',
-      isPrimary: true,
-    })
-  }
-
-  const passwordHash = await hashPassword(password, c.env.PEPPER)
-  await db.passwords.insert({
-    id: crypto.randomUUID(),
-    tenantId: tenant.tenantId,
-    userId,
-    hash: passwordHash.hash,
-    algo: passwordHash.algo,
-    pepperVersion: passwordHash.pepperVersion,
-    reuseTag: await passwordReuseTag(password, c.env.PEPPER),
-  })
-  await ensureDefaultMembership({
-    db,
-    tenantId: tenant.tenantId,
-    userId,
-    skip: skipDefaultMembership,
+    user: {
+      id: userId,
+      username: profile.username,
+      externalId: identifier.kind === 'external_id' ? identifier.value : null,
+      primaryEmailId: emailId,
+      primaryPhoneId: phoneId,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      displayName: profile.displayName,
+      profileCompletionStatus: profile.profileCompletionStatus,
+      provisionedBy: 'hosted_password',
+      isNewUser: true,
+    },
+    primaryEmail:
+      profile.email && emailId
+        ? {
+            id: emailId,
+            email: profile.email,
+            verified: false,
+            verificationStatus: 'unverified',
+          }
+        : null,
+    primaryPhone:
+      profile.phone && phoneId
+        ? {
+            id: phoneId,
+            phone: profile.phone,
+            verified: false,
+            verificationStatus: 'unverified',
+          }
+        : null,
+    password: passwordProvisioning,
+    defaultMembership:
+      requireEmailVerification || skipDefaultMembership
+        ? null
+        : {
+            id: createPersistedId('membership'),
+            orgId: tenant.tenantId,
+          },
   })
 
   if (requireEmailVerification && profile.email) {
@@ -323,16 +324,18 @@ async function createUserWithPassword(opts: {
       tenant,
       userId,
       email: profile.email,
-      ...(intent === 'sign-up' ? { intent: 'sign-up' as const } : {}),
+      ...(isHostedAuthIntent(intent) ? { intent } : {}),
+      ...(continueParam ? { continuePath: continueParam } : {}),
+      ...(applicationClientId ? { applicationClientId } : {}),
     })
     return { nextStep: 'verify_email' }
   }
 
-  const returnPath = postAuthRedirectPath({ invitationToken, intent, continueParam })
+  const returnPath = postAuthRedirectPath({ intent, continueParam })
   const now = new Date()
   const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath })
-  const sessionId = crypto.randomUUID()
-  const issued = await issueSession(c, {
+  const sessionId = createPersistedId('session')
+  await issueSession(c, {
     sessionId,
     userId,
     ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
@@ -345,15 +348,7 @@ async function createUserWithPassword(opts: {
   if (mfaGate.redirectUrl) {
     return { nextStep: 'complete', redirectUrl: mfaGate.redirectUrl }
   }
-  const redirectUrl = await resolvePasswordSignInRedirect(c, {
-    db,
-    tenant,
-    userId,
-    sessionId: issued.session.sessionId,
-    invitationToken,
-    intent,
-    continueParam,
-  })
+  const redirectUrl = resolvePasswordSignInRedirect({ intent, continueParam })
   return { nextStep: 'complete', ...(redirectUrl ? { redirectUrl } : {}) }
 }
 
@@ -370,9 +365,9 @@ async function convertGuestWithPassword(opts: {
   rememberMe: boolean
   profile: NormalizedProfileFields
   requireEmailVerification: boolean
-  invitationToken?: string | null
   intent?: string | null
   continueParam?: string | null
+  applicationClientId?: string | null
 }): Promise<PasswordAuthResponse> {
   const {
     c,
@@ -384,9 +379,9 @@ async function convertGuestWithPassword(opts: {
     rememberMe,
     profile,
     requireEmailVerification,
-    invitationToken,
     intent,
     continueParam,
+    applicationClientId,
   } = opts
   const userId = guest.userId
   const emailId = profile.email ? crypto.randomUUID() : null
@@ -427,24 +422,38 @@ async function convertGuestWithPassword(opts: {
     eq(schema.users.id, userId),
   )
 
-  const passwordHash = await hashPassword(password, c.env.PEPPER)
-  await db.passwords.insert({
-    id: crypto.randomUUID(),
-    tenantId: tenant.tenantId,
-    userId,
-    hash: passwordHash.hash,
-    algo: passwordHash.algo,
-    pepperVersion: passwordHash.pepperVersion,
-    reuseTag: await passwordReuseTag(password, c.env.PEPPER),
-  })
+  if (!requireEmailVerification) {
+    const passwordHash = await hashPassword(password, c.env.PEPPER)
+    await db.passwords.insert({
+      id: crypto.randomUUID(),
+      tenantId: tenant.tenantId,
+      userId,
+      hash: passwordHash.hash,
+      algo: passwordHash.algo,
+      pepperVersion: passwordHash.pepperVersion,
+      reuseTag: await passwordReuseTag(password, c.env.PEPPER),
+    })
+  }
 
   await markGuestConverted({ c, tenant, db, guest, provisionedBy: 'hosted_password' })
 
-  const returnPath = postAuthRedirectPath({ invitationToken, intent, continueParam })
+  if (requireEmailVerification && profile.email) {
+    await issueEmailVerification({
+      env: c.env,
+      tenant,
+      userId,
+      email: profile.email,
+      ...(isHostedAuthIntent(intent) ? { intent } : {}),
+      ...(continueParam ? { continuePath: continueParam } : {}),
+      ...(applicationClientId ? { applicationClientId } : {}),
+    })
+    return { nextStep: 'verify_email' }
+  }
+  const returnPath = postAuthRedirectPath({ intent, continueParam })
   const now = new Date()
   const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath })
-  const sessionId = crypto.randomUUID()
-  const issued = await issueSession(c, {
+  const sessionId = createPersistedId('session')
+  await issueSession(c, {
     sessionId,
     userId,
     ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
@@ -457,60 +466,16 @@ async function convertGuestWithPassword(opts: {
   if (mfaGate.redirectUrl) {
     return { nextStep: 'complete', redirectUrl: mfaGate.redirectUrl }
   }
-  if (requireEmailVerification && profile.email) {
-    await issueEmailVerification({
-      env: c.env,
-      tenant,
-      userId,
-      email: profile.email,
-      ...(intent === 'sign-up' ? { intent: 'sign-up' as const } : {}),
-    })
-    return { nextStep: 'verify_email' }
-  }
-  const redirectUrl = await resolvePasswordSignInRedirect(c, {
-    db,
-    tenant,
-    userId,
-    sessionId: issued.session.sessionId,
-    invitationToken,
-    intent,
-    continueParam,
-  })
+  const redirectUrl = resolvePasswordSignInRedirect({ intent, continueParam })
   return { nextStep: 'complete', ...(redirectUrl ? { redirectUrl } : {}) }
 }
 
-async function resolvePasswordSignInRedirect(
-  c: Context<XidHonoEnv>,
-  opts: {
-    db: ReturnType<typeof createTenantDb>
-    tenant: TenantVar
-    userId: string
-    sessionId: string
-    invitationToken?: string | null
-    intent?: string | null
-    continueParam?: string | null
-  },
-): Promise<string | undefined> {
-  const { db, tenant, userId, sessionId, invitationToken, intent, continueParam } = opts
-  if (invitationToken?.trim()) {
-    const user = await db.users.findOne(eq(schema.users.id, userId))
-    const userEmail = user
-      ? await loadPrimaryEmailForUserId(db, user.id, user.primaryEmailId)
-      : null
-    const accepted = await acceptInvitationByToken({
-      db,
-      env: c.env,
-      tenantId: tenant.tenantId,
-      rawToken: invitationToken,
-      userId,
-      userEmail,
-    })
-    await db.sessions.update({ activeOrgId: accepted.orgId }, eq(schema.sessions.id, sessionId))
-    const org = await db.organizations.findOne(eq(schema.organizations.id, accepted.orgId))
-    const orgName = org?.name ?? org?.slug ?? accepted.orgId
-    return invitationAcceptContinuePath(accepted.orgId, orgName)
-  }
-  if (intent === 'sign-up') return '/create-organization'
+function resolvePasswordSignInRedirect(opts: {
+  intent?: string | null
+  continueParam?: string | null
+}): string | undefined {
+  const { intent, continueParam } = opts
+  if (isProductSignUpIntent(intent)) return '/create-organization'
   if (continueParam) return sanitizeLocalReturn(continueParam)
   return undefined
 }
@@ -520,16 +485,41 @@ export async function handlePasswordAuth(
   body: PasswordAuthBody,
 ): Promise<Response> {
   const rawIdentifier = body.identifier ?? ''
+  const flow = resolveHostedAuthFlow({
+    intent: body.intent,
+    continuePath: body.continue,
+    applicationClientId: body.clientId,
+    hasInvitation: Boolean(body.invitationToken?.trim()),
+  })
+  if (!flow) throw new AppError('invalid_request')
+  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
+  if (body.invitationToken?.trim()) {
+    try {
+      await startInvitationEmailClaim({
+        c,
+        rawInvitationToken: body.invitationToken,
+      })
+    } catch (error) {
+      if (
+        !(error instanceof AppError) ||
+        (error.code !== 'invitation_invalid' && error.code !== 'invitation_expired')
+      ) {
+        throw error
+      }
+    }
+    return c.json({ nextStep: 'verify_email' })
+  }
   const entryTenant = c.get('tenant')
   const entryIdentifier = entryTenant.resolution?.unresolvedRoot
     ? loginHintCandidates(rawIdentifier)
     : parseIdentifier(entryTenant, rawIdentifier)
-  const tenant = await resolveEntryTenant(c, entryIdentifier, body.organizationId)
+  const tenant = await resolveEntryTenant(c, entryIdentifier, body.organizationId, {
+    intent: flow.intent,
+    applicationClientId: flow.applicationClientId,
+  })
   const identifier = parseIdentifier(tenant, rawIdentifier)
   const password = body.password ?? ''
   if (!identifier.value || !password) throw new AppError('invalid_credentials')
-
-  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
 
   return withTenant(c, tenant, async () => {
     // 失败限流前置(account=identifier + IP);超限抛 rate_limited(枚举防护:与失败同模糊层)。
@@ -555,9 +545,9 @@ export async function handlePasswordAuth(
           password,
           rememberMe,
           profileInput: body,
-          invitationToken: body.invitationToken,
-          intent: body.intent,
-          continueParam: body.continue,
+          intent: flow.intent,
+          continueParam: flow.continuePath,
+          applicationClientId: flow.applicationClientId,
         }),
       )
     }
@@ -588,41 +578,48 @@ export async function handlePasswordAuth(
     // HIBP 登录异步检查不阻断(命中标记 breached,下次提示重置,见 password-auth rule)。
     c.executionCtx.waitUntil(markBreachedIfPwned(c, tenant, user.userId, password))
 
-    if (passwordRequiresEmailVerification(tenant) && !body.invitationToken?.trim()) {
-      const primaryEmail = await db.userEmails.findOne(
-        user.primaryEmailId
-          ? and(
-              eq(schema.userEmails.id, user.primaryEmailId),
-              eq(schema.userEmails.userId, user.userId),
-              eq(schema.userEmails.isPrimary, true),
-            )
-          : and(eq(schema.userEmails.userId, user.userId), eq(schema.userEmails.isPrimary, true)),
-      )
-      if (!primaryEmail?.verified) {
-        if (!primaryEmail?.email) throw new AppError('invalid_credentials')
-        await issueEmailVerification({
-          env: c.env,
-          tenant,
-          userId: user.userId,
-          email: primaryEmail.email,
-          ...(body.intent === 'sign-up' ? { intent: 'sign-up' as const } : {}),
-        })
-        return c.json({ nextStep: 'verify_email' })
-      }
+    const mustCheckPrimaryEmail = passwordRequiresEmailVerification(tenant)
+    const primaryEmail = mustCheckPrimaryEmail
+      ? await db.userEmails.findOne(
+          user.primaryEmailId
+            ? and(
+                eq(schema.userEmails.id, user.primaryEmailId),
+                eq(schema.userEmails.userId, user.userId),
+                eq(schema.userEmails.isPrimary, true),
+              )
+            : and(eq(schema.userEmails.userId, user.userId), eq(schema.userEmails.isPrimary, true)),
+        )
+      : null
+    if (
+      mustCheckPrimaryEmail &&
+      (!primaryEmail ||
+        primaryEmail.verified !== true ||
+        primaryEmail.verificationStatus !== 'verified')
+    ) {
+      if (!primaryEmail?.email) throw new AppError('invalid_credentials')
+      await issueEmailVerification({
+        env: c.env,
+        tenant,
+        userId: user.userId,
+        email: primaryEmail.email,
+        ...(flow.intent ? { intent: flow.intent } : {}),
+        continuePath: flow.continuePath,
+        ...(flow.applicationClientId ? { applicationClientId: flow.applicationClientId } : {}),
+      })
+      return c.json({ nextStep: 'verify_email' })
     }
 
+    const sessionId = createPersistedId('session')
     const returnPath = postAuthRedirectPath({
-      invitationToken: body.invitationToken,
-      intent: body.intent,
-      continueParam: body.continue,
+      intent: flow.intent,
+      continueParam: flow.continuePath,
     })
     const now = new Date()
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId: user.userId,
       returnPath,
     })
-    const sessionId = crypto.randomUUID()
-    const issued = await issueSession(c, {
+    await issueSession(c, {
       sessionId,
       userId: user.userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
@@ -637,14 +634,9 @@ export async function handlePasswordAuth(
       return c.json({ redirectUrl: mfaGate.redirectUrl })
     }
 
-    const redirectUrl = await resolvePasswordSignInRedirect(c, {
-      db,
-      tenant,
-      userId: user.userId,
-      sessionId: issued.session.sessionId,
-      invitationToken: body.invitationToken,
-      intent: body.intent,
-      continueParam: body.continue,
+    const redirectUrl = resolvePasswordSignInRedirect({
+      intent: flow.intent,
+      continueParam: flow.continuePath,
     })
     return c.json(redirectUrl ? { redirectUrl } : {})
   })

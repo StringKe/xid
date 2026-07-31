@@ -85,9 +85,12 @@ describe('xidMiddleware response does not leak x-xid-auth', () => {
   it('signed-in: response headers contain no x-xid-auth, downstream request headers do', async () => {
     const key = await makeKey('kid_mw')
     const token = await mintToken(key)
-    const mw = xidMiddleware({ jwtKey: key.publicJwk })
+    const mw = xidMiddleware({
+      jwtKey: key.publicJwk,
+      jwtCookieName: '__Host-app.xid.jwt',
+    })
 
-    const request = makeNextRequest('https://acme.xid.dev/dashboard', `__session=${token}`)
+    const request = makeNextRequest('https://acme.xid.dev/dashboard', `__Host-app.xid.jwt=${token}`)
     const res = (await mw(request as never)) as Response
 
     // 响应头绝不含 x-xid-auth(防止完整 claims 泄露给浏览器)。
@@ -100,10 +103,16 @@ describe('xidMiddleware response does not leak x-xid-auth', () => {
   it('strips a client-supplied x-xid-auth before injecting the trusted one', async () => {
     const key = await makeKey('kid_mw')
     const token = await mintToken(key)
-    const mw = xidMiddleware({ jwtKey: key.publicJwk })
+    const mw = xidMiddleware({
+      jwtKey: key.publicJwk,
+      jwtCookieName: '__Host-app.xid.jwt',
+    })
 
     const req = new Request('https://acme.xid.dev/dashboard', {
-      headers: { cookie: `__session=${token}`, 'x-xid-auth': '{"userId":"forged"}' },
+      headers: {
+        cookie: `__Host-app.xid.jwt=${token}`,
+        'x-xid-auth': '{"userId":"forged"}',
+      },
     })
     const nextReq = {
       nextUrl: new URL('https://acme.xid.dev/dashboard'),
@@ -119,6 +128,29 @@ describe('xidMiddleware response does not leak x-xid-auth', () => {
     // 注入的是 middleware 验证出的真实 user,不是客户端伪造的 forged。
     expect(injected).toContain('user_mw')
     expect(injected).not.toContain('forged')
+  })
+
+  it('exchanges the opaque Core cookie through the configured same-origin endpoint', async () => {
+    const key = await makeKey('kid_exchange')
+    const token = await mintToken(key)
+    const fetcher = vi.fn(async () => Response.json({ token }))
+    const mw = xidMiddleware({
+      jwtKey: key.publicJwk,
+      sessionTokenExchange: {
+        endpoint: '/v1/sessions/token',
+        fetcher: fetcher as typeof fetch,
+      },
+    })
+
+    const request = makeNextRequest(
+      'https://acme.xid.dev/dashboard',
+      '__Host-xid.rt.sess_mw=opaque-refresh',
+    )
+    const res = (await mw(request as never)) as Response
+
+    expect(res.status).toBe(200)
+    expect(lastNextRequestHeaders?.get('x-xid-auth')).toContain('user_mw')
+    expect(fetcher).toHaveBeenCalledOnce()
   })
 })
 
@@ -140,9 +172,13 @@ describe('xidMiddleware route protection', () => {
   it('allows authenticated access to a protected route (no redirect)', async () => {
     const key = await makeKey('kid_mw')
     const token = await mintToken(key)
-    const mw = xidMiddleware({ jwtKey: key.publicJwk, protectedRoutes: ['/dashboard'] })
+    const mw = xidMiddleware({
+      jwtKey: key.publicJwk,
+      jwtCookieName: '__Host-app.xid.jwt',
+      protectedRoutes: ['/dashboard'],
+    })
 
-    const request = makeNextRequest('https://acme.xid.dev/dashboard', `__session=${token}`)
+    const request = makeNextRequest('https://acme.xid.dev/dashboard', `__Host-app.xid.jwt=${token}`)
     const res = (await mw(request as never)) as Response
 
     expect(res.status).toBe(200)

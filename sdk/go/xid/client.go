@@ -37,7 +37,8 @@ type ClientOptions struct {
 	// Defaults to 60 seconds, consistent with @xid-kit/backend.
 	ClockToleranceSec int
 
-	// CookieName is the session cookie name. Defaults to "__session".
+	// CookieName is an application-owned short-lived JWT cookie name.
+	// Empty disables cookie fallback; Authorization: Bearer is the only default.
 	CookieName string
 
 	// JWKSCacheTTL is how long fetched JWKS public keys are cached.
@@ -51,7 +52,6 @@ type ClientOptions struct {
 
 const (
 	defaultClockToleranceSec = 60
-	defaultCookieName        = "__session"
 )
 
 // Client is the XID server-side SDK entry point.
@@ -73,9 +73,6 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	}
 	if opts.ClockToleranceSec <= 0 {
 		opts.ClockToleranceSec = defaultClockToleranceSec
-	}
-	if opts.CookieName == "" {
-		opts.CookieName = defaultCookieName
 	}
 	hc := opts.HTTPClient
 	if hc == nil {

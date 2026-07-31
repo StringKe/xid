@@ -26,7 +26,6 @@ public final class Xid: @unchecked Sendable {
     private var _discoveryLoader: OIDCDiscoveryLoader?
     private let userInfoClient = UserInfoClient()
     private let endSessionClient = EndSessionClient()
-    private let refreshSingleFlight = RefreshSingleFlight<XidSession>()
 
     /// Test hook: 替换匿名登录的 HTTP 层。
     var guestAuthClient = GuestAuthClient()
@@ -87,22 +86,20 @@ public final class Xid: @unchecked Sendable {
     @MainActor
     public func signIn(options: [String: String] = [:]) async throws {
         let c = try config
+        try c.validatePublicClientScopes()
         let discovery = try await discoveryLoader.load()
 
         // 生成 PKCE
         let pkce = try PKCE()
 
-        // 生成随机 state (CSRF 防护)
-        var stateBytes = [UInt8](repeating: 0, count: 16)
-        let stateStatus = SecRandomCopyBytes(kSecRandomDefault, stateBytes.count, &stateBytes)
-        guard stateStatus == errSecSuccess else {
-            throw XidError.pkceGenerationFailed("SecRandomCopyBytes state 失败: OSStatus \(stateStatus)")
-        }
-        let state = Data(stateBytes).base64URLEncodedString()
+        // state protects the callback; nonce independently binds the ID token to this request.
+        let state = try Self.randomAuthorizationValue(label: "state")
+        let nonce = try Self.randomAuthorizationValue(label: "nonce")
 
         try PendingAuthorizationStorage.save(
             state: state,
             verifier: pkce.verifier,
+            nonce: nonce,
             storage: c.tokenStorage
         )
 
@@ -114,6 +111,7 @@ public final class Xid: @unchecked Sendable {
             scopes: c.scopes,
             pkce: pkce,
             state: state,
+            nonce: nonce,
             additionalParams: options
         ) else {
             throw XidError.discoveryFailed("无法构造 authorization URL")
@@ -166,6 +164,7 @@ public final class Xid: @unchecked Sendable {
     @discardableResult
     public func handleRedirect(url: URL) async throws -> XidSession {
         let c = try config
+        try c.validatePublicClientScopes()
         let discovery = try await discoveryLoader.load()
 
         // 解析回调参数
@@ -179,7 +178,7 @@ public final class Xid: @unchecked Sendable {
             throw XidError.invalidCallbackURL("回调 URL 中缺少 state 参数")
         }
 
-        guard let verifier = try PendingAuthorizationStorage.consume(
+        guard let pending = try PendingAuthorizationStorage.consume(
             state: returnedState,
             storage: c.tokenStorage
         ) else {
@@ -204,19 +203,22 @@ public final class Xid: @unchecked Sendable {
         let tokenResponse = try await tokenClient.exchangeCode(
             code: code,
             redirectUri: c.redirectUri,
-            codeVerifier: verifier
+            codeVerifier: pending.verifier
         )
 
         return try await persistAndBuildSession(
             tokenResponse: tokenResponse,
             storage: c.tokenStorage,
-            discovery: discovery
+            discovery: discovery,
+            expectedNonce: pending.nonce
         )
     }
 
     /// Firebase 式匿名登录:创建或续期一个 guest(匿名)会话。
     ///
     /// 惰性语义:本地已有任何有效会话(token 或 guest)时不发请求,直接返回该会话。
+    /// 真正建号时先从 /auth/config?intent=sign-up 获取一次性 capability,
+    /// 再随 POST /auth/guest 提交;capability 不缓存或复用。
     /// guest 没有 access token:返回的 XidSession.accessToken 为 nil,
     /// 会话凭证是服务端 session cookie,由 SDK 持久化并在 /v1/me 请求上回放。
     ///
@@ -248,54 +250,55 @@ public final class Xid: @unchecked Sendable {
             user: user,
             expiresAt: result.cookies.compactMap(\.expiresAt).min()
         )
-        try GuestSessionStorage.save(stored, storage: c.tokenStorage)
+        do {
+            try GuestSessionStorage.save(stored, storage: c.tokenStorage)
+        } catch {
+            do {
+                try GuestSessionStorage.clear(storage: c.tokenStorage)
+            } catch let cleanupError {
+                throw XidError.tokenStorageError(
+                    "guest 会话持久化失败且清理失败: \(cleanupError)"
+                )
+            }
+            throw error
+        }
         return Self.guestSession(from: stored)
     }
 
-    /// 获取当前会话。若 access token 即将过期则自动刷新。
+    /// 获取当前会话。access token 过期后清除本地 token 并返回 nil,调用方需重新授权。
     /// 若未登录返回 nil。
     public func getSession() async throws -> XidSession? {
         let c = try config
         guard let session = try await loadSession(storage: c.tokenStorage, discovery: nil) else {
-            if try TokenSessionStorage.isRefreshPending(storage: c.tokenStorage) {
-                return try await refreshSingleFlight.valueIfRunning()
-            }
             // guest 会话没有 token 凭证,token 会话缺失时用它兜底
             if let guest = try GuestSessionStorage.load(storage: c.tokenStorage) {
                 return Self.guestSession(from: guest)
             }
             return nil
         }
-        if !session.isNearExpiry {
-            return session
+        if session.accessToken != nil && session.isExpired {
+            try clearStoredTokens(storage: c.tokenStorage)
+            return nil
         }
-        _ = try await getAccessToken()
-        return try await loadSession(storage: c.tokenStorage, discovery: nil)
+        return session
     }
 
-    /// 获取有效 access token。
+    /// 获取尚未过期的 access token。过期后需重新授权。
     ///
-    /// - Parameter forceRefresh: 强制刷新,即使当前 token 未过期。
+    /// - Parameter forceRefresh: 当前不支持 DPoP refresh;设为 true 时清除会话并要求重新授权。
     public func getAccessToken(forceRefresh: Bool = false) async throws -> String {
         let c = try config
-        let discovery = try await discoveryLoader.load()
 
-        if let session = try await loadSession(storage: c.tokenStorage, discovery: discovery),
-           !session.isNearExpiry,
-           !forceRefresh,
+        if !forceRefresh,
+           let session = try await loadSession(storage: c.tokenStorage, discovery: nil),
+           !session.isExpired,
            let accessToken = session.accessToken
         {
             return accessToken
         }
 
-        let newSession = try await refreshSingleFlight.run { [self] in
-            try await refreshSession(configuration: c, discovery: discovery)
-        }
-        // refresh 只会产生 token 会话,缺 access token 说明服务端契约被破坏
-        guard let accessToken = newSession.accessToken else {
-            throw XidError.tokenRefreshFailed("刷新响应缺少 access token")
-        }
-        return accessToken
+        try clearStoredTokens(storage: c.tokenStorage)
+        throw XidError.noActiveSession
     }
 
     /// 登出:清除本地 token,可选调用 /end_session 端点触发服务端 logout。
@@ -305,7 +308,7 @@ public final class Xid: @unchecked Sendable {
         let c = try config
 
         if callEndSession {
-            let idToken = try c.tokenStorage.load(key: StorageKey.idToken)
+            let idToken = try TokenSessionStorage.loadIdToken(storage: c.tokenStorage)
             if let idToken, let discovery = try? await discoveryLoader.load(),
                let endSessionEndpoint = discovery.endSessionEndpoint
             {
@@ -327,31 +330,35 @@ public final class Xid: @unchecked Sendable {
         tokenResponse: TokenResponse,
         storage: TokenStorageAdapter,
         discovery: OIDCDiscoveryDocument,
-        previousStoredTokens: StoredTokenSet? = nil
+        expectedNonce: String? = nil
     ) async throws -> XidSession {
         let expiresAt = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn))
-        let previous = try previousStoredTokens ?? TokenSessionStorage.load(storage: storage)
+        let previous = try TokenSessionStorage.load(storage: storage)
         let storedTokens = StoredTokenSet(
             accessToken: tokenResponse.accessToken,
-            refreshToken: tokenResponse.refreshToken ?? previous?.refreshToken,
+            refreshToken: nil,
             idToken: tokenResponse.idToken ?? previous?.idToken,
             expiresAt: expiresAt
         )
+        let idTokenStr = storedTokens.idToken ?? ""
+        if expectedNonce != nil && idTokenStr.isEmpty {
+            throw XidError.idTokenVerificationFailed("授权响应缺少 id_token,无法验证 nonce")
+        }
+        let user = try await resolveUser(
+            idToken: idTokenStr.isEmpty ? nil : idTokenStr,
+            accessToken: tokenResponse.accessToken,
+            discovery: discovery,
+            expectedNonce: expectedNonce
+        )
+        // Verify first, then persist. An invalid ID token must never become restart state.
         try TokenSessionStorage.save(storedTokens, storage: storage)
 
         // 正式登录成功即转正或换账号,本地 guest 凭证作废;清理失败不阻断登录
         try? GuestSessionStorage.clear(storage: storage)
 
-        let idTokenStr = storedTokens.idToken ?? ""
-        let user = try await resolveUser(
-            idToken: idTokenStr.isEmpty ? nil : idTokenStr,
-            accessToken: tokenResponse.accessToken,
-            discovery: discovery
-        )
-
         return XidSession(
             accessToken: tokenResponse.accessToken,
-            refreshToken: storedTokens.refreshToken,
+            refreshToken: nil,
             idToken: idTokenStr,
             expiresAt: expiresAt,
             user: user
@@ -361,7 +368,8 @@ public final class Xid: @unchecked Sendable {
     private func resolveUser(
         idToken: String?,
         accessToken: String,
-        discovery: OIDCDiscoveryDocument
+        discovery: OIDCDiscoveryDocument,
+        expectedNonce: String? = nil
     ) async throws -> XidUser {
         if let idToken, !idToken.isEmpty {
             let c = try config
@@ -370,7 +378,10 @@ public final class Xid: @unchecked Sendable {
                 clientId: c.clientId,
                 jwksUri: discovery.jwksUri
             )
-            return try await verifier.verifyAndDecodeUser(idToken)
+            return try await verifier.verifyAndDecodeUser(
+                idToken,
+                expectedNonce: expectedNonce
+            )
         }
 
         guard let endpoint = discovery.userinfoEndpoint ?? URL(string: discovery.issuer)?
@@ -406,7 +417,7 @@ public final class Xid: @unchecked Sendable {
 
         return XidSession(
             accessToken: storedTokens.accessToken,
-            refreshToken: storedTokens.refreshToken,
+            refreshToken: nil,
             idToken: idTokenStr,
             expiresAt: storedTokens.expiresAt,
             user: user
@@ -423,37 +434,18 @@ public final class Xid: @unchecked Sendable {
         )
     }
 
-    private func refreshSession(
-        configuration: XidConfiguration,
-        discovery: OIDCDiscoveryDocument
-    ) async throws -> XidSession {
-        guard let previousStoredTokens = try TokenSessionStorage.load(storage: configuration.tokenStorage),
-              let refreshToken = previousStoredTokens.refreshToken
-        else {
-            throw XidError.noActiveSession
-        }
-
-        try TokenSessionStorage.markRefreshPending(storage: configuration.tokenStorage)
-
-        let tokenClient = TokenEndpointClient(
-            tokenEndpoint: discovery.tokenEndpoint,
-            clientId: configuration.clientId
-        )
-        let tokenResponse: TokenResponse
-        do {
-            tokenResponse = try await tokenClient.refreshTokens(refreshToken: refreshToken)
-        } catch {
-            throw XidError.tokenRefreshFailed(error.localizedDescription)
-        }
-        return try await persistAndBuildSession(
-            tokenResponse: tokenResponse,
-            storage: configuration.tokenStorage,
-            discovery: discovery,
-            previousStoredTokens: previousStoredTokens
-        )
-    }
-
     private func clearStoredTokens(storage: TokenStorageAdapter) throws {
         try TokenSessionStorage.clear(storage: storage)
+    }
+
+    private static func randomAuthorizationValue(label: String) throws -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard status == errSecSuccess else {
+            throw XidError.pkceGenerationFailed(
+                "SecRandomCopyBytes \(label) 失败: OSStatus \(status)"
+            )
+        }
+        return Data(bytes).base64URLEncodedString()
     }
 }

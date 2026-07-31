@@ -70,6 +70,21 @@ const styles = stylex.create({
   formGrid: { display: 'grid', gap: '1rem' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' },
   mono: { fontFamily: tokens['--xid-font-mono'], fontSize: '0.8125rem' },
+  textarea: {
+    width: '100%',
+    minHeight: '6rem',
+    resize: 'vertical',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
+    borderRadius: tokens['--xid-radius'],
+    padding: '0.625rem 0.75rem',
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: '0.8125rem',
+    color: tokens['--xid-fg'],
+    backgroundColor: tokens['--xid-bg'],
+    boxSizing: 'border-box',
+  },
 })
 
 const columns: ColumnDef<OutboundSamlApp>[] = [
@@ -96,6 +111,8 @@ type AppForm = {
   spEntityId: string
   acsUrl: string
   sloUrl: string
+  sloBinding: 'redirect' | 'post'
+  spCertificates: string
   oidcRedirectUri: string
 }
 
@@ -104,6 +121,8 @@ const EMPTY_FORM: AppForm = {
   spEntityId: '',
   acsUrl: '',
   sloUrl: '',
+  sloBinding: 'redirect',
+  spCertificates: '',
   oidcRedirectUri: '',
 }
 
@@ -116,6 +135,20 @@ function parseCommaSeparated(value: string): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+export function parseCertificates(value: string): string[] {
+  const pemPattern = /-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/gu
+  const pemCertificates = [...value.matchAll(pemPattern)]
+    .map((match) => (match[1] ?? '').replace(/\s+/gu, ''))
+    .filter(Boolean)
+  const base64Certificates = value
+    .replace(pemPattern, '\n\n')
+    .trim()
+    .split(/\n\s*\n/gu)
+    .map((block) => block.replace(/\s+/gu, ''))
+    .filter(Boolean)
+  return [...new Set([...pemCertificates, ...base64Certificates])]
 }
 
 function buildAssignmentGate(
@@ -163,6 +196,8 @@ export default function OrgOutboundSso(): ReactNode {
         spEntityId: selected.spEntityId,
         acsUrl: selected.acsUrl,
         sloUrl: selected.sloUrl ?? '',
+        sloBinding: selected.sloBinding,
+        spCertificates: selected.spCertificates.join('\n\n'),
         oidcRedirectUri: preset?.oidcRedirectPlaceholder ?? '',
       })
       setEditGateMode(selected.assignmentGate.mode)
@@ -179,6 +214,8 @@ export default function OrgOutboundSso(): ReactNode {
       spEntityId: preset.entityId,
       acsUrl: preset.acsUrl,
       sloUrl: '',
+      sloBinding: 'redirect',
+      spCertificates: '',
       oidcRedirectUri: preset.oidcRedirectPlaceholder ?? '',
     })
   }
@@ -188,7 +225,9 @@ export default function OrgOutboundSso(): ReactNode {
       preset: form.preset || undefined,
       sp_entity_id: form.spEntityId || undefined,
       acs_url: form.acsUrl,
-      slo_url: form.sloUrl || undefined,
+      slo_url: form.sloUrl.trim() || null,
+      slo_binding: form.sloBinding,
+      sp_certificates: parseCertificates(form.spCertificates),
     }
   }
 
@@ -196,6 +235,13 @@ export default function OrgOutboundSso(): ReactNode {
     event.preventDefault()
     if (!createForm.acsUrl.trim()) {
       setMessage({ tone: 'error', text: t`ACS URL is required.` })
+      return
+    }
+    if (createForm.sloUrl.trim() && parseCertificates(createForm.spCertificates).length === 0) {
+      setMessage({
+        tone: 'error',
+        text: t`SP signing certificate is required when an SLO URL is configured.`,
+      })
       return
     }
     const app = await createApp.mutateAsync({
@@ -217,6 +263,13 @@ export default function OrgOutboundSso(): ReactNode {
   async function handleUpdate(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     if (!selected) return
+    if (editForm.sloUrl.trim() && parseCertificates(editForm.spCertificates).length === 0) {
+      setMessage({
+        tone: 'error',
+        text: t`SP signing certificate is required when an SLO URL is configured.`,
+      })
+      return
+    }
     await updateApp.mutateAsync({
       appId: selected.id,
       payload: {
@@ -327,6 +380,42 @@ export default function OrgOutboundSso(): ReactNode {
               required
             />
           </Field>
+          <Field label={t`SLO URL (optional)`}>
+            <Input
+              value={createForm.sloUrl}
+              onChange={(event) =>
+                setCreateForm((prev) => ({ ...prev, sloUrl: event.target.value }))
+              }
+            />
+          </Field>
+          <Field label={t`Binding`}>
+            <select
+              {...stylex.props(consoleShell.select)}
+              value={createForm.sloBinding}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  sloBinding: event.target.value as AppForm['sloBinding'],
+                }))
+              }
+            >
+              <option value="redirect">{t`HTTP-Redirect`}</option>
+              <option value="post">{t`HTTP-POST`}</option>
+            </select>
+          </Field>
+          <Field
+            label={t`SP signing certificates`}
+            hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
+          >
+            <textarea
+              {...stylex.props(styles.textarea)}
+              value={createForm.spCertificates}
+              onChange={(event) =>
+                setCreateForm((prev) => ({ ...prev, spCertificates: event.target.value }))
+              }
+              placeholder={t`MIIC...`}
+            />
+          </Field>
           {createPreset?.oidcRedirectPlaceholder ? (
             <Field
               label={t`OIDC redirect URI (downstream admin)`}
@@ -414,6 +503,34 @@ export default function OrgOutboundSso(): ReactNode {
                 onChange={(event) =>
                   setEditForm((prev) => ({ ...prev, sloUrl: event.target.value }))
                 }
+              />
+            </Field>
+            <Field label={t`Binding`}>
+              <select
+                {...stylex.props(consoleShell.select)}
+                value={editForm.sloBinding}
+                onChange={(event) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    sloBinding: event.target.value as AppForm['sloBinding'],
+                  }))
+                }
+              >
+                <option value="redirect">{t`HTTP-Redirect`}</option>
+                <option value="post">{t`HTTP-POST`}</option>
+              </select>
+            </Field>
+            <Field
+              label={t`SP signing certificates`}
+              hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
+            >
+              <textarea
+                {...stylex.props(styles.textarea)}
+                value={editForm.spCertificates}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, spCertificates: event.target.value }))
+                }
+                placeholder={t`MIIC...`}
               />
             </Field>
             {editForm.oidcRedirectUri ? (

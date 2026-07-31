@@ -2,7 +2,7 @@
 // XID iOS Swift SDK
 // Status: implemented; compiled and unit-tested locally, real IdP round-trip pending
 //
-// /token 端点交互:authorization_code 换 token 以及 refresh_token 轮换。
+// /token 端点交互:authorization_code + PKCE 换 token。
 
 import Foundation
 
@@ -12,7 +12,6 @@ struct TokenResponse: Decodable, Sendable {
     let accessToken: String
     let tokenType: String
     let expiresIn: Int
-    let refreshToken: String?
     let idToken: String?
     let scope: String?
 
@@ -20,7 +19,6 @@ struct TokenResponse: Decodable, Sendable {
         case accessToken = "access_token"
         case tokenType = "token_type"
         case expiresIn = "expires_in"
-        case refreshToken = "refresh_token"
         case idToken = "id_token"
         case scope
     }
@@ -49,16 +47,6 @@ struct TokenEndpointClient: Sendable {
             "code": code,
             "redirect_uri": redirectUri.absoluteString,
             "code_verifier": codeVerifier,
-        ]
-        return try await post(params: params)
-    }
-
-    /// refresh_token grant。XID 服务端执行轮换:旧 token 立即作废,返回新 token。
-    func refreshTokens(refreshToken: String) async throws -> TokenResponse {
-        let params: [String: String] = [
-            "grant_type": "refresh_token",
-            "client_id": clientId,
-            "refresh_token": refreshToken,
         ]
         return try await post(params: params)
     }

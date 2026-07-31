@@ -127,7 +127,7 @@ describe('verifyWebhook', () => {
 
   it('accepts when one of multiple signatures matches (key rotation)', async () => {
     const id = 'msg_2KWrG'
-    const body = '{}'
+    const body = JSON.stringify({ type: 'user.created', data: {} })
     const good = await hmacSha256Base64(secretBytes(SECRET), `${id}.${NOW}.${body}`)
     const request = new Request('https://app.example.com/webhook', {
       method: 'POST',
@@ -142,5 +142,28 @@ describe('verifyWebhook', () => {
     const result = await verifyWebhook(request, { secret: SECRET, now: NOW })
 
     expect(result.ok).toBe(true)
+  })
+
+  it('accepts a legacy 64-character hex secret as UTF-8 key material', async () => {
+    const legacySecret = 'ab'.repeat(32)
+    const id = 'msg_legacy'
+    const body = JSON.stringify({ type: 'user.updated', data: { id: 'user_1' } })
+    const signature = `v1,${await hmacSha256Base64(
+      new TextEncoder().encode(legacySecret),
+      `${id}.${NOW}.${body}`,
+    )}`
+    const request = await signedRequest({ id, body, signature })
+
+    const result = await verifyWebhook(request, { secret: legacySecret, now: NOW })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('returns invalid_payload for a signed body outside the webhook envelope', async () => {
+    const request = await signedRequest({ body: JSON.stringify({ userId: 'user_1' }) })
+
+    const result = await verifyWebhook(request, { secret: SECRET, now: NOW })
+
+    expect(result).toEqual({ ok: false, error: 'invalid_payload' })
   })
 })

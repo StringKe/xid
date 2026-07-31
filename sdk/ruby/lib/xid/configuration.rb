@@ -25,7 +25,7 @@ module Xid
     # Webhook 时间窗容忍秒数，默认 300
     attr_accessor :webhook_tolerance
 
-    # cookie 中存放 access token 的键名，默认 "__xid_token"
+    # 应用自己持有的 short-lived JWT cookie 键名；nil 时禁用 cookie fallback
     attr_accessor :cookie_name
 
     # webhook svix-id 去重 hook：返回 true 表示首次处理，false 表示已处理（重放拒绝）
@@ -39,7 +39,7 @@ module Xid
       @leeway             = 60
       @webhook_secret     = nil
       @webhook_tolerance  = 300
-      @cookie_name        = "__xid_token"
+      @cookie_name        = nil
       @message_id_store   = nil
     end
 

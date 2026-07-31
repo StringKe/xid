@@ -40,9 +40,10 @@ type TokenEndpointResponse = {
 
 // handleCallback configuration.
 export type HandleCallbackOptions = {
-  // XID token endpoint URL, default https://api.xid.dev/oauth/token.
+  // XID token endpoint URL, default https://xid.dev/token.
+  // Override this with the issuer's /token URL for self-hosted instances.
   tokenEndpoint?: string
-  // Client ID (publishable key, pk_live_xxx / pk_test_xxx).
+  // Registered public OAuth client_id. This is not a Management API key.
   clientId: string
   // redirect_uri exact match (OIDC requirement, no wildcard).
   redirectUri: string
@@ -113,7 +114,7 @@ export async function handleCallback(
   }
 
   // Exchange the authorization code for tokens.
-  const tokenEndpoint = options.tokenEndpoint ?? 'https://api.xid.dev/oauth/token'
+  const tokenEndpoint = options.tokenEndpoint ?? 'https://xid.dev/token'
   const tokenResult = await exchangeCode({
     tokenEndpoint,
     clientId: options.clientId,

@@ -29,6 +29,7 @@ type ConnectionForm = {
   protocol: CreateSsoConnectionInput['protocol']
   idpEntityId: string
   idpSsoUrl: string
+  idpSloUrl: string
   idpMetadataUrl: string
   idpCertificate: string
   oidcClientId: string
@@ -36,6 +37,7 @@ type ConnectionForm = {
   jitEnabled: boolean
   wantAuthnResponseSigned: boolean
   wantAssertionsSigned: boolean
+  samlClockSkewMs: number
   attributeMapping: string
   roleMapping: string
 }
@@ -73,6 +75,7 @@ const EMPTY_FORM: ConnectionForm = {
   protocol: 'saml',
   idpEntityId: '',
   idpSsoUrl: '',
+  idpSloUrl: '',
   idpMetadataUrl: '',
   idpCertificate: '',
   oidcClientId: '',
@@ -80,6 +83,7 @@ const EMPTY_FORM: ConnectionForm = {
   jitEnabled: false,
   wantAuthnResponseSigned: true,
   wantAssertionsSigned: true,
+  samlClockSkewMs: 180_000,
   attributeMapping: EMPTY_JSON,
   roleMapping: EMPTY_JSON,
 }
@@ -272,6 +276,7 @@ function connectionToForm(connection: SsoConnection): ConnectionForm {
     protocol: connection.type,
     idpEntityId: connection.idp_entity_id ?? '',
     idpSsoUrl: connection.idp_sso_url ?? '',
+    idpSloUrl: connection.idp_slo_url ?? '',
     idpMetadataUrl: connection.idp_metadata_url ?? '',
     idpCertificate: connection.idp_certificates.join('\n'),
     oidcClientId: connection.oidc_client_id ?? '',
@@ -279,6 +284,7 @@ function connectionToForm(connection: SsoConnection): ConnectionForm {
     jitEnabled: connection.jit_enabled,
     wantAuthnResponseSigned: connection.want_authn_response_signed,
     wantAssertionsSigned: connection.want_assertions_signed,
+    samlClockSkewMs: connection.saml_clock_skew_ms,
     attributeMapping: jsonText(connection.attribute_mapping),
     roleMapping: jsonText(connection.role_mapping),
   }
@@ -302,6 +308,7 @@ function createPayload(form: ConnectionForm): CreateSsoConnectionInput | null {
         protocol: form.protocol,
         idp_entity_id: form.idpEntityId || undefined,
         idp_sso_url: form.idpSsoUrl || undefined,
+        idp_slo_url: form.idpSloUrl || null,
         idp_metadata_url: form.idpMetadataUrl || undefined,
         idp_certificates: form.idpCertificate
           .split('\n')
@@ -310,6 +317,7 @@ function createPayload(form: ConnectionForm): CreateSsoConnectionInput | null {
         jit_enabled: form.jitEnabled,
         want_authn_response_signed: form.wantAuthnResponseSigned,
         want_assertions_signed: form.wantAssertionsSigned,
+        saml_clock_skew_ms: form.samlClockSkewMs,
         attribute_mapping: attributeMapping,
         role_mapping: roleMapping,
       }
@@ -757,6 +765,13 @@ function ConnectionFields({
               placeholder={t`https://idp.example.com/sso`}
             />
           </Field>
+          <Field label={<Trans>IdP SLO URL</Trans>}>
+            <Input
+              value={form.idpSloUrl}
+              onChange={(event) => patch({ idpSloUrl: event.target.value })}
+              placeholder={t`https://idp.example.com/slo`}
+            />
+          </Field>
           <div {...stylex.props(styles.fullSpan)}>
             <Field label={<Trans>Metadata URL</Trans>}>
               <Input
@@ -776,6 +791,16 @@ function ConnectionFields({
               />
             </Field>
           </div>
+          <Field label={<Trans>SAML clock tolerance in milliseconds</Trans>}>
+            <Input
+              type="number"
+              min={0}
+              max={300_000}
+              step={1_000}
+              value={form.samlClockSkewMs}
+              onChange={(event) => patch({ samlClockSkewMs: Number(event.currentTarget.value) })}
+            />
+          </Field>
           <label {...stylex.props(styles.checkRow)}>
             <input
               type="checkbox"

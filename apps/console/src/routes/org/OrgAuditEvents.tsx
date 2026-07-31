@@ -162,9 +162,16 @@ const columns: ColumnDef<AuditEvent>[] = [
     header: () => <Trans>Actor</Trans>,
     cell: ({ row }) => (
       <span {...stylex.props(styles.mutedSmall)}>
-        {row.original.actorId ? (
-          <span {...stylex.props(styles.actorId)} title={row.original.actorId}>
-            {row.original.actorId}
+        {row.original.actorDisplay ? (
+          <span
+            {...stylex.props(styles.actorId)}
+            title={
+              row.original.actorDisplay === row.original.actorId
+                ? (row.original.actorId ?? undefined)
+                : undefined
+            }
+          >
+            {row.original.actorDisplay}
           </span>
         ) : (
           <Trans>system</Trans>

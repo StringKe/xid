@@ -281,6 +281,21 @@ function verifyReq(app: ReturnType<typeof makeApp>, env: Env, body: unknown) {
 describe('POST /auth/passkey/verify', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it('requires Turnstile before consuming the WebAuthn challenge when configured', async () => {
+    const app = makeApp(registerSessionAuthRoutes)
+    const env = {
+      ...makeEnv(),
+      TURNSTILE_SITE_KEY: 'site-key',
+      TURNSTILE_SECRET: 'secret',
+    } as unknown as Env
+
+    const res = await verifyReq(app, env, VERIFY_BODY)
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('captcha_required')
+    expect(consumeChallenge).not.toHaveBeenCalled()
+  })
+
   it('root entry 未解析 tenant 时拒绝 verify 且不消费 challenge', async () => {
     const auditSend = vi.fn()
     const app = makeApp(registerSessionAuthRoutes, {

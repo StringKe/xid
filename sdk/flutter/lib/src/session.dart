@@ -88,6 +88,8 @@ class XidOrganization {
 class XidSession {
   final String accessToken;
   final String? idToken;
+
+  /// Reserved until the SDK implements DPoP. Public-client sessions always expose null.
   final String? refreshToken;
 
   /// access_token 过期时间(UTC)。
@@ -109,10 +111,6 @@ class XidSession {
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 
-  /// 距过期还有余量(默认提前 60s 视为需要刷新)。
-  bool needsRefresh({Duration buffer = const Duration(seconds: 60)}) =>
-      DateTime.now().isAfter(expiresAt.subtract(buffer));
-
   XidUser get user => XidUser.fromClaims(claims);
 
   XidOrganization? get organization {
@@ -132,7 +130,6 @@ class XidSession {
   }) async {
     final accessToken = tokenResponse['access_token'] as String;
     final idToken = tokenResponse['id_token'] as String?;
-    final refreshToken = tokenResponse['refresh_token'] as String?;
     final expiresIn = tokenResponse['expires_in'] as int? ?? 3600;
     final scope = tokenResponse['scope'] as String? ?? '';
 
@@ -155,7 +152,7 @@ class XidSession {
     return XidSession(
       accessToken: accessToken,
       idToken: idToken,
-      refreshToken: refreshToken,
+      refreshToken: null,
       expiresAt: expiresAt,
       scopes: scopes,
       claims: claims,

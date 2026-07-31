@@ -2,7 +2,8 @@
 // XID macOS Swift SDK
 // MIT
 //
-// Anonymous (guest) sign-in: POST {issuer}/auth/guest, then GET {issuer}/v1/me.
+// Anonymous (guest) sign-in: GET {issuer}/auth/config?intent=sign-up,
+// POST {issuer}/auth/guest, then GET {issuer}/v1/me.
 // Guests hold no tokens; the session credential is the worker-issued cookie,
 // so the client captures Set-Cookie and replays it as a Cookie header.
 
@@ -15,16 +16,23 @@ struct GuestAuthClient: Sendable {
         self.urlSession = urlSession
     }
 
-    /// POST /auth/guest. Returns the session cookies as a Cookie header value.
+    /// Fetches a one-time guest capability, then POSTs /auth/guest. The
+    /// capability is deliberately not cached or reused.
     /// 200 renews an existing guest session, 201 mints a new one; both establish
     /// the session via Set-Cookie, so the status code is not branched on.
     func signIn(issuer: URL, turnstileToken: String?) async throws -> String {
+        let capabilityToken = try await fetchGuestCapability(issuer: issuer)
         let guestURL = issuer.appendingPathComponent("/auth/guest")
         var request = URLRequest(url: guestURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpBody = try JSONEncoder().encode(GuestRequestBody(turnstileToken: turnstileToken))
+        request.httpBody = try JSONEncoder().encode(
+            GuestRequestBody(
+                capabilityToken: capabilityToken,
+                turnstileToken: turnstileToken
+            )
+        )
 
         let (data, response) = try await urlSession.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -39,6 +47,36 @@ struct GuestAuthClient: Sendable {
             throw XidError.anonymousSignInFailed("Response carried no session cookie")
         }
         return cookieHeader
+    }
+
+    private func fetchGuestCapability(issuer: URL) async throws -> String {
+        var components = URLComponents(
+            url: issuer.appendingPathComponent("/auth/config"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "intent", value: "sign-up")]
+        guard let url = components?.url else {
+            throw XidError.anonymousSignInFailed("Cannot construct guest capability URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw XidError.anonymousSignInFailed("Invalid response type")
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw XidError.anonymousSignInFailed("/auth/config HTTP \(httpResponse.statusCode)")
+        }
+        guard
+            let decoded = try? JSONDecoder().decode(GuestCapabilityResponse.self, from: data),
+            let token = decoded.guest?.capabilityToken,
+            !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw XidError.anonymousSignInFailed("Guest capability is unavailable")
+        }
+        return token
     }
 
     /// GET /v1/me with the captured session cookie. Maps the wire `user` object
@@ -101,18 +139,29 @@ struct GuestAuthClient: Sendable {
 }
 
 private struct GuestRequestBody: Encodable {
+    let capabilityToken: String
     let turnstileToken: String?
 
     // Synthesized Encodable drops nil optionals; the /auth/guest contract expects
     // an explicit `"turnstileToken": null` (same wire shape as the web client).
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(capabilityToken, forKey: .capabilityToken)
         try container.encode(turnstileToken, forKey: .turnstileToken)
     }
 
     private enum CodingKeys: String, CodingKey {
+        case capabilityToken
         case turnstileToken
     }
+}
+
+private struct GuestCapabilityResponse: Decodable {
+    let guest: GuestCapability?
+}
+
+private struct GuestCapability: Decodable {
+    let capabilityToken: String
 }
 
 private struct MeResponse: Decodable {

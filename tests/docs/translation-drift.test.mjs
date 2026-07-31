@@ -24,6 +24,7 @@ const EXPECTED_MIRRORS = [
   'docs/design/07-platform-operations.md',
   'docs/design/08-data-model.md',
   'docs/design/README.md',
+  'docs/sdks/distribution.md',
   'docs/sdks/platform-matrix.md',
   'docs/soft-delete.md',
 ]

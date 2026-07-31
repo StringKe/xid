@@ -11,9 +11,12 @@ This SDK is distributed as source inside the repository. It is not published to 
 - Keychain token storage (`KeychainTokenStorage`) with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`
 - `TokenStorageAdapter` protocol for custom storage backends
 - OIDC discovery document fetch and cache (`OIDCDiscovery`)
-- `/token` authorization code exchange and refresh token rotation (`TokenEndpoint`)
-- state CSRF guard in `handleRedirect`
-- Automatic access token refresh in `getSession` / `getAccessToken`
+- `/token` authorization code + PKCE exchange (`TokenEndpoint`)
+- independent 32-byte state and OIDC nonce values stored in a one-time pending authorization record
+- state CSRF validation and exact nonce validation against the JWKS-verified ID token before persistence
+- JWKS-backed ES256/RS256/PS256 ID token verification and `/userinfo` fallback
+- RP-initiated logout and multi-scene `ASWebAuthenticationSession` presentation anchor resolution
+- Access-token reads while valid; expiry clears the local token session and requires authorization again
 
 ## Platform requirements
 
@@ -46,7 +49,7 @@ struct MyApp: App {
             issuer: URL(string: "https://xid.dev")!,
             clientId: "your_client_id",
             redirectUri: URL(string: "com.example.app://auth/callback")!,
-            scopes: ["openid", "profile", "email", "offline_access"]
+            scopes: ["openid", "profile", "email"]
         ))
     }
 
@@ -91,7 +94,7 @@ func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {
 ### Session access
 
 ```swift
-// Get current session (auto-refreshes if near expiry)
+// Get the current session while the access token is valid
 if let session = try await Xid.shared.getSession() {
     let token = try await Xid.shared.getAccessToken()
 }
@@ -119,8 +122,8 @@ Singleton entry point.
 | `configure(options:)`                                  | Initialize SDK; must be called first            |
 | `signIn(options:) async throws`                        | Start authorization flow, opens system browser  |
 | `handleRedirect(url:) async throws -> XidSession`      | Handle callback URL, complete code exchange     |
-| `getSession() async throws -> XidSession?`             | Get current session; auto-refreshes near expiry |
-| `getAccessToken(forceRefresh:) async throws -> String` | Get valid access token                          |
+| `getSession() async throws -> XidSession?`             | Return an unexpired session; expiry requires authorization |
+| `getAccessToken(forceRefresh:) async throws -> String` | Return an unexpired token; expiry or forceRefresh requires authorization |
 | `signOut(callEndSession:) async throws`                | Sign out, clear local tokens                    |
 | `setTokenStorage(_:) throws`                           | Replace token persistence adapter               |
 
@@ -131,7 +134,7 @@ Singleton entry point.
 | `issuer`       | `URL`                 | XID issuer, e.g. `https://xid.dev`                         |
 | `clientId`     | `String`              | Public client ID; no client secret                         |
 | `redirectUri`  | `URL`                 | Registered callback URI                                    |
-| `scopes`       | `[String]`            | Default `["openid", "profile", "email", "offline_access"]` |
+| `scopes`       | `[String]`            | Default `["openid", "profile", "email"]`; `offline_access` is rejected |
 | `tokenStorage` | `TokenStorageAdapter` | Default `KeychainTokenStorage`                             |
 
 ### `XidSession`
@@ -139,7 +142,7 @@ Singleton entry point.
 | Property       | Type      | Description                        |
 | -------------- | --------- | ---------------------------------- |
 | `accessToken`  | `String`  | JWT access token                   |
-| `refreshToken` | `String?` | Refresh token (stored in Keychain) |
+| `refreshToken` | `String?` | Reserved; always nil until the SDK implements DPoP |
 | `idToken`      | `String`  | JWT ID token                       |
 | `expiresAt`    | `Date`    | Access token expiry time           |
 | `user`         | `XidUser` | Claims decoded from ID token       |
@@ -151,18 +154,15 @@ Singleton entry point.
 - Public client: no client secret stored; no implicit flow or password grant.
 - PKCE S256: random code_verifier per `signIn`, SHA-256 code_challenge sent to server.
 - state CSRF guard: random state per authorization request, validated in `handleRedirect`.
+- OIDC nonce: an independent random nonce is sent to `/authorize`, restored with the state-keyed
+  pending record, and matched exactly against the verified ID token before storage.
 - Keychain: tokens stored with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`; not synced to iCloud.
 - `ASWebAuthenticationSession`: `prefersEphemeralWebBrowserSession = true` by default; no shared browser cookies.
 - code_verifier stored in Keychain only during the authorization flow; deleted after `handleRedirect`.
 
 ## Known limits (pending before production use)
 
-- **ID token signature verification**: implemented via `JwksCache` + `IDTokenVerifier` on login path; `IDTokenDecoder` remains decode-only for session restore.
-- **`/end_session` network call**: implemented via `EndSessionClient` when `signOut(callEndSession: true)`.
-- **`/userinfo` fallback**: implemented via `UserInfoClient` when ID token claims are insufficient.
-- **`ASWebAuthenticationSession` presentationAnchor**: multi-scene / SwiftUI scenarios need the correct `UIWindow`; current implementation returns a default empty instance.
 - **Universal Link mode**: custom scheme path works via `ASWebAuthenticationSession` directly; universal link mode depends on `SceneDelegate.openURLContexts` and needs integration test coverage.
-- **Concurrent refresh race**: multiple coroutines calling `getAccessToken` simultaneously may each trigger a refresh; needs a lock.
 - **Network timeout**: `URLSession` requests have no timeout configured.
 - **Swift strict concurrency**: some `@unchecked Sendable` annotations are temporary workarounds; need actor model.
 - **`ASWebAuthenticationSession` / Keychain / real iOS behavior**: tests run on macOS; iOS simulator or device required to verify.
@@ -180,8 +180,8 @@ sdk/ios/
     PKCE.swift                PKCE S256 (CryptoKit SHA-256)
     TokenStorage.swift        TokenStorageAdapter protocol + KeychainTokenStorage
     OIDCDiscovery.swift       OIDC discovery document load and cache
-    TokenEndpoint.swift       /token endpoint: authorization_code + refresh_token grant
-    IDTokenDecoder.swift      ID token payload decode (no signature verification -- see Known limits)
+    TokenEndpoint.swift       /token endpoint: authorization_code + PKCE grant
+    IDTokenDecoder.swift      JWKS-backed ID token verification and verified-claim decoding
     AuthorizationSession.swift ASWebAuthenticationSession + authorization URL builder
   Tests/XidTests/
     PKCETests.swift

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/03-oidc-oauth.md source-commit=5d55b0c source-blob=16c1f81b9259f10a600fc9b30be15c29a1574baf -->
+<!-- xid-translation source=docs/design/03-oidc-oauth.md source-commit=5d55b0c source-blob=d5a84388df2dc4dd6b6a15aced53c9af369d5393 -->
 
 > Translation of `docs/design/03-oidc-oauth.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/03-oidc-oauth.md`](../../design/03-oidc-oauth.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -22,9 +22,15 @@
 | /end_session                            | OIDC RP-Init Logout | YES  | 接受 id_token_hint、post_logout_redirect_uri                                                                                                                                                                       |
 | /device_authorization                   | RFC8628             | YES  | 含 interval/expires_in,polling 限速                                                                                                                                                                                |
 | /par                                    | RFC9126             | YES  | 返回 request_uri,60s 有效,一次性;成功响应补 Pragma: no-cache                                                                                                                                                       |
-| /register                               | RFC7591/7592        | YES  | 动态注册 + 管理端点(读/更新/删);未配置 trust root 前拒绝 initial access token / software_statement;接受 backchannel_logout_session_required(logout_token 恒含 sid,该字段未持久化,GET 回 false)                     |
+| /register                               | RFC7591/7592        | YES  | 动态注册 + 管理端点(读/更新/删);未配置 trust root 前拒绝 initial access token / software_statement;backchannel_logout_session_required 在创建、读取和更新间持久化,因为 logout_token 恒含 sid                     |
 
 多租户:对齐 Zitadel 的 instance issuer 模型。托管生产默认 `issuer = https://xid.dev`;Organization 是策略、成员、RBAC、数据隔离和 branding 边界,不是默认 issuer。`admin` org 和 `app` org 不生成独立 OIDC issuer。future custom issuer 只能作为显式企业能力单独设计,不得影响默认 xid.dev 托管行为。
+
+每个 protocol transaction 都先根据已验证且全局唯一的 `client_id` 和 request Instance 解析
+Application owner Tenant,然后才处理 session cookie。browser actor 必须持有同一顶层 Tenant
+中的 session;其他 Tenant 的 cookie 被忽略并要求重新认证。ProjectGrant 可以授权同一顶层
+Tenant 内另一个 Organization 的用户,但不能跨越 `tenant_id` 隔离边界。跨顶层 Tenant RP
+需要拆分 ProtocolContext 与 ActorContext 的数据访问边界,当前未实现。
 
 下游 SaaS OIDC IdP 是独立能力。当前 XID 已有 generic OIDC/OAuth IdP baseline 和 fake OIDC RP L3,可作为 Microsoft Entra custom OIDC app、Salesforce OIDC app、Zoom OIDC app 等下游 OIDC 的本地协议基础。GitHub Enterprise Managed Users OIDC 是 Entra ID partner path,不是 generic downstream OIDC support for XID。SaaS-specific app catalog、per-SP/RP client metadata preset、assignment gate、claim mapping 和真实 SaaS L4 仍缺。本章 endpoints 可声明 XID 作为 OIDC/OAuth Authorization Server 和 OpenID Provider 给客户应用使用,不得把 generic OIDC client 证据直接解释为 Slack/GitHub/Microsoft custom enterprise app/Atlassian/Salesforce/Zoom production-supported。
 
@@ -55,16 +61,16 @@
 
 ## 2. Grant Types / Flows
 
-| Flow                      | 规范              | 支持           | 决策                                                                                                                                                |
-| ------------------------- | ----------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| authorization_code + PKCE | RFC6749 + RFC7636 | YES,PKCE 强制  | S256 only,拒 plain;public client 无条件要求                                                                                                         |
-| client_credentials        | RFC6749           | YES            | 仅 confidential;scope 受客户端白名单约束                                                                                                            |
-| refresh_token             | RFC6749           | YES            | 轮换式 + family 检测                                                                                                                                |
-| device_code               | RFC8628           | YES            | IoT/CLI;device_code 与 user_code 分离存储                                                                                                           |
-| token exchange            | RFC8693           | YES            | impersonation + delegation;subject_token_type 限 access/id token                                                                                    |
-| CIBA                      | OIDC CIBA         | YES(poll 模式) | auth_req_id 存 KV;pending 状态 5s 内重复 poll 回 slow_down(lastPollAt 存 KV);/backchannel_authentication 成功响应补 Pragma: no-cache;ping/push 未做 |
-| implicit / hybrid         | OIDC Core         | 有条件         | 为 Hybrid OP 认证保留,标 deprecated,新应用不推荐                                                                                                    |
-| resource owner password   | RFC6749           | 不做           | OAuth 2.1 废弃                                                                                                                                      |
+| Flow                      | 规范              | 支持           | 决策                                                                                                                                                                         |
+| ------------------------- | ----------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| authorization_code + PKCE | RFC6749 + RFC7636 | YES,PKCE 强制  | S256 only,拒 plain;public client 无条件要求                                                                                                                                  |
+| client_credentials        | RFC6749           | YES            | 仅 confidential;scope 受客户端白名单约束                                                                                                                                     |
+| refresh_token             | RFC6749           | YES            | 轮换式 + family 检测                                                                                                                                                         |
+| device_code               | RFC8628           | YES            | IoT/CLI;device_code 与 user_code 分离存储                                                                                                                                    |
+| token exchange            | RFC8693           | YES            | impersonation + delegation;subject_token_type 限 access/id token                                                                                                             |
+| CIBA                      | OIDC CIBA         | YES(poll 模式) | 每个 auth_req_id 使用一个 `CibaStore` Durable Object,pending poll 限速原子执行;approved redemption 使用带 fencing token 的 `issuing` lease,仅在 token 签名与可选 refresh 持久化全部成功后 finalize,失败则 abort 以便重试,active lease 返回 authorization_pending,finalize 对 fencing token 幂等;/backchannel_authentication 成功响应补 Pragma: no-cache;ping/push 未做 |
+| implicit / hybrid         | OIDC Core         | 有条件         | 为 Hybrid OP 认证保留,标 deprecated,新应用不推荐                                                                                                                             |
+| resource owner password   | RFC6749           | 不做           | OAuth 2.1 废弃                                                                                                                                                               |
 
 PKCE downgrade 防护:若客户端注册过 code_challenge,后续每次 authorization_code 请求都必须带 challenge,token 端点检测缺失即拒绝。
 
@@ -73,6 +79,8 @@ PKCE downgrade 防护:若客户端注册过 code_challenge,后续每次 authoriz
 ### ID Token
 
 必含 iss/sub/aud/exp/iat;条件含 auth_time(max_age 触发)/nonce/acr/amr/at_hash/c_hash。amr passkey 登录 = phr,OTP = otp。签名默认 ES256(也支持 RS256/PS256 兼容)。JWE 加密为高级可选(RSA-OAEP + A256GCM)。
+
+XID 当前只把认证映射为私有 `urn:xid:aal1` 和 `urn:xid:aal2` ACR 值。它不签发或声明 `urn:xid:aal3`:现有 WebAuthn 信号不能证明 NIST AAL3 要求的不可导出、受硬件保护的密钥。授权请求通过 `acr_values` 或 `claims.id_token.acr` 要求 `urn:xid:aal3` 时,返回 `interaction_required` 和明确的不支持 ACR 说明。历史存量 AAL3 值会在签发新的 authorization code、access token、ID token、refresh token 或 session token 前归一化为 AAL2。
 
 ### Access Token
 
@@ -95,9 +103,9 @@ client 级配置,从用户属性/外部元数据拉取,按 id_token/access_token
 | native / mobile          | 强制       | 无                     |
 | M2M(service account)     | N/A        | 必须或 private_key_jwt |
 
-客户端认证方式:client_secret_basic、client_secret_post、private_key_jwt(RS256/ES256,exp<=5min)、tls_client_auth(mTLS,高级)、self_signed_tls_client_auth(高级)、none(public,必须 PKCE)。
+客户端认证方式:client_secret_basic、client_secret_post、private_key_jwt(ES256/RS256/PS256,exp<=5min)、tls_client_auth(mTLS,高级)、self_signed_tls_client_auth(高级)、none(public,必须 PKCE)。
 
-其他客户端级配置:redirect_uris 精确匹配不允许 wildcard(native 仅允许 loopback IP 和自定义 scheme);独立配置 token 时效/允许 grant_types/response_types/scope 集合/ID token 签名算法。动态注册颁发 registration_access_token。
+其他客户端级配置:redirect_uris 精确匹配不允许 wildcard(native 仅允许 loopback IP 和自定义 scheme);独立配置 token 时效/允许 grant_types/response_types/scope 集合/ID token 签名算法。动态注册颁发 registration_access_token。提交的 `jwks` 必须是非空、规范化的 public signing JWKS:`alg` 与 `kty` 匹配、`use=sig`、`key_ops=verify`、`kid` 非空且唯一,并拒绝 private 或 symmetric 成员(`d/p/q/dp/dq/qi/oth/k`)。`private_key_jwt` 必须提供该 JWKS。注册 JWKS 不改变凭据生成规则:`client_secret_basic` 与 `client_secret_post` 仍会取得 shared secret。Management API 与 Dynamic Client Registration 强制同一注册不变量:`public` 必须使用 `token_endpoint_auth_method=none`、强制 PKCE 且不生成或保留 shared secret;其他 client type 必须使用已认证的 token endpoint method。public client 只有在 `dpop_bound_access_tokens=true` 时才可注册 `refresh_token`。无效的已存注册在协议运行时 fail closed,也不能通过 Management API restore 或 rotate。
 
 ## 5. 高级安全
 
@@ -262,6 +270,8 @@ token type URI 取值(本实现支持):
 - Basic 凭证指向未知 client(仅 `Authorization` header 认证路径)-> `401 invalid_client`,同样带 `WWW-Authenticate: Basic realm="xid", error="invalid_client"`。
 - 凭证提供两种方式(如 Basic + body 同时带)-> `400 invalid_request`。
 - `client_id` 与 `Authorization` 头里的 client 不一致 -> `400 invalid_request`。
+- `/token`、`/par`、`/backchannel_authentication`、`/device_authorization`、`/introspect`、`/revoke` 共用这一套前置校验。client 不能改用与注册值不同的认证方式,`none` client 也不能附加 secret 或 assertion。
+- `/introspect` 还要求已认证 confidential client 的 `first_party=true`。匿名 DCR client 创建时固定为 `first_party=false`,不能枚举 tenant token 状态;manager 控制的 first-party 信任决策按 fail closed 执行。
 
 ### 9.7 OAuth error code 枚举与 HTTP 状态码(RFC6749 5.2 + 扩展)
 

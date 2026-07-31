@@ -7,6 +7,7 @@ import { loginHintCandidates, resolveEntryTenant, withTenant } from '../instance
 const resolveInstanceLogin = vi.hoisted(() => vi.fn())
 const resolveInstanceLoginCandidates = vi.hoisted(() => vi.fn())
 const resolveTenantContextById = vi.hoisted(() => vi.fn())
+const resolveInvitationTenant = vi.hoisted(() => vi.fn())
 
 vi.mock('@xid-kit/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xid-kit/db')>()
@@ -15,6 +16,14 @@ vi.mock('@xid-kit/db', async (importOriginal) => {
     resolveInstanceLogin,
     resolveInstanceLoginCandidates,
     resolveTenantContextById,
+  }
+})
+
+vi.mock('../../auth/invitations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../auth/invitations')>()
+  return {
+    ...actual,
+    resolveInvitationTenant,
   }
 })
 
@@ -79,6 +88,7 @@ describe('resolveEntryTenant', () => {
     resolveInstanceLogin.mockReset()
     resolveInstanceLoginCandidates.mockReset()
     resolveTenantContextById.mockReset()
+    resolveInvitationTenant.mockReset()
   })
 
   it('returns current tenant when root already resolved', async () => {
@@ -86,6 +96,23 @@ describe('resolveEntryTenant', () => {
     const c = await makeCtx(tenant)
     const result = await resolveEntryTenant(c, { kind: 'email', value: 'user@example.com' })
     expect(result).toBe(tenant)
+    expect(resolveInstanceLogin).not.toHaveBeenCalled()
+  })
+
+  it('lets a valid invitation override a different resolved cookie Tenant', async () => {
+    const target = resolvedTenant('tenant_invited')
+    resolveInvitationTenant.mockResolvedValue(target)
+    const c = await makeCtx(resolvedTenant('tenant_cookie'))
+
+    const result = await resolveEntryTenant(
+      c,
+      { kind: 'email', value: 'invitee@example.com' },
+      null,
+      { invitationToken: 'bound-invitation-token' },
+    )
+
+    expect(result).toBe(target)
+    expect(resolveInvitationTenant).toHaveBeenCalledWith(c, 'bound-invitation-token')
     expect(resolveInstanceLogin).not.toHaveBeenCalled()
   })
 
@@ -99,6 +126,21 @@ describe('resolveEntryTenant', () => {
       'tenant_pick',
     )
     expect(result.tenantId).toBe('tenant_pick')
+  })
+
+  it('keeps explicit root sign-up in the default staging tenant before identifier resolution', async () => {
+    const current = unresolvedTenant()
+    const c = await makeCtx(current)
+    const result = await resolveEntryTenant(
+      c,
+      { kind: 'email', value: 'existing@verified.example' },
+      'tenant_existing',
+      { intent: 'sign-up' },
+    )
+    expect(result).toBe(current)
+    expect(resolveTenantContextById).not.toHaveBeenCalled()
+    expect(resolveInstanceLogin).not.toHaveBeenCalled()
+    expect(resolveInstanceLoginCandidates).not.toHaveBeenCalled()
   })
 
   it('throws cross_tenant_access_denied when explicit tenantId cannot be resolved', async () => {

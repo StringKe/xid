@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/nextjs",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Next.js SDK for XID: middleware, server helpers and auth header handling on top of @xid-kit/react.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Next.js middleware, server helpers, and React bindings for XID.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/nextjs",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,21 +20,36 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/nextjs"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test --passWithNoTests"
   },
   "dependencies": {
-    "@xid-kit/backend": "workspace:*",
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/crypto": "workspace:*",
-    "@xid-kit/react": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/backend": "workspace:^",
+    "@xid-kit/core": "workspace:^",
+    "@xid-kit/crypto": "workspace:^",
+    "@xid-kit/react": "workspace:^",
+    "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
     "@types/react": "catalog:",

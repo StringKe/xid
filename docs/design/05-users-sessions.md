@@ -33,8 +33,10 @@
   current Email with `emailVerified = false`, but it neither creates nor reserves a `user_emails`
   row until exact-target verification succeeds.
 - external_id has a `(tenant_id, external_id)` unique index and allows null
-- provisioned_by records the provisioning source: `jit_sso`/`scim`/`signup`/`invite`/`admin`, plus
-  `anonymous` for a guest user created by `POST /auth/guest` (see chapter 01 section 8)
+- provisioned_by records the provisioning source: `jit_sso`/`scim`/`signup`/`invite`/`admin`,
+  `anonymous` for a guest user created by `POST /auth/guest`, and
+  `invitation_email_claim` only for a credential-free User created after exact invitation Email
+  proof (see chapter 01 sections 4 and 8)
 - The three metadata tiers each get their own JSON column and are never merged. private_metadata is
   not returned by default and only when a server context requests it explicitly
 
@@ -54,8 +56,25 @@ a tenant.
   disabled by tenant policy
 - First sign-in onboarding: an `is_new_user` flag in the session token so the frontend can route to
   onboarding
-- Invitation sign-up: the invite token is bound to an email, so accepting it pre-fills the address and
-  skips verification
+- Invitation sign-up: the invite token is bound to an Email and may pre-fill the address, but it only
+  authorizes an acceptance attempt and never proves Email ownership
+- An unauthenticated invitation holder must request a 15-minute, one-time claim sent only to the
+  invitation's exact normalized Email. Before that claim is verified, the flow creates or reuses no
+  User and writes no password, phone, social identity, passkey, MFA factor, session, or Membership
+- A `verified` flag, active session, or Email-only session is not reusable ownership provenance.
+  Invitation claim reuses a User only when the exact verified-primary Email row and active, unmerged
+  User retain durable `invitation_email_claim_v1` provenance from a prior claim ceremony. This lets
+  that proven identity join more than one Organization
+- Every other exact Email collision detaches only that Email association and creates a
+  credential-free invited User. It also clears any old primary or pending pointer to the address and
+  invalidates outstanding Email-bound verification, passwordless, and password-reset artifacts,
+  while old credentials, identities, sessions, Memberships, metadata, and other data are neither
+  transferred nor scrubbed
+- Claim consumption and Email/User provenance form the atomic `pending -> claim_verified`
+  transition. The browser must retain a random `recoveryKey`; only the original signed claim plus
+  that same key may recover session issuance, MFA routing, Membership creation/reactivation, and the
+  conditional `claim_verified -> accepted` transition. An accepted retry within the signed claim
+  lifetime is idempotent
 - Guest sign-in and every password, passwordless, or social sign-up carrying `intent=sign-up`
   converge on `/create-organization`, after any credential verification required by the sign-up
   policy. A password verification token preserves the signed sign-up intent and returns the user to
@@ -119,6 +138,10 @@ collision is not a normal branch for a freshly created Tenant.
   Tenant, revokes all guest sessions, and requires a fresh sign-in. Tenant-local uniqueness permits
   the same normalized Email in another Tenant; the Instance root resolver offers Tenant selection
   on later sign-in.
+- Invitation Email verification is not ordinary sign-up verification. Its signed token carries
+  `purpose = invitation_email_claim`, `tenant_id`, `sub = invitationId`, `jti`, and `email_hash`;
+  it expires after 15 minutes and is single use. The raw invitation capability is never persisted in
+  the claim record. See chapter 01, "Invitation Email claim", for the proof-first write boundary.
 
 ## 5. User status and management
 
@@ -146,9 +169,30 @@ collision is not a normal branch for a freshly created Tenant.
 
 ## 6. Administrator capabilities
 
-- Admin impersonation: create an actor token that the application consumes to establish a session as
-  the target user. The token carries an `act` claim (`impersonator_id`), the application displays a
-  banner, and the audit log records who, whom, when, and from which IP
+- Admin impersonation is an Instance Manager-only, cross-host handoff:
+  - `POST /v1/platform/impersonation/start` verifies the active target user, Organization,
+    Membership, and instance before creating a two-minute `ImpersonationGrantDO` grant. The Durable
+    Object stores only the SHA-256 secret hash and atomically consumes the grant once.
+  - The response describes an opaque form `POST` to the target Organization host. The grant id and
+    secret stay in the request body; target identity is never placed in the token, URL query, or
+    logs. The target host resolves its own TenantContext, so the instance issuer and concrete target
+    RPID remain authoritative.
+  - Consumption creates a non-remembered session with a hard 15-minute expiry,
+    `is_impersonation = true`, `impersonator_user_id`, and a pinned active Organization. Defensive
+    JWT construction carries `act: {"sub": impersonator_user_id}`, but the public session-token
+    exchange is not available to an impersonation session. Support impersonation does not emit a
+    target-user login success or MAU/DAU metering event.
+  - The impersonation cookie may access only `GET`, `HEAD`, and `OPTIONS` under `/v1/*`, plus
+    `POST /auth/impersonation/end`. Every other method or path is rejected, including
+    `/v1/sessions/token`, `/authorize`, `/auth/*`, `/sso/*`, and `/end_session`; the target identity
+    therefore cannot escape the read-only Console boundary as a bearer token or protocol session.
+    Active Organization switching is also rejected. Console renders a global warning banner and an
+    explicit end action, which revokes the session and performs a full document navigation back to
+    the instance issuer's Platform user list, where the host-only manager cookie resumes the
+    operator session.
+  - Grant creation, grant consumption, session start, and session end first persist to
+    `platform_audit_outbox`; Queue failure remains recoverable by Cron before the append-only audit
+    chain records actor, target, session, time, and IP.
 - Force sign-out: revoke all or a single session for a given user, taking effect immediately through
   a Durable Object
 - Force password change: a `password_change_required` flag routes the user into a forced password
@@ -157,10 +201,25 @@ collision is not a normal branch for a freshly created Tenant.
 
 ## 7. GDPR and privacy
 
-- Data export (portability): package all of a user's data and generate a download link valid for 48
-  hours
-- Right to be forgotten: soft delete -> 30-day grace period -> hard delete of PII (retaining
-  anonymized audit records), with associated OAuth tokens revoked at the same time
+- Data export (portability): `POST /v1/me/privacy/requests` creates a Queue-backed export. The
+  consumer streams explicit safe projections into a private R2 JSON object; password, token,
+  credential, and encrypted-secret material is excluded. The authenticated account download remains
+  available for 48 hours, then daily Cron deletes the object and clears its storage reference.
+- Right to be forgotten: the Account UI requires a second confirmation, and the API accepts deletion
+  only with the exact `confirmation: "DELETE"` contract. The request then remains pending for a
+  30-day, cancelable grace period. Scheduling is rejected with an opaque conflict if erasure would
+  remove an Organization's sole active owner or the last active `instance_manager` in the same
+  Instance scope. A non-null `scope_id` matches only the same value; the existing global Instance
+  Manager contract uses null, which matches only another null scope.
+  Daily Cron enqueues due or stale work, and the privacy consumer rechecks the same invariant after
+  the grace period. The first statement in the D1 erasure batch is an atomic eligibility guard, so
+  a concurrent role change rolls back every relational erasure statement. The consumer then
+  revokes the user's sessions, any sessions they created through impersonation, OAuth sessions and
+  issued access JWTs before deleting credentials, profile PII, memberships and identity lookup
+  records. An accepted invitation's retained Email is replaced with a random `.invalid` tombstone.
+  The process retains only a minimal erased `users` tombstone and immutable audit history. Existing
+  `audit_events` rows are never rewritten or deleted; audit views render the erased actor as
+  `[deleted_user]`, and the durable audit outbox appends `user.erasure_completed`.
 - Consent management: a consents table records consent for each processing purpose (terms acceptance
   time, marketing opt-in) with a timestamp and the source IP
 - Data residency: D1 is bound to a specific region, and the tenant chooses their residency location
@@ -285,7 +344,7 @@ Source and rules for each claim:
 | org_permissions | Expanded from role -> permissions                                          | An array of strings; omitted when there is no org context                                                                                                                                                                                                                                    |
 | act             | Set to `{"sub": impersonator_user_id}` while impersonating, otherwise null | RFC 8693 token exchange; the claim is omitted when null                                                                                                                                                                                                                                      |
 | amr             | The array of authentication methods used at sign-in                        | passkey: `["phr"]`; password: `["pwd"]`; OTP: `["otp"]`; MFA carries several at once; a guest with no credential yet carries `guest`, which the first token issued after conversion naturally drops (see chapter 01 section 8)                                                               |
-| acr             | Authentication context class                                               | The XID-private URIs `urn:xid:aal1` / `urn:xid:aal2` / `urn:xid:aal3`; the current sign-in paths only issue AAL1 and AAL2                                                                                                                                                                    |
+| acr             | Authentication context class                                               | The issued XID-private URIs are `urn:xid:aal1` and `urn:xid:aal2`. `urn:xid:aal3` is not supported; a legacy stored value is normalized to AAL2 before a new token is issued                                                                                                                   |
 | auth_time       | The Unix timestamp of the last full authentication (not a token refresh)   | Required by OIDC Core; session.authenticated_at                                                                                                                                                                                                                                              |
 | email           | The primary_email address                                                  | Emitted only when the scope includes email                                                                                                                                                                                                                                                   |
 | email_verified  | UserEmail.verified                                                         | Same as above                                                                                                                                                                                                                                                                                |
@@ -330,7 +389,7 @@ Explanation of each attribute:
 | Attribute                        | Value                                                                                                                                                        | Rationale                                                                                                                                                                                                           |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Name prefix `__Host-`            | Always applied                                                                                                                                               | RFC 6265bis requires the `__Host-` prefix to imply Secure, Path=/, and no Domain attribute; it prevents subdomain cookie injection (subdomain A cannot write a cookie with this prefix)                             |
-| Name structure `xid.rt.{prefix}` | The fixed `xid.rt.` namespace plus the first 8 characters of the session_id                                                                                  | Distinguishes multiple tabs and sessions (see 8.4); the `__Host-` prefix does not allow a leading dot, so the prefix goes after `__Host-`                                                                           |
+| Name structure `xid.rt.{prefix}` | The fixed `xid.rt.` namespace plus the first 8 random suffix characters of the session_id                                                                    | Distinguishes multiple tabs and sessions (see 8.4); excluding the fixed `sess_` prefix preserves 8 random characters, and legacy UUID sessions continue to use their first 8 characters                             |
 | Path=/                           | The only value `__Host-` permits                                                                                                                             | RFC 6265bis requires a `__Host-` cookie's Path to be /                                                                                                                                                              |
 | Secure                           | Required                                                                                                                                                     | HTTPS only, defending against network-layer theft; the `__Host-` prefix mandates this attribute                                                                                                                     |
 | HttpOnly                         | Required                                                                                                                                                     | Blocks JavaScript reads, defending the refresh token against XSS                                                                                                                                                    |
@@ -407,7 +466,8 @@ earlier one.
 
 **Solution: a per-session cookie name, namespaced by a session_id prefix.**
 
-Cookie name structure: `__Host-xid.rt.{session_id[0:8]}`
+Cookie name structure: `__Host-xid.rt.{session_random_suffix[0:8]}`. Current `sess_` identifiers
+exclude that fixed prefix; a legacy UUID continues to use `session_id[0:8]`.
 
 Example (two sessions in the same browser):
 
@@ -418,18 +478,25 @@ __Host-xid.rt.01HZ9K3T = {refresh_token_B}; Path=/; Secure; HttpOnly; SameSite=L
 
 **SDK active session selection logic:**
 
-1. Read every `__Host-xid.rt.*` cookie (reading cookie names from JavaScript, noting that HttpOnly
-   cookies cannot be read; in practice this is managed by the SDK service worker or the server-side
-   token endpoint).
-2. A pure browser SDK cannot read HttpOnly cookies, so the session list lives in same-origin
-   `localStorage` or `sessionStorage` under the key `xid.sessions`, holding a JSON array of
-   `[{session_id, active_org_id, user_id, exp}]` (with no token plaintext).
-3. The SDK constructs the token refresh request carrying the target session_id in the body
-   (`POST /oauth/token` with `grant_type=refresh_token` and a `session_id` field). The server locates
-   the corresponding cookie by session_id, or the client passes the refresh_token explicitly in the
-   request.
-4. The default active session is the one in localStorage with the newest `last_active_at`; switching
-   accounts or orgs updates that pointer.
+1. Refresh cookies remain `HttpOnly`; browser JavaScript, service workers, localStorage, and
+   sessionStorage never receive refresh-token plaintext or a separately trusted session registry.
+2. The Worker stores the selected session id in the `HttpOnly` `__Host-xid.active` cookie. This is
+   only a pointer, not a credential. Missing or stale pointers fall back to the first valid refresh
+   cookie, and the Worker repairs the pointer.
+3. `GET /v1/me` returns `activeSessionId` and `sessions`. The list contains only sessions for which
+   this request presents a refresh cookie that passes the exact D1 hash lookup, active-user,
+   absolute/idle expiry, and Session Durable Object checks. A D1 row without a browser-held cookie is
+   never exposed through this list.
+4. `POST /v1/sessions/active` accepts `{sessionId}`, validates the matching browser-held refresh
+   cookie, then updates `__Host-xid.active`. The SDK clears derived token and organization caches and
+   reloads `/v1/me`.
+5. `POST /v1/sessions/token` always uses the active validated cookie session and returns `{token}`.
+   `POST /auth/sign-out` revokes that session, clears its refresh cookie and active pointer, and a
+   subsequent `/v1/me` selects any remaining valid browser session.
+6. Server/framework SDKs never treat `__Host-xid.rt.*` as a JWT. When the application reserves the
+   session-token path to Core on the same origin, the SDK forwards the Cookie header to that endpoint
+   and verifies only the returned short-lived JWT. A separate-origin application uses an explicit
+   Bearer or application-owned JWT cookie handoff and never receives the Core opaque refresh token.
 
 **Org context switching (changing the active_org within one session):**
 
@@ -445,9 +512,9 @@ is the final boundary, and the Durable Object has no additional absolute_timeout
 
 **Server-side multi-session enumeration defense:**
 
-The `/oauth/token` endpoint does not accept a refresh request without a session_id (it MUST be
-explicit). Enumerating session_ids is pointless, because the opaque refresh_token value is the
-credential actually being validated.
+The session id in `POST /v1/sessions/active` is only a selector. The matching opaque refresh cookie
+is the credential and is validated by hash plus the normal session checks. Guessing or obtaining a
+session id without its browser-held refresh cookie returns an opaque unauthorized response.
 
 ### Data model
 
@@ -464,19 +531,22 @@ credential actually being validated.
 
 The ordinary sign-up and sign-in paths (password, passwordless/magic link, and social OAuth user
 creation) write a membership in the instance default org (`org_id = tenant_id`) by default. That
-default write is skipped for `invitationToken`, `intent=sign-up`, an OAuth resume (where the redirect
-carries `authz_request_id`), and a redirect to `/create-organization`. Invitation acceptance and
-self-service org creation go through explicit membership paths.
+default write is skipped for `intent=sign-up`, an OAuth resume (where the redirect carries
+`authz_request_id`), and a redirect to `/create-organization`. An `invitationToken` is not a generic
+credential-provisioning flag: every holder enters the proof-first Email claim, including a currently
+signed-in user. Raw authenticated acceptance is disabled. Invitation proof and self-service org
+creation use explicit membership paths.
 
-| Entry point                                              | Default tenant membership on user creation | Notes                                                                                                          |
-| -------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| Password sign-up (ordinary sign-in)                      | Written                                    | An existing member goes through sign-in and is not written again                                               |
-| Password sign-up (`intent=sign-up` or `invitationToken`) | Skipped                                    | After sign-up, redirect to `/create-organization` or `/accept-invitation`                                      |
-| Passwordless / magic link (same flags)                   | Skipped                                    | Same as password sign-up                                                                                       |
-| Social OAuth user creation                               | Written by default                         | Skipped for an `authz_request_id` resume, `intent=sign-up`, or `invitationToken`                               |
-| Enterprise SSO JIT (SAML / OIDC RP) user creation        | Writes a connection org membership         | Skipped when the OAuth resume flag is true; an existing user still gets membership synced                      |
-| Invitation acceptance                                    | Writes into the invited org                | After acceptance, set `session.active_org_id`                                                                  |
-| Self-service top-level Tenant creation                   | Writes into the new org (as owner)         | Only a new user with no Membership; migrate user-owned rows and session rows, then set `session.active_org_id` |
+| Entry point                                            | Default tenant membership on user creation | Notes                                                                                                          |
+| ------------------------------------------------------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Password sign-up (ordinary sign-in)                    | Written                                    | An existing member goes through sign-in and is not written again                                               |
+| Password sign-up (`intent=sign-up`)                    | Skipped                                    | After credential verification, redirect to `/create-organization`                                             |
+| Passwordless / magic link (`intent=sign-up`)           | Skipped                                    | Same as password sign-up                                                                                       |
+| Social OAuth user creation                             | Written by default                         | Skipped for an `authz_request_id` resume or `intent=sign-up`; an invitation capability is not social proof     |
+| Enterprise SSO JIT (SAML / OIDC RP) user creation      | Writes a connection org membership         | Skipped when the OAuth resume flag is true; an existing user still gets membership synced                      |
+| Invitation Email claim initiation                     | No User or Membership write                | Sends only to the exact invited Email; no credential, identity, session, or account lookup is committed        |
+| Invitation claim verification                         | Writes into the invited org                | Reuses only exact claim-proven identity; otherwise creates a clean User; proof is atomic before recoverable session/Membership acceptance |
+| Self-service top-level Tenant creation                 | Writes into the new org (as owner)         | Only a new user with no Membership; migrate user-owned rows and session rows, then set `session.active_org_id` |
 
 Guest and `intent=sign-up` credential flows both use the final row. Invitation, enterprise JIT,
 SCIM, OAuth resume, and ordinary sign-in preserve their explicit rows and never create a top-level

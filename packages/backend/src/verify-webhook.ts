@@ -1,5 +1,5 @@
 // verifyWebhook:svix 风格 HMAC-SHA256 webhook 签名验证(见 api-sdk-conventions rule:svix-id/timestamp/signature,HMAC-SHA256,5min 窗防重放)。
-// 签名底文 = `${id}.${timestamp}.${body}`,密钥为 whsec_ 前缀的 base64 secret;svix-signature 头含空格分隔的 `v1,<base64sig>` 多签名。
+// 签名底文 = `${id}.${timestamp}.${body}`,密钥为 whsec_ 前缀的 standard base64 secret;svix-signature 头含空格分隔的 `v1,<base64sig>` 多签名。
 // HMAC 验签复用 @xid-kit/crypto hmacSha256Verify(constant-time 比较),不自研密码学原语。
 
 import type { Result } from '@xid-kit/types'
@@ -8,9 +8,10 @@ import { base64UrlDecode, hmacSha256Verify } from '@xid-kit/crypto'
 const WHSEC_PREFIX = 'whsec_'
 const SIG_VERSION = 'v1'
 const DEFAULT_TOLERANCE_SEC = 300
+const LEGACY_HEX_SECRET = /^[0-9a-f]{64}$/u
 
 export type VerifyWebhookOptions = {
-  // webhook signing secret(svix 格式 `whsec_<base64>` 或裸 base64)。
+  // webhook signing secret(svix 格式 `whsec_<base64>`、裸 base64 或旧版 64 位 hex)。
   secret: string
   // 时间窗容忍(秒),默认 300(5min,见 api-sdk-conventions rule 防重放)。
   toleranceSec?: number
@@ -23,19 +24,28 @@ export type WebhookVerifyError =
   | 'invalid_timestamp'
   | 'timestamp_out_of_tolerance'
   | 'no_matching_signature'
+  | 'invalid_payload'
+
+export type WebhookEventPayload = {
+  type: string
+  data: unknown
+}
 
 export type VerifiedWebhook = {
   id: string
   timestamp: number
-  payload: unknown
+  payload: WebhookEventPayload
 }
 
 function err(error: WebhookVerifyError): Result<VerifiedWebhook, WebhookVerifyError> {
   return { ok: false, error }
 }
 
-// 解析 whsec_ 前缀并 base64url 解码出原始 secret 字节(svix secret 是标准 base64,base64url 解码兼容无填充)。
+// 旧版 API 返回 64 位 hex 文本并直接以其 UTF-8 字节签名;保留读取兼容让存量订阅可验签到轮换。
 function decodeSecret(secret: string): Uint8Array {
+  if (!secret.startsWith(WHSEC_PREFIX) && LEGACY_HEX_SECRET.test(secret)) {
+    return new TextEncoder().encode(secret)
+  }
   const raw = secret.startsWith(WHSEC_PREFIX) ? secret.slice(WHSEC_PREFIX.length) : secret
   return base64UrlDecode(raw)
 }
@@ -106,5 +116,28 @@ export async function verifyWebhook(
     return err('no_matching_signature')
   }
 
-  return { ok: true, value: { id, timestamp: ts.value, payload: JSON.parse(body) as unknown } }
+  let payload: unknown
+  try {
+    payload = JSON.parse(body) as unknown
+  } catch {
+    return err('invalid_payload')
+  }
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    Array.isArray(payload) ||
+    typeof (payload as Record<string, unknown>)['type'] !== 'string' ||
+    !Object.hasOwn(payload, 'data')
+  ) {
+    return err('invalid_payload')
+  }
+
+  return {
+    ok: true,
+    value: {
+      id,
+      timestamp: ts.value,
+      payload: payload as WebhookEventPayload,
+    },
+  }
 }

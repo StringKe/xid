@@ -47,6 +47,9 @@ RSpec.describe Xid::RequestAuthenticator do
     end
 
     context "when token is in cookie" do
+      let(:auth) do
+        described_class.new(token_verifier: verifier, cookie_name: "__xid_token")
+      end
       let(:env) { { "HTTP_COOKIE" => "__xid_token=cookie_token_here" } }
 
       before do
@@ -56,6 +59,21 @@ RSpec.describe Xid::RequestAuthenticator do
       it "extracts token from cookie and returns signed_in" do
         state = auth.authenticate_env(env)
         expect(state.signed_in?).to be true
+      end
+    end
+
+    context "when only implicit or Core cookies exist" do
+      let(:env) do
+        {
+          "HTTP_COOKIE" =>
+            "__xid_token=app; __session=legacy; __Host-xid.rt.abcdefgh=opaque"
+        }
+      end
+
+      it "does not locally verify them" do
+        expect(verifier).not_to receive(:verify!)
+        state = auth.authenticate_env(env)
+        expect(state.signed_in?).to be false
       end
     end
   end

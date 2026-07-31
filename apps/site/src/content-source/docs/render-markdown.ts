@@ -120,15 +120,16 @@ export function renderMarkdownHub(
   const documentsBySlug = new Map(documents.map((document) => [document.slug, document]))
 
   const renderGroup = (heading: RichText, slugs: readonly string[]): string => {
-    const rows = slugs.map((slug) => {
+    const rows = slugs.flatMap((slug) => {
       const document = documentsBySlug.get(slug)
       if (!document) {
         throw new TypeError(`hub navigation references unknown document ${slug}`)
       }
+      if (document.draft === true) return []
       const title = renderMarkdownInline(document.title, options)
       const summary = renderMarkdownInline(document.summary, options)
       const href = localizedDocsHref(`/${document.slug}`, options.locale)
-      return `- [${title}](${href})\n  ${summary}`
+      return [`- [${title}](${href})\n  ${summary}`]
     })
     return [`### ${renderMarkdownInline(heading, options)}`, ...rows].join('\n\n')
   }
@@ -138,9 +139,7 @@ export function renderMarkdownHub(
     if (section.kind === 'product') {
       return [
         heading,
-        ...section.paragraphs.map((paragraph) =>
-          renderMarkdownInline(paragraph, options),
-        ),
+        ...section.paragraphs.map((paragraph) => renderMarkdownInline(paragraph, options)),
       ].join('\n\n')
     }
     if (section.kind === 'capabilities') {
@@ -149,12 +148,9 @@ export function renderMarkdownHub(
         .join('\n')
       return `${heading}\n\n${items}`
     }
-    return [
-      heading,
-      ...section.groups.map((group) =>
-        renderGroup(group.label, group.slugs),
-      ),
-    ].join('\n\n')
+    return [heading, ...section.groups.map((group) => renderGroup(group.label, group.slugs))].join(
+      '\n\n',
+    )
   })
 
   return [

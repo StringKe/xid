@@ -4,42 +4,73 @@
 
 ## Install
 
+Registry status is `UNPUBLISHED`: local release artifacts are verified, but no npm publication has
+been performed or authorized. The registry command below is post-publication only and becomes valid
+after an independently verified authorized release. Until then, install from a source checkout or
+audited tarball as described in [SDK Distribution](./distribution.md).
+
 ```sh
+# Post-publication only
 pnpm add @xid-kit/core
 ```
 
 ## Quickstart
 
+An application on a different origin uses the OIDC browser mode. Register a public OAuth client and
+pass the returned `client_id`; XID has no separate publishable-key credential.
+
 ```ts
 import { XidClient } from '@xid-kit/core'
 
 const xid = new XidClient({
-  apiUrl: 'https://xid.dev',
+  mode: 'oidc',
+  issuer: 'https://xid.dev',
+  clientId: 'client_abc123',
+  redirectUri: `${window.location.origin}/auth/callback`,
 })
 
-// Load session state from /v1/me
+// Restore a cached OIDC session, if one exists.
 await xid.load()
 
-// Get a short-lived JWT for API calls
+const authorization = await xid.createAuthorizationUrl({ returnUrl: '/dashboard' })
+if (!authorization.ok) throw authorization.error
+window.location.assign(authorization.value)
+```
+
+On the registered callback route:
+
+```ts
+const callback = await xid.handleRedirectCallback(window.location.href)
+if (!callback.ok) throw callback.error
+
 const token = await xid.getToken()
+if (!token.ok) throw token.error
+await fetch('/api/profile', {
+  headers: { Authorization: `Bearer ${token.value}` },
+})
+```
 
-// Switch active organization
-await xid.setActiveOrganization('org_abc123')
+`mode: 'same-origin'` is reserved for XID-owned UI or an application that reverse-routes Core
+authentication endpoints onto its exact origin. In that mode the browser uses the HttpOnly opaque
+Core cookie and can switch sessions and active organizations:
 
-// Sign out
-await xid.signOut()
+```ts
+const xid = new XidClient({ mode: 'same-origin' })
+await xid.load()
+await xid.setActiveOrganization({ organizationId: 'org_abc123' })
 ```
 
 ## Exported API
 
 ### Top-level client and store
 
-| Export         | Kind  | Description                                                                                                        |
-| -------------- | ----- | ------------------------------------------------------------------------------------------------------------------ |
-| `XidClient`    | class | Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers       |
-| `XidStore`     | class | Framework-agnostic reactive store; framework bindings (e.g. `@xid-kit/react`) subscribe via `useSyncExternalStore` |
-| `TokenManager` | class | Short-lived JWT cache and scheduled refresh (advanced use and testing)                                             |
-| `XidApiClient` | class | HTTP client for `/v1/me` and token endpoints                                                                       |
+| Export             | Kind  | Description                                                                                                        |
+| ------------------ | ----- | ------------------------------------------------------------------------------------------------------------------ |
+| `XidClient`        | class | Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers       |
+| `XidStore`         | class | Framework-agnostic reactive store; framework bindings (e.g. `@xid-kit/react`) subscribe via `useSyncExternalStore` |
+| `TokenManager`     | class | Short-lived JWT cache and scheduled refresh (advanced use and testing)                                             |
+| `XidApiClient`     | class | HTTP client for `/v1/me` and token endpoints                                                                       |
+| `BrowserOidcError` | class | Typed browser OIDC discovery, callback, and token-exchange error                                                   |
 
 ### Errors
 
@@ -66,32 +97,40 @@ await xid.signOut()
 
 ### Types
 
-| Export                      | Description                                                          |
-| --------------------------- | -------------------------------------------------------------------- |
-| `XidUser`                   | Read-only view of the authenticated user (no secrets or hashes)      |
-| `XidOrganization`           | Public organization view                                             |
-| `XidOrganizationMembership` | User membership in an org with role and permissions                  |
-| `XidSession`                | Session view including status, expiry, and active org                |
-| `XidApiKey`                 | API key without secret (list view)                                   |
-| `XidApiKeyWithSecret`       | API key returned once at creation, includes `key` field              |
-| `XidPage<T>`                | Cursor-paginated response envelope                                   |
-| `CreateApiKeyInput`         | Input type for `createApiKey`                                        |
-| `SignInPasswordInput`       | Input type for `signInPassword`                                      |
-| `SignInResult`              | Result from `signInPassword`: next step or redirect URL              |
-| `SessionStatus`             | Union of `SESSION_STATUS` values                                     |
-| `ClientStatus`              | Union of `CLIENT_STATUS` values                                      |
-| `XidState`                  | Full SDK state snapshot subscribed from `XidStore`                   |
-| `XidStateListener`          | State change listener callback type                                  |
-| `Unsubscribe`               | Return type of `XidStore.subscribe`                                  |
-| `GetTokenOptions`           | Options for `getToken`: template, skipCache, leewaySeconds, signal   |
-| `XidClientOptions`          | Constructor options for `XidClient`: apiUrl, secretKey, fetcher, now |
-| `ListUsersInput`            | Input type for `listUsers`                                           |
-| `ListSessionsInput`         | Input type for `listSessions`                                        |
-| `ManagementUser`            | Management API user resource shape                                   |
-| `ManagementSession`         | Management API session resource shape                                |
-| `TokenResponse`             | Raw token endpoint response shape                                    |
-| `ClientStateResponse`       | Raw `/v1/me` response shape                                          |
-| `DecodedTokenClaims`        | JWT payload claims returned by `decodeTokenClaims`                   |
+| Export                      | Description                                                        |
+| --------------------------- | ------------------------------------------------------------------ |
+| `XidUser`                   | Read-only view of the authenticated user (no secrets or hashes)    |
+| `XidOrganization`           | Public organization view                                           |
+| `XidOrganizationMembership` | User membership in an org; `role` is `owner`, `admin`, or `member` |
+| `XidSession`                | Session view including status, expiry, and active org              |
+| `XidApiKey`                 | API key without secret (list view)                                 |
+| `XidApiKeyWithSecret`       | API key returned once at creation, includes `key` field            |
+| `XidPage<T>`                | Cursor-paginated response envelope                                 |
+
+Organization membership roles use the fixed `OrganizationMembershipRole` contract. Tenant-defined
+Project roles such as `viewer` or `billing_admin` are separate business-role records and are never
+accepted by Organization membership guards.
+| `CreateApiKeyInput` | Input type for `createApiKey` |
+| `SignInPasswordInput` | Input type for `signInPassword` |
+| `SignInResult` | Result from `signInPassword`: next step or redirect URL |
+| `SessionStatus` | Union of `SESSION_STATUS` values |
+| `ClientStatus` | Union of `CLIENT_STATUS` values |
+| `XidState` | Full SDK state snapshot subscribed from `XidStore` |
+| `XidStateListener` | State change listener callback type |
+| `Unsubscribe` | Return type of `XidStore.subscribe` |
+| `GetTokenOptions` | Options for `getToken`: skipCache, leewaySeconds, signal |
+| `XidClientOptions` | Union of explicit `same-origin` and `oidc` browser options |
+| `SameOriginXidClientOptions` | Exact-origin cookie mode options |
+| `OidcXidClientOptions` | Cross-origin OIDC options: issuer, clientId, redirectUri, scopes |
+| `CreateAuthorizationUrlInput` | OIDC authorize redirect options |
+| `HandleRedirectCallbackResult` | Validated OIDC callback result |
+| `ListUsersInput` | Input type for `listUsers` |
+| `ListSessionsInput` | Input type for `listSessions` |
+| `ManagementUser` | Management API user resource shape |
+| `ManagementSession` | Management API session resource shape |
+| `TokenResponse` | Raw token endpoint response shape |
+| `ClientStateResponse` | Raw `/v1/me` response shape |
+| `DecodedTokenClaims` | JWT payload claims returned by `decodeTokenClaims` |
 
 ## Management API helpers
 
@@ -105,7 +144,9 @@ const xid = new XidClient({
 
 const keys = await xid.listApiKeys()
 const created = await xid.createApiKey({ name: 'CI deploy', scopes: ['read'] })
-await xid.revokeApiKey(created.id)
+if (!created.ok) throw created.error
+const revoked = await xid.revokeApiKey({ id: created.value.id })
+if (!revoked.ok) throw revoked.error
 
 const users = await xid.listUsers({ limit: 50 })
 const user = await xid.getUser({ userId: 'user_abc' })
@@ -113,11 +154,16 @@ const orgs = await xid.listOrganizations()
 const sessions = await xid.listSessions({ userId: 'user_abc' })
 ```
 
-Other resources (`/v1/members`, `/v1/invitations`, etc.) still require direct REST calls or framework server helpers.
+Other Organization-scoped resources, including
+`/v1/organizations/:orgId/memberships` and
+`/v1/organizations/:orgId/invitations`, still require direct REST calls or framework server
+helpers.
 
 ## Error handling
 
-`XidNetworkError` is thrown for transport-level failures. Structured API errors from the server conform to `XidError` (check with `isXidErrorShape`). Expected failures such as sign-in validation errors are returned as `SignInResult` rather than thrown.
+`XidNetworkError` is thrown for transport-level failures. Structured API errors from the server
+conform to `XidError` (check with `isXidErrorShape`). Expected failures return
+`Result<T, XidError>`; check `result.ok` before reading `result.value`.
 
 ```ts
 import { XidNetworkError, isXidErrorShape } from '@xid-kit/core'

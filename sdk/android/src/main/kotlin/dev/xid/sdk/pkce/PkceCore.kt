@@ -26,6 +26,8 @@ internal object PkceCore {
 
     /** Byte length of the random verifier source material (64 bytes -> 86-char Base64URL). */
     const val VERIFIER_BYTE_LENGTH = 64
+    /** OIDC nonce entropy (32 bytes -> 43-char Base64URL). */
+    const val NONCE_BYTE_LENGTH = 32
 
     /**
      * Generate a cryptographically random code_verifier.
@@ -34,7 +36,20 @@ internal object PkceCore {
      * RFC 7636 Section 4.1 range of 43-128 characters.
      */
     fun generateVerifier(): String {
-        val bytes = ByteArray(VERIFIER_BYTE_LENGTH)
+        return generateOpaqueValue(VERIFIER_BYTE_LENGTH)
+    }
+
+    /**
+     * Generate the OIDC nonce bound to one authorization request.
+     *
+     * The nonce is sent to /authorize and must be reproduced by the ID token. It is independent
+     * from OAuth state: state binds the callback to the app, while nonce binds the ID token to the
+     * authorization request.
+     */
+    fun generateNonce(): String = generateOpaqueValue(NONCE_BYTE_LENGTH)
+
+    private fun generateOpaqueValue(byteLength: Int): String {
+        val bytes = ByteArray(byteLength)
         SecureRandom().nextBytes(bytes)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }

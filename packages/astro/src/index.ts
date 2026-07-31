@@ -28,6 +28,9 @@ export type {
   AuthResult,
   XidMiddlewareOptions,
   XidIntegrationOptions,
+  XidIntegrationBrowserOptions,
+  SerializableJwtKey,
+  XidIntegrationSessionTokenExchangeOptions,
   XidServerClientOptions,
   PaginatedResponse,
 } from './types'
@@ -71,3 +74,5 @@ export type {
   GetTokenOptions,
   XidClientOptions,
 } from '@xid-kit/core'
+
+export type { OrganizationMembershipRole } from '@xid-kit/types'

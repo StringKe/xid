@@ -17,6 +17,7 @@ import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
 import { ACTIVE_SESSION_STATUS, readSession, revokeSession } from '../lib/session'
 import { readAnonKey } from '../auth/passkey-helpers'
 import { loadLiveGuestUser, unbindGuestAnonKey } from './guest'
+import { logWorkerError } from '../lib/safe-log'
 
 export type GuestConversionContext = {
   session: SessionData
@@ -48,7 +49,12 @@ function emitGuestConvertedAudit(c: Context<XidHonoEnv>, tenantId: string, userI
   try {
     c.executionCtx.waitUntil(task)
   } catch {
-    void task.catch((error: unknown) => console.error('[guest] audit queue send failed', error))
+    void task.catch((error: unknown) =>
+      logWorkerError('guest_conversion.audit_queue.send_failed', error, {
+        component: 'guest-conversion',
+        queue: 'audit',
+      }),
+    )
   }
 }
 

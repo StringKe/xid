@@ -1,11 +1,11 @@
 // GET /v1/platform/billing:所有 organization 计费总览(契约 Page<BillingOverview>,nextCursor + total)。
 // BillingOverview 无独立 id,主键即 organizationId;cursor 按 organizationId 字典序。
 // 跨 organization 走独立管理路径(requireInstanceManager + managementDb,见 shared.ts、tenant-isolation rule)。
-// seat:org.seat_used / seat_limit(denormalized 计数列,见 08 章 10.2);mau/dau:usage_monthly/usage_daily 当期。
+// seat:tenant-wide distinct active membership user + hard seats quota;mau/dau:usage_monthly/usage_daily 当期。
 // status:seatLimit 非空且 seatUsed > seatLimit -> exceeded;否则 ok(overdue 需账务状态源,首版无 -> 不臆造,归 ok)。
 
 import { schema } from '@xid-kit/db'
-import { and, count, eq, gt, inArray, isNull } from 'drizzle-orm'
+import { and, count, countDistinct, eq, gt, inArray, isNull } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
@@ -16,6 +16,7 @@ import {
   parsePlatformPagination,
   requireInstanceManager,
 } from './shared'
+import { loadOrganizationPlanAccountingMap, loadOrganizationSeatLimitMap } from './plans'
 
 const app = new Hono<XidHonoEnv>()
 
@@ -33,7 +34,12 @@ type BillingOverview = {
   status: BillingStatus
 }
 
-function billingStatus(seatUsed: number, seatLimit: number | null): BillingStatus {
+function billingStatus(
+  seatUsed: number,
+  seatLimit: number | null,
+  planStatus: string,
+): BillingStatus {
+  if (planStatus === 'past_due') return 'overdue'
   if (seatLimit !== null && seatUsed > seatLimit) return 'exceeded'
   return 'ok'
 }
@@ -83,6 +89,24 @@ async function usageByTenant(
   }
 }
 
+async function activeSeatsByTenant(
+  db: ReturnType<typeof managementDb>,
+  tenantIds: readonly string[],
+): Promise<Map<string, number>> {
+  if (tenantIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      tenantId: schema.memberships.tenantId,
+      value: countDistinct(schema.memberships.userId),
+    })
+    .from(schema.memberships)
+    .where(
+      and(inArray(schema.memberships.tenantId, tenantIds), eq(schema.memberships.status, 'active')),
+    )
+    .groupBy(schema.memberships.tenantId)
+  return new Map(rows.map((row) => [row.tenantId, row.value]))
+}
+
 app.get('/', async (c) => {
   await requireInstanceManager(c)
   const db = managementDb(c.env)
@@ -106,21 +130,30 @@ app.get('/', async (c) => {
   const last = pageRows[pageRows.length - 1]
   const nextCursor = hasMore && last !== undefined ? encodeCursor(last.id) : null
 
-  const { dau, mau } = await usageByTenant(
-    db,
-    now,
-    pageRows.map((row) => row.id),
-  )
-  const data: BillingOverview[] = pageRows.map((row) => ({
-    organizationId: row.id,
-    organizationName: row.name,
-    plan: 'free',
-    mau: mau.get(row.id) ?? 0,
-    dau: dau.get(row.id) ?? 0,
-    seatUsed: row.seatUsed,
-    seatLimit: row.seatLimit ?? null,
-    status: billingStatus(row.seatUsed, row.seatLimit ?? null),
-  }))
+  const tenantIds = pageRows.map((row) => row.id)
+  const [{ dau, mau }, seats, plans, seatLimits] = await Promise.all([
+    usageByTenant(db, now, tenantIds),
+    activeSeatsByTenant(db, tenantIds),
+    loadOrganizationPlanAccountingMap(c.env, tenantIds),
+    loadOrganizationSeatLimitMap(c.env, tenantIds),
+  ])
+  const data: BillingOverview[] = pageRows.map((row) => {
+    const plan = plans.get(row.id) ?? { plan: 'free' as const, status: 'active' as const }
+    const seatUsed = seats.get(row.id) ?? 0
+    const seatLimit = seatLimits.has(row.id)
+      ? (seatLimits.get(row.id) ?? null)
+      : (row.seatLimit ?? null)
+    return {
+      organizationId: row.id,
+      organizationName: row.name,
+      plan: plan.plan,
+      mau: mau.get(row.id) ?? 0,
+      dau: dau.get(row.id) ?? 0,
+      seatUsed,
+      seatLimit,
+      status: billingStatus(seatUsed, seatLimit, plan.status),
+    }
+  })
 
   return c.json({ data, nextCursor, total: totalRow?.value ?? 0 })
 })

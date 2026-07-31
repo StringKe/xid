@@ -15,6 +15,7 @@ require_relative "xid/auth_state"
 require_relative "xid/jwks_cache"
 require_relative "xid/token_verifier"
 require_relative "xid/request_authenticator"
+require_relative "xid/session_token_exchange"
 require_relative "xid/webhook_verifier"
 require_relative "xid/client"
 
@@ -73,6 +74,15 @@ module Xid
     # @return [Xid::AuthState]
     def authenticate_request(request_or_env)
       default_client.authenticate_request(request_or_env)
+    end
+
+    def exchange_session_token(incoming_request_url:, cookie_header:, endpoint: nil, transport: nil)
+      default_client.exchange_session_token(
+        incoming_request_url: incoming_request_url,
+        cookie_header: cookie_header,
+        endpoint: endpoint,
+        transport: transport
+      )
     end
 
     # 快捷方法：验证 Webhook

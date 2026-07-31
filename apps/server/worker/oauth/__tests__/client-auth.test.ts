@@ -69,6 +69,67 @@ describe('client-auth: client_secret_basic', () => {
     const result = await runAuth(env, { authorization: `Basic ${creds}` }, 'client_id=client_abc')
     expect(result.ok).toBe(false)
   })
+
+  it('拒绝使用 body secret 冒充已注册的 Basic 方法', async () => {
+    const secret = 'correct_secret'
+    const row = makeAppRow({
+      client_secret_hash: await sha256Hex(secret),
+      token_endpoint_auth_method: 'client_secret_basic',
+    })
+    const result = await runAuth(
+      makeEnv(makeFakeD1({ apps: [row] })),
+      {},
+      `client_id=client_abc&client_secret=${secret}`,
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('invalid_client')
+      expect(result.error.httpStatus).toBe(401)
+      expect(result.error.basicChallenge).toBe(true)
+    }
+  })
+
+  it('Basic 与 body 同时认证返回 400 invalid_request', async () => {
+    const secret = 'correct_secret'
+    const row = makeAppRow({
+      client_secret_hash: await sha256Hex(secret),
+      token_endpoint_auth_method: 'client_secret_basic',
+    })
+    const basic = btoa(`client_abc:${secret}`)
+    const result = await runAuth(
+      makeEnv(makeFakeD1({ apps: [row] })),
+      { authorization: `Basic ${basic}` },
+      `client_id=client_abc&client_secret=${secret}`,
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('invalid_request')
+      expect(result.error.httpStatus).toBe(400)
+      expect(result.error.basicChallenge).toBe(false)
+    }
+  })
+
+  it('Basic 与 body client_id 不一致返回 400 invalid_request', async () => {
+    const secret = 'correct_secret'
+    const row = makeAppRow({
+      client_secret_hash: await sha256Hex(secret),
+      token_endpoint_auth_method: 'client_secret_basic',
+    })
+    const basic = btoa(`client_abc:${secret}`)
+    const result = await runAuth(
+      makeEnv(makeFakeD1({ apps: [row] })),
+      { authorization: `Basic ${basic}` },
+      'client_id=different-client',
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('invalid_request')
+      expect(result.error.httpStatus).toBe(400)
+    }
+  })
 })
 
 describe('client-auth: client_secret_post', () => {
@@ -96,6 +157,23 @@ describe('client-auth: client_secret_post', () => {
     const result = await runAuth(env, {}, 'client_id=client_abc')
     expect(result.ok).toBe(false)
   })
+
+  it('拒绝使用 Basic 冒充已注册的 post 方法', async () => {
+    const secret = 'post_secret'
+    const row = makeAppRow({
+      client_secret_hash: await sha256Hex(secret),
+      token_endpoint_auth_method: 'client_secret_post',
+    })
+    const basic = btoa(`client_abc:${secret}`)
+    const result = await runAuth(
+      makeEnv(makeFakeD1({ apps: [row] })),
+      { authorization: `Basic ${basic}` },
+      'client_id=client_abc',
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_client')
+  })
 })
 
 describe('client-auth: public client (none)', () => {
@@ -104,6 +182,7 @@ describe('client-auth: public client (none)', () => {
       client_type: 'public',
       token_endpoint_auth_method: 'none',
       client_secret_hash: null,
+      allowed_grant_types: JSON.stringify(['authorization_code']),
     })
     const db = makeFakeD1({ apps: [row] })
     const env = makeEnv(db)
@@ -116,6 +195,7 @@ describe('client-auth: public client (none)', () => {
       client_type: 'public',
       token_endpoint_auth_method: 'none',
       client_secret_hash: null,
+      allowed_grant_types: JSON.stringify(['authorization_code']),
     })
     const db = makeFakeD1({ apps: [row] })
     const env = makeEnv(db)
@@ -123,6 +203,42 @@ describe('client-auth: public client (none)', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.error.message).toContain('confidential client required')
+    }
+  })
+
+  it.each([
+    'client_id=client_abc&client_secret=unexpected',
+    `client_id=client_abc&client_assertion_type=${encodeURIComponent(
+      'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+    )}&client_assertion=unexpected`,
+  ])('拒绝 none 方法携带附加凭证', async (body) => {
+    const row = makeAppRow({
+      client_type: 'public',
+      token_endpoint_auth_method: 'none',
+      client_secret_hash: null,
+      allowed_grant_types: JSON.stringify(['authorization_code']),
+    })
+    const result = await runAuth(makeEnv(makeFakeD1({ apps: [row] })), {}, body)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_client')
+  })
+
+  it('fail closed when a stored public client still has unbound refresh enabled', async () => {
+    const row = makeAppRow({
+      client_type: 'public',
+      token_endpoint_auth_method: 'none',
+      client_secret_hash: null,
+      allowed_grant_types: JSON.stringify(['authorization_code', 'refresh_token']),
+      dpop_bound_access_tokens: 0,
+    })
+
+    const result = await runAuth(makeEnv(makeFakeD1({ apps: [row] })), {}, 'client_id=client_abc')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('invalid_client')
+      expect(result.error.message).toContain('registration invalid')
     }
   })
 })
@@ -145,6 +261,9 @@ describe('client-auth: mTLS', () => {
         token_endpoint_auth_method: method,
         custom_claims_config: JSON.stringify({
           tlsClientAuthSubjectDn: 'CN=client.example.com',
+          ...(method === 'self_signed_tls_client_auth'
+            ? { tlsClientAuthCertThumbprints: ['abcd'] }
+            : {}),
         }),
       })
       const db = makeFakeD1({ apps: [row] })
@@ -278,6 +397,10 @@ describe('client-auth: private_key_jwt jti 防重放', () => {
     const result = await runAuth(env, {}, body)
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error.message).toContain('replay protection unavailable')
+    if (!result.ok) {
+      expect(result.error.message).toContain('replay protection unavailable')
+      expect(result.error.code).toBe('server_error')
+      expect(result.error.httpStatus).toBe(500)
+    }
   })
 })

@@ -138,8 +138,8 @@ func TestNewClient_Defaults(t *testing.T) {
 	if c.opts.ClockToleranceSec != defaultClockToleranceSec {
 		t.Errorf("ClockToleranceSec: got %d, want %d", c.opts.ClockToleranceSec, defaultClockToleranceSec)
 	}
-	if c.opts.CookieName != defaultCookieName {
-		t.Errorf("CookieName: got %q, want %q", c.opts.CookieName, defaultCookieName)
+	if c.opts.CookieName != "" {
+		t.Errorf("CookieName: got %q, want disabled default", c.opts.CookieName)
 	}
 	if c.opts.JWKSCacheTTL != time.Hour {
 		t.Errorf("JWKSCacheTTL: got %v, want 1h", c.opts.JWKSCacheTTL)
@@ -498,7 +498,7 @@ func TestAuthenticateRequest_BearerHeader(t *testing.T) {
 	}
 }
 
-func TestAuthenticateRequest_SessionCookie(t *testing.T) {
+func TestAuthenticateRequest_DoesNotUseImplicitOrCoreCookie(t *testing.T) {
 	key := newTestECKey(t, "key-1")
 	srv := key.jwksServer(t)
 	defer srv.Close()
@@ -515,10 +515,11 @@ func TestAuthenticateRequest_SessionCookie(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/api", nil)
 	r.AddCookie(&http.Cookie{Name: "__session", Value: tokenStr})
+	r.AddCookie(&http.Cookie{Name: "__Host-xid.rt.abcdefgh", Value: tokenStr})
 
 	state := c.AuthenticateRequest(r.Context(), r)
-	if !state.Authenticated {
-		t.Fatalf("expected authenticated via cookie, reason: %s", state.Reason)
+	if state.Authenticated || state.Reason != "no_token" {
+		t.Fatalf("expected implicit cookies to be ignored, got: %#v", state)
 	}
 }
 
@@ -749,6 +750,23 @@ func TestVerifyWebhook_ValidSignature(t *testing.T) {
 	}
 	if string(event.Body) != body {
 		t.Errorf("body mismatch")
+	}
+}
+
+func TestVerifyWebhook_LegacyHexSecret(t *testing.T) {
+	legacySecret := strings.Repeat("ab", 32)
+	c, _ := NewClient(ClientOptions{
+		Issuer:        "https://xid.dev",
+		WebhookSecret: legacySecret,
+	})
+
+	now := time.Now()
+	tsStr := fmt.Sprintf("%d", now.Unix())
+	body := `{"type":"user.updated","data":{"id":"u1"}}`
+	r := buildWebhookRequest(t, "evt_legacy", tsStr, body, []byte(legacySecret))
+
+	if _, err := c.verifyWebhookAt(r, now); err != nil {
+		t.Fatalf("expected legacy hex secret to verify as UTF-8 key material, got: %v", err)
 	}
 }
 

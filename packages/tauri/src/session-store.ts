@@ -7,7 +7,8 @@ import type { StoredSession } from './types'
 
 export const KEYCHAIN_KEYS = {
   accessToken: 'xid.access_token',
-  refreshToken: 'xid.refresh_token',
+  // Migration cleanup only. The authorization-code-only SDK never reads or writes this key.
+  legacyRefreshToken: 'xid.refresh_token',
   session: 'xid.session',
   pkceVerifier: 'xid.pkce_verifier',
   oauthState: 'xid.oauth_state',
@@ -17,14 +18,14 @@ export const KEYCHAIN_KEYS = {
 export type SessionStore = {
   getAccessToken(): Promise<string | null>
   setAccessToken(token: string): Promise<void>
-  getRefreshToken(): Promise<string | null>
-  setRefreshToken(token: string): Promise<void>
   getSession(): Promise<StoredSession | null>
   setSession(session: StoredSession): Promise<void>
   getPkceVerifier(): Promise<string | null>
   setPkceVerifier(verifier: string): Promise<void>
   getOauthState(): Promise<string | null>
   setOauthState(state: string): Promise<void>
+  clearLegacyCredentials(): Promise<void>
+  clearSession(): Promise<void>
   clearAll(): Promise<void>
 }
 
@@ -32,9 +33,6 @@ export function createSessionStore(adapter: XidKeychainAdapter): SessionStore {
   return {
     getAccessToken: () => adapter.getItem(KEYCHAIN_KEYS.accessToken),
     setAccessToken: (token) => adapter.setItem(KEYCHAIN_KEYS.accessToken, token),
-
-    getRefreshToken: () => adapter.getItem(KEYCHAIN_KEYS.refreshToken),
-    setRefreshToken: (token) => adapter.setItem(KEYCHAIN_KEYS.refreshToken, token),
 
     async getSession(): Promise<StoredSession | null> {
       const raw = await adapter.getItem(KEYCHAIN_KEYS.session)
@@ -57,6 +55,16 @@ export function createSessionStore(adapter: XidKeychainAdapter): SessionStore {
 
     getOauthState: () => adapter.getItem(KEYCHAIN_KEYS.oauthState),
     setOauthState: (s) => adapter.setItem(KEYCHAIN_KEYS.oauthState, s),
+
+    clearLegacyCredentials: () => adapter.removeItem(KEYCHAIN_KEYS.legacyRefreshToken),
+
+    async clearSession(): Promise<void> {
+      await Promise.all(
+        [KEYCHAIN_KEYS.accessToken, KEYCHAIN_KEYS.legacyRefreshToken, KEYCHAIN_KEYS.session].map(
+          (key) => adapter.removeItem(key),
+        ),
+      )
+    },
 
     async clearAll(): Promise<void> {
       await Promise.all(Object.values(KEYCHAIN_KEYS).map((k) => adapter.removeItem(k)))

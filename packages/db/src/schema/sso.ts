@@ -28,6 +28,7 @@ export const ssoConnections = sqliteTable(
     spCertId: text('sp_cert_id'),
     wantAuthnResponseSigned: boolCol('want_authn_response_signed').notNull().default(true),
     wantAssertionsSigned: boolCol('want_assertions_signed').notNull().default(true),
+    samlClockSkewMs: numCol('saml_clock_skew_ms').notNull().default(180_000),
     attributeMapping: text('attribute_mapping', { mode: 'json' })
       .$type<Record<string, unknown>>()
       .notNull()
@@ -69,6 +70,9 @@ export const certStore = sqliteTable(
     ...timestamps(),
   },
   (t) => [
+    uniqueIndex('cert_store_tenant_usage_active_unq')
+      .on(t.tenantId, t.usage)
+      .where(sql`${t.status} = 'active' AND ${t.usage} = 'saml_idp_signing'`),
     index('cert_store_tenant_usage_status_idx').on(t.tenantId, t.usage, t.status),
     index('cert_store_tenant_usage_status_id_idx').on(t.tenantId, t.usage, t.status, t.id),
   ],

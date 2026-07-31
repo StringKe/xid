@@ -8,6 +8,7 @@ import { verifySamlResponse } from '../verify'
 import {
   ACS_URL,
   IDP_CERT_B64,
+  IDP_CERT_VALID_NOW,
   IDP_ENTITY_ID,
   SP_ENTITY_ID,
   buildResponseXml,
@@ -24,7 +25,7 @@ function baseOptions() {
     spInitiated: false,
     wantAuthnResponseSigned: true,
     wantAssertionsSigned: true,
-    now: Date.parse('2026-06-01T08:01:00Z'),
+    now: IDP_CERT_VALID_NOW,
   }
 }
 

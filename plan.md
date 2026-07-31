@@ -72,8 +72,13 @@
 - [x] T4 实现 verified Email mutation gate、pending Email resend 和验证转正。
 - [x] T5 实现 guest 和 sign-up 统一 Hosted UI、Console 只读提示及验证面板。
 - [x] T6 补齐 guest GC、同类模式搜索和生产存量伪顶层 Organization 只读审计。
-- [x] T7 同步 Lingui catalog、协议文档、SDK 文档和 agent-readable 文档。
-- [ ] T8 运行局部测试、全量 check、test、build、三 Worker smoke 和浏览器视觉验证。
+- [x] T7 同步 Lingui catalog、协议文档、SDK 文档和 agent-readable 文档。已移除 6 个不可翻译
+      技术示例、合并 3 组重复文案，并为 17 条变更过的文档消息恢复 content-derived ID
+      invariant；最新 extract 的 8 个 locale 均为 missing=0、fuzzy=0，strict compile 和
+      `pnpm run i18n:audit` 均为 PASS。
+- [x] T8 运行局部测试、全量 check、test、build 和本地三 Worker smoke，当前门禁均为 PASS。
+      生产 browser、health 和 Cloudflare observability 属于 T9 外部 L4 验收，不由本地 gate
+      替代。
 - [ ] T9 精确暂存、DCO commit、push、PR、合并、Cloudflare Workers Builds 和生产验证。
 
 ## 验证
@@ -90,7 +95,8 @@
   与 token，并在 D1 claim 后执行 SessionDO revoke-all；非空 Tenant 完整跳过。
 - 英文和简体中文文档同步，所有 locale catalog 无缺失。
 - `pnpm run check`、`pnpm test`、`pnpm run build` 全部 PASS。
-- 三 Worker smoke、生产 health、Console browser flow 和 Cloudflare observability PASS。
+- 本地三 Worker smoke PASS；生产 health、Console browser flow 和 Cloudflare observability
+  保留为 T9 外部 L4 验收，不在本地结果中声明 PASS。
 
 ## 风险和回滚
 
@@ -103,3 +109,20 @@
 ## 生产只读预检
 
 - 2026-07-27 生产 D1 审计：Instance 内重复 slug 分组为 0，存量伪顶层 Organization 为 0，active 且无 Membership 的 provisional user 为 1。
+
+## Nimbus 文档官网收尾
+
+- [x] N1 冻结 Site、Console、Core 的路由边界，并确认 Nimbus 0.8.2 和 Workers SPA fallback 根因。
+- [x] N2 在文档 Header 和移动导航中增加本地化登录、注册入口，统一进入 Core Hosted Auth。
+- [x] N3 修复逐页 BCP 47、Open Graph locale、JSON-LD language、图片 alt 和 locale llms index。
+- [x] N4 修复法语、德语、西班牙语和巴西葡萄牙语的 19 条重复 description。
+- [x] N5 将 Core SPA fallback 收敛到精确 UI manifest，未知路径返回真实 HTTP 404。
+- [x] N6 完成 Lingui strict compile 和 audit、Site、Core、本地三 Worker smoke、全量 check、
+      test、build；8 个 locale 均为 missing=0、fuzzy=0，当前本地门禁全部 PASS。生产 browser
+      和 Cloudflare 控制面状态继续作为 T9 外部 L4 验收。
+- [x] N7 修复 Cloudflare 精确 Worker Route 不匹配 query string 的系统性缺口。Core 仅在
+      route 漏匹配时通过单向 Service Binding 委派给 Site 或 Console，frontend Worker 保持
+      binding-free，并对非自身 ownership 的 overmatch fail closed。
+- [x] N8 将 wildcard tenant DNS、apex/query fallback 和 tenant-host Console/Core 路由纳入
+      中英文部署 preflight 与 production smoke；当前线上 `*.xid.dev` 缺失及旧版本 query
+      404 会被明确判为 `FAIL`，不再依赖人工猜测。

@@ -8,21 +8,62 @@ import {
 const context = {
   baseUrl: 'https://xid.dev',
   head: 'head_current',
-  buildId: 'build_current',
-  checkRunId: 'check_current',
-  deploymentId: 'deployment_current',
-  workerVersionId: 'version_current',
-  activePercentage: 100,
+  workers: {
+    core: {
+      buildId: 'build_core_current',
+      checkRunId: 'check_core_current',
+      deploymentId: 'deployment_core_current',
+      workerVersionId: 'version_core_current',
+      activePercentage: 100,
+    },
+    console: {
+      buildId: 'build_console_current',
+      checkRunId: 'check_console_current',
+      deploymentId: 'deployment_console_current',
+      workerVersionId: 'version_console_current',
+      activePercentage: 100,
+    },
+    site: {
+      buildId: 'build_site_current',
+      checkRunId: 'check_site_current',
+      deploymentId: 'deployment_site_current',
+      workerVersionId: 'version_site_current',
+      activePercentage: 100,
+    },
+  },
   accountId: '86e4d320a5d69fb54f9721fb219a4902',
   databaseId: '149e5997-e684-41d0-b483-afa6948479c3',
   migrationDigest: 'a'.repeat(64),
-  wranglerConfigDigest: 'b'.repeat(64),
-  qualityConclusion: 'success',
+  remoteD1Migrations: {
+    state: 'APPLIED',
+    pending: [],
+  },
+  cloudflareSecurityRules: {
+    manifestDigest: 'f'.repeat(64),
+    deploymentState: 'RECONCILED',
+  },
+  wranglerConfigDigests: {
+    core: 'b'.repeat(64),
+    console: 'c'.repeat(64),
+    site: 'd'.repeat(64),
+  },
+  checkConclusion: 'success',
+  testConclusion: 'success',
+  buildConclusion: 'success',
+  smokeConclusion: 'success',
   securityConclusion: 'success',
+}
+
+function withWorkerContext(key, overrides) {
+  return {
+    ...context.workers,
+    [key]: { ...context.workers[key], ...overrides },
+  }
 }
 
 function evidence(overrides = {}) {
   return {
+    schemaVersion: 3,
     entries: {
       [EVIDENCE_KEYS.magicLinkFull]: {
         ...context,
@@ -31,6 +72,21 @@ function evidence(overrides = {}) {
         preSmokeContext: context,
         postSmokeContext: context,
         ...overrides,
+      },
+    },
+  }
+}
+
+function evidenceBoundTo(boundContext) {
+  return {
+    schemaVersion: 3,
+    entries: {
+      [EVIDENCE_KEYS.magicLinkFull]: {
+        ...boundContext,
+        key: EVIDENCE_KEYS.magicLinkFull,
+        markers: ['browser_default_console', 'session_me_200'],
+        preSmokeContext: boundContext,
+        postSmokeContext: boundContext,
       },
     },
   }
@@ -47,7 +103,7 @@ describe('production evidence readiness', () => {
           throw error
         },
       }),
-    ).resolves.toEqual({ schemaVersion: 1, entries: {} })
+    ).resolves.toEqual({ schemaVersion: 3, entries: {} })
     await expect(
       readProductionEvidenceFile({
         path: '/tmp/xid-corrupt-evidence.json',
@@ -77,7 +133,7 @@ describe('production evidence readiness', () => {
     ).toBe(false)
     expect(
       productionEvidenceReady(
-        evidence({ deploymentId: 'deployment_old' }),
+        evidence({ workers: withWorkerContext('site', { deploymentId: 'deployment_old' }) }),
         EVIDENCE_KEYS.magicLinkFull,
         context,
         required,
@@ -85,7 +141,7 @@ describe('production evidence readiness', () => {
     ).toBe(false)
     expect(
       productionEvidenceReady(
-        evidence({ workerVersionId: 'version_old' }),
+        evidence({ workers: withWorkerContext('console', { workerVersionId: 'version_old' }) }),
         EVIDENCE_KEYS.magicLinkFull,
         context,
         required,
@@ -127,7 +183,12 @@ describe('production evidence readiness', () => {
     const required = ['browser_default_console', 'session_me_200']
     expect(
       productionEvidenceReady(
-        evidence({ wranglerConfigDigest: 'c'.repeat(64) }),
+        evidence({
+          wranglerConfigDigests: {
+            ...context.wranglerConfigDigests,
+            site: 'e'.repeat(64),
+          },
+        }),
         EVIDENCE_KEYS.magicLinkFull,
         context,
         required,
@@ -135,9 +196,95 @@ describe('production evidence readiness', () => {
     ).toBe(false)
     expect(
       productionEvidenceReady(
-        evidence({ securityConclusion: 'failure' }),
+        evidence({ smokeConclusion: 'failure' }),
         EVIDENCE_KEYS.magicLinkFull,
         context,
+        required,
+      ),
+    ).toBe(false)
+    expect(
+      productionEvidenceReady(
+        { ...evidence(), schemaVersion: 1 },
+        EVIDENCE_KEYS.magicLinkFull,
+        context,
+        required,
+      ),
+    ).toBe(false)
+  })
+
+  it('rejects changed Cloudflare controls and remote migration state', () => {
+    const required = ['browser_default_console', 'session_me_200']
+    expect(
+      productionEvidenceReady(
+        evidence({
+          cloudflareSecurityRules: {
+            ...context.cloudflareSecurityRules,
+            manifestDigest: '0'.repeat(64),
+          },
+        }),
+        EVIDENCE_KEYS.magicLinkFull,
+        context,
+        required,
+      ),
+    ).toBe(false)
+    expect(
+      productionEvidenceReady(
+        evidence({
+          cloudflareSecurityRules: {
+            ...context.cloudflareSecurityRules,
+            deploymentState: 'EXTERNAL',
+          },
+        }),
+        EVIDENCE_KEYS.magicLinkFull,
+        context,
+        required,
+      ),
+    ).toBe(false)
+    expect(
+      productionEvidenceReady(
+        evidence({
+          remoteD1Migrations: {
+            state: 'PENDING',
+            pending: ['0008_control-plane-projects.sql'],
+          },
+        }),
+        EVIDENCE_KEYS.magicLinkFull,
+        context,
+        required,
+      ),
+    ).toBe(false)
+  })
+
+  it('never accepts evidence while security rules are external or migrations are pending', () => {
+    const required = ['browser_default_console', 'session_me_200']
+    const externalContext = {
+      ...context,
+      cloudflareSecurityRules: {
+        ...context.cloudflareSecurityRules,
+        deploymentState: 'EXTERNAL',
+      },
+    }
+    expect(
+      productionEvidenceReady(
+        evidenceBoundTo(externalContext),
+        EVIDENCE_KEYS.magicLinkFull,
+        externalContext,
+        required,
+      ),
+    ).toBe(false)
+
+    const pendingContext = {
+      ...context,
+      remoteD1Migrations: {
+        state: 'PENDING',
+        pending: ['0008_control-plane-projects.sql'],
+      },
+    }
+    expect(
+      productionEvidenceReady(
+        evidenceBoundTo(pendingContext),
+        EVIDENCE_KEYS.magicLinkFull,
+        pendingContext,
         required,
       ),
     ).toBe(false)

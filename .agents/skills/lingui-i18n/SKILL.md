@@ -16,7 +16,7 @@ the `i18n-lingui` rule; this skill is the operational procedure. Email templates
 
 ## 1. Setup (already done -- reference only)
 
-lingui v6 (`6.2.0`) dependencies are split across three places:
+lingui v6 (`6.6.0`) dependencies are split across three places:
 
 ```bash
 # repo root

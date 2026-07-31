@@ -82,6 +82,10 @@ export type DocumentAst = {
   title: RichText
   summary: RichText
   sections: readonly DocumentSection[]
+  /** Omitted for normal publication. Nimbus excludes drafts from production output. */
+  draft?: boolean
+  /** Omitted for normal publication. The HTML remains available but is not agent-indexed. */
+  noindex?: boolean
 }
 
 export type DocumentHubNavigationGroup = {
@@ -107,6 +111,7 @@ export type DocumentHubSection =
     }
 
 export type DocumentHubAst = {
+  /** The product hub is always published and intentionally has no draft/noindex controls. */
   eyebrow: MessageDescriptor
   title: MessageDescriptor
   summary: MessageDescriptor
@@ -314,9 +319,7 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
       if (!Array.isArray(section.items) || section.items.length === 0) {
         throw new TypeError(`${label}.items must be a non-empty array`)
       }
-      section.items.forEach((item, index) =>
-        assertRichText(item, `${label}.items.${index}`),
-      )
+      section.items.forEach((item, index) => assertRichText(item, `${label}.items.${index}`))
       return
     }
     if (section.kind !== 'navigation') {
@@ -358,6 +361,11 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
     slugs.add(documentValue.slug)
     assertRichText(documentValue.title, `${label}.title`)
     assertRichText(documentValue.summary, `${label}.summary`)
+    for (const field of ['draft', 'noindex'] as const) {
+      if (documentValue[field] !== undefined && typeof documentValue[field] !== 'boolean') {
+        throw new TypeError(`${label}.${field} must be true or false`)
+      }
+    }
     if (!Array.isArray(documentValue.sections)) {
       throw new TypeError(`${label}.sections must be an array`)
     }
@@ -373,8 +381,8 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
     throw new TypeError('document AST hub navigation must contain every document slug exactly once')
   }
 
-  if (!Array.isArray(value.messageCatalog) || value.messageCatalog.length !== 1135) {
-    throw new TypeError('document AST must contain 1135 catalog messages')
+  if (!Array.isArray(value.messageCatalog) || value.messageCatalog.length !== 1136) {
+    throw new TypeError('document AST must contain 1136 catalog messages')
   }
   const catalogIds = new Set<string>()
   value.messageCatalog.forEach((entryValue, entryIndex) => {

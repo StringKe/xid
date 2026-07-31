@@ -13,8 +13,12 @@ export * from './signing'
 export * from './webauthn'
 // 6. SAML assertion 结果(04 章第 8 节)
 export * from './saml'
-// 7. Cloudflare bindings Env(00 章第 8 节、cloudflare-bindings rule)
+// 7. Queue message contracts. Cloudflare Env is isolated at @xid-kit/types/cloudflare.
 export * from './env'
 // 8. 公开 docs registry 和 Web route ownership。
 export * from './public-docs'
 export * from './web-route-ownership'
+// 9. Browser session HTTP wire contracts shared by Worker, web-ui, and public SDKs.
+export * from './session'
+// 10. Fixed organization membership and platform manager role contracts.
+export * from './rbac'

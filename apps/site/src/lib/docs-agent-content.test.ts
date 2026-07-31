@@ -1,10 +1,11 @@
 import { PUBLIC_DOC_SLUGS } from '@xid-kit/types'
 import type { IndexedEntry } from '@cloudflare/nimbus-docs'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DOCUMENT_LOCALE_ROUTE_SEGMENTS, type DocumentLocale } from '../content-source/docs/types'
 import {
   PUBLIC_DOCS_INDEXED_TOTAL,
   PUBLIC_DOCS_LOCALES,
+  getPublicDocsIndexedSections,
   type PublicDocsIndexedLocale,
 } from './docs-registry'
 import {
@@ -12,7 +13,13 @@ import {
   renderPublicDocsGlobalLlmsIndex,
   renderPublicDocsLlmsFull,
   renderPublicDocsLlmsIndex,
+  renderPublicDocsSectionLlmsFull,
+  renderPublicDocsSectionLlmsIndex,
 } from './docs-agent-content'
+
+vi.mock('@lingui/core/macro', () => ({
+  msg: (strings: TemplateStringsArray) => ({ message: strings[0] }),
+}))
 
 function indexedFixture(locale: DocumentLocale, slug: string | null): IndexedEntry {
   const segment = DOCUMENT_LOCALE_ROUTE_SEGMENTS[locale]
@@ -63,9 +70,13 @@ describe('public docs agent surfaces', () => {
         expect(index).toContain(`https://xid.dev${item.markdownUrl}`)
       }
     }
-    expect(index.match(/\/index\.md\)/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL)
+    expect(index.match(/\/index\.md\)/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 8)
+    expect(index).toContain('https://xid.dev/status/index.md')
+    expect(index).toContain('https://xid.dev/zh-hans/status/index.md')
     expect(index).toContain('https://xid.dev/en/llms.txt')
     expect(index).toContain('https://xid.dev/zh-hans/llms.txt')
+    expect(index).toContain('https://xid.dev/sdks/llms.txt')
+    expect(index).toContain('https://xid.dev/zh-hans/sdks/llms.txt')
     expect(index).not.toContain('https://xid.dev/docs/')
   })
 
@@ -76,32 +87,71 @@ describe('public docs agent surfaces', () => {
     const englishIndex = renderPublicDocsLlmsIndex(english)
     const chineseIndex = renderPublicDocsLlmsIndex(chinese)
 
-    expect(englishIndex.match(/\/index\.md\)/g)).toHaveLength(41)
-    expect(chineseIndex.match(/\/index\.md\)/g)).toHaveLength(41)
+    expect(englishIndex.match(/\/index\.md\)/g)).toHaveLength(42)
+    expect(chineseIndex.match(/\/index\.md\)/g)).toHaveLength(42)
+    expect(englishIndex).toContain('https://xid.dev/status/index.md')
+    expect(chineseIndex).toContain('https://xid.dev/zh-hans/status/index.md')
+    expect(chineseIndex).not.toContain('https://xid.dev/status/index.md')
     expect(englishIndex).not.toContain('https://xid.dev/zh-hans')
     expect(chineseIndex).not.toContain('https://xid.dev/getting-started')
     expect(englishIndex).toContain('https://xid.dev/en/llms-full.txt')
     expect(chineseIndex).toContain('https://xid.dev/zh-hans/llms-full.txt')
+    expect(englishIndex).toContain('https://xid.dev/sdks/llms.txt')
+    expect(chineseIndex).toContain('https://xid.dev/zh-hans/sdks/llms.txt')
   })
 
-  it('renders a deterministic timestamp-free 328-page root corpus', () => {
+  it('renders Nimbus-compatible content section indexes for every locale', () => {
+    const groups = completeGroups()
+    const [englishSection] = getPublicDocsIndexedSections(groups[0])
+    const [chineseSection] = getPublicDocsIndexedSections(groups[1])
+    if (!englishSection || !chineseSection) throw new TypeError('missing SDK section fixture')
+
+    const englishIndex = renderPublicDocsSectionLlmsIndex(englishSection)
+    const chineseFull = renderPublicDocsSectionLlmsFull(chineseSection)
+
+    expect(englishIndex.match(/\/index\.md\)/g)).toHaveLength(29)
+    expect(englishIndex).toContain('https://xid.dev/sdks/react/index.md')
+    expect(englishIndex).not.toContain('https://xid.dev/zh-hans')
+    expect(chineseFull.match(/<!-- xid-doc-path:/g)).toHaveLength(29)
+    expect(chineseFull).toContain('<!-- xid-doc-path: /zh-hans/sdks/react -->')
+    expect(chineseFull).not.toContain('<!-- xid-doc-path: /sdks/react -->')
+  })
+
+  it('renders a deterministic timestamp-free 336-page root corpus', () => {
     const groups = completeGroups()
     const first = renderPublicDocsGlobalLlmsFull(groups)
     const second = renderPublicDocsGlobalLlmsFull([...groups].reverse())
 
     expect(second).toBe(first)
-    expect(first.match(/<!-- xid-doc-path:/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL)
+    expect(first.match(/<!-- xid-doc-path:/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 8)
+    expect(first).toContain('<!-- xid-doc-path: /status -->')
+    expect(first).toContain('<!-- xid-doc-path: /zh-hans/status -->')
     expect(first).not.toMatch(/^Generated(?: at| on):/im)
     expect(first).not.toMatch(/^Build timestamp:/im)
   })
 
-  it('includes the locale hub and 40 details in a section corpus', () => {
+  it('includes one localized hub, 40 docs, and its status surface in each section corpus', () => {
     const [english] = completeGroups()
     const corpus = renderPublicDocsLlmsFull(english)
 
-    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(41)
-    expect(corpus.match(/<!-- xid-doc-slug:/g)).toHaveLength(40)
+    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(42)
+    expect(corpus.match(/<!-- xid-doc-slug:/g)).toHaveLength(41)
     expect(corpus).not.toContain('https://xid.dev/zh-hans')
     expect(corpus).toContain('https://xid.dev/getting-started')
+  })
+
+  it('derives index and corpus counts from the published document set', () => {
+    const [english] = completeGroups()
+    const reduced = {
+      ...english,
+      documents: english.documents.slice(2),
+    }
+    const index = renderPublicDocsLlmsIndex(reduced)
+    const corpus = renderPublicDocsLlmsFull(reduced)
+
+    expect(index.match(/\/index\.md\)/g)).toHaveLength(reduced.documents.length + 2)
+    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(reduced.documents.length + 2)
+    expect(index).not.toContain(english.documents[0]?.item.markdownUrl)
+    expect(corpus).not.toContain(`<!-- xid-doc-slug: ${english.documents[1]?.slug} -->`)
   })
 })

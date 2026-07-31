@@ -12,7 +12,18 @@ import { syncWebMcpTools, unregisterWebMcpTools } from '../lib/webmcp/register-t
 export function ConsoleWebMcpTools(): ReactNode {
   const { pathname } = useLocation()
   const router = useRouter()
-  const { status, user, activeOrg, organizations, session, api, setActiveOrganization } = useAuth()
+  const {
+    status,
+    user,
+    activeOrg,
+    organizations,
+    managerAssignments,
+    session,
+    activeSessionId,
+    sessions,
+    api,
+    setActiveOrganization,
+  } = useAuth()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -42,7 +53,10 @@ export function ConsoleWebMcpTools(): ReactNode {
               user,
               activeOrg,
               organizations,
+              managerAssignments,
               session,
+              activeSessionId,
+              sessions,
             },
           })
         }
@@ -58,7 +72,10 @@ export function ConsoleWebMcpTools(): ReactNode {
     user,
     activeOrg,
     organizations,
+    managerAssignments,
     session,
+    activeSessionId,
+    sessions,
     api,
     setActiveOrganization,
   ])

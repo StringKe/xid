@@ -3,6 +3,12 @@
 // 强一致短期数据(challenge/state/nonce/PAR)存 DO 自带 TTL alarm 自清,此处只清 D1 持久态。
 
 // 物理删除只用于过期 session 行的保留期清理。活跃或 revoked 状态语义仍由 sessions.status 表达。
+import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
+import { redeliverPendingPlatformAudits } from '../platform/audit-outbox'
+import { recoverStaleDeadLetterReplays } from '../queues/dead-letter'
+import { redeliverPendingNotificationOutbox } from '../queues/notification-delivery-state'
+import { sessionDoRevoke } from '../lib/session'
+
 export async function hardDeleteExpiredSessions(env: Env, now: number = Date.now()): Promise<void> {
   await env.DB.prepare(`DELETE FROM sessions WHERE expires_at IS NOT NULL AND expires_at < ?`)
     .bind(now)
@@ -30,9 +36,9 @@ export async function cleanupExpiredAccessTokenRevocations(
   } catch (err) {
     // 部署先于 D1 migration 时避免整点 cron 失败;迁移落地后自动恢复清理。
     if (isMissingAccessTokenRevocationsTable(err)) {
-      console.warn(
-        'access_token_revocations table missing; skip denylist cleanup until migration applied',
-      )
+      logWorkerWarning('cron.access_token_revocations.migration_pending', {
+        component: 'hourly',
+      })
       return
     }
     throw err
@@ -49,6 +55,234 @@ export async function cleanupExpiredAuthCodes(env: Env, now: number = Date.now()
 // 由各 DO alarm 在 TTL 到期时自清,Cron 无需介入。
 export async function cleanupExpiredChallenges(_env: Env): Promise<void> {
   // challenge / state / nonce / PAR 由对应 DO TTL alarm 自清,见 webauthn / oidc-oauth rule。
+}
+
+type ExpiredInvitationClaim = {
+  tenantId: string
+  invitationId: string
+  userId: string | null
+  sessionId: string | null
+  status: 'pending' | 'claim_verified' | 'expired'
+}
+
+function isMissingInvitationClaimMigration(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes('no such column: email_claim_') ||
+      error.message.includes('no such table: invitations'))
+  )
+}
+
+// Invitation lifetime expiry and a consumed claim's proof window both terminate recovery.
+// D1 session revocation is committed with the invitation transition before SessionDO cleanup, so
+// authentication stays closed even if the distributed cleanup reports a transient failure.
+export async function expireInvitationClaims(env: Env, now: number = Date.now()): Promise<void> {
+  while (true) {
+    let rows: ExpiredInvitationClaim[]
+    try {
+      rows = (
+        await env.DB.prepare(
+          `SELECT tenant_id AS tenantId,
+                  id AS invitationId,
+                  email_claim_user_id AS userId,
+                  email_claim_session_id AS sessionId,
+                  status
+             FROM invitations
+            WHERE (
+                    status IN ('pending', 'claim_verified')
+                    AND expires_at <= ?
+                  )
+               OR (
+                    status = 'claim_verified'
+                    AND email_claim_expires_at IS NOT NULL
+                    AND email_claim_expires_at <= ?
+                  )
+               OR (
+                    status = 'expired'
+                    AND email_claim_user_id IS NOT NULL
+                    AND email_claim_session_id IS NOT NULL
+                  )
+            ORDER BY id ASC
+            LIMIT 50`,
+        )
+          .bind(now, now)
+          .all<ExpiredInvitationClaim>()
+      ).results
+    } catch (error) {
+      if (!isMissingInvitationClaimMigration(error)) throw error
+      logWorkerWarning('cron.invitation_claims.migration_pending', { component: 'hourly' })
+      return
+    }
+    if (rows.length === 0) return
+
+    const statements: D1PreparedStatement[] = []
+    const work: Array<{
+      row: ExpiredInvitationClaim
+      transitionIndex: number | null
+    }> = []
+    for (const row of rows) {
+      if (row.userId && row.sessionId) {
+        const invitationGuard =
+          row.status === 'expired'
+            ? `status = 'expired'
+               AND email_claim_user_id = ?
+               AND email_claim_session_id = ?`
+            : `(
+                 (status IN ('pending', 'claim_verified') AND expires_at <= ?)
+                 OR (
+                   status = 'claim_verified'
+                   AND email_claim_expires_at IS NOT NULL
+                   AND email_claim_expires_at <= ?
+                 )
+               )
+               AND email_claim_user_id = ?
+               AND email_claim_session_id = ?`
+        statements.push(
+          env.DB.prepare(
+            `UPDATE sessions
+                SET status = 'revoked'
+              WHERE tenant_id = ?
+                AND id = ?
+                AND user_id = ?
+                AND EXISTS (
+                  SELECT 1
+                    FROM invitations
+                   WHERE tenant_id = ?
+                     AND id = ?
+                     AND ${invitationGuard}
+                )`,
+          ).bind(
+            row.tenantId,
+            row.sessionId,
+            row.userId,
+            row.tenantId,
+            row.invitationId,
+            ...(row.status === 'expired' ? [] : [now, now]),
+            row.userId,
+            row.sessionId,
+          ),
+        )
+      }
+      let transitionIndex: number | null = null
+      if (row.status !== 'expired') {
+        transitionIndex = statements.length
+        statements.push(
+          env.DB.prepare(
+            `UPDATE invitations
+                SET status = 'expired',
+                    email_claim_token_hash = CASE
+                      WHEN email_claim_session_id IS NULL THEN NULL
+                      ELSE email_claim_token_hash
+                    END,
+                    email_claim_email_hash = CASE
+                      WHEN email_claim_session_id IS NULL THEN NULL
+                      ELSE email_claim_email_hash
+                    END,
+                    email_claim_recovery_hash = CASE
+                      WHEN email_claim_session_id IS NULL THEN NULL
+                      ELSE email_claim_recovery_hash
+                    END,
+                    email_claim_finalization_id = NULL,
+                    updated_at = ?
+              WHERE tenant_id = ?
+                AND id = ?
+                AND (
+                  (status IN ('pending', 'claim_verified') AND expires_at <= ?)
+                  OR (
+                    status = 'claim_verified'
+                    AND email_claim_expires_at IS NOT NULL
+                    AND email_claim_expires_at <= ?
+                  )
+                )`,
+          ).bind(now, row.tenantId, row.invitationId, now, now),
+        )
+      } else if (row.userId && row.sessionId) {
+        transitionIndex = statements.length
+        statements.push(
+          env.DB.prepare(
+            `UPDATE invitations
+                SET updated_at = updated_at
+              WHERE tenant_id = ?
+                AND id = ?
+                AND status = 'expired'
+                AND email_claim_user_id = ?
+                AND email_claim_session_id = ?`,
+          ).bind(row.tenantId, row.invitationId, row.userId, row.sessionId),
+        )
+      }
+      work.push({ row, transitionIndex })
+    }
+    const results = await env.DB.batch(statements)
+
+    const cleanupFailures: unknown[] = []
+    for (const item of work) {
+      const { row, transitionIndex } = item
+      if (!row.userId || !row.sessionId) continue
+      const transitionWon =
+        transitionIndex !== null && Number(results[transitionIndex]?.meta.changes ?? 0) === 1
+      if (!transitionWon) continue
+      try {
+        await sessionDoRevoke(env, row.userId, row.sessionId)
+        const cleared = await env.DB.prepare(
+          `UPDATE invitations
+              SET email_claim_token_hash = NULL,
+                  email_claim_email_hash = NULL,
+                  email_claim_recovery_hash = NULL,
+                  email_claim_session_id = NULL,
+                  email_claim_session_reserved_at = NULL,
+                  updated_at = ?
+            WHERE tenant_id = ?
+              AND id = ?
+              AND status = 'expired'
+              AND email_claim_user_id = ?
+              AND email_claim_session_id = ?`,
+        )
+          .bind(now, row.tenantId, row.invitationId, row.userId, row.sessionId)
+          .run()
+        if (Number(cleared.meta.changes ?? 0) !== 1) {
+          throw new Error('Invitation claim cleanup winner changed')
+        }
+      } catch (error) {
+        logWorkerError('cron.invitation_claims.session_do_revoke_failed', error, {
+          component: 'hourly',
+          operation: 'revoke_claim_session',
+        })
+        cleanupFailures.push(error)
+      }
+    }
+    if (cleanupFailures.length > 0) {
+      throw new AggregateError(cleanupFailures, 'Invitation claim session cleanup failed')
+    }
+  }
+}
+
+// seat_used is an operational read model. Enforcement uses exact membership-count triggers, while
+// this reconciliation repairs every write path (JIT, invitation, SCIM, Console, bootstrap) without
+// making authentication depend on a potentially stale counter.
+export async function reconcileOrganizationSeatUsage(
+  env: Env,
+  now: number = Date.now(),
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE organizations
+     SET seat_used = (
+           SELECT COUNT(*)
+           FROM memberships
+           WHERE memberships.tenant_id = organizations.tenant_id
+             AND memberships.org_id = organizations.id
+             AND memberships.status = 'active'
+         ),
+         updated_at = ?
+     WHERE seat_used <> (
+       SELECT COUNT(*)
+       FROM memberships
+       WHERE memberships.tenant_id = organizations.tenant_id
+         AND memberships.org_id = organizations.id
+         AND memberships.status = 'active'
+     )`,
+  )
+    .bind(now)
+    .run()
 }
 
 type MeteringOutboxRow = {
@@ -103,16 +337,20 @@ export async function redeliverMeteringOutbox(env: Env, now: number = Date.now()
     } catch {
       try {
         await noteMeteringOutboxRetry(env, row.id, now)
-      } catch {
-        console.error('[hourly] metering outbox retry state update failed')
+      } catch (error) {
+        logWorkerError('cron.metering_outbox.retry_state_failed', error, {
+          component: 'hourly',
+        })
       }
       continue
     }
 
     try {
       await markMeteringOutboxDelivered(env, row.id, now)
-    } catch {
-      console.error('[hourly] metering outbox delivery state update failed')
+    } catch (error) {
+      logWorkerError('cron.metering_outbox.delivery_state_failed', error, {
+        component: 'hourly',
+      })
     }
   }
 }
@@ -152,10 +390,15 @@ export async function aggregateDau(env: Env): Promise<void> {
 }
 
 export async function runHourly(env: Env): Promise<void> {
+  await expireInvitationClaims(env)
   await cleanupExpiredSessions(env)
   await cleanupExpiredAccessTokenRevocations(env)
   await cleanupExpiredAuthCodes(env)
   await cleanupExpiredChallenges(env)
+  await recoverStaleDeadLetterReplays(env)
+  await redeliverPendingNotificationOutbox(env)
+  await redeliverPendingPlatformAudits(env)
   await redeliverMeteringOutbox(env)
+  await reconcileOrganizationSeatUsage(env)
   await aggregateDau(env)
 }

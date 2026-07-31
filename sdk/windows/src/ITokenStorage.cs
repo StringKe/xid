@@ -35,6 +35,7 @@ public sealed class StoredTokenSet
 {
     /// <summary>access token (JWT)。guest 会话为 null。</summary>
     public string? AccessToken { get; init; }
+    /// <summary>旧版本兼容字段。新 public client 会话始终写入 null。</summary>
     public string? RefreshToken { get; init; }
 
     /// <summary>id token (JWT)。guest 会话为 null。</summary>

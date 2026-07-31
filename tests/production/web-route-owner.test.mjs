@@ -67,16 +67,25 @@ describe('production web route owner contract', () => {
   })
 
   it('keeps every production harness wired to the split Worker contract', async () => {
-    const [httpHarness, browserHarness, readinessHarness] = await Promise.all([
+    const [httpHarness, browserHarness, readinessHarness, wildcardHarness] = await Promise.all([
       readFile(new URL('./harness/smoke-production.mjs', import.meta.url), 'utf8'),
       readFile(new URL('./harness/smoke-production-browser.mjs', import.meta.url), 'utf8'),
       readFile(new URL('./harness/goal-readiness-audit.mjs', import.meta.url), 'utf8'),
+      readFile(new URL('./harness/wildcard-route-probe.mjs', import.meta.url), 'utf8'),
     ])
 
     expect(httpHarness).toContain('../../../packages/types/src/public-docs.ts')
     expect(httpHarness).toContain("productionSurfaceBaseUrl('XID_PRODUCTION_SITE_BASE_URL')")
     expect(httpHarness).toContain("productionSurfaceBaseUrl('XID_PRODUCTION_CONSOLE_BASE_URL')")
     expect(httpHarness).toContain("productionSurfaceBaseUrl('XID_PRODUCTION_CORE_BASE_URL')")
+    expect(httpHarness).toContain('productionTenantBaseUrl()')
+    expect(httpHarness).toContain('/?source=production-smoke')
+    expect(httpHarness).toContain('/getting-started?source=production-smoke')
+    expect(httpHarness).toContain('/llms.txt?source=production-smoke')
+    expect(httpHarness).toContain('/console?source=production-smoke')
+    expect(httpHarness).toContain('`${tenantBaseUrl}/console?source=production-smoke`')
+    expect(httpHarness).toContain('`${tenantBaseUrl}/auth/config?source=production-smoke`')
+    expect(httpHarness).toContain('runWildcardRouteProbe()')
     expect(httpHarness).toContain('webRouteOwnerMatches(res.headers, check.surface)')
     expect(httpHarness).not.toContain('x-xid-docs-route-status')
     expect(httpHarness).not.toContain('?locale=zh-Hans')
@@ -91,6 +100,10 @@ describe('production web route owner contract', () => {
     )
     expect(browserHarness).toContain("webRouteOwnerMatches(ownerResponse.headers, 'console')")
     expect(readinessHarness).toContain("webRouteOwnerMatches(internalDocs.res.headers, 'site')")
+    expect(readinessHarness).toContain('runWildcardRouteProbe()')
     expect(readinessHarness).not.toContain('x-xid-docs-route-status')
+    expect(wildcardHarness).toContain('productionWildcardProbeBaseUrl(environment, nonce)')
+    expect(wildcardHarness).toContain("webRouteOwnerMatches(res.headers, 'core')")
+    expect(wildcardHarness).toContain("webRouteOwnerMatches(res.headers, 'console')")
   })
 })

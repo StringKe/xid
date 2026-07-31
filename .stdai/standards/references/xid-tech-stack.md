@@ -43,17 +43,22 @@ Crypto       Web Crypto (crypto.subtle) for primitives; @noble/hashes for Argon2
              Crypto does not provide
 ORM/DB       Drizzle ORM + D1 (relational data), binding DB
 Strong cons. Durable Objects: SessionDO, ChallengeStore, OAuthFlowDO, ParStore, DeviceFlowStore,
-             RateLimitStore, AuditSeqDO, MeteringDO
+             RateLimitStore, AuditSeqDO, MeteringDO, GuestStore, CibaStore,
+             ImpersonationGrantDO
 Cache        KV, binding CACHE (JWKS / discovery / branding config)
-Objects      R2, binding STORAGE (avatars / logos / email locale packs / exports / GeoIP MMDB)
-Async        Queues: xid-email, xid-whatsapp, xid-sms, xid-audit, xid-webhook, xid-metering,
-             all with dead letter queue xid-dlq
+Objects      R2, binding STORAGE (organization logos / email locale packs / private privacy
+             exports / immutable compliance evidence)
+Async        Eight business Queues: xid-email, xid-whatsapp, xid-sms, xid-audit, xid-webhook,
+             xid-metering, xid-scim-sync, xid-privacy. Each has its own source-specific DLQ and
+             source-specific persistence-failure quarantine Queue; there is no shared xid-dlq.
 Email        Cloudflare Email Service, send_email binding EMAIL
-Scheduled    Cron Triggers: hourly (`0 * * * *`) expiry cleanup + DAU aggregation; daily
-             (`0 2 * * *`) signing key rotation check, certificate polling, domain verification
-             polling, SAML IdP metadata refresh, MAU archiving
-Secrets      Core Workers Secrets (KEK / pepper / provider credentials) + envelope encryption in
-             D1; Site and Console declare no secrets
+Scheduled    Cron Triggers: hourly (`0 * * * *`) expiry cleanup, stale DLQ-claim release, metering
+             outbox redelivery, and DAU aggregation; daily (`0 2 * * *`) signing key rotation,
+             custom-hostname/certificate/domain polling, SAML IdP metadata refresh, monthly usage
+             maintenance, privacy cleanup/redelivery, guest GC, and optional Stripe MAU reporting
+Secrets      Core Workers Secrets (KEK / pepper / provider credentials, plus optional Stripe and
+             Cloudflare for SaaS credentials) + envelope encryption in D1; Site and Console
+             declare no secrets
 Abuse        Turnstile; WAF + Rate Limiting at the edge; Analytics Engine (binding ANALYTICS)
 SAML XML     xmldsigjs + @xmldom/xmldom (+ xml-core, xpath), compatibility_date 2025-04-08 with
              nodejs_compat

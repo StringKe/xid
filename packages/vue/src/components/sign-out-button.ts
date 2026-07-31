@@ -16,7 +16,7 @@ const signOutMessage = /*i18n*/ {
 export type SignOutButtonProps = {
   // Redirect target URL after sign-out.
   redirectUrl?: string
-  // Sign out a specific session; omit to sign out all sessions.
+  // Target a browser-held session; omit to sign out the current active session.
   sessionId?: string
   // Accessibility label.
   ariaLabel?: string

@@ -8,6 +8,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
+import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import {
   scimError,
@@ -76,7 +77,7 @@ users.post('/', async (c) => {
   )
   if (existing) return scimError(c, 409, 'userName already exists', 'uniqueness')
 
-  const id = crypto.randomUUID()
+  const id = createPersistedId('directoryUser')
   const externalId = typeof body['externalId'] === 'string' ? body['externalId'] : null
   const activeVal = body['active'] !== false
 

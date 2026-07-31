@@ -22,10 +22,11 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import SplitResult, urljoin, urlsplit
 
 import httpx
 
-from xid.exceptions import TokenVerificationError
+from xid.exceptions import SessionTokenExchangeError, TokenVerificationError
 from xid.jwks import JwksCache, set_logger as set_jwks_logger
 from xid.models import AuthStatus, TokenClaims, WebhookPayload
 from xid.types import JtiStore, JwksExternalCache, MessageIdStore
@@ -33,9 +34,7 @@ from xid.verify import verify_token, verify_webhook
 
 
 _BEARER_PREFIX = "Bearer "
-
-# 与 apps/server/worker/lib/cookies.ts 对齐:__Host-xid.rt.{session_id[0:8]}
-SESSION_COOKIE_PREFIX = "__Host-xid.rt."
+_DEFAULT_SESSION_TOKEN_ENDPOINT = "/v1/sessions/token"
 
 
 class XidClient:
@@ -47,7 +46,7 @@ class XidClient:
         audience           -- 期望的 JWT aud claim;None 表示不校验 aud
         jwks_ttl           -- JWKS 内存缓存 TTL(秒),默认 3600
         http_timeout       -- JWKS 拉取 HTTP 超时(秒),默认 10
-        cookie_name        -- 精确 cookie 名;None 时扫描 SESSION_COOKIE_PREFIX 前缀
+        cookie_name        -- 应用自己持有的 JWT cookie 名;None 时禁用 cookie fallback
         leeway             -- JWT exp/iat 时钟偏差容忍秒数,默认 0
         nbf_leeway_seconds -- nbf 独立 leeway;None 时与 leeway 相同
         preset_jwks        -- 预置 JWKS 文档,纯 networkless 场景跳过 HTTP
@@ -139,7 +138,7 @@ class XidClient:
 
         提取优先级:
           1. Authorization: Bearer <token>
-          2. Cookie: 精确 cookie_name 或 __Host-xid.rt.* 前缀扫描
+          2. Cookie: 仅在显式配置 cookie_name 时读取应用自己的 JWT cookie
 
         返回 AuthStatus:
           - authenticated=True  -> claims 有值
@@ -179,13 +178,62 @@ class XidClient:
                 token = cookies.get(self._cookie_name, "").strip()
                 return token or None
 
-            for name, value in cookies.items():
-                if name.startswith(SESSION_COOKIE_PREFIX):
-                    token = value.strip()
-                    if token:
-                        return token
-
         return None
+
+    async def exchange_session_token(
+        self,
+        *,
+        incoming_request_url: str,
+        cookie_header: str,
+        endpoint: str = _DEFAULT_SESSION_TOKEN_ENDPOINT,
+        http_client: httpx.AsyncClient | None = None,
+    ) -> str:
+        """Exchange a Core opaque cookie session for a short-lived JWT.
+
+        The complete Cookie header is sent only to the exact same-origin Core
+        endpoint. Redirects and any response other than exact ``{"token": str}``
+        fail closed.
+        """
+        incoming = _parse_absolute_http_url(incoming_request_url, "incoming_request_url")
+        resolved = urlsplit(urljoin(incoming_request_url, endpoint))
+        if (
+            _origin(resolved) != _origin(incoming)
+            or resolved.username is not None
+            or resolved.password is not None
+            or resolved.path != _DEFAULT_SESSION_TOKEN_ENDPOINT
+            or resolved.query
+            or resolved.fragment
+        ):
+            raise SessionTokenExchangeError(
+                "session token endpoint must be exact same-origin /v1/sessions/token"
+            )
+
+        client = http_client or self._http_client
+        try:
+            response = await client.post(
+                resolved.geturl(),
+                headers={"accept": "application/json", "cookie": cookie_header},
+                follow_redirects=False,
+            )
+        except httpx.HTTPError as exc:
+            raise SessionTokenExchangeError("session token exchange request failed") from exc
+
+        if response.status_code != 200:
+            raise SessionTokenExchangeError(
+                f"session token exchange returned HTTP {response.status_code}"
+            )
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise SessionTokenExchangeError("session token exchange returned invalid JSON") from exc
+        if (
+            not isinstance(body, dict)
+            or set(body) != {"token"}
+            or not isinstance(body["token"], str)
+            or not body["token"].strip()
+        ):
+            raise SessionTokenExchangeError("session token exchange returned an invalid response")
+        return body["token"]
 
     def verify_webhook(
         self,
@@ -233,3 +281,24 @@ class XidClient:
 
     async def __aexit__(self, *args: Any) -> None:
         await self.aclose()
+
+
+def _parse_absolute_http_url(value: str, name: str) -> SplitResult:
+    try:
+        parsed = urlsplit(value)
+        _origin(parsed)
+    except ValueError as exc:
+        raise SessionTokenExchangeError(f"{name} must be an absolute HTTP(S) URL") from exc
+    if not parsed.netloc or parsed.username is not None or parsed.password is not None:
+        raise SessionTokenExchangeError(f"{name} must be an absolute HTTP(S) URL")
+    return parsed
+
+
+def _origin(url: SplitResult) -> tuple[str, str, int]:
+    scheme = url.scheme.lower()
+    if scheme not in {"http", "https"} or url.hostname is None:
+        raise ValueError("not an absolute HTTP(S) URL")
+    port = url.port
+    if port is None:
+        port = 443 if scheme == "https" else 80
+    return scheme, url.hostname.lower(), port

@@ -75,7 +75,9 @@ Cloudflare binding roles - D1 relational, Durable Objects for strong consistency
 
 Picking the wrong store is a correctness or latency bug. Design source `docs/design/00-overview.md`
 section 8. Binding names are declared in `apps/server/wrangler.jsonc` and typed in
-`packages/types/src/env.ts` -- use those, never invent.
+`apps/server/worker/env.d.ts`; the reusable type-only contract is
+`packages/types/src/cloudflare.d.ts`. Queue messages and optional provider configuration stay in
+`packages/types/src/env.ts` -- use those sources, never invent.
 
 ## Selection rules (MUST)
 
@@ -86,9 +88,10 @@ section 8. Binding names are declared in `apps/server/wrangler.jsonc` and typed 
   flags, upstream provider JWKS, trust anchors. TTL constants live in
   `apps/server/worker/lib/ttl.ts` -- never an inline literal.
 - **Async work off the critical path -> Queues**: email, SMS, WhatsApp, audit persistence, webhooks,
-  metering. The login path MUST NOT synchronously await any of them.
-- **Large objects -> R2**: org logos and email locale packs are the only implemented uses; avatars,
-  export files and the GeoIP MMDB are reserved and NOT implemented.
+  metering, outbound SCIM, and privacy export/erasure. The login path MUST NOT synchronously await any
+  of them.
+- **Large objects -> R2**: org logos, email locale packs, private privacy exports, and compliance
+  artifacts. Avatars, unrelated export files, and the GeoIP MMDB are reserved and NOT implemented.
 - There is no Cloudflare Rate Limiting or WAF binding; application rate limiting runs entirely
   through the `RATE_LIMITER` Durable Object.
 
@@ -436,8 +439,10 @@ tuning any limit.
 
 - Layers: Cloudflare Rate Limiting / WAF (edge, outside this repo) + Turnstile (forms) +
   RateLimitStore Durable Object (business). Business counters live in the DO, never in KV.
-- Turnstile is mandatory whenever `env.TURNSTILE_SECRET` is set and MUST NOT be bypassed; its remote
-  failure reason never reaches the response body.
+- Turnstile is configured only as the pair `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET`. Both absent is
+  the dev/test bypass; either value missing is a fail-closed configuration error. When configured,
+  every protected flow MUST validate both `success=true` and the expected action. The remote failure
+  reason never reaches the response body.
 - Fails closed: DO unavailability MUST NOT be read as "allowed".
 - The DO `check` action is check-and-increment, not a read -- call it exactly once per attempt.
 

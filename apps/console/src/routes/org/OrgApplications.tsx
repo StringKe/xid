@@ -187,6 +187,13 @@ function ClientTypeBadge({
   return <Badge tone={CLIENT_TYPE_TONE[clientType] ?? 'neutral'}>{clientType}</Badge>
 }
 
+function usesSharedSecret(application: OAuthApplication): boolean {
+  return (
+    application.token_endpoint_auth_method === 'client_secret_basic' ||
+    application.token_endpoint_auth_method === 'client_secret_post'
+  )
+}
+
 export default function OrgApplications(): ReactNode {
   const { t } = useLingui()
   const { orgId } = useOrgTarget()
@@ -201,6 +208,7 @@ export default function OrgApplications(): ReactNode {
   const [redirectUri, setRedirectUri] = useState('')
   const [clientType, setClientType] = useState<OAuthApplication['client_type']>('confidential')
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
+  const [createdPublicClientId, setCreatedPublicClientId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<OAuthApplication | null>(null)
 
   const columns: ColumnDef<OAuthApplication>[] = [
@@ -234,14 +242,16 @@ export default function OrgApplications(): ReactNode {
       header: () => <Trans>Actions</Trans>,
       cell: ({ row }) => (
         <div {...stylex.props(styles.actionGroup)}>
-          <Button
-            variant="secondary"
-            isLoading={rotateSecret.isPending && rotateSecret.variables === row.original.id}
-            onClick={() => void handleRotate(row.original.id)}
-            {...stylex.props(styles.actionBtn)}
-          >
-            <Trans>Rotate secret</Trans>
-          </Button>
+          {usesSharedSecret(row.original) ? (
+            <Button
+              variant="secondary"
+              isLoading={rotateSecret.isPending && rotateSecret.variables === row.original.id}
+              onClick={() => void handleRotate(row.original.id)}
+              {...stylex.props(styles.actionBtn)}
+            >
+              <Trans>Rotate secret</Trans>
+            </Button>
+          ) : null}
           <Button
             variant="danger"
             onClick={() => setPendingDelete(row.original)}
@@ -259,11 +269,13 @@ export default function OrgApplications(): ReactNode {
   async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     setRevealedSecret(null)
+    setCreatedPublicClientId(null)
     const result = await createApplication.mutateAsync({
       client_type: clientType,
       redirect_uris: redirectUri.trim() ? [redirectUri.trim()] : [],
     })
-    setRevealedSecret(result.client_secret)
+    if (result.client_secret) setRevealedSecret(result.client_secret)
+    else setCreatedPublicClientId(result.client_id)
     setRedirectUri('')
   }
 
@@ -331,10 +343,14 @@ export default function OrgApplications(): ReactNode {
             <Trans>Register application</Trans>
           </h2>
           <p {...stylex.props(styles.sectionDesc)}>
-            <Trans>
-              Create an OAuth 2.0 client. The client secret is shown once on creation — store it
-              immediately.
-            </Trans>
+            {clientType === 'public' ? (
+              <Trans>Public clients use PKCE and do not receive a client secret.</Trans>
+            ) : (
+              <Trans>
+                Create a confidential OAuth 2.0 client. Its secret is shown once; store it
+                immediately.
+              </Trans>
+            )}
           </p>
         </div>
         <div {...stylex.props(styles.controlCol)}>
@@ -385,6 +401,14 @@ export default function OrgApplications(): ReactNode {
               </Alert>
               <code {...stylex.props(styles.secretCode)}>{revealedSecret}</code>
             </div>
+          ) : null}
+          {createdPublicClientId ? (
+            <Alert tone="success">
+              <Trans>
+                Public client {createdPublicClientId} created with PKCE. No client secret was
+                generated.
+              </Trans>
+            </Alert>
           ) : null}
         </div>
       </section>

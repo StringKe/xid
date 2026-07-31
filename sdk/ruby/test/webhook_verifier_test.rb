@@ -41,6 +41,17 @@ class WebhookVerifierTest < Minitest::Test
     assert_equal @body_hash, result
   end
 
+  def test_legacy_hex_secret_uses_utf8_key_material
+    legacy_secret = "ab" * 32
+    verifier = Xid::WebhookVerifier.new(secret: legacy_secret)
+    signature = make_sig(@msg_id, @timestamp, @raw_body, legacy_secret)
+    headers = valid_headers("svix-signature" => signature)
+
+    result = verifier.verify!(headers, @raw_body)
+
+    assert_equal @body_hash, result
+  end
+
   # --- Header normalization ---------------------------------------------------
 
   def test_verify_case_insensitive_headers

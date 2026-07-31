@@ -15,6 +15,9 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://xid.dev</PackageProjectUrl>
     <RepositoryUrl>https://github.com/StringKe/xid</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageTags>xid;oidc;jwt;identity;authentication</PackageTags>
 
     <PackageReleaseNotes>Status: implemented; compiled and unit-tested locally, real IdP round-trip pending.</PackageReleaseNotes>
@@ -39,6 +42,10 @@
     <!-- IHttpClientBuilder / IHttpClientFactory 位于此包 -->
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

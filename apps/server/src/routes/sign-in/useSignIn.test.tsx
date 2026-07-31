@@ -9,7 +9,11 @@ import type { Result } from '@xid-kit/types'
 import type { ApiClient } from '../../lib/api'
 
 const passkeyCalls = vi.hoisted(
-  (): Array<{ enabled: boolean; organizationId?: string | null }> => [],
+  (): Array<{
+    enabled: boolean
+    organizationId?: string | null
+    turnstileToken: string | null
+  }> => [],
 )
 const postCalls = vi.hoisted((): Array<{ path: string; body: unknown }> => [])
 const routerState = vi.hoisted(() => ({
@@ -49,8 +53,16 @@ vi.mock('../../lib/auth-context', () => ({
 }))
 
 vi.mock('./usePasskeySignIn', () => ({
-  usePasskeySignIn: (options: { enabled: boolean; organizationId?: string | null }) => {
-    passkeyCalls.push({ enabled: options.enabled, organizationId: options.organizationId })
+  usePasskeySignIn: (options: {
+    enabled: boolean
+    organizationId?: string | null
+    turnstileToken: string | null
+  }) => {
+    passkeyCalls.push({
+      enabled: options.enabled,
+      organizationId: options.organizationId,
+      turnstileToken: options.turnstileToken,
+    })
     return {
       support: 'no',
       conditionalRunning: false,
@@ -61,7 +73,13 @@ vi.mock('./usePasskeySignIn', () => ({
   },
 }))
 
-import { buildSocialAuthorizeUrl, useSignIn } from './useSignIn'
+import {
+  buildAuthConfigPath,
+  buildSocialAuthorizeUrl,
+  enabledSignInMethodsForIntent,
+  useSignIn,
+} from './useSignIn'
+import { DEFAULT_PUBLIC_AUTH_CONFIG } from './auth-config'
 
 function Capture(): ReactNode {
   useSignIn()
@@ -74,9 +92,10 @@ describe('social OAuth authorize URL', () => {
       origin: 'https://xid.dev',
       provider: 'github',
       hostedReturn: '/console',
-      signUpIntent: true,
+      intent: 'sign-up',
       identifier: 'owner@example.com',
       organizationId: undefined,
+      invitationToken: null,
       turnstileToken: null,
     })
 
@@ -90,18 +109,95 @@ describe('social OAuth authorize URL', () => {
       origin: 'https://xid.dev',
       provider: 'github',
       hostedReturn: '/account',
-      signUpIntent: false,
+      intent: null,
       identifier: '',
       organizationId: undefined,
+      invitationToken: null,
       turnstileToken: null,
     })
 
     expect(url.searchParams.get('continue')).toBe('/account')
     expect(url.searchParams.has('intent')).toBe(false)
   })
+
+  it('preserves the invitation capability through social sign-in', () => {
+    const url = buildSocialAuthorizeUrl({
+      origin: 'https://xid.dev',
+      provider: 'github',
+      hostedReturn: '/accept-invitation?token=tenant-bound-token',
+      intent: null,
+      identifier: 'invitee@example.com',
+      organizationId: undefined,
+      invitationToken: 'tenant-bound-token',
+      turnstileToken: null,
+    })
+
+    expect(url.searchParams.get('continue')).toBe('/accept-invitation?token=tenant-bound-token')
+    expect(url.searchParams.get('invitation_token')).toBe('tenant-bound-token')
+  })
+
+  it('passes the single-use Turnstile token to social authorization', () => {
+    const url = buildSocialAuthorizeUrl({
+      origin: 'https://xid.dev',
+      provider: 'github',
+      hostedReturn: '/console',
+      intent: null,
+      identifier: '',
+      organizationId: undefined,
+      invitationToken: null,
+      turnstileToken: 'turnstile-token-1',
+    })
+
+    expect(url.searchParams.get('turnstile')).toBe('turnstile-token-1')
+  })
+})
+
+describe('Hosted Auth config URL', () => {
+  it('preserves root sign-up and invitation flow context for Tenant resolution', () => {
+    expect(
+      buildAuthConfigPath({
+        loginHint: 'invitee@example.com',
+        organizationId: null,
+        intent: 'sign-up',
+        invitationToken: 'tenant-bound-token',
+      }),
+    ).toBe(
+      '/auth/config?login_hint=invitee%40example.com&intent=sign-up&invitation_token=tenant-bound-token',
+    )
+  })
+
+  it('preserves OAuth authorization context so guest capability stays unavailable', () => {
+    expect(
+      buildAuthConfigPath({
+        loginHint: null,
+        organizationId: null,
+        intent: null,
+        invitationToken: null,
+        authzRequestId: 'authz-1',
+      }),
+    ).toBe('/auth/config?authz_request_id=authz-1')
+  })
 })
 
 describe('useSignIn passkey policy gate', () => {
+  it('removes sign-in-only passkey from sign-up flows', () => {
+    const config = {
+      ...DEFAULT_PUBLIC_AUTH_CONFIG,
+      methods: {
+        ...DEFAULT_PUBLIC_AUTH_CONFIG.methods,
+        password: { enabled: true, allowLogin: true, allowUserCreation: true },
+        passkey: { enabled: true, allowLogin: true, allowUserCreation: true },
+      },
+    }
+
+    expect(enabledSignInMethodsForIntent(config, 'sign-up')).toEqual([
+      'password',
+      'magic-link',
+      'otp-email',
+    ])
+    expect(enabledSignInMethodsForIntent(config, null)).toContain('passkey')
+  })
+
   it('does not enable passkey conditional UI when default Hosted Auth disables passkey', () => {
     passkeyCalls.length = 0
     routerState.search = {}
@@ -113,7 +209,7 @@ describe('useSignIn passkey policy gate', () => {
       </QueryClientProvider>,
     )
 
-    expect(passkeyCalls).toEqual([{ enabled: false, organizationId: null }])
+    expect(passkeyCalls).toEqual([{ enabled: false, organizationId: null, turnstileToken: null }])
   })
 
   it('passes selected organization hint into passkey sign-in', () => {
@@ -127,7 +223,9 @@ describe('useSignIn passkey policy gate', () => {
       </QueryClientProvider>,
     )
 
-    expect(passkeyCalls).toEqual([{ enabled: false, organizationId: 'org_selected' }])
+    expect(passkeyCalls).toEqual([
+      { enabled: false, organizationId: 'org_selected', turnstileToken: null },
+    ])
   })
 })
 

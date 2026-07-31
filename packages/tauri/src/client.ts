@@ -1,20 +1,15 @@
 // XidTauriClient implementation.
-// Orchestrates PKCE flow, deeplink callback, token exchange, refresh rotation,
+// Orchestrates PKCE flow, deeplink callback, authorization-code token exchange,
 // and keychain persistence for Tauri desktop apps.
 // The client holds no cryptographic keys; PKCE S256 uses Web Crypto in the WebView.
-
-import { trimTrailingSlashes } from '@xid-kit/core'
 
 import { generateBase64UrlRandom, generatePkce } from './pkce'
 import { createMemoryKeychainAdapter } from './keychain'
 import { createSessionStore } from './session-store'
-import { exchangeCodeForTokens, refreshAccessToken, TauriTokenError } from './token-exchange'
+import { exchangeCodeForTokens, TauriTokenError } from './token-exchange'
 import type { XidKeychainAdapter } from './keychain'
 import type { SessionStore } from './session-store'
 import type { XidTauriClientOptions, SignInOptions, TauriSession, XidTauriClient } from './types'
-
-// Access token is proactively refreshed when within this window of expiry (seconds).
-const TOKEN_REFRESH_LEEWAY_SECONDS = 30
 
 export function createXidTauriClient(options: XidTauriClientOptions): XidTauriClient {
   const { issuer, clientId, redirectUri } = options
@@ -25,14 +20,12 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
   // Mutable keychain reference so setTokenStorage() can swap at runtime.
   let store: SessionStore = createSessionStore(options.keychain ?? createMemoryKeychainAdapter())
 
-  // In-flight refresh deduplication: if a refresh is already in progress, reuse it.
-  let inflightRefresh: Promise<string | null> | null = null
-
   // --------------------------------------------------------------------------
   // signIn: build PKCE authorize URL, persist verifier + state, optionally open
   // --------------------------------------------------------------------------
   async function signIn(callOptions: SignInOptions = {}): Promise<URL> {
     const scopes = callOptions.scopes ?? defaultScopes
+    assertAuthorizationCodeOnlyScopes(scopes)
     const { verifier, challenge } = await generatePkce()
     const state = generateBase64UrlRandom(32)
 
@@ -100,7 +93,7 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
   }
 
   // --------------------------------------------------------------------------
-  // getSession: return active session, refreshing token if near expiry
+  // getSession: return the active unexpired session
   // --------------------------------------------------------------------------
   async function getSession(): Promise<TauriSession | null> {
     const accessToken = await getAccessToken()
@@ -118,54 +111,31 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
   }
 
   // --------------------------------------------------------------------------
-  // getAccessToken: return valid access token, refreshing transparently if needed
+  // getAccessToken: return an unexpired token or require reauthorization
   // --------------------------------------------------------------------------
   async function getAccessToken(callOptions: { skipCache?: boolean } = {}): Promise<string | null> {
-    const existing = await store.getAccessToken()
-    const session = await store.getSession()
+    await store.clearLegacyCredentials()
+    const [existing, session] = await Promise.all([store.getAccessToken(), store.getSession()])
+    if (!existing || !session) {
+      if (existing || session) await store.clearSession()
+      return null
+    }
 
-    const isExpiring =
-      !existing || !session || session.expiresAt - TOKEN_REFRESH_LEEWAY_SECONDS <= now()
+    if (session.expiresAt <= now()) {
+      await store.clearSession()
+      return null
+    }
 
-    if (!isExpiring && !callOptions.skipCache) return existing
-
-    // Attempt refresh using the stored refresh token.
-    const refreshToken = await store.getRefreshToken()
-    if (!refreshToken) return callOptions.skipCache ? null : (existing ?? null)
-
-    return attemptRefresh(refreshToken)
+    // There is no network refresh path. A cache bypass therefore cannot produce a newer token.
+    if (callOptions.skipCache) return null
+    return existing
   }
 
   // --------------------------------------------------------------------------
-  // signOut: revoke server session, clear keychain
+  // signOut: clear local credentials
   // --------------------------------------------------------------------------
   async function signOut(): Promise<void> {
-    // Attempt server-side token revocation via RFC 7009 /revoke endpoint.
-    // This is the correct endpoint for token-based (cookie-less) desktop clients.
-    // Errors are non-fatal -- local credentials are always cleared regardless.
-    const accessToken = await store.getAccessToken()
-    if (accessToken) {
-      try {
-        const revokeBody = new URLSearchParams({
-          token: accessToken,
-          token_type_hint: 'access_token',
-          client_id: clientId,
-        })
-        const response = await fetcher(`${trimTrailingSlashes(issuer)}/revoke`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: revokeBody.toString(),
-        })
-        // Log non-success but do not throw: local clear still runs.
-        if (!response.ok) {
-          // Non-fatal: server may have already revoked the token or be unreachable.
-        }
-      } catch {
-        // Network failure during sign-out: local clear still runs.
-      }
-    }
     await store.clearAll()
-    inflightRefresh = null
   }
 
   // --------------------------------------------------------------------------
@@ -187,7 +157,6 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
   // --------------------------------------------------------------------------
   function setTokenStorage(adapter: XidKeychainAdapter): void {
     store = createSessionStore(adapter)
-    inflightRefresh = null
   }
 
   // --------------------------------------------------------------------------
@@ -196,16 +165,16 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
 
   async function persistTokenSet(tokenSet: {
     accessToken: string
-    refreshToken: string | null
     expiresAt: number
     idToken: string | null
   }): Promise<void> {
     // Decode userId from the access token JWT payload (sub claim).
     const userId = extractSubClaim(tokenSet.accessToken) ?? 'unknown'
 
+    // Remove any token state from older SDK versions before writing the new session.
+    await store.clearSession()
     await Promise.all([
       store.setAccessToken(tokenSet.accessToken),
-      tokenSet.refreshToken ? store.setRefreshToken(tokenSet.refreshToken) : Promise.resolve(),
       store.setSession({
         userId,
         organizationId: null,
@@ -213,42 +182,6 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
         abandonAt: tokenSet.expiresAt,
       }),
     ])
-  }
-
-  async function attemptRefresh(refreshToken: string): Promise<string | null> {
-    if (inflightRefresh) return inflightRefresh
-
-    inflightRefresh = doRefresh(refreshToken).finally(() => {
-      inflightRefresh = null
-    })
-    return inflightRefresh
-  }
-
-  async function doRefresh(refreshToken: string): Promise<string | null> {
-    try {
-      const tokenSet = await refreshAccessToken({
-        issuer,
-        clientId,
-        refreshToken,
-        fetcher,
-        now,
-      })
-      await persistTokenSet(tokenSet)
-      return tokenSet.accessToken
-    } catch (err) {
-      // Only clear local credentials on protocol-level rejections (invalid_grant,
-      // token revoked/expired). Network errors (TypeError from fetch, DNS failure,
-      // offline) must NOT clear the keychain -- the user is not logged out just
-      // because they momentarily lost connectivity.
-      if (err instanceof TauriTokenError) {
-        // Protocol error: the server explicitly rejected the refresh token.
-        // Clear the session so the user is prompted to sign in again.
-        await store.clearAll()
-        return null
-      }
-      // Network error or unexpected throw: preserve credentials, propagate.
-      throw err
-    }
   }
 
   return {
@@ -259,6 +192,14 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
     signOut,
     buildSignOutUrl,
     setTokenStorage,
+  }
+}
+
+function assertAuthorizationCodeOnlyScopes(scopes: readonly string[]): void {
+  if (scopes.includes('offline_access')) {
+    throw new TypeError(
+      '[xid-tauri] offline_access requires DPoP sender binding, which this SDK does not implement',
+    )
   }
 }
 

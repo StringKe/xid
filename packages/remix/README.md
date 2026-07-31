@@ -1,5 +1,9 @@
 # @xid-kit/remix
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 XID 身份平台的 Remix SDK。提供 loader/action server 认证 helpers、cookie session 集成、OAuth callback helper,以及 `@xid-kit/core` / `@xid-kit/react` 客户端 API 的 re-export。
 
 ## 安装
@@ -33,8 +37,10 @@ import { sessionStorage } from '~/sessions.server'
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const auth = await getAuth(request, {
-    jwtKey: process.env.XID_JWT_KEY!, // JWKS 公钥或 JWK set URL
+    jwtKey: JSON.parse(process.env.XID_JWKS_PUBLIC_KEY!), // public JWK 或 JWKS
     sessionStorage, // 可选:从 session cookie 读取 token
+    // 同源 Core browser session:
+    sessionTokenExchange: { endpoint: '/v1/sessions/token' },
   })
 
   if (!auth.userId) return redirect('/login')
@@ -54,7 +60,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // 未认证时自动 throw 302 redirect 到 /login?return_to=<当前 URL>
   const auth = await requireAuth(
     request,
-    { jwtKey: process.env.XID_JWT_KEY!, sessionStorage },
+    {
+      jwtKey: JSON.parse(process.env.XID_JWKS_PUBLIC_KEY!),
+      sessionStorage,
+      sessionTokenExchange: { endpoint: '/v1/sessions/token' },
+    },
     { redirectPath: '/login' }, // 默认值
   )
 
@@ -75,6 +85,8 @@ export async function action({ request }: ActionFunctionArgs) {
     redirectUri: process.env.XID_REDIRECT_URI!,
     sessionStorage,
     defaultReturnTo: '/dashboard',
+    // 自托管实例使用其 issuer 根路径:
+    // tokenEndpoint: 'https://identity.example.com/token',
   })
 
   if (!result.ok) {
@@ -85,30 +97,23 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 ```
 
+`tokenEndpoint` 默认是 `https://xid.dev/token`,与 Core discovery 公布的根 `/token` route
+一致。自托管或自定义 instance issuer 必须显式传入该 issuer 的
+`https://<issuer>/token`;Core 不提供 `/oauth/token` route。
+
 ### 5. 客户端 Provider (root.tsx)
 
 ```tsx
 import { XidProvider } from '@xid-kit/remix' // re-export from @xid-kit/react
-import type { LoaderFunctionArgs } from '@remix-run/node'
-import { useLoaderData, Outlet } from '@remix-run/react'
-import { getAuth } from '@xid-kit/remix'
-import { sessionStorage } from '~/sessions.server'
-
-export async function loader({ request }: LoaderFunctionArgs) {
-  const auth = await getAuth(request, {
-    jwtKey: process.env.XID_JWT_KEY!,
-    sessionStorage,
-  })
-  return { auth }
-}
+import { Outlet } from '@remix-run/react'
 
 export default function App() {
-  const { auth } = useLoaderData<typeof loader>()
-
   return (
     <XidProvider
-      publishableKey={window.ENV.XID_PUBLISHABLE_KEY}
-      initialState={auth.userId ? { userId: auth.userId } : undefined}
+      mode="oidc"
+      issuer="https://auth.example.com"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
     >
       <Outlet />
     </XidProvider>
@@ -157,14 +162,17 @@ const setCookie = await sessionStorage.destroySession(session)
 请求认证按以下顺序尝试:
 
 1. `Authorization: Bearer <token>` header
-2. 内置 session cookie(`__session`,可通过 `cookieName` 配置)
-3. `sessionStorage`(若传入)中的 `xid:access_token`
+2. 应用自己持有的短期 JWT cookie(仅当显式配置 `jwtCookieName`)
+3. 同源 Core exchange(仅当配置 `sessionTokenExchange`)
+4. `sessionStorage`(若传入)中的 `xid:access_token`
 
 ## PKCE & 安全
 
 - 公开客户端无 client secret;OAuth 使用 Authorization Code + PKCE S256。
 - `handleCallback` 验证 `state` 参数防 CSRF(存入 session `xid:oauth_state`)。
 - access_token 存入 HttpOnly session cookie,不落 `localStorage`。
+- Core `__Host-xid.rt.*` 是 opaque refresh credential,不得作为 JWT 本地验签。只有
+  exact same-origin `/v1/sessions/token` 可以接收它;跨域应用必须使用 Bearer/JWT handoff。
 - `requireAuth` 生成的 redirect URL 携带 `return_to` 参数,方便登录后回跳原页面。
 
 ## Peer Dependencies

@@ -365,6 +365,42 @@ describe('renderEmailWithTemplates:R2 模板语言包', () => {
     }
     const rendered = await renderEmailWithTemplates(env, msg)
     expect(rendered?.subject).toBe('Your verification code')
+    expect(rendered?.from).toEqual({ email: 'no-reply@xid.dev', name: 'XID' })
+  })
+
+  it('使用经过 trim 和验证的 runtime 默认发件人', async () => {
+    const env = {
+      STORAGE: makeStorage(),
+      EMAIL_FROM_ADDRESS: ' no-reply@identity.example ',
+      EMAIL_FROM_NAME: ' Example Identity ',
+    } as unknown as Env
+    const msg: EmailQueueMessage = {
+      type: 'otp',
+      recipient: 'u@example.com',
+      payload: { code: '123456' },
+    }
+
+    const rendered = await renderEmailWithTemplates(env, msg)
+
+    expect(rendered?.from).toEqual({
+      email: 'no-reply@identity.example',
+      name: 'Example Identity',
+    })
+  })
+
+  it.each([
+    [{ EMAIL_FROM_ADDRESS: 'not-an-email' }, 'EMAIL_FROM_ADDRESS'],
+    [{ EMAIL_FROM_NAME: 'XID\r\nBcc: attacker@example.com' }, 'EMAIL_FROM_NAME'],
+    [{ EMAIL_FROM_NAME: '   ' }, 'EMAIL_FROM_NAME'],
+  ])('拒绝无效 runtime 发件人配置 %#', async (variables, expectedVariable) => {
+    const env = { STORAGE: makeStorage(), ...variables } as unknown as Env
+    const msg: EmailQueueMessage = {
+      type: 'otp',
+      recipient: 'u@example.com',
+      payload: { code: '123456' },
+    }
+
+    await expect(renderEmailWithTemplates(env, msg)).rejects.toThrow(expectedVariable)
   })
 })
 
@@ -376,6 +412,8 @@ describe('handleEmailBatch:Cloudflare Email Service provider', () => {
       EMAIL: { send: emailSend } as unknown as SendEmail,
       AUDIT_QUEUE: { send: auditSend } as unknown as Queue,
       STORAGE: makeStorage(),
+      EMAIL_FROM_ADDRESS: 'mailer@identity.example',
+      EMAIL_FROM_NAME: 'Example Identity',
       DB: { prepare: () => ({ bind: () => ({ run: vi.fn() }) }) },
     } as unknown as Env
     const ack = vi.fn()
@@ -403,7 +441,7 @@ describe('handleEmailBatch:Cloudflare Email Service provider', () => {
     expect(emailSend).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'u@example.com',
-        from: { email: 'no-reply@xid.dev', name: 'XID' },
+        from: { email: 'mailer@identity.example', name: 'Example Identity' },
         subject: 'Verify your email',
         html: expect.stringContaining('Ada'),
         text: expect.stringContaining('https://xid.dev/v'),

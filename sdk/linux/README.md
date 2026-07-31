@@ -1,9 +1,12 @@
 # xid-linux
 
+> Registry status: UNPUBLISHED. No crates.io release is verified or authorized.
+> Use the local path dependency below.
+
 **Status: implemented (verified locally)**
 
 > 本机 `cargo test` 全部 PASS(见 `docs/sdks/platform-matrix.md`)。
-> 真实 IdP round-trip(L4)尚未验证。生产使用前必须提供目标 Linux 桌面环境、Secret Service D-Bus 守护进程、已注册 loopback redirect URI 和受控 IdP 测试 tenant,再执行完整登录、refresh、signOut 事务。
+> 真实 IdP round-trip(L4)尚未验证。生产使用前必须提供目标 Linux 桌面环境、Secret Service D-Bus 守护进程、已注册 loopback redirect URI 和受控 IdP 测试 tenant,再执行完整登录、token 到期后重新授权、signOut 事务。
 
 XID 身份平台 Linux 桌面 SDK。实现 Hosted Auth + OIDC Authorization Code + PKCE S256 流程:
 
@@ -12,8 +15,8 @@ XID 身份平台 Linux 桌面 SDK。实现 Hosted Auth + OIDC Authorization Code
 - loopback TCP 服务器接收 redirect callback (RFC 8252 Section 7.3)
 - 用 authorization code 换取 token (`/token`)
 - 通过 freedesktop.org **Secret Service** (gnome-keyring / kwallet) 安全持久化 token
-- refresh token 轮换
-- signOut 调用 `/revocation` 端点并清除本地 token
+- access token 到期后清除本地 token 并要求重新授权
+- signOut 清除本地 token 和 guest session
 
 不支持也不会支持:implicit flow、password grant、client secret 存储 (public client)、SAML、SCIM、Management API。
 
@@ -118,6 +121,8 @@ let session = client
 
 语义与注意事项:
 
+- **建号能力**:真正建号前先 GET `/auth/config?intent=sign-up` 取得一次性
+  `guest.capabilityToken`,再随 POST `/auth/guest` 提交;capability 不缓存或复用。
 - **会话凭证是 cookie**:`POST /auth/guest` 通过 Set-Cookie 建立会话,SDK 自动捕获并
   持久化到当前 `StorageAdapter`,后续 `/v1/me` 请求自动回放。
 - **无 access token**:guest 的 `session.access_token` 为 `None`;
@@ -139,7 +144,7 @@ let session = client
 | `.issuer(s)`              | 是   | OIDC issuer。托管版: `https://xid.dev`               |
 | `.client_id(s)`           | 是   | 应用 client ID (public client)                       |
 | `.redirect_uri(s)`        | 是   | loopback redirect URI,需在 XID 控制台注册            |
-| `.scopes(vec)`            | 否   | 默认 `["openid","profile","email","offline_access"]` |
+| `.scopes(vec)`            | 否   | 默认 `["openid","profile","email"]`;拒绝 `offline_access` |
 | `.redirect_port(u16)`     | 否   | loopback 监听端口,默认 51234                         |
 | `.http_timeout_secs(u64)` | 否   | HTTP 超时秒数,默认 30                                |
 | `.build()`                | --   | 校验并返回 `XidConfig`                               |
@@ -154,9 +159,9 @@ let session = client
 | `sign_in(options)`                        | signIn(options)                      | 打开浏览器发起登录,返回 Session                 |
 | `sign_in_anonymously(options)`            | signInAnonymously()                  | 匿名 (guest) 登录,惰性复用本地 session          |
 | `handle_redirect(url)`                    | handleRedirect(url)                  | 处理外部 redirect URL (custom scheme 场景)        |
-| `get_session()`                           | getSession()                         | 获取当前 session,自动刷新 token;含 guest 会话   |
-| `get_access_token(options)`               | getAccessToken(options)              | 获取 access_token 字符串,自动刷新               |
-| `sign_out()`                              | signOut()                            | 撤销 refresh_token 并清除本地存储               |
+| `get_session()`                           | getSession()                         | 获取未过期 session;过期后要求重新授权;含 guest 会话 |
+| `get_access_token(options)`               | getAccessToken(options)              | 获取未过期 access_token;过期后要求重新授权      |
+| `sign_out()`                              | signOut()                            | 清除本地 token 和 guest session                 |
 
 ### `StorageAdapter` trait
 
@@ -184,7 +189,8 @@ pub trait StorageAdapter: Send + Sync {
 - **PKCE S256 强制**:每次 signIn 生成新的 code_verifier / code_challenge,不支持 plain。
 - **state 验证**:loopback 回调验证 state 参数防 CSRF。
 - **Secret Service**:token 由桌面密钥环加密存储,应用无需自己管理加密密钥。
-- **refresh token 轮换**:XID server 采用轮换式 refresh token,SDK 每次刷新保存新 token。
+- **Offline access**:当前 SDK 尚未实现 DPoP,不会请求或使用 refresh token;
+  显式 `offline_access` 在配置校验阶段失败。
 - **redirect_uri**:必须精确匹配 XID 控制台注册的值 (XID server 拒绝 wildcard)。
 
 ---

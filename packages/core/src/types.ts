@@ -1,8 +1,9 @@
 // @xid-kit/core 公开状态契约:浏览器登录态资源模型(对标 @clerk/clerk-js Resources)。
 // 这些是 SDK 暴露给框架层(@xid-kit/react)与开发者的只读视图,不含任何密钥材料。
-// session token 存 HttpOnly cookie 由 worker 设置,SDK 只读状态、调 getToken() 取 short-lived JWT。
+// opaque refresh credential 由 worker 存入 HttpOnly cookie,SDK 只读状态、
+// 调 getToken() 换取 short-lived JWT。
 
-import type { XidError } from '@xid-kit/types'
+import type { OrganizationMembershipRole, XidError } from '@xid-kit/types'
 
 // User 公开视图(对照 06 章 SDK 核心职责:用户信息 load/cache)。
 // 仅展示态字段,敏感字段(密码哈希/pepper/私钥)永不出现在前端。
@@ -44,7 +45,7 @@ export type XidOrganization = {
 export type XidOrganizationMembership = {
   id: string
   organization: XidOrganization
-  role: string
+  role: OrganizationMembershipRole
   permissions: readonly string[]
   createdAt: number
 }
@@ -145,14 +146,28 @@ export type XidState = {
   error: XidError | null
 }
 
+// guest 创建成功时 redirectUrl 由 Core endpoint 决定,SDK 不复制 onboarding 路由。
+// 为兼容旧版 Result<XidState>,结果继续展开 XidState 字段;新代码应读取 state。
+export type SignInAnonymouslyResult =
+  | (XidState & {
+      state: XidState
+      sessionId: string
+      redirectUrl: string
+      nextStep: 'redirect'
+    })
+  | (XidState & {
+      state: XidState
+      sessionId: string
+      redirectUrl: null
+      nextStep: 'complete'
+    })
+
 // 状态变更监听器(框架无关;@xid-kit/react 用 useSyncExternalStore 订阅)。
 export type XidStateListener = (state: XidState) => void
 export type Unsubscribe = () => void
 
 // getToken 选项(对照 06 章 getToken 返回 short-lived JWT,建议 60s)。
 export type GetTokenOptions = {
-  // 自定义 JWT 模板名(server 端按 template 定制 claims),默认 session token。
-  template?: string
   // 跳过本地缓存强制刷新(敏感操作前用)。
   skipCache?: boolean
   // 提前刷新窗口(秒):token 距过期小于此值即刷新,默认 10。
@@ -199,9 +214,31 @@ export type ListSessionsInput = {
   signal?: AbortSignal
 }
 
-// XidClient 构造选项。
-export type XidClientOptions = {
-  // 认证 API 根(worker 同域,通常省略走相对路径)。如 https://acme.xid.dev。
+export type XidTokenCache = {
+  getToken(key: string): Promise<string | null>
+  saveToken(key: string, value: string): Promise<void>
+  deleteToken(key: string): Promise<void>
+  coordinationNamespace?: string
+}
+
+export type OidcAuthorizationIntent = 'sign-in' | 'sign-up'
+
+export type CreateAuthorizationUrlInput = {
+  intent?: OidcAuthorizationIntent
+  returnUrl?: string
+  loginHint?: string
+  prompt?: 'login' | 'consent' | 'select_account'
+  signal?: AbortSignal
+}
+
+export type HandleRedirectCallbackResult = {
+  returnUrl: string
+  intent: OidcAuthorizationIntent
+}
+
+export type SameOriginXidClientOptions = {
+  mode?: 'same-origin'
+  // 认证 API 根。cookie 模式只允许相对 URL 或当前页面 exact same-origin。
   apiUrl?: string
   // Management API Secret Key(sk_live_/sk_test_);设置后走 Bearer 而非 cookie session。
   secretKey?: string
@@ -210,3 +247,24 @@ export type XidClientOptions = {
   // 注入时钟(测试用,返回秒);默认 Date.now()/1000。
   now?: () => number
 }
+
+export type OidcXidClientOptions = {
+  mode: 'oidc'
+  // OIDC issuer,例如 https://tenant.xid.dev。
+  issuer: string
+  // Console 注册的 public OAuth client_id。它不是 Management API key。
+  clientId: string
+  // 必须与 application.redirect_uris 中一项精确相等。
+  redirectUri: string
+  // 默认 openid profile email。浏览器基线禁止 offline_access。
+  scopes?: readonly string[]
+  // 可选 OIDC RP-initiated logout 回跳,必须预先注册。
+  postLogoutRedirectUri?: string
+  // 默认使用当前 tab 的 sessionStorage;可注入自定义异步存储。
+  tokenCache?: XidTokenCache
+  fetcher?: typeof fetch
+  now?: () => number
+}
+
+// XidClient 构造选项。跨域应用必须显式使用 oidc;省略 mode 仅代表 same-origin Core。
+export type XidClientOptions = SameOriginXidClientOptions | OidcXidClientOptions

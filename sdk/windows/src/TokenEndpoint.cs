@@ -4,9 +4,6 @@
 //
 // /token 端点交互:
 //   - authorization_code + PKCE 换 token
-//   - refresh_token 轮换
-//
-// XID 服务端执行 refresh token 轮换:旧 token 立即作废,返回新 token。
 
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -26,9 +23,6 @@ internal sealed class TokenResponse
 
     [JsonPropertyName("expires_in")]
     public int ExpiresIn { get; init; }
-
-    [JsonPropertyName("refresh_token")]
-    public string? RefreshToken { get; init; }
 
     [JsonPropertyName("id_token")]
     public string? IdToken { get; init; }
@@ -76,24 +70,6 @@ internal sealed class TokenEndpointClient
             ["code"] = code,
             ["redirect_uri"] = redirectUri,
             ["code_verifier"] = codeVerifier,
-        };
-        return await PostFormAsync(tokenEndpoint, form, ct).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// refresh_token grant。
-    /// XID 服务端轮换:旧 token 立即作废,返回新 token。
-    /// </summary>
-    internal async Task<TokenResponse> RefreshAsync(
-        Uri tokenEndpoint,
-        string refreshToken,
-        CancellationToken ct = default)
-    {
-        var form = new Dictionary<string, string>
-        {
-            ["grant_type"] = "refresh_token",
-            ["client_id"] = _clientId,
-            ["refresh_token"] = refreshToken,
         };
         return await PostFormAsync(tokenEndpoint, form, ct).ConfigureAwait(false);
     }

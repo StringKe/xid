@@ -54,6 +54,7 @@ vi.mock('../../lib/google-analytics-funnel', () => ({
 
 vi.mock('../../lib/router', () => ({
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
+  useNavigate: () => routerState.navigate,
 }))
 
 import { Route } from './index'
@@ -84,11 +85,7 @@ describe('VerifyEmailPage sign-up redirect', () => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(routerState.navigate).toHaveBeenCalledWith({
-      to: '/sign-in',
-      search: { intent: 'sign-up' },
-      replace: true,
-    })
+    expect(routerState.navigate).toHaveBeenCalledWith('/sign-in?intent=sign-up', { replace: true })
 
     await act(async () => root.unmount())
     container.remove()

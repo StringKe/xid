@@ -1,9 +1,15 @@
 {
   "name": "@xid-kit/svelte",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Svelte SDK for XID: auth stores, context and server-side session helpers.",
-  "homepage": "https://xid.dev",
+  "version": "0.1.0-alpha.0",
+  "private": false,
+  "description": "Svelte and SvelteKit bindings for the XID identity platform.",
+  "keywords": [
+    "authentication",
+    "identity",
+    "oidc",
+    "xid"
+  ],
+  "homepage": "https://xid.dev/sdks/svelte",
   "bugs": {
     "url": "https://github.com/StringKe/xid/issues"
   },
@@ -14,33 +20,49 @@
     "url": "git+https://github.com/StringKe/xid.git",
     "directory": "packages/svelte"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs",
+      "default": "./dist/server.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack src/index.ts src/server.ts --copy ../../LICENSE",
     "check": "vp check",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vp test"
   },
   "dependencies": {
-    "@xid-kit/core": "workspace:*",
-    "@xid-kit/types": "workspace:*"
+    "@xid-kit/core": "workspace:^",
+    "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
     "@sveltejs/kit": "^2.70.1",
-    "@xid-kit/backend": "workspace:*",
+    "@xid-kit/backend": "workspace:^",
     "svelte": "^5.56.7",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
     "@sveltejs/kit": ">=2.0.0",
-    "@xid-kit/backend": "workspace:*",
+    "@xid-kit/backend": "workspace:^",
     "svelte": ">=5.0.0"
   },
   "peerDependenciesMeta": {

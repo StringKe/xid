@@ -15,26 +15,33 @@ use Xid\Jwt\JwtVerifier;
  *
  * 提取优先级:
  *   1. Authorization: Bearer <token>  (RFC 6750 Section 2.1)
- *   2. Cookie(名称可配置,默认 __xid_session)
+ *   2. 应用显式配置名称的 short-lived JWT Cookie
  *
  * 不实现 OAuth 授权流程;token 必须由客户端完成授权流程后取得。
  */
 final class RequestAuthenticator
 {
-    private const DEFAULT_COOKIE_NAME = '__xid_session';
+    private readonly string|null $cookieName;
+    private readonly bool $allowCookieFallback;
+    private readonly LoggerInterface|null $logger;
 
     /**
      * @param JwtVerifier $verifier        JWT 验证器实例
-     * @param string $cookieName           Session cookie 名称
-     * @param bool $allowCookieFallback    是否允许从 cookie 取 token(SPA/SSR 场景)
+     * @param string|null $cookieName      应用自有 JWT cookie 名;null 禁用 fallback
+     * @param bool|null $allowCookieFallback 显式覆盖;默认仅在 cookieName 非空时启用
      * @param LoggerInterface|null $logger 可选 PSR-3 logger,用于记录 JWKS 基础设施失败
      */
     public function __construct(
         private readonly JwtVerifier $verifier,
-        private readonly string $cookieName = self::DEFAULT_COOKIE_NAME,
-        private readonly bool $allowCookieFallback = true,
-        private readonly LoggerInterface|null $logger = null,
-    ) {}
+        string|null $cookieName = null,
+        bool|null $allowCookieFallback = null,
+        LoggerInterface|null $logger = null,
+    ) {
+        $this->cookieName = $cookieName;
+        $this->allowCookieFallback = $allowCookieFallback
+            ?? ($cookieName !== null && $cookieName !== '');
+        $this->logger = $logger;
+    }
 
     /**
      * 认证 PSR-7 请求。
@@ -80,7 +87,7 @@ final class RequestAuthenticator
         }
 
         // 2. cookie fallback
-        if ($this->allowCookieFallback) {
+        if ($this->allowCookieFallback && $this->cookieName !== null) {
             $cookies = $request->getCookieParams();
             $token   = $cookies[$this->cookieName] ?? null;
             if (is_string($token) && $token !== '') {

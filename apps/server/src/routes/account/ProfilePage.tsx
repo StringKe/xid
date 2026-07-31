@@ -13,6 +13,7 @@ import { Alert, Button, Input, Section, SectionRow, Spinner } from '../../compon
 import { SUPPORTED_LOCALES } from '../../lib/locale'
 import { useProfileQuery, useUpdateProfile } from './queries'
 import type { UserProfile } from './hooks'
+import { PrivacySection } from './PrivacySection'
 
 const LOCALE_OPTIONS = [
   { value: 'en', label: 'English' },
@@ -222,6 +223,7 @@ export default function ProfilePage(): ReactNode {
         </h1>
       </div>
       <ProfileForm initialData={profile} />
+      <PrivacySection />
     </div>
   )
 }

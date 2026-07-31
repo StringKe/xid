@@ -6,20 +6,20 @@
 // 安全门控:D1 已有任何 instance -> 409 already_initialized(幂等,二次调用不重复创建);
 // 可选 X-Bootstrap-Token 必须等长 constant-time 匹配 env.BOOTSTRAP_TOKEN(配置则强制,防公网滥用)。
 //
-// 隔离:除平台级 instances 表用 raw drizzle(无 tenant_id,独立管理路径)外,
-// 所有租户实体(organizations/users/user_emails/memberships/manager_assignments)
-// 一律走 @xid-kit/db 租户查询层注入 tenant_id(见 tenant-isolation rule)。
+// 隔离:bootstrap 是空库到首个 Tenant 的唯一多表初始化边界。全部 relational row
+// 在一个 D1 batch transaction 中创建,每条 tenant row 都显式绑定同一个 tenant_id。
 
 import { generateTenantSigningKey } from '@xid-kit/crypto'
-import { createTenantDb, schema } from '@xid-kit/db'
-import type { TenantContext } from '@xid-kit/types'
+import { schema } from '@xid-kit/db'
 import { DEFAULT_HOSTED_AUTH_POLICY } from '@xid-kit/types'
 import { drizzle } from 'drizzle-orm/d1'
 import type { Context, Hono } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
+import { createPersistedId } from '../lib/persisted-id'
 import { emailSchema, firstIssuePath, readJsonBody } from '../lib/validate'
 import { decodeKek } from '../oidc/shared'
+import { PLAN_DEFAULTS } from '../platform/plans'
 
 // KEK 版本(首版单 KEK,与 oidc/token 信封加密一致,见 signing-keys rule)。
 const KEK_VERSION = 1
@@ -142,80 +142,75 @@ async function handleBootstrap(c: Context<XidHonoEnv>): Promise<Response> {
   const primaryDomain = (body.primaryDomain ?? hostnameOf(c) ?? 'localhost').toLowerCase()
   const mode = body.mode ?? 'single_tenant'
 
-  // (1) instance(平台级,无 tenant_id,raw drizzle 独立管理路径)。
-  const instanceId = `inst_${crypto.randomUUID()}`
-  await db.insert(schema.instances).values({
-    id: instanceId,
-    name: body.instanceName ?? 'XID',
-    primaryDomain,
-    mode,
-    defaultLocale: 'en',
-    dataResidency: 'us',
-    mfaPolicy: 'optional',
-    passwordPolicy: DEFAULT_PASSWORD_POLICY,
-    sessionPolicy: DEFAULT_SESSION_POLICY,
-    tokenPolicy: DEFAULT_TOKEN_POLICY,
-    status: 'active',
-  })
-
-  // (2) default organization(顶层 org;tenant_id = 自身 id)。
-  const defaultOrgId = `org_${crypto.randomUUID()}`
+  // 先在内存生成所有 ids 与信封加密 signing key。此时尚未持久化任何 row。
+  const instanceId = createPersistedId('instance')
+  const defaultOrgId = createPersistedId('organization')
   const defaultSlug = normalizeSlug(body.defaultOrgSlug ?? 'default')
-  await insertTopOrg(c, {
-    instanceId,
-    id: defaultOrgId,
-    slug: defaultSlug,
-    name: body.defaultOrgName ?? 'Default Organization',
-  })
-
-  // (3) instance ES256 签名密钥:KEK 信封加密私钥,私钥明文不落库(见 signing-keys rule)。
-  // (4) 初始 super admin user + instance_manager ManagerAssignment(平台层,scope=instance,不进业务 token)。
-  // user / assignment 归属 default organization。
-  const defaultDb = createTenantDb(c.env.DB, tenantCtxFor(defaultOrgId))
-  const instanceKid = await createInstanceSigningKey(c, instanceId)
-
-  const adminUserId = `user_${crypto.randomUUID()}`
+  const adminUserId = createPersistedId('user')
   const adminEmail = body.adminEmail.trim().toLowerCase()
   const adminEmailId = `eml_${crypto.randomUUID()}`
-  await defaultDb.users.insert({
-    id: adminUserId,
-    tenantId: defaultOrgId,
-    primaryEmailId: adminEmailId,
-    displayName: 'Instance Manager',
-    provisionedBy: 'bootstrap',
-    status: 'active',
-    isNewUser: false,
-  })
-  await defaultDb.userEmails.insert({
-    id: adminEmailId,
-    tenantId: defaultOrgId,
-    userId: adminUserId,
-    email: adminEmail,
-    verified: true,
-    verificationStatus: 'verified',
-    isPrimary: true,
-    verifiedAt: new Date(),
-  })
-  await defaultDb.memberships.insert({
-    id: `mem_${crypto.randomUUID()}`,
-    tenantId: defaultOrgId,
-    orgId: defaultOrgId,
-    userId: adminUserId,
-    role: 'owner',
-    membershipType: 'member',
-    status: 'active',
-    isManaged: false,
-    joinedAt: new Date(),
-  })
-  // Instance Manager 角色 = ManagerAssignment(平台管理层,与业务 RBAC 分离,见 02 章 3、08 章 13.5）。
-  await defaultDb.managerAssignments.insert({
-    id: `mgr_${crypto.randomUUID()}`,
-    tenantId: defaultOrgId,
-    userId: adminUserId,
-    managerRole: 'instance_manager',
-    scopeType: 'instance',
-    scopeId: null,
-  })
+  const signingKey = await prepareInstanceSigningKey(c)
+  const instanceKid = signingKey.material.kid
+  const now = Date.now()
+  const seatLimit = PLAN_DEFAULTS.free.seatLimit
+
+  // D1 batch 是 SQL transaction。任一 statement 失败会回滚整个序列,因此 instance row
+  // 不能再早于其余 bootstrap resources 单独提交并让重试误判 already_initialized。
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO instances (
+         id, name, primary_domain, mode, default_locale, data_residency, mfa_policy,
+         password_policy, session_policy, token_policy, status, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, 'en', 'us', 'optional', ?, ?, ?, 'active', ?, ?)`,
+    ).bind(
+      instanceId,
+      body.instanceName ?? 'XID',
+      primaryDomain,
+      mode,
+      JSON.stringify(DEFAULT_PASSWORD_POLICY),
+      JSON.stringify(DEFAULT_SESSION_POLICY),
+      JSON.stringify(DEFAULT_TOKEN_POLICY),
+      now,
+      now,
+    ),
+    topOrgStatement(c.env.DB, {
+      instanceId,
+      id: defaultOrgId,
+      slug: defaultSlug,
+      name: body.defaultOrgName ?? 'Default Organization',
+      seatLimit,
+      now,
+    }),
+    c.env.DB.prepare(
+      `INSERT INTO organization_quotas (
+         tenant_id, quota_key, "limit", enforcement, updated_by, created_at, updated_at
+       ) VALUES (?, 'seats', ?, 'block_creation', NULL, ?, ?)`,
+    ).bind(defaultOrgId, seatLimit, now, now),
+    instanceSigningKeyStatement(c.env.DB, instanceId, signingKey),
+    c.env.DB.prepare(
+      `INSERT INTO users (
+         id, tenant_id, primary_email_id, display_name, provisioned_by, status,
+         is_new_user, created_at, updated_at
+       ) VALUES (?, ?, ?, 'Instance Manager', 'bootstrap', 'active', 0, ?, ?)`,
+    ).bind(adminUserId, defaultOrgId, adminEmailId, now, now),
+    c.env.DB.prepare(
+      `INSERT INTO user_emails (
+         id, tenant_id, user_id, email, verified, verification_status, is_primary,
+         verified_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, 1, 'verified', 1, ?, ?, ?)`,
+    ).bind(adminEmailId, defaultOrgId, adminUserId, adminEmail, now, now, now),
+    c.env.DB.prepare(
+      `INSERT INTO memberships (
+         id, tenant_id, org_id, user_id, role, membership_type, status, is_managed,
+         joined_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, 'owner', 'member', 'active', 0, ?, ?, ?)`,
+    ).bind(createPersistedId('membership'), defaultOrgId, defaultOrgId, adminUserId, now, now, now),
+    c.env.DB.prepare(
+      `INSERT INTO manager_assignments (
+         id, tenant_id, user_id, manager_role, scope_type, scope_id, created_at, updated_at
+       ) VALUES (?, ?, ?, 'instance_manager', 'instance', NULL, ?, ?)`,
+    ).bind(createPersistedId('managerAssignment'), defaultOrgId, adminUserId, now, now),
+  ])
 
   const result: BootstrapResult = {
     instanceId,
@@ -332,74 +327,101 @@ function validationFailedBody(c: Context<XidHonoEnv>, paramName: string): Respon
   return json(c, body, 400)
 }
 
-// 顶层 org 插入:tenant_id = 自身 id(租户隔离根,见 08 章 10.2)。走租户查询层注入 tenant_id。
-async function insertTopOrg(
+// 顶层 org 的 tenant_id = 自身 id(租户隔离根,见 08 章 10.2)。
+function topOrgStatement(
+  db: D1Database,
+  input: {
+    instanceId: string
+    id: string
+    slug: string
+    name: string
+    seatLimit: number | null
+    now: number
+  },
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO organizations (
+         id, tenant_id, instance_id, parent_org_id, slug, name,
+         public_metadata, private_metadata, seat_limit, seat_used,
+         enrollment_mode, allow_org_self_service, status, created_at, updated_at
+       ) VALUES (?, ?, ?, NULL, ?, ?, '{}', ?, ?, 0, 'invite_required', 1, 'active', ?, ?)`,
+    )
+    .bind(
+      input.id,
+      input.id,
+      input.instanceId,
+      input.slug,
+      input.name,
+      JSON.stringify(defaultOrgMetadata()),
+      input.seatLimit,
+      input.now,
+      input.now,
+    )
+}
+
+type PreparedInstanceSigningKey = {
+  rowId: string
+  material: Awaited<ReturnType<typeof generateTenantSigningKey>>['material']
+  now: number
+}
+
+async function prepareInstanceSigningKey(
   c: Context<XidHonoEnv>,
-  input: { instanceId: string; id: string; slug: string; name: string },
-): Promise<void> {
-  const db = createTenantDb(c.env.DB, tenantCtxFor(input.id))
-  // 顶层 org 的 tenant_id = 自身 id(租户隔离根,见 08 章 10.2)。
-  await db.organizations.insert({
-    id: input.id,
-    tenantId: input.id,
-    instanceId: input.instanceId,
-    parentOrgId: null,
-    slug: input.slug,
-    name: input.name,
-    privateMetadata: defaultOrgMetadata(),
-    status: 'active',
-  })
+): Promise<PreparedInstanceSigningKey> {
+  const kid = `key_${crypto.randomUUID()}`
+  const kekRaw = decodeKek(c.env.KEK)
+  try {
+    const { material } = await generateTenantSigningKey({
+      kid,
+      kekRaw,
+      kekVersion: KEK_VERSION,
+      alg: 'ES256',
+      status: 'active',
+    })
+    return { rowId: createPersistedId('signingKey'), material, now: Date.now() }
+  } finally {
+    kekRaw.fill(0)
+  }
+}
+
+function instanceSigningKeyStatement(
+  db: D1Database,
+  instanceId: string,
+  input: PreparedInstanceSigningKey,
+): D1PreparedStatement {
+  const enc = input.material.encryptedPrivateKey
+  return db
+    .prepare(
+      `INSERT INTO instance_signing_keys (
+       id, instance_id, kid, alg, public_key_jwk, private_key_iv, private_key_ciphertext,
+       private_key_tag, kek_version, status, activated_at, retire_after, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    )
+    .bind(
+      input.rowId,
+      instanceId,
+      input.material.kid,
+      input.material.alg,
+      JSON.stringify(input.material.publicKeyJwk),
+      toBuffer(enc.iv),
+      toBuffer(enc.ciphertext),
+      toBuffer(enc.tag),
+      enc.kekVersion,
+      input.material.status,
+      input.now,
+      input.now,
+      input.now,
+    )
 }
 
 async function createInstanceSigningKey(
   c: Context<XidHonoEnv>,
   instanceId: string,
 ): Promise<string> {
-  const kid = `key_${crypto.randomUUID()}`
-  const kekRaw = decodeKek(c.env.KEK)
-  const { material } = await generateTenantSigningKey({
-    kid,
-    kekRaw,
-    kekVersion: KEK_VERSION,
-    alg: 'ES256',
-    status: 'active',
-  })
-  kekRaw.fill(0)
-  const enc = material.encryptedPrivateKey
-  await c.env.DB.prepare(
-    `INSERT INTO instance_signing_keys (
-       id, instance_id, kid, alg, public_key_jwk, private_key_iv, private_key_ciphertext,
-       private_key_tag, kek_version, status, activated_at, retire_after, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-  )
-    .bind(
-      `sk_${crypto.randomUUID()}`,
-      instanceId,
-      material.kid,
-      material.alg,
-      JSON.stringify(material.publicKeyJwk),
-      toBuffer(enc.iv),
-      toBuffer(enc.ciphertext),
-      toBuffer(enc.tag),
-      enc.kekVersion,
-      material.status,
-      Date.now(),
-      Date.now(),
-      Date.now(),
-    )
-    .run()
-  return material.kid
-}
-
-// 构造最小 TenantContext(只为驱动租户查询层注入 tenant_id;签名密钥此刻为空,bootstrap 不读)。
-function tenantCtxFor(tenantId: string): TenantContext {
-  return {
-    tenantId,
-    issuer: '',
-    rpId: '',
-    signingKeys: { activeKid: '', defaultAlg: 'ES256', keys: [] },
-    policy: {},
-  }
+  const signingKey = await prepareInstanceSigningKey(c)
+  await instanceSigningKeyStatement(c.env.DB, instanceId, signingKey).run()
+  return signingKey.material.kid
 }
 
 // Uint8Array -> Buffer(drizzle blob buffer mode 落库;envelope 三 blob,见 08 章 16.3)。

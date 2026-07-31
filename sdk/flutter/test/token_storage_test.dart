@@ -131,11 +131,13 @@ void main() {
         state: 'state_first',
         codeVerifier: 'verifier_first',
         codeChallenge: 'challenge_first',
+        nonce: 'nonce_first',
       ));
       await store.savePendingAuth(const PendingAuthData(
         state: 'state_second',
         codeVerifier: 'verifier_second',
         codeChallenge: 'challenge_second',
+        nonce: 'nonce_second',
       ));
 
       final second = await store.consumePendingAuth('state_second');
@@ -143,7 +145,9 @@ void main() {
       final replay = await store.consumePendingAuth('state_first');
 
       expect(second?.codeVerifier, equals('verifier_second'));
+      expect(second?.nonce, equals('nonce_second'));
       expect(first?.codeVerifier, equals('verifier_first'));
+      expect(first?.nonce, equals('nonce_first'));
       expect(replay, isNull);
     });
   });

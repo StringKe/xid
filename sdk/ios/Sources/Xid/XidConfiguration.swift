@@ -17,7 +17,8 @@ public struct XidConfiguration: Sendable {
     /// - Custom Scheme 示例: com.example.app://auth/callback
     public let redirectUri: URL
 
-    /// 请求的 OAuth scope 列表,默认包含 openid、profile、email、offline_access。
+    /// 请求的 OAuth scope 列表,默认包含 openid、profile、email。
+    /// 当前 SDK 尚未实现 DPoP,因此不支持 offline_access。
     public let scopes: [String]
 
     /// Token 持久化适配器,默认使用 KeychainTokenStorage。
@@ -35,7 +36,7 @@ public struct XidConfiguration: Sendable {
         issuer: URL,
         clientId: String,
         redirectUri: URL,
-        scopes: [String] = ["openid", "profile", "email", "offline_access"],
+        scopes: [String] = ["openid", "profile", "email"],
         tokenStorage: TokenStorageAdapter = KeychainTokenStorage(),
         prefersEphemeralWebBrowserSession: Bool = true,
         postLogoutRedirectUri: URL? = nil
@@ -47,5 +48,14 @@ public struct XidConfiguration: Sendable {
         self.tokenStorage = tokenStorage
         self.prefersEphemeralWebBrowserSession = prefersEphemeralWebBrowserSession
         self.postLogoutRedirectUri = postLogoutRedirectUri
+    }
+
+    func validatePublicClientScopes() throws {
+        guard !scopes.contains("offline_access") else {
+            throw XidError.oauthError(
+                "invalid_scope",
+                "offline_access requires DPoP; the iOS SDK does not implement DPoP yet"
+            )
+        }
     }
 }

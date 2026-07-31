@@ -24,7 +24,7 @@ This package owns the complete localized developer documentation served from `ht
 ## Registry features
 
 - The installed Nimbus Registry feature set is `pagefind-search`, `ai-native`, `404-page`, `mermaid`, and `lint-prose-textlint`.
-- Pagefind indexes all 328 localized documentation pages.
+- Pagefind indexes all 336 localized Site pages: one status page, one hub, and 40 documents per locale.
 - Agent surfaces, robots, sitemaps, canonical URLs, hreflang, Open Graph metadata, and JSON-LD are build outputs derived from the same published-page registry.
 - The localized 404 is a terminal Site response. It must never fall through to Core or Hosted Auth.
 - Author a Mermaid diagram only as a document AST CodeBlock with `kind: "code"` and `language: "mermaid"` in `src/content-source/docs/documents.json`. Never add a Mermaid fence directly to generated MDX.
@@ -39,7 +39,8 @@ This package owns the complete localized developer documentation served from `ht
 - Each Markdown twin ends with an exact `Source:` link to its MDX twin.
 - The root `https://xid.dev/llms.txt` enumerates every published locale page.
 - The root `https://xid.dev/llms-full.txt` contains the complete deterministic corpus without timestamps.
-- `https://xid.dev/en/llms.txt` and `https://xid.dev/en/llms-full.txt` isolate the 41 English pages. Other locale section endpoints use their lowercase locale segment.
+- `https://xid.dev/en/llms.txt` and `https://xid.dev/en/llms-full.txt` isolate the 42 English pages. Other locale section endpoints use their lowercase locale segment.
+- Each locale also emits a Nimbus-compatible SDK content-section index and corpus at `/sdks/llms*.txt` or `/{locale-segment}/sdks/llms*.txt`, covering exactly the 29 SDK pages for that locale.
 - Legacy `https://xid.dev/docs` pages, twins, and English agent endpoints return a single 308 to the root canonical tree.
 - The English SCIM document uses exact routes only. `https://xid.dev/scim/v2/*` remains a Core protocol surface.
 - Static Markdown, MDX, and text agent surfaces use explicit UTF-8 Content-Type rules.

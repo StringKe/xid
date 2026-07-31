@@ -71,6 +71,10 @@ pub enum XidError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
+    /// Core browser-session cookie -> JWT exchange failed closed
+    #[error("Session token exchange failed: {0}")]
+    SessionTokenExchange(String),
+
     /// 其他内部错误
     #[error("Internal error: {0}")]
     Internal(String),

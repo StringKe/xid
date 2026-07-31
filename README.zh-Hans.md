@@ -57,15 +57,22 @@ WebAuthn RP ID 和策略全部从单一 `TenantContext` 解析,因此同一份�
 
 ### 接入应用
 
-`@xid-kit/*` 系列包**未发布到 npm**,它们是 workspace 包,因此今天要在自己的应用里使用,意味着 vendoring
-源码或把本仓库加入你的 workspace。下面是当前的公开接口。来自 `@xid-kit/react`:
+18 个 `@xid-kit/*` TypeScript package 已配置为可发布,并通过干净的本地 tarball 消费方门禁
+(`pnpm run sdk:distribution:verify`)。仓库内没有能够证明外部 registry 当前状态的发布证据,因此 npm
+发布状态为 `UNKNOWN`;除非你另外核验 registry,否则应使用 workspace 或本地生成的 tarball。下面是
+当前的公开接口。来自 `@xid-kit/react`:
 
 ```tsx
 import { XidProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@xid-kit/react'
 
 function App() {
   return (
-    <XidProvider publishableKey="pk_test_..." apiUrl="https://auth.example.com">
+    <XidProvider
+      mode="oidc"
+      issuer="https://auth.example.com"
+      clientId="client_abc123"
+      redirectUri="https://app.example.com/auth/callback"
+    >
       <SignedOut>
         <SignInButton />
       </SignedOut>
@@ -114,33 +121,42 @@ cd apps/server
 npx wrangler d1 create xid-db
 npx wrangler kv namespace create CACHE
 npx wrangler r2 bucket create xid-storage
-for q in xid-email xid-whatsapp xid-sms xid-audit xid-webhook xid-metering xid-dlq; do
-  npx wrangler queues create "$q"
-done
+pnpm --dir ../.. run cloudflare:queues:create
 ```
+
+Queue 脚本从 `apps/server/wrangler.jsonc` 推导全部 24 个必需资源:8 个源 Queue、8 个逐源 dead-letter
+Queue,以及 8 个持久化失败 quarantine Queue。它不会创建已经废弃的共享 `xid-dlq`。
 
 随后把 `apps/server/wrangler.jsonc`、`apps/console/wrangler.jsonc` 与
 `apps/site/wrangler.jsonc` 中的上游 account 和 route 值替换成你自己的值,并把
 `apps/site/astro.config.ts` 的 canonical public origin 设置为你的 HTTPS apex URL。Core 配置还需要
 你自己的 D1 `database_id` 与 KV namespace `id`。没有可复制的自托管模板,**保留上游值时 3 个 Worker
-无法正确部署**。八个 Durable Object binding、Analytics Engine dataset、`send_email` binding 与两个
+无法正确部署**。十一个 Durable Object binding、Analytics Engine dataset、`send_email` binding 与两个
 cron trigger 仅属于 Core,并且已经声明好。
 
-设置 secret、执行迁移、部署并初始化。丢失 `KEK` 会让所有签名密钥和已存储的 provider 凭证无法解密;丢失
-`PEPPER` 会让所有密码哈希失效。请先在 Cloudflare 之外备份两者。
+设置 secret、本地验证、连接 Workers Builds,并在 3 个 production build 成功后初始化。丢失 `KEK`
+会让所有签名密钥和已存储的 provider 凭证无法解密;丢失 `PEPPER` 会让所有密码哈希失效。请先在
+Cloudflare 之外备份两者。
 
 ```bash
 openssl rand -base64 32 | npx wrangler secret put KEK
 openssl rand -base64 32 | npx wrangler secret put PEPPER
 npx wrangler secret put BOOTSTRAP_TOKEN   # strongly recommended before first bootstrap
 
-npx wrangler d1 migrations apply DB --remote
 cd ../..
+pnpm check
+pnpm test
 pnpm run build
-pnpm exec wrangler deploy --config apps/server/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/console/wrangler.jsonc
-pnpm exec wrangler deploy --config apps/site/wrangler.jsonc
+pnpm smoke:three-workers
+```
 
+把 `xid`、`xid-console` 与 `xid-site` 配置成连接此 Git repository 的 3 个 Cloudflare Workers
+Builds project。Production branch 设为 `main`,禁用 non-production branch builds 与 Worker
+Preview URLs,并使用 [`docs/zh-Hans/deployment.md`](docs/zh-Hans/deployment.md) 中的 root、build
+和 deploy command。把经过 review 且签名的 commit 合并到 `main`;Workers Builds 会执行远程
+D1 migration 并部署 3 个 Worker。Build 全部成功后:
+
+```bash
 curl -X POST https://<your-domain>/admin/bootstrap \
   -H 'content-type: application/json' \
   -H 'X-Bootstrap-Token: <BOOTSTRAP_TOKEN>' \
@@ -186,14 +202,15 @@ apps/console/      Binding-free static management UI for /console and /console/*
 apps/server/       Identity Core Worker
   worker/          Hono routes, Durable Objects, queue consumers, cron handlers
   src/             React SPA for Hosted Auth and account pages
-packages/          22 workspace packages: 7 kernel libraries + 15 TypeScript SDKs
+packages/          23 workspace packages: 15 TypeScript SDKs + 3 public runtime kernels + 5 private implementation packages
 sdk/               13 native SDKs
 docs/              Design chapters, protocol matrices, SDK matrix, deployment guide
 tests/             Cross-workspace gates: protocol source map, native SDK contract, smoke suites
 ```
 
-内核库 `protocol`、`crypto`、`webauthn`、`saml`、`db`、`i18n`、`types` 是 Core Worker 内部使用的。密码学原语
-一律来自 Web Crypto,XML-DSig 委托给 `xmldsigjs`;介于两者之间的协议与业务逻辑都在本仓库中实现。
+public runtime kernel 是 `protocol`、`crypto` 与 `types`;private implementation package 是
+`webauthn`、`saml`、`db`、`i18n` 与 `web-ui`。密码学原语一律来自 Web Crypto,XML-DSig 委托给
+`xmldsigjs`;介于两者之间的协议与业务逻辑都在本仓库中实现。
 
 ## 协议支持
 
@@ -215,9 +232,12 @@ tests/             Cross-workspace gates: protocol source map, native SDK contra
 
 ## SDK
 
-`packages/` 下有 15 个 TypeScript 包:`core` 与 `backend`,外加面向 React、Next.js、Remix、Astro、Vue、
-Nuxt、Svelte、Solid、Angular、React Native、Expo、Electron 与 Tauri 的框架绑定,全部为 workspace 私有且
-**未发布到 npm**。
+`packages/` 下有 15 个 TypeScript SDK package:`core` 与 `backend`,外加面向 React、Next.js、Remix、
+Astro、Vue、Nuxt、Svelte、Solid、Angular、React Native、Expo、Electron 与 Tauri 的框架绑定。加上
+3 个 public runtime kernel(`crypto`、`protocol`、`types`),共有 18 个 package 配置为可发布,并通过
+干净的本地 tarball 安装测试。其余 5 个(`db`、`i18n`、`saml`、`web-ui`、`webauthn`)是 private
+implementation package。外部 npm registry 发布状态仍为 `UNKNOWN`;本地分发证据不等于 registry
+release 声明。
 
 `sdk/` 下有 13 个原生 SDK:Go、Rust、Python、Ruby、PHP、Java、.NET、Windows、iOS、macOS、Linux、Android
 与 Flutter。**它们都没有发布到 crates.io、PyPI、Maven Central、RubyGems、Packagist、NuGet、CocoaPods

@@ -8,16 +8,32 @@ import { registerPlatformStatsRoutes } from './stats'
 import { registerPlatformOrganizationsRoutes } from './organizations'
 import { registerPlatformUsersRoutes } from './users'
 import { registerPlatformAuditEventsRoutes } from './audit-events'
+import { registerPlatformAuditVerifyRoutes } from './audit-verify'
 import { registerPlatformBillingRoutes } from './billing'
 import { registerPlatformFeatureFlagsRoutes } from './feature-flags'
 import { registerPlatformSettingsRoutes } from './settings'
+import { registerPlatformDeadLetterRoutes } from './dead-letters'
+import { registerPlatformPlanRoutes } from './plans'
+import { registerPlatformAnnouncementRoutes } from './announcements'
+import { registerPlatformStatusIncidentRoutes } from './status-incidents'
+import { registerPlatformComplianceRoutes } from './compliance'
+import { registerStripeBillingRoutes } from './stripe-billing'
+import { registerPlatformManagerAssignmentRoutes } from './manager-assignments'
 
 export function registerPlatformConsoleRoutes(app: Hono<XidHonoEnv>): void {
   registerPlatformStatsRoutes(app)
   registerPlatformOrganizationsRoutes(app)
   registerPlatformUsersRoutes(app)
   registerPlatformAuditEventsRoutes(app)
+  registerPlatformAuditVerifyRoutes(app)
   registerPlatformBillingRoutes(app)
   registerPlatformFeatureFlagsRoutes(app)
   registerPlatformSettingsRoutes(app)
+  registerPlatformDeadLetterRoutes(app)
+  registerPlatformPlanRoutes(app)
+  registerPlatformAnnouncementRoutes(app)
+  registerPlatformStatusIncidentRoutes(app)
+  registerPlatformComplianceRoutes(app)
+  registerStripeBillingRoutes(app)
+  registerPlatformManagerAssignmentRoutes(app)
 }

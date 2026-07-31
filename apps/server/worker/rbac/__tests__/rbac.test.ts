@@ -6,7 +6,7 @@ import type { TenantContext } from '@xid-kit/types'
 import { applyConditions, applyRbacOverride, evalCondition, mergeExtraClaims } from '../action'
 import type { PreAccessTokenContext } from '../action'
 import { buildRbacClaims } from '../claims'
-import { resolveUserPermissions } from '../permissions'
+import { createRbacStore, resolveUserPermissions } from '../permissions'
 import type { RbacStore, ResolvedPermission } from '../permissions'
 
 function asUnknown<T>(v: unknown): T {
@@ -137,6 +137,38 @@ describe('evalCondition (ABAC 7.3)', () => {
     expect(evalCondition({ foo: 'bar' }, ctx())).toBeNull()
     expect(evalCondition({ or: [] }, ctx())).toBeNull()
   })
+
+  it('legacy unsupported variable paths fail closed instead of granting not_eq', () => {
+    expect(evalCondition({ op: 'not_eq', var: 'unsupported.path', value: 'x' }, ctx())).toBeNull()
+  })
+
+  it('empty AND and extra keys fail closed', () => {
+    expect(evalCondition({ and: [] }, ctx())).toBeNull()
+    expect(
+      evalCondition(
+        { op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise', allow: true },
+        ctx(),
+      ),
+    ).toBeNull()
+    expect(
+      evalCondition(
+        {
+          and: [{ op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise' }],
+          allow: true,
+        },
+        ctx(),
+      ),
+    ).toBeNull()
+  })
+
+  it('in and not_in require array operands', () => {
+    expect(
+      evalCondition({ op: 'in', var: 'user.public_metadata.plan', value: 'enterprise' }, ctx()),
+    ).toBeNull()
+    expect(
+      evalCondition({ op: 'not_in', var: 'user.public_metadata.plan', value: 'free' }, ctx()),
+    ).toBeNull()
+  })
 })
 
 describe('applyConditions (7.2)', () => {
@@ -152,10 +184,11 @@ describe('applyConditions (7.2)', () => {
         condition: { op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise' },
       },
       { key: 'admin:all', condition: { op: 'bogus', var: 'x', value: 1 } },
+      { key: 'legacy:broken', condition: null, invalidCondition: true },
     ]
     const out = applyConditions(perms, ctx())
     expect(out.permissions.sort()).toEqual(['billing:manage', 'document:read'])
-    expect(out.invalid).toEqual(['admin:all'])
+    expect(out.invalid).toEqual(['admin:all', 'legacy:broken'])
   })
 })
 
@@ -178,6 +211,12 @@ describe('mergeExtraClaims (7.1 step 3)', () => {
   it('rejects reserved OIDC claim key', () => {
     const r = mergeExtraClaims({}, { amr: ['x'] })
     expect(r.ok).toBe(false)
+  })
+
+  it('rejects an extra claim that could bypass the Organization role contract', () => {
+    const r = mergeExtraClaims({}, { org_role: 'viewer' })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.message).toContain('forbidden claim key: org_role')
   })
 })
 
@@ -226,6 +265,61 @@ describe('resolveUserPermissions (7.2 query path)', () => {
     )
     const out = await resolveUserPermissions(store, { userId: 'u', projectId: 'p', grantId: 'g_1' })
     expect(out.map((p) => p.key)).toEqual(['project:view'])
+  })
+})
+
+describe('createRbacStore malformed condition boundary', () => {
+  it('reads condition_expression as raw text and marks malformed JSON without throwing', async () => {
+    const boundCalls: unknown[][] = []
+    const sqlCalls: string[] = []
+    const permissionRow = {
+      id: 'perm_1',
+      tenant_id: 't_1',
+      project_id: 'proj_1',
+      key: 'document:read',
+      description: null,
+      status: 'active',
+      deleted_at: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }
+    const d1 = asUnknown<D1Database>({
+      prepare: (sql: string) => {
+        sqlCalls.push(sql)
+        const rawLinkQuery = sql.includes('FROM role_permissions')
+        const rows = rawLinkQuery
+          ? [
+              {
+                id: 'rp_1',
+                permission_id: 'perm_1',
+                condition_expression: '{"op":',
+              },
+            ]
+          : sql.includes('"permissions"')
+            ? [permissionRow]
+            : []
+        const statement = {
+          bind: (...values: unknown[]) => {
+            boundCalls.push(values)
+            return statement
+          },
+          all: async () => ({ results: rows, success: true, meta: {} }),
+          raw: async () => rows.map((row) => rowToRaw(sql, row)),
+          first: async () => rows[0] ?? null,
+          run: async () => ({ results: [], success: true, meta: {} }),
+        }
+        return statement
+      },
+    })
+
+    const resolved = await createRbacStore(d1, TENANT).findRolePermissions(['role_1'], 'proj_1')
+
+    expect(resolved).toEqual([{ key: 'document:read', condition: null, invalidCondition: true }])
+    expect(boundCalls.some((params) => params[0] === 't_1' && params.includes('role_1'))).toBe(true)
+    const permissionQuery = sqlCalls.find((sql) => sql.includes('"permissions"'))
+    expect(permissionQuery).toContain('"permissions"."project_id" = ?')
+    expect(permissionQuery).toContain('"permissions"."status" = ?')
+    expect(permissionQuery).toContain('"permissions"."deleted_at" is null')
   })
 })
 

@@ -1,4 +1,4 @@
-// Authorization code -> token exchange and refresh token rotation.
+// Authorization code -> token exchange.
 // Uses a plain fetch against /token (form-encoded, no cookies).
 // Tauri runs outside the HttpOnly cookie context, so tokens are held in OS keychain.
 
@@ -6,7 +6,6 @@ import { trimTrailingSlashes } from '@xid-kit/core'
 
 export type TokenSet = {
   accessToken: string
-  refreshToken: string | null
   // epoch seconds
   expiresAt: number
   idToken: string | null
@@ -16,7 +15,6 @@ type TokenEndpointSuccessBody = {
   access_token: string
   token_type: string
   expires_in?: number
-  refresh_token?: string
   id_token?: string
 }
 
@@ -59,37 +57,6 @@ export async function exchangeCodeForTokens(input: {
   return parseTokenResponse(response, now)
 }
 
-// Refresh an access token using a refresh token.
-// Follows refresh token rotation: caller must persist the new refresh_token immediately.
-export async function refreshAccessToken(input: {
-  issuer: string
-  clientId: string
-  refreshToken: string
-  fetcher?: typeof fetch
-  now?: () => number
-}): Promise<TokenSet> {
-  const now = input.now ?? (() => Math.floor(Date.now() / 1000))
-  const fetcher = input.fetcher ?? globalThis.fetch.bind(globalThis)
-
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    client_id: input.clientId,
-    refresh_token: input.refreshToken,
-  })
-
-  const tokenEndpoint = buildTokenEndpoint(input.issuer)
-  const response = await fetcher(tokenEndpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    },
-    body: body.toString(),
-  })
-
-  return parseTokenResponse(response, now)
-}
-
 function buildTokenEndpoint(issuer: string): string {
   // The XID server registers the token endpoint at /token (not /oauth/token).
   return `${trimTrailingSlashes(issuer)}/token`
@@ -113,13 +80,12 @@ async function parseTokenResponse(response: Response, now: () => number): Promis
   const expiresIn = typeof body.expires_in === 'number' ? body.expires_in : 3600
   return {
     accessToken: body.access_token,
-    refreshToken: body.refresh_token ?? null,
     expiresAt: now() + expiresIn,
     idToken: body.id_token ?? null,
   }
 }
 
-// Typed error for token exchange / refresh failures.
+// Typed error for authorization and token-exchange failures.
 export class TauriTokenError extends Error {
   override readonly name = 'TauriTokenError'
   readonly code: string

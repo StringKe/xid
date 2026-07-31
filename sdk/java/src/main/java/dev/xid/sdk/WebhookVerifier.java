@@ -149,15 +149,30 @@ final class WebhookVerifier {
 
     /**
      * 解码 webhook secret。
-     * 接受两种格式:
+     * 接受三种格式:
      *   - "whsec_<base64>" -- svix 分发格式
      *   - "<base64>"       -- 纯 base64
+     *   - 旧版 64 位小写 hex -- 按 UTF-8 key material 使用
      */
     private static byte[] decodeSecret(String secret) {
         if (secret == null || secret.isBlank()) {
             throw new IllegalArgumentException("webhookSecret must not be null or blank");
         }
+        if (!secret.startsWith("whsec_") && isLegacyHexSecret(secret)) {
+            return secret.getBytes(StandardCharsets.UTF_8);
+        }
         String base64Part = secret.startsWith("whsec_") ? secret.substring(6) : secret;
         return Base64.getDecoder().decode(base64Part);
+    }
+
+    private static boolean isLegacyHexSecret(String secret) {
+        if (secret.length() != 64) return false;
+        for (int i = 0; i < secret.length(); i++) {
+            char value = secret.charAt(i);
+            if (!((value >= '0' && value <= '9') || (value >= 'a' && value <= 'f'))) {
+                return false;
+            }
+        }
+        return true;
     }
 }

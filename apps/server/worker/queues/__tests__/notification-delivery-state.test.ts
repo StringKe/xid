@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AuditQueueMessage } from '@xid-kit/types'
 import {
+  prepareNotificationOutboxInsert,
+  redeliverPendingNotificationOutbox,
   executeNotificationDelivery,
   NotificationProviderError,
   type NotificationDeliveryInput,
@@ -172,6 +174,75 @@ describe('notification delivery state', () => {
     const serialized = JSON.stringify(inserts[0])
     expect(serialized).not.toContain('user@example.com')
     expect(serialized).not.toContain('token-secret')
+  })
+
+  it('producer outbox 解密重派使用稳定 deliveryId，并在 Queue 接收后标记 queued', async () => {
+    const input = makeInput('invitation-message-id')
+    const sent: unknown[] = []
+    let insertArgs: unknown[] = []
+    let markedQueued = 0
+    const db = {
+      prepare: (query: string) => {
+        let args: unknown[] = []
+        const statement = {
+          bind: (...values: unknown[]) => {
+            args = values
+            return statement
+          },
+          run: async () => {
+            if (query.startsWith('INSERT INTO notification_delivery_outbox')) {
+              insertArgs = args
+            }
+            if (query.includes('SET queued_at = COALESCE')) markedQueued += 1
+            return { meta: { changes: 1 } }
+          },
+          all: async () => ({
+            results: [
+              {
+                tenantId: insertArgs[1],
+                deliveryKey: insertArgs[2],
+                sourceMessageId: insertArgs[3],
+                type: insertArgs[6],
+                provider: insertArgs[7],
+                recipientIv: insertArgs[9],
+                recipientCiphertext: insertArgs[10],
+                recipientTag: insertArgs[11],
+                payloadIv: insertArgs[12],
+                payloadCiphertext: insertArgs[13],
+                payloadTag: insertArgs[14],
+              },
+            ],
+          }),
+        }
+        return statement
+      },
+    }
+    const env = {
+      DB: db,
+      KEK: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
+      EMAIL_QUEUE: {
+        send: async (message: unknown) => {
+          sent.push(message)
+        },
+      },
+    } as unknown as Env
+
+    const insert = await prepareNotificationOutboxInsert(env, input, {
+      ignoreExisting: false,
+      now: 100,
+    })
+    await insert.run()
+    await redeliverPendingNotificationOutbox(env, 101)
+
+    expect(sent).toEqual([
+      {
+        deliveryId: 'invitation-message-id',
+        type: 'magic_link',
+        recipient: 'user@example.com',
+        payload: { tenantId: 'tenant-1', token: 'token-secret' },
+      },
+    ])
+    expect(markedQueued).toBe(1)
   })
 
   it('provider 明确拒绝写入可查询失败记录且不重投递', async () => {

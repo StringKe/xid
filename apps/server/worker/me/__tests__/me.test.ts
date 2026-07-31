@@ -100,6 +100,34 @@ function orgManagerRow(overrides: Record<string, unknown> = {}): Record<string, 
   }
 }
 
+function projectManagerRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'mgr_project_1',
+    tenant_id: 't_1',
+    user_id: 'u_1',
+    manager_role: 'project_manager',
+    scope_type: 'project',
+    scope_id: 'proj_1',
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  }
+}
+
+function projectGrantManagerRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'mgr_grant_1',
+    tenant_id: 't_1',
+    user_id: 'u_1',
+    manager_role: 'project_grant_manager',
+    scope_type: 'grant',
+    scope_id: 'grant_1',
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  }
+}
+
 function membershipRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'mem_1',
@@ -170,9 +198,12 @@ describe('GET /v1/me', () => {
     })
     expect(body['activeOrg']).toBeNull()
     expect(body['organizations']).toEqual([])
+    expect(body['managerAssignments']).toEqual([])
     expect((body['session'] as Record<string, unknown>)['id']).toBe('s_current')
     expect((body['session'] as Record<string, unknown>)['status']).toBe('active')
     expect((body['session'] as Record<string, unknown>)['isImpersonation']).toBe(false)
+    expect(body['activeSessionId']).toBe('s_current')
+    expect(body['sessions']).toEqual([body['session']])
   })
 
   it('exposes provisioned_by (snake_case) so SPA/SDK can detect guest users', async () => {
@@ -237,6 +268,144 @@ describe('GET /v1/me', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect((body['user'] as Record<string, unknown>)['instanceManager']).toBe(true)
+    expect(body['managerAssignments']).toEqual([])
+  })
+
+  it('exposes only a project_manager assignment whose Project is active', async () => {
+    const db = makeFakeD1({
+      users: [userRow()],
+      user_emails: [emailRow()],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [],
+      manager_assignments: [projectManagerRow()],
+      organizations: [organizationRow()],
+      projects: [
+        {
+          id: 'proj_1',
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          name: 'Project',
+          description: null,
+          status: 'active',
+          deleted_at: null,
+          created_at: now,
+          updated_at: now,
+        },
+      ],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession({ userId: 'u_1' }) })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+    const body = (await res.json()) as Record<string, unknown>
+
+    expect(body['managerAssignments']).toEqual([
+      {
+        id: 'mgr_project_1',
+        managerRole: 'project_manager',
+        scopeType: 'project',
+        scopeId: 'proj_1',
+        scopeStatus: 'active',
+      },
+    ])
+  })
+
+  it('keeps a deleted Project discoverable for its project_manager but hides its Grant manager', async () => {
+    const db = makeFakeD1({
+      users: [userRow()],
+      user_emails: [emailRow()],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [],
+      manager_assignments: [projectManagerRow(), projectGrantManagerRow()],
+      organizations: [organizationRow()],
+      project_grants: [
+        {
+          id: 'grant_1',
+          tenant_id: 't_1',
+          granted_project_id: 'proj_1',
+          granted_by_org_id: 'org_1',
+          granted_to_org_id: 'org_2',
+          status: 'active',
+          revoked_at: null,
+        },
+      ],
+      projects: [
+        {
+          id: 'proj_1',
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          name: 'Project',
+          description: null,
+          status: 'deleted',
+          deleted_at: now,
+        },
+      ],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession({ userId: 'u_1' }) })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+    const body = (await res.json()) as Record<string, unknown>
+
+    expect(body['managerAssignments']).toEqual([
+      {
+        id: 'mgr_project_1',
+        managerRole: 'project_manager',
+        scopeType: 'project',
+        scopeId: 'proj_1',
+        scopeStatus: 'deleted',
+      },
+    ])
+  })
+
+  it('exposes project_grant_manager only for an active Grant linked to an active Project', async () => {
+    const db = makeFakeD1({
+      users: [userRow()],
+      user_emails: [emailRow()],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [],
+      manager_assignments: [projectGrantManagerRow()],
+      project_grants: [
+        {
+          id: 'grant_1',
+          tenant_id: 't_1',
+          granted_project_id: 'proj_1',
+          granted_by_org_id: 'org_1',
+          granted_to_org_id: 'org_2',
+          status: 'active',
+          revoked_at: null,
+        },
+      ],
+      projects: [
+        {
+          id: 'proj_1',
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          name: 'Project',
+          description: null,
+          status: 'active',
+          deleted_at: null,
+        },
+      ],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession({ userId: 'u_1' }) })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+    const body = (await res.json()) as Record<string, unknown>
+
+    expect(body['managerAssignments']).toEqual([
+      {
+        id: 'mgr_grant_1',
+        managerRole: 'project_grant_manager',
+        scopeType: 'grant',
+        scopeId: 'grant_1',
+        scopeStatus: 'active',
+      },
+    ])
   })
 
   it('batches project grants into organization permissions and reuses the matching active organization', async () => {
@@ -269,6 +438,8 @@ describe('GET /v1/me', () => {
           org_id: 'org_1',
           name: 'Console',
           description: null,
+          status: 'active',
+          deleted_at: null,
           created_at: now,
           updated_at: now,
         },
@@ -472,7 +643,10 @@ describe('GET /v1/me', () => {
     expect(body['user']).toBeNull()
     expect(body['activeOrg']).toBeNull()
     expect(body['organizations']).toEqual([])
+    expect(body['managerAssignments']).toEqual([])
     expect(body['session']).toBeNull()
+    expect(body['activeSessionId']).toBeNull()
+    expect(body['sessions']).toEqual([])
   })
 
   it('returns anonymous shell for middleware-injected pending MFA session', async () => {
@@ -491,6 +665,8 @@ describe('GET /v1/me', () => {
     expect(body['activeOrg']).toBeNull()
     expect(body['organizations']).toEqual([])
     expect(body['session']).toBeNull()
+    expect(body['activeSessionId']).toBeNull()
+    expect(body['sessions']).toEqual([])
   })
 
   it('returns 401 when session user has been soft deleted', async () => {

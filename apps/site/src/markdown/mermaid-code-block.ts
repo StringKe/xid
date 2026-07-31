@@ -10,9 +10,7 @@ type HastElement = {
   children?: Array<HastElement | HastText>
 }
 
-type NimbusHastPlugin = ReturnType<
-  typeof import('@cloudflare/nimbus-docs/markdown').tableScroll
->
+type NimbusHastPlugin = ReturnType<typeof import('@cloudflare/nimbus-docs/markdown').tableScroll>
 
 function textContent(node: HastElement | HastText): string {
   if (node.type === 'text') return node.value

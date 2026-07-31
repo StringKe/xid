@@ -2,6 +2,7 @@
 // XID Windows SDK
 //
 // 匿名访客 (guest) 登录的 HTTP 交互:
+//   GET {issuer}/auth/config?intent=sign-up -> 取一次性 capability
 //   POST {issuer}/auth/guest -> 捕获 __Host-xid.rt.* Set-Cookie -> GET {issuer}/v1/me
 //
 // cookie 处理:底层 handler 关闭 UseCookies,Set-Cookie 不经 CookieContainer 吞掉,
@@ -28,6 +29,18 @@ internal sealed class GuestSignInResponse
 {
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; init; }
+}
+
+internal sealed class GuestCapabilityResponse
+{
+    [JsonPropertyName("guest")]
+    public GuestCapability? Guest { get; init; }
+}
+
+internal sealed class GuestCapability
+{
+    [JsonPropertyName("capabilityToken")]
+    public string? CapabilityToken { get; init; }
 }
 
 internal sealed class MeResponse
@@ -77,19 +90,24 @@ internal sealed class GuestAuthClient
     }
 
     /// <summary>
-    /// POST /auth/guest 建立(或续签)guest 会话,再用会话 cookie 调 /v1/me 取用户信息。
+    /// 获取一次性 capability 后 POST /auth/guest 建立(或续签)guest 会话,
+    /// 再用会话 cookie 调 /v1/me 取用户信息。capability 不缓存或复用。
     /// </summary>
     internal async Task<GuestAuthResult> SignInAnonymouslyAsync(
         string? turnstileToken,
         CancellationToken ct = default)
     {
+        string capabilityToken = await FetchGuestCapabilityAsync(ct).ConfigureAwait(false);
         Uri guestUri = new($"{_issuer.ToString().TrimEnd('/')}/auth/guest");
         Uri meUri = new($"{_issuer.ToString().TrimEnd('/')}/v1/me");
 
-        // body 契约:{ "turnstileToken": "..." };未启用 Turnstile 时服务端接受 {}
-        string json = turnstileToken is null
-            ? "{}"
-            : JsonSerializer.Serialize(new Dictionary<string, string> { ["turnstileToken"] = turnstileToken });
+        var payload = new Dictionary<string, string>
+        {
+            ["capabilityToken"] = capabilityToken,
+        };
+        if (turnstileToken is not null)
+            payload["turnstileToken"] = turnstileToken;
+        string json = JsonSerializer.Serialize(payload);
 
         HttpResponseMessage guestResponse;
         try
@@ -119,6 +137,36 @@ internal sealed class GuestAuthClient
 
             MeUser user = await FetchMeAsync(meUri, cookie, ct).ConfigureAwait(false);
             return new GuestAuthResult(parsed.SessionId, cookie, user);
+        }
+    }
+
+    private async Task<string> FetchGuestCapabilityAsync(CancellationToken ct)
+    {
+        Uri configUri = new($"{_issuer.ToString().TrimEnd('/')}/auth/config?intent=sign-up");
+        HttpResponseMessage response;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, configUri);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.CacheControl = new CacheControlHeaderValue { NoStore = true };
+            response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw new GuestSignInException("无法访问 /auth/config 端点。", inner: ex);
+        }
+
+        using (response)
+        {
+            string body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+                throw GuestSignInException.FromResponse(response.StatusCode, body);
+
+            GuestCapabilityResponse? parsed = TryDeserialize<GuestCapabilityResponse>(body);
+            string? token = parsed?.Guest?.CapabilityToken;
+            if (string.IsNullOrWhiteSpace(token))
+                throw new GuestSignInException("/auth/config 未提供 guest capability。");
+            return token;
         }
     }
 

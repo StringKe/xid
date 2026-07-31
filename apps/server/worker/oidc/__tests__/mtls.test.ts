@@ -16,8 +16,9 @@ const SELF_SIGNED_HEADER = JSON.stringify({
   certVerified: 'SUCCESS',
   certSubjectDN: 'CN=client.example.com',
   certIssuerDN: '',
-  certFingerprintSHA256: 'AB:CD:EF:12',
+  certFingerprintSHA256: new Array(32).fill('AB').join(':'),
 })
+const SELF_SIGNED_THUMBPRINT = 'ab'.repeat(32)
 
 function tlsClientRow(method: string, over: Record<string, unknown> = {}) {
   return {
@@ -123,7 +124,7 @@ describe('mTLS client authentication', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('accepts self_signed_tls_client_auth without CA issuer', async () => {
+  it('rejects self_signed_tls_client_auth when the pin allowlist is empty', async () => {
     const { ctx } = await buildTestTenant()
     const result = await authenticateClient({
       c: {
@@ -153,7 +154,79 @@ describe('mTLS client authentication', () => {
       tokenEndpoint: `${ctx.issuer}/token`,
       now: Math.floor(Date.now() / 1000),
     })
+    expect(result.ok).toBe(false)
+  })
+
+  it('accepts self_signed_tls_client_auth only for the pinned certificate', async () => {
+    const { ctx } = await buildTestTenant()
+    const result = await authenticateClient({
+      c: {
+        env: makeEnv({ DB: makeFakeD1({ applications: [] }) }),
+        req: {
+          header: (name: string) =>
+            name.toLowerCase() === 'x-mock-tls-client-auth' ? SELF_SIGNED_HEADER : undefined,
+        },
+        get: (key: string) => (key === 'tenant' ? ctx : undefined),
+      } as never,
+      client: {
+        clientId: 'mtls_client',
+        clientType: 'confidential',
+        tokenEndpointAuthMethod: 'self_signed_tls_client_auth',
+        clientSecretHash: null,
+        jwks: null,
+        customClaimsConfig: {
+          tlsClientAuthSubjectDn: 'CN=client.example.com',
+          tlsClientAuthCertThumbprints: [SELF_SIGNED_THUMBPRINT],
+        },
+      } as never,
+      creds: {
+        basic: null,
+        postClientId: 'mtls_client',
+        postSecret: null,
+        assertionType: null,
+        assertion: null,
+      },
+      ctx,
+      tokenEndpoint: `${ctx.issuer}/token`,
+      now: Math.floor(Date.now() / 1000),
+    })
     expect(result.ok).toBe(true)
+  })
+
+  it('rejects an arbitrary self-signed certificate with the same subject DN', async () => {
+    const { ctx } = await buildTestTenant()
+    const result = await authenticateClient({
+      c: {
+        env: makeEnv({ DB: makeFakeD1({ applications: [] }) }),
+        req: {
+          header: (name: string) =>
+            name.toLowerCase() === 'x-mock-tls-client-auth' ? SELF_SIGNED_HEADER : undefined,
+        },
+        get: (key: string) => (key === 'tenant' ? ctx : undefined),
+      } as never,
+      client: {
+        clientId: 'mtls_client',
+        clientType: 'confidential',
+        tokenEndpointAuthMethod: 'self_signed_tls_client_auth',
+        clientSecretHash: null,
+        jwks: null,
+        customClaimsConfig: {
+          tlsClientAuthSubjectDn: 'CN=client.example.com',
+          tlsClientAuthCertThumbprints: ['cd'.repeat(32)],
+        },
+      } as never,
+      creds: {
+        basic: null,
+        postClientId: 'mtls_client',
+        postSecret: null,
+        assertionType: null,
+        assertion: null,
+      },
+      ctx,
+      tokenEndpoint: `${ctx.issuer}/token`,
+      now: Math.floor(Date.now() / 1000),
+    })
+    expect(result.ok).toBe(false)
   })
 
   it('ignores x-mock-tls-client-auth in production', async () => {

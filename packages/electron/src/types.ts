@@ -30,7 +30,7 @@ export const IPC_CHANNELS = {
   SIGN_IN_CALLBACK: 'xid:sign-in:callback',
   // Renderer requests sign-out
   SIGN_OUT: 'xid:sign-out',
-  // Renderer requests access token (with transparent refresh if near expiry)
+  // Renderer requests the current access token.
   GET_ACCESS_TOKEN: 'xid:get-access-token',
   // Renderer requests full session object
   GET_SESSION: 'xid:get-session',
@@ -60,8 +60,8 @@ export type XidBridge = {
   readonly signIn: (options?: SignInOptions) => Promise<string>
   readonly signOut: () => Promise<void>
   /**
-   * Return the current access token, transparently refreshing if near expiry.
-   * Returns null when not signed in.
+   * Return the current unexpired access token. Returns null when signed out or reauthorization is
+   * required.
    * Aligns with the Shared native contract `getAccessToken()`.
    */
   readonly getAccessToken: () => Promise<string | null>
@@ -136,7 +136,8 @@ export type XidElectronMainOptions = {
    */
   readonly customScheme?: string
   /**
-   * OAuth scopes to request. Defaults to 'openid profile email offline_access'.
+   * OAuth scopes to request. Defaults to 'openid profile email'.
+   * offline_access is rejected until this public client implements DPoP.
    */
   readonly scopes?: readonly string[]
   /**

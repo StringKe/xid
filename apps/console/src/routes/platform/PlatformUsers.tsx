@@ -9,10 +9,17 @@ import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Alert, Badge, Button, EmptyState, Input } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
+import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
+import { useAuth } from '@xid-kit/web-ui/session'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import {
+  submitImpersonationHandoff,
+  type ImpersonationStartResponse,
+} from '../../lib/impersonation-handoff'
 import { useGlobalUsersQuery } from './queries'
 import type { GlobalUser } from './types'
 
@@ -94,9 +101,45 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: tokens['--xid-muted-foreground'],
   },
+  organizationList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  dialogControl: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    marginTop: '1rem',
+    color: tokens['--xid-fg'],
+  },
+  dialogLabel: {
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+  },
+  dialogSelect: {
+    width: '100%',
+    minHeight: '2.625rem',
+    paddingInline: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
+    borderRadius: tokens['--xid-radius-sm'],
+    backgroundColor: tokens['--xid-bg'],
+    color: tokens['--xid-fg'],
+    fontFamily: tokens['--xid-font'],
+    fontSize: '0.9375rem',
+  },
+  dialogSelectError: {
+    borderColor: tokens['--xid-danger'],
+  },
+  dialogError: {
+    color: tokens['--xid-danger'],
+    fontSize: '0.75rem',
+  },
 })
 
-const columns: ColumnDef<GlobalUser>[] = [
+const baseColumns: ColumnDef<GlobalUser>[] = [
   {
     id: 'email',
     header: () => <Trans>Email</Trans>,
@@ -112,7 +155,16 @@ const columns: ColumnDef<GlobalUser>[] = [
   {
     id: 'organization',
     header: () => <Trans>Organization</Trans>,
-    cell: ({ row }) => organizationDisplayName({ name: row.original.organizationName }),
+    cell: ({ row }) =>
+      row.original.organizations.length > 0 ? (
+        <div {...stylex.props(styles.organizationList)}>
+          {row.original.organizations.map((organization) => (
+            <span key={organization.id}>{organizationDisplayName(organization)}</span>
+          ))}
+        </div>
+      ) : (
+        '-'
+      ),
     meta: { width: '160px' },
   },
   {
@@ -131,13 +183,65 @@ const columns: ColumnDef<GlobalUser>[] = [
 
 export default function PlatformUsers(): ReactNode {
   const { t } = useLingui()
+  const { api } = useAuth()
   const [search, setSearch] = useState('')
   const [submitted, setSubmitted] = useState('')
-  const { data, isLoading, isError } = useGlobalUsersQuery(submitted)
+  const [cursor, setCursor] = useState<string | undefined>()
+  const [pendingUser, setPendingUser] = useState<GlobalUser | null>(null)
+  const [targetOrganizationId, setTargetOrganizationId] = useState('')
+  const [organizationSelectionError, setOrganizationSelectionError] = useState(false)
+  const [startingUserId, setStartingUserId] = useState<string | null>(null)
+  const [impersonationError, setImpersonationError] = useState(false)
+  const { data, isLoading, isError } = useGlobalUsersQuery(submitted, cursor)
+  const columns: ColumnDef<GlobalUser>[] = [
+    ...baseColumns,
+    {
+      id: 'actions',
+      header: () => <Trans>Actions</Trans>,
+      cell: ({ row }) =>
+        row.original.status === 'active' && row.original.organizations.length > 0 ? (
+          <Button
+            variant="secondary"
+            isLoading={startingUserId === row.original.id}
+            onClick={() => {
+              setImpersonationError(false)
+              setTargetOrganizationId('')
+              setOrganizationSelectionError(false)
+              setPendingUser(row.original)
+            }}
+          >
+            <Trans>Impersonate</Trans>
+          </Button>
+        ) : null,
+      meta: { width: '140px' },
+    },
+  ]
 
   function handleSearch(e: React.FormEvent): void {
     e.preventDefault()
+    setCursor(undefined)
     setSubmitted(search)
+  }
+
+  async function startImpersonation(): Promise<void> {
+    if (!pendingUser || startingUserId) return
+    const targetOrganization = pendingUser.organizations.find(
+      (organization) => organization.id === targetOrganizationId,
+    )
+    if (!targetOrganization) {
+      setOrganizationSelectionError(true)
+      return
+    }
+    setStartingUserId(pendingUser.id)
+    setImpersonationError(false)
+    const result = await api.post<ImpersonationStartResponse>('/v1/platform/impersonation/start', {
+      userId: pendingUser.id,
+      organizationId: targetOrganization.id,
+    })
+    if (!result.ok || !submitImpersonationHandoff(result.value.handoff)) {
+      setStartingUserId(null)
+      setImpersonationError(true)
+    }
   }
 
   return (
@@ -196,8 +300,77 @@ export default function PlatformUsers(): ReactNode {
             isLoading={isLoading}
             emptyMessage={<Trans>No users found matching your query.</Trans>}
           />
+          {data ? (
+            <Pagination
+              nextCursor={data.nextCursor}
+              loadMoreLabel={<Trans>Load more</Trans>}
+              onLoadMore={setCursor}
+            />
+          ) : null}
         </section>
       )}
+      {pendingUser ? (
+        <ConfirmDialog
+          title={<Trans>Start impersonation session?</Trans>}
+          description={
+            <>
+              <Trans>
+                Open a 15-minute read-only session as {pendingUser.email}. The target organization
+                is fixed, and management changes are blocked.
+              </Trans>
+              <span {...stylex.props(styles.dialogControl)}>
+                <label htmlFor="impersonation-organization" {...stylex.props(styles.dialogLabel)}>
+                  <Trans>Organization</Trans>
+                </label>
+                <select
+                  id="impersonation-organization"
+                  aria-invalid={organizationSelectionError}
+                  value={targetOrganizationId}
+                  onChange={(event) => {
+                    setTargetOrganizationId(event.currentTarget.value)
+                    setOrganizationSelectionError(false)
+                  }}
+                  {...stylex.props(
+                    styles.dialogSelect,
+                    organizationSelectionError && styles.dialogSelectError,
+                  )}
+                >
+                  <option disabled value="">
+                    <Trans>Select organization</Trans>
+                  </option>
+                  {pendingUser.organizations.map((organization) => (
+                    <option key={organization.id} value={organization.id}>
+                      {organizationDisplayName(organization)}
+                    </option>
+                  ))}
+                </select>
+                {organizationSelectionError ? (
+                  <span role="alert" {...stylex.props(styles.dialogError)}>
+                    <Trans>Select organization</Trans>
+                  </span>
+                ) : null}
+              </span>
+              {impersonationError ? (
+                <>
+                  {' '}
+                  <Trans>The impersonation session could not be started. Try again.</Trans>
+                </>
+              ) : null}
+            </>
+          }
+          confirmLabel={<Trans>Open read-only session</Trans>}
+          confirmVariant="primary"
+          isLoading={startingUserId === pendingUser.id}
+          onConfirm={() => void startImpersonation()}
+          onCancel={() => {
+            if (startingUserId) return
+            setPendingUser(null)
+            setTargetOrganizationId('')
+            setOrganizationSelectionError(false)
+            setImpersonationError(false)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

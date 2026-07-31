@@ -19,14 +19,19 @@ module Xid
   # 使用 OpenSSL::HMAC（Ruby stdlib），无需额外依赖。
   class WebhookVerifier
     DEFAULT_TOLERANCE_SECONDS = 300 # 5 分钟
+    LEGACY_HEX_SECRET = /\A[0-9a-f]{64}\z/
 
     # @param secret    [String]  Webhook 签名密钥（Base64 编码，Dashboard 中获取）
     #   例如 "whsec_AbCdEf..."（whsec_ 前缀会被自动剥除）
     # @param tolerance [Integer] 时间窗容忍秒数，默认 300
     # @param message_id_store [Proc, nil] svix-id 去重 hook，返回 true 表示首次处理
     def initialize(secret:, tolerance: DEFAULT_TOLERANCE_SECONDS, message_id_store: nil)
-      raw = secret.to_s.delete_prefix("whsec_")
-      @secret    = Base64.strict_decode64(raw)
+      raw = secret.to_s
+      @secret = if !raw.start_with?("whsec_") && LEGACY_HEX_SECRET.match?(raw)
+                  raw.b
+                else
+                  Base64.strict_decode64(raw.delete_prefix("whsec_"))
+                end
       @tolerance = tolerance
       @message_id_store = message_id_store
     rescue ArgumentError => e

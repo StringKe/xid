@@ -2,7 +2,7 @@
 // Auth 对象对标 @clerk/nextjs auth() 返回值,提供 userId/sessionId/claims 只读视图。
 // 见 docs/design/06-developer-experience.md SDK 分层。
 
-import type { AccessTokenClaims } from '@xid-kit/types'
+import type { AccessTokenClaims, OrganizationMembershipRole } from '@xid-kit/types'
 
 // xidMiddleware 注入到 Request headers,供 server context 读取。
 export const XID_AUTH_HEADER = 'x-xid-auth'
@@ -12,7 +12,7 @@ export type AuthObject = {
   userId: string
   sessionId: string | undefined
   orgId: string | undefined
-  orgRole: string | undefined
+  orgRole: OrganizationMembershipRole | undefined
   orgPermissions: readonly string[] | undefined
   claims: AccessTokenClaims
 }

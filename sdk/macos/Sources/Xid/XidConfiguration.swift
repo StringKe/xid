@@ -17,7 +17,8 @@ public struct XidConfiguration: Sendable {
     /// - Custom scheme example:  com.example.app://auth/callback
     public let redirectUri: URL
 
-    /// Requested OAuth scopes. Defaults include openid, profile, email, offline_access.
+    /// Requested OAuth scopes. Defaults include openid, profile, and email.
+    /// The SDK does not support offline_access until it implements DPoP.
     public let scopes: [String]
 
     /// Token persistence adapter. Defaults to KeychainTokenStorage.
@@ -34,7 +35,7 @@ public struct XidConfiguration: Sendable {
         issuer: URL,
         clientId: String,
         redirectUri: URL,
-        scopes: [String] = ["openid", "profile", "email", "offline_access"],
+        scopes: [String] = ["openid", "profile", "email"],
         tokenStorage: TokenStorageAdapter = KeychainTokenStorage(),
         prefersEphemeralWebBrowserSession: Bool = true,
         postLogoutRedirectUri: URL? = nil
@@ -46,5 +47,14 @@ public struct XidConfiguration: Sendable {
         self.tokenStorage = tokenStorage
         self.prefersEphemeralWebBrowserSession = prefersEphemeralWebBrowserSession
         self.postLogoutRedirectUri = postLogoutRedirectUri
+    }
+
+    func validatePublicClientScopes() throws {
+        guard !scopes.contains("offline_access") else {
+            throw XidError.oauthError(
+                "invalid_scope",
+                "offline_access requires DPoP; the macOS SDK does not implement DPoP yet"
+            )
+        }
     }
 }

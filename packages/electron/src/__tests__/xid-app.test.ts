@@ -104,26 +104,6 @@ function createMockIpcMain(): {
   return { ipcMain, invoke }
 }
 
-// Build a fake fetch that returns a token response.
-function makeTokenFetch(
-  params: { accessToken?: string; refreshToken?: string; expiresIn?: number; status?: number } = {},
-): typeof fetch {
-  const { accessToken = 'at.jwt', refreshToken = 'rt.xyz', expiresIn = 3600, status = 200 } = params
-
-  return async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
-    if (status !== 200) {
-      return new Response(JSON.stringify({ error: 'invalid_grant' }), { status })
-    }
-    const body = {
-      access_token: accessToken,
-      token_type: 'Bearer',
-      expires_in: expiresIn,
-      refresh_token: refreshToken,
-    }
-    return new Response(JSON.stringify(body), { status: 200 })
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -168,6 +148,42 @@ describe('XidElectronApp: init + dispose', () => {
     expect(ipcMain.removeHandler).toHaveBeenCalledWith(IPC_CHANNELS.SIGN_IN)
     expect(ipcMain.removeHandler).toHaveBeenCalledWith(IPC_CHANNELS.SIGN_OUT)
     expect(ipcMain.removeHandler).toHaveBeenCalledWith(IPC_CHANNELS.GET_ACCESS_TOKEN)
+  })
+
+  it('rejects offline_access until DPoP sender binding is implemented', () => {
+    expect(
+      () =>
+        new XidElectronApp({
+          issuer: 'https://xid.dev',
+          clientId: 'client_test',
+          scopes: ['openid', 'offline_access'],
+          storageDir: '/tmp/xid-test',
+        }),
+    ).toThrow('offline_access requires DPoP')
+  })
+
+  it('removes the historical refresh credential during startup migration', async () => {
+    const firstApp = new XidElectronApp({
+      issuer: 'https://xid.dev',
+      clientId: 'client_test',
+      storageDir: '/tmp/xid-test',
+    })
+    const firstIpc = createMockIpcMain()
+    await firstApp.init(firstIpc.ipcMain)
+    await firstIpc.invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'legacy-only')
+    firstApp.dispose(firstIpc.ipcMain)
+
+    const restartedApp = new XidElectronApp({
+      issuer: 'https://xid.dev',
+      clientId: 'client_test',
+      storageDir: '/tmp/xid-test',
+    })
+    const restartedIpc = createMockIpcMain()
+    await restartedApp.init(restartedIpc.ipcMain)
+
+    await expect(
+      restartedIpc.invoke(IPC_CHANNELS.STORAGE_GET, 'xid:refresh-token'),
+    ).resolves.toBeNull()
   })
 })
 
@@ -245,7 +261,7 @@ describe('XidElectronApp: SIGN_IN state CSRF protection', () => {
   })
 })
 
-describe('XidElectronApp: token exchange stores refresh_token', () => {
+describe('XidElectronApp: local authorization-code session', () => {
   beforeEach(() => {
     Object.keys(fakeFs).forEach((k) => delete fakeFs[k])
     vi.clearAllMocks()
@@ -275,7 +291,7 @@ describe('XidElectronApp: token exchange stores refresh_token', () => {
     expect(token).toBe('at.manually-set')
   })
 
-  it('SIGN_OUT clears stored access token', async () => {
+  it('SIGN_OUT clears the access token and legacy refresh storage without a network request', async () => {
     const app = new XidElectronApp({
       issuer: 'https://xid.dev',
       clientId: 'client_test',
@@ -286,11 +302,15 @@ describe('XidElectronApp: token exchange stores refresh_token', () => {
 
     // Pre-populate storage.
     await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.to-clear')
+    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'legacy-only')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
     await invoke(IPC_CHANNELS.SIGN_OUT)
 
     const result = await invoke(IPC_CHANNELS.GET_ACCESS_TOKEN)
 
     expect(result).toBeNull()
+    expect(await invoke(IPC_CHANNELS.STORAGE_GET, 'xid:refresh-token')).toBeNull()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
 
@@ -335,18 +355,13 @@ describe('XidElectronApp: PKCE verifier is cleared after use (one-time use)', ()
   })
 })
 
-describe('XidElectronApp: token refresh on expiry', () => {
+describe('XidElectronApp: access-token expiry', () => {
   beforeEach(() => {
     Object.keys(fakeFs).forEach((k) => delete fakeFs[k])
     vi.clearAllMocks()
   })
 
-  it('GET_ACCESS_TOKEN attempts refresh when token is expired and refresh token exists', async () => {
-    // Pre-populate with an expired token and a refresh token.
-    // Mock globalThis.fetch to return a refreshed token.
-    const mockFetch = makeTokenFetch({ accessToken: 'at.refreshed', refreshToken: 'rt.new' })
-    vi.stubGlobal('fetch', mockFetch)
-
+  it('GET_ACCESS_TOKEN clears expired and legacy state without a network request', async () => {
     const app = new XidElectronApp({
       issuer: 'https://xid.dev',
       clientId: 'client_test',
@@ -355,108 +370,39 @@ describe('XidElectronApp: token refresh on expiry', () => {
     const { ipcMain, invoke } = createMockIpcMain()
     await app.init(ipcMain)
 
-    // Write expired token + refresh token + expired meta.
     const expiredAt = Math.floor(Date.now() / 1000) - 100
     await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.expired')
-    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'rt.valid')
+    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'legacy-only')
     await invoke(
       IPC_CHANNELS.STORAGE_SET,
       'xid:session-meta',
       JSON.stringify({ expiresAt: expiredAt }),
     )
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
     const result = await invoke(IPC_CHANNELS.GET_ACCESS_TOKEN)
 
-    expect(result).toBe('at.refreshed')
-    vi.unstubAllGlobals()
-  })
-
-  it('shares one refresh request across concurrent GET_ACCESS_TOKEN calls', async () => {
-    const mockFetch = vi.fn(makeTokenFetch({ accessToken: 'at.shared', refreshToken: 'rt.new' }))
-    vi.stubGlobal('fetch', mockFetch)
-
-    const app = new XidElectronApp({
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-      storageDir: '/tmp/xid-test',
-    })
-    const { ipcMain, invoke } = createMockIpcMain()
-    await app.init(ipcMain)
-
-    const expiredAt = Math.floor(Date.now() / 1000) - 100
-    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.expired')
-    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'rt.valid')
-    await invoke(
-      IPC_CHANNELS.STORAGE_SET,
-      'xid:session-meta',
-      JSON.stringify({ expiresAt: expiredAt }),
-    )
-
-    await expect(
-      Promise.all([invoke(IPC_CHANNELS.GET_ACCESS_TOKEN), invoke(IPC_CHANNELS.GET_ACCESS_TOKEN)]),
-    ).resolves.toEqual(['at.shared', 'at.shared'])
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    vi.unstubAllGlobals()
-  })
-
-  it('clears failed refresh single-flight so a later request can retry', async () => {
-    const mockFetch = vi
-      .fn<typeof fetch>()
-      .mockRejectedValueOnce(new Error('network unavailable'))
-      .mockImplementationOnce(makeTokenFetch({ accessToken: 'at.retried', refreshToken: 'rt.new' }))
-    vi.stubGlobal('fetch', mockFetch)
-
-    const app = new XidElectronApp({
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-      storageDir: '/tmp/xid-test',
-    })
-    const { ipcMain, invoke } = createMockIpcMain()
-    await app.init(ipcMain)
-
-    const expiredAt = Math.floor(Date.now() / 1000) - 100
-    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.expired')
-    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'rt.valid')
-    await invoke(
-      IPC_CHANNELS.STORAGE_SET,
-      'xid:session-meta',
-      JSON.stringify({ expiresAt: expiredAt }),
-    )
-
-    await expect(
-      Promise.all([invoke(IPC_CHANNELS.GET_ACCESS_TOKEN), invoke(IPC_CHANNELS.GET_ACCESS_TOKEN)]),
-    ).resolves.toEqual([null, null])
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-
-    await expect(invoke(IPC_CHANNELS.GET_ACCESS_TOKEN)).resolves.toBe('at.retried')
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    vi.unstubAllGlobals()
-  })
-
-  it('GET_ACCESS_TOKEN clears session when refresh returns 400 (invalid_grant)', async () => {
-    vi.stubGlobal('fetch', makeTokenFetch({ status: 400 }))
-
-    const app = new XidElectronApp({
-      issuer: 'https://xid.dev',
-      clientId: 'client_test',
-      storageDir: '/tmp/xid-test',
-    })
-    const { ipcMain, invoke } = createMockIpcMain()
-    await app.init(ipcMain)
-
-    const expiredAt = Math.floor(Date.now() / 1000) - 100
-    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.expired')
-    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'rt.invalid')
-    await invoke(
-      IPC_CHANNELS.STORAGE_SET,
-      'xid:session-meta',
-      JSON.stringify({ expiresAt: expiredAt }),
-    )
-
-    const result = await invoke(IPC_CHANNELS.GET_ACCESS_TOKEN)
-
-    // After failed refresh the session is cleared.
     expect(result).toBeNull()
-    vi.unstubAllGlobals()
+    expect(await invoke(IPC_CHANNELS.STORAGE_GET, 'xid:access-token')).toBeNull()
+    expect(await invoke(IPC_CHANNELS.STORAGE_GET, 'xid:refresh-token')).toBeNull()
+    expect(await invoke(IPC_CHANNELS.STORAGE_GET, 'xid:session-meta')).toBeNull()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('fails closed and clears a token whose expiry metadata is missing', async () => {
+    const app = new XidElectronApp({
+      issuer: 'https://xid.dev',
+      clientId: 'client_test',
+      storageDir: '/tmp/xid-test',
+    })
+    const { ipcMain, invoke } = createMockIpcMain()
+    await app.init(ipcMain)
+
+    await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.no-expiry')
+
+    const result = await invoke(IPC_CHANNELS.GET_ACCESS_TOKEN)
+
+    expect(result).toBeNull()
+    expect(await invoke(IPC_CHANNELS.STORAGE_GET, 'xid:access-token')).toBeNull()
   })
 })

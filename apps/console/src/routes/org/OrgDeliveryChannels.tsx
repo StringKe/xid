@@ -204,13 +204,6 @@ function listToText(value: readonly string[]): string {
   return value.join(', ')
 }
 
-function textToList(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
 function channelConfigured(input: { enabled: boolean; credentialsReady: boolean }): boolean {
   return input.enabled && input.credentialsReady
 }
@@ -375,10 +368,13 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
                 placeholder={t`whatsapp:+15550000000`}
               />
             </Field>
-            <Field label={<Trans>Secret references</Trans>}>
+            <Field
+              label={<Trans>Secret bindings</Trans>}
+              hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+            >
               <Input
                 value={listToText(form.whatsapp.secretRefs)}
-                onChange={(event) => patchWhatsapp({ secretRefs: textToList(event.target.value) })}
+                readOnly
                 placeholder={t`WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_ACCESS_TOKEN`}
               />
             </Field>
@@ -446,10 +442,13 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
                 placeholder={t`+15550000000`}
               />
             </Field>
-            <Field label={<Trans>Secret references</Trans>}>
+            <Field
+              label={<Trans>Secret bindings</Trans>}
+              hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+            >
               <Input
                 value={listToText(form.sms.secretRefs)}
-                onChange={(event) => patchSms({ secretRefs: textToList(event.target.value) })}
+                readOnly
                 placeholder={t`TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN`}
               />
             </Field>

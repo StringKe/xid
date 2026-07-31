@@ -96,6 +96,126 @@ describe('authenticateClient', () => {
     if (result.ok) expect(result.clientId).toBe(CLIENT_ID)
   })
 
+  it.each([
+    {
+      name: 'secret',
+      creds: {
+        basic: null,
+        postClientId: CLIENT_ID,
+        postSecret: 'unexpected',
+        assertionType: null,
+        assertion: null,
+      },
+    },
+    {
+      name: 'assertion',
+      creds: {
+        basic: null,
+        postClientId: CLIENT_ID,
+        postSecret: null,
+        assertionType: PRIVATE_KEY_JWT_ASSERTION_TYPE,
+        assertion: 'unexpected',
+      },
+    },
+  ])('rejects $name credentials attached to none auth', async ({ creds }) => {
+    const { ctx } = await buildTestTenant()
+    const result = await authenticateClient({
+      c: asContext(ctx, makeEnv({})),
+      client: makeClient({ clientType: 'public', tokenEndpointAuthMethod: 'none' }),
+      creds,
+      ctx,
+      tokenEndpoint: TOKEN_ENDPOINT,
+      now: Math.floor(Date.now() / 1000),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_client')
+  })
+
+  it('rejects Basic and body client_id mismatch before authentication', async () => {
+    const { ctx } = await buildTestTenant()
+    const result = await authenticateClient({
+      c: asContext(ctx, makeEnv({})),
+      client: makeClient({ tokenEndpointAuthMethod: 'client_secret_basic' }),
+      creds: {
+        basic: { clientId: CLIENT_ID, secret: 'secret' },
+        postClientId: 'different-client',
+        postSecret: null,
+        assertionType: null,
+        assertion: null,
+      },
+      ctx,
+      tokenEndpoint: TOKEN_ENDPOINT,
+      now: Math.floor(Date.now() / 1000),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_request')
+  })
+
+  it.each([
+    {
+      name: 'registered Basic with body secret',
+      method: 'client_secret_basic' as const,
+      creds: {
+        basic: null,
+        postClientId: CLIENT_ID,
+        postSecret: 'secret',
+        assertionType: null,
+        assertion: null,
+      },
+    },
+    {
+      name: 'registered post with Basic credentials',
+      method: 'client_secret_post' as const,
+      creds: {
+        basic: { clientId: CLIENT_ID, secret: 'secret' },
+        postClientId: CLIENT_ID,
+        postSecret: null,
+        assertionType: null,
+        assertion: null,
+      },
+    },
+  ])('rejects auth method mismatch: $name', async ({ method, creds }) => {
+    const { ctx } = await buildTestTenant()
+    const result = await authenticateClient({
+      c: asContext(ctx, makeEnv({})),
+      client: makeClient({
+        clientSecretHash: await sha256Hex('secret'),
+        tokenEndpointAuthMethod: method,
+      }),
+      creds,
+      ctx,
+      tokenEndpoint: TOKEN_ENDPOINT,
+      now: Math.floor(Date.now() / 1000),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_client')
+  })
+
+  it('rejects malformed or unsupported Authorization headers', async () => {
+    const { ctx } = await buildTestTenant()
+    const result = await authenticateClient({
+      c: asContext(ctx, makeEnv({})),
+      client: makeClient({ tokenEndpointAuthMethod: 'none' }),
+      creds: {
+        basic: null,
+        postClientId: CLIENT_ID,
+        postSecret: null,
+        assertionType: null,
+        assertion: null,
+        authorizationHeaderPresent: true,
+      },
+      ctx,
+      tokenEndpoint: TOKEN_ENDPOINT,
+      now: Math.floor(Date.now() / 1000),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_client')
+  })
+
   it('rejects multiple authentication methods', async () => {
     const { ctx } = await buildTestTenant()
     const secretHash = await sha256Hex('secret')
@@ -259,5 +379,35 @@ describe('authenticateClient', () => {
       expect(result.error.code).toBe('server_error')
       expect(result.error.httpStatus).toBe(500)
     }
+  })
+
+  it('rejects private key material in a legacy stored client JWKS', async () => {
+    const { ctx } = await buildTestTenant()
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+      'sign',
+      'verify',
+    ])
+    const publicJwk = await exportPublicJwk(pair.publicKey, 'ckid', 'ES256')
+    const privateJwk = await crypto.subtle.exportKey('jwk', pair.privateKey)
+    const result = await authenticateClient({
+      c: asContext(ctx, makeEnv({ OAUTH_STATE: makeOauthStateNs() })),
+      client: makeClient({
+        tokenEndpointAuthMethod: 'private_key_jwt',
+        jwks: { keys: [{ ...publicJwk, d: privateJwk.d }] },
+      }),
+      creds: {
+        basic: null,
+        postClientId: CLIENT_ID,
+        postSecret: null,
+        assertionType: PRIVATE_KEY_JWT_ASSERTION_TYPE,
+        assertion: 'not-reached',
+      },
+      ctx,
+      tokenEndpoint: TOKEN_ENDPOINT,
+      now: Math.floor(Date.now() / 1000),
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('valid registered public jwks')
   })
 })

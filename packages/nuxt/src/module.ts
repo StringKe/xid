@@ -5,7 +5,7 @@
 // Usage (nuxt.config.ts):
 //   export default defineNuxtConfig({
 //     modules: ['@xid-kit/nuxt'],
-//     xid: { publishableKey: 'pk_live_...' },
+//     xid: { browser: { mode: 'oidc', issuer, clientId, redirectUri } },
 //   })
 //
 // Nuxt/kit is a peer dep provided by the host; dynamic import avoids hard-bundling nuxt.
@@ -16,7 +16,7 @@ import type { XidNuxtModuleOptions } from './types'
 export const moduleMetadata = {
   name: '@xid-kit/nuxt',
   configKey: 'xid',
-  version: '0.0.0',
+  version: '0.1.0-alpha.0',
   compatibility: {
     nuxt: '>=3.0.0',
   },
@@ -42,12 +42,15 @@ export async function setupXidModule(
     useNuxt?: () => { options: { runtimeConfig: { public: Record<string, unknown> } } }
   }
 
-  // Expose publishableKey and apiUrl via runtimeConfig.public so the client plugin
-  // can read them without hardcoding values in the source.
+  if (options.browser && options.apiUrl) {
+    throw new TypeError('xid.browser and xid.apiUrl are mutually exclusive')
+  }
+
+  // Expose only serializable public browser options to the client plugin.
   if (kit.useNuxt) {
     const nuxt = kit.useNuxt()
     nuxt.options.runtimeConfig.public['xidApiUrl'] = options.apiUrl ?? ''
-    nuxt.options.runtimeConfig.public['xidPublishableKey'] = options.publishableKey ?? ''
+    nuxt.options.runtimeConfig.public['xidBrowser'] = options.browser
   }
 
   // Register the client-only runtime plugin.

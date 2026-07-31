@@ -3,33 +3,42 @@
   "name": "xid",
   "account_id": "86e4d320a5d69fb54f9721fb219a4902",
   "main": "worker/index.ts",
-  "preview_urls": true,
+  "preview_urls": false,
+  "keep_vars": true,
   "routes": [
-    // Core 只保留 apex Custom Domain 和 tenant fallback。
+    // Core 保留 apex Custom Domain、tenant fallback，以及 Cloudflare for SaaS custom hostname
+    // 所需的 zone-wide fallback。Site 与 Console 的更具体 routes 优先。
     // Site 与 Console 的具体 routes 由各自 wrangler.jsonc 唯一声明。
     { "pattern": "xid.dev", "custom_domain": true },
     { "pattern": "*.xid.dev/*", "zone_name": "xid.dev" },
+    { "pattern": "*/*", "zone_name": "xid.dev" },
   ],
   "compatibility_date": "2025-04-08",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
     "run_worker_first": true,
   },
+  "services": [
+    { "binding": "SITE_WORKER", "service": "xid-site" },
+    { "binding": "CONSOLE_WORKER", "service": "xid-console" },
+  ],
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 1,
+    "head_sampling_rate": 0.1,
     "logs": {
       "enabled": true,
-      "head_sampling_rate": 1,
+      "head_sampling_rate": 0.1,
       "persist": true,
-      "invocation_logs": true,
+      // Invocation logs include the raw request URL. Core callback URLs can carry protocol
+      // parameters, so production keeps them disabled and emits only structured, redacted events.
+      "invocation_logs": false,
     },
     "traces": {
-      "enabled": true,
-      "persist": true,
-      "head_sampling_rate": 1,
+      // Automatic Fetch spans persist url.full, including OAuth codes and invitation or
+      // verification tokens in query strings. Core therefore keeps automatic tracing disabled.
+      "enabled": false,
+      "persist": false,
     },
   },
   "d1_databases": [
@@ -67,6 +76,8 @@
       { "binding": "AUDIT_QUEUE", "queue": "xid-audit" },
       { "binding": "WEBHOOK_QUEUE", "queue": "xid-webhook" },
       { "binding": "METERING_QUEUE", "queue": "xid-metering" },
+      { "binding": "SCIM_QUEUE", "queue": "xid-scim-sync" },
+      { "binding": "PRIVACY_QUEUE", "queue": "xid-privacy" },
     ],
     "consumers": [
       {
@@ -74,21 +85,21 @@
         "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_retries": 5,
-        "dead_letter_queue": "xid-dlq",
+        "dead_letter_queue": "xid-email-dlq",
       },
       {
         "queue": "xid-whatsapp",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_retries": 5,
-        "dead_letter_queue": "xid-dlq",
+        "dead_letter_queue": "xid-whatsapp-dlq",
       },
       {
         "queue": "xid-sms",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_retries": 5,
-        "dead_letter_queue": "xid-dlq",
+        "dead_letter_queue": "xid-sms-dlq",
       },
       {
         "queue": "xid-audit",
@@ -96,21 +107,109 @@
         "max_batch_timeout": 5,
         "max_concurrency": 1,
         "max_retries": 5,
-        "dead_letter_queue": "xid-dlq",
+        "dead_letter_queue": "xid-audit-dlq",
       },
       {
         "queue": "xid-webhook",
         "max_batch_size": 50,
         "max_batch_timeout": 5,
         "max_retries": 5,
-        "dead_letter_queue": "xid-dlq",
+        "dead_letter_queue": "xid-webhook-dlq",
       },
       {
         "queue": "xid-metering",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_retries": 5,
-        "dead_letter_queue": "xid-dlq",
+        "dead_letter_queue": "xid-metering-dlq",
+      },
+      {
+        "queue": "xid-scim-sync",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_concurrency": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-scim-sync-dlq",
+      },
+      {
+        "queue": "xid-privacy",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "xid-privacy-dlq",
+      },
+      {
+        "queue": "xid-email-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-email-dlq-persistence-failures",
+      },
+      {
+        "queue": "xid-whatsapp-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-whatsapp-dlq-persistence-failures",
+      },
+      {
+        "queue": "xid-sms-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-sms-dlq-persistence-failures",
+      },
+      {
+        "queue": "xid-audit-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-audit-dlq-persistence-failures",
+      },
+      {
+        "queue": "xid-webhook-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-webhook-dlq-persistence-failures",
+      },
+      {
+        "queue": "xid-metering-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-metering-dlq-persistence-failures",
+      },
+      {
+        "queue": "xid-scim-sync-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-scim-sync-dlq-persistence-failures",
+      },
+      {
+        "queue": "xid-privacy-dlq",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "xid-privacy-dlq-persistence-failures",
       },
     ],
   },
@@ -125,6 +224,8 @@
       { "name": "AUDIT_SEQ", "class_name": "AuditSeqDO" },
       { "name": "METERING", "class_name": "MeteringDO" },
       { "name": "GUEST_STORE", "class_name": "GuestStore" },
+      { "name": "CIBA_STATE", "class_name": "CibaStore" },
+      { "name": "IMPERSONATION_GRANTS", "class_name": "ImpersonationGrantDO" },
     ],
   },
   // 重建生产 D1 时不需要、也不能靠这里清 DO 状态。
@@ -138,8 +239,7 @@
   // 而 "cannot enable a SQLite storage backend on an existing, deployed Durable Object class"
   // 会让部署直接报错。真需要物理清空只能换类名(旧名进 deleted_classes、新名进 new_sqlite_classes)。
   // 重建 D1 时为什么不该动 DO,见 docs/deployment.md 的 Wiping and rebuilding a live database 一节。
-  // tag v1 不动还有第二个理由:带新 migration tag 的 Worker 版本无法 versions upload
-  // (DO migration 是原子操作,不支持 gradual deployment),那会直接废掉非生产分支的预检链路。
+  // 已部署的 migration tag 只追加、不重写；现有 class 保留原 tag，新 class 使用后续 tag。
   // 已部署的类也不能从 new_sqlite_classes 改成 new_classes,存储后端一旦选定不可迁移。
   "migrations": [
     {
@@ -159,6 +259,14 @@
       "tag": "v2",
       "new_sqlite_classes": ["GuestStore"],
     },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["CibaStore"],
+    },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": ["ImpersonationGrantDO"],
+    },
   ],
   "triggers": {
     "crons": ["0 * * * *", "0 2 * * *"],
@@ -169,6 +277,20 @@
   "env": {
     "staging": {
       "vars": { "ENVIRONMENT": "staging" },
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+        "logs": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "persist": true,
+          "invocation_logs": false,
+        },
+        "traces": {
+          "enabled": false,
+          "persist": false,
+        },
+      },
     },
   },
 }

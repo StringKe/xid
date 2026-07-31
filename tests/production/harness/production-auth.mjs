@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { isIP } from 'node:net'
 import { verifiedWranglerConfigArgs } from '../../../apps/server/scripts/production-target.mjs'
 
 export const DEFAULT_BASE_URL = 'https://xid.dev'
+export const DEFAULT_TENANT_BASE_URL = 'https://default.xid.dev'
 
 export function productionBaseUrl(environment = process.env) {
   if (environment['XID_PRODUCTION_BASE_URL']?.trim()) {
@@ -11,9 +13,9 @@ export function productionBaseUrl(environment = process.env) {
   return DEFAULT_BASE_URL
 }
 
-export function productionSurfaceBaseUrl(variableName, environment = process.env) {
+export function productionSurfaceBaseUrl(variableName, environment = process.env, defaultBaseUrl) {
   const configured = environment[variableName]?.trim()
-  if (!configured) return productionBaseUrl(environment)
+  if (!configured) return defaultBaseUrl ?? productionBaseUrl(environment)
 
   let parsed
   try {
@@ -32,6 +34,36 @@ export function productionSurfaceBaseUrl(variableName, environment = process.env
     throw new Error(`${variableName} must be an absolute HTTP(S) origin`)
   }
   return parsed.origin
+}
+
+export function productionTenantBaseUrl(environment = process.env) {
+  return productionSurfaceBaseUrl(
+    'XID_PRODUCTION_TENANT_BASE_URL',
+    environment,
+    DEFAULT_TENANT_BASE_URL,
+  )
+}
+
+export function productionWildcardProbeBaseUrl(
+  environment = process.env,
+  nonce = crypto.randomUUID(),
+) {
+  const tenantOrigin = new URL(productionTenantBaseUrl(environment))
+  const labels = tenantOrigin.hostname.split('.')
+  if (labels.length < 2 || isIP(tenantOrigin.hostname)) {
+    throw new Error(
+      'XID_PRODUCTION_TENANT_BASE_URL must use a DNS hostname for the wildcard route probe',
+    )
+  }
+
+  const normalizedNonce = String(nonce)
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/gu, '')
+  if (!normalizedNonce) throw new Error('wildcard route probe nonce must contain a letter or digit')
+
+  labels[0] = `xid-preflight-${normalizedNonce.slice(0, 32)}`
+  tenantOrigin.hostname = labels.join('.')
+  return tenantOrigin.origin
 }
 
 // 生产 smoke 需要真实收信,但仓库不得内置任何真实收件地址(公开仓库里的默认收件人

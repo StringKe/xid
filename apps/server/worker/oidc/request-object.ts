@@ -27,6 +27,7 @@ const REQUEST_OBJECT_FIELDS = [
   'dpop_jkt',
   'resource',
   'authorization_details',
+  'xid_intent',
 ] as const
 
 type RawParams = Record<string, string>

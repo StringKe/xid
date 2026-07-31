@@ -264,9 +264,13 @@ def _parse_webhook_secret(secret: str) -> bytes:
     支持格式:
         "whsec_<base64>"  -- svix 标准格式
         裸 base64 字符串  -- 直接 base64 decode
+        旧版 64 位小写 hex -- 按 UTF-8 key bytes 使用
         其他              -- 直接 UTF-8 编码作为 key bytes(兼容自定义 secret)
     """
     import base64
+
+    if _is_legacy_webhook_hex_secret(secret):
+        return secret.encode("utf-8")
 
     if secret.startswith("whsec_"):
         raw = secret[len("whsec_"):]
@@ -283,3 +287,7 @@ def _parse_webhook_secret(secret: str) -> bytes:
         pass
 
     return secret.encode("utf-8")
+
+
+def _is_legacy_webhook_hex_secret(secret: str) -> bool:
+    return len(secret) == 64 and all(char in "0123456789abcdef" for char in secret)

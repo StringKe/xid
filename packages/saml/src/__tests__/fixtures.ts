@@ -7,6 +7,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { fromBER } from 'asn1js'
+import { Certificate } from 'pkijs'
 import { Parse, SignedXml, Stringify } from 'xmldsigjs'
 import { toBufferSource } from '@xid-kit/crypto'
 
@@ -56,6 +58,21 @@ function createIdpFixture(): { certificate: string; privateKey: Uint8Array } {
 
 const idpFixture = createIdpFixture()
 export const IDP_CERT_B64 = idpFixture.certificate
+export const IDP_CERT_VALID_NOW = Date.now()
+
+export function certificateWithValidity(
+  certificateB64: string,
+  notBefore: number,
+  notAfter: number,
+): string {
+  const der = Uint8Array.from(Buffer.from(certificateB64, 'base64'))
+  const asn1 = fromBER(toBufferSource(der))
+  if (asn1.offset === -1) throw new Error('invalid fixture certificate')
+  const certificate = new Certificate({ schema: asn1.result })
+  certificate.notBefore.value = new Date(notBefore)
+  certificate.notAfter.value = new Date(notAfter)
+  return Buffer.from(certificate.toSchema(true).toBER(false)).toString('base64')
+}
 
 // IdP 私钥导入(RSASSA-PKCS1-v1_5 / SHA-256),供测试签名 Response/Assertion。
 export async function importIdpSigningKey(): Promise<CryptoKey> {
@@ -71,6 +88,8 @@ export async function importIdpSigningKey(): Promise<CryptoKey> {
 export type ResponseParts = {
   responseId?: string
   assertionId?: string
+  issueInstant?: string
+  authnInstant?: string
   destination?: string
   issuer?: string
   audience?: string
@@ -86,7 +105,7 @@ export type ResponseParts = {
 
 function assertionXml(p: Required<ResponseParts>): string {
   return [
-    `<saml:Assertion ID="${p.assertionId}" Version="2.0" IssueInstant="2026-06-01T08:00:00Z">`,
+    `<saml:Assertion ID="${p.assertionId}" Version="2.0" IssueInstant="${p.issueInstant}">`,
     `<saml:Issuer>${p.issuer}</saml:Issuer>`,
     `<saml:Subject>`,
     `<saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress">${p.email}</saml:NameID>`,
@@ -97,6 +116,9 @@ function assertionXml(p: Required<ResponseParts>): string {
     `<saml:Conditions NotBefore="${p.notBefore}" NotOnOrAfter="${p.notOnOrAfter}">`,
     `<saml:AudienceRestriction><saml:Audience>${p.audience}</saml:Audience></saml:AudienceRestriction>`,
     `</saml:Conditions>`,
+    `<saml:AuthnStatement AuthnInstant="${p.authnInstant}" SessionIndex="_session_0001">`,
+    `<saml:AuthnContext><saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified</saml:AuthnContextClassRef></saml:AuthnContext>`,
+    `</saml:AuthnStatement>`,
     `<saml:AttributeStatement>`,
     `<saml:Attribute Name="email"><saml:AttributeValue>${p.email}</saml:AttributeValue></saml:Attribute>`,
     `<saml:Attribute Name="firstName"><saml:AttributeValue>Bjorn</saml:AttributeValue></saml:Attribute>`,
@@ -113,15 +135,17 @@ function attr(name: string, value: string): string {
 const RESPONSE_DEFAULTS: Required<ResponseParts> = {
   responseId: '_resp_0001',
   assertionId: '_assert_0001',
+  issueInstant: new Date(IDP_CERT_VALID_NOW).toISOString(),
+  authnInstant: new Date(IDP_CERT_VALID_NOW).toISOString(),
   destination: ACS_URL,
   issuer: IDP_ENTITY_ID,
   audience: SP_ENTITY_ID,
   recipient: ACS_URL,
   subjectConfirmationMethod: 'urn:oasis:names:tc:SAML:2.0:cm:bearer',
   inResponseTo: '',
-  notBefore: '2026-06-01T00:00:00Z',
-  notOnOrAfter: '2030-06-01T00:00:00Z',
-  subjConfirmExpiry: '2030-06-01T00:00:00Z',
+  notBefore: new Date(IDP_CERT_VALID_NOW - 60 * 1000).toISOString(),
+  notOnOrAfter: new Date(IDP_CERT_VALID_NOW + 5 * 60 * 1000).toISOString(),
+  subjConfirmExpiry: new Date(IDP_CERT_VALID_NOW + 5 * 60 * 1000).toISOString(),
   status: 'urn:oasis:names:tc:SAML:2.0:status:Success',
   email: 'user@example.com',
 }
@@ -135,12 +159,12 @@ function withDefaults(p: ResponseParts): Required<ResponseParts> {
   return merged
 }
 
-// 构造未签名 Response XML(含一个 Assertion + Subject/NameID + Conditions + AttributeStatement)。
+// 构造未签名 Response XML(含一个登录 Assertion + AuthnStatement + attributes)。
 export function buildResponseXml(parts: ResponseParts = {}): string {
   const p = withDefaults(parts)
   return [
     `<samlp:Response xmlns:samlp="${SAMLP_NS}" xmlns:saml="${ASSERT_NS}"`,
-    ` ID="${p.responseId}" Version="2.0" IssueInstant="2026-06-01T08:00:00Z"${attr('Destination', p.destination)}${attr('InResponseTo', p.inResponseTo)}>`,
+    ` ID="${p.responseId}" Version="2.0" IssueInstant="${p.issueInstant}"${attr('Destination', p.destination)}${attr('InResponseTo', p.inResponseTo)}>`,
     `<saml:Issuer>${p.issuer}</saml:Issuer>`,
     `<samlp:Status><samlp:StatusCode Value="${p.status}"/></samlp:Status>`,
     assertionXml(p),
@@ -148,7 +172,8 @@ export function buildResponseXml(parts: ResponseParts = {}): string {
   ].join('')
 }
 
-// enveloped + exclusive-c14n 签某 ID 的元素,把 Signature 追加为该元素直接子节点。
+// enveloped + exclusive-c14n 签某 ID 的元素。SAML schema 要求 Signature
+// 紧跟 Issuer,测试夹具必须生成与生产接收 allowlist 相同的固定顺序。
 async function signElement(doc: Document, target: Element, key: CryptoKey): Promise<void> {
   const id = target.getAttribute('ID') ?? ''
   const signedXml = new SignedXml(doc)
@@ -157,7 +182,8 @@ async function signElement(doc: Document, target: Element, key: CryptoKey): Prom
   })
   const sig = signedXml.GetXml()
   if (!sig) throw new Error('signature not produced')
-  target.appendChild(sig)
+  const issuer = firstChildByLocalName(target, 'Issuer')
+  target.insertBefore(sig, issuer?.nextSibling ?? target.firstChild)
 }
 
 function firstChildByLocalName(parent: Element, localName: string): Element | null {

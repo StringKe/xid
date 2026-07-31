@@ -3,6 +3,8 @@ import {
   d1,
   productionBaseUrl,
   productionSurfaceBaseUrl,
+  productionTenantBaseUrl,
+  productionWildcardProbeBaseUrl,
   productionD1Args,
   workerFilter,
   dbBinding,
@@ -50,6 +52,12 @@ describe('production auth D1 target', () => {
         XID_PRODUCTION_CORE_BASE_URL: 'https://core-preview.example',
       }),
     ).toBe('https://core-preview.example')
+    expect(productionTenantBaseUrl({})).toBe('https://default.xid.dev')
+    expect(
+      productionTenantBaseUrl({
+        XID_PRODUCTION_TENANT_BASE_URL: 'https://tenant-preview.example/',
+      }),
+    ).toBe('https://tenant-preview.example')
   })
 
   it('rejects surface URLs that are not HTTP origins', () => {
@@ -67,6 +75,32 @@ describe('production auth D1 target', () => {
         }),
       ).toThrow('XID_PRODUCTION_SITE_BASE_URL must be an absolute HTTP(S) origin')
     }
+  })
+
+  it('derives a unique wildcard probe origin from the tenant DNS suffix', () => {
+    expect(productionWildcardProbeBaseUrl({}, '123e4567-e89b-12d3-a456-426614174000')).toBe(
+      'https://xid-preflight-123e4567e89b12d3a456426614174000.xid.dev',
+    )
+    expect(
+      productionWildcardProbeBaseUrl(
+        {
+          XID_PRODUCTION_TENANT_BASE_URL: 'http://default.localhost.test:8787',
+        },
+        'probe-1',
+      ),
+    ).toBe('http://xid-preflight-probe1.localhost.test:8787')
+  })
+
+  it('rejects a non-DNS wildcard probe target or an empty nonce', () => {
+    expect(() =>
+      productionWildcardProbeBaseUrl(
+        { XID_PRODUCTION_TENANT_BASE_URL: 'http://127.0.0.1:8787' },
+        'probe-1',
+      ),
+    ).toThrow('XID_PRODUCTION_TENANT_BASE_URL must use a DNS hostname')
+    expect(() => productionWildcardProbeBaseUrl({}, '---')).toThrow(
+      'wildcard route probe nonce must contain a letter or digit',
+    )
   })
 
   it('uses the verified production Worker, DB binding and wrangler config', () => {

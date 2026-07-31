@@ -1,0 +1,54 @@
+{
+  "$schema": "./cloudflare-security-rules.schema.json",
+  "schemaVersion": 1,
+  "deploymentState": "EXTERNAL",
+  "scope": {
+    "type": "zone",
+    "zoneName": "xid.dev",
+    "minimumWafPlan": "free"
+  },
+  "planLimits": {
+    "customRules": 5,
+    "rateLimitingRules": 1
+  },
+  "authoritativeBusinessLimiter": "RateLimitStore",
+  "sourceDocumentation": [
+    "https://developers.cloudflare.com/waf/custom-rules/",
+    "https://developers.cloudflare.com/waf/rate-limiting-rules/",
+    "https://developers.cloudflare.com/waf/rate-limiting-rules/parameters/"
+  ],
+  "rulesets": [
+    {
+      "phase": "http_request_firewall_custom",
+      "kind": "zone",
+      "rules": [
+        {
+          "key": "xid-block-unsupported-tunnel-methods",
+          "description": "XID: block unsupported CONNECT and TRACE methods",
+          "expression": "(http.request.method in {\"CONNECT\" \"TRACE\"})",
+          "action": "block",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "phase": "http_ratelimit",
+      "kind": "zone",
+      "rules": [
+        {
+          "key": "xid-coarse-auth-ip-rate-limit",
+          "description": "XID: coarse per-IP shield for state-changing auth paths",
+          "expression": "(http.request.uri.path in {\"/auth/forgot-password\" \"/auth/guest\" \"/auth/magic-link/send\" \"/auth/otp/email/send\" \"/auth/otp/email/verify\" \"/auth/otp/sms/send\" \"/auth/otp/sms/verify\" \"/auth/otp/whatsapp/send\" \"/auth/otp/whatsapp/verify\" \"/auth/passkey/challenge\" \"/auth/passkey/verify\" \"/auth/password/sign-in\"})",
+          "action": "block",
+          "enabled": true,
+          "ratelimit": {
+            "characteristics": ["cf.colo.id", "ip.src"],
+            "period": 10,
+            "requests_per_period": 60,
+            "mitigation_timeout": 10
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -8,8 +8,10 @@ import { isGuestUser } from '@xid-kit/core'
 
 import type { Appearance } from '../../appearance'
 import { buildCssVariables, cx } from '../../appearance'
+import { useXidContext } from '../../context/xid-context'
 import { useXidStore } from '../../hooks/use-xid-store'
 import { Rt, sdkMessages } from '../../i18n-runtime'
+import { runAuthorizationRedirect } from '../control/authorization-redirect'
 
 export type GuestUpgradeBannerProps = {
   // 转正入口(Hosted UI 注册/设置登录方式页)
@@ -18,6 +20,7 @@ export type GuestUpgradeBannerProps = {
   redirectUrl?: string
   appearance?: Appearance
   className?: string
+  onError?: (error: unknown) => void
 }
 
 export function GuestUpgradeBanner({
@@ -25,15 +28,13 @@ export function GuestUpgradeBanner({
   redirectUrl,
   appearance,
   className,
+  onError,
 }: GuestUpgradeBannerProps): ReactNode {
+  const { client, mode } = useXidContext()
   const state = useXidStore()
   const cssVars = buildCssVariables(appearance?.variables)
 
   if (!state.isLoaded || !state.isSignedIn || !isGuestUser(state.user)) return null
-
-  const href = redirectUrl
-    ? `${upgradeUrl}?redirect_url=${encodeURIComponent(redirectUrl)}`
-    : upgradeUrl
 
   return (
     <div
@@ -44,9 +45,24 @@ export function GuestUpgradeBanner({
       <span className="xid-guest-upgrade-banner__message">
         <Rt {...sdkMessages.guestUpgradeMessage} />
       </span>
-      <a className="xid-guest-upgrade-banner__action" href={href}>
+      <button
+        type="button"
+        className="xid-guest-upgrade-banner__action"
+        onClick={() =>
+          runAuthorizationRedirect(
+            {
+              client,
+              mode,
+              intent: 'sign-up',
+              ...(redirectUrl ? { returnUrl: redirectUrl } : {}),
+              sameOriginPath: upgradeUrl,
+            },
+            onError,
+          )
+        }
+      >
         <Rt {...sdkMessages.guestUpgradeAction} />
-      </a>
+      </button>
     </div>
   )
 }

@@ -63,6 +63,10 @@ export type PublicInstanceLoginMatch = {
   issuer: string
 }
 
+export type PublicGuestEntryCapability = {
+  capabilityToken: string
+}
+
 export type PublicHostedAuthConfig = {
   resolution:
     | { status: 'ready' }
@@ -78,6 +82,8 @@ export type PublicHostedAuthConfig = {
   forceSso: boolean
   allowUserCreation: boolean
   allowExistingUserLogin: boolean
+  turnstileSiteKey: string | null
+  guest: PublicGuestEntryCapability | null
   profileFields: HostedAuthPolicy['profileFields']
   methods: {
     password: HostedAuthMethodPolicy
@@ -119,8 +125,6 @@ export function hasSocialProviderCredentials(
     policy.clientId !== '' &&
     policy.authorizationEndpoint !== '' &&
     policy.tokenEndpoint !== '' &&
-    typeof policy.clientSecretRef === 'string' &&
-    policy.clientSecretRef !== '' &&
     profileReady &&
     hasSecret(policy, provider)
   )
@@ -219,6 +223,16 @@ export function assertMethodAllowedWithCapabilities(
   if (action === 'login' && !methodPolicy.allowLogin) deny('method_login_disabled')
   if (action === 'user_creation' && !methodPolicy.allowUserCreation) {
     deny('method_user_creation_disabled')
+  }
+}
+
+// Guest 是 Hosted Auth 的平台扩展,没有独立 method policy,但仍必须服从全局登录/建号与 forceSso。
+export function assertGuestAllowed(tenant: TenantContext, action: 'login' | 'user_creation'): void {
+  const policy = hostedAuthPolicy(tenant)
+  if (policy.forceSso) deny('force_sso')
+  if (action === 'login' && !policy.allowExistingUserLogin) deny('global_login_disabled')
+  if (action === 'user_creation' && !policy.allowUserCreation) {
+    deny('global_user_creation_disabled')
   }
 }
 
@@ -336,6 +350,8 @@ export function publicHostedAuthConfig(
     forceSso: policy.forceSso,
     allowUserCreation: policy.allowUserCreation,
     allowExistingUserLogin: policy.allowExistingUserLogin,
+    turnstileSiteKey: null,
+    guest: null,
     profileFields: policy.profileFields,
     methods: {
       password: policy.password,

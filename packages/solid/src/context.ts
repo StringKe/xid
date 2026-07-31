@@ -1,4 +1,4 @@
-// XidContext: SolidJS context holding XidClient + publishableKey.
+// XidContext: SolidJS context holding the configured XidClient.
 // Primitives access via useXidContext(); never call useContext(XidContext) directly.
 
 import { createContext, useContext } from 'solid-js'
@@ -7,7 +7,7 @@ import type { XidClient } from '@xid-kit/core'
 
 export type XidContextValue = {
   readonly client: XidClient
-  readonly publishableKey: string
+  readonly mode: 'same-origin' | 'oidc'
 }
 
 export const XidContext = createContext<XidContextValue | null>(null)
@@ -17,7 +17,7 @@ export function useXidContext(): XidContextValue {
   if (ctx === null) {
     throw new Error(
       '[xid-kit/solid] useXidContext: must be called inside <XidProvider>. ' +
-        'Wrap your app with <XidProvider publishableKey="pk_..." />.',
+        'Wrap your app with <XidProvider mode="oidc" issuer="https://..." clientId="..." redirectUri="..." />.',
     )
   }
   return ctx

@@ -12,7 +12,16 @@ const repoRoot = join(appDir, '..', '..')
 const wranglerConfigPath = join(appDir, 'wrangler.jsonc')
 const workerEntryPath = join(appDir, 'worker', 'index.ts')
 const consoleDistPath = join(repoRoot, 'apps', 'console', 'dist', 'console')
-const SMOKE_QUEUE_NAMES = new Set(['xid-sms', 'xid-whatsapp'])
+const ENTRY_SMOKE_QUEUE_NAMES = new Set(['xid-scim-sync'])
+const AUXILIARY_SMOKE_QUEUE_NAMES = new Set(['xid-sms', 'xid-whatsapp'])
+const L3_SCIM_TARGET_TOKEN_BINDING = 'SCIM_TARGET_TOKEN_scim_target_l3_protocol'
+const L3_SOCIAL_PROVIDER_SECRET_BINDING = 'SOCIAL_LOCALOIDC_CLIENT_SECRET'
+const L3_BUILT_IN_SOCIAL_SECRET_BINDINGS = [
+  'GOOGLE_CLIENT_SECRET',
+  'GITHUB_EMU_CLIENT_SECRET',
+  'MICROSOFT_CLIENT_SECRET',
+  'APPLE_CLIENT_SECRET',
+]
 export const CHILD_DEADLINE_MS = 300000
 export const GROUP_CLEANUP_TIMEOUT_MS = 5000
 export const HEALTH_REQUEST_TIMEOUT_MS = 2000
@@ -71,11 +80,16 @@ export function testSecrets() {
   return {
     KEK: encodeBase64(randomBytes(32)),
     PEPPER: `v1:${encodeBase64Url(randomBytes(32))}`,
+    SCIM_TARGET_TOKEN: encodeBase64Url(randomBytes(32)),
+    SOCIAL_CLIENT_SECRET: encodeBase64Url(randomBytes(32)),
   }
 }
 
 export function createSmokeDevVars(secrets, samlKey) {
-  return `KEK=${secrets.KEK}\nPEPPER=${secrets.PEPPER}\nXID_L3_SAML_IDP_KEY_PKCS8_B64=${samlKey}\n`
+  const builtInSocialSecrets = L3_BUILT_IN_SOCIAL_SECRET_BINDINGS.map(
+    (binding) => `${binding}=${secrets.SOCIAL_CLIENT_SECRET}`,
+  ).join('\n')
+  return `KEK=${secrets.KEK}\nPEPPER=${secrets.PEPPER}\n${L3_SCIM_TARGET_TOKEN_BINDING}=${secrets.SCIM_TARGET_TOKEN}\nSOCIAL_PROVIDER_SECRET_BINDINGS={"localoidc":"${L3_SOCIAL_PROVIDER_SECRET_BINDING}"}\n${L3_SOCIAL_PROVIDER_SECRET_BINDING}=${secrets.SOCIAL_CLIENT_SECRET}\n${builtInSocialSecrets}\nXID_L3_SAML_IDP_KEY_PKCS8_B64=${samlKey}\n`
 }
 
 export function shouldKeepSmokeState(value = process.env.XID_SMOKE_KEEP_STATE) {
@@ -441,27 +455,38 @@ function createSmokeConfigBase(source) {
 
 export function createSmokeWranglerConfigs(source) {
   const base = createSmokeConfigBase(source)
-  const smokeQueueConsumers = base.queues.consumers
-    .filter((consumer) => SMOKE_QUEUE_NAMES.has(consumer.queue))
+  const entryQueueConsumers = base.queues.consumers
+    .filter((consumer) => ENTRY_SMOKE_QUEUE_NAMES.has(consumer.queue))
+    .map((consumer) => ({ ...consumer, max_batch_size: 1, max_batch_timeout: 1 }))
+  const auxiliaryQueueConsumers = base.queues.consumers
+    .filter((consumer) => AUXILIARY_SMOKE_QUEUE_NAMES.has(consumer.queue))
     .map((consumer) => ({ ...consumer, max_batch_size: 1, max_batch_timeout: 1 }))
   const entry = {
     ...base,
     queues: {
-      consumers: [],
+      consumers: entryQueueConsumers,
       producers: base.queues.producers,
     },
     assets: base.assets,
   }
+  // The local routing proxy connects the three local Worker processes directly. Removing
+  // production Service Bindings prevents local smoke from resolving or invoking a remote Worker;
+  // Core fallback delegation is covered by the in-process public route contract tests.
+  delete entry.services
   const queueConsumer = {
     ...base,
     name: 'xid-smoke-queue-consumers',
-    queues: { consumers: smokeQueueConsumers, producers: [] },
+    queues: {
+      consumers: auxiliaryQueueConsumers,
+      producers: [],
+    },
   }
   delete queueConsumer.assets
   delete queueConsumer.routes
   delete queueConsumer.durable_objects
   delete queueConsumer.migrations
   delete queueConsumer.triggers
+  delete queueConsumer.services
   return {
     entry: `${JSON.stringify(entry, null, 2)}\n`,
     queueConsumer: `${JSON.stringify(queueConsumer, null, 2)}\n`,
@@ -481,6 +506,8 @@ function createCompileEnv(env) {
     'XID_SMOKE_QUEUE_CONSUMER_WRANGLER_CONFIG_PATH',
     'XID_SMOKE_KEK',
     'XID_SMOKE_PEPPER',
+    'XID_SMOKE_SCIM_TARGET_TOKEN',
+    'XID_SMOKE_SOCIAL_CLIENT_SECRET',
     'XID_SMOKE_CONSOLE_DIST_PATH',
     'XID_L2_BASE_URL',
     'XID_L3_BASE_URL',
@@ -528,6 +555,8 @@ export async function runIsolatedSmokeFile(file, options = {}) {
     XID_SMOKE_QUEUE_CONSUMER_WRANGLER_CONFIG_PATH: smokeQueueConsumerWranglerConfigPath,
     XID_SMOKE_KEK: secrets.KEK,
     XID_SMOKE_PEPPER: secrets.PEPPER,
+    XID_SMOKE_SCIM_TARGET_TOKEN: secrets.SCIM_TARGET_TOKEN,
+    XID_SMOKE_SOCIAL_CLIENT_SECRET: secrets.SOCIAL_CLIENT_SECRET,
     XID_L2_BASE_URL: smokeBaseUrl,
     XID_L3_BASE_URL: smokeBaseUrl,
   }

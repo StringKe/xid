@@ -1,9 +1,14 @@
 # @xid-kit/electron
 
+Distribution status: release artifacts are verified locally, but no npm publish has been performed.
+Install commands become registry-backed only after an authorized release. See
+https://github.com/StringKe/xid/blob/main/docs/sdks/distribution.md.
+
 XID identity platform SDK for Electron apps. Implements the Shared Native Contract
 (Authorization Code + PKCE S256, system browser, no client secret) with:
 
-- Main process: `XidElectronApp` - safeStorage encryption, loopback server / custom scheme, token exchange, transparent refresh rotation
+- Main process: `XidElectronApp` - safeStorage encryption, loopback server / custom scheme, and
+  authorization-code token exchange
 - Renderer process: `getXidBridge()` - access the contextBridge API from renderer code
 - Preload script: ships a ready-to-use preload that exposes `window.xidBridge`
 
@@ -65,7 +70,7 @@ This exposes `window.xidBridge` with `storage`, `signIn`, `signOut`,
 ### 3. Renderer process (renderer.ts)
 
 ```ts
-import { getXidBridge, XidClient } from '@xid-kit/electron/renderer'
+import { getXidBridge } from '@xid-kit/electron/renderer'
 
 const bridge = getXidBridge()
 
@@ -73,8 +78,8 @@ const bridge = getXidBridge()
 // Returns the access token on success.
 const accessToken = await bridge.signIn()
 
-// Get the current access token (transparently refreshes if near expiry).
-// Returns null when not signed in.
+// Get the current unexpired access token.
+// Returns null when signed out or reauthorization is required.
 const token = await bridge.getAccessToken()
 
 // Get the full session (includes accessToken and expiresAt epoch seconds).
@@ -83,9 +88,8 @@ if (session) {
   console.log(session.accessToken, session.expiresAt)
 }
 
-// Or use XidClient for full state management (user, session, org):
-const client = new XidClient({ apiUrl: 'https://xid.dev' })
-await client.load()
+// The renderer can use @xid-kit/core separately for an exact same-origin web session,
+// but it does not share the Electron main-process token session.
 ```
 
 ---
@@ -164,13 +168,18 @@ await bridge.storage.removeItem('my-key')
 
 All native SDKs implement the same contract from `docs/sdks/platform-matrix.md`:
 
-| Method              | Description                                                          |
-| ------------------- | -------------------------------------------------------------------- |
-| `signIn(options?)`  | Opens system browser, exchanges code, stores tokens                  |
-| `signOut()`         | Clears local tokens                                                  |
-| `getAccessToken()`  | Returns current token (refreshes if near expiry); null if signed out |
-| `getSession()`      | Returns `{ accessToken, expiresAt }` or null                         |
-| `setTokenStorage()` | No-op in the IPC bridge model (parity with contract)                 |
+| Method              | Description                                                                |
+| ------------------- | -------------------------------------------------------------------------- |
+| `signIn(options?)`  | Opens system browser, exchanges code, stores tokens                        |
+| `signOut()`         | Clears local tokens                                                        |
+| `getAccessToken()`  | Returns the current unexpired token; null when reauthorization is required |
+| `getSession()`      | Returns `{ accessToken, expiresAt }` or null                               |
+| `setTokenStorage()` | No-op in the IPC bridge model (parity with contract)                       |
+
+This SDK does not implement DPoP, so it rejects `offline_access` and registers as an
+authorization-code-only public client. Re-run `signIn()` after the access token expires.
+The historical `xid:refresh-token` storage key is delete-only migration cleanup; current code never
+reads or writes a refresh credential and never calls refresh or revoke endpoints.
 
 ---
 

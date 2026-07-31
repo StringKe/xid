@@ -6,8 +6,7 @@ import type { Result, XidError } from '@xid-kit/types'
 import type { Context, Hono } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
-import { authenticateClient, parseBasicAuth } from './client-auth'
-import type { ClientCredentials } from './client-auth'
+import { authenticateClient, extractClientCredentials } from './client-auth'
 import { clientAllowsMtlsTokenBinding, fapiRequiresSenderConstraint } from './client-policy'
 import { verifyTokenDpop } from './dpop'
 import { readMtlsBinding } from './mtls'
@@ -63,16 +62,6 @@ const GRANT_HANDLERS: Record<GrantType, GrantHandler> = {
   [CIBA_GRANT]: grantCiba,
 }
 
-function extractCredentials(authHeader: string | undefined, form: RawParams): ClientCredentials {
-  return {
-    basic: parseBasicAuth(authHeader),
-    postClientId: form['client_id'] ?? null,
-    postSecret: form['client_secret'] ?? null,
-    assertionType: form['client_assertion_type'] ?? null,
-    assertion: form['client_assertion'] ?? null,
-  }
-}
-
 function applyTokenCors(c: Context<XidHonoEnv>, client: ClientRow, response: Response): Response {
   return applyPublicClientCors(c, client, response, TOKEN_CORS)
 }
@@ -88,7 +77,7 @@ async function resolveClient(
   now: number,
 ): Promise<{ client: ClientRow; clientId: string } | Response> {
   const ctx = c.get('tenant')
-  const creds = extractCredentials(c.req.header('authorization'), form)
+  const creds = extractClientCredentials(c.req.header('authorization'), form)
   const clientId = creds.basic?.clientId ?? creds.postClientId
   if (!clientId) {
     return oauthError(c, {
