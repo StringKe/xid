@@ -17,7 +17,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/verify-core-build-assets.mjs",
+    "build": "pnpm --dir ../.. exec turbo run build --filter=@xid-kit/server^... && vite build && node scripts/verify-core-build-assets.mjs",
     "check": "node scripts/check-lint-warning-budget.mjs",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "test": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.spa.config.ts",

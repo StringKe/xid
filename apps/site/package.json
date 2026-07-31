@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && node scripts/generate-localized-404s.mjs && node scripts/audit-dist-routes.mjs",
+    "build": "pnpm --dir ../.. exec turbo run build --filter=@xid-kit/site^... && astro build && node scripts/generate-localized-404s.mjs && node scripts/audit-dist-routes.mjs",
     "audit:dist": "node scripts/audit-dist-routes.mjs",
     "check": "node scripts/check-nimbus-patch.mjs && astro check && nimbus-docs lint && pnpm run lint:prose",
     "check:nimbus-patch": "node scripts/check-nimbus-patch.mjs",

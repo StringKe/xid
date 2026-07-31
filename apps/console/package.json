@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "pnpm --dir ../.. exec turbo run build --filter=@xid-kit/console^... && vite build",
     "check": "vp check",
     "preview": "vite preview",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit -p tsconfig.json",
