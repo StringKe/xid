@@ -2103,6 +2103,7 @@ msgstr "まずアクティブな役割を作成または選択します。"
 msgid "sdk.createOrganization"
 msgstr "組織を作成"
 
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Create organization"
 msgstr "組織を作成"

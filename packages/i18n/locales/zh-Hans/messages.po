@@ -2103,6 +2103,7 @@ msgstr "首先创建或选择一个活动角色。"
 msgid "sdk.createOrganization"
 msgstr "创建组织"
 
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Create organization"
 msgstr "创建组织"

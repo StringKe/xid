@@ -2103,6 +2103,7 @@ msgstr "Create or select an active role first."
 msgid "sdk.createOrganization"
 msgstr "Create organization"
 
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Create organization"
 msgstr "Create organization"

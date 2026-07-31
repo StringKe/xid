@@ -2103,6 +2103,7 @@ msgstr "먼저 활성 역할을 생성하거나 선택하세요."
 msgid "sdk.createOrganization"
 msgstr "조직 만들기"
 
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Create organization"
 msgstr "조직 만들기"

@@ -145,6 +145,12 @@ const styles = stylex.create({
       outlineColor: tokens['--xid-primary'],
     },
   },
+  // 零 org 时上下文区不渲染永不可用态的 select 控件,只给 muted 静态文本。
+  orgEmpty: {
+    fontSize: '0.8125rem',
+    color: tokens['--xid-muted-foreground'],
+    whiteSpace: 'nowrap',
+  },
   userArea: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -555,37 +561,34 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
           <span {...stylex.props(styles.brandNarrow)}>
             <BrandMark appName={appName} />
           </span>
-          <select
-            aria-label={t`Switch organization`}
-            disabled={
-              status !== 'authenticated' ||
-              organizations.length === 0 ||
-              switchingOrganizationId !== null ||
-              session?.isImpersonation === true
-            }
-            onChange={(event) => void switchOrganization(event.currentTarget.value)}
-            value={activeOrg?.id ?? ''}
-            {...stylex.props(styles.orgSwitcher)}
-          >
-            {organizations.length === 0 ? (
-              <option value="">
-                <Trans>No organization selected</Trans>
-              </option>
-            ) : (
-              <>
-                {activeOrg ? null : (
-                  <option disabled value="">
-                    <Trans>Select organization</Trans>
-                  </option>
-                )}
-                {organizations.map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organizationDisplayName(organization)}
-                  </option>
-                ))}
-              </>
-            )}
-          </select>
+          {organizations.length === 0 ? (
+            <span {...stylex.props(styles.orgEmpty)}>
+              <Trans>No organization selected</Trans>
+            </span>
+          ) : (
+            <select
+              aria-label={t`Switch organization`}
+              disabled={
+                status !== 'authenticated' ||
+                switchingOrganizationId !== null ||
+                session?.isImpersonation === true
+              }
+              onChange={(event) => void switchOrganization(event.currentTarget.value)}
+              value={activeOrg?.id ?? ''}
+              {...stylex.props(styles.orgSwitcher)}
+            >
+              {activeOrg ? null : (
+                <option disabled value="">
+                  <Trans>Select organization</Trans>
+                </option>
+              )}
+              {organizations.map((organization) => (
+                <option key={organization.id} value={organization.id}>
+                  {organizationDisplayName(organization)}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div {...stylex.props(styles.userArea)}>

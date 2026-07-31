@@ -3,13 +3,14 @@ import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Link, Navigate, useNavigate } from '@xid-kit/web-ui/tanstack-router'
-import { Button, Card, PageHeader, Spinner } from '@xid-kit/web-ui/ui'
+import { Button, Card, Spinner } from '@xid-kit/web-ui/ui'
 import { useAuth } from '@xid-kit/web-ui/session'
 import type { AuthOrg } from '@xid-kit/web-ui/session'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { controlPlaneStyles } from '../control-plane.styles'
 
 const styles = stylex.create({
   orgMeta: {
@@ -17,7 +18,7 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontSize: '0.8125rem',
   },
-  settingsLink: {
+  primaryLink: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -71,40 +72,55 @@ function OrganizationSelection({ target, organizations }: OrganizationSelectionP
   const destination = orgTargetPath(target)
 
   return (
-    <div {...stylex.props(page.root)}>
-      <PageHeader
-        title={<Trans>Select organization</Trans>}
-        lead={<Trans>Choose an organization to continue in the console.</Trans>}
-      />
-      <div {...stylex.props(page.gridActions)}>
-        {organizations.map((org) => (
-          <Card key={org.id} variant="raised">
-            <h2 {...stylex.props(page.sectionTitle)}>{organizationDisplayName(org)}</h2>
-            <p {...stylex.props(styles.orgMeta)}>{org.slug}</p>
-            <Button
-              type="button"
-              onClick={() => {
-                void setActiveOrganization(org.id).then((ok) => {
-                  if (ok) navigate(orgSelectionTarget(destination, org), { replace: true })
-                })
-              }}
-            >
-              <Trans>Open organization</Trans>
-            </Button>
-          </Card>
-        ))}
-      </div>
+    <div {...stylex.props(controlPlaneStyles.root)}>
+      <header {...stylex.props(controlPlaneStyles.header)}>
+        <h1 {...stylex.props(controlPlaneStyles.title)}>
+          <Trans>Select organization</Trans>
+        </h1>
+        <p {...stylex.props(controlPlaneStyles.lead)}>
+          <Trans>Choose an organization to continue in the console.</Trans>
+        </p>
+      </header>
+      <section {...stylex.props(controlPlaneStyles.section)}>
+        <div {...stylex.props(page.gridActions)}>
+          {organizations.map((org) => (
+            <Card key={org.id} variant="raised">
+              <h2 {...stylex.props(page.sectionTitle)}>{organizationDisplayName(org)}</h2>
+              <p {...stylex.props(styles.orgMeta)}>{org.slug}</p>
+              <Button
+                type="button"
+                onClick={() => {
+                  void setActiveOrganization(org.id).then((ok) => {
+                    if (ok) navigate(orgSelectionTarget(destination, org), { replace: true })
+                  })
+                }}
+              >
+                <Trans>Open organization</Trans>
+              </Button>
+            </Card>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }
 
 function EmptyOrganizationState(): ReactNode {
   return (
-    <div {...stylex.props(page.root)}>
-      <PageHeader
-        title={<Trans>No organization access</Trans>}
-        lead={<Trans>You do not have access to an organization yet.</Trans>}
-      />
+    <div {...stylex.props(controlPlaneStyles.root)}>
+      <header {...stylex.props(controlPlaneStyles.header)}>
+        <h1 {...stylex.props(controlPlaneStyles.title)}>
+          <Trans>No organization access</Trans>
+        </h1>
+        <p {...stylex.props(controlPlaneStyles.lead)}>
+          <Trans>You do not have access to an organization yet.</Trans>
+        </p>
+      </header>
+      <section {...stylex.props(controlPlaneStyles.section)}>
+        <a href="/create-organization" {...stylex.props(styles.primaryLink)}>
+          <Trans>Create organization</Trans>
+        </a>
+      </section>
     </div>
   )
 }
@@ -232,27 +248,31 @@ function SettingsOverview({ org }: { org: AuthOrg }): ReactNode {
   ] as const
 
   return (
-    <div {...stylex.props(page.root)}>
-      <PageHeader
-        title={<Trans>Settings</Trans>}
-        lead={
+    <div {...stylex.props(controlPlaneStyles.root)}>
+      <header {...stylex.props(controlPlaneStyles.header)}>
+        <h1 {...stylex.props(controlPlaneStyles.title)}>
+          <Trans>Settings</Trans>
+        </h1>
+        <p {...stylex.props(controlPlaneStyles.lead)}>
           <Trans>
             Configure authentication, provider connections, enterprise identity, and organization
             presentation for {orgName}.
           </Trans>
-        }
-      />
-      <div {...stylex.props(page.gridActions)}>
-        {entries.map((entry) => (
-          <Card key={entry.to} variant="raised">
-            <h2 {...stylex.props(page.sectionTitle)}>{entry.title}</h2>
-            <p {...stylex.props(styles.orgMeta)}>{entry.description}</p>
-            <Link to={entry.to} {...stylex.props(styles.settingsLink)}>
-              {entry.cta}
-            </Link>
-          </Card>
-        ))}
-      </div>
+        </p>
+      </header>
+      <section {...stylex.props(controlPlaneStyles.section)}>
+        <div {...stylex.props(page.gridActions)}>
+          {entries.map((entry) => (
+            <Card key={entry.to} variant="raised">
+              <h2 {...stylex.props(page.sectionTitle)}>{entry.title}</h2>
+              <p {...stylex.props(styles.orgMeta)}>{entry.description}</p>
+              <Link to={entry.to} {...stylex.props(styles.primaryLink)}>
+                {entry.cta}
+              </Link>
+            </Card>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }
