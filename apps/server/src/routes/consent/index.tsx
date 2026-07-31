@@ -171,9 +171,14 @@ function ConsentContent({
 
   if (isError) {
     return (
-      <Alert tone="error" title={<Trans>Authorization failed</Trans>}>
-        {errorMessage}
-      </Alert>
+      <div {...stylex.props(styles.stack)}>
+        <Alert tone="error" title={<Trans>Authorization failed</Trans>}>
+          {errorMessage}
+        </Alert>
+        <Link to="/sign-in" {...stylex.props(signInStyles.textLink)}>
+          <Trans>Back to sign in</Trans>
+        </Link>
+      </div>
     )
   }
 

@@ -3,14 +3,22 @@ import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Link, Navigate, useNavigate } from '@xid-kit/web-ui/tanstack-router'
-import { Button, Card, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  Button,
+  Card,
+  ConsolePage,
+  ConsolePageSection,
+  EmptyState,
+  Spinner,
+} from '@xid-kit/web-ui/ui'
 import { useAuth } from '@xid-kit/web-ui/session'
 import type { AuthOrg } from '@xid-kit/web-ui/session'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { controlPlaneStyles } from '../control-plane.styles'
+import { ORG_NAV } from '../../nav'
+import type { ConsoleNavItem } from '../../nav'
 
 const styles = stylex.create({
   orgMeta: {
@@ -72,16 +80,11 @@ function OrganizationSelection({ target, organizations }: OrganizationSelectionP
   const destination = orgTargetPath(target)
 
   return (
-    <div {...stylex.props(controlPlaneStyles.root)}>
-      <header {...stylex.props(controlPlaneStyles.header)}>
-        <h1 {...stylex.props(controlPlaneStyles.title)}>
-          <Trans>Select organization</Trans>
-        </h1>
-        <p {...stylex.props(controlPlaneStyles.lead)}>
-          <Trans>Choose an organization to continue in the console.</Trans>
-        </p>
-      </header>
-      <section {...stylex.props(controlPlaneStyles.section)}>
+    <ConsolePage
+      title={<Trans>Select organization</Trans>}
+      lead={<Trans>Choose an organization to continue in the console.</Trans>}
+    >
+      <ConsolePageSection>
         <div {...stylex.props(page.gridActions)}>
           {organizations.map((org) => (
             <Card key={org.id} variant="raised">
@@ -100,180 +103,153 @@ function OrganizationSelection({ target, organizations }: OrganizationSelectionP
             </Card>
           ))}
         </div>
-      </section>
-    </div>
+      </ConsolePageSection>
+    </ConsolePage>
   )
 }
 
 function EmptyOrganizationState(): ReactNode {
   return (
-    <div {...stylex.props(controlPlaneStyles.root)}>
-      <header {...stylex.props(controlPlaneStyles.header)}>
-        <h1 {...stylex.props(controlPlaneStyles.title)}>
-          <Trans>No organization access</Trans>
-        </h1>
-        <p {...stylex.props(controlPlaneStyles.lead)}>
-          <Trans>You do not have access to an organization yet.</Trans>
-        </p>
-      </header>
-      <section {...stylex.props(controlPlaneStyles.section)}>
-        <a href="/create-organization" {...stylex.props(styles.primaryLink)}>
-          <Trans>Create organization</Trans>
-        </a>
-      </section>
-    </div>
+    <ConsolePage title={<Trans>Organizations</Trans>}>
+      <ConsolePageSection>
+        <EmptyState
+          title={<Trans>No organization access</Trans>}
+          description={
+            <Trans>
+              You do not have access to an organization yet. Create one to start managing
+              authentication, users, and applications.
+            </Trans>
+          }
+          action={
+            <a href="/create-organization" {...stylex.props(styles.primaryLink)}>
+              <Trans>Create organization</Trans>
+            </a>
+          }
+        />
+      </ConsolePageSection>
+    </ConsolePage>
   )
 }
 
-function SettingsOverview({ org }: { org: AuthOrg }): ReactNode {
-  const orgName = organizationDisplayName(org)
-  const entries = [
-    {
-      to: '/console/org/auth-policy',
-      title: <Trans>Auth policy</Trans>,
-      description: (
-        <Trans>
-          Manage hosted sign-in methods, identifiers, profile fields, and email domain rules.
-        </Trans>
-      ),
-      cta: <Trans>Open auth policy</Trans>,
-    },
-    {
-      to: '/console/org/delivery-channels',
-      title: <Trans>Delivery channels</Trans>,
-      description: (
-        <Trans>
-          Configure WhatsApp and SMS providers, secret references, sender IDs, and delivery
-          readiness.
-        </Trans>
-      ),
-      cta: <Trans>Open delivery channels</Trans>,
-    },
-    {
-      to: '/console/org/social-providers',
-      title: <Trans>Social providers</Trans>,
-      description: (
-        <Trans>
-          Manage OAuth and OIDC provider connections, client IDs, secret references, scopes, and
-          provider readiness.
-        </Trans>
-      ),
-      cta: <Trans>Open social providers</Trans>,
-    },
-    {
-      to: '/console/org/sso',
-      title: <Trans>Enterprise SSO inbound</Trans>,
-      description: (
-        <Trans>Manage upstream SAML and OIDC enterprise identity provider connections.</Trans>
-      ),
-      cta: <Trans>Open inbound SSO</Trans>,
-    },
-    {
-      to: '/console/org/outbound-sso',
-      title: <Trans>Enterprise SSO outbound</Trans>,
-      description: (
-        <Trans>
-          Configure downstream SaaS SAML apps from Slack, GitHub, Microsoft, and other presets.
-        </Trans>
-      ),
-      cta: <Trans>Open outbound SSO</Trans>,
-    },
-    {
-      to: '/console/org/scim',
-      title: <Trans>Directory sync</Trans>,
-      description: <Trans>Manage SCIM directories, tokens, users, and groups.</Trans>,
-      cta: <Trans>Open directory sync</Trans>,
-    },
-    {
-      to: '/console/org/scim-targets',
-      title: <Trans>SCIM targets</Trans>,
-      description: (
-        <Trans>
-          Push users and groups to downstream SaaS SCIM APIs with assignment gates and sync
-          controls.
-        </Trans>
-      ),
-      cta: <Trans>Open SCIM targets</Trans>,
-    },
-    {
-      to: '/console/org/domains',
-      title: <Trans>Domains</Trans>,
-      description: (
-        <Trans>
-          Manage verified domains for discovery, hosted authentication, and organization routing.
-        </Trans>
-      ),
-      cta: <Trans>Open domains</Trans>,
-    },
-    {
-      to: '/console/org/branding',
-      title: <Trans>Branding</Trans>,
-      description: (
-        <Trans>Manage organization display name, logo URLs, colors, and typography.</Trans>
-      ),
-      cta: <Trans>Open branding</Trans>,
-    },
-    {
-      to: '/console/org/applications',
-      title: <Trans>OAuth applications</Trans>,
-      description: (
-        <Trans>
-          Register OAuth clients, view client IDs, rotate client secrets, and manage redirect URIs.
-        </Trans>
-      ),
-      cta: <Trans>Open applications</Trans>,
-    },
-    {
-      to: '/console/org/webhooks',
-      title: <Trans>Webhooks</Trans>,
-      description: (
-        <Trans>
-          Manage event subscriptions, endpoint URLs, and signing secrets for outbound deliveries.
-        </Trans>
-      ),
-      cta: <Trans>Open webhooks</Trans>,
-    },
-    {
-      to: '/console/org/api-keys',
-      title: <Trans>API keys</Trans>,
-      description: <Trans>Create and revoke secret keys for the Management API.</Trans>,
-      cta: <Trans>Open API keys</Trans>,
-    },
-    {
-      to: '/console/org/audit-events',
-      title: <Trans>Audit events</Trans>,
-      description: <Trans>Review the read-only event log filtered by type and time range.</Trans>,
-      cta: <Trans>Open audit events</Trans>,
-    },
-  ] as const
+// Settings 卡片由 ORG_NAV 元数据生成:nav 是唯一事实源,新增 org 页自动出现在这里。
+// 描述按路径补充;缺描述的路径仍然出卡,只是没有说明文案。
+const SETTINGS_DESCRIPTIONS: Record<string, ReactNode> = {
+  '/console/org/auth-policy': (
+    <Trans>
+      Manage hosted sign-in methods, identifiers, profile fields, and email domain rules.
+    </Trans>
+  ),
+  '/console/org/social-providers': (
+    <Trans>
+      Manage OAuth and OIDC provider connections, client IDs, secret references, scopes, and
+      provider readiness.
+    </Trans>
+  ),
+  '/console/org/sso': (
+    <Trans>Manage upstream SAML and OIDC enterprise identity provider connections.</Trans>
+  ),
+  '/console/org/outbound-sso': (
+    <Trans>
+      Configure downstream SaaS SAML apps from Slack, GitHub, Microsoft, and other presets.
+    </Trans>
+  ),
+  '/console/org/scim': <Trans>Manage SCIM directories, tokens, users, and groups.</Trans>,
+  '/console/org/scim-targets': (
+    <Trans>
+      Push users and groups to downstream SaaS SCIM APIs with assignment gates and sync controls.
+    </Trans>
+  ),
+  '/console/org/delivery-channels': (
+    <Trans>
+      Configure WhatsApp and SMS providers, secret references, sender IDs, and delivery readiness.
+    </Trans>
+  ),
+  '/console/org/applications': (
+    <Trans>
+      Register OAuth clients, view client IDs, rotate client secrets, and manage redirect URIs.
+    </Trans>
+  ),
+  '/console/org/projects': (
+    <Trans>Group applications into projects and manage per-project configuration.</Trans>
+  ),
+  '/console/org/roles': (
+    <Trans>Define organization roles and the permissions granted to members.</Trans>
+  ),
+  '/console/org/api-keys': <Trans>Create and revoke secret keys for the Management API.</Trans>,
+  '/console/org/webhooks': (
+    <Trans>
+      Manage event subscriptions, endpoint URLs, and signing secrets for outbound deliveries.
+    </Trans>
+  ),
+  '/console/org/domains': (
+    <Trans>
+      Manage verified domains for discovery, hosted authentication, and organization routing.
+    </Trans>
+  ),
+  '/console/org/branding': (
+    <Trans>Manage organization display name, logo URLs, colors, and typography.</Trans>
+  ),
+  '/console/org/members': (
+    <Trans>Invite members, manage roles, and review membership status.</Trans>
+  ),
+  '/console/org/audit-events': (
+    <Trans>Review the read-only event log filtered by type and time range.</Trans>
+  ),
+  '/console/org/compliance': (
+    <Trans>Review compliance documents and data-processing posture for this organization.</Trans>
+  ),
+}
 
+type SettingsGroup = {
+  key: string
+  label: ReactNode
+  items: ConsoleNavItem[]
+}
+
+function settingsGroups(): readonly SettingsGroup[] {
+  const groups: SettingsGroup[] = []
+  for (const item of ORG_NAV) {
+    if (item.end) continue
+    const key = item.groupKey ?? 'general'
+    const existing = groups.find((group) => group.key === key)
+    if (existing) {
+      existing.items.push(item)
+    } else {
+      groups.push({ key, label: item.groupLabel ?? <Trans>General</Trans>, items: [item] })
+    }
+  }
+  return groups
+}
+
+function SettingsOverview(): ReactNode {
   return (
-    <div {...stylex.props(controlPlaneStyles.root)}>
-      <header {...stylex.props(controlPlaneStyles.header)}>
-        <h1 {...stylex.props(controlPlaneStyles.title)}>
-          <Trans>Settings</Trans>
-        </h1>
-        <p {...stylex.props(controlPlaneStyles.lead)}>
-          <Trans>
-            Configure authentication, provider connections, enterprise identity, and organization
-            presentation for {orgName}.
-          </Trans>
-        </p>
-      </header>
-      <section {...stylex.props(controlPlaneStyles.section)}>
-        <div {...stylex.props(page.gridActions)}>
-          {entries.map((entry) => (
-            <Card key={entry.to} variant="raised">
-              <h2 {...stylex.props(page.sectionTitle)}>{entry.title}</h2>
-              <p {...stylex.props(styles.orgMeta)}>{entry.description}</p>
-              <Link to={entry.to} {...stylex.props(styles.primaryLink)}>
-                {entry.cta}
-              </Link>
-            </Card>
-          ))}
-        </div>
-      </section>
-    </div>
+    <ConsolePage
+      title={<Trans>Settings</Trans>}
+      lead={
+        <Trans>
+          Configure authentication, provider connections, enterprise identity, and organization
+          presentation.
+        </Trans>
+      }
+    >
+      {settingsGroups().map((group) => (
+        <ConsolePageSection key={group.key} title={group.label}>
+          <div {...stylex.props(page.gridActions)}>
+            {group.items.map((item) => (
+              <Card key={item.to} variant="raised">
+                <h2 {...stylex.props(page.sectionTitle)}>{item.label}</h2>
+                {SETTINGS_DESCRIPTIONS[item.to] ? (
+                  <p {...stylex.props(styles.orgMeta)}>{SETTINGS_DESCRIPTIONS[item.to]}</p>
+                ) : null}
+                <Link to={item.to} {...stylex.props(styles.primaryLink)}>
+                  <Trans>Open</Trans>
+                </Link>
+              </Card>
+            ))}
+          </div>
+        </ConsolePageSection>
+      ))}
+    </ConsolePage>
   )
 }
 
@@ -300,7 +276,7 @@ function ConsoleEntry({ target }: { target: EntryTarget }): ReactNode {
   const manageableOrgs = organizations.filter((org) => isOrgManagerRole(org.role))
   const soleOrg = manageableOrgs.length === 1 ? manageableOrgs[0] : null
   if (activeOrg && !isOrgManagerRole(activeOrg.role)) return <Navigate to="/account" replace />
-  if (target === 'settings' && activeOrg) return <SettingsOverview org={activeOrg} />
+  if (target === 'settings' && activeOrg) return <SettingsOverview />
   if (activeOrg) return <Navigate to={orgTargetPath(target)} replace />
   if (organizations.length > 0 && manageableOrgs.length === 0) {
     return <Navigate to="/account" replace />
@@ -323,9 +299,14 @@ function AutoSelectOrganization({ target, org }: { target: EntryTarget; org: Aut
     })
   }, [destination, navigate, org, setActiveOrganization])
 
+  // 中间态对齐页头版式:loading 与落地页同骨架,切换不跳动。
   return (
-    <div {...stylex.props(page.loadingCenter)}>
-      <Spinner label={t`Opening organization`} />
-    </div>
+    <ConsolePage title={<Trans>Open organization</Trans>}>
+      <ConsolePageSection>
+        <div {...stylex.props(consoleShell.controls)}>
+          <Spinner label={t`Opening organization`} />
+        </div>
+      </ConsolePageSection>
+    </ConsolePage>
   )
 }

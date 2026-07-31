@@ -1233,6 +1233,7 @@ async function verifyAndConsumeInvitationEmailClaim(opts: {
   const redirectPath = invitationAcceptContinuePath(
     state.invitation.orgId,
     org?.name ?? org?.slug ?? state.invitation.orgId,
+    state.invitation.role,
   )
   const issued = await issueRecoverableClaimSession({
     c: opts.c,

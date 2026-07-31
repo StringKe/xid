@@ -17,6 +17,7 @@ import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { Link, useNavigate } from '../../lib/router'
 import { useMutation } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
+import { safeInternalPath } from '@xid-kit/web-ui/safe-redirect'
 import { tokens } from '../../styles/tokens.stylex'
 import { page } from '../../styles/product-surface.stylex'
 import { motion, springDefault } from '../../lib/motion'
@@ -118,6 +119,14 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     fontSize: '0.8125rem',
   },
+  // button 元素套用 textLink 外观时的原生样式重置(配合 switchLink 叠加使用)。
+  buttonReset: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderStyle: 'none',
+    padding: 0,
+    cursor: 'pointer',
+  },
   // 加载失败恢复区:重试按钮 + 返回登录链接纵排。
   errorActions: {
     display: 'flex',
@@ -167,41 +176,6 @@ const styles = stylex.create({
       outlineColor: tokens['--xid-primary'],
     },
   },
-  // 次要方法链接:muted 色,hover 升为 fg。
-  methodLinkMuted: {
-    display: 'block',
-    padding: '0.875rem 1rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: tokens['--xid-border'],
-      ':hover': tokens['--xid-border-strong'],
-    },
-    borderRadius: tokens['--xid-radius'],
-    color: {
-      default: tokens['--xid-muted-foreground'],
-      ':hover': tokens['--xid-fg'],
-    },
-    textDecoration: 'none',
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
-    lineHeight: 1.45,
-    backgroundColor: tokens['--xid-surface'],
-    // 按压即时反馈:pointer-down 立刻缩小,与 ui/Button 同口径。
-    transform: { default: 'none', ':active': 'scale(0.97)' },
-    transitionProperty: {
-      default: 'border-color, color, transform',
-      '@media (prefers-reduced-motion: reduce)': 'none',
-    },
-    transitionDuration: '0.12s',
-    transitionTimingFunction: 'ease-out',
-    ':focus-visible': {
-      outlineStyle: 'solid',
-      outlineWidth: '2px',
-      outlineOffset: '2px',
-      outlineColor: tokens['--xid-primary'],
-    },
-  },
   // OTP 数字输入包裹层:tabular-nums + mono 字体通过继承作用到 input 元素。
   otpInputWrap: {
     fontVariantNumeric: 'tabular-nums',
@@ -240,6 +214,22 @@ const styles = stylex.create({
   },
 })
 
+// 挑战出口:取消并退出登录,消除"守卫循环"错觉。textLink 外观的 button。
+function CancelSignOut(): ReactNode {
+  const { signOut } = useAuth()
+  return (
+    <p {...stylex.props(styles.helperText)}>
+      <button
+        type="button"
+        {...stylex.props(styles.buttonReset, styles.switchLink)}
+        onClick={() => void signOut()}
+      >
+        <Trans>Cancel and sign out</Trans>
+      </button>
+    </p>
+  )
+}
+
 function TotpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
@@ -264,8 +254,7 @@ function TotpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('totp')
       await refresh()
-      const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      navigate(redirectTo, { replace: true })
+      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
     },
   })
 
@@ -321,6 +310,8 @@ function TotpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
           <Trans>Use a backup code instead</Trans>
         </Link>
       </p>
+
+      <CancelSignOut />
     </div>
   )
 }
@@ -347,8 +338,7 @@ function BackupCodeChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('backup_code')
       await refresh()
-      const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      navigate(redirectTo, { replace: true })
+      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
     },
   })
 
@@ -404,6 +394,8 @@ function BackupCodeChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
           <Trans>Use authenticator app instead</Trans>
         </Link>
       </p>
+
+      <CancelSignOut />
     </div>
   )
 }
@@ -437,8 +429,7 @@ function PasskeyMfaChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('passkey')
       await refresh()
-      const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      navigate(redirectTo, { replace: true })
+      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
     },
   })
 
@@ -508,6 +499,8 @@ function PasskeyMfaChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
           <Trans>Use authenticator app instead</Trans>
         </Link>
       </p>
+
+      <CancelSignOut />
     </div>
   )
 }
@@ -552,8 +545,7 @@ function SmsOtpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('sms')
       await refresh()
-      const redirectTo = result.value.redirectTo ?? search.redirect_to ?? '/console'
-      navigate(redirectTo, { replace: true })
+      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
     },
   })
 
@@ -633,6 +625,8 @@ function SmsOtpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
           <Trans>Use authenticator app instead</Trans>
         </Link>
       </p>
+
+      <CancelSignOut />
     </div>
   )
 }
@@ -672,7 +666,7 @@ function MethodSelector({ methods }: { methods: readonly MfaMethod[] }): ReactNo
           <Link
             to={{ pathname: '/mfa', search: buildMethodSearch('backup', search) }}
             replace
-            {...stylex.props(styles.methodLinkMuted)}
+            {...stylex.props(styles.methodLink)}
           >
             <Trans>Backup code</Trans>
           </Link>
@@ -681,7 +675,7 @@ function MethodSelector({ methods }: { methods: readonly MfaMethod[] }): ReactNo
           <Link
             to={{ pathname: '/mfa', search: buildMethodSearch('sms', search) }}
             replace
-            {...stylex.props(styles.methodLinkMuted)}
+            {...stylex.props(styles.methodLink)}
           >
             <Trans>SMS verification</Trans>
           </Link>
@@ -696,6 +690,8 @@ function MethodSelector({ methods }: { methods: readonly MfaMethod[] }): ReactNo
           </Link>
         ) : null}
       </nav>
+
+      <CancelSignOut />
     </div>
   )
 }

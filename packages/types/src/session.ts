@@ -12,6 +12,9 @@ export type BrowserAuthUser = {
   locale: string | null
   hasMfa: boolean
   instanceManager: boolean
+  // 是否已有 passwords 行:account portal 用它在 "Change password" 与 "Set a password"(邮件
+  // 链接仪式)之间切换。可选以兼容旧版 Core 响应,缺失时前端回退 change-password 形态。
+  hasPassword?: boolean
   provisioned_by?: 'anonymous' | (string & {}) | null
 }
 

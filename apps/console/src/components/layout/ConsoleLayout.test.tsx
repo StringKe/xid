@@ -78,6 +78,7 @@ vi.mock('@xid-kit/web-ui/session', () => ({
     user: authState.user,
     activeOrg: authState.activeOrg,
     organizations: authState.organizations,
+    managerAssignments: [],
     session: authState.session,
     api: { post: authState.apiPost },
     refresh: authState.refresh,
@@ -85,6 +86,8 @@ vi.mock('@xid-kit/web-ui/session', () => ({
     signOut: async () => undefined,
     openEmailVerification: authState.openEmailVerification,
   }),
+  isGuestUser: (user: { provisioned_by?: string } | null | undefined) =>
+    user?.provisioned_by === 'anonymous',
 }))
 
 vi.mock('../../lib/impersonation-handoff', () => ({
@@ -160,7 +163,12 @@ vi.mock('@xid-kit/web-ui/motion', () => ({
 
 describe('ConsoleLayout', () => {
   beforeEach(() => {
-    authState.user = { ...authState.user, emailVerified: true, instanceManager: false }
+    authState.user = {
+      ...authState.user,
+      emailVerified: true,
+      instanceManager: false,
+      provisioned_by: null,
+    }
     authState.organizations = [authState.activeOrg]
     authState.session = null
     authState.apiPost.mockReset()
@@ -190,7 +198,7 @@ describe('ConsoleLayout', () => {
     expect(html).not.toContain('e=&gt;')
   })
 
-  it('preserves target organization query across org console navigation', () => {
+  it('carries only the orgId parameter across org console navigation', () => {
     routeState.search = '?orgId=org_1&orgName=Default+Organization'
     const html = renderToStaticMarkup(
       <ConsoleLayout
@@ -204,12 +212,9 @@ describe('ConsoleLayout', () => {
       </ConsoleLayout>,
     )
 
-    expect(html).toContain(
-      'href="/console/org/auth-policy?orgId=org_1&amp;orgName=Default+Organization"',
-    )
-    expect(html).toContain(
-      'href="/console/org/social-providers?orgId=org_1&amp;orgName=Default+Organization"',
-    )
+    expect(html).toContain('href="/console/org/auth-policy?orgId=org_1"')
+    expect(html).toContain('href="/console/org/social-providers?orgId=org_1"')
+    expect(html).not.toContain('orgName=')
   })
 
   it('renders the organization switcher and hides the platform menu from organization users', () => {
@@ -237,26 +242,46 @@ describe('ConsoleLayout', () => {
     expect(html).toContain('Platform management')
   })
 
-  it('uses document links for account aliases owned by the Console Worker', () => {
+  it('shows a back link instead of the platform menu inside the platform area', () => {
+    authState.user = { ...authState.user, instanceManager: true }
+
     const html = renderToStaticMarkup(
       <ConsoleLayout
         navItems={[
-          { to: '/console/sessions', label: 'Sessions' },
-          { to: '/console/security', label: 'Security' },
-          { to: '/console/settings', label: 'Settings' },
+          { to: '/console/platform', label: 'Overview', end: true },
+          { to: '/console/platform/users', label: 'Users' },
         ]}
       >
         <span>Content</span>
       </ConsoleLayout>,
     )
 
-    expect(html).toContain('<a href="/console/sessions"')
-    expect(html).toContain('<a href="/console/security"')
-    expect(html).not.toContain('href="/console/sessions" data-router-link')
-    expect(html).not.toContain('href="/console/security" data-router-link')
-    expect(html).toContain('href="/console/settings"')
-    expect(html).toContain('data-router-link="true"')
-    expect(html.match(/data-router-link="true"/g)).toHaveLength(1)
+    expect(html).toContain('Back to console')
+    expect(html).not.toContain('Platform management')
+  })
+
+  it('shows the guest band for guest users instead of the read-only notice', () => {
+    authState.user = { ...authState.user, emailVerified: false, provisioned_by: 'anonymous' }
+
+    const html = renderToStaticMarkup(
+      <ConsoleLayout navItems={[{ to: '/console/org', label: 'Overview', end: true }]}>
+        <span>Content</span>
+      </ConsoleLayout>,
+    )
+
+    expect(html).toContain('Guest account')
+    expect(html).not.toContain('Console is read-only')
+  })
+
+  it('renders a document link to the account portal in the user area', () => {
+    const html = renderToStaticMarkup(
+      <ConsoleLayout navItems={[{ to: '/console/settings', label: 'Settings' }]}>
+        <span>Content</span>
+      </ConsoleLayout>,
+    )
+
+    expect(html).toContain('<a href="/account"')
+    expect(html).toContain('Account settings')
   })
 
   it('renders layoutId indicators on the active nav item only', () => {

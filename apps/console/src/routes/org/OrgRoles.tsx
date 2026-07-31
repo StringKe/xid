@@ -1,19 +1,30 @@
+// org 项目 RBAC 页:选中 project 后管理其 role / permission key 与 role-permission 映射(可带 ABAC 条件)。
+// 也嵌入 console 的 ManagedProjects(managedProjectId/grantId/readOnly/embedded)。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;编辑/映射表单 5/7 双列(SplitSection),
+// 深层上下文锚点(selected role)在 SplitSection meta 的 selectorSummary。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Alert, Button, Field, Input } from '@xid-kit/web-ui/ui'
+import { Alert, Button, Field, Input, Select, Textarea } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+  ConsolePageToolbar,
+} from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   formatConditionExpression,
   parseConditionExpression,
   type ParsedConditionExpression,
 } from './condition-expression'
-import { controlPlaneStyles as styles } from '../control-plane.styles'
 import {
   useCreateProjectPermission,
   useCreateProjectRole,
@@ -123,6 +134,11 @@ export default function OrgRoles({
   )
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
 
+  const selectRole = (role: ProjectRole): void => {
+    setSelectedRoleId(role.id)
+    setMappingCursor(undefined)
+  }
+
   const roleColumns: ColumnDef<ProjectRole>[] = [
     {
       id: 'name',
@@ -130,7 +146,7 @@ export default function OrgRoles({
       cell: ({ row }) => (
         <div>
           <div>{row.original.display_name}</div>
-          <code {...stylex.props(styles.mono)}>{row.original.key}</code>
+          <code {...stylex.props(consoleShell.mono)}>{row.original.key}</code>
         </div>
       ),
     },
@@ -140,54 +156,44 @@ export default function OrgRoles({
       cell: ({ row }) => row.original.group || <Trans>No group</Trans>,
       meta: { width: '140px' },
     },
-    {
-      id: 'actions',
-      header: () => <Trans>Actions</Trans>,
-      cell: ({ row }) => (
-        <div {...stylex.props(styles.actionGroup)}>
-          <Button
-            variant={row.original.id === roleId ? 'primary' : 'secondary'}
-            onClick={() => {
-              setSelectedRoleId(row.original.id)
-              setMappingCursor(undefined)
-            }}
-            {...stylex.props(styles.actionButton)}
-          >
-            {row.original.id === roleId ? <Trans>Selected</Trans> : <Trans>Select</Trans>}
-          </Button>
-          {canWrite ? (
-            <>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setEditingRole(row.original)
-                  setEditRoleName(row.original.display_name)
-                  setEditRoleGroup(row.original.group ?? '')
-                }}
-                {...stylex.props(styles.actionButton)}
-              >
-                <Trans>Edit</Trans>
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => setPendingDelete({ kind: 'role', value: row.original })}
-                {...stylex.props(styles.actionButton)}
-              >
-                <Trans>Delete</Trans>
-              </Button>
-            </>
-          ) : null}
-        </div>
-      ),
-      meta: { width: '250px' },
-    },
+    ...(canWrite
+      ? [
+          {
+            id: 'actions',
+            header: () => <Trans>Actions</Trans>,
+            cell: ({ row }: { row: { original: ProjectRole } }) => (
+              <div {...stylex.props(consoleShell.actionGroup)}>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingRole(row.original)
+                    setEditRoleName(row.original.display_name)
+                    setEditRoleGroup(row.original.group ?? '')
+                  }}
+                  {...stylex.props(consoleShell.actionButton)}
+                >
+                  <Trans>Edit</Trans>
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => setPendingDelete({ kind: 'role', value: row.original })}
+                  {...stylex.props(consoleShell.actionButton)}
+                >
+                  <Trans>Delete</Trans>
+                </Button>
+              </div>
+            ),
+            meta: { width: '160px' },
+          } satisfies ColumnDef<ProjectRole>,
+        ]
+      : []),
   ]
 
   const permissionColumns: ColumnDef<ProjectPermission>[] = [
     {
       id: 'key',
       header: () => <Trans>Permission key</Trans>,
-      cell: ({ row }) => <code {...stylex.props(styles.mono)}>{row.original.key}</code>,
+      cell: ({ row }) => <code {...stylex.props(consoleShell.mono)}>{row.original.key}</code>,
     },
     {
       id: 'description',
@@ -200,21 +206,21 @@ export default function OrgRoles({
             id: 'actions',
             header: () => <Trans>Actions</Trans>,
             cell: ({ row }: { row: { original: ProjectPermission } }) => (
-              <div {...stylex.props(styles.actionGroup)}>
+              <div {...stylex.props(consoleShell.actionGroup)}>
                 <Button
                   variant="ghost"
                   onClick={() => {
                     setEditingPermission(row.original)
                     setEditPermissionDescription(row.original.description ?? '')
                   }}
-                  {...stylex.props(styles.actionButton)}
+                  {...stylex.props(consoleShell.actionButton)}
                 >
                   <Trans>Edit</Trans>
                 </Button>
                 <Button
                   variant="danger"
                   onClick={() => setPendingDelete({ kind: 'permission', value: row.original })}
-                  {...stylex.props(styles.actionButton)}
+                  {...stylex.props(consoleShell.actionButton)}
                 >
                   <Trans>Delete</Trans>
                 </Button>
@@ -236,11 +242,11 @@ export default function OrgRoles({
         )
         return (
           <div>
-            <code {...stylex.props(styles.mono)}>
+            <code {...stylex.props(consoleShell.mono)}>
               {permission?.key ?? row.original.permission_id}
             </code>
             {permission ? (
-              <div {...stylex.props(styles.muted)}>{permission.description}</div>
+              <div {...stylex.props(consoleShell.muted)}>{permission.description}</div>
             ) : null}
           </div>
         )
@@ -251,7 +257,7 @@ export default function OrgRoles({
       header: () => <Trans>ABAC condition</Trans>,
       cell: ({ row }) =>
         row.original.condition_expression ? (
-          <code {...stylex.props(styles.codeBlock)}>
+          <code {...stylex.props(consoleShell.codeBlock)}>
             {formatConditionExpression(row.original.condition_expression)}
           </code>
         ) : (
@@ -264,7 +270,7 @@ export default function OrgRoles({
             id: 'actions',
             header: () => <Trans>Actions</Trans>,
             cell: ({ row }: { row: { original: RolePermission } }) => (
-              <div {...stylex.props(styles.actionGroup)}>
+              <div {...stylex.props(consoleShell.actionGroup)}>
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -274,14 +280,14 @@ export default function OrgRoles({
                     )
                     setEditConditionParse(null)
                   }}
-                  {...stylex.props(styles.actionButton)}
+                  {...stylex.props(consoleShell.actionButton)}
                 >
                   <Trans>Edit condition</Trans>
                 </Button>
                 <Button
                   variant="danger"
                   onClick={() => setPendingDelete({ kind: 'mapping', value: row.original })}
-                  {...stylex.props(styles.actionButton)}
+                  {...stylex.props(consoleShell.actionButton)}
                 >
                   <Trans>Remove</Trans>
                 </Button>
@@ -300,7 +306,7 @@ export default function OrgRoles({
       cell: ({ row }) => (
         <div>
           <div>{row.original.display_name}</div>
-          <code {...stylex.props(styles.mono)}>{row.original.key}</code>
+          <code {...stylex.props(consoleShell.mono)}>{row.original.key}</code>
         </div>
       ),
     },
@@ -319,7 +325,7 @@ export default function OrgRoles({
           variant="secondary"
           isLoading={restoreRole.isPending && restoreRole.variables === row.original.id}
           onClick={() => void restoreRole.mutateAsync(row.original.id)}
-          {...stylex.props(styles.actionButton)}
+          {...stylex.props(consoleShell.actionButton)}
         >
           <Trans>Restore</Trans>
         </Button>
@@ -332,7 +338,7 @@ export default function OrgRoles({
     {
       id: 'permission',
       header: () => <Trans>Permission key</Trans>,
-      cell: ({ row }) => <code {...stylex.props(styles.mono)}>{row.original.key}</code>,
+      cell: ({ row }) => <code {...stylex.props(consoleShell.mono)}>{row.original.key}</code>,
     },
     {
       id: 'deleted',
@@ -349,7 +355,7 @@ export default function OrgRoles({
           variant="secondary"
           isLoading={restorePermission.isPending && restorePermission.variables === row.original.id}
           onClick={() => void restorePermission.mutateAsync(row.original.id)}
-          {...stylex.props(styles.actionButton)}
+          {...stylex.props(consoleShell.actionButton)}
         >
           <Trans>Restore</Trans>
         </Button>
@@ -449,51 +455,39 @@ export default function OrgRoles({
 
   if (!orgId && !managed) {
     return (
-      <div {...stylex.props(styles.message)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Roles and permissions</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
-  const mutationError =
-    createRole.error ??
-    updateRole.error ??
-    deleteRole.error ??
-    restoreRole.error ??
-    createPermission.error ??
-    updatePermission.error ??
-    deletePermission.error ??
-    restorePermission.error ??
-    createMapping.error ??
-    updateMapping.error ??
-    deleteMapping.error
+  const mutationFailed =
+    createRole.isError ||
+    updateRole.isError ||
+    deleteRole.isError ||
+    restoreRole.isError ||
+    createPermission.isError ||
+    updatePermission.isError ||
+    deletePermission.isError ||
+    restorePermission.isError ||
+    createMapping.isError ||
+    updateMapping.isError ||
+    deleteMapping.isError
 
-  return (
-    <div {...stylex.props(styles.root)}>
-      {!embedded ? (
-        <header {...stylex.props(styles.header)}>
-          <h1 {...stylex.props(styles.title)}>
-            <Trans>Roles and permissions</Trans>
-          </h1>
-          <p {...stylex.props(styles.lead)}>
-            <Trans>
-              Define project-local roles and permission keys, then connect them with optional ABAC
-              conditions.
-            </Trans>
-          </p>
-        </header>
-      ) : null}
-
+  const body = (
+    <>
       {!managed ? (
-        <div {...stylex.props(styles.toolbar)}>
-          <div {...stylex.props(styles.toolbarField)}>
+        <ConsolePageToolbar>
+          <div {...stylex.props(consoleShell.toolbarField)}>
             <Field
               label={<Trans>Project</Trans>}
               hint={<Trans>Roles and permission keys never cross project boundaries.</Trans>}
             >
-              <select
+              <Select
                 value={projectId}
                 onChange={(event) => {
                   setSelectedProjectId(event.currentTarget.value)
@@ -501,7 +495,6 @@ export default function OrgRoles({
                   setMappingCursor(undefined)
                 }}
                 disabled={projects.isLoading || (projects.data?.data.length ?? 0) === 0}
-                {...stylex.props(styles.select)}
               >
                 {(projects.data?.data.length ?? 0) === 0 ? (
                   <option value="">{t`No active projects`}</option>
@@ -511,7 +504,7 @@ export default function OrgRoles({
                     {project.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           </div>
           {projects.data ? (
@@ -521,42 +514,44 @@ export default function OrgRoles({
               onLoadMore={setProjectCursor}
             />
           ) : null}
-        </div>
+        </ConsolePageToolbar>
       ) : null}
 
       {!managed && projects.isError ? (
-        <div {...stylex.props(styles.message)}>
+        <ConsolePageNotice>
           <Alert tone="error">
             <Trans>Failed to load projects.</Trans>
           </Alert>
-        </div>
+        </ConsolePageNotice>
       ) : null}
 
-      {mutationError ? (
-        <div {...stylex.props(styles.message)}>
-          <Alert tone="error">{mutationError.message}</Alert>
-        </div>
+      {mutationFailed ? (
+        <ConsolePageNotice>
+          <Alert tone="error">
+            <Trans>Failed to save role or permission changes. Try again.</Trans>
+          </Alert>
+        </ConsolePageNotice>
       ) : null}
 
       {!projectId ? (
-        <div {...stylex.props(styles.message)}>
+        <ConsolePageNotice>
           <Alert tone="info">
             <Trans>Create an active project on the Projects page first.</Trans>
           </Alert>
-        </div>
+        </ConsolePageNotice>
       ) : (
         <>
-          <section aria-labelledby="rbac-resources-heading" {...stylex.props(styles.section)}>
-            <h2 id="rbac-resources-heading" {...stylex.props(page.visuallyHidden)}>
+          <ConsolePageSection>
+            <h2 {...stylex.props(page.visuallyHidden)}>
               <Trans>Project roles and permissions</Trans>
             </h2>
-            <div {...stylex.props(styles.split)}>
-              <div {...stylex.props(styles.splitColumn)}>
+            <div {...stylex.props(consoleShell.split)}>
+              <div {...stylex.props(consoleShell.splitColumn)}>
                 <div>
                   <h3 {...stylex.props(page.sectionLabel)}>
                     <Trans>Roles</Trans>
                   </h3>
-                  <p {...stylex.props(styles.sectionDescription)}>
+                  <p {...stylex.props(consoleShell.sectionDescription)}>
                     <Trans>
                       A stable role key groups permissions for token and API authorization.
                     </Trans>
@@ -574,6 +569,8 @@ export default function OrgRoles({
                       getRowId={(role) => role.id}
                       isLoading={roles.isLoading}
                       emptyMessage={<Trans>No active roles.</Trans>}
+                      onRowClick={selectRole}
+                      isRowSelected={(role) => role.id === roleId}
                     />
                     {roles.data ? (
                       <Pagination
@@ -587,9 +584,9 @@ export default function OrgRoles({
                 {canWrite ? (
                   <form
                     onSubmit={(event) => void handleCreateRole(event)}
-                    {...stylex.props(styles.sectionStack)}
+                    {...stylex.props(consoleShell.sectionStack)}
                   >
-                    <div {...stylex.props(styles.formGrid)}>
+                    <div {...stylex.props(consoleShell.formGrid)}>
                       <Field label={<Trans>Role key</Trans>} required>
                         <Input
                           value={roleKey}
@@ -603,7 +600,7 @@ export default function OrgRoles({
                           onChange={(event) => setRoleName(event.currentTarget.value)}
                         />
                       </Field>
-                      <div {...stylex.props(styles.formWide)}>
+                      <div {...stylex.props(consoleShell.formWide)}>
                         <Field label={<Trans>Group</Trans>}>
                           <Input
                             value={roleGroup}
@@ -613,7 +610,7 @@ export default function OrgRoles({
                         </Field>
                       </div>
                     </div>
-                    <div {...stylex.props(styles.formActions)}>
+                    <div {...stylex.props(consoleShell.formActions)}>
                       <Button
                         type="submit"
                         isLoading={createRole.isPending}
@@ -626,12 +623,12 @@ export default function OrgRoles({
                 ) : null}
               </div>
 
-              <div {...stylex.props(styles.splitColumn, styles.dividerColumn)}>
+              <div {...stylex.props(consoleShell.splitColumn, consoleShell.dividerColumn)}>
                 <div>
                   <h3 {...stylex.props(page.sectionLabel)}>
                     <Trans>Permissions</Trans>
                   </h3>
-                  <p {...stylex.props(styles.sectionDescription)}>
+                  <p {...stylex.props(consoleShell.sectionDescription)}>
                     <Trans>
                       Permission keys are atomic actions such as invoice:read or invoice:write.
                     </Trans>
@@ -662,9 +659,9 @@ export default function OrgRoles({
                 {canWrite ? (
                   <form
                     onSubmit={(event) => void handleCreatePermission(event)}
-                    {...stylex.props(styles.sectionStack)}
+                    {...stylex.props(consoleShell.sectionStack)}
                   >
-                    <div {...stylex.props(styles.formGrid)}>
+                    <div {...stylex.props(consoleShell.formGrid)}>
                       <Field label={<Trans>Permission key</Trans>} required>
                         <Input
                           value={permissionKey}
@@ -679,7 +676,7 @@ export default function OrgRoles({
                         />
                       </Field>
                     </div>
-                    <div {...stylex.props(styles.formActions)}>
+                    <div {...stylex.props(consoleShell.formActions)}>
                       <Button
                         type="submit"
                         isLoading={createPermission.isPending}
@@ -692,310 +689,296 @@ export default function OrgRoles({
                 ) : null}
               </div>
             </div>
-          </section>
+          </ConsolePageSection>
 
           {canWrite && (editingRole || editingPermission) ? (
-            <section aria-labelledby="edit-rbac-heading" {...stylex.props(styles.createSection)}>
-              <div {...stylex.props(styles.sectionMeta)}>
-                <h2 id="edit-rbac-heading" {...stylex.props(page.sectionLabel)}>
-                  <Trans>Edit project RBAC</Trans>
-                </h2>
-                <p {...stylex.props(styles.sectionDescription)}>
-                  <Trans>Stable keys cannot be changed after creation.</Trans>
+            <ConsolePageSplitSection
+              title={<Trans>Edit project RBAC</Trans>}
+              description={<Trans>Stable keys cannot be changed after creation.</Trans>}
+              meta={
+                <p {...stylex.props(consoleShell.selectorSummary)}>
+                  <Trans>
+                    Current: {editingRole?.display_name ?? editingPermission?.key ?? ''}
+                  </Trans>
                 </p>
-              </div>
-              <div {...stylex.props(styles.controls)}>
-                {editingRole ? (
-                  <form
-                    onSubmit={(event) => void handleUpdateRole(event)}
-                    {...stylex.props(styles.sectionStack)}
-                  >
-                    <code {...stylex.props(styles.mono)}>{editingRole.key}</code>
-                    <div {...stylex.props(styles.formGrid)}>
-                      <Field label={<Trans>Display name</Trans>} required>
-                        <Input
-                          value={editRoleName}
-                          onChange={(event) => setEditRoleName(event.currentTarget.value)}
-                        />
-                      </Field>
-                      <Field label={<Trans>Group</Trans>}>
-                        <Input
-                          value={editRoleGroup}
-                          onChange={(event) => setEditRoleGroup(event.currentTarget.value)}
-                        />
-                      </Field>
-                    </div>
-                    <div {...stylex.props(styles.formActions)}>
-                      <Button
-                        type="submit"
-                        isLoading={updateRole.isPending}
-                        disabled={!editRoleName.trim()}
-                      >
-                        <Trans>Save role</Trans>
-                      </Button>
-                      <Button variant="secondary" onClick={() => setEditingRole(null)}>
-                        <Trans>Cancel</Trans>
-                      </Button>
-                    </div>
-                  </form>
-                ) : null}
-                {editingPermission ? (
-                  <form
-                    onSubmit={(event) => void handleUpdatePermission(event)}
-                    {...stylex.props(styles.sectionStack)}
-                  >
-                    <code {...stylex.props(styles.mono)}>{editingPermission.key}</code>
-                    <Field label={<Trans>Description</Trans>}>
+              }
+            >
+              {editingRole ? (
+                <form
+                  onSubmit={(event) => void handleUpdateRole(event)}
+                  {...stylex.props(consoleShell.sectionStack)}
+                >
+                  <code {...stylex.props(consoleShell.mono)}>{editingRole.key}</code>
+                  <div {...stylex.props(consoleShell.formGrid)}>
+                    <Field label={<Trans>Display name</Trans>} required>
                       <Input
-                        value={editPermissionDescription}
-                        onChange={(event) =>
-                          setEditPermissionDescription(event.currentTarget.value)
-                        }
+                        value={editRoleName}
+                        onChange={(event) => setEditRoleName(event.currentTarget.value)}
                       />
                     </Field>
-                    <div {...stylex.props(styles.formActions)}>
-                      <Button type="submit" isLoading={updatePermission.isPending}>
-                        <Trans>Save permission</Trans>
-                      </Button>
-                      <Button variant="secondary" onClick={() => setEditingPermission(null)}>
-                        <Trans>Cancel</Trans>
+                    <Field label={<Trans>Group</Trans>}>
+                      <Input
+                        value={editRoleGroup}
+                        onChange={(event) => setEditRoleGroup(event.currentTarget.value)}
+                      />
+                    </Field>
+                  </div>
+                  <div {...stylex.props(consoleShell.formActions)}>
+                    <Button
+                      type="submit"
+                      isLoading={updateRole.isPending}
+                      disabled={!editRoleName.trim()}
+                    >
+                      <Trans>Save changes</Trans>
+                    </Button>
+                    <Button variant="secondary" onClick={() => setEditingRole(null)}>
+                      <Trans>Cancel</Trans>
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+              {editingPermission ? (
+                <form
+                  onSubmit={(event) => void handleUpdatePermission(event)}
+                  {...stylex.props(consoleShell.sectionStack)}
+                >
+                  <code {...stylex.props(consoleShell.mono)}>{editingPermission.key}</code>
+                  <Field label={<Trans>Description</Trans>}>
+                    <Input
+                      value={editPermissionDescription}
+                      onChange={(event) => setEditPermissionDescription(event.currentTarget.value)}
+                    />
+                  </Field>
+                  <div {...stylex.props(consoleShell.formActions)}>
+                    <Button type="submit" isLoading={updatePermission.isPending}>
+                      <Trans>Save changes</Trans>
+                    </Button>
+                    <Button variant="secondary" onClick={() => setEditingPermission(null)}>
+                      <Trans>Cancel</Trans>
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+            </ConsolePageSplitSection>
+          ) : null}
+
+          <ConsolePageSplitSection
+            title={<Trans>Role permission mappings</Trans>}
+            description={
+              <Trans>
+                Select a role, attach a permission, and optionally require a JSON ABAC condition.
+                The server validates supported operators and variable paths.
+              </Trans>
+            }
+            meta={
+              selectedRole ? (
+                <p {...stylex.props(consoleShell.selectorSummary)}>
+                  <Trans>Current: {selectedRole.display_name}</Trans>
+                </p>
+              ) : null
+            }
+          >
+            <Field label={<Trans>Role</Trans>}>
+              <Select
+                value={roleId}
+                onChange={(event) => {
+                  setSelectedRoleId(event.currentTarget.value)
+                  setMappingCursor(undefined)
+                }}
+                disabled={(roles.data?.data.length ?? 0) === 0}
+              >
+                {(roles.data?.data.length ?? 0) === 0 ? (
+                  <option value="">{t`No active roles`}</option>
+                ) : null}
+                {(roles.data?.data ?? []).map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.display_name} ({role.key})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {!roleId ? (
+              <Alert tone="info">
+                <Trans>Create or select an active role first.</Trans>
+              </Alert>
+            ) : mappings.isError ? (
+              <Alert tone="error">
+                <Trans>Failed to load role permission mappings.</Trans>
+              </Alert>
+            ) : (
+              <>
+                <DataTable
+                  columns={mappingColumns}
+                  data={mappings.data?.data ?? []}
+                  getRowId={(mapping) => mapping.id}
+                  isLoading={mappings.isLoading}
+                  emptyMessage={<Trans>No permissions mapped to this role.</Trans>}
+                />
+                {mappings.data ? (
+                  <Pagination
+                    nextCursor={mappings.data.next_cursor}
+                    loadMoreLabel={<Trans>Load more role mappings</Trans>}
+                    onLoadMore={setMappingCursor}
+                  />
+                ) : null}
+                {canWrite ? (
+                  <form
+                    onSubmit={(event) => void handleCreateMapping(event)}
+                    {...stylex.props(consoleShell.sectionStack)}
+                  >
+                    <Field label={<Trans>Permission</Trans>} required>
+                      <Select
+                        value={mappingPermissionId}
+                        onChange={(event) => setMappingPermissionId(event.currentTarget.value)}
+                        disabled={(permissions.data?.data.length ?? 0) === 0}
+                      >
+                        <option value="">{t`Select permission`}</option>
+                        {(permissions.data?.data ?? []).map((permission) => (
+                          <option key={permission.id} value={permission.id}>
+                            {permission.key}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field
+                      label={<Trans>ABAC condition JSON</Trans>}
+                      error={conditionErrorMessage(conditionParse)}
+                      hint={
+                        <Trans>
+                          Leave blank for unconditional access. JSON must be an object; server
+                          validation remains authoritative.
+                        </Trans>
+                      }
+                    >
+                      <Textarea
+                        value={conditionText}
+                        onChange={(event) => {
+                          setConditionText(event.currentTarget.value)
+                          setConditionParse(null)
+                        }}
+                        placeholder={'{"op":"eq","var":"org.id","value":"org_..."}'}
+                        isInvalid={conditionParse != null && !conditionParse.ok}
+                      />
+                    </Field>
+                    <div {...stylex.props(consoleShell.formActions)}>
+                      <Button
+                        type="submit"
+                        isLoading={createMapping.isPending}
+                        disabled={!mappingPermissionId}
+                      >
+                        <Trans>Add mapping</Trans>
                       </Button>
                     </div>
                   </form>
                 ) : null}
-              </div>
-            </section>
-          ) : null}
-
-          <section aria-labelledby="mappings-heading" {...stylex.props(styles.createSection)}>
-            <div {...stylex.props(styles.sectionMeta)}>
-              <h2 id="mappings-heading" {...stylex.props(page.sectionLabel)}>
-                <Trans>Role permission mappings</Trans>
-              </h2>
-              <p {...stylex.props(styles.sectionDescription)}>
-                <Trans>
-                  Select a role, attach a permission, and optionally require a JSON ABAC condition.
-                  The server validates supported operators and variable paths.
-                </Trans>
-              </p>
-            </div>
-            <div {...stylex.props(styles.controls)}>
-              <Field label={<Trans>Role</Trans>}>
-                <select
-                  value={roleId}
-                  onChange={(event) => {
-                    setSelectedRoleId(event.currentTarget.value)
-                    setMappingCursor(undefined)
-                  }}
-                  disabled={(roles.data?.data.length ?? 0) === 0}
-                  {...stylex.props(styles.select)}
-                >
-                  {(roles.data?.data.length ?? 0) === 0 ? (
-                    <option value="">{t`No active roles`}</option>
-                  ) : null}
-                  {(roles.data?.data ?? []).map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.display_name} ({role.key})
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              {!roleId ? (
-                <Alert tone="info">
-                  <Trans>Create or select an active role first.</Trans>
-                </Alert>
-              ) : mappings.isError ? (
-                <Alert tone="error">
-                  <Trans>Failed to load role permission mappings.</Trans>
-                </Alert>
-              ) : (
-                <>
-                  <DataTable
-                    columns={mappingColumns}
-                    data={mappings.data?.data ?? []}
-                    getRowId={(mapping) => mapping.id}
-                    isLoading={mappings.isLoading}
-                    emptyMessage={<Trans>No permissions mapped to this role.</Trans>}
-                  />
-                  {mappings.data ? (
-                    <Pagination
-                      nextCursor={mappings.data.next_cursor}
-                      loadMoreLabel={<Trans>Load more role mappings</Trans>}
-                      onLoadMore={setMappingCursor}
-                    />
-                  ) : null}
-                  {canWrite ? (
-                    <form
-                      onSubmit={(event) => void handleCreateMapping(event)}
-                      {...stylex.props(styles.sectionStack)}
-                    >
-                      <Field label={<Trans>Permission</Trans>} required>
-                        <select
-                          value={mappingPermissionId}
-                          onChange={(event) => setMappingPermissionId(event.currentTarget.value)}
-                          disabled={(permissions.data?.data.length ?? 0) === 0}
-                          {...stylex.props(styles.select)}
-                        >
-                          <option value="">{t`Select permission`}</option>
-                          {(permissions.data?.data ?? []).map((permission) => (
-                            <option key={permission.id} value={permission.id}>
-                              {permission.key}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field
-                        label={<Trans>ABAC condition JSON</Trans>}
-                        error={conditionErrorMessage(conditionParse)}
-                        hint={
-                          <Trans>
-                            Leave blank for unconditional access. JSON must be an object; server
-                            validation remains authoritative.
-                          </Trans>
-                        }
-                      >
-                        <textarea
-                          value={conditionText}
-                          onChange={(event) => {
-                            setConditionText(event.currentTarget.value)
-                            setConditionParse(null)
-                          }}
-                          placeholder={'{"op":"eq","var":"org.id","value":"org_..."}'}
-                          {...stylex.props(
-                            styles.textarea,
-                            conditionParse && !conditionParse.ok && styles.textareaInvalid,
-                          )}
-                        />
-                      </Field>
-                      <div {...stylex.props(styles.formActions)}>
-                        <Button
-                          type="submit"
-                          isLoading={createMapping.isPending}
-                          disabled={!mappingPermissionId}
-                        >
-                          <Trans>Add mapping</Trans>
-                        </Button>
-                      </div>
-                    </form>
-                  ) : null}
-                </>
-              )}
-            </div>
-          </section>
+              </>
+            )}
+          </ConsolePageSplitSection>
 
           {canWrite && editingMapping ? (
-            <section aria-labelledby="edit-mapping-heading" {...stylex.props(styles.createSection)}>
-              <div {...stylex.props(styles.sectionMeta)}>
-                <h2 id="edit-mapping-heading" {...stylex.props(page.sectionLabel)}>
-                  <Trans>Edit ABAC condition</Trans>
-                </h2>
-                <code {...stylex.props(styles.mono)}>{editingMapping.permission_id}</code>
-              </div>
+            <ConsolePageSplitSection
+              title={<Trans>Edit ABAC condition</Trans>}
+              meta={
+                <code {...stylex.props(consoleShell.mono)}>{editingMapping.permission_id}</code>
+              }
+            >
               <form
                 onSubmit={(event) => void handleUpdateMapping(event)}
-                {...stylex.props(styles.controls)}
+                {...stylex.props(consoleShell.sectionStack)}
               >
                 <Field
                   label={<Trans>ABAC condition JSON</Trans>}
                   error={conditionErrorMessage(editConditionParse)}
                   hint={<Trans>Leave blank to make this mapping unconditional.</Trans>}
                 >
-                  <textarea
+                  <Textarea
                     value={editConditionText}
                     onChange={(event) => {
                       setEditConditionText(event.currentTarget.value)
                       setEditConditionParse(null)
                     }}
-                    {...stylex.props(
-                      styles.textarea,
-                      editConditionParse && !editConditionParse.ok && styles.textareaInvalid,
-                    )}
+                    isInvalid={editConditionParse != null && !editConditionParse.ok}
                   />
                 </Field>
-                <div {...stylex.props(styles.formActions)}>
+                <div {...stylex.props(consoleShell.formActions)}>
                   <Button type="submit" isLoading={updateMapping.isPending}>
-                    <Trans>Save condition</Trans>
+                    <Trans>Save changes</Trans>
                   </Button>
                   <Button variant="secondary" onClick={() => setEditingMapping(null)}>
                     <Trans>Cancel</Trans>
                   </Button>
                 </div>
               </form>
-            </section>
+            </ConsolePageSplitSection>
           ) : null}
 
           {canWrite ? (
-            <section aria-labelledby="rbac-recycle-heading" {...stylex.props(styles.section)}>
-              <div {...stylex.props(styles.sectionStack)}>
-                <div>
-                  <h2 id="rbac-recycle-heading" {...stylex.props(page.sectionLabel)}>
-                    <Trans>RBAC recycle bin</Trans>
-                  </h2>
-                  <p {...stylex.props(styles.sectionDescription)}>
-                    <Trans>
-                      Soft-deleted roles and permissions remain visible across refreshes and can be
-                      restored to this project.
-                    </Trans>
-                  </p>
+            <ConsolePageSection
+              title={<Trans>RBAC recycle bin</Trans>}
+              description={
+                <Trans>
+                  Soft-deleted roles and permissions remain visible across refreshes and can be
+                  restored to this project.
+                </Trans>
+              }
+            >
+              <div {...stylex.props(consoleShell.split)}>
+                <div {...stylex.props(consoleShell.splitColumn)}>
+                  <h3 {...stylex.props(page.sectionLabel)}>
+                    <Trans>Deleted roles</Trans>
+                  </h3>
+                  {deletedRoles.isError ? (
+                    <Alert tone="error">
+                      <Trans>Failed to load deleted roles.</Trans>
+                    </Alert>
+                  ) : (
+                    <>
+                      <DataTable
+                        columns={deletedRoleColumns}
+                        data={deletedRoles.data?.data ?? []}
+                        getRowId={(role) => role.id}
+                        isLoading={deletedRoles.isLoading}
+                        emptyMessage={<Trans>No deleted roles.</Trans>}
+                      />
+                      {deletedRoles.data ? (
+                        <Pagination
+                          nextCursor={deletedRoles.data.next_cursor}
+                          loadMoreLabel={<Trans>Load more deleted roles</Trans>}
+                          onLoadMore={setDeletedRoleCursor}
+                        />
+                      ) : null}
+                    </>
+                  )}
                 </div>
-                <div {...stylex.props(styles.split)}>
-                  <div {...stylex.props(styles.splitColumn)}>
-                    <h3 {...stylex.props(page.sectionLabel)}>
-                      <Trans>Deleted roles</Trans>
-                    </h3>
-                    {deletedRoles.isError ? (
-                      <Alert tone="error">
-                        <Trans>Failed to load deleted roles.</Trans>
-                      </Alert>
-                    ) : (
-                      <>
-                        <DataTable
-                          columns={deletedRoleColumns}
-                          data={deletedRoles.data?.data ?? []}
-                          getRowId={(role) => role.id}
-                          isLoading={deletedRoles.isLoading}
-                          emptyMessage={<Trans>No deleted roles.</Trans>}
+                <div {...stylex.props(consoleShell.splitColumn, consoleShell.dividerColumn)}>
+                  <h3 {...stylex.props(page.sectionLabel)}>
+                    <Trans>Deleted permissions</Trans>
+                  </h3>
+                  {deletedPermissions.isError ? (
+                    <Alert tone="error">
+                      <Trans>Failed to load deleted permissions.</Trans>
+                    </Alert>
+                  ) : (
+                    <>
+                      <DataTable
+                        columns={deletedPermissionColumns}
+                        data={deletedPermissions.data?.data ?? []}
+                        getRowId={(permission) => permission.id}
+                        isLoading={deletedPermissions.isLoading}
+                        emptyMessage={<Trans>No deleted permissions.</Trans>}
+                      />
+                      {deletedPermissions.data ? (
+                        <Pagination
+                          nextCursor={deletedPermissions.data.next_cursor}
+                          loadMoreLabel={<Trans>Load more deleted permissions</Trans>}
+                          onLoadMore={setDeletedPermissionCursor}
                         />
-                        {deletedRoles.data ? (
-                          <Pagination
-                            nextCursor={deletedRoles.data.next_cursor}
-                            loadMoreLabel={<Trans>Load more deleted roles</Trans>}
-                            onLoadMore={setDeletedRoleCursor}
-                          />
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                  <div {...stylex.props(styles.splitColumn, styles.dividerColumn)}>
-                    <h3 {...stylex.props(page.sectionLabel)}>
-                      <Trans>Deleted permissions</Trans>
-                    </h3>
-                    {deletedPermissions.isError ? (
-                      <Alert tone="error">
-                        <Trans>Failed to load deleted permissions.</Trans>
-                      </Alert>
-                    ) : (
-                      <>
-                        <DataTable
-                          columns={deletedPermissionColumns}
-                          data={deletedPermissions.data?.data ?? []}
-                          getRowId={(permission) => permission.id}
-                          isLoading={deletedPermissions.isLoading}
-                          emptyMessage={<Trans>No deleted permissions.</Trans>}
-                        />
-                        {deletedPermissions.data ? (
-                          <Pagination
-                            nextCursor={deletedPermissions.data.next_cursor}
-                            loadMoreLabel={<Trans>Load more deleted permissions</Trans>}
-                            onLoadMore={setDeletedPermissionCursor}
-                          />
-                        ) : null}
-                      </>
-                    )}
-                  </div>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               </div>
-            </section>
+            </ConsolePageSection>
           ) : null}
         </>
       )}
@@ -1028,6 +1011,24 @@ export default function OrgRoles({
           onCancel={() => setPendingDelete(null)}
         />
       ) : null}
-    </div>
+    </>
+  )
+
+  if (embedded) {
+    return <div {...stylex.props(consoleShell.root)}>{body}</div>
+  }
+
+  return (
+    <ConsolePage
+      title={<Trans>Roles and permissions</Trans>}
+      lead={
+        <Trans>
+          Define project-local roles and permission keys, then connect them with optional ABAC
+          conditions.
+        </Trans>
+      }
+    >
+      {body}
+    </ConsolePage>
   )
 }

@@ -1,51 +1,19 @@
-import { Trans } from '@lingui/react/macro'
+// org 合规中心:已发布的合规证据(DPA 等)列表、校验和、下载与 DPA 接受记录。
+// GET /v1/organizations/:orgId/compliance/documents,POST 接受 DPA。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;证据行是本页特有版式。
+
+import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
 import type { ReactNode } from 'react'
 import { Alert, Badge, Button, EmptyState, Spinner } from '@xid-kit/web-ui/ui'
+import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
+import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useAcceptDpa, useOrgComplianceDocumentsQuery } from './queries'
 import type { OrgComplianceDocument } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  header: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    color: tokens['--xid-fg'],
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-  },
-  lead: {
-    maxWidth: '54rem',
-    margin: '0.5rem 0 0',
-    color: tokens['--xid-muted-foreground'],
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-  },
-  section: {
-    paddingInline: GUTTER,
-    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
-  },
-  message: {
-    marginBottom: '1rem',
-  },
   list: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
@@ -171,31 +139,33 @@ function EvidenceRow({
 }
 
 export default function OrgCompliance(): ReactNode {
+  const { t } = useLingui()
   const { orgId } = useOrgTarget()
   const query = useOrgComplianceDocumentsQuery(orgId)
   const accept = useAcceptDpa(orgId)
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Compliance center</Trans>
-        </h1>
-        <p {...stylex.props(styles.lead)}>
-          <Trans>
-            Review published compliance evidence, verify its checksum, and retain an immutable DPA
-            acceptance record for this organization.
-          </Trans>
-        </p>
-      </header>
-      <section {...stylex.props(styles.section)}>
-        {accept.isError ? (
-          <div {...stylex.props(styles.message)}>
-            <Alert tone="error">{accept.error.message}</Alert>
-          </div>
-        ) : null}
+    <ConsolePage
+      title={<Trans>Compliance center</Trans>}
+      lead={
+        <Trans>
+          Review published compliance evidence, verify its checksum, and retain an immutable DPA
+          acceptance record for this organization.
+        </Trans>
+      }
+    >
+      {accept.isError ? (
+        <ConsolePageNotice>
+          <Alert tone="error">
+            <Trans>Failed to record DPA acceptance. Try again.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      ) : null}
+      <ConsolePageSection>
         {query.isLoading ? (
-          <Spinner />
+          <div {...stylex.props(page.loadingCenter)}>
+            <Spinner label={t`Loading compliance evidence`} />
+          </div>
         ) : query.isError ? (
           <Alert tone="error">
             <Trans>Compliance evidence could not be loaded.</Trans>
@@ -214,7 +184,7 @@ export default function OrgCompliance(): ReactNode {
             ))}
           </div>
         )}
-      </section>
-    </div>
+      </ConsolePageSection>
+    </ConsolePage>
   )
 }

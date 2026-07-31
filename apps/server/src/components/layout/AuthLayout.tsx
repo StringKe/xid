@@ -8,6 +8,7 @@
 import { useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { Stepper } from '@xid-kit/web-ui/ui/Stepper'
 import { tokens } from '../../styles/tokens.stylex'
 import { useTheme } from '../../lib/theme'
 import { LanguageSwitcher } from '../LanguageSwitcher'
@@ -15,6 +16,12 @@ import { LanguageSwitcher } from '../LanguageSwitcher'
 export type AuthLayoutProps = {
   children: ReactNode
   footer?: ReactNode
+  // 向导步骤指示(mono microlabel),渲染在 topBar brand 与 LanguageSwitcher 之间。
+  steps?: {
+    current: number
+    total: number
+    label?: ReactNode
+  }
 }
 
 const enterRise = stylex.keyframes({
@@ -98,7 +105,7 @@ const styles = stylex.create({
   },
 })
 
-export function AuthLayout({ children, footer }: AuthLayoutProps): ReactNode {
+export function AuthLayout({ children, footer, steps }: AuthLayoutProps): ReactNode {
   const { brand } = useTheme()
   const { t } = useLingui()
   const appName = brand.appName ?? 'XID'
@@ -114,6 +121,9 @@ export function AuthLayout({ children, footer }: AuthLayoutProps): ReactNode {
               <span {...stylex.props(styles.wordmark)}>{appName}</span>
             )}
           </div>
+          {steps ? (
+            <Stepper current={steps.current} total={steps.total} label={steps.label} />
+          ) : null}
           <LanguageSwitcher />
         </div>
 

@@ -1,69 +1,37 @@
+// org 社交登录 provider 页:每条 provider 一个 5/7 双列配置节,模板/自定义 key 添加,本地编辑后统一保存。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;移除 provider 走 ConfirmDialog。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Badge, Button, EmptyState, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  EmptyState,
+  Field,
+  Input,
+  Spinner,
+} from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useOrgTarget } from './useOrgTarget'
 import { useOrgSocialProvidersQuery, useUpdateOrgSocialProviders } from './queries'
 import type { OrgSocialProviderPolicy, OrgSocialProviders } from './types'
 
-// 全宽规范常量
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-
 const styles = stylex.create({
-  root: {
+  loadingZone: {
     display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  formBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  // 工具栏节:模板添加按钮 + 新 provider key 输入,带顶 hairline
-  toolbarSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  toolbarRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-    flexWrap: 'wrap',
+    justifyContent: 'center',
+    paddingBlock: '2.25rem',
   },
   templateBtnRow: {
     display: 'flex',
@@ -80,29 +48,8 @@ const styles = stylex.create({
     flex: '1 1 240px',
     minWidth: 0,
   },
-  // provider 展开区域:每条 hairline 顶分隔,5/7 双列
-  providerSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
-    },
-    gap: {
-      default: '1.25rem',
-      '@media (min-width: 64rem)': '0',
-    },
-  },
-  // 左列:provider 名 + 状态 + 操作
+  // provider 左列 meta:状态徽章 + 移除操作 + readiness 说明
   providerMeta: {
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
@@ -113,16 +60,6 @@ const styles = stylex.create({
     gap: '0.625rem',
     flexWrap: 'wrap',
   },
-  providerName: {
-    margin: 0,
-    fontSize: '0.9375rem',
-    fontWeight: 600,
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
   readinessNote: {
     margin: 0,
     fontSize: '0.75rem',
@@ -132,23 +69,6 @@ const styles = stylex.create({
   },
   readinessReady: {
     color: tokens['--xid-success'],
-  },
-  // 右列:controls
-  controlCol: {
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 64rem)': '1px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    maxWidth: '36rem',
   },
   checkGrid: {
     display: 'grid',
@@ -167,29 +87,6 @@ const styles = stylex.create({
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
     cursor: 'pointer',
-  },
-  checkInput: {
-    accentColor: tokens['--xid-accent'],
-    width: '0.9375rem',
-    height: '0.9375rem',
-    flexShrink: 0,
-    cursor: 'pointer',
-  },
-  submitSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  emptyZone: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
   },
 })
 
@@ -290,12 +187,7 @@ function CheckRow({
 }): ReactNode {
   return (
     <label {...stylex.props(styles.checkRow)}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        {...stylex.props(styles.checkInput)}
-      />
+      <Checkbox checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
   )
@@ -303,12 +195,13 @@ function CheckRow({
 
 export default function OrgSocialProvidersPage(): ReactNode {
   const { t } = useLingui()
-  const { orgId, orgName } = useOrgTarget()
+  const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgSocialProvidersQuery(orgId)
   const updateProviders = useUpdateOrgSocialProviders(orgId)
   const [form, setForm] = useState<OrgSocialProviders | null>(() => data ?? null)
   const [newProviderKey, setNewProviderKey] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [pendingRemoveProvider, setPendingRemoveProvider] = useState<string | null>(null)
 
   useEffect(() => {
     if (data) setForm(data)
@@ -368,6 +261,12 @@ export default function OrgSocialProvidersPage(): ReactNode {
     })
   }
 
+  function confirmRemoveProvider(): void {
+    if (!pendingRemoveProvider) return
+    removeSocialProvider(pendingRemoveProvider)
+    setPendingRemoveProvider(null)
+  }
+
   async function handleSave(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     if (!orgId || !form) return
@@ -380,72 +279,60 @@ export default function OrgSocialProvidersPage(): ReactNode {
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Social providers</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
-  if (isError) {
-    return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="error">
-          <Trans>Failed to load social providers.</Trans>
-        </Alert>
-      </div>
-    )
-  }
-
-  if (isLoading || !form) {
-    return (
-      <div {...stylex.props(page.loadingCenter)}>
-        <Spinner label={t`Loading social providers`} />
-      </div>
-    )
-  }
-
-  const socialEntries = Object.entries(form.socialProviders)
+  const socialEntries = form ? Object.entries(form.socialProviders) : []
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Social providers</Trans>
-        </h1>
-        <p {...stylex.props(page.lead)}>
-          <Trans>Target organization: {orgName}</Trans>
-        </p>
-      </div>
-
-      {updateProviders.error ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">{updateProviders.error.message}</Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Social providers</Trans>}
+      lead={
+        <Trans>Social sign-in providers available on this organization&apos;s Hosted UI.</Trans>
+      }
+    >
+      {isError || updateProviders.error || saveSuccess ? (
+        <ConsolePageNotice>
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load social providers.</Trans>
+            </Alert>
+          ) : null}
+          {updateProviders.error ? (
+            <Alert tone="error">
+              <Trans>Failed to save social providers. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {saveSuccess ? (
+            <Alert tone="success">
+              <Trans>Social providers saved.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
-      {saveSuccess ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="success">
-            <Trans>Social providers saved.</Trans>
-          </Alert>
-        </div>
-      ) : null}
 
-      <form
-        onSubmit={(event) => void handleSave(event)}
-        noValidate
-        {...stylex.props(styles.formBody)}
-      >
-        {/* Provider connections header + add controls */}
-        <section
-          aria-labelledby="provider-connections-heading"
-          {...stylex.props(styles.toolbarSection)}
-        >
-          <div {...stylex.props(styles.toolbarRow)}>
-            <h2 id="provider-connections-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Provider connections</Trans>
-            </h2>
+      {!form ? (
+        <ConsolePageSection>
+          <div {...stylex.props(styles.loadingZone)}>
+            {isLoading ? <Spinner label={t`Loading social providers`} /> : null}
+          </div>
+        </ConsolePageSection>
+      ) : (
+        <form onSubmit={(event) => void handleSave(event)} noValidate>
+          {/* Provider connections:add from template or custom key */}
+          <ConsolePageSplitSection
+            title={<Trans>Provider connections</Trans>}
+            description={
+              <Trans>Add a provider from a template or register a custom provider key.</Trans>
+            }
+          >
             <div {...stylex.props(styles.templateBtnRow)}>
               {Object.keys(SOCIAL_PROVIDER_TEMPLATES).map((provider) => (
                 <Button
@@ -459,77 +346,75 @@ export default function OrgSocialProvidersPage(): ReactNode {
                 </Button>
               ))}
             </div>
-          </div>
-
-          <div {...stylex.props(styles.addRow)}>
-            <div {...stylex.props(styles.addInputWrap)}>
-              <Field label={<Trans>New provider key</Trans>}>
-                <Input
-                  value={newProviderKey}
-                  onChange={(event) => setNewProviderKey(event.target.value)}
-                  placeholder={t`google`}
-                />
-              </Field>
-            </div>
-            <Button
-              type="button"
-              disabled={!normalizeProviderKey(newProviderKey)}
-              onClick={addSocialProvider}
-            >
-              <Trans>Add provider</Trans>
-            </Button>
-          </div>
-        </section>
-
-        {/* Provider list */}
-        {socialEntries.length === 0 ? (
-          <div {...stylex.props(styles.emptyZone)}>
-            <EmptyState title={<Trans>No social providers configured.</Trans>} />
-          </div>
-        ) : (
-          socialEntries.map(([provider, policy]) => (
-            <div key={provider} {...stylex.props(styles.providerSection)}>
-              <div {...stylex.props(styles.providerMeta)}>
-                <div {...stylex.props(styles.providerHeader)}>
-                  <p {...stylex.props(styles.providerName)}>
-                    {provider}
-                    {policy.credentialsReady ? (
-                      <Badge tone="success">
-                        <Trans>Ready</Trans>
-                      </Badge>
-                    ) : (
-                      <Badge tone="neutral">
-                        <Trans>Not ready</Trans>
-                      </Badge>
-                    )}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => removeSocialProvider(provider)}
-                  >
-                    <Trans>Remove provider</Trans>
-                  </Button>
-                </div>
-                <p
-                  {...stylex.props(
-                    styles.readinessNote,
-                    policy.credentialsReady ? styles.readinessReady : undefined,
-                  )}
-                >
-                  {policy.credentialsReady ? (
-                    <Trans>OAuth credentials are ready for Hosted UI.</Trans>
-                  ) : (
-                    <Trans>
-                      OAuth credentials are not ready. Hosted UI hides this provider until client
-                      ID, authorization endpoint, token endpoint, client secret reference, and
-                      Workers Secret are configured.
-                    </Trans>
-                  )}
-                </p>
+            <div {...stylex.props(styles.addRow)}>
+              <div {...stylex.props(styles.addInputWrap)}>
+                <Field label={<Trans>New provider key</Trans>}>
+                  <Input
+                    value={newProviderKey}
+                    onChange={(event) => setNewProviderKey(event.target.value)}
+                    placeholder={t`google`}
+                  />
+                </Field>
               </div>
+              <Button
+                type="button"
+                disabled={!normalizeProviderKey(newProviderKey)}
+                onClick={addSocialProvider}
+              >
+                <Trans>Add provider</Trans>
+              </Button>
+            </div>
+          </ConsolePageSplitSection>
 
-              <div {...stylex.props(styles.controlCol)}>
+          {/* Provider list */}
+          {socialEntries.length === 0 ? (
+            <ConsolePageSection>
+              <EmptyState title={<Trans>No social providers configured.</Trans>} />
+            </ConsolePageSection>
+          ) : (
+            socialEntries.map(([provider, policy]) => (
+              <ConsolePageSplitSection
+                key={provider}
+                title={provider}
+                meta={
+                  <div {...stylex.props(styles.providerMeta)}>
+                    <div {...stylex.props(styles.providerHeader)}>
+                      {policy.credentialsReady ? (
+                        <Badge tone="success">
+                          <Trans>Ready</Trans>
+                        </Badge>
+                      ) : (
+                        <Badge tone="neutral">
+                          <Trans>Not ready</Trans>
+                        </Badge>
+                      )}
+                      <Button
+                        type="button"
+                        variant="danger"
+                        onClick={() => setPendingRemoveProvider(provider)}
+                      >
+                        <Trans>Remove provider</Trans>
+                      </Button>
+                    </div>
+                    <p
+                      {...stylex.props(
+                        styles.readinessNote,
+                        policy.credentialsReady ? styles.readinessReady : undefined,
+                      )}
+                    >
+                      {policy.credentialsReady ? (
+                        <Trans>OAuth credentials are ready for Hosted UI.</Trans>
+                      ) : (
+                        <Trans>
+                          OAuth credentials are not ready. Hosted UI hides this provider until
+                          client ID, authorization endpoint, token endpoint, client secret
+                          reference, and Workers Secret are configured.
+                        </Trans>
+                      )}
+                    </p>
+                  </div>
+                }
+              >
                 <div {...stylex.props(styles.checkGrid)}>
                   <CheckRow
                     checked={policy.enabled}
@@ -681,17 +566,34 @@ export default function OrgSocialProvidersPage(): ReactNode {
                     }
                   />
                 </Field>
-              </div>
-            </div>
-          ))
-        )}
+              </ConsolePageSplitSection>
+            ))
+          )}
 
-        <div {...stylex.props(styles.submitSection)}>
-          <Button type="submit" isLoading={updateProviders.isPending}>
-            <Trans>Save social providers</Trans>
-          </Button>
-        </div>
-      </form>
-    </div>
+          <ConsolePageSection>
+            <div>
+              <Button type="submit" isLoading={updateProviders.isPending}>
+                <Trans>Save changes</Trans>
+              </Button>
+            </div>
+          </ConsolePageSection>
+        </form>
+      )}
+
+      {pendingRemoveProvider ? (
+        <ConfirmDialog
+          title={<Trans>Remove provider?</Trans>}
+          description={
+            <Trans>
+              {pendingRemoveProvider} will be removed from the social sign-in configuration. Save
+              changes to apply.
+            </Trans>
+          }
+          confirmLabel={<Trans>Remove</Trans>}
+          onConfirm={confirmRemoveProvider}
+          onCancel={() => setPendingRemoveProvider(null)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }

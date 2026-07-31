@@ -1,15 +1,23 @@
 // org SSO 连接管理页:SAML/OIDC 连接列表、创建、编辑和删除。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection)。
 
+import { msg } from '@lingui/core/macro'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Badge, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
+import { Alert, Badge, Button, Checkbox, Field, Input, Textarea } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import type { ColumnDef } from '@tanstack/react-table'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   useCreateSsoConnection,
   useDeleteSsoConnection,
@@ -57,11 +65,12 @@ const INBOUND_PRESETS = [
   { key: 'keycloak', label: 'Keycloak' },
 ] as const
 
+// legacy 协议是描述性文案(非产品名),走 lingui 描述符翻译。
 const LEGACY_PRESETS = [
-  { key: 'ldap', label: 'LDAP direct bind' },
-  { key: 'wsfed', label: 'WS-Federation' },
-  { key: 'swa', label: 'SWA password vaulting' },
-  { key: 'header', label: 'Header-based SSO' },
+  { key: 'ldap', label: msg`LDAP direct bind` },
+  { key: 'wsfed', label: msg`WS-Federation` },
+  { key: 'swa', label: msg`SWA password vaulting` },
+  { key: 'header', label: msg`Header-based SSO` },
 ] as const
 
 const LEGACY_PROTOCOLS = new Set<CreateSsoConnectionInput['protocol']>([
@@ -88,100 +97,7 @@ const EMPTY_FORM: ConnectionForm = {
   roleMapping: EMPTY_JSON,
 }
 
-// 全宽规范常量
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  // 全宽 DataTable 节:hairline 顶
-  tableSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  // 表单节:5/7 双列
-  configSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
-    },
-    gap: {
-      default: '1.25rem',
-      '@media (min-width: 64rem)': '0',
-    },
-  },
-  sectionMeta: {
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  sectionDesc: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    maxWidth: '28rem',
-  },
-  controlCol: {
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 64rem)': '1px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    maxWidth: '36rem',
-  },
   // 协议列代码标签(SAML/OIDC),tabular-nums 对齐
   protocolCode: {
     fontVariantNumeric: 'tabular-nums',
@@ -213,42 +129,12 @@ const styles = stylex.create({
     gap: '0.5rem',
     paddingBlock: '0.3125rem',
     fontSize: '0.8125rem',
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    cursor: 'pointer',
-  },
-  checkInput: {
-    accentColor: tokens['--xid-accent'],
-    width: '0.9375rem',
-    height: '0.9375rem',
-    flexShrink: 0,
     cursor: 'pointer',
   },
   actions: {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '0.75rem',
-  },
-  textarea: {
-    width: '100%',
-    minHeight: '6rem',
-    resize: 'vertical',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius'],
-    padding: '0.625rem 0.75rem',
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.8125rem',
-    color: tokens['--xid-fg'],
-    backgroundColor: tokens['--xid-bg'],
-    boxSizing: 'border-box',
-  },
-  selectedNote: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
   },
 })
 
@@ -379,7 +265,7 @@ const columns: ColumnDef<SsoConnection>[] = [
 ]
 
 export default function OrgSso(): ReactNode {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgSsoConnectionsQuery(orgId)
   const createConnection = useCreateSsoConnection(orgId)
@@ -389,6 +275,7 @@ export default function OrgSso(): ReactNode {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<ConnectionForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
   const selectedConnection = data?.find((connection) => connection.id === selectedId) ?? null
 
@@ -449,159 +336,152 @@ export default function OrgSso(): ReactNode {
     setSuccess(null)
     await deleteConnection.mutateAsync(selectedConnection.id)
     setSelectedId(null)
+    setPendingDelete(false)
     setSuccess(t`SSO connection deleted.`)
   }
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Inbound SSO connections</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
   const actionError =
-    createConnection.error?.message ||
-    updateConnection.error?.message ||
-    deleteConnection.error?.message ||
-    null
+    createConnection.isError || updateConnection.isError || deleteConnection.isError
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Inbound SSO connections</Trans>
-        </h1>
-      </div>
-
-      {formError || actionError ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">{formError ?? actionError}</Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Inbound SSO connections</Trans>}
+      lead={
+        <Trans>
+          Manage SAML, OIDC, and legacy enterprise identity provider connections for this
+          organization.
+        </Trans>
+      }
+    >
+      {formError || success || actionError || isError ? (
+        <ConsolePageNotice>
+          {formError ? <Alert tone="error">{formError}</Alert> : null}
+          {success ? <Alert tone="success">{success}</Alert> : null}
+          {actionError ? (
+            <Alert tone="error">
+              <Trans>Failed to save SSO connection changes. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load inbound SSO connections. Please try again.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
-      {success ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="success">{success}</Alert>
-        </div>
-      ) : null}
 
-      {/* Connection list */}
-      <section aria-labelledby="connections-list-heading" {...stylex.props(styles.tableSection)}>
-        <h2 id="connections-list-heading" {...stylex.props(page.sectionLabel)}>
-          <Trans>Connections</Trans>
-        </h2>
-        {isLoading ? (
-          <div {...stylex.props(page.loadingCenter)}>
-            <Spinner />
-          </div>
-        ) : isError ? (
-          <Alert tone="error">
-            <Trans>Failed to load inbound SSO connections. Please try again.</Trans>
-          </Alert>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={data ?? []}
-            getRowId={(row) => row.id}
-            emptyMessage={<Trans>No inbound SSO connections configured.</Trans>}
-            onRowClick={(row) => setSelectedId(row.id)}
-          />
-        )}
-      </section>
+      <ConsolePageSection title={<Trans>Connections</Trans>}>
+        <DataTable
+          columns={columns}
+          data={data ?? []}
+          getRowId={(row) => row.id}
+          isLoading={isLoading}
+          emptyMessage={<Trans>No inbound SSO connections configured.</Trans>}
+          onRowClick={(row) => setSelectedId(row.id)}
+          isRowSelected={(row) => row.id === selectedId}
+        />
+      </ConsolePageSection>
 
-      {/* Create connection */}
-      <section aria-labelledby="create-connection-heading" {...stylex.props(styles.configSection)}>
-        <div {...stylex.props(styles.sectionMeta)}>
-          <h2 id="create-connection-heading" {...stylex.props(page.sectionLabel)}>
-            <Trans>Create connection</Trans>
-          </h2>
-          <p {...stylex.props(styles.sectionDesc)}>
-            <Trans>
-              Register SAML, OIDC, or legacy enterprise protocol connections for this organization.
-              Legacy protocols use the <code>_legacy</code> JSON helper in attribute mapping.
-            </Trans>
-          </p>
+      <ConsolePageSplitSection
+        title={<Trans>Create connection</Trans>}
+        description={
+          <Trans>
+            Register SAML, OIDC, or legacy enterprise protocol connections for this organization.
+            Legacy protocols use the <code>_legacy</code> JSON helper in attribute mapping.
+          </Trans>
+        }
+      >
+        <div {...stylex.props(styles.presetRow)}>
+          {INBOUND_PRESETS.map((preset) => (
+            <Button
+              key={preset.key}
+              type="button"
+              variant="secondary"
+              onClick={() => void handleCreateFromPreset(preset.key)}
+              isLoading={createConnection.isPending}
+            >
+              <Trans>Add {preset.label} template</Trans>
+            </Button>
+          ))}
         </div>
-        <div {...stylex.props(styles.controlCol)}>
-          <div {...stylex.props(styles.presetRow)}>
-            {INBOUND_PRESETS.map((preset) => (
-              <Button
-                key={preset.key}
-                type="button"
-                variant="secondary"
-                onClick={() => void handleCreateFromPreset(preset.key)}
-                isLoading={createConnection.isPending}
-              >
-                <Trans>Add {preset.label} template</Trans>
+        <div {...stylex.props(styles.presetRow)}>
+          {LEGACY_PRESETS.map((preset) => (
+            <Button
+              key={preset.key}
+              type="button"
+              variant="secondary"
+              onClick={() => void handleCreateFromPreset(preset.key, preset.key)}
+              isLoading={createConnection.isPending}
+            >
+              <Trans>Add {i18n._(preset.label)} template</Trans>
+            </Button>
+          ))}
+        </div>
+        <form onSubmit={(event) => void handleCreate(event)} noValidate>
+          <div {...stylex.props(styles.formGrid)}>
+            <ConnectionFields form={createForm} onChange={setCreateForm} allowProtocolSwitch />
+            <div {...stylex.props(styles.fullSpan, styles.actions)}>
+              <Button type="submit" isLoading={createConnection.isPending}>
+                <Trans>Create connection</Trans>
               </Button>
-            ))}
+            </div>
           </div>
-          <div {...stylex.props(styles.presetRow)}>
-            {LEGACY_PRESETS.map((preset) => (
-              <Button
-                key={preset.key}
-                type="button"
-                variant="secondary"
-                onClick={() => void handleCreateFromPreset(preset.key, preset.key)}
-                isLoading={createConnection.isPending}
-              >
-                <Trans>Add {preset.label} template</Trans>
-              </Button>
-            ))}
-          </div>
-          <form onSubmit={(event) => void handleCreate(event)} noValidate>
+        </form>
+      </ConsolePageSplitSection>
+
+      {selectedConnection ? (
+        <ConsolePageSplitSection
+          title={<Trans>Edit connection</Trans>}
+          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selectedConnection.name}</p>}
+        >
+          <form onSubmit={(event) => void handleUpdate(event)} noValidate>
             <div {...stylex.props(styles.formGrid)}>
-              <ConnectionFields form={createForm} onChange={setCreateForm} allowProtocolSwitch />
+              <ConnectionFields
+                form={editForm}
+                onChange={setEditForm}
+                allowProtocolSwitch={false}
+              />
               <div {...stylex.props(styles.fullSpan, styles.actions)}>
-                <Button type="submit" isLoading={createConnection.isPending}>
-                  <Trans>Create connection</Trans>
+                <Button type="submit" isLoading={updateConnection.isPending}>
+                  <Trans>Save changes</Trans>
+                </Button>
+                <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
+                  <Trans>Delete connection</Trans>
                 </Button>
               </div>
             </div>
           </form>
-        </div>
-      </section>
-
-      {/* Edit connection */}
-      {selectedConnection ? (
-        <section aria-labelledby="edit-connection-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="edit-connection-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Edit connection</Trans>
-            </h2>
-            <p {...stylex.props(styles.selectedNote)}>
-              <Trans>Selected connection: {selectedConnection.name}</Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
-            <form onSubmit={(event) => void handleUpdate(event)} noValidate>
-              <div {...stylex.props(styles.formGrid)}>
-                <ConnectionFields
-                  form={editForm}
-                  onChange={setEditForm}
-                  allowProtocolSwitch={false}
-                />
-                <div {...stylex.props(styles.fullSpan, styles.actions)}>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    onClick={() => void handleDelete()}
-                    isLoading={deleteConnection.isPending}
-                  >
-                    <Trans>Delete connection</Trans>
-                  </Button>
-                  <Button type="submit" isLoading={updateConnection.isPending}>
-                    <Trans>Save connection</Trans>
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </section>
+        </ConsolePageSplitSection>
       ) : null}
-    </div>
+
+      {pendingDelete && selectedConnection ? (
+        <ConfirmDialog
+          title={<Trans>Delete connection?</Trans>}
+          description={
+            <Trans>
+              {selectedConnection.name} will be deleted. Users can no longer sign in through this
+              connection.
+            </Trans>
+          }
+          confirmLabel={<Trans>Delete connection</Trans>}
+          isLoading={deleteConnection.isPending}
+          onConfirm={() => void handleDelete()}
+          onCancel={() => setPendingDelete(false)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }
 
@@ -740,7 +620,7 @@ function ConnectionFields({
             />
           </Field>
           <div {...stylex.props(styles.fullSpan)}>
-            <p {...stylex.props(styles.sectionDesc)}>
+            <p {...stylex.props(consoleShell.sectionDescription)}>
               <Trans>
                 Configure protocol-specific fields under <code>_legacy</code> in attribute mapping.
                 SWA vaulted credentials are stored via the authenticated{' '}
@@ -783,8 +663,7 @@ function ConnectionFields({
           </div>
           <div {...stylex.props(styles.fullSpan)}>
             <Field label={<Trans>Signing certificates</Trans>}>
-              <textarea
-                {...stylex.props(styles.textarea)}
+              <Textarea
                 value={form.idpCertificate}
                 onChange={(event) => patch({ idpCertificate: event.target.value })}
                 placeholder={t`MIIC...`}
@@ -802,22 +681,18 @@ function ConnectionFields({
             />
           </Field>
           <label {...stylex.props(styles.checkRow)}>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={form.wantAuthnResponseSigned}
               onChange={(event) => patch({ wantAuthnResponseSigned: event.target.checked })}
-              {...stylex.props(styles.checkInput)}
             />
             <span>
               <Trans>Require signed SAML response</Trans>
             </span>
           </label>
           <label {...stylex.props(styles.checkRow)}>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={form.wantAssertionsSigned}
               onChange={(event) => patch({ wantAssertionsSigned: event.target.checked })}
-              {...stylex.props(styles.checkInput)}
             />
             <span>
               <Trans>Require signed SAML assertions</Trans>
@@ -844,11 +719,9 @@ function ConnectionFields({
       )}
 
       <label {...stylex.props(styles.checkRow)}>
-        <input
-          type="checkbox"
+        <Checkbox
           checked={form.jitEnabled}
           onChange={(event) => patch({ jitEnabled: event.target.checked })}
-          {...stylex.props(styles.checkInput)}
         />
         <span>
           <Trans>Allow JIT user creation for this connection</Trans>
@@ -857,8 +730,7 @@ function ConnectionFields({
 
       <div {...stylex.props(styles.fullSpan)}>
         <Field label={<Trans>Attribute mapping JSON</Trans>}>
-          <textarea
-            {...stylex.props(styles.textarea)}
+          <Textarea
             value={form.attributeMapping}
             onChange={(event) => patch({ attributeMapping: event.target.value })}
           />
@@ -866,8 +738,7 @@ function ConnectionFields({
       </div>
       <div {...stylex.props(styles.fullSpan)}>
         <Field label={<Trans>Role mapping JSON</Trans>}>
-          <textarea
-            {...stylex.props(styles.textarea)}
+          <Textarea
             value={form.roleMapping}
             onChange={(event) => patch({ roleMapping: event.target.value })}
           />

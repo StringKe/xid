@@ -1,12 +1,20 @@
 // Instance Manager plan/quota editor. Plans are accounting and support labels only:
 // they never license-gate self-hosted features or authentication/protocol paths.
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + notice 通栏;表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
-import { useSearchParams } from '@xid-kit/web-ui/tanstack-router'
+import { Alert, Button, Field, Input, Select, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
+import { Link, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
+import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import {
   useCreateStripeCheckout,
@@ -23,7 +31,6 @@ import type {
   OrganizationQuotaKey,
 } from './types'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const EDITABLE_QUOTA_KEYS = [
   'organizations',
   'sso_connections',
@@ -53,56 +60,9 @@ type PlanForm = {
 }
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  lead: {
-    margin: '0.5rem 0 0',
-    maxWidth: '54rem',
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-  },
-  tenantId: {
-    fontFamily: tokens['--xid-font-mono'],
-    color: tokens['--xid-fg'],
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  loadingZone: {
-    display: 'flex',
-    justifyContent: 'center',
-    paddingInline: GUTTER,
-    paddingBlock: '3rem',
-  },
   form: {
     display: 'grid',
     gap: '1.5rem',
-    paddingInline: GUTTER,
-    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
-    maxWidth: '58rem',
   },
   summaryGrid: {
     display: 'grid',
@@ -111,19 +71,6 @@ const styles = stylex.create({
       '@media (min-width: 48rem)': 'repeat(2, minmax(0, 1fr))',
     },
     gap: '1rem',
-  },
-  select: {
-    width: '100%',
-    minHeight: '2.5rem',
-    paddingInline: '0.75rem',
-    borderRadius: tokens['--xid-radius-sm'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.9375rem',
   },
   sectionTitle: {
     margin: 0,
@@ -164,8 +111,6 @@ const styles = stylex.create({
   managedBilling: {
     display: 'grid',
     gap: '0.875rem',
-    marginInline: GUTTER,
-    marginTop: '1.5rem',
     padding: '1rem',
     maxWidth: '56rem',
     borderWidth: '1px',
@@ -180,6 +125,15 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontSize: '0.875rem',
     lineHeight: 1.55,
+  },
+  organizationLink: {
+    color: tokens['--xid-primary'],
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    textDecoration: {
+      default: 'none',
+      ':hover': 'underline',
+    },
   },
 })
 
@@ -287,111 +241,126 @@ export default function PlatformPlans(): ReactNode {
 
   if (tenantId === '') {
     return (
-      <div {...stylex.props(styles.root)}>
-        <div {...stylex.props(styles.headerZone)}>
-          <h1 {...stylex.props(styles.title)}>
-            <Trans>Plans and quotas</Trans>
-          </h1>
-        </div>
-        <div {...stylex.props(styles.messageZone)}>
+      <ConsolePage
+        title={<Trans>Plans and quotas</Trans>}
+        lead={
+          <Trans>
+            Per-organization plan, quota, and managed billing settings for this instance.
+          </Trans>
+        }
+      >
+        <ConsolePageSection>
           <Alert tone="info">
-            <Trans>Select an organization from the platform organization list.</Trans>
+            <Trans>
+              Select an organization to view and edit its plan and quotas.{' '}
+              <Link to="/console/platform/organizations" {...stylex.props(styles.organizationLink)}>
+                <Trans>Browse platform organizations</Trans>
+              </Link>
+            </Trans>
           </Alert>
-        </div>
-      </div>
+        </ConsolePageSection>
+      </ConsolePage>
     )
   }
 
+  const stripeActionError = createStripeCheckout.isError || createStripePortal.isError
+
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Plans and quotas</Trans>
-        </h1>
-        <p {...stylex.props(styles.lead)}>
+    <ConsolePage
+      title={<Trans>Plans and quotas</Trans>}
+      lead={
+        <>
           <Trans>
             Plans are accounting and support labels. They never disable authentication, token
             issuance, or configured protocols in a self-hosted deployment.
           </Trans>{' '}
-          <span {...stylex.props(styles.tenantId)}>{tenantId}</span>
-        </p>
-      </div>
-
-      {stripeConfigQuery.data?.enabled ? (
-        <section {...stylex.props(styles.managedBilling)}>
-          <h2 {...stylex.props(styles.sectionTitle)}>
-            <Trans>Managed billing</Trans>
-          </h2>
-          <p {...stylex.props(styles.managedBillingCopy)}>
-            <Trans>
-              Open Stripe-hosted Checkout to start a managed subscription, or use the Customer
-              Portal for an existing billing account. These controls do not license-gate self-hosted
-              features.
-            </Trans>
-          </p>
-          {createStripeCheckout.isError || createStripePortal.isError ? (
+          <span {...stylex.props(consoleShell.mono)}>{tenantId}</span>
+        </>
+      }
+    >
+      {planQuery.isError || updatePlan.isError || updatePlan.isSuccess || stripeActionError ? (
+        <ConsolePageNotice>
+          {planQuery.isError ? (
             <Alert tone="error">
-              {createStripeCheckout.error?.message ?? createStripePortal.error?.message}
+              <Trans>Failed to load plan and quota settings. Please try again.</Trans>
             </Alert>
           ) : null}
-          <div {...stylex.props(styles.actions)}>
-            {(['starter', 'pro', 'enterprise'] as const).map((plan) =>
-              stripeConfigQuery.data.checkout[plan] ? (
-                <Button
-                  key={plan}
-                  type="button"
-                  variant="secondary"
-                  isLoading={createStripeCheckout.isPending}
-                  onClick={() => openStripeCheckout(plan)}
-                >
-                  {plan === 'starter'
-                    ? t`Checkout Starter`
-                    : plan === 'pro'
-                      ? t`Checkout Pro`
-                      : t`Checkout Enterprise`}
-                </Button>
-              ) : null,
-            )}
-            {stripeConfigQuery.data.portal ? (
-              <Button
-                type="button"
-                variant="secondary"
-                isLoading={createStripePortal.isPending}
-                onClick={openStripePortal}
-              >
-                <Trans>Open Customer Portal</Trans>
-              </Button>
-            ) : null}
-          </div>
-        </section>
+          {updatePlan.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to save plan and quota settings. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {updatePlan.isSuccess ? (
+            <Alert tone="success">
+              <Trans>Plan and quota settings saved.</Trans>
+            </Alert>
+          ) : null}
+          {stripeActionError ? (
+            <Alert tone="error">
+              <Trans>Failed to start managed billing. Try again.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
 
-      {planQuery.isError ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">{planQuery.error.message}</Alert>
-        </div>
-      ) : planQuery.isLoading || !form ? (
-        <div {...stylex.props(styles.loadingZone)}>
-          <Spinner size={28} />
-        </div>
-      ) : (
-        <>
-          {updatePlan.isError || updatePlan.isSuccess ? (
-            <div {...stylex.props(styles.messageZone)}>
-              {updatePlan.isError ? <Alert tone="error">{updatePlan.error.message}</Alert> : null}
-              {updatePlan.isSuccess ? (
-                <Alert tone="success">
-                  <Trans>Plan and quota settings saved.</Trans>
-                </Alert>
+      {stripeConfigQuery.data?.enabled ? (
+        <ConsolePageSection title={<Trans>Managed billing</Trans>}>
+          <div {...stylex.props(styles.managedBilling)}>
+            <p {...stylex.props(styles.managedBillingCopy)}>
+              <Trans>
+                Open Stripe-hosted Checkout to start a managed subscription, or use the Customer
+                Portal for an existing billing account. These controls do not license-gate
+                self-hosted features.
+              </Trans>
+            </p>
+            <div {...stylex.props(styles.actions)}>
+              {(['starter', 'pro', 'enterprise'] as const).map((plan) =>
+                stripeConfigQuery.data.checkout[plan] ? (
+                  <Button
+                    key={plan}
+                    type="button"
+                    variant="secondary"
+                    isLoading={createStripeCheckout.isPending}
+                    onClick={() => openStripeCheckout(plan)}
+                  >
+                    {plan === 'starter'
+                      ? t`Checkout Starter`
+                      : plan === 'pro'
+                        ? t`Checkout Pro`
+                        : t`Checkout Enterprise`}
+                  </Button>
+                ) : null,
+              )}
+              {stripeConfigQuery.data.portal ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  isLoading={createStripePortal.isPending}
+                  onClick={openStripePortal}
+                >
+                  <Trans>Open Customer Portal</Trans>
+                </Button>
               ) : null}
             </div>
-          ) : null}
+          </div>
+        </ConsolePageSection>
+      ) : null}
 
+      {planQuery.isError ? null : planQuery.isLoading || !form ? (
+        <div {...stylex.props(page.loadingCenter)}>
+          <Spinner label={t`Loading plan and quota settings`} />
+        </div>
+      ) : (
+        <ConsolePageSplitSection
+          title={<Trans>Plan</Trans>}
+          description={
+            <Trans>Plan, lifecycle status, trial, and resource quotas for this organization.</Trans>
+          }
+        >
           <form {...stylex.props(styles.form)} onSubmit={submit}>
             <div {...stylex.props(styles.summaryGrid)}>
               <Field label={t`Plan`}>
-                <select
-                  {...stylex.props(styles.select)}
+                <Select
                   value={form.plan}
                   onChange={(event) =>
                     setForm(applyPlanDefaults(form, event.target.value as OrganizationPlanName))
@@ -401,11 +370,10 @@ export default function PlatformPlans(): ReactNode {
                   <option value="starter">{t`Starter`}</option>
                   <option value="pro">{t`Pro`}</option>
                   <option value="enterprise">{t`Enterprise`}</option>
-                </select>
+                </Select>
               </Field>
               <Field label={t`Plan status`}>
-                <select
-                  {...stylex.props(styles.select)}
+                <Select
                   value={form.status}
                   onChange={(event) =>
                     setForm({ ...form, status: event.target.value as OrganizationPlanStatus })
@@ -415,7 +383,7 @@ export default function PlatformPlans(): ReactNode {
                   <option value="trialing">{t`Trialing`}</option>
                   <option value="past_due">{t`Past due`}</option>
                   <option value="canceled">{t`Canceled`}</option>
-                </select>
+                </Select>
               </Field>
               <Field label={t`Trial ends at`}>
                 <Input
@@ -463,8 +431,7 @@ export default function PlatformPlans(): ReactNode {
                     />
                   </Field>
                   <Field label={t`Enforcement`}>
-                    <select
-                      {...stylex.props(styles.select)}
+                    <Select
                       value={form.quotas[key].enforcement}
                       onChange={(event) =>
                         setForm({
@@ -483,7 +450,7 @@ export default function PlatformPlans(): ReactNode {
                       {supportsHardEnforcement(key) ? (
                         <option value="block_creation">{t`Block new resource creation`}</option>
                       ) : null}
-                    </select>
+                    </Select>
                   </Field>
                 </div>
               ))}
@@ -491,12 +458,12 @@ export default function PlatformPlans(): ReactNode {
 
             <div {...stylex.props(styles.actions)}>
               <Button type="submit" isLoading={updatePlan.isPending}>
-                <Trans>Save plan and quotas</Trans>
+                <Trans>Save changes</Trans>
               </Button>
             </div>
           </form>
-        </>
+        </ConsolePageSplitSection>
       )}
-    </div>
+    </ConsolePage>
   )
 }

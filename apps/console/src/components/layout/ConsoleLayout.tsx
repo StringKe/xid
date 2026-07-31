@@ -11,7 +11,10 @@ import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { useAuth } from '@xid-kit/web-ui/session'
+import { isGuestUser } from '@xid-kit/web-ui/session'
+import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { motion, springDefault } from '@xid-kit/web-ui/motion'
 import { useTheme } from '@xid-kit/web-ui/theme'
@@ -23,18 +26,9 @@ import {
   type ImpersonationEndResponse,
 } from '../../lib/impersonation-handoff'
 import { ActiveAnnouncementsBanner } from '../ActiveAnnouncementsBanner'
+import type { ConsoleNavItem } from '../../nav'
 
-// 单个侧栏导航项(to 为路由路径,label 已本地化)。
-// groupKey:稳定字符串键,相邻相同 groupKey 的 item 合并为同一分组(ReactNode 不可用 === 比较)。
-// groupLabel:分组可本地化显示文案;undefined groupKey = 无分组(如 Overview 独立项)。
-export type ConsoleNavItem = {
-  to: string
-  label: ReactNode
-  // 可选:仅 Instance Manager 可见(route agent 据 activeOrg/permissions 过滤后再传入,此处不做权限判断)。
-  end?: boolean
-  groupKey?: string
-  groupLabel?: ReactNode
-}
+export type { ConsoleNavItem } from '../../nav'
 
 export type ConsoleLayoutProps = {
   children: ReactNode
@@ -100,25 +94,6 @@ const styles = stylex.create({
   brandLogo: {
     display: 'inline-flex',
     flexShrink: 0,
-  },
-  // 当前管理对象(org 名):顶栏左侧上下文;小屏与 brand 间 1px 竖 hairline。
-  orgName: {
-    fontSize: '0.875rem',
-    fontWeight: 550,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    minWidth: 0,
-    borderInlineStartWidth: {
-      default: '1px',
-      '@media (min-width: 48rem)': '0',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
-    paddingInlineStart: {
-      default: '0.75rem',
-      '@media (min-width: 48rem)': '0',
-    },
   },
   orgSwitcher: {
     minWidth: 'min(16rem, 48vw)',
@@ -385,12 +360,9 @@ function navItemActive(pathname: string, item: ConsoleNavItem): boolean {
 
 function navItemTo(item: ConsoleNavItem, search: string): string {
   if (!item.to.startsWith('/console/org')) return item.to
-  if (!search.includes('orgId=')) return item.to
-  return `${item.to}${search}`
-}
-
-function isAccountAlias(path: string): boolean {
-  return path === '/console/sessions' || path === '/console/security'
+  // 只透传 orgId;cursor/filter 等页面态参数不带入下一个页面。
+  const match = /(?:^|&)orgId=([^&]*)/.exec(search.startsWith('?') ? search.slice(1) : search)
+  return match ? `${item.to}?orgId=${match[1]}` : item.to
 }
 
 // groupKey(string)相同且非 undefined 的相邻 item 合并为一段,取首个 groupLabel 作显示。
@@ -402,7 +374,7 @@ function segmentNavItems(items: readonly ConsoleNavItem[]): readonly NavSegment[
   for (const item of items) {
     const last = segments[segments.length - 1]
     if (last && last.key !== null && last.key === item.groupKey) {
-      ;(last.items as ConsoleNavItem[]).push(item)
+      segments[segments.length - 1] = { ...last, items: [...last.items, item] }
     } else {
       segments.push({
         key: item.groupKey ?? null,
@@ -442,15 +414,9 @@ function ConsoleNavLi({ item, search }: { item: ConsoleNavItem; search: string }
   const href = navItemTo(item, search)
   return (
     <li {...stylex.props(styles.navItem)}>
-      {isAccountAlias(href) ? (
-        <a href={href} className={active ? navLinkActive : navLinkBase}>
-          {item.label}
-        </a>
-      ) : (
-        <Link to={href} className={active ? navLinkActive : navLinkBase}>
-          {item.label}
-        </Link>
-      )}
+      <Link to={href} className={active ? navLinkActive : navLinkBase}>
+        {item.label}
+      </Link>
       {active ? <ActiveNavIndicator /> : null}
     </li>
   )
@@ -464,17 +430,29 @@ function ConsoleNav({
   isInstanceManager: boolean
 }): ReactNode {
   const location = useLocation()
+  // PLATFORM_NAV 首项是带 end 的 '/console/platform';据此识别 platform 上下文,
+  // 避免在 platform 区再追加一条指向同路径的 Platform 项(双激活指示条)。
+  const isPlatformNav = navItems.some((item) => item.to === '/console/platform' && item.end)
   return (
     <nav>
+      {isPlatformNav ? (
+        <>
+          <ul {...stylex.props(styles.navList)}>
+            <ConsoleNavLi
+              item={{ to: '/console', label: <Trans>Back to console</Trans>, end: true }}
+              search={location.search}
+            />
+          </ul>
+          <div aria-hidden="true" {...stylex.props(styles.navGroupDivider)} />
+        </>
+      ) : null}
       {segmentNavItems(navItems).map((segment, segIdx) => (
         <div key={segment.key ?? segIdx}>
           {segIdx > 0 && segment.key !== null ? (
             <div aria-hidden="true" {...stylex.props(styles.navGroupDivider)} />
           ) : null}
           {segment.key !== null && segment.label !== null ? (
-            <p aria-hidden="true" {...stylex.props(styles.navGroupLabel)}>
-              {segment.label}
-            </p>
+            <p {...stylex.props(styles.navGroupLabel)}>{segment.label}</p>
           ) : null}
           <ul {...stylex.props(styles.navList)}>
             {segment.items.map((item) => (
@@ -483,10 +461,10 @@ function ConsoleNav({
           </ul>
         </div>
       ))}
-      {isInstanceManager ? (
+      {isInstanceManager && !isPlatformNav ? (
         <div>
           <div aria-hidden="true" {...stylex.props(styles.navGroupDivider)} />
-          <p aria-hidden="true" {...stylex.props(styles.navGroupLabel)}>
+          <p {...stylex.props(styles.navGroupLabel)}>
             <Trans>Platform</Trans>
           </p>
           <ul {...stylex.props(styles.navList)}>
@@ -519,6 +497,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
     user,
     activeOrg,
     organizations,
+    managerAssignments,
     session,
     api,
     refresh,
@@ -527,10 +506,20 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
     openEmailVerification,
   } = useAuth()
   const { t } = useLingui()
+  const location = useLocation()
   const navigate = useNavigate()
   const [switchingOrganizationId, setSwitchingOrganizationId] = useState<string | null>(null)
   const [endingImpersonation, setEndingImpersonation] = useState(false)
   const appName = brand.appName ?? 'XID'
+
+  // Managed projects 对有 manager assignment 的用户才有内容,无 assignment 时从 nav 隐藏。
+  const visibleNavItems = navItems.filter(
+    (item) => item.to !== '/console/managed-projects' || managerAssignments.length > 0,
+  )
+  // switcher 只列可管理 org:切到 member 角色 org 会被守卫直接踢到 /account。
+  const manageableOrganizations = organizations.filter((organization) =>
+    isOrgManagerRole(organization.role),
+  )
 
   async function switchOrganization(organizationId: string): Promise<void> {
     if (!organizationId || organizationId === activeOrg?.id) return
@@ -538,7 +527,10 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
     const switched = await setActiveOrganization(organizationId)
     setSwitchingOrganizationId(null)
     if (!switched) return
-    navigate(`/console/org?orgId=${encodeURIComponent(organizationId)}`, { replace: true })
+    // org 区内切换后回到 org overview;platform/入口页切换不停留上下文被打断,原地保留路径。
+    if (location.pathname.startsWith('/console/org')) {
+      navigate(`/console/org?orgId=${encodeURIComponent(organizationId)}`, { replace: true })
+    }
   }
 
   async function endImpersonation(): Promise<void> {
@@ -561,7 +553,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
           <span {...stylex.props(styles.brandNarrow)}>
             <BrandMark appName={appName} />
           </span>
-          {organizations.length === 0 ? (
+          {manageableOrganizations.length === 0 ? (
             <span {...stylex.props(styles.orgEmpty)}>
               <Trans>No organization selected</Trans>
             </span>
@@ -582,7 +574,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
                   <Trans>Select organization</Trans>
                 </option>
               )}
-              {organizations.map((organization) => (
+              {manageableOrganizations.map((organization) => (
                 <option key={organization.id} value={organization.id}>
                   {organizationDisplayName(organization)}
                 </option>
@@ -598,6 +590,9 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
           ) : user ? (
             <>
               <span {...stylex.props(styles.email)}>{user.email}</span>
+              <a href="/account" {...stylex.props(page.textLink)}>
+                <Trans>Account settings</Trans>
+              </a>
               <Button variant="ghost" onClick={() => void signOut()} aria-label={t`Sign out`}>
                 <Trans>Sign out</Trans>
               </Button>
@@ -612,7 +607,10 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
             <BrandMark appName={appName} />
           </span>
           <div {...stylex.props(styles.navRegion)}>
-            <ConsoleNav navItems={navItems} isInstanceManager={user?.instanceManager === true} />
+            <ConsoleNav
+              navItems={visibleNavItems}
+              isInstanceManager={user?.instanceManager === true}
+            />
           </div>
         </div>
       </aside>
@@ -640,7 +638,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
             </div>
           </section>
         ) : null}
-        {user && !user.emailVerified && !session?.isImpersonation ? (
+        {user && !user.emailVerified && !isGuestUser(user) && !session?.isImpersonation ? (
           <section
             aria-label={t`Email verification required`}
             {...stylex.props(styles.verificationBand)}
@@ -657,6 +655,26 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
               </div>
               <Button variant="secondary" onClick={openEmailVerification}>
                 <Trans>Verify email</Trans>
+              </Button>
+            </div>
+          </section>
+        ) : null}
+        {isGuestUser(user) && !session?.isImpersonation ? (
+          <section aria-label={t`Guest account`} {...stylex.props(styles.verificationBand)}>
+            <div {...stylex.props(styles.verificationNotice)}>
+              <div {...stylex.props(styles.verificationMessage)}>
+                <Alert tone="warning" title={<Trans>Guest account</Trans>}>
+                  <Trans>
+                    You are signed in as a guest. Set up a sign-in method to keep this account and
+                    its data; signing out discards it.
+                  </Trans>
+                </Alert>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => window.location.assign('/account/security')}
+              >
+                <Trans>Set up sign-in method</Trans>
               </Button>
             </div>
           </section>

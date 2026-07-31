@@ -195,6 +195,7 @@ describe('GET /v1/me', () => {
       name: 'Ada Lovelace',
       hasMfa: false,
       instanceManager: false,
+      hasPassword: false,
     })
     expect(body['activeOrg']).toBeNull()
     expect(body['organizations']).toEqual([])
@@ -222,6 +223,38 @@ describe('GET /v1/me', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect((body['user'] as Record<string, unknown>)['provisioned_by']).toBe('anonymous')
+  })
+
+  it('exposes hasPassword so the SPA can switch between change and set password', async () => {
+    const db = makeFakeD1({
+      users: [userRow()],
+      user_emails: [emailRow()],
+      passwords: [
+        {
+          id: 'pw_1',
+          tenant_id: 't_1',
+          user_id: 'u_1',
+          hash: '$argon2id$h',
+          algo: 'argon2id',
+          pepper_version: 1,
+          breached: 0,
+          breach_checked_at: null,
+          created_at: now,
+          updated_at: now,
+        },
+      ],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession({ userId: 'u_1' }) })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect((body['user'] as Record<string, unknown>)['hasPassword']).toBe(true)
   })
 
   it('returns pending Email as unverified during guest onboarding', async () => {

@@ -367,6 +367,7 @@ app.get('/', async (c) => {
     orgManagerOrgIds,
     managerAssignments,
     browserSessions,
+    passwordRow,
   ] = await Promise.all([
     loadPrimaryEmail(c, userRow.id, userRow.primaryEmailId),
     hasMfaEnabled(c, userRow.id),
@@ -375,6 +376,7 @@ app.get('/', async (c) => {
     listOrgManagerOrgIds(db, userRow.id),
     listActiveManagerAssignments(db, userRow.id),
     readBrowserSessions(c),
+    db.passwords.findOne(eq(schema.passwords.userId, userRow.id)),
   ])
 
   const user: MeUser = {
@@ -386,6 +388,7 @@ app.get('/', async (c) => {
     locale: userRow.locale ?? null,
     hasMfa,
     instanceManager,
+    hasPassword: passwordRow !== null && passwordRow !== undefined,
     provisioned_by: userRow.provisionedBy ?? null,
   }
 

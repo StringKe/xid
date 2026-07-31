@@ -1,13 +1,22 @@
+// org 下游企业 SSO 页:从 preset 模板配置下游 SaaS SAML SP,支持 SLO 与成员分配门控。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection)。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import { OUTBOUND_CONSOLE_PRESETS } from '@xid-kit/protocol'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Alert, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
+import { Alert, Button, Field, Input, Select, Textarea } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   useCreateOutboundSamlApp,
   useDeleteOutboundSamlApp,
@@ -17,74 +26,10 @@ import {
 import type { AssignmentGate, CreateOutboundSamlAppInput, OutboundSamlApp } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  messageZone: { paddingInline: GUTTER, paddingBlock: '1.5rem' },
-  tableSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  configSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    maxWidth: '36rem',
-  },
   presetRow: { display: 'flex', flexWrap: 'wrap', gap: '0.5rem' },
   formGrid: { display: 'grid', gap: '1rem' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' },
-  mono: { fontFamily: tokens['--xid-font-mono'], fontSize: '0.8125rem' },
-  textarea: {
-    width: '100%',
-    minHeight: '6rem',
-    resize: 'vertical',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius'],
-    padding: '0.625rem 0.75rem',
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.8125rem',
-    color: tokens['--xid-fg'],
-    backgroundColor: tokens['--xid-bg'],
-    boxSizing: 'border-box',
-  },
 })
 
 const columns: ColumnDef<OutboundSamlApp>[] = [
@@ -99,7 +44,7 @@ const columns: ColumnDef<OutboundSamlApp>[] = [
     id: 'paths',
     header: () => <Trans>Endpoints</Trans>,
     cell: ({ row }) => (
-      <span {...stylex.props(styles.mono)}>
+      <span {...stylex.props(consoleShell.mono)}>
         {row.original.metadataPath} · {row.original.ssoPath}
       </span>
     ),
@@ -181,6 +126,7 @@ export default function OrgOutboundSso(): ReactNode {
   const [editAllowedRoles, setEditAllowedRoles] = useState('')
   const [editAllowedUserIds, setEditAllowedUserIds] = useState('')
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState(false)
   const selected = data?.find((app) => app.id === selectedId) ?? null
   const createPreset = presetForKey(createForm.preset)
 
@@ -284,68 +230,71 @@ export default function OrgOutboundSso(): ReactNode {
     if (!selected) return
     await deleteApp.mutateAsync(selected.id)
     setSelectedId(null)
+    setPendingDelete(false)
     setMessage({ tone: 'success', text: t`Outbound SAML app deleted.` })
   }
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Outbound enterprise SSO</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
-  const actionError =
-    createApp.error?.message || updateApp.error?.message || deleteApp.error?.message || null
+  const actionError = createApp.isError || updateApp.isError || deleteApp.isError
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Outbound enterprise SSO</Trans>
-        </h1>
-        <p {...stylex.props(page.lead)}>
-          <Trans>
-            Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC
-            presets also show the downstream OIDC redirect URI placeholder for manual SaaS admin
-            setup.
-          </Trans>
-        </p>
-      </div>
-
-      {message || actionError ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone={message?.tone ?? 'error'}>{message?.text ?? actionError}</Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Outbound enterprise SSO</Trans>}
+      lead={
+        <Trans>
+          Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets
+          also show the downstream OIDC redirect URI placeholder for manual SaaS admin setup.
+        </Trans>
+      }
+    >
+      {message || actionError || isError ? (
+        <ConsolePageNotice>
+          {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
+          {actionError ? (
+            <Alert tone="error">
+              <Trans>Failed to save outbound SAML app changes. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load outbound SAML apps.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
 
-      <section {...stylex.props(styles.tableSection)}>
-        <h2 {...stylex.props(page.sectionLabel)}>
-          <Trans>Apps</Trans>
-        </h2>
-        {isLoading ? (
-          <Spinner />
-        ) : isError ? (
-          <Alert tone="error">
-            <Trans>Failed to load outbound SAML apps.</Trans>
-          </Alert>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={data ?? []}
-            getRowId={(row) => row.id}
-            emptyMessage={<Trans>No outbound SAML apps configured.</Trans>}
-            onRowClick={(row) => setSelectedId(row.id)}
-          />
-        )}
-      </section>
+      <ConsolePageSection title={<Trans>Apps</Trans>}>
+        <DataTable
+          columns={columns}
+          data={data ?? []}
+          getRowId={(row) => row.id}
+          isLoading={isLoading}
+          emptyMessage={<Trans>No outbound SAML apps configured.</Trans>}
+          onRowClick={(row) => setSelectedId(row.id)}
+          isRowSelected={(row) => row.id === selectedId}
+        />
+      </ConsolePageSection>
 
-      <section {...stylex.props(styles.configSection)}>
-        <h2 {...stylex.props(page.sectionLabel)}>
-          <Trans>Create app</Trans>
-        </h2>
+      <ConsolePageSplitSection
+        title={<Trans>Create app</Trans>}
+        description={
+          <Trans>
+            Register a downstream SAML service provider from a preset template and choose which
+            members can launch it.
+          </Trans>
+        }
+      >
         <div {...stylex.props(styles.presetRow)}>
           {OUTBOUND_CONSOLE_PRESETS.map((preset) => (
             <Button
@@ -389,8 +338,7 @@ export default function OrgOutboundSso(): ReactNode {
             />
           </Field>
           <Field label={t`Binding`}>
-            <select
-              {...stylex.props(consoleShell.select)}
+            <Select
               value={createForm.sloBinding}
               onChange={(event) =>
                 setCreateForm((prev) => ({
@@ -401,14 +349,13 @@ export default function OrgOutboundSso(): ReactNode {
             >
               <option value="redirect">{t`HTTP-Redirect`}</option>
               <option value="post">{t`HTTP-POST`}</option>
-            </select>
+            </Select>
           </Field>
           <Field
             label={t`SP signing certificates`}
             hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
           >
-            <textarea
-              {...stylex.props(styles.textarea)}
+            <Textarea
               value={createForm.spCertificates}
               onChange={(event) =>
                 setCreateForm((prev) => ({ ...prev, spCertificates: event.target.value }))
@@ -435,14 +382,13 @@ export default function OrgOutboundSso(): ReactNode {
             </Field>
           ) : null}
           <Field label={t`Assignment mode`}>
-            <select
-              {...stylex.props(consoleShell.select)}
+            <Select
               value={createGateMode}
               onChange={(event) => setCreateGateMode(event.target.value as AssignmentGate['mode'])}
             >
               <option value="all">{t`All members`}</option>
               <option value="restricted">{t`Restricted roles`}</option>
-            </select>
+            </Select>
           </Field>
           {createGateMode === 'restricted' ? (
             <>
@@ -468,13 +414,13 @@ export default function OrgOutboundSso(): ReactNode {
             </Button>
           </div>
         </form>
-      </section>
+      </ConsolePageSplitSection>
 
       {selected ? (
-        <section {...stylex.props(styles.configSection)}>
-          <h2 {...stylex.props(page.sectionLabel)}>
-            <Trans>Edit app</Trans>
-          </h2>
+        <ConsolePageSplitSection
+          title={<Trans>Edit app</Trans>}
+          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selected.provider}</p>}
+        >
           <form
             onSubmit={(event) => void handleUpdate(event)}
             noValidate
@@ -506,8 +452,7 @@ export default function OrgOutboundSso(): ReactNode {
               />
             </Field>
             <Field label={t`Binding`}>
-              <select
-                {...stylex.props(consoleShell.select)}
+              <Select
                 value={editForm.sloBinding}
                 onChange={(event) =>
                   setEditForm((prev) => ({
@@ -518,14 +463,13 @@ export default function OrgOutboundSso(): ReactNode {
               >
                 <option value="redirect">{t`HTTP-Redirect`}</option>
                 <option value="post">{t`HTTP-POST`}</option>
-              </select>
+              </Select>
             </Field>
             <Field
               label={t`SP signing certificates`}
               hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
             >
-              <textarea
-                {...stylex.props(styles.textarea)}
+              <Textarea
                 value={editForm.spCertificates}
                 onChange={(event) =>
                   setEditForm((prev) => ({ ...prev, spCertificates: event.target.value }))
@@ -552,14 +496,13 @@ export default function OrgOutboundSso(): ReactNode {
                 </Trans>
               }
             >
-              <select
-                {...stylex.props(consoleShell.select)}
+              <Select
                 value={editGateMode}
                 onChange={(event) => setEditGateMode(event.target.value as AssignmentGate['mode'])}
               >
                 <option value="all">{t`All members`}</option>
                 <option value="restricted">{t`Restricted roles`}</option>
-              </select>
+              </Select>
             </Field>
             {editGateMode === 'restricted' ? (
               <>
@@ -580,21 +523,32 @@ export default function OrgOutboundSso(): ReactNode {
               </>
             ) : null}
             <div {...stylex.props(styles.actions)}>
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => void handleDelete()}
-                isLoading={deleteApp.isPending}
-              >
-                <Trans>Delete app</Trans>
-              </Button>
               <Button type="submit" isLoading={updateApp.isPending}>
-                <Trans>Save app</Trans>
+                <Trans>Save changes</Trans>
+              </Button>
+              <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
+                <Trans>Delete app</Trans>
               </Button>
             </div>
           </form>
-        </section>
+        </ConsolePageSplitSection>
       ) : null}
-    </div>
+
+      {pendingDelete && selected ? (
+        <ConfirmDialog
+          title={<Trans>Delete app?</Trans>}
+          description={
+            <Trans>
+              {selected.provider} ({selected.spEntityId}) will be deleted. Members can no longer use
+              this SAML application.
+            </Trans>
+          }
+          confirmLabel={<Trans>Delete app</Trans>}
+          isLoading={deleteApp.isPending}
+          onConfirm={() => void handleDelete()}
+          onCancel={() => setPendingDelete(false)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }

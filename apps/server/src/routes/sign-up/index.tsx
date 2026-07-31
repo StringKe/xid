@@ -28,7 +28,16 @@ function SignUpRedirect(): ReactNode {
       search: signUpRedirectSearch(search) as never,
       replace: true,
     })
-  }, [navigate, search.continue, search.redirect])
+  }, [
+    navigate,
+    search.continue,
+    search.redirect,
+    search.locale,
+    search.invitation_token,
+    search.client_id,
+    search.organization_id,
+    search.authz_request_id,
+  ])
 
   return (
     <AuthLayout>

@@ -35,6 +35,8 @@ export type DataTableProps<T> = {
   emptyMessage?: ReactNode
   // 行点击回调(给出则行可聚焦/键盘触发)。
   onRowClick?: (row: T) => void
+  // 选中行判定(配合 onRowClick 的隐式选中给出可见选中态)。
+  isRowSelected?: (row: T) => boolean
   // 表格说明(已本地化),渲染为 <caption>。
   caption?: string
 }
@@ -117,6 +119,11 @@ const styles = stylex.create({
       ':focus-visible': tokens['--xid-muted'],
     },
   },
+  // 选中行:常驻 muted 底色 + 行首 2px 主色边,与 hover 瞬态区分。
+  selectedRow: {
+    backgroundColor: tokens['--xid-muted'],
+    boxShadow: `inset 2px 0 0 ${tokens['--xid-primary']}`,
+  },
   loadingFooter: {
     display: 'flex',
     justifyContent: 'center',
@@ -135,6 +142,7 @@ export function DataTable<T>({
   isLoading = false,
   emptyMessage,
   onRowClick,
+  isRowSelected,
   caption,
 }: DataTableProps<T>): ReactNode {
   const table = useReactTable<T>({
@@ -184,7 +192,14 @@ export function DataTable<T>({
               </td>
             </tr>
           ) : (
-            rows.map((row) => <DataRow key={row.id} row={row} onRowClick={onRowClick} />)
+            rows.map((row) => (
+              <DataRow
+                key={row.id}
+                row={row}
+                onRowClick={onRowClick}
+                isRowSelected={isRowSelected}
+              />
+            ))
           )}
         </tbody>
       </table>
@@ -216,16 +231,19 @@ function SkeletonRows({ colCount }: { colCount: number }): ReactNode {
 type DataRowProps<T> = {
   row: Row<T>
   onRowClick?: (row: T) => void
+  isRowSelected?: (row: T) => boolean
 }
 
-function DataRow<T>({ row, onRowClick }: DataRowProps<T>): ReactNode {
+function DataRow<T>({ row, onRowClick, isRowSelected }: DataRowProps<T>): ReactNode {
   const clickable = Boolean(onRowClick)
+  const selected = isRowSelected?.(row.original) ?? false
 
   return (
     <tr
       onClick={onRowClick ? () => onRowClick(row.original) : undefined}
       tabIndex={clickable ? 0 : undefined}
       role={clickable ? 'button' : undefined}
+      aria-selected={clickable ? selected : undefined}
       onKeyDown={
         onRowClick
           ? (event) => {
@@ -236,7 +254,7 @@ function DataRow<T>({ row, onRowClick }: DataRowProps<T>): ReactNode {
             }
           : undefined
       }
-      {...stylex.props(clickable && styles.clickableRow)}
+      {...stylex.props(clickable && styles.clickableRow, selected && styles.selectedRow)}
     >
       {row.getVisibleCells().map((cell) => (
         <td key={cell.id} {...stylex.props(styles.cell)}>

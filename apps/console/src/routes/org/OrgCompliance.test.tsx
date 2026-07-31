@@ -5,6 +5,7 @@ import OrgCompliance from './OrgCompliance'
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
 }))
 
 vi.mock('./useOrgTarget', () => ({

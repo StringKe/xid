@@ -1,20 +1,24 @@
 // org 成员管理页:成员列表(cursor 分页)+ 邀请列表 + 邀请表单。
 // 成员状态徽章、角色显示、移除成员操作。调 /v1/organizations/:orgId/members 与 /invitations。
-// 全宽锚定版式:零 padding 壳,各节自持 gutter;全宽 1px hairline 分节;
-// 邀请表单 5/7 双列(左节题+说明,右控件),窄屏堆叠。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;邀请表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
-import type { BadgeTone } from '@xid-kit/web-ui/ui'
+import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
+  statusToneFor,
   useInvitationStatusLabel,
   useMemberStatusLabel,
   useRoleLabel,
@@ -31,121 +35,13 @@ import type { OrgInvitation, OrgMember } from './types'
 import { useOrgTarget } from './useOrgTarget'
 import type { OrganizationMembershipRole } from '@xid-kit/types'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-
-const STATUS_TONE: Record<string, BadgeTone> = {
-  active: 'success',
-  inactive: 'neutral',
-  pending: 'warning',
-  expired: 'danger',
-  accepted: 'success',
-  revoked: 'danger',
-}
-
 const styles = stylex.create({
-  root: {
+  // 邀请表单控件行(email 拉伸 + role 固宽 + 提交按钮)
+  inviteForm: {
     display: 'flex',
     flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
+    gap: '0.75rem',
   },
-  // 页头区:持有 gutter + 纵向呼吸
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  // 各内容节:全宽 hairline 上分隔 + gutter 内距
-  section: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  sectionLabelRow: {
-    marginBottom: '1rem',
-  },
-  // 消息区域独立 gutter
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  // 表格全宽贯穿:表头和首尾列与 gutter 对齐靠 DataTable 内部 paddingInline
-  tableWrap: {
-    marginInline: `calc(${GUTTER} * -1)`,
-    paddingInline: GUTTER,
-  },
-  // 邀请表单 5/7 双列
-  inviteGrid: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
-    },
-    gap: '0',
-  },
-  inviteLeft: {
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    paddingBottom: {
-      default: SECTION_PAD,
-      '@media (min-width: 64rem)': '0',
-    },
-    borderInlineEndWidth: {
-      default: '0',
-      '@media (min-width: 64rem)': '1px',
-    },
-    borderInlineEndStyle: 'solid',
-    borderInlineEndColor: tokens['--xid-border'],
-    borderBottomWidth: {
-      default: '1px',
-      '@media (min-width: 64rem)': '0',
-    },
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  inviteRight: {
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    paddingTop: {
-      default: SECTION_PAD,
-      '@media (min-width: 64rem)': '0',
-    },
-  },
-  inviteLeftTitle: {
-    margin: '0 0 0.375rem',
-    fontSize: '0.9375rem',
-    fontWeight: 600,
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-  },
-  inviteLeftDesc: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-  },
-  // 表单控件行(email 拉伸 + role 固宽 + 按钮)
   inviteRow: {
     display: 'flex',
     gap: '0.75rem',
@@ -159,36 +55,6 @@ const styles = stylex.create({
   inviteRoleWrap: {
     flex: '0 0 160px',
   },
-  select: {
-    width: '100%',
-    minHeight: '2.5rem',
-    paddingBlock: 0,
-    paddingInline: '0.75rem',
-    borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    background: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
-  },
-  // 表格内操作按钮紧凑
-  actionBtn: {
-    minHeight: '1.75rem',
-    paddingBlock: 0,
-    paddingInline: '0.625rem',
-    fontSize: '0.75rem',
-  },
-  successAlert: {
-    marginTop: '0.75rem',
-  },
-  paginationWrap: {
-    marginTop: '0.75rem',
-  },
-  errorAlert: {
-    marginBottom: '0.75rem',
-  },
 })
 
 function StatusBadge({
@@ -198,7 +64,7 @@ function StatusBadge({
   status: OrgMember['status'] | OrgInvitation['status']
   label: string
 }): ReactNode {
-  return <Badge tone={STATUS_TONE[status] ?? 'neutral'}>{label}</Badge>
+  return <Badge tone={statusToneFor(status)}>{label}</Badge>
 }
 
 export default function OrgMembers(): ReactNode {
@@ -268,7 +134,7 @@ export default function OrgMembers(): ReactNode {
           isLoading={removeMember.isPending && pendingRemoveMember?.id === row.original.id}
           onClick={() => setPendingRemoveMember(row.original)}
           aria-label={t`Remove ${row.original.email} from organization`}
-          {...stylex.props(styles.actionBtn)}
+          {...stylex.props(consoleShell.actionButton)}
         >
           <Trans>Remove</Trans>
         </Button>
@@ -315,7 +181,7 @@ export default function OrgMembers(): ReactNode {
             variant="ghost"
             onClick={() => setPendingRevokeInvitation(row.original)}
             aria-label={t`Revoke invitation for ${row.original.email}`}
-            {...stylex.props(styles.actionBtn)}
+            {...stylex.props(consoleShell.actionButton)}
           >
             <Trans>Revoke</Trans>
           </Button>
@@ -347,32 +213,30 @@ export default function OrgMembers(): ReactNode {
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Members</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Members</Trans>
-        </h1>
-      </div>
-
+    <ConsolePage
+      title={<Trans>Members</Trans>}
+      lead={<Trans>Manage organization members and pending invitations.</Trans>}
+    >
       {removeMember.error ? (
-        <div {...stylex.props(styles.messageZone, styles.errorAlert)}>
-          <Alert tone="error">{removeMember.error.message}</Alert>
-        </div>
+        <ConsolePageNotice>
+          <Alert tone="error">
+            <Trans>Failed to remove member. Try again.</Trans>
+          </Alert>
+        </ConsolePageNotice>
       ) : null}
 
-      <section aria-labelledby="members-heading" {...stylex.props(styles.section)}>
-        <h2 id="members-heading" {...stylex.props(page.sectionLabel, styles.sectionLabelRow)}>
-          <Trans>Active members</Trans>
-        </h2>
+      <ConsolePageSection title={<Trans>Active members</Trans>}>
         {membersError ? (
           <Alert tone="error">
             <Trans>Failed to load members.</Trans>
@@ -387,22 +251,17 @@ export default function OrgMembers(): ReactNode {
               emptyMessage={<Trans>No members found.</Trans>}
             />
             {membersPage ? (
-              <div {...stylex.props(styles.paginationWrap)}>
-                <Pagination
-                  nextCursor={membersPage.nextCursor}
-                  loadMoreLabel={<Trans>Load more members</Trans>}
-                  onLoadMore={setMemberCursor}
-                />
-              </div>
+              <Pagination
+                nextCursor={membersPage.nextCursor}
+                loadMoreLabel={<Trans>Load more members</Trans>}
+                onLoadMore={setMemberCursor}
+              />
             ) : null}
           </>
         )}
-      </section>
+      </ConsolePageSection>
 
-      <section aria-labelledby="invitations-heading" {...stylex.props(styles.section)}>
-        <h2 id="invitations-heading" {...stylex.props(page.sectionLabel, styles.sectionLabelRow)}>
-          <Trans>Pending invitations</Trans>
-        </h2>
+      <ConsolePageSection title={<Trans>Pending invitations</Trans>}>
         {invitationsError ? (
           <Alert tone="error">
             <Trans>Failed to load invitations.</Trans>
@@ -417,80 +276,69 @@ export default function OrgMembers(): ReactNode {
               emptyMessage={<Trans>No pending invitations.</Trans>}
             />
             {invitationsPage ? (
-              <div {...stylex.props(styles.paginationWrap)}>
-                <Pagination
-                  nextCursor={invitationsPage.nextCursor}
-                  loadMoreLabel={<Trans>Load more invitations</Trans>}
-                  onLoadMore={setInviteCursor}
-                />
-              </div>
+              <Pagination
+                nextCursor={invitationsPage.nextCursor}
+                loadMoreLabel={<Trans>Load more invitations</Trans>}
+                onLoadMore={setInviteCursor}
+              />
             ) : null}
           </>
         )}
-      </section>
+      </ConsolePageSection>
 
-      <section aria-labelledby="invite-heading" {...stylex.props(styles.section)}>
-        <h2 id="invite-heading" {...stylex.props(page.sectionLabel, styles.sectionLabelRow)}>
-          <Trans>Invite member</Trans>
-        </h2>
-        <div {...stylex.props(styles.inviteGrid)}>
-          <div {...stylex.props(styles.inviteLeft)}>
-            <p {...stylex.props(styles.inviteLeftTitle)}>
-              <Trans>Send an invitation</Trans>
-            </p>
-            <p {...stylex.props(styles.inviteLeftDesc)}>
-              <Trans>
-                The recipient will receive an email with a link to join this organization.
-              </Trans>
-            </p>
+      <ConsolePageSplitSection
+        title={<Trans>Invite member</Trans>}
+        description={
+          <Trans>The recipient will receive an email with a link to join this organization.</Trans>
+        }
+      >
+        <form
+          onSubmit={(e) => void handleInvite(e)}
+          noValidate
+          {...stylex.props(styles.inviteForm)}
+        >
+          <div {...stylex.props(styles.inviteRow)}>
+            <div {...stylex.props(styles.inviteEmailWrap)}>
+              <Field
+                label={<Trans>Email address</Trans>}
+                error={
+                  createInvitation.error ? t`Failed to send invitation. Try again.` : undefined
+                }
+                required
+              >
+                <Input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder={t`colleague@example.com`}
+                  autoComplete="email"
+                  required
+                />
+              </Field>
+            </div>
+            <div {...stylex.props(styles.inviteRoleWrap)}>
+              <Field label={<Trans>Role</Trans>}>
+                <Select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as OrganizationMembershipRole)}
+                  aria-label={t`Select role for new member`}
+                >
+                  <option value="member">{roleLabel('member')}</option>
+                  <option value="admin">{roleLabel('admin')}</option>
+                </Select>
+              </Field>
+            </div>
+            <Button type="submit" isLoading={createInvitation.isPending}>
+              <Trans>Send invitation</Trans>
+            </Button>
           </div>
-          <div {...stylex.props(styles.inviteRight)}>
-            <form onSubmit={(e) => void handleInvite(e)} noValidate>
-              <div {...stylex.props(styles.inviteRow)}>
-                <div {...stylex.props(styles.inviteEmailWrap)}>
-                  <Field
-                    label={<Trans>Email address</Trans>}
-                    error={createInvitation.error?.message ?? undefined}
-                    required
-                  >
-                    <Input
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder={t`colleague@example.com`}
-                      autoComplete="email"
-                      required
-                    />
-                  </Field>
-                </div>
-                <div {...stylex.props(styles.inviteRoleWrap)}>
-                  <Field label={<Trans>Role</Trans>}>
-                    <select
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value as OrganizationMembershipRole)}
-                      aria-label={t`Select role for new member`}
-                      {...stylex.props(styles.select)}
-                    >
-                      <option value="member">{roleLabel('member')}</option>
-                      <option value="admin">{roleLabel('admin')}</option>
-                    </select>
-                  </Field>
-                </div>
-                <Button type="submit" isLoading={createInvitation.isPending}>
-                  <Trans>Send invitation</Trans>
-                </Button>
-              </div>
-              {inviteSuccess ? (
-                <div {...stylex.props(styles.successAlert)}>
-                  <Alert tone="success">
-                    <Trans>Invitation sent successfully.</Trans>
-                  </Alert>
-                </div>
-              ) : null}
-            </form>
-          </div>
-        </div>
-      </section>
+          {inviteSuccess ? (
+            <Alert tone="success">
+              <Trans>Invitation sent successfully.</Trans>
+            </Alert>
+          ) : null}
+        </form>
+      </ConsolePageSplitSection>
 
       {pendingRemoveMember ? (
         <ConfirmDialog
@@ -522,6 +370,6 @@ export default function OrgMembers(): ReactNode {
           onCancel={() => setPendingRevokeInvitation(null)}
         />
       ) : null}
-    </div>
+    </ConsolePage>
   )
 }

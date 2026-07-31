@@ -205,3 +205,15 @@ export function useChangePassword(): UseMutationResult<
     api.post<unknown>('/v1/me/password', payload),
   )
 }
+
+// passwordless 用户(guest / social / OTP 建号)设密:服务端向已验证 primary email 发 reset token 链接。
+export function useSendPasswordSetupLink(): UseMutationResult<unknown, XidError, void> {
+  return useApiMutation<unknown, void>((api) => api.post<unknown>('/v1/me/password/setup-link'))
+}
+
+// 未验证邮箱先走验证仪式;验证成功后回到 /account/security 发设密链接。
+export function useResendVerificationEmail(): UseMutationResult<unknown, XidError, void> {
+  return useApiMutation<unknown, void>((api) => api.post<unknown>('/auth/resend-verification'), {
+    invalidate: [queryKeys.me],
+  })
+}

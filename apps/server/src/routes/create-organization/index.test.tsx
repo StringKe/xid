@@ -19,9 +19,11 @@ const authState = vi.hoisted(() => ({
     locale: null,
     hasMfa: false,
     instanceManager: false,
+    provisioned_by: undefined as string | undefined,
   },
   post: vi.fn(),
   refresh: vi.fn(async () => undefined),
+  signOut: vi.fn(async () => undefined),
 }))
 
 vi.mock('@lingui/react/macro', () => ({
@@ -41,9 +43,12 @@ vi.mock('../../lib/router', () => ({
 }))
 
 vi.mock('../../lib/auth-context', () => ({
+  isGuestUser: (user: { provisioned_by?: string } | null | undefined) =>
+    user?.provisioned_by === 'anonymous',
   useAuth: () => ({
     api: { post: authState.post },
     refresh: authState.refresh,
+    signOut: authState.signOut,
     user: authState.user,
   }),
 }))
@@ -53,7 +58,12 @@ vi.mock('../../lib/google-analytics-funnel', () => ({
 }))
 
 vi.mock('../../components/layout', () => ({
-  AuthLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
+  AuthLayout: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) => (
+    <>
+      {children}
+      {footer}
+    </>
+  ),
 }))
 
 vi.mock('../../components/RequireAuth', () => ({
@@ -120,8 +130,10 @@ async function renderPage(): Promise<{
 describe('CreateOrganizationPage', () => {
   beforeEach(() => {
     authState.user.email = 'owner@example.com'
+    authState.user.provisioned_by = undefined
     authState.post.mockReset()
     authState.refresh.mockClear()
+    authState.signOut.mockClear()
     routerState.navigate.mockClear()
   })
 
@@ -139,6 +151,7 @@ describe('CreateOrganizationPage', () => {
 
   it('accepts a guest email and includes it in organization creation', async () => {
     authState.user.email = ''
+    authState.user.provisioned_by = 'anonymous'
     authState.post.mockResolvedValue({
       ok: true,
       value: {
@@ -156,6 +169,11 @@ describe('CreateOrganizationPage', () => {
     const form = container.querySelector('form')
     if (!email || !name || !slug || !form) throw new Error('Expected organization form fields')
 
+    expect(email.readOnly).toBe(false)
+    expect(container.textContent).toContain(
+      'Verify this address to secure your account. You can recover your account with it after verifying.',
+    )
+
     await act(async () => {
       setInputValue(email, 'guest@example.com')
       setInputValue(name, 'Acme')
@@ -172,6 +190,46 @@ describe('CreateOrganizationPage', () => {
     })
     expect(authState.refresh).toHaveBeenCalledOnce()
     expect(routerState.navigate).toHaveBeenCalledWith('/console/org?orgId=org_1', { replace: true })
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('derives the slug from the organization name until the slug is edited manually', async () => {
+    const { container, root } = await renderPage()
+    const name = container.querySelector<HTMLInputElement>('input[name="organization-name"]')
+    const slug = container.querySelector<HTMLInputElement>('input[name="organization-slug"]')
+    if (!name || !slug) throw new Error('Expected organization form fields')
+
+    await act(async () => {
+      setInputValue(name, 'Acme Inc')
+    })
+    expect(slug.value).toBe('acme-inc')
+
+    await act(async () => {
+      setInputValue(slug, 'custom-slug')
+    })
+    await act(async () => {
+      setInputValue(name, 'Acme Incorporated')
+    })
+    expect(slug.value).toBe('custom-slug')
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('signs out from the footer exit to switch accounts', async () => {
+    const { container, root } = await renderPage()
+    const exit = [...container.querySelectorAll('button')].find((candidate) =>
+      candidate.textContent?.includes('Sign out and use a different account'),
+    )
+    if (!exit) throw new Error('Expected footer sign-out exit')
+
+    await act(async () => {
+      exit.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(authState.signOut).toHaveBeenCalledOnce()
 
     await act(async () => root.unmount())
     container.remove()

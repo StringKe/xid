@@ -22,7 +22,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({
-    data: { ok: true, redirectUrl: '/sign-in?intent=sign-up' },
+    data: { ok: true, email: 'owner@example.com', redirectUrl: '/sign-in?intent=sign-up' },
     error: null,
     isPending: false,
     isSuccess: true,
@@ -70,7 +70,7 @@ describe('VerifyEmailPage sign-up redirect', () => {
     vi.useRealTimers()
   })
 
-  it('separates the sign-in path and intent search while replacing history', async () => {
+  it('appends verified + login_hint to the sign-in target while replacing history', async () => {
     vi.useFakeTimers()
     routerState.navigate.mockClear()
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -85,7 +85,10 @@ describe('VerifyEmailPage sign-up redirect', () => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(routerState.navigate).toHaveBeenCalledWith('/sign-in?intent=sign-up', { replace: true })
+    expect(routerState.navigate).toHaveBeenCalledWith(
+      '/sign-in?intent=sign-up&verified=1&login_hint=owner%40example.com',
+      { replace: true },
+    )
 
     await act(async () => root.unmount())
     container.remove()

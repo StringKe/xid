@@ -9,6 +9,8 @@ import { AuthLayout } from '../../components/layout'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { trackInvitationAccepted } from '../../lib/google-analytics-funnel'
+import { Link } from '../../lib/router'
+import { page } from '../../styles/product-surface.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
@@ -26,6 +28,16 @@ type ClaimRecovery = {
   identifier: string
   recoveryKey: string
 }
+
+// 页面状态机:所有分支收敛到单一 AuthLayout 渲染,主栈结构一致。
+type InvitationPageStatus =
+  | 'loading'
+  | 'claim-confirm'
+  | 'missing-token'
+  | 'invalid'
+  | 'expired'
+  | 'check-email'
+  | 'preview'
 
 const CLAIM_STORAGE_PREFIX = 'xid.invitation-claim'
 const CURRENT_CLAIM_IDENTIFIER_KEY = `${CLAIM_STORAGE_PREFIX}.current`
@@ -52,6 +64,14 @@ const styles = stylex.create({
     display: 'flex',
     justifyContent: 'center',
     width: '100%',
+  },
+  // button 形态的行内文本链接:重置 button 默认外观,与 page.textLink 叠加使用。
+  textButton: {
+    alignSelf: 'flex-start',
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
   },
 })
 
@@ -186,7 +206,7 @@ export const invitationNavigation = {
 export function AcceptInvitationPage(): ReactNode {
   const search = useSearch({ strict: false }) as { token?: string }
   const rawToken = search.token?.trim() || null
-  const { api } = useAuth()
+  const { api, signOut, user } = useAuth()
   const { t } = useLingui()
   const [fragmentReady, setFragmentReady] = useState(false)
   const [claimToken, setClaimToken] = useState<string | null>(
@@ -295,147 +315,199 @@ export function AcceptInvitationPage(): ReactNode {
     invitationNavigation.assign(result.value.redirectUrl)
   }
 
-  if (!fragmentReady) {
-    return (
-      <AuthLayout>
-        <Spinner label={t`Loading invitation`} />
-      </AuthLayout>
-    )
-  }
-
-  if (claimToken) {
-    return (
-      <AuthLayout>
-        <div {...stylex.props(styles.stack)}>
-          <PageHeader
-            title={<Trans>Confirm your invitation</Trans>}
-            lead={
-              <Trans>
-                Continue only if you opened this link from the invitation email sent to you.
-              </Trans>
-            }
-          />
-          {claimVerifyError ? <Alert tone="error">{claimVerifyError}</Alert> : null}
-          <Button
-            type="button"
-            fullWidth
-            isLoading={claimVerifyPending}
-            onClick={() => void handleClaimVerify()}
-          >
-            <Trans>Confirm and join</Trans>
-          </Button>
-        </div>
-      </AuthLayout>
-    )
-  }
-
-  if (!rawToken) {
-    return (
-      <AuthLayout>
-        <div {...stylex.props(styles.stack)}>
-          <PageHeader title={<Trans>Invitation unavailable</Trans>} />
-          <Alert tone="error">
-            <Trans>Invitation link is invalid.</Trans>
-          </Alert>
-        </div>
-      </AuthLayout>
-    )
-  }
-
-  if (preview.isPending) {
-    return (
-      <AuthLayout>
-        <Spinner label={t`Loading invitation`} />
-      </AuthLayout>
-    )
-  }
+  const status: InvitationPageStatus = !fragmentReady
+    ? 'loading'
+    : claimToken !== null
+      ? 'claim-confirm'
+      : rawToken === null
+        ? 'missing-token'
+        : preview.isPending
+          ? 'loading'
+          : !preview.data || preview.data.status === 'invalid'
+            ? 'invalid'
+            : preview.data.status === 'expired'
+              ? 'expired'
+              : claimStartComplete
+                ? 'check-email'
+                : 'preview'
 
   const data = preview.data
-  if (!data || data.status === 'invalid') {
-    return (
-      <AuthLayout>
-        <div {...stylex.props(styles.stack)}>
-          <PageHeader title={<Trans>Invitation unavailable</Trans>} />
-          <Alert tone="error">
-            <Trans>This invitation link is invalid or has already been used.</Trans>
-          </Alert>
-        </div>
-      </AuthLayout>
-    )
-  }
-
-  if (data.status === 'expired') {
-    return (
-      <AuthLayout>
-        <div {...stylex.props(styles.stack)}>
-          <PageHeader title={<Trans>Invitation expired</Trans>} />
-          <Alert tone="warning">
-            <Trans>Ask your organization admin to send a new invitation.</Trans>
-          </Alert>
-        </div>
-      </AuthLayout>
-    )
-  }
-
-  if (claimStartComplete) {
-    return (
-      <AuthLayout>
-        <div {...stylex.props(styles.stack)}>
-          <PageHeader
-            title={<Trans>Check your email</Trans>}
-            lead={
-              <Trans>
-                We sent a one-time invitation link to {data.email}. Open it in this browser to
-                continue.
-              </Trans>
-            }
-          />
-        </div>
-      </AuthLayout>
-    )
-  }
-
   const turnstileRequired = authConfig.turnstileSiteKey !== null
   const waitingForAuthConfig = authConfigEnabled && authConfigQuery.isPending
   const claimStartDisabled =
     claimStartPending || waitingForAuthConfig || (turnstileRequired && turnstileToken === null)
 
+  // footer 的 Sign out 出口只在存在会话时渲染:匿名访客(claim 邮件流的大多数)没有会话可签退,
+  // preview 态的身份切换由 "Not you?" 入口承担。
+  const footer = user ? (
+    <button
+      type="button"
+      {...stylex.props(page.textLink, styles.textButton)}
+      onClick={() => void signOut()}
+    >
+      <Trans>Sign out and use a different account</Trans>
+    </button>
+  ) : undefined
+
+  function renderStatus(): ReactNode {
+    switch (status) {
+      case 'claim-confirm':
+        return (
+          <>
+            <PageHeader
+              title={<Trans>Confirm your invitation</Trans>}
+              lead={
+                <Trans>
+                  Continue only if you opened this link from the invitation email sent to you.
+                </Trans>
+              }
+            />
+            {claimVerifyError ? <Alert tone="error">{claimVerifyError}</Alert> : null}
+            <Button
+              type="button"
+              fullWidth
+              isLoading={claimVerifyPending}
+              onClick={() => void handleClaimVerify()}
+            >
+              <Trans>Confirm and join</Trans>
+            </Button>
+          </>
+        )
+      case 'missing-token':
+        return (
+          <>
+            <PageHeader title={<Trans>Invitation unavailable</Trans>} />
+            <Alert tone="error">
+              <Trans>Invitation link is invalid.</Trans>
+            </Alert>
+            <Link to="/sign-in" {...stylex.props(page.textLink)}>
+              <Trans>Back to sign in</Trans>
+            </Link>
+          </>
+        )
+      case 'invalid':
+        return (
+          <>
+            <PageHeader title={<Trans>Invitation unavailable</Trans>} />
+            <Alert tone="error">
+              <Trans>This invitation link is invalid or has already been used.</Trans>
+            </Alert>
+            <Link to="/sign-in" {...stylex.props(page.textLink)}>
+              <Trans>Back to sign in</Trans>
+            </Link>
+          </>
+        )
+      case 'expired':
+        return (
+          <>
+            <PageHeader title={<Trans>Invitation expired</Trans>} />
+            <Alert tone="warning">
+              <Trans>Ask your organization admin to send a new invitation.</Trans>
+            </Alert>
+            <Link to="/sign-in" {...stylex.props(page.textLink)}>
+              <Trans>Back to sign in</Trans>
+            </Link>
+          </>
+        )
+      case 'check-email':
+        return (
+          <>
+            <PageHeader
+              title={<Trans>Check your email</Trans>}
+              lead={
+                <Trans>
+                  We sent a one-time invitation link to {data?.email}. Open it in this browser to
+                  continue.
+                </Trans>
+              }
+            />
+            {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              isLoading={claimStartPending}
+              disabled={claimStartDisabled}
+              onClick={() => void handleClaimStart()}
+            >
+              <Trans>Resend invitation email</Trans>
+            </Button>
+          </>
+        )
+      case 'preview':
+        return (
+          <>
+            <PageHeader
+              title={
+                data?.orgName ? (
+                  <Trans>Join {data.orgName}</Trans>
+                ) : (
+                  <Trans>Join organization</Trans>
+                )
+              }
+              lead={
+                <Trans>
+                  We will verify {data?.email} before creating your account and adding you to this
+                  organization.
+                </Trans>
+              }
+            />
+            <div {...stylex.props(styles.details)}>
+              <p {...stylex.props(styles.meta)}>
+                <Trans>Invited email: {data?.email}</Trans>
+              </p>
+              {data?.role ? (
+                <p {...stylex.props(styles.meta)}>
+                  <Trans>Organization role: {data.role}</Trans>
+                </p>
+              ) : null}
+            </div>
+            {user ? (
+              <div {...stylex.props(styles.details)}>
+                <p {...stylex.props(styles.meta)}>
+                  <Trans>Signed in as {user.email}</Trans>
+                </p>
+                <button
+                  type="button"
+                  {...stylex.props(page.textLink, styles.textButton)}
+                  onClick={() => void signOut()}
+                >
+                  <Trans>Not you? Sign in with a different account</Trans>
+                </button>
+              </div>
+            ) : null}
+            {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
+            <Button
+              type="button"
+              fullWidth
+              isLoading={claimStartPending}
+              disabled={claimStartDisabled}
+              onClick={() => void handleClaimStart()}
+            >
+              <Trans>Email me a secure link</Trans>
+            </Button>
+          </>
+        )
+      default:
+        return null
+    }
+  }
+
   return (
-    <AuthLayout>
-      <div {...stylex.props(styles.stack)}>
-        <PageHeader
-          title={
-            data.orgName ? <Trans>Join {data.orgName}</Trans> : <Trans>Join organization</Trans>
-          }
-          lead={
-            <Trans>
-              We will verify {data.email} before creating your account and adding you to this
-              organization.
-            </Trans>
-          }
-        />
-        <div {...stylex.props(styles.details)}>
-          <p {...stylex.props(styles.meta)}>
-            <Trans>Invited email: {data.email}</Trans>
-          </p>
-          {data.role ? (
-            <p {...stylex.props(styles.meta)}>
-              <Trans>Organization role: {data.role}</Trans>
-            </p>
+    <AuthLayout footer={footer}>
+      {status === 'loading' ? (
+        <div {...stylex.props(page.loadingCenter)}>
+          <Spinner label={t`Loading invitation`} />
+        </div>
+      ) : (
+        <div {...stylex.props(styles.stack)}>
+          {renderStatus()}
+          {/* preview -> check-email 切换保持同一挂载点,Turnstile widget 不重建,resend 可拿到新 challenge。 */}
+          {status === 'preview' || status === 'check-email' ? (
+            <div ref={containerRef} {...stylex.props(styles.turnstile)} />
           ) : null}
         </div>
-        {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
-        <Button
-          type="button"
-          fullWidth
-          isLoading={claimStartPending}
-          disabled={claimStartDisabled}
-          onClick={() => void handleClaimStart()}
-        >
-          <Trans>Email me a secure link</Trans>
-        </Button>
-        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
-      </div>
+      )}
     </AuthLayout>
   )
 }

@@ -1,46 +1,22 @@
+// platform console 死信队列页(独立页面):GET /v1/platform/dead-letters + 重放。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Alert, Badge, Button } from '@xid-kit/web-ui/ui'
+import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useDeadLettersQuery, useReplayDeadLetter } from './queries'
 import type { QueueDeadLetter } from './types'
 
 const styles = stylex.create({
-  section: {
-    paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
-    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-  },
-  sectionHeader: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-    marginBottom: '1rem',
-  },
-  title: {
-    margin: 0,
-    fontSize: '1.125rem',
-    fontWeight: 620,
-    color: tokens['--xid-fg'],
-  },
-  description: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    color: tokens['--xid-muted-foreground'],
-  },
-  message: {
-    marginBottom: '1rem',
-  },
   mono: {
     display: 'block',
     maxWidth: '15rem',
@@ -55,15 +31,6 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.75rem',
     fontVariantNumeric: 'tabular-nums',
-  },
-  pagination: {
-    marginTop: '0.75rem',
-  },
-  replayButton: {
-    minHeight: '2rem',
-    paddingBlock: 0,
-    paddingInline: '0.75rem',
-    fontSize: '0.8125rem',
   },
 })
 
@@ -92,6 +59,7 @@ export default function PlatformDeadLetters(): ReactNode {
   const [cursor, setCursor] = useState<string | undefined>()
   const { data, isLoading, isError } = useDeadLettersQuery(cursor)
   const replay = useReplayDeadLetter()
+  const [pendingReplay, setPendingReplay] = useState<QueueDeadLetter | null>(null)
   const columns = useMemo<ColumnDef<QueueDeadLetter>[]>(
     () => [
       {
@@ -145,15 +113,9 @@ export default function PlatformDeadLetters(): ReactNode {
           row.original.status === 'pending' ? (
             <Button
               variant="secondary"
-              isLoading={replay.isPending && replay.variables?.id === row.original.id}
-              onClick={() => {
-                if (
-                  window.confirm(t`Replay this encrypted message to ${row.original.sourceQueue}?`)
-                ) {
-                  replay.mutate({ id: row.original.id })
-                }
-              }}
-              {...stylex.props(styles.replayButton)}
+              onClick={() => setPendingReplay(row.original)}
+              aria-label={t`Replay message to ${row.original.sourceQueue}`}
+              {...stylex.props(consoleShell.actionButton)}
             >
               <Trans>Replay</Trans>
             </Button>
@@ -161,66 +123,74 @@ export default function PlatformDeadLetters(): ReactNode {
         meta: { width: '110px' },
       },
     ],
-    [replay, t],
+    [t],
   )
 
   return (
-    <section aria-labelledby="dead-letter-heading" {...stylex.props(styles.section)}>
-      <div {...stylex.props(styles.sectionHeader)}>
-        <div>
-          <h2 id="dead-letter-heading" {...stylex.props(styles.title)}>
-            <Trans>Dead-letter queue</Trans>
-          </h2>
-          <p {...stylex.props(styles.description)}>
-            <Trans>
-              Inspect failed queue metadata and deliberately replay the KEK-encrypted original
-              message.
-            </Trans>
-          </p>
-        </div>
-      </div>
-
-      {isError ? (
-        <div {...stylex.props(styles.message)}>
-          <Alert tone="error">
-            <Trans>Failed to load dead letters. Please try again.</Trans>
-          </Alert>
-        </div>
-      ) : null}
-      {replay.isError ? (
-        <div {...stylex.props(styles.message)}>
-          <Alert tone="error">
-            <Trans>Failed to replay the dead letter. The message was not acknowledged.</Trans>
-          </Alert>
-        </div>
-      ) : null}
-      {replay.isSuccess ? (
-        <div {...stylex.props(styles.message)}>
-          <Alert tone="success">
-            <Trans>The dead letter was replayed or had already been replayed.</Trans>
-          </Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Dead letters</Trans>}
+      lead={
+        <Trans>
+          Inspect failed queue metadata and deliberately replay the KEK-encrypted original message.
+        </Trans>
+      }
+    >
+      {isError || replay.isError || replay.isSuccess ? (
+        <ConsolePageNotice>
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load dead letters.</Trans>
+            </Alert>
+          ) : null}
+          {replay.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to replay the dead letter. The message was not acknowledged.</Trans>
+            </Alert>
+          ) : null}
+          {replay.isSuccess ? (
+            <Alert tone="success">
+              <Trans>The dead letter was replayed or had already been replayed.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
 
-      <h3 {...stylex.props(page.visuallyHidden)}>
-        <Trans>Dead-letter records</Trans>
-      </h3>
-      <DataTable
-        columns={columns}
-        data={data?.data ?? []}
-        getRowId={(row) => row.id}
-        isLoading={isLoading}
-        emptyMessage={<Trans>No dead letters found.</Trans>}
-      />
-      {data ? (
-        <div {...stylex.props(styles.pagination)}>
+      <ConsolePageSection title={<Trans>Dead-letter records</Trans>}>
+        <DataTable
+          columns={columns}
+          data={data?.data ?? []}
+          getRowId={(row) => row.id}
+          isLoading={isLoading}
+          emptyMessage={<Trans>No dead letters found.</Trans>}
+        />
+        {data ? (
           <Pagination
             nextCursor={data.nextCursor}
             loadMoreLabel={<Trans>Load more dead letters</Trans>}
             onLoadMore={setCursor}
           />
-        </div>
+        ) : null}
+      </ConsolePageSection>
+
+      {pendingReplay ? (
+        <ConfirmDialog
+          title={<Trans>Replay dead letter?</Trans>}
+          description={
+            <Trans>
+              The encrypted message {pendingReplay.messageId} will be replayed to{' '}
+              {pendingReplay.sourceQueue}.
+            </Trans>
+          }
+          confirmLabel={<Trans>Replay</Trans>}
+          confirmVariant="primary"
+          isLoading={replay.isPending}
+          onConfirm={() => {
+            replay.mutate({ id: pendingReplay.id })
+            setPendingReplay(null)
+          }}
+          onCancel={() => setPendingReplay(null)}
+        />
       ) : null}
-    </section>
+    </ConsolePage>
   )
 }

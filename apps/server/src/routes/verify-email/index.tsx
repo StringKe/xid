@@ -21,10 +21,20 @@ import { styles as signInStyles } from '../sign-in/styles'
 
 // 验证失败原因(映射到本地化文案)。
 type VerifyErrorKind = 'expired' | 'invalid'
-type VerifyEmailResult = { ok: true; redirectUrl?: string }
+type VerifyEmailResult = { ok: true; email?: string; redirectUrl?: string }
 
 function classifyError(code: XidErrorCode): VerifyErrorKind {
   return code === 'token_expired' ? 'expired' : 'invalid'
+}
+
+// sign-in 跳转附带 verified=1 + login_hint:SignInPage 显示验证成功 Alert 并预填 identifier。
+function withVerifiedHint(target: string, email: string | undefined): string {
+  if (target !== '/sign-in' && !target.startsWith('/sign-in?')) return target
+  const [path, query] = target.split('?')
+  const params = new URLSearchParams(query ?? '')
+  params.set('verified', '1')
+  if (email) params.set('login_hint', email)
+  return `${path}?${params.toString()}`
 }
 
 const styles = stylex.create({
@@ -91,9 +101,12 @@ function VerifyEmailPage(): ReactNode {
     const redirectUrl = verification.data.redirectUrl
     const target =
       redirectUrl?.startsWith('/') && !redirectUrl.startsWith('//') ? redirectUrl : '/sign-in'
-    const timer = globalThis.setTimeout(() => navigate(target, { replace: true }), 2000)
+    const timer = globalThis.setTimeout(
+      () => navigate(withVerifiedHint(target, verification.data.email), { replace: true }),
+      2000,
+    )
     return () => globalThis.clearTimeout(timer)
-  }, [navigate, verification.data?.redirectUrl, verification.isSuccess])
+  }, [navigate, verification.data?.email, verification.data?.redirectUrl, verification.isSuccess])
 
   const errorKind: VerifyErrorKind | null =
     verification.error && typeof verification.error === 'object' && 'code' in verification.error

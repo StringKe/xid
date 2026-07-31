@@ -1,9 +1,31 @@
+// platform console 公告页:GET/POST/PATCH/DELETE /v1/platform/announcements + cursor 分页。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列创建表单 + hairline 分节列表。
+// 删除走 ConfirmDialog(danger),mutation 错误走 ConsolePageNotice 固定本地化文案。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
 import type { FormEvent, ReactNode } from 'react'
 import { useState } from 'react'
-import { Alert, Badge, Button, EmptyState, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  Alert,
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+} from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import {
   useCreatePlatformAnnouncement,
@@ -13,53 +35,10 @@ import {
 } from './queries'
 import type { PlatformAnnouncement } from './types'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 // This is a persisted identifier shape rather than natural-language copy.
 const TENANT_ID_EXAMPLE = 'org_...'
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  header: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    color: tokens['--xid-fg'],
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-  },
-  lead: {
-    maxWidth: '52rem',
-    margin: '0.5rem 0 0',
-    color: tokens['--xid-muted-foreground'],
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-  },
-  section: {
-    paddingInline: GUTTER,
-    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  sectionTitle: {
-    margin: '0 0 1rem',
-    color: tokens['--xid-fg'],
-    fontSize: '1rem',
-    fontWeight: 620,
-  },
   form: {
     display: 'grid',
     gridTemplateColumns: {
@@ -67,38 +46,9 @@ const styles = stylex.create({
       '@media (min-width: 48rem)': 'repeat(2, minmax(0, 1fr))',
     },
     gap: '1rem',
-    maxWidth: '58rem',
   },
   full: {
     gridColumn: '1 / -1',
-  },
-  select: {
-    width: '100%',
-    minHeight: '2.625rem',
-    paddingInline: '0.75rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.9375rem',
-  },
-  textarea: {
-    width: '100%',
-    minHeight: '7rem',
-    resize: 'vertical',
-    padding: '0.75rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.9375rem',
-    lineHeight: 1.5,
   },
   actions: {
     display: 'flex',
@@ -106,8 +56,9 @@ const styles = stylex.create({
     gap: '0.625rem',
     alignItems: 'center',
   },
-  message: {
-    marginBottom: '1rem',
+  skeletonStack: {
+    display: 'grid',
+    gap: '0.75rem',
   },
   list: {
     borderTopWidth: '1px',
@@ -214,6 +165,7 @@ export default function PlatformAnnouncements(): ReactNode {
   const update = useUpdatePlatformAnnouncement()
   const remove = useDeletePlatformAnnouncement()
   const [form, setForm] = useState<FormState>(initialForm)
+  const [pendingDelete, setPendingDelete] = useState<PlatformAnnouncement | null>(null)
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
@@ -232,35 +184,59 @@ export default function PlatformAnnouncements(): ReactNode {
     )
   }
 
-  return (
-    <div {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Announcements</Trans>
-        </h1>
-        <p {...stylex.props(styles.lead)}>
-          <Trans>
-            Publish time-bounded notices globally, to one tenant, or to an accounting plan.
-          </Trans>
-        </p>
-      </header>
+  async function confirmDelete(): Promise<void> {
+    if (!pendingDelete) return
+    await remove.mutateAsync({ id: pendingDelete.id })
+    setPendingDelete(null)
+  }
 
-      <section aria-labelledby="announcement-create" {...stylex.props(styles.section)}>
-        <h2 id="announcement-create" {...stylex.props(styles.sectionTitle)}>
-          <Trans>New announcement</Trans>
-        </h2>
-        {create.isError ? (
-          <div {...stylex.props(styles.message)}>
-            <Alert tone="error">{create.error.message}</Alert>
-          </div>
-        ) : null}
-        {create.isSuccess ? (
-          <div {...stylex.props(styles.message)}>
+  return (
+    <ConsolePage
+      title={<Trans>Announcements</Trans>}
+      lead={
+        <Trans>
+          Publish time-bounded notices globally, to one tenant, or to an accounting plan.
+        </Trans>
+      }
+    >
+      {query.isError || create.isError || create.isSuccess || update.isError || remove.isError ? (
+        <ConsolePageNotice>
+          {query.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load announcements.</Trans>
+            </Alert>
+          ) : null}
+          {create.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to create the announcement. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {create.isSuccess ? (
             <Alert tone="success">
               <Trans>Announcement created.</Trans>
             </Alert>
-          </div>
-        ) : null}
+          ) : null}
+          {update.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to update the announcement. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {remove.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to delete the announcement. Try again.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
+      ) : null}
+
+      <ConsolePageSplitSection
+        title={<Trans>New announcement</Trans>}
+        description={
+          <Trans>
+            Compose the notice, choose its audience, and schedule the publication window.
+          </Trans>
+        }
+      >
         <form {...stylex.props(styles.form)} onSubmit={submit}>
           <Field label={t`Title`}>
             <Input
@@ -271,8 +247,7 @@ export default function PlatformAnnouncements(): ReactNode {
             />
           </Field>
           <Field label={t`Severity`}>
-            <select
-              {...stylex.props(styles.select)}
+            <Select
               value={form.severity}
               onChange={(event) =>
                 setForm({
@@ -285,12 +260,11 @@ export default function PlatformAnnouncements(): ReactNode {
               <option value="success">{t`Success`}</option>
               <option value="warning">{t`Warning`}</option>
               <option value="critical">{t`Critical`}</option>
-            </select>
+            </Select>
           </Field>
           <div {...stylex.props(styles.full)}>
             <Field label={t`Message`}>
-              <textarea
-                {...stylex.props(styles.textarea)}
+              <Textarea
                 required
                 maxLength={4000}
                 value={form.body}
@@ -299,8 +273,7 @@ export default function PlatformAnnouncements(): ReactNode {
             </Field>
           </div>
           <Field label={t`Audience`}>
-            <select
-              {...stylex.props(styles.select)}
+            <Select
               value={form.scopeType}
               onChange={(event) =>
                 setForm({
@@ -313,13 +286,12 @@ export default function PlatformAnnouncements(): ReactNode {
               <option value="global">{t`All tenants`}</option>
               <option value="tenant">{t`One tenant`}</option>
               <option value="plan">{t`Accounting plan`}</option>
-            </select>
+            </Select>
           </Field>
           {form.scopeType !== 'global' ? (
             <Field label={form.scopeType === 'tenant' ? t`Tenant ID` : t`Plan`}>
               {form.scopeType === 'plan' ? (
-                <select
-                  {...stylex.props(styles.select)}
+                <Select
                   value={form.scopeValue}
                   onChange={(event) => setForm({ ...form, scopeValue: event.target.value })}
                   required
@@ -329,7 +301,7 @@ export default function PlatformAnnouncements(): ReactNode {
                   <option value="starter">{t`Starter`}</option>
                   <option value="pro">{t`Pro`}</option>
                   <option value="enterprise">{t`Enterprise`}</option>
-                </select>
+                </Select>
               ) : (
                 <Input
                   required
@@ -356,8 +328,7 @@ export default function PlatformAnnouncements(): ReactNode {
             />
           </Field>
           <Field label={t`Initial state`}>
-            <select
-              {...stylex.props(styles.select)}
+            <Select
               value={form.status}
               onChange={(event) =>
                 setForm({
@@ -368,7 +339,7 @@ export default function PlatformAnnouncements(): ReactNode {
             >
               <option value="draft">{t`Draft`}</option>
               <option value="published">{t`Published`}</option>
-            </select>
+            </Select>
           </Field>
           <div {...stylex.props(styles.actions)}>
             <Button type="submit" isLoading={create.isPending}>
@@ -376,21 +347,20 @@ export default function PlatformAnnouncements(): ReactNode {
             </Button>
           </div>
         </form>
-      </section>
+      </ConsolePageSplitSection>
 
-      <section aria-labelledby="announcement-list" {...stylex.props(styles.section)}>
-        <h2 id="announcement-list" {...stylex.props(styles.sectionTitle)}>
-          <Trans>Announcement ledger</Trans>
-        </h2>
+      <ConsolePageSection title={<Trans>Announcement ledger</Trans>}>
         {query.isLoading ? (
-          <Spinner />
-        ) : query.isError ? (
-          <Alert tone="error">
-            <Trans>Failed to load announcements.</Trans>
-          </Alert>
-        ) : !query.data?.data.length ? (
+          <div {...stylex.props(styles.skeletonStack)}>
+            <Skeleton height="6rem" />
+            <Skeleton height="6rem" />
+            <Skeleton height="6rem" />
+          </div>
+        ) : null}
+        {!query.isLoading && query.data && query.data.data.length === 0 ? (
           <EmptyState title={<Trans>No announcements found.</Trans>} />
-        ) : (
+        ) : null}
+        {query.data && query.data.data.length > 0 ? (
           <>
             <div {...stylex.props(styles.list)}>
               {query.data.data.map((announcement) => (
@@ -422,6 +392,7 @@ export default function PlatformAnnouncements(): ReactNode {
                           },
                         })
                       }
+                      {...stylex.props(consoleShell.actionButton)}
                     >
                       {announcement.status === 'published' ? (
                         <Trans>Archive</Trans>
@@ -431,12 +402,9 @@ export default function PlatformAnnouncements(): ReactNode {
                     </Button>
                     <Button
                       variant="secondary"
-                      isLoading={remove.isPending && remove.variables?.id === announcement.id}
-                      onClick={() => {
-                        if (window.confirm(t`Delete announcement "${announcement.title}"?`)) {
-                          remove.mutate({ id: announcement.id })
-                        }
-                      }}
+                      onClick={() => setPendingDelete(announcement)}
+                      aria-label={t`Delete announcement ${announcement.title}`}
+                      {...stylex.props(consoleShell.actionButton)}
                     >
                       <Trans>Delete</Trans>
                     </Button>
@@ -450,8 +418,21 @@ export default function PlatformAnnouncements(): ReactNode {
               onLoadMore={setCursor}
             />
           </>
-        )}
-      </section>
-    </div>
+        ) : null}
+      </ConsolePageSection>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={<Trans>Delete announcement?</Trans>}
+          description={
+            <Trans>The announcement {pendingDelete.title} will be permanently deleted.</Trans>
+          }
+          confirmLabel={<Trans>Delete</Trans>}
+          isLoading={remove.isPending}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }

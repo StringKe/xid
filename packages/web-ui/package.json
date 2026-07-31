@@ -22,6 +22,7 @@
     "./queries": "./src/queries.ts",
     "./query": "./src/query.ts",
     "./router": "./src/router.ts",
+    "./safe-redirect": "./src/safe-redirect.ts",
     "./tanstack-router": "./src/tanstack-router.tsx",
     "./session": "./src/session/index.ts",
     "./theme": "./src/theme.tsx",

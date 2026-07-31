@@ -1,13 +1,13 @@
 // org 概览页:DAU/MAU、登录成功率、MFA 采用率当前指标 + 关键数字。
 // 数据从 GET /v1/organizations/:orgId/stats 拉取(TanStack Query)。
-// 全宽锚定版式(console 29 页跟随此口径):零 padding 壳下各节自持 gutter;
-// display 标题 -> 指标带横贯全宽(hairline 收束)-> 7fr/5fr 不对称双列
-// (Trends 图表 | 次要计数 ledger 列),中缝 1px 竖 hairline,64rem 以下回落单列(竖转横)。
+// 版式走 ConsolePage 骨架(web-ui):display 页头由骨架承担;页面特有下区为
+// 7fr/5fr 不对称双列(Trends 图表 | 次要计数 ledger 列),中缝 1px 竖 hairline,64rem 以下回落单列。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Alert, Spinner } from '@xid-kit/web-ui/ui'
+import { ConsolePage, ConsolePageNotice } from '@xid-kit/web-ui/ui'
 import { MetricBarChart } from '@xid-kit/web-ui/ui/MetricBarChart'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
@@ -16,36 +16,12 @@ import { MetricsBand, SecondaryCounts } from './OrgOverviewMetrics'
 import type { OrgStats } from './OrgOverviewMetrics'
 import { useCanManageOrg, useOrgTarget } from './useOrgTarget'
 
-// 全宽规范口径:内容列 gutter / 节纵距 / 双列中缝两侧留白(与 ConsoleLayout、MetricsBand 同源)。
+// 页面特有下区口径:内容列 gutter / 节纵距 / 双列中缝两侧留白(与 ConsoleLayout、MetricsBand 同源)。
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  // display 标题:字号 clamp 上探做功,字重退后,紧行高。
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
   bandLabel: {
     paddingInline: GUTTER,
     // hairline 邻接 >= 1.25rem:microlabel 文本到 MetricsBand 顶线 >= 1.25rem
@@ -105,11 +81,6 @@ const styles = stylex.create({
     },
     borderInlineStartStyle: 'solid',
     borderInlineStartColor: tokens['--xid-border'],
-  },
-  // 提示/错误等独立消息:自持 gutter(壳零 padding)。
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
   },
 })
 
@@ -201,37 +172,33 @@ export default function OrgOverview(): ReactNode {
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>
-            No organization selected. Please select an organization to view the overview.
-          </Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Overview</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>
+              No organization selected. Please select an organization to view the overview.
+            </Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Overview</Trans>
-        </h1>
-      </div>
-
+    <ConsolePage title={<Trans>Overview</Trans>}>
       {isLoading ? (
         <div {...stylex.props(page.loadingCenter)}>
           <Spinner label={t`Loading organization stats`} />
         </div>
       ) : isError ? (
-        <div {...stylex.props(styles.messageZone)}>
+        <ConsolePageNotice>
           <Alert tone="error">
             <Trans>Failed to load organization stats. Please try again.</Trans>
           </Alert>
-        </div>
+        </ConsolePageNotice>
       ) : data ? (
         <OrgStatsSections data={data} />
       ) : null}
-    </div>
+    </ConsolePage>
   )
 }

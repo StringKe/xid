@@ -26,13 +26,16 @@ const styles = stylex.create({
 function mfaGateRedirect(
   sessionStatus: AuthSession['status'] | undefined,
   pathname: string,
+  search: string,
 ): string | null {
+  // redirect_to 保留完整 search+hash(如 ?orgId=),与 unauthenticated 分支的 continue 同口径。
+  const target = `${pathname}${search}`
   if (sessionStatus === 'pending_mfa' && !pathname.startsWith('/mfa')) {
-    const params = new URLSearchParams({ redirect_to: pathname })
+    const params = new URLSearchParams({ redirect_to: target })
     return `/mfa?${params.toString()}`
   }
   if (sessionStatus === 'pending_mfa_setup' && !pathname.startsWith('/account/security')) {
-    const params = new URLSearchParams({ setup: 'mfa', redirect_to: pathname })
+    const params = new URLSearchParams({ setup: 'mfa', redirect_to: target })
     return `/account/security?${params.toString()}`
   }
   return null
@@ -60,7 +63,7 @@ export function RequireAuth({ children }: RequireAuthProps): ReactNode {
     )
   }
 
-  const gateRedirect = mfaGateRedirect(session?.status, location.pathname)
+  const gateRedirect = mfaGateRedirect(session?.status, location.pathname, location.search)
   if (gateRedirect) {
     return <Navigate to={gateRedirect} replace />
   }

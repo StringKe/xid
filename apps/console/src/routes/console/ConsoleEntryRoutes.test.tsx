@@ -35,6 +35,44 @@ vi.mock('@xid-kit/web-ui/ui', () => ({
     <button {...props}>{children}</button>
   ),
   Card: ({ children }: { children: ReactNode }) => <section>{children}</section>,
+  ConsolePage: ({
+    title,
+    lead,
+    children,
+  }: {
+    title: ReactNode
+    lead?: ReactNode
+    children: ReactNode
+  }) => (
+    <div>
+      <header>
+        <h1>{title}</h1>
+        {lead ? <p>{lead}</p> : null}
+      </header>
+      {children}
+    </div>
+  ),
+  ConsolePageSection: ({ title, children }: { title?: ReactNode; children: ReactNode }) => (
+    <section>
+      {title ? <h2>{title}</h2> : null}
+      {children}
+    </section>
+  ),
+  EmptyState: ({
+    title,
+    description,
+    action,
+  }: {
+    title: ReactNode
+    description?: ReactNode
+    action?: ReactNode
+  }) => (
+    <div>
+      <p>{title}</p>
+      {description ? <p>{description}</p> : null}
+      {action}
+    </div>
+  ),
   PageHeader: ({ title, lead }: { title: ReactNode; lead?: ReactNode }) => (
     <header>
       <h1>{title}</h1>
@@ -135,10 +173,18 @@ describe('Console entry routes', () => {
     expect(html).toContain('data-link-to="/console/org/social-providers"')
     expect(html).toContain('SCIM targets')
     expect(html).toContain('data-link-to="/console/org/scim-targets"')
-    expect(html).toContain('Enterprise SSO inbound')
+    expect(html).toContain('Inbound SSO')
     expect(html).toContain('data-link-to="/console/org/sso"')
-    expect(html).toContain('Enterprise SSO outbound')
+    expect(html).toContain('Outbound SSO')
     expect(html).toContain('data-link-to="/console/org/outbound-sso"')
+    expect(html).toContain('Projects')
+    expect(html).toContain('data-link-to="/console/org/projects"')
+    expect(html).toContain('Roles and permissions')
+    expect(html).toContain('data-link-to="/console/org/roles"')
+    expect(html).toContain('Members')
+    expect(html).toContain('data-link-to="/console/org/members"')
+    expect(html).toContain('Compliance')
+    expect(html).toContain('data-link-to="/console/org/compliance"')
     expect(html).not.toContain('data-navigate-to="/console/org/auth-policy"')
   })
 

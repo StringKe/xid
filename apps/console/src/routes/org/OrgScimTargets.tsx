@@ -1,14 +1,21 @@
 // org 下游 SCIM target 页:向 SaaS 推送用户/组。GET/POST/PATCH /v1/organizations/:orgId/scim-targets。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
+import { Alert, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   useCreateScimTarget,
   useDeleteScimTarget,
@@ -19,55 +26,15 @@ import {
 import type { AssignmentGate, ScimTarget } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem',
-    minWidth: 0,
-    paddingInline: GUTTER,
-    paddingBlock: 'clamp(1.75rem, 2vw, 3rem)',
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-  },
-  meta: {
-    margin: 0,
-    fontSize: '0.875rem',
-    color: tokens['--xid-muted-foreground'],
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
   form: {
     display: 'grid',
     gap: '1rem',
-    maxWidth: '36rem',
   },
   targetActions: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: '0.5rem',
-  },
-  select: {
-    width: '100%',
-    padding: '0.625rem 0.75rem',
-    borderRadius: tokens['--xid-radius-sm'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontSize: '0.9375rem',
   },
 })
 
@@ -158,12 +125,11 @@ function TargetFormFields({
         <Input
           value={form.baseUrl}
           onChange={(event) => setForm((current) => ({ ...current, baseUrl: event.target.value }))}
-          placeholder="https://example.com/scim/v2"
+          placeholder={t`https://example.com/scim/v2`}
         />
       </Field>
       <Field label={t`Assignment mode`}>
-        <select
-          {...stylex.props(styles.select)}
+        <Select
           value={form.gateMode}
           onChange={(event) =>
             setForm((current) => ({
@@ -174,7 +140,7 @@ function TargetFormFields({
         >
           <option value="all">{t`All members`}</option>
           <option value="restricted">{t`Restricted roles`}</option>
-        </select>
+        </Select>
       </Field>
       {form.gateMode === 'restricted' ? (
         <>
@@ -214,6 +180,7 @@ export default function OrgScimTargets(): ReactNode {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<TargetForm>(EMPTY_FORM)
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState(false)
 
   const targets = targetsQuery.data ?? []
   const selected = targets.find((target) => target.id === selectedId) ?? null
@@ -222,24 +189,9 @@ export default function OrgScimTargets(): ReactNode {
     if (selected) setEditForm(formFromTarget(selected))
   }, [selected])
 
-  if (targetsQuery.isLoading) {
-    return (
-      <div {...stylex.props(styles.root)}>
-        <Spinner size={28} />
-      </div>
-    )
-  }
-
-  if (targetsQuery.isError) {
-    return (
-      <div {...stylex.props(styles.root)}>
-        <Alert tone="error">{targetsQuery.error.message}</Alert>
-      </div>
-    )
-  }
-
   const onCreate = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
+    setMessage(null)
     if (!createForm.baseUrl.trim()) {
       setMessage({ tone: 'error', text: t`Base URL is required.` })
       return
@@ -256,6 +208,7 @@ export default function OrgScimTargets(): ReactNode {
 
   const onUpdate = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
+    setMessage(null)
     if (!selected) return
     if (!editForm.baseUrl.trim()) {
       setMessage({ tone: 'error', text: t`Base URL is required.` })
@@ -275,6 +228,7 @@ export default function OrgScimTargets(): ReactNode {
   }
 
   const onSync = async (targetId: string): Promise<void> => {
+    setMessage(null)
     await syncTarget.mutateAsync(targetId)
     setMessage({
       tone: 'success',
@@ -282,90 +236,111 @@ export default function OrgScimTargets(): ReactNode {
     })
   }
 
-  const onDelete = async (): Promise<void> => {
+  const confirmDelete = async (): Promise<void> => {
     if (!selected) return
     await deleteTarget.mutateAsync(selected.id)
     setSelectedId(null)
+    setPendingDelete(false)
     setMessage({ tone: 'success', text: t`SCIM target deleted.` })
   }
 
   const actionError =
-    createTarget.error?.message ||
-    updateTarget.error?.message ||
-    deleteTarget.error?.message ||
-    syncTarget.error?.message ||
-    null
+    createTarget.isError || updateTarget.isError || deleteTarget.isError || syncTarget.isError
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>SCIM targets</Trans>
-        </h1>
-        <p {...stylex.props(styles.meta)}>
-          <Trans>Push organization users and groups to downstream SaaS SCIM APIs.</Trans>
-        </p>
-      </div>
-
-      {message || actionError ? (
-        <Alert tone={message?.tone ?? 'error'}>{message?.text ?? actionError}</Alert>
+    <ConsolePage
+      title={<Trans>SCIM targets</Trans>}
+      lead={<Trans>Push organization users and groups to downstream SaaS SCIM APIs.</Trans>}
+    >
+      {message || actionError || targetsQuery.isError ? (
+        <ConsolePageNotice>
+          {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
+          {actionError ? (
+            <Alert tone="error">
+              <Trans>Failed to save SCIM target changes. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {targetsQuery.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load SCIM targets.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
 
-      <section {...stylex.props(styles.section)}>
+      <ConsolePageSection title={<Trans>Targets</Trans>}>
         <DataTable
           columns={columns}
           data={targets}
           getRowId={(row) => row.id}
+          isLoading={targetsQuery.isLoading}
           emptyMessage={<Trans>No SCIM targets configured.</Trans>}
           onRowClick={(row) => setSelectedId(row.id)}
+          isRowSelected={(row) => row.id === selectedId}
         />
-      </section>
+      </ConsolePageSection>
 
-      <section {...stylex.props(styles.section)}>
-        <h2 {...stylex.props(page.sectionLabel)}>
-          <Trans>Add SCIM target</Trans>
-        </h2>
-        <form {...stylex.props(styles.form)} onSubmit={onCreate}>
+      <ConsolePageSplitSection
+        title={<Trans>Add SCIM target</Trans>}
+        description={
+          <Trans>Register a downstream SCIM API and choose which members are pushed.</Trans>
+        }
+      >
+        <form {...stylex.props(styles.form)} onSubmit={(event) => void onCreate(event)}>
           <TargetFormFields form={createForm} setForm={setCreateForm} />
-          <Button type="submit" disabled={createTarget.isPending}>
-            {createTarget.isPending ? <Trans>Creating…</Trans> : <Trans>Add SCIM target</Trans>}
-          </Button>
+          <div>
+            <Button type="submit" isLoading={createTarget.isPending}>
+              <Trans>Add SCIM target</Trans>
+            </Button>
+          </div>
         </form>
-      </section>
+      </ConsolePageSplitSection>
 
       {selected ? (
-        <section {...stylex.props(styles.section)}>
-          <h2 {...stylex.props(page.sectionLabel)}>
-            <Trans>Edit SCIM target</Trans>
-          </h2>
-          <form {...stylex.props(styles.form)} onSubmit={onUpdate}>
+        <ConsolePageSplitSection
+          title={<Trans>Edit SCIM target</Trans>}
+          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selected.provider}</p>}
+        >
+          <form {...stylex.props(styles.form)} onSubmit={(event) => void onUpdate(event)}>
             <TargetFormFields form={editForm} setForm={setEditForm} />
             <Field label={t`Token secret ref`}>
-              <code>{selected.requiredTokenSecretName}</code>
+              <code {...stylex.props(consoleShell.mono)}>{selected.requiredTokenSecretName}</code>
             </Field>
             <div {...stylex.props(styles.targetActions)}>
-              <Button type="submit" disabled={updateTarget.isPending}>
-                {updateTarget.isPending ? <Trans>Saving…</Trans> : <Trans>Save changes</Trans>}
-              </Button>
-              <Button
-                type="button"
-                onClick={() => void onSync(selected.id)}
-                disabled={syncTarget.isPending}
-              >
-                <Trans>Sync {selected.provider}</Trans>
+              <Button type="submit" isLoading={updateTarget.isPending}>
+                <Trans>Save changes</Trans>
               </Button>
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => void onDelete()}
-                disabled={deleteTarget.isPending}
+                onClick={() => void onSync(selected.id)}
+                isLoading={syncTarget.isPending}
               >
+                <Trans>Sync {selected.provider}</Trans>
+              </Button>
+              <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
                 <Trans>Delete</Trans>
               </Button>
             </div>
           </form>
-        </section>
+        </ConsolePageSplitSection>
       ) : null}
-    </div>
+
+      {pendingDelete && selected ? (
+        <ConfirmDialog
+          title={<Trans>Delete SCIM target?</Trans>}
+          description={
+            <Trans>
+              {selected.provider} ({selected.baseUrl}) will stop receiving user and group updates.
+              This cannot be undone.
+            </Trans>
+          }
+          confirmLabel={<Trans>Delete</Trans>}
+          isLoading={deleteTarget.isPending}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(false)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }

@@ -54,6 +54,13 @@ vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
   }
 })
 
+vi.mock('@xid-kit/web-ui/enum-labels', () => ({
+  statusToneFor: () => 'neutral',
+  useBillingStatusLabel: () => (status: string) => status,
+  useGlobalUserStatusLabel: () => (status: string) => status,
+  useOrganizationStatusLabel: () => (status: string) => status,
+}))
+
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
 }))
@@ -75,6 +82,7 @@ import PlatformAnnouncements from './PlatformAnnouncements'
 import PlatformAuditEvents from './PlatformAuditEvents'
 import PlatformBilling from './PlatformBilling'
 import PlatformCompliance from './PlatformCompliance'
+import PlatformDeadLetters from './PlatformDeadLetters'
 import PlatformFeatureFlags from './PlatformFeatureFlags'
 import PlatformInstanceManagers from './PlatformInstanceManagers'
 import PlatformOrganizations from './PlatformOrganizations'
@@ -369,10 +377,9 @@ describe('platform pages', () => {
       { query: { cursor: undefined, limit: 20, q: '' } },
     )
     expect(html).toContain('Acme Platform')
-    expect(html).toContain('href="/console/org/auth-policy?orgId=org_1&amp;orgName=Acme+Platform"')
-    expect(html).toContain(
-      'href="/console/org/social-providers?orgId=org_1&amp;orgName=Acme+Platform"',
-    )
+    expect(html).toContain('Suspend')
+    expect(html).toContain('href="/console/platform/plans?tenantId=org_1"')
+    expect(html).not.toContain('href="/console/org/auth-policy')
   })
 
   it('keeps the global user query disabled until a search is submitted', () => {
@@ -424,6 +431,11 @@ describe('platform pages', () => {
     expect(html).toContain(auditEvent.eventType)
     expect(html).toContain(auditEvent.actorId ?? '')
     expect(html).toContain(auditEvent.targetId ?? '')
+  })
+
+  it('requests and renders dead letters as a standalone page', () => {
+    const html = renderToStaticMarkup(<PlatformDeadLetters />)
+
     expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/dead-letters',

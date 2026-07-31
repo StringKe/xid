@@ -1,9 +1,17 @@
+// org 认证策略页:hosted flow 标识/方法/profile 字段 + session/token 覆盖。GET/PATCH /v1/organizations/:orgId/auth-policy。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列配置节(SplitSection)。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Badge, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { Alert, Badge, Button, Checkbox, Field, Input, Select, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useOrgTarget } from './useOrgTarget'
 import { useOrgAuthPolicyQuery, useUpdateOrgAuthPolicy } from './queries'
@@ -55,96 +63,11 @@ const PROFILE_FIELD_LABELS: Record<ProfileFieldKey, ReactNode> = {
   familyName: <Trans>Last name</Trans>,
 }
 
-// 全宽规范:与 OrgOverview 同源常量
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-
 const styles = stylex.create({
-  root: {
+  loadingZone: {
     display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  // 全页表单区:顶部 hairline 分节
-  formBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  // 每个配置节:hairline 顶 + gutter 两侧 + section pad 上下
-  configSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
-    },
-    gap: {
-      default: '1.25rem',
-      '@media (min-width: 64rem)': '0',
-    },
-  },
-  // 左列:节题 + 说明文字
-  sectionMeta: {
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  sectionDesc: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    maxWidth: '28rem',
-  },
-  // 右列:控件区,窄屏时 borderInlineStart 不显示
-  controlCol: {
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 64rem)': '1px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    maxWidth: '36rem',
+    justifyContent: 'center',
+    paddingBlock: '2.25rem',
   },
   // methods 网格:宽屏 2 列,特宽 3 列
   methodGrid: {
@@ -199,21 +122,6 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     cursor: 'pointer',
   },
-  checkInput: {
-    accentColor: tokens['--xid-accent'],
-    width: '0.9375rem',
-    height: '0.9375rem',
-    flexShrink: 0,
-    cursor: 'pointer',
-    // 按压即时反馈:与 Button 同款 :active scale(0.97)/0.12s 缓动(Apple 流体手感)
-    transform: { default: 'none', ':active': 'scale(0.97)' },
-    transitionProperty: {
-      default: 'transform',
-      '@media (prefers-reduced-motion: reduce)': 'none',
-    },
-    transitionDuration: '0.12s',
-    transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
-  },
   readinessNote: {
     margin: '0 0 0.5rem',
     fontSize: '0.75rem',
@@ -226,21 +134,6 @@ const styles = stylex.create({
   readinessMissing: {
     color: tokens['--xid-muted-foreground'],
   },
-  select: {
-    width: '100%',
-    minHeight: '2.25rem',
-    paddingBlock: 0,
-    paddingInline: '0.75rem',
-    borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
-    boxSizing: 'border-box',
-  },
   checkGrid: {
     display: 'grid',
     gridTemplateColumns: {
@@ -248,16 +141,6 @@ const styles = stylex.create({
       '@media (min-width: 36rem)': 'repeat(2, minmax(0, 1fr))',
     },
     gap: '0',
-  },
-  // 提交行:全宽 hairline + gutter 对齐右侧
-  submitSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    justifyContent: 'flex-end',
   },
 })
 
@@ -376,12 +259,7 @@ function CheckRow({
 }): ReactNode {
   return (
     <label {...stylex.props(styles.checkRow)}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        {...stylex.props(styles.checkInput)}
-      />
+      <Checkbox checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
   )
@@ -397,7 +275,7 @@ function methodBadge(isEnabled: boolean): ReactNode {
 
 export default function OrgAuthPolicyPage(): ReactNode {
   const { t } = useLingui()
-  const { orgId, orgName } = useOrgTarget()
+  const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgAuthPolicyQuery(orgId)
   const updatePolicy = useUpdateOrgAuthPolicy(orgId)
   const [form, setForm] = useState<OrgAuthPolicy>(DEFAULT_POLICY)
@@ -465,75 +343,64 @@ export default function OrgAuthPolicyPage(): ReactNode {
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <div {...stylex.props(page.loadingCenter)}>
-        <Spinner label={t`Loading authentication policy`} />
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="error">
-          <Trans>Failed to load authentication policy.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Authentication policy</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Authentication policy</Trans>
-        </h1>
-        <p {...stylex.props(page.lead)}>
-          <Trans>Target organization: {orgName}</Trans>
-        </p>
-      </div>
-
-      {updatePolicy.error ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">{updatePolicy.error.message}</Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Authentication policy</Trans>}
+      lead={
+        <Trans>
+          Sign-in identifiers, hosted flow, methods, and session/token lifetime overrides for this
+          organization.
+        </Trans>
+      }
+    >
+      {isError || updatePolicy.error || saveSuccess ? (
+        <ConsolePageNotice>
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load authentication policy.</Trans>
+            </Alert>
+          ) : null}
+          {updatePolicy.error ? (
+            <Alert tone="error">
+              <Trans>Failed to save authentication policy. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {saveSuccess ? (
+            <Alert tone="success">
+              <Trans>Authentication policy saved.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
-      {saveSuccess ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="success">
-            <Trans>Authentication policy saved.</Trans>
-          </Alert>
-        </div>
-      ) : null}
 
-      <form
-        onSubmit={(event) => void handleSave(event)}
-        noValidate
-        {...stylex.props(styles.formBody)}
-      >
-        {/* Identity rules */}
-        <section aria-labelledby="identity-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="identity-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Identity rules</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+      {!data ? (
+        <ConsolePageSection>
+          <div {...stylex.props(styles.loadingZone)}>
+            {isLoading ? <Spinner label={t`Loading authentication policy`} /> : null}
+          </div>
+        </ConsolePageSection>
+      ) : (
+        <form onSubmit={(event) => void handleSave(event)} noValidate>
+          {/* Identity rules */}
+          <ConsolePageSplitSection
+            title={<Trans>Identity rules</Trans>}
+            description={
               <Trans>
                 Controls how users are identified — which fields are accepted as identifiers, and
                 which email domains are allowed or blocked.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <Field label={<Trans>Identifier mode</Trans>}>
               <Input
                 value={form.hostedAuth.identifierMode}
@@ -571,23 +438,18 @@ export default function OrgAuthPolicyPage(): ReactNode {
                 placeholder={t`blocked.example`}
               />
             </Field>
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* Hosted flow */}
-        <section aria-labelledby="hosted-flow-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="hosted-flow-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Hosted flow</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Hosted flow */}
+          <ConsolePageSplitSection
+            title={<Trans>Hosted flow</Trans>}
+            description={
               <Trans>
                 Sign-in and registration flow options — whether new accounts can be created, email
                 verification requirements, and SSO enforcement.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <div {...stylex.props(styles.checkGrid)}>
               <CheckRow
                 checked={form.hostedAuth.allowExistingUserLogin}
@@ -610,55 +472,44 @@ export default function OrgAuthPolicyPage(): ReactNode {
                 onChange={(checked) => patchHostedAuth('forceSso', checked)}
               />
             </div>
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* Profile fields */}
-        <section aria-labelledby="profile-fields-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="profile-fields-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Profile fields</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Profile fields */}
+          <ConsolePageSplitSection
+            title={<Trans>Profile fields</Trans>}
+            description={
               <Trans>
                 Per-field collection mode shown during registration. Required fields block sign-up
                 until filled; hidden fields are never shown.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             {PROFILE_FIELD_KEYS.map((field) => (
               <Field key={field} label={PROFILE_FIELD_LABELS[field]}>
-                <select
+                <Select
                   value={form.hostedAuth.profileFields[field]}
                   onChange={(event) =>
                     patchProfileField(field, event.target.value as ProfileFieldMode)
                   }
-                  {...stylex.props(styles.select)}
                 >
                   <option value="required">{t`Required`}</option>
                   <option value="optional">{t`Optional`}</option>
                   <option value="hidden">{t`Hidden`}</option>
-                </select>
+                </Select>
               </Field>
             ))}
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* Methods */}
-        <section aria-labelledby="methods-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="methods-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Methods</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Methods */}
+          <ConsolePageSplitSection
+            title={<Trans>Methods</Trans>}
+            description={
               <Trans>
                 Authentication methods available for this organization. WhatsApp and SMS require a
                 configured delivery channel.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <div {...stylex.props(styles.methodGrid)}>
               {METHOD_KEYS.map((method) => {
                 const methodPolicy = form.hostedAuth[method]
@@ -718,24 +569,20 @@ export default function OrgAuthPolicyPage(): ReactNode {
                 )
               })}
             </div>
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        <section aria-labelledby="attestation-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="attestation-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Passkey attestation</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Passkey attestation */}
+          <ConsolePageSplitSection
+            title={<Trans>Passkey attestation</Trans>}
+            description={
               <Trans>
                 Enterprise attestation policy for passkey registration. Direct mode requires
                 hardware attestation chains verified against configured trusted roots.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <Field label={<Trans>Attestation mode</Trans>}>
-              <select
+              <Select
                 value={form.hostedAuth.attestationMode ?? 'none'}
                 onChange={(event) =>
                   patchHostedAuth(
@@ -743,30 +590,24 @@ export default function OrgAuthPolicyPage(): ReactNode {
                     event.target.value as HostedAuthPolicy['attestationMode'],
                   )
                 }
-                {...stylex.props(styles.select)}
               >
                 <option value="none">{t`None`}</option>
                 <option value="indirect">{t`Indirect`}</option>
                 <option value="direct">{t`Direct`}</option>
-              </select>
+              </Select>
             </Field>
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* Session & token */}
-        <section aria-labelledby="session-token-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="session-token-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Session &amp; token</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Session & token */}
+          <ConsolePageSplitSection
+            title={<Trans>Session &amp; token</Trans>}
+            description={
               <Trans>
                 Session and token lifetime overrides for this organization. Leave a field empty to
                 inherit the instance default.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <Field
               label={<Trans>Session idle timeout (minutes)</Trans>}
               hint={t`Range 5-43200. Empty inherits the instance default.`}
@@ -857,23 +698,18 @@ export default function OrgAuthPolicyPage(): ReactNode {
                 }
               />
             </Field>
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* Inbound enterprise SSO */}
-        <section aria-labelledby="enterprise-sso-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="enterprise-sso-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Inbound enterprise SSO</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Inbound enterprise SSO */}
+          <ConsolePageSplitSection
+            title={<Trans>Inbound enterprise SSO</Trans>}
+            description={
               <Trans>
                 Controls whether enterprise SSO connections can authenticate users and create
                 accounts via JIT provisioning.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <div {...stylex.props(styles.checkGrid)}>
               <CheckRow
                 checked={form.hostedAuth.enterpriseSso.enabled}
@@ -916,15 +752,14 @@ export default function OrgAuthPolicyPage(): ReactNode {
                 }
               />
             </div>
-          </div>
-        </section>
-
-        <div {...stylex.props(styles.submitSection)}>
-          <Button type="submit" isLoading={updatePolicy.isPending}>
-            <Trans>Save authentication policy</Trans>
-          </Button>
-        </div>
-      </form>
-    </div>
+            <div>
+              <Button type="submit" isLoading={updatePolicy.isPending}>
+                <Trans>Save changes</Trans>
+              </Button>
+            </div>
+          </ConsolePageSplitSection>
+        </form>
+      )}
+    </ConsolePage>
   )
 }

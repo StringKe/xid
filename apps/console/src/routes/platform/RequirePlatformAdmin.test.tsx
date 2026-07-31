@@ -22,6 +22,10 @@ vi.mock('@xid-kit/web-ui/session', () => ({
   useAuth: () => authState,
 }))
 
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
+  Navigate: ({ to }: { to: string }) => <span data-navigate-to={to} />,
+}))
+
 import { RequirePlatformAdmin } from './RequirePlatformAdmin'
 
 const user: AuthUser = {
@@ -56,7 +60,7 @@ describe('RequirePlatformAdmin', () => {
 
     const html = renderToStaticMarkup(<RequirePlatformAdmin>{children}</RequirePlatformAdmin>)
 
-    expect(html).toContain('Instance Manager access is required')
+    expect(html).toContain('data-navigate-to="/console"')
     expect(html).not.toContain('data-platform-content')
   })
 

@@ -15,7 +15,7 @@ import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
-import { useNavigate } from '../../lib/router'
+import { Link, useNavigate } from '../../lib/router'
 import { styles } from './styles'
 import { SignInOtpPanel } from './SignInOtpPanel'
 import { SignInPanel, SignInTabs } from './SignInTabs'
@@ -35,6 +35,41 @@ import {
   type ProfileFieldKey,
   type SignInErrorKey,
 } from './shared'
+
+// sign-in <-> sign-up 互切链接允许透传的 search 参数(认证动线相关)。
+// verified / reauthenticate / select_account 是一次性状态,不带过去。
+const INTENT_SWITCH_KEYS = [
+  'continue',
+  'client_id',
+  'invitation_token',
+  'organization_id',
+  'authz_request_id',
+  'login_hint',
+] as const
+
+type SignInSearch = {
+  intent?: string
+  continue?: string
+  client_id?: string
+  invitation_token?: string
+  organization_id?: string
+  authz_request_id?: string
+  login_hint?: string
+  reauthenticate?: string
+  select_account?: string
+  verified?: string
+}
+
+function buildIntentSwitchSearch(search: SignInSearch, target: 'sign-in' | 'sign-up'): string {
+  const params = new URLSearchParams()
+  if (target === 'sign-up') params.set('intent', 'sign-up')
+  for (const key of INTENT_SWITCH_KEYS) {
+    const value = search[key]
+    if (value) params.set(key, value)
+  }
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
 
 // 错误文案映射(lingui t``,枚举防护:不区分用户不存在 / 密码错误)。
 function useErrorMessage(key: SignInErrorKey | null): string | null {
@@ -191,13 +226,7 @@ function ProfileFields({
 function SignInPage(): ReactNode {
   const { status } = useAuth()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as {
-    intent?: string
-    client_id?: string
-    invitation_token?: string
-    reauthenticate?: string
-    select_account?: string
-  }
+  const search = useSearch({ strict: false }) as SignInSearch
   const isInvitationFlow = Boolean(search.invitation_token)
   const isSignUpFlow = isInvitationFlow || isSignUpIntent(search.intent)
   const isProductSignUpFlow = isProductSignUpIntent(search.intent)
@@ -304,10 +333,32 @@ function SignInPage(): ReactNode {
           title={isSignUpFlow ? <Trans>Create your account</Trans> : <Trans>Sign in</Trans>}
         />
 
+        <p {...stylex.props(styles.footerText)}>
+          {isSignUpFlow ? (
+            <Link
+              to={{ pathname: '/sign-in', search: buildIntentSwitchSearch(search, 'sign-in') }}
+              {...stylex.props(styles.textLink)}
+            >
+              <Trans>Already have an account? Sign in</Trans>
+            </Link>
+          ) : (
+            <Link
+              to={{ pathname: '/sign-in', search: buildIntentSwitchSearch(search, 'sign-up') }}
+              {...stylex.props(styles.textLink)}
+            >
+              <Trans>New here? Create an account</Trans>
+            </Link>
+          )}
+        </p>
+
         {errorMessage ? (
           <Alert tone="error">{errorMessage}</Alert>
         ) : successMessage ? (
           <Alert tone="success">{successMessage}</Alert>
+        ) : search.verified === '1' ? (
+          <Alert tone="success">
+            <Trans>Your email has been verified. Sign in to continue.</Trans>
+          </Alert>
         ) : null}
 
         <SignInSocialButtons

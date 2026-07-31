@@ -82,7 +82,26 @@ Copy (English source strings, always through lingui macros -- see the i18n-lingu
 - Every screen carries at least one concrete number or concrete noun. Claims MUST NOT exceed the
   support level recorded in `docs/protocols/`; `pnpm run protocols:source-map` enforces this
 
-## 4. Pre-delivery self-check
+## 4. Console page skeleton (apps/console)
+
+Every console page composes the shared skeleton from `@xid-kit/web-ui/ui` instead of hand-rolled
+header/section styles (the per-app `control-plane.styles` module is deleted):
+
+- `ConsolePage` (title + lead) owns the page frame; feedback goes through `ConsolePageNotice`,
+  content through `ConsolePageSection` (single column) and `ConsolePageSplitSection` (5/7
+  title+description left, controls right) -- every create/edit form uses the split section.
+- Mutation failures render a fixed localized string in `ConsolePageNotice`; the raw
+  `error.message` never reaches the page. Query failures are a fixed-copy `Alert`. Success
+  feedback is a temporary section-top `Alert`.
+- Destructive actions always go through `ConfirmDialog` (`@xid-kit/web-ui/ConfirmDialog`,
+  default danger variant), never `window.confirm`.
+- Tables use `DataTable` with `isLoading` for pending state. Row-click implicit selection MUST
+  pair `onRowClick` with `isRowSelected` and surface the current target in the editing section's
+  `meta` via `consoleShell.selectorSummary`.
+- Status/pill labels and tones come from `@xid-kit/web-ui/enum-labels` hooks; never map enum
+  values to copy by hand.
+
+## 5. Pre-delivery self-check
 
 1. Walk section 3 item by item. Two or more hits means rework, without asking.
 2. Delete every decoration that cannot answer "why does this exist". Read the English source copy

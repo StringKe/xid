@@ -17,7 +17,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
-    maxWidth: '28rem',
+    minWidth: 0,
   },
   orgButton: {
     display: 'flex',
@@ -35,9 +35,17 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontSize: '0.875rem',
   },
+  // button 形态的行内文本链接:重置 button 默认外观,与 page.textLink 叠加使用。
+  textButton: {
+    alignSelf: 'flex-start',
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+  },
 })
 
-function SelectOrganizationPage(): ReactNode {
+export function SelectOrganizationPage(): ReactNode {
   const search = useSearch({ strict: false }) as {
     authz_request_id?: string
     redirect_to?: string
@@ -47,7 +55,7 @@ function SelectOrganizationPage(): ReactNode {
     (search.authz_request_id
       ? `/authorize?authz_request_id=${encodeURIComponent(search.authz_request_id)}`
       : '/console')
-  const { organizations, setActiveOrganization } = useAuth()
+  const { organizations, setActiveOrganization, signOut } = useAuth()
   const navigate = useNavigate()
   const { t } = useLingui()
   const [error, setError] = useState<string | null>(null)
@@ -68,20 +76,41 @@ function SelectOrganizationPage(): ReactNode {
     navigate(safeRedirect, { replace: true })
   }
 
+  // 此页不接 steps:它是老用户登录后的组织切换点,不属于线性 onboarding 向导。
+  const footer = (
+    <button
+      type="button"
+      {...stylex.props(page.textLink, styles.textButton)}
+      onClick={() => void signOut()}
+    >
+      <Trans>Sign out and use a different account</Trans>
+    </button>
+  )
+
   if (organizations.length === 0) {
     return (
-      <AuthLayout>
-        <PageHeader title={<Trans>Select organization</Trans>} />
-        <Alert tone="warning">
-          <Trans>You do not belong to any organizations yet.</Trans>
-        </Alert>
+      <AuthLayout footer={footer}>
+        <div {...stylex.props(styles.stack)}>
+          <PageHeader
+            title={<Trans>Select organization</Trans>}
+            lead={
+              <Trans>Choose which organization to use for this sign-in before continuing.</Trans>
+            }
+          />
+          <Alert tone="warning">
+            <Trans>You do not belong to any organizations yet.</Trans>
+          </Alert>
+          <Button type="button" fullWidth onClick={() => navigate('/create-organization')}>
+            <Trans>Create organization</Trans>
+          </Button>
+        </div>
       </AuthLayout>
     )
   }
 
   return (
-    <AuthLayout>
-      <div {...stylex.props(page.root, styles.stack)}>
+    <AuthLayout footer={footer}>
+      <div {...stylex.props(styles.stack)}>
         <PageHeader
           title={<Trans>Select organization</Trans>}
           lead={<Trans>Choose which organization to use for this sign-in before continuing.</Trans>}

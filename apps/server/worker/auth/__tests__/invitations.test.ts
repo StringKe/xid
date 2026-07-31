@@ -166,10 +166,17 @@ describe('acceptInvitation', () => {
 })
 
 describe('invitationAcceptContinuePath', () => {
-  it('builds console org URL with orgId and orgName', () => {
-    expect(invitationAcceptContinuePath('org-1', 'Acme')).toBe(
+  it('builds console org URL with orgId and orgName for owner and admin', () => {
+    expect(invitationAcceptContinuePath('org-1', 'Acme', 'owner')).toBe(
       '/console/org?orgId=org-1&orgName=Acme',
     )
+    expect(invitationAcceptContinuePath('org-1', 'Acme', 'admin')).toBe(
+      '/console/org?orgId=org-1&orgName=Acme',
+    )
+  })
+
+  it('lands plain members on the account portal instead of the console', () => {
+    expect(invitationAcceptContinuePath('org-1', 'Acme', 'member')).toBe('/account')
   })
 })
 

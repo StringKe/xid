@@ -199,6 +199,8 @@ function ResetStep({ token }: ResetStepProps): ReactNode {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  // token 失效/无效时展示 "Request a new reset link" 出口。
+  const [tokenInvalid, setTokenInvalid] = useState(false)
 
   const handlePasswordChange = useCallback((value: string): void => {
     setPassword(value)
@@ -213,6 +215,7 @@ function ResetStep({ token }: ResetStepProps): ReactNode {
         const { error } = result
         if (error.code === 'token_expired' || error.code === 'token_invalid') {
           setGlobalError(t`This reset link is invalid or has expired. Please request a new one.`)
+          setTokenInvalid(true)
         } else if (error.code === 'password_breached') {
           setPasswordError(
             t`This password has appeared in a data breach. Please choose a different password.`,
@@ -237,6 +240,7 @@ function ResetStep({ token }: ResetStepProps): ReactNode {
     setPasswordError(null)
     setConfirmError(null)
     setGlobalError(null)
+    setTokenInvalid(false)
 
     let hasError = false
     if (password.length < 12) {
@@ -265,6 +269,14 @@ function ResetStep({ token }: ResetStepProps): ReactNode {
       />
 
       {globalError ? <Alert tone="error">{globalError}</Alert> : null}
+
+      {tokenInvalid ? (
+        <p {...stylex.props(styles.footerText)}>
+          <Link to="/forgot-password" {...stylex.props(styles.textLink)}>
+            <Trans>Request a new reset link</Trans>
+          </Link>
+        </p>
+      ) : null}
 
       <div {...stylex.props(styles.formFields)}>
         <div {...stylex.props(styles.passwordGroup)}>
@@ -344,7 +356,7 @@ function ForgotPasswordPage(): ReactNode {
   }
 
   return (
-    <AuthLayout footer={isResetFlow ? undefined : <BackToSignIn />}>
+    <AuthLayout footer={<BackToSignIn />}>
       {isResetFlow ? (
         <ResetStep token={token as string} />
       ) : (

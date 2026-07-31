@@ -19,6 +19,9 @@ export type ConfirmDialogProps = {
   title: ReactNode
   // 对话框描述内容(已本地化)。
   description: ReactNode
+  // 可选表单区(如 impersonation 的 select),渲染在描述与按钮之间,
+  // 交互控件不再塞进 description 的 <p>(a11y:控件不属于被 aria-describedby 引用的段落)。
+  children?: ReactNode
   // 确认按钮文案(默认 "Confirm")。
   confirmLabel?: ReactNode
   // 确认按钮变体(默认 danger)。
@@ -58,6 +61,13 @@ const styles = stylex.create({
     gap: '0.75rem',
     justifyContent: 'flex-end',
   },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    marginTop: '-0.75rem',
+    marginBottom: '1.5rem',
+  },
 })
 
 const motionEnter = { opacity: 1, scale: 1 } as const
@@ -66,6 +76,7 @@ const motionExit = { opacity: 0, scale: 0.96 } as const
 export function ConfirmDialog({
   title,
   description,
+  children,
   confirmLabel,
   confirmVariant = 'danger',
   isLoading = false,
@@ -119,6 +130,8 @@ export function ConfirmDialog({
       <p id={descId} {...stylex.props(styles.description)}>
         {description}
       </p>
+
+      {children ? <div {...stylex.props(styles.form)}>{children}</div> : null}
 
       <div {...stylex.props(styles.actions)}>
         <Button

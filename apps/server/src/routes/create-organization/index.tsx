@@ -6,16 +6,26 @@ import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { RequireAuth } from '../../components/RequireAuth'
 import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
-import { useAuth } from '../../lib/auth-context'
+import { isGuestUser, useAuth } from '../../lib/auth-context'
 import { trackOrganizationCreated } from '../../lib/google-analytics-funnel'
 import { useNavigate } from '../../lib/router'
 import { page } from '../../styles/product-surface.stylex'
+
 const styles = stylex.create({
+  // 卡片内主栈:对齐 sign-in 密度(1.25rem)。
   stack: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.25rem',
-    maxWidth: '28rem',
+    minWidth: 0,
+  },
+  // button 形态的行内文本链接:重置 button 默认外观,与 page.textLink 叠加使用。
+  textButton: {
+    alignSelf: 'flex-start',
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
   },
 })
 
@@ -27,14 +37,24 @@ type CreateOrgResponse = {
   redirectUrl: string
 }
 
+function deriveSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+}
+
 export function CreateOrganizationPage(): ReactNode {
-  const { api, refresh, user } = useAuth()
+  const { api, refresh, signOut, user } = useAuth()
   const navigate = useNavigate()
   const { t } = useLingui()
-  const existingEmail = user?.email.trim() ?? ''
+  const isGuest = isGuestUser(user)
+  const existingEmail = !isGuest ? (user?.email.trim() ?? '') : ''
   const [email, setEmail] = useState(existingEmail)
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
+  // slug 默认跟随 name 派生;用户手动改过 slug 后停止跟随。
+  const [slugTouched, setSlugTouched] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -45,7 +65,7 @@ export function CreateOrganizationPage(): ReactNode {
     const result = await api.post<CreateOrgResponse>('/v1/organizations/self', {
       email: email.trim(),
       name: name.trim(),
-      slug: slug.trim() || name.trim(),
+      slug: slug.trim() || deriveSlug(name) || name.trim(),
     })
     setLoading(false)
     if (!result.ok) {
@@ -58,8 +78,19 @@ export function CreateOrganizationPage(): ReactNode {
   }
 
   return (
-    <AuthLayout>
-      <form onSubmit={(event) => void handleSubmit(event)} {...stylex.props(page.root)}>
+    <AuthLayout
+      steps={{ current: 2, total: 2, label: <Trans>Organization</Trans> }}
+      footer={
+        <button
+          type="button"
+          {...stylex.props(page.textLink, styles.textButton)}
+          onClick={() => void signOut()}
+        >
+          <Trans>Sign out and use a different account</Trans>
+        </button>
+      }
+    >
+      <form onSubmit={(event) => void handleSubmit(event)} {...stylex.props(styles.stack)}>
         <PageHeader
           title={<Trans>Create your organization</Trans>}
           lead={
@@ -68,59 +99,66 @@ export function CreateOrganizationPage(): ReactNode {
             </Trans>
           }
         />
-        <div {...stylex.props(styles.stack)}>
-          <Field
-            label={<Trans>Email</Trans>}
-            hint={
-              existingEmail ? (
-                <Trans>This email belongs to your signed-in account.</Trans>
-              ) : (
-                <Trans>You can verify this address from the Console.</Trans>
-              )
-            }
+        <Field
+          label={<Trans>Email</Trans>}
+          hint={
+            isGuest ? (
+              <Trans>
+                Verify this address to secure your account. You can recover your account with it
+                after verifying.
+              </Trans>
+            ) : existingEmail ? (
+              <Trans>This email belongs to your signed-in account.</Trans>
+            ) : (
+              <Trans>You can verify this address from the Console.</Trans>
+            )
+          }
+          required
+        >
+          <Input
+            type="email"
+            name="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             required
-          >
-            <Input
-              type="email"
-              name="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              readOnly={existingEmail !== ''}
-              autoComplete="email"
-            />
-          </Field>
-          <Field label={<Trans>Organization name</Trans>} required>
-            <Input
-              name="organization-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-              autoComplete="organization"
-            />
-          </Field>
-          <Field
-            label={<Trans>URL slug</Trans>}
-            hint={
-              <Trans>Used in URLs and subdomains. Lowercase letters, numbers, and hyphens.</Trans>
-            }
-          >
-            <Input
-              name="organization-slug"
-              value={slug}
-              onChange={(event) => setSlug(event.target.value)}
-              placeholder={name
-                .trim()
-                .toLowerCase()
-                .replace(/[^a-z0-9-]+/g, '-')}
-              autoComplete="off"
-            />
-          </Field>
-          {error ? <Alert tone="error">{error}</Alert> : null}
-          <Button type="submit" disabled={loading || email.trim() === '' || name.trim() === ''}>
-            {loading ? <Trans>Creating…</Trans> : <Trans>Create organization</Trans>}
-          </Button>
-        </div>
+            readOnly={existingEmail !== ''}
+            autoComplete="email"
+          />
+        </Field>
+        <Field label={<Trans>Organization name</Trans>} required>
+          <Input
+            name="organization-name"
+            value={name}
+            onChange={(event) => {
+              const next = event.target.value
+              setName(next)
+              if (!slugTouched) setSlug(deriveSlug(next))
+            }}
+            required
+            autoComplete="organization"
+          />
+        </Field>
+        <Field
+          label={<Trans>URL slug</Trans>}
+          hint={
+            <Trans>Used in URLs and subdomains. Lowercase letters, numbers, and hyphens.</Trans>
+          }
+        >
+          <Input
+            name="organization-slug"
+            value={slug}
+            onChange={(event) => {
+              setSlugTouched(true)
+              setSlug(event.target.value)
+            }}
+            placeholder={deriveSlug(name)}
+            autoComplete="off"
+          />
+        </Field>
+        {error ? <Alert tone="error">{error}</Alert> : null}
+        <Button type="submit" disabled={loading || email.trim() === '' || name.trim() === ''}>
+          {loading ? <Trans>Creating…</Trans> : <Trans>Create organization</Trans>}
+        </Button>
       </form>
     </AuthLayout>
   )

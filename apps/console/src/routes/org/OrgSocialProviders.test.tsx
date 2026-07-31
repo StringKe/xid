@@ -69,6 +69,6 @@ describe('OrgSocialProvidersPage', () => {
     expect(html).toContain('Client secret binding')
     expect(html).toContain('Binding names are fixed by the deployment configuration')
     expect(html).toContain('GOOGLE_CLIENT_SECRET')
-    expect(html).toContain('Save social providers')
+    expect(html).toContain('Save changes')
   })
 })

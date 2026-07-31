@@ -7,48 +7,12 @@ import type { ReactNode } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { Alert } from '../../components/ui'
 import * as stylex from '@stylexjs/stylex'
-import { tokens } from '../../styles/tokens.stylex'
+import { account, consoleShell } from '../../styles/product-surface.stylex'
 import { ChangePasswordSection } from './ChangePasswordSection'
 import { MfaSection } from './MfaSection'
 import { PasskeySection } from './PasskeySection'
 import { useAuth } from '../../lib/auth-context'
 import { useNavigate } from '../../lib/router'
-
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-
-const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  // 每个区块节:自持 gutter + 底部 hairline
-  sectionZone: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-})
 
 export default function SecurityPage(): ReactNode {
   const search = useSearch({ strict: false }) as { setup?: string; redirect_to?: string }
@@ -61,9 +25,9 @@ export default function SecurityPage(): ReactNode {
       : '/console'
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
+    <div {...stylex.props(account.root)}>
+      <div {...stylex.props(consoleShell.headerZone)}>
+        <h1 {...stylex.props(consoleShell.displayTitle)}>
           <Trans>Security</Trans>
         </h1>
         {showMfaSetupBanner ? (
@@ -75,11 +39,11 @@ export default function SecurityPage(): ReactNode {
         ) : null}
       </div>
 
-      <div {...stylex.props(styles.sectionZone)}>
+      <div {...stylex.props(consoleShell.section)}>
         <ChangePasswordSection />
       </div>
 
-      <div {...stylex.props(styles.sectionZone)}>
+      <div {...stylex.props(consoleShell.section)}>
         <MfaSection
           onTotpActivated={
             showMfaSetupBanner
@@ -92,7 +56,7 @@ export default function SecurityPage(): ReactNode {
         />
       </div>
 
-      <div {...stylex.props(styles.sectionZone)}>
+      <div {...stylex.props(consoleShell.section)}>
         <PasskeySection />
       </div>
     </div>

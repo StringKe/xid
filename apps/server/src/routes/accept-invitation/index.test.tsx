@@ -15,6 +15,8 @@ const routerState = vi.hoisted(() => ({
 const authState = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  signOut: vi.fn(async () => undefined),
+  user: null as { id: string; email: string } | null,
 }))
 
 const turnstileState = vi.hoisted(() => ({
@@ -41,7 +43,20 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('../../components/layout', () => ({
-  AuthLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
+  AuthLayout: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) => (
+    <>
+      {children}
+      {footer}
+    </>
+  ),
+}))
+
+vi.mock('../../lib/router', () => ({
+  Link: ({ children, to, ...props }: { children: ReactNode; to: string }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
 }))
 
 vi.mock('../../components/ui', () => ({
@@ -71,6 +86,8 @@ vi.mock('../../lib/auth-context', () => ({
       get: authState.get,
       post: authState.post,
     },
+    signOut: authState.signOut,
+    user: authState.user,
   }),
 }))
 
@@ -149,6 +166,8 @@ describe('AcceptInvitationPage proof-first flow', () => {
     routerState.search = {}
     authState.get.mockReset()
     authState.post.mockReset()
+    authState.signOut.mockClear()
+    authState.user = null
     turnstileState.siteKey = null
     turnstileState.token = null
     turnstileState.onToken = null
@@ -371,6 +390,125 @@ describe('AcceptInvitationPage proof-first flow', () => {
     ).toBeNull()
     expect(assign).toHaveBeenCalledWith('/console/org?orgId=org_1')
     expect(authState.post.mock.calls.map(([path]) => path)).not.toContain('/auth/invitation/accept')
+
+    await disposePage(page)
+  })
+
+  it('shows a Back to sign in exit when the invitation preview is invalid', async () => {
+    routerState.search = { token: 'spent-invitation' }
+    authState.get.mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'invalid',
+        email: null,
+        orgId: null,
+        orgName: null,
+        role: null,
+        expiresAt: null,
+      },
+    })
+
+    const page = await renderPage()
+    const exit = [...page.container.querySelectorAll('a')].find((candidate) =>
+      candidate.textContent?.includes('Back to sign in'),
+    )
+
+    expect(page.container.textContent).toContain('Invitation unavailable')
+    expect(exit?.getAttribute('href')).toBe('/sign-in')
+
+    await disposePage(page)
+  })
+
+  it('shows a Back to sign in exit when the invitation preview is expired', async () => {
+    routerState.search = { token: 'expired-invitation' }
+    authState.get.mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'expired',
+        email: 'invitee@example.com',
+        orgId: null,
+        orgName: null,
+        role: null,
+        expiresAt: '2026-01-01T00:00:00.000Z',
+      },
+    })
+
+    const page = await renderPage()
+    const exit = [...page.container.querySelectorAll('a')].find((candidate) =>
+      candidate.textContent?.includes('Back to sign in'),
+    )
+
+    expect(page.container.textContent).toContain('Invitation expired')
+    expect(exit?.getAttribute('href')).toBe('/sign-in')
+
+    await disposePage(page)
+  })
+
+  it('resends the invitation email from the Check your email state', async () => {
+    routerState.search = { token: 'raw-invitation-token' }
+    authState.get.mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'pending',
+        email: 'invitee@example.com',
+        orgId: null,
+        orgName: 'Acme',
+        role: 'member',
+        expiresAt: '2026-08-01T00:00:00.000Z',
+      },
+    })
+    authState.post.mockResolvedValue({ ok: true, value: { ok: true } })
+
+    const page = await renderPage()
+    await act(async () => {
+      buttonWithText(page.container, 'Email me a secure link').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      )
+    })
+    await flushQueries()
+
+    expect(page.container.textContent).toContain('Check your email')
+
+    await act(async () => {
+      buttonWithText(page.container, 'Resend invitation email').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      )
+    })
+    await flushQueries()
+
+    expect(
+      authState.post.mock.calls.filter(([path]) => path === '/auth/invitation/claim'),
+    ).toHaveLength(2)
+
+    await disposePage(page)
+  })
+
+  it('shows the signed-in identity on preview and signs out via Not you', async () => {
+    authState.user = { id: 'user_1', email: 'someone-else@example.com' }
+    routerState.search = { token: 'raw-invitation-token' }
+    authState.get.mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'pending',
+        email: 'invitee@example.com',
+        orgId: null,
+        orgName: 'Acme',
+        role: 'member',
+        expiresAt: '2026-08-01T00:00:00.000Z',
+      },
+    })
+
+    const page = await renderPage()
+
+    expect(page.container.textContent).toContain('Signed in as someone-else@example.com')
+
+    await act(async () => {
+      buttonWithText(page.container, 'Not you? Sign in with a different account').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      )
+    })
+
+    expect(authState.signOut).toHaveBeenCalledOnce()
 
     await disposePage(page)
   })

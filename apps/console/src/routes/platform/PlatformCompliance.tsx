@@ -1,9 +1,30 @@
+// platform console 合规中心:GET/POST/PATCH/DELETE /v1/platform/compliance-documents + cursor 分页。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列登记表单 + hairline 分节列表。
+// 删除走 ConfirmDialog(danger),mutation 错误走 ConsolePageNotice 固定本地化文案。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
 import type { FormEvent, ReactNode } from 'react'
 import { useState } from 'react'
-import { Alert, Badge, Button, EmptyState, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  Alert,
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+} from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import {
   useCreateComplianceDocument,
@@ -13,7 +34,6 @@ import {
 } from './queries'
 import type { ComplianceDocument } from './types'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 // These values demonstrate machine-readable identifiers and paths, so translating them would make
 // the examples invalid.
 const TECHNICAL_EXAMPLES = {
@@ -24,48 +44,6 @@ const TECHNICAL_EXAMPLES = {
 } as const
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  header: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    color: tokens['--xid-fg'],
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-  },
-  lead: {
-    maxWidth: '54rem',
-    margin: '0.5rem 0 0',
-    color: tokens['--xid-muted-foreground'],
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-  },
-  section: {
-    paddingInline: GUTTER,
-    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  sectionTitle: {
-    margin: '0 0 1rem',
-    color: tokens['--xid-fg'],
-    fontSize: '1rem',
-    fontWeight: 620,
-  },
   form: {
     display: 'grid',
     gridTemplateColumns: {
@@ -73,23 +51,9 @@ const styles = stylex.create({
       '@media (min-width: 48rem)': 'repeat(2, minmax(0, 1fr))',
     },
     gap: '1rem',
-    maxWidth: '60rem',
   },
   full: {
     gridColumn: '1 / -1',
-  },
-  select: {
-    width: '100%',
-    minHeight: '2.625rem',
-    paddingInline: '0.75rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.9375rem',
   },
   note: {
     margin: 0,
@@ -101,8 +65,15 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font-mono'],
     color: tokens['--xid-fg'],
   },
-  message: {
-    marginBottom: '1rem',
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.625rem',
+    alignItems: 'center',
+  },
+  skeletonStack: {
+    display: 'grid',
+    gap: '0.75rem',
   },
   list: {
     borderTopWidth: '1px',
@@ -142,7 +113,7 @@ const styles = stylex.create({
     lineHeight: 1.5,
     overflowWrap: 'anywhere',
   },
-  actions: {
+  rowActions: {
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'flex-start',
@@ -208,6 +179,7 @@ export default function PlatformCompliance(): ReactNode {
   const update = useUpdateComplianceDocument()
   const remove = useDeleteComplianceDocument()
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [pendingDelete, setPendingDelete] = useState<ComplianceDocument | null>(null)
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
@@ -225,29 +197,60 @@ export default function PlatformCompliance(): ReactNode {
     )
   }
 
-  return (
-    <div {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Compliance center</Trans>
-        </h1>
-        <p {...stylex.props(styles.lead)}>
-          <Trans>
-            Publish versioned evidence, retain DPA acceptance records, and serve verified artifacts
-            from R2.
-          </Trans>
-        </p>
-      </header>
+  async function confirmDelete(): Promise<void> {
+    if (!pendingDelete) return
+    await remove.mutateAsync({ id: pendingDelete.id })
+    setPendingDelete(null)
+  }
 
-      <section aria-labelledby="compliance-create" {...stylex.props(styles.section)}>
-        <h2 id="compliance-create" {...stylex.props(styles.sectionTitle)}>
-          <Trans>Register evidence</Trans>
-        </h2>
-        {create.isError ? (
-          <div {...stylex.props(styles.message)}>
-            <Alert tone="error">{create.error.message}</Alert>
-          </div>
-        ) : null}
+  return (
+    <ConsolePage
+      title={<Trans>Compliance center</Trans>}
+      lead={
+        <Trans>
+          Publish versioned evidence, retain DPA acceptance records, and serve verified artifacts
+          from R2.
+        </Trans>
+      }
+    >
+      {query.isError || create.isError || create.isSuccess || update.isError || remove.isError ? (
+        <ConsolePageNotice>
+          {query.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load compliance documents.</Trans>
+            </Alert>
+          ) : null}
+          {create.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to register the compliance document. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {create.isSuccess ? (
+            <Alert tone="success">
+              <Trans>Compliance document registered.</Trans>
+            </Alert>
+          ) : null}
+          {update.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to update the compliance document. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {remove.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to delete the compliance document. Try again.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
+      ) : null}
+
+      <ConsolePageSplitSection
+        title={<Trans>Register evidence</Trans>}
+        description={
+          <Trans>
+            Register a versioned compliance artifact and control which tenants can download it.
+          </Trans>
+        }
+      >
         <form {...stylex.props(styles.form)} onSubmit={submit}>
           <Field label={t`Document type`}>
             <Input
@@ -280,8 +283,7 @@ export default function PlatformCompliance(): ReactNode {
             />
           </Field>
           <Field label={t`Publication state`}>
-            <select
-              {...stylex.props(styles.select)}
+            <Select
               value={form.status}
               onChange={(event) =>
                 setForm({ ...form, status: event.target.value as ComplianceDocument['status'] })
@@ -290,7 +292,7 @@ export default function PlatformCompliance(): ReactNode {
               <option value="draft">{t`Draft`}</option>
               <option value="available">{t`Available`}</option>
               <option value="retired">{t`Retired`}</option>
-            </select>
+            </Select>
           </Field>
           <div />
           <Field label={t`R2 storage key`}>
@@ -322,21 +324,20 @@ export default function PlatformCompliance(): ReactNode {
             </Button>
           </div>
         </form>
-      </section>
+      </ConsolePageSplitSection>
 
-      <section aria-labelledby="compliance-ledger" {...stylex.props(styles.section)}>
-        <h2 id="compliance-ledger" {...stylex.props(styles.sectionTitle)}>
-          <Trans>Evidence ledger</Trans>
-        </h2>
+      <ConsolePageSection title={<Trans>Evidence ledger</Trans>}>
         {query.isLoading ? (
-          <Spinner />
-        ) : query.isError ? (
-          <Alert tone="error">
-            <Trans>Failed to load compliance documents.</Trans>
-          </Alert>
-        ) : !query.data?.data.length ? (
+          <div {...stylex.props(styles.skeletonStack)}>
+            <Skeleton height="6rem" />
+            <Skeleton height="6rem" />
+            <Skeleton height="6rem" />
+          </div>
+        ) : null}
+        {!query.isLoading && query.data && query.data.data.length === 0 ? (
           <EmptyState title={<Trans>No compliance evidence registered.</Trans>} />
-        ) : (
+        ) : null}
+        {query.data && query.data.data.length > 0 ? (
           <>
             <div {...stylex.props(styles.list)}>
               {query.data.data.map((document) => (
@@ -360,7 +361,7 @@ export default function PlatformCompliance(): ReactNode {
                       {document.checksum ? ` · ${document.checksum}` : ''}
                     </p>
                   </div>
-                  <div {...stylex.props(styles.actions)}>
+                  <div {...stylex.props(styles.rowActions)}>
                     {document.artifactUrl ? (
                       <a
                         href={document.artifactUrl}
@@ -384,6 +385,7 @@ export default function PlatformCompliance(): ReactNode {
                               },
                             })
                           }
+                          {...stylex.props(consoleShell.actionButton)}
                         >
                           {document.status === 'available' ? (
                             <Trans>Retire</Trans>
@@ -393,14 +395,9 @@ export default function PlatformCompliance(): ReactNode {
                         </Button>
                         <Button
                           variant="secondary"
-                          isLoading={remove.isPending && remove.variables?.id === document.id}
-                          onClick={() => {
-                            if (
-                              window.confirm(t`Delete compliance document "${document.title}"?`)
-                            ) {
-                              remove.mutate({ id: document.id })
-                            }
-                          }}
+                          onClick={() => setPendingDelete(document)}
+                          aria-label={t`Delete compliance document ${document.title}`}
+                          {...stylex.props(consoleShell.actionButton)}
                         >
                           <Trans>Delete</Trans>
                         </Button>
@@ -416,8 +413,23 @@ export default function PlatformCompliance(): ReactNode {
               onLoadMore={setCursor}
             />
           </>
-        )}
-      </section>
-    </div>
+        ) : null}
+      </ConsolePageSection>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={<Trans>Delete compliance document?</Trans>}
+          description={
+            <Trans>
+              The compliance document {pendingDelete.title} will be permanently deleted.
+            </Trans>
+          }
+          confirmLabel={<Trans>Delete</Trans>}
+          isLoading={remove.isPending}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }

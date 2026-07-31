@@ -8,6 +8,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { account, consoleShell } from '../../styles/product-surface.stylex'
 import { Alert, Button, EmptyState, Section, SectionRow, Skeleton } from '../../components/ui'
 import { ConfirmDialog } from './ConfirmDialog'
 import { trackSocialDisconnected } from '../../lib/google-analytics-funnel'
@@ -15,7 +16,6 @@ import { useDisconnectSocial, useSocialConnectionsQuery } from './queries'
 import type { SocialConnection } from './hooks'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 
 // provider 显示名映射(机器名 -> 人类可读)。
 const PROVIDER_LABELS: Record<string, string> = {
@@ -34,35 +34,6 @@ function providerLabel(provider: string): string {
 }
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  sectionZone: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
   messageZone: {
     paddingInline: GUTTER,
     paddingBlock: '1.5rem',
@@ -108,13 +79,13 @@ export default function ConnectionsPage(): ReactNode {
 
   if (isPending) {
     return (
-      <div {...stylex.props(styles.root)}>
-        <div {...stylex.props(styles.headerZone)}>
-          <h1 {...stylex.props(styles.title)}>
+      <div {...stylex.props(account.root)}>
+        <div {...stylex.props(consoleShell.headerZone)}>
+          <h1 {...stylex.props(consoleShell.displayTitle)}>
             <Trans>Connected accounts</Trans>
           </h1>
         </div>
-        <div {...stylex.props(styles.sectionZone)}>
+        <div {...stylex.props(consoleShell.section)}>
           <div {...stylex.props(styles.skeletonList)}>
             <Skeleton height="3.5rem" />
             <Skeleton height="3.5rem" />
@@ -127,9 +98,9 @@ export default function ConnectionsPage(): ReactNode {
 
   if (error) {
     return (
-      <div {...stylex.props(styles.root)}>
-        <div {...stylex.props(styles.headerZone)}>
-          <h1 {...stylex.props(styles.title)}>
+      <div {...stylex.props(account.root)}>
+        <div {...stylex.props(consoleShell.headerZone)}>
+          <h1 {...stylex.props(consoleShell.displayTitle)}>
             <Trans>Connected accounts</Trans>
           </h1>
         </div>
@@ -143,14 +114,14 @@ export default function ConnectionsPage(): ReactNode {
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
+    <div {...stylex.props(account.root)}>
+      <div {...stylex.props(consoleShell.headerZone)}>
+        <h1 {...stylex.props(consoleShell.displayTitle)}>
           <Trans>Connected accounts</Trans>
         </h1>
       </div>
 
-      <div {...stylex.props(styles.sectionZone)}>
+      <div {...stylex.props(consoleShell.section)}>
         {connectionList.length === 0 ? (
           <ConnectionsEmpty />
         ) : (

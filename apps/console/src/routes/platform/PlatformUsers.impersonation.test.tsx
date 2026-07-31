@@ -40,6 +40,11 @@ vi.mock('@xid-kit/web-ui/session', () => ({
   useAuth: () => ({ api: { post: mocks.apiPost } }),
 }))
 
+vi.mock('@xid-kit/web-ui/enum-labels', () => ({
+  statusToneFor: () => 'neutral',
+  useGlobalUserStatusLabel: () => (status: string) => status,
+}))
+
 vi.mock('../../lib/impersonation-handoff', () => ({
   submitImpersonationHandoff: mocks.submitHandoff,
 }))
@@ -52,6 +57,7 @@ vi.mock('@xid-kit/web-ui/ConfirmDialog', () => ({
   ConfirmDialog: ({
     title,
     description,
+    children,
     confirmLabel,
     isLoading,
     onConfirm,
@@ -59,6 +65,7 @@ vi.mock('@xid-kit/web-ui/ConfirmDialog', () => ({
   }: {
     title: ReactNode
     description: ReactNode
+    children?: ReactNode
     confirmLabel: ReactNode
     isLoading?: boolean
     onConfirm: () => void
@@ -67,6 +74,7 @@ vi.mock('@xid-kit/web-ui/ConfirmDialog', () => ({
     <div role="dialog">
       <h2>{title}</h2>
       <p>{description}</p>
+      {children}
       <button type="button" disabled={isLoading} onClick={onCancel}>
         Cancel
       </button>
@@ -124,8 +132,28 @@ vi.mock('@xid-kit/web-ui/ui', () => ({
       {children}
     </button>
   ),
+  ConsolePage: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ConsolePageNotice: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ConsolePageSection: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ConsolePageToolbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
+  Field: ({
+    label,
+    children,
+    error,
+  }: {
+    label?: ReactNode
+    children: ReactNode
+    error?: ReactNode
+  }) => (
+    <div>
+      {label}
+      {children}
+      {error ? <span role="alert">{error}</span> : null}
+    </div>
+  ),
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Select: (props: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} />,
 }))
 
 async function renderSearchedUsers(): Promise<{
@@ -157,7 +185,7 @@ async function selectOrganization(
   container: HTMLDivElement,
   organizationId: string,
 ): Promise<void> {
-  const select = container.querySelector<HTMLSelectElement>('#impersonation-organization')
+  const select = container.querySelector<HTMLSelectElement>('select')
   if (!select) throw new Error('Organization select was not rendered')
   await act(async () => {
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set

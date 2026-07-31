@@ -377,7 +377,13 @@ export async function acceptInvitationById(opts: {
   return acceptInvitation({ ...opts, invitation })
 }
 
-export function invitationAcceptContinuePath(orgId: string, orgName: string): string {
+// 落地分流:owner/admin 持管理视角,落 console 组织页;member 无管理权限,落 account portal。
+export function invitationAcceptContinuePath(
+  orgId: string,
+  orgName: string,
+  role: OrganizationMembershipRole,
+): string {
+  if (role !== 'owner' && role !== 'admin') return '/account'
   const params = new URLSearchParams({ orgId, orgName })
   return `/console/org?${params.toString()}`
 }

@@ -1,6 +1,7 @@
 // platform console organization 列表页:搜索/过滤/状态 + cursor 分页。
 // 调 GET /v1/platform/organizations?q=&cursor=&limit=20(TanStack Query + DataTable)。
-// 全宽锚定版式:零 padding 壳,搜索栏与表格节各自持 gutter;hairline 分节。
+// 状态操作(suspend/reactivate)走 PATCH /v1/platform/organizations/:id,ConfirmDialog 确认。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + toolbar 搜索 + hairline 分节。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -9,17 +10,22 @@ import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Alert, Badge, Button, Input } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageToolbar,
+} from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { usePlatformOrganizationsQuery } from './queries'
+import { statusToneFor, useOrganizationStatusLabel } from '@xid-kit/web-ui/enum-labels'
+import { usePlatformOrganizationsQuery, useUpdatePlatformOrganizationStatus } from './queries'
 import type { PlatformOrganization } from './types'
-
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 
 const PLAN_TONE: Record<PlatformOrganization['plan'], BadgeTone> = {
   free: 'neutral',
@@ -28,69 +34,17 @@ const PLAN_TONE: Record<PlatformOrganization['plan'], BadgeTone> = {
   enterprise: 'success',
 }
 
-const STATUS_TONE: Record<PlatformOrganization['status'], BadgeTone> = {
-  active: 'success',
-  suspended: 'warning',
-  deleted: 'danger',
-}
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  // 搜索栏:全宽 hairline 下 + gutter
-  searchZone: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
+  searchForm: {
     display: 'flex',
     flexWrap: 'wrap',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: '0.75rem',
+    width: '100%',
   },
   searchInputWrap: {
     flex: '1 1 280px',
     maxWidth: '24rem',
-  },
-  tableSection: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-  },
-  summaryText: {
-    margin: '0 0 1rem',
-    fontSize: '0.8125rem',
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font-mono'],
-    letterSpacing: '0.04em',
-  },
-  paginationWrap: {
-    marginTop: '0.75rem',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
   },
   organizationName: {
     fontWeight: 500,
@@ -101,106 +55,36 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font-mono'],
   },
+  actionStack: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
   actionLink: {
     color: tokens['--xid-primary'],
     fontWeight: 600,
+    fontSize: '0.75rem',
     textDecoration: {
       default: 'none',
       ':hover': 'underline',
     },
   },
-  actionStack: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: '0.375rem',
-  },
 })
 
-const columns: ColumnDef<PlatformOrganization>[] = [
-  {
-    id: 'name',
-    header: () => <Trans>Name</Trans>,
-    cell: ({ row }) => (
-      <div>
-        <div {...stylex.props(styles.organizationName)}>
-          {organizationDisplayName(row.original)}
-        </div>
-        <div {...stylex.props(styles.organizationSlug)}>{row.original.slug}</div>
-      </div>
-    ),
-  },
-  {
-    id: 'plan',
-    header: () => <Trans>Plan</Trans>,
-    cell: ({ row }) => <Badge tone={PLAN_TONE[row.original.plan]}>{row.original.plan}</Badge>,
-    meta: { width: '100px' },
-  },
-  {
-    id: 'status',
-    header: () => <Trans>Status</Trans>,
-    cell: ({ row }) => <Badge tone={STATUS_TONE[row.original.status]}>{row.original.status}</Badge>,
-    meta: { width: '100px' },
-  },
-  {
-    id: 'users',
-    header: () => <Trans>Users</Trans>,
-    cell: ({ row }) => row.original.userCount.toLocaleString(),
-    meta: { width: '80px' },
-  },
-  {
-    id: 'orgs',
-    header: () => <Trans>Organizations</Trans>,
-    cell: ({ row }) => row.original.orgCount.toLocaleString(),
-    meta: { width: '80px' },
-  },
-  {
-    id: 'created',
-    header: () => <Trans>Created</Trans>,
-    cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
-    meta: { width: '120px' },
-  },
-  {
-    id: 'actions',
-    header: () => <Trans>Actions</Trans>,
-    cell: ({ row }) => {
-      const params = new URLSearchParams({
-        orgId: row.original.id,
-        orgName: row.original.name,
-      })
-      return (
-        <div {...stylex.props(styles.actionStack)}>
-          <Link
-            to={`/console/org/auth-policy?${params.toString()}`}
-            {...stylex.props(styles.actionLink)}
-          >
-            <Trans>Auth policy</Trans>
-          </Link>
-          <Link
-            to={`/console/org/social-providers?${params.toString()}`}
-            {...stylex.props(styles.actionLink)}
-          >
-            <Trans>Social providers</Trans>
-          </Link>
-          <Link
-            to={`/console/platform/plans?tenantId=${encodeURIComponent(row.original.id)}`}
-            {...stylex.props(styles.actionLink)}
-          >
-            <Trans>Plans and quotas</Trans>
-          </Link>
-        </div>
-      )
-    },
-    meta: { width: '160px' },
-  },
-]
+type PendingStatusChange = {
+  organization: PlatformOrganization
+  status: PlatformOrganization['status']
+}
 
 export default function PlatformOrganizations(): ReactNode {
   const { t } = useLingui()
+  const organizationStatusLabel = useOrganizationStatusLabel()
   const [search, setSearch] = useState('')
   const [submitted, setSubmitted] = useState('')
   const [cursor, setCursor] = useState<string | undefined>()
   const { data, isLoading, isError } = usePlatformOrganizationsQuery(cursor, submitted)
+  const updateStatus = useUpdatePlatformOrganizationStatus()
+  const [pendingStatus, setPendingStatus] = useState<PendingStatusChange | null>(null)
 
   function handleSearch(e: React.FormEvent): void {
     e.preventDefault()
@@ -208,63 +92,193 @@ export default function PlatformOrganizations(): ReactNode {
     setSubmitted(search)
   }
 
+  async function confirmStatusChange(): Promise<void> {
+    if (!pendingStatus) return
+    await updateStatus.mutateAsync({
+      organizationId: pendingStatus.organization.id,
+      status: pendingStatus.status,
+    })
+    setPendingStatus(null)
+  }
+
+  const columns: ColumnDef<PlatformOrganization>[] = [
+    {
+      id: 'name',
+      header: () => <Trans>Name</Trans>,
+      cell: ({ row }) => (
+        <div>
+          <div {...stylex.props(styles.organizationName)}>
+            {organizationDisplayName(row.original)}
+          </div>
+          <div {...stylex.props(styles.organizationSlug)}>{row.original.slug}</div>
+        </div>
+      ),
+    },
+    {
+      id: 'plan',
+      header: () => <Trans>Plan</Trans>,
+      cell: ({ row }) => <Badge tone={PLAN_TONE[row.original.plan]}>{row.original.plan}</Badge>,
+      meta: { width: '100px' },
+    },
+    {
+      id: 'status',
+      header: () => <Trans>Status</Trans>,
+      cell: ({ row }) => (
+        <Badge tone={statusToneFor(row.original.status)}>
+          {organizationStatusLabel(row.original.status)}
+        </Badge>
+      ),
+      meta: { width: '110px' },
+    },
+    {
+      id: 'users',
+      header: () => <Trans>Users</Trans>,
+      cell: ({ row }) => row.original.userCount.toLocaleString(),
+      meta: { width: '80px' },
+    },
+    {
+      id: 'orgs',
+      header: () => <Trans>Organizations</Trans>,
+      cell: ({ row }) => row.original.orgCount.toLocaleString(),
+      meta: { width: '80px' },
+    },
+    {
+      id: 'created',
+      header: () => <Trans>Created</Trans>,
+      cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+      meta: { width: '120px' },
+    },
+    {
+      id: 'actions',
+      header: () => <Trans>Actions</Trans>,
+      cell: ({ row }) => (
+        <div {...stylex.props(styles.actionStack)}>
+          {row.original.status === 'active' ? (
+            <Button
+              variant="danger"
+              onClick={() => setPendingStatus({ organization: row.original, status: 'suspended' })}
+              aria-label={t`Suspend ${row.original.name}`}
+              {...stylex.props(consoleShell.actionButton)}
+            >
+              <Trans>Suspend</Trans>
+            </Button>
+          ) : null}
+          {row.original.status === 'suspended' ? (
+            <Button
+              variant="secondary"
+              onClick={() => setPendingStatus({ organization: row.original, status: 'active' })}
+              aria-label={t`Reactivate ${row.original.name}`}
+              {...stylex.props(consoleShell.actionButton)}
+            >
+              <Trans>Reactivate</Trans>
+            </Button>
+          ) : null}
+          <Link
+            to={`/console/platform/plans?tenantId=${encodeURIComponent(row.original.id)}`}
+            {...stylex.props(styles.actionLink)}
+          >
+            <Trans>Plans and quotas</Trans>
+          </Link>
+        </div>
+      ),
+      meta: { width: '190px' },
+    },
+  ]
+
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Organizations</Trans>
-        </h1>
-      </div>
-
-      <form onSubmit={handleSearch} role="search" {...stylex.props(styles.searchZone)}>
-        <div {...stylex.props(styles.searchInputWrap)}>
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t`Search by name or slug`}
-            aria-label={t`Search organizations`}
-          />
-        </div>
-        <Button type="submit" variant="secondary">
-          <Trans>Search</Trans>
-        </Button>
-      </form>
-
-      {isError ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">
-            <Trans>Failed to load organizations. Please try again.</Trans>
-          </Alert>
-        </div>
-      ) : (
-        <section aria-labelledby="orgs-table-heading" {...stylex.props(styles.tableSection)}>
-          <h2 id="orgs-table-heading" {...stylex.props(page.visuallyHidden)}>
-            <Trans>Organizations table</Trans>
-          </h2>
-          {data ? (
-            <p {...stylex.props(styles.summaryText)}>
-              <Trans>{data.total} organizations found</Trans>
-            </p>
+    <ConsolePage
+      title={<Trans>Organizations</Trans>}
+      lead={<Trans>Every organization on this instance, with plan and lifecycle status.</Trans>}
+    >
+      {isError || updateStatus.isError ? (
+        <ConsolePageNotice>
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load organizations.</Trans>
+            </Alert>
           ) : null}
-          <DataTable
-            columns={columns}
-            data={data?.data ?? []}
-            getRowId={(row) => row.id}
-            isLoading={isLoading}
-            emptyMessage={<Trans>No organizations found.</Trans>}
-          />
-          {data ? (
-            <div {...stylex.props(styles.paginationWrap)}>
-              <Pagination
-                nextCursor={data.nextCursor}
-                loadMoreLabel={<Trans>Load more organizations</Trans>}
-                onLoadMore={setCursor}
-              />
-            </div>
+          {updateStatus.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to update organization status. Try again.</Trans>
+            </Alert>
           ) : null}
-        </section>
-      )}
-    </div>
+        </ConsolePageNotice>
+      ) : null}
+
+      <ConsolePageToolbar>
+        <form onSubmit={handleSearch} role="search" {...stylex.props(styles.searchForm)}>
+          <div {...stylex.props(styles.searchInputWrap)}>
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t`Search by name or slug`}
+              aria-label={t`Search organizations`}
+            />
+          </div>
+          <Button type="submit" variant="secondary">
+            <Trans>Search</Trans>
+          </Button>
+        </form>
+      </ConsolePageToolbar>
+
+      <ConsolePageSection title={<Trans>Organizations</Trans>}>
+        {data ? (
+          <p {...stylex.props(consoleShell.selectorSummary)}>
+            <Trans>{data.total} organizations found</Trans>
+          </p>
+        ) : null}
+        <DataTable
+          columns={columns}
+          data={data?.data ?? []}
+          getRowId={(row) => row.id}
+          isLoading={isLoading}
+          emptyMessage={<Trans>No organizations found.</Trans>}
+        />
+        {data ? (
+          <Pagination
+            nextCursor={data.nextCursor}
+            loadMoreLabel={<Trans>Load more organizations</Trans>}
+            onLoadMore={setCursor}
+          />
+        ) : null}
+      </ConsolePageSection>
+
+      {pendingStatus ? (
+        <ConfirmDialog
+          title={
+            pendingStatus.status === 'suspended' ? (
+              <Trans>Suspend organization?</Trans>
+            ) : (
+              <Trans>Reactivate organization?</Trans>
+            )
+          }
+          description={
+            pendingStatus.status === 'suspended' ? (
+              <Trans>
+                {organizationDisplayName(pendingStatus.organization)} will be suspended. Members
+                lose access until it is reactivated.
+              </Trans>
+            ) : (
+              <Trans>
+                {organizationDisplayName(pendingStatus.organization)} will be reactivated and
+                members regain access.
+              </Trans>
+            )
+          }
+          confirmLabel={
+            pendingStatus.status === 'suspended' ? (
+              <Trans>Suspend</Trans>
+            ) : (
+              <Trans>Reactivate</Trans>
+            )
+          }
+          confirmVariant={pendingStatus.status === 'suspended' ? 'danger' : 'primary'}
+          isLoading={updateStatus.isPending}
+          onConfirm={() => void confirmStatusChange()}
+          onCancel={() => setPendingStatus(null)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }

@@ -99,6 +99,24 @@ export const page = stylex.create({
     textDecoration: 'none',
     color: 'inherit',
   },
+  // 行内文本链接(auth 卡 footer / onboarding 出口),全产品面唯一定义。
+  textLink: {
+    fontSize: '0.8125rem',
+    color: tokens['--xid-primary'],
+    textDecorationLine: 'underline',
+    textDecorationColor: {
+      default: `color-mix(in oklch, ${tokens['--xid-primary']} 35%, transparent)`,
+      ':hover': tokens['--xid-primary'],
+    },
+    textUnderlineOffset: '0.1875rem',
+    transitionProperty: {
+      default: 'text-decoration-color',
+      '@media (prefers-reduced-motion: reduce)': 'none',
+    },
+    transitionDuration: '0.12s',
+    transitionTimingFunction: 'ease-out',
+    fontFamily: tokens['--xid-font'],
+  },
   actionTitle: {
     margin: '0 0 0.25rem',
     fontSize: '0.9375rem',
@@ -159,6 +177,11 @@ export const consoleShell = stylex.create({
     paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
     paddingBlock: '1.5rem',
   },
+  noticeStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
   sectionPad: {
     paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
     paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
@@ -179,5 +202,204 @@ export const consoleShell = stylex.create({
     color: tokens['--xid-fg'],
     fontSize: '0.9375rem',
     fontFamily: tokens['--xid-font'],
+  },
+  // --- 页面骨架槽位(ConsolePage 组件族与原 controlPlaneStyles 的合一来源) ---
+  lead: {
+    maxWidth: '48rem',
+    margin: '0.5rem 0 0',
+    color: tokens['--xid-muted-foreground'],
+    fontFamily: tokens['--xid-font'],
+    fontSize: '0.875rem',
+    lineHeight: 1.6,
+  },
+  headerRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.75rem 1.5rem',
+  },
+  headerText: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+  },
+  headerActions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+    flexShrink: 0,
+  },
+  toolbar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    gap: '0.75rem',
+    paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
+    paddingBlock: 'clamp(1.25rem, 1.6vw, 2rem)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  toolbarField: {
+    flex: '1 1 18rem',
+    maxWidth: '36rem',
+    minWidth: 0,
+  },
+  section: {
+    paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
+    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  sectionStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  sectionHeadingRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '0.5rem 1rem',
+  },
+  sectionDescription: {
+    margin: 0,
+    maxWidth: '48rem',
+    color: tokens['--xid-muted-foreground'],
+    fontFamily: tokens['--xid-font'],
+    fontSize: '0.8125rem',
+    lineHeight: 1.55,
+  },
+  // 5/7 双列节:左 meta(小节说明),右 controls(表单),宽屏带 inline-start hairline。
+  createSection: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
+    },
+    gap: {
+      default: '1.25rem',
+      '@media (min-width: 64rem)': 0,
+    },
+    paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
+    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  sectionMeta: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.375rem',
+    paddingInlineEnd: {
+      default: 0,
+      '@media (min-width: 64rem)': 'clamp(1.75rem, 2vw, 3.5rem)',
+    },
+  },
+  controls: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    maxWidth: '48rem',
+    paddingInlineStart: {
+      default: 0,
+      '@media (min-width: 64rem)': 'clamp(1.75rem, 2vw, 3.5rem)',
+    },
+    borderInlineStartWidth: {
+      default: 0,
+      '@media (min-width: 64rem)': '1px',
+    },
+    borderInlineStartStyle: 'solid',
+    borderInlineStartColor: tokens['--xid-border'],
+  },
+  formGrid: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 42rem)': 'repeat(2, minmax(0, 1fr))',
+    },
+    gap: '0.875rem',
+  },
+  formWide: {
+    gridColumn: {
+      default: 'auto',
+      '@media (min-width: 42rem)': '1 / -1',
+    },
+  },
+  formActions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  actionGroup: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.375rem',
+  },
+  actionButton: {
+    minHeight: '1.75rem',
+    paddingBlock: 0,
+    paddingInline: '0.625rem',
+    fontSize: '0.75rem',
+  },
+  mono: {
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: '0.8125rem',
+    wordBreak: 'break-all',
+  },
+  muted: {
+    color: tokens['--xid-muted-foreground'],
+    fontSize: '0.8125rem',
+  },
+  selectorSummary: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: '0.75rem',
+    letterSpacing: '0.04em',
+  },
+  split: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: '1fr',
+      '@media (min-width: 76rem)': 'repeat(2, minmax(0, 1fr))',
+    },
+    gap: 'clamp(1.5rem, 2vw, 3rem)',
+  },
+  splitColumn: {
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  dividerColumn: {
+    paddingInlineStart: {
+      default: 0,
+      '@media (min-width: 76rem)': 'clamp(1.5rem, 2vw, 3rem)',
+    },
+    borderInlineStartWidth: {
+      default: 0,
+      '@media (min-width: 76rem)': '1px',
+    },
+    borderInlineStartStyle: 'solid',
+    borderInlineStartColor: tokens['--xid-border'],
+  },
+  codeBlock: {
+    display: 'block',
+    maxWidth: '36rem',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    padding: '0.5rem',
+    borderRadius: tokens['--xid-radius-sm'],
+    backgroundColor: tokens['--xid-muted'],
+    color: tokens['--xid-fg'],
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: '0.75rem',
+    lineHeight: 1.5,
   },
 })

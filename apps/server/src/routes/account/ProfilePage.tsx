@@ -8,7 +8,7 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { page } from '../../styles/product-surface.stylex'
+import { account, consoleShell, page } from '../../styles/product-surface.stylex'
 import { Alert, Button, Input, Section, SectionRow, Spinner } from '../../components/ui'
 import { SUPPORTED_LOCALES } from '../../lib/locale'
 import { useProfileQuery, useUpdateProfile } from './queries'
@@ -32,29 +32,6 @@ const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  // 页头区:display 标题,自持 gutter,下沿 hairline 收束
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
   // 表单节:paddingBlock + 自持 gutter
   formSection: {
     paddingInline: GUTTER,
@@ -216,9 +193,9 @@ export default function ProfilePage(): ReactNode {
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
+    <div {...stylex.props(account.root)}>
+      <div {...stylex.props(consoleShell.headerZone)}>
+        <h1 {...stylex.props(consoleShell.displayTitle)}>
           <Trans>Profile</Trans>
         </h1>
       </div>

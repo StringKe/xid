@@ -412,8 +412,9 @@ describe('invitation Email claim proof-first contract', () => {
     })
 
     expect(response.status).toBe(200)
+    // member 邀请落地 account portal(owner/admin 才落 console 组织页)。
     expect(await response.json()).toEqual({
-      redirectUrl: '/console/org?orgId=org-1&orgName=Acme',
+      redirectUrl: '/account',
     })
     expect(sessionsUpdate).toHaveBeenCalledOnce()
     expect(assertMethodAllowed).toHaveBeenCalledWith(tenant, 'magicLink', 'user_creation')

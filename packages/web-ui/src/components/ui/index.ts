@@ -29,6 +29,26 @@ export { Section, SectionRow, SECTION_ROW_VARIANTS } from './Section'
 export type { SectionProps, SectionRowProps, SectionRowVariant } from './Section'
 export { EmptyState } from './EmptyState'
 export type { EmptyStateProps } from './EmptyState'
+export {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageToolbar,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from './ConsolePage'
+export type {
+  ConsolePageProps,
+  ConsolePageSectionProps,
+  ConsolePageSplitSectionProps,
+} from './ConsolePage'
+export { Select } from './Select'
+export type { SelectProps } from './Select'
+export { Textarea } from './Textarea'
+export type { TextareaProps } from './Textarea'
+export { Checkbox } from './Checkbox'
+export type { CheckboxProps } from './Checkbox'
+export { Stepper } from './Stepper'
+export type { StepperProps } from './Stepper'
 export { Badge, BADGE_TONES } from './Badge'
 export type { BadgeProps, BadgeTone } from './Badge'
 export { Skeleton } from './Skeleton'

@@ -464,7 +464,7 @@ export async function handleSelfOrganizationCreate(c: Context<XidHonoEnv>): Prom
       slug,
       name,
       role: 'owner',
-      redirectUrl: invitationAcceptContinuePath(orgId, name),
+      redirectUrl: invitationAcceptContinuePath(orgId, name, 'owner'),
     },
     201,
   )

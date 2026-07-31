@@ -1,65 +1,19 @@
 // platform console Feature Flags 页:全局 flag 列表 + 全局默认开关。
 // 调 GET /v1/platform/feature-flags;PATCH /v1/platform/feature-flags/:key。
-// 全宽锚定版式:零 padding 壳,节自持 gutter;hairline ledger(borderBlock 1px)包裹行列表;
-// 行间 hairline 分隔;flags 行 4/8 不对称双列(左 flag 信息,右控件),宽屏更清晰。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;
+// hairline ledger(borderBlock 1px)包裹行列表,flags 行 4/8 不对称双列(左 flag 信息,右控件)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Alert, Badge, Button, EmptyState, Spinner } from '@xid-kit/web-ui/ui'
+import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useFeatureFlagsQuery, useSetFeatureFlagDefault } from './queries'
 import type { FeatureFlag } from './types'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  section: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  sectionLabelRow: {
-    marginBottom: '1rem',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  loadingZone: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBlock: '3rem',
-    paddingInline: GUTTER,
-  },
   // ledger 带:borderBlock 1px 包裹 flag 行列表
   flagList: {
     borderTopWidth: '1px',
@@ -187,6 +141,7 @@ function FlagRow({
 }
 
 export default function PlatformFeatureFlags(): ReactNode {
+  const { t } = useLingui()
   const { data, isLoading, isError } = useFeatureFlagsQuery()
   const setFlagDefault = useSetFeatureFlagDefault()
 
@@ -195,38 +150,33 @@ export default function PlatformFeatureFlags(): ReactNode {
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Feature flags</Trans>
-        </h1>
-      </div>
-
-      {setFlagDefault.error ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">{setFlagDefault.error.message}</Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Feature flags</Trans>}
+      lead={<Trans>Global defaults for every feature flag, with organization overrides.</Trans>}
+    >
+      {isError || setFlagDefault.isError ? (
+        <ConsolePageNotice>
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load feature flags. Please try again.</Trans>
+            </Alert>
+          ) : null}
+          {setFlagDefault.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to update feature flag. Try again.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
 
-      {isLoading ? (
-        <div {...stylex.props(styles.loadingZone)}>
-          <Spinner />
-        </div>
-      ) : isError ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">
-            <Trans>Failed to load feature flags. Please try again.</Trans>
-          </Alert>
-        </div>
-      ) : !data || data.length === 0 ? (
-        <div {...stylex.props(styles.messageZone)}>
+      <ConsolePageSection title={<Trans>Global defaults</Trans>}>
+        {isError ? null : isLoading ? (
+          <div {...stylex.props(page.loadingCenter)}>
+            <Spinner label={t`Loading feature flags`} />
+          </div>
+        ) : !data || data.length === 0 ? (
           <EmptyState title={<Trans>No feature flags configured.</Trans>} />
-        </div>
-      ) : (
-        <section aria-labelledby="flags-heading" {...stylex.props(styles.section)}>
-          <h2 id="flags-heading" {...stylex.props(page.sectionLabel, styles.sectionLabelRow)}>
-            <Trans>Global defaults</Trans>
-          </h2>
+        ) : (
           <div {...stylex.props(styles.flagList)}>
             {data.map((flag, idx) => (
               <FlagRow
@@ -238,8 +188,8 @@ export default function PlatformFeatureFlags(): ReactNode {
               />
             ))}
           </div>
-        </section>
-      )}
-    </div>
+        )}
+      </ConsolePageSection>
+    </ConsolePage>
   )
 }

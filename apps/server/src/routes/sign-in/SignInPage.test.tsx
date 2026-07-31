@@ -7,7 +7,7 @@ import type { InputHTMLAttributes, ReactNode } from 'react'
 
 const routerState = vi.hoisted(() => ({
   navigate: vi.fn(),
-  search: {} as { intent?: string },
+  search: {} as Record<string, string>,
 }))
 
 const authState = vi.hoisted(() => ({
@@ -51,6 +51,17 @@ vi.mock('../../lib/auth-context', () => ({
 }))
 
 vi.mock('../../lib/router', () => ({
+  Link: ({ to, children }: { to: unknown; children: ReactNode }) => (
+    <a
+      href={
+        typeof to === 'string'
+          ? to
+          : `${(to as { pathname?: string }).pathname ?? ''}${(to as { search?: string }).search ?? ''}`
+      }
+    >
+      {children}
+    </a>
+  ),
   useNavigate: () => routerState.navigate,
 }))
 
@@ -222,6 +233,17 @@ describe('SignInPage authenticated redirect', () => {
     expect((await renderPage()).text).not.toContain('Guest entry')
   })
 
+  it('shows the verified success alert and keeps the sign-in form for verified=1', async () => {
+    authState.status = 'unauthenticated'
+    routerState.search = { verified: '1' }
+    signInState.enabledMethods = ['password']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain('Your email has been verified. Sign in to continue.')
+    expect(rendered.text).toContain('Sign in')
+  })
+
   it('routes an authenticated sign-up session to organization onboarding', async () => {
     routerState.search = { intent: 'sign-up' }
 
@@ -245,5 +267,56 @@ describe('SignInPage authenticated redirect', () => {
     await renderPage()
 
     expect(routerState.navigate).toHaveBeenCalledWith('/console', { replace: true })
+  })
+
+  it('links sign-in to account creation and carries only whitelisted params', async () => {
+    authState.status = 'unauthenticated'
+    routerState.search = {
+      continue: '/console',
+      client_id: 'client-1',
+      organization_id: 'org-1',
+      authz_request_id: 'authz-1',
+      login_hint: 'owner@example.com',
+      verified: '1',
+      reauthenticate: '1',
+      select_account: '1',
+    }
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain('New here? Create an account')
+    const switchHref = /href="(\/sign-in\?[^"]*)"/.exec(rendered.html)?.[1]
+    expect(switchHref).toBeDefined()
+    const decoded = (switchHref ?? '').replaceAll('&amp;', '&')
+    expect(decoded).toContain('intent=sign-up')
+    expect(decoded).toContain('continue=%2Fconsole')
+    expect(decoded).toContain('client_id=client-1')
+    expect(decoded).toContain('organization_id=org-1')
+    expect(decoded).toContain('authz_request_id=authz-1')
+    expect(decoded).toContain('login_hint=owner%40example.com')
+    expect(decoded).not.toContain('verified=')
+    expect(decoded).not.toContain('reauthenticate=')
+    expect(decoded).not.toContain('select_account=')
+  })
+
+  it('links sign-up back to sign-in without an intent param', async () => {
+    authState.status = 'unauthenticated'
+    routerState.search = {
+      intent: 'sign-up',
+      continue: '/console',
+      invitation_token: 'invite-1',
+      verified: '1',
+    }
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain('Already have an account? Sign in')
+    const switchHref = /href="(\/sign-in\?[^"]*)"/.exec(rendered.html)?.[1]
+    expect(switchHref).toBeDefined()
+    const decoded = (switchHref ?? '').replaceAll('&amp;', '&')
+    expect(decoded).not.toContain('intent=')
+    expect(decoded).toContain('continue=%2Fconsole')
+    expect(decoded).toContain('invitation_token=invite-1')
+    expect(decoded).not.toContain('verified=')
   })
 })

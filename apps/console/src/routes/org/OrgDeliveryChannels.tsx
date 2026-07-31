@@ -1,9 +1,17 @@
+// org 投递渠道页:WhatsApp / SMS 各一个 5/7 双列配置节,provider 切换联动 secretRefs。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;readiness 说明放左列 meta。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Badge, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { Alert, Badge, Button, Checkbox, Field, Input, Select, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useOrgDeliveryChannelsQuery, useUpdateOrgDeliveryChannels } from './queries'
 import type { OrgDeliveryChannels } from './types'
@@ -11,20 +19,6 @@ import { useOrgTarget } from './useOrgTarget'
 
 const WHATSAPP_PROVIDERS = ['twilio', 'meta', 'test'] as const
 const SMS_PROVIDERS = ['twilio', 'vonage', 'infobip', 'messagebird', 'test'] as const
-
-const WHATSAPP_PROVIDER_LABELS: Record<(typeof WHATSAPP_PROVIDERS)[number], string> = {
-  twilio: 'Twilio',
-  meta: 'Meta',
-  test: 'Test capture (dev)',
-}
-
-const SMS_PROVIDER_LABELS: Record<(typeof SMS_PROVIDERS)[number], string> = {
-  twilio: 'Twilio',
-  vonage: 'Vonage',
-  infobip: 'Infobip',
-  messagebird: 'MessageBird',
-  test: 'Test capture (dev)',
-}
 
 const WHATSAPP_SECRET_REFS: Record<(typeof WHATSAPP_PROVIDERS)[number], string[]> = {
   twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
@@ -40,74 +34,17 @@ const SMS_SECRET_REFS: Record<(typeof SMS_PROVIDERS)[number], string[]> = {
   test: [],
 }
 
-// 全宽规范常量
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-
 const styles = stylex.create({
-  root: {
+  loadingZone: {
     display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
+    justifyContent: 'center',
+    paddingBlock: '2.25rem',
   },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  formBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  // 每个渠道节:5/7 双列 + hairline 顶
-  channelSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
-    },
-    gap: {
-      default: '1.25rem',
-      '@media (min-width: 64rem)': '0',
-    },
-  },
-  sectionMeta: {
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
+  // 渠道左列 meta:状态徽章 + readiness 说明
+  channelMeta: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
-  },
-  channelHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.625rem',
   },
   readinessNote: {
     margin: 0,
@@ -120,37 +57,6 @@ const styles = stylex.create({
   readinessReady: {
     color: tokens['--xid-success'],
   },
-  controlCol: {
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 64rem)': '1px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    maxWidth: '36rem',
-  },
-  select: {
-    width: '100%',
-    minHeight: '2.25rem',
-    paddingBlock: 0,
-    paddingInline: '0.75rem',
-    borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
-    boxSizing: 'border-box',
-  },
   checkRow: {
     display: 'flex',
     alignItems: 'center',
@@ -160,22 +66,6 @@ const styles = stylex.create({
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
     cursor: 'pointer',
-  },
-  checkInput: {
-    accentColor: tokens['--xid-accent'],
-    width: '0.9375rem',
-    height: '0.9375rem',
-    flexShrink: 0,
-    cursor: 'pointer',
-  },
-  submitSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    justifyContent: 'flex-end',
   },
 })
 
@@ -210,11 +100,25 @@ function channelConfigured(input: { enabled: boolean; credentialsReady: boolean 
 
 export default function OrgDeliveryChannelsPage(): ReactNode {
   const { t } = useLingui()
-  const { orgId, orgName } = useOrgTarget()
+  const { orgId } = useOrgTarget()
   const query = useOrgDeliveryChannelsQuery(orgId)
   const updateChannels = useUpdateOrgDeliveryChannels(orgId)
   const [form, setForm] = useState<OrgDeliveryChannels | null>(() => query.data ?? null)
   const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // 品牌名不译;dev 捕获渠道名走 lingui。
+  const whatsappProviderLabels: Record<(typeof WHATSAPP_PROVIDERS)[number], string> = {
+    twilio: 'Twilio',
+    meta: 'Meta',
+    test: t`Test capture (dev)`,
+  }
+  const smsProviderLabels: Record<(typeof SMS_PROVIDERS)[number], string> = {
+    twilio: 'Twilio',
+    vonage: 'Vonage',
+    infobip: 'Infobip',
+    messagebird: 'MessageBird',
+    test: t`Test capture (dev)`,
+  }
 
   useEffect(() => {
     if (query.data) setForm(query.data)
@@ -260,106 +164,99 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
     setSaveSuccess(true)
   }
 
-  if (query.isError) {
-    return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="error">{query.error.message || t`Failed to load delivery channels.`}</Alert>
-      </div>
-    )
-  }
-
-  if (query.isLoading || !form) {
-    return (
-      <div {...stylex.props(page.loadingCenter)}>
-        <Spinner label={t`Loading delivery channels`} />
-      </div>
-    )
-  }
-
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Delivery channels</Trans>
-        </h1>
-        <p {...stylex.props(page.lead)}>
-          <Trans>Target organization: {orgName}</Trans>
-        </p>
-      </div>
-
-      {updateChannels.error ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">{updateChannels.error.message}</Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Delivery channels</Trans>}
+      lead={
+        <Trans>
+          WhatsApp and SMS delivery providers used by this organization&apos;s OTP sign-in.
+        </Trans>
+      }
+    >
+      {query.isError || updateChannels.error || saveSuccess ? (
+        <ConsolePageNotice>
+          {query.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load delivery channels.</Trans>
+            </Alert>
+          ) : null}
+          {updateChannels.error ? (
+            <Alert tone="error">
+              <Trans>Failed to save delivery channels. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {saveSuccess ? (
+            <Alert tone="success">
+              <Trans>Delivery channels saved.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
-      {saveSuccess ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="success">
-            <Trans>Delivery channels saved.</Trans>
-          </Alert>
-        </div>
-      ) : null}
 
-      <form
-        onSubmit={(event) => void handleSave(event)}
-        noValidate
-        {...stylex.props(styles.formBody)}
-      >
-        {/* WhatsApp provider */}
-        <section aria-labelledby="whatsapp-heading" {...stylex.props(styles.channelSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <div {...stylex.props(styles.channelHeader)}>
-              <h2 id="whatsapp-heading" {...stylex.props(page.sectionLabel)}>
-                <Trans>WhatsApp provider</Trans>
-              </h2>
-              <Badge tone={channelConfigured(form.whatsapp) ? 'success' : 'neutral'}>
-                {channelConfigured(form.whatsapp) ? <Trans>Ready</Trans> : <Trans>Not ready</Trans>}
-              </Badge>
-            </div>
-            <p
-              {...stylex.props(
-                styles.readinessNote,
-                channelConfigured(form.whatsapp) ? styles.readinessReady : undefined,
-              )}
-            >
-              {channelConfigured(form.whatsapp) ? (
-                <Trans>WhatsApp delivery is ready for Hosted UI.</Trans>
-              ) : (
-                <Trans>
-                  WhatsApp delivery stays hidden until the provider is enabled and all referenced
-                  Workers Secrets exist.
-                </Trans>
-              )}
-            </p>
+      {!form ? (
+        <ConsolePageSection>
+          <div {...stylex.props(styles.loadingZone)}>
+            {query.isLoading ? <Spinner label={t`Loading delivery channels`} /> : null}
           </div>
-          <div {...stylex.props(styles.controlCol)}>
+        </ConsolePageSection>
+      ) : (
+        <form onSubmit={(event) => void handleSave(event)} noValidate>
+          {/* WhatsApp provider */}
+          <ConsolePageSplitSection
+            title={<Trans>WhatsApp provider</Trans>}
+            meta={
+              <div {...stylex.props(styles.channelMeta)}>
+                <div>
+                  <Badge tone={channelConfigured(form.whatsapp) ? 'success' : 'neutral'}>
+                    {channelConfigured(form.whatsapp) ? (
+                      <Trans>Ready</Trans>
+                    ) : (
+                      <Trans>Not ready</Trans>
+                    )}
+                  </Badge>
+                </div>
+                <p
+                  {...stylex.props(
+                    styles.readinessNote,
+                    channelConfigured(form.whatsapp) ? styles.readinessReady : undefined,
+                  )}
+                >
+                  {channelConfigured(form.whatsapp) ? (
+                    <Trans>WhatsApp delivery is ready for Hosted UI.</Trans>
+                  ) : (
+                    <Trans>
+                      WhatsApp delivery stays hidden until the provider is enabled and all
+                      referenced Workers Secrets exist.
+                    </Trans>
+                  )}
+                </p>
+              </div>
+            }
+          >
             <label {...stylex.props(styles.checkRow)}>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={form.whatsapp.enabled}
                 onChange={(event) => patchWhatsapp({ enabled: event.target.checked })}
-                {...stylex.props(styles.checkInput)}
               />
               <span>
                 <Trans>Enabled</Trans>
               </span>
             </label>
             <Field label={<Trans>Provider</Trans>}>
-              <select
+              <Select
                 value={form.whatsapp.provider}
                 onChange={(event) =>
                   selectWhatsappProvider(
                     event.target.value as OrgDeliveryChannels['whatsapp']['provider'],
                   )
                 }
-                {...stylex.props(styles.select)}
               >
                 {WHATSAPP_PROVIDERS.map((p) => (
                   <option key={p} value={p}>
-                    {WHATSAPP_PROVIDER_LABELS[p]}
+                    {whatsappProviderLabels[p]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label={<Trans>Sender</Trans>}>
               <Input
@@ -378,62 +275,58 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
                 placeholder={t`WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_ACCESS_TOKEN`}
               />
             </Field>
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* SMS provider */}
-        <section aria-labelledby="sms-heading" {...stylex.props(styles.channelSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <div {...stylex.props(styles.channelHeader)}>
-              <h2 id="sms-heading" {...stylex.props(page.sectionLabel)}>
-                <Trans>SMS provider</Trans>
-              </h2>
-              <Badge tone={channelConfigured(form.sms) ? 'success' : 'neutral'}>
-                {channelConfigured(form.sms) ? <Trans>Ready</Trans> : <Trans>Not ready</Trans>}
-              </Badge>
-            </div>
-            <p
-              {...stylex.props(
-                styles.readinessNote,
-                channelConfigured(form.sms) ? styles.readinessReady : undefined,
-              )}
-            >
-              {channelConfigured(form.sms) ? (
-                <Trans>SMS delivery is ready for Hosted UI.</Trans>
-              ) : (
-                <Trans>
-                  SMS delivery stays hidden until the provider is enabled, a sender is set, and all
-                  referenced Workers Secrets exist.
-                </Trans>
-              )}
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+          {/* SMS provider */}
+          <ConsolePageSplitSection
+            title={<Trans>SMS provider</Trans>}
+            meta={
+              <div {...stylex.props(styles.channelMeta)}>
+                <div>
+                  <Badge tone={channelConfigured(form.sms) ? 'success' : 'neutral'}>
+                    {channelConfigured(form.sms) ? <Trans>Ready</Trans> : <Trans>Not ready</Trans>}
+                  </Badge>
+                </div>
+                <p
+                  {...stylex.props(
+                    styles.readinessNote,
+                    channelConfigured(form.sms) ? styles.readinessReady : undefined,
+                  )}
+                >
+                  {channelConfigured(form.sms) ? (
+                    <Trans>SMS delivery is ready for Hosted UI.</Trans>
+                  ) : (
+                    <Trans>
+                      SMS delivery stays hidden until the provider is enabled, a sender is set, and
+                      all referenced Workers Secrets exist.
+                    </Trans>
+                  )}
+                </p>
+              </div>
+            }
+          >
             <label {...stylex.props(styles.checkRow)}>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={form.sms.enabled}
                 onChange={(event) => patchSms({ enabled: event.target.checked })}
-                {...stylex.props(styles.checkInput)}
               />
               <span>
                 <Trans>Enabled</Trans>
               </span>
             </label>
             <Field label={<Trans>Provider</Trans>}>
-              <select
+              <Select
                 value={form.sms.provider}
                 onChange={(event) =>
                   selectSmsProvider(event.target.value as OrgDeliveryChannels['sms']['provider'])
                 }
-                {...stylex.props(styles.select)}
               >
                 {SMS_PROVIDERS.map((p) => (
                   <option key={p} value={p}>
-                    {SMS_PROVIDER_LABELS[p]}
+                    {smsProviderLabels[p]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label={<Trans>Sender</Trans>}>
               <Input
@@ -452,16 +345,15 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
                 placeholder={t`TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN`}
               />
             </Field>
-          </div>
-        </section>
-
-        <div {...stylex.props(styles.submitSection)}>
-          <Button type="submit" isLoading={updateChannels.isPending}>
-            <Trans>Save delivery channels</Trans>
-          </Button>
-        </div>
-      </form>
-    </div>
+            <div>
+              <Button type="submit" isLoading={updateChannels.isPending}>
+                <Trans>Save changes</Trans>
+              </Button>
+            </div>
+          </ConsolePageSplitSection>
+        </form>
+      )}
+    </ConsolePage>
   )
 }
 

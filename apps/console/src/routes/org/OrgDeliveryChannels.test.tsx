@@ -67,6 +67,6 @@ describe('OrgDeliveryChannelsPage', () => {
     expect(html).toContain('Binding names are fixed by the deployment configuration')
     expect(html).toContain('WHATSAPP_META_ACCESS_TOKEN')
     expect(html).toContain('TWILIO_AUTH_TOKEN')
-    expect(html).toContain('Save delivery channels')
+    expect(html).toContain('Save changes')
   })
 })

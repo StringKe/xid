@@ -1,15 +1,26 @@
+// Managed projects 页:project_manager / project_grant_manager 委托范围的管理视图。
+// GET/PATCH/DELETE /v1/managed-projects、/v1/project-grants/:id/user-grants。
+// 壳走 ConsolePage 骨架(web-ui):Managed scope 选择器进 ConsolePageToolbar;project 定义、
+// 编辑表单与 user grants 走 ConsolePageSection/SplitSection;mutation 失败固定本地化文案。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
+import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+  ConsolePageToolbar,
+} from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { useAuth } from '@xid-kit/web-ui/session'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
-import { controlPlaneStyles as styles } from '../control-plane.styles'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import OrgRoles from '../org/OrgRoles'
 import {
   useCreateUserGrant,
@@ -67,7 +78,7 @@ export default function ManagedProjects(): ReactNode {
     {
       id: 'user',
       header: () => <Trans>User ID</Trans>,
-      cell: ({ row }) => <code {...stylex.props(styles.mono)}>{row.original.user_id}</code>,
+      cell: ({ row }) => <code {...stylex.props(consoleShell.mono)}>{row.original.user_id}</code>,
     },
     {
       id: 'role',
@@ -78,8 +89,8 @@ export default function ManagedProjects(): ReactNode {
         )
         return (
           <div>
-            <code {...stylex.props(styles.mono)}>{role?.key ?? row.original.role_id}</code>
-            {role ? <div {...stylex.props(styles.muted)}>{role.display_name}</div> : null}
+            <code {...stylex.props(consoleShell.mono)}>{role?.key ?? row.original.role_id}</code>
+            {role ? <div {...stylex.props(consoleShell.muted)}>{role.display_name}</div> : null}
           </div>
         )
       },
@@ -97,7 +108,7 @@ export default function ManagedProjects(): ReactNode {
         <Button
           variant="danger"
           onClick={() => setPendingUserGrantRevoke(row.original)}
-          {...stylex.props(styles.actionButton)}
+          {...stylex.props(consoleShell.actionButton)}
         >
           <Trans>Revoke</Trans>
         </Button>
@@ -143,33 +154,30 @@ export default function ManagedProjects(): ReactNode {
     setGrantRoleId('')
   }
 
-  const projectMutationError = updateProject.error ?? deleteProject.error ?? restoreProject.error
-  const userGrantMutationError = createUserGrant.error ?? revokeUserGrant.error
+  const projectMutationFailed =
+    updateProject.isError || deleteProject.isError || restoreProject.isError
+  const userGrantMutationFailed = createUserGrant.isError || revokeUserGrant.isError
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Managed projects</Trans>
-        </h1>
-        <p {...stylex.props(styles.lead)}>
-          <Trans>
-            Work only inside the project or project grant scopes delegated to your user. These
-            assignments do not grant organization administrator access.
-          </Trans>
-        </p>
-      </header>
-
+    <ConsolePage
+      title={<Trans>Managed projects</Trans>}
+      lead={
+        <Trans>
+          Work only inside the project or project grant scopes delegated to your user. These
+          assignments do not grant organization administrator access.
+        </Trans>
+      }
+    >
       {managerAssignments.length === 0 ? (
-        <div {...stylex.props(styles.message)}>
+        <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No project management scopes are assigned to your user.</Trans>
           </Alert>
-        </div>
+        </ConsolePageNotice>
       ) : (
         <>
-          <div {...stylex.props(styles.toolbar)}>
-            <div {...stylex.props(styles.toolbarField)}>
+          <ConsolePageToolbar>
+            <div {...stylex.props(consoleShell.toolbarField)}>
               <Field
                 label={<Trans>Managed scope</Trans>}
                 hint={
@@ -179,14 +187,13 @@ export default function ManagedProjects(): ReactNode {
                   </Trans>
                 }
               >
-                <select
+                <Select
                   value={assignment?.id ?? ''}
                   onChange={(event) => {
                     setSelectedAssignmentId(event.currentTarget.value)
                     setUserGrantCursor(undefined)
                     setEditingProject(false)
                   }}
-                  {...stylex.props(styles.select)}
                 >
                   {managerAssignments.map((candidate) => (
                     <option key={candidate.id} value={candidate.id}>
@@ -196,7 +203,7 @@ export default function ManagedProjects(): ReactNode {
                       · {candidate.scopeId}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
             </div>
             {assignment ? (
@@ -208,65 +215,62 @@ export default function ManagedProjects(): ReactNode {
                 )}
               </Badge>
             ) : null}
-          </div>
+          </ConsolePageToolbar>
 
           {grant.isError || projectResult.isError ? (
-            <div {...stylex.props(styles.message)}>
+            <ConsolePageNotice>
               <Alert tone="error">
                 <Trans>Failed to resolve the selected managed scope.</Trans>
               </Alert>
-            </div>
+            </ConsolePageNotice>
           ) : !project ? (
-            <div {...stylex.props(styles.message)}>
+            <ConsolePageNotice>
               <Alert tone="info">
                 <Trans>Resolving the selected project.</Trans>
               </Alert>
-            </div>
+            </ConsolePageNotice>
           ) : (
             <>
-              <section aria-labelledby="managed-project-heading" {...stylex.props(styles.section)}>
-                <div {...stylex.props(styles.sectionStack)}>
-                  <div {...stylex.props(styles.sectionHeadingRow)}>
-                    <div>
-                      <h2 id="managed-project-heading" {...stylex.props(page.sectionLabel)}>
-                        {project.name}
-                      </h2>
-                      <code {...stylex.props(styles.mono)}>{project.id}</code>
-                    </div>
+              <ConsolePageSection title={project.name}>
+                <div {...stylex.props(consoleShell.sectionStack)}>
+                  <div {...stylex.props(consoleShell.sectionHeadingRow)}>
+                    <code {...stylex.props(consoleShell.mono)}>{project.id}</code>
                     <Badge tone={project.status === 'active' ? 'success' : 'neutral'}>
                       {project.status === 'active' ? <Trans>Active</Trans> : <Trans>Deleted</Trans>}
                     </Badge>
                   </div>
                   {project.description ? (
-                    <p {...stylex.props(styles.sectionDescription)}>{project.description}</p>
+                    <p {...stylex.props(consoleShell.sectionDescription)}>{project.description}</p>
                   ) : null}
                   {grant.data ? (
-                    <p {...stylex.props(styles.selectorSummary)}>
+                    <p {...stylex.props(consoleShell.selectorSummary)}>
                       <Trans>
                         Grant {grant.data.id} targets organization {grant.data.granted_to_org_id}
                       </Trans>
                     </p>
                   ) : null}
-                  {projectMutationError ? (
-                    <Alert tone="error">{projectMutationError.message}</Alert>
+                  {projectMutationFailed ? (
+                    <Alert tone="error">
+                      <Trans>Failed to save project changes. Try again.</Trans>
+                    </Alert>
                   ) : null}
                   {isProjectManager ? (
                     project.status === 'deleted' ? (
-                      <div {...stylex.props(styles.formActions)}>
+                      <div {...stylex.props(consoleShell.formActions)}>
                         <Button
                           isLoading={restoreProject.isPending}
                           onClick={() => void handleRestoreProject()}
                         >
                           <Trans>Restore project</Trans>
                         </Button>
-                        <p {...stylex.props(styles.sectionDescription)}>
+                        <p {...stylex.props(consoleShell.sectionDescription)}>
                           <Trans>
                             Restore this project before changing roles, permissions, or mappings.
                           </Trans>
                         </p>
                       </div>
                     ) : (
-                      <div {...stylex.props(styles.formActions)}>
+                      <div {...stylex.props(consoleShell.formActions)}>
                         <Button
                           variant="secondary"
                           onClick={() => {
@@ -291,28 +295,23 @@ export default function ManagedProjects(): ReactNode {
                     </Alert>
                   )}
                 </div>
-              </section>
+              </ConsolePageSection>
 
               {editingProject && project.status === 'active' ? (
-                <section
-                  aria-labelledby="managed-project-edit-heading"
-                  {...stylex.props(styles.createSection)}
+                <ConsolePageSplitSection
+                  title={<Trans>Edit project</Trans>}
+                  description={
+                    <Trans>
+                      Project identity remains stable while its name and description change.
+                    </Trans>
+                  }
+                  meta={<code {...stylex.props(consoleShell.mono)}>{project.id}</code>}
                 >
-                  <div {...stylex.props(styles.sectionMeta)}>
-                    <h2 id="managed-project-edit-heading" {...stylex.props(page.sectionLabel)}>
-                      <Trans>Edit project</Trans>
-                    </h2>
-                    <p {...stylex.props(styles.sectionDescription)}>
-                      <Trans>
-                        Project identity remains stable while its name and description change.
-                      </Trans>
-                    </p>
-                  </div>
                   <form
                     onSubmit={(event) => void handleUpdateProject(event)}
-                    {...stylex.props(styles.controls)}
+                    {...stylex.props(consoleShell.sectionStack)}
                   >
-                    <div {...stylex.props(styles.formGrid)}>
+                    <div {...stylex.props(consoleShell.formGrid)}>
                       <Field label={<Trans>Project name</Trans>} required>
                         <Input
                           value={projectName}
@@ -328,20 +327,20 @@ export default function ManagedProjects(): ReactNode {
                         />
                       </Field>
                     </div>
-                    <div {...stylex.props(styles.formActions)}>
+                    <div {...stylex.props(consoleShell.formActions)}>
                       <Button
                         type="submit"
                         isLoading={updateProject.isPending}
                         disabled={!projectName.trim()}
                       >
-                        <Trans>Save project</Trans>
+                        <Trans>Save changes</Trans>
                       </Button>
                       <Button variant="secondary" onClick={() => setEditingProject(false)}>
                         <Trans>Cancel</Trans>
                       </Button>
                     </div>
                   </form>
-                </section>
+                </ConsolePageSplitSection>
               ) : null}
 
               {project.status === 'active' ? (
@@ -355,25 +354,21 @@ export default function ManagedProjects(): ReactNode {
 
               {assignment?.managerRole === 'project_grant_manager' &&
               project.status === 'active' ? (
-                <section
-                  aria-labelledby="user-grants-heading"
-                  {...stylex.props(styles.createSection)}
+                <ConsolePageSplitSection
+                  title={<Trans>User grants</Trans>}
+                  description={
+                    <Trans>
+                      Assign one active role to a user who is an active member of the grant target
+                      organization. Enter an exact user ID; the server verifies membership and the
+                      exact grant.
+                    </Trans>
+                  }
                 >
-                  <div {...stylex.props(styles.sectionMeta)}>
-                    <h2 id="user-grants-heading" {...stylex.props(page.sectionLabel)}>
-                      <Trans>User grants</Trans>
-                    </h2>
-                    <p {...stylex.props(styles.sectionDescription)}>
-                      <Trans>
-                        Assign one active role to a user who is an active member of the grant target
-                        organization. Enter an exact user ID; the server verifies membership and the
-                        exact grant.
-                      </Trans>
-                    </p>
-                  </div>
-                  <div {...stylex.props(styles.controls)}>
-                    {userGrantMutationError ? (
-                      <Alert tone="error">{userGrantMutationError.message}</Alert>
+                  <div {...stylex.props(consoleShell.sectionStack)}>
+                    {userGrantMutationFailed ? (
+                      <Alert tone="error">
+                        <Trans>Failed to update user grants. Try again.</Trans>
+                      </Alert>
                     ) : null}
                     {userGrants.isError ? (
                       <Alert tone="error">
@@ -399,9 +394,9 @@ export default function ManagedProjects(): ReactNode {
                     )}
                     <form
                       onSubmit={(event) => void handleCreateUserGrant(event)}
-                      {...stylex.props(styles.sectionStack)}
+                      {...stylex.props(consoleShell.sectionStack)}
                     >
-                      <div {...stylex.props(styles.formGrid)}>
+                      <div {...stylex.props(consoleShell.formGrid)}>
                         <Field label={<Trans>User ID</Trans>} required>
                           <Input
                             value={grantUserId}
@@ -410,11 +405,10 @@ export default function ManagedProjects(): ReactNode {
                           />
                         </Field>
                         <Field label={<Trans>Role</Trans>} required>
-                          <select
+                          <Select
                             value={grantRoleId}
                             onChange={(event) => setGrantRoleId(event.currentTarget.value)}
                             disabled={(grantRoles.data?.data.length ?? 0) === 0}
-                            {...stylex.props(styles.select)}
                           >
                             <option value="">{t`Select role`}</option>
                             {(grantRoles.data?.data ?? []).map((role) => (
@@ -422,10 +416,10 @@ export default function ManagedProjects(): ReactNode {
                                 {role.display_name} ({role.key})
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </Field>
                       </div>
-                      <div {...stylex.props(styles.formActions)}>
+                      <div {...stylex.props(consoleShell.formActions)}>
                         <Button
                           type="submit"
                           isLoading={createUserGrant.isPending}
@@ -436,7 +430,7 @@ export default function ManagedProjects(): ReactNode {
                       </div>
                     </form>
                   </div>
-                </section>
+                </ConsolePageSplitSection>
               ) : null}
             </>
           )}
@@ -478,6 +472,6 @@ export default function ManagedProjects(): ReactNode {
           onCancel={() => setPendingUserGrantRevoke(null)}
         />
       ) : null}
-    </div>
+    </ConsolePage>
   )
 }

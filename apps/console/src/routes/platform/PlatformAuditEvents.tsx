@@ -1,60 +1,28 @@
 // platform console 全局事件流页:汇聚所有 organization 审计事件 + cursor 分页。
-// 调 GET /v1/platform/audit-events?cursor=&limit=30(TanStack Query + DataTable)。
-// 全宽锚定版式:零 padding 壳,各节自持 gutter;hairline 分节;mono tabular-nums 时间戳。
+// 调 GET /v1/platform/audit-events?cursor=&limit=30(TanStack Query + DataTable);
+// audit chain 验证调 GET /v1/platform/audit/verify,结果结构化呈现(chain_valid / broken_at_seq / record_count)。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + split 验证节 + hairline 分节。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Alert, Button, Field, Input } from '@xid-kit/web-ui/ui'
+import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useAuditChainVerificationQuery, useGlobalAuditEventsQuery } from './queries'
 import type { AuditEvent } from './types'
-import PlatformDeadLetters from './PlatformDeadLetters'
-
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  tableSection: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-  },
-  verifySection: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
   verifyForm: {
     display: 'grid',
     gridTemplateColumns: 'minmax(12rem, 2fr) minmax(7rem, 1fr) minmax(7rem, 1fr) auto',
@@ -67,22 +35,16 @@ const styles = stylex.create({
   verifyResult: {
     marginTop: '1rem',
   },
-  verifyPayload: {
-    margin: '0.5rem 0 0',
-    padding: '0.75rem',
-    overflowX: 'auto',
+  verifySummary: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  verifyStat: {
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
-    lineHeight: 1.5,
-    backgroundColor: tokens['--xid-muted'],
-    borderRadius: tokens['--xid-radius-sm'],
-  },
-  paginationWrap: {
-    marginTop: '0.75rem',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
+    fontSize: '0.8125rem',
+    fontVariantNumeric: 'tabular-nums',
   },
   seqText: {
     fontFamily: tokens['--xid-font-mono'],
@@ -240,15 +202,41 @@ export default function PlatformAuditEvents(): ReactNode {
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Global event stream</Trans>
-        </h1>
-      </div>
+    <ConsolePage
+      title={<Trans>Global event stream</Trans>}
+      lead={
+        <Trans>
+          Audit events from every organization on this instance, with per-tenant hash-chain
+          verification.
+        </Trans>
+      }
+    >
+      {isError || verificationQuery.isError ? (
+        <ConsolePageNotice>
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load audit events. Please try again.</Trans>
+            </Alert>
+          ) : null}
+          {verificationQuery.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to verify the audit chain. Please try again.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
+      ) : null}
 
-      <section {...stylex.props(styles.verifySection)}>
-        <form aria-label={t`Audit events`} {...stylex.props(styles.verifyForm)} onSubmit={onVerify}>
+      <ConsolePageSplitSection
+        title={<Trans>Verify audit chain</Trans>}
+        description={
+          <Trans>Recompute the hash chain for one tenant over an optional sequence range.</Trans>
+        }
+      >
+        <form
+          aria-label={t`Verify audit chain`}
+          {...stylex.props(styles.verifyForm)}
+          onSubmit={onVerify}
+        >
           <Field label={t`Tenant ID`} required>
             <Input
               value={tenantId}
@@ -278,52 +266,47 @@ export default function PlatformAuditEvents(): ReactNode {
             <Trans>Verify</Trans>
           </Button>
         </form>
-        {verificationQuery.isError ? (
-          <div {...stylex.props(styles.verifyResult)}>
-            <Alert tone="error">{verificationQuery.error.message}</Alert>
-          </div>
-        ) : verificationQuery.data ? (
+        {verificationQuery.data ? (
           <div {...stylex.props(styles.verifyResult)}>
             <Alert tone={verificationQuery.data.chain_valid ? 'success' : 'error'}>
-              <Trans>Status</Trans>: <code>{String(verificationQuery.data.chain_valid)}</code>
-              <pre {...stylex.props(styles.verifyPayload)}>
-                {JSON.stringify(verificationQuery.data, null, 2)}
-              </pre>
+              <div {...stylex.props(styles.verifySummary)}>
+                <Badge tone={verificationQuery.data.chain_valid ? 'success' : 'danger'}>
+                  {verificationQuery.data.chain_valid ? (
+                    <Trans>Chain valid</Trans>
+                  ) : (
+                    <Trans>Chain broken</Trans>
+                  )}
+                </Badge>
+                <span {...stylex.props(styles.verifyStat)}>
+                  <Trans>Records checked</Trans>: {verificationQuery.data.record_count}
+                </span>
+                {verificationQuery.data.broken_at_seq != null ? (
+                  <span {...stylex.props(styles.verifyStat)}>
+                    <Trans>Broken at seq</Trans>: {verificationQuery.data.broken_at_seq}
+                  </span>
+                ) : null}
+              </div>
             </Alert>
           </div>
         ) : null}
-      </section>
+      </ConsolePageSplitSection>
 
-      {isError ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">
-            <Trans>Failed to load audit events. Please try again.</Trans>
-          </Alert>
-        </div>
-      ) : (
-        <section aria-labelledby="global-audit-heading" {...stylex.props(styles.tableSection)}>
-          <h2 id="global-audit-heading" {...stylex.props(page.visuallyHidden)}>
-            <Trans>Global audit event list</Trans>
-          </h2>
-          <DataTable
-            columns={columns}
-            data={data?.data ?? []}
-            getRowId={(row) => row.id}
-            isLoading={isLoading}
-            emptyMessage={<Trans>No audit events found.</Trans>}
+      <ConsolePageSection title={<Trans>Event stream</Trans>}>
+        <DataTable
+          columns={columns}
+          data={data?.data ?? []}
+          getRowId={(row) => row.id}
+          isLoading={isLoading}
+          emptyMessage={<Trans>No audit events found.</Trans>}
+        />
+        {data ? (
+          <Pagination
+            nextCursor={data.nextCursor}
+            loadMoreLabel={<Trans>Load more events</Trans>}
+            onLoadMore={setCursor}
           />
-          {data ? (
-            <div {...stylex.props(styles.paginationWrap)}>
-              <Pagination
-                nextCursor={data.nextCursor}
-                loadMoreLabel={<Trans>Load more events</Trans>}
-                onLoadMore={setCursor}
-              />
-            </div>
-          ) : null}
-        </section>
-      )}
-      <PlatformDeadLetters />
-    </div>
+        ) : null}
+      </ConsolePageSection>
+    </ConsolePage>
   )
 }

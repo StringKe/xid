@@ -29,4 +29,32 @@ describe('signUpRedirectSearch', () => {
       locale: 'en',
     })
   })
+
+  it('passes through whitelisted auth-flow params', () => {
+    expect(
+      signUpRedirectSearch({
+        invitation_token: 'invite-1',
+        client_id: 'client-1',
+        organization_id: 'org-1',
+        authz_request_id: 'authz-1',
+      }),
+    ).toEqual({
+      intent: 'sign-up',
+      invitation_token: 'invite-1',
+      client_id: 'client-1',
+      organization_id: 'org-1',
+      authz_request_id: 'authz-1',
+    })
+  })
+
+  it('drops params outside the whitelist', () => {
+    const search = {
+      continue: '/console',
+      verified: '1',
+      reauthenticate: '1',
+      utm_source: 'campaign',
+    } as unknown as Parameters<typeof signUpRedirectSearch>[0]
+
+    expect(signUpRedirectSearch(search)).toEqual({ intent: 'sign-up', continue: '/console' })
+  })
 })

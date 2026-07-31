@@ -8,37 +8,15 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { account, consoleShell } from '../../styles/product-surface.stylex'
 import { Alert, Button, EmptyState, Section, SectionRow, Skeleton } from '../../components/ui'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useRevokeTrustedDevice, useTrustedDevicesQuery } from './queries'
 import type { TrustedDevice } from './hooks'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
   lead: {
     margin: '0.5rem 0 0',
     fontSize: '0.875rem',
@@ -46,13 +24,6 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     maxWidth: '65ch',
     textWrap: 'pretty',
-  },
-  sectionZone: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
   },
   messageZone: {
     paddingInline: GUTTER,
@@ -108,9 +79,9 @@ export default function DevicesPage(): ReactNode {
   const deviceList = devices ?? []
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
+    <div {...stylex.props(account.root)}>
+      <div {...stylex.props(consoleShell.headerZone)}>
+        <h1 {...stylex.props(consoleShell.displayTitle)}>
           <Trans>Trusted devices</Trans>
         </h1>
         <p {...stylex.props(styles.lead)}>
@@ -129,7 +100,7 @@ export default function DevicesPage(): ReactNode {
         </div>
       ) : null}
 
-      <div {...stylex.props(styles.sectionZone)}>
+      <div {...stylex.props(consoleShell.section)}>
         <Section label={<Trans>Devices</Trans>}>
           {isPending ? (
             <ul {...stylex.props(styles.list)} aria-busy="true">

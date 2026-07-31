@@ -1,63 +1,42 @@
+// platform console 状态事件页:GET/POST/PATCH/DELETE /v1/platform/status-incidents + 追加时间线更新。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列创建表单 + hairline 分节列表。
+// 解决事件走 useUpdateStatusIncident(PATCH status + resolvedAt),删除走 ConfirmDialog(danger)。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
 import type { FormEvent, ReactNode } from 'react'
 import { useState } from 'react'
-import { Alert, Badge, Button, EmptyState, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  Alert,
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+} from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import {
   useAppendStatusIncidentUpdate,
   useCreateStatusIncident,
   useDeleteStatusIncident,
   usePlatformStatusIncidentsQuery,
+  useUpdateStatusIncident,
 } from './queries'
 import type { StatusIncident } from './types'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  header: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    color: tokens['--xid-fg'],
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-  },
-  lead: {
-    maxWidth: '52rem',
-    margin: '0.5rem 0 0',
-    color: tokens['--xid-muted-foreground'],
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-  },
-  section: {
-    paddingInline: GUTTER,
-    paddingBlock: 'clamp(1.5rem, 1.6vw, 2.5rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  sectionTitle: {
-    margin: '0 0 1rem',
-    color: tokens['--xid-fg'],
-    fontSize: '1rem',
-    fontWeight: 620,
-  },
   form: {
     display: 'grid',
     gridTemplateColumns: {
@@ -65,41 +44,19 @@ const styles = stylex.create({
       '@media (min-width: 48rem)': 'repeat(2, minmax(0, 1fr))',
     },
     gap: '1rem',
-    maxWidth: '58rem',
   },
   full: {
     gridColumn: '1 / -1',
   },
-  select: {
-    width: '100%',
-    minHeight: '2.625rem',
-    paddingInline: '0.75rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.9375rem',
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.625rem',
+    alignItems: 'center',
   },
-  textarea: {
-    width: '100%',
-    minHeight: '6rem',
-    resize: 'vertical',
-    padding: '0.75rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.9375rem',
-    lineHeight: 1.5,
-  },
-  message: {
-    marginBottom: '1rem',
+  skeletonStack: {
+    display: 'grid',
+    gap: '0.75rem',
   },
   list: {
     display: 'grid',
@@ -166,11 +123,6 @@ const styles = stylex.create({
     gap: '0.75rem',
     alignContent: 'start',
   },
-  actions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-  },
 })
 
 function statusLabel(status: StatusIncident['status']): ReactNode {
@@ -194,16 +146,35 @@ function incidentTone(incident: StatusIncident): 'neutral' | 'success' | 'warnin
   return 'neutral'
 }
 
-function IncidentItem({ incident }: { incident: StatusIncident }): ReactNode {
+type IncidentItemProps = {
+  incident: StatusIncident
+  isAppending: boolean
+  isResolving: boolean
+  onAppend: (
+    incident: StatusIncident,
+    status: StatusIncident['status'],
+    message: string,
+    onSuccess: () => void,
+  ) => void
+  onResolve: (incident: StatusIncident) => void
+  onDelete: (incident: StatusIncident) => void
+}
+
+function IncidentItem({
+  incident,
+  isAppending,
+  isResolving,
+  onAppend,
+  onResolve,
+  onDelete,
+}: IncidentItemProps): ReactNode {
   const { t } = useLingui()
-  const append = useAppendStatusIncidentUpdate()
-  const remove = useDeleteStatusIncident()
   const [status, setStatus] = useState<StatusIncident['status']>(incident.status)
   const [message, setMessage] = useState('')
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    append.mutate({ id: incident.id, status, message }, { onSuccess: () => setMessage('') })
+    onAppend(incident, status, message, () => setMessage(''))
   }
 
   return (
@@ -236,10 +207,8 @@ function IncidentItem({ incident }: { incident: StatusIncident }): ReactNode {
         ) : null}
       </div>
       <form {...stylex.props(styles.updateForm)} onSubmit={submit}>
-        {append.isError ? <Alert tone="error">{append.error.message}</Alert> : null}
         <Field label={t`Next status`}>
-          <select
-            {...stylex.props(styles.select)}
+          <Select
             value={status}
             onChange={(event) => setStatus(event.target.value as StatusIncident['status'])}
           >
@@ -247,11 +216,10 @@ function IncidentItem({ incident }: { incident: StatusIncident }): ReactNode {
             <option value="identified">{t`Identified`}</option>
             <option value="monitoring">{t`Monitoring`}</option>
             <option value="resolved">{t`Resolved`}</option>
-          </select>
+          </Select>
         </Field>
         <Field label={t`Public update`}>
-          <textarea
-            {...stylex.props(styles.textarea)}
+          <Textarea
             required
             maxLength={4000}
             value={message}
@@ -259,18 +227,27 @@ function IncidentItem({ incident }: { incident: StatusIncident }): ReactNode {
           />
         </Field>
         <div {...stylex.props(styles.actions)}>
-          <Button type="submit" isLoading={append.isPending}>
+          <Button type="submit" isLoading={isAppending}>
             <Trans>Publish update</Trans>
           </Button>
+          {incident.status !== 'resolved' ? (
+            <Button
+              type="button"
+              variant="secondary"
+              isLoading={isResolving}
+              onClick={() => onResolve(incident)}
+              aria-label={t`Resolve incident ${incident.title}`}
+              {...stylex.props(consoleShell.actionButton)}
+            >
+              <Trans>Resolve incident</Trans>
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="secondary"
-            isLoading={remove.isPending}
-            onClick={() => {
-              if (window.confirm(t`Delete incident "${incident.title}" and its updates?`)) {
-                remove.mutate({ id: incident.id })
-              }
-            }}
+            onClick={() => onDelete(incident)}
+            aria-label={t`Delete incident ${incident.title}`}
+            {...stylex.props(consoleShell.actionButton)}
           >
             <Trans>Delete</Trans>
           </Button>
@@ -285,6 +262,10 @@ export default function PlatformStatusIncidents(): ReactNode {
   const [cursor, setCursor] = useState<string | undefined>()
   const query = usePlatformStatusIncidentsQuery(cursor)
   const create = useCreateStatusIncident()
+  const append = useAppendStatusIncidentUpdate()
+  const update = useUpdateStatusIncident()
+  const remove = useDeleteStatusIncident()
+  const [pendingDelete, setPendingDelete] = useState<StatusIncident | null>(null)
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [impact, setImpact] = useState<StatusIncident['impact']>('minor')
@@ -310,29 +291,81 @@ export default function PlatformStatusIncidents(): ReactNode {
     )
   }
 
-  return (
-    <div {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Status incidents</Trans>
-        </h1>
-        <p {...stylex.props(styles.lead)}>
-          <Trans>
-            Keep the public status page current with incident impact, state, and timestamped
-            updates.
-          </Trans>
-        </p>
-      </header>
+  function handleAppend(
+    incident: StatusIncident,
+    status: StatusIncident['status'],
+    message: string,
+    onSuccess: () => void,
+  ): void {
+    append.mutate({ id: incident.id, status, message }, { onSuccess })
+  }
 
-      <section aria-labelledby="incident-create" {...stylex.props(styles.section)}>
-        <h2 id="incident-create" {...stylex.props(styles.sectionTitle)}>
-          <Trans>Open incident</Trans>
-        </h2>
-        {create.isError ? (
-          <div {...stylex.props(styles.message)}>
-            <Alert tone="error">{create.error.message}</Alert>
-          </div>
-        ) : null}
+  function handleResolve(incident: StatusIncident): void {
+    update.mutate({
+      id: incident.id,
+      body: { status: 'resolved', resolvedAt: new Date().toISOString() },
+    })
+  }
+
+  async function confirmDelete(): Promise<void> {
+    if (!pendingDelete) return
+    await remove.mutateAsync({ id: pendingDelete.id })
+    setPendingDelete(null)
+  }
+
+  return (
+    <ConsolePage
+      title={<Trans>Status incidents</Trans>}
+      lead={
+        <Trans>
+          Keep the public status page current with incident impact, state, and timestamped updates.
+        </Trans>
+      }
+    >
+      {query.isError ||
+      create.isError ||
+      create.isSuccess ||
+      append.isError ||
+      update.isError ||
+      remove.isError ? (
+        <ConsolePageNotice>
+          {query.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load status incidents.</Trans>
+            </Alert>
+          ) : null}
+          {create.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to open the incident. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {create.isSuccess ? (
+            <Alert tone="success">
+              <Trans>Incident opened.</Trans>
+            </Alert>
+          ) : null}
+          {append.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to publish the update. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {update.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to resolve the incident. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {remove.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to delete the incident. Try again.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
+      ) : null}
+
+      <ConsolePageSplitSection
+        title={<Trans>Open incident</Trans>}
+        description={<Trans>Declare the incident, its public impact, and when it started.</Trans>}
+      >
         <form {...stylex.props(styles.form)} onSubmit={submit}>
           <Field label={t`Incident title`}>
             <Input
@@ -343,8 +376,7 @@ export default function PlatformStatusIncidents(): ReactNode {
             />
           </Field>
           <Field label={t`Impact`}>
-            <select
-              {...stylex.props(styles.select)}
+            <Select
               value={impact}
               onChange={(event) => setImpact(event.target.value as StatusIncident['impact'])}
             >
@@ -352,12 +384,11 @@ export default function PlatformStatusIncidents(): ReactNode {
               <option value="minor">{t`Minor`}</option>
               <option value="major">{t`Major`}</option>
               <option value="critical">{t`Critical`}</option>
-            </select>
+            </Select>
           </Field>
           <div {...stylex.props(styles.full)}>
             <Field label={t`Public summary`}>
-              <textarea
-                {...stylex.props(styles.textarea)}
+              <Textarea
                 required
                 maxLength={4000}
                 value={summary}
@@ -379,25 +410,32 @@ export default function PlatformStatusIncidents(): ReactNode {
             </Button>
           </div>
         </form>
-      </section>
+      </ConsolePageSplitSection>
 
-      <section aria-labelledby="incident-ledger" {...stylex.props(styles.section)}>
-        <h2 id="incident-ledger" {...stylex.props(styles.sectionTitle)}>
-          <Trans>Incident ledger</Trans>
-        </h2>
+      <ConsolePageSection title={<Trans>Incident ledger</Trans>}>
         {query.isLoading ? (
-          <Spinner />
-        ) : query.isError ? (
-          <Alert tone="error">
-            <Trans>Failed to load status incidents.</Trans>
-          </Alert>
-        ) : !query.data?.data.length ? (
+          <div {...stylex.props(styles.skeletonStack)}>
+            <Skeleton height="8rem" />
+            <Skeleton height="8rem" />
+            <Skeleton height="8rem" />
+          </div>
+        ) : null}
+        {!query.isLoading && query.data && query.data.data.length === 0 ? (
           <EmptyState title={<Trans>No incidents have been reported.</Trans>} />
-        ) : (
+        ) : null}
+        {query.data && query.data.data.length > 0 ? (
           <>
             <div {...stylex.props(styles.list)}>
               {query.data.data.map((incident) => (
-                <IncidentItem key={incident.id} incident={incident} />
+                <IncidentItem
+                  key={incident.id}
+                  incident={incident}
+                  isAppending={append.isPending && append.variables?.id === incident.id}
+                  isResolving={update.isPending && update.variables?.id === incident.id}
+                  onAppend={handleAppend}
+                  onResolve={handleResolve}
+                  onDelete={setPendingDelete}
+                />
               ))}
             </div>
             <Pagination
@@ -406,8 +444,23 @@ export default function PlatformStatusIncidents(): ReactNode {
               onLoadMore={setCursor}
             />
           </>
-        )}
-      </section>
-    </div>
+        ) : null}
+      </ConsolePageSection>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={<Trans>Delete incident?</Trans>}
+          description={
+            <Trans>
+              The incident {pendingDelete.title} and all of its updates will be permanently deleted.
+            </Trans>
+          }
+          confirmLabel={<Trans>Delete</Trans>}
+          isLoading={remove.isPending}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+        />
+      ) : null}
+    </ConsolePage>
   )
 }

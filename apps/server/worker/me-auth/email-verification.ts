@@ -388,6 +388,7 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
         })
         return c.json({
           ok: true,
+          email: target.email,
           redirectUrl: `/reset-password?token=${encodeURIComponent(setup.token)}`,
         })
       }
@@ -398,7 +399,8 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
       continuePath: verified.continuePath,
       applicationClientId: verified.applicationClientId,
     })
-    return c.json({ ok: true, ...(redirectUrl ? { redirectUrl } : {}) })
+    // email 随响应下发:token 持有者已证明邮箱所有权,前端用它做 sign-in 预填(login_hint)。
+    return c.json({ ok: true, email: target.email, ...(redirectUrl ? { redirectUrl } : {}) })
   })
 }
 

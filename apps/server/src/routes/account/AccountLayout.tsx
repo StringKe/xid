@@ -8,8 +8,12 @@ import type { ReactNode } from 'react'
 import { Link, useLocation } from '../../lib/router'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { page } from '../../styles/product-surface.stylex'
+import { Button } from '../../components/ui'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { BrandLogo } from '../../components/BrandLogo'
+import { useAuth } from '../../lib/auth-context'
+import { useTheme } from '../../lib/theme'
 import { GuestConversionBanner } from './GuestConversionBanner'
 
 export type AccountLayoutProps = {
@@ -104,6 +108,19 @@ const styles = stylex.create({
     fontWeight: 550,
     color: tokens['--xid-fg'],
     whiteSpace: 'nowrap',
+  },
+  // 顶栏租户 logo:与 AuthLayout 同口径(ThemeProvider brand.logoUrl)。
+  tenantLogo: {
+    height: '1.125rem',
+    objectFit: 'contain',
+  },
+  userEmail: {
+    fontSize: '0.8125rem',
+    color: tokens['--xid-muted-foreground'],
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '16rem',
   },
   // Rail:贴左全高 sticky;小屏变为底部 sticky tab 栏
   rail: {
@@ -286,18 +303,37 @@ const navLinkActive = stylex.props(styles.navLink, styles.navLinkActive).classNa
 
 export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
   const { t } = useLingui()
+  const { brand } = useTheme()
+  const { user, signOut } = useAuth()
+  const appName = brand.appName ?? 'XID'
+  const brandMark = brand.logoUrl ? (
+    <img src={brand.logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.tenantLogo)} />
+  ) : (
+    <BrandLogo variant="mark" height={18} />
+  )
   return (
     <div {...stylex.props(styles.root)}>
       {/* 顶栏:小屏 brand + 全局操作;桌面仅右侧操作(brand 由 rail 持有) */}
       <div {...stylex.props(styles.topbar)}>
         <span {...stylex.props(styles.topbarBrand)}>
-          <BrandLogo variant="mark" height={18} />
+          {brandMark}
           <span aria-hidden="true" {...stylex.props(styles.brandDivider)} />
           <span {...stylex.props(styles.brandLabel)}>
             <Trans>Account settings</Trans>
           </span>
         </span>
         <div {...stylex.props(styles.topbarActions)}>
+          {user ? (
+            <>
+              <span {...stylex.props(styles.userEmail)}>{user.email}</span>
+              <a href="/console" {...stylex.props(page.textLink)}>
+                <Trans>Back to Console</Trans>
+              </a>
+              <Button variant="ghost" onClick={() => void signOut()} aria-label={t`Sign out`}>
+                <Trans>Sign out</Trans>
+              </Button>
+            </>
+          ) : null}
           <LanguageSwitcher />
         </div>
       </div>
@@ -306,7 +342,7 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
       <nav aria-label={t`Account settings navigation`} {...stylex.props(styles.rail)}>
         {/* 桌面 brand 行:与 topbar 同高对齐 */}
         <div {...stylex.props(styles.railBrand)}>
-          <BrandLogo variant="mark" height={18} />
+          {brandMark}
           <span aria-hidden="true" {...stylex.props(styles.brandDivider)} />
           <span {...stylex.props(styles.brandLabel)}>
             <Trans>Account settings</Trans>

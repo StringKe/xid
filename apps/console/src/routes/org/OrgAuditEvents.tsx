@@ -1,6 +1,6 @@
 // org 审计事件页(只读):时间/actor/event_type/target,支持 event_type 与时间范围过滤。
 // 数据来自 GET /v1/organizations/:orgId/audit-events;后端按 org 归属过滤,前端仅做展示层筛选。
-// 全宽锚定版式:零 padding 壳,过滤栏与表格节各自持有 gutter;全宽 1px hairline 分节。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + Toolbar 过滤栏 + hairline 表格节。
 // 时间/序号 mono tabular-nums。
 
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -9,75 +9,29 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Alert, Field, Input } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageToolbar,
+} from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useAuditEventsQuery } from './queries'
 import type { AuditEvent } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-
 const styles = stylex.create({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  titleLead: {
-    margin: '0.375rem 0 0',
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-  },
-  // 过滤栏:横贯全宽 hairline 下分节 + gutter
-  filterZone: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
+  // 过滤控件组:Toolbar 内的 search landmark,保持与 toolbar 相同的横向排布
+  filterRow: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: '1rem',
     alignItems: 'flex-end',
-  },
-  filterField: {
-    flex: '1 1 200px',
-    maxWidth: '20rem',
-  },
-  // 表格区节
-  tableSection: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-  },
-  paginationWrap: {
-    marginTop: '0.75rem',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
+    gap: '0.75rem',
+    flex: '1 1 auto',
+    minWidth: 0,
   },
   // mono 时间戳 / 序号
   seqText: {
@@ -236,86 +190,79 @@ export default function OrgAuditEvents(): ReactNode {
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Audit events</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Audit events</Trans>
-        </h1>
-        <p {...stylex.props(styles.titleLead)}>
-          <Trans>Read-only event log for this organization.</Trans>
-        </p>
-      </div>
-
-      <div {...stylex.props(styles.filterZone)} role="search" aria-label={t`Filter audit events`}>
-        <div {...stylex.props(styles.filterField)}>
-          <Field label={<Trans>Event type</Trans>}>
-            <Input
-              value={eventTypeFilter}
-              onChange={(event) => setEventTypeFilter(event.target.value)}
-              placeholder={t`user.created`}
-            />
-          </Field>
-        </div>
-        <div {...stylex.props(styles.filterField)}>
-          <Field label={<Trans>From</Trans>}>
-            <Input
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              aria-label={t`Filter events from date`}
-            />
-          </Field>
-        </div>
-        <div {...stylex.props(styles.filterField)}>
-          <Field label={<Trans>To</Trans>}>
-            <Input
-              type="date"
-              value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
-              aria-label={t`Filter events to date`}
-            />
-          </Field>
-        </div>
-      </div>
-
+    <ConsolePage
+      title={<Trans>Audit events</Trans>}
+      lead={<Trans>Read-only event log for this organization.</Trans>}
+    >
       {isError ? (
-        <div {...stylex.props(styles.messageZone)}>
+        <ConsolePageNotice>
           <Alert tone="error">
-            <Trans>Failed to load audit events. Please try again.</Trans>
+            <Trans>Failed to load audit events.</Trans>
           </Alert>
-        </div>
-      ) : (
-        <section aria-labelledby="audit-table-heading" {...stylex.props(styles.tableSection)}>
-          <h2 id="audit-table-heading" {...stylex.props(page.visuallyHidden)}>
-            <Trans>Audit event list</Trans>
-          </h2>
-          <DataTable
-            columns={columns}
-            data={rows}
-            getRowId={(row) => row.id}
-            isLoading={isLoading}
-            emptyMessage={<Trans>No audit events match the current filters.</Trans>}
-          />
-          {data ? (
-            <div {...stylex.props(styles.paginationWrap)}>
-              <Pagination
-                nextCursor={data.nextCursor}
-                loadMoreLabel={<Trans>Load more events</Trans>}
-                onLoadMore={setCursor}
+        </ConsolePageNotice>
+      ) : null}
+
+      <ConsolePageToolbar>
+        <div role="search" aria-label={t`Filter audit events`} {...stylex.props(styles.filterRow)}>
+          <div {...stylex.props(consoleShell.toolbarField)}>
+            <Field label={<Trans>Event type</Trans>}>
+              <Input
+                value={eventTypeFilter}
+                onChange={(event) => setEventTypeFilter(event.target.value)}
+                placeholder={t`user.created`}
               />
-            </div>
-          ) : null}
-        </section>
-      )}
-    </div>
+            </Field>
+          </div>
+          <div {...stylex.props(consoleShell.toolbarField)}>
+            <Field label={<Trans>From</Trans>}>
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(event) => setFromDate(event.target.value)}
+                aria-label={t`Filter events from date`}
+              />
+            </Field>
+          </div>
+          <div {...stylex.props(consoleShell.toolbarField)}>
+            <Field label={<Trans>To</Trans>}>
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(event) => setToDate(event.target.value)}
+                aria-label={t`Filter events to date`}
+              />
+            </Field>
+          </div>
+        </div>
+      </ConsolePageToolbar>
+
+      <ConsolePageSection title={<Trans>Events</Trans>}>
+        <DataTable
+          columns={columns}
+          data={rows}
+          getRowId={(row) => row.id}
+          isLoading={isLoading}
+          emptyMessage={<Trans>No audit events match the current filters.</Trans>}
+        />
+        {data ? (
+          <Pagination
+            nextCursor={data.nextCursor}
+            loadMoreLabel={<Trans>Load more events</Trans>}
+            onLoadMore={setCursor}
+          />
+        ) : null}
+      </ConsolePageSection>
+    </ConsolePage>
   )
 }

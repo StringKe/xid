@@ -1,106 +1,30 @@
 // org 品牌定制页:颜色/字体/logo URL 设置。调 GET/PATCH /v1/organizations/:orgId/branding。
 // 实时预览走 CSS 变量;logo 存储由 URL 字段接入。
 // 数据层:useOrgBrandingQuery(read) + useUpdateOrgBranding(mutation)。
-// 布局:5/7 双列分区 -- 左节题与说明,右控件;预览区 inline 在控件列内。
+// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列配置节(SplitSection);预览带 inline 在控件列内。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Alert, Button, Field, Input, Spinner } from '@xid-kit/web-ui/ui'
+import {
+  ConsolePage,
+  ConsolePageNotice,
+  ConsolePageSection,
+  ConsolePageSplitSection,
+} from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useOrgBrandingQuery, useUpdateOrgBranding } from './queries'
 import type { OrgBranding } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
-// 全宽规范常量
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-
 const styles = stylex.create({
-  root: {
+  loadingZone: {
     display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-    paddingBottom: 'clamp(2rem, 3vw, 4rem)',
-  },
-  headerZone: {
-    paddingInline: GUTTER,
-    paddingTop: 'clamp(1.75rem, 2vw, 3rem)',
-    paddingBottom: 'clamp(1.25rem, 1.5vw, 2rem)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  title: {
-    margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
-  },
-  formBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: 0,
-  },
-  // 每个配置节:5/7 双列 + hairline 顶
-  configSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 64rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
-    },
-    gap: {
-      default: '1.25rem',
-      '@media (min-width: 64rem)': '0',
-    },
-  },
-  sectionMeta: {
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  sectionDesc: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    maxWidth: '28rem',
-  },
-  controlCol: {
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 64rem)': CROSS_GAP,
-    },
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 64rem)': '1px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-    maxWidth: '36rem',
+    justifyContent: 'center',
+    paddingBlock: '2.25rem',
   },
   // 颜色/字体:2 列 auto-fill 网格
   colorsGrid: {
@@ -155,15 +79,6 @@ const styles = stylex.create({
     gap: '0.25rem',
     alignItems: 'center',
   },
-  submitSection: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
 })
 
 function ColorSwatch({
@@ -183,6 +98,7 @@ function ColorSwatch({
 }
 
 function BrandPreviewStrip({ form }: { form: Partial<OrgBranding> }): ReactNode {
+  const { t } = useLingui()
   const hasColors = form.primaryColor ?? form.backgroundColor ?? form.accentColor
   if (!hasColors && !form.logoUrl) return null
   return (
@@ -192,9 +108,9 @@ function BrandPreviewStrip({ form }: { form: Partial<OrgBranding> }): ReactNode 
       </p>
       {hasColors ? (
         <div {...stylex.props(styles.previewSwatch)}>
-          <ColorSwatch color={form.primaryColor} label="primary" />
-          <ColorSwatch color={form.backgroundColor} label="bg" />
-          <ColorSwatch color={form.accentColor} label="accent" />
+          <ColorSwatch color={form.primaryColor} label={t`Primary`} />
+          <ColorSwatch color={form.backgroundColor} label={t`Background`} />
+          <ColorSwatch color={form.accentColor} label={t`Accent`} />
         </div>
       ) : null}
       {form.logoUrl ? (
@@ -235,68 +151,63 @@ export default function OrgBranding(): ReactNode {
 
   if (!orgId) {
     return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="info">
-          <Trans>No organization selected.</Trans>
-        </Alert>
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <div {...stylex.props(page.loadingCenter)}>
-        <Spinner label={t`Loading branding settings`} />
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="error">
-          <Trans>Failed to load branding settings.</Trans>
-        </Alert>
-      </div>
+      <ConsolePage title={<Trans>Brand customization</Trans>}>
+        <ConsolePageNotice>
+          <Alert tone="info">
+            <Trans>No organization selected.</Trans>
+          </Alert>
+        </ConsolePageNotice>
+      </ConsolePage>
     )
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.headerZone)}>
-        <h1 {...stylex.props(styles.title)}>
-          <Trans>Brand customization</Trans>
-        </h1>
-      </div>
-
-      {updateBranding.error ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="error">{updateBranding.error.message}</Alert>
-        </div>
+    <ConsolePage
+      title={<Trans>Brand customization</Trans>}
+      lead={
+        <Trans>
+          Colors, typography, and logo overrides for this organization&apos;s Hosted UI.
+        </Trans>
+      }
+    >
+      {isError || updateBranding.error || saveSuccess ? (
+        <ConsolePageNotice>
+          {isError ? (
+            <Alert tone="error">
+              <Trans>Failed to load branding settings.</Trans>
+            </Alert>
+          ) : null}
+          {updateBranding.error ? (
+            <Alert tone="error">
+              <Trans>Failed to save branding. Try again.</Trans>
+            </Alert>
+          ) : null}
+          {saveSuccess ? (
+            <Alert tone="success">
+              <Trans>Branding saved successfully.</Trans>
+            </Alert>
+          ) : null}
+        </ConsolePageNotice>
       ) : null}
-      {saveSuccess ? (
-        <div {...stylex.props(styles.messageZone)}>
-          <Alert tone="success">
-            <Trans>Branding saved successfully.</Trans>
-          </Alert>
-        </div>
-      ) : null}
 
-      <form onSubmit={(e) => void handleSave(e)} noValidate {...stylex.props(styles.formBody)}>
-        {/* Colors */}
-        <section aria-labelledby="branding-colors-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="branding-colors-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Colors</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+      {!data ? (
+        <ConsolePageSection>
+          <div {...stylex.props(styles.loadingZone)}>
+            {isLoading ? <Spinner label={t`Loading branding settings`} /> : null}
+          </div>
+        </ConsolePageSection>
+      ) : (
+        <form onSubmit={(e) => void handleSave(e)} noValidate>
+          {/* Colors */}
+          <ConsolePageSplitSection
+            title={<Trans>Colors</Trans>}
+            description={
               <Trans>
                 Override the organization's primary, background, and accent colors for the Hosted
                 UI. Accepts CSS hex values.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <div {...stylex.props(styles.colorsGrid)}>
               <Field
                 label={<Trans>Primary color</Trans>}
@@ -331,26 +242,18 @@ export default function OrgBranding(): ReactNode {
               </Field>
             </div>
             <BrandPreviewStrip form={form} />
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* Typography and shape */}
-        <section
-          aria-labelledby="branding-typography-heading"
-          {...stylex.props(styles.configSection)}
-        >
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="branding-typography-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Typography and shape</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Typography and shape */}
+          <ConsolePageSplitSection
+            title={<Trans>Typography and shape</Trans>}
+            description={
               <Trans>
                 Override the font family and border radius used throughout the Hosted UI for this
                 organization.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <div {...stylex.props(styles.colorsGrid)}>
               <Field label={<Trans>Font family</Trans>} hint={<Trans>CSS font-family value</Trans>}>
                 <Input
@@ -372,23 +275,18 @@ export default function OrgBranding(): ReactNode {
                 />
               </Field>
             </div>
-          </div>
-        </section>
+          </ConsolePageSplitSection>
 
-        {/* Logo */}
-        <section aria-labelledby="branding-logo-heading" {...stylex.props(styles.configSection)}>
-          <div {...stylex.props(styles.sectionMeta)}>
-            <h2 id="branding-logo-heading" {...stylex.props(page.sectionLabel)}>
-              <Trans>Logo</Trans>
-            </h2>
-            <p {...stylex.props(styles.sectionDesc)}>
+          {/* Logo */}
+          <ConsolePageSplitSection
+            title={<Trans>Logo</Trans>}
+            description={
               <Trans>
                 Provide separate light and dark logo URLs. Both are hosted externally and referenced
                 by URL.
               </Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.controlCol)}>
+            }
+          >
             <div {...stylex.props(styles.logoGrid)}>
               <Field label={<Trans>Logo URL (light)</Trans>}>
                 <Input
@@ -408,15 +306,14 @@ export default function OrgBranding(): ReactNode {
               </Field>
             </div>
             <BrandPreviewStrip form={{ logoUrl: form.logoUrl }} />
-          </div>
-        </section>
-
-        <div {...stylex.props(styles.submitSection)}>
-          <Button type="submit" isLoading={updateBranding.isPending}>
-            <Trans>Save changes</Trans>
-          </Button>
-        </div>
-      </form>
-    </div>
+            <div>
+              <Button type="submit" isLoading={updateBranding.isPending}>
+                <Trans>Save changes</Trans>
+              </Button>
+            </div>
+          </ConsolePageSplitSection>
+        </form>
+      )}
+    </ConsolePage>
   )
 }
