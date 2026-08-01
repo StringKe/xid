@@ -1562,7 +1562,7 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   )
   const providers = await page.snapshot()
   const providersText = providers.text.toLowerCase()
-  for (const text of ['Client secret binding', 'Authorization endpoint', 'Save social providers']) {
+  for (const text of ['Client secret binding', 'Authorization endpoint', 'Save changes']) {
     if (!providersText.includes(text.toLowerCase())) {
       throw new Error(`social providers page missing ${text}`)
     }
@@ -1601,7 +1601,7 @@ async function verifyBrowserConsoleProviderControls(page, orgId, fixture) {
   const deliveryText = delivery.text.toLowerCase()
   for (const text of [
     'Secret bindings',
-    'Save delivery channels',
+    'Save changes',
     'Twilio',
     'Vonage',
     'Infobip',
