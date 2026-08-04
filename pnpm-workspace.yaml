@@ -33,7 +33,7 @@ catalog:
   drizzle-orm: ^0.45.2
   dompurify: ^3.4.12
   es-toolkit: ^1.50.0
-  hono: ^4.12.32
+  hono: ^4.12.34
   jsdom: ^29.1.1
   motion: ^12.42.2
   pkijs: 3.4.0

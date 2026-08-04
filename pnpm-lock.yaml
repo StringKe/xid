@@ -73,8 +73,8 @@ catalogs:
       specifier: ^1.50.0
       version: 1.50.0
     hono:
-      specifier: ^4.12.32
-      version: 4.12.32
+      specifier: ^4.12.34
+      version: 4.13.0
     motion:
       specifier: ^12.42.2
       version: 12.42.2
@@ -307,7 +307,7 @@ importers:
         version: 1.50.0
       hono:
         specifier: 'catalog:'
-        version: 4.12.32
+        version: 4.13.0
       motion:
         specifier: 'catalog:'
         version: 12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -7246,6 +7246,10 @@ packages:
 
   hono@4.12.32:
     resolution: {integrity: sha512-XcuyW9qE2kJn07PkecMOBd5Vq/hMy7mmGw+idz1yblbg9N17ijJODrvPkn7/dwL3Kulj8LcRJ69DLOWf91dRUg==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.13.0:
+    resolution: {integrity: sha512-jhunvfHWxd7J5EFfSgH4xsYJzSe/lfqbUCxiyyeaQasUsXeEHXtzVid+7EOGByc5JnFa23SSFL3Y2RV/z1T+eQ==}
     engines: {node: '>=16.9.0'}
 
   hookable@5.5.3:
@@ -18450,6 +18454,8 @@ snapshots:
       hermes-estree: 0.35.0
 
   hono@4.12.32: {}
+
+  hono@4.13.0: {}
 
   hookable@5.5.3: {}
 
