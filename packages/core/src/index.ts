@@ -31,6 +31,15 @@ export type { DecodedTokenClaims } from './jwt-decode'
 // guest 模式判定与 sub 对比
 export { isGuestUser, isGuestToken, isSameUser } from './guest'
 
+// passkey 注册 ceremony(guest 一键转正用)
+export {
+  b64urlToBytes,
+  bytesToB64url,
+  createPasskeyCredential,
+  registrationOptionsToPublicKey,
+} from './webauthn'
+export type { PasskeyRegistrationOptions, PasskeyRegistrationVerifyBody } from './webauthn'
+
 export { trimTrailingSlashes } from './url'
 
 // 公开状态契约
@@ -52,6 +61,7 @@ export type {
   SignInAnonymouslyResult,
   SignInResult,
   SessionStatus,
+  UpgradeGuestWithPasskeyInput,
   ClientStatus,
   XidState,
   XidStateListener,
@@ -62,10 +72,13 @@ export type {
   OidcAuthorizationIntent,
   OidcXidClientOptions,
   SameOriginXidClientOptions,
+  SignInSilentInput,
+  SilentAuthorizationError,
+  SilentRedirectCallbackResult,
   XidTokenCache,
   XidClientOptions,
 } from './types'
-export { SESSION_STATUS, CLIENT_STATUS } from './types'
+export { SESSION_STATUS, CLIENT_STATUS, SILENT_AUTHORIZATION_ERRORS } from './types'
 
 // 固定 Organization membership role contract。Project 自定义角色不使用此类型。
 export type { OrganizationMembershipRole } from '@xid-kit/types'
