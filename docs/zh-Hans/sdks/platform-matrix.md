@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=working-tree source-blob=1be431aea13c668193696b5dc32e184762830e20 -->
+<!-- xid-translation source=docs/sdks/platform-matrix.md source-commit=working-tree source-blob=85148f3665d2239468a695e6b28ab6b56fafc118 -->
 
 > Translation of `docs/sdks/platform-matrix.md`. The English version is authoritative.
 > 本文是 [`docs/sdks/platform-matrix.md`](../../sdks/platform-matrix.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -58,7 +58,7 @@
 
 ## 客户端矩阵:Web 框架
 
-Web 框架层在 `@xid-kit/core`(浏览器核心)之上提供 provider、hooks/composables/stores 与预制组件。各 `@xid-kit/*` 框架包为 current package,含 Provider/hooks 与类型导出;高级预制 UI 组件持续迭代中。
+Web 框架层在 `@xid-kit/core`(浏览器核心)之上提供 provider、hooks/composables/stores 与预制组件。各 `@xid-kit/*` 框架包为 current package,含 Provider/hooks 与类型导出;高级预制 UI 组件持续迭代中。`oidc` 模式下 `@xid-kit/core` 实现静默重认证:`signInSilent()`(best-effort 隐藏 iframe `prompt=none`)加 `signInSilentWithRedirect()` 可靠顶层 redirect 兜底(见 [../design/03-oidc-oauth.md](../../design/03-oidc-oauth.md) 第 6 节)。
 
 | 框架               | 包或目录           | 状态            | 测试覆盖                                                         | 主要职责                                                          |
 | ------------------ | ------------------ | --------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -200,7 +200,7 @@ session。
 
 | 平台面                                                                           | guest 登录状态                                                                                                                                        |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| @xid-kit/core 与 @xid-kit/react                                                  | 已实现:signInAnonymously()、isAnonymous、isGuestUser/isSameUser、<GuestUpgradeBanner />;其余 web 框架包未开始                                         |
+| @xid-kit/core 与 @xid-kit/react                                                  | 已实现:signInAnonymously()、isAnonymous、isGuestUser/isSameUser、<GuestUpgradeBanner />、upgradeGuestWithPasskey()(core)与 useUpgradeGuest()(react);其余 web 框架包未开始             |
 | @xid-kit/backend 与全部服务端原生 SDK(sdk/{go,java,rust,php,ruby,python,dotnet}) | 已实现:验证结果主体上的 guest 判定(IsGuest() / is_guest / guest?,经 amr claim);signInAnonymously() 按设计不属于后端 SDK                               |
 | 移动端(sdk/flutter、sdk/ios、sdk/android)                                        | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);React Native / Expo 可从已验证 claims 暴露 isAnonymous,但不创建 guest session |
 | 桌面端(sdk/macos、sdk/windows、sdk/linux)                                        | 已实现:signInAnonymously()(惰性复用 + 会话 cookie 持久化 + isAnonymous);@xid-kit/electron、@xid-kit/tauri 未开始                                      |

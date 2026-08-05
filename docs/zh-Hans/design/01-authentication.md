@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=65d67a98bd02f16541b440955d0547c4e300c8ae -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=6936e9679e33050eeb8d38acdf20b4429003f82e -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -511,6 +511,16 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
 - 语义边界:guest 不可恢复(登出即丢失)、单设备、无 MFA;照抄 Firebase 的两条警告:匿名 token 不是 app attestation;持续提示用户转正。
 - MFA enrollment 不是转正仪式:TOTP 永远不是登录凭证,仅 enroll TOTP 的 guest 仍没有可恢复身份,保持 guest 身份(含 30 天 GC 窗口)直到完成上述四个仪式之一。
 - guest session TTL、GuestStore 绑定 TTL 与 __Host-xid.anon cookie Max-Age 均取自租户 session policy(absoluteTimeoutDays),不使用模块级常量。
+
+### SDK 一键转正(passkey)
+
+- `@xid-kit/core` 提供 `upgradeGuestWithPasskey()`:上述转正路由规则中 passkey 分支的客户端组合
+  (register options -> `navigator.credentials.create` -> register verify),全部走既有 me-auth
+  端点,不新增服务端能力:wire 契约、原地 link 语义(sub 不变)与 `guest.converted` 审计事件
+  与本节 passkey ceremony 完全一致。
+- 仅 same-origin(cookie)模式可用;`oidc` 模式报 unsupported,与 `signInAnonymously()` 及其他
+  直接 credential call 同规则(见 06 章第 1 节)。当前 user 非 guest 时调用是预期失败而非异常,
+  用户在认证器提示中取消同样得到预期失败的 Result。
 
 ### GC
 
