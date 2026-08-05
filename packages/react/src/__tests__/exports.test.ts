@@ -9,6 +9,7 @@ const EXPECTED_EXPORTS = [
   'useSession',
   'useSessionList',
   'useSignIn',
+  'useUpgradeGuest',
   'useOrganization',
   'useOrganizationList',
   'useAPIKeys',
