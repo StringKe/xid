@@ -123,10 +123,6 @@ await xid.setActiveOrganization({ organizationId: 'org_abc123' })
 | `XidApiKey`                 | API key without secret (list view)                                 |
 | `XidApiKeyWithSecret`       | API key returned once at creation, includes `key` field            |
 | `XidPage<T>`                | Cursor-paginated response envelope                                 |
-
-Organization membership roles use the fixed `OrganizationMembershipRole` contract. Tenant-defined
-Project roles such as `viewer` or `billing_admin` are separate business-role records and are never
-accepted by Organization membership guards.
 | `CreateApiKeyInput` | Input type for `createApiKey` |
 | `SignInPasswordInput` | Input type for `signInPassword` |
 | `SignInResult` | Result from `signInPassword`: next step or redirect URL |
@@ -152,6 +148,10 @@ accepted by Organization membership guards.
 | `SignInSilentInput` | Input type for `signInSilent`: optional `timeoutMs` (default 10 s), `signal` |
 | `SilentAuthorizationError` | Union of `SILENT_AUTHORIZATION_ERRORS` values |
 | `SilentRedirectCallbackResult` | Internal silent-callback variant mapped by `XidClient` to an expected-failure Result |
+
+Organization membership roles use the fixed `OrganizationMembershipRole` contract. Tenant-defined
+Project roles such as `viewer` or `billing_admin` are separate business-role records and are never
+accepted by Organization membership guards.
 
 ## Management API helpers
 
