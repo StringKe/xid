@@ -19,6 +19,14 @@ tag is published, `main` is the only reference point and the public API is unsta
 
 ### Added
 
+- Guest one-click passkey upgrade in the SDKs: `@xid-kit/core` `upgradeGuestWithPasskey()` and
+  `@xid-kit/react` `useUpgradeGuest()` convert an anonymous (guest) session in place -- the passkey
+  ceremony attaches to the existing user and `sub` is preserved. Same-origin mode only; non-guest
+  callers and authenticator cancellation map to expected-failure Results.
+- Silent re-authentication for OIDC browser applications: `@xid-kit/core` `signInSilent()` runs a
+  best-effort hidden-iframe `prompt=none` attempt and `signInSilentWithRedirect()` is the reliable
+  top-level redirect fallback. Silent authorization errors (`login_required`, `consent_required`,
+  `interaction_required`) map to expected-failure Results instead of throwing.
 - Open source governance files: `CONTRIBUTING.md` (with DCO 1.1 sign-off), `CODE_OF_CONDUCT.md`
   (Contributor Covenant 2.1), `SECURITY.md`, `SUPPORT.md`, issue and pull request templates,
   `CODEOWNERS`, and Dependabot configuration.

@@ -52,6 +52,9 @@ single-tenant deployment or a multi-tenant instance, by configuration rather tha
 - Passwords hashed with Argon2id plus a server-side pepper held in Workers Secrets; magic links;
   one-time codes over email, SMS, and WhatsApp; social OAuth as a relying party.
 - MFA with TOTP, SMS, passkey as second factor, and single-use backup codes.
+- Guest (anonymous) sign-in with Firebase-style lazy reuse and one-click in-place passkey upgrade
+  (`sub` preserved); silent re-authentication for browser applications via `prompt=none` with a
+  hidden-iframe attempt and a top-level redirect fallback.
 
 **Platform**
 
