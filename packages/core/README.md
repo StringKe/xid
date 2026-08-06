@@ -50,6 +50,20 @@ if (guest.ok && guest.value.nextStep === 'redirect') {
 the same state fields remain available directly on `guest.value`; migrate new code to `.state`.
 When an existing signed-in session is reused, `nextStep` is `complete` and `redirectUrl` is `null`.
 
+Convert the guest in place with a passkey (same-origin mode only, no Hosted Auth redirect):
+
+```ts
+const upgraded = await xid.upgradeGuestWithPasskey()
+if (!upgraded.ok && upgraded.error.code === 'access_denied') {
+  // The user cancelled the authenticator prompt; they remain a guest.
+}
+```
+
+In OIDC mode an expired access session reauthorizes through `signInSilent()` (best-effort
+hidden-iframe `prompt=none`) with `signInSilentWithRedirect()` as the reliable top-level redirect
+fallback; `login_required` / `consent_required` / `interaction_required` in `error.code` means
+interactive sign-in is required.
+
 Security:
 
 - Does not store a client secret.

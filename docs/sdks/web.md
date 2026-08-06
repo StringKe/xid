@@ -50,6 +50,11 @@ await fetch('/api/profile', {
 })
 ```
 
+When the access session expires, `signInSilent()` reauthorizes without UI: a best-effort
+hidden-iframe `prompt=none` attempt first, then `signInSilentWithRedirect()` as the reliable
+top-level redirect fallback. A failure whose `error.code` is `login_required`,
+`consent_required`, or `interaction_required` means interactive sign-in is required.
+
 `mode: 'same-origin'` is reserved for XID-owned UI or an application that reverse-routes Core
 authentication endpoints onto its exact origin. In that mode the browser uses the HttpOnly opaque
 Core cookie and can switch sessions and active organizations:
@@ -87,13 +92,25 @@ await xid.setActiveOrganization({ organizationId: 'org_abc123' })
 | `decodeTokenClaims` | function | Decode JWT payload claims for scheduling purposes only; does not verify the signature |
 | `isTokenExpiring`   | function | Returns `true` when the token will expire within the leeway window (default 10 s)     |
 
+### Passkey ceremony (WebAuthn)
+
+| Export                           | Kind     | Description                                                                                                                         |
+| -------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `createPasskeyCredential`        | function | Runs `navigator.credentials.create` and serializes the attestation for `/auth/passkey/register/verify`; cancellation maps to an expected-failure Result |
+| `registrationOptionsToPublicKey` | function | Converts server registration options (base64url fields) into `PublicKeyCredentialCreationOptions`                                    |
+| `b64urlToBytes`                  | function | Decodes a base64url string to bytes                                                                                                  |
+| `bytesToB64url`                  | function | Encodes bytes as base64url                                                                                                           |
+| `PasskeyRegistrationOptions`     | type     | `/auth/passkey/register/options` response shape                                                                                      |
+| `PasskeyRegistrationVerifyBody`  | type     | `/auth/passkey/register/verify` request body                                                                                         |
+
 ### Constants
 
-| Export           | Kind             | Description                                                                                |
-| ---------------- | ---------------- | ------------------------------------------------------------------------------------------ |
-| `SESSION_STATUS` | `as const` tuple | Valid session status values: `active`, `pending`, `expired`, `removed`, `ended`, `revoked` |
-| `CLIENT_STATUS`  | `as const` tuple | Valid SDK client status values: `loading`, `ready`, `degraded`, `error`                    |
-| `PACKAGE`        | string constant  | Package name identifier `'@xid-kit/core'`                                                  |
+| Export                          | Kind             | Description                                                                                |
+| ------------------------------- | ---------------- | ------------------------------------------------------------------------------------------ |
+| `SESSION_STATUS`                | `as const` tuple | Valid session status values: `active`, `pending`, `expired`, `removed`, `ended`, `revoked` |
+| `CLIENT_STATUS`                 | `as const` tuple | Valid SDK client status values: `loading`, `ready`, `degraded`, `error`                    |
+| `SILENT_AUTHORIZATION_ERRORS`   | `as const` tuple | `prompt=none` interaction errors: `login_required`, `consent_required`, `interaction_required` |
+| `PACKAGE`                       | string constant  | Package name identifier `'@xid-kit/core'`                                                  |
 
 ### Types
 
@@ -131,6 +148,10 @@ accepted by Organization membership guards.
 | `TokenResponse` | Raw token endpoint response shape |
 | `ClientStateResponse` | Raw `/v1/me` response shape |
 | `DecodedTokenClaims` | JWT payload claims returned by `decodeTokenClaims` |
+| `UpgradeGuestWithPasskeyInput` | Input type for `upgradeGuestWithPasskey`: optional `deviceName`, `signal` |
+| `SignInSilentInput` | Input type for `signInSilent`: optional `timeoutMs` (default 10 s), `signal` |
+| `SilentAuthorizationError` | Union of `SILENT_AUTHORIZATION_ERRORS` values |
+| `SilentRedirectCallbackResult` | Internal silent-callback variant mapped by `XidClient` to an expected-failure Result |
 
 ## Management API helpers
 
