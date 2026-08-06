@@ -71,6 +71,7 @@ function Layout() {
 | `useOrganization`           | hook | `isLoaded`, `organization: XidOrganization \| null`, `membership` |
 | `useOrganizationList`       | hook | `isLoaded`, `userMemberships` for organization switcher UI        |
 | `useAPIKeys`                | hook | Management API key list and actions for console embeds            |
+| `useUpgradeGuest`           | hook | `isLoaded`, `isGuest`, `pending`, `error`, `upgradeGuestWithPasskey` for the one-click guest passkey upgrade (same-origin mode only) |
 | `UseAuthReturn`             | type | Return type of `useAuth`                                          |
 | `UseUserReturn`             | type | Return type of `useUser`                                          |
 | `UseSessionReturn`          | type | Return type of `useSession`                                       |
@@ -130,6 +131,7 @@ function Layout() {
 | `OrganizationProfile`       | component | Members, roles, and SSO admin embed           |
 | `CreateOrganization`        | component | Organization creation flow                    |
 | `OrganizationList`          | component | List of user's organizations for switcher UI  |
+| `GuestUpgradeBanner`        | component | Prompts an anonymous (guest) user to convert to a permanent account |
 | `SignInProps`               | type      | Props for `SignIn`                            |
 | `SignUpProps`               | type      | Props for `SignUp`                            |
 | `UserAvatarProps`           | type      | Props for `UserAvatar`                        |

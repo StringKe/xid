@@ -58,6 +58,12 @@ No guest onboarding route or publishable key is configured in React. Core return
 state at `guest.value.state`; the flattened state fields remain temporarily compatible with the
 earlier alpha return type.
 
+`useUpgradeGuest()` converts a guest in place with one click (same-origin mode only):
+
+```tsx
+const { isGuest, pending, error, upgradeGuestWithPasskey } = useUpgradeGuest()
+```
+
 Security:
 
 - Does not perform protocol signing.
