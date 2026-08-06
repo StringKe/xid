@@ -18,6 +18,8 @@ import type {
   SignInPasswordInput,
   SignInResult,
   HandleRedirectCallbackResult,
+  SignInSilentInput,
+  UpgradeGuestWithPasskeyInput,
   XidApiKey,
   XidApiKeyWithSecret,
   XidClientOptions,
@@ -35,6 +37,7 @@ import { executeBrowserSamlLogout } from './saml-logout'
 import { makeXidError } from './errors'
 import { isGuestUser } from './guest'
 import { TokenManager } from './token-manager'
+import { createPasskeyCredential } from './webauthn'
 import { XidStore } from './store'
 
 export class XidClient {
@@ -193,6 +196,41 @@ export class XidClient {
     }
   }
 
+  // guest 一键转正 passkey(01 章 §8):客户端组合 register options -> ceremony -> verify,
+  // 不新增服务端能力。worker 在 verify 成功后原地转正并轮换 session(新 cookie),
+  // 所以收尾与 signInAnonymously 同口径:清 token 缓存并重拉 /v1/me。
+  async upgradeGuestWithPasskey(
+    input: UpgradeGuestWithPasskeyInput = {},
+  ): Promise<Result<XidState, XidError>> {
+    if (this.#oidc) return unsupportedInOidcMode()
+    // 非 guest 调用是业务规则拒绝,属预期失败而非异常。
+    if (!isGuestUser(this.#store.getSnapshot().user)) {
+      return {
+        ok: false,
+        error: makeXidError(
+          'validation_failed',
+          'Only an anonymous (guest) user can be upgraded with a passkey.',
+        ),
+      }
+    }
+
+    const optionsResult = await this.#api.passkeyRegisterOptions({ signal: input.signal })
+    if (!optionsResult.ok) return optionsResult
+    // 用户取消认证器提示时 ceremony 返回预期失败 Result,直接透传。
+    const ceremonyResult = await createPasskeyCredential(optionsResult.value, {
+      ...(input.deviceName ? { deviceName: input.deviceName } : {}),
+    })
+    if (!ceremonyResult.ok) return ceremonyResult
+    const verifyResult = await this.#api.passkeyRegisterVerify(ceremonyResult.value, {
+      signal: input.signal,
+    })
+    if (!verifyResult.ok) return verifyResult
+
+    this.#tokens.clear()
+    await this.load(input.signal ? { signal: input.signal } : {})
+    return { ok: true, value: this.#store.getSnapshot() }
+  }
+
   // multi-session 切换:把目标 session 设为活跃,刷新派生态并清 token 缓存。
   async setActiveSession(input: {
     sessionId: string
@@ -329,9 +367,53 @@ export class XidClient {
     if (!this.#oidc) return unsupportedOutsideOidcMode()
     try {
       const value = await this.#oidc.handleRedirectCallback(callbackUrl, input.signal)
+      // silent(prompt=none)回跳被 IdP 拒绝:映射为失败 Result(error.code 即拒绝原因),
+      // 不污染 session 状态,调用方决定继续交互登录或回 returnUrl(03 章 §6)。
+      if ('silentError' in value) {
+        return {
+          ok: false,
+          error: makeXidError(
+            value.silentError,
+            `OIDC silent authorization failed: ${value.silentError}.`,
+            { httpStatus: 401 },
+          ),
+        }
+      }
       const session = await this.#oidc.load(input.signal)
       this.#store.setState(this.#oidc.stateFromSession(session))
       return { ok: true, value }
+    } catch (error) {
+      return { ok: false, error: toXidError(error) }
+    }
+  }
+
+  // 静默重认证(06 章 signInSilent):先隐藏 iframe prompt=none best-effort。
+  // 失败 Result 的 error.code 为 login_required/consent_required/interaction_required
+  // (IdP 拒绝)或 temporarily_unavailable(iframe 超时)时,降级 signInSilentWithRedirect 兜底。
+  async signInSilent(
+    input: SignInSilentInput = {},
+  ): Promise<Result<HandleRedirectCallbackResult, XidError>> {
+    if (!this.#oidc) return unsupportedOutsideOidcMode()
+    try {
+      const result = await this.#oidc.signInSilent(input)
+      if (!result.ok) return result
+      const session = await this.#oidc.load(input.signal)
+      this.#store.setState(this.#oidc.stateFromSession(session))
+      return result
+    } catch (error) {
+      return { ok: false, error: toXidError(error) }
+    }
+  }
+
+  // 静默重认证兜底:顶层 redirect + prompt=none,整页跳转不返回;
+  // 回跳后由 handleRedirectCallback 收尾。
+  async signInSilentWithRedirect(
+    input: { returnUrl?: string; signal?: AbortSignal } = {},
+  ): Promise<Result<null, XidError>> {
+    if (!this.#oidc) return unsupportedOutsideOidcMode()
+    try {
+      await this.#oidc.signInSilentWithRedirect(input)
+      return { ok: true, value: null }
     } catch (error) {
       return { ok: false, error: toXidError(error) }
     }

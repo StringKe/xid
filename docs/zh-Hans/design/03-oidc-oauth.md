@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/03-oidc-oauth.md source-commit=5d55b0c source-blob=d5a84388df2dc4dd6b6a15aced53c9af369d5393 -->
+<!-- xid-translation source=docs/design/03-oidc-oauth.md source-commit=5d55b0c source-blob=ae029a30172555eca63f6f64abc1fad811da2473 -->
 
 > Translation of `docs/design/03-oidc-oauth.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/03-oidc-oauth.md`](../../design/03-oidc-oauth.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -127,6 +127,19 @@ FAPI 2.0 路径:PAR(必须)+ PKCE(必须)+ DPoP 或 mTLS(二选一)+ 禁 implici
 自定义 scope/API:resource server 注册 API(含 audience URL)关联自定义 scope;token 请求带 resource 参数(RFC8707 Resource Indicators)指定 audience,支持多 audience;access token 的 aud 绑定指定 resource,未指定时 aud=client_id。
 
 Consent:第三方 app(非 first-party)默认要求 consent screen;consent 按 (user_id, client_id, scope_set) 持久化,相同 scope 静默通过;prompt=consent 强制重显;prompt=none 要求已有 session 且 consent 已持久化,否则 interaction_required;prompt=login 强制重认证。
+
+### 静默重认证传输(prompt=none)
+
+- `prompt=none` 的判定完全由第 10 节状态机负责,本小节只约束 RP 侧的传输方式。受支持的传输
+  恰好两种,按兜底顺序:
+  1. 隐藏 iframe:仅作 best-effort。session cookie 是 `SameSite=Lax`(见第 7 节),浏览器拦截
+     第三方 cookie 时跨站 iframe 读不到它,该尝试会确定性地返回 `login_required`。这是预期
+     结果,不是要重试的错误。
+  2. 顶层 redirect + `prompt=none`:可靠兜底。顶层导航携带 Lax cookie,已有 session 且
+     consent 已持久化时无 UI 直接出 code;任何 `login_required` / `consent_required` /
+     `interaction_required` 回跳降级为普通交互式授权请求。
+- 不支持也不计划 `SameSite=None` session cookie:Safari 与 Firefox 无论 SameSite 如何都拦截
+  第三方 cookie,放宽只会扩大 CSRF 面。CHIPS 与 RP 侧 session iframe 同样不在范围内。
 
 ## 7. Session & Logout
 

@@ -34,6 +34,7 @@ import type {
   XidUser,
 } from './types'
 import type { SignOutResponse } from './saml-logout'
+import type { PasskeyRegistrationOptions, PasskeyRegistrationVerifyBody } from './webauthn'
 import { XidNetworkError, isXidErrorShape, makeXidError } from './errors'
 import { trimTrailingSlashes } from './url'
 
@@ -220,6 +221,32 @@ export class XidApiClient {
         redirectUrl: result.value.redirectUrl,
       },
     }
+  }
+
+  // passkey 注册 options(guest 一键转正与账号页添加 passkey 共用端点;持 guest session
+  // 时 worker 在 verify 后走 in-place link,见 apps/server/worker/auth/passkey.ts)。
+  async passkeyRegisterOptions(
+    input: { signal?: AbortSignal } = {},
+  ): Promise<Result<PasskeyRegistrationOptions, XidError>> {
+    return this.#request<PasskeyRegistrationOptions>({
+      path: '/auth/passkey/register/options',
+      method: 'POST',
+      signal: input.signal,
+    })
+  }
+
+  // passkey 注册 verify;成功响应仅为确认,完整状态仍由 /v1/me 提供。
+  async passkeyRegisterVerify(
+    body: PasskeyRegistrationVerifyBody,
+    input: { signal?: AbortSignal } = {},
+  ): Promise<Result<null, XidError>> {
+    const result = await this.#request<unknown>({
+      path: '/auth/passkey/register/verify',
+      method: 'POST',
+      body,
+      signal: input.signal,
+    })
+    return result.ok ? { ok: true, value: null } : result
   }
 
   async getOrganization(input: {

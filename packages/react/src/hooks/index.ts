@@ -13,6 +13,9 @@ export type { UseSessionListReturn } from './use-session-list'
 export { useSignIn } from './use-sign-in'
 export type { UseSignInReturn } from './use-sign-in'
 
+export { useUpgradeGuest } from './use-upgrade-guest'
+export type { UseUpgradeGuestReturn } from './use-upgrade-guest'
+
 export { useOrganization } from './use-organization'
 export type { UseOrganizationReturn } from './use-organization'
 

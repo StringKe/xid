@@ -10,26 +10,35 @@ import { computeS256Challenge, generateCodeVerifier } from '@xid-kit/protocol'
 import {
   isOrganizationMembershipRole,
   type OrganizationMembershipRole,
+  type Result,
+  type XidError,
   type XidErrorCode,
 } from '@xid-kit/types'
 
-import type {
-  CreateAuthorizationUrlInput,
-  HandleRedirectCallbackResult,
-  OidcAuthorizationIntent,
-  OidcXidClientOptions,
-  XidOrganization,
-  XidOrganizationMembership,
-  XidSession,
-  XidState,
-  XidTokenCache,
-  XidUser,
+import { makeXidError } from './errors'
+import {
+  SILENT_AUTHORIZATION_ERRORS,
+  type CreateAuthorizationUrlInput,
+  type HandleRedirectCallbackResult,
+  type OidcAuthorizationIntent,
+  type OidcXidClientOptions,
+  type SignInSilentInput,
+  type SilentAuthorizationError,
+  type SilentRedirectCallbackResult,
+  type XidOrganization,
+  type XidOrganizationMembership,
+  type XidSession,
+  type XidState,
+  type XidTokenCache,
+  type XidUser,
 } from './types'
 
 const SESSION_KEY = 'oidc.session.v1'
 const PENDING_PREFIX = 'oidc.pending.'
 const PENDING_TTL_MS = 10 * 60 * 1000
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000
+const SILENT_IFRAME_TIMEOUT_MS = 10 * 1000
+const SILENT_IFRAME_POLL_MS = 50
 const SIGNING_ALGORITHMS = new Set(['ES256', 'RS256', 'PS256'])
 const OAUTH_SCOPE_TOKEN = /^[\x21\x23-\x5b\x5d-\x7e]+$/
 
@@ -39,6 +48,7 @@ type PendingAuthorization = {
   redirectUri: string
   returnUrl: string
   intent: OidcAuthorizationIntent
+  silent: boolean
   createdAt: number
 }
 
@@ -204,6 +214,8 @@ export class BrowserOidcSession {
       redirectUri: this.#redirectUri,
       returnUrl,
       intent: input.intent ?? 'sign-in',
+      // prompt=none 标记 silent 事务:回跳的交互类拒绝按预期失败处理而非抛错(03 章 §6)。
+      silent: input.prompt === 'none',
       createdAt: this.#now(),
     }
     await this.#cache.saveToken(`${PENDING_PREFIX}${state}`, JSON.stringify(pending))
@@ -228,7 +240,7 @@ export class BrowserOidcSession {
   async handleRedirectCallback(
     callbackUrl: string,
     signal?: AbortSignal,
-  ): Promise<HandleRedirectCallbackResult> {
+  ): Promise<HandleRedirectCallbackResult | SilentRedirectCallbackResult> {
     const url = new URL(callbackUrl)
     if (!sameRedirectTarget(url, new URL(this.#redirectUri))) {
       throw new BrowserOidcError('invalid_request', 'OIDC callback URL does not match redirectUri.')
@@ -239,6 +251,11 @@ export class BrowserOidcSession {
     const pending = await this.#consumePending(state)
     const oauthError = singleQueryParameter(url, 'error')
     if (oauthError) {
+      // silent(prompt=none)回跳的交互类拒绝是预期失败而非异常(03 章 §6):返回静默失败
+      // 变体,由调用方决定降级普通交互式授权或回 returnUrl;非 silent 行为不变。
+      if (pending.silent && isSilentAuthorizationError(oauthError)) {
+        return { returnUrl: pending.returnUrl, silentError: oauthError }
+      }
       throw new BrowserOidcError(
         oauthError === 'access_denied' ? 'access_denied' : 'invalid_request',
         singleQueryParameter(url, 'error_description') ??
@@ -273,6 +290,111 @@ export class BrowserOidcSession {
     }
     await this.#cache.saveToken(SESSION_KEY, JSON.stringify(stored))
     return { returnUrl: pending.returnUrl, intent: pending.intent }
+  }
+
+  // 静默重认证第一级:隐藏 iframe + prompt=none,仅 best-effort(03 章 §6)。
+  // session cookie 是 SameSite=Lax,第三方 cookie 被拦截时跨站 iframe 拿不到,
+  // 该尝试确定性以 login_required 收场——预期结果而非错误,调用方应降级 redirect 兜底。
+  async signInSilent(
+    input: SignInSilentInput = {},
+  ): Promise<Result<HandleRedirectCallbackResult, XidError>> {
+    if (input.signal?.aborted) throw input.signal.reason
+    if (typeof globalThis.document === 'undefined') {
+      return {
+        ok: false,
+        error: makeXidError(
+          'not_implemented',
+          'OIDC silent iframe authorization requires a browser document.',
+        ),
+      }
+    }
+    const authorizationUrl = await this.createAuthorizationUrl({
+      prompt: 'none',
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+    const state = new URL(authorizationUrl).searchParams.get('state') ?? ''
+    const iframe = document.createElement('iframe')
+    iframe.hidden = true
+    iframe.src = authorizationUrl
+    document.body.append(iframe)
+    try {
+      const deadline = Date.now() + (input.timeoutMs ?? SILENT_IFRAME_TIMEOUT_MS)
+      for (;;) {
+        const href = readSameOriginIframeHref(iframe)
+        if (href) {
+          const callback = new URL(href)
+          if (sameRedirectTarget(callback, new URL(this.#redirectUri))) {
+            const oauthError = singleQueryParameter(callback, 'error')
+            if (oauthError) {
+              await this.#discardPending(state)
+              if (isSilentAuthorizationError(oauthError)) {
+                return {
+                  ok: false,
+                  error: makeXidError(
+                    oauthError,
+                    singleQueryParameter(callback, 'error_description') ??
+                      `OIDC silent authorization failed: ${oauthError}.`,
+                    { httpStatus: 401 },
+                  ),
+                }
+              }
+              throw new BrowserOidcError(
+                oauthError === 'access_denied' ? 'access_denied' : 'invalid_request',
+                singleQueryParameter(callback, 'error_description') ??
+                  `OIDC authorization failed: ${oauthError}.`,
+              )
+            }
+            const value = await this.handleRedirectCallback(href, input.signal)
+            if ('silentError' in value) {
+              return {
+                ok: false,
+                error: makeXidError(
+                  value.silentError,
+                  `OIDC silent authorization failed: ${value.silentError}.`,
+                  { httpStatus: 401 },
+                ),
+              }
+            }
+            return { ok: true, value }
+          }
+        }
+        if (Date.now() >= deadline) {
+          await this.#discardPending(state)
+          return {
+            ok: false,
+            error: makeXidError(
+              'temporarily_unavailable',
+              'OIDC silent iframe authorization timed out.',
+              { httpStatus: 503 },
+            ),
+          }
+        }
+        if (input.signal?.aborted) throw input.signal.reason
+        await delay(SILENT_IFRAME_POLL_MS)
+      }
+    } finally {
+      iframe.remove()
+    }
+  }
+
+  // 静默重认证第二级(可靠兜底):顶层 redirect + prompt=none(03 章 §6)。
+  // 顶层导航携带 Lax cookie;returnUrl 已随 pending 事务持久化,回跳后由
+  // handleRedirectCallback 收尾(交互类拒绝映射为静默失败,不再抛错)。
+  async signInSilentWithRedirect(
+    input: { returnUrl?: string; signal?: AbortSignal } = {},
+  ): Promise<void> {
+    if (typeof globalThis.location === 'undefined') {
+      throw new BrowserOidcError(
+        'invalid_request',
+        'OIDC silent redirect authorization requires a browser location.',
+      )
+    }
+    const authorizationUrl = await this.createAuthorizationUrl({
+      prompt: 'none',
+      ...(input.returnUrl ? { returnUrl: input.returnUrl } : {}),
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+    globalThis.location.assign(authorizationUrl)
   }
 
   async load(signal?: AbortSignal): Promise<StoredOidcSession | null> {
@@ -364,6 +486,12 @@ export class BrowserOidcSession {
         throw new BrowserOidcError('invalid_request', 'OIDC authorization request has expired.')
       }
       return pending
+    })
+  }
+
+  async #discardPending(state: string): Promise<void> {
+    await withExclusiveMutation(this.#cache, async () => {
+      await this.#cache.deleteToken(`${PENDING_PREFIX}${state}`)
     })
   }
 
@@ -564,6 +692,28 @@ function singleQueryParameter(url: URL, key: string): string | null {
   return values[0] ?? null
 }
 
+function isSilentAuthorizationError(value: string): value is SilentAuthorizationError {
+  return (SILENT_AUTHORIZATION_ERRORS as readonly string[]).includes(value)
+}
+
+// 跨站 iframe 停在 IdP 域时读 contentWindow.location 抛 SecurityError,
+// 这是轮询期间的正常中间态(302 尚未落回 RP 同源 redirect_uri),继续轮询。
+function readSameOriginIframeHref(iframe: HTMLIFrameElement): string | null {
+  try {
+    const href = iframe.contentWindow?.location.href
+    return typeof href === 'string' && href.length > 0 && href !== 'about:blank' ? href : null
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'SecurityError') return null
+    throw error
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
 function secureRandomString(length: number): string {
   return randomString(length, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_')
 }
@@ -577,11 +727,13 @@ function parsePending(raw: string): PendingAuthorization | null {
       typeof value.redirectUri !== 'string' ||
       typeof value.returnUrl !== 'string' ||
       (value.intent !== 'sign-in' && value.intent !== 'sign-up') ||
+      (value.silent !== undefined && typeof value.silent !== 'boolean') ||
       typeof value.createdAt !== 'number'
     ) {
       return null
     }
-    return value as PendingAuthorization
+    // 改动前写入的 pending 没有 silent 字段,按非 silent 事务处理。
+    return { ...value, silent: value.silent === true } as PendingAuthorization
   } catch {
     return null
   }

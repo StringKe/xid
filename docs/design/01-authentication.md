@@ -766,6 +766,18 @@ credential. This section is the design contract. It is implemented in
 - The guest session TTL, the GuestStore binding TTL, and the `__Host-xid.anon` cookie Max-Age all
   derive from the tenant session policy (`absoluteTimeoutDays`), never from a module-level constant.
 
+### SDK one-click upgrade (passkey)
+
+- `@xid-kit/core` exposes `upgradeGuestWithPasskey()`: a client-side composition of the passkey
+  branch of the conversion routing rule above -- register options, `navigator.credentials.create`,
+  register verify -- over the existing me-auth endpoints. It adds no server capability: the wire
+  contract, the in-place link semantics (`sub` unchanged), and the `guest.converted` audit event are
+  exactly the passkey ceremony described in this section.
+- The API is same-origin (cookie) mode only. In `oidc` mode it reports unsupported, the same rule
+  as `signInAnonymously()` and every other direct credential call (chapter 06 section 1). A call
+  made while the current user is not a guest is an expected failure, not an exception, and a user
+  who cancels the authenticator prompt gets the same expected-failure Result.
+
 ### Garbage collection
 
 - A daily cron scans for unverified users with `provisioned_by = 'anonymous'` whose last activity is

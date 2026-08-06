@@ -1,6 +1,6 @@
 import { exportPublicJwk, signJwt, type PublicJwk } from '@xid-kit/crypto'
 import { computeS256Challenge } from '@xid-kit/protocol'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { XidClient } from '../client'
 import type { XidTokenCache } from '../types'
@@ -124,6 +124,57 @@ function successfulCallback(redirectUri: string, authorizationUrl: URL): string 
   callback.searchParams.set('iss', authorizationUrl.origin)
   return callback.toString()
 }
+
+function errorCallback(redirectUri: string, authorizationUrl: URL, error: string): string {
+  const callback = new URL(redirectUri)
+  callback.searchParams.set('error', error)
+  callback.searchParams.set('state', authorizationUrl.searchParams.get('state') ?? '')
+  callback.searchParams.set('iss', authorizationUrl.origin)
+  return callback.toString()
+}
+
+type FakeIframe = {
+  hidden: boolean
+  src: string
+  contentWindow: unknown
+  remove: ReturnType<typeof vi.fn>
+}
+
+function stubSilentIframeDocument(): { iframe: FakeIframe } {
+  const iframe: FakeIframe = { hidden: false, src: '', contentWindow: null, remove: vi.fn() }
+  vi.stubGlobal('document', {
+    createElement: (tag: string) => {
+      if (tag !== 'iframe') throw new Error(`unexpected element: ${tag}`)
+      return iframe
+    },
+    body: { append: vi.fn() },
+  })
+  return { iframe }
+}
+
+async function waitForIframeSrc(iframe: FakeIframe): Promise<URL> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (iframe.src) return new URL(iframe.src)
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5)
+    })
+  }
+  throw new Error('iframe src was not assigned')
+}
+
+function securityErrorWindow(): object {
+  const crossOrigin = {}
+  Object.defineProperty(crossOrigin, 'location', {
+    get() {
+      throw new DOMException('Blocked a frame with origin', 'SecurityError')
+    },
+  })
+  return crossOrigin
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('XidClient OIDC browser mode', () => {
   it('runs authorization code plus PKCE and restores a verified session', async () => {
@@ -328,5 +379,137 @@ describe('XidClient same-origin browser mode', () => {
       if (original) Object.defineProperty(globalThis, 'location', original)
       else Reflect.deleteProperty(globalThis, 'location')
     }
+  })
+})
+
+describe('XidClient OIDC silent re-authentication', () => {
+  it('exchanges the iframe authorization code and restores the session', async () => {
+    const fixture = await oidcFixture()
+    const { iframe } = stubSilentIframeDocument()
+
+    const attempt = fixture.client.signInSilent()
+    const authorizationUrl = await waitForIframeSrc(iframe)
+    expect(authorizationUrl.searchParams.get('prompt')).toBe('none')
+    expect(iframe.hidden).toBe(true)
+    await fixture.setIdToken(authorizationUrl.searchParams.get('nonce') ?? '')
+    iframe.contentWindow = {
+      location: { href: successfulCallback(fixture.redirectUri, authorizationUrl) },
+    }
+
+    const result = await attempt
+    expect(result.ok).toBe(true)
+    expect(fixture.client.isSignedIn).toBe(true)
+    expect(fixture.client.user?.id).toBe('user_1')
+    expect(iframe.remove).toHaveBeenCalledOnce()
+  })
+
+  it('maps an iframe login_required response to an expected failure', async () => {
+    const fixture = await oidcFixture()
+    const { iframe } = stubSilentIframeDocument()
+
+    const attempt = fixture.client.signInSilent()
+    const authorizationUrl = await waitForIframeSrc(iframe)
+    const state = authorizationUrl.searchParams.get('state') ?? ''
+    iframe.contentWindow = {
+      location: { href: errorCallback(fixture.redirectUri, authorizationUrl, 'login_required') },
+    }
+
+    const result = await attempt
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('login_required')
+    expect(fixture.client.isSignedIn).toBe(false)
+    expect(fixture.calls.filter((call) => call.url.pathname === '/token')).toHaveLength(0)
+    expect(fixture.cache.values.has(`oidc.pending.${state}`)).toBe(false)
+    expect(iframe.remove).toHaveBeenCalledOnce()
+  })
+
+  it('times out when the iframe never returns to the redirect origin', async () => {
+    const fixture = await oidcFixture()
+    const { iframe } = stubSilentIframeDocument()
+    iframe.contentWindow = securityErrorWindow()
+
+    const result = await fixture.client.signInSilent({ timeoutMs: 120 })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('temporarily_unavailable')
+    expect(fixture.client.isSignedIn).toBe(false)
+    expect(iframe.remove).toHaveBeenCalledOnce()
+  })
+
+  it('keeps polling through cross-origin SecurityError reads', async () => {
+    const fixture = await oidcFixture()
+    const { iframe } = stubSilentIframeDocument()
+    let readable = false
+    let href = ''
+    const crossOrigin = {}
+    Object.defineProperty(crossOrigin, 'location', {
+      get() {
+        if (!readable) throw new DOMException('Blocked a frame with origin', 'SecurityError')
+        return { href }
+      },
+    })
+    iframe.contentWindow = crossOrigin
+
+    const attempt = fixture.client.signInSilent()
+    const authorizationUrl = await waitForIframeSrc(iframe)
+    await fixture.setIdToken(authorizationUrl.searchParams.get('nonce') ?? '')
+    href = successfulCallback(fixture.redirectUri, authorizationUrl)
+    readable = true
+
+    const result = await attempt
+    expect(result.ok).toBe(true)
+    expect(fixture.client.isSignedIn).toBe(true)
+    expect(iframe.remove).toHaveBeenCalledOnce()
+  })
+
+  it('navigates top-level with prompt=none and maps a silent error callback to a failure result', async () => {
+    const fixture = await oidcFixture()
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
+
+    const started = await fixture.client.signInSilentWithRedirect({ returnUrl: '/dashboard' })
+    expect(started.ok).toBe(true)
+    expect(assign).toHaveBeenCalledOnce()
+    const authorizationUrl = new URL(String(assign.mock.calls[0]?.[0]))
+    expect(authorizationUrl.searchParams.get('prompt')).toBe('none')
+
+    const result = await fixture.client.handleRedirectCallback(
+      errorCallback(fixture.redirectUri, authorizationUrl, 'consent_required'),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('consent_required')
+    expect(fixture.client.isSignedIn).toBe(false)
+  })
+
+  it('completes a silent redirect callback when the IdP returns a code', async () => {
+    const fixture = await oidcFixture()
+    const authorization = await fixture.client.createAuthorizationUrl({ prompt: 'none' })
+    expect(authorization.ok).toBe(true)
+    if (!authorization.ok) return
+    const url = new URL(authorization.value)
+    expect(url.searchParams.get('prompt')).toBe('none')
+    await fixture.setIdToken(url.searchParams.get('nonce') ?? '')
+
+    const result = await fixture.client.handleRedirectCallback(
+      successfulCallback(fixture.redirectUri, url),
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value).toEqual({ returnUrl: '/', intent: 'sign-in' })
+    expect(fixture.client.isSignedIn).toBe(true)
+  })
+
+  it('keeps non-silent callback errors on the existing invalid_request path', async () => {
+    const fixture = await oidcFixture()
+    const authorization = await fixture.client.createAuthorizationUrl()
+    expect(authorization.ok).toBe(true)
+    if (!authorization.ok) return
+    const url = new URL(authorization.value)
+
+    const result = await fixture.client.handleRedirectCallback(
+      errorCallback(fixture.redirectUri, url, 'login_required'),
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('invalid_request')
+    expect(fixture.client.isSignedIn).toBe(false)
   })
 })

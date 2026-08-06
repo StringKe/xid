@@ -26,6 +26,9 @@ export type { UseSessionListReturn } from './hooks/use-session-list'
 export { useSignIn } from './hooks/use-sign-in'
 export type { UseSignInReturn } from './hooks/use-sign-in'
 
+export { useUpgradeGuest } from './hooks/use-upgrade-guest'
+export type { UseUpgradeGuestReturn } from './hooks/use-upgrade-guest'
+
 export { useOrganization } from './hooks/use-organization'
 export type { UseOrganizationReturn } from './hooks/use-organization'
 

@@ -16,8 +16,13 @@ const EXPECTED_EXPORTS = [
   'isGuestUser',
   'isGuestToken',
   'isSameUser',
+  'b64urlToBytes',
+  'bytesToB64url',
+  'createPasskeyCredential',
+  'registrationOptionsToPublicKey',
   'SESSION_STATUS',
   'CLIENT_STATUS',
+  'SILENT_AUTHORIZATION_ERRORS',
 ] as const
 
 describe('@xid-kit/core public exports', () => {
@@ -44,5 +49,14 @@ describe('@xid-kit/core public exports', () => {
     for (const method of methods) {
       expect(XidClient.prototype, `missing method ${method}`).toHaveProperty(method)
     }
+  })
+
+  it('exposes the guest passkey upgrade entry on XidClient', () => {
+    expect(XidClient.prototype).toHaveProperty('upgradeGuestWithPasskey')
+  })
+
+  it('exposes the silent re-authentication entries on XidClient', () => {
+    expect(XidClient.prototype).toHaveProperty('signInSilent')
+    expect(XidClient.prototype).toHaveProperty('signInSilentWithRedirect')
   })
 })

@@ -120,6 +120,12 @@ export type SignInAnonymouslyInput = {
   signal?: AbortSignal
 }
 
+// guest 一键转正 passkey 输入(01 章 §8 SDK one-click upgrade);deviceName 供账号页展示。
+export type UpgradeGuestWithPasskeyInput = {
+  deviceName?: string
+  signal?: AbortSignal
+}
+
 export type SignInResult = {
   redirectUrl?: string
   nextStep?: 'verify_email' | 'complete'
@@ -227,13 +233,37 @@ export type CreateAuthorizationUrlInput = {
   intent?: OidcAuthorizationIntent
   returnUrl?: string
   loginHint?: string
-  prompt?: 'login' | 'consent' | 'select_account'
+  prompt?: 'login' | 'consent' | 'select_account' | 'none'
   signal?: AbortSignal
 }
 
 export type HandleRedirectCallbackResult = {
   returnUrl: string
   intent: OidcAuthorizationIntent
+}
+
+// prompt=none 被 IdP 拒绝的交互类错误(03 章 §6):静默重认证的预期失败而非异常,
+// 调用方据此降级 redirect 兜底或普通交互式授权。
+export const SILENT_AUTHORIZATION_ERRORS = [
+  'login_required',
+  'consent_required',
+  'interaction_required',
+] as const
+export type SilentAuthorizationError = (typeof SILENT_AUTHORIZATION_ERRORS)[number]
+
+// silent(prompt=none)redirect 回跳被 IdP 拒绝时 BrowserOidcSession 的内部返回:
+// XidClient 把它映射为 { ok:false } 的失败 Result(error.code 即拒绝原因),不向调用方抛错。
+export type SilentRedirectCallbackResult = {
+  returnUrl: string
+  silentError: SilentAuthorizationError
+}
+
+// signInSilent 输入(03 章 §6 隐藏 iframe 传输)。
+export type SignInSilentInput = {
+  // iframe 传输超时(默认 10s)。第三方 cookie 被拦截时 iframe 拿不到 Lax cookie,
+  // 超时与 login_required 同为预期失败,调用方应降级 signInSilentWithRedirect 兜底。
+  timeoutMs?: number
+  signal?: AbortSignal
 }
 
 export type SameOriginXidClientOptions = {

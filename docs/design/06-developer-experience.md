@@ -35,7 +35,9 @@ The complete status table is in docs/sdks/platform-matrix.md.
   identifier. There is no separate `pk_live_` or `pk_test_` publishable-key database, and Management
   API keys MUST NOT be reused as browser identifiers. The first browser release does not request
   `offline_access`, so it stores no bearer refresh token and reauthorizes after the access session
-  expires.
+  expires. Reauthorization goes through `signInSilent()`: a best-effort hidden-iframe `prompt=none`
+  attempt, then a top-level redirect `prompt=none` fallback, then interactive login (chapter 03
+  section 6).
 - `intent: "sign-up"` in an OIDC SDK call is an RP user-registration hint, not XID product
   onboarding. The SDK emits `xid_intent=sign-up`; after `client_id` validation the Core maps it to
   the internal Hosted Auth `application-sign-up` flow. The resulting user and default Membership
@@ -573,7 +575,9 @@ GuestStore DO, GC cron, React and native SDK APIs); the per-platform status live
 - SDK API: `signInAnonymously()` creates a guest, or lazily reuses the local guest credential when
   one is still valid (the SDK does not call the endpoint in that case, the Firebase semantics).
   `isAnonymous` reflects whether the current token `amr` carries `guest`. Upgrade guidance keeps
-  prompting the user to convert. Credential linking and pending Email verification convert the
+  prompting the user to convert. `upgradeGuestWithPasskey()` runs the passkey conversion ceremony
+  from inside the SDK (same-origin mode only), without a Hosted Auth redirect. Credential linking
+  and pending Email verification convert the
   guest in place, so the next token keeps the same `sub`. Email uniqueness is Tenant-local: an
   account with the same Email in another Tenant remains independent, onboarding never performs a
   cross-Tenant merge, and a same-Tenant collision is not a normal branch for the fresh Tenant.

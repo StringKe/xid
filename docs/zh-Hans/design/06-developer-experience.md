@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=a4ed238691ce990fb73d78490db8bd33812a7554 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=b4a4ac15ef8c414ec2e84bc2f152bb1b7fc07b56 -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -29,7 +29,9 @@ Web 框架层     @xid-kit/{vue,nuxt,svelte,angular,remix,astro,solid}(current p
   `/token` 交换 code;根据 JWKS 验证 ID token;再使用 access token 调用 `/userinfo`。public
   `client_id` 就是 SDK identifier。系统没有独立的 `pk_live_` 或 `pk_test_` publishable-key
   database,Management API key 也不得复用为 browser identifier。首个 browser release 不请求
-  `offline_access`,因此不会存储 bearer refresh token,access session 过期后重新授权。
+  `offline_access`,因此不会存储 bearer refresh token,access session 过期后重新授权。重新授权走
+  `signInSilent()`:先 best-effort 隐藏 iframe `prompt=none`,再兜底顶层 redirect `prompt=none`,
+  最后降级交互登录(见 03 章第 6 节)。
 - OIDC SDK call 中的 `intent: "sign-up"` 是 RP user-registration hint,不是 XID 产品 onboarding。
   SDK 发送 `xid_intent=sign-up`;Core 验证 `client_id` 后把它映射为内部 Hosted Auth
   `application-sign-up` flow。创建的 user 与默认 Membership 保留在 Application owner 的现有
@@ -480,7 +482,7 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform bil
   Organization 或 expiry object;客户端跟随 `redirectUrl`,再通过 `/v1/me` 获取当前 user 与
   organization state。请求已带有效 guest session 时仍返回相同 wire shape,不建新 user。端点由
   Turnstile + RateLimitStore + 每租户每日铸造上限守护;完整四层防重复契约见 01 章 8。
-- SDK API:signInAnonymously() 创建 guest,本地 guest 凭证仍有效时惰性复用不再调用端点(Firebase 语义);isAnonymous 反映当前 token 的 amr 是否含 guest;转正引导持续提示用户转正。凭证 linking 与 pending Email 验证都原地转正 guest,下一张 token 保持相同 sub。Email 唯一性是 Tenant-local:其他 Tenant 中相同 Email 的账号保持独立,onboarding 不做跨 Tenant merge,fresh Tenant 内的同 Tenant 冲突不是正常分支。
+- SDK API:signInAnonymously() 创建 guest,本地 guest 凭证仍有效时惰性复用不再调用端点(Firebase 语义);isAnonymous 反映当前 token 的 amr 是否含 guest;转正引导持续提示用户转正。`upgradeGuestWithPasskey()` 在 SDK 内原地完成 passkey 转正仪式(仅 same-origin 模式),无需跳转 Hosted Auth。凭证 linking 与 pending Email 验证都原地转正 guest,下一张 token 保持相同 sub。Email 唯一性是 Tenant-local:其他 Tenant 中相同 Email 的账号保持独立,onboarding 不做跨 Tenant merge,fresh Tenant 内的同 Tenant 冲突不是正常分支。
 - Management API:/v1/users 列表支持 ?provisioned_by=anonymous 过滤,不新增端点。
 - 审计与 webhook 事件名(见第 8 节):guest.created、guest.converted、guest.gc_deleted。
 

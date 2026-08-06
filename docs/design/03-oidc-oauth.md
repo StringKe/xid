@@ -196,6 +196,22 @@ by `(user_id, client_id, scope_set)`, and an identical scope set passes silently
 forces the screen to be shown again. `prompt=none` requires an existing session and persisted consent,
 otherwise it returns `interaction_required`. `prompt=login` forces re-authentication.
 
+### Silent re-authentication transport (prompt=none)
+
+- `prompt=none` is evaluated entirely by the state machine in section 10; this subsection governs
+  how an RP transports the request. There are exactly two supported transports, in fallback order:
+  1. Hidden iframe: best-effort only. The session cookie is `SameSite=Lax` (section 7), so a
+     cross-site iframe cannot see it whenever the browser blocks third-party cookies, and the
+     attempt then deterministically returns `login_required`. That outcome is expected, not an
+     error to retry.
+  2. Top-level redirect with `prompt=none`: the reliable fallback. A top-level navigation sends
+     Lax cookies, so an existing session and persisted consent produce a code with no UI; any
+     `login_required` / `consent_required` / `interaction_required` error return degrades to an
+     ordinary interactive authorization request.
+- A `SameSite=None` session cookie is not supported and not planned: Safari and Firefox block
+  third-party cookies regardless of `SameSite`, and widening the cookie would enlarge the CSRF
+  surface. CHIPS and RP-side session iframes are likewise out of scope.
+
 ## 7. Session and logout
 
 ### Session
