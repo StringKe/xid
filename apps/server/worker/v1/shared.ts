@@ -90,6 +90,7 @@ function apiKeyAllows(scopes: string[], requiredScopes: string[]): boolean {
 
 // scope 词法白名单:只允许 v1 实际使用的资源名,防乱码 scope 入库(入库后 apiKeyAllows 永不命中等于废 key)。
 const API_KEY_SCOPE_RESOURCES = new Set([
+  'access-requests',
   'api_keys',
   'applications',
   'audit_events',
@@ -101,6 +102,7 @@ const API_KEY_SCOPE_RESOURCES = new Set([
   'memberships',
   'organization_domains',
   'organizations',
+  'org-units',
   'permissions',
   'projects',
   'project_grants',

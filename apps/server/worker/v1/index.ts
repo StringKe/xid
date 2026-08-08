@@ -17,6 +17,7 @@ import { registerUserGrants } from './user-grants'
 import { registerUsersRoutes } from './users'
 import { registerOrganizationsRoutes } from './organizations'
 import { registerMembershipsRoutes } from './memberships'
+import { registerOrgUnitsRoutes } from './org-units'
 import { registerInvitationsRoutes } from './invitations'
 import { registerSessionsRoutes } from './sessions'
 import { registerCustomHostnameRoutes } from './custom-hostnames'
@@ -38,6 +39,7 @@ export function registerV1Routes(app: Hono<XidHonoEnv>): void {
   registerUsersRoutes(app)
   registerOrganizationsRoutes(app)
   registerMembershipsRoutes(app)
+  registerOrgUnitsRoutes(app)
   registerInvitationsRoutes(app)
   registerSessionsRoutes(app)
   registerCustomHostnameRoutes(app)
