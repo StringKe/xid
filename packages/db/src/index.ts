@@ -10,6 +10,22 @@ export { USER_PROVISIONED_BY_ANONYMOUS } from './schema/users'
 // 租户查询层(P0 隔离):createTenantDb + 类型。
 export { createTenantDb } from './tenant-db'
 export type { TenantDb, OrgScopedDb, TenantScoped } from './tenant-db'
+// OrgUnit 树核心服务(设计 docs/design/org-structure-access/design-org-structure.md 第 3 节)。
+export {
+  ORG_UNIT_MAX_DEPTH,
+  createUnit,
+  updateUnit,
+  moveUnit,
+  archiveUnit,
+  listChildren,
+  listTree,
+  listSubtreeMembers,
+  addUnitMember,
+  removeUnitMember,
+  setPrimaryUnit,
+  resolveApproverChain,
+} from './org-units'
+export type { ApproverResolution, OrgUnitMemberRow, OrgUnitRow, OrgUnitScope } from './org-units'
 // TenantContext 解析工厂(单/多租户 + instance login resolver)。
 export {
   instanceIssuerFor,
