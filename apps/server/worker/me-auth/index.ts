@@ -31,6 +31,14 @@ import { handleInvitationAccept, handleInvitationPreview } from './invitation-ac
 import { handleInvitationClaimStart, handleInvitationClaimVerify } from './invitation-claim'
 import { handleSelfOrganizationCreate } from './organization-self'
 import { handleGuestSignIn } from './guest'
+import {
+  handleAccessApprovalApprove,
+  handleAccessApprovalDeny,
+  handleAccessApprovalList,
+  handleAccessRequestCancel,
+  handleAccessRequestCreate,
+  handleAccessRequestListMine,
+} from './access-requests'
 
 export function registerSessionAuthRoutes(app: Hono<XidHonoEnv>): void {
   // 密码统一登录和创建 / 登出
@@ -89,4 +97,12 @@ export function registerSessionAuthRoutes(app: Hono<XidHonoEnv>): void {
   app.post('/v1/sessions/token', handleSessionToken)
   app.post('/v1/sessions/active', handleActiveSession)
   app.post('/v1/sessions/active-organization', handleActiveOrganization)
+
+  // Project 访问申请(自助)+ 审批(design-access-request 3.1/3.2)
+  app.post('/auth/access-requests', handleAccessRequestCreate)
+  app.get('/auth/access-requests', handleAccessRequestListMine)
+  app.post('/auth/access-requests/:id/cancel', handleAccessRequestCancel)
+  app.get('/auth/access-approvals', handleAccessApprovalList)
+  app.post('/auth/access-approvals/:id/approve', handleAccessApprovalApprove)
+  app.post('/auth/access-approvals/:id/deny', handleAccessApprovalDeny)
 }

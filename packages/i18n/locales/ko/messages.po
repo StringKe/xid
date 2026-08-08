@@ -5763,6 +5763,10 @@ msgstr "공지사항을 찾을 수 없습니다."
 msgid "No applications registered."
 msgstr "등록된 애플리케이션이 없습니다."
 
+#: packages/i18n/src/messages.ts
+msgid "No approver is available for this access request."
+msgstr "이 액세스 요청에 대한 승인자가 없습니다."
+
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "No audit events found."
 msgstr "감사 이벤트가 없습니다."
@@ -9765,6 +9769,10 @@ msgstr "찾는 페이지가 없거나 이동되었습니다"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "비밀번호가 최소 강도 요구사항을 충족하지 않습니다."
 
+#: packages/i18n/src/messages.ts
+msgid "The project could not be found."
+msgstr "프로젝트를 찾을 수 없습니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
 msgstr "원시 XidClient 인스턴스; 대부분의 사용 사례에서는 XidAuthService를 사용하는 것이 좋습니다"
@@ -9908,6 +9916,10 @@ msgstr "조직이 재정의하지 않는 한 이 기본값은 모든 조직에 �
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "third-party app"
 msgstr "서드파티 앱"
+
+#: packages/i18n/src/messages.ts
+msgid "This access request has already been decided."
+msgstr "이 액세스 요청은 이미 처리되었습니다."
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "This account has no email address yet. Add a passkey below to secure it and keep access after you sign out."
@@ -11162,6 +11174,10 @@ msgstr "XML 보안 사전 검사, 재귀 구조 schema allowlist, 서명/참조 
 #: apps/server/src/routes/mfa/index.tsx
 msgid "xxxxxxxx"
 msgstr "xxxxxxxx"
+
+#: packages/i18n/src/messages.ts
+msgid "You already have access to this project."
+msgstr "이미 이 프로젝트에 대한 액세스 권한이 있습니다."
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx

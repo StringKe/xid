@@ -75,6 +75,10 @@ export const errorMessages: ErrorMessages = {
   cross_tenant_access_denied: msg`Cross-organization access is not permitted.`,
   seat_limit_exceeded: msg`The organization has reached its seat limit.`,
   resource_quota_exceeded: msg`The organization has reached a configured resource quota.`,
+  project_not_found: msg`The project could not be found.`,
+  grant_already_exists: msg`You already have access to this project.`,
+  request_already_decided: msg`This access request has already been decided.`,
+  no_available_approver: msg`No approver is available for this access request.`,
 
   // 企业 SSO (SAML / SCIM)
   malformed_request: msg`The request is malformed.`,

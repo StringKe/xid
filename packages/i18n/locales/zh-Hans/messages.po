@@ -5763,6 +5763,10 @@ msgstr "没有找到公告。"
 msgid "No applications registered."
 msgstr "尚未注册应用。"
 
+#: packages/i18n/src/messages.ts
+msgid "No approver is available for this access request."
+msgstr "该访问申请没有可用的审批人。"
+
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "No audit events found."
 msgstr "没有审计事件。"
@@ -9765,6 +9769,10 @@ msgstr "您查找的页面不存在或已移动"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "密码未达到最低强度要求。"
 
+#: packages/i18n/src/messages.ts
+msgid "The project could not be found."
+msgstr "未找到该项目。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
 msgstr "XidClient 原始实例；大多数情况下建议使用 XidAuthService"
@@ -9908,6 +9916,10 @@ msgstr "除非组织自行覆盖，否则这些默认值应用于每个组织。
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "third-party app"
 msgstr "第三方应用"
+
+#: packages/i18n/src/messages.ts
+msgid "This access request has already been decided."
+msgstr "该访问申请已被处理。"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "This account has no email address yet. Add a passkey below to secure it and keep access after you sign out."
@@ -11162,6 +11174,10 @@ msgstr "XML 安全预检查、递归结构 schema 允许列表和签名/引用�
 #: apps/server/src/routes/mfa/index.tsx
 msgid "xxxxxxxx"
 msgstr "xxxxxxxx"
+
+#: packages/i18n/src/messages.ts
+msgid "You already have access to this project."
+msgstr "你已拥有该项目的访问权限。"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx

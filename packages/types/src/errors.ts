@@ -78,6 +78,11 @@ export const TENANCY_ERROR_CODES = [
   'cross_tenant_access_denied',
   'seat_limit_exceeded',
   'resource_quota_exceeded',
+  // Project 访问申请 / 审批(见 design-access-request 3.1/3.2)
+  'project_not_found',
+  'grant_already_exists',
+  'request_already_decided',
+  'no_available_approver',
 ] as const
 
 // 企业 SSO(SAML/SCIM,见 04 章 8.8 错误分支)

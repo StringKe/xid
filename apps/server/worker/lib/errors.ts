@@ -54,6 +54,11 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   cross_tenant_access_denied: 404,
   seat_limit_exceeded: 403,
   resource_quota_exceeded: 403,
+  // Project 访问申请 / 审批(见 design-access-request 3.1/3.2)
+  project_not_found: 404,
+  grant_already_exists: 409,
+  request_already_decided: 409,
+  no_available_approver: 409,
   // 会话
   session_not_found: 404,
   session_revoked: 401,
