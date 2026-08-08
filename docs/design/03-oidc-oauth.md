@@ -655,6 +655,27 @@ metadata, and login remain JSON.
 | interaction_required                   | `prompt=none` but any user interaction is needed (account selection and so on)                                            |
 | account_selection_required             | `prompt=none` but an account must be selected (multiple sessions)                                                         |
 
+### 10.8 Project access policy enforcement (same-org branch)
+
+When the Application's Project belongs to the session's active Organization, `/authorize` applies
+the Project's `access_policy` (see chapter 02 section 7.5) after the RBAC context resolves:
+
+- `open` (the default): unchanged behavior.
+- `restricted` or `approval_required`: the user needs an effective same-org UserGrant (not revoked,
+  `granted_via_grant_id IS NULL`, and not past `expires_at` -- an expired grant is treated as no
+  grant). Without one, the response is `error=access_denied` whose `error_description` carries a
+  machine-readable prefix: `project_access_restricted:` for `restricted`,
+  `access_request_required:` for `approval_required`. OAuth permits only `error`,
+  `error_description`, and `error_uri` on the redirect, so the code rides as the description prefix
+  rather than a custom parameter; the Hosted UI and RPs parse the prefix, and the description stays
+  opaque about Project internals.
+
+The same re-check runs again at token issuance on the same-org path (including refresh): the grant
+lookup repeats the identical effectiveness predicate, so a grant whose `expires_at` passes behaves
+as if it never existed and the next authorization must re-request or renew access. This is the
+enforcement point of the JIT window from chapter 02 section 7.5 -- access tokens are short-lived and
+every refresh revalidates the grant.
+
 ## 11. Refresh token rotation and family implementation spec
 
 ### 11.1 RefreshToken data structure (D1, persistence layer)

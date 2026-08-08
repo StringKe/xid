@@ -466,6 +466,8 @@ The table below is the current implemented surface, not a roadmap:
 | roles/permissions    | CRUD, delete, and restore                                                                      |
 | role-permissions     | list/create/update/delete with same-Project and ABAC validation                                |
 | manager-assignments  | tenant-scoped list/provision/revoke; instance managers use the separate platform path          |
+| org-units            | tree CRUD, move, archive, and member placement (see below)                                     |
+| access-requests      | list/get within an Organization, with status and project filters (see below)                   |
 | project-grants       | list/get/create/revoke/delete                                                                  |
 | user-grants          | list/get/create/reactivate/revoke/delete                                                       |
 | webhooks             | CRUD, delete, and restore                                                                      |
@@ -502,6 +504,36 @@ fixed pairs `org_manager`/`org`, `project_manager`/`project`, and
 `/v1/platform/manager-assignments` path owns `instance_manager` provisioning and remains separate
 from tenant-scoped APIs.
 
+OrgUnit management lives under `/v1/organizations/:orgId/units`, guarded by an API key with
+`org-units:read` / `org-units:write` or an org manager cookie session:
+
+| Method | Path                                                    | Notes                                             |
+| ------ | ------------------------------------------------------- | ------------------------------------------------- |
+| GET    | `/v1/organizations/:orgId/units`                        | `?parent_unit_id=` filter; defaults to the whole tree in path order |
+| POST   | `/v1/organizations/:orgId/units`                        | Create a node (depth cap 8)                       |
+| GET    | `/v1/organizations/:orgId/units/:unitId`                | Detail including `depth`/`path`                   |
+| PATCH  | `/v1/organizations/:orgId/units/:unitId`                | Update `name`/`slug`/`manager_user_id`            |
+| POST   | `/v1/organizations/:orgId/units/:unitId/move`           | Move the subtree under a new parent               |
+| DELETE | `/v1/organizations/:orgId/units/:unitId`                | Archive (leaves only), not a physical delete      |
+| GET    | `/v1/organizations/:orgId/units/:unitId/members`        | Members; `include_descendants` defaults to true   |
+| PUT    | `/v1/organizations/:orgId/units/:unitId/members/:userId`| Place a member, optionally as the primary post    |
+| DELETE | `/v1/organizations/:orgId/units/:unitId/members/:userId`| Remove a member                                   |
+
+Project access requests are read-only on the Management API: `GET
+/v1/organizations/:orgId/access-requests` (with `?status=` and `?project_id=` filters, cursor
+pagination) and `GET /v1/organizations/:orgId/access-requests/:id`, guarded by
+`access-requests:read` or an org manager cookie session. Approve/deny never run through `/v1` --
+they MUST bind to the resolved approver's real identity for audit, and the org manager fallback is
+direct `user_grants` management. `PATCH /v1/projects/:projectId` accepts the `access_policy` field
+(`open`/`restricted`/`approval_required`, `projects:write`). The scope lexicon gains the
+`org-units` and `access-requests` resource names.
+
+The requester and approver flows are cookie-session endpoints under `/auth/`, same pattern as
+consent: `POST /auth/access-requests`, `GET /auth/access-requests`,
+`POST /auth/access-requests/:id/cancel`, `GET /auth/access-approvals`,
+`POST /auth/access-approvals/:id/approve`, and `POST /auth/access-approvals/:id/deny`. Their
+semantics (state machine, approver resolution, JIT grants) are defined in chapter 02 section 7.5.
+
 The following remain explicit design targets and do not have tenant-scoped Management API
 resources: `emailAddresses`, `phoneNumbers`, `allowlistIdentifiers`, `oauthApplications`,
 `redirectUrls`, and billing CRUD. User impersonation is intentionally not a tenant-scoped
@@ -530,6 +562,9 @@ names are maintained in `webhook-event-contract`; the Nimbus public page lists o
 - dsync (directory sync): activated/deleted, user.created/updated/deleted,
   group.created/updated/deleted, group.user_added/removed
 - role/permission: created/updated/deleted
+- access_request: created/approved/denied/cancelled/expired
+- project: access_policy_changed
+- org_unit: created/updated/moved/archived/member_added/member_removed/primary_changed
 - email/sms: created (when the developer takes over sending)
 - billing: subscription._, paymentAttempt._
 

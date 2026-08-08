@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/03-oidc-oauth.md source-commit=5d55b0c source-blob=ae029a30172555eca63f6f64abc1fad811da2473 -->
+<!-- xid-translation source=docs/design/03-oidc-oauth.md source-commit=5d55b0c source-blob=9afb0d7ccc82af178dd09dd60b11d5b69b367b2a -->
 
 > Translation of `docs/design/03-oidc-oauth.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/03-oidc-oauth.md`](../../design/03-oidc-oauth.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -429,6 +429,24 @@ token type URI 取值(本实现支持):
 | consent_required                       | `prompt=none` 但 consent 未持久化                               |
 | interaction_required                   | `prompt=none` 但需要任何用户交互(account selection 等)          |
 | account_selection_required             | `prompt=none` 但需要选择账户(多 session)                        |
+
+### 10.8 Project access policy 拦截(同 org 分支)
+
+当 Application 所属 Project 属于 session 的 active Organization 时,`/authorize` 在 RBAC
+context 解析之后应用该 Project 的 `access_policy`(见 02 章 7.5 节):
+
+- `open`(默认):行为不变。
+- `restricted` 或 `approval_required`:用户需要有效的同 org UserGrant(未 revoked、
+  `granted_via_grant_id IS NULL`、未过 `expires_at`——过期 grant 视同无 grant)。没有时返回
+  `error=access_denied`,`error_description` 携带机器可读前缀:`restricted` 用
+  `project_access_restricted:`,`approval_required` 用 `access_request_required:`。OAuth 在
+  redirect 上只允许 `error`、`error_description`、`error_uri` 三个字段,所以错误码以
+  description 前缀的形式回传,不用自定义参数;Hosted UI 与 RP 解析该前缀,description 不泄露
+  Project 内部信息。
+
+同一复查在 token 签发的同 org 路径(含 refresh)再执行一次:grant 查询重复完全相同的有效性
+判定,因此 `expires_at` 过期后 grant 视同不存在,下一次 authorize 必须重新申请或续期。这是
+02 章 7.5 节 JIT 窗口的强制点——access token 短命,每次 refresh 都重新校验 grant。
 
 ## 11. Refresh Token 轮换 + Family 实现规格
 
