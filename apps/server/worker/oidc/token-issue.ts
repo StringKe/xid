@@ -11,7 +11,7 @@ import {
 } from '@xid-kit/protocol'
 import type { AccessTokenOptions, IssuedRefreshToken, RefreshTokenRecord } from '@xid-kit/protocol'
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNull, or } from 'drizzle-orm'
 import type { ActClaim, AmrValue, AuthorizationDetails, Result, XidError } from '@xid-kit/types'
 import type { Context } from 'hono'
 import { normalizeIssuedAcr } from '../lib/auth-context'
@@ -20,7 +20,7 @@ import type { XidHonoEnv } from '../lib/types'
 import { logWorkerError } from '../lib/safe-log'
 import { buildRbacClaims } from '../rbac'
 import type { GrantContext } from '../rbac'
-import { refreshTtlSecOf, resolveAccessTtlSec } from './shared'
+import { isGrantEffective, refreshTtlSecOf, resolveAccessTtlSec } from './shared'
 import type { ActiveSigner, ClientRow } from './shared'
 
 // grant 间共享的 token 上下文(prelude 在 token.ts 装配后传入)。
@@ -253,6 +253,51 @@ export async function resolveTokenGrantContext(
       ),
     )
     if (!userGrant) return fail('access_denied', 'user not authorized via grant', 403)
+  }
+
+  // 同 org 路径(project_grant_id 为空)对 restricted/approval_required project 复查 user_grant
+  // (design-access-request 第 2 节):与 /authorize 同一 isGrantEffective 判定,过期 grant 视同
+  // 不存在 -> refresh 窗口内自然失效(JIT 强制点)。open 与跨 org grant 复查维持现状。
+  // org-less(active org 被清空)同样不得绕过 policy 门:绑定非 open project 一律拒绝;
+  // open / 无 projectId 短路,B2C 热路径不新增 project 查询。
+  if (!grant && tc.client.projectId) {
+    const project = await db.projects.findOne(
+      and(eq(schema.projects.id, tc.client.projectId), eq(schema.projects.status, 'active')),
+    )
+    if (
+      project &&
+      (project.accessPolicy === 'restricted' || project.accessPolicy === 'approval_required')
+    ) {
+      if (!activeOrg) {
+        return fail(
+          'access_denied',
+          `${project.accessPolicy === 'restricted' ? 'project_access_restricted' : 'access_request_required'}: no effective grant`,
+          403,
+        )
+      }
+      if (project.orgId === activeOrg.id) {
+        // expires_at 谓词与 isGrantEffective 双重判定,与 /authorize 同语义。
+        const userGrant = await db.userGrants.findOne(
+          and(
+            eq(schema.userGrants.userId, input.userId),
+            eq(schema.userGrants.projectId, project.id),
+            isNull(schema.userGrants.grantedViaGrantId),
+            isNull(schema.userGrants.revokedAt),
+            or(
+              isNull(schema.userGrants.expiresAt),
+              gt(schema.userGrants.expiresAt, new Date(tc.now * 1000)),
+            ),
+          ),
+        )
+        if (!userGrant || !isGrantEffective(userGrant, tc.now * 1000)) {
+          return fail(
+            'access_denied',
+            `${project.accessPolicy === 'restricted' ? 'project_access_restricted' : 'access_request_required'}: no effective grant`,
+            403,
+          )
+        }
+      }
+    }
   }
 
   return {

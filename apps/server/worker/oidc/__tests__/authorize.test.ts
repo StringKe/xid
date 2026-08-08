@@ -667,6 +667,226 @@ describe('/authorize', () => {
   })
 })
 
+// project access_policy 三模式矩阵(design-access-request 第 2/5 节):
+// 同 org 分支 open 放行;restricted/approval_required 无有效 user_grant 拒绝;
+// expires_at 过期 grant 视同无 grant。机器可读码在 error_description 前缀。
+describe('/authorize project access_policy', () => {
+  function sameOrgGrant(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: 'ug_1',
+      tenant_id: 't_1',
+      user_id: 'u_1',
+      project_id: 'proj_b',
+      role_id: 'role_member',
+      granted_via_grant_id: null,
+      revoked_at: null,
+      expires_at: null,
+      ...overrides,
+    }
+  }
+
+  function sameOrgProjectSetup(
+    accessPolicy: string,
+    userGrants: Record<string, unknown>[] = [],
+    ctx: TenantContext,
+  ): { app: ReturnType<typeof makeApp>; env: Env; capture: D1Capture } {
+    return setup(
+      {
+        applications: [appRow({ project_id: 'proj_b' })],
+        organizations: [
+          {
+            id: 'org_b',
+            tenant_id: 't_1',
+            slug: 'org-b',
+            status: 'active',
+            public_metadata: '{}',
+          },
+        ],
+        memberships: [
+          {
+            id: 'mem_1',
+            tenant_id: 't_1',
+            org_id: 'org_b',
+            user_id: 'u_1',
+            status: 'active',
+          },
+        ],
+        projects: [
+          {
+            id: 'proj_b',
+            tenant_id: 't_1',
+            org_id: 'org_b',
+            status: 'active',
+            access_policy: accessPolicy,
+          },
+        ],
+        user_grants: userGrants,
+      },
+      ctx,
+      activeOrgSession(),
+    )
+  }
+
+  function expectRpError(location: URL, descriptionPrefix: string): void {
+    expect(location.origin + location.pathname).toBe('https://rp.example/cb')
+    expect(location.searchParams.get('error')).toBe('access_denied')
+    expect(location.searchParams.get('error_description')).toContain(descriptionPrefix)
+    expect(location.searchParams.get('state')).toBe('st_abc')
+    expect(location.searchParams.get('code')).toBeNull()
+  }
+
+  function expectCodeIssued(location: URL): void {
+    expect(location.origin + location.pathname).toBe('https://rp.example/cb')
+    expect(location.searchParams.get('code')).toMatch(/^ac_/)
+    expect(location.searchParams.get('error')).toBeNull()
+  }
+
+  it('open 无 grant -> 放行(存量行为)', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = sameOrgProjectSetup('open', [], ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectCodeIssued(new URL(res.headers.get('location') ?? ''))
+  })
+
+  it('restricted 无 grant -> access_denied + project_access_restricted', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env, capture } = sameOrgProjectSetup('restricted', [], ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectRpError(new URL(res.headers.get('location') ?? ''), 'project_access_restricted')
+    expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
+  })
+
+  it('restricted 有有效 grant -> 放行', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = sameOrgProjectSetup('restricted', [sameOrgGrant()], ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectCodeIssued(new URL(res.headers.get('location') ?? ''))
+  })
+
+  it('approval_required 无 grant -> access_denied + access_request_required', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env, capture } = sameOrgProjectSetup('approval_required', [], ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectRpError(new URL(res.headers.get('location') ?? ''), 'access_request_required')
+    expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
+  })
+
+  it('approval_required 有有效 grant -> 放行', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = sameOrgProjectSetup('approval_required', [sameOrgGrant()], ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectCodeIssued(new URL(res.headers.get('location') ?? ''))
+  })
+
+  it('approval_required + expires_at 已过期 grant -> 视同无 grant 拒绝', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env, capture } = sameOrgProjectSetup(
+      'approval_required',
+      [sameOrgGrant({ expires_at: Date.now() - 1000 })],
+      ctx,
+    )
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectRpError(new URL(res.headers.get('location') ?? ''), 'access_request_required')
+    expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
+  })
+
+  it('approval_required + expires_at 未到期 grant -> 放行', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = sameOrgProjectSetup(
+      'approval_required',
+      [sameOrgGrant({ expires_at: Date.now() + 3600_000 })],
+      ctx,
+    )
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectCodeIssued(new URL(res.headers.get('location') ?? ''))
+  })
+})
+
+// org-less 纵深防御:active org 被用户自助清空后,client 绑定非 open project 时
+// resolveAuthorizeRbacContext 不得早退放行;open / 无 projectId 维持 B2C 放行。
+describe('/authorize org-less session + project access_policy', () => {
+  function orgLessProjectSetup(
+    projectId: string | null,
+    accessPolicy: string,
+    ctx: TenantContext,
+  ): { app: ReturnType<typeof makeApp>; env: Env; capture: D1Capture } {
+    return setup(
+      {
+        applications: [appRow(projectId === null ? {} : { project_id: projectId })],
+        projects:
+          projectId === null
+            ? []
+            : [
+                {
+                  id: projectId,
+                  tenant_id: 't_1',
+                  org_id: 'org_b',
+                  status: 'active',
+                  access_policy: accessPolicy,
+                },
+              ],
+      },
+      ctx,
+      session(),
+    )
+  }
+
+  function expectRpDenied(location: URL, descriptionPrefix: string): void {
+    expect(location.origin + location.pathname).toBe('https://rp.example/cb')
+    expect(location.searchParams.get('error')).toBe('access_denied')
+    expect(location.searchParams.get('error_description')).toContain(descriptionPrefix)
+    expect(location.searchParams.get('state')).toBe('st_abc')
+    expect(location.searchParams.get('code')).toBeNull()
+  }
+
+  it('org-less + restricted -> access_denied + project_access_restricted', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env, capture } = orgLessProjectSetup('proj_b', 'restricted', ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectRpDenied(new URL(res.headers.get('location') ?? ''), 'project_access_restricted')
+    expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
+  })
+
+  it('org-less + approval_required -> access_denied + access_request_required', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env, capture } = orgLessProjectSetup('proj_b', 'approval_required', ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    expectRpDenied(new URL(res.headers.get('location') ?? ''), 'access_request_required')
+    expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
+  })
+
+  it('org-less + open -> 放行(B2C 回归)', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = orgLessProjectSetup('proj_b', 'open', ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    const location = new URL(res.headers.get('location') ?? '')
+    expect(location.origin + location.pathname).toBe('https://rp.example/cb')
+    expect(location.searchParams.get('code')).toMatch(/^ac_/)
+    expect(location.searchParams.get('error')).toBeNull()
+  })
+
+  it('org-less + 无 projectId -> 放行(B2C 回归)', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = orgLessProjectSetup(null, 'restricted', ctx)
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+    expect(res.status).toBe(302)
+    const location = new URL(res.headers.get('location') ?? '')
+    expect(location.origin + location.pathname).toBe('https://rp.example/cb')
+    expect(location.searchParams.get('code')).toMatch(/^ac_/)
+    expect(location.searchParams.get('error')).toBeNull()
+  })
+})
+
 describe('/authorize errors', () => {
   it('未知 client -> 本地错误页(不重定向)', async () => {
     const { ctx } = await buildTestTenant()

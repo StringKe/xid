@@ -12,7 +12,7 @@ import {
 } from '@xid-kit/protocol'
 import type { AuthorizeRequest, ClientRegistration } from '@xid-kit/protocol'
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import type { Result, XidError } from '@xid-kit/types'
 import type { Context, Hono } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
@@ -20,7 +20,7 @@ import * as v from 'valibot'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { renderProtocolErrorPage } from '../lib/error-page'
 import { clientRequiresBba, clientRequiresFapi } from './client-policy'
-import { findClient, loadActiveSigner, resolveAccessTtlSec } from './shared'
+import { findClient, isGrantEffective, loadActiveSigner, resolveAccessTtlSec } from './shared'
 import type { ClientRow } from './shared'
 import { resolveResponseMode, respondToRp, signAuthorizationResponseJwt } from './authorize-respond'
 import { resolvePar } from './par'
@@ -196,6 +196,23 @@ async function resolveAuthorizeRbacContext(
     if (input.client.requireOrgContext) {
       return authzFail('access_denied', 'organization context required', 403)
     }
+    // 纵深防御:active org 可被用户自助清空,无 org 上下文不得绕过 project access policy 门;
+    // 无有效同 org user_grant 可能的 org-less 会话对非 open project 一律拒绝(与下方同 org
+    // 分支同错误前缀)。仅 client 绑定 project 才查,open / 无 projectId 短路,B2C 公开
+    // client 热路径不新增查询。
+    if (input.client.projectId) {
+      const db = createTenantDb(c.env.DB, c.get('tenant'))
+      const project = await db.projects.findOne(
+        and(eq(schema.projects.id, input.client.projectId), eq(schema.projects.status, 'active')),
+      )
+      if (!project) return authzFail('unauthorized_client', 'application project not found')
+      if (project.accessPolicy === 'restricted') {
+        return authzFail('access_denied', 'project_access_restricted: no effective grant', 403)
+      }
+      if (project.accessPolicy === 'approval_required') {
+        return authzFail('access_denied', 'access_request_required: no effective grant', 403)
+      }
+    }
     return { ok: true, value: { activeOrgId: null, projectGrantId: null } }
   }
   if (!input.client.projectId) {
@@ -208,6 +225,28 @@ async function resolveAuthorizeRbacContext(
   )
   if (!project) return authzFail('unauthorized_client', 'application project not found')
   if (project.orgId === active.value.id) {
+    // access_policy 分流(design-access-request 第 2 节):open 放行(= 现状);其余要求有效
+    // 同 org user_grant(granted_via_grant_id 为空、未 revoked、未过 expires_at)。
+    // 机器可读码放 error_description 前缀(OAuth 仅 error/error_description 两字段可回传)。
+    const policy = project.accessPolicy
+    if (policy === 'restricted' || policy === 'approval_required') {
+      // expires_at 谓词与 isGrantEffective 双重判定:多行(不同 role / 复活后新旧行)时
+      // findOne 只命中有效行,不会任意取到过期行误拒有效用户。
+      const userGrant = await db.userGrants.findOne(
+        and(
+          eq(schema.userGrants.userId, input.session.userId),
+          eq(schema.userGrants.projectId, project.id),
+          isNull(schema.userGrants.grantedViaGrantId),
+          isNull(schema.userGrants.revokedAt),
+          or(isNull(schema.userGrants.expiresAt), gt(schema.userGrants.expiresAt, new Date())),
+        ),
+      )
+      if (!userGrant || !isGrantEffective(userGrant, Date.now())) {
+        return policy === 'restricted'
+          ? authzFail('access_denied', 'project_access_restricted: no effective grant', 403)
+          : authzFail('access_denied', 'access_request_required: no effective grant', 403)
+      }
+    }
     return { ok: true, value: { activeOrgId: active.value.id, projectGrantId: null } }
   }
 
