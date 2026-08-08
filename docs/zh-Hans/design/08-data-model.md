@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=0103317191d149076ca42cbe03c5898257990b50 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=d84c2deb45ac965183ae03f942eb5fb580f14227 -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -61,6 +61,8 @@ User -> Session -> Token
 | Project      | 角色命名空间,跨 App 共享角色          | 属于 Organization            |
 | Application  | OIDC/SAML 客户端                      | 属于 Project                 |
 | ProjectGrant | 跨组织授权                            | 连接 Project 与被授权 Org    |
+| OrgUnit      | org 内业务树节点(部门/团队,汇报线)  | 属于 Organization,自嵌套深度上限 8 |
+| OrgUnitMember| 用户在 unit 树中的放置(主岗/兼岗)   | 连接 User 与 OrgUnit         |
 | OrgPolicy    | per-org 策略覆盖(SSO/MFA/会话/密码)   | 属于 Organization            |
 | OrgBranding  | per-org 品牌(logo/配色/CSS)           | 属于 Organization            |
 | OrgMetadata  | public/private 元数据                 | 属于 Organization            |
@@ -96,6 +98,7 @@ User -> Session -> Token
 | RolePermission    | 角色与权限映射                           |
 | UserGrant         | 用户在 Project/Org 的角色授予            |
 | ManagerAssignment | 平台管理角色(instance/org/project/grant) |
+| AccessRequest     | 自助 Project 访问申请及其审批决定        |
 
 ### 组织成员
 
@@ -234,6 +237,10 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 | refresh_tokens       | `UNIQUE (token_hash)`                            | hash 全局唯一(见 03 章 11.1)                                    |
 | roles                | `UNIQUE (tenant_id, project_id, key)`            | role key 在 project 内唯一                                      |
 | permissions          | `UNIQUE (tenant_id, project_id, key)`            | permission key 在 project 内唯一                                |
+| org_units            | `UNIQUE (tenant_id, org_id, parent_unit_id, slug)` | unit slug 同级唯一(parent 为 NULL 的根行不参与 SQLite NULL 比较,见 10.2b) |
+| org_units            | `UNIQUE (tenant_id, path)`                       | 物化路径租户内唯一(并发创建兜底,见 10.2b)                     |
+| org_unit_members     | partial `UNIQUE (tenant_id, org_id, user_id) WHERE is_primary = 1` | 每 user 每 org 至多一个主岗(见 10.2c)     |
+| access_requests      | partial `UNIQUE (tenant_id, project_id, requester_user_id) WHERE status = 'pending'` | 同 (user, project) 至多一个 pending(见 13.6) |
 
 > SQLite UNIQUE 索引把多个 NULL 视为互异(不冲突),故 external_id/username 可空且约束生效。
 
@@ -368,6 +375,61 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 Cloudflare Custom Hostname。显式删除后保留 global tombstone,避免 stale DNS 被不同 tenant 接管。
 从未验证且已过期的 reservation 只有在 remote Cloudflare delete 成功后才物理删除。
 
+### 10.2b org_units(org 内业务树节点,见 02 章 1)
+
+OrgUnit 是单个 Organization 内部的层级业务节点(部门/团队),不携带租户边界语义:不参与
+TenantContext、不承担 issuer/RPID 角色、不进 token claim。树结构结合邻接
+(`parent_unit_id`)与物化路径。
+
+| 字段                    | 类型          | 约束      | 默认       | 说明                                                              |
+| ----------------------- | ------------- | --------- | ---------- | ----------------------------------------------------------------- |
+| id                      | text          | PK        | `ou_`+id   |                                                                   |
+| tenant_id               | text          | NOT NULL  | --         | 顶层 org id(隔离键,注入第一列)                                  |
+| org_id                  | text          | NOT NULL  | --         | 所属 Organization(顶层或 sub-org)                                |
+| parent_unit_id          | text          | null      | null       | 邻接父节点;null 表示根节点                                        |
+| path                    | text          | NOT NULL  | --         | 物化路径 `/<id>/<id>/.../<id>`,含自身;根为 `/<id>`               |
+| depth                   | integer number| NOT NULL  | --         | 根 = 1;上限 8 由应用层强制                                        |
+| slug                    | text          | NOT NULL  | --         | 同级唯一                                                          |
+| name                    | text          | NOT NULL  | --         | 展示名                                                            |
+| manager_user_id         | text          | null      | null       | 业务汇报线负责人;审批路由数据源,无控制面效果                      |
+| status                  | text          | NOT NULL  | `'active'` | `active`/`archived`;归档节点退出经理解析与成员查询                |
+| created_at / updated_at | integer ts_ms | NOT NULL  | 见 9.3     |                                                                   |
+
+索引:`UNIQUE(tenant_id, org_id, parent_unit_id, slug)`、`UNIQUE(tenant_id, path)`、
+`INDEX(tenant_id, org_id)`、`INDEX(tenant_id, org_id, parent_unit_id)`、
+`INDEX(tenant_id, path)`、`INDEX(tenant_id, manager_user_id)`。
+
+物化路径规则:应用层在创建事务内生成 `path = parent.path + '/' + id` 与
+`depth = parent.depth + 1`;子树移动用一条 `WHERE path LIKE node.path || '/%'` 批量 UPDATE
+重写本节点及全部后代的 `path`/`depth`,移动到自身后代或移动后超深度上限都会被拒绝。与所有
+XID 表一致,无 FK;树一致性集中在 `packages/db/src/org-units.ts`。注意 SQLite NULL 语义使根行
+(`parent_unit_id IS NULL`)不参与同级 slug 唯一索引,因此 v1 接受根节点 slug 重名——根树
+通常只有一个「公司」节点,重名不破坏任何查询。
+
+### 10.2c org_unit_members(用户在树中的放置,见 02 章 1)
+
+用户在 Organization unit 树中的放置(主岗/兼岗)。加入 unit 的前置条件是持有同 Organization
+的 active Membership。
+
+| 字段                    | 类型            | 约束     | 默认      | 说明                                       |
+| ----------------------- | --------------- | -------- | --------- | ------------------------------------------ |
+| id                      | text            | PK       | `oum_`+id |                                            |
+| tenant_id               | text            | NOT NULL | --        | 隔离键                                     |
+| org_id                  | text            | NOT NULL | --        | 冗余自 unit,查询免 join                    |
+| unit_id                 | text            | NOT NULL | --        | 放置目标                                   |
+| user_id                 | text            | NOT NULL | --        |                                            |
+| is_primary              | integer boolean | NOT NULL | `0`       | 主岗:审批人解析的汇报线起点                |
+| created_at / updated_at | integer ts_ms   | NOT NULL | 见 9.3    |                                            |
+
+索引:`UNIQUE(unit_id, user_id)`、partial
+`UNIQUE(tenant_id, org_id, user_id) WHERE is_primary = 1`(每 user 每 org 一个主岗)、
+`INDEX(tenant_id, user_id)`、`INDEX(tenant_id, org_id, user_id)`、
+`INDEX(tenant_id, unit_id)`。
+
+只有主岗参与经理解析;兼岗(`is_primary = 0`)只回答「按节点查成员」。设主岗/换主岗是一条
+事务(清旧主岗、设新主岗),partial unique index 兜底并发。Membership 失效不同时删 unit
+成员行:读取路径全部 join Membership 状态,悬挂行不可见,物理清理由后续维护任务处理(v1 不做)。
+
 ### 10.3 projects(角色命名空间)
 
 | 字段                    | 类型          | 约束                                               | 默认           | 说明                                     |
@@ -378,6 +440,7 @@ Cloudflare Custom Hostname。显式删除后保留 global tombstone,避免 stale
 | name                    | text          | NOT NULL                                           | --             |                                          |
 | description             | text          | null                                               | null           |                                          |
 | status                  | text          | NOT NULL                                           | `'active'`     | `active`/`deleted`;runtime 仅接受 active |
+| access_policy           | text          | NOT NULL                                           | `'open'`       | `open`/`restricted`/`approval_required`(见 02 章 7.5);默认保持既有行为 |
 | deleted_at              | integer ts_ms | null                                               | null           | 可恢复 Management API delete 标记        |
 | created_at / updated_at | integer ts_ms | NOT NULL                                           | 见 9.3         |                                          |
 
@@ -801,6 +864,8 @@ target 列。核销时把签名 `email_hash` 与当前 primary Email 或 `users.
 | project_id              | text          | NOT NULL, FK -> projects.id ON DELETE cascade   | --           |                                                     |
 | role_id                 | text          | NOT NULL, FK -> roles.id ON DELETE cascade      | --           |                                                     |
 | granted_via_grant_id    | text          | FK -> project_grants.id ON DELETE cascade, null | null         | 非 null 走 Grant 查询路径(见 02 章 7.4)             |
+| granted_via_request_id  | text          | null                                            | null         | 溯源到已批准的 access_requests 行(见 13.6);与 granted_via_grant_id 互斥 |
+| expires_at              | integer ts_ms | null                                            | null         | null = 永久;过期即 just-in-time grant 失效,在每个检查点视同无 grant(见 02 章 7.5) |
 | revoked_at              | integer ts_ms | null                                            | null         | Grant 撤销时级联标记(不物理删,见 02 章 7.4)         |
 | created_at / updated_at | integer ts_ms | NOT NULL                                        | 见 9.3       |                                                     |
 
@@ -821,6 +886,36 @@ target 列。核销时把签名 `email_hash` 与当前 primary Email 或 `users.
 | created_at / updated_at | integer ts_ms | NOT NULL                                   | 见 9.3        |                                                                                        |
 
 索引:partial `UNIQUE(tenant_id, user_id, manager_role, scope_type, scope_id) WHERE scope_id IS NOT NULL`、partial `UNIQUE(tenant_id, user_id, manager_role, scope_type) WHERE manager_role = 'instance_manager' AND scope_type = 'instance' AND scope_id IS NULL`、`INDEX(tenant_id, user_id)`、`INDEX(scope_type, scope_id)`。
+
+### 13.6 access_requests(Project 访问申请,见 02 章 7.5)
+
+Organization active member 对 `access_policy` 为 `approval_required` 的 Project 发起的自助访问
+申请。批准写入的 `user_grants` 行通过 `granted_via_request_id` 引用本请求。
+
+| 字段                    | 类型          | 约束     | 默认        | 说明                                                       |
+| ----------------------- | ------------- | -------- | ----------- | ---------------------------------------------------------- |
+| id                      | text          | PK       | `ar_`+id    |                                                            |
+| tenant_id               | text          | NOT NULL | --          | 隔离键                                                     |
+| org_id                  | text          | NOT NULL | --          | 申请发生的 Organization(= requester 的 active org)         |
+| project_id              | text          | NOT NULL | --          | 被申请的 Project                                           |
+| role_id                 | text          | null     | null        | 申请的角色;null 表示由审批人决定                           |
+| requester_user_id       | text          | NOT NULL | --          |                                                            |
+| justification           | text          | null     | null        | 自由文本,API 边界限制长度                                  |
+| status                  | text          | NOT NULL | `'pending'` | `pending`/`approved`/`denied`/`cancelled`/`expired`;非 pending 均为终态 |
+| approver_user_id        | text          | null     | null        | 实际处理人                                                 |
+| decided_at              | integer ts_ms | null     | null        |                                                            |
+| decision_reason         | text          | null     | null        | deny 时必填                                                |
+| grant_expires_at        | integer ts_ms | null     | null        | 批准后写入 `user_grants.expires_at`(JIT 窗口)              |
+| created_at / updated_at | integer ts_ms | NOT NULL | 见 9.3      |                                                            |
+
+索引:partial `UNIQUE(tenant_id, project_id, requester_user_id) WHERE status = 'pending'`
+(同 user 同 project 至多一个 pending)、`INDEX(tenant_id, org_id, status, id)`、
+`INDEX(tenant_id, project_id, status)`、`INDEX(tenant_id, requester_user_id, status)`、
+`INDEX(tenant_id, approver_user_id, status)`。
+
+过期是惰性的:`created_at` 超 14 天的 pending 请求在读取时翻转为 `expired`(无 cron)。
+approve/deny 使用针对 `status = 'pending'` 的条件 UPDATE,并发双重决定以冲突失败,不会破坏
+状态机。
 
 ## 14. 组织成员实体(见 02 章 2)
 

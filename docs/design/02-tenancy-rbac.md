@@ -15,6 +15,27 @@ Instance (platform operations layer, the IAM operator view, can manage across ev
 This mirrors Zitadel's four layers. By comparison, Auth0, Clerk, and WorkOS mostly use a single flat
 Organization level with no Project layer.
 
+### OrgUnit (in-org business structure)
+
+An OrgUnit is a hierarchical node (department/team) inside one Organization. It is pure business
+structure and carries no tenant-boundary semantics: it never participates in TenantContext
+resolution, issuer or RPID selection, and never appears in token claims. This is the semantic line
+against SubOrg -- a SubOrg is a tenant boundary (its own slug domain, branding, policy, and
+enrollment), while an OrgUnit is only an organizational placement plus an approval-routing data
+source.
+
+- An OrgUnit belongs to exactly one Organization (top-level or sub-org, referenced by `org_id`);
+  `tenant_id` remains the top-level Organization id, so tenant isolation injection is unchanged.
+- The tree combines adjacency (`parent_unit_id`) with a materialized path (`path = parent.path +
+  '/' + id`, root `/<id>`, including the node itself), so subtree and ancestor queries are prefix
+  scans. Depth is capped at 8 (root = 1), enforced in the application layer -- the same strategy as
+  the SubOrg depth limit.
+- Tree consistency (path generation, depth checks, subtree moves) is centralized in
+  `packages/db/src/org-units.ts` behind transactions; the tables carry no foreign keys, matching the
+  existing schema style.
+- The Organization layer stays flat with one level of SubOrg; OrgUnit does not relax that rule and
+  SubOrg nesting is unchanged.
+
 ### Design decisions
 
 - An Organization supports one level of sub-organization (Team/SubOrg) and no deeper nesting, because
@@ -27,7 +48,8 @@ Organization level with no Project layer.
 
 The core entities are Instance, Organization, Project, Application, and ProjectGrant (see chapter
 08): a four-level ownership chain, where an Organization may have one level of parent/child
-relationship.
+relationship. OrgUnit and OrgUnitMember (see chapter 08 sections 10.2b and 10.2c) model the in-org
+business tree described above.
 
 ### Self-service top-level Tenant onboarding
 
@@ -153,6 +175,20 @@ The same-origin Console and Management API expose the control plane that owns th
 Provisioning a Project or ProjectGrant manager is an Organization-level privilege; holding the same
 Project manager role is not delegation authority. There is still one Console product, not a separate
 admin application or tenant.
+
+### Business reporting line versus the control plane
+
+`org_units.manager_user_id` and `manager_assignments` are deliberately separate and never share a
+namespace:
+
+- `org_units.manager_user_id` is the business reporting line -- who leads a department or team. It
+  grants no `/v1` authorization by itself; its only authorization consumer is approver resolution
+  for Project access requests (see section 7.5).
+- `manager_assignments` is the control plane -- it alone drives Management API authorization through
+  the fixed role/scope pairs above.
+
+A department head is therefore not implicitly an Org or Project manager, and revoking a manager
+assignment never changes the reporting line.
 
 ### Business RBAC (Project/Application layer)
 
@@ -604,3 +640,62 @@ path this token takes:
   `error_description: user not authorized via grant`
 - The ProjectGrant exists but the Application is not under the granted Project:
   `error: unauthorized_client`
+
+### 7.5 Project access policy and AccessRequest
+
+Each Project carries an `access_policy` column (default `open`, opt-in per Project) that governs the
+same-Organization authorization branch (`project.org_id === active_org.id`; the cross-org
+ProjectGrant path in 7.4 is unaffected):
+
+| policy              | Same-org user without an effective UserGrant          | Self-service entry             |
+| ------------------- | ----------------------------------------------------- | ------------------------------ |
+| `open`              | Allowed (the pre-existing behavior)                   | None needed                    |
+| `restricted`        | Denied (`access_denied`)                              | None; an admin creates the grant directly |
+| `approval_required` | Denied with an identifiable error                     | Self-service AccessRequest     |
+
+An "effective UserGrant" is a same-org grant row (`granted_via_grant_id IS NULL`) that is not
+revoked and not past `expires_at`; an expired grant is treated as no grant at every check point
+(`/authorize` and token issuance alike), which is what makes the JIT window enforceable. Changing
+`access_policy` is itself audited (`project.access_policy_changed`); tightening a policy does not
+revoke already-issued tokens -- they age out naturally while the grant re-check runs on every token
+issuance.
+
+**AccessRequest state machine**:
+
+```
+pending --approve--> approved      (writes user_grants in the same transaction)
+pending --deny-----> denied        (decision_reason required)
+pending --cancel---> cancelled     (the requester only)
+pending --expire---> expired       (lazy: pending and created_at older than 14 days)
+```
+
+All four outcomes are terminal. Expiry is lazy: a pending request older than 14 days is flipped to
+`expired` on read (no cron). At most one pending request per `(user, project)` exists at a time,
+backed by a partial unique index.
+
+**Approver resolution** (`resolveAccessRequestApprover`), first hit that is not the requester wins;
+a hit equal to the requester is skipped and resolution falls through, because an approver can never
+decide their own request:
+
+1. The OrgUnit reporting line: the nearest active `manager_user_id` walking up the ancestor chain
+   from the requester's primary unit (`resolveApproverChain`)
+2. The exact `project_manager` ManagerAssignment for the Project (earliest `created_at` when
+   several exist)
+3. The exact `org_manager` ManagerAssignment for the Organization (same tie-break)
+
+When the chain is empty, approve/deny return `no_available_approver`; the documented fallback is an
+org manager operating `user_grants` directly through the existing `/v1` Management API. Approval
+writes a `user_grants` row carrying `granted_via_request_id` for traceability plus an optional
+`expires_at` for just-in-time time-boxed authorization.
+
+**Capability boundaries**:
+
+- Invitation brings a user into the Organization (Membership); AccessRequest grants an existing
+  active member access to one Project -- a different layer.
+- SCIM provisions users and memberships from the enterprise directory; it is not a Project
+  authorization channel and v1 maps no directory group to an OrgUnit or Project role.
+- ProjectGrant authorizes users of another Organization cross-org; `access_policy` and AccessRequest
+  apply only to the same-org branch and never gate the Grant path.
+
+The wire surface lives in chapter 06 section 7 (Management API) and the `/auth/access-requests` /
+`/auth/access-approvals` session endpoints; v1 ships no UI page for either flow.

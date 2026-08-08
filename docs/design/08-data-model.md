@@ -70,6 +70,8 @@ User -> Session -> Token
 | Project      | Role namespace, sharing roles across Apps                                 | Belongs to an Organization                            |
 | Application  | OIDC/SAML client                                                          | Belongs to a Project                                  |
 | ProjectGrant | Cross-organization authorization                                          | Connects a Project to the granted Org                 |
+| OrgUnit      | In-org business tree node (department/team, reporting line)               | Belongs to an Organization, self-nesting up to depth 8 |
+| OrgUnitMember| A user's placement in the unit tree (primary/secondary post)              | Connects a User to an OrgUnit                         |
 | OrgPolicy    | Per-org policy override (SSO/MFA/session/password)                        | Belongs to an Organization                            |
 | OrgBranding  | Per-org branding (logo/colors/CSS)                                        | Belongs to an Organization                            |
 | OrgMetadata  | Public and private metadata                                               | Belongs to an Organization                            |
@@ -105,6 +107,7 @@ User -> Session -> Token
 | RolePermission    | The role-to-permission mapping                          |
 | UserGrant         | A user's role grant within a Project or Org             |
 | ManagerAssignment | A platform management role (instance/org/project/grant) |
+| AccessRequest     | A self-service Project access request plus its decision |
 
 ### Organization membership
 
@@ -263,6 +266,10 @@ tenant_id**, so the same value in different tenants does not collide:
 | refresh_tokens       | `UNIQUE (token_hash)`                            | Globally unique hash (see chapter 03 section 11.1)                                                              |
 | roles                | `UNIQUE (tenant_id, project_id, key)`            | Role key unique within the project                                                                              |
 | permissions          | `UNIQUE (tenant_id, project_id, key)`            | Permission key unique within the project                                                                        |
+| org_units            | `UNIQUE (tenant_id, org_id, parent_unit_id, slug)` | Unit slug unique among siblings (root rows with NULL parent fall outside SQLite NULL comparison, see 10.2b)   |
+| org_units            | `UNIQUE (tenant_id, path)`                       | Materialized path unique within the tenant (concurrent-create backstop, see 10.2b)                            |
+| org_unit_members     | partial `UNIQUE (tenant_id, org_id, user_id) WHERE is_primary = 1` | One primary post per user per org (see 10.2c)                                          |
+| access_requests      | partial `UNIQUE (tenant_id, project_id, requester_user_id) WHERE status = 'pending'` | At most one pending request per user and project (see 13.6)                |
 
 > A SQLite UNIQUE index treats multiple NULLs as distinct (no collision), which is why external_id and
 > username can be nullable and still constrained.
@@ -405,6 +412,64 @@ DNS name can be attached to only one Cloudflare Custom Hostname. An explicit del
 a global tombstone so stale DNS cannot be claimed by a different tenant. Expired, never-verified
 reservations are physically removed only after the remote Cloudflare delete succeeds.
 
+### 10.2b org_units (in-org business tree nodes, see chapter 02 section 1)
+
+An OrgUnit is a hierarchical business node (department/team) inside one Organization. It carries no
+tenant-boundary semantics: no TenantContext participation, no issuer/RPID role, no token claims. The
+tree combines adjacency (`parent_unit_id`) with a materialized path.
+
+| Field                   | Type          | Constraints                       | Default    | Notes                                                                                          |
+| ----------------------- | ------------- | --------------------------------- | ---------- | ---------------------------------------------------------------------------------------------- |
+| id                      | text          | PK                                | `ou_`+id   |                                                                                                |
+| tenant_id               | text          | NOT NULL                          | --         | The top-level org id (isolation key, injected first)                                           |
+| org_id                  | text          | NOT NULL                          | --         | The owning Organization (top-level or sub-org)                                                 |
+| parent_unit_id          | text          | nullable                          | null       | Adjacency parent; null marks a root node                                                       |
+| path                    | text          | NOT NULL                          | --         | Materialized path `/<id>/<id>/.../<id>` including the node itself; root is `/<id>`             |
+| depth                   | integer number| NOT NULL                          | --         | Root = 1; the cap of 8 is enforced in the application layer                                    |
+| slug                    | text          | NOT NULL                          | --         | Unique among siblings                                                                          |
+| name                    | text          | NOT NULL                          | --         | Display name                                                                                   |
+| manager_user_id         | text          | nullable                          | null       | Business reporting-line head; the approval-routing data source, no control-plane effect        |
+| status                  | text          | NOT NULL                          | `'active'`| `active`/`archived`; archived nodes drop out of manager resolution and member queries          |
+| created_at / updated_at | integer ts_ms | NOT NULL                          | See 9.3    |                                                                                                |
+
+Indexes: `UNIQUE(tenant_id, org_id, parent_unit_id, slug)`, `UNIQUE(tenant_id, path)`,
+`INDEX(tenant_id, org_id)`, `INDEX(tenant_id, org_id, parent_unit_id)`, `INDEX(tenant_id, path)`,
+`INDEX(tenant_id, manager_user_id)`.
+
+Materialized path rules: the application layer generates `path = parent.path + '/' + id` and
+`depth = parent.depth + 1` inside the creation transaction; a subtree move rewrites `path`/`depth`
+for the node and every descendant with one `WHERE path LIKE node.path || '/%'` batch UPDATE, and
+rejects a move onto its own descendant or one that would exceed the depth cap. As in every XID
+table there is no foreign key; tree consistency lives in `packages/db/src/org-units.ts`. Note that
+SQLite NULL semantics exclude root rows (`parent_unit_id IS NULL`) from the sibling-slug unique
+index, so duplicate root slugs are accepted in v1 -- root trees typically hold a single company node
+and the duplication breaks no query.
+
+### 10.2c org_unit_members (user placement in the tree, see chapter 02 section 1)
+
+A user's placement inside an Organization's unit tree (primary post versus secondary post). An
+active Membership in the same Organization is a precondition for joining a unit.
+
+| Field                   | Type            | Constraints | Default | Notes                                                                                |
+| ----------------------- | --------------- | ----------- | ------- | ------------------------------------------------------------------------------------ |
+| id                      | text            | PK          | `oum_`+id |                                                                                    |
+| tenant_id               | text            | NOT NULL    | --      | Isolation key                                                                        |
+| org_id                  | text            | NOT NULL    | --      | Denormalized from the unit, so queries need no join                                  |
+| unit_id                 | text            | NOT NULL    | --      | The placement target                                                                 |
+| user_id                 | text            | NOT NULL    | --      |                                                                                      |
+| is_primary              | integer boolean | NOT NULL    | `0`     | Primary post: the reporting-line start for approver resolution                       |
+| created_at / updated_at | integer ts_ms   | NOT NULL    | See 9.3 |                                                                                      |
+
+Indexes: `UNIQUE(unit_id, user_id)`, partial
+`UNIQUE(tenant_id, org_id, user_id) WHERE is_primary = 1` (one primary post per user per org),
+`INDEX(tenant_id, user_id)`, `INDEX(tenant_id, org_id, user_id)`, `INDEX(tenant_id, unit_id)`.
+
+Only the primary post feeds manager resolution; secondary posts (`is_primary = 0`) answer "members
+of this node" queries only. Setting or switching a primary post is one transaction (clear the old
+primary, set the new one) with the partial unique index as the concurrency backstop. Losing the
+Organization Membership does not delete unit member rows; every read path joins Membership status,
+so dangling rows are invisible, and physical cleanup is a later maintenance task (not in v1).
+
 ### 10.3 projects (role namespace)
 
 | Field                   | Type          | Constraints                                        | Default        | Notes                                           |
@@ -415,6 +480,7 @@ reservations are physically removed only after the remote Cloudflare delete succ
 | name                    | text          | NOT NULL                                           | --             |                                                 |
 | description             | text          | nullable                                           | null           |                                                 |
 | status                  | text          | NOT NULL                                           | `'active'`     | `active`/`deleted`; runtime accepts active only |
+| access_policy           | text          | NOT NULL                                           | `'open'`       | `open`/`restricted`/`approval_required` (see chapter 02 section 7.5); default preserves existing behavior |
 | deleted_at              | integer ts_ms | nullable                                           | null           | Reversible Management API deletion marker       |
 | created_at / updated_at | integer ts_ms | NOT NULL                                           | See 9.3        |                                                 |
 
@@ -869,6 +935,8 @@ Indexes: `UNIQUE(tenant_id, role_id, permission_id)`, `INDEX(tenant_id, role_id)
 | project_id              | text          | NOT NULL, FK -> projects.id ON DELETE cascade       | --           |                                                                                                  |
 | role_id                 | text          | NOT NULL, FK -> roles.id ON DELETE cascade          | --           |                                                                                                  |
 | granted_via_grant_id    | text          | FK -> project_grants.id ON DELETE cascade, nullable | null         | Non-null takes the Grant query path (see chapter 02 section 7.4)                                 |
+| granted_via_request_id  | text          | nullable                                            | null         | Traceability to the approved access_requests row (see 13.6); mutually exclusive with granted_via_grant_id |
+| expires_at              | integer ts_ms | nullable                                            | null         | Null means permanent; a past timestamp is a just-in-time grant treated as no grant at every check (see chapter 02 section 7.5) |
 | revoked_at              | integer ts_ms | nullable                                            | null         | Marked in cascade when the Grant is revoked (not physically deleted, see chapter 02 section 7.4) |
 | created_at / updated_at | integer ts_ms | NOT NULL                                            | See 9.3      |                                                                                                  |
 
@@ -896,6 +964,37 @@ Indexes: partial `UNIQUE(tenant_id, user_id, manager_role, scope_type, scope_id)
 NOT NULL`, partial `UNIQUE(tenant_id, user_id, manager_role, scope_type) WHERE manager_role =
 'instance_manager' AND scope_type = 'instance' AND scope_id IS NULL`,
 `INDEX(tenant_id, user_id)`, `INDEX(scope_type, scope_id)`.
+
+### 13.6 access_requests (Project access requests, see chapter 02 section 7.5)
+
+A self-service request from an active Organization member for access to a Project whose
+`access_policy` is `approval_required`. Approval writes a `user_grants` row referencing this request
+through `granted_via_request_id`.
+
+| Field                   | Type          | Constraints | Default     | Notes                                                                                  |
+| ----------------------- | ------------- | ----------- | ----------- | -------------------------------------------------------------------------------------- |
+| id                      | text          | PK          | `ar_`+id    |                                                                                        |
+| tenant_id               | text          | NOT NULL    | --          | Isolation key                                                                          |
+| org_id                  | text          | NOT NULL    | --          | The Organization the request happens in (the requester's active org)                   |
+| project_id              | text          | NOT NULL    | --          | The requested Project                                                                  |
+| role_id                 | text          | nullable    | null        | The requested role; null leaves the choice to the approver                             |
+| requester_user_id       | text          | NOT NULL    | --          |                                                                                        |
+| justification           | text          | nullable    | null        | Free text, capped at the API boundary                                                  |
+| status                  | text          | NOT NULL    | `'pending'` | `pending`/`approved`/`denied`/`cancelled`/`expired`; all non-pending states are terminal |
+| approver_user_id        | text          | nullable    | null        | The user who actually decided                                                          |
+| decided_at              | integer ts_ms | nullable    | null        |                                                                                        |
+| decision_reason         | text          | nullable    | null        | Required on deny                                                                       |
+| grant_expires_at        | integer ts_ms | nullable    | null        | Copied to `user_grants.expires_at` on approval (the JIT window)                        |
+| created_at / updated_at | integer ts_ms | NOT NULL    | See 9.3     |                                                                                        |
+
+Indexes: partial `UNIQUE(tenant_id, project_id, requester_user_id) WHERE status = 'pending'` (at
+most one pending request per user and project), `INDEX(tenant_id, org_id, status, id)`,
+`INDEX(tenant_id, project_id, status)`, `INDEX(tenant_id, requester_user_id, status)`,
+`INDEX(tenant_id, approver_user_id, status)`.
+
+Expiry is lazy: a pending request whose `created_at` is older than 14 days flips to `expired` on
+read (no cron). Approve/deny run as conditional UPDATEs against `status = 'pending'`, so a
+concurrent double decision loses with a conflict instead of corrupting the state machine.
 
 ## 14. Organization membership entities (see chapter 02 section 2)
 
