@@ -148,6 +148,8 @@ export const projects = sqliteTable(
     name: text('name').notNull(),
     description: text('description'),
     status: text('status').notNull().default('active'),
+    // 'open' | 'restricted' | 'approval_required'(见 design-access-request 1.1);默认 open = 存量行为。
+    accessPolicy: text('access_policy').notNull().default('open'),
     deletedAt: tsMs('deleted_at'),
     ...timestamps(),
   },

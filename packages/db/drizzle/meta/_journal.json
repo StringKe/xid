@@ -85,6 +85,27 @@
       "when": 1785341748133,
       "tag": "0011_invitation_email_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1786127423784,
+      "tag": "0012_org_units",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1786130376015,
+      "tag": "0013_access_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1786168006844,
+      "tag": "0014_org_units_path_scope",
+      "breakpoints": true
     }
   ]
 }
