@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=b4a4ac15ef8c414ec2e84bc2f152bb1b7fc07b56 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=a8fa4235d52835e6ae53527be899507e5987e65c -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -393,6 +393,8 @@ JWT handoff。Core 浏览器 session 必须先完成一次同源 cookie-to-JWT e
 | roles/permissions    | CRUD、delete、restore                                                     |
 | role-permissions     | list/create/update/delete,校验同一 Project 与 ABAC                        |
 | manager-assignments  | tenant-scoped list/provision/revoke;instance manager 走独立 platform path |
+| org-units            | 树 CRUD、move、archive 与成员放置(见下文)                                 |
+| access-requests      | Organization 内 list/get,支持 status 与 project 过滤(见下文)              |
 | project-grants       | list/get/create/revoke/delete                                             |
 | user-grants          | list/get/create/reactivate/revoke/delete                                  |
 | webhooks             | CRUD、delete、restore                                                     |
@@ -425,6 +427,35 @@ ManagerAssignment provisioning 是显式能力。tenant role 使用 `/v1/manager
 `project_grant_manager`/`grant`。cookie-only `/v1/platform/manager-assignments` 独立拥有
 `instance_manager` provisioning,与 tenant-scoped API 分离。
 
+OrgUnit 管理挂在 `/v1/organizations/:orgId/units` 下,由携带 `org-units:read` /
+`org-units:write` 的 API key 或 org manager cookie session 鉴权:
+
+| 方法   | 路径                                                      | 说明                                   |
+| ------ | --------------------------------------------------------- | -------------------------------------- |
+| GET    | `/v1/organizations/:orgId/units`                          | `?parent_unit_id=` 过滤;默认按 path 排序返回整树 |
+| POST   | `/v1/organizations/:orgId/units`                          | 创建节点(深度上限 8)                   |
+| GET    | `/v1/organizations/:orgId/units/:unitId`                  | 详情,含 `depth`/`path`                 |
+| PATCH  | `/v1/organizations/:orgId/units/:unitId`                  | 更新 `name`/`slug`/`manager_user_id`   |
+| POST   | `/v1/organizations/:orgId/units/:unitId/move`             | 移动子树到新 parent                    |
+| DELETE | `/v1/organizations/:orgId/units/:unitId`                  | 归档(仅叶子),非物理删除                |
+| GET    | `/v1/organizations/:orgId/units/:unitId/members`          | 成员;`include_descendants` 默认 true   |
+| PUT    | `/v1/organizations/:orgId/units/:unitId/members/:userId`  | 放置成员,可选设为主岗                  |
+| DELETE | `/v1/organizations/:orgId/units/:unitId/members/:userId`  | 移出成员                               |
+
+Project 访问申请在 Management API 上只读:`GET /v1/organizations/:orgId/access-requests`
+(支持 `?status=` 与 `?project_id=` 过滤,cursor 分页)与
+`GET /v1/organizations/:orgId/access-requests/:id`,由 `access-requests:read` 或 org manager
+cookie session 鉴权。approve/deny 不走 `/v1`——审批行为必须绑定解析出的真实负责人身份进审计,
+org manager 的退化路径是直接管理 `user_grants`。`PATCH /v1/projects/:projectId` 接受
+`access_policy` 字段(`open`/`restricted`/`approval_required`,`projects:write`)。scope 词法
+白名单新增 `org-units` 与 `access-requests` 两个资源名。
+
+申请人与审批人流程是 `/auth/` 下的 cookie-session 端点,与 consent 同模式:
+`POST /auth/access-requests`、`GET /auth/access-requests`、
+`POST /auth/access-requests/:id/cancel`、`GET /auth/access-approvals`、
+`POST /auth/access-approvals/:id/approve`、`POST /auth/access-approvals/:id/deny`。其语义
+(状态机、审批人解析、JIT grant)定义在 02 章 7.5 节。
+
 以下仍是明确设计目标,不存在 tenant-scoped Management API resource:`emailAddresses`、
 `phoneNumbers`、`allowlistIdentifiers`、`oauthApplications`、`redirectUrls` 与 billing CRUD。
 User impersonation 有意不做成 tenant-scoped Management API resource;它是已实现的 Instance
@@ -450,6 +481,9 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform bil
 - connection(SSO):activated/deactivated/deleted/saml_certificate_renewed/renewal_required
 - dsync(目录同步):activated/deleted、user.created/updated/deleted、group.created/updated/deleted、group.user_added/removed
 - role/permission:created/updated/deleted
+- access_request:created/approved/denied/cancelled/expired
+- project:access_policy_changed
+- org_unit:created/updated/moved/archived/member_added/member_removed/primary_changed
 - email/sms:created(开发者接管发送时)
 - billing:subscription._、paymentAttempt._
 

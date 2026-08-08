@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=c672e2e36b3b9c128b4d8a3fbce55581866c8c9c -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=6a3632d89ac64c47f86d1b8f1580add42af86412 -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -17,6 +17,22 @@ Instance(平台运营层,IAM 运营视角,可跨所有 org 管理)
 
 对齐 Zitadel 四层。对比:Auth0/Clerk/WorkOS 多为一级扁平 Organization,无 Project 层。
 
+### OrgUnit(org 内业务结构)
+
+OrgUnit 是单个 Organization 内部的层级节点(部门/团队),是纯业务结构,不携带任何租户边界
+语义:不参与 TenantContext 解析、不参与 issuer/RPID 选择、不出现在 token claim 中。这是它与
+SubOrg 的语义分界——SubOrg 是租户边界(独立 slug 域、branding、policy、enrollment),OrgUnit
+只是组织内放置加审批路由数据源。
+
+- OrgUnit 属于且只属于一个 Organization(顶层或 sub-org,经 `org_id` 引用);`tenant_id` 仍是
+  顶层 Organization id,租户隔离注入不变。
+- 树结构结合邻接(`parent_unit_id`)与物化路径(`path = parent.path + '/' + id`,根为
+  `/<id>`,含自身),子树与祖先查询都是前缀扫描。深度上限 8(根 = 1),由应用层强制,与
+  SubOrg 深度限制同策略。
+- 树一致性(path 生成、深度检查、子树移动)集中在 `packages/db/src/org-units.ts` 一个模块内
+  完成并配事务;表无 FK,与现有 schema 风格一致。
+- Organization 层仍保持平铺加一层 SubOrg;OrgUnit 不放宽该规则,SubOrg 嵌套不变。
+
 ### 设计决策
 
 - Organization 支持一层子组织(Team/SubOrg),不做深嵌套(ReBAC 复杂度高,99% 用例一层够)
@@ -25,7 +41,7 @@ Instance(平台运营层,IAM 运营视角,可跨所有 org 管理)
 
 ### 数据模型
 
-核心实体 Instance、Organization、Project、Application、ProjectGrant(见 08 章):四层归属关系,Organization 可有一层父子。
+核心实体 Instance、Organization、Project、Application、ProjectGrant(见 08 章):四层归属关系,Organization 可有一层父子。OrgUnit 与 OrgUnitMember(见 08 章 10.2b、10.2c 节)建模上述 org 内业务树。
 
 ### Self-service 顶层 Tenant onboarding
 
@@ -129,6 +145,16 @@ pending -> expired
 
 Project 或 ProjectGrant manager 的 provisioning 属于 Organization-level privilege;持有同级
 Project manager role 不代表可转授。仍然只有一个 Console product,没有独立 admin app 或 tenant。
+
+### 业务汇报线与控制面的分界
+
+`org_units.manager_user_id` 与 `manager_assignments` 刻意分离,不共享命名空间:
+
+- `org_units.manager_user_id` 是业务汇报线——谁负责一个部门或团队。它本身不授予任何 `/v1`
+  授权;唯一的授权 consumer 是 Project 访问申请的审批人解析(见 7.5 节)。
+- `manager_assignments` 是控制面——只有它通过上述固定 role/scope 对驱动 Management API 授权。
+
+因此部门负责人不隐含 Org 或 Project manager 身份,撤销 manager assignment 也不会改变汇报线。
 
 ### 业务 RBAC(Project/Application 层)
 
@@ -491,3 +517,56 @@ WHERE ug.user_id = :user_id
 - ProjectGrant 不存在或已撤销：`/authorize` 阶段返回 `error: access_denied`，`error_description: project grant revoked or not found`
 - 用户在 Grant 下无 UserGrant：同上，`error_description: user not authorized via grant`
 - ProjectGrant 存在但 Application 不在授权的 Project 下：`error: unauthorized_client`
+
+### 7.5 Project access policy 与 AccessRequest
+
+每个 Project 携带 `access_policy` 列(默认 `open`,按 Project opt-in),约束同 Organization
+授权分支(`project.org_id === active_org.id`;7.4 的跨 org ProjectGrant 路径不受影响):
+
+| policy | 同 org 用户无有效 UserGrant 时 | 自助申请入口 |
+| --- | --- | --- |
+| `open` | 放行(既有行为) | 不需要 |
+| `restricted` | 拒绝(`access_denied`) | 无,只能管理端直接创建 grant |
+| `approval_required` | 拒绝且错误可识别 | 自助 AccessRequest |
+
+「有效 UserGrant」指同 org grant 行(`granted_via_grant_id IS NULL`)、未 revoked、未过
+`expires_at`;过期 grant 在每个检查点(`/authorize` 与 token 签发)都视同无 grant,这正是
+JIT 窗口可强制的原因。修改 `access_policy` 本身产生审计
+(`project.access_policy_changed`);收紧策略不回溯已签发 token——token 自然过期,而 grant
+复查在每次 token 签发时执行。
+
+**AccessRequest 状态机**:
+
+```
+pending --approve--> approved      (同一事务内写 user_grants)
+pending --deny-----> denied        (decision_reason 必填)
+pending --cancel---> cancelled     (仅 requester 本人)
+pending --expire---> expired       (惰性:pending 且 created_at 超 14 天)
+```
+
+四个结果态均为终态。过期是惰性的:pending 超 14 天的请求在读取时翻转为 `expired`(无
+cron)。同一 `(user, project)` 至多一个 pending,由 partial unique index 兜底。
+
+**审批人解析**(`resolveAccessRequestApprover`):第一命中且不等于 requester 者胜出;命中
+requester 本人时顺延下一级,因为审批人不能审自己的申请:
+
+1. OrgUnit 汇报线:从 requester 主岗 unit 沿祖先链向上找最近的 active `manager_user_id`
+   (`resolveApproverChain`)
+2. 该 Project 的精确 `project_manager` ManagerAssignment(多人时按 `created_at` 最早)
+3. 该 Organization 的精确 `org_manager` ManagerAssignment(同样取最早)
+
+链空时 approve/deny 返回 `no_available_approver`;文档化的退化路径是 org manager 通过现有
+`/v1` Management API 直接操作 `user_grants`。批准写入的 `user_grants` 行携带
+`granted_via_request_id` 用于溯源,外加可选 `expires_at` 实现 just-in-time 限时授权。
+
+**能力边界**:
+
+- Invitation 把用户带进 Organization(Membership);AccessRequest 给已有 active member 授予
+  单个 Project 的访问——不同层。
+- SCIM 从企业目录 provision 用户与 membership;它不是 Project 授权通道,v1 不把任何 directory
+  group 映射到 OrgUnit 或 Project 角色。
+- ProjectGrant 跨 org 授权另一 Organization 的用户;`access_policy` 与 AccessRequest 只作用于
+  同 org 分支,不会拦截 Grant 路径。
+
+对外接口见 06 章第 7 节(Management API)与 `/auth/access-requests`、`/auth/access-approvals`
+session 端点;v1 不为两条流程提供 UI 页面。

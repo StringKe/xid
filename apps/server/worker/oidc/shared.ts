@@ -17,6 +17,18 @@ import { storedClientPolicy, validateClientRegistrationPolicy } from './client-r
 // applications 行 = OAuthClient 注册元数据(08 章 10.4)。
 export type ClientRow = typeof schema.applications.$inferSelect
 
+// user_grant 有效性(见 design-access-request 1.2/2):未 revoked 且未过 expires_at。
+// authorize 拦截与 token 签发复查共用同一判定,过期 grant 视同不存在(JIT 强制点)。
+// nowMs 为 Unix 毫秒,与 timestamp_ms 列同单位。
+export function isGrantEffective(
+  grant: Pick<typeof schema.userGrants.$inferSelect, 'revokedAt' | 'expiresAt'>,
+  nowMs: number,
+): boolean {
+  if (grant.revokedAt !== null) return false
+  if (grant.expiresAt !== null && grant.expiresAt.getTime() <= nowMs) return false
+  return true
+}
+
 // active 签名密钥句柄:不可导出私钥 + kid + alg(签发 token / id_token 用)。
 export type ActiveSigner = {
   kid: string

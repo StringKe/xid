@@ -83,6 +83,9 @@ export const userGrants = sqliteTable(
     projectId: text('project_id').notNull(),
     roleId: text('role_id').notNull(),
     grantedViaGrantId: text('granted_via_grant_id'),
+    // 溯源 access_request(见 design-access-request 1.2);跨 org 授予走 granted_via_grant_id,两者互斥。
+    grantedViaRequestId: text('granted_via_request_id'),
+    expiresAt: tsMs('expires_at'), // null = 永久;JIT 限时授权,过期视同无 grant
     revokedAt: tsMs('revoked_at'),
     ...timestamps(),
   },

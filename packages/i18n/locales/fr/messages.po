@@ -5763,6 +5763,10 @@ msgstr "Aucune annonce trouvée."
 msgid "No applications registered."
 msgstr "Aucune application enregistrée."
 
+#: packages/i18n/src/messages.ts
+msgid "No approver is available for this access request."
+msgstr "Aucun approbateur n'est disponible pour cette demande d'accès."
+
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "No audit events found."
 msgstr "Aucun événement d'audit trouvé."
@@ -9765,6 +9769,10 @@ msgstr "La page que vous recherchez n'existe pas ou a été déplacée"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "Le mot de passe ne respecte pas les exigences minimales de robustesse."
 
+#: packages/i18n/src/messages.ts
+msgid "The project could not be found."
+msgstr "Le projet est introuvable."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
 msgstr "L'instance brute de XidClient ; préférez XidAuthService pour la plupartdes cas d'usage"
@@ -9908,6 +9916,10 @@ msgstr "Ces valeurs par défaut s'appliquent à chaque organisation sauf si elle
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "third-party app"
 msgstr "application tierce"
+
+#: packages/i18n/src/messages.ts
+msgid "This access request has already been decided."
+msgstr "Cette demande d'accès a déjà été traitée."
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "This account has no email address yet. Add a passkey below to secure it and keep access after you sign out."
@@ -11162,6 +11174,10 @@ msgstr "Les contrôles préalables de sécurité XML, une allowlist récursive d
 #: apps/server/src/routes/mfa/index.tsx
 msgid "xxxxxxxx"
 msgstr "xxxxxxxx"
+
+#: packages/i18n/src/messages.ts
+msgid "You already have access to this project."
+msgstr "Vous avez déjà accès à ce projet."
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx

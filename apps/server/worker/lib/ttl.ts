@@ -68,3 +68,5 @@ export const FEDERATION_ANCHORS_CACHE_TTL_SEC = 86400
 export const GUEST_GC_INACTIVE_DAYS = 30
 // 每租户每日 guest 铸造上限(防匿名批量建号刷用户表)。
 export const GUEST_DAILY_MINT_LIMIT = 500
+// access_request pending 惰性过期窗口 14 天(design-access-request 1.3:读取时翻转,不引入 cron)。
+export const ACCESS_REQUEST_TTL_MS = 14 * 24 * 60 * 60 * 1000

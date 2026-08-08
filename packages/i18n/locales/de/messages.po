@@ -5763,6 +5763,10 @@ msgstr "Keine Ankündigungen gefunden."
 msgid "No applications registered."
 msgstr "Keine Anwendungen registriert."
 
+#: packages/i18n/src/messages.ts
+msgid "No approver is available for this access request."
+msgstr "Für diese Zugriffsanfrage ist kein Genehmiger verfügbar."
+
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "No audit events found."
 msgstr "Keine Audit-Ereignisse gefunden."
@@ -9765,6 +9769,10 @@ msgstr "Die gesuchte Seite existiert nicht oder wurde verschoben"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "Das Passwort erfüllt die Mindestanforderungen an die Stärke nicht."
 
+#: packages/i18n/src/messages.ts
+msgid "The project could not be found."
+msgstr "Das Projekt wurde nicht gefunden."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
 msgstr "Die rohe XidClient-Instanz; bevorzugen Sie XidAuthService für die meistenAnwendungsfälle"
@@ -9908,6 +9916,10 @@ msgstr "Diese Standardwerte gelten für jede Organisation, sofern sie sie nicht 
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "third-party app"
 msgstr "Drittanbieter-App"
+
+#: packages/i18n/src/messages.ts
+msgid "This access request has already been decided."
+msgstr "Über diese Zugriffsanfrage wurde bereits entschieden."
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "This account has no email address yet. Add a passkey below to secure it and keep access after you sign out."
@@ -11162,6 +11174,10 @@ msgstr "XML-Sicherheitsvorprüfungen, eine rekursive strukturelle Schema-Allowli
 #: apps/server/src/routes/mfa/index.tsx
 msgid "xxxxxxxx"
 msgstr "xxxxxxxx"
+
+#: packages/i18n/src/messages.ts
+msgid "You already have access to this project."
+msgstr "Sie haben bereits Zugriff auf dieses Projekt."
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx

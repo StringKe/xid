@@ -19,6 +19,19 @@ tag is published, `main` is the only reference point and the public API is unsta
 
 ### Added
 
+- Enterprise org structure (OrgUnit): an in-org business tree with adjacency plus materialized path
+  (depth cap 8), primary/secondary post placement, reporting-line manager resolution walking up the
+  ancestor chain, and nine Management API endpoints under `/v1/organizations/:orgId/units` (tree
+  CRUD, move, archive, members), guarded by the new `org-units` API key scope or an org manager
+  cookie session. OrgUnit carries no tenant-boundary semantics and never enters token claims.
+- Project access requests with approval: per-project `access_policy` (`open`/`restricted`/
+  `approval_required`) gating the same-org `/authorize` and token-issuance paths, self-service
+  `/auth/access-requests` and approver `/auth/access-approvals` session endpoints, approver
+  resolution (OrgUnit reporting line -> `project_manager` -> `org_manager`, self-approval skipped),
+  approval writing a `user_grants` row with `granted_via_request_id` and an optional `expires_at`
+  JIT window, read-only `/v1` access-request listing with the new `access-requests` scope, and the
+  audit events `access_request.created/approved/denied/cancelled/expired` plus
+  `project.access_policy_changed`.
 - Guest one-click passkey upgrade in the SDKs: `@xid-kit/core` `upgradeGuestWithPasskey()` and
   `@xid-kit/react` `useUpgradeGuest()` convert an anonymous (guest) session in place -- the passkey
   ceremony attaches to the existing user and `sub` is preserved. Same-origin mode only; non-guest

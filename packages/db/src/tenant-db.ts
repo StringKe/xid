@@ -175,6 +175,9 @@ export type OrgScopedDb = {
   projects: TenantScoped<typeof schema.projects>
   orgPolicies: TenantScoped<typeof schema.orgPolicies>
   memberships: TenantScoped<typeof schema.memberships>
+  accessRequests: TenantScoped<typeof schema.accessRequests>
+  orgUnits: TenantScoped<typeof schema.orgUnits>
+  orgUnitMembers: TenantScoped<typeof schema.orgUnitMembers>
   invitations: TenantScoped<typeof schema.invitations>
   organizationDomains: TenantScoped<typeof schema.organizationDomains>
   ssoConnections: TenantScoped<typeof schema.ssoConnections>
@@ -190,6 +193,9 @@ function buildOrgScoped(db: Db, tenantId: string, orgId: string): OrgScopedDb {
     projects: orgScoped(db, schema.projects, tenantId, orgId),
     orgPolicies: orgScoped(db, schema.orgPolicies, tenantId, orgId),
     memberships: orgScoped(db, schema.memberships, tenantId, orgId),
+    accessRequests: orgScoped(db, schema.accessRequests, tenantId, orgId),
+    orgUnits: orgScoped(db, schema.orgUnits, tenantId, orgId),
+    orgUnitMembers: orgScoped(db, schema.orgUnitMembers, tenantId, orgId),
     invitations: orgScoped(db, schema.invitations, tenantId, orgId),
     organizationDomains: orgScoped(db, schema.organizationDomains, tenantId, orgId),
     ssoConnections: orgScoped(db, schema.ssoConnections, tenantId, orgId),
@@ -229,6 +235,9 @@ const TENANT_TABLES = {
   userGrants: schema.userGrants,
   managerAssignments: schema.managerAssignments,
   memberships: schema.memberships,
+  accessRequests: schema.accessRequests,
+  orgUnits: schema.orgUnits,
+  orgUnitMembers: schema.orgUnitMembers,
   invitations: schema.invitations,
   organizationDomains: schema.organizationDomains,
   authorizationCodes: schema.authorizationCodes,

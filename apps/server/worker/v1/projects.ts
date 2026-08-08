@@ -35,6 +35,8 @@ const createProjectBodySchema = v.object({
 const patchProjectBodySchema = v.object({
   name: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(256))),
   description: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(2000)))),
+  // 访问策略三模式(设计 design-access-request.md 3.3):open / restricted / approval_required。
+  access_policy: v.optional(v.picklist(['open', 'restricted', 'approval_required'])),
 })
 
 function toResponse(row: typeof schema.projects.$inferSelect) {
@@ -44,6 +46,7 @@ function toResponse(row: typeof schema.projects.$inferSelect) {
     name: row.name,
     description: row.description,
     status: row.status,
+    access_policy: row.accessPolicy,
     deleted_at: row.deletedAt,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
@@ -147,6 +150,7 @@ app.patch('/:id', async (c) => {
   const patch: Partial<typeof schema.projects.$inferInsert> = {}
   if (body.name !== undefined) patch.name = body.name
   if (body.description !== undefined) patch.description = body.description
+  if (body.access_policy !== undefined) patch.accessPolicy = body.access_policy
   const updated = await db.projects.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
@@ -157,6 +161,21 @@ app.patch('/:id', async (c) => {
     targetType: 'project',
     targetId: row.id,
   })
+  // access_policy 实际翻转时补一条专用事件(设计 3.4:payload 含 old/new,actor 即 actorId);
+  // 同值重写不发,避免噪声。
+  if (body.access_policy !== undefined && body.access_policy !== existing.accessPolicy) {
+    emitManagementAuditAsync(c, {
+      action: 'project.access_policy_changed',
+      actorId: actor.kind === 'session' ? actor.session.userId : actor.apiKeyId,
+      orgId: row.orgId,
+      targetType: 'project',
+      targetId: row.id,
+      details: {
+        oldAccessPolicy: existing.accessPolicy,
+        newAccessPolicy: body.access_policy,
+      },
+    })
+  }
   return c.json(toResponse(row))
 })
 

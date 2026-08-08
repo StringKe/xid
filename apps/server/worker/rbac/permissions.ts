@@ -2,7 +2,7 @@
 // 普通路径按 (user_id, project_id) 取 role;Grant 路径再加 granted_via_grant_id(tenant_id = org A)。
 // 铁律:所有查询走 @xid-kit/db 租户查询层(自动注入 tenant_id);不缓存 permission(撤权 1h 内生效)。
 
-import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { TenantContext } from '@xid-kit/types'
 import { readAllById } from '../lib/db-pagination'
@@ -25,7 +25,7 @@ export type ResolvePermissionsInput = {
 
 // 注入端口:permission 解析依赖的最小查询面,真实实现走租户查询层,测试可注入 fake。
 export type RbacStore = {
-  // 取用户在 project 下未撤销的 role_id(普通或 grant 路径)。
+  // 取用户在 project 下未撤销且未过期(expires_at)的 role_id(普通或 grant 路径)。
   findRoleIds: (input: ResolvePermissionsInput) => Promise<string[]>
   // 取一组 role 关联的 (permission.key, condition_expression)。
   findRolePermissions: (roleIds: string[], projectId: string) => Promise<ResolvedPermission[]>
@@ -149,6 +149,8 @@ export function createRbacStore(d1: D1Database, ctx: TenantContext): RbacStore {
         eq(schema.userGrants.userId, input.userId),
         eq(schema.userGrants.projectId, input.projectId),
         isNull(schema.userGrants.revokedAt),
+        // 过期 JIT grant 视同不存在(isGrantEffective 同语义):null = 永久,否则须未到期。
+        or(isNull(schema.userGrants.expiresAt), gt(schema.userGrants.expiresAt, new Date())),
       ]
       filters.push(
         input.grantId
