@@ -6,7 +6,9 @@
 OIDC/OAuth、多租户 RBAC、企业 SSO 联邦、Hosted Auth 与 account 页面;Nimbus Site Worker 从 apex
 根路径提供完整多语言文档;隔离的 Console Worker 提供管理界面。
 
-[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
+[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/) [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge)](https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13783/badge)](https://www.bestpractices.dev/projects/13783)
+
+<a href="https://www.producthunt.com/products/xid?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-xid" target="_blank" rel="noopener noreferrer"><img alt="XID - Edge-native identity platform on Cloudflare Workers | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1217874&amp;theme=light&amp;t=1786263008879"></a>
 
 ## 项目状态
 
@@ -26,32 +28,58 @@ WebAuthn RP ID 和策略全部从单一 `TenantContext` 解析,因此同一份�
 
 ## 功能
 
-**协议面**
+**协议与联邦**
 
-- OIDC 与 OAuth 2.x 授权服务器:discovery、JWKS、`/authorize`、`/token`、`/userinfo`、`/introspect`、
-  `/revoke`、`/end_session`、`/device_authorization`、`/par`、动态客户端注册(RFC 7591/7592),以及
-  CIBA 后端通道认证。
-- Authorization code 强制 PKCE S256、client credentials、device code、带 family 重放撤销的 refresh
-  轮换,以及 RFC 8693 token exchange。经 DPoP 与 mTLS 实现 sender-constrained token;签名请求对象
-  (JAR)与签名授权响应(JARM)。
-- 双向企业 SSO:入站 SAML 2.0 SP 与 OIDC RP 联邦、面向下游 SaaS 的出站 SAML 2.0 IdP,另有 LDAP direct
-  bind、WS-Federation、SWA 密码托管与 header-based SSO。
-- SCIM 2.0 Service Provider(Users、Groups、PATCH、filter、sort、bulk、ETag/If-Match),以及面向下游
-  SaaS 目标的出站 provisioning。
+- OIDC 与 OAuth 2.x 授权服务器提供 discovery、JWKS、protected-resource metadata、`/authorize`、
+  `/token`、`/userinfo`、`/introspect`、`/revoke`、`/end_session`、PAR、Device Flow、Dynamic Client
+  Registration、CIBA、hybrid response,以及 front-channel、back-channel 和 session-management logout。
+- Authorization code 强制 PKCE S256,支持 client credentials、带 family 重放撤销的 refresh token
+  轮换与 RFC 8693 token exchange。Resource Indicators、DPoP、mTLS、JAR、JARM、RAR,以及本地
+  Browser-Based Apps 与 FAPI 2.0 policy profile 均已实现。
+- 双向企业 SSO:入站 SAML 2.0 SP 与 OIDC RP 联邦,面向下游 SaaS 的出站 SAML 2.0 IdP 和 OIDC
+  application,另有 LDAP direct bind、WS-Federation、SWA 密码托管、header-based SSO 与 directory
+  connector framework。
+- SCIM 2.0 Service Provider 支持 Users、Groups、PATCH、filter、projection、sort、bulk 与
+  ETag/If-Match,并能向下游 SaaS 目标出站 provisioning Users 和 Groups。
+- OpenID Federation 仅实现最小 entity metadata 与 registration boundary。Trust-chain resolution、
+  trust anchor、authority-hint traversal 和生产互操作性尚未实现。
 
-**认证**
+**认证与账户生命周期**
 
-- Passkey/WebAuthn 作为主凭证:discoverable credentials、强制 user verification、sign-count 克隆检测。
-- 密码经 Argon2id 哈希并叠加存于 Workers Secrets 的服务端 pepper;magic link;经邮件、SMS 与 WhatsApp
-  下发的一次性验证码;作为 relying party 的社交 OAuth。
-- MFA 支持 TOTP、SMS、passkey 作第二因子,以及一次性备份码。
+- Passkey/WebAuthn 是主凭证,支持 discoverable credential、强制 user verification、
+  ES256/RS256/EdDSA 校验、sign-count 克隆检测,以及按策略启用的 packed enterprise attestation 校验。
+- 密码使用 Argon2id 与存于 Workers Secrets 的服务端 pepper。Passwordless 登录支持 magic link 与
+  email、SMS、WhatsApp 一次性验证码;社交 OAuth 的 relying-party flow 支持 Google、GitHub、
+  Microsoft account 与 Apple。
+- MFA 支持 TOTP、SMS、passkey challenge、一次性 backup code,以及绑定当前 session 的 OIDC AAL2
+  step-up。XID 不声称支持 AAL3。
+- Guest 登录支持 Firebase 风格的惰性复用与原地一键升级 passkey,并保持 `sub` 不变。浏览器客户端还支持
+  hidden-iframe `prompt=none` 静默重新认证,并以 top-level redirect 作为可靠 fallback。
+- Hosted Auth 与 account portal 已实现邀请接受、Email 验证、顶层 Tenant 自助创建、active Organization
+  选择、session 管理与自助 credential 管理。
 
-**平台**
+**组织与授权**
 
-- 组织、成员关系、角色、权限、邀请与域名验证。
-- `/v1/*` 下的 Management API、`/v1/me/*` 下的自助账户门户、`/v1/platform/*` 下的实例运营方 API。
-- 以 SHA-256 链式哈希构成的 append-only 审计日志、带死信队列的签名 webhook、feature flag 与用量计量。
-- 8 种语言的托管界面(en、zh-Hans、ja、ko、fr、de、es、pt-BR),catalog 已全部翻译完成。
+- Instance、Organization、一层 SubOrg、membership、Project、Application、role、permission、用户与
+  跨 Organization grant、邀请及域名验证。
+- OrgUnit 树用于表达 Organization 内部的部门和团队,支持主岗与兼岗、最大深度 8、子树移动与归档,
+  并沿汇报线解析 manager。OrgUnit 永远不会成为 tenant boundary 或 token claim。
+- 每个 Project 可配置为 `open`、`restricted` 或 `approval_required`。同 Organization 的授权流程会强制
+  执行该策略;用户可以申请访问,审批人按 OrgUnit 汇报线和管理角色 fallback 解析,批准后可创建带过期时间的
+  `user_grant`。
+
+**运营与投递**
+
+- `/v1/*` 下的 Management API、`/v1/me/*` 下的自助账户门户,以及独立门控的
+  `/v1/platform/*` 实例运营方 API。
+- Append-only 审计事件使用 per-tenant SHA-256 hash chain,并在持久化前脱敏敏感 metadata。8 条异步
+  pipeline 分别拥有独立的 dead-letter 与 quarantine path 和带 lease 的 replay;计量发送失败则回退到
+  D1 outbox。
+- 签名 webhook 支持加密 secret、rotation、retry、幂等 message ID 和 dead-letter snapshot。自助隐私
+  流程提供 private R2 export 与可取消的延迟 erasure,并保护唯一 Organization owner 和最后一个
+  instance manager。
+- Feature flag、branding、用量计量、公告、compliance artifact,以及 8 种语言的 Hosted UI
+  (en、zh-Hans、ja、ko、fr、de、es、pt-BR)均由同一份代码管理。
 
 ## 快速上手
 
@@ -216,19 +244,21 @@ public runtime kernel 是 `protocol`、`crypto` 与 `types`;private implementati
 
 每一行都能对应到 [`docs/protocols/source-map.md`](docs/protocols/source-map.md) 中的文件与测试。
 
-| 领域                                                               | 支持情况 | 最高证据等级                  | 说明                                                       |
-| ------------------------------------------------------------------ | -------- | ----------------------------- | ---------------------------------------------------------- |
-| OAuth 2.x 核心(code、PKCE S256、client credentials、refresh 轮换)  | 已实现   | 本地协议客户端                | implicit 与 password grant 被拒绝,并配有负路径测试         |
-| OIDC 核心(ID token、userinfo、logout、session management、hybrid)  | 已实现   | 本地协议客户端                | 包含 front-channel 与 back-channel logout profile          |
-| PAR、DPoP、device flow                                             | 已实现   | 本地协议客户端                | DPoP nonce challenge 未实现                                |
-| JAR、JARM、RAR、mTLS、token exchange、DCR、CIBA、OpenID Federation | 已实现   | Workers 运行时集成            | 不声称支持 JWE、远程 request-object 拉取与 `form_post.jwt` |
-| SAML 2.0 SP(入站)与 IdP(出站)                                      | 已实现   | 本地 fake IdP 与 fake SaaS SP | 未针对 Okta、Entra ID 或 Google Workspace 验证             |
-| SCIM 2.0 Service Provider 与出站 provisioning                      | 已实现   | 本地 fake SaaS SCIM           | 未针对真实目录或 SaaS 目标验证                             |
-| WebAuthn / passkey                                                 | 已实现   | Workers 运行时集成            | 四步验证,无跳过路径                                        |
-| LDAP direct bind、WS-Federation、SWA、header-based SSO             | 已实现   | 本地测试装置                  | Kerberos 仅有文档                                          |
-| 作为 relying party 的社交 OAuth(Google、GitHub、Microsoft、Apple)  | 已实现   | 本地 fake provider            | 未用真实 provider 凭证或回调验证                           |
-| Shared Signals、CAEP、RISC                                         | 规划中   | 单元测试                      | 端点返回 501,不创建任何 stream                             |
-| GNAP、UMA、HEART、OID4VP、OID4VCI                                  | stub     | Workers 运行时集成            | 返回 501 或占位对象的路由 stub,不是协议实现                |
+| 领域                                                              | 支持情况 | 最高证据等级                  | 说明                                                        |
+| ----------------------------------------------------------------- | -------- | ----------------------------- | ----------------------------------------------------------- |
+| OAuth 2.x 核心(code、PKCE S256、client credentials、refresh 轮换) | 已实现   | 本地协议客户端                | implicit 与 password grant 被拒绝,并配有负路径测试          |
+| OIDC 核心(ID token、userinfo、logout、session management、hybrid) | 已实现   | 本地协议客户端                | 包含 front-channel 与 back-channel logout profile           |
+| PAR、DPoP、Device Flow                                            | 已实现   | 本地协议客户端                | DPoP nonce challenge 未实现                                 |
+| Browser-Based Apps 与 FAPI 2.0 enforcement profile                | 已实现   | Workers 运行时集成            | 只有本地 policy 证据,不声称通过生产 conformance             |
+| JAR、JARM、RAR、mTLS、token exchange、DCR、CIBA                   | 已实现   | Workers 运行时集成            | 不声称支持 JWE、远程 request-object 拉取与 `form_post.jwt`  |
+| OpenID Federation                                                 | 已实现   | Workers 运行时集成            | 仅有最小 metadata 与 registration boundary,没有 trust chain |
+| SAML 2.0 SP(入站)与 IdP(出站)                                     | 已实现   | 本地 fake IdP 与 fake SaaS SP | 未针对 Okta、Entra ID 或 Google Workspace 验证              |
+| SCIM 2.0 Service Provider 与出站 provisioning                     | 已实现   | 本地 fake SaaS SCIM           | 未针对真实目录或 SaaS 目标验证                              |
+| WebAuthn、passkey、passkey MFA 与 AAL2 step-up                    | 已实现   | Workers 运行时集成            | 本地包含 EdDSA 与 packed attestation,不支持 AAL3            |
+| LDAP direct bind、WS-Federation、SWA、header-based SSO            | 已实现   | 本地测试装置                  | Kerberos 仅有文档                                           |
+| 作为 relying party 的社交 OAuth(Google、GitHub、Microsoft、Apple) | 已实现   | 本地 fake provider            | 未用真实 provider 凭证或回调验证                            |
+| Shared Signals、CAEP、RISC                                        | 规划中   | 负路径 route 测试             | 端点返回 501,不创建任何 stream                              |
+| GNAP、UMA、HEART、OID4VP、OID4VCI                                 | 规划中   | 负路径 route 测试             | 预留 route 返回 501,并非协议实现                            |
 
 ## SDK
 
