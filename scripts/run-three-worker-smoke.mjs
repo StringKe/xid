@@ -448,19 +448,19 @@ async function runChecks(baseUrl, ports) {
     location: '/console/security?tab=mfa',
   })
   const home = await check(baseUrl, {
-    name: 'Nimbus root documentation hub',
+    name: 'Nimbus product landing',
     path: '/',
     owner: 'site',
     status: 200,
     contentType: 'text/html',
-    includes: 'XID Identity Platform',
+    includes: 'id="home-title"',
     excludes: 'SiteApp',
   })
   const titleCount = home.body.match(/<title>/g)?.length ?? 0
   if (titleCount !== 1) throw new Error(`Site home title count=${titleCount} expected=1`)
   print('PASS', 'Site home single title', 'count=1')
   await check(baseUrl, {
-    name: 'Nimbus root Markdown twin',
+    name: 'Nimbus product landing Markdown twin',
     path: '/index.md',
     owner: 'site',
     status: 200,
@@ -468,7 +468,7 @@ async function runChecks(baseUrl, ports) {
     includes: 'Source: https://xid.dev/index.mdx',
   })
   await check(baseUrl, {
-    name: 'Nimbus root MDX source twin',
+    name: 'Nimbus product landing MDX source twin',
     path: '/index.mdx',
     owner: 'site',
     status: 200,
@@ -603,11 +603,13 @@ async function runChecks(baseUrl, ports) {
     location: '/oidc-oauth?source=smoke',
   })
   await check(baseUrl, {
-    name: 'Nimbus legacy docs hub',
+    name: 'Nimbus English documentation hub',
     path: '/docs?source=smoke',
     owner: 'site',
-    status: 308,
-    location: '/?source=smoke',
+    status: 200,
+    contentType: 'text/html',
+    includes: 'id="desktop-sidebar"',
+    excludes: 'SiteApp',
   })
   await check(baseUrl, {
     name: 'Nimbus legacy Markdown twin',
