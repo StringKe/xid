@@ -316,6 +316,10 @@ msgstr "10 秒"
 msgid "10s timeout default"
 msgstr "默认 10 秒超时"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "3 Workers"
+msgstr "3 个 Workers"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "30 seconds"
 msgstr "30 秒"
@@ -437,6 +441,10 @@ msgstr "组织 {0} 的访问权限以及通过此授权颁发的用户授权将�
 msgid "Access protected resources"
 msgstr "访问受保护资源"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Access request lifecycle"
+msgstr "访问请求生命周期"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Access token TTL (seconds)"
 msgstr "Access token TTL（秒）"
@@ -476,6 +484,10 @@ msgstr "返回活跃会话的 session 和 getToken 的访问器"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Accessor wrapping discriminated union on isLoaded / isSignedIn / user"
 msgstr "封装 isLoaded / isSignedIn / user 判别联合的访问器"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
+msgstr "AccessRequest 从<0>待处理</0>变为<1>已批准</1>、<2>已拒绝</2>、<3>已取消</3>或<4>已过期</4>。每个结果都是最终结果，待处理的请求会在 14 天后延迟过期。"
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion"
@@ -842,6 +854,10 @@ msgstr "允许的角色（逗号分隔）"
 msgid "Allowed user IDs (comma-separated)"
 msgstr "允许的用户 ID（逗号分隔）"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Allowed without a UserGrant."
+msgstr "无需 UserGrant 即可允许。"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.alreadyHaveAccountSignIn"
@@ -851,9 +867,17 @@ msgstr "已有账户？<0>登录</0>"
 msgid "Already have an account? Sign in"
 msgstr "已有账户？登录"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
+msgstr "实例包含顶级组织。一个组织可以包含一级子组织；每个组织都保留策略、成员资格、品牌、RBAC 和隔离边界。"
+
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "发生内部错误。请重试。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
+msgstr "组织单位是一个组织内的一个部门或团队。它永远不会更改 TenantContext、发行者、令牌声明或一级 SubOrg 限制。"
 
 #: packages/i18n/src/messages.ts
 msgid "An unexpected server error occurred. Please try again."
@@ -979,9 +1003,21 @@ msgstr "应用自有 JWT cookie 名；仅在显式配置后启用"
 msgid "Applications"
 msgstr "应用"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approval creates a traceable UserGrant in the same transaction. The requester cannot approve their own request; resolution falls through from the OrgUnit manager to project and organization managers."
+msgstr "批准会在同一事务中创建可追踪的 UserGrant。请求者不能批准自己的请求；决议从 OrgUnit 经理下达给项目和组织经理。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approval required"
+msgstr "需要批准"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Approve"
 msgstr "批准"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approve or deny a pending request assigned to the current user."
+msgstr "批准或拒绝分配给当前用户的待处理请求。"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Approve sign-in request | XID"
@@ -1162,6 +1198,10 @@ msgstr "authenticateRequest"
 msgid "Authentication"
 msgstr "认证"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Authentication and account"
+msgstr "认证及账号"
+
 #: packages/i18n/src/messages.ts
 msgid "Authentication is required."
 msgstr "需要认证。"
@@ -1213,8 +1253,8 @@ msgid "Authorization code with server side token exchange."
 msgstr "通过服务端交换令牌的授权码流程。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR<1>resource_access</1> authorization details, token-exchange refresh and ID token issuance, mTLS client authentication, and front-channel logout."
-msgstr "授权码、PKCE S256、refresh 轮换、PAR、DPoP 证明与 <0>dpop_jkt</0> 绑定、动态客户端注册、ID token、userinfo、混合响应类型、签名 JAR 请求对象、签名 JARM 响应、RAR<1>resource_access</1> 授权详情、token exchange refresh 与 ID token 签发、mTLS 客户端认证以及前端通道登出。"
+msgid "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR <1>resource_access</1> authorization details, token exchange, mTLS client authentication, front-channel and back-channel logout, Device Flow, Session Management, CIBA, Browser-Based Apps profile gates, and FAPI 2.0 profile gates."
+msgstr "授权代码、PKCE S256、刷新轮换、PAR、DPoP 证明和 <0>dpop_jkt</0> 绑定、动态客户端注册、ID 令牌、用户信息、混合响应类型、签名 JAR 请求对象、签名 JARM 响应、RAR <1>resource_access</1> 授权详细信息、令牌交换、mTLS 客户端身份验证、前通道和后通道注销、设备流、会话管理、CIBA、基于浏览器的应用程序配置文件门，以及FAPI 2.0 型材大门。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization code, refresh token, client credentials, device code, and token exchange."
@@ -1284,10 +1324,6 @@ msgstr "返回控制台"
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Back to Console"
 msgstr "返回控制台"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Back to developer docs"
-msgstr "返回开发者文档"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 #: apps/server/src/routes/consent/index.tsx
@@ -1470,6 +1506,10 @@ msgstr "使用自定义 reqwest 客户端构建客户端（适用于测试）。
 msgid "Build client with default reqwest HTTP client."
 msgstr "使用默认 reqwest HTTP 客户端构建客户端。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Build identity at the edge, without giving up control"
+msgstr "在边缘建立身份，而不放弃控制权"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Build OIDC end_session URL for RP-initiated logout"
 msgstr "构建用于 RP 发起登出的 OIDC end_session URL"
@@ -1524,6 +1564,10 @@ msgstr "取消"
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Cancel and sign out"
 msgstr "取消并退出登录"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Cancel the current user's pending request."
+msgstr "取消当前用户的待处理请求。"
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
@@ -1787,6 +1831,10 @@ msgstr "组合逻辑运算符和比较运算符。"
 msgid "Comma-separated event names (for example user.created, session.revoked). Leave blank to receive all events."
 msgstr "以逗号分隔的事件名称（例如 user.created, session.revoked）。留空则接收所有事件。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Complete edition"
+msgstr "完整版"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Completed"
 msgstr "已完成"
@@ -1936,6 +1984,10 @@ msgstr "通过 OIDC Discovery 与 Hosted Auth 将应用接入 XID。"
 msgid "Connect enterprise identity providers using SAML 2.0."
 msgstr "使用 SAML 2.0 连接企业身份提供商。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Connect inbound SAML and OIDC, downstream SaaS SSO, SCIM, directory sync, and domain discovery behind explicit policy boundaries."
+msgstr "在明确的策略边界内连接入站 SAML 和 OIDC、下游 SaaS SSO、SCIM、目录同步和域名发现。"
+
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Connected"
 msgstr "已连接"
@@ -1952,6 +2004,10 @@ msgstr "连接"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Connections | Account | XID"
 msgstr "关联账户 | 账户 | XID"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Console"
+msgstr "Console 控制台"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Console is read-only"
@@ -2060,6 +2116,10 @@ msgstr "复制页面"
 msgid "Copy to clipboard"
 msgstr "复制到剪贴板"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Core"
+msgstr "Core 核心"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Core API"
 msgstr "核心 API"
@@ -2116,6 +2176,10 @@ msgstr "创建并列出目录组。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create and list directory users."
 msgstr "创建并列出目录用户。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Create and list the current user's requests."
+msgstr "创建并列出当前用户的请求。"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Create and revoke API keys for server-side integrations."
@@ -2257,6 +2321,10 @@ msgstr "创建、读取、更新和删除权限。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, read, update, ban, unban, export, and remove users."
 msgstr "创建、读取、更新、封禁、解除封禁、导出和移除用户。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Create, update, move, archive, and manage members of units."
+msgstr "创建、更新、移动、存档和管理单位成员。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, update, sync, and remove outbound SCIM targets."
@@ -2667,6 +2735,14 @@ msgid "Delivery is decoupled from the authentication path through Cloudflare Que
 msgstr "交付通过 Cloudflare Queues 与认证路径解耦。端点缓慢或不可用不会影响登录延迟。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Denied until an AccessRequest is approved."
+msgstr "在 AccessRequest 获得批准之前被拒绝。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Denied; an administrator grants access directly."
+msgstr "被拒绝；管理员直接授予访问权限。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deno"
 msgstr "Deno"
 
@@ -2734,14 +2810,6 @@ msgstr "桌面端 SDK"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dev/test without Tauri runtime"
 msgstr "不依赖 Tauri 运行时的开发/测试"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Developer docs navigation"
-msgstr "开发者文档导航"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Device authorization polling, Session Management check_session, CIBA backchannel approval, FAPI 2.0 / Browser-Based Apps profile gates, OpenID Federation, and Shared Signals expose guarded-minimal or provider-ready subsets. GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI return negative or 501 stubs until full profiles ship."
-msgstr "设备授权轮询、Session Management check_session、CIBA 后端通道批准、FAPI 2.0 / 基于浏览器的应用 profile 门控、OpenID Federation 和 Shared Signals 公开受控最小化或 provider-ready 子集。GNAP、UMA、HEART、OpenID4VP 和 OpenID4VCI 在完整 profile 处理器上线前返回否定或 501 桩。"
 
 #: apps/server/src/routes/activate/CodeEntryForm.tsx
 msgid "Device code"
@@ -2873,6 +2941,10 @@ msgstr "显示时机"
 msgid "Document type"
 msgstr "文件类型"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Documentation"
+msgstr "文档"
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
@@ -2929,10 +3001,6 @@ msgid "Downstream SaaS OIDC identity provider"
 msgstr "下游 SaaS OIDC 身份提供商"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Downstream SaaS OIDC uses the current generic OIDC baseline locally, but SaaS-specific production support still requires real SaaS L4."
-msgstr "下游 SaaS OIDC 在本地使用当前通用 OIDC 基线，但 SaaS 专属生产支持仍需要真实 SaaS L4。"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Downstream SaaS SSO status"
 msgstr "下游 SaaS SSO 状态"
 
@@ -2953,6 +3021,10 @@ msgstr "DPoP 绑定客户端在 token 和 resource 调用中必须提交有效 D
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Draft"
 msgstr "草稿"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Each member can have one primary OrgUnit and additional placements."
+msgstr "每个成员可以有一个主要组织单元和其他展示位置。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each primitive returns reactive <0>Accessor<T></0> (getter functions). Call them in JSX or <1>createEffect</1> to track changes."
@@ -3276,12 +3348,20 @@ msgid "Every organization on this instance, with plan and lifecycle status."
 msgstr "此实例上的所有组织，包含计划和生命周期状态。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
+msgstr "每个 OrgUnit 和 AccessRequest 查询的范围均由 <0>tenant_id</0> 和 <1>org_id</1> 确定。跨组织或跨租户标识符返回 404，而不透露其存在。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
 msgstr "以下每个 SDK 均带有两种状态标签之一，与 XID 平台支持矩阵对齐。两种标签都不代表生产就绪声明。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/json</0>. The body contains the exact event <1>type</1> and its <2>data</2>; svix metadata is carried in request headers."
 msgstr "每次 Webhook 投递都是带有 <0>Content-Type: application/json</0> 的 HTTP POST。正文包含准确的事件 <1>type</1> 及其 <2>data</2>；svix 元数据通过请求 header 传递。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Evidence before compatibility claims"
+msgstr "兼容性声明之前的证据"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
@@ -3905,6 +3985,10 @@ msgstr "功能开关"
 msgid "Feature flags | Console | XID"
 msgstr "功能开关 | 控制台 | XID"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Federation and provisioning"
+msgstr "联合与预配"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Field"
 msgstr "字段"
@@ -4051,7 +4135,12 @@ msgstr "生成备用码"
 msgid "Generic OIDC baseline is available locally. SaaS-specific app templates and real SaaS L4 are still required before production support claims."
 msgstr "通用 OIDC 基线已在本地可用。在生产支持声明之前，仍需 SaaS 专项应用模板和真实 SaaS L4。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Get started"
+msgstr "开始使用"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "Getting started"
 msgstr "开始使用"
 
@@ -4277,6 +4366,10 @@ msgstr "Hosted Auth 登录流程辅助工具"
 msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
 msgstr "Hosted Auth、通行密钥、密码、魔法链接、社交登录、MFA、恢复、授权同意和账户自助服务。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted Auth, protocols, APIs, data, and asynchronous work"
+msgstr "Hosted Auth、协议、API、数据和异步任务"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "托管流程"
@@ -4288,6 +4381,10 @@ msgstr "Hosted 重定向、app link callback 和安全存储适配器。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Hosted redirect, deep link callback, PKCE S256, and secure storage adapter contract."
 msgstr "Hosted 重定向、deep link callback、PKCE S256 和安全存储适配器契约。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted sign-in, passkeys, password, MFA, session management, consent, and account self-service share one tenant-aware Core."
+msgstr "Hosted Sign-in、通行密钥、密码、MFA、会话管理、同意和账号自助服务共享同一个 tenant-aware Core。"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Hostname ownership"
@@ -4417,6 +4514,10 @@ msgstr "标识符策略"
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Identity"
 msgstr "身份"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Identity infrastructure for Cloudflare"
+msgstr "Cloudflare 的身份基础架构"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Identity protocols"
@@ -4619,6 +4720,10 @@ msgstr "signInPassword 的输入类型"
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Inspect failed queue metadata and deliberately replay the KEK-encrypted original message."
 msgstr "检查失败队列的元数据，并手动重放经 KEK 加密的原始消息。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Inspect the protocol matrix"
+msgstr "检查协议矩阵"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Install"
@@ -4998,6 +5103,10 @@ msgstr "旧版协议边界"
 msgid "Level"
 msgstr "等级"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "License"
+msgstr "许可证"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Like getAuth but throws a redirect response when unauthenticated"
 msgstr "类似 getAuth，但在未认证时抛出重定向响应"
@@ -5025,6 +5134,14 @@ msgstr "列表端点返回数据数组和游标元数据。错误使用结构化
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "List of user organizations for switcher UI"
 msgstr "用于切换器 UI 的用户组织列表"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "List requests awaiting the current user's approval."
+msgstr "列出等待当前用户批准的请求。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "List requests inside one organization."
+msgstr "列出一个组织内部的请求。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "List, create, and remove organization domains."
@@ -5210,6 +5327,10 @@ msgstr "正在加载你的会话"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.loading"
 msgstr "加载中..."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Local implementation and conformance gates are not production certification. Downstream SaaS OIDC uses the generic OIDC baseline, but each SaaS integration still requires real external L4 evidence."
+msgstr "本地实施和一致性检查不是生产认证。下游 SaaS OIDC 使用通用 OIDC 基线，但每个 SaaS 集成仍然需要真实的外部 L4 证据。"
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Locale"
@@ -5476,6 +5597,10 @@ msgstr "成员 | 控制台 | XID"
 msgid "Members, roles, SSO admin embed"
 msgstr "成员、角色和 SSO 管理嵌入组件"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Membership and project access are separate: invitations join an Organization, while AccessRequest grants an existing active member access to one Project."
+msgstr "成员身份和项目访问权限是分开的：邀请加入组织，而 AccessRequest 授予现有活跃成员对一个项目的访问权限。"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Message"
 msgstr "消息"
@@ -5544,8 +5669,8 @@ msgid "Minimal constructor. Chain builder methods for optional settings."
 msgstr "最简构造函数。链式调用构建器方法设置可选配置。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Minimal route subsets and discovery-friendly metadata are exposed. Unsupported operations return explicit errors until full profile handlers ship."
-msgstr "公开最小化路由子集和对发现友好的元数据。在完整 profile 处理器上线前，不支持的操作会返回明确错误。"
+msgid "Minimal implementation"
+msgstr "最少的实施"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
@@ -5571,6 +5696,14 @@ msgstr "缺少请求"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mobile SDKs"
 msgstr "移动端 SDK"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Model Organization, OrgUnit, project, and access approval boundaries."
+msgstr "模型组织、OrgUnit、项目和访问审批边界。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Model organizations, OrgUnits, projects, roles, grants, approval policies, and access requests without creating a separate admin tenant."
+msgstr "对组织、OrgUnit、项目、角色、授权、审批策略和访问请求建模，无需创建独立的管理租户。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
@@ -5718,6 +5851,10 @@ msgstr "Next.js"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Next.js middleware, App Router and Pages Router server helpers, plus React SDK re-exports."
 msgstr "Next.js middleware、App Router 和 Pages Router 服务端辅助工具，以及 React SDK 的重新导出。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "No access request is needed."
+msgstr "不需要访问请求。"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "No active API keys."
@@ -5943,6 +6080,10 @@ msgstr "尚未配置 SCIM 目录。"
 msgid "No SCIM targets configured."
 msgstr "未配置 SCIM 目标。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "No self-service request is available."
+msgstr "不提供自助服务请求。"
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "No sign-in methods are available for this organization."
 msgstr "此组织没有可用的登录方式。"
@@ -6003,10 +6144,6 @@ msgstr "Node.js"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "None"
 msgstr "无"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Not found"
-msgstr "未找到"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -6173,6 +6310,14 @@ msgstr "开启"
 msgid "On this page"
 msgstr "本页内容"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "One control plane from sign-in to enterprise access"
+msgstr "从登录到企业访问的一个控制平面"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "One deployment model"
+msgstr "一种部署模型"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One platform for identity"
 msgstr "统一身份平台"
@@ -6197,7 +6342,12 @@ msgstr "OneLogin"
 msgid "Only approve this request if the code matches your device."
 msgstr "仅当代码与设备匹配时批准此请求。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
+msgstr "仅暴露负路由和元数据存根。不支持的操作返回明确的<0>501 unsupported_feature</0>；没有声称支持功能协议。"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open"
 msgstr "打开"
 
@@ -6242,6 +6392,10 @@ msgstr "打开只读会话"
 msgid "Open source identity platform"
 msgstr "开源身份平台"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Open source, inspectable, and self-hostable"
+msgstr "开源、可审查、可自托管"
+
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Open Stripe-hosted Checkout to start a managed subscription, or use the Customer Portal for an existing billing account. These controls do not license-gate self-hosted features."
 msgstr "打开由 Stripe 托管的 Checkout 以开始托管订阅，或使用 Customer Portal 管理现有计费账户。这些控件不会通过许可证限制自托管功能。"
@@ -6270,6 +6424,10 @@ msgstr "打开认证器应用并输入 6 位验证码。"
 msgid "openAuthSession(url, redirectUri) resolving to a BrowserResult"
 msgstr "openAuthSession(url, redirectUri) 解析为 BrowserResult"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OpenID Federation exposes entity metadata and a registration boundary only. Trust-chain resolution, trust anchors, policy processing, and production interoperability are not implemented."
+msgstr "OpenID Federation 仅公开实体元数据和注册边界。信任链解析、信任锚、策略处理和生产互操作性尚未实现。"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "openid, email, profile"
 msgstr "openid, email, profile"
@@ -6281,6 +6439,14 @@ msgstr "正在打开组织"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Opens system browser, exchanges code, stores tokens"
 msgstr "打开系统浏览器，交换 code，存储 token"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "OpenSSF Best Practices badge for XID"
+msgstr "XID 的 OpenSSF 最佳实践徽章"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "OpenSSF Scorecard for XID"
+msgstr "XID 的 OpenSSF 记分卡"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Operational"
@@ -6352,6 +6518,10 @@ msgstr "org_..."
 msgid "Organization"
 msgstr "组织"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organization and instance management UI"
+msgstr "组织和实例管理 UI"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organization context is not populated from stored tokens yet."
 msgstr "组织上下文尚未从存储的 token 中填充。"
@@ -6359,6 +6529,10 @@ msgstr "组织上下文尚未从存储的 token 中填充。"
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Organization email domain"
 msgstr "组织邮箱域名"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Organization hierarchy"
+msgstr "组织层次结构"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -6395,6 +6569,7 @@ msgstr "组织角色：{0}"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations"
 msgstr "组织"
 
@@ -6402,9 +6577,17 @@ msgstr "组织"
 msgid "Organizations | Console | XID"
 msgstr "组织 | 控制台 | XID"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organizations and access"
+msgstr "组织和访问"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations can require email identifiers, username identifiers, or both."
 msgstr "组织可以要求邮箱标识、用户名标识或两者都要求。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OrgUnit trees support a maximum depth of eight."
+msgstr "OrgUnit 树支持的最大深度为 8。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Other native SDKs (iOS, Android, Flutter, desktop) use a functional configure, signIn, and handleRedirect API surface."
@@ -6953,6 +7136,10 @@ msgstr "请稍后再轮询。"
 msgid "Plugin setup"
 msgstr "插件配置"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Pre-1.0 status"
+msgstr "1.0 之前的状态"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "偏好设置"
@@ -7035,9 +7222,17 @@ msgstr "处理 App Link 或自定义 scheme callback。由 signIn 内部调用�
 msgid "Processing"
 msgstr "处理中"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Product"
+msgstr "产品"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Product and setup"
 msgstr "产品与设置"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Product, documentation, search, and agent-readable content"
+msgstr "产品、文档、搜索和 Agent 可读内容"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production and staging require KEK, PEPPER, and BOOTSTRAP_TOKEN as Workers Secrets. Never place them in variables, D1, source files, or build logs."
@@ -7050,6 +7245,10 @@ msgstr "生产后端"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production configuration"
 msgstr "Production 配置"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Production evidence"
+msgstr "生产证据"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -7104,6 +7303,10 @@ msgstr "项目经理可以更改定义。项目拨款经理可以读取定义并
 msgid "Project name"
 msgstr "项目名称"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Project policy"
+msgstr "项目政策"
+
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project recycle bin"
 msgstr "项目回收站"
@@ -7123,6 +7326,14 @@ msgstr "项目和访问"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Projects and access | Console | XID"
 msgstr "项目和访问 | Console | XID"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Projects and access policy"
+msgstr "项目和准入政策"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Projects group applications and authorization roles. The per-project <0>access_policy</0> controls only same-organization users without an effective UserGrant; cross-organization ProjectGrant authorization is unaffected."
+msgstr "项目组应用程序和授权角色。每个项目的<0>access_policy</0>仅控制同一组织的用户，没有有效的UserGrant；跨组织的 ProjectGrant 授权不受影响。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Projects isolate business roles and permissions. Select one project to manage its cross-organization grants and delegated managers."
@@ -7151,6 +7362,10 @@ msgstr "协议要求"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "协议"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Protocols and developer experience"
+msgstr "协议和开发人员经验"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Provide separate light and dark logo URLs. Both are hosted externally and referenced by URL."
@@ -7182,10 +7397,6 @@ msgstr "Provider 配置"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Provider status"
 msgstr "提供商状态"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Provider-ready"
-msgstr "提供商就绪"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Provider-ready for enterprise connections. Production support requires a real IdP configuration and callback L4."
@@ -7290,6 +7501,14 @@ msgstr "公共客户端使用带 PKCE S256 的授权码。不存储客户端密�
 #: apps/console/src/routes/org/OrgApplications.tsx
 msgid "Public clients use PKCE and do not receive a client secret."
 msgstr "公共客户端使用 PKCE 并且不接收客户端密钥。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Public content and management stay binding-free. Identity state, protocols, and policy remain in Core."
+msgstr "公开内容和管理界面保持 binding-free。身份状态、协议和策略保留在 Core 中。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Public locales"
+msgstr "公开语言"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public organization view"
@@ -7480,6 +7699,14 @@ msgstr "配置信赖方前先读取签发方元数据。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Read organization audit events with cursor pagination."
 msgstr "使用游标分页读取组织审计事件。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Read the documentation"
+msgstr "阅读文档"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Read the organization unit tree."
+msgstr "阅读组织单位树。"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Read-only event log for this organization."
@@ -7913,6 +8140,10 @@ msgstr "组织范围内的用户和组端点必填。"
 msgid "Required for POST, PUT, and PATCH requests."
 msgstr "POST、PUT 和 PATCH 请求必需。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Required scope"
+msgstr "所需范围"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line."
 msgstr "配置 SLO URL 时必填。粘贴 PEM 块，或使用空行分隔 base64 DER 证书。"
@@ -8012,6 +8243,10 @@ msgstr "恢复项目"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Restore this project before changing roles, permissions, or mappings."
 msgstr "在更改角色、权限或映射之前恢复此项目。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Restricted"
+msgstr "受限制的"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Restricted mode limits outbound SSO launch and SCIM sync to members with selected roles or explicit user IDs."
@@ -8288,6 +8523,10 @@ msgstr "Ruby 服务端 SDK，提供 networkless JWT 验证、Rack/Rails 请求�
 msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
 msgstr "在自己的 Cloudflare 账户中，以单租户或多租户模式运行同一套 MIT 许可代码。自托管包含全部功能，不设许可证检查或独立版本。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Runtime"
+msgstr "运行时"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Runtime or language"
 msgstr "运行时或语言"
@@ -8327,6 +8566,10 @@ msgstr "SaaS"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Salesforce"
 msgstr "Salesforce"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Same-organization behavior"
+msgstr "同一组织行为"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SAML clock tolerance in milliseconds"
@@ -8423,6 +8666,10 @@ msgstr "SCIM 错误返回 <0>application/scim+json</0>，包含 SCIM 错误结�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SCIM field"
 msgstr "SCIM 字段"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "SCIM provisions users and memberships but does not map directory groups to OrgUnits or Project roles in the current implementation."
+msgstr "SCIM 提供用户和成员资格，但不会将目录组映射到当前实现中的 OrgUnit 或项目角色。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SCIM remains the recommended source for deprovisioning and group membership lifecycle."
@@ -8682,8 +8929,13 @@ msgid "Selector xid-sign-out-button; inputs sessionId, redirectUrl, ariaLabel; s
 msgstr "Selector xid-sign-out-button；输入 sessionId、redirectUrl、ariaLabel；登出时显示 aria-busy"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Self-hosting"
 msgstr "自托管"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Self-service path"
+msgstr "自助服务路径"
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send a verification link to {email}. The Console stays read-only until you use it."
@@ -8891,12 +9143,20 @@ msgid "Shared native contract"
 msgstr "共享原生契约"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Shared Signals, CAEP, RISC, GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI expose reserved routes that return explicit 501 errors. They are not protocol implementations."
+msgstr "共享信号、CAEP、RISC、GNAP、UMA、HEART、OpenID4VP 和 OpenID4VCI 公开返回显式 501 错误的保留路由。它们不是协议实现。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shared Swift core extraction with sdk/ios is planned but not yet done — each package carries its own copy of the implementation."
 msgstr "与 sdk/ios 共享 Swift 核心提取已在计划中，但尚未完成——每个包携带自己的实现副本。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shibboleth"
 msgstr "Shibboleth"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Ship OIDC and OAuth flows, Management APIs, webhooks, framework SDKs, localized docs, and networkless token verification from one repository."
+msgstr "在同一仓库中提供 OIDC 和 OAuth 流程、Management API、Webhook、框架 SDK、本地化文档和无网络令牌验证。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
@@ -9077,6 +9337,10 @@ msgstr "signOut() 会清除本地会话和 legacy credentials；signOutState 报
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Single-account only — the storage layer uses fixed keys."
 msgstr "仅支持单账户——存储层使用固定密钥。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Site"
+msgstr "Site 站点"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Site navigation"
@@ -9733,6 +9997,10 @@ msgstr "macOS SDK 与 sdk/ios 共享相同的 Swift 实现模式——ASWebAuthe
 msgid "The Management API stores seven organization-scoped branding values in KV. They are available to authenticated management clients; automatic Hosted Auth and email rendering is not implemented."
 msgstr "Management API 在 KV 中存储七个组织作用域的品牌值。经过身份验证的管理客户端可以读取这些值；自动应用到 Hosted Auth 和电子邮件渲染尚未实现。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The Management API uses cursor pagination and shared API-key or organization-manager guards. It does not reuse end-user business routes."
+msgstr "管理 API 使用光标分页和共享 API 密钥或组织管理器防护。它不重用最终用户业务路由。"
+
 #: packages/i18n/src/messages.ts
 msgid "The MFA code is incorrect."
 msgstr "MFA 验证码不正确。"
@@ -9740,6 +10008,14 @@ msgstr "MFA 验证码不正确。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The middleware strips any client-supplied auth tokens and re-injects only the verified result."
 msgstr "middleware 会剥离客户端提供的任何认证 token，并重新注入已验证的结果。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "The MIT-licensed repository includes the complete feature set. Security posture and project governance remain visible through OpenSSF and the public source."
+msgstr "采用 MIT 许可证的仓库包含完整功能集。安全态势和项目治理通过 OpenSSF 和公开源代码保持透明。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
+msgstr "OrgUnit 祖先链中最近的活动管理者是第一个访问请求批准者候选者。"
 
 #: packages/i18n/src/messages.ts
 msgid "The one-time code has expired. Please request a new one."
@@ -9769,9 +10045,17 @@ msgstr "您查找的页面不存在或已移动"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "密码未达到最低强度要求。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "The product surface"
+msgstr "产品能力"
+
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "未找到该项目。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "The protocol matrix separates implemented behavior, local conformance evidence, and production support. SAML is not described as production-ready until it is validated against a real identity provider."
+msgstr "协议矩阵将实现的行为、本地一致性证据和生产支持分开。在针对真实身份提供商进行验证之前，SAML 并不被描述为可用于生产。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
@@ -9906,6 +10190,10 @@ msgid "The svix-signature header starts with the literal v1, prefix, followed by
 msgstr "svix-signature header 以字面量前缀 v1, 开头，随后是使用端点签名 secret 对 <0>{SVIX_SIGNATURE_INPUT}</0> 计算得到的 Base64 编码 HMAC-SHA256。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The user submits an access request."
+msgstr "用户提交访问请求。"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The XID Worker keeps an opaque refresh credential in an <0>HttpOnly</0> cookie. It is not a JWT, and the SDK never reads it from JavaScript or stores it in <1>localStorage</1>."
 msgstr "XID Worker 在 <0>HttpOnly</0> cookie 中保留不透明的刷新凭据。它不是 JWT，SDK 永远不会从 JavaScript 读取它或将其存储在 <1>localStorage</1> 中。"
 
@@ -10032,10 +10320,6 @@ msgstr "该资源将停止授权访问并移至项目回收站。"
 msgid "This session has been revoked."
 msgstr "此会话已被吊销。"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "This URL is not part of the published XID developer docs."
-msgstr "此 URL 不属于已发布的 XID 开发者文档。"
-
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "This verification link has expired. Please request a new one."
 msgstr "此验证链接已过期。请重新获取。"
@@ -10051,6 +10335,10 @@ msgstr "这会从账户中移除 \"{factorLabel}\"。如果这是唯一 2FA 方�
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "This will remove the link between your account and {label}. You will no longer be able to sign in with {label} unless you reconnect it."
 msgstr "这会移除账户与 {label} 的连接。除非重新连接，否则无法再使用 {label} 登录。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Three focused Workers. One identity platform."
+msgstr "三个职责清晰的 Workers，一个身份平台。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Thrown for unrecoverable SDK errors: missing JWT key, JWKS fetch failure, invalid options, session-token exchange failure"
@@ -10464,6 +10752,10 @@ msgstr "使用带 scope 的 API 密钥在后端管理组织资源。"
 msgid "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Retries carry the same <1>svix-id</1> as the original attempt."
 msgstr "使用 <0>svix-id</0> 请求头在接收端去重。重试的投递与原始尝试携带相同的 <1>svix-id</1>。"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Use the complete platform or adopt the protocol, UI, and SDK layers that fit your architecture."
+msgstr "使用完整的平台或采用适合您的架构的协议、UI 和 SDK 层。"
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Use the same entry for sign-in and account creation. Organization policy decides which actions are allowed."
 msgstr "登录和账号创建使用同一个入口。组织策略决定允许哪些操作。"
@@ -10854,6 +11146,10 @@ msgstr "非常弱"
 msgid "View as Markdown"
 msgstr "以 Markdown 格式查看"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "View source on GitHub"
+msgstr "在 GitHub 上查看源代码"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "View the current documentation"
 msgstr "查看当前文档"
@@ -11067,6 +11363,10 @@ msgstr "XID 作为 SAML 或 OIDC IdP"
 msgid "XID behavior"
 msgstr "XID 行为"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers."
+msgstr "XID 将 Hosted Auth、OIDC、组织、企业联合、目录同步和 SDKs 整合到一个运行于 Cloudflare Workers 的 MIT 许可证平台中。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
 msgstr "XID 将 Hosted Auth、通行密钥、OIDC 与 OAuth、组织、企业联合身份、SCIM 和 SDK 整合为一个面向 Cloudflare 构建的身份平台。"
@@ -11074,10 +11374,6 @@ msgstr "XID 将 Hosted Auth、通行密钥、OIDC 与 OAuth、组织、企业联
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID 当前作为企业 IdP 的 SAML 服务提供商。面向下游 SaaS 应用的出站 SAML IdP 有本地 fake-SaaS 证据，但生产支持仍需要真实 SaaS 管理员 L4。"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID developer document not found"
-msgstr "未找到 XID 开发者文档"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose a pull Events API. Use <0>GET /v1/webhooks</0> to manage subscriptions; delivery state and queue dead-letter replay are operational surfaces for Instance Managers, not a tenant event stream."
@@ -11134,6 +11430,10 @@ msgstr "XID 支持 SCIM 过滤语法，包含 <0>and</0>、<1>or</1>、<2>not</2
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "XID will delete the Cloudflare custom hostname before marking it deleted locally. Remove the traffic CNAME after this succeeds."
 msgstr "XID 将删除 Cloudflare 自定义主机名，然后再将其标记为本地删除。成功后删除流量 CNAME。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "XID, an edge-native identity platform on Cloudflare Workers, featured on Product Hunt"
+msgstr "XID 是 Cloudflare Workers 上的边缘原生身份平台，在 Product Hunt 上得到推荐"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"

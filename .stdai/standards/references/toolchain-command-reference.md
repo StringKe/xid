@@ -63,7 +63,7 @@ It has since diverged substantially (TanStack Router, lingui, StyleX, custom Vit
 that command as history, not as something to re-run against the existing app.
 
 `apps/site` is generated once from `@cloudflare/create-nimbus-docs@0.6.3`, then owned by this
-monorepo. `@cloudflare/nimbus-docs` is pinned exactly to `0.8.2`, Astro stays on compatible 7.x, and
+monorepo. `@cloudflare/nimbus-docs` is pinned exactly to `0.9.0`, Astro stays on compatible 7.x, and
 the Site remains static output with no Cloudflare SSR adapter.
 
 `apps/console` is a standard Vite React app extracted from the former Core SPA. It is not scaffolded

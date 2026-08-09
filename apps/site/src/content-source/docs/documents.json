@@ -115,7 +115,7 @@
               "values": {},
               "tags": {}
             },
-            "slugs": ["getting-started", "hosted-auth", "branding", "self-hosting"]
+            "slugs": ["getting-started", "hosted-auth", "organizations", "branding", "self-hosting"]
           },
           {
             "label": {
@@ -763,6 +763,484 @@
       ]
     },
     {
+      "slug": "organizations",
+      "title": {
+        "kind": "message",
+        "id": "jiE6Vn",
+        "message": "Organizations",
+        "values": {},
+        "tags": {}
+      },
+      "summary": {
+        "kind": "message",
+        "id": "M4uvDp",
+        "message": "Model Organization, OrgUnit, project, and access approval boundaries.",
+        "values": {},
+        "tags": {}
+      },
+      "sections": [
+        {
+          "heading": {
+            "kind": "message",
+            "id": "xw174L",
+            "message": "Organization hierarchy",
+            "values": {},
+            "tags": {}
+          },
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "lI3FBL",
+                "message": "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary.",
+                "values": {},
+                "tags": {}
+              }
+            },
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "EXGw1X",
+                "message": "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit.",
+                "values": {},
+                "tags": {}
+              }
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "message",
+                  "id": "heqJo0",
+                  "message": "OrgUnit trees support a maximum depth of eight.",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "FzcsbV",
+                  "message": "Each member can have one primary OrgUnit and additional placements.",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "KcNbl_",
+                  "message": "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate.",
+                  "values": {},
+                  "tags": {}
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "heading": {
+            "kind": "message",
+            "id": "GWP2uI",
+            "message": "Projects and access policy",
+            "values": {},
+            "tags": {}
+          },
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "oRrYN-",
+                "message": "Projects group applications and authorization roles. The per-project <0>access_policy</0> controls only same-organization users without an effective UserGrant; cross-organization ProjectGrant authorization is unaffected.",
+                "values": {},
+                "tags": {
+                  "0": {
+                    "kind": "inlineCode"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "table",
+              "headers": [
+                {
+                  "kind": "message",
+                  "id": "zpFVO-",
+                  "message": "Project policy",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "CUqTwi",
+                  "message": "Same-organization behavior",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "bXJlp8",
+                  "message": "Self-service path",
+                  "values": {},
+                  "tags": {}
+                }
+              ],
+              "rows": [
+                [
+                  {
+                    "kind": "message",
+                    "id": "1TNIig",
+                    "message": "Open",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "message",
+                    "id": "v50lZ0",
+                    "message": "Allowed without a UserGrant.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "message",
+                    "id": "sr1e73",
+                    "message": "No access request is needed.",
+                    "values": {},
+                    "tags": {}
+                  }
+                ],
+                [
+                  {
+                    "kind": "message",
+                    "id": "rNDhLF",
+                    "message": "Restricted",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "message",
+                    "id": "2xDPwZ",
+                    "message": "Denied; an administrator grants access directly.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "message",
+                    "id": "EQSw8D",
+                    "message": "No self-service request is available.",
+                    "values": {},
+                    "tags": {}
+                  }
+                ],
+                [
+                  {
+                    "kind": "message",
+                    "id": "arcpYe",
+                    "message": "Approval required",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "message",
+                    "id": "fki_WE",
+                    "message": "Denied until an AccessRequest is approved.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "message",
+                    "id": "R8k2CK",
+                    "message": "The user submits an access request.",
+                    "values": {},
+                    "tags": {}
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "heading": {
+            "kind": "message",
+            "id": "mFowC3",
+            "message": "Access request lifecycle",
+            "values": {},
+            "tags": {}
+          },
+          "blocks": [
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "gmgX3f",
+                "message": "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days.",
+                "values": {},
+                "tags": {
+                  "0": {
+                    "kind": "inlineCode"
+                  },
+                  "1": {
+                    "kind": "inlineCode"
+                  },
+                  "2": {
+                    "kind": "inlineCode"
+                  },
+                  "3": {
+                    "kind": "inlineCode"
+                  },
+                  "4": {
+                    "kind": "inlineCode"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "paragraph",
+              "content": {
+                "kind": "message",
+                "id": "bOaals",
+                "message": "Approval creates a traceable UserGrant in the same transaction. The requester cannot approve their own request; resolution falls through from the OrgUnit manager to project and organization managers.",
+                "values": {},
+                "tags": {}
+              }
+            },
+            {
+              "kind": "table",
+              "headers": [
+                {
+                  "kind": "message",
+                  "id": "fiPesM",
+                  "message": "Method",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "I6gXOa",
+                  "message": "Path",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "d2bIDc",
+                  "message": "Purpose",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "h3eMvZ",
+                  "message": "Required scope",
+                  "values": {},
+                  "tags": {}
+                }
+              ],
+              "rows": [
+                [
+                  {
+                    "kind": "inlineCode",
+                    "value": "GET, POST"
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "/auth/access-requests"
+                  },
+                  {
+                    "kind": "message",
+                    "id": "xg-3ta",
+                    "message": "Create and list the current user's requests.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "session"
+                  }
+                ],
+                [
+                  {
+                    "kind": "inlineCode",
+                    "value": "POST"
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "/auth/access-requests/:id/cancel"
+                  },
+                  {
+                    "kind": "message",
+                    "id": "SHimvW",
+                    "message": "Cancel the current user's pending request.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "session"
+                  }
+                ],
+                [
+                  {
+                    "kind": "inlineCode",
+                    "value": "GET"
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "/auth/access-approvals"
+                  },
+                  {
+                    "kind": "message",
+                    "id": "LPVXnS",
+                    "message": "List requests awaiting the current user's approval.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "session"
+                  }
+                ],
+                [
+                  {
+                    "kind": "inlineCode",
+                    "value": "POST"
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "/auth/access-approvals/:id/{approve|deny}"
+                  },
+                  {
+                    "kind": "message",
+                    "id": "jsVJ77",
+                    "message": "Approve or deny a pending request assigned to the current user.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "session"
+                  }
+                ],
+                [
+                  {
+                    "kind": "inlineCode",
+                    "value": "GET"
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "/v1/organizations/:orgId/access-requests"
+                  },
+                  {
+                    "kind": "message",
+                    "id": "VzN7HK",
+                    "message": "List requests inside one organization.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "access-requests:read"
+                  }
+                ],
+                [
+                  {
+                    "kind": "inlineCode",
+                    "value": "GET"
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "/v1/organizations/:orgId/units"
+                  },
+                  {
+                    "kind": "message",
+                    "id": "MJj2m7",
+                    "message": "Read the organization unit tree.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "org-units:read"
+                  }
+                ],
+                [
+                  {
+                    "kind": "inlineCode",
+                    "value": "POST, PATCH, DELETE, PUT"
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "/v1/organizations/:orgId/units/*"
+                  },
+                  {
+                    "kind": "message",
+                    "id": "R4EKQj",
+                    "message": "Create, update, move, archive, and manage members of units.",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "inlineCode",
+                    "value": "org-units:write"
+                  }
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "heading": {
+            "kind": "message",
+            "id": "P-T6JK",
+            "message": "Security boundaries",
+            "values": {},
+            "tags": {}
+          },
+          "blocks": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "message",
+                  "id": "cNzpFP",
+                  "message": "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence.",
+                  "values": {},
+                  "tags": {
+                    "0": {
+                      "kind": "inlineCode"
+                    },
+                    "1": {
+                      "kind": "inlineCode"
+                    }
+                  }
+                },
+                {
+                  "kind": "message",
+                  "id": "OhILRw",
+                  "message": "Membership and project access are separate: invitations join an Organization, while AccessRequest grants an existing active member access to one Project.",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "aqg3cx",
+                  "message": "SCIM provisions users and memberships but does not map directory groups to OrgUnits or Project roles in the current implementation.",
+                  "values": {},
+                  "tags": {}
+                },
+                {
+                  "kind": "message",
+                  "id": "9rwd6X",
+                  "message": "The Management API uses cursor pagination and shared API-key or organization-manager guards. It does not reuse end-user business routes.",
+                  "values": {},
+                  "tags": {}
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "slug": "oidc-oauth",
       "title": {
         "kind": "message",
@@ -1008,8 +1486,8 @@
                   },
                   {
                     "kind": "message",
-                    "id": "kXIUve",
-                    "message": "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR<1>resource_access</1> authorization details, token-exchange refresh and ID token issuance, mTLS client authentication, and front-channel logout.",
+                    "id": "b--gro",
+                    "message": "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR <1>resource_access</1> authorization details, token exchange, mTLS client authentication, front-channel and back-channel logout, Device Flow, Session Management, CIBA, Browser-Based Apps profile gates, and FAPI 2.0 profile gates.",
                     "values": {},
                     "tags": {
                       "0": {
@@ -1024,15 +1502,15 @@
                 [
                   {
                     "kind": "message",
-                    "id": "-IXLsJ",
-                    "message": "Provider-ready",
+                    "id": "iO__yq",
+                    "message": "Minimal implementation",
                     "values": {},
                     "tags": {}
                   },
                   {
                     "kind": "message",
-                    "id": "VJykec",
-                    "message": "Device authorization polling, Session Management check_session, CIBA backchannel approval, FAPI 2.0 / Browser-Based Apps profile gates, OpenID Federation, and Shared Signals expose guarded-minimal or provider-ready subsets. GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI return negative or 501 stubs until full profiles ship.",
+                    "id": "V8UfAK",
+                    "message": "OpenID Federation exposes entity metadata and a registration boundary only. Trust-chain resolution, trust anchors, policy processing, and production interoperability are not implemented.",
                     "values": {},
                     "tags": {}
                   }
@@ -1047,8 +1525,24 @@
                   },
                   {
                     "kind": "message",
-                    "id": "zxGYe9",
-                    "message": "Downstream SaaS OIDC uses the current generic OIDC baseline locally, but SaaS-specific production support still requires real SaaS L4.",
+                    "id": "mvXgaR",
+                    "message": "Shared Signals, CAEP, RISC, GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI expose reserved routes that return explicit 501 errors. They are not protocol implementations.",
+                    "values": {},
+                    "tags": {}
+                  }
+                ],
+                [
+                  {
+                    "kind": "message",
+                    "id": "HkC2Bo",
+                    "message": "Production evidence",
+                    "values": {},
+                    "tags": {}
+                  },
+                  {
+                    "kind": "message",
+                    "id": "63mZtq",
+                    "message": "Local implementation and conformance gates are not production certification. Downstream SaaS OIDC uses the generic OIDC baseline, but each SaaS integration still requires real external L4 evidence.",
                     "values": {},
                     "tags": {}
                   }
@@ -1319,10 +1813,14 @@
                   },
                   {
                     "kind": "message",
-                    "id": "bSXt8v",
-                    "message": "Minimal route subsets and discovery-friendly metadata are exposed. Unsupported operations return explicit errors until full profile handlers ship.",
+                    "id": "Fxr4JR",
+                    "message": "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed.",
                     "values": {},
-                    "tags": {}
+                    "tags": {
+                      "0": {
+                        "kind": "inlineCode"
+                      }
+                    }
                   }
                 ]
               ]
@@ -18633,10 +19131,6 @@
       "message": "JS integration"
     },
     {
-      "id": "-IXLsJ",
-      "message": "Provider-ready"
-    },
-    {
       "id": "-PJPxP",
       "message": "Unix seconds when the message was sent."
     },
@@ -19393,10 +19887,6 @@
       "message": "Field"
     },
     {
-      "id": "AZ8jWq",
-      "message": "Back to developer docs"
-    },
-    {
       "id": "AbkoVd",
       "message": "XID behavior"
     },
@@ -20041,10 +20531,6 @@
       "message": "Implemented events follow the pattern <0><object>.<action></0>. The xid-webhook-event header and body type carry the exact event name; every delivery also has a unique <1>svix-id</1>."
     },
     {
-      "id": "JySmpo",
-      "message": "XID developer document not found"
-    },
-    {
       "id": "K-HpUk",
       "message": "PKCE S256 is always used. Plain challenge is never generated."
     },
@@ -20067,10 +20553,6 @@
     {
       "id": "KGIb9w",
       "message": "Union of CLIENT_STATUS values"
-    },
-    {
-      "id": "KPx1UV",
-      "message": "Not found"
     },
     {
       "id": "KQNkTF",
@@ -20613,10 +21095,6 @@
       "message": "Components"
     },
     {
-      "id": "RSOwX-",
-      "message": "This URL is not part of the published XID developer docs."
-    },
-    {
       "id": "RSrN-z",
       "message": "Return only schemas, id, and the requested SCIM attributes."
     },
@@ -20871,10 +21349,6 @@
     {
       "id": "VIwCaD",
       "message": "Entry"
-    },
-    {
-      "id": "VJykec",
-      "message": "Device authorization polling, Session Management check_session, CIBA backchannel approval, FAPI 2.0 / Browser-Based Apps profile gates, OpenID Federation, and Shared Signals expose guarded-minimal or provider-ready subsets. GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI return negative or 501 stubs until full profiles ship."
     },
     {
       "id": "VMyaZ8",
@@ -21361,10 +21835,6 @@
       "message": "Provider, hooks, control components, user UI, and organization UI."
     },
     {
-      "id": "bSXt8v",
-      "message": "Minimal route subsets and discovery-friendly metadata are exposed. Unsupported operations return explicit errors until full profile handlers ship."
-    },
-    {
       "id": "bSl2EF",
       "message": "If <0>safeStorage.isEncryptionAvailable()</0> returns <1>false</1> (headless Linux without a keyring), <2>setItem()</2> throws <3>ElectronStorageError</3> with code <4>encryption_unavailable</4> rather than writing plaintext silently."
     },
@@ -21849,10 +22319,6 @@
       "message": "Default export: renderer surface and types"
     },
     {
-      "id": "imnj2v",
-      "message": "Developer docs navigation"
-    },
-    {
       "id": "imr7jp",
       "message": "8.0.0"
     },
@@ -21963,10 +22429,6 @@
     {
       "id": "kUeRuE",
       "message": "The following are on the public roadmap but are not exported from the current package. Do not assume availability in this version."
-    },
-    {
-      "id": "kXIUve",
-      "message": "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR<1>resource_access</1> authorization details, token-exchange refresh and ID token issuance, mTLS client authentication, and front-channel logout."
     },
     {
       "id": "kfLQ36",
@@ -23045,10 +23507,6 @@
       "message": "The default storage uses Keychain with <0>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</0> — tokens are not synced to iCloud Keychain. Implement the <1>TokenStorageAdapter</1> protocol to use an enterprise Keychain policy:"
     },
     {
-      "id": "zxGYe9",
-      "message": "Downstream SaaS OIDC uses the current generic OIDC baseline locally, but SaaS-specific production support still requires real SaaS L4."
-    },
-    {
       "id": "zzGfHH",
       "message": "Create, read, update, and delete permissions."
     },
@@ -23151,23 +23609,199 @@
     {
       "id": "5h77MI",
       "message": "Return the current unexpired access token; expiry or force_refresh clears local token state and returns SessionExpired."
+    },
+    {
+      "id": "jiE6Vn",
+      "message": "Organizations"
+    },
+    {
+      "id": "M4uvDp",
+      "message": "Model Organization, OrgUnit, project, and access approval boundaries."
+    },
+    {
+      "id": "xw174L",
+      "message": "Organization hierarchy"
+    },
+    {
+      "id": "lI3FBL",
+      "message": "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
+    },
+    {
+      "id": "EXGw1X",
+      "message": "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
+    },
+    {
+      "id": "heqJo0",
+      "message": "OrgUnit trees support a maximum depth of eight."
+    },
+    {
+      "id": "FzcsbV",
+      "message": "Each member can have one primary OrgUnit and additional placements."
+    },
+    {
+      "id": "KcNbl_",
+      "message": "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
+    },
+    {
+      "id": "GWP2uI",
+      "message": "Projects and access policy"
+    },
+    {
+      "id": "oRrYN-",
+      "message": "Projects group applications and authorization roles. The per-project <0>access_policy</0> controls only same-organization users without an effective UserGrant; cross-organization ProjectGrant authorization is unaffected."
+    },
+    {
+      "id": "zpFVO-",
+      "message": "Project policy"
+    },
+    {
+      "id": "CUqTwi",
+      "message": "Same-organization behavior"
+    },
+    {
+      "id": "bXJlp8",
+      "message": "Self-service path"
+    },
+    {
+      "id": "1TNIig",
+      "message": "Open"
+    },
+    {
+      "id": "v50lZ0",
+      "message": "Allowed without a UserGrant."
+    },
+    {
+      "id": "sr1e73",
+      "message": "No access request is needed."
+    },
+    {
+      "id": "rNDhLF",
+      "message": "Restricted"
+    },
+    {
+      "id": "2xDPwZ",
+      "message": "Denied; an administrator grants access directly."
+    },
+    {
+      "id": "EQSw8D",
+      "message": "No self-service request is available."
+    },
+    {
+      "id": "arcpYe",
+      "message": "Approval required"
+    },
+    {
+      "id": "fki_WE",
+      "message": "Denied until an AccessRequest is approved."
+    },
+    {
+      "id": "R8k2CK",
+      "message": "The user submits an access request."
+    },
+    {
+      "id": "mFowC3",
+      "message": "Access request lifecycle"
+    },
+    {
+      "id": "gmgX3f",
+      "message": "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
+    },
+    {
+      "id": "bOaals",
+      "message": "Approval creates a traceable UserGrant in the same transaction. The requester cannot approve their own request; resolution falls through from the OrgUnit manager to project and organization managers."
+    },
+    {
+      "id": "h3eMvZ",
+      "message": "Required scope"
+    },
+    {
+      "id": "xg-3ta",
+      "message": "Create and list the current user's requests."
+    },
+    {
+      "id": "SHimvW",
+      "message": "Cancel the current user's pending request."
+    },
+    {
+      "id": "LPVXnS",
+      "message": "List requests awaiting the current user's approval."
+    },
+    {
+      "id": "jsVJ77",
+      "message": "Approve or deny a pending request assigned to the current user."
+    },
+    {
+      "id": "VzN7HK",
+      "message": "List requests inside one organization."
+    },
+    {
+      "id": "MJj2m7",
+      "message": "Read the organization unit tree."
+    },
+    {
+      "id": "R4EKQj",
+      "message": "Create, update, move, archive, and manage members of units."
+    },
+    {
+      "id": "cNzpFP",
+      "message": "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
+    },
+    {
+      "id": "OhILRw",
+      "message": "Membership and project access are separate: invitations join an Organization, while AccessRequest grants an existing active member access to one Project."
+    },
+    {
+      "id": "aqg3cx",
+      "message": "SCIM provisions users and memberships but does not map directory groups to OrgUnits or Project roles in the current implementation."
+    },
+    {
+      "id": "9rwd6X",
+      "message": "The Management API uses cursor pagination and shared API-key or organization-manager guards. It does not reuse end-user business routes."
+    },
+    {
+      "id": "b--gro",
+      "message": "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR <1>resource_access</1> authorization details, token exchange, mTLS client authentication, front-channel and back-channel logout, Device Flow, Session Management, CIBA, Browser-Based Apps profile gates, and FAPI 2.0 profile gates."
+    },
+    {
+      "id": "iO__yq",
+      "message": "Minimal implementation"
+    },
+    {
+      "id": "V8UfAK",
+      "message": "OpenID Federation exposes entity metadata and a registration boundary only. Trust-chain resolution, trust anchors, policy processing, and production interoperability are not implemented."
+    },
+    {
+      "id": "mvXgaR",
+      "message": "Shared Signals, CAEP, RISC, GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI expose reserved routes that return explicit 501 errors. They are not protocol implementations."
+    },
+    {
+      "id": "HkC2Bo",
+      "message": "Production evidence"
+    },
+    {
+      "id": "63mZtq",
+      "message": "Local implementation and conformance gates are not production certification. Downstream SaaS OIDC uses the generic OIDC baseline, but each SaaS integration still requires real external L4 evidence."
+    },
+    {
+      "id": "Fxr4JR",
+      "message": "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
     }
   ],
   "stats": {
-    "documents": 40,
-    "sections": 273,
-    "paragraphs": 147,
-    "listItems": 174,
-    "tables": 70,
-    "tableRows": 477,
+    "documents": 41,
+    "sections": 277,
+    "paragraphs": 152,
+    "listItems": 181,
+    "tables": 72,
+    "tableRows": 488,
     "codeBlocks": 123,
     "richTags": {
-      "inlineCode": 291,
+      "inlineCode": 300,
       "strong": 17,
       "link": 15
     },
     "staticValues": 2,
     "literalValues": 3,
-    "catalogMessages": 1136
+    "catalogMessages": 1170
   }
 }

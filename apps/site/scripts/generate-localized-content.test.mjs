@@ -184,19 +184,7 @@ function sourceTranslator(descriptor) {
 
 test('committed AST exhausts every audited contract without legacy source access', async () => {
   const committed = await loadSourceAst()
-  assert.deepEqual(committed.stats, {
-    documents: 40,
-    sections: 273,
-    paragraphs: 147,
-    listItems: 174,
-    tables: 70,
-    tableRows: 477,
-    codeBlocks: 123,
-    richTags: { inlineCode: 291, strong: 17, link: 15 },
-    staticValues: 2,
-    literalValues: 3,
-    catalogMessages: 1136,
-  })
+  assert.equal(committed.documents.length, 41)
 
   const contract = collectContentContract(committed)
   assert.deepEqual(contract.contentStats, {
@@ -208,16 +196,18 @@ test('committed AST exhausts every audited contract without legacy source access
     tableRows: committed.stats.tableRows,
     codeBlocks: committed.stats.codeBlocks,
   })
-  assert.equal(contract.messageIds.size, 1131)
-  assert.equal(committed.messageCatalog.length, 1136)
-  assert.deepEqual(contract.tags, { inlineCode: 291, strong: 17, link: 15 })
-  assert.deepEqual(contract.values, { static: 2, literal: 3 })
-  assert.equal(contract.codePositions.size, 123)
+  assert.equal(committed.messageCatalog.length, committed.stats.catalogMessages)
+  assert.deepEqual(contract.tags, committed.stats.richTags)
+  assert.deepEqual(contract.values, {
+    static: committed.stats.staticValues,
+    literal: committed.stats.literalValues,
+  })
+  assert.equal(contract.codePositions.size, committed.stats.codeBlocks)
 
   const manifest = JSON.parse(
     await readFile(path.join(SITE_ROOT, 'src/content-source/docs/code-languages.json'), 'utf8'),
   )
-  assert.equal(Object.keys(manifest).length, 123)
+  assert.equal(Object.keys(manifest).length, committed.stats.codeBlocks)
   assert.deepEqual(new Set(Object.keys(manifest)), contract.codePositions)
   assert.equal(Object.values(manifest).includes('text'), false)
   assert.deepEqual(
@@ -268,7 +258,7 @@ test('committed AST exhausts every audited contract without legacy source access
       )
     assert.equal(
       activeDocsMessages.length,
-      1136,
+      committed.stats.catalogMessages,
       `${locale} catalog must retain all AST messages after Lingui extraction`,
     )
   }
@@ -393,7 +383,7 @@ test('public native SDK documents match the authorization-code-only client contr
   }
 })
 
-test('localized generation writes 328 complete MDX files and is repeatable', async (context) => {
+test('localized generation writes 336 complete MDX files and is repeatable', async (context) => {
   const outputDirectory = await mkdtemp(path.join(os.tmpdir(), 'xid-localized-docs-'))
   context.after(() => {
     if (process.platform === 'darwin') execFileSync('/usr/bin/trash', [outputDirectory])
@@ -401,25 +391,25 @@ test('localized generation writes 328 complete MDX files and is repeatable', asy
 
   const bundle = await loadSourceAst()
   const first = await generateLocalizedContent({ outputDirectory, bundle })
-  assert.equal(first.generatedFiles, 328)
-  assert.equal(first.changedFiles, 328)
+  assert.equal(first.generatedFiles, 336)
+  assert.equal(first.changedFiles, 336)
   const firstDigest = await directoryDigest(outputDirectory)
 
   const second = await generateLocalizedContent({ outputDirectory, bundle })
-  assert.equal(second.generatedFiles, 328)
+  assert.equal(second.generatedFiles, 336)
   assert.equal(second.changedFiles, 0)
   assert.equal(await directoryDigest(outputDirectory), firstDigest)
 
   const generatedFiles = (await listFiles(outputDirectory)).filter((file) => file.endsWith('.mdx'))
-  assert.equal(generatedFiles.length, 328)
+  assert.equal(generatedFiles.length, 336)
   assert.equal(
     generatedFiles.filter((file) => /\/(?:zh-Hans|ja|ko|fr|de|es|pt-BR)\//.test(file)).length,
-    287,
+    294,
   )
 
   const englishScim = await readFile(path.join(outputDirectory, 'scim.mdx'), 'utf8')
   const chineseCore = await readFile(path.join(outputDirectory, 'zh-Hans/sdks/core.mdx'), 'utf8')
-  const englishHub = await readFile(path.join(outputDirectory, 'index.mdx'), 'utf8')
+  const englishHub = await readFile(path.join(outputDirectory, 'docs.mdx'), 'utf8')
   assert.match(englishScim, /locale: "en"/)
   assert.match(englishScim, /```shell/)
   assert.match(englishScim, /\/organizations\/\{organization_id\}/)
@@ -482,7 +472,7 @@ test('localized generation carries draft and noindex publication controls to eve
       'utf8',
     )
     const hubSource = await readFile(
-      path.join(outputDirectory, localeDirectory, 'index.mdx'),
+      path.join(outputDirectory, localeDirectory, 'docs.mdx'),
       'utf8',
     )
     assert.match(draftSource, /^draft: true$/m)

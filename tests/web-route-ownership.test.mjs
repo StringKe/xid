@@ -45,9 +45,12 @@ function expectedWranglerConfigs() {
 }
 
 describe('Web route ownership', () => {
-  it('assigns the root documentation hub and legacy docs paths to Site', () => {
+  it('assigns product, documentation hub, and legacy docs paths to Site', () => {
     expect(SITE_EXACT_PATHS).toContain('/index.md')
     expect(SITE_EXACT_PATHS).toContain('/index.mdx')
+    expect(SITE_EXACT_PATHS).toContain('/docs')
+    expect(SITE_EXACT_PATHS).toContain('/docs/index.md')
+    expect(SITE_EXACT_PATHS).toContain('/docs/index.mdx')
     expect(SITE_EXACT_PATHS).toContain('/status')
     expect(SITE_EXACT_PATHS).toContain('/status/')
     expect(SITE_EXACT_PATHS).toContain('/status/index.md')
@@ -61,8 +64,8 @@ describe('Web route ownership', () => {
     expectOwner('https://xid.dev/docs/not-a-public-doc', 'site')
   })
 
-  it('assigns all 40 English canonical pages and twins to Site', () => {
-    expect(PUBLIC_DOC_SLUGS).toHaveLength(40)
+  it('assigns all 41 English canonical pages and twins to Site', () => {
+    expect(PUBLIC_DOC_SLUGS).toHaveLength(41)
     for (const slug of PUBLIC_DOC_SLUGS) {
       for (const suffix of ['', '/', '/index.md', '/index.mdx']) {
         expectOwner(`https://xid.dev/${slug}${suffix}`, 'site')
@@ -108,6 +111,7 @@ describe('Web route ownership', () => {
       expectOwner(`https://xid.dev/${routeSegment}`, 'site')
       expectOwner(`https://xid.dev/${routeSegment}/`, 'site')
       expectOwner(`https://xid.dev/${routeSegment}/oidc-oauth`, 'site')
+      expectOwner(`https://xid.dev/${routeSegment}/docs`, 'site')
       expectOwner(`https://xid.dev/${routeSegment}/status`, 'site')
       expectOwner(`https://xid.dev/${routeSegment}/status/index.md`, 'site')
       expectOwner(`https://xid.dev/${routeSegment}/status/index.mdx`, 'site')
@@ -239,6 +243,9 @@ describe('Wrangler route verifier', () => {
     expect(corePatterns).toContain('*/*')
     expect(sitePatterns).toContain('xid.dev/index.md')
     expect(sitePatterns).toContain('xid.dev/index.mdx')
+    expect(sitePatterns).toContain('xid.dev/docs')
+    expect(sitePatterns).toContain('xid.dev/docs/index.md')
+    expect(sitePatterns).toContain('xid.dev/docs/index.mdx')
     expect(sitePatterns).toContain('xid.dev/getting-started')
     expect(sitePatterns).toContain('xid.dev/getting-started/*')
     expect(sitePatterns).toContain('xid.dev/scim')
@@ -275,10 +282,7 @@ describe('Wrangler route verifier', () => {
     configs.site.preview_urls = true
 
     expect(verifyWorkerRouteConfigs(configs)).toEqual(
-      expect.arrayContaining([
-        'core: name must be xid',
-        'site: preview_urls must be false',
-      ]),
+      expect.arrayContaining(['core: name must be xid', 'site: preview_urls must be false']),
     )
   })
 })

@@ -7,33 +7,33 @@ function normalizePathname(pathname: string): string {
 }
 
 function localeDocsRoot(pathname: string): string {
-  return normalizePathname(localizeSitePath('/', getSiteLocale(pathname)))
+  return normalizePathname(localizeSitePath('/docs', getSiteLocale(pathname)))
 }
 
-function isLocaleRoot(href: string | undefined, root: string): boolean {
+function isLocaleRoute(href: string | undefined, root: string): boolean {
   return href !== undefined && href.startsWith('/') && normalizePathname(href) === root
 }
 
 const NON_ENGLISH_DOC_ROOTS = new Set(
   SITE_LOCALES.filter((locale): locale is Exclude<SiteLocale, 'en'> => locale !== 'en').map(
-    (locale) => normalizePathname(localizeSitePath('/', locale)),
+    (locale) => normalizePathname(localizeSitePath('/docs', locale)),
   ),
 )
+
+function itemContainsRoute(item: SidebarItem, root: string): boolean {
+  if (item.type === 'link') return isLocaleRoute(item.href, root)
+  if (item.type !== 'group') return false
+  return (
+    isLocaleRoute(item.indexHref, root) ||
+    item.children.some((child) => itemContainsRoute(child, root))
+  )
+}
 
 function isNonEnglishLocaleGroup(item: SidebarItem): boolean {
   return (
     item.type === 'group' &&
-    item.indexHref !== undefined &&
-    NON_ENGLISH_DOC_ROOTS.has(normalizePathname(item.indexHref))
+    [...NON_ENGLISH_DOC_ROOTS].some((root) => itemContainsRoute(item, root))
   )
-}
-
-function findLocaleRootGroups(items: SidebarItem[], root: string): SidebarItem[] {
-  return items.flatMap((item) => {
-    if (item.type !== 'group') return []
-    if (isLocaleRoot(item.indexHref, root)) return [item]
-    return findLocaleRootGroups(item.children, root)
-  })
 }
 
 export function scopeSidebarToSiteLocale(tree: SidebarItem[], pathname: string): SidebarItem[] {
@@ -42,13 +42,16 @@ export function scopeSidebarToSiteLocale(tree: SidebarItem[], pathname: string):
   }
 
   const root = localeDocsRoot(pathname)
-  const matches = findLocaleRootGroups(tree, root)
+  const matches = tree.filter(
+    (item): item is Extract<SidebarItem, { type: 'group' }> =>
+      item.type === 'group' && itemContainsRoute(item, root),
+  )
 
   if (matches.length !== 1) {
     throw new TypeError(`expected one sidebar group for ${root}, received ${matches.length}`)
   }
 
-  return matches
+  return matches[0].children
 }
 
 export function scopeSidebarSectionsToSiteLocale(
@@ -60,5 +63,5 @@ export function scopeSidebarSectionsToSiteLocale(
   }
 
   const root = localeDocsRoot(pathname)
-  return sections.filter((section) => isLocaleRoot(section.href, root))
+  return sections.filter((section) => isLocaleRoute(section.href, root))
 }

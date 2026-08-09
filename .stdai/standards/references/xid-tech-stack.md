@@ -26,8 +26,9 @@ Type gate    Official tsc --noEmit via the turbo `typecheck` task. vp's tsgo typ
 Runtime      Three Cloudflare Worker deployments: Nimbus Site, Console, and identity Core.
              Site and Console are ASSETS-only; Core is the only business runtime.
 Backend      Hono in apps/server (protocol surface + Management API)
-Public docs  @cloudflare/nimbus-docs 0.8.2 + Astro 7 static output. The apex is the documentation
-             hub; there is no separate marketing runtime, React island, or Cloudflare SSR adapter.
+Public Site  @cloudflare/nimbus-docs 0.9.0 + Astro 7 static output. The apex is the product landing
+             page and /docs is the documentation hub; there is no separate marketing runtime,
+             React island, or Cloudflare SSR adapter.
 Core UI      React 19 SPA for Hosted Auth, consent, MFA, account and Core error surfaces
 Console UI   React 19 SPA deployed independently at /console on apex and tenant hosts
 Routing      @tanstack/react-router for Core UI and Console; Astro/Nimbus file and content routing

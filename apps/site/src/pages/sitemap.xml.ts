@@ -5,6 +5,7 @@ import {
   getPublicDocsCanonicalPath,
 } from '../lib/docs-registry'
 import { SITE_LOCALES } from '../lib/site-locale'
+import { getHomeSurface } from '../lib/home-surface'
 import { getStatusSurface } from '../lib/status-surface'
 
 export const prerender = true
@@ -25,6 +26,7 @@ export async function GET() {
     if (!canonicalPath) throw new TypeError(`unknown public documentation route ${item.url}`)
     return canonicalPath
   })
+  paths.push(...SITE_LOCALES.map((locale) => getHomeSurface(locale).path))
   paths.push(...SITE_LOCALES.map((locale) => getStatusSurface(locale).path))
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',

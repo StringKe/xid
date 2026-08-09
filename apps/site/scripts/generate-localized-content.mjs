@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -11,24 +10,19 @@ import {
   renderMarkdownHub,
   renderPlainText,
 } from '../src/content-source/docs/render-markdown.ts'
+import { documentMessageId, renderMessageDescriptors } from './sync-document-source.mjs'
+
+export { documentMessageId, renderMessageDescriptors }
 
 const execFileAsync = promisify(execFile)
 const SITE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const SOURCE_AST_FILE = path.join(SITE_ROOT, 'src/content-source/docs/documents.json')
-const MESSAGE_DESCRIPTORS_FILE = path.join(
-  SITE_ROOT,
-  'src/content-source/docs/message-descriptors.ts',
-)
 const DEFAULT_OUTPUT_DIRECTORY = path.join(SITE_ROOT, 'src/content/generated/docs')
 const I18N_DIRECTORY = path.join(REPOSITORY_ROOT, 'packages/i18n/locales')
 
 function stableCompare(left, right) {
   return left < right ? -1 : left > right ? 1 : 0
-}
-
-export function documentMessageId(message) {
-  return createHash('sha256').update(`${message}\u001f`).digest('base64url').slice(0, 6)
 }
 
 export function assertDocumentMessageIds(bundle) {
@@ -165,24 +159,6 @@ export async function loadSourceAst() {
   return bundle
 }
 
-export function renderMessageDescriptors(bundle) {
-  assertDocumentAstBundle(bundle)
-  return [
-    '// Generated from documents.json. Do not edit.',
-    'export const docsMessageDescriptors = [',
-    ...bundle.messageCatalog.map(
-      (entry) =>
-        `  /*i18n*/ { id: ${JSON.stringify(entry.id)}, message: ${JSON.stringify(entry.message)} },`,
-    ),
-    '] as const',
-    '',
-  ].join('\n')
-}
-
-export async function syncMessageDescriptors(bundle) {
-  return writeFileIfChanged(MESSAGE_DESCRIPTORS_FILE, renderMessageDescriptors(bundle))
-}
-
 function frontmatter({ title, description, locale, order, draft, noindex }) {
   return [
     '---',
@@ -204,7 +180,7 @@ function localizedContentPath(outputDirectory, locale, slug) {
 
 function localizedHubPath(outputDirectory, locale) {
   const localeParts = locale === 'en' ? [] : [locale]
-  return path.join(outputDirectory, ...localeParts, 'index.mdx')
+  return path.join(outputDirectory, ...localeParts, 'docs.mdx')
 }
 
 async function listMdxFiles(directory) {
@@ -251,7 +227,6 @@ export async function generateLocalizedContent(options = {}) {
   const bundle = options.bundle ?? (await loadSourceAst())
   assertDocumentAstBundle(bundle)
   assertDocumentMessageIds(bundle)
-  if (!options.outputDirectory) await syncMessageDescriptors(bundle)
   const catalogs = await loadAndValidateCatalogs(bundle.messageCatalog)
   const expectedFiles = new Set()
   let changedFiles = 0

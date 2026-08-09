@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=a8fa4235d52835e6ae53527be899507e5987e65c -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=a1fdf8d2ef1c6bf5433bf0e0a4b76c223ebf7263 -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -168,20 +168,21 @@ dist/
 
 ### 公共文档与 Console 运行时边界
 
-公共展示只有一个 Nimbus 0.8.2 文档静态部署,不再存在独立 marketing site。Nimbus 拥有
-canonical apex 文档首页、8 locale 文档、Pagefind、OG images、sitemaps、Markdown twins、
-LLM documents 与 structured metadata。英文使用 `/` 与 `/{slug}`,其他 7 locale 使用
-`/{locale-segment}` 与 `/{locale-segment}/{slug}`。每个 locale 包含 1 个 hub、40 篇
-文档和 1 个 status page,总计 336 页。locale-neutral `documents.json` AST 是 328 个
-generated collection pages 的 content source;本地化 status routes 是显式 Astro pages。
-generated localized MDX 是 build artifact,不是 authoring source。
+公共展示只有一个 Nimbus 0.9.0 静态 Site deployment,不另设 marketing runtime。Nimbus 拥有
+canonical apex 产品首页、`/docs` 文档首页、8 locale 文档、Pagefind、OG images、sitemaps、
+Markdown twins、LLM documents 与 structured metadata。英文使用 `/` 作为产品首页、`/docs`
+作为文档首页、`/{slug}` 作为文档详情;其他 7 locale 分别使用 `/{locale-segment}`、
+`/{locale-segment}/docs` 与 `/{locale-segment}/{slug}`。每个 locale 包含 1 个产品首页、1 个
+hub、41 篇文档和 1 个 status page,总计 352 页。locale-neutral `documents.json` AST 是
+336 个 generated collection pages 的 content source;产品首页与本地化 status routes 是显式
+Astro pages。generated localized MDX 是 build artifact,不是 authoring source。
 
 已安装的 Nimbus Registry feature set:
 
-- `pagefind-search`:索引全部 336 个本地化 Site pages。
+- `pagefind-search`:索引全部 352 个本地化 Site pages。
 - `ai-native`:为每个 published page 输出一个 downleveled `.md` twin 和一个保留 source 的
-  `.mdx` twin。全局 `/llms.txt` 与 `/llms-full.txt` 覆盖 336 页。English locale 使用
-  `/en/llms*.txt`,其他 7 locale 使用各自 segment,每份 locale index 与 corpus 覆盖 42 页。
+  `.mdx` twin。全局 `/llms.txt` 与 `/llms-full.txt` 覆盖 352 页。English locale 使用
+  `/en/llms*.txt`,其他 7 locale 使用各自 segment,每份 locale index 与 corpus 覆盖 44 页。
   每个 locale 还会在 `/sdks/llms*.txt` 或 `/{locale-segment}/sdks/llms*.txt` 输出与 Nimbus
   一致的 SDK section index 与 corpus,并且仅覆盖该 locale 的 29 个 SDK pages。
 - `404-page`:对未知 public routes 返回本地化且终止于 Site 的 404,不进入 Core。
@@ -194,8 +195,10 @@ generated localized MDX 是 build artifact,不是 authoring source。
 JSON-LD。upstream Registry 存在其他 recipe 不代表 XID 已启用它。`changelog`、
 `new-version` 与 `new-collection` 不属于当前 shipped surface。
 
-已登记旧 `/docs` path 返回到根 canonical 的 308。未知旧 `/docs/*` path 返回 Nimbus 404,
-不会落入 Hosted Auth。English SCIM 文档只使用 `/scim` exact routes,`/scim/v2/*` 始终归 Core。
+`/docs` 是 English canonical 文档首页。已登记的历史详情路径,例如
+`/docs/getting-started`,返回到 flat canonical document tree 的 308。未知 `/docs/*` path 返回
+Nimbus 404,不会落入 Hosted Auth。English SCIM 文档只使用 `/scim` exact routes,
+`/scim/v2/*` 始终归 Core。
 
 Org 与 instance 管理面仍是一个统一的 React Console 产品,但其静态 assets 由独立 Console
 Worker 部署。该 Worker 只有 `ASSETS` binding,在 apex 与 tenant hosts 上拥有 `/console` 和

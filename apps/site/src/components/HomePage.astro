@@ -1,0 +1,532 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "./Header.astro";
+import { getHomeSurface } from "../lib/home-surface";
+import { localizeSitePath, type SiteLocale } from "../lib/site-locale";
+
+interface Props {
+  locale: SiteLocale;
+}
+
+const { locale } = Astro.props;
+const surface = getHomeSurface(locale);
+const structuredData = JSON.stringify({
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      name: "XID",
+      url: new URL(surface.path, Astro.site ?? "https://xid.dev").href,
+      description: surface.description,
+      inLanguage: surface.locale,
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "XID",
+      applicationCategory: "SecurityApplication",
+      operatingSystem: "Cloudflare Workers",
+      license: "https://opensource.org/license/mit",
+      url: "https://github.com/StringKe/xid",
+      description: surface.description,
+    },
+  ],
+});
+const head = [
+  {
+    tag: "script" as const,
+    attrs: { type: "application/ld+json" },
+    content: structuredData,
+  },
+];
+const gettingStartedHref = localizeSitePath("/getting-started", locale);
+const docsHref = localizeSitePath("/docs", locale);
+const evidenceHref = localizeSitePath("/oidc-oauth", locale);
+---
+
+<BaseLayout
+  title={surface.title}
+  description={surface.description}
+  markdownUrl={surface.markdownPath}
+  socialImage="/og.png"
+  head={head}
+>
+  <div class="min-h-screen">
+    <Header showMobileMenu={false} />
+    <main id="main-content" data-pagefind-body>
+      <section class="home-shell home-hero" aria-labelledby="home-title">
+        <div class="home-hero-copy">
+          <p class="home-eyebrow">{surface.eyebrow}</p>
+          <h1 id="home-title">{surface.title}</h1>
+          <p class="home-lead">{surface.description}</p>
+          <div class="home-actions">
+            <a class="home-action home-action-primary" href={gettingStartedHref}>{surface.getStarted}</a>
+            <a class="home-action home-action-secondary" href={docsHref}>{surface.readDocs}</a>
+          </div>
+        </div>
+
+        <aside class="architecture-panel" aria-labelledby="architecture-title">
+          <p class="home-eyebrow">{surface.architectureEyebrow}</p>
+          <h2 id="architecture-title">{surface.architectureTitle}</h2>
+          <p>{surface.architectureDescription}</p>
+          <dl>
+            {surface.architecture.map((item, index) => (
+              <div>
+                <dt><span aria-hidden="true">0{index + 1}</span>{item.label}</dt>
+                <dd>{item.description}</dd>
+              </div>
+            ))}
+          </dl>
+        </aside>
+      </section>
+
+      <dl class="home-shell proof-rail">
+        {surface.proofs.map((proof) => (
+          <div>
+            <dt>{proof.label}</dt>
+            <dd>{proof.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <section class="home-shell capability-section" aria-labelledby="capabilities-title">
+        <header>
+          <p class="home-eyebrow">{surface.capabilitiesEyebrow}</p>
+          <h2 id="capabilities-title">{surface.capabilitiesTitle}</h2>
+          <p>{surface.capabilitiesDescription}</p>
+        </header>
+        <div class="capability-list">
+          {surface.features.map((feature, index) => (
+            <a href={feature.href}>
+              <span aria-hidden="true">0{index + 1}</span>
+              <strong>{feature.title}</strong>
+              <p>{feature.description}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section class="home-shell evidence-section" aria-labelledby="evidence-title">
+        <div>
+          <p class="home-eyebrow">{surface.evidenceEyebrow}</p>
+          <h2 id="evidence-title">{surface.evidenceTitle}</h2>
+        </div>
+        <div>
+          <p>{surface.evidenceDescription}</p>
+          <a href={evidenceHref}>{surface.inspectEvidence}</a>
+        </div>
+      </section>
+
+      <section class="home-shell open-source-section" aria-labelledby="open-source-title">
+        <div class="open-source-copy">
+          <h2 id="open-source-title">{surface.openSourceTitle}</h2>
+          <p>{surface.openSourceDescription}</p>
+          <a href="https://github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">
+            {surface.viewSource}
+          </a>
+        </div>
+        <div class="project-badges">
+          <a href="https://www.producthunt.com/products/xid?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-xid" target="_blank" rel="noopener noreferrer">
+            <img alt={surface.productHuntAlt} width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1217874&amp;theme=light&amp;t=1786263008879" />
+          </a>
+          <div>
+            <a href="https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">
+              <img alt={surface.scorecardAlt} width="142" height="20" loading="lazy" src="https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge" />
+            </a>
+            <a href="https://www.bestpractices.dev/projects/13783" target="_blank" rel="noopener noreferrer">
+              <img alt={surface.bestPracticesAlt} width="120" height="20" loading="lazy" src="https://www.bestpractices.dev/projects/13783/badge" />
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="home-footer home-shell">
+      <span>XID</span>
+      <nav aria-label={surface.readDocs}>
+        <a href={docsHref}>{surface.readDocs}</a>
+        <a href="https://github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+    </footer>
+  </div>
+</BaseLayout>
+
+<style>
+  .home-shell {
+    width: min(100% - 2rem, 76rem);
+    margin-inline: auto;
+  }
+
+  .home-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.7fr);
+    gap: clamp(3rem, 7vw, 7rem);
+    align-items: end;
+    padding-block: clamp(5rem, 11vw, 9rem) clamp(4rem, 8vw, 6rem);
+  }
+
+  .home-eyebrow {
+    margin: 0 0 1rem;
+    color: var(--nb-muted-foreground);
+    font-family: var(--nb-font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+
+  .home-hero h1 {
+    max-width: 42rem;
+    margin: 0;
+    font-size: clamp(2.75rem, 6.5vw, 4.75rem);
+    font-weight: 620;
+    letter-spacing: -0.055em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  .home-lead {
+    max-width: 42rem;
+    margin: 1.75rem 0 0;
+    color: var(--nb-muted-foreground);
+    font-size: clamp(1.05rem, 2vw, 1.25rem);
+    line-height: 1.7;
+    text-wrap: pretty;
+  }
+
+  .home-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  .home-action {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--nb-border-strong);
+    border-radius: 0.45rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+
+  .home-action-primary {
+    border-color: var(--nb-primary);
+    background: var(--nb-primary);
+    color: var(--nb-primary-foreground);
+  }
+
+  .home-action-primary:hover {
+    border-color: var(--nb-primary-hover);
+    background: var(--nb-primary-hover);
+  }
+
+  .home-action-secondary {
+    color: var(--nb-foreground);
+  }
+
+  .home-action-secondary:hover {
+    background: var(--nb-accent);
+  }
+
+  .architecture-panel {
+    border-top: 1px solid var(--nb-border-strong);
+    padding-top: 1.25rem;
+  }
+
+  .architecture-panel h2 {
+    margin: 0;
+    font-size: clamp(1.4rem, 2.5vw, 2rem);
+    font-weight: 610;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+
+  .architecture-panel > p:not(.home-eyebrow) {
+    margin: 1rem 0 1.75rem;
+    color: var(--nb-muted-foreground);
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+
+  .architecture-panel dl {
+    margin: 0;
+  }
+
+  .architecture-panel dl > div {
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    gap: 1rem;
+    padding-block: 0.9rem;
+    border-top: 1px solid var(--nb-border);
+  }
+
+  .architecture-panel dt {
+    display: flex;
+    gap: 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 650;
+  }
+
+  .architecture-panel dt span {
+    color: var(--nb-muted-foreground);
+    font-family: var(--nb-font-mono);
+    font-size: 0.65rem;
+  }
+
+  .architecture-panel dd {
+    margin: 0;
+    color: var(--nb-muted-foreground);
+    font-size: 0.78rem;
+    line-height: 1.55;
+  }
+
+  .proof-rail {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-block: 1px solid var(--nb-border-strong);
+  }
+
+  .proof-rail > div {
+    min-height: 7rem;
+    padding: 1.25rem;
+    border-right: 1px solid var(--nb-border);
+  }
+
+  .proof-rail > div:last-child {
+    border-right: 0;
+  }
+
+  .proof-rail dt {
+    color: var(--nb-muted-foreground);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .proof-rail dd {
+    margin: 1.4rem 0 0;
+    font-family: var(--nb-font-mono);
+    font-size: clamp(1rem, 2vw, 1.35rem);
+    font-weight: 600;
+  }
+
+  .capability-section {
+    display: grid;
+    grid-template-columns: minmax(15rem, 0.75fr) minmax(0, 1.5fr);
+    gap: clamp(3rem, 8vw, 8rem);
+    padding-block: clamp(5rem, 10vw, 9rem);
+  }
+
+  .capability-section header {
+    align-self: start;
+    position: sticky;
+    top: 6rem;
+  }
+
+  .capability-section h2,
+  .evidence-section h2,
+  .open-source-section h2 {
+    margin: 0;
+    font-size: clamp(2rem, 4.5vw, 3.4rem);
+    font-weight: 610;
+    letter-spacing: -0.045em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+
+  .capability-section header > p:last-child,
+  .open-source-copy > p {
+    margin: 1.25rem 0 0;
+    color: var(--nb-muted-foreground);
+    line-height: 1.7;
+  }
+
+  .capability-list {
+    border-top: 1px solid var(--nb-border-strong);
+  }
+
+  .capability-list a {
+    display: grid;
+    grid-template-columns: 2rem minmax(10rem, 0.65fr) minmax(0, 1.2fr);
+    gap: 1.25rem;
+    align-items: baseline;
+    padding-block: 1.5rem;
+    border-bottom: 1px solid var(--nb-border);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .capability-list a:hover strong {
+    color: var(--nb-primary-hover);
+  }
+
+  .capability-list span {
+    color: var(--nb-muted-foreground);
+    font-family: var(--nb-font-mono);
+    font-size: 0.7rem;
+  }
+
+  .capability-list strong {
+    font-size: 0.95rem;
+    transition: color 150ms ease;
+  }
+
+  .capability-list p {
+    margin: 0;
+    color: var(--nb-muted-foreground);
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+
+  .evidence-section {
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: clamp(3rem, 8vw, 8rem);
+    padding: clamp(2rem, 5vw, 4rem);
+    background: var(--nb-primary);
+    color: var(--nb-primary-foreground);
+  }
+
+  .evidence-section .home-eyebrow,
+  .evidence-section p {
+    color: color-mix(in oklch, var(--nb-primary-foreground) 68%, transparent);
+  }
+
+  .evidence-section > div:last-child {
+    align-self: end;
+  }
+
+  .evidence-section p {
+    margin: 0 0 1.5rem;
+    line-height: 1.75;
+  }
+
+  .evidence-section a {
+    color: var(--nb-primary-foreground);
+    font-size: 0.875rem;
+    font-weight: 650;
+    text-underline-offset: 0.3rem;
+  }
+
+  .open-source-section {
+    display: grid;
+    grid-template-columns: 1fr minmax(18rem, 0.8fr);
+    gap: clamp(3rem, 8vw, 8rem);
+    align-items: end;
+    padding-block: clamp(5rem, 9vw, 8rem);
+  }
+
+  .open-source-copy > a {
+    display: inline-block;
+    margin-top: 1.5rem;
+    color: var(--nb-foreground);
+    font-size: 0.875rem;
+    font-weight: 650;
+    text-underline-offset: 0.3rem;
+  }
+
+  .project-badges {
+    display: grid;
+    gap: 1rem;
+    justify-items: start;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--nb-border-strong);
+  }
+
+  .project-badges a {
+    display: inline-flex;
+  }
+
+  .project-badges > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .project-badges img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .home-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 1.5rem 2.5rem;
+    border-top: 1px solid var(--nb-border-strong);
+    color: var(--nb-muted-foreground);
+    font-size: 0.78rem;
+  }
+
+  .home-footer nav {
+    display: flex;
+    gap: 1.25rem;
+  }
+
+  .home-footer a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .home-footer a:hover {
+    color: var(--nb-foreground);
+  }
+
+  @media (max-width: 54rem) {
+    .home-hero,
+    .capability-section,
+    .evidence-section,
+    .open-source-section {
+      grid-template-columns: 1fr;
+    }
+
+    .home-hero {
+      align-items: start;
+    }
+
+    .capability-section header {
+      position: static;
+    }
+
+    .proof-rail {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .proof-rail > div:nth-child(2) {
+      border-right: 0;
+    }
+
+    .proof-rail > div:nth-child(-n + 2) {
+      border-bottom: 1px solid var(--nb-border);
+    }
+  }
+
+  @media (max-width: 38rem) {
+    .home-shell {
+      width: min(100% - 1.5rem, 76rem);
+    }
+
+    .home-hero h1 {
+      font-size: clamp(2.5rem, 13vw, 3.75rem);
+    }
+
+    .capability-list a {
+      grid-template-columns: 1.5rem 1fr;
+    }
+
+    .capability-list p {
+      grid-column: 2;
+    }
+
+    .evidence-section {
+      padding-inline: 1.25rem;
+    }
+  }
+</style>

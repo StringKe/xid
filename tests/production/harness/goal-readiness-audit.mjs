@@ -856,8 +856,39 @@ function bodyIsNimbusDocs(body) {
   )
 }
 
+function bodyIsProductHomepage(body) {
+  return (
+    body.includes('XID') &&
+    body.includes('data-ai-agent-directive') &&
+    body.includes('data-pagefind-body') &&
+    body.includes('www.producthunt.com/products/xid') &&
+    body.includes('data-search-dialog') &&
+    !body.includes('data-nb-sidebar') &&
+    !body.includes('Sign in to XID') &&
+    bodyBlocksInternalDocs(body)
+  )
+}
+
 async function auditProductionHttpReadiness(incomplete) {
-  const docs = await fetchProduction('/')
+  const home = await fetchProduction('/')
+  if (
+    home.res.status === 200 &&
+    webRouteOwnerMatches(home.res.headers, 'site') &&
+    bodyIsProductHomepage(home.text) &&
+    docsAuthActionsOk(home.text, 'en') &&
+    docsLocaleMetadataOk(home.text, {
+      language: 'en',
+      ogLocale: 'en_US',
+      canonicalUrl: 'https://xid.dev/',
+      llmsIndexUrl: 'https://xid.dev/en/llms.txt',
+    })
+  ) {
+    print('PASS', 'production HTTP product root', 'path=/ auth_actions=true seo_geo=true')
+  } else {
+    incomplete.push(`production product root invalid http=${home.res.status}`)
+  }
+
+  const docs = await fetchProduction('/docs')
   if (
     docs.res.status === 200 &&
     webRouteOwnerMatches(docs.res.headers, 'site') &&
@@ -866,13 +897,13 @@ async function auditProductionHttpReadiness(incomplete) {
     docsLocaleMetadataOk(docs.text, {
       language: 'en',
       ogLocale: 'en_US',
-      canonicalUrl: 'https://xid.dev/',
+      canonicalUrl: 'https://xid.dev/docs',
       llmsIndexUrl: 'https://xid.dev/en/llms.txt',
     })
   ) {
-    print('PASS', 'production HTTP docs root', 'path=/ auth_actions=true seo_geo=true')
+    print('PASS', 'production HTTP docs hub', 'path=/docs auth_actions=true seo_geo=true')
   } else {
-    incomplete.push(`production docs root invalid http=${docs.res.status}`)
+    incomplete.push(`production docs hub invalid http=${docs.res.status}`)
   }
 
   const docsScim = await fetchProduction('/scim')
@@ -936,7 +967,7 @@ async function auditProductionHttpReadiness(incomplete) {
       contentType: 'text/markdown',
       valid: (body) =>
         body.startsWith('---\n') &&
-        body.includes('title: "XID Identity Platform"') &&
+        body.includes('title: "Build identity at the edge, without giving up control"') &&
         !body.includes('Source: https://xid.dev/index.mdx'),
     },
   ]

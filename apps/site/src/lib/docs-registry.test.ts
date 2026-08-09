@@ -22,7 +22,7 @@ import {
 function indexedFixture(locale: DocumentLocale, slug: string | null): IndexedEntry {
   const segment = DOCUMENT_LOCALE_ROUTE_SEGMENTS[locale]
   const prefix = segment === '' ? '' : `/${segment}`
-  const pathname = slug === null ? prefix || '/' : `${prefix}/${slug}`
+  const pathname = slug === null ? `${prefix}/docs` : `${prefix}/${slug}`
   const browserUrl = pathname === '/' ? '/' : `${pathname}/`
   const twinRoot = pathname === '/' ? '' : pathname
   return {
@@ -36,9 +36,7 @@ function indexedFixture(locale: DocumentLocale, slug: string | null): IndexedEnt
     entry: {
       id:
         slug === null
-          ? segment === ''
-            ? 'index'
-            : `${segment}/index`
+          ? `${segment === '' ? '' : `${segment}/`}docs`
           : `${segment === '' ? '' : `${segment}/`}${slug}`,
       collection: 'docs',
       data: { locale },
@@ -74,12 +72,12 @@ describe('public docs route registry', () => {
     expect(getPublicDocsAgentIndexPath('fr', 'oidc-oauth')).toBe('/fr/llms.txt')
   })
 
-  it('parses only the hub and 40 public detail routes', () => {
-    expect(parsePublicDocsRoute('/')).toMatchObject({
+  it('parses only the docs hub and 41 public detail routes', () => {
+    expect(parsePublicDocsRoute('/docs')).toMatchObject({
       kind: 'hub',
       locale: 'en',
     })
-    expect(parsePublicDocsRoute('/zh-hans/')).toMatchObject({
+    expect(parsePublicDocsRoute('/zh-hans/docs')).toMatchObject({
       kind: 'hub',
       locale: 'zh-Hans',
     })
@@ -89,40 +87,45 @@ describe('public docs route registry', () => {
       slug: 'sdks/react',
     })
     expect(parsePublicDocsRoute('/design')).toBeNull()
+    expect(parsePublicDocsRoute('/')).toBeNull()
+    expect(parsePublicDocsRoute('/zh-hans')).toBeNull()
     expect(parsePublicDocsRoute('/pt-BR/oidc-oauth')).toBeNull()
     expect(parsePublicDocsRoute('/console')).toBeNull()
   })
 
   it.each([
-    ['/docs', '/'],
-    ['/ja/docs', '/ja'],
     ['/docs/getting-started', '/getting-started'],
     ['/docs/oidc', '/oidc-oauth'],
     ['/docs/oauth/', '/oidc-oauth'],
     ['/ja/docs/sso', '/ja/enterprise-sso'],
     ['/zh-hans/docs/social', '/zh-hans/social-login'],
     ['/pt-br/docs/sdks/web', '/pt-br/sdks/core'],
-    ['/docs/index.md', '/index.md'],
     ['/docs/getting-started/index.mdx', '/getting-started/index.mdx'],
-    ['/fr/docs/index.mdx', '/fr/index.mdx'],
   ])('resolves alias %s to %s', (source, target) => {
     expect(resolvePublicDocsAliasPath(source)).toBe(target)
   })
 
-  it.each(['/', '/sdks/core', '/fr/getting-started', '/docs/design', '/docs/design/index.md'])(
-    'does not redirect canonical or unknown path %s',
-    (source) => {
-      expect(resolvePublicDocsAliasPath(source)).toBeNull()
-    },
-  )
+  it.each([
+    '/',
+    '/docs',
+    '/docs/index.md',
+    '/ja/docs',
+    '/fr/docs/index.mdx',
+    '/sdks/core',
+    '/fr/getting-started',
+    '/docs/design',
+    '/docs/design/index.md',
+  ])('does not redirect canonical or unknown path %s', (source) => {
+    expect(resolvePublicDocsAliasPath(source)).toBeNull()
+  })
 
-  it('validates one hub plus the same 40 detail docs for every locale', () => {
+  it('validates one hub plus the same 41 detail docs for every locale', () => {
     const groups = validatePublicDocsIndex(completeIndex())
     expect(groups).toHaveLength(8)
     expect(flattenPublicDocsIndex(groups)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL)
     for (const group of groups) {
       expect(group.documents.map((entry) => entry.slug)).toEqual(PUBLIC_DOC_SLUGS)
-      expect(group.documents).toHaveLength(40)
+      expect(group.documents).toHaveLength(41)
       const [section] = getPublicDocsIndexedSections(group)
       expect(section).toMatchObject({
         locale: group.locale,

@@ -1,35 +1,21 @@
 ---
-import { getCollection } from "astro:content";
-import DocsEntryPage from "../../components/DocsEntryPage.astro";
+import HomePage from "../../components/HomePage.astro";
 import {
   SITE_LOCALES,
   SITE_LOCALE_ROUTE_SEGMENTS,
+  type SiteLocale,
 } from "../../lib/site-locale";
 
 export async function getStaticPaths() {
-  const entries = await getCollection("docs");
-  return Promise.all(
-    SITE_LOCALES
-      .filter((locale) => locale !== "en")
-      .map(async (locale) => {
-        const routeSegment = SITE_LOCALE_ROUTE_SEGMENTS[locale];
-        const entry = entries.find(
-          (candidate) =>
-            candidate.data.locale === locale &&
-            candidate.id === routeSegment,
-        );
-        if (!entry) {
-          throw new TypeError(
-            `Documentation hub is missing for ${locale}`,
-          );
-        }
-        return {
-          params: { lang: routeSegment },
-          props: { entry },
-        };
-      }),
-  );
+  return SITE_LOCALES
+    .filter((locale) => locale !== "en")
+    .map((locale) => ({
+      params: { lang: SITE_LOCALE_ROUTE_SEGMENTS[locale] },
+      props: { locale },
+    }));
 }
+
+const { locale } = Astro.props as { locale: SiteLocale };
 ---
 
-<DocsEntryPage entry={Astro.props.entry} />
+<HomePage locale={locale} />

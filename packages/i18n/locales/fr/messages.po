@@ -316,6 +316,10 @@ msgstr "10 secondes"
 msgid "10s timeout default"
 msgstr "Délai d'attente par défaut de 10s"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "3 Workers"
+msgstr "3 services Worker"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "30 seconds"
 msgstr "30 secondes"
@@ -437,6 +441,10 @@ msgstr "L'accès de l'organisation {0} et les autorisations d'utilisateur émise
 msgid "Access protected resources"
 msgstr "Acceder aux ressources protegees"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Access request lifecycle"
+msgstr "Cycle de vie des demandes d'accès"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Access token TTL (seconds)"
 msgstr "TTL du jeton d'accès (secondes)"
@@ -476,6 +484,10 @@ msgstr "Accesseur retournant la session et getToken pour la session active"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Accessor wrapping discriminated union on isLoaded / isSignedIn / user"
 msgstr "Accesseur encapsulant une union discriminante sur isLoaded / isSignedIn /user"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
+msgstr "AccessRequest passe de <0>en attente</0> à <1>approuvé</1>, <2>refusé</2>, <3>annulé</3> ou <4>expiré</4>. Chaque résultat est terminal et les demandes en attente expirent paresseusement après 14 jours."
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion"
@@ -842,6 +854,10 @@ msgstr "Rôles autorisés (séparés par des virgules)"
 msgid "Allowed user IDs (comma-separated)"
 msgstr "Identifiants utilisateur autorisés (séparés par des virgules)"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Allowed without a UserGrant."
+msgstr "Autorisé sans UserGrant."
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.alreadyHaveAccountSignIn"
@@ -851,9 +867,17 @@ msgstr "Vous avez déjà un compte ? <0>Connectez-vous</0>"
 msgid "Already have an account? Sign in"
 msgstr "Vous avez déjà un compte ? Se connecter"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
+msgstr "Une instance contient des organisations de niveau supérieur. Une organisation peut contenir un niveau de sous-organisation ; chaque organisation reste une frontière de politique, d’adhésion, de marque, de RBAC et d’isolement."
+
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "Une erreur interne s'est produite. Réessayez."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
+msgstr "Une OrgUnit est un département ou une équipe au sein d’une organisation. Cela ne modifie jamais TenantContext, l'émetteur, les revendications de jeton ou la limite SubOrg à un niveau."
 
 #: packages/i18n/src/messages.ts
 msgid "An unexpected server error occurred. Please try again."
@@ -979,9 +1003,21 @@ msgstr "Nom du cookie JWT détenu par l'application ; désactivé sauf configura
 msgid "Applications"
 msgstr "Applications"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approval creates a traceable UserGrant in the same transaction. The requester cannot approve their own request; resolution falls through from the OrgUnit manager to project and organization managers."
+msgstr "L'approbation crée un UserGrant traçable dans la même transaction. Le demandeur ne peut pas approuver sa propre demande ; la résolution passe du responsable de l’OrgUnit aux chefs de projet et d’organisation."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approval required"
+msgstr "Approbation requise"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Approve"
 msgstr "Approuver"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approve or deny a pending request assigned to the current user."
+msgstr "Approuver ou refuser une demande en attente attribuée à l'utilisateur actuel."
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Approve sign-in request | XID"
@@ -1162,6 +1198,10 @@ msgstr "authenticateRequest"
 msgid "Authentication"
 msgstr "Authentification"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Authentication and account"
+msgstr "Authentification et compte"
+
 #: packages/i18n/src/messages.ts
 msgid "Authentication is required."
 msgstr "L'authentification est requise."
@@ -1213,8 +1253,8 @@ msgid "Authorization code with server side token exchange."
 msgstr "Code d'autorisation avec échange de jeton côté serveur."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR<1>resource_access</1> authorization details, token-exchange refresh and ID token issuance, mTLS client authentication, and front-channel logout."
-msgstr "Code d’autorisation, PKCE S256, rotation des refresh tokens, PAR, preuve DPoP et liaison <0>dpop_jkt</0>, enregistrement dynamique des clients, ID tokens, userinfo, types de réponse hybrides, objets de requête JAR signés, réponses JARM signées, détails d’autorisation RAR<1>resource_access</1>, refresh token-exchange et émission d’ID token, authentification client mTLS et déconnexion front-channel."
+msgid "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR <1>resource_access</1> authorization details, token exchange, mTLS client authentication, front-channel and back-channel logout, Device Flow, Session Management, CIBA, Browser-Based Apps profile gates, and FAPI 2.0 profile gates."
+msgstr "Code d'autorisation, PKCE S256, rotation d'actualisation, PAR, preuve DPoP et liaison <0>dpop_jkt</0>, enregistrement client dynamique, jetons d'identification, informations utilisateur, types de réponse hybrides, objets de requête JAR signés, réponses JARM signées, détails d'autorisation RAR <1>resource_access</1>, échange de jetons, authentification client mTLS, déconnexion des canaux avant et arrière, flux de périphériques, gestion de session, CIBA, portes de profil d'applications basées sur le navigateur et Portails profilés FAPI 2.0."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization code, refresh token, client credentials, device code, and token exchange."
@@ -1284,10 +1324,6 @@ msgstr "Retour à la console"
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Back to Console"
 msgstr "Retour à la console"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Back to developer docs"
-msgstr "Retour à la documentation développeur"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 #: apps/server/src/routes/consent/index.tsx
@@ -1470,6 +1506,10 @@ msgstr "Construire le client avec un client reqwest personnalisé (utile pour le
 msgid "Build client with default reqwest HTTP client."
 msgstr "Construire le client avec le client HTTP reqwest par défaut."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Build identity at the edge, without giving up control"
+msgstr "Construisez votre identité à la périphérie, sans renoncer au contrôle"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Build OIDC end_session URL for RP-initiated logout"
 msgstr "Construire l'URL end_session OIDC pour la déconnexion initiée par le RP"
@@ -1524,6 +1564,10 @@ msgstr "Annuler"
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Cancel and sign out"
 msgstr "Annuler et se déconnecter"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Cancel the current user's pending request."
+msgstr "Annulez la demande en attente de l'utilisateur actuel."
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
@@ -1787,6 +1831,10 @@ msgstr "Combiner les opérateurs logiques et de comparaison."
 msgid "Comma-separated event names (for example user.created, session.revoked). Leave blank to receive all events."
 msgstr "Noms d'événements séparés par des virgules (par exemple user.created, session.revoked). Laissez vide pour recevoir tous les événements."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Complete edition"
+msgstr "Édition complète"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Completed"
 msgstr "Terminé"
@@ -1936,6 +1984,10 @@ msgstr "Connectez une application à XID avec la découverte OIDC et Hosted Auth
 msgid "Connect enterprise identity providers using SAML 2.0."
 msgstr "Connectez des fournisseurs d’identité entreprise avec SAML 2.0."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Connect inbound SAML and OIDC, downstream SaaS SSO, SCIM, directory sync, and domain discovery behind explicit policy boundaries."
+msgstr "Connectez SAML et OIDC entrants, SaaS SSO en aval, SCIM, synchronisation d'annuaire et découverte de domaine derrière des limites de stratégie explicites."
+
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Connected"
 msgstr "Connecté"
@@ -1952,6 +2004,10 @@ msgstr "Connexions"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Connections | Account | XID"
 msgstr "Connexions | Compte | XID"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Console"
+msgstr "Console de gestion"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Console is read-only"
@@ -2060,6 +2116,10 @@ msgstr "Copier la page"
 msgid "Copy to clipboard"
 msgstr "Copier dans le presse-papiers"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Core"
+msgstr "Noyau"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Core API"
 msgstr "API principale"
@@ -2116,6 +2176,10 @@ msgstr "Créer et lister les groupes d'annuaire."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create and list directory users."
 msgstr "Créer et lister les utilisateurs d'annuaire."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Create and list the current user's requests."
+msgstr "Créez et répertoriez les demandes de l'utilisateur actuel."
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Create and revoke API keys for server-side integrations."
@@ -2257,6 +2321,10 @@ msgstr "Créer, lire, mettre à jour et supprimer des permissions."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, read, update, ban, unban, export, and remove users."
 msgstr "Créer, lire, mettre à jour, suspendre, réactiver, exporter et supprimer des utilisateurs."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Create, update, move, archive, and manage members of units."
+msgstr "Créez, mettez à jour, déplacez, archivez et gérez les membres des unités."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, update, sync, and remove outbound SCIM targets."
@@ -2667,6 +2735,14 @@ msgid "Delivery is decoupled from the authentication path through Cloudflare Que
 msgstr "La livraison est découplée du chemin d'authentification via les Cloudflare Queues. Un endpoint lent ou indisponible n'affecte pas la latence de connexion."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Denied until an AccessRequest is approved."
+msgstr "Refusé jusqu'à ce qu'une AccessRequest soit approuvée."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Denied; an administrator grants access directly."
+msgstr "Refusé; un administrateur accorde l'accès directement."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deno"
 msgstr "Deno"
 
@@ -2734,14 +2810,6 @@ msgstr "SDK pour poste de travail"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dev/test without Tauri runtime"
 msgstr "Développement/test sans runtime Tauri"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Developer docs navigation"
-msgstr "Navigation de la documentation développeur"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Device authorization polling, Session Management check_session, CIBA backchannel approval, FAPI 2.0 / Browser-Based Apps profile gates, OpenID Federation, and Shared Signals expose guarded-minimal or provider-ready subsets. GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI return negative or 501 stubs until full profiles ship."
-msgstr "Le polling d’autorisation d’appareil, check_session Session Management, l’approbation CIBA backchannel, les portes de profil FAPI 2.0 / Browser-Based Apps, OpenID Federation et Shared Signals exposent des sous-ensembles limités ou provider-ready. GNAP, UMA, HEART, OpenID4VP et OpenID4VCI renvoient des stubs négatifs ou 501 jusqu’à l’arrivée des profils complets."
 
 #: apps/server/src/routes/activate/CodeEntryForm.tsx
 msgid "Device code"
@@ -2873,6 +2941,10 @@ msgstr "Affiché lorsque"
 msgid "Document type"
 msgstr "Type de document"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Documentation"
+msgstr "Documentation"
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
@@ -2929,10 +3001,6 @@ msgid "Downstream SaaS OIDC identity provider"
 msgstr "Fournisseur d'identité OIDC pour SaaS en aval"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Downstream SaaS OIDC uses the current generic OIDC baseline locally, but SaaS-specific production support still requires real SaaS L4."
-msgstr "OIDC SaaS en aval utilise localement la base OIDC générique actuelle, mais le support de production spécifique SaaS exige encore un vrai SaaS L4."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Downstream SaaS SSO status"
 msgstr "Statut du SSO SaaS en aval"
 
@@ -2953,6 +3021,10 @@ msgstr "Les clients lies a DPoP doivent presenter une preuve DPoP valide pour le
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Draft"
 msgstr "Brouillon"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Each member can have one primary OrgUnit and additional placements."
+msgstr "Chaque membre peut avoir une OrgUnit principale et des emplacements supplémentaires."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each primitive returns reactive <0>Accessor<T></0> (getter functions). Call them in JSX or <1>createEffect</1> to track changes."
@@ -3276,12 +3348,20 @@ msgid "Every organization on this instance, with plan and lifecycle status."
 msgstr "Toutes les organisations de cette instance, avec leur plan et leur statut de cycle de vie."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
+msgstr "Chaque requête OrgUnit et AccessRequest est limitée à <0>tenant_id</0> et <1>org_id</1>. Les identifiants inter-organisations ou inter-locataires renvoient 404 sans révéler leur existence."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
 msgstr "Chaque SDK ci-dessous porte l'un de deux libellés de statut, alignés surla matrice de prise en charge de la plateforme XID. Aucun libellé n'estune affirmation de disponibilité en production."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/json</0>. The body contains the exact event <1>type</1> and its <2>data</2>; svix metadata is carried in request headers."
 msgstr "Chaque livraison de webhook est un HTTP POST avec <0>Content-Type: application/json</0>. Le corps contient l'événement exact <1>type</1> et son <2>data</2> ; Les métadonnées svix sont contenues dans les en-têtes de requête."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Evidence before compatibility claims"
+msgstr "Preuve avant les allégations de compatibilité"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
@@ -3905,6 +3985,10 @@ msgstr "Indicateurs de fonctionnalité"
 msgid "Feature flags | Console | XID"
 msgstr "Indicateurs de fonctionnalité | Console | XID"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Federation and provisioning"
+msgstr "Fédération et approvisionnement"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Field"
 msgstr "Champ"
@@ -4051,7 +4135,12 @@ msgstr "Générer des codes de secours"
 msgid "Generic OIDC baseline is available locally. SaaS-specific app templates and real SaaS L4 are still required before production support claims."
 msgstr "Une base OIDC générique est disponible localement. Des modèles d'application propres à chaque SaaS et un L4 SaaS réel sont encore requis avant toute déclaration de prise en charge en production."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Get started"
+msgstr "Commencer"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "Getting started"
 msgstr "Premiers pas"
 
@@ -4277,6 +4366,10 @@ msgstr "Assistants du flux de connexion Hosted Auth"
 msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
 msgstr "Hosted Auth, clés d'accès, mots de passe, liens magiques, connexion sociale, MFA, récupération, consentement et gestion autonome du compte."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted Auth, protocols, APIs, data, and asynchronous work"
+msgstr "Hosted Auth, protocoles, API, données et tâches asynchrones"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "Flux d'authentification hébergée"
@@ -4288,6 +4381,10 @@ msgstr "Redirection hébergée, callback d'app link et adaptateur de stockagesé
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Hosted redirect, deep link callback, PKCE S256, and secure storage adapter contract."
 msgstr "Contrat de redirection hébergée, de callback de lien profond, de PKCE S256 et d'adaptateur de stockage sécurisé."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted sign-in, passkeys, password, MFA, session management, consent, and account self-service share one tenant-aware Core."
+msgstr "Hosted Sign-in, passkeys, mot de passe, MFA, gestion des sessions, consentement et libre-service du compte partagent un Core conscient du tenant."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Hostname ownership"
@@ -4417,6 +4514,10 @@ msgstr "Politique d'identifiants"
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Identity"
 msgstr "Identité"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Identity infrastructure for Cloudflare"
+msgstr "Infrastructure d'identité pour Cloudflare"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Identity protocols"
@@ -4619,6 +4720,10 @@ msgstr "Entrée pour signInPassword"
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Inspect failed queue metadata and deliberately replay the KEK-encrypted original message."
 msgstr "Inspectez les métadonnées de la file d'attente ayant échoué et relisez délibérément le message original chiffré avec KEK."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Inspect the protocol matrix"
+msgstr "Inspecter la matrice du protocole"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Install"
@@ -4998,6 +5103,10 @@ msgstr "Limites des protocoles hérités"
 msgid "Level"
 msgstr "Niveau"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "License"
+msgstr "Licence"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Like getAuth but throws a redirect response when unauthenticated"
 msgstr "Comme getAuth mais lève une réponse de redirection lorsque non authentifié"
@@ -5025,6 +5134,14 @@ msgstr "Les points de terminaison de liste renvoient un tableau de données et d
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "List of user organizations for switcher UI"
 msgstr "Liste des organisations de l'utilisateur pour l'interface du sélecteur"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "List requests awaiting the current user's approval."
+msgstr "Répertoriez les demandes en attente de l'approbation de l'utilisateur actuel."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "List requests inside one organization."
+msgstr "Répertoriez les demandes au sein d’une organisation."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "List, create, and remove organization domains."
@@ -5210,6 +5327,10 @@ msgstr "Chargement de votre session"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.loading"
 msgstr "Chargement..."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Local implementation and conformance gates are not production certification. Downstream SaaS OIDC uses the generic OIDC baseline, but each SaaS integration still requires real external L4 evidence."
+msgstr "La mise en œuvre locale et les contrôles de conformité ne constituent pas une certification de production. L'OIDC SaaS en aval utilise la référence générique OIDC, mais chaque intégration SaaS nécessite toujours de véritables preuves externes L4."
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Locale"
@@ -5476,6 +5597,10 @@ msgstr "Membres | Console | XID"
 msgid "Members, roles, SSO admin embed"
 msgstr "Membres, rôles, intégration admin SSO"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Membership and project access are separate: invitations join an Organization, while AccessRequest grants an existing active member access to one Project."
+msgstr "L'adhésion et l'accès au projet sont distincts : les invitations rejoignent une organisation, tandis que AccessRequest accorde à un membre actif existant l'accès à un projet."
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Message"
 msgstr "Message"
@@ -5544,8 +5669,8 @@ msgid "Minimal constructor. Chain builder methods for optional settings."
 msgstr "Constructeur minimal. Enchaînez les méthodes du constructeur pour lesparamètres optionnels."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Minimal route subsets and discovery-friendly metadata are exposed. Unsupported operations return explicit errors until full profile handlers ship."
-msgstr "Des sous-ensembles de routes minimales et des métadonnées adaptées à la découverte sont exposés. Les opérations non prises en charge renvoient des erreurs explicites jusqu’à l’arrivée des gestionnaires de profil complets."
+msgid "Minimal implementation"
+msgstr "Mise en œuvre minimale"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
@@ -5571,6 +5696,14 @@ msgstr "Demande manquante"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mobile SDKs"
 msgstr "SDK mobiles"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Model Organization, OrgUnit, project, and access approval boundaries."
+msgstr "Modèle d’organisation, d’unité organisationnelle, de projet et de limites d’approbation d’accès."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Model organizations, OrgUnits, projects, roles, grants, approval policies, and access requests without creating a separate admin tenant."
+msgstr "Modélisez des organisations, des OrgUnits, des projets, des rôles, des subventions, des politiques d'approbation et des demandes d'accès sans créer de locataire administrateur distinct."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
@@ -5718,6 +5851,10 @@ msgstr "Next.js"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Next.js middleware, App Router and Pages Router server helpers, plus React SDK re-exports."
 msgstr "Middleware Next.js, assistants serveur App Router et Pages Router, plus les réexportations du SDK React."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "No access request is needed."
+msgstr "Aucune demande d'accès n'est nécessaire."
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "No active API keys."
@@ -5943,6 +6080,10 @@ msgstr "Aucun annuaire SCIM configuré."
 msgid "No SCIM targets configured."
 msgstr "Aucune cible SCIM configurée."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "No self-service request is available."
+msgstr "Aucune demande en libre-service n'est disponible."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "No sign-in methods are available for this organization."
 msgstr "Aucune méthode de connexion n'est disponible pour cette organisation."
@@ -6003,10 +6144,6 @@ msgstr "Node.js"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "None"
 msgstr "Aucun"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Not found"
-msgstr "Introuvable"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -6173,6 +6310,14 @@ msgstr "Activé"
 msgid "On this page"
 msgstr "Sur cette page"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "One control plane from sign-in to enterprise access"
+msgstr "Un plan de contrôle depuis la connexion jusqu'à l'accès à l'entreprise"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "One deployment model"
+msgstr "Un modèle de déploiement"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One platform for identity"
 msgstr "Une plateforme unique pour l'identité"
@@ -6197,7 +6342,12 @@ msgstr "OneLogin"
 msgid "Only approve this request if the code matches your device."
 msgstr "N'approuvez cette demande que si le code correspond a votre appareil."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
+msgstr "Seuls les talons de route et de métadonnées négatifs sont exposés. Les opérations non prises en charge renvoient explicitement <0>501 unsupported_feature</0> ; aucune prise en charge de protocole fonctionnel n'est revendiquée."
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -6242,6 +6392,10 @@ msgstr "Ouvrir une session en lecture seule"
 msgid "Open source identity platform"
 msgstr "Plateforme d'identité open source"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Open source, inspectable, and self-hostable"
+msgstr "Open source, inspectable et auto-hébergable"
+
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Open Stripe-hosted Checkout to start a managed subscription, or use the Customer Portal for an existing billing account. These controls do not license-gate self-hosted features."
 msgstr "Ouvrez le Checkout hébergé par Stripe pour démarrer un abonnement géré, ou utilisez le Customer Portal pour un compte de facturation existant. Ces contrôles ne limitent pas les fonctionnalités auto-hébergées par une licence."
@@ -6270,6 +6424,10 @@ msgstr "Ouvrez votre application d'authentification et saisissez le code à 6 ch
 msgid "openAuthSession(url, redirectUri) resolving to a BrowserResult"
 msgstr "openAuthSession(url, redirectUri) se résolvant en un BrowserResult"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OpenID Federation exposes entity metadata and a registration boundary only. Trust-chain resolution, trust anchors, policy processing, and production interoperability are not implemented."
+msgstr "OpenID Federation expose uniquement les métadonnées d’entité et une limite d’enregistrement. La résolution de la chaîne de confiance, les ancres de confiance, le traitement des politiques et l'interopérabilité de la production ne sont pas mis en œuvre."
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "openid, email, profile"
 msgstr "openid, email, profile"
@@ -6281,6 +6439,14 @@ msgstr "Ouverture de l'organisation"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Opens system browser, exchanges code, stores tokens"
 msgstr "Ouvre le navigateur système, échange le code, stocke les jetons"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "OpenSSF Best Practices badge for XID"
+msgstr "Badge des meilleures pratiques OpenSSF pour XID"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "OpenSSF Scorecard for XID"
+msgstr "Tableau de bord OpenSSF pour XID"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Operational"
@@ -6352,6 +6518,10 @@ msgstr "org_..."
 msgid "Organization"
 msgstr "Organisation"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organization and instance management UI"
+msgstr "Interface utilisateur de gestion des organisations et des instances"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organization context is not populated from stored tokens yet."
 msgstr "Le contexte d'organisation n'est pas encore alimenté depuis les jetonsstockés."
@@ -6359,6 +6529,10 @@ msgstr "Le contexte d'organisation n'est pas encore alimenté depuis les jetonss
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Organization email domain"
 msgstr "Domaine e-mail de l'organisation"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Organization hierarchy"
+msgstr "Hiérarchie de l'organisation"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -6395,6 +6569,7 @@ msgstr "Rôle dans l'organisation : {0}"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations"
 msgstr "Organisations"
 
@@ -6402,9 +6577,17 @@ msgstr "Organisations"
 msgid "Organizations | Console | XID"
 msgstr "Organisations | Console | XID"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organizations and access"
+msgstr "Organisations et accès"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations can require email identifiers, username identifiers, or both."
 msgstr "Les organisations peuvent exiger des identifiants e-mail, des identifiants utilisateur ou les deux."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OrgUnit trees support a maximum depth of eight."
+msgstr "Les arborescences OrgUnit prennent en charge une profondeur maximale de huit."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Other native SDKs (iOS, Android, Flutter, desktop) use a functional configure, signIn, and handleRedirect API surface."
@@ -6953,6 +7136,10 @@ msgstr "Veuillez patienter avant de relancer l'interrogation."
 msgid "Plugin setup"
 msgstr "Configuration du plugin"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Pre-1.0 status"
+msgstr "Statut pré-1.0"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "Préférences"
@@ -7035,9 +7222,17 @@ msgstr "Traiter un callback App Link ou de schéma personnalisé. Appelé en int
 msgid "Processing"
 msgstr "Traitement"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Product"
+msgstr "Produit"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Product and setup"
 msgstr "Produit et configuration"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Product, documentation, search, and agent-readable content"
+msgstr "Produit, documentation, recherche et contenu lisible par l'agent"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production and staging require KEK, PEPPER, and BOOTSTRAP_TOKEN as Workers Secrets. Never place them in variables, D1, source files, or build logs."
@@ -7050,6 +7245,10 @@ msgstr "Serveur de production"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production configuration"
 msgstr "Configuration de production"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Production evidence"
+msgstr "Preuve de production"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -7104,6 +7303,10 @@ msgstr "Les chefs de projet peuvent modifier les définitions. Les gestionnaires
 msgid "Project name"
 msgstr "Nom du projet"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Project policy"
+msgstr "Politique du projet"
+
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project recycle bin"
 msgstr "Corbeille du projet"
@@ -7123,6 +7326,14 @@ msgstr "Projets et accès"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Projects and access | Console | XID"
 msgstr "Projets et accès | Console | XID"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Projects and access policy"
+msgstr "Projets et politique d'accès"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Projects group applications and authorization roles. The per-project <0>access_policy</0> controls only same-organization users without an effective UserGrant; cross-organization ProjectGrant authorization is unaffected."
+msgstr "Les projets regroupent les applications et les rôles d’autorisation. La <0>access_policy</0> par projet contrôle uniquement les utilisateurs de la même organisation sans UserGrant effectif ; L’autorisation ProjectGrant inter-organisations n’est pas affectée."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Projects isolate business roles and permissions. Select one project to manage its cross-organization grants and delegated managers."
@@ -7151,6 +7362,10 @@ msgstr "Exigences de protocole"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "Protocoles"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Protocols and developer experience"
+msgstr "Protocoles et expérience des développeurs"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Provide separate light and dark logo URLs. Both are hosted externally and referenced by URL."
@@ -7182,10 +7397,6 @@ msgstr "Configuration du fournisseur"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Provider status"
 msgstr "Statut du fournisseur"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Provider-ready"
-msgstr "Provider-ready"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Provider-ready for enterprise connections. Production support requires a real IdP configuration and callback L4."
@@ -7290,6 +7501,14 @@ msgstr "Les clients publics utilisent Authorization Code avec PKCE S256. Aucunse
 #: apps/console/src/routes/org/OrgApplications.tsx
 msgid "Public clients use PKCE and do not receive a client secret."
 msgstr "Les clients publics utilisent PKCE et ne reçoivent pas de secret client."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Public content and management stay binding-free. Identity state, protocols, and policy remain in Core."
+msgstr "Le contenu public et la gestion restent sans bindings. L'état d'identité, les protocoles et les politiques restent dans Core."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Public locales"
+msgstr "Langues publiques"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public organization view"
@@ -7480,6 +7699,14 @@ msgstr "Lire les métadonnées de l'émetteur avant de configurer une relying pa
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Read organization audit events with cursor pagination."
 msgstr "Consulter les événements d'audit de l'organisation avec une pagination par curseur."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Read the documentation"
+msgstr "Lire la documentation"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Read the organization unit tree."
+msgstr "Lisez l’arborescence des unités d’organisation."
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Read-only event log for this organization."
@@ -7913,6 +8140,10 @@ msgstr "Requis pour les points de terminaison utilisateurs et groupes limités �
 msgid "Required for POST, PUT, and PATCH requests."
 msgstr "Requis pour les requêtes POST, PUT et PATCH."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Required scope"
+msgstr "Portée requise"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line."
 msgstr "Obligatoire avec une URL SLO. Collez des blocs PEM ou séparez les certificats DER encodés en base64 par une ligne vide."
@@ -8012,6 +8243,10 @@ msgstr "Restaurer le projet"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Restore this project before changing roles, permissions, or mappings."
 msgstr "Restaurez ce projet avant de modifier les rôles, les autorisations ou les mappages."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Restricted"
+msgstr "Limité"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Restricted mode limits outbound SSO launch and SCIM sync to members with selected roles or explicit user IDs."
@@ -8288,6 +8523,10 @@ msgstr "SDK serveur Ruby pour la vérification JWT sans réseau, l'authentificat
 msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
 msgstr "Exécutez la même base de code sous licence MIT en mode mono-tenant ou multi-tenant dans votre compte Cloudflare. L'auto-hébergement inclut toutes les fonctionnalités, sans vérification de licence ni édition séparée."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Runtime"
+msgstr "Durée d'exécution"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Runtime or language"
 msgstr "Runtime ou langage"
@@ -8327,6 +8566,10 @@ msgstr "SaaS"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Salesforce"
 msgstr "Salesforce"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Same-organization behavior"
+msgstr "Comportement dans la même organisation"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SAML clock tolerance in milliseconds"
@@ -8423,6 +8666,10 @@ msgstr "Les erreurs SCIM renvoient <0>application/scim+json</0> avec le schéma 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SCIM field"
 msgstr "Champ SCIM"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "SCIM provisions users and memberships but does not map directory groups to OrgUnits or Project roles in the current implementation."
+msgstr "SCIM provisionne les utilisateurs et les adhésions, mais ne mappe pas les groupes d'annuaire aux OrgUnits ou aux rôles de projet dans l'implémentation actuelle."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SCIM remains the recommended source for deprovisioning and group membership lifecycle."
@@ -8682,8 +8929,13 @@ msgid "Selector xid-sign-out-button; inputs sessionId, redirectUrl, ariaLabel; s
 msgstr "Sélecteur xid-sign-out-button ; entrées sessionId, redirectUrl, ariaLabel; affiche aria-busy pendant la déconnexion"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Self-hosting"
 msgstr "Auto-hébergement"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Self-service path"
+msgstr "Parcours libre-service"
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send a verification link to {email}. The Console stays read-only until you use it."
@@ -8891,12 +9143,20 @@ msgid "Shared native contract"
 msgstr "Contrat natif commun"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Shared Signals, CAEP, RISC, GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI expose reserved routes that return explicit 501 errors. They are not protocol implementations."
+msgstr "Shared Signals, CAEP, RISC, GNAP, UMA, HEART, OpenID4VP et OpenID4VCI exposent des routes réservées qui renvoient des erreurs 501 explicites. Ce ne sont pas des implémentations de protocole."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shared Swift core extraction with sdk/ios is planned but not yet done — each package carries its own copy of the implementation."
 msgstr "L'extraction d'un noyau Swift partagé avec sdk/ios est prévue mais pasencore réalisée — chaque package porte sa propre copie del'implémentation."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shibboleth"
 msgstr "Shibboleth"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Ship OIDC and OAuth flows, Management APIs, webhooks, framework SDKs, localized docs, and networkless token verification from one repository."
+msgstr "Expédiez des flux OIDC et OAuth, des API de gestion, des webhooks, des SDK de framework, des documents localisés et une vérification de jetons sans réseau à partir d'un seul référentiel."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
@@ -9077,6 +9337,10 @@ msgstr "signOut() efface la session locale et les identifiants hérités; signOu
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Single-account only — the storage layer uses fixed keys."
 msgstr "Compte unique uniquement — la couche de stockage utilise des clés fixes."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Site"
+msgstr "Site web"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Site navigation"
@@ -9733,6 +9997,10 @@ msgstr "Le SDK macOS partage le même schéma d'implémentation Swift que sdk/io
 msgid "The Management API stores seven organization-scoped branding values in KV. They are available to authenticated management clients; automatic Hosted Auth and email rendering is not implemented."
 msgstr "La Management API stocke dans KV sept valeurs de branding propres à l'organisation. Elles sont accessibles aux clients de gestion authentifiés; le rendu automatique dans Hosted Auth et les e-mails n'est pas implémenté."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The Management API uses cursor pagination and shared API-key or organization-manager guards. It does not reuse end-user business routes."
+msgstr "L'API de gestion utilise la pagination du curseur et les gardes de clé API partagée ou de gestionnaire d'organisation. Il ne réutilise pas les itinéraires commerciaux des utilisateurs finaux."
+
 #: packages/i18n/src/messages.ts
 msgid "The MFA code is incorrect."
 msgstr "Le code MFA est incorrect."
@@ -9740,6 +10008,14 @@ msgstr "Le code MFA est incorrect."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The middleware strips any client-supplied auth tokens and re-injects only the verified result."
 msgstr "Le middleware supprime tout jeton d'authentification fourni par le clientet ne réinjecte que le résultat vérifié."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "The MIT-licensed repository includes the complete feature set. Security posture and project governance remain visible through OpenSSF and the public source."
+msgstr "Le dépôt sous licence MIT inclut toutes les fonctionnalités. La posture de sécurité et la gouvernance du projet restent visibles via OpenSSF et le code source public."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
+msgstr "Le responsable actif le plus proche dans la chaîne d'ancêtres de l'OrgUnit est le premier candidat approbateur de demande d'accès."
 
 #: packages/i18n/src/messages.ts
 msgid "The one-time code has expired. Please request a new one."
@@ -9769,9 +10045,17 @@ msgstr "La page que vous recherchez n'existe pas ou a été déplacée"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "Le mot de passe ne respecte pas les exigences minimales de robustesse."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "The product surface"
+msgstr "La surface du produit"
+
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "Le projet est introuvable."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "The protocol matrix separates implemented behavior, local conformance evidence, and production support. SAML is not described as production-ready until it is validated against a real identity provider."
+msgstr "La matrice de protocole sépare le comportement implémenté, la preuve de conformité locale et le support de production. SAML n'est pas décrit comme prêt pour la production tant qu'il n'est pas validé par un véritable fournisseur d'identité."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
@@ -9906,6 +10190,10 @@ msgid "The svix-signature header starts with the literal v1, prefix, followed by
 msgstr "L'en-tête svix-signature commence par le préfixe littéral v1, suivi du HMAC-SHA256 codé en Base64 de <0>{SVIX_SIGNATURE_INPUT}</0> à l'aide du secret de signature du point de terminaison."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The user submits an access request."
+msgstr "L'utilisateur soumet une demande d'accès."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The XID Worker keeps an opaque refresh credential in an <0>HttpOnly</0> cookie. It is not a JWT, and the SDK never reads it from JavaScript or stores it in <1>localStorage</1>."
 msgstr "Le XID Worker conserve des informations d'identification d'actualisation opaques dans un cookie <0>HttpOnly</0>. Il ne s'agit pas d'un JWT et le SDK ne le lit jamais à partir de JavaScript ni ne le stocke dans <1>localStorage</1>."
 
@@ -10032,10 +10320,6 @@ msgstr "Cette ressource cessera d’autoriser l’accès et sera déplacée vers
 msgid "This session has been revoked."
 msgstr "Cette session a été révoquée."
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "This URL is not part of the published XID developer docs."
-msgstr "Cette URL ne fait pas partie de la documentation développeur XID publiée."
-
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "This verification link has expired. Please request a new one."
 msgstr "Ce lien de vérification a expiré. Demandez-en un nouveau."
@@ -10051,6 +10335,10 @@ msgstr "Cela supprimera \"{factorLabel}\" de votre compte. Vous pouvez perdre l'
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "This will remove the link between your account and {label}. You will no longer be able to sign in with {label} unless you reconnect it."
 msgstr "Cela supprimera le lien entre votre compte et {label}. Vous ne pourrez plus vous connecter avec {label} tant que vous ne le reconnecterez pas."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Three focused Workers. One identity platform."
+msgstr "Trois Workers spécialisés. Une plateforme d'identité."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Thrown for unrecoverable SDK errors: missing JWT key, JWKS fetch failure, invalid options, session-token exchange failure"
@@ -10464,6 +10752,10 @@ msgstr "Utilisez des clés API à portée limitée pour gérer les ressources de
 msgid "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Retries carry the same <1>svix-id</1> as the original attempt."
 msgstr "Utilisez l'en-tête <0>svix-id</0> pour dédupliquer les livraisons de votre côté. Les relances portent le même <1>svix-id</1> que la tentative d'origine."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Use the complete platform or adopt the protocol, UI, and SDK layers that fit your architecture."
+msgstr "Utilisez la plateforme complète ou adoptez les couches de protocole, d’interface utilisateur et de SDK adaptées à votre architecture."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Use the same entry for sign-in and account creation. Organization policy decides which actions are allowed."
 msgstr "Utilisez le même point d'entrée pour la connexion et la création de compte. La politique de l'organisation décide quelles actions sont autorisées."
@@ -10854,6 +11146,10 @@ msgstr "Très faible"
 msgid "View as Markdown"
 msgstr "Afficher en Markdown"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "View source on GitHub"
+msgstr "Afficher la source sur GitHub"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "View the current documentation"
 msgstr "Voir la documentation actuelle"
@@ -11067,6 +11363,10 @@ msgstr "XID en tant qu'IdP SAML ou OIDC"
 msgid "XID behavior"
 msgstr "Comportement de XID"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers."
+msgstr "XID réunit Hosted Auth, OIDC, organisations, fédération entreprise, synchronisation d'annuaire et SDKs dans une plateforme sous licence MIT sur Cloudflare Workers."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
 msgstr "XID réunit Hosted Auth, les clés d'accès, OIDC et OAuth, les organisations, la fédération d'entreprise, SCIM et les SDK dans une plateforme d'identité conçue pour Cloudflare."
@@ -11074,10 +11374,6 @@ msgstr "XID réunit Hosted Auth, les clés d'accès, OIDC et OAuth, les organisa
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID agit actuellement comme fournisseur de services SAML pour les IdP d'entreprise. L'IdP SAML sortant pour les applications SaaS en aval dispose de preuves locales avec un SaaS factice, mais la prise en charge en production requiert toujours un L4 réel d'administration SaaS."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID developer document not found"
-msgstr "Document développeur XID introuvable"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose a pull Events API. Use <0>GET /v1/webhooks</0> to manage subscriptions; delivery state and queue dead-letter replay are operational surfaces for Instance Managers, not a tenant event stream."
@@ -11134,6 +11430,10 @@ msgstr "XID prend en charge la grammaire de filtre SCIM avec <0>and</0>, <1>or</
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "XID will delete the Cloudflare custom hostname before marking it deleted locally. Remove the traffic CNAME after this succeeds."
 msgstr "XID supprimera le nom d'hôte personnalisé Cloudflare avant de le marquer comme supprimé localement. Retirez ensuite le CNAME de trafic."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "XID, an edge-native identity platform on Cloudflare Workers, featured on Product Hunt"
+msgstr "XID, une plateforme d'identité native en périphérie sur Cloudflare Workers, présentée sur Product Hunt"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"

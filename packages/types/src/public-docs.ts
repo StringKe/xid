@@ -1,6 +1,7 @@
 export const PUBLIC_DOC_SLUGS = [
   'getting-started',
   'hosted-auth',
+  'organizations',
   'oidc-oauth',
   'enterprise-sso',
   'social-login',
@@ -102,14 +103,7 @@ function withoutTwinSuffix(pathname: string): string {
 }
 
 function isPublicDocsHubPath(pathname: string): boolean {
-  return (
-    pathname === '/' ||
-    pathname === '/index.md' ||
-    pathname === '/index.mdx' ||
-    pathname === '/docs' ||
-    pathname === '/docs/index.md' ||
-    pathname === '/docs/index.mdx'
-  )
+  return pathname === '/docs' || pathname === '/docs/index.md' || pathname === '/docs/index.mdx'
 }
 
 export function resolvePublicDocSlug(pathname: string): PublicDocSlug | null {
@@ -132,7 +126,7 @@ export function getPublicDocsRouteDecision(pathname: string): PublicDocsRouteDec
   const slug = resolvePublicDocSlug(normalizedPath)
   const status = isPublicDocsPath(normalizedPath)
     ? 'public-technical-doc'
-    : normalizedPath === '/docs' || normalizedPath.startsWith('/docs/')
+    : normalizedPath.startsWith('/docs/')
       ? 'blocked-non-public-docs-path'
       : 'not-docs-path'
 

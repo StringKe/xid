@@ -26,6 +26,7 @@ const nimbusConfig = defineNimbusConfig({
 })
 
 export default defineConfig({
+  site: 'https://xid.dev',
   output: 'static',
   trailingSlash: 'never',
   vite: {

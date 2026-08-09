@@ -206,22 +206,24 @@ dist/
 
 ### Public documentation and Console runtime boundaries
 
-Public presentation is one Nimbus 0.8.2 documentation deployment, not a separate marketing site.
-Nimbus owns the canonical apex documentation hub, 8-locale docs, Pagefind, OG images, sitemaps,
-Markdown twins, LLM documents, and structured metadata. English uses `/` and `/{slug}`. The other
-7 locales use `/{locale-segment}` and `/{locale-segment}/{slug}`. The published surface contains
-one hub plus 40 documents and one status page per locale, for 336 pages total. The locale-neutral
-`documents.json` AST is the content source for the 328 generated collection pages; the localized
-status routes are explicit Astro pages. Generated localized MDX is a build artifact and is not an
-authoring source.
+Public presentation is one Nimbus 0.9.0 static Site deployment, not a separate marketing runtime.
+Nimbus owns the canonical apex product landing page, the `/docs` documentation hub, 8-locale docs,
+Pagefind, OG images, sitemaps, Markdown twins, LLM documents, and structured metadata. English uses
+`/` for the product landing page, `/docs` for the documentation hub, and `/{slug}` for document
+details. The other 7 locales use `/{locale-segment}`, `/{locale-segment}/docs`, and
+`/{locale-segment}/{slug}` respectively. The published surface contains one product landing page,
+one hub, 41 documents, and one status page per locale, for 352 pages total. The locale-neutral
+`documents.json` AST is the content source for the 336 generated collection pages; product landing
+and localized status routes are explicit Astro pages. Generated localized MDX is a build artifact
+and is not an authoring source.
 
 The installed Nimbus Registry feature set is:
 
-- `pagefind-search`: indexes all 336 localized Site pages.
+- `pagefind-search`: indexes all 352 localized Site pages.
 - `ai-native`: emits one downleveled `.md` twin and one source-preserving `.mdx` twin for every
-  published page. Global `/llms.txt` and `/llms-full.txt` cover all 336 pages. English locale
+  published page. Global `/llms.txt` and `/llms-full.txt` cover all 352 pages. English locale
   endpoints under `/en/` and the other 7 locale endpoints under their locale segment each cover
-  42 pages. Each locale also emits a Nimbus-compatible SDK section index and corpus at
+  44 pages. Each locale also emits a Nimbus-compatible SDK section index and corpus at
   `/sdks/llms*.txt` or `/{locale-segment}/sdks/llms*.txt`, covering exactly its 29 SDK pages. It
   also emits robots and sitemaps.
 - `404-page`: returns a localized terminal Site 404 for unknown public routes without entering Core.
@@ -234,9 +236,10 @@ Every published HTML page carries canonical and hreflang links, Open Graph metad
 The availability of another upstream Registry recipe does not enable it in XID. In particular,
 `changelog`, `new-version`, and `new-collection` are not part of this shipped surface.
 
-Legacy `/docs` paths return a 308 to the root canonical tree when registered. An unknown legacy
-`/docs/*` path returns the Nimbus 404 and never falls through to Hosted Auth. The English SCIM
-documentation uses exact `/scim` routes only, so `/scim/v2/*` remains owned by Core.
+`/docs` is the canonical English documentation hub. Registered historical detail paths such as
+`/docs/getting-started` return a 308 to the flat canonical document tree. An unknown `/docs/*` path
+returns the Nimbus 404 and never falls through to Hosted Auth. The English SCIM documentation uses
+exact `/scim` routes only, so `/scim/v2/*` remains owned by Core.
 
 The org and instance management surfaces remain one unified React Console product, but their static
 assets are deployed by a separate Console Worker. That Worker has only an `ASSETS` binding and owns

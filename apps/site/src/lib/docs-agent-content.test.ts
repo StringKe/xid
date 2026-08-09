@@ -24,7 +24,7 @@ vi.mock('@lingui/core/macro', () => ({
 function indexedFixture(locale: DocumentLocale, slug: string | null): IndexedEntry {
   const segment = DOCUMENT_LOCALE_ROUTE_SEGMENTS[locale]
   const prefix = segment === '' ? '' : `/${segment}`
-  const pathname = slug === null ? prefix || '/' : `${prefix}/${slug}`
+  const pathname = slug === null ? `${prefix}/docs` : `${prefix}/${slug}`
   const label = slug ?? 'documentation hub'
   const browserUrl = pathname === '/' ? '/' : `${pathname}/`
   const twinRoot = pathname === '/' ? '' : pathname
@@ -70,14 +70,15 @@ describe('public docs agent surfaces', () => {
         expect(index).toContain(`https://xid.dev${item.markdownUrl}`)
       }
     }
-    expect(index.match(/\/index\.md\)/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 8)
+    expect(index.match(/\/index\.md\)/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 16)
     expect(index).toContain('https://xid.dev/status/index.md')
     expect(index).toContain('https://xid.dev/zh-hans/status/index.md')
     expect(index).toContain('https://xid.dev/en/llms.txt')
     expect(index).toContain('https://xid.dev/zh-hans/llms.txt')
     expect(index).toContain('https://xid.dev/sdks/llms.txt')
     expect(index).toContain('https://xid.dev/zh-hans/sdks/llms.txt')
-    expect(index).not.toContain('https://xid.dev/docs/')
+    expect(index).toContain('https://xid.dev/docs/index.md')
+    expect(index).not.toContain('https://xid.dev/docs/getting-started/index.md')
   })
 
   it('keeps top-level section indexes isolated by locale', () => {
@@ -87,8 +88,8 @@ describe('public docs agent surfaces', () => {
     const englishIndex = renderPublicDocsLlmsIndex(english)
     const chineseIndex = renderPublicDocsLlmsIndex(chinese)
 
-    expect(englishIndex.match(/\/index\.md\)/g)).toHaveLength(42)
-    expect(chineseIndex.match(/\/index\.md\)/g)).toHaveLength(42)
+    expect(englishIndex.match(/\/index\.md\)/g)).toHaveLength(44)
+    expect(chineseIndex.match(/\/index\.md\)/g)).toHaveLength(44)
     expect(englishIndex).toContain('https://xid.dev/status/index.md')
     expect(chineseIndex).toContain('https://xid.dev/zh-hans/status/index.md')
     expect(chineseIndex).not.toContain('https://xid.dev/status/index.md')
@@ -117,25 +118,25 @@ describe('public docs agent surfaces', () => {
     expect(chineseFull).not.toContain('<!-- xid-doc-path: /sdks/react -->')
   })
 
-  it('renders a deterministic timestamp-free 336-page root corpus', () => {
+  it('renders a deterministic timestamp-free 352-page root corpus', () => {
     const groups = completeGroups()
     const first = renderPublicDocsGlobalLlmsFull(groups)
     const second = renderPublicDocsGlobalLlmsFull([...groups].reverse())
 
     expect(second).toBe(first)
-    expect(first.match(/<!-- xid-doc-path:/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 8)
+    expect(first.match(/<!-- xid-doc-path:/g)).toHaveLength(PUBLIC_DOCS_INDEXED_TOTAL + 16)
     expect(first).toContain('<!-- xid-doc-path: /status -->')
     expect(first).toContain('<!-- xid-doc-path: /zh-hans/status -->')
     expect(first).not.toMatch(/^Generated(?: at| on):/im)
     expect(first).not.toMatch(/^Build timestamp:/im)
   })
 
-  it('includes one localized hub, 40 docs, and its status surface in each section corpus', () => {
+  it('includes one homepage, one localized hub, 41 docs, and status in each section corpus', () => {
     const [english] = completeGroups()
     const corpus = renderPublicDocsLlmsFull(english)
 
-    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(42)
-    expect(corpus.match(/<!-- xid-doc-slug:/g)).toHaveLength(41)
+    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(44)
+    expect(corpus.match(/<!-- xid-doc-slug:/g)).toHaveLength(43)
     expect(corpus).not.toContain('https://xid.dev/zh-hans')
     expect(corpus).toContain('https://xid.dev/getting-started')
   })
@@ -149,8 +150,8 @@ describe('public docs agent surfaces', () => {
     const index = renderPublicDocsLlmsIndex(reduced)
     const corpus = renderPublicDocsLlmsFull(reduced)
 
-    expect(index.match(/\/index\.md\)/g)).toHaveLength(reduced.documents.length + 2)
-    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(reduced.documents.length + 2)
+    expect(index.match(/\/index\.md\)/g)).toHaveLength(reduced.documents.length + 3)
+    expect(corpus.match(/<!-- xid-doc-path:/g)).toHaveLength(reduced.documents.length + 3)
     expect(index).not.toContain(english.documents[0]?.item.markdownUrl)
     expect(corpus).not.toContain(`<!-- xid-doc-slug: ${english.documents[1]?.slug} -->`)
   })

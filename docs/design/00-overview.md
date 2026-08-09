@@ -75,7 +75,7 @@ Language     TypeScript
 Monorepo     pnpm workspace + turborepo (the only cross-package orchestrator) + Vite+ (vp: Oxlint/Oxfmt/Vitest/tsgo/library bundling) + standard Vite (app builds)
 Runtime      Cloudflare Workers
 Backend      Hono (protocol endpoints + Management API)
-Public site  Astro 7 + @cloudflare/nimbus-docs 0.8.2, static SSR, Pagefind, sitemap, OG, Markdown twins and LLM outputs
+Public site  Astro 7 + @cloudflare/nimbus-docs 0.9.0, static SSR, Pagefind, sitemap, OG, Markdown twins and LLM outputs
 Hosted UI    React 19 SPA in the Core deployment: sign-in, consent and account
 Console      React 19 SPA in a static-assets-only Worker: one org/instance console product on apex and tenant-host `/console`
 Edge routing More-specific Worker Routes select Site and Console paths; Core remains the Custom Domain and tenant wildcard fallback
@@ -188,8 +188,9 @@ management API runs on a separate path and does not reuse the business API.
 ### 6.1 Authentication root domain: xid.dev
 
 The `xid.dev` apex domain is the unified instance-level entry point for humans and the entry point
-for the platform console. Nimbus Site owns the canonical documentation hub and public documentation, while
-the Core Worker owns Hosted Auth, account, protocol and API paths, and the Console Worker owns
+for the platform console. Nimbus Site owns the canonical product landing page, the `/docs`
+documentation hub, and public documentation, while the Core Worker owns Hosted Auth, account,
+protocol and API paths, and the Console Worker owns
 `/console`. This path routing does not change the issuer or create an additional identity core. The
 apex is not a fixed alias for an `admin` tenant or an `app` tenant. Every user can reach the unified
 Hosted UI at `https://xid.dev/sign-in`, which first collects an

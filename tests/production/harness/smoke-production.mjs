@@ -139,22 +139,22 @@ function canonicalJson(value) {
 }
 
 const docsHomeTextRequired = [
-  '<title>XID Identity Platform | XID</title>',
-  'Open source identity platform',
-  'XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs',
+  '<title>Build identity at the edge, without giving up control | XID</title>',
+  'Identity infrastructure for Cloudflare',
+  'XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs',
   'href="/getting-started"',
+  'href="/docs"',
   'href="/hosted-auth"',
   'href="/oidc-oauth"',
   'href="/enterprise-sso"',
-  'href="/social-login"',
-  'href="/scim"',
-  'href="/management-api"',
-  'href="/sdks"',
-  'href="/self-hosting"',
+  'href="/organizations"',
+  'www.producthunt.com/products/xid',
+  'securityscorecards.dev',
+  'www.bestpractices.dev/projects/13783',
 ]
 
 const docsHomeSeoPatternRequired = [
-  /<meta\s+[^>]*name="description"[^>]*content="XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs/u,
+  /<meta\s+[^>]*name="description"[^>]*content="XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs/u,
   /<link\s+[^>]*rel="canonical"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="en"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="zh-Hans"[^>]*href="https:\/\/xid\.dev\/zh-hans\/"[^>]*>/u,
@@ -166,7 +166,7 @@ const docsHomeSeoPatternRequired = [
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="pt-BR"[^>]*href="https:\/\/xid\.dev\/pt-br\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="x-default"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<meta\s+[^>]*property="og:type"[^>]*content="website"[^>]*>/u,
-  /<meta\s+[^>]*property="og:title"[^>]*content="XID Identity Platform \| XID"[^>]*>/u,
+  /<meta\s+[^>]*property="og:title"[^>]*content="Build identity at the edge, without giving up control \| XID"[^>]*>/u,
   /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/og\/[^"]+\.png"[^>]*>/u,
   /<meta\s+[^>]*name="twitter:card"[^>]*content="summary_large_image"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="https:\/\/xid\.dev\/en\/llms\.txt"[^>]*>/u,
@@ -174,24 +174,34 @@ const docsHomeSeoPatternRequired = [
 ]
 
 function docsHomeJsonLdOk(body) {
-  const match = body.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/)
-  if (!match) return false
-  try {
-    const parsed = JSON.parse(match[1])
-    return (
-      parsed['@type'] === 'WebSite' &&
-      parsed.url === 'https://xid.dev/' &&
-      parsed.inLanguage === 'en' &&
-      parsed.image === 'https://xid.dev/og/index.png'
-    )
-  } catch {
-    return false
+  for (const match of body.matchAll(
+    /<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/gu,
+  )) {
+    try {
+      const parsed = JSON.parse(match[1])
+      const nodes = Array.isArray(parsed['@graph']) ? parsed['@graph'] : [parsed]
+      if (
+        nodes.some(
+          (node) =>
+            node?.['@type'] === 'WebSite' &&
+            node.url === 'https://xid.dev/' &&
+            node.inLanguage === 'en',
+        )
+      ) {
+        return true
+      }
+    } catch {
+      continue
+    }
   }
+  return false
 }
 
 export function docsHomeOk(body) {
   return (
-    publicDocsBodyOk(body) &&
+    body.includes('data-pagefind-body') &&
+    body.includes('data-search-dialog') &&
+    forbiddenPublicDocsPatterns.every((item) => !body.includes(item)) &&
     docsHomeTextRequired.every((item) => body.includes(item)) &&
     docsHomeSeoPatternRequired.every((pattern) => pattern.test(body)) &&
     docsHomeJsonLdOk(body)
@@ -238,7 +248,7 @@ function localizedLegacyPath(routeSegment, pathname) {
 }
 
 function localizedPublicDocsPath(routeSegment, slug = null) {
-  if (slug === null) return routeSegment === '' ? '/' : `/${routeSegment}/`
+  if (slug === null) return routeSegment === '' ? '/docs' : `/${routeSegment}/docs`
   return routeSegment === '' ? `/${slug}` : `/${routeSegment}/${slug}`
 }
 
@@ -261,20 +271,15 @@ function legacyRedirectCheck(name, sourcePath, canonicalPath) {
   }
 }
 
-const legacyCanonicalDocsChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) => [
-  legacyRedirectCheck(
-    `legacy-${section}-docs-hub`,
-    localizedLegacyPath(routeSegment, '/docs'),
-    localizedPublicDocsPath(routeSegment),
-  ),
-  ...PUBLIC_DOC_SLUGS.map((slug) =>
+const legacyCanonicalDocsChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) =>
+  PUBLIC_DOC_SLUGS.map((slug) =>
     legacyRedirectCheck(
       `legacy-${section}-docs-${slug.replaceAll('/', '-')}`,
       localizedLegacyPath(routeSegment, `/docs/${slug}`),
       localizedPublicDocsPath(routeSegment, slug),
     ),
   ),
-])
+)
 
 const legacyAliasChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) =>
   Object.entries(PUBLIC_DOC_ALIASES)
@@ -289,22 +294,15 @@ const legacyAliasChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }
 )
 
 const legacyTwinChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) => {
-  const legacyHub = localizedLegacyPath(routeSegment, '/docs')
-  const canonicalHub = localizedPublicDocsPath(routeSegment).replace(/\/$/u, '')
   const legacyScim = localizedLegacyPath(routeSegment, '/docs/scim')
   const canonicalScim = localizedPublicDocsPath(routeSegment, 'scim')
-  return ['md', 'mdx'].flatMap((extension) => [
-    legacyRedirectCheck(
-      `legacy-${section}-hub-${extension}`,
-      `${legacyHub}/index.${extension}`,
-      `${canonicalHub}/index.${extension}`,
-    ),
+  return ['md', 'mdx'].map((extension) =>
     legacyRedirectCheck(
       `legacy-${section}-scim-${extension}`,
       `${legacyScim}/index.${extension}`,
       `${canonicalScim}/index.${extension}`,
     ),
-  ])
+  )
 })
 
 const legacyAliasTwinChecks = PUBLIC_DOC_SECTIONS.flatMap(({ routeSegment, section }) =>
@@ -347,18 +345,25 @@ const sectionAgentIndexChecks = PUBLIC_DOC_SECTIONS.flatMap(({ section }) => [
 
 const checks = [
   {
-    name: 'docs-root',
+    name: 'product-home',
     surface: 'site',
     path: '/',
     expectStatus: 200,
     expectBody: docsHomeOk,
   },
   {
-    name: 'docs-root-query-fallback',
+    name: 'product-home-query-fallback',
     surface: 'site',
     path: '/?source=production-smoke',
     expectStatus: 200,
     expectBody: docsHomeOk,
+  },
+  {
+    name: 'docs-hub',
+    surface: 'site',
+    path: '/docs',
+    expectStatus: 200,
+    expectBody: publicDocsBodyOk,
   },
   {
     name: 'docs-getting-started-query-fallback',

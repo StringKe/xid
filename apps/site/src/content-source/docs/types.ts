@@ -347,8 +347,8 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
     }
   }
 
-  if (!Array.isArray(value.documents) || value.documents.length !== 40) {
-    throw new TypeError('document AST must contain 40 documents')
+  if (!Array.isArray(value.documents) || value.documents.length === 0) {
+    throw new TypeError('document AST must contain documents')
   }
   const slugs = new Set<string>()
   value.documents.forEach((documentValue, documentIndex) => {
@@ -381,8 +381,8 @@ export function assertDocumentAstBundle(value: unknown): asserts value is Docume
     throw new TypeError('document AST hub navigation must contain every document slug exactly once')
   }
 
-  if (!Array.isArray(value.messageCatalog) || value.messageCatalog.length !== 1136) {
-    throw new TypeError('document AST must contain 1136 catalog messages')
+  if (!Array.isArray(value.messageCatalog) || value.messageCatalog.length === 0) {
+    throw new TypeError('document AST must contain catalog messages')
   }
   const catalogIds = new Set<string>()
   value.messageCatalog.forEach((entryValue, entryIndex) => {

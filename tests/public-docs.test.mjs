@@ -9,12 +9,12 @@ import {
 } from '../packages/types/src/public-docs.ts'
 
 describe('public docs route contract', () => {
-  it('models the root hub and all 40 canonical detail pages', () => {
-    expect(PUBLIC_DOC_SLUGS).toHaveLength(40)
+  it('models the docs hub and all 41 canonical detail pages', () => {
+    expect(PUBLIC_DOC_SLUGS).toHaveLength(41)
     expect(normalizeDocsPath('/')).toBe('/')
-    expect(isPublicDocsPath('/')).toBe(true)
-    expect(isPublicDocsPath('/index.md')).toBe(true)
-    expect(isPublicDocsPath('/index.mdx')).toBe(true)
+    expect(isPublicDocsPath('/')).toBe(false)
+    expect(isPublicDocsPath('/index.md')).toBe(false)
+    expect(isPublicDocsPath('/index.mdx')).toBe(false)
 
     for (const slug of PUBLIC_DOC_SLUGS) {
       expect(resolvePublicDocSlug(`/${slug}`)).toBe(slug)
@@ -37,7 +37,8 @@ describe('public docs route contract', () => {
   })
 
   it('distinguishes public, blocked legacy, and unrelated route decisions', () => {
-    expect(getPublicDocsRouteDecision('/').status).toBe('public-technical-doc')
+    expect(getPublicDocsRouteDecision('/').status).toBe('not-docs-path')
+    expect(getPublicDocsRouteDecision('/docs').status).toBe('public-technical-doc')
     expect(getPublicDocsRouteDecision('/scim/index.md')).toMatchObject({
       status: 'public-technical-doc',
       slug: 'scim',

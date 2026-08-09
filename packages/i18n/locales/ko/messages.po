@@ -316,6 +316,10 @@ msgstr "10초"
 msgid "10s timeout default"
 msgstr "기본 10초 타임아웃"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "3 Workers"
+msgstr "3개의 Workers"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "30 seconds"
 msgstr "30초"
@@ -437,6 +441,10 @@ msgstr "{0} 조직에 대한 액세스 권한과 이 보조금을 통해 발급�
 msgid "Access protected resources"
 msgstr "보호된 리소스에 접근"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Access request lifecycle"
+msgstr "액세스 요청 수명주기"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Access token TTL (seconds)"
 msgstr "액세스 토큰 TTL(초)"
@@ -476,6 +484,10 @@ msgstr "활성 세션의 session과 getToken을 반환하는 Accessor"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Accessor wrapping discriminated union on isLoaded / isSignedIn / user"
 msgstr "isLoaded / isSignedIn / user에 대한 판별 유니온을 감싸는 Accessor"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
+msgstr "AccessRequest가 <0>보류 중</0>에서 <1>승인됨</1>, <2>거부됨</2>, <3>취소됨</3> 또는 <4>만료됨</4>으로 변경됩니다. 모든 결과는 최종적이며 보류 중인 요청은 14일 후에 서서히 만료됩니다."
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion"
@@ -842,6 +854,10 @@ msgstr "허용 역할(쉼표로 구분)"
 msgid "Allowed user IDs (comma-separated)"
 msgstr "허용된 사용자 ID(쉼표로 구분)"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Allowed without a UserGrant."
+msgstr "UserGrant 없이 허용됩니다."
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.alreadyHaveAccountSignIn"
@@ -851,9 +867,17 @@ msgstr "이미 계정이 있으신가요? <0>로그인</0>"
 msgid "Already have an account? Sign in"
 msgstr "이미 계정이 있으신가요? 로그인"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
+msgstr "인스턴스에는 최상위 조직이 포함됩니다. 조직은 한 수준의 하위 조직을 포함할 수 있습니다. 각 조직은 정책, 멤버십, 브랜딩, RBAC 및 격리 경계로 유지됩니다."
+
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "내부 오류가 발생했습니다. 다시 시도하세요."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
+msgstr "OrgUnit은 하나의 조직 내의 부서 또는 팀입니다. TenantContext, 발급자, 토큰 클레임 또는 한 수준 SubOrg 제한은 변경되지 않습니다."
 
 #: packages/i18n/src/messages.ts
 msgid "An unexpected server error occurred. Please try again."
@@ -979,9 +1003,21 @@ msgstr "애플리케이션 소유 JWT cookie 이름이며 명시적으로 설정
 msgid "Applications"
 msgstr "애플리케이션"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approval creates a traceable UserGrant in the same transaction. The requester cannot approve their own request; resolution falls through from the OrgUnit manager to project and organization managers."
+msgstr "승인은 동일한 트랜잭션에서 추적 가능한 UserGrant를 생성합니다. 요청자는 자신의 요청을 승인할 수 없습니다. 해결 방법은 OrgUnit 관리자에서 프로젝트 및 조직 관리자에게 전달됩니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approval required"
+msgstr "승인 필요"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Approve"
 msgstr "승인"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Approve or deny a pending request assigned to the current user."
+msgstr "현재 사용자에게 할당된 보류 중인 요청을 승인하거나 거부합니다."
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Approve sign-in request | XID"
@@ -1162,6 +1198,10 @@ msgstr "authenticateRequest"
 msgid "Authentication"
 msgstr "인증"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Authentication and account"
+msgstr "인증 및 계정"
+
 #: packages/i18n/src/messages.ts
 msgid "Authentication is required."
 msgstr "인증이 필요합니다."
@@ -1213,8 +1253,8 @@ msgid "Authorization code with server side token exchange."
 msgstr "서버 측 토큰 교환을 사용하는 인가 코드입니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR<1>resource_access</1> authorization details, token-exchange refresh and ID token issuance, mTLS client authentication, and front-channel logout."
-msgstr "인가 코드, PKCE S256, refresh 회전, PAR, DPoP 증명 및 <0>dpop_jkt</0> 바인딩, 동적 클라이언트 등록, ID 토큰, userinfo, 하이브리드 응답 유형, 서명된 JAR 요청 객체, 서명된 JARM 응답, RAR<1>resource_access</1> 인가 세부 정보, 토큰 교환 refresh 및 ID 토큰 발급, mTLS 클라이언트 인증, 프런트 채널 로그아웃."
+msgid "Authorization code, PKCE S256, refresh rotation, PAR, DPoP proof and <0>dpop_jkt</0> binding, dynamic client registration, ID tokens, userinfo, hybrid response types, signed JAR request objects, signed JARM responses, RAR <1>resource_access</1> authorization details, token exchange, mTLS client authentication, front-channel and back-channel logout, Device Flow, Session Management, CIBA, Browser-Based Apps profile gates, and FAPI 2.0 profile gates."
+msgstr "인증 코드, PKCE S256, 새로 고침 회전, PAR, DPoP 증명 및 <0>dpop_jkt</0> 바인딩, 동적 클라이언트 등록, ID 토큰, 사용자 정보, 하이브리드 응답 유형, 서명된 JAR 요청 개체, 서명된 JARM 응답, RAR <1>resource_access</1> 인증 세부정보, 토큰 교환, mTLS 클라이언트 인증, 전면 채널 및 후면 채널 로그아웃, 장치 흐름, 세션 관리, CIBA, 브라우저 기반 앱 프로필 게이트 및 FAPI 2.0 프로필 게이트."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization code, refresh token, client credentials, device code, and token exchange."
@@ -1284,10 +1324,6 @@ msgstr "콘솔로 돌아가기"
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Back to Console"
 msgstr "콘솔로 돌아가기"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Back to developer docs"
-msgstr "개발자 문서로 돌아가기"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 #: apps/server/src/routes/consent/index.tsx
@@ -1470,6 +1506,10 @@ msgstr "사용자 정의 reqwest 클라이언트로 클라이언트를 빌드합
 msgid "Build client with default reqwest HTTP client."
 msgstr "기본 reqwest HTTP 클라이언트로 클라이언트를 빌드합니다."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Build identity at the edge, without giving up control"
+msgstr "제어권을 포기하지 않고 엣지에서 ID 구축"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Build OIDC end_session URL for RP-initiated logout"
 msgstr "RP 주도 로그아웃을 위한 OIDC end_session URL 생성"
@@ -1524,6 +1564,10 @@ msgstr "취소"
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Cancel and sign out"
 msgstr "취소하고 로그아웃"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Cancel the current user's pending request."
+msgstr "현재 사용자의 보류 중인 요청을 취소합니다."
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
@@ -1787,6 +1831,10 @@ msgstr "논리 연산자와 비교 연산자를 결합합니다."
 msgid "Comma-separated event names (for example user.created, session.revoked). Leave blank to receive all events."
 msgstr "쉼표로 구분된 이벤트 이름 (예: user.created, session.revoked). 모든 이벤트를 수신하려면 비워 두세요."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Complete edition"
+msgstr "완전한 판"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Completed"
 msgstr "완료"
@@ -1936,6 +1984,10 @@ msgstr "OIDC Discovery와 Hosted Auth로 애플리케이션을 XID에 연결합�
 msgid "Connect enterprise identity providers using SAML 2.0."
 msgstr "SAML 2.0으로 엔터프라이즈 ID 제공자를 연결합니다."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Connect inbound SAML and OIDC, downstream SaaS SSO, SCIM, directory sync, and domain discovery behind explicit policy boundaries."
+msgstr "명시적인 정책 경계 뒤에 인바운드 SAML 및 OIDC, 다운스트림 SaaS SSO, SCIM, 디렉터리 동기화 및 도메인 검색을 연결합니다."
+
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Connected"
 msgstr "연결됨"
@@ -1952,6 +2004,10 @@ msgstr "연결"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Connections | Account | XID"
 msgstr "연결 | 계정 | XID"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Console"
+msgstr "Console 콘솔"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Console is read-only"
@@ -2060,6 +2116,10 @@ msgstr "페이지 복사"
 msgid "Copy to clipboard"
 msgstr "클립보드에 복사"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Core"
+msgstr "Core 코어"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Core API"
 msgstr "핵심 API"
@@ -2116,6 +2176,10 @@ msgstr "디렉터리 그룹을 만들고 조회합니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create and list directory users."
 msgstr "디렉터리 사용자를 만들고 조회합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Create and list the current user's requests."
+msgstr "현재 사용자의 요청을 생성하고 나열합니다."
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Create and revoke API keys for server-side integrations."
@@ -2257,6 +2321,10 @@ msgstr "권한을 생성, 조회, 업데이트, 삭제합니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, read, update, ban, unban, export, and remove users."
 msgstr "사용자를 생성, 조회, 업데이트, 차단, 차단 해제, 내보내기, 제거합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Create, update, move, archive, and manage members of units."
+msgstr "장치 구성원을 생성, 업데이트, 이동, 보관 및 관리합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, update, sync, and remove outbound SCIM targets."
@@ -2667,6 +2735,14 @@ msgid "Delivery is decoupled from the authentication path through Cloudflare Que
 msgstr "전송은 Cloudflare Queues를 통해 인증 경로와 분리되어 있습니다. 느리거나 사용할 수 없는 엔드포인트는 로그인 지연에 영향을 미치지 않습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Denied until an AccessRequest is approved."
+msgstr "AccessRequest가 승인될 때까지 거부됩니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Denied; an administrator grants access directly."
+msgstr "거부됨; 관리자가 직접 액세스 권한을 부여합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Deno"
 msgstr "Deno"
 
@@ -2734,14 +2810,6 @@ msgstr "데스크톱 SDK"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Dev/test without Tauri runtime"
 msgstr "Tauri 런타임 없이 개발/테스트"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Developer docs navigation"
-msgstr "개발자 문서 탐색"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Device authorization polling, Session Management check_session, CIBA backchannel approval, FAPI 2.0 / Browser-Based Apps profile gates, OpenID Federation, and Shared Signals expose guarded-minimal or provider-ready subsets. GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI return negative or 501 stubs until full profiles ship."
-msgstr "디바이스 인가 폴링, Session Management check_session, CIBA 백채널 승인, FAPI 2.0 / 브라우저 기반 앱 프로필 게이트, OpenID Federation, Shared Signals는 제한적 최소 또는 provider-ready 부분집합을 노출합니다. GNAP, UMA, HEART, OpenID4VP, OpenID4VCI는 전체 프로필이 제공될 때까지 부정 또는 501 스텁을 반환합니다."
 
 #: apps/server/src/routes/activate/CodeEntryForm.tsx
 msgid "Device code"
@@ -2873,6 +2941,10 @@ msgstr "표시 조건"
 msgid "Document type"
 msgstr "문서 유형"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Documentation"
+msgstr "선적 서류 비치"
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
@@ -2929,10 +3001,6 @@ msgid "Downstream SaaS OIDC identity provider"
 msgstr "Downstream SaaS OIDC ID 공급자"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Downstream SaaS OIDC uses the current generic OIDC baseline locally, but SaaS-specific production support still requires real SaaS L4."
-msgstr "다운스트림 SaaS OIDC는 로컬에서 현재 일반 OIDC 기준선을 사용하지만, SaaS별 프로덕션 지원에는 여전히 실제 SaaS L4가 필요합니다."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Downstream SaaS SSO status"
 msgstr "Downstream SaaS SSO 상태"
 
@@ -2953,6 +3021,10 @@ msgstr "DPoP로 바인딩된 클라이언트는 token 및 resource 호출에 유
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Draft"
 msgstr "초안"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Each member can have one primary OrgUnit and additional placements."
+msgstr "각 구성원은 하나의 기본 OrgUnit과 추가 배치를 가질 수 있습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each primitive returns reactive <0>Accessor<T></0> (getter functions). Call them in JSX or <1>createEffect</1> to track changes."
@@ -3276,12 +3348,20 @@ msgid "Every organization on this instance, with plan and lifecycle status."
 msgstr "플랜 및 수명 주기 상태를 포함한 이 인스턴스의 모든 조직입니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
+msgstr "모든 OrgUnit 및 AccessRequest 쿼리의 범위는 <0>tenant_id</0> 및 <1>org_id</1>로 지정됩니다. 조직 간 또는 테넌트 간 식별자는 존재를 밝히지 않고 404를 반환합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every SDK below carries one of two status labels, aligned with the XID platform support matrix. Neither label is a production-readiness claim."
 msgstr "아래의 모든 SDK는 XID 플랫폼 지원 매트릭스에 따라 두 가지 상태 레이블 중 하나를 가집니다. 두 레이블 모두 프로덕션 준비 완료를 의미하지 않습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/json</0>. The body contains the exact event <1>type</1> and its <2>data</2>; svix metadata is carried in request headers."
 msgstr "모든 웹훅 전달은 <0>Content-Type: application/json</0>을 사용하는 HTTP POST입니다. 본문에는 정확한 이벤트 <1>유형</1>과 해당 <2>데이터</2>가 포함됩니다. svix 메타데이터는 요청 헤더에 포함됩니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Evidence before compatibility claims"
+msgstr "호환성 주장 전의 증거"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
@@ -3905,6 +3985,10 @@ msgstr "기능 플래그"
 msgid "Feature flags | Console | XID"
 msgstr "기능 플래그 | 콘솔 | XID"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Federation and provisioning"
+msgstr "페더레이션 및 프로비저닝"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Field"
 msgstr "필드"
@@ -4051,7 +4135,12 @@ msgstr "백업 코드 생성"
 msgid "Generic OIDC baseline is available locally. SaaS-specific app templates and real SaaS L4 are still required before production support claims."
 msgstr "일반 OIDC 기준선은 로컬에서 사용 가능합니다. 프로덕션 지원 주장을 하기 전에 SaaS별 앱 템플릿과 실제 SaaS L4가 여전히 필요합니다."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Get started"
+msgstr "시작하기"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/site-shell-messages.ts
 msgid "Getting started"
 msgstr "시작하기"
 
@@ -4277,6 +4366,10 @@ msgstr "Hosted Auth 로그인 흐름 헬퍼"
 msgid "Hosted Auth, passkeys, passwords, magic links, social sign-in, MFA, recovery, consent, and account self-service."
 msgstr "Hosted Auth, 패스키, 비밀번호, 매직 링크, 소셜 로그인, MFA, 복구, 동의 및 계정 셀프서비스."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted Auth, protocols, APIs, data, and asynchronous work"
+msgstr "Hosted Auth, 프로토콜, API, 데이터 및 비동기 작업"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hosted flow"
 msgstr "Hosted Auth 흐름"
@@ -4288,6 +4381,10 @@ msgstr "Hosted 리디렉션, 앱 링크 콜백, 안전한 저장소 어댑터."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Hosted redirect, deep link callback, PKCE S256, and secure storage adapter contract."
 msgstr "Hosted Auth 리디렉션, deep link callback, PKCE S256, 보안 스토리지 어댑터 계약입니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Hosted sign-in, passkeys, password, MFA, session management, consent, and account self-service share one tenant-aware Core."
+msgstr "Hosted Sign-in, 패스키, 비밀번호, MFA, 세션 관리, 동의 및 계정 셀프서비스는 tenant 인식 Core를 공유합니다."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Hostname ownership"
@@ -4417,6 +4514,10 @@ msgstr "식별자 정책"
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Identity"
 msgstr "신원"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Identity infrastructure for Cloudflare"
+msgstr "Cloudflare용 ID 인프라"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Identity protocols"
@@ -4619,6 +4720,10 @@ msgstr "signInPassword 입력"
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Inspect failed queue metadata and deliberately replay the KEK-encrypted original message."
 msgstr "실패한 큐 메타데이터를 검사하고 KEK로 암호화된 원본 메시지를 수동으로 재처리합니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Inspect the protocol matrix"
+msgstr "프로토콜 매트릭스 검사"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Install"
@@ -4998,6 +5103,10 @@ msgstr "레거시 프로토콜 경계"
 msgid "Level"
 msgstr "수준"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "License"
+msgstr "라이선스"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Like getAuth but throws a redirect response when unauthenticated"
 msgstr "getAuth와 유사하지만 미인증 시 리디렉션 응답을 발생시킵니다"
@@ -5025,6 +5134,14 @@ msgstr "목록 엔드포인트는 데이터 배열과 커서 메타데이터를 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "List of user organizations for switcher UI"
 msgstr "전환기 UI용 사용자 조직 목록"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "List requests awaiting the current user's approval."
+msgstr "현재 사용자의 승인을 기다리는 요청을 나열합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "List requests inside one organization."
+msgstr "한 조직 내의 요청을 나열합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "List, create, and remove organization domains."
@@ -5210,6 +5327,10 @@ msgstr "세션을 불러오는 중"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.loading"
 msgstr "불러오는 중..."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Local implementation and conformance gates are not production certification. Downstream SaaS OIDC uses the generic OIDC baseline, but each SaaS integration still requires real external L4 evidence."
+msgstr "로컬 구현 및 적합성 게이트는 생산 인증이 아닙니다. 다운스트림 SaaS OIDC는 일반 OIDC 기준을 사용하지만 각 SaaS 통합에는 여전히 실제 외부 L4 증거가 필요합니다."
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Locale"
@@ -5476,6 +5597,10 @@ msgstr "멤버 | 콘솔 | XID"
 msgid "Members, roles, SSO admin embed"
 msgstr "멤버, 역할, SSO 관리자 임베드"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Membership and project access are separate: invitations join an Organization, while AccessRequest grants an existing active member access to one Project."
+msgstr "멤버십과 프로젝트 액세스는 별개입니다. 초대는 조직에 가입하는 반면, AccessRequest는 기존 활성 멤버에게 하나의 프로젝트에 대한 액세스 권한을 부여합니다."
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Message"
 msgstr "메시지"
@@ -5544,8 +5669,8 @@ msgid "Minimal constructor. Chain builder methods for optional settings."
 msgstr "최소 생성자. 선택적 설정을 위해 빌더 메서드를 체이닝하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Minimal route subsets and discovery-friendly metadata are exposed. Unsupported operations return explicit errors until full profile handlers ship."
-msgstr "최소 경로 부분집합과 디스커버리 친화적 메타데이터를 노출합니다. 전체 프로필 핸들러가 제공될 때까지 지원되지 않는 작업은 명시적 오류를 반환합니다."
+msgid "Minimal implementation"
+msgstr "최소한의 구현"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
@@ -5571,6 +5696,14 @@ msgstr "요청이 없습니다"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mobile SDKs"
 msgstr "모바일 SDK"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Model Organization, OrgUnit, project, and access approval boundaries."
+msgstr "모델 조직, OrgUnit, 프로젝트 및 액세스 승인 경계."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Model organizations, OrgUnits, projects, roles, grants, approval policies, and access requests without creating a separate admin tenant."
+msgstr "별도의 관리 테넌트를 만들지 않고도 조직, OrgUnits, 프로젝트, 역할, 권한 부여, 승인 정책 및 액세스 요청을 모델링할 수 있습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
@@ -5718,6 +5851,10 @@ msgstr "Next.js"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Next.js middleware, App Router and Pages Router server helpers, plus React SDK re-exports."
 msgstr "Next.js middleware, App Router 및 Pages Router 서버 헬퍼, React SDK 재내보내기 포함."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "No access request is needed."
+msgstr "액세스 요청이 필요하지 않습니다."
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "No active API keys."
@@ -5943,6 +6080,10 @@ msgstr "설정된 SCIM 디렉터리가 없습니다."
 msgid "No SCIM targets configured."
 msgstr "구성된 SCIM 대상이 없습니다."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "No self-service request is available."
+msgstr "셀프 서비스 요청은 불가능합니다."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "No sign-in methods are available for this organization."
 msgstr "이 조직에서 사용할 수 있는 로그인 방법이 없습니다."
@@ -6003,10 +6144,6 @@ msgstr "Node.js"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "None"
 msgstr "없음"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Not found"
-msgstr "찾을 수 없음"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -6173,6 +6310,14 @@ msgstr "활성화"
 msgid "On this page"
 msgstr "이 페이지에서"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "One control plane from sign-in to enterprise access"
+msgstr "로그인부터 엔터프라이즈 액세스까지 하나의 제어 평면"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "One deployment model"
+msgstr "단일 배포 모델"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One platform for identity"
 msgstr "아이덴티티를 위한 하나의 플랫폼"
@@ -6197,7 +6342,12 @@ msgstr "OneLogin"
 msgid "Only approve this request if the code matches your device."
 msgstr "코드가 디바이스와 일치할 때만 이 요청을 승인하세요。"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
+msgstr "부정적인 경로와 메타데이터 스텁만 노출됩니다. 지원되지 않는 작업은 명시적인 <0>501 unsupported_feature</0>를 반환합니다. 기능적 프로토콜 지원은 주장되지 않습니다."
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open"
 msgstr "열기"
 
@@ -6242,6 +6392,10 @@ msgstr "읽기 전용 세션 열기"
 msgid "Open source identity platform"
 msgstr "오픈 소스 아이덴티티 플랫폼"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Open source, inspectable, and self-hostable"
+msgstr "오픈 소스, 검사 가능 및 자체 호스팅 가능"
+
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Open Stripe-hosted Checkout to start a managed subscription, or use the Customer Portal for an existing billing account. These controls do not license-gate self-hosted features."
 msgstr "Stripe에서 호스팅하는 Checkout을 열어 관리형 구독을 시작하거나, 기존 청구 계정은 Customer Portal에서 관리하세요. 이러한 컨트롤은 자체 호스팅 기능을 라이선스로 제한하지 않습니다."
@@ -6270,6 +6424,10 @@ msgstr "인증 앱을 열고 6자리 코드를 입력하세요."
 msgid "openAuthSession(url, redirectUri) resolving to a BrowserResult"
 msgstr "BrowserResult로 resolve되는 openAuthSession(url, redirectUri)"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OpenID Federation exposes entity metadata and a registration boundary only. Trust-chain resolution, trust anchors, policy processing, and production interoperability are not implemented."
+msgstr "OpenID Federation은 엔터티 메타데이터와 등록 경계만 노출합니다. 신뢰 체인 해결, 신뢰 앵커, 정책 처리 및 생산 상호 운용성은 구현되지 않습니다."
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "openid, email, profile"
 msgstr "openid, email, profile"
@@ -6281,6 +6439,14 @@ msgstr "조직을 여는 중"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Opens system browser, exchanges code, stores tokens"
 msgstr "시스템 브라우저를 열고 코드를 교환하며 토큰을 저장합니다"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "OpenSSF Best Practices badge for XID"
+msgstr "XID용 OpenSSF 모범 사례 배지"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "OpenSSF Scorecard for XID"
+msgstr "XID용 OpenSSF 스코어카드"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Operational"
@@ -6352,6 +6518,10 @@ msgstr "org_..."
 msgid "Organization"
 msgstr "조직"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organization and instance management UI"
+msgstr "조직 및 인스턴스 관리 UI"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organization context is not populated from stored tokens yet."
 msgstr "조직 컨텍스트는 저장된 토큰에서 아직 채워지지 않습니다."
@@ -6359,6 +6529,10 @@ msgstr "조직 컨텍스트는 저장된 토큰에서 아직 채워지지 않습
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Organization email domain"
 msgstr "조직 이메일 도메인"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Organization hierarchy"
+msgstr "조직 계층"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -6395,6 +6569,7 @@ msgstr "조직 역할: {0}"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations"
 msgstr "조직"
 
@@ -6402,9 +6577,17 @@ msgstr "조직"
 msgid "Organizations | Console | XID"
 msgstr "조직 | 콘솔 | XID"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Organizations and access"
+msgstr "조직 및 액세스"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations can require email identifiers, username identifiers, or both."
 msgstr "조직은 이메일 식별자, 사용자 이름 식별자 또는 둘 다를 요구할 수 있습니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "OrgUnit trees support a maximum depth of eight."
+msgstr "OrgUnit 트리는 최대 8개의 깊이를 지원합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Other native SDKs (iOS, Android, Flutter, desktop) use a functional configure, signIn, and handleRedirect API surface."
@@ -6953,6 +7136,10 @@ msgstr "다시 조회하기 전에 기다려 주세요."
 msgid "Plugin setup"
 msgstr "플러그인 설정"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Pre-1.0 status"
+msgstr "1.0 이전 상태"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "환경설정"
@@ -7035,9 +7222,17 @@ msgstr "App Link 또는 사용자 정의 스킴 콜백을 처리합니다. signI
 msgid "Processing"
 msgstr "처리"
 
+#: apps/site/src/lib/site-shell-messages.ts
+msgid "Product"
+msgstr "제품"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Product and setup"
 msgstr "제품 및 설정"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Product, documentation, search, and agent-readable content"
+msgstr "제품, 문서, 검색 및 상담원이 읽을 수 있는 콘텐츠"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production and staging require KEK, PEPPER, and BOOTSTRAP_TOKEN as Workers Secrets. Never place them in variables, D1, source files, or build logs."
@@ -7050,6 +7245,10 @@ msgstr "프로덕션 백엔드"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production configuration"
 msgstr "Production 구성"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Production evidence"
+msgstr "생산 증거"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -7104,6 +7303,10 @@ msgstr "프로젝트 관리자는 정의를 변경할 수 있습니다. 프로�
 msgid "Project name"
 msgstr "프로젝트 이름"
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Project policy"
+msgstr "프로젝트 정책"
+
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project recycle bin"
 msgstr "프로젝트 휴지통"
@@ -7123,6 +7326,14 @@ msgstr "프로젝트 및 액세스"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Projects and access | Console | XID"
 msgstr "프로젝트 및 액세스 | Console | XID"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Projects and access policy"
+msgstr "프로젝트 및 액세스 정책"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Projects group applications and authorization roles. The per-project <0>access_policy</0> controls only same-organization users without an effective UserGrant; cross-organization ProjectGrant authorization is unaffected."
+msgstr "프로젝트 그룹 애플리케이션 및 권한 부여 역할. 프로젝트별 <0>access_policy</0>는 유효한 UserGrant 없이 동일한 조직 사용자만 제어합니다. 조직 간 ProjectGrant 승인은 영향을 받지 않습니다."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Projects isolate business roles and permissions. Select one project to manage its cross-organization grants and delegated managers."
@@ -7151,6 +7362,10 @@ msgstr "프로토콜 요구사항"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "프로토콜"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Protocols and developer experience"
+msgstr "프로토콜 및 개발자 경험"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Provide separate light and dark logo URLs. Both are hosted externally and referenced by URL."
@@ -7182,10 +7397,6 @@ msgstr "공급자 설정"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Provider status"
 msgstr "공급자 상태"
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Provider-ready"
-msgstr "제공자 준비됨"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Provider-ready for enterprise connections. Production support requires a real IdP configuration and callback L4."
@@ -7290,6 +7501,14 @@ msgstr "공개 클라이언트는 PKCE S256을 사용한 Authorization Code를 �
 #: apps/console/src/routes/org/OrgApplications.tsx
 msgid "Public clients use PKCE and do not receive a client secret."
 msgstr "공개 클라이언트는 PKCE을 사용하며 클라이언트 비밀번호를 받지 않습니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Public content and management stay binding-free. Identity state, protocols, and policy remain in Core."
+msgstr "공개 콘텐츠와 관리 UI는 binding-free로 유지됩니다. 아이덴티티 상태, 프로토콜 및 정책은 Core에 남습니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Public locales"
+msgstr "공개 언어"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Public organization view"
@@ -7480,6 +7699,14 @@ msgstr "RP를 설정하기 전에 발급자 메타데이터를 읽습니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Read organization audit events with cursor pagination."
 msgstr "커서 페이지 매김을 사용하여 조직 감사 이벤트를 읽습니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Read the documentation"
+msgstr "문서 읽기"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Read the organization unit tree."
+msgstr "조직 단위 트리를 읽습니다."
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 msgid "Read-only event log for this organization."
@@ -7913,6 +8140,10 @@ msgstr "조직 범위 사용자 및 그룹 엔드포인트에 필요합니다."
 msgid "Required for POST, PUT, and PATCH requests."
 msgstr "POST, PUT, PATCH 요청에 필요합니다."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Required scope"
+msgstr "필수 범위"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line."
 msgstr "SLO URL을 구성할 때 필요합니다. PEM 블록을 붙여넣거나 base64 DER 인증서를 빈 줄로 구분하세요."
@@ -8012,6 +8243,10 @@ msgstr "프로젝트 복원"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Restore this project before changing roles, permissions, or mappings."
 msgstr "역할, 권한 또는 매핑을 변경하기 전에 이 프로젝트를 복원하세요."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Restricted"
+msgstr "제한된"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Restricted mode limits outbound SSO launch and SCIM sync to members with selected roles or explicit user IDs."
@@ -8288,6 +8523,10 @@ msgstr "네트워크 호출 없는 JWT 검증, Rack/Rails 요청 인증, webhook
 msgid "Run the same MIT-licensed codebase in single-tenant or multi-tenant mode on your Cloudflare account. Self-hosting includes every feature with no license check or separate edition."
 msgstr "동일한 MIT 라이선스 코드베이스를 Cloudflare 계정에서 단일 테넌트 또는 멀티 테넌트 모드로 실행합니다. 셀프 호스팅에는 모든 기능이 포함되며 라이선스 검사나 별도 에디션이 없습니다."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Runtime"
+msgstr "실행 시간"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Runtime or language"
 msgstr "런타임 또는 언어"
@@ -8327,6 +8566,10 @@ msgstr "SaaS"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Salesforce"
 msgstr "Salesforce"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Same-organization behavior"
+msgstr "동일 조직 행동"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SAML clock tolerance in milliseconds"
@@ -8423,6 +8666,10 @@ msgstr "SCIM 오류는 SCIM 오류 스키마, HTTP 상태, 세부 정보, 선택
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SCIM field"
 msgstr "SCIM 필드"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "SCIM provisions users and memberships but does not map directory groups to OrgUnits or Project roles in the current implementation."
+msgstr "SCIM은 사용자 및 멤버십을 프로비저닝하지만 현재 구현에서는 디렉터리 그룹을 OrgUnits 또는 프로젝트 역할에 매핑하지 않습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SCIM remains the recommended source for deprovisioning and group membership lifecycle."
@@ -8682,8 +8929,13 @@ msgid "Selector xid-sign-out-button; inputs sessionId, redirectUrl, ariaLabel; s
 msgstr "선택자 xid-sign-out-button; 입력값: sessionId, redirectUrl, ariaLabel; 로그아웃 중 aria-busy를 표시합니다"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Self-hosting"
 msgstr "셀프 호스팅"
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Self-service path"
+msgstr "셀프 서비스 경로"
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send a verification link to {email}. The Console stays read-only until you use it."
@@ -8891,12 +9143,20 @@ msgid "Shared native contract"
 msgstr "공유 네이티브 계약"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "Shared Signals, CAEP, RISC, GNAP, UMA, HEART, OpenID4VP, and OpenID4VCI expose reserved routes that return explicit 501 errors. They are not protocol implementations."
+msgstr "공유 신호, CAEP, RISC, GNAP, UMA, HEART, OpenID4VP 및 OpenID4VCI는 명시적인 501 오류를 반환하는 예약된 경로를 노출합니다. 이는 프로토콜 구현이 아닙니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shared Swift core extraction with sdk/ios is planned but not yet done — each package carries its own copy of the implementation."
 msgstr "sdk/ios와의 공유 Swift 코어 추출이 계획되어 있지만 아직 완료되지 않았습니다. 각 패키지는 자체 구현 사본을 가지고 있습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Shibboleth"
 msgstr "Shibboleth"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Ship OIDC and OAuth flows, Management APIs, webhooks, framework SDKs, localized docs, and networkless token verification from one repository."
+msgstr "하나의 저장소에서 OIDC 및 OAuth 흐름, 관리 API, 웹후크, 프레임워크 SDK, 현지화된 문서, 네트워크 없는 토큰 확인을 제공합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
@@ -9077,6 +9337,10 @@ msgstr "signOut()은 로컬 session과 legacy credentials를 지웁니다. signO
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Single-account only — the storage layer uses fixed keys."
 msgstr "단일 계정 전용 — 저장소 레이어는 고정 키를 사용합니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Site"
+msgstr "Site 사이트"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Site navigation"
@@ -9733,6 +9997,10 @@ msgstr "macOS SDK는 sdk/ios와 동일한 Swift 구현 패턴을 공유합니다
 msgid "The Management API stores seven organization-scoped branding values in KV. They are available to authenticated management clients; automatic Hosted Auth and email rendering is not implemented."
 msgstr "Management API는 조직 범위의 브랜딩 값 7개를 KV에 저장합니다. 인증된 관리 클라이언트에서 사용할 수 있지만 Hosted Auth와 이메일에 자동으로 적용하는 기능은 구현되지 않았습니다."
 
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The Management API uses cursor pagination and shared API-key or organization-manager guards. It does not reuse end-user business routes."
+msgstr "관리 API는 커서 페이지 매김과 공유 API 키 또는 조직 관리자 가드를 사용합니다. 최종 사용자 비즈니스 경로는 재사용되지 않습니다."
+
 #: packages/i18n/src/messages.ts
 msgid "The MFA code is incorrect."
 msgstr "MFA 코드가 올바르지 않습니다."
@@ -9740,6 +10008,14 @@ msgstr "MFA 코드가 올바르지 않습니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The middleware strips any client-supplied auth tokens and re-injects only the verified result."
 msgstr "미들웨어는 클라이언트가 제공한 인증 토큰을 제거하고 검증된 결과만 다시 주입합니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "The MIT-licensed repository includes the complete feature set. Security posture and project governance remain visible through OpenSSF and the public source."
+msgstr "MIT 라이선스 저장소에는 전체 기능이 포함됩니다. 보안 상태와 프로젝트 거버넌스는 OpenSSF와 공개 소스를 통해 투명하게 유지됩니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
+msgstr "OrgUnit 상위 체인에서 가장 가까운 활성 관리자가 첫 번째 액세스 요청 승인자 후보입니다."
 
 #: packages/i18n/src/messages.ts
 msgid "The one-time code has expired. Please request a new one."
@@ -9769,9 +10045,17 @@ msgstr "찾는 페이지가 없거나 이동되었습니다"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "비밀번호가 최소 강도 요구사항을 충족하지 않습니다."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "The product surface"
+msgstr "제품 표면"
+
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "프로젝트를 찾을 수 없습니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "The protocol matrix separates implemented behavior, local conformance evidence, and production support. SAML is not described as production-ready until it is validated against a real identity provider."
+msgstr "프로토콜 매트릭스는 구현된 동작, 로컬 적합성 증거 및 생산 지원을 분리합니다. SAML은 실제 ID 공급자에 대해 검증될 때까지 프로덕션 준비가 완료된 것으로 설명되지 않습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
@@ -9906,6 +10190,10 @@ msgid "The svix-signature header starts with the literal v1, prefix, followed by
 msgstr "svix-signature 헤더는 리터럴 접두사 v1,로 시작하며, 엔드포인트 서명 시크릿으로 <0>{SVIX_SIGNATURE_INPUT}</0>을 계산한 Base64 인코딩 HMAC-SHA256이 이어집니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+msgid "The user submits an access request."
+msgstr "사용자가 액세스 요청을 제출합니다."
+
+#: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The XID Worker keeps an opaque refresh credential in an <0>HttpOnly</0> cookie. It is not a JWT, and the SDK never reads it from JavaScript or stores it in <1>localStorage</1>."
 msgstr "XID Worker는 불투명한 갱신 자격 증명을 <0>HttpOnly</0> 쿠키에 보관합니다. 이는 JWT가 아니며 SDK는 JavaScript에서 이를 읽거나 <1>localStorage</1>에 저장하지 않습니다."
 
@@ -10032,10 +10320,6 @@ msgstr "이 리소스는 액세스 승인을 중지하고 프로젝트 휴지통
 msgid "This session has been revoked."
 msgstr "이 세션은 폐기되었습니다."
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "This URL is not part of the published XID developer docs."
-msgstr "이 URL은 게시된 XID 개발자 문서에 포함되지 않습니다."
-
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "This verification link has expired. Please request a new one."
 msgstr "이 인증 링크는 만료되었습니다. 새 링크를 요청하세요."
@@ -10051,6 +10335,10 @@ msgstr "계정에서 \"{factorLabel}\"이(가) 제거됩니다. 이것이 유일
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "This will remove the link between your account and {label}. You will no longer be able to sign in with {label} unless you reconnect it."
 msgstr "계정과 {label}의 연결이 제거됩니다. 다시 연결하지 않으면 더 이상 {label}(으)로 로그인할 수 없습니다."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Three focused Workers. One identity platform."
+msgstr "세 가지 역할에 집중한 Workers. 하나의 아이덴티티 플랫폼."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Thrown for unrecoverable SDK errors: missing JWT key, JWKS fetch failure, invalid options, session-token exchange failure"
@@ -10464,6 +10752,10 @@ msgstr "범위가 지정된 API 키로 백엔드에서 조직 리소스를 관�
 msgid "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Retries carry the same <1>svix-id</1> as the original attempt."
 msgstr "수신 측에서 전송 중복을 제거하려면 <0>svix-id</0> 헤더를 사용하세요. 재시도 전송은 원래 시도와 동일한 <1>svix-id</1>를 가집니다."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Use the complete platform or adopt the protocol, UI, and SDK layers that fit your architecture."
+msgstr "전체 플랫폼을 사용하거나 아키텍처에 맞는 프로토콜, UI 및 SDK 레이어를 채택하세요."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Use the same entry for sign-in and account creation. Organization policy decides which actions are allowed."
 msgstr "로그인과 계정 생성에 같은 진입점을 사용합니다. 허용되는 작업은 조직 정책이 결정합니다."
@@ -10854,6 +11146,10 @@ msgstr "매우 약함"
 msgid "View as Markdown"
 msgstr "Markdown으로 보기"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "View source on GitHub"
+msgstr "GitHub에서 소스 보기"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "View the current documentation"
 msgstr "현재 문서 보기"
@@ -11067,6 +11363,10 @@ msgstr "SAML 또는 OIDC IdP로서의 XID"
 msgid "XID behavior"
 msgstr "XID 동작"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers."
+msgstr "XID는 Hosted Auth, OIDC, 조직, 엔터프라이즈 페더레이션, 디렉터리 동기화 및 SDKs를 Cloudflare Workers에서 실행되는 MIT 라이선스 플랫폼에 통합합니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID brings Hosted Auth, passkeys, OIDC and OAuth, organizations, enterprise federation, SCIM, and SDKs into one identity platform built for Cloudflare."
 msgstr "XID는 Hosted Auth, 패스키, OIDC 및 OAuth, 조직, 엔터프라이즈 페더레이션, SCIM 및 SDK를 Cloudflare용으로 구축된 하나의 아이덴티티 플랫폼에 통합합니다."
@@ -11074,10 +11374,6 @@ msgstr "XID는 Hosted Auth, 패스키, OIDC 및 OAuth, 조직, 엔터프라이�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID currently acts as the SAML service provider for enterprise IdPs. Outbound SAML IdP for downstream SaaS apps has local fake-SaaS evidence, but production support still requires real SaaS admin L4."
 msgstr "XID는 현재 엔터프라이즈 IdP용 SAML 서비스 공급자로 동작합니다. Downstream SaaS 앱용 outbound SAML IdP는 로컬 fake-SaaS 증거가 있지만, 프로덕션 지원에는 여전히 실제 SaaS 관리자 L4가 필요합니다."
-
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "XID developer document not found"
-msgstr "XID 개발자 문서를 찾을 수 없습니다"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XID does not expose a pull Events API. Use <0>GET /v1/webhooks</0> to manage subscriptions; delivery state and queue dead-letter replay are operational surfaces for Instance Managers, not a tenant event stream."
@@ -11134,6 +11430,10 @@ msgstr "XID는 <0>and</0>, <1>or</1>, <2>not</2> 및 비교 연산자(<3>eq</3>,
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "XID will delete the Cloudflare custom hostname before marking it deleted locally. Remove the traffic CNAME after this succeeds."
 msgstr "XID는 Cloudflare 사용자 지정 호스트 이름을 로컬에서 삭제된 것으로 표시하기 전에 삭제합니다. 이것이 성공하면 트래픽 CNAME을 제거하십시오."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "XID, an edge-native identity platform on Cloudflare Workers, featured on Product Hunt"
+msgstr "Product Hunt에 소개된 Cloudflare Workers의 에지 기반 ID 플랫폼인 XID"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "XidAuthService"

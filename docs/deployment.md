@@ -46,7 +46,7 @@ Cloudflare route ownership is:
 
 | Owner       | Routes                                                                                                                                                                                                                                                                                                      |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nimbus Site | Exact apex hub and English detail routes; `/docs` and `/docs/*` compatibility routes; each supported non-English locale root and subtree; `/_astro/*`, `/_nimbus/*`, `/pagefind/*`, `/og/*`, `/brand/*`, `/icons/*`, `/fonts/*`; exact sitemap, robots, LLM, manifest and icon files; `www.<your-domain>/*` |
+| Nimbus Site | Exact apex product landing, `/docs` hub, English detail routes, and registered `/docs/*` compatibility routes; each supported non-English locale root, docs hub, and subtree; `/_astro/*`, `/_nimbus/*`, `/pagefind/*`, `/og/*`, `/brand/*`, `/icons/*`, `/fonts/*`; exact sitemap, robots, LLM, manifest and icon files; `www.<your-domain>/*` |
 | Console     | `<your-domain>/console`, `<your-domain>/console/*`, `*.<your-domain>/console`, `*.<your-domain>/console/*`                                                                                                                                                                                                  |
 | Core        | Custom Domain `<your-domain>`, organization fallback `*.<your-domain>/*`, and Cloudflare for SaaS zone fallback `*/*`; Core SPA chunks are isolated under `/_core/*`                                                                                                                                        |
 
@@ -134,26 +134,29 @@ target account, production readiness for this feature is `UNKNOWN`.
 
 ### Public docs routes
 
-Nimbus Site renders public technical documentation from the explicit public docs registry and the
-locale-neutral `apps/site/src/content-source/docs/documents.json` AST. The build generates 40
-documents plus one documentation hub for each of 8 locales, for 328 generated collection pages.
-The localized status surface adds one page per locale, so the complete published Site contains
-336 canonical pages, or 42 pages per locale. English uses `/` and `/{slug}`. Other locales use
-`/{locale-segment}` and
-`/{locale-segment}/{slug}`. It also produces Pagefind search data, canonical
+Nimbus Site renders a localized product landing page and public technical documentation from the
+explicit public docs registry and the locale-neutral
+`apps/site/src/content-source/docs/documents.json` AST. The build generates 41 documents plus one
+documentation hub for each of 8 locales, for 336 generated collection pages. The explicit localized
+product landing and status surfaces add two pages per locale, so the complete published Site
+contains 352 canonical pages, or 44 pages per locale. English uses `/`, `/docs`, and `/{slug}` for
+the product landing, documentation hub, and document details. Other locales use
+`/{locale-segment}`, `/{locale-segment}/docs`, and `/{locale-segment}/{slug}` respectively. It also
+produces Pagefind search data, canonical
 and hreflang metadata, Open Graph metadata, JSON-LD, sitemap entries, `.md` and `.mdx` twins, section
 LLM files, root `llms.txt`, and `llms-full.txt`.
 
-Global `/llms.txt` and `/llms-full.txt` each cover all 336 pages. English locale agent files are
+Global `/llms.txt` and `/llms-full.txt` each cover all 352 pages. English locale agent files are
 `/en/llms.txt` and `/en/llms-full.txt`; the other 7 locales use their locale segment. Every locale
-index and corpus covers 42 pages. Nimbus-compatible SDK content-section files live at
+index and corpus covers 44 pages. Nimbus-compatible SDK content-section files live at
 `/sdks/llms.txt` and `/sdks/llms-full.txt` for English, and below
 `/{locale-segment}/sdks/llms*.txt` for the other locales. Each SDK section contains exactly its
 locale's 29 SDK pages.
 
-Registered legacy `/docs` paths return a single 308 to the root canonical tree, with query
-parameters preserved. The same applies to old `.md`, `.mdx`, and English `llms*.txt` paths. Any
-unregistered `/docs/*` subpath returns the Nimbus 404. It does not enter Core, the Hosted UI SPA, or
+`/docs` is the canonical English documentation hub. Registered historical detail paths below
+`/docs/*` return a single 308 to the flat canonical document tree, with query parameters preserved.
+The same applies to their old `.md` and `.mdx` variants. Any unregistered `/docs/*` subpath returns
+the Nimbus 404. It does not enter Core, the Hosted UI SPA, or
 `/sign-in`. Repository-internal design, deployment, and API contract documents therefore remain
 private even when a requested URL resembles a repository path. Adding a public documentation page
 requires a matching registry entry and generated content for every supported locale.
