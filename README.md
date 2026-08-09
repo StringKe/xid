@@ -7,7 +7,9 @@ Worker serves OIDC/OAuth, multi-tenant RBAC, enterprise SSO federation, Hosted A
 pages. A Nimbus Site Worker serves the complete localized documentation from the apex, while an
 isolated Console Worker serves the management UI.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
+[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/) [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge)](https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13783/badge)](https://www.bestpractices.dev/projects/13783)
+
+<a href="https://www.producthunt.com/products/xid?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-xid" target="_blank" rel="noopener noreferrer"><img alt="XID - Edge-native identity platform on Cloudflare Workers | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1217874&amp;theme=light&amp;t=1786263008879"></a>
 
 ## Project status
 
@@ -31,39 +33,64 @@ single-tenant deployment or a multi-tenant instance, by configuration rather tha
 
 ## Features
 
-**Protocol surface**
+**Protocols and federation**
 
-- OIDC and OAuth 2.x authorization server: discovery, JWKS, `/authorize`, `/token`, `/userinfo`,
-  `/introspect`, `/revoke`, `/end_session`, `/device_authorization`, `/par`, dynamic client
-  registration (RFC 7591/7592), and CIBA backchannel authentication.
-- Authorization code with mandatory PKCE S256, client credentials, device code, refresh rotation
-  with family replay revocation, and RFC 8693 token exchange. Sender-constrained tokens via DPoP
-  and mTLS; signed request objects (JAR) and signed authorization responses (JARM).
+- OIDC and OAuth 2.x authorization server with discovery, JWKS, protected-resource metadata,
+  `/authorize`, `/token`, `/userinfo`, `/introspect`, `/revoke`, `/end_session`, PAR, Device Flow,
+  Dynamic Client Registration, CIBA, hybrid responses, and front-channel, back-channel, and
+  session-management logout paths.
+- Authorization code with mandatory PKCE S256, client credentials, rotating refresh tokens with
+  family replay revocation, and RFC 8693 token exchange. Resource Indicators, DPoP, mTLS, JAR,
+  JARM, RAR, and local Browser-Based Apps and FAPI 2.0 enforcement profiles are implemented.
 - Enterprise SSO in both directions: inbound SAML 2.0 SP and OIDC RP federation, outbound SAML 2.0
-  IdP for downstream SaaS, plus LDAP direct bind, WS-Federation, SWA password vaulting, and
-  header-based SSO.
-- SCIM 2.0 Service Provider (Users, Groups, PATCH, filters, sort, bulk, ETag/If-Match) plus
-  outbound provisioning to downstream SaaS targets.
+  IdP and OIDC applications for downstream SaaS, plus LDAP direct bind, WS-Federation, SWA password
+  vaulting, header-based SSO, and a directory connector framework.
+- SCIM 2.0 Service Provider with Users, Groups, PATCH, filters, projection, sort, bulk, and
+  ETag/If-Match, plus outbound Users/Groups provisioning to downstream SaaS targets.
+- OpenID Federation is limited to a minimal entity-metadata and registration boundary. Trust-chain
+  resolution, trust anchors, authority-hint traversal, and production interoperability are not
+  implemented.
 
-**Authentication**
+**Authentication and account lifecycle**
 
-- Passkeys/WebAuthn as the primary credential: discoverable credentials, mandatory user
-  verification, sign-count clone detection.
-- Passwords hashed with Argon2id plus a server-side pepper held in Workers Secrets; magic links;
-  one-time codes over email, SMS, and WhatsApp; social OAuth as a relying party.
-- MFA with TOTP, SMS, passkey as second factor, and single-use backup codes.
-- Guest (anonymous) sign-in with Firebase-style lazy reuse and one-click in-place passkey upgrade
-  (`sub` preserved); silent re-authentication for browser applications via `prompt=none` with a
-  hidden-iframe attempt and a top-level redirect fallback.
+- Passkeys/WebAuthn as the primary credential with discoverable credentials, mandatory user
+  verification, ES256/RS256/EdDSA verification, sign-count clone detection, and policy-driven
+  packed enterprise attestation validation.
+- Passwords use Argon2id plus a server-side pepper held in Workers Secrets. Passwordless sign-in
+  supports magic links and one-time codes over email, SMS, and WhatsApp; social OAuth supports
+  Google, GitHub, Microsoft account, and Apple through the relying-party flow.
+- MFA supports TOTP, SMS, passkey challenges, single-use backup codes, and OIDC AAL2 step-up bound
+  to the current session. AAL3 is explicitly not claimed.
+- Guest sign-in provides Firebase-style lazy reuse and one-click in-place passkey upgrade with
+  `sub` preserved. Browser clients also have hidden-iframe `prompt=none` silent re-authentication
+  with a top-level redirect fallback.
+- Invitation acceptance, email verification, top-level Tenant onboarding, active-Organization
+  selection, session management, and self-service credential management are implemented in Hosted
+  Auth and the account portal.
 
-**Platform**
+**Organizations and authorization**
 
-- Organizations, memberships, roles, permissions, invitations, and domain verification.
-- Management API under `/v1/*`, self-service account portal under `/v1/me/*`, instance operator API
-  under `/v1/platform/*`.
-- Append-only audit log with chained SHA-256 hashes, signed webhooks with a dead-letter queue,
-  feature flags, and usage metering.
-- Hosted UI in 8 locales (en, zh-Hans, ja, ko, fr, de, es, pt-BR) with fully translated catalogs.
+- Instances, Organizations, one-level SubOrgs, memberships, Projects, Applications, roles,
+  permissions, user and cross-Organization grants, invitations, and domain verification.
+- OrgUnit trees model departments and teams inside an Organization with primary and secondary
+  placements, a maximum depth of 8, subtree moves and archival, and manager resolution along the
+  reporting line. OrgUnits never become tenant boundaries or token claims.
+- Each Project can be `open`, `restricted`, or `approval_required`. Same-Organization authorization
+  enforces that policy; users can request access, approvers resolve through the OrgUnit reporting
+  line and management fallbacks, and approval can create an expiring `user_grant`.
+
+**Operations and delivery**
+
+- Management API under `/v1/*`, self-service account portal under `/v1/me/*`, and a separately
+  guarded instance-operator API under `/v1/platform/*`.
+- Append-only audit events use a per-tenant SHA-256 hash chain and redact sensitive metadata before
+  persistence. Eight asynchronous pipelines have independent dead-letter and quarantine paths with
+  lease-based replay, while metering failures fall back to a D1 outbox.
+- Signed webhooks support encrypted secrets, rotation, retry, idempotent message IDs, and dead-letter
+  snapshots. Self-service privacy flows provide private R2 exports and cancelable delayed erasure
+  with sole-owner and last-instance-manager protections.
+- Feature flags, branding, usage metering, announcements, compliance artifacts, and Hosted UI in 8
+  locales (en, zh-Hans, ja, ko, fr, de, es, pt-BR) are managed from the same codebase.
 
 ## Quickstart
 
@@ -246,19 +273,21 @@ between are written here.
 
 Every row maps to files and tests in [`docs/protocols/source-map.md`](docs/protocols/source-map.md).
 
-| Area                                                                   | Support     | Highest evidence                | Notes                                                                            |
-| ---------------------------------------------------------------------- | ----------- | ------------------------------- | -------------------------------------------------------------------------------- |
-| OAuth 2.x core (code, PKCE S256, client credentials, refresh rotation) | implemented | local protocol client           | Implicit and password grants are rejected with negative tests                    |
-| OIDC core (ID token, userinfo, logout, session management, hybrid)     | implemented | local protocol client           | Front-channel and back-channel logout profiles included                          |
-| PAR, DPoP, device flow                                                 | implemented | local protocol client           | DPoP nonce challenge is not implemented                                          |
-| JAR, JARM, RAR, mTLS, token exchange, DCR, CIBA, OpenID Federation     | implemented | Workers runtime integration     | JWE, remote request-object fetch, and `form_post.jwt` are not claimed            |
-| SAML 2.0 SP (inbound) and IdP (outbound)                               | implemented | local fake IdP and fake SaaS SP | Not verified against Okta, Entra ID, or Google Workspace                         |
-| SCIM 2.0 Service Provider and outbound provisioning                    | implemented | local fake SaaS SCIM            | Not verified against a real directory or SaaS target                             |
-| WebAuthn / passkeys                                                    | implemented | Workers runtime integration     | Four-step verification with no bypass path                                       |
-| LDAP direct bind, WS-Federation, SWA, header-based SSO                 | implemented | local harness                   | Kerberos is documentation only                                                   |
-| Social OAuth relying party (Google, GitHub, Microsoft, Apple)          | implemented | local fake provider             | Not verified with real provider secrets or callbacks                             |
-| Shared Signals, CAEP, RISC                                             | planned     | unit tests                      | Endpoints return 501 and create no streams                                       |
-| GNAP, UMA, HEART, OID4VP, OID4VCI                                      | stub        | Workers runtime integration     | Route stubs returning 501 or a placeholder object; not a protocol implementation |
+| Area                                                                   | Support     | Highest evidence                | Notes                                                                      |
+| ---------------------------------------------------------------------- | ----------- | ------------------------------- | -------------------------------------------------------------------------- |
+| OAuth 2.x core (code, PKCE S256, client credentials, refresh rotation) | implemented | local protocol client           | Implicit and password grants are rejected with negative tests              |
+| OIDC core (ID token, userinfo, logout, session management, hybrid)     | implemented | local protocol client           | Front-channel and back-channel logout profiles included                    |
+| PAR, DPoP, Device Flow                                                 | implemented | local protocol client           | DPoP nonce challenge is not implemented                                    |
+| Browser-Based Apps and FAPI 2.0 enforcement profiles                   | implemented | Workers runtime integration     | Local policy coverage only; no production conformance claim                |
+| JAR, JARM, RAR, mTLS, token exchange, DCR, CIBA                        | implemented | Workers runtime integration     | JWE, remote request-object fetch, and `form_post.jwt` are not claimed      |
+| OpenID Federation                                                      | implemented | Workers runtime integration     | Minimal metadata and registration boundary only; no trust-chain resolution |
+| SAML 2.0 SP (inbound) and IdP (outbound)                               | implemented | local fake IdP and fake SaaS SP | Not verified against Okta, Entra ID, or Google Workspace                   |
+| SCIM 2.0 Service Provider and outbound provisioning                    | implemented | local fake SaaS SCIM            | Not verified against a real directory or SaaS target                       |
+| WebAuthn, passkeys, passkey MFA, and AAL2 step-up                      | implemented | Workers runtime integration     | Includes EdDSA and packed attestation locally; AAL3 is not supported       |
+| LDAP direct bind, WS-Federation, SWA, header-based SSO                 | implemented | local harness                   | Kerberos is documentation only                                             |
+| Social OAuth relying party (Google, GitHub, Microsoft, Apple)          | implemented | local fake provider             | Not verified with real provider secrets or callbacks                       |
+| Shared Signals, CAEP, RISC                                             | planned     | negative route tests            | Endpoints return 501 and create no streams                                 |
+| GNAP, UMA, HEART, OID4VP, OID4VCI                                      | planned     | negative route tests            | Reserved routes return 501; they are not protocol implementations          |
 
 ## SDKs
 

@@ -8,7 +8,9 @@ fédération SSO d'entreprise, la Hosted Auth et les pages de compte. Le Nimbus 
 la documentation Nimbus localisée depuis l'apex, tandis qu'un Console Worker isolé fournit l'interface
 de gestion.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
+[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/) [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge)](https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13783/badge)](https://www.bestpractices.dev/projects/13783)
+
+<a href="https://www.producthunt.com/products/xid?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-xid" target="_blank" rel="noopener noreferrer"><img alt="XID - Edge-native identity platform on Cloudflare Workers | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1217874&amp;theme=light&amp;t=1786263008879"></a>
 
 ## État du projet
 
@@ -37,39 +39,69 @@ par un flag de build.
 
 ## Fonctionnalités
 
-**Surface protocolaire**
+**Protocoles et fédération**
 
-- Serveur d'autorisation OIDC et OAuth 2.x : discovery, JWKS, `/authorize`, `/token`, `/userinfo`,
-  `/introspect`, `/revoke`, `/end_session`, `/device_authorization`, `/par`, enregistrement
-  dynamique de client (RFC 7591/7592) et authentification backchannel CIBA.
-- Authorization code avec PKCE S256 obligatoire, client credentials, device code, rotation des
-  refresh tokens avec révocation de la famille en cas de rejeu, et token exchange RFC 8693. Tokens
-  sender-constrained via DPoP et mTLS ; objets de requête signés (JAR) et réponses d'autorisation
-  signées (JARM).
-- SSO d'entreprise dans les deux sens : fédération entrante en SAML 2.0 SP et OIDC RP, IdP SAML 2.0
-  sortant pour les SaaS en aval, plus bind direct LDAP, WS-Federation, coffre-fort de mots de passe
-  SWA et SSO par en-têtes.
-- SCIM 2.0 Service Provider (Users, Groups, PATCH, filtres, tri, bulk, ETag/If-Match) et
-  provisioning sortant vers des cibles SaaS en aval.
+- Le serveur d'autorisation OIDC et OAuth 2.x fournit discovery, JWKS, protected-resource metadata,
+  `/authorize`, `/token`, `/userinfo`, `/introspect`, `/revoke`, `/end_session`, PAR, Device Flow,
+  Dynamic Client Registration, CIBA, les réponses hybrid ainsi que les parcours de logout
+  front-channel, back-channel et session management.
+- Authorization code impose PKCE S256 et prend en charge client credentials, la rotation des
+  refresh tokens avec révocation de famille en cas de rejeu et token exchange RFC 8693. Resource
+  Indicators, DPoP, mTLS, JAR, JARM, RAR et les profils de policy locaux Browser-Based Apps et
+  FAPI 2.0 sont implémentés.
+- Le SSO d'entreprise fonctionne dans les deux sens : SAML 2.0 SP et OIDC RP entrants, SAML 2.0 IdP
+  et applications OIDC sortants pour les SaaS en aval, ainsi que LDAP direct bind, WS-Federation,
+  SWA password vaulting, SSO par en-têtes et un directory connector framework.
+- Le SCIM 2.0 Service Provider couvre Users, Groups, PATCH, filtres, projection, tri, bulk et
+  ETag/If-Match, avec provisioning sortant des Users et Groups vers les cibles SaaS.
+- OpenID Federation se limite à une frontière minimale de entity metadata et registration. La
+  résolution de trust chain, les trust anchors, le parcours authority-hint et l'interopérabilité
+  de production ne sont pas implémentés.
 
-**Authentification**
+**Authentification et cycle de vie du compte**
 
-- Passkeys/WebAuthn comme credential principal : discoverable credentials, user verification
-  obligatoire, détection de clonage par sign-count.
-- Mots de passe hachés en Argon2id avec un pepper côté serveur conservé dans Workers Secrets ;
-  magic links ; codes à usage unique par e-mail, SMS et WhatsApp ; OAuth social en tant que
-  relying party.
-- MFA par TOTP, SMS, passkey en second facteur et codes de secours à usage unique.
+- Passkeys/WebAuthn est le credential principal, avec discoverable credentials, user verification
+  obligatoire, vérification ES256/RS256/EdDSA, détection de clonage par sign-count et validation
+  policy-driven de packed enterprise attestation.
+- Les mots de passe utilisent Argon2id avec un pepper côté serveur dans Workers Secrets. Le
+  passwordless prend en charge magic links et codes à usage unique par e-mail, SMS et WhatsApp ; le
+  flux OAuth social en relying party prend en charge Google, GitHub, Microsoft account et Apple.
+- La MFA couvre TOTP, SMS, passkey challenge, codes de secours à usage unique et step-up OIDC AAL2
+  lié à la session courante. XID ne revendique pas AAL3.
+- Le guest sign-in fournit la réutilisation paresseuse de type Firebase et l'upgrade passkey en
+  place en un clic, tout en conservant `sub`. Les clients navigateur disposent aussi de la
+  réauthentification silencieuse `prompt=none` par iframe cachée avec fallback par redirection
+  top-level.
+- Hosted Auth et le portail de compte implémentent l'acceptation d'invitation, la vérification
+  d'e-mail, l'onboarding self-service d'un Tenant racine, la sélection de l'Organization active,
+  la gestion des sessions et des credentials en libre-service.
 
-**Plateforme**
+**Organisations et autorisation**
 
-- Organisations, appartenances, rôles, permissions, invitations et vérification de domaine.
-- Management API sous `/v1/*`, portail de compte en libre-service sous `/v1/me/*`, API opérateur
-  d'instance sous `/v1/platform/*`.
-- Journal d'audit append-only à hachages SHA-256 chaînés, webhooks signés avec file de lettres
-  mortes, feature flags et comptage d'usage.
-- Hosted UI en 8 langues (en, zh-Hans, ja, ko, fr, de, es, pt-BR), catalogues intégralement
-  traduits.
+- Instances, Organizations, SubOrgs sur un niveau, memberships, Projects, Applications, rôles,
+  permissions, grants utilisateurs et inter-Organization, invitations et vérification de domaine.
+- Les arbres OrgUnit représentent départements et équipes dans une Organization, avec affectations
+  principales et secondaires, profondeur maximale de 8, déplacement et archivage de sous-arbres,
+  et résolution du manager le long de la ligne hiérarchique. Une OrgUnit n'est jamais une frontière
+  de tenant ni un token claim.
+- Chaque Project peut être `open`, `restricted` ou `approval_required`. L'autorisation dans la même
+  Organization applique cette policy ; l'utilisateur peut demander l'accès, les approvers sont
+  résolus via la ligne OrgUnit puis les rôles de management, et une approbation peut créer un
+  `user_grant` expirant.
+
+**Opérations et livraison**
+
+- Management API sous `/v1/*`, portail de compte en libre-service sous `/v1/me/*` et API opérateur
+  d'instance sous `/v1/platform/*`, protégée séparément.
+- Les événements d'audit append-only utilisent une chaîne SHA-256 par tenant et expurgent les
+  metadata sensibles avant persistence. Huit pipelines asynchrones possèdent chacun leurs chemins
+  dead-letter et quarantine avec replay sous lease ; les échecs de metering utilisent un outbox D1.
+- Les webhooks signés prennent en charge secrets chiffrés, rotation, retry, message IDs idempotents
+  et snapshots dead-letter. Les flux de confidentialité self-service fournissent exports R2 privés
+  et erasure différé annulable, avec protection du seul owner d'Organization et du dernier instance
+  manager.
+- Feature flags, branding, metering, annonces, compliance artifacts et Hosted UI en 8 langues
+  (en, zh-Hans, ja, ko, fr, de, es, pt-BR) sont gérés depuis la même base de code.
 
 ## Démarrage rapide
 
@@ -251,19 +283,21 @@ la logique métier intermédiaires sont écrits ici.
 Chaque ligne renvoie à des fichiers et des tests recensés dans
 [`docs/protocols/source-map.md`](docs/protocols/source-map.md).
 
-| Domaine                                                                            | Support    | Preuve la plus forte            | Notes                                                                                          |
-| ---------------------------------------------------------------------------------- | ---------- | ------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Noyau OAuth 2.x (code, PKCE S256, client credentials, rotation des refresh tokens) | implémenté | client de protocole local       | Les grants implicit et password sont rejetés, avec tests négatifs                              |
-| Noyau OIDC (ID token, userinfo, logout, session management, hybrid)                | implémenté | client de protocole local       | Les profils de logout front-channel et back-channel sont inclus                                |
-| PAR, DPoP, device flow                                                             | implémenté | client de protocole local       | Le nonce challenge DPoP n'est pas implémenté                                                   |
-| JAR, JARM, RAR, mTLS, token exchange, DCR, CIBA, OpenID Federation                 | implémenté | intégration runtime Workers     | JWE, la récupération distante des request objects et `form_post.jwt` ne sont pas revendiqués   |
-| SAML 2.0 SP (entrant) et IdP (sortant)                                             | implémenté | faux IdP et faux SP SaaS locaux | Non vérifié face à Okta, Entra ID ou Google Workspace                                          |
-| SCIM 2.0 Service Provider et provisioning sortant                                  | implémenté | faux SCIM SaaS local            | Non vérifié face à un annuaire ou une cible SaaS réels                                         |
-| WebAuthn / passkeys                                                                | implémenté | intégration runtime Workers     | Vérification en quatre étapes, sans chemin de contournement                                    |
-| LDAP direct bind, WS-Federation, SWA, SSO par en-têtes                             | implémenté | harnais local                   | Kerberos n'existe qu'en documentation                                                          |
-| OAuth social en relying party (Google, GitHub, Microsoft, Apple)                   | implémenté | faux provider local             | Non vérifié avec de vrais secrets ni de vrais callbacks de provider                            |
-| Shared Signals, CAEP, RISC                                                         | planifié   | tests unitaires                 | Les endpoints renvoient 501 et ne créent aucun stream                                          |
-| GNAP, UMA, HEART, OID4VP, OID4VCI                                                  | stub       | intégration runtime Workers     | Stubs de route renvoyant 501 ou un objet de remplacement ; pas une implémentation de protocole |
+| Domaine                                                                            | Support    | Preuve la plus forte            | Notes                                                                               |
+| ---------------------------------------------------------------------------------- | ---------- | ------------------------------- | ----------------------------------------------------------------------------------- |
+| Noyau OAuth 2.x (code, PKCE S256, client credentials, rotation des refresh tokens) | implémenté | client de protocole local       | Les grants implicit et password sont rejetés, avec tests négatifs                   |
+| Noyau OIDC (ID token, userinfo, logout, session management, hybrid)                | implémenté | client de protocole local       | Les profils de logout front-channel et back-channel sont inclus                     |
+| PAR, DPoP, Device Flow                                                             | implémenté | client de protocole local       | Le nonce challenge DPoP n'est pas implémenté                                        |
+| Profils d'enforcement Browser-Based Apps et FAPI 2.0                               | implémenté | intégration runtime Workers     | Preuve de policy locale uniquement, sans revendication de conformance en production |
+| JAR, JARM, RAR, mTLS, token exchange, DCR, CIBA                                    | implémenté | intégration runtime Workers     | JWE, remote request-object fetch et `form_post.jwt` ne sont pas revendiqués         |
+| OpenID Federation                                                                  | implémenté | intégration runtime Workers     | Metadata et registration minimaux uniquement, sans résolution de trust chain        |
+| SAML 2.0 SP (entrant) et IdP (sortant)                                             | implémenté | faux IdP et faux SP SaaS locaux | Non vérifié face à Okta, Entra ID ou Google Workspace                               |
+| SCIM 2.0 Service Provider et provisioning sortant                                  | implémenté | faux SCIM SaaS local            | Non vérifié face à un annuaire ou une cible SaaS réels                              |
+| WebAuthn, passkeys, passkey MFA et step-up AAL2                                    | implémenté | intégration runtime Workers     | EdDSA et packed attestation locaux inclus, AAL3 non pris en charge                  |
+| LDAP direct bind, WS-Federation, SWA, SSO par en-têtes                             | implémenté | harnais local                   | Kerberos n'existe qu'en documentation                                               |
+| OAuth social en relying party (Google, GitHub, Microsoft, Apple)                   | implémenté | faux provider local             | Non vérifié avec de vrais secrets ni de vrais callbacks de provider                 |
+| Shared Signals, CAEP, RISC                                                         | planifié   | tests négatifs de routes        | Les endpoints renvoient 501 et ne créent aucun stream                               |
+| GNAP, UMA, HEART, OID4VP, OID4VCI                                                  | planifié   | tests négatifs de routes        | Les routes réservées renvoient 501 et ne sont pas des implémentations de protocoles |
 
 ## SDK
 

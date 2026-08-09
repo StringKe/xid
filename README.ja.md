@@ -7,7 +7,9 @@
 account ページを提供し、Nimbus Site Worker は apex ルートの完全な多言語ドキュメント、分離された Console
 Worker は management UI を提供する。
 
-[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/)
+[![CI](https://img.shields.io/github/actions/workflow/status/StringKe/xid/ci.yml?branch=main&label=CI)](https://github.com/StringKe/xid/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Runtime](https://img.shields.io/badge/runtime-Cloudflare%20Workers-orange)](https://developers.cloudflare.com/workers/) [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge)](https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13783/badge)](https://www.bestpractices.dev/projects/13783)
+
+<a href="https://www.producthunt.com/products/xid?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-xid" target="_blank" rel="noopener noreferrer"><img alt="XID - Edge-native identity platform on Cloudflare Workers | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1217874&amp;theme=light&amp;t=1786263008879"></a>
 
 ## プロジェクトの状態
 
@@ -32,35 +34,63 @@ Durable Object が直列化し、JWKS は KV にキャッシュされるので r
 
 ## 機能
 
-**プロトコル面**
+**プロトコルとフェデレーション**
 
-- OIDC および OAuth 2.x の authorization server: discovery、JWKS、`/authorize`、`/token`、`/userinfo`、
-  `/introspect`、`/revoke`、`/end_session`、`/device_authorization`、`/par`、動的クライアント登録
-  (RFC 7591/7592)、CIBA backchannel authentication。
-- PKCE S256 を必須とする authorization code、client credentials、device code、family 単位の replay 失効を
-  伴う refresh rotation、RFC 8693 token exchange。DPoP と mTLS による sender-constrained token、署名付き
-  request object (JAR) と署名付き authorization response (JARM)。
-- 双方向のエンタープライズ SSO: inbound の SAML 2.0 SP と OIDC RP federation、下流 SaaS 向け outbound の
-  SAML 2.0 IdP、さらに LDAP direct bind、WS-Federation、SWA password vaulting、header ベース SSO。
-- SCIM 2.0 Service Provider (Users、Groups、PATCH、filter、sort、bulk、ETag/If-Match) と、下流 SaaS
-  ターゲットへの outbound provisioning。
+- OIDC/OAuth 2.x authorization server は discovery、JWKS、protected-resource metadata、
+  `/authorize`、`/token`、`/userinfo`、`/introspect`、`/revoke`、`/end_session`、PAR、Device Flow、
+  Dynamic Client Registration、CIBA、hybrid response、front-channel、back-channel、
+  session-management logout を提供する。
+- PKCE S256 必須の authorization code、client credentials、family replay を検知して失効する refresh token
+  rotation、RFC 8693 token exchange を実装している。Resource Indicators、DPoP、mTLS、JAR、JARM、
+  RAR、ローカルの Browser-Based Apps および FAPI 2.0 policy profile も実装済みである。
+- 双方向の enterprise SSO として、inbound SAML 2.0 SP と OIDC RP federation、下流 SaaS 向け outbound
+  SAML 2.0 IdP と OIDC application、LDAP direct bind、WS-Federation、SWA password vaulting、
+  header-based SSO、directory connector framework を備える。
+- SCIM 2.0 Service Provider は Users、Groups、PATCH、filter、projection、sort、bulk、ETag/If-Match を
+  提供し、下流 SaaS ターゲットへの Users/Groups outbound provisioning も実装する。
+- OpenID Federation は最小限の entity metadata と registration boundary のみである。Trust-chain
+  resolution、trust anchor、authority-hint traversal、production interoperability は未実装である。
 
-**認証**
+**認証とアカウントライフサイクル**
 
-- 主要な credential としての passkey/WebAuthn: discoverable credential、必須の user verification、
-  sign-count によるクローン検出。
-- Workers Secrets に置くサーバー側 pepper を併用した Argon2id によるパスワードハッシュ、magic link、
-  email/SMS/WhatsApp 経由のワンタイムコード、relying party としての social OAuth。
-- TOTP、SMS、第二要素としての passkey、単回限りの backup code による MFA。
+- 主要 credential は passkey/WebAuthn であり、discoverable credential、必須 user verification、
+  ES256/RS256/EdDSA 検証、sign-count clone detection、policy-driven packed enterprise attestation
+  検証を備える。
+- Password は Workers Secrets の server-side pepper と Argon2id を使う。Passwordless sign-in は
+  magic link と email/SMS/WhatsApp の one-time code、social OAuth relying-party flow は Google、
+  GitHub、Microsoft account、Apple をサポートする。
+- MFA は TOTP、SMS、passkey challenge、single-use backup code、現在の session に結び付いた OIDC
+  AAL2 step-up を提供する。AAL3 のサポートは主張しない。
+- Guest sign-in は Firebase-style lazy reuse と `sub` を維持する one-click in-place passkey upgrade を
+  提供する。Browser client は hidden-iframe `prompt=none` silent re-authentication と top-level redirect
+  fallback も利用できる。
+- Hosted Auth と account portal は invitation acceptance、email verification、top-level Tenant
+  onboarding、active Organization selection、session management、self-service credential management
+  を実装する。
 
-**プラットフォーム**
+**組織と認可**
 
-- organization、membership、role、permission、招待、ドメイン検証。
-- `/v1/*` 配下の Management API、`/v1/me/*` 配下のセルフサービス account portal、`/v1/platform/*` 配下の
-  instance 運用者 API。
-- SHA-256 の連鎖ハッシュを持つ append-only 監査ログ、dead-letter queue 付きの署名済み webhook、
-  feature flag、使用量メータリング。
-- 8 ロケール (en, zh-Hans, ja, ko, fr, de, es, pt-BR) の Hosted UI。catalog は全訳済み。
+- Instance、Organization、一階層の SubOrg、membership、Project、Application、role、permission、
+  user grant と cross-Organization grant、invitation、domain verification を備える。
+- OrgUnit tree は Organization 内の部門と team を表し、primary/secondary placement、最大深度 8、
+  subtree move と archive、reporting line に沿った manager resolution を提供する。OrgUnit は tenant
+  boundary にも token claim にもならない。
+- 各 Project は `open`、`restricted`、`approval_required` のいずれかに設定できる。同じ Organization
+  からの authorization はその policy を強制し、user は access を申請できる。Approver は OrgUnit
+  reporting line と management fallback から解決され、承認時に期限付き `user_grant` を作成できる。
+
+**運用と配信**
+
+- `/v1/*` の Management API、`/v1/me/*` の self-service account portal、独立して guard された
+  `/v1/platform/*` の instance-operator API を提供する。
+- Append-only audit event は tenant ごとの SHA-256 hash chain を使い、保存前に機密 metadata を redact
+  する。8 本の async pipeline は独立した dead-letter と quarantine path、lease-based replay を持ち、
+  metering failure は D1 outbox に fallback する。
+- Signed webhook は encrypted secret、rotation、retry、idempotent message ID、dead-letter snapshot を
+  サポートする。Self-service privacy flow は private R2 export と取消可能な delayed erasure を提供し、
+  sole Organization owner と last instance manager を保護する。
+- Feature flag、branding、usage metering、announcement、compliance artifact、8 ロケール
+  (en, zh-Hans, ja, ko, fr, de, es, pt-BR) の Hosted UI を同じ codebase から管理する。
 
 ## クイックスタート
 
@@ -230,19 +260,21 @@ XML-DSig は `xmldsigjs` に委譲する。その間にある protocol とビジ
 
 各行は [`docs/protocols/source-map.md`](docs/protocols/source-map.md) のファイルとテストに対応する。
 
-| 領域                                                                   | サポート | 最上位の証跡                        | 備考                                                                              |
-| ---------------------------------------------------------------------- | -------- | ----------------------------------- | --------------------------------------------------------------------------------- |
-| OAuth 2.x コア (code、PKCE S256、client credentials、refresh rotation) | 実装済み | ローカル protocol client            | implicit と password grant は拒否し、negative test を用意している                 |
-| OIDC コア (ID token、userinfo、logout、session management、hybrid)     | 実装済み | ローカル protocol client            | front-channel と back-channel の logout プロファイルを含む                        |
-| PAR、DPoP、device flow                                                 | 実装済み | ローカル protocol client            | DPoP の nonce challenge は未実装                                                  |
-| JAR、JARM、RAR、mTLS、token exchange、DCR、CIBA、OpenID Federation     | 実装済み | Workers runtime 統合テスト          | JWE、リモートからの request object 取得、`form_post.jwt` は対象外                 |
-| SAML 2.0 SP (inbound) と IdP (outbound)                                | 実装済み | ローカルの fake IdP と fake SaaS SP | Okta、Entra ID、Google Workspace に対しては未検証                                 |
-| SCIM 2.0 Service Provider と outbound provisioning                     | 実装済み | ローカルの fake SaaS SCIM           | 実在のディレクトリや SaaS ターゲットに対しては未検証                              |
-| WebAuthn / passkey                                                     | 実装済み | Workers runtime 統合テスト          | バイパス経路のない四段階検証                                                      |
-| LDAP direct bind、WS-Federation、SWA、header ベース SSO                | 実装済み | ローカル harness                    | Kerberos はドキュメントのみ                                                       |
-| social OAuth relying party (Google、GitHub、Microsoft、Apple)          | 実装済み | ローカルの fake provider            | 実在の provider secret や callback では未検証                                     |
-| Shared Signals、CAEP、RISC                                             | 計画中   | unit test                           | エンドポイントは 501 を返し、stream を作らない                                    |
-| GNAP、UMA、HEART、OID4VP、OID4VCI                                      | スタブ   | Workers runtime 統合テスト          | 501 かプレースホルダオブジェクトを返す route stub であり、protocol の実装ではない |
+| 領域                                                                   | サポート | 最上位の証跡                        | 備考                                                              |
+| ---------------------------------------------------------------------- | -------- | ----------------------------------- | ----------------------------------------------------------------- |
+| OAuth 2.x コア (code、PKCE S256、client credentials、refresh rotation) | 実装済み | ローカル protocol client            | implicit と password grant は拒否し、negative test を用意している |
+| OIDC コア (ID token、userinfo、logout、session management、hybrid)     | 実装済み | ローカル protocol client            | front-channel と back-channel の logout profile を含む            |
+| PAR、DPoP、Device Flow                                                 | 実装済み | ローカル protocol client            | DPoP nonce challenge は未実装                                     |
+| Browser-Based Apps と FAPI 2.0 enforcement profile                     | 実装済み | Workers runtime 統合テスト          | ローカル policy 証跡のみ。production conformance は主張しない     |
+| JAR、JARM、RAR、mTLS、token exchange、DCR、CIBA                        | 実装済み | Workers runtime 統合テスト          | JWE、remote request-object fetch、`form_post.jwt` は対象外        |
+| OpenID Federation                                                      | 実装済み | Workers runtime 統合テスト          | 最小 metadata と registration boundary のみ。trust chain は未実装 |
+| SAML 2.0 SP (inbound) と IdP (outbound)                                | 実装済み | ローカルの fake IdP と fake SaaS SP | Okta、Entra ID、Google Workspace に対しては未検証                 |
+| SCIM 2.0 Service Provider と outbound provisioning                     | 実装済み | ローカルの fake SaaS SCIM           | 実在の directory や SaaS target に対しては未検証                  |
+| WebAuthn、passkey、passkey MFA、AAL2 step-up                           | 実装済み | Workers runtime 統合テスト          | ローカルで EdDSA と packed attestation を含む。AAL3 は未サポート  |
+| LDAP direct bind、WS-Federation、SWA、header-based SSO                 | 実装済み | ローカル harness                    | Kerberos はドキュメントのみ                                       |
+| social OAuth relying party (Google、GitHub、Microsoft、Apple)          | 実装済み | ローカルの fake provider            | 実在の provider secret や callback では未検証                     |
+| Shared Signals、CAEP、RISC                                             | 計画中   | negative route test                 | endpoint は 501 を返し、stream を作らない                         |
+| GNAP、UMA、HEART、OID4VP、OID4VCI                                      | 計画中   | negative route test                 | 予約 route は 501 を返し、protocol の実装ではない                 |
 
 ## SDK
 
