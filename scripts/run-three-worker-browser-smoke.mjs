@@ -271,15 +271,87 @@ class CdpPage {
   }
 }
 
-function siteHomePath(locale) {
+function siteRootPath(locale) {
   return locale === 'en' ? '/' : `/${locale.toLowerCase()}`
+}
+
+function siteDocsPath(locale) {
+  const root = siteRootPath(locale)
+  return root === '/' ? '/docs' : `${root}/docs`
+}
+
+function siteDocumentPath(locale, slug) {
+  const root = siteRootPath(locale)
+  return root === '/' ? `/${slug}` : `${root}/${slug}`
+}
+
+async function siteLocaleOptions(page) {
+  return await page.evaluate(`(() => {
+    const language = document.querySelector('select[data-site-language-switcher]');
+    return language instanceof HTMLSelectElement
+      ? Array.from(language.options).map((option) => option.value)
+      : [];
+  })()`)
+}
+
+async function assertNimbusProductLanding(page, origin) {
+  const browserHost = new URL(origin).host
+
+  for (const locale of SUPPORTED_LOCALES) {
+    const pathname = siteRootPath(locale)
+    const docsPathname = siteDocsPath(locale)
+    const gettingStartedPathname = siteDocumentPath(locale, 'getting-started')
+    await page.navigate(`${origin}${pathname}`)
+    await page.evaluate(`Object.assign(globalThis, {
+      __xidExpectedSiteLocale: ${JSON.stringify(locale)},
+      __xidExpectedDocsPathname: ${JSON.stringify(docsPathname)},
+      __xidExpectedGettingStartedPathname: ${JSON.stringify(gettingStartedPathname)}
+    }); true`)
+    await page.waitFor(() => {
+      const language = document.querySelector('select[data-site-language-switcher]')
+      const theme = document.documentElement.style.colorScheme
+      const hrefs = Array.from(document.querySelectorAll('a[href]')).map((anchor) =>
+        anchor.getAttribute('href'),
+      )
+      return (
+        document.documentElement.lang === globalThis.__xidExpectedSiteLocale &&
+        document.querySelector('[data-pagefind-body]') !== null &&
+        document.querySelector('#home-title') !== null &&
+        document.querySelector('.architecture-panel') !== null &&
+        document.querySelector('.capability-list') !== null &&
+        document.querySelector('#desktop-sidebar') === null &&
+        document.querySelector('astro-island[component-url*="SiteApp."]') === null &&
+        hrefs.includes(globalThis.__xidExpectedDocsPathname) &&
+        hrefs.includes(globalThis.__xidExpectedGettingStartedPathname) &&
+        (theme === 'light' || theme === 'dark') &&
+        language instanceof HTMLSelectElement &&
+        language.value === globalThis.__xidExpectedSiteLocale
+      )
+    }, `Nimbus product landing ${locale}`)
+
+    if (page.documentOwner(pathname, browserHost) !== 'site') {
+      throw new Error(`Nimbus product landing ${locale} document was not served by Site Worker`)
+    }
+
+    const options = await siteLocaleOptions(page)
+    if (JSON.stringify(options) !== JSON.stringify(SUPPORTED_LOCALES)) {
+      throw new Error(
+        `Nimbus product landing ${locale} locale options mismatch: ${JSON.stringify(options)}`,
+      )
+    }
+
+    await page.assertNoHydrationMismatch(`Nimbus product landing ${locale}`)
+    print('PASS', `Nimbus product landing ${locale}`, 'owner=site')
+  }
+
+  print('PASS', 'Nimbus 8 locale product landing', `count=${SUPPORTED_LOCALES.length}`)
 }
 
 async function assertNimbusDocumentation(page, origin) {
   const browserHost = new URL(origin).host
 
   for (const locale of SUPPORTED_LOCALES) {
-    const pathname = siteHomePath(locale)
+    const pathname = siteDocsPath(locale)
     await page.navigate(`${origin}${pathname}`)
     await page.evaluate(`globalThis.__xidExpectedSiteLocale = ${JSON.stringify(locale)}`)
     await page.waitFor(() => {
@@ -303,12 +375,7 @@ async function assertNimbusDocumentation(page, origin) {
       throw new Error(`Nimbus hub ${locale} document was not served by Site Worker`)
     }
 
-    const options = await page.evaluate(`(() => {
-      const language = document.querySelector('select[data-site-language-switcher]');
-      return language instanceof HTMLSelectElement
-        ? Array.from(language.options).map((option) => option.value)
-        : [];
-    })()`)
+    const options = await siteLocaleOptions(page)
     if (JSON.stringify(options) !== JSON.stringify(SUPPORTED_LOCALES)) {
       throw new Error(`Nimbus hub ${locale} locale options mismatch: ${JSON.stringify(options)}`)
     }
@@ -342,11 +409,7 @@ async function assertNimbusDocumentation(page, origin) {
     )
   }
 
-  for (const pathname of [
-    '/getting-started',
-    '/zh-hans/getting-started',
-    '/de/getting-started',
-  ]) {
+  for (const pathname of ['/getting-started', '/zh-hans/getting-started', '/de/getting-started']) {
     await page.navigate(`${origin}${pathname}`)
     await page.waitFor(
       () =>
@@ -586,6 +649,7 @@ export async function runThreeWorkerBrowserSmoke(options) {
     const apexBrowserHost = new URL(apexOrigin).host
     const tenantBrowserHost = new URL(tenantOrigin).host
 
+    await assertNimbusProductLanding(page, apexOrigin)
     await assertNimbusDocumentation(page, apexOrigin)
     await assertUnauthenticatedConsole(page, apexOrigin, apexBrowserHost, 'apex')
     await signIn(page, adminEmail, adminPassword)
