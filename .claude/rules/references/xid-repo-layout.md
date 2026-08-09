@@ -31,8 +31,8 @@ write the `applyTo` globs of a rule -- the glob paths in this file are the autho
 
 ```
 apps/
-  site/          Nimbus 0.8.2 on Astro 7, static output only
-    src/         Apex docs hub, 8-locale public docs collections, SEO, Pagefind, OG and LLM output
+  site/          Nimbus 0.9.0 on Astro 7, static output only
+    src/         Apex product landing, /docs hub, 8-locale public docs, SEO, Pagefind, OG and LLM output
     worker/      ASSETS-only Worker entry plus canonical www -> apex 308
     astro.config.ts   Nimbus + lingui macro integration; no React islands or Cloudflare SSR adapter
     wrangler.jsonc    Exact public and locale routes only; run_worker_first=true

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=f1afd2ccba3192110ee0f896d7d2905843af9aed -->
+<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=ee43683ccbcd301a620dda366ec15f1f1d3b6993 -->
 
 > Translation of `docs/design/00-overview.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/00-overview.md`](../../design/00-overview.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -64,7 +64,7 @@ MIT 授予的权利:
 Monorepo  pnpm workspace + turborepo(唯一跨包编排)+ Vite+(vp:Oxlint/Oxfmt/Vitest/tsgo/库打包)+ 标准 Vite(app 构建)
 运行时    Cloudflare Workers
 后端      Hono(协议端 + Management API)
-Public Site Astro 7 + @cloudflare/nimbus-docs 0.8.2,静态 SSR、Pagefind、sitemap、OG、Markdown twins 和 LLM 输出
+Public Site Astro 7 + @cloudflare/nimbus-docs 0.9.0,静态 SSR、Pagefind、sitemap、OG、Markdown twins 和 LLM 输出
 Hosted UI  React 19 SPA,保留在 Core 部署中:登录、consent 和 account
 Console    React 19 SPA,部署在只含静态 assets 的 Worker 中:apex 与 tenant host 上统一的 org/instance `/console`
 Edge 路由  更具体的 Worker Routes 选择 Site 和 Console 路径;Core 保持 Custom Domain 与 tenant wildcard fallback
@@ -87,11 +87,11 @@ SAML XML  xmldsigjs + @xmldom/xmldom(nodejs_compat >= 2025-04-08)
 
 一个产品和一个逻辑 Core 不要求只有一个前端部署。XID 有三个运行时边界:
 
-| 运行时      | Package            | 职责                                                                                                                          |
-| ----------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| Nimbus Site | `@xid-kit/site`    | apex canonical 文档首页、8 locale 公共文档、SEO、Pagefind、OG、sitemap、Markdown twins、LLM 输出与 `www` 308                  |
-| Console     | `@xid-kit/console` | 统一的 org 和 instance 管理 SPA。它是只含 `ASSETS` binding 的静态 Worker,在 apex 与 tenant host 上拥有 `/console`             |
-| Core        | `@xid-kit/server`  | Hono 协议与 Management API、Hosted Auth、account 自助、admin 逻辑、Durable Objects、Queues、crons、secrets 与所有数据 binding |
+| 运行时      | Package            | 职责                                                                                                                           |
+| ----------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Nimbus Site | `@xid-kit/site`    | apex canonical 产品首页、`/docs` 文档首页、8 locale 公共文档、SEO、Pagefind、OG、sitemap、Markdown twins、LLM 输出与 `www` 308 |
+| Console     | `@xid-kit/console` | 统一的 org 和 instance 管理 SPA。它是只含 `ASSETS` binding 的静态 Worker,在 apex 与 tenant host 上拥有 `/console`              |
+| Core        | `@xid-kit/server`  | Hono 协议与 Management API、Hosted Auth、account 自助、admin 逻辑、Durable Objects、Queues、crons、secrets 与所有数据 binding  |
 
 Core Worker 仍是唯一的逻辑身份核心。Site 和 Console Worker 不能访问 D1、KV、R2、Durable
 Objects、Queues 或 Core secrets。Console 调用同 host 的 Core API,platform 与 org 管理继续共用
@@ -158,7 +158,7 @@ D1 无 RLS,隔离靠应用层强制。用 Drizzle ORM 封装带租户上下文�
 ### 6.1 认证根域:xid.dev
 
 `xid.dev` 根域是 instance-level 统一人机入口与平台 console 入口。Nimbus Site 拥有 canonical
-文档首页与公共文档,Core Worker 拥有 Hosted Auth、account、协议与 API 路径,Console Worker
+产品首页、`/docs` 文档首页与公共文档,Core Worker 拥有 Hosted Auth、account、协议与 API 路径,Console Worker
 拥有 `/console`。这种路径路由不改变 issuer,也不创建第二个身份核心。apex 不是 `admin`
 tenant 或 `app` tenant 的固定别名。所有用户都可以从 `https://xid.dev/sign-in` 进入统一
 Hosted UI,先收集 identifier、login_hint、OIDC authorize context 或已有 session,再由 instance
@@ -279,7 +279,7 @@ SOC 2 Type II(P0,B2B 入场券)-> GDPR DPA(P0)-> ISO 27001(P1)-> OpenID Certifie
 | 服务                            | 用途                                                                                                                                     |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Core Worker + Hono              | 协议、Hosted Auth、account、Management API、bindings、Queues、crons 与身份业务逻辑                                                       |
-| Nimbus Site Worker              | Canonical apex 文档首页、8 locale 公共文档、SEO、Pagefind、Markdown 与 LLM 输出,以及 `www` 308                                           |
+| Nimbus Site Worker              | Canonical apex 产品首页、`/docs` 文档首页、8 locale 公共文档、SEO、Pagefind、Markdown 与 LLM 输出,以及 `www` 308                         |
 | Console Worker                  | apex 与 tenant host `/console` 上的静态 org/instance 管理 SPA,不含 Core bindings                                                         |
 | Worker Routes                   | 更具体的 Site 与 Console 路径覆盖 Core Custom Domain 和 tenant wildcard fallback,不设 front proxy                                        |
 | D1                              | 用户/应用/组/凭证元数据/授权码/refresh token/审计/租户/密钥密文/会话                                                                     |

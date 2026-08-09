@@ -10,6 +10,7 @@ const SITE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const GENERATED_DOCS_ROOT = path.join(SITE_ROOT, 'src/content/generated/docs')
 const SITE_SHELL_MESSAGES_FILE = path.join(SITE_ROOT, 'src/lib/site-shell-messages.ts')
+const HOME_SURFACE_MESSAGES_FILE = path.join(SITE_ROOT, 'src/lib/home-surface.ts')
 const I18N_CATALOG_ROOT = path.join(REPOSITORY_ROOT, 'packages/i18n/locales')
 const DIST_ROOT = process.argv[2] ? path.resolve(process.argv[2]) : path.join(SITE_ROOT, 'dist')
 const SITE_ORIGIN = 'https://xid.dev'
@@ -78,8 +79,13 @@ function localePrefix(segment) {
 
 function documentRoute(segment, slug) {
   const prefix = localePrefix(segment)
-  if (slug === null) return prefix || '/'
+  if (slug === null) return `${prefix}/docs`
   return `${prefix}/${slug}`
+}
+
+function homeRoute(segment) {
+  const prefix = localePrefix(segment)
+  return prefix || '/'
 }
 
 function sectionAgentPath(locale, suffix) {
@@ -142,7 +148,7 @@ function hasFrontmatterField(frontmatter, field) {
 function generatedSourceFile(locale, slug) {
   const localeParts = locale === 'en' ? [] : [locale]
   if (slug === null) {
-    return path.join(GENERATED_DOCS_ROOT, ...localeParts, 'index.mdx')
+    return path.join(GENERATED_DOCS_ROOT, ...localeParts, 'docs.mdx')
   }
   const slugParts = slug.split('/')
   const leaf = `${slugParts.pop()}.mdx`
@@ -162,9 +168,9 @@ function linguiMessageId(message, context = '') {
   return createHash('sha256').update(`${message}\u001f${context}`).digest('base64url').slice(0, 6)
 }
 
-function parseSiteShellMessageIds(source) {
+function parseLinguiMessageIds(source) {
   const messages = [...source.matchAll(/\bmsg`([^`]*)`/gu)].map((match) => match[1])
-  invariant(messages.length > 0, 'site shell message descriptors are unreadable')
+  invariant(messages.length > 0, 'Lingui message descriptors are unreadable')
   return new Map(messages.map((message) => [linguiMessageId(message), message]))
 }
 
@@ -173,7 +179,7 @@ function containsStandaloneMessageId(source, id) {
   return new RegExp(`(^|[^A-Za-z0-9_-])${escaped}([^A-Za-z0-9_-]|$)`, 'u').test(source)
 }
 
-async function loadSiteShellCatalogs(messageIds) {
+async function loadSiteCatalogs(messageIds) {
   const catalogs = new Map()
   for (const locale of LOCALES) {
     const catalogFile = path.join(I18N_CATALOG_ROOT, locale.locale, 'messages.mjs')
@@ -181,12 +187,22 @@ async function loadSiteShellCatalogs(messageIds) {
     for (const [id, message] of messageIds) {
       invariant(
         Object.hasOwn(module.messages, id),
-        `${locale.locale} compiled catalog is missing Site shell message ${JSON.stringify(message)}`,
+        `${locale.locale} compiled catalog is missing Site message ${JSON.stringify(message)}`,
       )
     }
     catalogs.set(locale.locale, module.messages)
   }
   return catalogs
+}
+
+function staticCatalogMessage(catalogs, locale, source) {
+  const id = linguiMessageId(source)
+  const message = catalogs.get(locale)?.[id]
+  invariant(
+    Array.isArray(message) && message.length === 1 && typeof message[0] === 'string',
+    `${locale} message ${JSON.stringify(source)} must compile to one static string`,
+  )
+  return message[0]
 }
 
 function findSingleTag(html, tagName, attribute, value, route) {
@@ -212,7 +228,12 @@ function extractRelativeLinks(html) {
   })
 }
 
-function assertPublishedHtmlMetadata(html, route, locale, { indexable = true } = {}) {
+function assertPublishedHtmlMetadata(
+  html,
+  route,
+  locale,
+  { indexable = true, structuredType = 'WebPage' } = {},
+) {
   const canonicalPath = route === '/' ? '/' : route.replace(/\/+$/u, '')
   const canonical = new URL(canonicalPath, SITE_ORIGIN).href
   invariant(/<title>[^<]+<\/title>/.test(html), `${route} has no title`)
@@ -280,14 +301,15 @@ function assertPublishedHtmlMetadata(html, route, locale, { indexable = true } =
       `${route} must not expose an agent index alternate`,
     )
   }
-  const structuredDataMatch = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)
-  invariant(structuredDataMatch, `${route} has no JSON-LD`)
-  const structuredData = JSON.parse(structuredDataMatch[1])
-  const structuredNodes = Array.isArray(structuredData['@graph'])
-    ? structuredData['@graph']
-    : [structuredData]
-  const expectedType = route === '/' ? 'WebSite' : 'WebPage'
-  const typedNode = structuredNodes.find((node) => node?.['@type'] === expectedType)
+  const structuredDataMatches = [
+    ...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gu),
+  ]
+  invariant(structuredDataMatches.length > 0, `${route} has no JSON-LD`)
+  const structuredNodes = structuredDataMatches.flatMap((match) => {
+    const structuredData = JSON.parse(match[1])
+    return Array.isArray(structuredData['@graph']) ? structuredData['@graph'] : [structuredData]
+  })
+  const typedNode = structuredNodes.find((node) => node?.['@type'] === structuredType)
   invariant(typedNode, `${route} JSON-LD type is incorrect`)
   invariant(typedNode.url === canonical, `${route} JSON-LD URL is incorrect`)
   invariant(typedNode.inLanguage === locale.locale, `${route} JSON-LD language is incorrect`)
@@ -305,6 +327,7 @@ async function audit() {
     distHeaders,
     agentInstructions,
     siteShellMessagesSource,
+    homeSurfaceMessagesSource,
   ] = await Promise.all([
     readFile(path.join(SITE_ROOT, 'src/content-source/docs/documents.json'), 'utf8'),
     readFile(path.join(REPOSITORY_ROOT, 'packages/types/src/public-docs.ts'), 'utf8'),
@@ -316,11 +339,15 @@ async function audit() {
     readRequired(path.join(DIST_ROOT, '_headers')),
     readFile(path.join(SITE_ROOT, 'AGENT.md'), 'utf8'),
     readFile(SITE_SHELL_MESSAGES_FILE, 'utf8'),
+    readFile(HOME_SURFACE_MESSAGES_FILE, 'utf8'),
   ])
   const documents = JSON.parse(documentsSource)
   const sitePackage = JSON.parse(sitePackageSource)
-  const siteShellMessageIds = parseSiteShellMessageIds(siteShellMessagesSource)
-  const siteShellCatalogs = await loadSiteShellCatalogs(siteShellMessageIds)
+  const siteMessageIds = new Map([
+    ...parseLinguiMessageIds(siteShellMessagesSource),
+    ...parseLinguiMessageIds(homeSurfaceMessagesSource),
+  ])
+  const siteCatalogs = await loadSiteCatalogs(siteMessageIds)
   const registrySlugs = parsePublicDocRegistry(registrySource)
   const astDocuments = documents.documents
   const publishedDocuments = astDocuments.filter((document) => document.draft !== true)
@@ -331,7 +358,7 @@ async function audit() {
   const agentSlugs = agentDocuments.map((document) => document.slug)
 
   invariant(documents.locales.length === 8, 'documents.json must contain 8 locales')
-  invariant(astSlugs.length === 40, 'documents.json must contain 40 public docs')
+  invariant(astSlugs.length === 41, 'documents.json must contain 41 public docs')
   invariant(
     Array.isArray(documents.hub.sections) && documents.hub.sections.length >= 3,
     'documentation hub must contain product, capability, and quick-start sections',
@@ -387,6 +414,7 @@ async function audit() {
   const routeLocale = new Map()
   const draftRoutes = new Set()
   for (const locale of LOCALES) {
+    routeLocale.set(homeRoute(locale.segment), locale.locale)
     routeLocale.set(documentRoute(locale.segment, null), locale.locale)
     routeLocale.set(documentRoute(locale.segment, 'status'), locale.locale)
     for (const slug of publishedDocuments.map((document) => document.slug)) {
@@ -423,6 +451,106 @@ async function audit() {
     const sdkSlugs = agentSlugs.filter((slug) => slug === 'sdks' || slug.startsWith('sdks/'))
     const sdkLlmsIndexPath = contentSectionAgentPath(locale, 'sdks', 'llms.txt')
     const sdkLlmsFullPath = contentSectionAgentPath(locale, 'sdks', 'llms-full.txt')
+
+    const homePath = homeRoute(locale.segment)
+    const homeMarkdownPath = homePath === '/' ? '/index.md' : `${homePath}/index.md`
+    const homeSourcePath = homePath === '/' ? '/index.mdx' : `${homePath}/index.mdx`
+    const homePageUrl = new URL(homePath, SITE_ORIGIN).href
+    const homeMarkdownUrl = new URL(homeMarkdownPath, SITE_ORIGIN).href
+    const homeSourceUrl = new URL(homeSourcePath, SITE_ORIGIN).href
+    const [homeHtml, homeMarkdown, homeMdx] = await Promise.all([
+      readRequired(routeFile(homePath, 'index.html')),
+      readRequired(routeFile(homePath, 'index.md')),
+      readRequired(routeFile(homePath, 'index.mdx')),
+    ])
+    const homeMarkdownParts = splitFrontmatter(homeMarkdown, `${homePath}/index.md`)
+    const homeMdxParts = splitFrontmatter(homeMdx, `${homePath}/index.mdx`)
+    expectedCorpusUrls.add(homePageUrl)
+    expectedPublishedUrls.add(homePageUrl)
+    expectedMarkdownUrls.add(homeMarkdownUrl)
+    invariant(
+      homeHtml.includes(`lang="${locale.locale}"`),
+      `${homePath} does not use BCP locale ${locale.locale}`,
+    )
+    assertPublishedHtmlMetadata(homeHtml, homePath, locale, { structuredType: 'WebSite' })
+    invariant(homeHtml.includes('data-pagefind-body'), `${homePath} is absent from Pagefind`)
+    invariant(
+      homeHtml.includes(`type="text/markdown" href="${homeMarkdownUrl}"`),
+      `${homePath} does not expose its Markdown alternate`,
+    )
+    for (const alternate of LOCALES) {
+      const alternateRoute = homeRoute(alternate.segment)
+      const alternateTag = findSingleTag(homeHtml, 'link', 'hreflang', alternate.locale, homePath)
+      invariant(
+        attributeValue(alternateTag, 'href', homePath) ===
+          new URL(alternateRoute, SITE_ORIGIN).href,
+        `${homePath} hreflang ${alternate.locale} is incorrect`,
+      )
+    }
+    const homeTitle = staticCatalogMessage(
+      siteCatalogs,
+      locale.locale,
+      'Build identity at the edge, without giving up control',
+    )
+    const homeDescription = staticCatalogMessage(
+      siteCatalogs,
+      locale.locale,
+      'XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs into one MIT-licensed platform running on Cloudflare Workers.',
+    )
+    invariant(
+      homeMarkdownParts.frontmatter === homeMdxParts.frontmatter,
+      `${homePath} Markdown and MDX frontmatter differ`,
+    )
+    invariant(
+      homeMdxParts.frontmatter.includes(`title: ${JSON.stringify(homeTitle)}`) &&
+        homeMdxParts.frontmatter.includes(`description: ${JSON.stringify(homeDescription)}`),
+      `${homePath} agent twins do not use the localized homepage metadata`,
+    )
+    invariant(
+      homeMdxParts.body.startsWith(`\n# ${homeTitle}\n\n${homeDescription}\n`),
+      `${homePath} MDX body does not use the localized homepage copy`,
+    )
+    const expectedHomeMarkdownBody =
+      `\n> Documentation Index\n` +
+      `> Fetch the relevant documentation index at: ${new URL(sectionLlmsIndexPath, SITE_ORIGIN).href}\n` +
+      '> Use this file to discover all available pages before exploring further.\n\n' +
+      `${homeMdxParts.body.trim()}\n\n` +
+      `Source: ${homeSourceUrl}\n`
+    invariant(
+      homeMarkdownParts.body === expectedHomeMarkdownBody,
+      `${homePath} Markdown is not the downlevel twin of its MDX source`,
+    )
+    invariant(
+      homeMarkdown.trimEnd().endsWith(`Source: ${homeSourceUrl}`),
+      `${homePath} Markdown does not point to its MDX twin`,
+    )
+    invariant(
+      homeMarkdown.includes(
+        `> Fetch the relevant documentation index at: ${new URL(sectionLlmsIndexPath, SITE_ORIGIN).href}`,
+      ),
+      `${homePath} Markdown does not point to its locale agent index`,
+    )
+    invariant(
+      homeMdx.includes(`locale: ${JSON.stringify(locale.locale)}`),
+      `${homePath} MDX locale metadata is incorrect`,
+    )
+    invariant(
+      !hasFrontmatterField(homeMarkdownParts.frontmatter, 'version') &&
+        !hasFrontmatterField(homeMdxParts.frontmatter, 'version'),
+      `${homePath} fabricates version frontmatter`,
+    )
+    for (const href of extractRelativeLinks(homeHtml)) {
+      invariant(!draftRoutes.has(href), `${homePath} links to unpublished draft ${href}`)
+      const linkedLocale = routeLocale.get(href)
+      invariant(
+        !linkedLocale || linkedLocale === locale.locale,
+        `${homePath} navigation leaks locale ${linkedLocale} through ${href}`,
+      )
+    }
+    localeScopedNavigationCount += 1
+    htmlCount += 1
+    markdownCount += 1
+    mdxCount += 1
 
     for (const page of pages) {
       const { route, slug, document, indexable } = page
@@ -679,11 +807,19 @@ async function audit() {
       )
     }
     invariant(
-      countOccurrences(sectionLlmsIndex, '/index.md)') === agentPages.length + 1,
+      sectionLlmsIndex.includes(homeMarkdownUrl),
+      `${sectionLlmsIndexPath} is missing ${homePath}`,
+    )
+    invariant(
+      sectionLlmsFull.includes(`<!-- xid-doc-path: ${homePath} -->`),
+      `${sectionLlmsFullPath} is missing ${homePath}`,
+    )
+    invariant(
+      countOccurrences(sectionLlmsIndex, '/index.md)') === agentPages.length + 2,
       `${sectionLlmsIndexPath} has an unexpected Markdown twin count`,
     )
     invariant(
-      countOccurrences(sectionLlmsFull, '<!-- xid-doc-path:') === agentPages.length + 1,
+      countOccurrences(sectionLlmsFull, '<!-- xid-doc-path:') === agentPages.length + 2,
       `${sectionLlmsFullPath} has an unexpected corpus block count`,
     )
     invariant(
@@ -744,6 +880,16 @@ async function audit() {
     }
     for (const other of LOCALES) {
       if (other.locale === locale.locale) continue
+      const otherHome = homeRoute(other.segment)
+      const otherHomeMarkdownPath = otherHome === '/' ? '/index.md' : `${otherHome}/index.md`
+      invariant(
+        !sectionLlmsIndex.includes(new URL(otherHomeMarkdownPath, SITE_ORIGIN).href),
+        `${sectionLlmsIndexPath} contains another locale homepage`,
+      )
+      invariant(
+        !sectionLlmsFull.includes(`<!-- xid-doc-path: ${otherHome} -->`),
+        `${sectionLlmsFullPath} contains another locale homepage corpus`,
+      )
       const otherHub = documentRoute(other.segment, null)
       const otherHubPath = otherHub
       const otherMarkdownPath = otherHub === '/' ? '/index.md' : `${otherHub}/index.md`
@@ -769,8 +915,8 @@ async function audit() {
     }
   }
 
-  const expectedHtmlCount = LOCALES.length * (publishedDocuments.length + 2)
-  const expectedAgentPageCount = LOCALES.length * (agentDocuments.length + 2)
+  const expectedHtmlCount = LOCALES.length * (publishedDocuments.length + 3)
+  const expectedAgentPageCount = LOCALES.length * (agentDocuments.length + 3)
   invariant(
     htmlCount === expectedHtmlCount,
     `expected ${expectedHtmlCount} HTML files, received ${htmlCount}`,
@@ -798,12 +944,12 @@ async function audit() {
     generatedMdxFiles.length === expectedGeneratedMdxCount,
     `generated collection must contain ${expectedGeneratedMdxCount} MDX files, received ${generatedMdxFiles.length}`,
   )
-  invariant(
-    generatedMdxFiles.every(
-      (file) => !path.relative(GENERATED_DOCS_ROOT, file).split(path.sep).includes('docs'),
-    ),
-    'generated collection still contains a docs URL segment',
-  )
+  for (const locale of LOCALES) {
+    invariant(
+      existsSync(generatedSourceFile(locale.locale, null)),
+      `generated collection is missing ${locale.locale} documentation hub`,
+    )
+  }
 
   const distFiles = await listFiles(DIST_ROOT)
   const allMarkdownTwins = distFiles.filter((file) => path.basename(file) === 'index.md')
@@ -816,10 +962,7 @@ async function audit() {
     allMdxTwins.length === expectedAgentPageCount,
     `dist must contain ${expectedAgentPageCount} MDX twins, received ${allMdxTwins.length}`,
   )
-  invariant(
-    !existsSync(path.join(DIST_ROOT, 'docs')),
-    'dist must not publish a canonical docs directory',
-  )
+  invariant(existsSync(path.join(DIST_ROOT, 'docs')), 'dist must publish the canonical docs hub')
   invariant(
     !distFiles.some((file) => file.includes(`${path.sep}src${path.sep}react${path.sep}`)),
     'dist contains a Site React runtime artifact',
@@ -837,7 +980,7 @@ async function audit() {
   })
   for (const file of agentAndHumanSurfaceFiles) {
     const source = await readFile(file, 'utf8')
-    for (const [id, message] of siteShellMessageIds) {
+    for (const [id, message] of siteMessageIds) {
       invariant(
         !containsStandaloneMessageId(source, id),
         `${path.relative(DIST_ROOT, file)} leaks unresolved Site message ${JSON.stringify(message)}`,
@@ -879,10 +1022,10 @@ async function audit() {
     `root llms-full.txt must contain exactly ${expectedAgentPageCount} corpus blocks`,
   )
   invariant(
-    !/\]\(https:\/\/xid\.dev\/(?:zh-hans\/|ja\/|ko\/|fr\/|de\/|es\/|pt-br\/)?docs(?:\/|\))/u.test(
+    !/\]\(https:\/\/xid\.dev\/(?:zh-hans\/|ja\/|ko\/|fr\/|de\/|es\/|pt-br\/)?docs\/(?!index\.md\))[^)]+\)/u.test(
       globalLlmsIndex,
     ),
-    'root llms.txt contains a legacy docs canonical link',
+    'root llms.txt contains a legacy nested docs canonical link',
   )
   invariant(
     !/^Generated(?: at| on):/im.test(globalLlmsFull) && !/^Build timestamp:/im.test(globalLlmsFull),
@@ -923,7 +1066,7 @@ async function audit() {
     pagefindCount === expectedAgentPageCount,
     `Pagefind must index ${expectedAgentPageCount} pages, received ${pagefindCount}`,
   )
-  const expectedAgentPagesPerLocale = agentDocuments.length + 2
+  const expectedAgentPagesPerLocale = agentDocuments.length + 3
   invariant(
     Object.values(pagefind.languages).every(
       (language) => language.page_count === expectedAgentPagesPerLocale,
@@ -963,8 +1106,8 @@ async function audit() {
     'Nimbus sitemap differs from the published HTML set',
   )
   invariant(
-    ![...sitemapLocations].some((url) => new URL(url).pathname.includes('/docs/')),
-    'sitemap contains a legacy docs canonical',
+    ![...sitemapLocations].some((url) => /\/docs\/.+/u.test(new URL(url).pathname)),
+    'sitemap contains a legacy nested docs canonical',
   )
   invariant(
     sitemapIndex.includes(`${SITE_ORIGIN}/sitemap-0.xml`),
@@ -1027,7 +1170,7 @@ async function audit() {
       `${notFoundPath} must be noindex`,
     )
     const pageNotFoundId = linguiMessageId('Page not found')
-    const pageNotFoundMessage = siteShellCatalogs.get(locale.locale)?.[pageNotFoundId]
+    const pageNotFoundMessage = siteCatalogs.get(locale.locale)?.[pageNotFoundId]
     invariant(
       Array.isArray(pageNotFoundMessage) &&
         pageNotFoundMessage.length === 1 &&
@@ -1062,7 +1205,7 @@ async function audit() {
     mermaidPages: mermaidPageCount,
     localeScopedNavigationPages: localeScopedNavigationCount,
     localized404Pages: localized404Count,
-    resolvedSiteShellMessages: siteShellMessageIds.size,
+    resolvedSiteMessages: siteMessageIds.size,
     legacyAliases: Object.keys(LEGACY_ALIASES).length * LOCALES.length,
   }
 }

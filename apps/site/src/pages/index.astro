@@ -1,9 +1,5 @@
 ---
-import { getEntry } from "astro:content";
-import DocsEntryPage from "../components/DocsEntryPage.astro";
-
-const entry = await getEntry("docs", "index");
-if (!entry) throw new TypeError("English documentation hub is missing");
+import HomePage from "../components/HomePage.astro";
 ---
 
-<DocsEntryPage entry={entry} />
+<HomePage locale="en" />

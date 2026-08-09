@@ -112,7 +112,7 @@
       "sharp"
     ],
     "patchedDependencies": {
-      "@cloudflare/nimbus-docs@0.8.2": "patches/@cloudflare__nimbus-docs@0.8.2.patch"
+      "@cloudflare/nimbus-docs@0.9.0": "patches/@cloudflare__nimbus-docs@0.9.0.patch"
     }
   }
 }

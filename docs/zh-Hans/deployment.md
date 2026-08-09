@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=4969df90ed2788e9598ee8e1a3df5b3431899f3f -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=ce0831647557526083513214f2d4e1d7f54c1fab -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -48,7 +48,7 @@ Cloudflare route ownership:
 
 | Owner       | Routes                                                                                                                                                                                                                                                                                      |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nimbus Site | 精确 apex 文档首页与 English detail routes;`/docs` 与 `/docs/*` compatibility routes;每个受支持的非英文 locale root 与 subtree;`/_astro/*`、`/_nimbus/*`、`/pagefind/*`、`/og/*`、`/brand/*`、`/icons/*`、`/fonts/*`;精确 sitemap、robots、LLM、manifest 与 icon 文件;`www.<your-domain>/*` |
+| Nimbus Site | 精确 apex 产品首页、`/docs` 文档首页、English detail routes 与已登记的 `/docs/*` compatibility routes;每个受支持的非英文 locale root、docs hub 与 subtree;`/_astro/*`、`/_nimbus/*`、`/pagefind/*`、`/og/*`、`/brand/*`、`/icons/*`、`/fonts/*`;精确 sitemap、robots、LLM、manifest 与 icon 文件;`www.<your-domain>/*` |
 | Console     | `<your-domain>/console`、`<your-domain>/console/*`、`*.<your-domain>/console`、`*.<your-domain>/console/*`                                                                                                                                                                                  |
 | Core        | Custom Domain `<your-domain>`、organization fallback `*.<your-domain>/*` 与 Cloudflare for SaaS zone fallback `*/*`;Core SPA chunks 隔离在 `/_core/*`                                                                                                                                       |
 
@@ -129,24 +129,26 @@ production readiness 为 `UNKNOWN`。
 
 ### 公开 docs 路由
 
-Nimbus Site 从显式 public docs registry 和 locale-neutral
+Nimbus Site 渲染本地化产品首页,并从显式 public docs registry 和 locale-neutral
 `apps/site/src/content-source/docs/documents.json` AST 渲染公共技术文档。build 为 8 个
-locale 分别生成 40 篇文档和一个文档首页,总计 328 个 generated collection pages。
-本地化 status surface 为每个 locale 再增加一页,因此完整 published Site 共 336 个
-canonical pages,即每个 locale 42 页。English 使用 `/` 与 `/{slug}`,其他 locale 使用
-`/{locale-segment}` 与 `/{locale-segment}/{slug}`。同时产出
+locale 分别生成 41 篇文档和一个文档首页,总计 336 个 generated collection pages。显式的
+本地化产品首页与 status surface 为每个 locale 再增加两页,因此完整 published Site 共 352 个
+canonical pages,即每个 locale 44 页。English 的产品首页、文档首页与文档详情分别使用
+`/`、`/docs` 与 `/{slug}`;其他 locale 分别使用 `/{locale-segment}`、
+`/{locale-segment}/docs` 与 `/{locale-segment}/{slug}`。同时产出
 Pagefind search data、canonical 与 hreflang metadata、Open Graph metadata、JSON-LD、
 sitemap entries、`.md` 与 `.mdx` twins、section LLM files、root `llms.txt` 和
 `llms-full.txt`。
 
-全局 `/llms.txt` 与 `/llms-full.txt` 各覆盖 336 页。English locale agent files 使用
-`/en/llms.txt` 与 `/en/llms-full.txt`,其他 7 locale 使用各自 segment,每份覆盖 42 页。
+全局 `/llms.txt` 与 `/llms-full.txt` 各覆盖 352 页。English locale agent files 使用
+`/en/llms.txt` 与 `/en/llms-full.txt`,其他 7 locale 使用各自 segment,每份覆盖 44 页。
 Nimbus-compatible SDK content-section files 对 English 使用 `/sdks/llms.txt` 与
 `/sdks/llms-full.txt`,其他 locale 使用 `/{locale-segment}/sdks/llms*.txt`,每份仅包含
 该 locale 的 29 个 SDK pages。
 
-已登记的旧 `/docs` path 单跳 308 到根 canonical tree,并保留 query。旧 twins 与 English
-`llms*.txt` 同样迁移。任何未登记的 `/docs/*` 子路径都返回 Nimbus 404,不进入 Core、Hosted UI SPA 或
+`/docs` 是 English canonical 文档首页。已登记的历史 `/docs/*` 详情路径单跳 308 到 flat
+canonical document tree,并保留 query。对应旧 twins 同样迁移。任何未登记的 `/docs/*`
+子路径都返回 Nimbus 404,不进入 Core、Hosted UI SPA 或
 `/sign-in`。因此 repository-internal design、deployment 与 API contract documents 即使
 URL 名称相似也保持私有。新增公共文档页必须同时增加 registry entry,并为每个受支持 locale
 生成 content。

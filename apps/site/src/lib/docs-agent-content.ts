@@ -9,6 +9,7 @@ import {
   type PublicDocsIndexedLocale,
   type PublicDocsIndexedSection,
 } from './docs-registry'
+import { getHomeSurface, renderHomeCorpus } from './home-surface'
 import { getStatusSurface, renderStatusCorpus } from './status-surface'
 
 function absoluteUrl(pathname: string, siteOrigin: string): string {
@@ -78,12 +79,13 @@ export function renderPublicDocsLlmsIndex(
   llmsFullPath = sectionFullPath(group),
 ): string {
   const rootLocale = group.locale === 'en'
+  const home = getHomeSurface(group.locale)
   const lines = [
     rootLocale ? '# XID' : `# XID documentation (${group.locale})`,
     '',
     group.hub.description ?? 'XID identity platform documentation.',
     '',
-    `- [Homepage](${absoluteUrl(group.docsRoot, siteOrigin)})`,
+    `- [Product homepage](${absoluteUrl(home.markdownPath, siteOrigin)})${descriptionSuffix(home.description)}`,
     `- [Documentation hub](${absoluteUrl(group.hub.markdownUrl, siteOrigin)})${descriptionSuffix(group.hub.description)}`,
     `- [Sitemap](${absoluteUrl('/sitemap.xml', siteOrigin)})`,
     `- [Robots](${absoluteUrl('/robots.txt', siteOrigin)})`,
@@ -135,7 +137,7 @@ export function renderPublicDocsGlobalLlmsIndex(
   ]
 
   for (const group of groups) {
-    const pageCount = publishedItems(group).length + 1
+    const pageCount = publishedItems(group).length + 2
     lines.push(
       `- [${group.locale}](${absoluteUrl(sectionIndexPath(group), siteOrigin)}) - ${pageCount} published pages`,
     )
@@ -154,6 +156,10 @@ export function renderPublicDocsGlobalLlmsIndex(
   lines.push('', '## Published pages', '')
   for (const group of groups) {
     lines.push(`### ${group.locale}`, '')
+    const home = getHomeSurface(group.locale)
+    lines.push(
+      `- [${home.title}](${absoluteUrl(home.markdownPath, siteOrigin)})${descriptionSuffix(home.description)}`,
+    )
     for (const { item } of publishedItems(group)) {
       lines.push(
         `- [${item.title}](${absoluteUrl(item.markdownUrl, siteOrigin)})${descriptionSuffix(item.description)}`,
@@ -226,7 +232,7 @@ export function renderPublicDocsLlmsFull(
     '',
     `- Concise index: ${absoluteUrl(llmsIndexPath, siteOrigin)}`,
     `- Documentation hub: ${absoluteUrl(group.docsRoot, siteOrigin)}`,
-    `- Published pages: ${publishedItems(group).length + 1}`,
+    `- Published pages: ${publishedItems(group).length + 2}`,
     '',
     '## Canonical aliases',
     '',
@@ -242,6 +248,7 @@ export function renderPublicDocsLlmsFull(
     '',
   )
 
+  lines.push(...renderHomeCorpus(group.locale, siteOrigin))
   for (const item of publishedItems(group)) {
     lines.push(...renderCorpusItem(item, siteOrigin))
   }
@@ -261,10 +268,16 @@ export function renderPublicDocsGlobalLlmsFull(
     '# XID: full public documentation corpus',
     '',
     `Index: ${absoluteUrl('/llms.txt', siteOrigin)}`,
-    `Published pages: ${items.length + groups.length}`,
+    `Published pages: ${items.length + groups.length * 2}`,
     '',
   ]
 
+  const homeGroups = [...groups].sort((left, right) =>
+    getHomeSurface(left.locale).path.localeCompare(getHomeSurface(right.locale).path),
+  )
+  for (const group of homeGroups) {
+    lines.push(...renderHomeCorpus(group.locale, siteOrigin))
+  }
   for (const item of items) {
     lines.push(...renderCorpusItem(item, siteOrigin))
   }

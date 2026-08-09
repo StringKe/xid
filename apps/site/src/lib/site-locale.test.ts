@@ -66,6 +66,8 @@ describe('site locale paths', () => {
   it.each([
     ['/', true],
     ['/zh-hans/', true],
+    ['/docs', true],
+    ['/ja/docs', true],
     ['/getting-started', true],
     ['/fr/getting-started', true],
     ['/sdks/react/', true],
@@ -76,7 +78,6 @@ describe('site locale paths', () => {
     ['/status', true],
     ['/zh-hans/status/index.md', true],
     ['/design', false],
-    ['/docs', false],
     ['/favicon.ico', false],
     ['/zh-hans/brand/logo.svg', false],
   ] as const)('classifies %s as localizable=%s', (pathname, expected) => {

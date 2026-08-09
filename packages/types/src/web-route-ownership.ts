@@ -22,6 +22,8 @@ export const SITE_EXACT_PATHS = [
   '/index.md',
   '/index.mdx',
   '/docs',
+  '/docs/index.md',
+  '/docs/index.mdx',
   '/status',
   '/status/',
   '/status/index.md',
@@ -47,6 +49,7 @@ export const SITE_EXACT_PATHS = [
 const SITE_PUBLIC_DOC_ROOTS = [
   'getting-started',
   'hosted-auth',
+  'organizations',
   'oidc-oauth',
   'enterprise-sso',
   'social-login',

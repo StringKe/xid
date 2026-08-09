@@ -107,7 +107,12 @@ export function isLocalizableSitePath(pathname: string): boolean {
   const normalized = unprefixed.replace(/^\/+|\/+$/gu, '')
   if (normalized === '') return true
   const twinBase = normalized.replace(/(?:^|\/)index\.(?:md|mdx)$/u, '')
-  return twinBase === '' || twinBase === 'status' || PUBLIC_DOC_SLUG_SET.has(twinBase)
+  return (
+    twinBase === '' ||
+    twinBase === 'docs' ||
+    twinBase === 'status' ||
+    PUBLIC_DOC_SLUG_SET.has(twinBase)
+  )
 }
 
 export function hostedAuthHref(action: 'sign-in' | 'sign-up', locale: SiteLocale): string {

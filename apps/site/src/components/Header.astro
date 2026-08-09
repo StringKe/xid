@@ -7,9 +7,12 @@ import { SearchTrigger } from "./ui/search";
 import SiteAuthActions from "./SiteAuthActions.astro";
 import SiteLanguageSwitcher from "./SiteLanguageSwitcher.astro";
 import { config } from "virtual:nimbus/config";
-import { getSidebarSections } from "@cloudflare/nimbus-docs";
-import { getSiteLocale, localizeSitePath } from "@/lib/site-locale";
-import { scopeSidebarSectionsToSiteLocale } from "@/lib/sidebar-locale";
+import { parsePublicDocsRoute } from "@/lib/docs-registry";
+import {
+  getSiteLocale,
+  localizeSitePath,
+  stripSiteLocale,
+} from "@/lib/site-locale";
 import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
 
@@ -25,22 +28,45 @@ interface Props {
 // `entryId` is part of Props as a forward-compat hook (the version-switcher
 // recipe reads it) but the base Header doesn't use it — leave it off the
 // destructure to avoid an unused-var warning.
-const { collection, showMobileMenu = true } = Astro.props;
+const { showMobileMenu = true } = Astro.props;
 
 // Normalize trailing slash so isActive matches sidebar hrefs.
 const currentSlug = Astro.url.pathname.replace(/\/$/, "") || "/";
 const locale = getSiteLocale(Astro.url.pathname);
-const sections = scopeSidebarSectionsToSiteLocale(
-  await getSidebarSections(currentSlug, { collection }),
-  currentSlug,
-);
-const showSections = sections.length >= 2;
 const homeHref = localizeSitePath("/", locale);
+const docsHref = localizeSitePath("/docs", locale);
+const gettingStartedHref = localizeSitePath("/getting-started", locale);
+const statusHref = localizeSitePath("/status", locale);
+const unlocalizedPath = stripSiteLocale(currentSlug);
 const sectionsLabel = translateSiteMessage(Astro.url.pathname, siteShellMessages.sections);
 const openNavigationLabel = translateSiteMessage(
   Astro.url.pathname,
   siteShellMessages.openNavigation,
 );
+const primaryNavigation = [
+  {
+    href: homeHref,
+    label: translateSiteMessage(Astro.url.pathname, siteShellMessages.product),
+    active: unlocalizedPath === "/",
+  },
+  {
+    href: docsHref,
+    label: translateSiteMessage(Astro.url.pathname, siteShellMessages.documentation),
+    active:
+      unlocalizedPath !== "/getting-started" &&
+      parsePublicDocsRoute(currentSlug) !== null,
+  },
+  {
+    href: gettingStartedHref,
+    label: translateSiteMessage(Astro.url.pathname, siteShellMessages.gettingStarted),
+    active: unlocalizedPath === "/getting-started",
+  },
+  {
+    href: statusHref,
+    label: translateSiteMessage(Astro.url.pathname, siteShellMessages.status),
+    active: unlocalizedPath === "/status",
+  },
+];
 ---
 
 <header class="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-lg">
@@ -52,27 +78,30 @@ const openNavigationLabel = translateSiteMessage(
         </span>
       </a>
 
-      {showSections && (
-        <nav aria-label={sectionsLabel} class="hidden md:flex items-center gap-1 ml-4 pl-4 border-l border-border h-6">
-          {sections.map((section) => (
+      <nav aria-label={sectionsLabel} class="hidden md:flex items-center gap-1 ml-4 pl-4 border-l border-border h-6">
+          {primaryNavigation.map((item) => (
             <a
-              href={section.href}
-              aria-current={section.isActive ? "page" : undefined}
+              href={item.href}
+              aria-current={item.active ? "page" : undefined}
               class:list={[
                 "px-2 py-1 rounded-md text-[0.8125rem] font-medium no-underline transition-colors",
-                section.isActive
+                item.active
                   ? "text-foreground bg-accent"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/60",
               ]}
             >
-              {section.label}
+              {item.label}
             </a>
           ))}
-        </nav>
-      )}
+      </nav>
     </div>
 
     <div class="flex items-center gap-2">
+      {!showMobileMenu && (
+        <a href={docsHref} class="md:hidden text-xs font-medium text-muted-foreground no-underline hover:text-foreground">
+          {translateSiteMessage(Astro.url.pathname, siteShellMessages.documentation)}
+        </a>
+      )}
       <SiteAuthActions class="hidden lg:flex" />
       <SiteLanguageSwitcher />
       {config.search !== false && <SearchTrigger />}

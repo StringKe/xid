@@ -50,9 +50,10 @@ describe('site worker', () => {
 
     expect(localResponse.status).toBe(308)
     expect(localResponse.headers.get('location')).toBe('https://xid.dev/getting-started?from=smoke')
-    expect(productionResponse.status).toBe(308)
-    expect(productionResponse.headers.get('location')).toBe('https://xid.dev/')
-    expect(fetch).not.toHaveBeenCalled()
+    expect(productionResponse.status).toBe(200)
+    expect(productionResponse.headers.get('location')).toBeNull()
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(fetch).toHaveBeenCalledWith(productionRequest)
   })
 
   it('ignores a forwarded host on a production request', async () => {
@@ -83,6 +84,7 @@ describe('site worker', () => {
   it.each([
     'https://xid.dev/?source=contract',
     'https://xid.dev/getting-started?source=contract',
+    'https://xid.dev/docs?source=contract',
     'https://xid.dev/llms.txt?source=contract',
     'https://xid.dev/status?source=contract',
     'https://xid.dev/zh-hans?source=contract',
@@ -132,6 +134,7 @@ describe('site worker', () => {
 
   it.each([
     ['https://xid.dev/?locale=zh-Hans', 'https://xid.dev/zh-hans'],
+    ['https://xid.dev/docs?locale=ja', 'https://xid.dev/ja/docs'],
     [
       'https://xid.dev/docs/getting-started?locale=ja&from=picker',
       'https://xid.dev/ja/getting-started?from=picker',
@@ -182,26 +185,25 @@ describe('site worker', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it.each(['https://xid.dev/', 'https://xid.dev/sdks/core', 'https://xid.dev/ja/getting-started'])(
-    'does not redirect canonical docs path %s',
-    async (source) => {
-      const { env, fetch } = envWith(new Response('asset'))
-      const request = new Request(source)
-      const response = await worker.fetch(request, env, {} as ExecutionContext)
+  it.each([
+    'https://xid.dev/',
+    'https://xid.dev/docs',
+    'https://xid.dev/docs/index.md',
+    'https://xid.dev/ja/docs',
+    'https://xid.dev/ja/docs/index.mdx',
+    'https://xid.dev/sdks/core',
+    'https://xid.dev/ja/getting-started',
+  ])('does not redirect canonical docs path %s', async (source) => {
+    const { env, fetch } = envWith(new Response('asset'))
+    const request = new Request(source)
+    const response = await worker.fetch(request, env, {} as ExecutionContext)
 
-      expect(response.status).toBe(200)
-      expect(response.headers.get('x-xid-route-owner')).toBe('site')
-      expect(fetch).toHaveBeenCalledWith(request)
-    },
-  )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-xid-route-owner')).toBe('site')
+    expect(fetch).toHaveBeenCalledWith(request)
+  })
 
   it.each([
-    ['https://xid.dev/docs?from=old', 'https://xid.dev/?from=old'],
-    ['https://xid.dev/docs/', 'https://xid.dev/'],
-    ['https://xid.dev/docs/index.md?raw=1', 'https://xid.dev/index.md?raw=1'],
-    ['https://xid.dev/docs/index.mdx?locale=ja&raw=1', 'https://xid.dev/ja/index.mdx?raw=1'],
-    ['https://xid.dev/ja/docs?from=old', 'https://xid.dev/ja?from=old'],
-    ['https://xid.dev/ja/docs/index.mdx?raw=1', 'https://xid.dev/ja/index.mdx?raw=1'],
     ['https://xid.dev/docs/getting-started/', 'https://xid.dev/getting-started'],
     [
       'https://xid.dev/docs/getting-started/index.md?raw=1',
@@ -222,7 +224,9 @@ describe('site worker', () => {
 
   it.each([
     ['https://xid.dev/getting-started/', 'https://xid.dev/getting-started'],
+    ['https://xid.dev/docs/', 'https://xid.dev/docs'],
     ['https://xid.dev/zh-hans/', 'https://xid.dev/zh-hans'],
+    ['https://xid.dev/zh-hans/docs/', 'https://xid.dev/zh-hans/docs'],
     ['https://xid.dev/zh-hans/sdks/react/', 'https://xid.dev/zh-hans/sdks/react'],
   ])('redirects trailing slash route %s to canonical %s', async (source, target) => {
     const { env, fetch } = envWith(new Response('asset'))

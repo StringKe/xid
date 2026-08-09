@@ -671,6 +671,7 @@ const expectedPublicDocSlugs = [
   'hosted-auth',
   'management-api',
   'oidc-oauth',
+  'organizations',
   'saml',
   'scim',
   'sdks',
@@ -1869,7 +1870,7 @@ describe('protocol source map coverage', () => {
 
     expect(
       docsSource.includes('downstream SaaS') &&
-        docsSource.includes('generic OIDC baseline locally') &&
+        docsSource.includes('Generic OIDC baseline is available locally') &&
         docsSource.includes('real SaaS L4'),
       'public OIDC docs downstream production boundary',
     ).toBe(true)
@@ -2510,7 +2511,7 @@ describe('protocol source map coverage', () => {
     for (const row of rows) {
       const publicDocsPaths = publicDocPathsFromCell(row.publicDocsPath)
       for (const publicDocsPath of publicDocsPaths) {
-        if (publicDocsPath === '/') continue
+        if (publicDocsPath === '/' || publicDocsPath === '/docs') continue
         const slug = publicDocsPath.slice(1)
         expect(
           publicDocSlugs.has(slug),
@@ -2537,7 +2538,8 @@ describe('protocol source map coverage', () => {
   it('keeps the source-map public docs whitelist row tied to every guard test', () => {
     const row = sourceMapRow('Public docs whitelist')
 
-    expect(row.publicDocsPath).toContain('root `/` hub')
+    expect(row.publicDocsPath).toContain('product landing')
+    expect(row.publicDocsPath).toContain('canonical `/docs` hub')
     expect(row.codePath).toContain(publicDocsRegistryPath)
     for (const testPath of publicDocsGuardTestPaths) {
       expect(row.testPath).toContain(`\`${testPath}\``)

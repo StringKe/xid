@@ -11,14 +11,13 @@ export const PUBLIC_DOC_SECTIONS = [
   { section: 'pt-br', locale: 'pt-BR', routeSegment: 'pt-br' },
 ]
 
-export const PUBLIC_DOCS_PER_SECTION = 42
-export const PUBLIC_DOCS_TOTAL = 336
+export const PUBLIC_DOCS_PER_SECTION = 44
+export const PUBLIC_DOCS_TOTAL = 352
 
 function registrySizeOk() {
   return (
-    // The content registry owns 40 documents. Each locale also publishes the root hub and the
-    // runtime-backed status surface, which intentionally lives outside documents.json.
-    PUBLIC_DOC_SLUGS.length + 2 === PUBLIC_DOCS_PER_SECTION &&
+    // Each locale publishes the product homepage, docs hub, registry documents, and status.
+    PUBLIC_DOC_SLUGS.length + 3 === PUBLIC_DOCS_PER_SECTION &&
     PUBLIC_DOC_SECTIONS.length * PUBLIC_DOCS_PER_SECTION === PUBLIC_DOCS_TOTAL
   )
 }
@@ -56,6 +55,25 @@ function hasOriginPath(targets, pathname) {
   return false
 }
 
+function hasLegacyNestedDocsPath(targets) {
+  for (const target of targets) {
+    let url
+    try {
+      url = new URL(target)
+    } catch {
+      continue
+    }
+    if (url.origin === 'https://xid.dev' && /(?:^|\/)docs\/(?!index\.md$).+/u.test(url.pathname)) {
+      return true
+    }
+  }
+  return false
+}
+
+function isLegacyNestedDocsPath(pathname) {
+  return /(?:^|\/)docs\/(?!index\.md$).+/u.test(pathname)
+}
+
 function sectionDescriptor(section) {
   const descriptor = PUBLIC_DOC_SECTIONS.find((candidate) => candidate.section === section)
   if (!descriptor) throw new TypeError(`unknown public documentation section ${section}`)
@@ -64,8 +82,12 @@ function sectionDescriptor(section) {
 
 function publicDocPath(routeSegment, slug = null) {
   const prefix = routeSegment === '' ? '' : `/${routeSegment}`
-  if (slug === null) return prefix === '' ? '/' : prefix
+  if (slug === null) return `${prefix}/docs`
   return `${prefix}/${slug}`
+}
+
+function homePath(routeSegment) {
+  return routeSegment === '' ? '/' : `/${routeSegment}`
 }
 
 function publicDocMarkdownUrl(routeSegment, slug = null) {
@@ -82,6 +104,7 @@ function publicDocIndexedPath(routeSegment, slug = null) {
 
 function expectedSectionPaths(routeSegment) {
   return new Set([
+    homePath(routeSegment),
     publicDocIndexedPath(routeSegment),
     ...PUBLIC_DOC_SLUGS.map((slug) => publicDocIndexedPath(routeSegment, slug)),
     publicDocIndexedPath(routeSegment, 'status'),
@@ -90,6 +113,10 @@ function expectedSectionPaths(routeSegment) {
 
 function expectedSectionMarkdownUrls(routeSegment) {
   return new Set([
+    new URL(
+      homePath(routeSegment) === '/' ? '/index.md' : `${homePath(routeSegment)}/index.md`,
+      'https://xid.dev',
+    ).href,
     publicDocMarkdownUrl(routeSegment),
     ...PUBLIC_DOC_SLUGS.map((slug) => publicDocMarkdownUrl(routeSegment, slug)),
     publicDocMarkdownUrl(routeSegment, 'status'),
@@ -154,7 +181,7 @@ export function llmsOk(body) {
       targets.has(`https://xid.dev/${section}/llms.txt`),
     ) &&
     setEquals(publishedTargets, expectedGlobalMarkdownUrls()) &&
-    !hasOriginPath(targets, '/docs') &&
+    !hasLegacyNestedDocsPath(targets) &&
     !hasOriginPath(targets, '/console')
   )
 }
@@ -171,7 +198,7 @@ export function llmsFullOk(body) {
     setEquals(paths, expectedGlobalPaths()) &&
     body.includes('Canonical: https://xid.dev/scim') &&
     body.includes('Markdown: https://xid.dev/scim/index.md') &&
-    [...paths].every((pathname) => pathname !== '/docs' && !pathname.startsWith('/docs/'))
+    [...paths].every((pathname) => !isLegacyNestedDocsPath(pathname))
   )
 }
 
@@ -190,7 +217,7 @@ export function llmsSectionOk(body, section) {
     targets.has('https://xid.dev/sitemap.xml') &&
     targets.has('https://xid.dev/robots.txt') &&
     setEquals(publishedTargets, expectedSectionMarkdownUrls(descriptor.routeSegment)) &&
-    !hasOriginPath(targets, '/docs')
+    !hasLegacyNestedDocsPath(targets)
   )
 }
 
@@ -205,7 +232,7 @@ export function llmsSectionFullOk(body, section) {
     lineSet.has(`- Concise index: https://xid.dev/${section}/llms.txt`) &&
     lineSet.has(`- Published pages: ${PUBLIC_DOCS_PER_SECTION}`) &&
     setEquals(paths, expectedSectionPaths(descriptor.routeSegment)) &&
-    [...paths].every((pathname) => pathname !== '/docs' && !pathname.startsWith('/docs/'))
+    [...paths].every((pathname) => !isLegacyNestedDocsPath(pathname))
   )
 }
 
@@ -221,7 +248,7 @@ export function sitemapOk(body) {
     setEquals(new Set(locations), expected) &&
     locations.every((location) => {
       const pathname = new URL(location).pathname
-      return pathname !== '/docs' && !pathname.startsWith('/docs/')
+      return !isLegacyNestedDocsPath(pathname)
     })
   )
 }

@@ -23,7 +23,9 @@ const ROUTE_SEGMENT_TO_LOCALE = new Map<string, DocumentLocale>(
 export type PublicDocsLocaleDescriptor = {
   locale: DocumentLocale
   routeSegment: string
+  siteRoot: string
   docsRoot: string
+  documentRoot: string
   llmsIndexPath: string
   llmsFullPath: string
 }
@@ -34,7 +36,9 @@ export const PUBLIC_DOCS_LOCALES = DOCUMENT_LOCALES.map((locale) => {
   return {
     locale,
     routeSegment,
-    docsRoot: prefix === '' ? '/' : prefix,
+    siteRoot: prefix === '' ? '/' : prefix,
+    docsRoot: `${prefix}/docs`,
+    documentRoot: prefix === '' ? '/' : prefix,
     llmsIndexPath: `${prefix}/llms.txt`,
     llmsFullPath: `${prefix}/llms-full.txt`,
   }
@@ -98,8 +102,8 @@ export function getPublicDocsLocaleDescriptor(locale: DocumentLocale): PublicDoc
 }
 
 export function getPublicDocPath(locale: DocumentLocale, slug: PublicDocSlug): string {
-  const { docsRoot } = getPublicDocsLocaleDescriptor(locale)
-  return docsRoot === '/' ? `/${slug}` : `${docsRoot}/${slug}`
+  const { documentRoot } = getPublicDocsLocaleDescriptor(locale)
+  return documentRoot === '/' ? `/${slug}` : `${documentRoot}/${slug}`
 }
 
 function publicDocTopLevelSlug(slug: PublicDocSlug): string {
@@ -168,7 +172,7 @@ export function parsePublicDocsRoute(pathname: string): PublicDocsRoute | null {
 
   const slug = slugParts.join('/')
   const descriptor = getPublicDocsLocaleDescriptor(locale)
-  if (slug === '') {
+  if (slug === 'docs') {
     return {
       kind: 'hub',
       locale,
@@ -177,6 +181,7 @@ export function parsePublicDocsRoute(pathname: string): PublicDocsRoute | null {
       slug: null,
     }
   }
+  if (slug === '') return null
   if (!PUBLIC_DOC_SLUG_SET.has(slug)) return null
   return {
     kind: 'document',

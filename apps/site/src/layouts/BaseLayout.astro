@@ -149,7 +149,7 @@ const customHead = [...(config.head ?? []), ...pageHead];
         title={title}
         description={description}
         noindex={noindex}
-        markdownUrl={markdownUrl}
+        markdownUrl={markdownHref ?? undefined}
         socialImage={socialImage}
         lastUpdated={lastUpdated}
         head={pageHead}
@@ -158,7 +158,7 @@ const customHead = [...(config.head ?? []), ...pageHead];
         locale={lang}
         openGraphLocale={openGraphLocale}
         socialImageAlt={socialImageAlt}
-        llmsIndexUrl={llmsIndexPath}
+        llmsIndexUrl={llmsUrl}
       />
     )}
     {localeAlternates.map(({ locale, href }) => (

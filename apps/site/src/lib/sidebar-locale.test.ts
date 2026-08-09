@@ -2,12 +2,25 @@ import { describe, expect, it } from 'vitest'
 import type { SidebarItem, SidebarSection } from '@cloudflare/nimbus-docs/types'
 import { scopeSidebarSectionsToSiteLocale, scopeSidebarToSiteLocale } from './sidebar-locale'
 
-const deDocsGroup: SidebarItem = {
-  type: 'group',
+const deDocsLink: SidebarItem = {
+  type: 'link',
   label: 'Dokumentation',
+  href: '/de/docs/',
   order: 0,
-  indexHref: '/de/',
-  children: [],
+}
+
+const deGettingStarted: SidebarItem = {
+  type: 'link',
+  label: 'Erste Schritte',
+  href: '/de/getting-started/',
+  order: 1,
+}
+
+const deLocaleGroup: SidebarItem = {
+  type: 'group',
+  label: 'De',
+  order: 0,
+  children: [deDocsLink, deGettingStarted],
 }
 
 const englishGettingStarted: SidebarItem = {
@@ -28,20 +41,26 @@ const englishSdks: SidebarItem = {
 const tree: SidebarItem[] = [
   englishGettingStarted,
   englishSdks,
-  deDocsGroup,
+  deLocaleGroup,
   {
     type: 'group',
-    label: '简体中文',
+    label: 'Zh hans',
     order: 2,
-    indexHref: '/zh-hans/',
-    children: [],
+    children: [
+      {
+        type: 'link',
+        label: '文档',
+        href: '/zh-hans/docs/',
+        order: 0,
+      },
+    ],
   },
 ]
 
 const sections: SidebarSection[] = [
   {
     label: 'Deutsch',
-    href: '/de/',
+    href: '/de/docs/',
     isActive: false,
   },
   {
@@ -51,7 +70,7 @@ const sections: SidebarSection[] = [
   },
   {
     label: '简体中文',
-    href: '/zh-hans/',
+    href: '/zh-hans/docs/',
     isActive: false,
   },
 ]
@@ -62,8 +81,15 @@ describe('localized sidebar', () => {
       englishGettingStarted,
       englishSdks,
     ])
-    expect(scopeSidebarToSiteLocale(tree, '/zh-hans/getting-started/')).toEqual([tree[3]])
-    expect(scopeSidebarToSiteLocale(tree, '/de/')).toEqual([deDocsGroup])
+    expect(scopeSidebarToSiteLocale(tree, '/zh-hans/getting-started/')).toEqual([
+      {
+        type: 'link',
+        label: '文档',
+        href: '/zh-hans/docs/',
+        order: 0,
+      },
+    ])
+    expect(scopeSidebarToSiteLocale(tree, '/de/docs/')).toEqual([deDocsLink, deGettingStarted])
   })
 
   it('keeps only the current locale header section', () => {
@@ -74,9 +100,8 @@ describe('localized sidebar', () => {
   })
 
   it('fails when the locale boundary is missing', () => {
-    const withoutFrench = tree.filter((item) => item.type !== 'group' || item.indexHref !== '/fr/')
-    expect(() => scopeSidebarToSiteLocale(withoutFrench, '/fr/getting-started/')).toThrow(
-      'expected one sidebar group for /fr, received 0',
+    expect(() => scopeSidebarToSiteLocale(tree, '/fr/getting-started/')).toThrow(
+      'expected one sidebar group for /fr/docs, received 0',
     )
   })
 })
