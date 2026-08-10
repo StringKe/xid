@@ -34,7 +34,7 @@ catalog:
   dompurify: ^3.4.13
   es-toolkit: ^1.50.0
   hono: ^4.12.34
-  jsdom: ^29.1.1
+  jsdom: ^30.0.1
   motion: ^12.42.2
   pkijs: 3.4.0
   react: ^19.2.8
@@ -68,7 +68,7 @@ overrides:
   brace-expansion: 5.0.9
   fast-uri: 3.1.5
   hono: ^4.12.34
-  jsdom: ^29.1.1
+  jsdom: ^30.0.1
   'minimatch@<10.2.5': 10.2.5
   'next>postcss': 8.5.23
   'next>sharp': 0.35.2
