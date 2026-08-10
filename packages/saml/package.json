@@ -29,7 +29,7 @@
     "@xmldom/xmldom": "catalog:",
     "asn1js": "catalog:",
     "pkijs": "catalog:",
-    "xml-core": "^1.2.5",
+    "xml-core": "^1.2.6",
     "xmldsigjs": "catalog:",
     "xpath": "^0.0.34"
   },

@@ -68,13 +68,13 @@
     "@stylexjs/unplugin": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "^6.0.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "@xmldom/xmldom": "catalog:",
     "jsdom": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:",
-    "xml-core": "^1.2.5",
+    "xml-core": "^1.2.6",
     "xmldsigjs": "catalog:",
     "xpath": "^0.0.34"
   }
