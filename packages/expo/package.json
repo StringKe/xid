@@ -51,7 +51,7 @@
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "expo": "^56.0.17",
+    "expo": "^57.0.11",
     "expo-secure-store": "^56.0.4",
     "expo-web-browser": "^56.0.6",
     "jsdom": "catalog:",
