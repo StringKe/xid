@@ -14,7 +14,7 @@ catalog:
   '@lingui/core': ^6.6.0
   '@lingui/react': ^6.6.0
   '@lingui/vite-plugin': ^6.6.0
-  '@noble/hashes': ^2.2.0
+  '@noble/hashes': ^2.3.0
   '@rolldown/plugin-babel': ^0.2.3
   '@stylexjs/stylex': ^0.18.3
   '@stylexjs/unplugin': ^0.18.3
