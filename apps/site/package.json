@@ -49,7 +49,7 @@
     "@tailwindcss/vite": "^4.1.4",
     "pagefind": "^1.5.2",
     "tailwindcss": "^4.1.4",
-    "textlint": "^14.0.0",
+    "textlint": "^15.8.0",
     "textlint-plugin-mdx": "^1.0.1",
     "textlint-rule-alex": "^5.0.0",
     "textlint-rule-terminology": "^5.2.0",
