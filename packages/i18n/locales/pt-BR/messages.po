@@ -3364,8 +3364,8 @@ msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/
 msgstr "Cada entrega de webhook é um HTTP POST com <0>Content-Type: application/json</0>. O corpo contém o evento exato <1>type</1> e seu <2>data</2>; Os metadados svix são transportados em cabeçalhos de solicitação."
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Evidence before compatibility claims"
-msgstr "Evidências antes das reivindicações de compatibilidade"
+msgid "Evidence and support"
+msgstr "Evidência e suporte"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
@@ -4047,6 +4047,10 @@ msgstr "Nome"
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "first-party"
 msgstr "de primeira parte"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
+msgstr "Caminhos first-party de Hosted Auth, Console e Management API têm evidência de produção em xid.dev. Afirmações de IdP empresarial, SaaS downstream, OAuth social e SMS ou WhatsApp não são production-supported até existir uma linha L4 real para esse caminho."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Flutter"
@@ -7141,10 +7145,6 @@ msgstr "Aguarde antes de consultar novamente."
 msgid "Plugin setup"
 msgstr "Configuração do plugin"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Pre-1.0 status"
-msgstr "Status pré-1.0"
-
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "Preferências"
@@ -7254,6 +7254,10 @@ msgstr "Configuração de produção"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production evidence"
 msgstr "Evidência de produção"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Production where proven, local where not"
+msgstr "Produção onde provado; local onde não"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -10063,10 +10067,6 @@ msgstr "A superfície do produto"
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "O projeto não foi encontrado."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "The protocol matrix separates implemented behavior, local conformance evidence, and production support. SAML is not described as production-ready until it is validated against a real identity provider."
-msgstr "A matriz do protocolo separa o comportamento implementado, as evidências de conformidade local e o suporte à produção. O SAML não é descrito como pronto para produção até que seja validado em um provedor de identidade real."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"

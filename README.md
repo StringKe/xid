@@ -13,13 +13,22 @@ isolated Console Worker serves the management UI.
 
 ## Project status
 
-**Pre-1.0. Do not run this in production yet.** Every capability below is backed by local evidence
-only: unit tests, Workers-runtime integration tests, and browser or protocol-client smoke tests
-against a local build. Nothing has been verified end-to-end against a real external identity
-provider, a real downstream SaaS application, a real social OAuth provider, or real SMS/WhatsApp
-delivery. Evidence tiers (L0 to L4) and per-feature support levels are defined in
-[`docs/protocols/README.md`](docs/protocols/README.md), which is authoritative over any summary
-here. Interfaces, database schema, and package APIs may change without a deprecation period.
+**Pre-1.0.** Until 1.0.0, public APIs, database schema, and package surfaces may still change without
+a long deprecation window.
+
+The hosted deployment at [https://xid.dev](https://xid.dev) is live. First-party Hosted Auth,
+Console, Management API, and related core paths have **production (L4)** evidence against that
+deployment (see [`docs/api-contracts.md`](docs/api-contracts.md) and the `pnpm run smoke:production*`
+gates). Broader coverage still rests on local L0–L3 unit, Workers-runtime, and browser or protocol
+client tests.
+
+**Not** production-supported until a real L4 row exists for that path: enterprise IdPs (Okta,
+Microsoft Entra ID, and peers), downstream SaaS SSO/SCIM (Slack, GitHub Enterprise, and peers),
+social OAuth with real provider secrets and callbacks, and SMS/WhatsApp delivery. Local
+implementation or `provider-ready` is not a production-supported claim.
+
+Evidence tiers (L0 to L4) and per-feature support levels live in
+[`docs/protocols/README.md`](docs/protocols/README.md), which is authoritative over any summary here.
 
 ## Why XID
 

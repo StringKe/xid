@@ -13,15 +13,22 @@ desde apex, mientras que un Console Worker aislado sirve la interfaz de gestión
 
 ## Estado del proyecto
 
-**Pre-1.0. Todavía no lo pongas en producción.** Cada capacidad descrita más abajo se apoya
-únicamente en evidencia local: tests unitarios, tests de integración sobre el runtime de Workers y
-pruebas de humo con navegador o con clientes de protocolo contra una build local. Nada se ha
-verificado de extremo a extremo contra un proveedor de identidad externo real, una aplicación SaaS
-downstream real, un proveedor OAuth social real ni una entrega real por SMS/WhatsApp. Los niveles de
-evidencia (L0 a L4) y los niveles de soporte por funcionalidad están definidos en
-[`docs/protocols/README.md`](docs/protocols/README.md), que prevalece sobre cualquier resumen de
-esta página. Las interfaces, el esquema de base de datos y las APIs de los paquetes pueden cambiar
-sin periodo de deprecación.
+**Pre-1.0.** Hasta la 1.0.0, las API públicas, el esquema de base de datos y las superficies de
+paquetes pueden seguir cambiando sin un periodo largo de deprecación.
+
+El despliegue alojado [https://xid.dev](https://xid.dev) está en vivo. Las rutas first-party de
+Hosted Auth, Console, Management API y núcleos relacionados tienen evidencia **production (L4)**
+contra ese despliegue (ver [`docs/api-contracts.md`](docs/api-contracts.md) y las gates
+`pnpm run smoke:production*`). El resto de la matriz sigue apoyándose en pruebas locales L0–L3
+(unitarias, runtime de Workers, navegador o cliente de protocolo).
+
+**No** es production-supported mientras no exista una fila L4 real para esa ruta: IdP empresariales
+(Okta, Microsoft Entra ID, etc.), SSO/SCIM SaaS downstream (Slack, GitHub Enterprise, etc.), OAuth
+social con secretos y callbacks reales, y entrega SMS/WhatsApp. La implementación local o el estado
+`provider-ready` no es una afirmación production-supported.
+
+Los niveles de evidencia (L0 a L4) y de soporte por funcionalidad están en
+[`docs/protocols/README.md`](docs/protocols/README.md), que prevalece sobre cualquier resumen aquí.
 
 ## Por qué XID
 

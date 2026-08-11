@@ -3364,8 +3364,8 @@ msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/
 msgstr "每次 Webhook 投递都是带有 <0>Content-Type: application/json</0> 的 HTTP POST。正文包含准确的事件 <1>type</1> 及其 <2>data</2>；svix 元数据通过请求 header 传递。"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Evidence before compatibility claims"
-msgstr "兼容性声明之前的证据"
+msgid "Evidence and support"
+msgstr "证据与支持"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
@@ -4047,6 +4047,10 @@ msgstr "名"
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "first-party"
 msgstr "第一方"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
+msgstr "第一方 Hosted Auth、Console 与 Management API 路径在 xid.dev 上已有 production 证据。企业 IdP、下游 SaaS、社交 OAuth 以及 SMS 或 WhatsApp 相关声明，在对应真实 L4 行出现之前仍非 production-supported。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Flutter"
@@ -7141,10 +7145,6 @@ msgstr "请稍后再轮询。"
 msgid "Plugin setup"
 msgstr "插件配置"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Pre-1.0 status"
-msgstr "1.0 之前的状态"
-
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "偏好设置"
@@ -7254,6 +7254,10 @@ msgstr "Production 配置"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production evidence"
 msgstr "生产证据"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Production where proven, local where not"
+msgstr "已验证处为 production，其余为本地"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -10063,10 +10067,6 @@ msgstr "产品能力"
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "未找到该项目。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "The protocol matrix separates implemented behavior, local conformance evidence, and production support. SAML is not described as production-ready until it is validated against a real identity provider."
-msgstr "协议矩阵将实现的行为、本地一致性证据和生产支持分开。在针对真实身份提供商进行验证之前，SAML 并不被描述为可用于生产。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"

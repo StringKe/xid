@@ -3364,8 +3364,8 @@ msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/
 msgstr "すべての Webhook 配信は、<0>Content-Type: application/json</0> の HTTP POST です。本文には、正確なイベントの<1>タイプ</1>とその<2>データ</2>が含まれています。 svix メタデータはリクエスト ヘッダーに含まれます。"
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Evidence before compatibility claims"
-msgstr "互換性を主張する前の証拠"
+msgid "Evidence and support"
+msgstr "証跡とサポート"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
@@ -4047,6 +4047,10 @@ msgstr "名"
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "first-party"
 msgstr "ファーストパーティ"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
+msgstr "第一者の Hosted Auth、Console、Management API 経路は xid.dev 上に production 証跡がある。企業 IdP、下流 SaaS、social OAuth、SMS または WhatsApp の主張は、対応する実 L4 行があるまで production-supported ではない。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Flutter"
@@ -7141,10 +7145,6 @@ msgstr "再度ポーリングする前にお待ちください。"
 msgid "Plugin setup"
 msgstr "プラグインセットアップ"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Pre-1.0 status"
-msgstr "1.0以前のステータス"
-
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "環境設定"
@@ -7254,6 +7254,10 @@ msgstr "Production 設定"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production evidence"
 msgstr "生産証拠"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Production where proven, local where not"
+msgstr "検証済みは production、未検証はローカル"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -10063,10 +10067,6 @@ msgstr "製品表面"
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "プロジェクトが見つかりませんでした。"
-
-#: apps/site/src/lib/home-surface.ts
-msgid "The protocol matrix separates implemented behavior, local conformance evidence, and production support. SAML is not described as production-ready until it is validated against a real identity provider."
-msgstr "プロトコル マトリックスは、実装された動作、ローカル適合性の証拠、および運用サポートを分離します。 SAML は、実際の ID プロバイダーに対して検証されるまでは、実稼働対応とは言えません。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"

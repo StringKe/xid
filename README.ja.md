@@ -13,14 +13,20 @@ Worker は management UI を提供する。
 
 ## プロジェクトの状態
 
-**1.0 未満。まだ production で動かしてはならない。** 以下に挙げる機能はすべてローカルの証跡のみに
-裏付けられている。すなわち unit test、Workers runtime 上の integration test、そしてローカルビルドに
-対する browser または protocol client の smoke test である。実在する外部 identity provider、実在する
-下流 SaaS アプリケーション、実在する social OAuth provider、実際の SMS/WhatsApp 配信に対して
-end-to-end で検証したものは一つもない。証跡の階層(L0 から L4)と機能ごとのサポートレベルは
-[`docs/protocols/README.md`](docs/protocols/README.md) に定義されており、ここに書いた要約よりも
-そちらが正となる。インターフェース、データベース schema、package API は非推奨期間を置かずに
-変更されうる。
+**1.0 未満 (Pre-1.0)。** 1.0.0 までは公開 API、データベース schema、package 表面は長い非推奨期間なしで
+変わりうる。
+
+ホスト済みデプロイ [https://xid.dev](https://xid.dev) は稼働中である。第一者の Hosted Auth、Console、
+Management API および関連コア経路は、そのデプロイに対する **production (L4)** 証跡がある
+([`docs/api-contracts.md`](docs/api-contracts.md) と `pnpm run smoke:production*` を参照)。より広い
+行列は引き続きローカル L0–L3 の unit / Workers runtime / browser または protocol client テストに依る。
+
+対応する実 L4 行が無い限り **production-supported ではない**: 企業 IdP (Okta、Microsoft Entra ID など)、
+下流 SaaS SSO/SCIM (Slack、GitHub Enterprise など)、実シークレットと callback を伴う social OAuth、
+SMS/WhatsApp 配信。ローカル実装や `provider-ready` は production-supported の主張ではない。
+
+証跡階層 (L0 から L4) と機能ごとのサポートレベルは
+[`docs/protocols/README.md`](docs/protocols/README.md) が正であり、ここでの要約より優先する。
 
 ## なぜ XID か
 

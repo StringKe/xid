@@ -3364,8 +3364,8 @@ msgid "Every webhook delivery is an HTTP POST with <0>Content-Type: application/
 msgstr "모든 웹훅 전달은 <0>Content-Type: application/json</0>을 사용하는 HTTP POST입니다. 본문에는 정확한 이벤트 <1>유형</1>과 해당 <2>데이터</2>가 포함됩니다. svix 메타데이터는 요청 헤더에 포함됩니다."
 
 #: apps/site/src/lib/home-surface.ts
-msgid "Evidence before compatibility claims"
-msgstr "호환성 주장 전의 증거"
+msgid "Evidence and support"
+msgstr "근거와 지원"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Evidence ledger"
@@ -4047,6 +4047,10 @@ msgstr "이름"
 #: apps/server/src/routes/consent/ClientHeader.tsx
 msgid "first-party"
 msgstr "퍼스트파티"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
+msgstr "1차 Hosted Auth, Console, Management API 경로는 xid.dev에서 production 근거가 있습니다. 엔터프라이즈 IdP, 다운스트림 SaaS, 소셜 OAuth, SMS 또는 WhatsApp 주장은 해당 실제 L4 행이 있기 전까지 production-supported가 아닙니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Flutter"
@@ -7141,10 +7145,6 @@ msgstr "다시 조회하기 전에 기다려 주세요."
 msgid "Plugin setup"
 msgstr "플러그인 설정"
 
-#: apps/site/src/lib/home-surface.ts
-msgid "Pre-1.0 status"
-msgstr "1.0 이전 상태"
-
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "환경설정"
@@ -7254,6 +7254,10 @@ msgstr "Production 구성"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Production evidence"
 msgstr "생산 증거"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "Production where proven, local where not"
+msgstr "검증된 곳은 production, 그 외는 로컬"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
@@ -10063,10 +10067,6 @@ msgstr "제품 표면"
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "프로젝트를 찾을 수 없습니다."
-
-#: apps/site/src/lib/home-surface.ts
-msgid "The protocol matrix separates implemented behavior, local conformance evidence, and production support. SAML is not described as production-ready until it is validated against a real identity provider."
-msgstr "프로토콜 매트릭스는 구현된 동작, 로컬 적합성 증거 및 생산 지원을 분리합니다. SAML은 실제 ID 공급자에 대해 검증될 때까지 프로덕션 준비가 완료된 것으로 설명되지 않습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"

@@ -13,14 +13,20 @@ Core Worker는 OIDC/OAuth, 멀티 테넌트 RBAC, 엔터프라이즈 SSO 페더�
 
 ## 프로젝트 상태
 
-**Pre-1.0 단계입니다. 아직 프로덕션에서 사용하지 마십시오.** 아래의 모든 기능은 로컬 근거만
-확보한 상태입니다. 즉 유닛 테스트, Workers 런타임 통합 테스트, 그리고 로컬 빌드를 대상으로 한
-브라우저 또는 프로토콜 클라이언트 스모크 테스트뿐입니다. 실제 외부 Identity Provider, 실제 하위
-SaaS 애플리케이션, 실제 소셜 OAuth provider, 실제 SMS/WhatsApp 발송에 대해 종단 간으로 검증된
-항목은 없습니다. 근거 등급(L0에서 L4까지)과 기능별 지원 수준은
-[`docs/protocols/README.md`](docs/protocols/README.md)에 정의되어 있으며, 이 문서의 요약보다 해당
-문서가 우선합니다. 인터페이스, 데이터베이스 스키마, 패키지 API는 deprecation 기간 없이 변경될 수
-있습니다.
+**Pre-1.0.** 1.0.0 이전에는 공개 API, 데이터베이스 스키마, 패키지 표면이 긴 deprecation 기간 없이
+바뀔 수 있습니다.
+
+호스팅 배포 [https://xid.dev](https://xid.dev)는 운영 중입니다. 1차 Hosted Auth, Console, Management
+API 및 관련 핵심 경로는 해당 배포에 대한 **production (L4)** 근거가 있습니다
+([`docs/api-contracts.md`](docs/api-contracts.md), `pnpm run smoke:production*` 참조). 더 넓은 매트릭스는
+여전히 로컬 L0–L3 유닛/Workers 런타임/브라우저 또는 프로토콜 클라이언트 테스트에 의존합니다.
+
+대응 실제 L4 행이 있기 전까지 **production-supported가 아닌** 항목: 엔터프라이즈 IdP(Okta, Microsoft
+Entra ID 등), 다운스트림 SaaS SSO/SCIM(Slack, GitHub Enterprise 등), 실제 시크릿·콜백이 있는 소셜
+OAuth, SMS/WhatsApp 발송. 로컬 구현 또는 `provider-ready`는 production-supported 주장이 아닙니다.
+
+근거 등급(L0–L4)과 기능별 지원 수준은
+[`docs/protocols/README.md`](docs/protocols/README.md)가 권위 문서이며 이 요약보다 우선합니다.
 
 ## XID를 만든 이유
 

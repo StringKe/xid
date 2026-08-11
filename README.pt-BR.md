@@ -13,14 +13,22 @@ diretamente no apex, enquanto um Console Worker isolado fornece a interface de g
 
 ## Situação do projeto
 
-**Pré-1.0. Ainda não coloque isto em produção.** Todos os recursos abaixo têm como respaldo apenas
-evidências locais: testes unitários, testes de integração no runtime dos Workers e smoke tests via
-navegador ou cliente de protocolo contra um build local. Nada foi verificado de ponta a ponta contra
-um provedor de identidade externo real, uma aplicação SaaS downstream real, um provedor OAuth social
-real ou entrega real de SMS/WhatsApp. Os níveis de evidência (L0 a L4) e o grau de suporte por
-recurso estão definidos em [`docs/protocols/README.md`](docs/protocols/README.md), que prevalece
-sobre qualquer resumo apresentado aqui. Interfaces, schema de banco de dados e APIs dos pacotes podem
-mudar sem período de depreciação.
+**Pré-1.0.** Até a 1.0.0, APIs públicas, schema de banco e superfícies de pacotes ainda podem mudar
+sem um longo período de depreciação.
+
+O deploy hospedado [https://xid.dev](https://xid.dev) está no ar. Caminhos first-party de Hosted
+Auth, Console, Management API e núcleos relacionados têm evidência **production (L4)** contra esse
+deploy (ver [`docs/api-contracts.md`](docs/api-contracts.md) e as gates
+`pnpm run smoke:production*`). O restante da matriz ainda se apoia em testes locais L0–L3 (unitários,
+runtime Workers, navegador ou cliente de protocolo).
+
+**Não** é production-supported enquanto não existir linha L4 real para o caminho: IdPs empresariais
+(Okta, Microsoft Entra ID etc.), SSO/SCIM SaaS downstream (Slack, GitHub Enterprise etc.), OAuth
+social com segredos e callbacks reais, e entrega SMS/WhatsApp. Implementação local ou
+`provider-ready` não é afirmação production-supported.
+
+Níveis de evidência (L0 a L4) e de suporte por recurso estão em
+[`docs/protocols/README.md`](docs/protocols/README.md), que prevalece sobre qualquer resumo aqui.
 
 ## Por que o XID
 
