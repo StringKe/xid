@@ -25,14 +25,14 @@ serde_json = "1"
 url = "2"
 
 # Base64url 编解码 (PKCE code_challenge)
-base64 = { version = "0.22", features = ["alloc"] }
+base64 = { version = "0.23", features = ["alloc"] }
 
 # SHA-256 (PKCE S256)
-sha2 = "0.10"
-digest = "0.10"
+sha2 = "0.11"
+digest = "0.11"
 
 # 随机数生成 (code_verifier, state)
-rand = "0.8"
+rand = "0.10"
 
 # 异步运行时
 tokio = { version = "1", features = ["full"] }
@@ -45,10 +45,10 @@ async-trait = "0.1"
 secret-service = { version = "5.1.0", features = ["rt-tokio-crypto-rust"], optional = true }
 
 # 错误处理
-thiserror = "1"
+thiserror = "2"
 
 # JWT 解码 (仅结构解析,签名验证通过 JWKS + jsonwebtoken)
-jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
+jsonwebtoken = { version = "11.0.0", features = ["aws_lc_rs"] }
 
 # 时间处理 (token 过期检查)
 time = { version = "0.3", features = ["serde"] }
@@ -56,7 +56,7 @@ time = { version = "0.3", features = ["serde"] }
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 mockito = "1"
-p256 = { version = "0.13", features = ["pkcs8"] }
+p256 = { version = "0.14", features = ["pkcs8"] }
 
 [features]
 default = []
