@@ -4,10 +4,9 @@
 
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import type { ColumnDef } from '@tanstack/react-table'
-import { DataTable } from './DataTable'
+import { DataTable, type DataTableColumnDef, type DataTableRow } from './DataTable'
 
-export type TableColumn<T> = {
+export type TableColumn<T extends DataTableRow> = {
   key: string
   header: ReactNode
   // 渲染单元格内容;row 已类型化。
@@ -16,7 +15,7 @@ export type TableColumn<T> = {
   width?: string
 }
 
-export type TableProps<T> = {
+export type TableProps<T extends DataTableRow> = {
   columns: ReadonlyArray<TableColumn<T>>
   rows: ReadonlyArray<T>
   getRowKey: (row: T) => string
@@ -28,7 +27,9 @@ export type TableProps<T> = {
   caption?: string
 }
 
-function toColumnDefs<T>(columns: ReadonlyArray<TableColumn<T>>): ColumnDef<T>[] {
+function toColumnDefs<T extends DataTableRow>(
+  columns: ReadonlyArray<TableColumn<T>>,
+): DataTableColumnDef<T>[] {
   return columns.map((col) => ({
     id: col.key,
     header: () => col.header,
@@ -37,7 +38,7 @@ function toColumnDefs<T>(columns: ReadonlyArray<TableColumn<T>>): ColumnDef<T>[]
   }))
 }
 
-export function Table<T>({
+export function Table<T extends DataTableRow>({
   columns,
   rows,
   getRowKey,

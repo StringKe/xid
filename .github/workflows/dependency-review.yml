@@ -30,5 +30,7 @@ jobs:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: high
-          deny-licenses: AGPL-1.0-or-later, AGPL-3.0-or-later, GPL-2.0-or-later, GPL-3.0-or-later, LGPL-2.0-or-later, LGPL-3.0-or-later, SSPL-1.0
+          # LGPL is intentionally allowed: `next>sharp` ships @img/sharp-libvips-*
+          # platform binaries under LGPL-3.0. Stronger copyleft (GPL/AGPL/SSPL) stays denied.
+          deny-licenses: AGPL-1.0-or-later, AGPL-3.0-or-later, GPL-2.0-or-later, GPL-3.0-or-later, SSPL-1.0
           comment-summary-in-pr: never

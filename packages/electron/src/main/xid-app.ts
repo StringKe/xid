@@ -189,7 +189,13 @@ export class XidElectronApp {
   async #handleSignIn(options?: SignInOptions): Promise<string> {
     const subtle = webcrypto.subtle
     const randomValues = (arr: Uint8Array): Uint8Array => {
-      webcrypto.getRandomValues(arr)
+      // Node 26 types require Uint8Array<ArrayBuffer>; copy into a fresh buffer view.
+      const view =
+        arr.buffer instanceof ArrayBuffer
+          ? new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)
+          : new Uint8Array(arr)
+      webcrypto.getRandomValues(view)
+      if (view !== arr) arr.set(view)
       return arr
     }
 

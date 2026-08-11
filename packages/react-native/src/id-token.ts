@@ -46,11 +46,21 @@ export type VerifyNativeIdTokenInput = {
   fetcher?: typeof fetch
 }
 
+// Avoid trailing-slash regex: CodeQL flags `/\/+$/` as polynomial ReDoS on
+// library-controlled issuer strings that contain long runs of '/'.
+function stripTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) {
+    end -= 1
+  }
+  return end === value.length ? value : value.slice(0, end)
+}
+
 export async function verifyNativeIdToken(
   idToken: string,
   input: VerifyNativeIdTokenInput,
 ): Promise<NativeIdTokenClaims> {
-  const issuer = input.issuer.replace(/\/+$/, '')
+  const issuer = stripTrailingSlashes(input.issuer)
   const jwksUri = new URL('/jwks', `${issuer}/`).toString()
   let keySet = await loadKeySet(jwksUri, input.fetcher ?? fetch, false)
   let result = await verifyJwt(idToken, keySet, {
