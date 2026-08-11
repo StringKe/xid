@@ -14,7 +14,7 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useCreateScimDirectory, useOrgScimDirectoriesQuery, useRotateScimToken } from './queries'
 import type { ScimDirectory } from './types'

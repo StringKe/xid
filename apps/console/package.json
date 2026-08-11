@@ -38,7 +38,7 @@
     "@stylexjs/unplugin": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "^6.0.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "jsdom": "catalog:",
     "typescript": "^6.0.3",
     "vite": "catalog:",

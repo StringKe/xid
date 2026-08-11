@@ -1,32 +1,33 @@
-// DataTable<T>:基于 @tanstack/react-table 的通用表格(useReactTable + getCoreRowModel + flexRender)。
+// DataTable<T>:基于 @tanstack/react-table 的通用表格。
+// v9 起 useReactTable / getCoreRowModel 迁到 /legacy;本组件继续走 legacy 兼容层。
 // 三态:loading(骨架行) / empty(空态文案) / 数据。cursor 分页由外部 Pagination 配合,本组件只渲染当前页。
-// 列定义用 TanStack ColumnDef<T>(header / cell 走 flexRender,可放 lingui <Trans>);宽度经 meta.width。
+// 列定义用 LegacyColumnDef<T>(header / cell 走 flexRender,可放 lingui <Trans>);宽度经 meta.width。
 // 行点击经 onRowClick(键盘 Enter/Space 同触发,role=button + tabIndex)。
 // 样式走 StyleX,引用主题 tokens(--xid-*);列宽与骨架透明度为运行时动态值。
 
 import type { ReactNode } from 'react'
+import { flexRender } from '@tanstack/react-table'
 import {
-  flexRender,
   getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-  type Row,
-  type RowData,
-} from '@tanstack/react-table'
+  useLegacyTable,
+  type LegacyColumnDef,
+  type LegacyRow,
+} from '@tanstack/react-table/legacy'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { Spinner } from './Spinner'
 
-// 列宽放 ColumnDef.meta.width(TanStack meta 为开放扩展点),DataTable 读它设 <th> width。
-// TanStack 的 ColumnMeta 是空 interface,这里经 interface 声明合并扩展(type 会触发 Duplicate identifier)。
-declare module '@tanstack/react-table' {
-  interface ColumnMeta<TData extends RowData, TValue> {
-    width?: string
-  }
+// v9 RowData = Record<string, any> | Array<any>;业务行都是对象。
+export type DataTableRow = Record<string, unknown>
+
+export type DataTableColumnDef<T extends DataTableRow> = LegacyColumnDef<T>
+
+type ColumnWidthMeta = {
+  width?: string
 }
 
-export type DataTableProps<T> = {
-  columns: ReadonlyArray<ColumnDef<T>>
+export type DataTableProps<T extends DataTableRow> = {
+  columns: ReadonlyArray<DataTableColumnDef<T>>
   data: ReadonlyArray<T>
   // 稳定行键(default:索引)。
   getRowId?: (row: T, index: number) => string
@@ -135,7 +136,7 @@ function defaultRowId<T>(_row: T, index: number): string {
   return String(index)
 }
 
-export function DataTable<T>({
+export function DataTable<T extends DataTableRow>({
   columns,
   data,
   getRowId = defaultRowId,
@@ -145,9 +146,9 @@ export function DataTable<T>({
   isRowSelected,
   caption,
 }: DataTableProps<T>): ReactNode {
-  const table = useReactTable<T>({
+  const table = useLegacyTable<T>({
     data: data as T[],
-    columns: columns as ColumnDef<T>[],
+    columns: columns as DataTableColumnDef<T>[],
     getRowId,
     getCoreRowModel: getCoreRowModel(),
   })
@@ -168,11 +169,11 @@ export function DataTable<T>({
                   key={header.id}
                   scope="col"
                   {...stylex.props(styles.th)}
-                  style={
-                    header.column.columnDef.meta?.width
-                      ? { width: header.column.columnDef.meta.width }
-                      : undefined
-                  }
+                  style={(() => {
+                    const width = (header.column.columnDef.meta as ColumnWidthMeta | undefined)
+                      ?.width
+                    return width ? { width } : undefined
+                  })()}
                 >
                   {header.isPlaceholder
                     ? null
@@ -228,13 +229,17 @@ function SkeletonRows({ colCount }: { colCount: number }): ReactNode {
   )
 }
 
-type DataRowProps<T> = {
-  row: Row<T>
+type DataRowProps<T extends DataTableRow> = {
+  row: LegacyRow<T>
   onRowClick?: (row: T) => void
   isRowSelected?: (row: T) => boolean
 }
 
-function DataRow<T>({ row, onRowClick, isRowSelected }: DataRowProps<T>): ReactNode {
+function DataRow<T extends DataTableRow>({
+  row,
+  onRowClick,
+  isRowSelected,
+}: DataRowProps<T>): ReactNode {
   const clickable = Boolean(onRowClick)
   const selected = isRowSelected?.(row.original) ?? false
 

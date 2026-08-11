@@ -2,7 +2,7 @@
 // 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'

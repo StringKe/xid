@@ -19,17 +19,23 @@ const VERIFIER_LENGTH = 64
  * Caller must pass a crypto implementation (allows Node crypto.webcrypto in
  * main process and window.crypto in renderer/test environments).
  */
+// @types/node >= 22.13 / 26 specialize getRandomValues on Uint8Array<ArrayBuffer>.
+// Call sites may still hold the broader ArrayBufferLike form; normalize here.
+export type RandomValuesFn = (arr: Uint8Array) => Uint8Array
+
 export async function generatePkceChallenge(
   subtle: SubtleCrypto,
-  randomValues: (arr: Uint8Array) => Uint8Array,
+  randomValues: RandomValuesFn,
 ): Promise<PkceChallenge> {
   const codeVerifier = generateVerifier(randomValues)
   const codeChallenge = await computeS256(subtle, codeVerifier)
   return { codeVerifier, codeChallenge, codeChallengeMethod: 'S256' }
 }
 
-function generateVerifier(randomValues: (arr: Uint8Array) => Uint8Array): string {
-  return randomString(VERIFIER_LENGTH, VERIFIER_CHARS, randomValues)
+function generateVerifier(randomValues: RandomValuesFn): string {
+  return randomString(VERIFIER_LENGTH, VERIFIER_CHARS, (bytes) => {
+    randomValues(bytes)
+  })
 }
 
 async function computeS256(subtle: SubtleCrypto, verifier: string): Promise<string> {
@@ -52,7 +58,7 @@ function base64UrlEncode(bytes: Uint8Array): string {
  * Build the state parameter: a random URL-safe string for CSRF protection.
  * Stored by the caller alongside the code_verifier before launching the browser.
  */
-export function generateState(randomValues: (arr: Uint8Array) => Uint8Array): string {
+export function generateState(randomValues: RandomValuesFn): string {
   const bytes = randomValues(new Uint8Array(32))
   return base64UrlEncode(bytes)
 }

@@ -3,7 +3,7 @@
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Alert, Badge, Button } from '@xid-kit/web-ui/ui'
