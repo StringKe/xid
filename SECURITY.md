@@ -5,11 +5,13 @@ tenant deployed on it. Security reports are handled with priority over feature w
 
 ## Maturity statement
 
-**XID is pre-1.0 and is not production-supported.** End-to-end verification against real external
-systems (enterprise IdPs such as Okta, Microsoft Entra ID, and Google Workspace; downstream SaaS
-SCIM targets; social login providers; SMS and WhatsApp delivery) is incomplete for every capability.
-Local implementation with unit and integration tests does not imply production readiness. Deploying
-XID to handle real user credentials today is at your own risk.
+**XID is pre-1.0.** Public APIs and schema may still change before 1.0.0. The hosted deployment at
+https://xid.dev is live, and first-party Hosted Auth, Console, and Management API paths have
+production (L4) evidence against that instance. Capabilities that depend on **external** systems
+(enterprise IdPs such as Okta, Microsoft Entra ID, and Google Workspace; downstream SaaS SSO/SCIM;
+social login providers; SMS and WhatsApp delivery) are **not** production-supported until a real L4
+row is recorded for that path. Local L0–L3 evidence is not a production-supported claim. Self-hosting
+for real credentials where those external L4 rows are missing remains at your own risk.
 
 This statement is not a reason to withhold a report. It is context for how findings are triaged.
 

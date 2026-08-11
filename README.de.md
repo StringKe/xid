@@ -13,15 +13,22 @@ vom Apex, während ein isolierter Console Worker die Verwaltungsoberfläche bere
 
 ## Projektstatus
 
-**Vor 1.0. Noch nicht produktiv einsetzen.** Jede unten genannte Fähigkeit ist ausschließlich durch
-lokale Nachweise belegt: Unit-Tests, Integrationstests in der Workers-Runtime sowie Browser- bzw.
-Protokoll-Client-Smoke-Tests gegen einen lokalen Build. Nichts wurde Ende-zu-Ende gegen einen echten
-externen Identity Provider, eine echte nachgelagerte SaaS-Anwendung, einen echten
-Social-OAuth-Provider oder echten SMS-/WhatsApp-Versand verifiziert. Evidenzstufen (L0 bis L4) und
-die Unterstützungsgrade je Funktion sind in
-[`docs/protocols/README.md`](docs/protocols/README.md) definiert; dieses Dokument ist gegenüber
-jeder Zusammenfassung hier maßgeblich. Schnittstellen, Datenbankschema und Paket-APIs können sich
-ohne Deprecation-Phase ändern.
+**Vor 1.0 (Pre-1.0).** Bis 1.0.0 können öffentliche APIs, Datenbankschema und Paket-Oberflächen noch
+ohne lange Deprecation-Phase ändern.
+
+Die gehostete Bereitstellung [https://xid.dev](https://xid.dev) läuft produktiv. First-Party-Pfade
+von Hosted Auth, Console, Management API und verwandten Kernflächen haben **Production-(L4)**-Nachweise
+gegen diese Instanz (siehe [`docs/api-contracts.md`](docs/api-contracts.md) und
+`pnpm run smoke:production*`). Die breitere Matrix stützt sich weiterhin auf lokale L0–L3-Unit-,
+Workers-Runtime- und Browser- bzw. Protokoll-Client-Tests.
+
+**Nicht** production-supported, solange keine echte L4-Zeile für den Pfad vorliegt: Enterprise-IdPs
+(Okta, Microsoft Entra ID u. a.), Downstream-SaaS-SSO/SCIM (Slack, GitHub Enterprise u. a.), Social
+OAuth mit echten Secrets und Callbacks sowie SMS-/WhatsApp-Zustellung. Lokale Implementierung oder
+`provider-ready` ist keine production-supported-Aussage.
+
+Evidenzstufen (L0 bis L4) und Unterstützungsgrade je Funktion stehen in
+[`docs/protocols/README.md`](docs/protocols/README.md) und haben Vorrang vor jeder Zusammenfassung hier.
 
 ## Warum XID
 

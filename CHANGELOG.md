@@ -44,6 +44,10 @@ OpenSSF Best Practices self-certification notes: [`docs/openssf-best-practices.m
   `CHANGELOG.md`.
 - Homepage footer and README community tables now link Support, Security, and Contributing for
   feedback and contribution discovery.
+- Project status copy no longer claims zero production evidence. It states pre-1.0 API instability,
+  live first-party L4 on `https://xid.dev`, and that external IdP/SaaS/social/SMS paths stay
+  non-production-supported until their L4 rows exist (`README*`, `SECURITY.md`, `SUPPORT.md`, site
+  home evidence blurb).
 
 ### Added
 

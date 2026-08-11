@@ -12,11 +12,19 @@ OIDC/OAuth、多租户 RBAC、企业 SSO 联邦、Hosted Auth 与 account 页面
 
 ## 项目状态
 
-**Pre-1.0,请勿用于生产环境。** 下文列出的每一项能力目前都只有本地证据支撑:单元测试、Workers 运行时
-集成测试,以及针对本地构建的浏览器或协议客户端冒烟测试。没有任何一项针对真实外部身份提供方、真实下游
-SaaS 应用、真实社交 OAuth 提供方或真实 SMS/WhatsApp 投递做过端到端验证。证据分级(L0 到 L4)与各功能的
-支持级别定义在 [`docs/protocols/README.md`](docs/protocols/README.md),该文档的效力高于这里的任何概述。
-接口、数据库 schema 与包 API 可能在没有弃用期的情况下变更。
+**Pre-1.0。** 在 1.0.0 之前,公开 API、数据库 schema 与包表面仍可能在没有长弃用期的情况下变更。
+
+托管部署 [https://xid.dev](https://xid.dev) 已在线。第一方 Hosted Auth、Console、Management API 及
+相关核心路径对该部署已有 **production (L4)** 证据(见 [`docs/api-contracts.md`](docs/api-contracts.md)
+与 `pnpm run smoke:production*` 门禁)。更广的协议矩阵仍主要依赖本地 L0–L3 单元测试、Workers 运行时
+集成测试,以及浏览器或协议客户端冒烟测试。
+
+在出现对应真实 L4 记录之前,**尚不能**称为 production-supported 的包括:企业 IdP(Okta、Microsoft
+Entra ID 等)、下游 SaaS SSO/SCIM(Slack、GitHub Enterprise 等)、带真实密钥与回调的社交 OAuth,以及
+SMS/WhatsApp 投递。本地实现或 `provider-ready` 不等于 production-supported。
+
+证据分级(L0 到 L4)与各功能支持级别以
+[`docs/protocols/README.md`](docs/protocols/README.md) 为准,效力高于此处任何概述。
 
 ## 为什么是 XID
 

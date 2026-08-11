@@ -14,15 +14,22 @@ de gestion.
 
 ## État du projet
 
-**Pré-1.0. Ne déployez pas encore ce projet en production.** Chacune des capacités décrites
-ci-dessous ne repose que sur des preuves locales : tests unitaires, tests d'intégration sur le
-runtime Workers et tests de fumée menés depuis un navigateur ou un client de protocole contre un
-build local. Rien n'a été vérifié de bout en bout face à un véritable fournisseur d'identité
-externe, à une véritable application SaaS en aval, à un véritable fournisseur OAuth social ou à une
-véritable livraison SMS/WhatsApp. Les niveaux de preuve (L0 à L4) et les niveaux de support par
-fonctionnalité sont définis dans [`docs/protocols/README.md`](docs/protocols/README.md), qui fait
-autorité sur tout résumé présenté ici. Les interfaces, le schéma de base de données et les API des
-packages peuvent changer sans période de dépréciation.
+**Pré-1.0.** Jusqu'à la 1.0.0, les API publiques, le schéma de base de données et les surfaces de
+packages peuvent encore évoluer sans longue période de dépréciation.
+
+Le déploiement hébergé [https://xid.dev](https://xid.dev) est en production. Les chemins first-party
+Hosted Auth, Console, Management API et cœurs associés ont des preuves **production (L4)** contre ce
+déploiement (voir [`docs/api-contracts.md`](docs/api-contracts.md) et les gates
+`pnpm run smoke:production*`). Le reste de la matrice s'appuie encore largement sur les tests locaux
+L0–L3 (unitaires, runtime Workers, navigateur ou client de protocole).
+
+**Pas** production-supported tant qu'il n'existe pas de ligne L4 réelle pour le chemin concerné :
+IdP d'entreprise (Okta, Microsoft Entra ID, etc.), SSO/SCIM SaaS aval (Slack, GitHub Enterprise,
+etc.), OAuth social avec secrets et callbacks réels, livraison SMS/WhatsApp. Une implémentation
+locale ou un statut `provider-ready` n'est pas une affirmation production-supported.
+
+Les niveaux de preuve (L0 à L4) et de support par fonctionnalité sont définis dans
+[`docs/protocols/README.md`](docs/protocols/README.md), qui prime sur tout résumé ici.
 
 ## Pourquoi XID
 

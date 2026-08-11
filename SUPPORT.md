@@ -39,9 +39,11 @@ Then:
 
 ## Support expectations
 
-Nothing in this repository is production-supported. Verification against real external identity
-providers and downstream systems is incomplete. Support levels follow the L0-L4 evidence tiers
-defined in `docs/protocols/` and `docs/sdks/platform-matrix.md`; those documents are authoritative.
+Community support is best-effort with no service level agreement. First-party paths on the hosted
+deployment may have production (L4) evidence; external IdP, SaaS SSO/SCIM, social OAuth, and
+SMS/WhatsApp claims stay non-production-supported until the matching L4 row exists. Support levels
+follow the L0–L4 evidence tiers in `docs/protocols/` and `docs/sdks/platform-matrix.md`; those
+documents are authoritative.
 
 Commercial support for the hosted service at [xid.dev](https://xid.dev) is separate from this
 repository and is not covered by community channels.
