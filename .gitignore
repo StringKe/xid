@@ -1,3 +1,4 @@
+# stdagent 本地缓存/状态(源标准在 .stdai/standards,不同步这些运行时产物)
 .stdai/cache/
 .stdai/backups/
 .stdai/logs/
@@ -6,9 +7,16 @@
 # dependencies
 node_modules/
 
-# 原生 SDK 构建产物与本地环境(各语言工具链生成,不入库)
+# monorepo 构建与缓存(匹配任意深度的同名目录)
+dist/
+build/
+coverage/
+.turbo/
+.react-router/
+*.tsbuildinfo
+
+# 原生 SDK 工具链产物(Rust/Gradle/Dart/Go 等)
 sdk/**/target/
-sdk/**/build/
 sdk/**/.gradle/
 sdk/**/bin/
 sdk/**/obj/
@@ -19,41 +27,27 @@ sdk/**/local.properties
 sdk/**/.flutter-plugins-dependencies
 sdk/**/pubspec.lock
 
-# build outputs
-dist/
-build/
-coverage/
-.react-router/
-.turbo/
-*.tsbuildinfo
-
-# cloudflare
+# Cloudflare / 本地实例
 .wrangler/
 .dev.vars
-# wrangler per-environment 本地机密:.dev.vars.local / .dev.vars.production 等。
-# 否定规则必须排在通配之后才生效。
 .dev.vars.*
 !.dev.vars.example
 worker-configuration.d.ts
 .xid/
 
-# 本地 AI 工具个人配置(非 stdagent 产物,不进仓库)
+# 本地 AI 会话与个人笔记(不入库;stdagent 同步产物在 .agents/.claude 等)
 .grok/
 docs/sdlc/
-
-# logs / os
-*.log
-.DS_Store
-
-# 本地预览截图
 .shot/
 
-# env
+# env / logs / os
 .env
 .env.*
 !.env.example
+*.log
+.DS_Store
 
-# 密钥与证书材料(SAML 证书轮换、signing key 导出、Android keystore、误拷 SSH 私钥)
+# 密钥与证书材料
 *.pem
 *.key
 *.crt
@@ -65,7 +59,7 @@ docs/sdlc/
 id_rsa*
 id_ed25519*
 
-# GeoIP 数据库(设计上存 R2,本地调试落盘的大文件不入库)
+# GeoIP 本地调试大文件(设计上存 R2)
 *.mmdb
 
 # 解释器缓存
