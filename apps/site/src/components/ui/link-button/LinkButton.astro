@@ -1,19 +1,5 @@
 ---
-/**
- * LinkButton — an anchor styled as a button.
- *
- *   <LinkButton href="/start" variant="primary">Get started</LinkButton>
- *   <LinkButton href="/getting-started" variant="secondary">Read the docs</LinkButton>
- *   <LinkButton href="#" variant="minimal" icon>Learn more</LinkButton>
- *   <LinkButton href="/x" shape="square" aria-label="Open"> … </LinkButton>
- *
- * The `icon` prop appends a right-caret that nudges on hover.
- *
- * Styling is delegated to the shared `ui/button/variants`, so LinkButton and
- * Button stay visually identical. The original props are preserved (used by
- * MDX): the LinkButton-only aliases map onto the shared vocabulary —
- * `minimal → ghost`, `md → base`.
- */
+// MDX 兼容别名：minimal→ghost、md→base；样式走 button/variants。
 import { cn } from "@/lib/cn";
 import { Icon } from "astro-icon/components";
 import type { HTMLAttributes } from "astro/types";
@@ -27,13 +13,9 @@ import {
 
 interface Props extends HTMLAttributes<"a"> {
   href: string;
-  /** Original `primary | secondary | minimal`, plus Button's variants. */
   variant?: ButtonVariant | "minimal";
-  /** Original `sm | md | lg`, plus Button's `xs | base`. */
   size?: ButtonSize | "md";
-  /** `base` (default) · `square` · `circle` (icon-only — pass `aria-label`). */
   shape?: ButtonShape;
-  /** Append a caret-right that nudges on hover. */
   icon?: boolean;
 }
 
@@ -47,7 +29,6 @@ const {
   ...attrs
 } = Astro.props;
 
-// Map the LinkButton-only aliases onto the shared Button vocabulary.
 const resolvedVariant: ButtonVariant = variant === "minimal" ? "ghost" : variant;
 const resolvedSize: ButtonSize = size === "md" ? "base" : size;
 ---

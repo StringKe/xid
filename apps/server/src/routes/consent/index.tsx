@@ -1,5 +1,4 @@
-// /consent:OIDC 授权同意页。设计真相源:docs/design/03-oidc-oauth.md 第 6 节。
-// GET /auth/consent-params 拉展示参数,POST /auth/consent {prompt_id, approved} 提交。
+// OIDC 同意页:GET /auth/consent-params,POST /auth/consent {prompt_id, approved}。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useId } from 'react'
@@ -19,19 +18,17 @@ import { ClientHeader } from './ClientHeader'
 import { ScopeList, AuthorizationDetailsList } from './ScopeList'
 import { ConsentActions } from './ConsentActions'
 
-// Worker GET /auth/consent-params 的响应契约。
 export type ConsentParams = {
   clientId: string
   clientName: string
   clientLogoUrl: string | null
-  // scope 列表,每条带 name(机器名)与 description(人类可读,后端已本地化)。
   scopes: readonly { name: string; description: string }[]
   authorizationDetails: readonly {
     type: 'resource_access'
     locations: readonly string[]
     actions: readonly string[]
   }[]
-  // 本次是否为 first-party app(first-party 通常静默通过,但 prompt=consent 强制显示)。
+  // first-party 通常静默;prompt=consent 仍强制显示。
   firstParty: boolean
 }
 
@@ -61,7 +58,6 @@ function ConsentPage(): ReactNode {
   const promptId = search.prompt_id ?? search.authz_request_id ?? ''
   const titleId = useId()
 
-  // 拉取 consent 展示参数。
   const paramsQuery = useQuery({
     queryKey: ['consent-params', promptId],
     enabled: Boolean(promptId),
@@ -211,5 +207,4 @@ export const Route = createLazyRoute('/consent')({
   component: ConsentPage,
 })
 
-// default export 供 router.tsx protectedRoute 工厂使用(RequireAuth 守卫注入)。
 export default ConsentPage

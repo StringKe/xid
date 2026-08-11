@@ -1,28 +1,16 @@
-// @xid-kit/angular: Angular 17+ SDK for the XID identity platform.
-// Angular standalone style (no NgModule). Requires @angular/core >=17.0.0.
-//
-// Quick start (app.config.ts):
-//   import { provideXid } from '@xid-kit/angular'
-//   export const appConfig: ApplicationConfig = {
-//     providers: [provideXid({ mode: 'same-origin' })]
-//   }
+// @xid-kit/angular：Angular 17+ 独立组件风格 SDK（无 NgModule）。
 
-// --- Provider / DI ---
 export { provideXid, XID_CLIENT } from './provider'
 export type { ProvideXidOptions } from './provider'
 
-// --- Injectable service ---
 export { XidAuthService } from './xid-auth.service'
 
-// --- Route guards (CanActivateFn factories) ---
 export { authGuard, hasOrganizationGuard, hasPermissionGuard } from './guards'
 
-// --- Standalone components ---
 export { SignInButton } from './sign-in-button.component'
 export { SignOutButton } from './sign-out-button.component'
 
-// --- @xid-kit/core re-exports ---
-// Angular apps only need to import from @xid-kit/angular.
+// 应用侧只需从本包导入；核心类型与客户端由 @xid-kit/core 再导出。
 export {
   XidClient,
   XidStore,

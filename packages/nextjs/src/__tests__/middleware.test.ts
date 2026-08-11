@@ -1,20 +1,17 @@
-// xidMiddleware 安全/行为单元测试:
-//  - 注入的 x-xid-auth 只透传到下游 request,绝不出现在发回浏览器的响应头(防泄露)。
-//  - 修改后的 request headers 携带 x-xid-auth 供下游 RSC/route handler 读取(透传正确)。
-//  - 受保护路由未认证 -> 302 重定向。
-// next/server 是 peer dep(未安装),用 vi.mock 提供最小 NextResponse 实现。
+// xidMiddleware：x-xid-auth 只透传下游 request、不进响应头；受保护路由未认证 302。
+// next/server 为 peer dep，vi.mock 提供最小 NextResponse。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import { exportPublicJwk, signJwt } from '@xid-kit/crypto'
 import type { PublicJwk } from '@xid-kit/crypto'
 
-// 记录 NextResponse.next() 收到的下游 request headers,供断言透传。
+// 捕获 next() 收到的下游 request headers，供透传断言。
 let lastNextRequestHeaders: Headers | undefined
 
 vi.mock('next/server', () => {
-  // 用普通对象模拟 NextResponse 静态接口,避免继承 Response 触发 static override 约束。
+  // 普通对象模拟静态接口，避免继承 Response 触发 static override。
   const NextResponse = {
-    // next():响应自身不携带 request headers(模拟真实 Next 行为:request headers 只对下游生效)。
+    // 响应体不带 request headers（对齐真实 Next：request 头只对下游生效）。
     next(init?: { request?: { headers?: Headers } }): Response {
       lastNextRequestHeaders = init?.request?.headers
       return new Response(null, { status: 200 })
@@ -27,7 +24,7 @@ vi.mock('next/server', () => {
   return { NextResponse }
 })
 
-// 动态 import 在 mock 之后,确保 middleware 取到 mock 的 next/server。
+// mock 之后再 import，确保取到 mock 的 next/server。
 const { xidMiddleware } = await import('../middleware')
 
 type TestKey = { kid: string; signingKey: CryptoKey; publicJwk: PublicJwk }
@@ -64,7 +61,6 @@ async function mintToken(key: TestKey): Promise<string> {
   )
 }
 
-// 构造 NextRequest-like:用真实 Request 承载 headers,补 nextUrl/url/cookies/method。
 function makeNextRequest(url: string, cookieHeader?: string): Record<string, unknown> {
   const req = new Request(url, cookieHeader ? { headers: { cookie: cookieHeader } } : undefined)
   const nextUrl = new URL(url)
@@ -93,9 +89,8 @@ describe('xidMiddleware response does not leak x-xid-auth', () => {
     const request = makeNextRequest('https://acme.xid.dev/dashboard', `__Host-app.xid.jwt=${token}`)
     const res = (await mw(request as never)) as Response
 
-    // 响应头绝不含 x-xid-auth(防止完整 claims 泄露给浏览器)。
+    // 响应头不得含 x-xid-auth（防 claims 泄露浏览器）。
     expect(res.headers.get('x-xid-auth')).toBeNull()
-    // 下游 request headers 携带注入的认证态,供 auth()/getAuth() 读取。
     expect(lastNextRequestHeaders).toBeDefined()
     expect(lastNextRequestHeaders?.get('x-xid-auth')).toBeTruthy()
   })
@@ -125,7 +120,7 @@ describe('xidMiddleware response does not leak x-xid-auth', () => {
 
     const injected = lastNextRequestHeaders?.get('x-xid-auth')
     expect(injected).toBeTruthy()
-    // 注入的是 middleware 验证出的真实 user,不是客户端伪造的 forged。
+    // 必须是验签后的真实 user，不能保留客户端 forged。
     expect(injected).toContain('user_mw')
     expect(injected).not.toContain('forged')
   })
@@ -159,7 +154,6 @@ describe('xidMiddleware route protection', () => {
     const key = await makeKey('kid_mw')
     const mw = xidMiddleware({ jwtKey: key.publicJwk, protectedRoutes: ['/dashboard'] })
 
-    // 无 cookie -> 未认证。
     const request = makeNextRequest('https://acme.xid.dev/dashboard')
     const res = (await mw(request as never)) as Response
 

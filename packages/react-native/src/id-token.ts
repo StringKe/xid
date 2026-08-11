@@ -46,8 +46,7 @@ export type VerifyNativeIdTokenInput = {
   fetcher?: typeof fetch
 }
 
-// Avoid trailing-slash regex: CodeQL flags `/\/+$/` as polynomial ReDoS on
-// library-controlled issuer strings that contain long runs of '/'.
+// 不用尾斜杠正则：CodeQL 会将 `/\/+$/` 标为多项式 ReDoS（长串 `/` 时）。
 function stripTrailingSlashes(value: string): string {
   let end = value.length
   while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) {

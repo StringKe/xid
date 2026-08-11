@@ -1,6 +1,4 @@
-// SAML-in-Workers 验签可行性 spike(04 章第 7 节标注「架构定稿前必须先做」)。
-// 证明 xmldsigjs + @xmldom/xmldom 在 Web Crypto 环境完成 XML-DSig 签名+验签 round-trip。
-// 完整端到端验签(解码/预检/结构/语义/解密)见 verify.test.ts。本文件保留最小 round-trip 烟测。
+// xmldsigjs + @xmldom 在 Web Crypto 下的 XML-DSig round-trip 烟测;完整路径见 verify.test.ts。
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { setSamlEngine } from '../engine'

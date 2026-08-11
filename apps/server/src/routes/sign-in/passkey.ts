@@ -1,7 +1,4 @@
-// passkey 工具:base64url 编解码 + assertion 序列化(用于 /auth/passkey/verify 请求体)。
-// 密码学验证在 server 侧(四验证,见 webauthn rule);此处仅做格式编解码(crypto-boundary:格式编解码自研)。
-
-// base64url -> Uint8Array(challenge 解码)。
+// 四验证在 server;此处仅 base64url 与 assertion 序列化。
 export function b64urlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
   const binary = atob(base64)
@@ -10,7 +7,6 @@ export function b64urlToBytes(value: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
-// ArrayBuffer -> base64url(rawId/clientDataJSON/authenticatorData/signature 编码)。
 export function bufferToB64url(buffer: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buffer)))
     .replace(/\+/g, '-')
@@ -18,7 +14,6 @@ export function bufferToB64url(buffer: ArrayBuffer): string {
     .replaceAll('=', '')
 }
 
-// /auth/passkey/verify 请求体(server 据此做四验证)。
 export type PasskeyVerifyBody = {
   sessionId: string
   id: string
@@ -62,7 +57,6 @@ export type PasskeyRegistrationVerifyBody = {
   deviceName?: string
 }
 
-// /auth/passkey/register/options 响应体 -> 浏览器 navigator.credentials.create 入参。
 export function registrationOptionsToPublicKey(
   options: PasskeyRegistrationOptions,
 ): PublicKeyCredentialCreationOptions {
@@ -80,7 +74,6 @@ export function registrationOptionsToPublicKey(
   }
 }
 
-// 把浏览器返回的 attestation 序列化为 register/verify 请求体。
 export function serializeRegistration(
   credential: PublicKeyCredential,
   deviceName?: string,
@@ -98,7 +91,6 @@ export function serializeRegistration(
   }
 }
 
-// 把浏览器返回的 assertion 序列化为 verify 请求体。
 export function serializeAssertion(
   credential: PublicKeyCredential,
   sessionId: string,

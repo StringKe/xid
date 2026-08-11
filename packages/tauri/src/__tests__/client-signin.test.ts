@@ -1,4 +1,3 @@
-// Tests for signIn, handleRedirect, and state / PKCE security constraints.
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMemoryKeychainAdapter } from '../keychain'

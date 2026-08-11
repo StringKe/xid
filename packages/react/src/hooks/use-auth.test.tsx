@@ -1,5 +1,3 @@
-// useAuth.guest 暴露契约:isAnonymous 与 isGuestUser 同口径(provisionedBy === 'anonymous')。
-
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'

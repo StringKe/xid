@@ -1,8 +1,4 @@
-// SPA 入口:locale 检测 -> catalog 加载 -> Provider 链 -> RouterProvider。
-// 先 await catalog 再渲染,避免首帧显示英文源文本后闪烁(浏览器 isolate 各自激活,见 i18n-lingui rule)。
-// brand 用内置默认初始化;运行时拉到租户/org 品牌后由页面 setBrand 覆盖(KV brand:{tenant_id}[:{org_id}])。
-// Provider 顺序:LocaleProvider(I18nProvider) -> AppMotionConfig -> QueryClientProvider -> ThemeProvider -> AuthProvider -> RouterProvider。
-// Query 在 Theme/Auth 之上:auth/资源拉取走 Query,AuthProvider 之后续可改用 useQuery 管 /v1/me。
+// 先 await locale catalog 再渲染,避免首帧英文闪烁(isolate 各自激活)。
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -24,8 +20,7 @@ import { router } from './router'
 import './fonts/inter-latin.css'
 import './styles.css'
 
-// /sign-in 的游客入口硬依赖 /auth/config 响应:在主 chunk 即预热,使配置请求与
-// locale catalog、SignInPage 懒 chunk 下载并行,而不是排在整个加载瀑布末端。
+// /sign-in 游客入口依赖 /auth/config:主 chunk 预热,与 catalog 和懒 chunk 并行。
 if (window.location.pathname === '/sign-in') {
   prefetchAuthConfig(queryClient, Object.fromEntries(new URLSearchParams(window.location.search)))
 }

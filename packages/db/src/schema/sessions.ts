@@ -1,12 +1,9 @@
-// 会话实体(见 08 章 17.1):sessions。
-// 关键决策:device_fingerprint 存哈希不存原文;refresh_token 存 hash;status 驱动撤销。
-// per-user 会话撤销集走 DO(撤销真相源),sessions 表是持久事实(见 cloudflare-bindings rule)。
+// 指纹/refresh 只存 hash;per-user 撤销集真相源在 DO,本表是持久事实(08 章 17.1)。
 
 import type { AmrValue } from '@xid-kit/types'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { boolCol, createdAt, numCol, tenantId, tsMs } from './common'
 
-// 17.1 sessions(用户会话)
 export const sessions = sqliteTable(
   'sessions',
   {

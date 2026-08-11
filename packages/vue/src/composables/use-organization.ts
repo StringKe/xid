@@ -1,6 +1,3 @@
-// useOrganization:当前活跃 org composable(对标 @clerk/clerk-react useOrganization 的 Vue 版)。
-// 含 setActive 切换 org + 成员关系的响应式派生。
-
 import { computed } from 'vue'
 
 import type { XidOrganization, XidOrganizationMembership, XidState } from '@xid-kit/core'

@@ -1,12 +1,5 @@
-// Webhook Queue Consumer:svix 风格 HMAC-SHA256 签名投递。
-// 见 docs/design/06-developer-experience.md webhook 节、api-sdk-conventions rule。
-// - 签名:signedContent = `${svix-id}.${svix-timestamp}.${payload}`,
-//   svix-signature: `v1,${base64(HMAC-SHA256(secret, signedContent))}`,5min 时间窗防重放。
-// - signing secret 用 AES-256-GCM 信封加密存 D1(三 blob:iv/ciphertext/tag),
-//   KEK 存 Workers Secrets,运行时 envelopeDecrypt 解密后作 HMAC key(见 signing-keys rule)。
-// - 投递失败指数退避重试,超限死信 -> D1 webhook_deliveries.status='dead'。
-// - markDead 用投递时的订阅快照,不重新拉取,避免死信与实际投递集不一致。
-// - 手动重放接口预留(按 delivery id / 时间区间从 D1 重新投 Queue)。
+// Webhook 投递:svix 风格 HMAC-SHA256(5min 窗);signing secret 信封加密存 D1。
+// 失败退避至死信;markDead 复用投递时订阅快照,不重新拉取。
 
 import type { WebhookQueueMessage } from '@xid-kit/types'
 import {

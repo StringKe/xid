@@ -53,7 +53,7 @@ const mermaidExpandLabel = translateSiteMessage(
 );
 const versionStatus = collection ? await getVersionStatus(collection) : null;
 const isHiddenVersion = versionStatus?.isHidden === true;
-// An empty alternate suppresses NimbusHead's fallback for explicitly non-indexable pages.
+// 空 alternate 抑制 NimbusHead 对显式 noindex 页的默认回填。
 const llmsIndexPath = noindex ? "" : getSiteLlmsIndexPath(lang);
 const llmsUrl = Astro.site
   ? new URL(llmsIndexPath, Astro.site).href

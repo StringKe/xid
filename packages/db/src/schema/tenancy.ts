@@ -1,12 +1,10 @@
-// 租户与层级实体(见 08 章 10):instances / organizations / projects / applications / project_grants / org_policies。
-// 平台级表(instances)无 tenant_id;org 级实体带 tenant_id(+ org_id)。
-// 唯一约束第一列必为 tenant_id(见 9.5、tenant-isolation rule)。
+// 租户层级(08 章 10):instances 无 tenant_id;org 级带 tenant_id;唯一约束第一列 tenant_id。
 
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, numCol, tenantId, timestamps, tsMs } from './common'
 
-// 10.1 instances(平台级,无 tenant_id)
+// 平台级,无 tenant_id。
 export const instances = sqliteTable(
   'instances',
   {
@@ -30,7 +28,7 @@ export const instances = sqliteTable(
   (t) => [uniqueIndex('instances_primary_domain_unq').on(t.primaryDomain)],
 )
 
-// 10.2 organizations(租户;顶层 org 的 tenant_id = 自身 id)
+// 顶层 org 的 tenant_id = 自身 id。
 export const organizations = sqliteTable(
   'organizations',
   {
@@ -75,10 +73,7 @@ export const organizations = sqliteTable(
   ],
 )
 
-// 10.2a custom_hostnames(Cloudflare for SaaS custom domains).
-// hostname is deliberately globally unique: unlike ordinary tenant data, one external DNS name
-// can be bound to only one organization. The durable tombstone after explicit deletion prevents a
-// stale customer CNAME from being claimed by another tenant.
+// hostname 全局唯一(一 DNS 名只能绑一 org);删除后 tombstone 防陈旧 CNAME 被他租户抢占。
 export type CustomHostnameDcvDelegationRecord = {
   cname: string
   cnameTarget: string
@@ -138,7 +133,6 @@ export const customHostnames = sqliteTable(
   ],
 )
 
-// 10.3 projects(角色命名空间)
 export const projects = sqliteTable(
   'projects',
   {
@@ -148,7 +142,7 @@ export const projects = sqliteTable(
     name: text('name').notNull(),
     description: text('description'),
     status: text('status').notNull().default('active'),
-    // 'open' | 'restricted' | 'approval_required'(见 design-access-request 1.1);默认 open = 存量行为。
+    // 默认 open = 存量行为;restricted / approval_required 见 design-access-request 1.1。
     accessPolicy: text('access_policy').notNull().default('open'),
     deletedAt: tsMs('deleted_at'),
     ...timestamps(),
@@ -160,7 +154,6 @@ export const projects = sqliteTable(
   ],
 )
 
-// 10.4 applications(= OAuthClient,OIDC/SAML 客户端)
 export const applications = sqliteTable(
   'applications',
   {
@@ -199,8 +192,7 @@ export const applications = sqliteTable(
     requirePkce: boolCol('require_pkce').notNull().default(true),
     dpopBoundAccessTokens: boolCol('dpop_bound_access_tokens').notNull().default(false),
     accessTokenFormat: text('access_token_format').notNull().default('jwt'),
-    // NULL = 继承租户 token 策略(application -> org -> instance 三层解析,见 resolveAccessTtlSec);
-    // 不能给列默认值,否则真实行恒有值,policy 层永远轮不到。
+    // NULL 才继承 application->org->instance;列默认值会让 policy 层永远轮不到。
     accessTokenTtlSec: numCol('access_token_ttl_sec'),
     idTokenSignedAlg: text('id_token_signed_alg').notNull().default('ES256'),
     firstParty: boolCol('first_party').notNull().default(false),
@@ -221,7 +213,6 @@ export const applications = sqliteTable(
   ],
 )
 
-// 10.5 project_grants(跨组织授权)
 export const projectGrants = sqliteTable(
   'project_grants',
   {
@@ -254,7 +245,7 @@ export const projectGrants = sqliteTable(
   ],
 )
 
-// 10.6 org_policies(per-org 策略覆盖,1:1 org,未设字段 null 回退 instance 默认)
+// 未设字段 null 回退 instance 默认。
 export const orgPolicies = sqliteTable(
   'org_policies',
   {

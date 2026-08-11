@@ -1,7 +1,4 @@
-// 邮箱验证 token 签发/核销(sign-up 的 verify_email 分支 + /auth/verify-email + /auth/resend-verification 共用)。
-// 对齐 magic-link.ts 模式:token = 租户 active 签名密钥(ES256)签的 JWT(sub/exp/jti,purpose='email_verification'),
-// server 只存 jti 的 SHA-256 哈希(verificationTokens.tokenHash),token 明文不入 DB。一次性消费 consumedAt。
-// JWT 验签走 buildVerifyKeySet/verifyJwt @ oidc/shared(租户公钥集)。
+// 邮箱验证 JWT(ES256):明文不入库,仅存 jti SHA-256;一次性消费。
 
 import { base64UrlEncode, sha256Hex, signJwt, verifyJwt } from '@xid-kit/crypto'
 import type { JwtClaims } from '@xid-kit/crypto'
@@ -157,9 +154,7 @@ export async function verifyEmailVerifyJwt(
     rawContinuePath !== undefined ||
     rawApplicationClientId !== undefined ||
     rawInvitationId !== undefined
-  // Tokens issued immediately before the flow-context rollout carried only intent=sign-up.
-  // Preserve that exact in-flight shape for one TTL window by mapping it to the same canonical
-  // product onboarding destination; no client or invitation binding is inferred.
+  // 存量仅 intent=sign-up 的 token 映射到同一产品 onboarding 目的地(一个 TTL 窗口内兼容)。
   const legacyProductSignUp =
     intent === 'sign-up' &&
     rawContinuePath === undefined &&

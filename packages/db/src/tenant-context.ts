@@ -1,9 +1,5 @@
-// TenantContext 解析工厂(见 tenant-context rule、00 章 5):
-// 单租户=配置驱动单例(instances.mode='single_tenant');多租户=按 Host 头从 D1 动态解析。
-// 一份代码两模式,差别只在解析路径。issuer/rpId/签名密钥/策略一律从此产出,内核禁止全局单例。
-//
-// 边界:本层只组装 TenantContext 的结构(含签名私钥密文,明文不解密);私钥解密走 crypto 包(见 signing-keys rule)。
-// 可预期失败(租户不存在/被暂停)走 Result 判别联合;意外不可恢复才 throw。
+// TenantContext 唯一来源:单租户=配置单例,多租户=Host 动态解析;issuer/rpId/签名密钥/策略禁止全局单例。
+// 本层只组装结构(私钥仍为密文,解密在 crypto 包);租户不存在/暂停走 Result,意外才 throw。
 
 import type {
   ActiveSigningKeySet,
@@ -95,7 +91,6 @@ function err(code: XidError['code'], message: string, httpStatus: number): Resul
   return { ok: false, error: { code, message, httpStatus } }
 }
 
-// 从 Host 头取 hostname(去端口),用于多租户子域/自定义域名匹配。
 function hostnameOf(request: Request): string | undefined {
   const host = request.headers.get('host')
   if (!host) return undefined
@@ -121,7 +116,7 @@ function instanceOriginForRequest(request: Request, instance: InstanceRow): stri
   return new URL(request.url).origin
 }
 
-// rpId = 具体租户子域(WebAuthn 隔离,不能设父域,见 webauthn rule)。
+// WebAuthn 隔离要求 rpId 为具体租户子域,禁止父域(见 webauthn rule)。
 function rpIdFor(instance: InstanceRow, org: OrgRow): string {
   return `${org.slug}.${instance.primaryDomain}`
 }
@@ -143,8 +138,7 @@ function rootResolvedContextOptions(
   }
 }
 
-// 由 instance 默认 + org 策略覆盖组装 TenantPolicy(未设字段回退,见 02 章 5、08 章 10.6)。
-// session/token 走三层链:org_policies 列 -> instances JSON -> 内置默认;normalize 统一做类型校验与边界 clamp。
+// session/token:org_policies 列覆盖 instance JSON,再 clamp 到内置默认(02 章 5、08 章 10.6)。
 export function buildPolicy(
   instance: InstanceRow,
   org: OrgRow,
@@ -156,8 +150,7 @@ export function buildPolicy(
   if (policy) {
     result.login = { forceSso: policy.forceSso, allowPasswordLogin: policy.allowPasswordLogin }
   }
-  // org 只持有 idle/absolute 两个独立列,rememberMeDefault 仅 instance JSON 有源;
-  // instance JSON 先 normalize(snake/camel 键兼容),org 列值再逐字段覆盖,最后统一 clamp。
+  // org 仅有 idle/absolute 列;rememberMeDefault 只在 instance JSON,先 normalize 再逐字段覆盖。
   const instanceSession = normalizeSessionPolicy(instance.sessionPolicy)
   result.session = normalizeSessionPolicy({
     idleTimeoutMin: policy?.sessionIdleTimeoutMin ?? instanceSession.idleTimeoutMin,
@@ -174,7 +167,7 @@ export function buildPolicy(
   return result
 }
 
-// 把 D1 签名密钥行组装为 ActiveSigningKeySet(私钥仍是密文,不解密)。
+// 私钥仍为密文,本层不解密。
 function buildSigningKeySet(rows: InstanceSigningKeyRow[]): ActiveSigningKeySet {
   const keys: SigningKeyMaterial[] = rows
     .filter(
@@ -296,7 +289,6 @@ async function buildCustomHostnameContext(
   }
 }
 
-// 单租户:解析配置单例(instance.mode='single_tenant',取实例下唯一/根 org)。
 async function resolveSingleTenant(
   db: Db,
   instance: InstanceRow,
@@ -319,7 +311,6 @@ async function resolveSingleTenant(
   }
 }
 
-// 多租户:按 Host 头的子域(slug)在该 instance 下解析 org。
 async function resolveMultiTenant(
   db: Db,
   instance: InstanceRow,
@@ -831,10 +822,7 @@ export async function resolveTenantContextById(
   return { ok: true, value: { status: 'resolved', tenant: context.value } }
 }
 
-// Invitation tokens can arrive while the browser is authenticated to another Tenant on the same
-// Instance. The caller supplies the already-resolved, trusted Instance id and an untrusted token
-// locator. This resolver binds both in the organization lookup, so the locator cannot cross an
-// Instance boundary and request Host or cookie context cannot silently override the invitation.
+// 邀请 locator 与已信任的 instanceId 联合查 org,防止跨 Instance 或被 Host/cookie 静默覆盖。
 export async function resolveTenantContextByIdInInstance(
   request: Request,
   env: ResolveEnv,
@@ -868,9 +856,7 @@ export async function resolveTenantContextByIdInInstance(
   return { ok: true, value: { status: 'resolved', tenant: context.value } }
 }
 
-// OAuth/OIDC protocol requests are owned by the registered application, not by whichever
-// browser session cookie happens to be present. client_id is globally unique, but the request
-// Host still selects the Instance; both must agree before returning the application Tenant.
+// OAuth 归属注册应用而非浏览器 cookie;client_id 全局唯一,仍须与 Host 选定的 Instance 一致。
 export async function resolveTenantContextByApplicationClientId(
   request: Request,
   env: ResolveEnv,
@@ -1042,7 +1028,6 @@ export async function resolveTenantContextBySamlServiceProvider(
   return { ok: true, value: { status: 'resolved', tenant: context.value } }
 }
 
-// 入口:按 Host 头解析 TenantContext。先取 instance(主域匹配 / 唯一根),再按 mode 分流。
 export async function resolveTenantContext(
   request: Request,
   env: ResolveEnv,

@@ -1,7 +1,4 @@
-// Field:label + 控件 + 内联错误的无障碍组合器。
-// 自动接线:label htmlFor -> 控件 id;有错误时控件 aria-invalid + aria-describedby -> 错误节点。
-// 控件作为单一 child 传入(Input 或任意 form 控件),Field 用 cloneElement 注入 id/aria。
-// 样式走 StyleX,引用主题 tokens(--xid-*)。
+// label + 控件 + 错误:cloneElement 注入 id/aria-invalid/aria-describedby。
 
 import { cloneElement, isValidElement, useId } from 'react'
 import type { ReactElement, ReactNode } from 'react'
@@ -9,7 +6,6 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { FormError } from './FormError'
 
-// 被注入的控件至少接受这些 a11y 属性(Input/select/textarea 均满足)。
 type FieldControlProps = {
   id?: string
   'aria-invalid'?: boolean | 'true' | 'false'
@@ -17,13 +13,10 @@ type FieldControlProps = {
 }
 
 export type FieldProps = {
-  // 字段标签(已本地化)。可省略:控件已有外部可见标签时只做错误/hint 接线,控件需自带 aria-label。
+  // 可省略;无 label 时控件需自带 aria-label。
   label?: ReactNode
-  // 单一表单控件(如 <Input />)。
   children: ReactElement<FieldControlProps>
-  // 已本地化的错误文本;有值即进入 invalid 态。
   error?: ReactNode
-  // 辅助说明(已本地化),接到 aria-describedby。
   hint?: ReactNode
   required?: boolean
 }

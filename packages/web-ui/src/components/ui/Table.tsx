@@ -1,6 +1,4 @@
-// Table:DataTable<T>(@tanstack/react-table)的兼容封装,保留旧 TableColumn 形态(key/header/render/width)。
-// 把 render(row) 形态的列适配为 TanStack ColumnDef(cell 经 row.original 调 render),供既有页面零改动复用。
-// 新页面优先直接用 DataTable + ColumnDef。三态/分页/a11y 全部下沉到 DataTable。
+// 旧 TableColumn(key/header/render) 兼容层;新页面直接用 DataTable + ColumnDef。
 
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
@@ -9,9 +7,7 @@ import { DataTable, type DataTableColumnDef, type DataTableRow } from './DataTab
 export type TableColumn<T extends DataTableRow> = {
   key: string
   header: ReactNode
-  // 渲染单元格内容;row 已类型化。
   render: (row: T) => ReactNode
-  // 列宽(CSS width 值)。
   width?: string
 }
 
@@ -20,9 +16,7 @@ export type TableProps<T extends DataTableRow> = {
   rows: ReadonlyArray<T>
   getRowKey: (row: T) => string
   isLoading?: boolean
-  // 空态文案(已本地化)。
   emptyMessage?: ReactNode
-  // 行点击回调。
   onRowClick?: (row: T) => void
   caption?: string
 }

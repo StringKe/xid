@@ -1,6 +1,3 @@
-// SignInSocialButtons:社交提供商登录按钮组(Google/GitHub/Microsoft/Apple)。
-// 文案走 lingui;按钮可见文本直接提供 accessible name。
-// 图标用内联 SVG(无外部依赖)。
 
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -17,7 +14,6 @@ export type SignInSocialButtonsProps = {
   isLoading: boolean
 }
 
-// 内联 SVG 图标(最小路径,品牌原色用 currentColor 继承)
 function GoogleIcon(): ReactNode {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

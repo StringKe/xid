@@ -1,8 +1,4 @@
-// SAML Response 验签 + 解密 + 语义校验编排(04 章 8.0-8.7 端到端)。
-// 顺序:解码 -> 预检/解析 -> 验 Response 签名(可选)-> 取明文 Assertion(直接或解密)->
-//       验 Assertion 签名(可选)-> 语义校验 -> 提取 Subject/Attributes。
-// 验签核心(digest + SignatureValue)由 xmldsigjs 走注入的 crypto.subtle 真实执行(见 engine.ts、spike)。
-// 重放 / InResponseTo 一次性消费依赖 DO,本层只产出 assertionId/inResponseTo,DO 交互在 worker 完成。
+// Response 验签/解密/语义编排。重放与 InResponseTo 消费在 worker DO,本层只产出 assertionId/inResponseTo。
 
 import { parseSecureXml } from './precheck'
 import { validateSamlAssertionStructure, validateSamlResponseStructure } from './schema'
@@ -17,29 +13,22 @@ import { failResult, okResult } from './errors'
 import type { SamlResult, SamlVerifiedAssertion } from './errors'
 
 export type VerifySamlOptions = {
-  // connection 存的 IdP X.509 证书(base64 DER,轮换期可多把,8.5 step 1)。
   idpCertificatesB64: readonly string[]
-  // connection 配置 IdP EntityID(8.7 step 1)。
   expectedIssuer: string
-  // 本 SP EntityID(AudienceRestriction,8.7 step 3)。
   expectedAudience: string
-  // 本 ACS URL(Recipient,8.7 step 4)。
   acsUrl: string
-  // true 要求 InResponseTo,false 要求缺省,auto 根据已验签 Assertion 是否携带 InResponseTo 推断。
+  // true/false 强制有无 InResponseTo;auto 按 Assertion 是否携带推断。
   spInitiated: boolean | 'auto'
-  // 签名要求开关(默认均 true,见 8.3)。
   wantAuthnResponseSigned: boolean
   wantAssertionsSigned: boolean
-  // EncryptedAssertion 时的 SP 解密私钥(不可导出 CryptoKey,见 decrypt.ts)。
+  // EncryptedAssertion 时由 worker 传入不可导出私钥。
   spDecryptKey?: CryptoKey
-  // attributeMapping(connection 级)。
   attributeMapping?: AttributeMapping
   now?: number
-  // connection 配置的证书与 Assertion 时钟容忍,默认 +-3min,最大 +-5min。
+  // 默认 ±3min,上限 ±5min。
   clockSkewToleranceMs?: number
 }
 
-// 用任一 IdP 公钥验过 signedXml(轮换期任一验过即可,8.5 step 1)。返回命中证书指纹。
 async function verifyWithAnyKey(
   signedXml: ReturnType<typeof loadAndCheckSignature>,
   keys: readonly IdpVerifyKey[],
@@ -50,13 +39,12 @@ async function verifyWithAnyKey(
       if (await signedXml.value.Verify(key.publicKey))
         return { ok: true, fingerprint: key.fingerprint }
     } catch {
-      // 单把密钥验签抛错视为该把失败,继续尝试下一把。
+      // 证书轮换:单把失败继续试下一把。
     }
   }
   return { ok: false }
 }
 
-// 对一个元素(Response 或 Assertion)做完整签名链校验(结构 + 算法白名单 + 验签)。
 async function verifyElementSignature(
   doc: Document,
   signedElement: Element,
@@ -73,7 +61,6 @@ async function verifyElementSignature(
   return okResult(verified.fingerprint)
 }
 
-// 取明文 Assertion DOM:直接明文,或 EncryptedAssertion 解密后再经预检/解析(8.6 step 4)。
 async function resolveAssertion(
   responseRoot: Element,
   doc: Document,
@@ -100,7 +87,6 @@ type VerifiedAssertionCtx = {
   fingerprint: string
 }
 
-// 解析 + 验 Response/Assertion 签名 + 取明文 Assertion,产出待语义校验的上下文。
 async function verifyAndResolve(
   samlResponseXml: string,
   keys: readonly IdpVerifyKey[],
@@ -112,8 +98,7 @@ async function verifyAndResolve(
   const structure = validateSamlResponseStructure(responseRoot)
   if (!structure.ok) return failResult(structure.error.code, structure.error.reason)
 
-  // SAML 安全基线:至少 assertion 必须被签。双 false 配置(两个开关都关)会跳过全部验签,
-  // 等于接受任意伪造 Response,回退到强制 assertion 签名(见 8.6「默认拒绝只签 Response」)。
+  // 双 false 会跳过全部验签、接受任意伪造 Response,故回退强制 assertion 签名。
   const wantAssertionsSigned = options.wantAssertionsSigned || !options.wantAuthnResponseSigned
 
   let responseFingerprint: string | undefined
@@ -141,7 +126,6 @@ async function verifyAndResolve(
   })
 }
 
-// 端到端验签 + 语义校验,产出已验证 Assertion 结果(进入 JIT)。
 export async function verifySamlResponse(
   samlResponseXml: string,
   options: VerifySamlOptions,
@@ -190,7 +174,7 @@ export async function verifySamlResponse(
   })
 }
 
-// 暴露 assertionId 供 worker 做 DO 重放消费(语义校验已断言其存在)。
+// 供 worker 做 DO 重放消费(语义校验已断言存在)。
 export function readAssertionId(assertion: Element): string {
   return assertion.getAttribute('ID') ?? ''
 }

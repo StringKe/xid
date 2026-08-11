@@ -1,5 +1,4 @@
-// XidContext: SolidJS context holding the configured XidClient.
-// Primitives access via useXidContext(); never call useContext(XidContext) directly.
+// 经 useXidContext 读取；禁止直接 useContext(XidContext)，以便缺少 Provider 时抛出明确错误。
 
 import { createContext, useContext } from 'solid-js'
 

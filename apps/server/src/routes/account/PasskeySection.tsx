@@ -1,5 +1,3 @@
-// Passkey 管理区:注册新 passkey + 列表展示(重命名/删除)。
-// 注册 error 区内持有;rename/remove mutation 函数向下传递给 PasskeyItem。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -27,7 +25,6 @@ const styles = stylex.create({
     gap: '0.5rem',
     flexWrap: 'wrap',
     alignItems: 'center',
-    // hairline 邻接 >= 1.25rem:按钮文本到底线 1.25rem
     paddingBlockStart: '0.875rem',
     paddingBlockEnd: '1.25rem',
     borderBottomWidth: '1px',

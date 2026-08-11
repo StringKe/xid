@@ -1,6 +1,3 @@
-// SignInOtpPanel:email OTP / WhatsApp OTP / SMS OTP 两步面板。
-// step=input:输入邮箱或手机号;step=sent:输入 6 位 code。
-// 文案全走 lingui;a11y:label/aria-live/focus 管理。样式走 StyleX。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useRef } from 'react'
@@ -14,7 +11,6 @@ import { shouldShowOtpMethodSwitch } from './shared'
 import type { OtpSignInMethod, ProfileFieldKey, ProfileValues } from './shared'
 
 const localStyles = stylex.create({
-  // OTP 数字输入包裹层:tabular-nums + mono 字体对齐 mfa/index.tsx otpInputWrap。
   otpInputWrap: {
     fontVariantNumeric: 'tabular-nums',
     fontFamily: tokens['--xid-font-mono'],
@@ -63,7 +59,6 @@ export function SignInOtpPanel({
   const isWhatsapp = method === 'otp-whatsapp'
   const showMethodSwitch = shouldShowOtpMethodSwitch(enabledMethods)
 
-  // 进入 sent 步骤后自动聚焦 code 输入框。
   useEffect(() => {
     if (step === 'sent') codeInputRef.current?.focus()
   }, [step])

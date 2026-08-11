@@ -1,6 +1,3 @@
-// org 域名验证页:域名列表(DNS TXT 验证状态 + enrollment mode)。
-// 调 GET /v1/organizations/:orgId/domains;添加域名 POST(useMutation)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;添加表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

@@ -1,5 +1,4 @@
 // 自动生成:node apps/server/scripts/sync-page-seo-descriptors.mjs
-// 页面级 SEO MessageDescriptor(无 macro,供测试与 SSR 直引)。源文案在 page-seo-messages.ts。
 
 import type { MessageDescriptor } from '@lingui/core'
 

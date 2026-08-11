@@ -177,8 +177,7 @@ describe('verifyToken', () => {
     ).rejects.toBeInstanceOf(AppError)
   })
 
-  // 单 CryptoKey 形态(已导入公钥,无 kid)对带真实 kid 的 token 必须可验签:
-  // toVerifyKeySet 用占位空 kid,verifyJwt 对单钥集忽略 kid 直接用该唯一 key。
+  // 单钥 CryptoKey 无 kid 时仍须能验签带真实 kid 的 token(单钥集忽略 kid)。
   it('verifies a token with a real kid against a single imported CryptoKey (kid ignored)', async () => {
     const key = await makeEs256Key('kid_real')
     const token = await mintToken(key, basePayload())

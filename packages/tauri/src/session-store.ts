@@ -1,13 +1,11 @@
-// Typed session and token storage on top of XidKeychainAdapter.
-// Keys are namespaced under "xid." to avoid collisions.
-// Serialisation is kept in one place so all read/write paths stay consistent.
+// key 以 xid. 前缀隔离；序列化集中在此，读写路径一致。
 
 import type { XidKeychainAdapter } from './keychain'
 import type { StoredSession } from './types'
 
 export const KEYCHAIN_KEYS = {
   accessToken: 'xid.access_token',
-  // Migration cleanup only. The authorization-code-only SDK never reads or writes this key.
+  // 仅清理历史残留：当前 authorization-code SDK 从不读写此 key。
   legacyRefreshToken: 'xid.refresh_token',
   session: 'xid.session',
   pkceVerifier: 'xid.pkce_verifier',

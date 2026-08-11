@@ -1,5 +1,4 @@
-// token exchange:PKCE authorization code -> verified native token session。
-// 调用 /token endpoint，ID token 验签和 nonce 校验通过后再存储到 tokenCache。
+// 授权码换票后须先完成 ID token 验签与 nonce 校验，再写入 tokenCache。
 
 import type { TokenCache } from './token-cache'
 import { verifyNativeIdToken, type NativeIdTokenClaims } from './id-token'
@@ -125,8 +124,7 @@ export async function readTokenSet(cache: TokenCache): Promise<StoredTokenSet | 
     const parsed = JSON.parse(rawSession) as Partial<StoredTokenSet> & {
       refreshToken?: unknown
     }
-    // Earlier local builds persisted this field inside the envelope. Current authorization-code-only
-    // sessions fail closed and delete that credential instead of silently retaining it.
+    // 旧版信封曾持久化 refreshToken；仅授权码会话遇此字段 fail-closed 清凭证，禁止静默保留。
     if (Object.hasOwn(parsed, 'refreshToken')) {
       await clearTokenSet(cache)
       return null

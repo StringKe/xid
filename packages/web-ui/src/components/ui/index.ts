@@ -1,4 +1,3 @@
-// UI 基础组件对外入口(供页面 agent 复用)。
 export { Button, BUTTON_VARIANTS } from './Button'
 export type { ButtonProps, ButtonVariant } from './Button'
 export { Input } from './Input'

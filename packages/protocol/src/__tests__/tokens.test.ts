@@ -1,5 +1,3 @@
-// buildIdTokenClaims / buildAccessTokenClaims / signClaims 正例 + claims 条件组合。
-// issuer/签名 kid 从 TenantContext 取(tenant-context rule);amr passkey=phr / OTP=otp。
 import { describe, it, expect, expectTypeOf } from 'vitest'
 import { importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
 

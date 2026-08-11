@@ -1,7 +1,3 @@
-// platform console organization 列表页:搜索/过滤/状态 + cursor 分页。
-// 调 GET /v1/platform/organizations?q=&cursor=&limit=20(TanStack Query + DataTable)。
-// 状态操作(suspend/reactivate)走 PATCH /v1/platform/organizations/:id,ConfirmDialog 确认。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + toolbar 搜索 + hairline 分节。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

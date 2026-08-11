@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
 
-// forgot-password 动线测试:
-// - request / reset 两个步骤的页脚都有 "Back to sign in"。
-// - token 失效/无效错误态展示 "Request a new reset link"(指向 /forgot-password)。
-
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

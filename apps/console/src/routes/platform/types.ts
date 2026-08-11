@@ -1,4 +1,3 @@
-// platform console 模块共享类型。cookie session + instance_manager 才能访问。
 
 export type PlatformOrganization = {
   id: string
@@ -223,7 +222,6 @@ export type InstanceManagerAssignment = {
   updatedAt: string
 }
 
-// cursor 分页通用容器。
 export type Page<T> = {
   data: T[]
   nextCursor: string | null

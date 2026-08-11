@@ -1,7 +1,4 @@
-// org OAuth client 管理页:application 列表 + 创建 + 查看 client_id + 轮换 secret + 删除。
-// client_secret 只在创建/轮换时一次性展示(参照 OrgScim token 展示模式)。
-// 调 /v1/applications(扁平租户级 Management API,需要 sk_* 或具备权限的会话)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建表单 5/7 双列(SplitSection)。
+// client_secret 只在创建/轮换时一次性展示。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -36,7 +33,6 @@ const CLIENT_TYPE_TONE: Record<string, BadgeTone> = {
 }
 
 const styles = stylex.create({
-  // 创建表单控件行(redirect_uri 拉伸 + client_type 固宽 + 提交按钮)
   formRow: {
     display: 'flex',
     gap: '0.75rem',
@@ -50,7 +46,6 @@ const styles = stylex.create({
   formFieldFixed: {
     flex: '0 0 180px',
   },
-  // 一次性 secret 展示:成功 Alert + mono 代码块
   secretStack: {
     display: 'flex',
     flexDirection: 'column',

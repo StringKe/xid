@@ -175,8 +175,7 @@ export async function enqueuePersistedPlatformAudit(
   try {
     await markQueued(env, prepared.id, Date.now())
   } catch (error) {
-    // Queue acceptance happened first. A Cron retry uses the same sourceMessageId, so AuditSeqDO
-    // deduplicates the append if this state write was the only failed step.
+    // Queue 已接受;Cron 用同一 sourceMessageId 重投,AuditSeqDO 幂等去重。
     logWorkerError('platform.audit_outbox.queued_state_write_failed', error, {
       component: 'platform-audit-outbox',
       outcome: 'idempotent_redelivery_expected',

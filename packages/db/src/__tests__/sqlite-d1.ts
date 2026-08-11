@@ -1,14 +1,10 @@
-// node:sqlite 内存库包装成 D1Database(供 org-units 服务层测试)。
-// 与 apps/server/worker/billing/__tests__/stripe-runtime.test.ts 的 SqliteD1 同源:
-// prepare/bind/run/all/first + batch(BEGIN IMMEDIATE/COMMIT 原子执行),另补 raw()
-// (drizzle d1 session 的 values 模式走 raw,node:sqlite 用 setReturnArrays 模拟)。
-// stateful-d1.ts 是字符串匹配 mock,不支持 LIKE/JOIN/真实 UPDATE,服务层测试必须用真 SQLite。
+// 真 SQLite 包装为 D1:stateful-d1 不支持 LIKE/JOIN,org-units 服务层测试须此实现。
 
 import { DatabaseSync } from 'node:sqlite'
 
 type SqliteRow = Record<string, unknown>
 
-// node:sqlite 只接受 string/number/bigint/null;Date 转毫秒,布尔转 0/1。
+// node:sqlite 绑定:Date->ms,布尔->0/1。
 function normalizeBinding(value: unknown): unknown {
   if (value instanceof Date) return value.getTime()
   if (typeof value === 'boolean') return value ? 1 : 0

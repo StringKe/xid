@@ -1,10 +1,5 @@
-// Single entry point for every RateLimitStore DO call (check and reserve alike).
-// Rate limiting is the third layer of abuse defense (the business layer). Treating an unreachable
-// DO as "allowed" would remove brute force, OTP bombing and DCR spam protection at once, so this
-// module fails closed: a non-200 status, a non-JSON body, or a missing / non-boolean allowed field
-// all raise server_error instead of letting the request through.
-// The DO is sharded by key (idFromName(key)), so one flaky instance affects a single account or IP
-// dimension and never every user, which is why there is no degraded pass-through path.
+// RateLimitStore 业务限流入口:DO 不可达时 fail-closed 抛 server_error,禁止降级放行。
+// DO 按 key 分片,单实例故障只影响该账户/IP 维度。
 
 import type { RateLimitPolicy, RateLimitWindow } from '../durable-objects/rate-limit-store'
 import { AppError } from './errors'
@@ -30,16 +25,12 @@ function parseRateLimitDecision(value: RateLimitStoreResponse): RateLimitDecisio
   }
 }
 
-// The internal reason stays in cause (server logs only). The client always sees a plain
-// server_error, so rate limiter internals never leak (enumeration defense).
+// cause 仅进服务端日志,客户端统一 server_error(不泄露限流器内部状态)。
 function rateLimitUnavailable(cause?: unknown): never {
   throw new AppError('server_error', { cause })
 }
 
-// Single transport for every RateLimitStore call. The HTTP status is checked before the body is
-// read: a DO failure usually answers with a non-JSON error page, so parsing first would surface a
-// raw SyntaxError instead of a typed AppError, and a failure body that still carries
-// allowed:true would be read as a pass.
+// 先查 HTTP 状态再解析 body:DO 故障常返回非 JSON,先 parse 会得到 SyntaxError 或误读 allowed:true。
 async function postToRateLimitStore(
   env: Env,
   doName: string,
@@ -65,8 +56,7 @@ async function postToRateLimitStore(
   return payload as RateLimitStoreResponse
 }
 
-// count carries the batch size for callers that consume more than one unit per request (bulk
-// invitations). Dropping it would silently degrade a 30-invitation batch into one counted unit.
+// count 是批量消耗单位(如批量邀请);省略会把 N 条请求计成 1 次。
 export async function checkRateLimitStore(
   env: Env,
   key: string,
@@ -84,9 +74,7 @@ export async function checkRateLimitStore(
   return decision
 }
 
-// Multi-window send quotas (1/min + 5/h) reserve every window inside one DO call so an hour-window
-// rejection cannot burn the minute quota. Infrastructure faults MUST NOT surface as rate_limited:
-// 429 tells the caller to slow down, while a broken DO is a 500 that should page an operator.
+// 多窗口配额在一次 DO 调用内原子 reserve,避免小时窗拒绝却已烧掉分钟配额;基础设施故障用 500 而非 429。
 export async function reserveRateLimitWindows(
   env: Env,
   reservationKey: string,

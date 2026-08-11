@@ -35,7 +35,7 @@ app.get('/', async (c) => {
       : await db
           .select()
           .from(schema.statusIncidentUpdates)
-          // The public list is bounded to 50; Drizzle emits one bound placeholder per id.
+          // 公开列表最多 50 条;inArray 每 id 一个 bind 占位。
           .where(inArray(schema.statusIncidentUpdates.incidentId, incidentIds))
           .orderBy(
             desc(schema.statusIncidentUpdates.createdAt),

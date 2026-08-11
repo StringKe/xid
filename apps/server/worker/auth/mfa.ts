@@ -1,8 +1,5 @@
-// MFA 核心:TOTP(RFC 6238,30s,+-1 步容忍)+ step-up token(acr:step-up,5min)。
-// TOTP secret AES-256-GCM 加密(信封加密,KEK 从 env.KEK);
-// 防重放:已用 code 在 ChallengeStore DO 内原子 claim,TTL 覆盖该 counter 的完整容忍窗口。
-// 密码学原语只用 Web Crypto(crypto.subtle),不自研原语(见 crypto-boundary rule)。
-// step-up token 独立颁发,不复用登录 session token(见 01 章 5 设计决策)。
+// TOTP(RFC 6238,+-1 步)+ step-up(acr:step-up,5min,不复用 session token)。
+// secret 信封加密;已用 code 在 ChallengeStore 原子 claim,TTL 覆盖容忍窗口。
 
 import {
   base64UrlDecode,
@@ -18,22 +15,14 @@ import { constantTimeEqualStr } from './otp'
 import { AppError } from '../lib/errors'
 import { TOTP_REPLAY_TTL_MS, TOTP_STEP_SEC } from '../lib/ttl'
 
-// ---- TOTP 参数(RFC 6238) ----
 const TOTP_DIGITS = 6
 const TOTP_CLOCK_DRIFT_STEPS = 1 // 容忍正负 1 步
 
-// step-up token 生命周期(5min,见 01 章 5)
 const STEP_UP_TTL_SEC = 5 * 60
-
-// KEK 版本(信封加密,见 signing-keys rule:KEK 存 Workers Secrets)
 const KEK_VERSION = 1
 
-// ---- HOTP(RFC 4226)核心:HMAC-SHA1 -> truncate -> 6 位 OTP ----
-// TOTP = HOTP(key, floor(now / step))。
-// 密码学原语只用 crypto.subtle.sign HMAC-SHA-1。
-
+// HOTP:HMAC-SHA1 + dynamic truncation -> 6 位(Web Crypto only)。
 async function hotp(keyBytes: Uint8Array, counter: bigint): Promise<string> {
-  // counter -> 8 字节 big-endian
   const msg = new Uint8Array(8)
   let c = counter
   for (let i = 7; i >= 0; i--) {
@@ -48,7 +37,7 @@ async function hotp(keyBytes: Uint8Array, counter: bigint): Promise<string> {
     ['sign'],
   )
   const sig = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, msg))
-  // Dynamic truncation(RFC 4226 Section 5.3)
+  // RFC 4226 §5.3 dynamic truncation
   const offset = sig[19] !== undefined ? sig[19] & 0x0f : 0
   const code =
     (((sig[offset] ?? 0) & 0x7f) << 24) |
@@ -58,13 +47,9 @@ async function hotp(keyBytes: Uint8Array, counter: bigint): Promise<string> {
   return String(code % 10 ** TOTP_DIGITS).padStart(TOTP_DIGITS, '0')
 }
 
-// counter = floor(unix_time_sec / step)
 function totpCounter(timeSec: number): bigint {
   return BigInt(Math.floor(timeSec / TOTP_STEP_SEC))
 }
-
-// ---- TOTP secret 信封加密/解密(AES-256-GCM,见 crypto-boundary / signing-keys rule) ----
-// KEK 从 env.KEK(base64url 编码 32 字节,Workers Secrets)。
 
 function decodeKek(kekRaw: string): Uint8Array {
   return base64UrlDecode(kekRaw)
@@ -76,7 +61,7 @@ export async function encryptTotpSecret(
 ): Promise<Uint8Array> {
   const kek = decodeKek(kekRaw)
   const blob = await envelopeEncrypt(secretBytes, kek, KEK_VERSION)
-  // 序列化为: version(1B) || ivLen(1B) || iv || ciphertextLen(2B) || ciphertext || tag(16B)
+  // version(1) || ivLen(1) || iv || ctLen(2) || ct || tag(16)
   const iv = blob.iv
   const ct = blob.ciphertext
   const tag = blob.tag
@@ -174,13 +159,9 @@ function totpReplayTtlMs(matchedCounters: bigint[], nowSec: number): number {
   return Math.min(remainingMs, TOTP_REPLAY_TTL_MS)
 }
 
-// TOTP secret ciphertext 转 Uint8Array(兼容 Buffer/Uint8Array)。
 function toUint8Array(src: Uint8Array | Buffer): Uint8Array {
   return src instanceof Uint8Array ? src : new Uint8Array(src)
 }
-
-// ---- TOTP 验证(防重放 + 时钟容忍) ----
-// 返回 ok 或失败原因。
 
 export type TotpVerifyResult =
   | { ok: true }

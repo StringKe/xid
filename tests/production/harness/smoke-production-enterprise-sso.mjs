@@ -135,10 +135,7 @@ WHERE tenant_id = ${sqlString(body.activeOrg.id)}
   printResult('PASS', 'enterprise sso me active organization', `org=${body.activeOrg.id}`)
 }
 
-// IdP 回调建出来的 session 是本 harness 唯一自己造出来的实体。它挂在真实(可能是 JIT 建出来的)
-// 用户上、不带 smoke 前缀,共享扫除看不见它 -- 不在这里登出就没有第二个机制会收。
-// 注意:开了 allowJitUserCreation 的连接还会建出 user / user_emails / memberships,
-// 那些行属于真实用户,harness 无法区分"本次新建"与"早就存在",故意不动,只收 session。
+// IdP 回调 session 无 smoke 前缀,不登出就无第二道清理;JIT 建号无法区分新旧,故意只收 session。
 async function signOutEnterpriseSsoSession(cookie) {
   if (!cookie) return
   const { res, text } = await fetchText('/auth/sign-out', { method: 'POST', cookie })
@@ -200,7 +197,7 @@ export async function runProductionEnterpriseSsoSmoke() {
         run: () => signOutEnterpriseSsoSession(session.cookie),
       },
     ])
-    // 在 finally 里直接 throw:清理失败必须判红,且不依赖 try 里有没有提前 return。
+    // finally 内直接 throw:清理失败必须判红,且不依赖 try 是否提前 return。
     if (failures.length > 0 && !primaryError) {
       throw new Error(
         `enterprise sso cleanup failed: ${failures.map((failure) => failure.name).join(', ')}`,

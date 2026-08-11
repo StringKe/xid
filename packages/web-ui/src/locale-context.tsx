@@ -31,7 +31,7 @@ function activateCatalog(
   i18n.activate(locale)
 }
 
-// 英文首屏同步激活,跳过 await 微任务,缩短 LCP 元素渲染延迟。
+// 英文首屏同步激活,跳过 await 微任务以缩短 LCP。
 export function activateEnglishLocale(): SupportedLocale {
   activateCatalog('en', getEnglishCatalog())
   return 'en'

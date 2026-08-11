@@ -1,5 +1,4 @@
-// 跨页重定向登录(social / enterprise SSO / magic link)完成后补发 login/sign_up。
-// finishSignIn 已直接上报的路径不写入 pending,避免重复计数。
+// 跨页重定向登录完成后补发 login/sign_up;finishSignIn 已直报的不写 pending。
 
 import type { AuthFlowIntent, AuthMethod } from './google-analytics-funnel'
 
@@ -15,7 +14,7 @@ export function setPendingAuthCompletion(input: PendingAuthCompletion): void {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(input))
   } catch {
-    // quota / private mode:跳过补发,不阻断登录
+    // quota/隐私模式跳过,不阻断登录。
   }
 }
 
@@ -24,7 +23,6 @@ export function clearPendingAuthCompletion(): void {
   try {
     sessionStorage.removeItem(STORAGE_KEY)
   } catch {
-    // ignore
   }
 }
 

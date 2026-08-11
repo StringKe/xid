@@ -1,5 +1,4 @@
-// /ciba-activation:CIBA backchannel 请求用户审批页(须登录)。
-// 通过 auth_req_id 查询待审批请求,approve/deny 调用 /auth/ciba-activation。
+// CIBA backchannel 审批页(须登录);auth_req_id 查请求,approve/deny 走 /auth/ciba-activation。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useMemo } from 'react'

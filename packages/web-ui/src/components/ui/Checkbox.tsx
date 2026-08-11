@@ -1,5 +1,4 @@
-// Checkbox:原生 checkbox 的统一尺度(accent 着色 + 1rem 盒)。
-// 组合方式:外部 label 包裹或由 Field/CheckRow 组合;不吃 aria-invalid(checkbox 无 invalid 语义场景)。
+// 不吃 aria-invalid:checkbox 无 invalid 语义场景。
 
 import { forwardRef } from 'react'
 import type { InputHTMLAttributes, ReactNode } from 'react'

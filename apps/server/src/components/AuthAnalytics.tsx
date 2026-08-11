@@ -1,4 +1,4 @@
-// 监听会话态变化,补发跨重定向登录(social / SSO / magic link)的 login/sign_up。
+// 会话建立后补发跨重定向登录的 login/sign_up(防 finishSignIn 已直报路径重复计数)。
 
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'

@@ -1,14 +1,10 @@
-// 惰性消息定义:用 msg macro 覆盖全量 XidErrorCode 对应的用户可见文案。
-// msg 不触发立即翻译,i18n._(theMsg) 在有实例上下文时渲染。
-// 见 i18n-lingui rule:非组件上下文用 msg 定义,i18n._() 渲染。
+// msg 惰性定义全量 XidErrorCode 文案,须经 i18n._() 在实例上下文中渲染。
 import { msg } from '@lingui/core/macro'
 import type { XidErrorCode } from '@xid-kit/types'
 
-// MessageDescriptor union,保证每个 XidErrorCode 都有对应条目。
 export type ErrorMessages = Record<XidErrorCode, ReturnType<typeof msg>>
 
 export const errorMessages: ErrorMessages = {
-  // OAuth / OIDC 标准错误
   invalid_request: msg`The request is missing a required parameter or is malformed.`,
   invalid_client: msg`Client authentication failed.`,
   invalid_grant: msg`The authorization grant or refresh token is invalid or expired.`,
@@ -30,7 +26,6 @@ export const errorMessages: ErrorMessages = {
   server_error: msg`An unexpected server error occurred. Please try again.`,
   temporarily_unavailable: msg`The service is temporarily unavailable. Please try again later.`,
 
-  // 认证错误(密码 / MFA / passwordless / WebAuthn)
   invalid_credentials: msg`The email or password is incorrect.`,
   account_locked: msg`Your account has been temporarily locked. Please try again later.`,
   account_suspended: msg`Your account has been suspended. Contact support for assistance.`,
@@ -63,7 +58,6 @@ export const errorMessages: ErrorMessages = {
   invitation_email_mismatch: msg`Sign in with the email address that received this invitation.`,
   invitation_already_accepted: msg`This invitation has already been accepted.`,
 
-  // 组织 RBAC / 隔离
   tenant_not_found: msg`The requested organization context could not be found.`,
   tenant_suspended: msg`This organization context has been suspended.`,
   org_not_found: msg`The organization could not be found.`,
@@ -80,7 +74,6 @@ export const errorMessages: ErrorMessages = {
   request_already_decided: msg`This access request has already been decided.`,
   no_available_approver: msg`No approver is available for this access request.`,
 
-  // 企业 SSO (SAML / SCIM)
   malformed_request: msg`The request is malformed.`,
   malformed_xml: msg`The SAML XML document is malformed.`,
   schema_invalid: msg`The document schema is invalid.`,
@@ -96,14 +89,12 @@ export const errorMessages: ErrorMessages = {
   connection_not_found: msg`The SSO connection could not be found.`,
   scim_token_invalid: msg`The SCIM bearer token is invalid.`,
 
-  // 会话
   session_not_found: msg`The session could not be found.`,
   session_revoked: msg`This session has been revoked.`,
   session_expired: msg`Your session has expired. Please sign in again.`,
   refresh_token_invalid: msg`The refresh token is invalid.`,
   refresh_token_reused: msg`The refresh token has already been used.`,
 
-  // 管理 API
   not_found: msg`The requested resource could not be found.`,
   already_exists: msg`A resource with this identifier already exists.`,
   validation_failed: msg`Validation failed. Please check your input.`,
@@ -116,8 +107,7 @@ export const errorMessages: ErrorMessages = {
   service_unavailable: msg`The service is currently unavailable.`,
 }
 
-// 协议错误页(worker/lib/error-page.ts:/authorize 本地渲染 + SAML ACS 浏览器错误)标题文案。
-// 描述行复用 errorMessages;非 XidErrorCode 的协议错误码回落调用方原始 description。
+// 协议错误页标题;描述复用 errorMessages,非 XidErrorCode 回落调用方原始 description。
 export const protocolErrorPageMessages = {
   title: msg`Authorization error`,
 } as const

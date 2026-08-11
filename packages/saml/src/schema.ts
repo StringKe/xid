@@ -1,6 +1,4 @@
-// SAML 2.0 protocol messages and Assertion hard-coded structural allowlist.
-// Workers cannot run xmllint, so the inbound critical path validates the consumed SAML grammar
-// recursively and rejects every unconsumed XSD extension point before signature verification.
+// Workers 无法跑 xmllint,入站用硬编码结构白名单递归校验,未消费的 XSD 扩展点在验签前一律拒。
 
 import { DS_NS, SAMLP_NS, SAML_ASSERTION_NS, XENC_NS } from './precheck'
 import { failResult, okResult } from './errors'

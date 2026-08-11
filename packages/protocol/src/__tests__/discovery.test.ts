@@ -1,4 +1,3 @@
-// Discovery 元数据(03 章 1/9):issuer 多租户隔离,端点从 TenantContext 派生,合并 OIDC + OAuth 元数据。
 import { describe, it, expect } from 'vitest'
 
 import { buildDiscoveryMetadata, buildProtectedResourceMetadata } from '../discovery'
@@ -34,7 +33,7 @@ describe('buildDiscoveryMetadata', () => {
     ])
     expect(meta.request_parameter_supported).toBe(true)
     expect(meta.request_uri_parameter_supported).toBe(true)
-    // request object 按 client JWKS jwk.alg 验签,接受 SigningAlg 全集,不随服务器密钥集。
+    // request object 验签接受 SigningAlg 全集,不随服务器密钥集。
     expect(meta.request_object_signing_alg_values_supported).toEqual(['ES256', 'RS256', 'PS256'])
     expect(meta.authorization_details_types_supported).toEqual(['resource_access'])
   })
@@ -43,7 +42,7 @@ describe('buildDiscoveryMetadata', () => {
     const { ctx } = await buildTestTenant()
     const meta = buildDiscoveryMetadata({ ctx })
     expect(meta.id_token_signing_alg_values_supported).toContain('ES256')
-    // DPoP proof 验签白名单(dpop.ts ALLOWED_DPOP_ALGS),不随服务器密钥集。
+    // DPoP 验签白名单不随服务器密钥集。
     expect(meta.dpop_signing_alg_values_supported).toEqual(['ES256', 'RS256', 'PS256'])
   })
 

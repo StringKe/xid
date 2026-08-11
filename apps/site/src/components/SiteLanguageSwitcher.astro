@@ -42,7 +42,7 @@ const label = translateSiteMessage(Astro.url.pathname, siteShellMessages.languag
       try {
         localStorage.setItem("xid.locale", select.value);
       } catch {
-        // Navigation remains functional when storage is unavailable.
+        // storage 不可用时仍跳转，只是不记偏好。
       }
       window.location.assign(url.toString());
     });

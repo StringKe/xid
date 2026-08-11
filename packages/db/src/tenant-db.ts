@@ -1,7 +1,5 @@
-// 租户查询层(P0 隔离控制点,见 tenant-isolation rule、08 章 9.5):
-// createTenantDb(d1, ctx) 返回的句柄对每张租户表只暴露已注入 WHERE tenant_id=? 的安全 CRUD;
-// org 级实体再注入 org_id。不暴露不带租户过滤的裸 query builder。
-// tenant_id 取自 TenantContext(见 tenant-context rule),不信任请求 body。
+// P0 租户隔离:createTenantDb 只暴露已注入 WHERE tenant_id=? 的 CRUD;org 级再注入 org_id。
+// tenant_id 只取 TenantContext,不信任请求 body;不暴露无租户谓词的裸 query builder。
 
 import type { TenantContext } from '@xid-kit/types'
 import type { InferInsertModel, InferSelectModel, SQL } from 'drizzle-orm'
@@ -10,12 +8,10 @@ import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { drizzle } from 'drizzle-orm/d1'
 import * as schema from './schema'
 
-// 任意带 tenant_id 列的 SQLite 表(租户隔离的最小结构约束)。
 type TenantTable = SQLiteTable & {
   tenantId: SQLiteColumn
 }
 
-// 带 org_id 的租户表(org 级实体,查询再注入 org_id)。
 type OrgTable = TenantTable & {
   orgId: SQLiteColumn
 }
@@ -37,8 +33,7 @@ function orderByList(value: TenantFindManyOptions['orderBy']): readonly TenantOr
   return [value as TenantOrderBy]
 }
 
-// 已绑定 tenant_id(及可选 org_id)的单表安全访问器。
-// 所有方法在 WHERE 链首注入租户谓词,调用方传的额外条件只能收窄不能绕过。
+// WHERE 链首注入租户谓词,调用方附加条件只能收窄,不能绕过。
 export type TenantScoped<T extends TenantTable> = {
   findMany: (where?: SQL, options?: TenantFindManyOptions) => Promise<Row<T>[]>
   findOne: (where?: SQL) => Promise<Row<T> | undefined>
@@ -54,7 +49,6 @@ export type TenantScoped<T extends TenantTable> = {
 
 type Db = ReturnType<typeof drizzle<typeof schema>>
 
-// 组合租户谓词与调用方附加条件(附加条件只能收窄)。
 function scopedWhere(base: SQL, extra?: SQL): SQL {
   return extra ? (and(base, extra) as SQL) : base
 }
@@ -134,7 +128,6 @@ function makeScoped<T extends TenantTable>(
   }
 }
 
-// 仅按 tenant_id 隔离的表访问器。
 function tenantScoped<T extends TenantTable>(
   db: Db,
   table: T,
@@ -145,7 +138,6 @@ function tenantScoped<T extends TenantTable>(
   })
 }
 
-// 按 tenant_id + org_id 双重隔离的 org 级表访问器(见 tenant-isolation rule org 级实体)。
 function orgScoped<T extends OrgTable>(
   db: Db,
   table: T,
@@ -160,16 +152,13 @@ function orgScoped<T extends OrgTable>(
   )
 }
 
-// 租户查询句柄:每张租户表一个已注入隔离谓词的访问器(键来自 TENANT_TABLES,见下)。
-// org 级实体需显式 forOrg(orgId) 再细分,避免误用全租户视图。
+// org 级须 forOrg(orgId) 再细分,避免误用全租户视图。
 export type TenantDb = ScopedTableMap & {
   tenantId: string
-  // org 级二次隔离:传 orgId 得到再注入 org_id 的视图(见 tenant-isolation rule)。
   forOrg: (orgId: string) => OrgScopedDb
 }
 
-// org 级实体在确定 active org 后的二次隔离视图(tenant_id + org_id 双注入)。
-// 仅含直接带 org_id 列的表;applications 经 project_id 间接归属 org(见 08 章 10.4),不在此列。
+// 仅含直接带 org_id 的表;applications 经 project_id 间接归属 org,不在此列(08 章 10.4)。
 export type OrgScopedDb = {
   orgId: string
   projects: TenantScoped<typeof schema.projects>
@@ -206,8 +195,7 @@ function buildOrgScoped(db: Db, tenantId: string, orgId: string): OrgScopedDb {
   }
 }
 
-// 顶层租户表清单(键 = TenantDb 属性名 = schema 导出名;值即对应表)。
-// 全部直接带 tenant_id 列,顶层访问器只按 tenant_id 隔离;org 级精确隔离走 forOrg(orgId)。
+// 顶层只按 tenant_id 隔离;org 级精确隔离走 forOrg(orgId)。
 const TENANT_TABLES = {
   users: schema.users,
   userEmails: schema.userEmails,
@@ -278,7 +266,6 @@ function buildScopedTables(db: Db, tid: string): ScopedTableMap {
   return out as ScopedTableMap
 }
 
-// 工厂:绑定 D1 binding 与 TenantContext,产出全表已隔离的租户查询句柄。
 export function createTenantDb(d1: D1Database, ctx: TenantContext): TenantDb {
   const db = drizzle(d1, { schema })
   const tid = ctx.tenantId

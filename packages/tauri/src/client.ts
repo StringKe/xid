@@ -1,7 +1,4 @@
-// XidTauriClient implementation.
-// Orchestrates PKCE flow, deeplink callback, authorization-code token exchange,
-// and keychain persistence for Tauri desktop apps.
-// The client holds no cryptographic keys; PKCE S256 uses Web Crypto in the WebView.
+// PKCE / deeplink / code 换 token 与 keychain 持久化；私钥不入客户端，S256 走 WebView Web Crypto。
 
 import { generateBase64UrlRandom, generatePkce } from './pkce'
 import { createMemoryKeychainAdapter } from './keychain'
@@ -17,12 +14,8 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
   const now = options.now ?? (() => Math.floor(Date.now() / 1000))
   const fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
 
-  // Mutable keychain reference so setTokenStorage() can swap at runtime.
   let store: SessionStore = createSessionStore(options.keychain ?? createMemoryKeychainAdapter())
 
-  // --------------------------------------------------------------------------
-  // signIn: build PKCE authorize URL, persist verifier + state, optionally open
-  // --------------------------------------------------------------------------
   async function signIn(callOptions: SignInOptions = {}): Promise<URL> {
     const scopes = callOptions.scopes ?? defaultScopes
     assertAuthorizationCodeOnlyScopes(scopes)
@@ -46,9 +39,6 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
     return url
   }
 
-  // --------------------------------------------------------------------------
-  // handleRedirect: parse deeplink, validate state, exchange code for tokens
-  // --------------------------------------------------------------------------
   async function handleRedirect(rawUrl: string): Promise<void> {
     const callbackUrl = new URL(rawUrl)
 
@@ -67,7 +57,7 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
     const returnedState = callbackUrl.searchParams.get('state')
     const expectedState = await store.getOauthState()
 
-    // State mismatch = CSRF attempt or stale callback; always reject.
+    // state 不匹配视为 CSRF 或过期回调，一律拒绝。
     if (!returnedState || !expectedState || returnedState !== expectedState) {
       throw new TauriTokenError('OAuth state mismatch -- possible CSRF', 'state_mismatch')
     }
@@ -76,7 +66,7 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
     if (!verifier)
       throw new TauriTokenError('PKCE verifier not found in storage', 'missing_verifier')
 
-    // Clean up ephemeral PKCE/state before exchange (defensive: tokens not yet written).
+    // 换 token 前先清 ephemeral PKCE/state，避免交换失败后残留可复用材料。
     await Promise.all([store.setOauthState(''), store.setPkceVerifier('')])
 
     const tokenSet = await exchangeCodeForTokens({
@@ -92,9 +82,6 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
     await persistTokenSet(tokenSet)
   }
 
-  // --------------------------------------------------------------------------
-  // getSession: return the active unexpired session
-  // --------------------------------------------------------------------------
   async function getSession(): Promise<TauriSession | null> {
     const accessToken = await getAccessToken()
     if (!accessToken) return null
@@ -110,9 +97,6 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
     }
   }
 
-  // --------------------------------------------------------------------------
-  // getAccessToken: return an unexpired token or require reauthorization
-  // --------------------------------------------------------------------------
   async function getAccessToken(callOptions: { skipCache?: boolean } = {}): Promise<string | null> {
     await store.clearLegacyCredentials()
     const [existing, session] = await Promise.all([store.getAccessToken(), store.getSession()])
@@ -126,21 +110,15 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
       return null
     }
 
-    // There is no network refresh path. A cache bypass therefore cannot produce a newer token.
+    // 无网络 refresh；skipCache 不会拿到更新 token，直接返回 null。
     if (callOptions.skipCache) return null
     return existing
   }
 
-  // --------------------------------------------------------------------------
-  // signOut: clear local credentials
-  // --------------------------------------------------------------------------
   async function signOut(): Promise<void> {
     await store.clearAll()
   }
 
-  // --------------------------------------------------------------------------
-  // buildSignOutUrl: OIDC RP-initiated logout URL
-  // --------------------------------------------------------------------------
   function buildSignOutUrl(
     callOptions: { postLogoutRedirectUri?: string; idTokenHint?: string } = {},
   ): URL {
@@ -152,26 +130,17 @@ export function createXidTauriClient(options: XidTauriClientOptions): XidTauriCl
     return url
   }
 
-  // --------------------------------------------------------------------------
-  // setTokenStorage: swap keychain adapter at runtime
-  // --------------------------------------------------------------------------
   function setTokenStorage(adapter: XidKeychainAdapter): void {
     store = createSessionStore(adapter)
   }
-
-  // --------------------------------------------------------------------------
-  // Internal helpers
-  // --------------------------------------------------------------------------
 
   async function persistTokenSet(tokenSet: {
     accessToken: string
     expiresAt: number
     idToken: string | null
   }): Promise<void> {
-    // Decode userId from the access token JWT payload (sub claim).
     const userId = extractSubClaim(tokenSet.accessToken) ?? 'unknown'
 
-    // Remove any token state from older SDK versions before writing the new session.
     await store.clearSession()
     await Promise.all([
       store.setAccessToken(tokenSet.accessToken),
@@ -203,8 +172,7 @@ function assertAuthorizationCodeOnlyScopes(scopes: readonly string[]): void {
   }
 }
 
-// Decode the `sub` claim from a JWT without verifying signature.
-// Token comes from our own issuer; this is only for userId labeling, not trust decisions.
+// 不校验签名：token 来自本 issuer，仅用于 userId 标注，不作信任决策。
 function extractSubClaim(jwt: string): string | null {
   const parts = jwt.split('.')
   if (parts.length !== 3 || !parts[1]) return null

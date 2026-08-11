@@ -75,9 +75,7 @@ LIMIT 1;
   printResult('PASS', 'mfa sms one time consume', 'deleted=true')
 }
 
-// runSend 每跑一次就在生产库写一条 sms OTP。verify 成功时服务端会删掉它,但 SKIP 腿
-// (没有 CODE_FILE)和 verify 失败腿都会把它留下等 TTL。这里按主键删,不带任何模糊条件:
-// 锚定是 verification_tokens.id,爆炸半径恒等于 1 行。verify 成功后重复删是 0 行的空操作。
+// SKIP/verify 失败腿会留下 sms OTP;按 verification_tokens.id 主键删,爆炸半径恒为 1 行。
 async function deleteMfaSmsOtp(tokenId) {
   if (!tokenId) return
   await d1(
@@ -159,9 +157,7 @@ export async function runProductionMfaSmsSmoke() {
   }
   const phone = await loadVerifiedPhone(me.activeOrg.id, me.user.id)
 
-  // session cookie 是操作者经 XID_PRODUCTION_MFA_SMS_COOKIE_FILE 提供的,不是本 harness 建的:
-  // 这里绝不能 sign-out,否则会注销操作者自己的 session 并让下一次重跑无法进行。
-  // 本 harness 自己造出来的只有一条 OTP 行,清理面就是它。
+  // cookie 由操作者注入,绝不能 sign-out;本 harness 仅清理自己写的 OTP 行。
   let tokenId = null
   let primaryError = null
   const unregisterSignals = registerCleanupSignalHandlers(() => deleteMfaSmsOtp(tokenId))
@@ -197,8 +193,7 @@ export async function runProductionMfaSmsSmoke() {
     const { failures } = await runCleanupSteps([
       { name: 'mfa sms otp row', run: () => deleteMfaSmsOtp(tokenId) },
     ])
-    // 在 finally 里直接 throw 是故意的:try 里的 return(SKIP 腿)会跳过函数尾部的 throw,
-    // 只有这样清理失败才真的判红。primaryError 已存在时不抛,免得盖掉真正的失败原因。
+    // finally 内 throw:SKIP 腿提前 return 会跳过尾部 throw;有 primaryError 时不盖错。
     if (failures.length > 0 && !primaryError) {
       throw new Error(
         `mfa sms cleanup failed: ${failures.map((failure) => failure.name).join(', ')}`,

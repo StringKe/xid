@@ -1,10 +1,8 @@
-// ECDSA 签名格式转换:DER(ASN.1 SEQUENCE)<-> P1363(JOSE 定长 r||s)。
-// 自研格式编解码,非安全敏感(见 crypto-boundary rule 第三类)。Web Crypto ECDSA 原生用 P1363,
-// 这里供与 DER 格式签名(如 X.509 / node:crypto / 部分上游 IdP)互操作时转换。
+// ECDSA 签名 DER(ASN.1) <-> JOSE P1363(r||s)互转;Web Crypto 原生 P1363,此模块仅服务 DER 互操作(X.509 / node:crypto / 部分 IdP)。
 
 const P256_COORD_BYTES = 32
 
-// 去掉左侧零填充,但至少保留 1 字节;若最高位为 1,DER INTEGER 需补 0x00 前缀。
+// DER INTEGER:去掉左侧零,最高位为 1 时补 0x00 以免被当成负数。
 function toDerInteger(coord: Uint8Array): Uint8Array {
   let start = 0
   while (start < coord.length - 1 && coord[start] === 0) start++
@@ -18,7 +16,6 @@ function toDerInteger(coord: Uint8Array): Uint8Array {
   return trimmed.slice()
 }
 
-// P1363(r||s,各 32 字节)-> DER。仅支持 P-256(ES256)。
 export function p1363ToDer(p1363: Uint8Array): Uint8Array {
   if (p1363.length !== P256_COORD_BYTES * 2) {
     throw new Error(`P1363 ES256 signature must be ${P256_COORD_BYTES * 2} bytes`)
@@ -41,8 +38,7 @@ export function p1363ToDer(p1363: Uint8Array): Uint8Array {
   return der
 }
 
-// 严格解析一个 DER INTEGER,右对齐写入 32 字节坐标(去单个前导 0x00,左侧补零)。
-// 对不可信输入做全量结构校验:tag、短形式长度、剥 0x00 后 valueLen 1..32、不越界。
+// 不可信 DER 严格校验 tag/短形式长度/P-256 坐标范围,右对齐写入 32 字节。
 function readDerInteger(der: Uint8Array, offset: number): { coord: Uint8Array; next: number } {
   if (der[offset] !== 0x02) throw new Error('invalid DER: expected INTEGER')
   const len = der[offset + 1]
@@ -63,8 +59,7 @@ function readDerInteger(der: Uint8Array, offset: number): { coord: Uint8Array; n
   return { coord, next: end }
 }
 
-// DER -> P1363(r||s,各 32 字节)。仅支持 P-256(ES256)。对不可信 DER 做严格结构校验,
-// 任一不满足 throw:SEQUENCE tag、短形式长度且 length 字段与实际一致、两 INTEGER 解析后无尾随字节。
+// SEQUENCE 长度须与实际一致且无尾随字节,否则 throw。
 export function derToP1363(der: Uint8Array): Uint8Array {
   if (der[0] !== 0x30) throw new Error('invalid DER: expected SEQUENCE')
   const seqLen = der[1]

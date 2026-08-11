@@ -1,8 +1,3 @@
-// /account:档案编辑页(first_name / last_name / display_name / locale / timezone)。
-// 全宽版式:页面自持 gutter clamp(1rem,2.5vw,4rem),display 标题区 + 5/7 双列表单节;
-// 左列(节题与说明) + 右列(控件,maxWidth 36rem),宽屏 5/7 双列,窄屏堆叠。
-// 数据层 TanStack Query(useProfileQuery + useUpdateProfile),提交流程不变。
-
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
@@ -26,13 +21,11 @@ const LOCALE_OPTIONS = [
   { value: 'pt-BR', label: 'Português' },
 ] as const
 
-// 全宽规范口径:与 AccountLayout main 对应,页面自持 gutter。
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
 
 const styles = stylex.create({
-  // 表单节:paddingBlock + 自持 gutter
   formSection: {
     paddingInline: GUTTER,
     paddingBlock: SECTION_PAD,
@@ -40,7 +33,6 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: tokens['--xid-border'],
   },
-  // 5/7 双列表单布局:左节题 + 右控件;宽屏双列,窄屏堆叠
   formGrid: {
     display: 'grid',
     gridTemplateColumns: {
@@ -53,7 +45,6 @@ const styles = stylex.create({
     },
     alignItems: 'start',
   },
-  // 左列:节题与说明
   formLeft: {
     minWidth: 0,
     paddingInlineEnd: {
@@ -74,7 +65,6 @@ const styles = stylex.create({
     lineHeight: 1.55,
     color: tokens['--xid-muted-foreground'],
   },
-  // 右列:控件区,竖线分隔
   formRight: {
     minWidth: 0,
     maxWidth: '36rem',
@@ -99,7 +89,6 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     gap: '1rem',
-    // hairline 邻接 >= 1.25rem(内联副本需同步 Section.tsx head paddingBottom 口径)
     paddingBottom: '1.25rem',
     marginBottom: '0',
     borderBottomWidth: '1px',
@@ -133,7 +122,7 @@ const styles = stylex.create({
     lineHeight: 1.5,
     color: tokens['--xid-muted-foreground'],
   },
-  // select:与 Input 同口径;:focus 切 accent 边框;outline:none 防双描边。
+  // outline:none 防 focus 双描边(边框已切 accent)。
   select: {
     width: '100%',
     minHeight: '2.5rem',
@@ -155,7 +144,6 @@ const styles = stylex.create({
     transitionTimingFunction: 'ease-out',
     outline: 'none',
   },
-  // 提交区:自持 gutter
   submitZone: {
     paddingInline: GUTTER,
     paddingBlock: SECTION_PAD,
@@ -243,7 +231,6 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} noValidate>
-      {/* 身份节:avatar + email 静态值 */}
       <div {...stylex.props(styles.formSection)}>
         <div {...stylex.props(styles.formGrid)}>
           <div {...stylex.props(styles.formLeft)}>
@@ -256,7 +243,6 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
           </div>
           <div {...stylex.props(styles.formRight)}>
             <AvatarSection imageUrl={initialData.imageUrl} email={initialData.email} />
-            {/* email 只读且不参与提交,渲染为静态值行 */}
             <SectionRow variant="static" label={<Trans>Email address</Trans>}>
               <span {...stylex.props(styles.staticValue)}>{initialData.email}</span>
             </SectionRow>
@@ -264,7 +250,6 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
         </div>
       </div>
 
-      {/* 名称节 */}
       <div {...stylex.props(styles.formSection)}>
         <div {...stylex.props(styles.formGrid)}>
           <div {...stylex.props(styles.formLeft)}>
@@ -310,7 +295,6 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
         </div>
       </div>
 
-      {/* 偏好节 */}
       <div {...stylex.props(styles.formSection)}>
         <div {...stylex.props(styles.formGrid)}>
           <div {...stylex.props(styles.formLeft)}>
@@ -358,7 +342,6 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
         </div>
       </div>
 
-      {/* 提交区 */}
       <div {...stylex.props(styles.submitZone)}>
         {errorMsg ? <Alert tone="error">{errorMsg}</Alert> : null}
         {successMsg ? <Alert tone="success">{successMsg}</Alert> : null}

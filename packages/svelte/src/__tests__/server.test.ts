@@ -1,9 +1,6 @@
-// server.test.ts:handleXid / getXidAuth 单元测试。
-// authenticateRequest 通过 vi.mock 隔离(避免依赖真实 JWT/JWKS)。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getXidAuth } from '../server'
 
-// getXidAuth 测试不依赖 @xid-kit/backend,直接测 locals 读取逻辑。
 describe('getXidAuth', () => {
   it('returns unauthenticated when locals key absent', () => {
     const result = getXidAuth({})
@@ -52,14 +49,13 @@ describe('getXidAuth', () => {
   })
 })
 
-// handleXid 测试:mock @xid-kit/backend。
 describe('handleXid', () => {
   beforeEach(() => {
     vi.resetModules()
   })
 
   it('injects authResult into event.locals and calls resolve', async () => {
-    // Mock @xid-kit/backend before importing handleXid.
+    // 须在 import handleXid 之前 mock backend
     vi.doMock('@xid-kit/backend', () => ({
       authenticateRequest: vi.fn().mockResolvedValue({
         isSignedIn: true,

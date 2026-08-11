@@ -1,6 +1,4 @@
-// 全局类型补充:Cloudflare Turnstile widget API。
-// Turnstile 通过 <script> 动态注入到 window.turnstile,不随 npm 包分发。
-// Site key 从同源 /auth/config 读取,不使用 build-time global。
+// Turnstile 经 <script> 注入 window,无 npm 类型;site key 来自 /auth/config。
 
 type TurnstileRenderOptions = {
   sitekey: string
@@ -26,8 +24,7 @@ declare global {
     turnstile?: TurnstileAPI
   }
 
-  // Turnstile 脚本把 API 注入 globalThis。
-  // 用 var 声明使其挂到 typeof globalThis。
+  // var 使声明挂到 typeof globalThis(脚本注入 API)。
   // eslint-disable-next-line no-var
   var turnstile: TurnstileAPI | undefined
 }

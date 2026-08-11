@@ -1,5 +1,4 @@
-// Alert:页面级提示(error/success/warning/info)。
-// error 用 role=alert(打断播报);其它用 role=status(礼貌播报)。文案/标题由调用方走 lingui。
+// error 用 role=alert(打断播报);其它用 role=status。
 
 import type { CSSProperties, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'

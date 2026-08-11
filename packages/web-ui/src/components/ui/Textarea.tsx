@@ -1,5 +1,4 @@
-// Textarea:多行文本控件,mono 小字号(配置/JSON 场景)+ invalid 态。
-// 不自带 label(由 Field 组合)。
+// mono 小字号适配配置/JSON;不自带 label(由 Field 组合)。
 
 import { forwardRef } from 'react'
 import type { ReactNode, TextareaHTMLAttributes } from 'react'

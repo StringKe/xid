@@ -1,7 +1,4 @@
-// TokenCache:RN 层安全存储抽象接口(依赖注入,不绑定任何具体 native 模块)。
-// 调用方实现此接口并传入 XidProvider tokenCache prop。
-// iOS 推荐 react-native-keychain;Android 推荐 EncryptedSharedPreferences 封装。
-// expo 包提供 createSecureStoreAdapter() 作为 expo-secure-store 默认实现。
+// 安全存储 DI 抽象；iOS Keychain / Android EncryptedSharedPreferences，expo 见 createSecureStoreAdapter。
 
 export type TokenCache = {
   /**

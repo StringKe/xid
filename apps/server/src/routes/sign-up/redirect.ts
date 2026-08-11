@@ -1,5 +1,4 @@
-// /sign-up -> /sign-in?intent=sign-up 的 query 透传白名单。
-// 只有认证动线相关的参数允许带过去;不在白名单内的参数一律丢弃。
+// /sign-up -> /sign-in 仅透传认证动线 query 白名单。
 
 export type SignUpRedirectSearch = {
   continue?: string

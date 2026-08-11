@@ -1,5 +1,3 @@
-// useSignOut(RN):确定性清除本地 token session。
-
 import { useCallback, useState } from 'react'
 
 import { useXidRnContext } from './xid-rn-context'

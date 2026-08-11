@@ -1,5 +1,3 @@
-// org 下游企业 SSO 页:从 preset 模板配置下游 SaaS SAML SP,支持 SLO 与成员分配门控。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { OUTBOUND_CONSOLE_PRESETS } from '@xid-kit/protocol'

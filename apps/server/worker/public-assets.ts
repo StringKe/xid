@@ -12,19 +12,14 @@ function delegateFrontendRequest(
   c: Context<XidHonoEnv>,
   owner: 'site' | 'console',
 ): Promise<Response> {
-  // Cloudflare matches Worker Routes against the full URL, including the query string. Exact
-  // frontend routes therefore fall through to this Core Custom Domain handler when a query is
-  // present. A one-way Service Binding preserves the original Request without creating a route
-  // loop because neither frontend Worker binds back to Core.
+  // CF Route 含完整 URL(含 query),精确前端路由带 query 会落到 Core;单向 Service Binding 不回环。
   return owner === 'site'
     ? c.env.SITE_WORKER.fetch(c.req.raw)
     : c.env.CONSOLE_WORKER.fetch(c.req.raw)
 }
 
 export function registerFrontendRouteDelegation(app: Hono<XidHonoEnv>): void {
-  // This must run before tenant/protocol middleware. `/scim` is an exact Site document but
-  // `/scim/*` is a Core protocol tree; the ownership contract distinguishes them before the
-  // protocol middleware can turn the exact document fallback into a Core 404.
+  // 须先于 tenant/协议中间件:`/scim` 是 Site 文档,`/scim/*` 是 Core 协议,契约先区分。
   app.use('*', async (c, next) => {
     const decision = resolveWebRouteOwnership(c.req.url)
     if (decision.owner === 'site' || decision.owner === 'console') {
@@ -36,8 +31,7 @@ export function registerFrontendRouteDelegation(app: Hono<XidHonoEnv>): void {
 
 function spaEntryRequest(request: Request): Request {
   const url = new URL(request.url)
-  // Static Assets canonicalizes `/index.html` to `/`; fetch `/` directly so
-  // the browser keeps the original client route and query string.
+  // Assets 会把 /index.html 规范成 /;直接 fetch `/` 以保留客户端路由与 query。
   url.pathname = '/'
   url.search = ''
   return new Request(url, request)

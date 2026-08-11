@@ -9,9 +9,7 @@ import {
 import { mergeClassNames } from '../class-name'
 
 export type BrandLogoProps = {
-  /** Horizontal wordmark or square mark only. */
   variant?: 'horizontal' | 'mark'
-  /** CSS height of the logo (width follows aspect ratio). */
   height?: number
   className?: string
 }

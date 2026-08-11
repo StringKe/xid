@@ -41,7 +41,7 @@ const breadcrumbs = rawBreadcrumbs.map((item) => ({
       : item.href,
 }));
 const editUrl = await getEditUrl(entry);
-// Generated locale artifacts have no independent Git history, so only explicit metadata is truthful.
+// 生成态 locale 产物无独立 Git 历史，lastUpdated 只信显式元数据。
 const hasGeneratedSource = /[/\\]content[/\\]generated[/\\]/.test(entry.filePath ?? "");
 const lastUpdated =
   entry.data.lastUpdated ??

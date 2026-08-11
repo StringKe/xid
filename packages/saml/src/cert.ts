@@ -1,6 +1,4 @@
-// IdP X.509 证书处理:从 connection 存的 base64 DER 提取验签公钥 + SHA-256 指纹(事故响应,见 8.5)。
-// 用 xmldsigjs X509Certificate(基于 pkijs,WebCrypto 环境可用),不自研 ASN.1 解析(见 crypto-boundary rule)。
-// 只用 connection 配置的证书,忽略文档内 ds:KeyInfo(8.5 step 1,StaticKeySelector)。
+// 从 connection 配置的 base64 DER 取验签公钥与指纹;忽略文档内 KeyInfo(StaticKeySelector)。
 
 import { fromBER, Integer, Utf8String } from 'asn1js'
 import { AttributeTypeAndValue, Certificate } from 'pkijs'
@@ -15,7 +13,7 @@ export const MAX_SAML_CLOCK_SKEW_MS = 5 * 60 * 1000
 
 export type IdpVerifyKey = {
   publicKey: CryptoKey
-  // SHA-256 指纹 hex(冒号分隔大写,事故响应/证书轮换识别)。
+  // SHA-256 指纹,冒号分隔大写 hex,供事故响应/轮换识别。
   fingerprint: string
   notBefore: number
   notAfter: number
@@ -103,7 +101,7 @@ export async function generateSelfSignedSamlCertificate(
     certificate.serialNumber = new Integer({ valueHex: toBufferSource(serial) })
     certificate.issuer.typesAndValues.push(certificateCommonName(normalizedCommonName))
     certificate.subject.typesAndValues.push(certificateCommonName(normalizedCommonName))
-    // 证书按签发方时钟立即生效；读取方通过受上限约束的 tolerance 处理跨节点时钟偏差。
+    // 按签发方时钟立即生效;读取方用受上限的 tolerance 吸收跨节点偏差。
     certificate.notBefore.value = new Date(now)
     certificate.notAfter.value = new Date(notAfter)
     await certificate.subjectPublicKeyInfo.importKey(keyPair.publicKey)
@@ -130,7 +128,6 @@ export async function generateSelfSignedSamlCertificate(
   }
 }
 
-// 从单个 base64 DER 证书提取验签公钥 + 指纹。RSA/ECDSA 自动识别(exportKey 内部按 SPKI 算法)。
 export async function loadIdpVerifyKey(certB64: string): Promise<SamlResult<IdpVerifyKey>> {
   let cert: X509Certificate
   let parsed: Certificate
@@ -181,8 +178,7 @@ function isValidAt(key: IdpVerifyKey, options: { now: number; toleranceMs: numbe
   )
 }
 
-// 证书轮换期 connection 存新旧多证书:逐个加载,跳过坏证书和当前时间不可用的证书,
-// 新旧证书重叠期任一有效即可;全部失败才报错。
+// 轮换期可配置多证书,跳过坏证与当前不可用证,全部失败才报错。
 export async function loadIdpVerifyKeys(
   certsB64: readonly string[],
   options: CertificateValidityOptions = {},

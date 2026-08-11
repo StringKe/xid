@@ -1,4 +1,3 @@
-// Tests for getSession, getAccessToken, signOut, buildSignOutUrl, and setTokenStorage.
 import { describe, expect, it } from 'vitest'
 
 import { createMemoryKeychainAdapter } from '../keychain'

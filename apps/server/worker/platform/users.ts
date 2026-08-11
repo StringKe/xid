@@ -129,8 +129,7 @@ async function loadActiveMembershipOrganizations(
 
   const organizationsByUserId = new Map<string, GlobalUserOrganization[]>()
   for (const row of rows) {
-    // Platform search is intentionally cross-tenant, so preserve the same tenant binding as the
-    // Membership -> Organization join before exposing a selectable impersonation target.
+    // 跨租户搜索:暴露模拟目标前须与 Membership->Org join 的 tenant 绑定一致。
     if (tenantIdByUserId.get(row.userId) !== row.tenantId) continue
     const organizations = organizationsByUserId.get(row.userId) ?? []
     organizations.push({ id: row.id, slug: row.slug, name: row.name })

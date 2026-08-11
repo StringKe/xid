@@ -1,5 +1,4 @@
-// 有状态 in-memory D1 mock(供 tenant-context resolver 单测)。
-// 解析 drizzle INSERT 列/值;SELECT 按表名 + 字符串参数收窄(与 bootstrap.test 同源逻辑)。
+// 有状态 D1 mock:解析 drizzle INSERT,SELECT 按表名+字符串参数收窄(resolver 单测用)。
 
 export type Store = Record<string, Record<string, unknown>[]>
 

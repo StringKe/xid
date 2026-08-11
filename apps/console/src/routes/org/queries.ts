@@ -1,7 +1,4 @@
-// org 管理数据层(TanStack Query):/v1/organizations/:orgId/* 读写。
-// cursor 分页由调用方维护 cursor state 传入。
-// 读请求的 enabled 一律走 useCanManageOrg(与服务端 requireOrgManager 同源判角色,
-// 见 ./useOrgTarget):角色未确认为 org manager 前不发请求;错误为 XidError。
+// 读请求 enabled 一律 useCanManageOrg,角色未确认前不发请求。
 
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 import type { OrganizationMembershipRole, XidError } from '@xid-kit/types'
@@ -98,8 +95,6 @@ export function useOrgRolesQuery(orgId: string): UseQueryResult<OrgRole[], XidEr
     enabled: canManage,
   })
 }
-
-// --- Business RBAC control plane (/v1/projects, roles, permissions, grants, assignments) ---
 
 export function useProjectsQuery(
   orgId: string,
@@ -590,8 +585,6 @@ export function useOrgSocialProvidersQuery(
   )
 }
 
-// --- 写操作 ---
-
 export function useCreateOrgInvitation(
   orgId: string,
 ): UseMutationResult<OrgInvitation, XidError, { email: string; role: OrganizationMembershipRole }> {
@@ -790,8 +783,6 @@ export function useSyncScimTarget(
   )
 }
 
-// --- OAuth applications(/v1/applications,扁平租户级资源,非 org-scoped) ---
-
 export function useApplicationsQuery(
   cursor?: string,
 ): UseQueryResult<V1Page<OAuthApplication>, XidError> {
@@ -828,8 +819,6 @@ export function useDeleteApplication(): UseMutationResult<unknown, XidError, str
     { invalidate: [queryKeyPrefixes.applications] },
   )
 }
-
-// --- Webhooks(/v1/webhooks,扁平租户级资源) ---
 
 export function useWebhooksQuery(
   cursor?: string,
@@ -869,8 +858,6 @@ export function useDeleteWebhook(): UseMutationResult<unknown, XidError, string>
   )
 }
 
-// --- API keys(/v1/api-keys,扁平租户级资源) ---
-
 export function useApiKeysQuery(cursor?: string): UseQueryResult<V1Page<ApiKey>, XidError> {
   return useApiQuery<V1Page<ApiKey>>(queryKeys.apiKeys(cursor), '/v1/api-keys', {
     query: { limit: 20, cursor },
@@ -891,9 +878,7 @@ export function useRevokeApiKey(): UseMutationResult<unknown, XidError, string> 
   )
 }
 
-// --- Audit events(只读,org-scoped /v1/organizations/:orgId/audit-events) ---
-// 后端按 org 归属 + 租户隔离过滤,前端不再客户端过滤归属。
-
+// 审计归属由后端租户/org 隔离,前端不做客户端过滤。
 export function useAuditEventsQuery(
   orgId: string,
   cursor?: string,

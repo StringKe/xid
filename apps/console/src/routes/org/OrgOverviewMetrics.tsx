@@ -1,7 +1,3 @@
-// org 概览页的指标与次要计数(全宽锚定版式):
-// OrgStats -> 共享 ui/MetricsBand(全宽指标带:活跃数 lg / 安全率 md)的数据映射层;
-// 成员/邀请次要计数从带尾移出,作 SecondaryCounts ledger 列(mono microlabel + clamp 数值,
-// 行间 1px hairline),由 OrgOverview 编排进 7fr/5fr 双列的次列。
 
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -30,8 +26,7 @@ const countStyles = stylex.create({
     flexDirection: 'column',
     gap: '0.75rem',
   },
-  // 首行零顶距:microlabel 顶线与相邻 Trends 区头同 y 对齐(跨竖分隔的签名行)。
-  // hairline 邻接 >= 1.25rem:行文本与行间分隔线各保 >= 1.25rem(clamp 下限对齐口径)。
+  // 首行零顶距与 Trends 区头对齐;行间 hairline 邻接下限 1.25rem。
   rowLead: {
     paddingBottom: 'clamp(1.25rem, 1.2vw, 1.75rem)',
   },

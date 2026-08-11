@@ -27,8 +27,7 @@ type WorkerBindings = {
 
   // SPA 静态资源
   ASSETS: Fetcher
-  // Cloudflare exact Worker Routes do not match query variants. Core owns the fallback and
-  // delegates only requests that the shared route contract assigns to a frontend Worker.
+  // CF exact Route 不含 query 变体;Core 按契约把前端归属请求委托给对应 Worker。
   SITE_WORKER: Fetcher
   CONSOLE_WORKER: Fetcher
 
@@ -73,17 +72,16 @@ type WorkerBindings = {
   // 两者都未配置时 dev/test 跳过;只配置任一项时认证配置与校验均 fail closed。
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET?: string
-  // LDAP HTTP gateway bearer credential. Production LDAP bind fails closed when absent.
+  // LDAP HTTP gateway bearer;缺省时生产 bind fail-closed。
   LDAP_GATEWAY_SHARED_SECRET?: string
-  // Optional managed-service billing adapter. Unset for ordinary self-hosted deployments.
+  // 可选托管计费适配;普通自托管不配置。
   STRIPE_SECRET_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string
   STRIPE_STARTER_PRICE_ID?: string
   STRIPE_PRO_PRICE_ID?: string
   STRIPE_ENTERPRISE_PRICE_ID?: string
   STRIPE_METER_EVENT_NAME?: string
-  // Social provider credential bindings. Built-ins have fixed names; custom providers are mapped
-  // by the deployment operator through this non-secret JSON object.
+  // 内置 social secret 固定名;自定义 provider 由部署方通过此非 secret JSON 映射。
   SOCIAL_PROVIDER_SECRET_BINDINGS?: string
   GOOGLE_CLIENT_SECRET?: string
   GITHUB_CLIENT_SECRET?: string
@@ -107,7 +105,7 @@ type WorkerBindings = {
   INFOBIP_API_KEY?: string
   INFOBIP_BASE_URL?: string
   MESSAGEBIRD_ACCESS_KEY?: string
-  // WebAuthn enterprise attestation trusted roots(PEM bundle,dev/operator supplied)
+  // WebAuthn 企业 attestation 信任根 PEM(运维注入)
   WEBAUTHN_TRUSTED_ROOTS_PEM?: string
 }
 

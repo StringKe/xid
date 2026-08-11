@@ -1,5 +1,4 @@
-/** Sets the platform-correct shortcut hint on the search trigger (⌘ on macOS, Ctrl elsewhere). */
-
+// 按平台写快捷键提示：macOS 用 ⌘，其它用 Ctrl。
 import { mount } from '@cloudflare/nimbus-docs/client'
 
 mount('[data-search-trigger]', (btn) => {

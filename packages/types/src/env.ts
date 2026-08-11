@@ -1,17 +1,15 @@
-// Queue message contracts shared by the Worker and public server-side SDKs.
-// Cloudflare runtime bindings are intentionally isolated in the type-only
-// `@xid-kit/types/cloudflare` subpath so browser consumers do not load Worker ambient types.
+// Queue 消息契约与 Worker/服务端 SDK 共享；Cloudflare runtime binding 隔离在
+// `@xid-kit/types/cloudflare`，避免浏览器消费者加载 Worker ambient 类型。
 
-// Core owns the apex Custom Domain fallback. Cloudflare Worker Route matching includes the query
-// string, so an exact Site or Console route without a trailing wildcard can fall through to Core
-// when a query is present. These names are the one-way Service Bindings Core uses to preserve the
-// shared route ownership contract without giving either frontend Worker a Core binding.
+// Core 持有 apex Custom Domain 回落。Worker Route 匹配含 query string，Site/Console
+// 精确路由无尾随通配时带 query 会落到 Core；本 binding 名是 Core 单向 Service Binding，
+// 用来维持路由归属契约且不给前端 Worker 反向绑定。
 export const FRONTEND_WORKER_SERVICE_BINDING_NAMES = {
   site: 'SITE_WORKER',
   console: 'CONSOLE_WORKER',
 } as const
 
-// Queue 消息体(异步不阻塞登录链路,见 cloudflare-bindings rule:邮件/审计/webhook/计量)
+// 异步队列消息体：不得阻塞登录链路
 export type EmailQueueMessage = {
   deliveryId?: string
   type: string
@@ -99,17 +97,14 @@ export type PrivacyQueueMessage = {
   requestedAt: number
 }
 
-// Optional Cloudflare for SaaS runtime contract. zone/cname target are vars; API token is a
-// Workers Secret. Consumers must treat an entirely absent group as disabled and a partial group as
-// a configuration error.
+// Cloudflare for SaaS 可选契约：整组缺省=禁用；只配一部分=配置错误
 export type CloudflareForSaasEnv = {
   CLOUDFLARE_FOR_SAAS_ZONE_ID?: string
   CLOUDFLARE_FOR_SAAS_API_TOKEN?: string
   CLOUDFLARE_FOR_SAAS_CNAME_TARGET?: string
 }
 
-// Optional managed-service billing adapter. None of these values is a license or authentication
-// feature gate. Deployers that do not operate a paid service leave the whole group unset.
+// 托管计费适配器；任一字段都不是 license 或鉴权功能开关，未运营付费服务则整组不配
 export type StripeBillingEnv = {
   STRIPE_SECRET_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string

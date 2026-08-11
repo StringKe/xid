@@ -1,13 +1,4 @@
-/**
- * Shared visual config for build-time OG cards.
- *
- * Edit this file to retune generated card colors, spacing, and fonts. Both
- * the per-page endpoint (`og/[...slug].ts`) and the homepage fallback
- * (`og.png.ts`) spread this object into `astro-og-canvas`.
- *
- * Leading underscore tells Astro to skip routing for this file — it sits
- * inside `src/pages/` to be next to its consumers, but it's not a route.
- */
+// 构建期 OG 卡共享样式；文件名前置 _ 让 Astro 跳过路由（虽放在 pages/ 旁）。
 
 import type { OGImageOptions } from 'astro-og-canvas'
 

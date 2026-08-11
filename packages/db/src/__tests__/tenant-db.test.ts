@@ -1,4 +1,4 @@
-// createTenantDb 集成测试:真实 D1 mock 验证 tenant_id/org_id 注入与跨租户隔离。
+// createTenantDb:真实 D1 mock 验证 tenant_id/org_id 注入与跨租户隔离。
 import { describe, it, expect } from 'vitest'
 import type { TenantContext } from '@xid-kit/types'
 import { createTenantDb } from '../tenant-db'

@@ -1,7 +1,4 @@
-// org API key 管理页:key 列表(名称/前缀/环境/创建/最后使用)+ 创建(一次性展示完整 key)+ 撤销。
-// 完整 key 明文只在创建时一次性返回(参照 OrgScim token 展示模式)。
-// 调 /v1/api-keys(扁平租户级 Management API)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建表单 5/7 双列(SplitSection)。
+// 完整 key 明文只在创建时一次性返回。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -31,7 +28,6 @@ const ENV_TONE: Record<string, BadgeTone> = {
 }
 
 const styles = stylex.create({
-  // 创建表单控件行(name 拉伸 + environment 固宽 + 提交按钮)
   formRow: {
     display: 'flex',
     gap: '0.75rem',
@@ -45,7 +41,6 @@ const styles = stylex.create({
   formFieldFixed: {
     flex: '0 0 160px',
   },
-  // 一次性 key 展示:成功 Alert + mono 代码块
   keyStack: {
     display: 'flex',
     flexDirection: 'column',

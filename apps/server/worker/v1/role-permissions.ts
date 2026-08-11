@@ -1,6 +1,4 @@
-// Management API v1: RolePermission mapping CRUD.
-// A mapping never crosses Project boundaries. ABAC JSON is validated at the write boundary so
-// unsupported operators or variable paths cannot become permissive legacy configuration.
+// RolePermission 映射不跨 Project;写边界校验 ABAC JSON,防未知算子/路径退化为宽松配置。
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq } from 'drizzle-orm'

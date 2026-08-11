@@ -12,14 +12,12 @@ import { useNavigate } from '../../lib/router'
 import { page } from '../../styles/product-surface.stylex'
 
 const styles = stylex.create({
-  // 卡片内主栈:对齐 sign-in 密度(1.25rem)。
   stack: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.25rem',
     minWidth: 0,
   },
-  // button 形态的行内文本链接:重置 button 默认外观,与 page.textLink 叠加使用。
   textButton: {
     alignSelf: 'flex-start',
     padding: 0,
@@ -53,7 +51,7 @@ export function CreateOrganizationPage(): ReactNode {
   const [email, setEmail] = useState(existingEmail)
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
-  // slug 默认跟随 name 派生;用户手动改过 slug 后停止跟随。
+  // slug 默认跟随 name;用户手改后停止跟随。
   const [slugTouched, setSlugTouched] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)

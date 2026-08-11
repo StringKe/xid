@@ -102,8 +102,7 @@ WHERE tenant_id = ${sqlString(body.activeOrg.id)}
   printResult('PASS', 'social oauth me active organization', `org=${body.activeOrg.id}`)
 }
 
-// provider 回调建出来的 session 是本 harness 唯一自己造出来的实体。它挂在真实用户上、
-// 不带任何 smoke 前缀,共享扫除永远看不见它 -- 不在这里登出就没有第二个机制会收。
+// provider 回调 session 挂在真实用户上、无 smoke 前缀;不登出就无第二道清理机制。
 async function signOutSocialOauthSession(cookie) {
   if (!cookie) return
   const { res, text } = await fetchText('/auth/sign-out', { method: 'POST', cookie })
@@ -147,7 +146,7 @@ export async function runProductionSocialOauthSmoke() {
     const { failures } = await runCleanupSteps([
       { name: 'social oauth session sign out', run: () => signOutSocialOauthSession(cookie) },
     ])
-    // 在 finally 里直接 throw:清理失败必须判红,且不依赖 try 里有没有提前 return。
+    // finally 内直接 throw:清理失败必须判红,且不依赖 try 是否提前 return。
     if (failures.length > 0 && !primaryError) {
       throw new Error(
         `social oauth cleanup failed: ${failures.map((failure) => failure.name).join(', ')}`,

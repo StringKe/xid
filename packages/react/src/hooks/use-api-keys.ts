@@ -1,5 +1,3 @@
-// useAPIKeys:平台级 API key 管理 hook。
-
 import type { CreateApiKeyInput, XidApiKey, XidApiKeyWithSecret, XidPage } from '@xid-kit/core'
 import type { Result, XidError } from '@xid-kit/types'
 

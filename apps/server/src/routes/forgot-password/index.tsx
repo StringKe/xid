@@ -1,11 +1,4 @@
-// 找回密码入口:两步流程。
-// Step 1(request):输入 email -> POST /auth/forgot-password -> 枚举防护:不区分邮件存在与否,始终返回"已发送"态。
-// Step 2(reset):通过 ?token= 进入 -> 填新密码 -> POST /auth/reset-password。
-// token 有效期 15min;token 只存哈希(server 侧);过期/已用 token 返回结构化错误。
-// TanStack Router useSearch 读 token + useMutation 提交。
-//
-// 视觉语言对齐 sign-in:stack gap 1.25rem / formFields gap 1rem /
-// 文本链接 35% 弱化下划线 hover 升满 / 页脚用 AuthLayout footer slot。
+// 找回密码:request 枚举防护始终"已发送";reset 靠 ?token=(server 15min 哈希一次性)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useCallback, useState } from 'react'
@@ -33,7 +26,6 @@ type ResetStepProps = {
   token: string
 }
 
-// 密码强度评分(复用 sign-up 逻辑,无需外部依赖)。
 function scorePassword(password: string): 0 | 1 | 2 | 3 | 4 {
   if (!password) return 0
   let score = 0
@@ -46,26 +38,22 @@ function scorePassword(password: string): 0 | 1 | 2 | 3 | 4 {
 }
 
 const styles = stylex.create({
-  // 卡片内主栈:对齐 sign-in stack(1.25rem gap,比 page.root 1.5rem 收一档)。
   stack: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.25rem',
     minWidth: 0,
   },
-  // 表单字段区:flex column gap 1rem。
   formFields: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
   },
-  // 密码字段 + 强度条分组(间距收窄)。
   passwordGroup: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
   },
-  // 文本链接(忘记密码 / 返回登录):下划线常驻但弱化 35%,hover 升满,对齐 sign-in textLink。
   textLink: {
     fontSize: '0.8125rem',
     color: tokens['--xid-primary'],
@@ -83,7 +71,6 @@ const styles = stylex.create({
     transitionTimingFunction: 'ease-out',
     fontFamily: tokens['--xid-font'],
   },
-  // 页脚文案:对齐 sign-in footerText。
   footerText: {
     margin: 0,
     fontSize: '0.8125rem',
@@ -199,7 +186,7 @@ function ResetStep({ token }: ResetStepProps): ReactNode {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [globalError, setGlobalError] = useState<string | null>(null)
-  // token 失效/无效时展示 "Request a new reset link" 出口。
+
   const [tokenInvalid, setTokenInvalid] = useState(false)
 
   const handlePasswordChange = useCallback((value: string): void => {
@@ -338,13 +325,13 @@ function BackToSignIn(): ReactNode {
 }
 
 function ForgotPasswordPage(): ReactNode {
-  // strict:false -- 本页挂在 /forgot-password 和 /reset-password 两条路径,不绑定单一 route id。
+  // 挂两条路径,strict:false 不绑单一 route id。
   const search = useSearch({ strict: false }) as { token?: string; organization_id?: string }
   const token = search.token ?? null
   const organizationId = search.organization_id ?? null
   const [requestDone, setRequestDone] = useState(false)
 
-  // 有 token -> reset 流程;否则 -> request 流程。
+
   const isResetFlow = Boolean(token)
 
   if (requestDone) {
@@ -366,7 +353,6 @@ function ForgotPasswordPage(): ReactNode {
   )
 }
 
-// TanStack Router lazy 路由:/forgot-password 与 /reset-password 复用。
 export const Route = createLazyRoute('/forgot-password')({
   component: ForgotPasswordPage,
 })

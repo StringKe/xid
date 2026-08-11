@@ -98,7 +98,6 @@ describe('GuestConversionBanner', () => {
       root.unmount()
     })
 
-    // 重新挂载(模拟 SPA 内再次进入 account 区):本次会话内不再出现。
     const root2 = createRoot(container)
     await act(async () => {
       root2.render(<GuestConversionBanner />)

@@ -1,11 +1,4 @@
-// SignOutButton: minimal standalone Angular component that calls XidAuthService.signOut().
-// No NgModule required (Angular 17+ standalone).
-//
-// Usage:
-//   <xid-sign-out-button />
-//   <xid-sign-out-button [sessionId]="session.id" redirectUrl="/home">
-//     Log out of this session
-//   </xid-sign-out-button>
+// 调用 XidAuthService.signOut() 的 standalone 登出按钮。
 
 import { Component, inject, Input } from '@angular/core'
 
@@ -29,16 +22,13 @@ import { XidAuthService } from './xid-auth.service'
 export class SignOutButton {
   readonly #auth = inject(XidAuthService)
 
-  // Target a browser-held session; omit to sign out the current active session.
   @Input() sessionId?: string
-  // Navigate here after a successful sign-out; omit to stay on the page.
   @Input() redirectUrl?: string
-  // Accessible label for assistive technology; optional.
   @Input() ariaLabel?: string
 
   protected pending = false
 
-  // onClickEvent is synchronous; the async work is queued via a void-marked promise.
+  // 模板 (click) 要求同步处理器；异步登出经 void 标记的 Promise 排队。
   onClickEvent(): void {
     void this.#doSignOut()
   }

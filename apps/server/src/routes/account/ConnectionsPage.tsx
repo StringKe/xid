@@ -1,7 +1,3 @@
-// /account/connections:已连接社交账号列表 + 断开操作。
-// 全宽版式:display 标题区 + Section 列表节(自持 gutter + hairline 分节)。
-// 数据层改用 TanStack Query(useSocialConnectionsQuery/useDisconnectSocial);样式全 StyleX。
-// 设计真相源:docs/design/05-users-sessions.md 第 3 节(账户关联与合并)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -17,7 +13,6 @@ import type { SocialConnection } from './hooks'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 
-// provider 显示名映射(机器名 -> 人类可读)。
 const PROVIDER_LABELS: Record<string, string> = {
   google: 'Google',
   github: 'GitHub',

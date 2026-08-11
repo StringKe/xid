@@ -6,8 +6,7 @@ import { Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
 import { signUpRedirectSearch, type SignUpRedirectSearch } from './redirect'
 
-// 重定向过渡态:进入 /sign-up 立即导向 /sign-in?intent=sign-up,
-// 等待导航期间沿用 AuthLayout 统一背景,保持视觉连续性。
+// /sign-up 立即重定向 /sign-in?intent=sign-up;过渡态保持 AuthLayout 背景。
 
 const styles = stylex.create({
   spinnerCenter: {

@@ -590,8 +590,7 @@ async function processEmailMessage(
     return
   }
   const delivery = {
-    // Producer-side outbox retries carry a stable logical id. Legacy messages fall back to the
-    // Cloudflare Queue id, so existing deliveries keep their original idempotency identity.
+    // outbox 重试用稳定 deliveryId;旧消息回落 Queue id 保持幂等身份。
     messageId: message.body.deliveryId ?? message.id,
     tenantId:
       typeof message.body.payload.tenantId === 'string' ? message.body.payload.tenantId : undefined,

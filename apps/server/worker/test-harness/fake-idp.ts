@@ -1,5 +1,4 @@
-// Fake upstream SAML IdP for local inbound SAML L3 smoke.
-// Signs SAML Responses with a locally injected RSA key; only registered in development/test.
+// 本地 inbound SAML L3 用假上游 IdP;本地注入 RSA 签名,仅 development/test 注册。
 
 import { toBufferSource } from '@xid-kit/crypto'
 import { decodeSamlBindingPayload, signSamlResponse } from '@xid-kit/saml'

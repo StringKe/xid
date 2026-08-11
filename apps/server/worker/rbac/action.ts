@@ -135,8 +135,7 @@ export function evalCondition(
   return null
 }
 
-// Management writes and runtime evaluation share one grammar predicate. This prevents a condition
-// accepted by the control plane from becoming an evaluator configuration error later.
+// 写路径与运行时求值共用语法谓词,避免控制面已接受的 condition 在求值时变配置错误。
 export function isValidAbacCondition(expr: Record<string, unknown> | null): boolean {
   if (expr === null || isLeaf(expr)) return true
   if (Object.keys(expr).length !== 1 || !Array.isArray((expr as AndNode).and)) return false

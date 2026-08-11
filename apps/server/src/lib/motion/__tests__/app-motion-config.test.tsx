@@ -2,8 +2,7 @@ import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-// 用 test double 捕获 MotionConfig props,验证 app 级配置映射(MotionConfig 本身
-// 只写 context,SSR 输出无可断言标记)。
+// MotionConfig 只写 context,用 double 捕获 props。
 vi.mock('motion/react', () => ({
   MotionConfig: ({
     children,

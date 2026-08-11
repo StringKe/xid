@@ -1,13 +1,8 @@
 ---
-/**
- * TabsTrigger — individual tab button within a TabsList.
- * Use `value` to match with a TabsContent of the same value.
- */
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";
 
 interface Props extends HTMLAttributes<"button"> {
-  /** Value matching a TabsContent. */
   value: string;
 }
 

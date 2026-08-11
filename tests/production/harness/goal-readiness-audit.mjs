@@ -46,8 +46,7 @@ const PUBLIC_NPM_PACKAGE_NAMES = PUBLIC_SDK_PACKAGES.map((item) => item.name).so
 // 包管理器入口只能来自环境变量或 PATH:仓库里写死开发机绝对路径会让 CI 直接崩。
 const configuredPackageManager = process.env['XID_L3_PACKAGE_MANAGER']?.trim()
 
-// docs/goal、docs/verification、docs/current-gap-audit、docs/implementation-status 的 markdown 已删除,
-// marker 仍保留:线上产物永远不得出现这些路径,防止未来复用同名 slug 时静默泄露。
+// 含已下线内部文档 slug:线上产物永远不得出现这些路径,防止复用同名 slug 时静默泄露。
 const INTERNAL_DOCS_MARKERS = [
   'docs/design',
   'docs/goal',

@@ -422,7 +422,7 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
     const db = createTenantDb(c.env.DB, tenant)
     const tokenRow = await loadVerifiableOtp(db, channel, target)
     const flow = parsePasswordlessFlowContext(tokenRow.flowContext, 'otp_invalid')
-    // Reject legacy persisted OTP flows before comparison, consumption, or user/session writes.
+    // 比对/消费前拒绝带 invitationId 的旧 OTP flow。
     if (flow.invitationId) throw new AppError('otp_invalid')
 
     const codeHash = await sha256Hex(code)

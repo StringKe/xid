@@ -1,11 +1,8 @@
-// 最小 CBOR 解码(RFC 8949 子集)。自研格式编解码,非安全敏感(见 crypto-boundary rule 第三类)。
-// 只覆盖 WebAuthn 所需:无符号整数 / 负整数 / 字节串 / 文本串 / 数组 / map。不支持 indefinite-length。
-// 用于解析 attestationObject(顶层 map)与 COSE_Key(整数 label map)。
-// 格式损坏不可恢复 -> throw(对齐 crypto 包:格式损坏 throw,可预期失败走 Result)。
+// WebAuthn 所需的 CBOR 子集解码（无 indefinite-length）；格式损坏 throw，非密码学路径。
 
 export type CborValue = number | bigint | string | Uint8Array | readonly CborValue[] | CborMap
 
-// COSE_Key 用整数 label 作 key,attestationObject 用文本串 key。统一用 Map 保序与混合 key 类型。
+// COSE 用整数 label、attestationObject 用文本 key，Map 同时保序与混合 key 类型。
 export type CborMap = Map<number | bigint | string, CborValue>
 
 type Decoded = {
@@ -24,7 +21,6 @@ function cborError(reason: string): Error {
   return new Error(`cbor decode failed: ${reason}`)
 }
 
-// 读取 major type 的附加长度(uint),返回数值与新偏移。
 function readLength(bytes: Uint8Array, offset: number): { length: number; next: number } {
   const info = bytes[offset]! & 0x1f
   if (info < 24) return { length: info, next: offset + 1 }
@@ -107,13 +103,13 @@ function decodeItem(bytes: Uint8Array, offset: number): Decoded {
   throw cborError(`unsupported major type ${major}`)
 }
 
-// 解码单个顶层 CBOR 值,返回值与消费到的字节数(供 COSE_Key 在 authData 中按实际长度切分)。
+// 返回消费字节数，供 authData 内 COSE_Key 按 CBOR 实际长度切分。
 export function cborDecodeFirst(bytes: Uint8Array): { value: CborValue; bytesUsed: number } {
   const { value, next } = decodeItem(bytes, 0)
   return { value, bytesUsed: next }
 }
 
-// 解码并断言整个输入恰好是一个 CBOR 值(无尾随字节),用于 attestationObject。
+// 要求输入恰好一个顶层值，禁止尾随字节。
 export function cborDecode(bytes: Uint8Array): CborValue {
   const { value, next } = decodeItem(bytes, 0)
   if (next !== bytes.length) throw cborError('trailing bytes after top-level value')

@@ -82,13 +82,10 @@ describe('createPkceChallenge', () => {
     expect(c1).not.toBe(c2)
   })
 
-  // RFC 7636 S4.2 test vector: challenge = BASE64URL(SHA-256(ASCII(verifier)))
-  // Known vector from RFC 7636 Appendix B.
+  // RFC 7636 Appendix B 已知 S256 向量（verifier / challenge 字面量不可改）。
   it('matches RFC 7636 known S256 vector', async () => {
-    // verifier from RFC 7636 Appendix B.
     const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
     const challenge = await createPkceChallenge(verifier)
-    // Expected: BASE64URL(SHA-256(ASCII(verifier)))
     expect(challenge).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
   })
 })

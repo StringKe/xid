@@ -1,8 +1,5 @@
-// Platform impersonation vertical slice:
-//   Instance Manager start -> opaque cross-host POST handoff -> one-time DO consume ->
-//   target-host, target-TenantContext session -> explicit end.
-// Target identity data is never embedded in the handoff fields or URL. The form carries only a
-// random grant id and random secret in its POST body, so request URLs and referrers cannot expose it.
+// 平台模拟登录:Instance Manager 发起 -> 跨 host 不透明 POST handoff -> DO 一次性消费 -> 目标 Tenant 会话。
+// handoff 仅含随机 grant id/secret,目标身份从不进 URL/referrer。
 
 import { base64UrlEncode, sha256Hex } from '@xid-kit/crypto'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -129,8 +126,7 @@ async function loadTarget(
   userId: string,
   organizationId: string,
 ): Promise<ImpersonationTarget | null> {
-  // This is an explicit platform-admin cross-tenant path. Every join still binds tenant_id so a
-  // globally unique id cannot accidentally bridge one tenant's user to another tenant's org.
+  // 平台管理员显式跨租户路径:join 仍绑定 tenant_id,防全局唯一 id 误桥接异租户。
   return env.DB.prepare(
     `SELECT u.id AS targetUserId,
             u.tenant_id AS targetTenantId,
@@ -315,9 +311,7 @@ async function consumeGrant(
     },
   })
 
-  // Recheck mutable target state after consuming the short-lived authorization. TenantContext is
-  // the one resolved from this exact target host; no tenant or issuer is reconstructed from grant
-  // data.
+  // 消费短期授权后再校验可变目标状态;TenantContext 只来自本 host,不从 grant 重建。
   const db = createTenantDb(c.env.DB, tenant)
   const [user, organization, membership] = await Promise.all([
     db.users.findOne(
@@ -469,10 +463,7 @@ async function handleEnd(c: Context<XidHonoEnv>): Promise<Response> {
 }
 
 export function registerImpersonationRoutes(app: Hono<XidHonoEnv>): void {
-  // This module must be registered before every protocol, auth, SSO, and /v1 route. An
-  // impersonation cookie is a narrowly scoped Console viewing capability, not a general user
-  // session: allowing it to reach /authorize or a token exchange would let the target identity
-  // escape the read-only Console boundary as a bearer credential.
+  // 须先于协议/auth/SSO/v1 注册:模拟 cookie 只是 Console 只读能力,不可进入 /authorize 或换 token。
   app.use('*', async (c, next) => {
     const session = c.get('session')
     if (session?.isImpersonation) {

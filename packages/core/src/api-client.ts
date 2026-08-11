@@ -1,6 +1,4 @@
-// 认证 API 客户端:封装对 worker 的同域 fetch(对照 06 章 Backend API 封装认证)。
-// 约定(api-sdk-conventions rule):/v1/ 前缀、Bearer 由 HttpOnly cookie 承载(credentials: include)、
-// 错误体为 XidAPIError 结构。可预期失败 -> Result<_, XidError>;传输/意外 -> throw XidNetworkError。
+// 同域认证 API:/v1/ + credentials:include(cookie);可预期失败 -> Result,传输/意外 -> throw。
 
 import { isOrganizationMembershipRole } from '@xid-kit/types'
 import type {
@@ -38,10 +36,8 @@ import type { PasskeyRegistrationOptions, PasskeyRegistrationVerifyBody } from '
 import { XidNetworkError, isXidErrorShape, makeXidError } from './errors'
 import { trimTrailingSlashes } from './url'
 
-// worker 颁发的 short-lived JWT 响应(对照 /v1/sessions/token)。
 export type TokenResponse = SessionTokenResponse
 
-// 登录态快照响应(/v1/me):一次拉齐 session/user/sessions 列表,减少往返。
 export type ClientStateResponse = {
   activeSessionId: string | null
   sessions: readonly XidSession[]
@@ -118,7 +114,6 @@ export class XidApiClient {
   readonly #secretKey: string | null
 
   constructor(options: { apiUrl?: string; fetcher?: typeof fetch; secretKey?: string }) {
-    // 同域默认走相对路径,跨域显式传 apiUrl。去尾斜杠统一拼接。
     this.#baseUrl = trimTrailingSlashes(options.apiUrl ?? '')
     this.#fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
     this.#secretKey = options.secretKey ?? null
@@ -172,13 +167,11 @@ export class XidApiClient {
     return result.ok ? { ok: true, value: result.value ?? {} } : result
   }
 
-  // guest 开通:无认证端点,成功(200 续签 / 201 新建)由 worker Set-Cookie 建立真 session,
-  // 响应只携带 session id 与服务端拥有的 onboarding 指令,完整状态仍由 /v1/me 提供。
+  // Set-Cookie 建 session;响应仅 sessionId/onboarding,完整状态靠 /v1/me。
   async signInAnonymously(
     input: SignInAnonymouslyInput = {},
   ): Promise<Result<{ sessionId: string; redirectUrl: string }, XidError>> {
-    // /auth/guest 只接受由同源 /auth/config 为当前 root onboarding flow
-    // 颁发的一次性 capability。每次建号前现取,绝不缓存或复用。
+    // /auth/guest 只要同源 /auth/config 现发的一次性 capability,禁止缓存复用。
     const configResult = await this.#request<unknown>({
       path: '/auth/config?intent=sign-up',
       signal: input.signal,
@@ -223,8 +216,7 @@ export class XidApiClient {
     }
   }
 
-  // passkey 注册 options(guest 一键转正与账号页添加 passkey 共用端点;持 guest session
-  // 时 worker 在 verify 后走 in-place link,见 apps/server/worker/auth/passkey.ts)。
+  // guest session 下 verify 后走 in-place link,非 guest 仅添加 passkey。
   async passkeyRegisterOptions(
     input: { signal?: AbortSignal } = {},
   ): Promise<Result<PasskeyRegistrationOptions, XidError>> {
@@ -235,7 +227,6 @@ export class XidApiClient {
     })
   }
 
-  // passkey 注册 verify;成功响应仅为确认,完整状态仍由 /v1/me 提供。
   async passkeyRegisterVerify(
     body: PasskeyRegistrationVerifyBody,
     input: { signal?: AbortSignal } = {},
@@ -259,7 +250,6 @@ export class XidApiClient {
     })
   }
 
-  // 多会话切换:把指定 session 设为活跃(worker 改 cookie 指向),回传新激活态。
   async setActiveSession(input: {
     sessionId: string
     signal?: AbortSignal
@@ -272,7 +262,6 @@ export class XidApiClient {
     })
   }
 
-  // 切换当前 session 的 active org(对照 02 章 active org + token 注入 org claims)。
   async setActiveOrganization(input: {
     organizationId: string | null
     signal?: AbortSignal
@@ -285,7 +274,7 @@ export class XidApiClient {
     })
   }
 
-  // 登出当前 active session。指定其他 session 的编排由 XidClient 先切换再调用本端点。
+  // 只登当前 active;指定其他 session 须先切换。
   async signOut(input: { signal?: AbortSignal } = {}): Promise<Result<SignOutResponse, XidError>> {
     return this.#request<SignOutResponse>({
       path: '/auth/sign-out',
@@ -403,7 +392,6 @@ export class XidApiClient {
     return this.#parseResponse<T>(response)
   }
 
-  // 发请求:补 headers / credentials,网络层失败 throw XidNetworkError(传输不可恢复)。
   async #sendRequest(input: RequestInput): Promise<Response> {
     const headers: Record<string, string> = { Accept: JSON_CONTENT_TYPE }
     if (input.body !== undefined) headers['Content-Type'] = JSON_CONTENT_TYPE
@@ -429,7 +417,6 @@ export class XidApiClient {
     }
   }
 
-  // 解析响应:2xx -> Result.ok;XidError 结构体 -> Result.error;其余 -> throw XidNetworkError。
   async #parseResponse<T>(response: Response): Promise<Result<T, XidError>> {
     const text = await response.text()
     const parsed = parseJsonOrNull(text)

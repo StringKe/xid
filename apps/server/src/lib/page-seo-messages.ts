@@ -1,4 +1,3 @@
-// 页面级 SEO 文案(lingui msg)。RoutePageSeo 按路由解析后经 i18n._() 写入 document.title 与 meta。
 
 import { msg } from '@lingui/core/macro'
 

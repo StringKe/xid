@@ -1,5 +1,3 @@
-// useOrganizationList:当前用户可用组织列表与 active org 切换 hook。
-
 import type { XidOrganizationMembership, XidState } from '@xid-kit/core'
 import type { Result, XidError } from '@xid-kit/types'
 

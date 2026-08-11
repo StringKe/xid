@@ -1,7 +1,4 @@
-// org 审计事件页(只读):时间/actor/event_type/target,支持 event_type 与时间范围过滤。
-// 数据来自 GET /v1/organizations/:orgId/audit-events;后端按 org 归属过滤,前端仅做展示层筛选。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + Toolbar 过滤栏 + hairline 表格节。
-// 时间/序号 mono tabular-nums。
+// 后端按 org 归属过滤;前端过滤仅展示层。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useMemo, useState } from 'react'
@@ -24,7 +21,6 @@ import type { AuditEvent } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
 const styles = stylex.create({
-  // 过滤控件组:Toolbar 内的 search landmark,保持与 toolbar 相同的横向排布
   filterRow: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -33,7 +29,6 @@ const styles = stylex.create({
     flex: '1 1 auto',
     minWidth: 0,
   },
-  // mono 时间戳 / 序号
   seqText: {
     fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.8125rem',
@@ -46,8 +41,7 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     fontVariantNumeric: 'tabular-nums',
   },
-  // 事件类型 chip:用 span 而非 code ---- 全局 :not(pre) > code 在 <=48rem 降级 white-space:normal
-  // 会把 token 从词中断开;表格自带横向滚动,不需要 prose 式断行。
+  // 用 span 不用 code:全局 :not(pre)>code 在窄屏会 white-space:normal 拆断 token。
   codeTag: {
     fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.8125rem',
@@ -64,7 +58,7 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     color: tokens['--xid-muted-foreground'],
   },
-  // actor/target 的裸 ID 列宽有限:单行截断 + title 留全文,不折成多行 UUID。
+  // 裸 ID 单行截断 + title 全文,避免多行 UUID。
   actorId: {
     display: 'block',
     maxWidth: '100%',
@@ -162,7 +156,7 @@ function afterStart(occurredAt: string, fromDate: string): boolean {
 
 function beforeEnd(occurredAt: string, toDate: string): boolean {
   if (!toDate) return true
-  // toDate 是日期(无时分),取当天结束(+1 天)作上界。
+  // toDate 无时分,加一天作当日闭区间上界。
   return new Date(occurredAt).getTime() < new Date(toDate).getTime() + 86_400_000
 }
 

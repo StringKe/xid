@@ -1,6 +1,4 @@
-// DPoP proof 校验(RFC9449 4.3、03 章 9.8)。用 @xid-kit/crypto verifyJwt 验签 + 派生 jkt。
-// jti 防重放缓存(DO)由 endpoint 层注入;本层只做 proof 自洽校验 + 产出 jkt + htu 归一化。
-// 任一失败返回 invalid_dpop_proof。
+// DPoP proof 自洽校验(RFC9449):产出 jkt/htu;jti 防重放缓存由 endpoint 层注入。
 
 import type { XidError, Result, SigningAlg } from '@xid-kit/types'
 import {
@@ -14,7 +12,7 @@ import {
 const encoder = new TextEncoder()
 const DEFAULT_IAT_WINDOW_SEC = 60
 
-// 非对称签名算法白名单(9.8 第 2 步:禁 none / 对称 MAC)。discovery 元数据同源引用,防漂移。
+// 非对称签名白名单:禁 none / 对称 MAC;discovery 同源引用防漂移。
 export const ALLOWED_DPOP_ALGS: readonly SigningAlg[] = ['ES256', 'RS256', 'PS256']
 
 export type DpopJoseHeader = {
@@ -32,7 +30,6 @@ export type DpopPayload = {
   ath?: string
 }
 
-// 校验成功产出:jkt(写入 cnf.jkt)+ jti + htu(供 endpoint 层 DO 防重放)。
 export type DpopVerified = {
   jkt: string
   jti: string
@@ -45,7 +42,7 @@ function invalidDpop(message: string): Result<never, XidError> {
   return { ok: false, error: { code: 'invalid_dpop_proof', message, httpStatus: 400 } }
 }
 
-// nonce 缺失/失效:endpoint 层据此返回 use_dpop_nonce + DPoP-Nonce 头(9.8 第 9 步)。
+// endpoint 映射为 use_dpop_nonce + DPoP-Nonce 头。
 function useDpopNonce(message: string): Result<never, XidError> {
   return { ok: false, error: { code: 'use_dpop_nonce', message, httpStatus: 400 } }
 }
@@ -54,7 +51,7 @@ function decodeSegment<T>(segment: string): T {
   return JSON.parse(base64UrlDecodeToString(segment)) as T
 }
 
-// RFC7638 JWK Thumbprint:EC 用 {crv,kty,x,y},RSA 用 {e,kty,n},lexical key 排序,无空格。
+// RFC7638:EC 用 {crv,kty,x,y},RSA 用 {e,kty,n},lexical 排序且无空格。
 function canonicalThumbprintInput(jwk: JsonWebKey): string | null {
   if (jwk.kty === 'EC' && jwk.crv && jwk.x && jwk.y) {
     return `{"crv":"${jwk.crv}","kty":"EC","x":"${jwk.x}","y":"${jwk.y}"}`
@@ -65,7 +62,6 @@ function canonicalThumbprintInput(jwk: JsonWebKey): string | null {
   return null
 }
 
-// jkt = BASE64URL(SHA-256(canonical JWK))(RFC7638、9.8 第 10 步)。
 export async function computeJkt(jwk: JsonWebKey): Promise<string | null> {
   const canonical = canonicalThumbprintInput(jwk)
   if (canonical === null) return null
@@ -73,7 +69,7 @@ export async function computeJkt(jwk: JsonWebKey): Promise<string | null> {
   return base64UrlEncode(digest)
 }
 
-// htu 归一化(9.8 第 6 步):去 query 与 fragment,scheme/host 小写。
+// 去 query/fragment,scheme/host 小写。
 export function normalizeHtu(url: string): string {
   try {
     const u = new URL(url)
@@ -86,7 +82,7 @@ export function normalizeHtu(url: string): string {
 }
 
 function jwkHasPrivateParams(jwk: JsonWebKey): boolean {
-  // 9.8 第 2 步:jwk 不得含私钥参数(d / RSA CRT 参数)。
+  // jwk 不得含私钥参数(d / RSA CRT)。
   return Boolean(jwk.d || jwk.p || jwk.q || jwk.dp || jwk.dq || jwk.qi)
 }
 
@@ -98,7 +94,6 @@ type ParsedProof = {
   parts: [string, string, string]
 }
 
-// JOSE header 校验(9.8 第 2 步):typ/alg/jwk。
 function validateProofHeader(header: DpopJoseHeader): string | null {
   if (header.typ !== 'dpop+jwt') return 'DPoP typ must be dpop+jwt'
   if (!header.alg || !ALLOWED_DPOP_ALGS.includes(header.alg as SigningAlg)) {
@@ -110,7 +105,6 @@ function validateProofHeader(header: DpopJoseHeader): string | null {
   return null
 }
 
-// 解析三段 + JOSE header 校验(9.8 第 1-2 步)。返回错误字符串或解析结果。
 function parseProof(proof: string): { error: string } | ParsedProof {
   const parts = proof.split('.')
   if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
@@ -135,7 +129,6 @@ function parseProof(proof: string): { error: string } | ParsedProof {
   }
 }
 
-// 用 header.jwk 公钥验签 proof 自身(9.8 第 3 步)。
 async function verifyProofSignature(parsed: ParsedProof): Promise<boolean> {
   const publicKey = await importJwkForVerify({
     ...parsed.jwk,
@@ -152,8 +145,7 @@ async function verifyProofSignature(parsed: ParsedProof): Promise<boolean> {
   )
 }
 
-// 校验 DPoP proof(9.8 第 1-9 步)。htu/htm 由 endpoint 层传入当前端点。
-// requireNonce 为真时 nonce 缺失/不匹配返回 use_dpop_nonce(供 endpoint 映射 DPoP-Nonce 头)。
+// requireNonce 为真时 nonce 缺失/不匹配返回 use_dpop_nonce。
 export async function verifyDpopProof(input: {
   proof: string
   expectedHtm: string
@@ -192,14 +184,12 @@ export async function verifyDpopProof(input: {
   }
 }
 
-// ath = BASE64URL(SHA-256(ASCII(access_token)))(RFC9449 第 7 节、9.8 资源访问注解)。
 async function computeAth(accessToken: string): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(accessToken)))
   return base64UrlEncode(digest)
 }
 
-// 资源端点(/userinfo 等)sender-constrained 校验(RFC9449 第 7 节):
-// 在 verifyDpopProof 基础上额外校验 ath = SHA256(access_token) 且 proof jwk thumbprint == 绑定 jkt。
+// 资源端:额外校验 ath=SHA256(access_token) 且 jkt 与绑定一致。
 export async function verifyDpopForResource(input: {
   proof: string
   expectedHtm: string
@@ -232,7 +222,7 @@ function validateDpopClaims(
   if (!payload.jti || !payload.htm || !payload.htu || typeof payload.iat !== 'number') {
     return 'DPoP payload missing jti/htm/htu/iat'
   }
-  // htm 大小写敏感(9.8 第 5 步)。
+  // htm 大小写敏感。
   if (payload.htm !== input.expectedHtm) return 'DPoP htm mismatch'
   if (normalizeHtu(payload.htu) !== normalizeHtu(input.expectedHtu)) return 'DPoP htu mismatch'
   const window = input.iatWindowSec ?? DEFAULT_IAT_WINDOW_SEC

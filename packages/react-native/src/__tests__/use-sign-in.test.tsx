@@ -1,6 +1,3 @@
-// Tests for useSignIn RN hook -- CSRF guard, cancel, and error state paths.
-// Uses @testing-library/react renderHook so useState dispatches are fully functional.
-
 import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
@@ -197,7 +194,6 @@ describe('handleRedirect CSRF guard', () => {
 
   it('sets error state when pkce verifier is missing from cache', async () => {
     const cache = makeTokenCache()
-    // Correct state but no verifier stored.
 
     const browser: BrowserInterface = { openAuthSession: vi.fn() }
     const { result } = renderHook(() => useSignIn(), {

@@ -50,10 +50,7 @@ export async function findInvitationById(
   return row ?? null
 }
 
-// Instance-root invitation routing is a two-step proof:
-// 1. decode the untrusted locator and resolve one candidate Tenant in the current Instance;
-// 2. require the complete opaque token hash to exist through that Tenant's scoped DB.
-// The locator alone never grants access and there is no global invitation-token lookup.
+// instance 根路由两步:locator 只选候选租户,完整 tokenHash 在租户 scoped DB 校验;无全局查找。
 export async function resolveInvitationTenant(
   c: Context<XidHonoEnv>,
   rawToken: string,
@@ -64,10 +61,7 @@ export async function resolveInvitationTenant(
   const current = c.get('tenant')
   const tenantId = invitationTenantIdFromToken(token)
   if (!tenantId) {
-    // A legacy opaque token has no recoverable Tenant locator. It is safe only when Host/cookie
-    // resolution has already produced a concrete Tenant, because the complete hash lookup remains
-    // scoped there. The cutover migration revokes every pre-existing pending legacy row; this path
-    // exists only for explicit same-Tenant diagnosis and never performs a global lookup.
+    // 无 locator 的旧 token:仅当 Host 已解析到具体租户时在该租户内查 hash,不做全局查找。
     if (current.resolution?.unresolvedRoot) return null
     const currentDb = createTenantDb(c.env.DB, current)
     const legacyInvitation = await findInvitationByRawToken(currentDb, token)
@@ -231,10 +225,7 @@ export async function acceptInvitation(opts: {
        AND status = 'pending'
        AND expires_at > ?`
 
-  // D1 batch is one transaction. Every membership mutation is guarded by the same pending
-  // invitation predicate used by the final consume. A concurrent loser therefore executes zero
-  // membership writes after the winner commits, instead of changing a role and only then learning
-  // that the capability was already consumed.
+  // batch 事务内 membership 写与最终 consume 共用 pending 谓词,并发败者零写入。
   const updateMembership = env.DB.prepare(
     `UPDATE memberships
         SET role = ?,

@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { deriveS256Challenge, generateBase64UrlRandom, generatePkce } from '../pkce'
 
-// Minimal Web Crypto shim for test environments that lack globalThis.crypto.subtle.
-// Real Tauri WebView always has Web Crypto; this shim lets vitest run without jsdom.
+// 无 crypto.subtle 时跳过依赖 Web Crypto 的用例（真机 WebView 始终有）。
 function ensureWebCrypto() {
-  // vitest with happy-dom or node 20+ provides crypto.subtle natively.
-  // If not present the test is a no-op guard -- the function itself uses crypto.subtle.
   return typeof globalThis.crypto?.subtle !== 'undefined'
 }
 
@@ -14,7 +11,6 @@ describe('generateBase64UrlRandom', () => {
   it('returns a string of correct approximate length for 32 bytes', () => {
     const result = generateBase64UrlRandom(32)
 
-    // 32 bytes -> 43 base64url chars (ceiling of 32*4/3, no padding)
     expect(result).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(result.length).toBeGreaterThanOrEqual(42)
     expect(result.length).toBeLessThanOrEqual(44)
@@ -32,7 +28,6 @@ describe('generateBase64UrlRandom', () => {
     const a = generateBase64UrlRandom(32)
     const b = generateBase64UrlRandom(32)
 
-    // Collision probability ~= 2^-256; acceptable for a test.
     expect(a).not.toBe(b)
   })
 })
@@ -41,9 +36,7 @@ describe('deriveS256Challenge', () => {
   it('derives a known S256 challenge from a fixed verifier', async () => {
     if (!ensureWebCrypto()) return
 
-    // RFC 7636 Appendix B test vector:
-    // verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-    // expected challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+    // RFC 7636 Appendix B 向量。
     const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
     const challenge = await deriveS256Challenge(verifier)
 

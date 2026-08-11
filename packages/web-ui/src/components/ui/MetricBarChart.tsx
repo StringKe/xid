@@ -1,5 +1,4 @@
-// MetricBarChart:轻量当前指标条形图,不依赖图表库。
-// 用于首版 overview 页面展示已由 API 返回的真实聚合值。
+// 不依赖图表库;仅渲染 API 已返回的真实聚合值。
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
@@ -26,7 +25,7 @@ const styles = stylex.create({
     gap: '0.875rem',
     fontFamily: tokens['--xid-font'],
   },
-  // 图表标题 = mono microlabel(与表头/指标带 label 同一签名)。
+  // 与表头/指标带 label 同一 mono 签名。
   title: {
     margin: 0,
     fontFamily: tokens['--xid-font-mono'],
@@ -63,7 +62,7 @@ const styles = stylex.create({
     textAlign: 'right',
     whiteSpace: 'nowrap',
   },
-  // 方头条形(无圆角):技术图表语言,撤 pill 感。
+  // 无圆角方头条,撤 pill 感。
   track: {
     height: '0.5rem',
     backgroundColor: tokens['--xid-muted'],

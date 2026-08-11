@@ -1,9 +1,4 @@
-// Reactive primitives: createAuth / createUser / createOrganization / createSession.
-// Each bridges XidStore's listener pattern to SolidJS signals via createEffect + createSignal,
-// yielding fine-grained Accessor<T> that SolidJS tracks automatically.
-//
-// Pattern: subscribe to client on creation, update signal on state change,
-// unsubscribe via onCleanup so signals are GC-safe after component disposal.
+// 将 XidStore 订阅桥接到 Solid signal；须在 reactive owner 内调用，onCleanup 取消订阅避免泄漏。
 
 import { type Accessor, createSignal, onCleanup } from 'solid-js'
 
@@ -19,15 +14,10 @@ import type { Result, XidError } from '@xid-kit/types'
 
 import { useXidContext } from './context'
 
-// ---- internal bridge --------------------------------------------------------
-
-// Subscribes to the XidClient store and returns a reactive Accessor<XidState>.
-// Registers onCleanup automatically; must be called inside a reactive owner.
 function createXidState(): Accessor<XidState> {
   const { client } = useXidContext()
   const [state, setState] = createSignal<XidState>(client.getSnapshot())
 
-  // Subscribe once at creation time; onCleanup fires when the owner (component) disposes.
   const unsubscribe = client.subscribe((next) => {
     setState(() => next)
   })
@@ -35,8 +25,6 @@ function createXidState(): Accessor<XidState> {
 
   return state
 }
-
-// ---- createAuth -------------------------------------------------------------
 
 export type CreateAuthReturn = {
   readonly isLoaded: Accessor<boolean>
@@ -63,14 +51,12 @@ export function createAuth(): CreateAuthReturn {
   }
 }
 
-// ---- createUser -------------------------------------------------------------
-
 export type CreateUserReturn =
   | { isLoaded: false; isSignedIn: false; user: null }
   | { isLoaded: true; isSignedIn: false; user: null }
   | { isLoaded: true; isSignedIn: true; user: XidUser }
 
-// Returns a single Accessor so callers read user() and SolidJS tracks dependencies.
+// 单一 Accessor 返回 discriminated union，调用方读一次即可被 Solid 追踪。
 export type CreateUserAccessor = Accessor<CreateUserReturn>
 
 export function createUser(): CreateUserAccessor {
@@ -87,8 +73,6 @@ export function createUser(): CreateUserAccessor {
     return { isLoaded: true, isSignedIn: true, user: snap.user } satisfies CreateUserReturn
   }
 }
-
-// ---- createOrganization -----------------------------------------------------
 
 export type CreateOrganizationReturn =
   | { isLoaded: false; isSignedIn: false; organization: null; membership: null }
@@ -139,8 +123,6 @@ export function createOrganization(): CreateOrganizationAccessor {
     } satisfies CreateOrganizationReturn
   }
 }
-
-// ---- createSession ----------------------------------------------------------
 
 export type CreateSessionReturn =
   | { isLoaded: false; isSignedIn: false; session: null }

@@ -1,12 +1,4 @@
-// /register - RFC7591/7592 Dynamic Client Registration
-// POST /register:动态注册(返回 client_id + registration_access_token)。
-// GET/PATCH/DELETE /register/{client_id}:管理端点(读/更新/删)。
-// client_secret 哈希存储,明文不入库。
-// registration_access_token 哈希存储(registrationAccessTokenHash 列)。
-// 错误形状:RFC7591 3.2.2,元数据失败按规范码(见 DcrErrorCode),形状失败 invalid_request,
-// 管理端 RAT 失败 401 { error: invalid_client } + WWW-Authenticate。
-// 见 oidc-oauth rule / docs/design/03-oidc-oauth.md endpoint 表。
-// 铁律:TenantContext 从 c.get('tenant') 取;D1 查询走 @xid-kit/db 租户查询层。
+// RFC7591/7592 动态客户端注册;secret/RAT 仅存哈希;管理端 RAT 失败 401 + WWW-Authenticate。
 
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
@@ -194,13 +186,11 @@ function validateResponseTypes(responseTypes: string[]): DcrError | null {
   return null
 }
 
-// schema 已卡 boolean,这里只归一 undefined(未提供)-> false。
 function normalizeDpopBoundAccessTokens(value: boolean | undefined): boolean {
   return value ?? false
 }
 
-// access_token_ttl_sec 边界与 normalize 同源(TOKEN_POLICY_BOUNDS),出界即拒,不靠 clamp 静默改写。
-// null = 显式清除 client 覆盖回继承(写 NULL);undefined = 字段未提供。
+// 出界即拒不 clamp;null=清覆盖,undefined=未提供。
 function normalizeAccessTokenTtlSec(
   value: number | null | undefined,
 ): Result<number | null | undefined, DcrError> {
@@ -349,7 +339,7 @@ function validateScopesAgainstCatalog(
   return null
 }
 
-// application_type 只接受 RFC7591 两种值;缺省 web(最严:redirect_uri 仅 https)。
+// 缺省 web 最严(redirect_uri 仅 https)。
 function resolveApplicationType(value: string | undefined): Result<'web' | 'native', DcrError> {
   if (value === undefined) return { ok: true, value: 'web' }
   if (value === 'web' || value === 'native') return { ok: true, value }
@@ -386,7 +376,7 @@ function buildCustomClaimsConfig(body: RegistrationRequest): Record<string, unkn
   return config
 }
 
-// scope 字符串 -> 列表;缺省给 openid/profile/email(DCR 默认最小集)。
+// 缺省 openid/profile/email(DCR 最小集)。
 function requestedScopesOf(body: Partial<RegistrationRequest>): string[] {
   return body.scope ? body.scope.split(' ').filter(Boolean) : ['openid', 'profile', 'email']
 }
@@ -584,7 +574,6 @@ app.get('/register/:clientId', async (c) => {
   return c.json(buildClientResponse(row), 200, { 'cache-control': 'no-store', pragma: 'no-cache' })
 })
 
-// 从 PATCH body 组装 patchValues。
 function validatePatchPolicy(
   row: typeof schema.applications.$inferSelect,
   updates: Partial<RegistrationRequest>,

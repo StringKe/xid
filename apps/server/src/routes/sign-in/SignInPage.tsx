@@ -1,11 +1,4 @@
-// SignInPage:登录主页面(路由 /sign-in)。
-// 五条认证路径:passkey Conditional UI + 降级按钮 / 密码 / magic-link / email+WhatsApp+SMS OTP / 社交。
-// 枚举防护:认证失败文案统一模糊。Turnstile invisible 防刷。
-// a11y:语义 form/label 关联、aria-live 错误/状态、focus-visible。文案全走 lingui。
-//
-// CLS 防护(渐进增强,稳定骨架,详见 styles.ts):
-//   tab 栏初始渲染全部 tab,passkey tab 探测前 opacity:0 占位;面板全部挂载,非激活脱流;
-//   conditional UI 提示固定行高占位渐入;Turnstile invisible 容器 display:none。切换零 layout shift。
+// 登录页;枚举防护统一模糊失败文案;CLS 见 styles.ts。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect } from 'react'
@@ -36,8 +29,7 @@ import {
   type SignInErrorKey,
 } from './shared'
 
-// sign-in <-> sign-up 互切链接允许透传的 search 参数(认证动线相关)。
-// verified / reauthenticate / select_account 是一次性状态,不带过去。
+// 互切 intent 时透传认证动线参数;verified/reauthenticate/select_account 为一次性不带。
 const INTENT_SWITCH_KEYS = [
   'continue',
   'client_id',
@@ -71,7 +63,7 @@ function buildIntentSwitchSearch(search: SignInSearch, target: 'sign-in' | 'sign
   return query ? `?${query}` : ''
 }
 
-// 错误文案映射(lingui t``,枚举防护:不区分用户不存在 / 密码错误)。
+// 枚举防护:不区分用户不存在 / 密码错误。
 function useErrorMessage(key: SignInErrorKey | null): string | null {
   const { t } = useLingui()
   switch (key) {
@@ -240,8 +232,7 @@ function SignInPage(): ReactNode {
   )
   const errorMessage = useErrorMessage(state.error)
   const successMessage = useSuccessMessage(state.error)
-  // Defense in depth for mocked/stale config state: sign-up cannot surface the sign-in-only
-  // passkey ceremony even if an upstream caller accidentally includes it.
+  // 纵深:即使上游误传 passkey,sign-up 也不得暴露登录 ceremony。
   const enabledMethods = isSignUpFlow
     ? state.enabledMethods.filter((method) => method !== 'passkey')
     : state.enabledMethods
@@ -280,7 +271,7 @@ function SignInPage(): ReactNode {
   )
   const isInvitationReturn = signedInReturn.startsWith('/accept-invitation?')
 
-  // 授权和邀请必须续跑原流程;普通 sign-up 会话进入组织 onboarding。
+  // 授权/邀请续跑原流程;普通 sign-up 进组织 onboarding。
   useEffect(() => {
     if (status !== 'authenticated' || requiresExplicitInteraction) return
     if (state.tenantSelection.authzRequestId) {
@@ -617,7 +608,6 @@ function SignInPage(): ReactNode {
   )
 }
 
-// TanStack Router lazy 路由(对齐 verify-email / forgot-password 原生 Route 约定)。
 export const Route = createLazyRoute('/sign-in')({
   component: SignInPage,
 })

@@ -1,14 +1,10 @@
-// 枚举值本地化标签映射。
-// 所有展示给用户的机器枚举值(status/role/provider 等)通过此文件走 lingui macro,
-// 不直接渲染机器字符串。
+// 机器枚举值经 lingui macro 映射为用户可见标签,禁止直接渲染机器字符串。
 
 import { msg } from '@lingui/core/macro'
 import { useLingui } from '@lingui/react/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import type { OrganizationMembershipRole } from '@xid-kit/types'
 import type { BadgeTone } from './components/ui/Badge'
-
-// --- 成员 / 邀请状态 ---
 
 type MemberStatus = 'active' | 'inactive' | 'pending'
 type InvitationStatus = 'pending' | 'expired' | 'accepted' | 'revoked'
@@ -42,8 +38,6 @@ export function useInvitationStatusLabel(): (status: InvitationStatus) => string
   }
 }
 
-// --- 成员角色 ---
-
 const ROLE_LABELS: Record<OrganizationMembershipRole, MessageDescriptor> = {
   member: msg`Member`,
   admin: msg`Admin`,
@@ -57,8 +51,6 @@ export function useRoleLabel(): (role: OrganizationMembershipRole) => string {
     return descriptor ? i18n._(descriptor) : role
   }
 }
-
-// --- 组织状态 ---
 
 type OrganizationStatus = 'active' | 'suspended' | 'deleted'
 
@@ -76,8 +68,6 @@ export function useOrganizationStatusLabel(): (status: OrganizationStatus) => st
   }
 }
 
-// --- 平台全局用户状态 ---
-
 type GlobalUserStatus = 'active' | 'inactive' | 'banned'
 
 const GLOBAL_USER_STATUS_LABELS: Record<GlobalUserStatus, MessageDescriptor> = {
@@ -94,7 +84,6 @@ export function useGlobalUserStatusLabel(): (status: GlobalUserStatus) => string
   }
 }
 
-// --- SSO 连接状态 ---
 type ConnectionStatus = 'active' | 'inactive' | 'error'
 
 const CONNECTION_STATUS_LABELS: Record<ConnectionStatus, MessageDescriptor> = {
@@ -111,8 +100,6 @@ export function useConnectionStatusLabel(): (status: ConnectionStatus) => string
   }
 }
 
-// --- SCIM 目录状态 ---
-
 type DirectoryStatus = 'active' | 'inactive'
 
 const DIRECTORY_STATUS_LABELS: Record<DirectoryStatus, MessageDescriptor> = {
@@ -127,8 +114,6 @@ export function useDirectoryStatusLabel(): (status: DirectoryStatus) => string {
     return descriptor ? i18n._(descriptor) : status
   }
 }
-
-// --- 计费状态 ---
 
 type BillingStatus = 'ok' | 'overdue' | 'exceeded'
 
@@ -146,10 +131,7 @@ export function useBillingStatusLabel(): (status: BillingStatus) => string {
   }
 }
 
-// --- 通用状态色调 ---
-
-// statusToneFor:机器状态 -> Badge tone 的唯一映射,Badge 不再按页面各自猜色。
-// 文案仍走上方各自的 label hook(枚举 -> lingui descriptor);两者配套使用。
+// 机器状态 -> Badge tone 的唯一映射,页面不得各自猜色。
 export function statusToneFor(status: string): BadgeTone {
   switch (status) {
     case 'active':

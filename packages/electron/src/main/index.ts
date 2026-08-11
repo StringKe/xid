@@ -1,6 +1,4 @@
-// @xid-kit/electron -- ./main entry point.
-// All exports here run in the Electron main process only.
-// Do NOT import in renderer or preload code.
+// main 进程入口：勿在 renderer / preload 中 import。
 
 export { XidElectronApp } from './xid-app'
 export { ElectronSafeStorage, ElectronStorageError } from './safe-storage'

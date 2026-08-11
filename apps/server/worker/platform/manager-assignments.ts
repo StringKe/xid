@@ -1,5 +1,4 @@
-// Instance Manager provisioning is intentionally isolated from tenant-scoped Management APIs.
-// This route uses the platform raw DB only after requireInstanceManager and never accepts API keys.
+// Instance Manager 配给与租户 Management API 隔离:仅 requireInstanceManager 后门控 raw DB,不接受 API key。
 
 import { schema } from '@xid-kit/db'
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'

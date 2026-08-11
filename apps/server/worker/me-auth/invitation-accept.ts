@@ -42,9 +42,7 @@ export async function handleInvitationPreview(c: Context<XidHonoEnv>): Promise<R
 }
 
 export async function handleInvitationAccept(_c: Context<XidHonoEnv>): Promise<Response> {
-  // Raw invitation acceptance and legacy session continuations cannot prove that every existing
-  // credential was created after Email ownership. All acceptance now goes through the one-time
-  // invitation Email claim, which binds acceptance to a claim-proven identity.
+  // raw token/旧会话续接无法证明 Email 归属;接受统一走一次性 invitation Email claim。
   throw new AppError('invitation_invalid')
 }
 

@@ -1,38 +1,27 @@
-// 类型化 API client:对接同源 Worker 的 /v1 Management API 与 OIDC/auth 端点。
-// 错误契约对照 worker/middleware/error.ts 的对外 body:{ code, message, longMessage?, meta }。
-// credentials:'include' 携带 session cookie(05 章 8);401 经 onUnauthorized 回调统一处理(登出/重定向)。
-// 解析后的失败一律为 @xid-kit/types 的 XidError(契约冻结),页面用 code 走 lingui 文案、meta.paramName 映射表单字段。
+// 同源 SPA API client:失败一律 XidError;session cookie 经 credentials:'include';401 走 onUnauthorized。
 
 import type { Result, XidError, XidErrorCode } from '@xid-kit/types'
 
-// 网络/解析层无法归类时的兜底 code(沿用错误契约 union,不臆造新 code)。
+// 网络/解析层无法归类时的兜底,沿用契约 union 不臆造新 code。
 const NETWORK_ERROR_CODE: XidErrorCode = 'service_unavailable'
 const UNKNOWN_ERROR_CODE: XidErrorCode = 'server_error'
 
-// HTTP 方法白名单(as const union,不用 enum)。
 const HTTP_METHODS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'] as const
 type HttpMethod = (typeof HTTP_METHODS)[number]
 
 export type ApiRequestOptions = {
   method?: HttpMethod
-  // 结构化 body(JSON 序列化);GET/DELETE 通常省略。
   body?: unknown
-  // 附加查询参数(值会 URL 编码);undefined/null 项跳过。
   query?: Record<string, string | number | boolean | null | undefined>
-  // 额外请求头(不覆盖 Accept/Content-Type 默认值的语义)。
   headers?: Record<string, string>
-  // 取消信号(超时/卸载),透传给 fetch。
   signal?: AbortSignal
 }
 
 export type ApiClientConfig = {
-  // 同源默认空串;自托管/自定义域名可注入绝对 base(无尾斜杠)。
   baseUrl?: string
-  // 401 统一回调(会话失效):由 AuthProvider 注入,触发登出/跳登录。
   onUnauthorized?: () => void
 }
 
-// 判别 Worker 返回体是否为结构化错误形状(对照 error.ts XidApiErrorBody)。
 function isErrorBody(value: unknown): value is {
   code: XidErrorCode
   message: string
@@ -51,7 +40,7 @@ function toXidError(status: number, body: unknown): XidError {
     if (body.meta !== undefined) error.meta = body.meta
     return error
   }
-  // 非结构化错误(网关/HTML/空体):模糊到通用 code,不外泄底层细节(枚举防护)。
+  // 网关/HTML/空体:模糊通用 code,不外泄底层(枚举防护)。
   return { code: UNKNOWN_ERROR_CODE, message: '', httpStatus: status }
 }
 
@@ -62,7 +51,7 @@ function buildUrl(baseUrl: string, path: string, query: ApiRequestOptions['query
       if (value !== null && value !== undefined) url.searchParams.set(key, String(value))
     }
   }
-  // 同源场景输出相对路径,避免把 origin 写死进请求。
+  // 同源输出相对路径,避免把 origin 写死进请求。
   return baseUrl ? url.toString() : `${url.pathname}${url.search}`
 }
 
@@ -103,7 +92,7 @@ async function observeResult<T>(
   return result
 }
 
-// 保留调用方原始 Result 语义,只把失败广播给跨页面 UI。observer 不重放请求。
+// 只广播失败给跨页面 UI,不重放请求,保留调用方 Result 语义。
 export function observeApiClientErrors(client: ApiClient, observer: ApiErrorObserver): ApiClient {
   return {
     request: (path, options) => observeResult(client.request(path, options), observer),
@@ -123,7 +112,7 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
     const init: RequestInit = {
       method,
       headers,
-      // session cookie(05 章 8):同源 SPA 必须带 cookie 才能读已登录上下文。
+      // 同源 SPA 依赖 session cookie 读已登录上下文。
       credentials: 'include',
     }
     if (options.body !== undefined) {
@@ -136,7 +125,7 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
     try {
       response = await fetch(buildUrl(baseUrl, path, options.query), init)
     } catch {
-      // 网络层失败(离线/CORS/中断):统一模糊 code,message 留空交给页面走 lingui 文案。
+      // 离线/CORS/中断:模糊 code,message 空串由页面走 lingui。
       return { ok: false, error: { code: NETWORK_ERROR_CODE, message: '', httpStatus: 0 } }
     }
 
@@ -158,5 +147,5 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
   }
 }
 
-// 默认同源 client(无 401 回调);AuthProvider 用 createApiClient 注入 onUnauthorized 覆盖。
+// 默认同源无 401 回调;需要会话失效处理时用 createApiClient 注入 onUnauthorized。
 export const api: ApiClient = createApiClient()

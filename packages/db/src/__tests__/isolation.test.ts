@@ -1,14 +1,9 @@
-// 多租户越权测试(见 tenant-isolation rule P0、testing rule)。
-// 验证 TenantDb 查询层强制注入 tenant_id/org_id,org A 上下文不能访问 org B 资源。
-// 用伪 TenantScoped mock 记录每次调用绑定的 scope 值,不依赖 Workers runtime
-// (真实 Worker binding 集成测试留 apps/server)。
-// 不测第三方 drizzle 本身行为,只测租户查询层封装的隔离语义。
+// TenantDb 隔离:伪 mock 记录 scope,验证 org A 不能越权 org B(不依赖 Workers)。
 
 import { describe, it, expect } from 'vitest'
 import type { TenantContext } from '@xid-kit/types'
 import type { TenantDb } from '../tenant-db'
 
-// 最小 TenantContext 构造辅助(不依赖真实 D1 或签名密钥)。
 function makeTenantContext(tenantId: string): TenantContext {
   return {
     tenantId,
@@ -23,7 +18,6 @@ function makeTenantContext(tenantId: string): TenantContext {
   }
 }
 
-// Org 上下文辅助。
 type OrgContext = {
   tenantId: string
   orgId: string
@@ -48,13 +42,11 @@ export function createOrgBContext(): OrgContext {
   }
 }
 
-// TenantScoped mock 的调用记录:方法名 + 该次调用绑定的 scope 值,供断言用。
 type CapturedCall = {
   method: string
   scopeValues: Record<string, unknown>
 }
 
-// 构建伪 TenantScoped mock,不执行 SQL,只记录 scope 值。
 function makeMockScoped(scopeValues: Record<string, unknown>, captured: CapturedCall[]) {
   return {
     findMany: async () => {
@@ -87,7 +79,6 @@ function makeMockScoped(scopeValues: Record<string, unknown>, captured: Captured
   }
 }
 
-// 构建伪 TenantDb(不依赖真实 D1,只验证隔离语义)。
 function makeMockTenantDb(tenantId: string, captured: CapturedCall[]): TenantDb {
   const scopeValues = { tenantId }
   const makeTable = () => makeMockScoped(scopeValues, captured)
@@ -156,12 +147,10 @@ function makeMockTenantDb(tenantId: string, captured: CapturedCall[]): TenantDb 
   } as unknown as TenantDb
 }
 
-// 模拟业务层中"查询 org A 的用户"操作。
 async function fetchUsersForOrg(db: TenantDb): Promise<unknown[]> {
   return db.users.findMany()
 }
 
-// 模拟业务层中"查询 org A 下 org B 成员"操作(越权场景)。
 async function fetchMembersInWrongOrg(db: TenantDb, foreignOrgId: string): Promise<unknown[]> {
   const orgDb = db.forOrg(foreignOrgId)
   return orgDb.memberships.findMany()
@@ -195,11 +184,8 @@ describe('tenant isolation: TenantDb scope enforcement', () => {
     await fetchUsersForOrg(dbA)
     await fetchUsersForOrg(dbB)
 
-    // Tenant A 的调用中 tenantId 是 orgA.tenantId
     expect(capturedA[0]?.scopeValues['tenantId']).toBe(orgA.tenantId)
-    // Tenant B 的调用中 tenantId 是 orgB.tenantId
     expect(capturedB[0]?.scopeValues['tenantId']).toBe(orgB.tenantId)
-    // 两个 tenantId 不同,不会混串
     expect(capturedA[0]?.scopeValues['tenantId']).not.toBe(orgB.tenantId)
   })
 
@@ -218,30 +204,20 @@ describe('tenant isolation: TenantDb scope enforcement', () => {
 })
 
 describe('cross-tenant access prevention (403/404 isolation)', () => {
-  // 越权场景示范:org A 的 TenantDb 句柄访问 org B 资源。
-  // 由于 makeMockTenantDb 绑定的 tenantId = orgA,
-  // 即使传入 orgB 的 orgId 做 forOrg,tenantId 仍强制为 orgA。
-  // 这验证了"org A 上下文调用 forOrg(orgB.orgId)得到的是 tenant_id=orgA + org_id=orgB_id 的查询",
-  // 不会泄漏 tenantB 的数据(因为 tenantId 谓词不同)。
+  // forOrg(他 orgId) 仍强制本 tenantId,结果为空等价 404,不泄露存在性。
 
   it('org A context accessing org B resource: tenantId stays as org A tenant', async () => {
     const orgA = createOrgAContext()
     const orgB = createOrgBContext()
     const captured: CapturedCall[] = []
 
-    // org A 的 TenantDb 句柄
     const dbA = makeMockTenantDb(orgA.tenantId, captured)
 
-    // 越权:用 org A 的句柄查询 org B 的 orgId(模拟攻击者构造请求)
     await fetchMembersInWrongOrg(dbA, orgB.orgId)
 
     const call = captured[0]
-    // tenantId 仍是 orgA 的 tenantId,不是 orgB 的
     expect(call?.scopeValues['tenantId']).toBe(orgA.tenantId)
-    // orgId 是传入的 orgB orgId,但 tenantId 谓词已隔离
     expect(call?.scopeValues['tenantId']).not.toBe(orgB.tenantId)
-    // 实际结果为空(因为 tenant A 下不存在 orgB 的 membership)
-    // -> 返回 [] 等价于 404 not found,不泄露 orgB 存在性
   })
 
   it('org A cannot turn an org B custom hostname id into org B tenant scope', async () => {
@@ -268,7 +244,6 @@ describe('cross-tenant access prevention (403/404 isolation)', () => {
     const dbA = makeMockTenantDb(orgA.tenantId, capturedA)
     const dbB = makeMockTenantDb(orgB.tenantId, capturedB)
 
-    // 两个句柄的 tenantId 不同
     expect(dbA.tenantId).not.toBe(dbB.tenantId)
   })
 
@@ -280,10 +255,8 @@ describe('cross-tenant access prevention (403/404 isolation)', () => {
     const dbA = makeMockTenantDb(orgA.tenantId, captured)
     const crossOrgView = dbA.forOrg(orgB.orgId)
 
-    // orgId 是 orgB 的,但 tenantId 仍是 orgA 的
+    // orgId 可被构造为外 org,tenantId 谓词仍绑本租户,结果为空。
     expect(crossOrgView.orgId).toBe(orgB.orgId)
-    // 在实际 SQL 中 WHERE tenant_id=orgA.tenantId AND org_id=orgB.orgId,
-    // orgB 的数据在 tenantId=orgB.tenantId 下,因此查询结果为空(隔离生效)
   })
 })
 
@@ -308,7 +281,7 @@ describe('TenantDb context invariants', () => {
 
   it('TenantContext has no global singleton values', () => {
     const orgA = createOrgAContext()
-    // issuer 可为 instance 级统一值;rpId/tenantId 仍必须携带租户隔离信息。
+    // issuer 可 instance 统一;rpId/tenantId 必须携带租户隔离信息。
     expect(orgA.ctx.issuer).toBe('https://xid.dev')
     expect(orgA.ctx.rpId).toContain(orgA.tenantId)
   })

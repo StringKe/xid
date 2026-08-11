@@ -1,6 +1,4 @@
-// constant-time 计时采样 helper(见 anti-abuse rule:账户枚举防护,响应时间归一化)。
-// 用于测试认证接口的 timing 一致性:比较"用户存在"与"用户不存在"的响应时间分布。
-// 原则:采样 N 次,计算均值/P95,断言两路径的均值差在阈值内(如 20ms)。
+// constant-time 计时采样:比较两路径均值差是否在阈值内(账户枚举防护)。
 
 export type TimingSample = {
   durationMs: number
@@ -38,8 +36,6 @@ export function p95(samples: TimingSample[]): number {
   return picked?.durationMs ?? 0
 }
 
-// 断言两条路径的均值差在 thresholdMs 内。
-// 失败时返回诊断信息字符串;通过返回 null。
 export function assertConstantTime(
   pathA: TimingSample[],
   pathB: TimingSample[],
@@ -54,8 +50,6 @@ export function assertConstantTime(
   return null
 }
 
-// 采样两条路径并断言 constant-time。
-// 适合在 it('timing is uniform') 中直接调用。
 export async function assertPathsConstantTime(
   pathA: () => Promise<unknown>,
   pathB: () => Promise<unknown>,

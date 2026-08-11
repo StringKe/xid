@@ -1,14 +1,5 @@
-// Main process: safeStorage-backed token persistence.
-// Uses Electron safeStorage (OS keychain encryption) + node:fs for blob storage.
-// This module runs ONLY in the main process (has access to Electron + Node).
-//
-// Architecture:
-//   Encrypted blob = safeStorage.encryptString(plaintext) -> Buffer
-//   Persisted as raw binary files in storageDir.
-//   File name = sha256-like sanitized key to avoid path traversal.
-//
-// IPC: ipcMain.handle() registers handlers so the renderer (via contextBridge)
-// can call storage ops over IPC without touching main-process Node APIs directly.
+// safeStorage + 本地文件落盘 token；仅 main 进程。
+// 密钥经 OS keychain 加密；文件名对 key 做 hash，防 path traversal；经 IPC 供 preload 代理。
 
 import type { IpcMain } from 'electron'
 import { createHash } from 'node:crypto'
@@ -17,7 +8,6 @@ import { join } from 'node:path'
 
 import { IPC_CHANNELS } from '../types'
 
-// Typed error for storage operations -- allows callers to catch and handle specifically.
 export class ElectronStorageError extends Error {
   override readonly name = 'ElectronStorageError'
   readonly code: string
@@ -28,7 +18,6 @@ export class ElectronStorageError extends Error {
   }
 }
 
-// Main process safe-storage manager.
 export class ElectronSafeStorage {
   readonly #storageDir: string
 
@@ -36,10 +25,6 @@ export class ElectronSafeStorage {
     this.#storageDir = storageDir
   }
 
-  /**
-   * Ensure storage directory exists. Call once during app ready before
-   * registering IPC handlers.
-   */
   async init(): Promise<void> {
     await mkdir(this.#storageDir, { recursive: true })
   }
@@ -47,10 +32,7 @@ export class ElectronSafeStorage {
   async setItem(key: string, value: string): Promise<void> {
     const { safeStorage } = await importElectron()
     if (!safeStorage.isEncryptionAvailable()) {
-      // Encryption unavailable (headless Linux without a keyring daemon).
-      // Writing tokens in plaintext silently violates the platform-matrix safeStorage
-      // security contract and the error-handling rule (not吞错). Throw so the
-      // caller can decide to opt-in explicitly or deny the operation.
+      // 无 keyring 时静默明文写会破坏安全契约，fail-closed。
       throw new ElectronStorageError(
         '[xid-electron] safeStorage encryption is not available on this system. ' +
           'Ensure a keyring / secret service is running, or provide an explicit storageDir ' +
@@ -65,15 +47,14 @@ export class ElectronSafeStorage {
   async getItem(key: string): Promise<string | null> {
     const { safeStorage } = await importElectron()
     if (!safeStorage.isEncryptionAvailable()) {
-      // Symmetric with setItem: if encryption is unavailable we refuse to read
-      // (there should be no blob on disk written by this class anyway).
+      // 与 setItem 对称：不可加密则不读（本类本就不写明文 blob）。
       return null
     }
     try {
       const raw = await readFile(this.#filePath(key))
       return safeStorage.decryptString(raw)
     } catch {
-      // File missing (item not set) or decrypt failed (corrupted blob): treat as absent.
+      // 缺失或损坏均视为不存在，避免向调用方泄露细节。
       return null
     }
   }
@@ -82,14 +63,10 @@ export class ElectronSafeStorage {
     try {
       await rm(this.#filePath(key))
     } catch {
-      // File may not exist -- treat as a no-op.
+      // 文件不存在时 no-op。
     }
   }
 
-  /**
-   * Register IPC handlers so the preload contextBridge can proxy storage ops
-   * from the renderer. Call during app ready after calling init().
-   */
   registerIpcHandlers(ipcMain: IpcMain): void {
     ipcMain.handle(IPC_CHANNELS.STORAGE_SET, (_event, key: string, value: string) =>
       this.setItem(key, value),
@@ -100,10 +77,6 @@ export class ElectronSafeStorage {
     ipcMain.handle(IPC_CHANNELS.STORAGE_REMOVE, (_event, key: string) => this.removeItem(key))
   }
 
-  /**
-   * Remove all IPC handlers registered by this instance.
-   * Call when the BrowserWindow is closed to avoid handler leaks.
-   */
   removeIpcHandlers(ipcMain: IpcMain): void {
     ipcMain.removeHandler(IPC_CHANNELS.STORAGE_SET)
     ipcMain.removeHandler(IPC_CHANNELS.STORAGE_GET)
@@ -111,15 +84,14 @@ export class ElectronSafeStorage {
   }
 
   #filePath(key: string): string {
-    // Sanitize key to a hex digest to prevent path traversal.
+    // 将 key 映射为 hex digest，防止 path traversal。
     const safe = createHash('sha256').update(key).digest('hex')
     return join(this.#storageDir, safe)
   }
 }
 
-// Lazy import of electron to keep the module loadable in test environments.
-// Memoize the import promise: concurrent setItem calls (Promise.all) would otherwise
-// fire parallel dynamic imports of the same module.
+// 惰性 import electron 以便测试环境可加载本模块；
+// 缓存 Promise，避免并发 setItem 触发多次并行 dynamic import。
 let electronModule: Promise<typeof import('electron')> | null = null
 
 function importElectron(): Promise<typeof import('electron')> {

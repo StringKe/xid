@@ -1,4 +1,4 @@
-// Fake SWA authenticate endpoint for local SWA/password vaulting L3 evidence.
+// 本地 SWA/密码保管 L3 用假 authenticate 端点。
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'

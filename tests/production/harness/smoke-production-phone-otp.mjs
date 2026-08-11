@@ -34,9 +34,7 @@ if (channel !== 'whatsapp' && channel !== 'sms') {
   throw new Error('XID_PRODUCTION_PHONE_OTP_CHANNEL must be whatsapp or sms')
 }
 
-// 本 harness 的每条 DELETE 都以 organizationId 为唯一锚定(WHERE tenant_id = ?),
-// 而这个 id 可以由 XID_PRODUCTION_PHONE_OTP_ORGANIZATION_ID 直接指定:填进生产 default org
-// 就等于清空真实租户。前缀白名单在读入口和 DELETE 入口各校验一次,任一处拒绝就不发 SQL。
+// DELETE 仅以 organizationId 锚定,且可由环境变量指定;前缀白名单在读/写入口各校验一次。
 function assertSmokeOrganizationId(organizationId) {
   const prefix = SMOKE_ID_PREFIXES.organization
   if (typeof organizationId !== 'string' || !organizationId.startsWith(prefix)) {
@@ -97,19 +95,15 @@ function phoneSmokeHostedAuthPolicy() {
   }
 }
 
-// OTP 发送经 Queues 消费者落 notification_delivery_outbox(worker/queues/notification-delivery-state.ts
-// insertDelivery 按 tenant_id 写),该表不在共享扫除清单里,按本 harness 的实际写入面补。
-// audit_events 故意不清:审计只 INSERT 不 DELETE(cloudflare-bindings rule)。
+// notification_delivery_outbox 不在共享扫除清单,按本 harness 写入面补;audit_events 故意不清。
 const EXTRA_TENANT_TABLES = Object.freeze(['notification_delivery_outbox'])
 
-// 清理表清单复用共享扫除清单,不再本地维护第二份。旧的 9 张表清单漏了 passwords /
-// password_history / mfa_factors / backup_codes / metering_outbox 等 16 张同样带 tenant_id 的表。
+// 清理表清单复用共享扫除清单,避免本地第二份漂移漏表。
 function phoneOtpCleanupTables() {
   return [...smokeSweepTables().map((entry) => entry.table), ...EXTRA_TENANT_TABLES]
 }
 
-// organizations 行的 tenant_id 等于自身 id(见 seed),多带一个 id 条件是为了兼容
-// 操作者手工建的 org_smoke_ org 没把 tenant_id 指向自己的情况。
+// org 行 tenant_id 通常等于 id;多带 id 条件兼容手工 org 未把 tenant_id 指到自身的情况。
 function tenantScopedWhere(table, scope) {
   return table === 'organizations'
     ? `tenant_id = ${scope} OR id = ${scope}`
@@ -400,16 +394,14 @@ export async function runProductionPhoneOtpSmoke() {
   let organizationId = providedOrganizationId || null
   let primaryError = null
   let keepOrganization = Boolean(providedOrganizationId)
-  // finally 在 Ctrl-C / CI runner 杀进程时不执行,seed 出来的 org 会带着用户和 membership 留在生产库。
+  // 信号杀进程时 finally 不跑,seed 出的 org/用户会留在生产库。
   const unregisterSignals = registerCleanupSignalHandlers(async () => {
     if (keepOrganization) return
     await cleanupPhoneOtpSmokeOrganization(organizationId)
   })
   try {
     if (!organizationId) {
-      // 上一轮 send-only 交接或崩在中途的运行会把 org_smoke_*_otp_* 留在生产库,自己不会回来收。
-      // 只在 fresh 腿扫:这一轮马上要重新发码,旧交接此刻已作废,扫掉是安全的。
-      // resume 腿(带 XID_PRODUCTION_PHONE_OTP_ORGANIZATION_ID)绝不能扫 -- 会删掉自己正要用的 org。
+      // 只在 fresh 腿扫上一轮残留;resume 腿绝不能扫,会删掉正要用的 org。
       await sweepSmokeResidue()
       organizationId = await seedPhoneOtpSmokeOrganization()
       keepOrganization = false
@@ -455,8 +447,7 @@ export async function runProductionPhoneOtpSmoke() {
   } finally {
     unregisterSignals()
     if (keepOrganization) {
-      // 两段式交接:org 必须活到操作者带着真实收到的 code 回来。下一轮 fresh 运行开头的
-      // sweepSmokeResidue 负责扫掉没人回来收的那些。
+      // 两段式交接:org 必须活到操作者带 code 回来;无人收的由下一轮 fresh 扫除。
       printResult(
         'SKIP',
         'production phone otp cleanup',
@@ -470,9 +461,7 @@ export async function runProductionPhoneOtpSmoke() {
         },
         { name: 'phone otp smoke residue guard', run: () => assertNoSmokeResidue() },
       ])
-      // 清理失败必须让这次 smoke 判红:静默容忍等于把带成员关系的 org 推给下一次。
-      // 在 finally 里直接 throw 是故意的:try 里的 return(provider 未就绪 / verify 腿)
-      // 会跳过函数尾部的 throw。primaryError 已存在时不抛,免得盖掉真正的失败原因。
+      // finally 内 throw:清理失败判红(try 提前 return 会跳过尾部 throw);有 primaryError 时不盖错。
       if (failures.length > 0 && !primaryError) {
         throw new Error(
           `phone otp cleanup failed: ${failures.map((failure) => failure.name).join(', ')}`,

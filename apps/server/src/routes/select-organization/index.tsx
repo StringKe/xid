@@ -35,7 +35,6 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontSize: '0.875rem',
   },
-  // button 形态的行内文本链接:重置 button 默认外观,与 page.textLink 叠加使用。
   textButton: {
     alignSelf: 'flex-start',
     padding: 0,
@@ -76,7 +75,7 @@ export function SelectOrganizationPage(): ReactNode {
     navigate(safeRedirect, { replace: true })
   }
 
-  // 此页不接 steps:它是老用户登录后的组织切换点,不属于线性 onboarding 向导。
+  // 组织切换点,不接 onboarding steps。
   const footer = (
     <button
       type="button"

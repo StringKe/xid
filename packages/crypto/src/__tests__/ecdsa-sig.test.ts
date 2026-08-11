@@ -1,4 +1,3 @@
-// ECDSA P1363 <-> DER 转换 round-trip,并与 Web Crypto 原生 P1363 签名互验。
 import { describe, it, expect } from 'vitest'
 
 import { p1363ToDer, derToP1363 } from '../ecdsa-sig'
@@ -16,16 +15,16 @@ describe('ECDSA signature format conversion (ES256)', () => {
     expect(p1363.byteLength).toBe(64)
 
     const der = p1363ToDer(p1363)
-    expect(der[0]).toBe(0x30) // SEQUENCE
+    expect(der[0]).toBe(0x30)
     const back = derToP1363(der)
     expect(back).toEqual(p1363)
   })
 
   it('pads short coordinates with leading zeros and strips DER 0x00 prefix correctly', () => {
-    // r 高位为 1(需 DER 补 0x00),s 有前导零(P1363 左补零)。
+    // r 最高位为 1 需 DER 补 0x00;s 有前导零需 P1363 左补零。
     const p1363 = new Uint8Array(64)
-    p1363[0] = 0x80 // r 最高字节最高位为 1
-    p1363[63] = 0x01 // s 仅末字节非零
+    p1363[0] = 0x80
+    p1363[63] = 0x01
     const der = p1363ToDer(p1363)
     const back = derToP1363(der)
     expect(back).toEqual(p1363)
@@ -36,7 +35,7 @@ describe('ECDSA signature format conversion (ES256)', () => {
   })
 })
 
-// 畸形 DER 拒绝向量:[名称, 字节, 期望错误片段]。derToP1363 对不可信输入须 throw。
+// 畸形 DER 拒绝向量;对不可信输入须 throw。
 const MALFORMED_DER_VECTORS: ReadonlyArray<readonly [string, Uint8Array, RegExp]> = [
   [
     'non-SEQUENCE first byte',
@@ -100,19 +99,18 @@ describe('derToP1363: strict validation of untrusted DER', () => {
 
 describe('derToP1363: 64-byte DER must convert (not be mistaken for P1363)', () => {
   it('converts a well-formed 64-byte DER (two 29-byte INTEGERs) to right-aligned P1363', () => {
-    // 30 3e 02 1d <29B r> 02 1d <29B s> = 64 字节;r/s 首字节 < 0x80 不需 0x00 pad,长度 29 在 P-256 范围内。
+    // 构造恰好 64 字节的合法 DER;若按长度启发式会被误当 P1363。
     const r = new Uint8Array(29).fill(0x42)
     const s = new Uint8Array(29).fill(0x37)
     const der = new Uint8Array([0x30, 0x3e, 0x02, 0x1d, ...r, 0x02, 0x1d, ...s])
-    expect(der.byteLength).toBe(64) // 长度恰好 64,若按长度启发式会被误当 P1363
+    expect(der.byteLength).toBe(64)
 
     const p1363 = derToP1363(der)
     expect(p1363.byteLength).toBe(64)
-    // r 右对齐到前 32 字节:首 3 字节为 0x00 padding,其后 29 字节为 r。
+    // 29 字节坐标右对齐到 32 字节:前 3 字节为零填充。
     expect(p1363[2]).toBe(0x00)
     expect(p1363[3]).toBe(0x42)
     expect(p1363[31]).toBe(0x42)
-    // s 右对齐到后 32 字节。
     expect(p1363[34]).toBe(0x00)
     expect(p1363[35]).toBe(0x37)
     expect(p1363[63]).toBe(0x37)

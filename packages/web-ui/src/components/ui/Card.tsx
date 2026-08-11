@@ -1,6 +1,4 @@
-// Card:内容容器。section 语义,可选 aria-labelledby 关联标题(由调用方提供 title id)。
-// 层次靠 1px 边框 + surface 底,不靠阴影;variant=raised 才允许 shadow-sm。
-// style 透传:调用方按需覆盖布局定位(width/maxWidth 等),与 StyleX 基样式合并。
+// 默认 1px 边框无阴影;仅 raised 允许 shadow-sm。
 
 import type { HTMLAttributes, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
@@ -27,7 +25,6 @@ const styles = stylex.create({
   },
   raised: {
     backgroundColor: tokens['--xid-surface'],
-    // 唯一允许阴影的变体;shadow-sm token 随 light/dark 自动翻转。
     boxShadow: tokens['--xid-shadow-sm'],
   },
 })

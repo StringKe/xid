@@ -1,8 +1,4 @@
-// 邮箱验证回调页(TanStack Router + Query)。
-// 从 URL ?token= 取验证 token -> POST /auth/verify-email。token 有效期由 server 控制
-// (magic link HMAC-SHA256 签名 JWT,15min,jti 一次性)。
-// useQuery:token 作 queryKey 自动去重,isPending/isSuccess/error 驱动 UI。
-// ResendLink 用 useMutation。视觉语言对齐 sign-in:1.25rem stack、hairline 层次、textLink 处理。
+// 邮箱验证回调;token 一次性(server 控 15min JWT),queryKey 去重防 StrictMode 双调。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
@@ -19,7 +15,6 @@ import { useAuth } from '../../lib/auth-context'
 import { trackEmailVerified } from '../../lib/google-analytics-funnel'
 import { styles as signInStyles } from '../sign-in/styles'
 
-// 验证失败原因(映射到本地化文案)。
 type VerifyErrorKind = 'expired' | 'invalid'
 type VerifyEmailResult = { ok: true; email?: string; redirectUrl?: string }
 
@@ -27,7 +22,7 @@ function classifyError(code: XidErrorCode): VerifyErrorKind {
   return code === 'token_expired' ? 'expired' : 'invalid'
 }
 
-// sign-in 跳转附带 verified=1 + login_hint:SignInPage 显示验证成功 Alert 并预填 identifier。
+// 回 sign-in 附 verified=1 + login_hint,供成功 Alert 与预填。
 function withVerifiedHint(target: string, email: string | undefined): string {
   if (target !== '/sign-in' && !target.startsWith('/sign-in?')) return target
   const [path, query] = target.split('?')
@@ -38,14 +33,12 @@ function withVerifiedHint(target: string, email: string | undefined): string {
 }
 
 const styles = stylex.create({
-  // 卡片内主栈:对齐 sign-in 密度(1.25rem)。
   stack: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.25rem',
     minWidth: 0,
   },
-  // 验证中等待行:mono microlabel 文案 + spinner 同行。
   pendingRow: {
     display: 'flex',
     alignItems: 'center',
@@ -59,7 +52,6 @@ const styles = stylex.create({
     textTransform: 'uppercase',
     color: tokens['--xid-muted-foreground'],
   },
-  // 重发区:gap 1rem 对齐 panel 密度。
   resendPanel: {
     display: 'flex',
     flexDirection: 'column',
@@ -74,13 +66,12 @@ const styles = stylex.create({
 })
 
 function VerifyEmailPage(): ReactNode {
-  // strict:false -- TanStack lazy route 不绑定单一 route id。
   const search = useSearch({ strict: false }) as { token?: string }
   const token = search.token ?? null
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
 
-  // 验证调用:token 作 queryKey 自动去重,免 StrictMode 双调用 guard;失败不重试(token 一次性)。
+  // token 作 queryKey 去重;失败不重试(一次性)。
   const verification = useQuery({
     queryKey: ['verify-email', token],
     enabled: token !== null,
@@ -88,14 +79,13 @@ function VerifyEmailPage(): ReactNode {
     queryFn: async (): Promise<VerifyEmailResult | never> => {
       const result = await api.post<VerifyEmailResult>('/auth/verify-email', { token })
       if (!result.ok) throw result.error
-      // server 可能已将 emailVerified 置 true,刷新本地 session 视图。
       trackEmailVerified()
       await refresh()
       return result.value
     },
   })
 
-  // 验证成功后短暂停留再跳转,让用户看到成功提示。
+  // 短暂停留再跳转,让用户看到成功提示。
   useEffect(() => {
     if (!verification.isSuccess) return
     const redirectUrl = verification.data.redirectUrl
@@ -176,11 +166,10 @@ function ResendLink(): ReactNode {
     onSuccess: (result) => {
       if (!result.ok) {
         if (result.error.code !== 'rate_limited') {
-          // 枚举防护:不区分邮箱存在与否,rate_limited 直接在 isError 展示。
           setSent(true)
           return
         }
-        // rate_limited 不设 sent,让 isError 显示提示。
+        // rate_limited 不设 sent,走 isError 展示。
         return
       }
       setSent(true)

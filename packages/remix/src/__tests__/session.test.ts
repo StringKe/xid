@@ -1,7 +1,4 @@
-// session.ts 单元测试:纯逻辑部分(token 读写/清除)。
-// createXidSessionStorage 依赖 @remix-run/node(peer dep,未安装),不测其初始化路径;
-// 仅测 getTokenFromSession / getRefreshTokenFromSession / setTokensInSession / clearTokensFromSession
-// 这些操作 XidSession 的纯逻辑函数。
+// session 纯逻辑（token 读写/清除）；createXidSessionStorage 依赖未安装的 peer dep，不测初始化路径。
 import { describe, it, expect } from 'vitest'
 
 import {
@@ -13,7 +10,6 @@ import {
 import type { XidSession } from '../types'
 import { XID_SESSION_ACCESS_TOKEN_KEY, XID_SESSION_REFRESH_TOKEN_KEY } from '../types'
 
-// 最小 XidSession mock:内存 map 实现。
 function makeSession(initial: Record<string, string> = {}): XidSession {
   const store = new Map<string, string>(Object.entries(initial))
   return {

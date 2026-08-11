@@ -110,11 +110,10 @@ export async function completePrivacyErasure(
 ): Promise<void> {
   const now = input.now ?? Date.now()
 
-  // Scheduling checks the same rule, but roles can change during the 30-day grace period.
+  // 宽限期内角色可变,执行时再校验一次可擦除性。
   await requirePrivacyErasureEligibility(env, input.tenantId, input.userId)
 
-  // SessionDO is the immediate revocation source. If it is unavailable, leave D1 untouched and
-  // retry instead of reporting a deletion whose existing session still works.
+  // SessionDO 不可达时不动 D1 并重试,避免报已删但会话仍有效。
   await sessionDoRevokeAll(env, input.userId)
   await revokeImpersonationSessions(env, input.tenantId, input.userId)
   await deletePriorExportObjects(env, input.tenantId, input.userId)
@@ -132,8 +131,7 @@ export async function completePrivacyErasure(
 
   const statements: D1PreparedStatement[] = [
     preparePrivacyErasureAtomicGuard(env, input),
-    // Existing access JWTs remain cryptographically valid until exp. Persist their jti in the
-    // denylist before deleting issuance metadata so erasure revokes them immediately.
+    // access JWT 在 exp 前仍可验签:先写 jti 吊销表再删签发元数据,擦除立即生效。
     env.DB.prepare(
       `INSERT OR IGNORE INTO access_token_revocations (
          id, tenant_id, jti, client_id, subject, expires_at, revoked_at, created_at

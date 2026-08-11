@@ -1,16 +1,10 @@
-// @xid-kit/remix: server-only entry (subpath export: @xid-kit/remix/server).
-// Contains APIs that must ONLY run server-side: JWT verification, secret key auth,
-// session helpers, and the OAuth callback handler.
-// Do NOT import this file in client components or Remix client-bundle code.
+// 服务端子路径入口（@xid-kit/remix/server）：JWT 验签、sk_ 认证、session 与 OAuth callback；禁止在 client 组件中导入。
 
-// --- Remix server helpers ---
 export { getAuth, requireAuth, xidClient, UNAUTHENTICATED } from './server'
 export type { GetAuthOptions } from './server'
 
-// --- createXidClient compat helper ---
 export { createXidClient } from './helpers'
 
-// --- Session storage ---
 export {
   createXidSessionStorage,
   getTokenFromSession,
@@ -19,11 +13,9 @@ export {
   clearTokensFromSession,
 } from './session'
 
-// --- OAuth callback ---
 export { handleCallback } from './callback'
 export type { HandleCallbackOptions, HandleCallbackResult } from './callback'
 
-// --- @xid-kit/backend server APIs ---
 export {
   verifyToken,
   verifyWebhook,
@@ -49,7 +41,6 @@ export type {
   BackendErrorCode,
 } from '@xid-kit/backend'
 
-// --- Types ---
 export type {
   AuthObject,
   UnauthenticatedAuthObject,

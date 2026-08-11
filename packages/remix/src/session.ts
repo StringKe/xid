@@ -1,16 +1,9 @@
-// session.ts: Remix cookie session storage for XID tokens.
-// 封装 @remix-run/node createCookieSessionStorage,为 access_token / refresh_token
-// 提供类型化存储,供 loader/action 读取登录态。
-//
-// 安全注意:access_token 不得落入客户端可读 localStorage;本模块将其存入 HttpOnly cookie
-// (由 Remix createCookieSessionStorage 管理),session secret 禁止硬编码到客户端 bundle。
-//
-// 依赖:@remix-run/node(peerDependency),运行时由消费者提供。
+// Remix HttpOnly cookie session 存 access_token / refresh_token；禁止落入 localStorage，session secret 禁止进客户端 bundle。
 
 import { XID_SESSION_ACCESS_TOKEN_KEY, XID_SESSION_REFRESH_TOKEN_KEY } from './types'
 import type { XidSession, XidSessionStorage, XidSessionStorageOptions } from './types'
 
-// @remix-run/node createCookieSessionStorage 最小接口契约(peer dep,运行时由消费者提供)。
+// @remix-run/node createCookieSessionStorage 最小接口（peer dep，运行时由消费者提供）。
 type RemixCookieSessionStorageOptions = {
   cookie: {
     name?: string
@@ -44,8 +37,7 @@ type RemixNodeModule = {
   createCookieSessionStorage: (options: RemixCookieSessionStorageOptions) => RemixSessionStorage
 }
 
-// 动态 import @remix-run/node(peer dep,运行时由消费者提供)。
-// 延迟加载,避免 library bundle 时硬引入 Remix。
+// 延迟 import，避免 library bundle 硬依赖 @remix-run/node。
 async function getRemixNode(): Promise<RemixNodeModule> {
   const mod = (await import('@remix-run/node')) as unknown as RemixNodeModule
   return mod
@@ -63,16 +55,7 @@ function wrapRemixSession(remixSession: RemixSession): XidSession {
   }
 }
 
-// createXidSessionStorage:创建封装 Remix cookie session 的 XidSessionStorage。
-//
-// 用法(app/sessions.server.ts):
-//   import { createXidSessionStorage } from '@xid-kit/remix'
-//   export const sessionStorage = createXidSessionStorage({
-//     secret: process.env.SESSION_SECRET!,
-//   })
-//
-// 返回 lazy-initialized storage:首次调用 getSession/commit/destroy 时才动态 import Remix。
-// 这样 bundle 时不强依赖 @remix-run/node(由 peerDep 满足)。
+// 首次 getSession/commit/destroy 时才动态 import Remix（peerDep 运行时满足）。
 export function createXidSessionStorage(options: XidSessionStorageOptions): XidSessionStorage {
   const secrets = Array.isArray(options.secret) ? options.secret : [options.secret as string]
 
@@ -105,8 +88,7 @@ export function createXidSessionStorage(options: XidSessionStorageOptions): XidS
 
     async commitSession(session) {
       const s = await ensureStorage()
-      // 反向拿到底层 RemixSession(通过 wrapRemixSession 保留引用)。
-      // 由于 XidSession 直接代理 RemixSession 的方法,可安全传递 session.data 重建。
+      // wrap 后丢失 RemixSession 引用，只能用 session.data 重建再 commit。
       const remixSession = await s.getSession(null)
       for (const [key, value] of Object.entries(session.data)) {
         remixSession.set(key, value)
@@ -125,17 +107,14 @@ export function createXidSessionStorage(options: XidSessionStorageOptions): XidS
   }
 }
 
-// getTokenFromSession:从 XidSession 读取 access_token。
 export function getTokenFromSession(session: XidSession): string | undefined {
   return session.get(XID_SESSION_ACCESS_TOKEN_KEY)
 }
 
-// getRefreshTokenFromSession:从 XidSession 读取 refresh_token。
 export function getRefreshTokenFromSession(session: XidSession): string | undefined {
   return session.get(XID_SESSION_REFRESH_TOKEN_KEY)
 }
 
-// setTokensInSession:将 access_token / refresh_token 写入 session。
 export function setTokensInSession(
   session: XidSession,
   tokens: { accessToken: string; refreshToken?: string },
@@ -146,7 +125,6 @@ export function setTokensInSession(
   }
 }
 
-// clearTokensFromSession:从 session 清除 token(sign out)。
 export function clearTokensFromSession(session: XidSession): void {
   session.unset(XID_SESSION_ACCESS_TOKEN_KEY)
   session.unset(XID_SESSION_REFRESH_TOKEN_KEY)

@@ -1,4 +1,3 @@
-// JWKS:多 kid 公钥并存输出 + 公钥 JWK 导出/导入互验(见 signing-keys rule)。
 import { describe, it, expect } from 'vitest'
 
 import { generateTenantSigningKey } from '../signing-key'
@@ -34,7 +33,7 @@ describe('buildJwks', () => {
     const jwks = buildJwks([a.material, n.material, r.material])
     expect(jwks.keys.map((k) => k.kid)).toEqual(['kid-a', 'kid-n', 'kid-r'])
     expect(jwks.keys.every((k) => k.use === 'sig')).toBe(true)
-    expect(jwks.keys.every((k) => k.d === undefined)).toBe(true) // 无私钥字段
+    expect(jwks.keys.every((k) => k.d === undefined)).toBe(true)
   })
 })
 

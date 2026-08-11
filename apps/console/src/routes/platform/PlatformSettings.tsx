@@ -1,5 +1,3 @@
-// platform console Instance 默认策略页:GET/PATCH /v1/platform/settings。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列表单(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { FormEvent, ReactNode } from 'react'

@@ -220,11 +220,7 @@ export function initSearch(config: SearchConfig): SearchInstance {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Bootstrap — imported for its side effects by SearchDialog.astro
-// (`import "./search.client"`). Wires each dialog through mount() and binds the
-// global open shortcut once.
-// ---------------------------------------------------------------------------
+// SearchDialog.astro 副作用导入本模块；全局快捷键只绑一次。
 
 type SearchDialogElement = HTMLDialogElement & {
   __openSearchDialog?: () => void
@@ -234,12 +230,7 @@ function primaryDialog(): SearchDialogElement | null {
   return document.querySelector<SearchDialogElement>('[data-search-dialog][data-search-ready]')
 }
 
-// The open shortcut and trigger delegation live on `document`, which survives
-// view transitions, so they are bound once for the page's lifetime — never
-// through mount()'s per-element setup/teardown. A module-scoped boolean (not an
-// <html> attribute) is the guard: ClientRouter resets <html> on every swap but
-// keeps document listeners, so an attribute guard would stack a duplicate
-// keydown handler each navigation (Cmd+K then toggles twice).
+// 快捷键挂 document（跨 view transition 存活）。用模块级 boolean 守卫，勿用 <html> 属性：ClientRouter 会重置 html 但保留 document 监听，属性守卫会导致每次导航叠加 keydown（Cmd+K 连开两次）。
 let globalsBound = false
 
 function bindGlobals() {
@@ -262,9 +253,7 @@ function bindGlobals() {
   })
 }
 
-// Per-element wiring: idempotent discovery now and on astro:page-load, teardown
-// on astro:before-swap. Replaces the hand-rolled data-search-ready init loop;
-// data-search-ready is now just the "wired" marker primaryDialog() selects on.
+// 每 dialog 幂等挂载；data-search-ready 仅作 primaryDialog 的已接线标记。
 mount('[data-search-dialog]', (root) => {
   const dialog = root as SearchDialogElement
   dialog.setAttribute('data-search-ready', 'true')

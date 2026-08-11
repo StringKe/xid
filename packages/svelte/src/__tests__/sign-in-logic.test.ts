@@ -1,4 +1,3 @@
-// sign-in-logic.test.ts:buildSignInUrl / executeSignOut 单元测试。
 import { describe, it, expect, vi } from 'vitest'
 import { buildSignInUrl, executeSignOut } from '../sign-in-logic'
 import type { XidClient } from '@xid-kit/core'

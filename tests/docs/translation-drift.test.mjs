@@ -1,7 +1,5 @@
-// 翻译漂移门禁:docs/zh-Hans/ 下每个中文镜像首行的 xid-translation 标记必须指向
-// 一个真实存在的英文正本,且记录的 source-blob 必须等于该正本当前内容的 git blob sha。
-// 纯 node 复算 sha(不调 git 二进制),因为 Cloudflare Workers Builds 环境不保证有 .git。
-// source-commit 字段保留但不参与断言:它与 source-blob 历史上已互相矛盾,断言它只会制造假失败。
+// 翻译漂移门禁:中文镜像 xid-translation 的 source 须存在,source-blob 须等于正本当前 git blob sha。
+// 纯 node 复算 sha(Workers Builds 不一定有 .git);source-commit 不参与断言(与 blob 历史常矛盾)。
 
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'

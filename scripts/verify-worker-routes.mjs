@@ -270,9 +270,7 @@ function verifyEffectiveOwnership(actualByOwner, actualServicesByOwner, errors) 
       continue
     }
 
-    // `*/*` is scoped to the provider zone by Wrangler. For an external Cloudflare for SaaS
-    // hostname, the pure URL ownership model cannot know whether DNS entered that zone, but inside
-    // this config verifier the route itself is that missing context.
+    // `*/*` 由 Wrangler 绑到 provider zone；纯 URL 归属无法判断 SaaS 自定义域名是否进入该 zone，本校验器用该路由本身补上这个上下文。
     const expectedOwner =
       resolveWebRouteOwnership(url).owner ??
       (matchingRoutes.some((route) => route.owner === 'core' && route.pattern === '*/*')

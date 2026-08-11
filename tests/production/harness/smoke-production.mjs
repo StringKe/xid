@@ -30,8 +30,7 @@ const surfaceBaseUrls = {
   console: consoleBaseUrl,
   core: coreBaseUrl,
 }
-// 这里曾经是第二份独立的 org id 字面量,重建生产库后只改一处就会出现一半 smoke 打新租户、
-// 一半打旧租户;改成复用 harness 的单一来源(它自己带 XID_PRODUCTION_TENANT_ID 覆盖口)。
+// 复用 harness 单一 org id 来源,避免多处字面量在重建库后漂移到不同租户。
 const tenantId = DEFAULT_INSTANCE_ORG_ID
 const defaultEmail = requireProductionEmail('XID_PRODUCTION_EMAIL')
 const defaultSmsPhone = process.env['XID_PRODUCTION_SMS_GATE_PHONE'] ?? '+15555550123'
@@ -47,8 +46,7 @@ const forgotPasswordEmail =
   process.env['XID_PRODUCTION_FORGOT_PASSWORD_EMAIL'] ??
   emailAlias(defaultEmail, `pwreset-${Date.now()}`)
 
-// docs/goal、docs/verification、docs/current-gap-audit、docs/implementation-status 的 markdown 已删除,
-// 条目仍保留:线上公开页面永远不得出现这些路径,防止未来复用同名 slug 时静默泄露。
+// 含已下线内部文档 slug:公开页面永远不得出现这些路径,防止复用同名 slug 时静默泄露。
 const forbiddenPublicDocsPatterns = [
   'docs/design',
   'docs/goal',
@@ -453,9 +451,7 @@ const checks = [
   ...legacyTwinChecks,
   ...legacyAliasTwinChecks,
   ...legacyAgentIndexChecks,
-  // 下面这组 blocked 断言覆盖历史内部文档 slug,其中 goal / verification / current-gap-audit /
-  // implementation-status 的 markdown 已从仓库删除。断言保留:公开路由是 allowlist deny-by-default,
-  // 这里锁死"历史 slug 永远 404",避免未来有人复用同名 slug 建公开文档时静默暴露。
+  // 历史内部 slug 永久 404(allowlist deny-by-default),防复用同名 slug 静默暴露。
   ...internalDocsPaths.map((path) => ({
     name: `${path.slice('/docs/'.length).replaceAll('/', '-')}-docs-blocked`,
     surface: 'site',
@@ -1163,9 +1159,7 @@ WHERE tenant_id = ${sqlString(tenantId)}
 `,
         `load ${check.channel} notification sent audit count`,
       )
-      // tokenCount 走 verification_tokens JOIN user_phones,门在建 user_phones 之前拦住时它恒为 0,
-      // 但门若哪天挪到 resolveTargetUserId 之后,新建的 user_phones 就会被这条 JOIN 漏掉。
-      // 这个 harness 的全部价值是"证明负路径不写库",所以直接数 user_phones 本身。
+      // 直接数 user_phones:JOIN verification_tokens 在门前拦截时恒为 0,门后移会漏计新建行。
       const phoneRowCount = await countRows(
         `
 SELECT count(*) AS count

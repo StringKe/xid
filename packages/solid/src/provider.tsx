@@ -1,6 +1,3 @@
-// XidProvider: SolidJS context provider. Creates XidClient, calls client.load()
-// on mount via onMount, cancels on cleanup via onCleanup. Mirrors @xid-kit/react XidProvider.
-
 import { type JSX, onCleanup, onMount } from 'solid-js'
 
 import {

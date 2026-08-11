@@ -1,5 +1,3 @@
-// useUser:当前登录用户视图 hook(对标 @clerk/clerk-react useUser)。
-
 import type { XidUser } from '@xid-kit/core'
 
 import { useXidStore } from './use-xid-store'

@@ -1,15 +1,8 @@
-// Tests for framework-agnostic guard logic.
-// The actual CanActivateFn wrappers require Angular's dependency injection;
-// here we validate the pure boolean predicate logic that mirrors each guard's
-// decision branch so the critical auth/org/permission paths have coverage.
+// 抽出与 guards.ts 相同的纯布尔谓词做覆盖；避免为 CanActivateFn 拉起 Angular DI。
 
 import { describe, expect, it } from 'vitest'
 import type { XidState } from '@xid-kit/core'
 import { CLIENT_STATUS } from '@xid-kit/core'
-
-// ---- Pure guard predicates extracted from guards.ts ----
-// These mirror the map() functions inside each guard factory so we can test
-// the decision logic without spinning up Angular's DI.
 
 function isAuthenticatedState(state: XidState): boolean {
   return state.isLoaded && state.isSignedIn && state.session !== null
@@ -19,9 +12,7 @@ function hasOrganizationState(state: XidState): boolean {
   return state.isLoaded && state.isSignedIn && state.organization !== null
 }
 
-// Mirrors the active-org-only check in guards.ts hasPermissionGuard.
-// Only the membership for the currently active organization is checked,
-// so a user with permissions in org A cannot pass a guard for org B.
+// 与 hasPermissionGuard 一致：只查 active org membership，防 cross-org 权限泄漏。
 function hasPermissionState(state: XidState, permission: string): boolean {
   if (!state.isLoaded || !state.isSignedIn || state.user === null) return false
   const activeMembership = state.user.organizationMemberships.find(
@@ -29,8 +20,6 @@ function hasPermissionState(state: XidState, permission: string): boolean {
   )
   return activeMembership?.permissions.includes(permission) === true
 }
-
-// ---- Test helpers ----
 
 function makeState(overrides: Partial<XidState> = {}): XidState {
   return {
@@ -102,7 +91,6 @@ const ACTIVE_ORG = {
   createdAt: 0,
 }
 
-// ---- authGuard predicate ----
 describe('isAuthenticatedState', () => {
   it('returns false when SDK is still loading', () => {
     expect(isAuthenticatedState(makeState({ isLoaded: false }))).toBe(false)
@@ -124,7 +112,6 @@ describe('isAuthenticatedState', () => {
   })
 })
 
-// ---- hasOrganizationGuard predicate ----
 describe('hasOrganizationState', () => {
   it('returns false when not signed in', () => {
     expect(hasOrganizationState(makeState({ isLoaded: true, isSignedIn: false }))).toBe(false)
@@ -151,7 +138,6 @@ describe('hasOrganizationState', () => {
   })
 })
 
-// ---- hasPermissionGuard predicate ----
 describe('hasPermissionState', () => {
   it('returns false when user is null', () => {
     expect(
@@ -165,13 +151,12 @@ describe('hasPermissionState', () => {
   })
 
   it('returns false when no active org is set even if a membership includes the permission', () => {
-    // active-org-only 语义:无 active organization 上下文时不授权,防 cross-org 权限泄漏。
+    // active-org-only：无 active organization 时不授权，防 cross-org 权限泄漏。
     const state = makeState({ isLoaded: true, isSignedIn: true, user: ACTIVE_USER })
     expect(hasPermissionState(state, 'org:settings:write')).toBe(false)
   })
 
   it('returns true when the active org membership includes the required permission', () => {
-    // Active org is org_1 and ACTIVE_USER has a membership for org_1 with org:members:read.
     const state = makeState({
       isLoaded: true,
       isSignedIn: true,
@@ -182,7 +167,6 @@ describe('hasPermissionState', () => {
   })
 
   it('returns false when permission exists in a non-active org membership (cross-org isolation)', () => {
-    // User is admin of org_1 but active org is org_2 -- org_1 permissions must NOT grant access.
     const otherOrg = {
       id: 'org_2',
       name: 'Other',
@@ -212,7 +196,6 @@ describe('hasPermissionState', () => {
       user: userWithTwoMemberships,
       organization: otherOrg,
     })
-    // org_1 membership has org:settings:write but active org is org_2 which has no permissions.
     expect(hasPermissionState(stateInOrg2, 'org:settings:write')).toBe(false)
   })
 
@@ -222,7 +205,6 @@ describe('hasPermissionState', () => {
   })
 })
 
-// ---- CLIENT_STATUS constant is importable ----
 describe('CLIENT_STATUS', () => {
   it('contains expected status values', () => {
     expect(CLIENT_STATUS).toContain('loading')

@@ -1,4 +1,4 @@
-// Console-safe outbound SaaS preset metadata shared by OrgOutboundSso and worker provider-presets.
+// Console 与 worker 共用的 outbound SaaS preset 元数据(无密钥,可安全下发前端)。
 
 export type OutboundConsolePreset = {
   key: string

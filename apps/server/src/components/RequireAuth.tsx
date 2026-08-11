@@ -1,6 +1,4 @@
-// RequireAuth:受保护路由守卫。未登录重定向到 /sign-in?continue=...,加载中显示 spinner。
-// 已登录才渲染 children;配合 useAuth 的三态(loading/authenticated/unauthenticated)。
-// 加载态容器样式走 StyleX。
+// 受保护路由:未登录重定向 /sign-in?continue=...。
 
 import { useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'

@@ -1,5 +1,3 @@
-// OrganizationSwitcher:切换活跃 org 下拉选择器(对标 Clerk <OrganizationSwitcher>)。
-
 import { type ReactNode, type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useLingui } from '@lingui/react'
@@ -12,8 +10,7 @@ import { useXidContext } from '../../context/xid-context'
 import { useXidStore } from '../../hooks/use-xid-store'
 import { Rt, rt, sdkMessages } from '../../i18n-runtime'
 
-// 弹出层弹簧:与 apps/server lib/motion 的 springSnappy/popoverMotion 同值;
-// 包内复制一份,SDK 不依赖 app 内部模块。
+// 与 apps/server lib/motion 同值;SDK 不能依赖 app 内部模块,故包内复制。
 const popoverTransition = { type: 'spring', bounce: 0, duration: 0.3 } as const satisfies Transition
 const popoverMotion = {
   initial: { opacity: 0, scale: 0.96, y: -4 },
@@ -22,9 +19,7 @@ const popoverMotion = {
 } as const
 
 export type OrganizationSwitcherProps = {
-  // 创建新 org 的链接
   createOrganizationUrl?: string
-  // 切换到个人上下文时的 label
   personalWorkspaceLabel?: string
   appearance?: Appearance
   className?: string
@@ -54,7 +49,7 @@ export function OrganizationSwitcher({
     appearance?.elements?.organizationSwitcherPopover,
   )
 
-  // 外部点击 / Escape 关闭后焦点回 trigger:弹层关闭后焦点不能丢在已卸载节点里。
+  // 关闭后焦点回 trigger,避免焦点落在已卸载的弹层节点上
   const closePopover = useCallback(() => {
     setOpen(false)
     triggerRef.current?.focus()
@@ -119,8 +114,7 @@ export function OrganizationSwitcher({
         <span aria-hidden="true"> v</span>
       </button>
 
-      {/* MotionConfig 包在组件内部:SDK 消费者不一定挂 MotionConfig,
-          reducedMotion="user" 保证跟随系统减少动态效果设置。 */}
+      {/* 消费者未必挂 MotionConfig;包在内部并 reducedMotion="user" 跟随系统设置 */}
       <MotionConfig reducedMotion="user">
         <AnimatePresence>
           {open && (
@@ -133,7 +127,6 @@ export function OrganizationSwitcher({
               transition={popoverTransition}
               style={{ transformOrigin: 'top left' }}
             >
-              {/* 个人上下文选项 */}
               <button
                 type="button"
                 role="option"
@@ -148,7 +141,6 @@ export function OrganizationSwitcher({
                 <Rt {...sdkMessages.personalAccount} />
               </button>
 
-              {/* org 列表 */}
               {memberships.map((m) => (
                 <button
                   key={m.organization.id}
@@ -168,7 +160,6 @@ export function OrganizationSwitcher({
 
               <hr role="separator" />
 
-              {/* 创建新 org */}
               <a
                 href={createOrganizationUrl}
                 className="xid-org-switcher__create"

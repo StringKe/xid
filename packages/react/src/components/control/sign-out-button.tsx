@@ -1,5 +1,3 @@
-// SignOutButton:无样式登出触发按钮(对标 Clerk <SignOutButton>)。
-
 import { type ReactNode, useCallback, useState } from 'react'
 
 import { useLingui } from '@lingui/react'
@@ -9,9 +7,7 @@ import { rt, sdkMessages } from '../../i18n-runtime'
 
 export type SignOutButtonProps = {
   children?: ReactNode
-  // 指定浏览器持有的 sessionId;省略则登出当前 active session。
   sessionId?: string
-  // 登出后跳转 URL;默认不跳转(由调用者处理状态变化)。
   redirectUrl?: string
   'aria-label'?: string
 }

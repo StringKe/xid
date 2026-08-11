@@ -1,5 +1,4 @@
-// SignOutButton: unstyled sign-out trigger button (Vue port of @clerk/vue SignOutButton).
-// Checks the signOut Result before redirecting. Prevents re-entry while signing out.
+// signOut 成功才 redirect；isPending 防重入。
 
 import { defineComponent, h, ref } from 'vue'
 
@@ -7,18 +6,16 @@ import { i18n } from '@lingui/core'
 
 import { useXidClient } from '../plugin'
 
-// lingui runtime descriptor for i18n._(descriptor) rendering.
+// library 包不用 msg macro，避免依赖 babel 转换；/*i18n*/ 供 extract 识别。
 const signOutMessage = /*i18n*/ {
   id: 'sdk.signOut',
   message: 'Sign out',
 }
 
 export type SignOutButtonProps = {
-  // Redirect target URL after sign-out.
   redirectUrl?: string
-  // Target a browser-held session; omit to sign out the current active session.
+  // 指定浏览器会话；省略则签出当前活跃 session。
   sessionId?: string
-  // Accessibility label.
   ariaLabel?: string
 }
 

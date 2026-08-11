@@ -1,10 +1,4 @@
 ---
-/**
- * DocsLayout — three-column docs layout.
- *
- * Named slots for overrides (all optional, defaults render otherwise):
- *   header, sidebar, toc, page-title, content-footer, pagination
- */
 import { Icon } from "astro-icon/components";
 import BaseLayout from "./BaseLayout.astro";
 import Header from "@/components/Header.astro";
@@ -26,19 +20,14 @@ type Props = DocsPageProps & { audience?: "human" };
 
 const { title, description, sidebar, headings, breadcrumbs, prevNext, mode = "doc", banner, head = [], searchable, noindex, markdownUrl, socialImage, lastUpdated, editUrl, draft, audience, collection, entryId } = Astro.props;
 
-// `searchable` derives from `noindex` when omitted: a non-crawlable page is
-// by default not in the site search either. Explicit `searchable: true`
-// overrides for the edge case of "no search engines, yes internal search."
+// searchable 缺省跟 noindex：不可爬则默认也不进站内搜；可显式 searchable: true 只搜不索引。
 const effectiveSearchable = searchable ?? !noindex;
 const isCustom = mode === "custom";
 
-// `sidebar: false` / `tableOfContents: false` in frontmatter come through
-// from the route as literal `false` (not coerced to `[]`). They drive
-// per-column suppression — chrome, mobile dialog, header menu button.
+// frontmatter 的 sidebar/tableOfContents: false 是字面 false（不是 []），用于关掉整列 chrome。
 const showSidebar = sidebar !== false;
 
-// Versioning: per-page status drives Pagefind faceting, deprecation
-// banner, and the data-pagefind-ignore exclusion for hidden versions.
+// 版本状态驱动 Pagefind 分面、弃用横幅，以及 hidden 版本的 data-pagefind-ignore。
 const versionStatus = collection ? await getVersionStatus(collection) : null;
 const versionAlternates = collection && entryId
   ? await getVersionAlternates(collection, entryId)
@@ -58,14 +47,7 @@ const currentDocsUrl =
   currentSiblingUrl ?? localizeSitePath("/", getSiteLocale(Astro.url.pathname));
 const deprecatedBanner = `${deprecatedDocumentation}. <a href="${currentDocsUrl}">${currentDocumentation}.</a>`;
 
-// Page-body attribute resolution:
-//   - If the user opted out via `searchable: false` (or `noindex: true`
-//     with no explicit override) → ignore.
-//   - If the page is in a hidden version → ignore unconditionally
-//     (hidden takes precedence; you can't index hidden content even
-//     if the page frontmatter says searchable=true).
-//   - Otherwise → mark as a Pagefind body, plus emit per-version and
-//     per-status filters so the search UI can scope by them.
+// Pagefind：不可搜或 hidden 版本一律 ignore（hidden 优先于 searchable=true）；否则打 body + version/status 分面。
 const pagefindAttrs: Record<string, string> = {};
 if (!effectiveSearchable || versionStatus?.isHidden) {
   pagefindAttrs["data-pagefind-ignore"] = "";
@@ -74,10 +56,7 @@ if (!effectiveSearchable || versionStatus?.isHidden) {
   if (versionStatus) {
     pagefindAttrs["data-pagefind-filter"] = `version:${versionStatus.version}`;
     if (versionStatus.isDeprecated) {
-      // Pagefind supports multiple filter attributes on the same element
-      // via `data-pagefind-filter` repeated as a comma-separated list in
-      // the value. The status filter pairs with the version filter so a
-      // search UI can offer "exclude deprecated" as a default toggle.
+      // 多 filter 写在同一 data-pagefind-filter 逗号列表，便于默认排除 deprecated。
       pagefindAttrs["data-pagefind-filter"] += `, status:deprecated`;
     }
   }
@@ -116,10 +95,7 @@ const hasPagination = Astro.slots.has("pagination");
             </aside>
           )}
 
-          {/* Sidebar state restore — pre-sets data attributes before the
-              disclosure module loads so collapsed/scrolled state survives nav.
-              Only emit when the sidebar is rendered; otherwise the script is
-              dead code (the `desktop-sidebar` element doesn't exist). */}
+          {/* 侧栏恢复：在 disclosure 模块前预写 data 属性，避免客户端导航丢折叠/滚动；无侧栏则不注入。 */}
           {showSidebar && (
           <script is:inline aria-hidden="true">
           (function () {
@@ -156,7 +132,7 @@ const hasPagination = Astro.slots.has("pagination");
                 }
               }
 
-              // Active page's group must always be open, regardless of stored state
+              // 当前页祖先组必须展开，覆盖已存折叠状态。
               const active = sidebar.querySelector("[aria-current='page']");
               if (active) {
                 let d = active.closest("[data-nb-sidebar-group]");
@@ -166,7 +142,6 @@ const hasPagination = Astro.slots.has("pagination");
                 }
               }
 
-              // Restore scroll or center active item
               if (raw && state && state.scroll) {
                 sidebar.scrollTop = state.scroll;
               } else if (active) {
@@ -252,7 +227,7 @@ const hasPagination = Astro.slots.has("pagination");
 
   </div>
 
-  {/* Mobile navigation — native <dialog> for free focus trap, escape, backdrop. */}
+  {/* 移动端导航用原生 dialog，自带 focus trap / Escape / backdrop。 */}
     <dialog
       data-mobile-sidebar
       data-state="closed"
@@ -285,9 +260,7 @@ const hasPagination = Astro.slots.has("pagination");
 
     const CLOSE_DURATION_MS = 250;
 
-    // mount() re-binds on every astro:page-load and tears down on
-    // astro:before-swap, so the hamburger survives client-side navigation
-    // (a one-shot module script would go dead after the first swap).
+    // mount 在 page-load 重绑、before-swap 拆掉，汉堡菜单才能活过客户端导航。
     mount("[data-mobile-sidebar]", (root) => {
       const menuBtn = document.querySelector<HTMLElement>("[data-menu-btn]");
       if (!(root instanceof HTMLDialogElement) || !menuBtn) return () => {};
@@ -333,7 +306,6 @@ const hasPagination = Astro.slots.has("pagination");
         closeSidebar();
       }, { signal });
 
-      // Fires for Escape, close button, and backdrop click.
       dialog.addEventListener("close", () => {
         if (closeTimer) {
           clearTimeout(closeTimer);
@@ -355,7 +327,7 @@ const hasPagination = Astro.slots.has("pagination");
       return () => {
         controller.abort();
         if (closeTimer) clearTimeout(closeTimer);
-        // A swap while open never fires `close`; balance the scroll lock.
+        // 打开态 swap 不会触发 close，需手动 unlockScroll。
         if (dialog.open) unlockScroll();
       };
     });

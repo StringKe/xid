@@ -1,4 +1,3 @@
-// protect-logic.test.ts:isAllowed 单元测试。
 import { describe, it, expect } from 'vitest'
 import type { XidState } from '@xid-kit/core'
 import { isAllowed } from '../protect-logic'

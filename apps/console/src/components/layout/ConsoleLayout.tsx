@@ -1,9 +1,4 @@
-// ConsoleLayout:管理 console(org/instance)全宽外壳。
-// 全宽语法:侧栏是贴左缘的全高 rail(brand 驻栏顶,sticky 不随内容滚走),内容列零内边距 --
-// 页面各节自持 gutter(clamp(1rem, 2.5vw, 4rem)),1px hairline 是唯一分节语言;
-// rail 栏顶 brand 与顶栏同高同底线,横 hairline 在 rail 右缘交点续成一条线。
-// Instance Manager 看全局 / Org Admin 看本 org,均复用此壳(见全局铁律 8)。
-// nav 项由调用方提供(route agent 据角色填充);用户区取 useAuth,sign-out 走 AuthProvider。
+// org/instance 共用全宽壳;nav 由调用方按角色注入(铁律 8 不另建 admin 壳)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -35,9 +30,8 @@ export type ConsoleLayoutProps = {
   navItems: readonly ConsoleNavItem[]
 }
 
-// 内容列水平 gutter:零 padding 壳下页面节与顶栏共用同一口径(全宽规范)。
+// 页面节与顶栏共用 gutter;rail brand 与顶栏同高以续成一条横 hairline。
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-// rail 栏顶 brand 与顶栏同高,两者 borderBottom 在交点续成同一条横线。
 const BAR_MIN_HEIGHT = '3.5rem'
 
 const styles = stylex.create({
@@ -53,12 +47,10 @@ const styles = stylex.create({
       default: 'auto auto 1fr',
       '@media (min-width: 48rem)': 'auto 1fr',
     },
-    // bg 是页面最底层下沉色;rail 用 sidebar 层,层次靠中性阶 + 1px 边框
     backgroundColor: tokens['--xid-bg'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
   },
-  // 顶栏:只横跨内容列(rail 全高贴左缘),透明底融入内容纸面,1px hairline 收底。
   header: {
     gridColumn: { default: '1', '@media (min-width: 48rem)': '2' },
     gridRow: '1',
@@ -80,7 +72,7 @@ const styles = stylex.create({
     gap: '0.75rem',
     minWidth: 0,
   },
-  // 小屏 brand 驻顶栏左缘;>=48rem 由 rail 栏顶接管(display 互斥,AT 任一宽度只见一份)。
+  // display 互斥:任一断点 AT 只见一份 brand,避免双读。
   brandNarrow: {
     display: {
       default: 'inline-flex',
@@ -120,7 +112,7 @@ const styles = stylex.create({
       outlineColor: tokens['--xid-primary'],
     },
   },
-  // 零 org 时上下文区不渲染永不可用态的 select 控件,只给 muted 静态文本。
+  // 无 org 时不用 disabled select(永不可用控件),改静态文案。
   orgEmpty: {
     fontSize: '0.8125rem',
     color: tokens['--xid-muted-foreground'],
@@ -138,7 +130,6 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     color: tokens['--xid-muted-foreground'],
   },
-  // rail:贴左缘全高第二中性层(bg < sidebar);小屏折叠为顶栏下横向 tab 条。
   aside: {
     gridColumn: '1',
     gridRow: {
@@ -160,7 +151,6 @@ const styles = stylex.create({
     borderInlineEndColor: tokens['--xid-border'],
     minWidth: 0,
   },
-  // rail 内 sticky 容器:长内容页滚动时导航钉在视口,栏内自滚。
   railPin: {
     position: {
       default: 'static',
@@ -223,8 +213,7 @@ const styles = stylex.create({
       '@media (min-width: 48rem)': '0.125rem',
     },
   },
-  // 导航项:撤实底 pill,激活态 = accent 文字 + motion layoutId 共享指示条(见 ActiveNavIndicator)。
-  // 2px 缘线恒占位(透明)防布局跳动,指示条绝对定位叠在缘线位置。
+  // 2px 透明缘线恒占位,避免激活指示条叠上时布局跳动。
   navLink: {
     display: 'block',
     paddingBlock: '0.4375rem',
@@ -258,7 +247,7 @@ const styles = stylex.create({
       default: 'nowrap',
       '@media (min-width: 48rem)': 'normal',
     },
-    // 文字/底色过渡 150ms(指示条位移走 motion 弹簧,不经 CSS)
+    // 仅过渡色;指示条位移走 motion,勿放进 CSS transition。
     transitionProperty: 'background-color, color',
     transitionDuration: '150ms',
     transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
@@ -273,8 +262,6 @@ const styles = stylex.create({
   navItem: {
     position: 'relative',
   },
-  // 激活指示条:rail(竖排左缘)与 tab 条(横排底缘)各一根,CSS 按断点显隐互斥;
-  // 位移/变形由 motion layoutId 驱动,样式只描述静态形态。
   navIndicatorRail: {
     display: { default: 'none', '@media (min-width: 48rem)': 'block' },
     position: 'absolute',
@@ -295,8 +282,7 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-accent'],
     pointerEvents: 'none',
   },
-  // 功能分组标签:mono microlabel;小屏 tab 栏下隐藏。
-  // hairline 邻接 >= 1.25rem:配合 navGroupDivider marginBlockStart,label 顶部距 hairline >= 1.25rem
+  // paddingTop 1.25rem:label 与上方 hairline 邻接距离下限。
   navGroupLabel: {
     display: { default: 'none', '@media (min-width: 48rem)': 'block' },
     margin: 0,
@@ -313,8 +299,7 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
-  // 分组 hairline 间隔:1px border-top,只在桌面竖排时可见。
-  // hairline 邻接 >= 1.25rem:上下文本与 hairline 各保 1.25rem(含 navLink paddingBlock 0.4375rem)
+  // marginBlockStart 0.875rem + navLink padding 凑满 hairline 邻接 1.25rem。
   navGroupDivider: {
     display: { default: 'none', '@media (min-width: 48rem)': 'block' },
     marginBlockStart: '0.875rem',
@@ -323,7 +308,6 @@ const styles = stylex.create({
     borderTopStyle: 'solid',
     borderTopColor: tokens['--xid-border'],
   },
-  // 内容列:零内边距(全宽规范:边距由页面节自持),零外框感。
   content: {
     gridColumn: { default: '1', '@media (min-width: 48rem)': '2' },
     gridRow: { default: '3', '@media (min-width: 48rem)': '2' },
@@ -360,13 +344,12 @@ function navItemActive(pathname: string, item: ConsoleNavItem): boolean {
 
 function navItemTo(item: ConsoleNavItem, search: string): string {
   if (!item.to.startsWith('/console/org')) return item.to
-  // 只透传 orgId;cursor/filter 等页面态参数不带入下一个页面。
+  // 只透传 orgId,勿把列表页 cursor/filter 带到下一页。
   const match = /(?:^|&)orgId=([^&]*)/.exec(search.startsWith('?') ? search.slice(1) : search)
   return match ? `${item.to}?orgId=${match[1]}` : item.to
 }
 
-// groupKey(string)相同且非 undefined 的相邻 item 合并为一段,取首个 groupLabel 作显示。
-// undefined groupKey 的 item 各自独段(无标签)。
+// 相邻相同 groupKey 合并为段;无 key 的项各自独段(ReactNode 无法用 === 比分组)。
 type NavSegment = { key: string | null; label: ReactNode; items: readonly ConsoleNavItem[] }
 
 function segmentNavItems(items: readonly ConsoleNavItem[]): readonly NavSegment[] {
@@ -386,9 +369,7 @@ function segmentNavItems(items: readonly ConsoleNavItem[]): readonly NavSegment[
   return segments
 }
 
-// 激活指示条:motion layoutId 共享元素,切换导航时弹簧滑到新激活项(springDefault,
-// reduced-motion 下 motion 自动瞬时)。rail 与 tab 条各一个 layoutId 组,跨 ConsoleLayout
-// 重挂载(console 路由各自包裹 layout)仍能接续动画。
+// layoutId 跨路由重挂载仍接续动画;rail/tab 分两组,reduced-motion 由 motion 瞬时处理。
 function ActiveNavIndicator(): ReactNode {
   return (
     <>
@@ -430,8 +411,7 @@ function ConsoleNav({
   isInstanceManager: boolean
 }): ReactNode {
   const location = useLocation()
-  // PLATFORM_NAV 首项是带 end 的 '/console/platform';据此识别 platform 上下文,
-  // 避免在 platform 区再追加一条指向同路径的 Platform 项(双激活指示条)。
+  // 以带 end 的 /console/platform 识别 platform 区,避免再挂一条同路径项导致双指示条。
   const isPlatformNav = navItems.some((item) => item.to === '/console/platform' && item.end)
   return (
     <nav>
@@ -512,11 +492,11 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   const [endingImpersonation, setEndingImpersonation] = useState(false)
   const appName = brand.appName ?? 'XID'
 
-  // Managed projects 对有 manager assignment 的用户才有内容,无 assignment 时从 nav 隐藏。
+  // 无 manager assignment 时隐藏 Managed projects(页内无内容)。
   const visibleNavItems = navItems.filter(
     (item) => item.to !== '/console/managed-projects' || managerAssignments.length > 0,
   )
-  // switcher 只列可管理 org:切到 member 角色 org 会被守卫直接踢到 /account。
+  // 只列可管理 org;切到 member 会被守卫踢到 /account。
   const manageableOrganizations = organizations.filter((organization) =>
     isOrgManagerRole(organization.role),
   )
@@ -527,7 +507,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
     const switched = await setActiveOrganization(organizationId)
     setSwitchingOrganizationId(null)
     if (!switched) return
-    // org 区内切换后回到 org overview;platform/入口页切换不停留上下文被打断,原地保留路径。
+    // org 区切换落到 overview;其他区保留当前路径,避免上下文被硬切。
     if (location.pathname.startsWith('/console/org')) {
       navigate(`/console/org?orgId=${encodeURIComponent(organizationId)}`, { replace: true })
     }

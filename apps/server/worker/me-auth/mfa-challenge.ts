@@ -1,12 +1,5 @@
-// POST /auth/mfa/sms/send + /auth/mfa/verify(前端 mfa/index.tsx;须已登录待 MFA)。
-// mfa/sms/send:target 取 session 用户已验证 userPhones(MFA 第二因子,非 passwordless),persistAndSendOtp(channel='sms')。
-//   已知 userId 无需枚举防护;限流超限抛 rate_limited。
-// mfa/verify dispatch(三因子共用):
-//   totp  -> verifyTotp @ auth/mfa.ts(防重放 + 时钟容忍,失败映射 otp_invalid/otp_expired)
-//   sms   -> loadVerifiableOtp/recordOtpFailure @ auth/otp.ts(channel='sms',MFA token)
-//   backup-> verifyAndConsumeBackupCode @ auth/backup-codes.ts(HMAC-SHA256,一次性,失败 otp_invalid)
-// stepUp=true 走 issueStepUpToken(acr:step-up,5min),token 经 __Host-xid.acr cookie 投递(不复用 session token);
-//   否则 touch session(已 MFA)。响应 { redirectTo? }(前端缺失回落 ?redirect_to= 或 /console)。
+// MFA 挑战:sms/send 发已验证手机 OTP;verify 分发 totp/sms/backup,失败统一 otp_invalid。
+// stepUp 经独立 __Host-xid.acr cookie(5min),不复用 session token。
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'

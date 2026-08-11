@@ -1,4 +1,4 @@
-// XidRnContext:RN 专属 context,以本地安全存储中的 OIDC token session 为唯一登录态。
+// 本地安全存储中的 OIDC token session 为 RN 唯一登录态。
 
 import { createContext, useContext } from 'react'
 

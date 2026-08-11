@@ -1,11 +1,7 @@
-// stores.test.ts:createXidStores 单元测试。
-// 用 XidClient mock 驱动状态,校验各 store 派生逻辑。
 import { describe, it, expect, vi } from 'vitest'
 import { get } from 'svelte/store'
 import type { XidState, XidStateListener, Unsubscribe } from '@xid-kit/core'
 import { createXidStores } from '../stores'
-
-// --- Minimal XidClient mock ---
 
 const INITIAL_STATE: XidState = {
   status: 'loading',
@@ -91,7 +87,6 @@ function makeClientMock(initial: XidState = INITIAL_STATE) {
         listeners.delete(listener)
       }
     },
-    // test helper: push new state to all listeners
     _push: (state: XidState) => {
       currentState = state
       for (const l of listeners) l(state)
@@ -129,7 +124,7 @@ describe('createXidStores', () => {
       const unsub = stores.state.subscribe((s) => received.push(s))
       unsub()
       client._push(SIGNED_IN_STATE)
-      expect(received).toHaveLength(1) // only initial
+      expect(received).toHaveLength(1)
     })
   })
 

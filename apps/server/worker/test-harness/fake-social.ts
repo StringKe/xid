@@ -1,4 +1,4 @@
-// Fake Social OAuth provider for local L3 smoke (Google/Apple/Microsoft/GitHub shapes).
+// 本地 L3 smoke 用假 Social OAuth(Google/Apple/Microsoft/GitHub 形状)。
 
 import { base64UrlEncode, exportPublicJwk, signJwt } from '@xid-kit/crypto'
 import type { PublicJwk } from '@xid-kit/crypto'

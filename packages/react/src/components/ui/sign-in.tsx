@@ -1,6 +1,3 @@
-// SignIn:Hosted Auth 重定向卡片(对标 Clerk <SignIn>)。
-// 文案走 lingui runtime descriptor;appearance prop 支持主题变量覆盖。
-
 import type { ReactNode, CSSProperties } from 'react'
 
 import { useLingui } from '@lingui/react'
@@ -12,11 +9,8 @@ import { Rt, rt, sdkMessages } from '../../i18n-runtime'
 import { runAuthorizationRedirect } from '../control/authorization-redirect'
 
 export type SignInProps = {
-  // 跳转式:指定 Hosted UI 的登录 URL
   signInUrl?: string
-  // 注册页链接(卡片底部)
   signUpUrl?: string
-  // 登录后重定向
   redirectUrl?: string
   appearance?: Appearance
   className?: string

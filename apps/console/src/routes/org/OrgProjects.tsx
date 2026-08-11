@@ -1,7 +1,3 @@
-// org 项目与授权页:project 列表 -> 选中 project 的跨组织 grant 与委托 manager。
-// GET/POST/PATCH/DELETE /v1/organizations/:orgId/projects、/project-grants、/manager-assignments。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection),
-// 深层上下文锚点(selected project/grant)在 SplitSection meta 的 selectorSummary。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

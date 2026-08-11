@@ -1,5 +1,4 @@
-// 关键路径测试清单:CI 门禁,确保 P0 安全/协议/隔离/i18n 测试文件存在且含用例。
-// 不替代 coverage 百分比;防止重构时误删关键负路径/越权测试。
+// CI 门禁:确保 P0 安全/协议/隔离/i18n 测试文件存在且含用例(不替代 coverage)。
 
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'

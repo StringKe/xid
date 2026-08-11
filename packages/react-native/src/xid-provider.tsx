@@ -1,5 +1,4 @@
-// XidProvider(React Native):以 secure TokenCache 驱动 native 登录态。
-// tokenCache 和 browser 由调用方注入(DI),不硬绑任何 native 模块。
+// tokenCache / browser 由调用方注入，不硬绑任何 native 模块。
 
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -11,19 +10,12 @@ import { XidRnContext } from './xid-rn-context'
 
 export type XidProviderProps = {
   children: ReactNode
-  // 安全 token 存储适配器(iOS: Keychain, Android: EncryptedSharedPreferences)。
   tokenCache: TokenCache
-  // 浏览器适配器(InAppBrowser / Linking / expo-web-browser)。
   browser: BrowserInterface
-  // OAuth issuer URL (e.g. "https://xid.dev")。
   issuer: string
-  // OAuth client_id。
   clientId: string
-  // deep link redirect URI(需在 XID console 注册)。
   redirectUri: string
-  // OAuth scopes,默认 ["openid", "profile", "email"]。
   scopes?: readonly string[]
-  // 注入 fetch(测试、代理或 observability 用)。
   fetcher?: typeof fetch
 }
 

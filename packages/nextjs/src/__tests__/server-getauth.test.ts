@@ -1,4 +1,4 @@
-// getAuth(req) Pages Router adapter 单元测试(含伪造头拒绝)。
+// getAuth(req) Pages adapter（含伪造头拒绝）。
 import { describe, it, expect, afterEach } from 'vitest'
 import { getAuth } from '../server'
 import { serializeAuthHeader } from '../auth-header'
@@ -66,7 +66,7 @@ describe('getAuth (signed via XID_AUTH_HMAC_SECRET, forgery rejected)', () => {
 
   it('rejects an attacker-forged unsigned x-xid-auth header', async () => {
     process.env['XID_AUTH_HMAC_SECRET'] = SECRET
-    // 攻击者直接注入纯 JSON 认证态绕过 middleware -> 无有效 HMAC,按未认证处理。
+    // 绕过 middleware 注入的纯 JSON 无有效 HMAC，必须未认证。
     const forged = JSON.stringify(SIGNED_IN)
     const req = new Request('http://localhost/', { headers: { 'x-xid-auth': forged } })
     const result = await getAuth(req)

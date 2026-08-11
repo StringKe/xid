@@ -1,27 +1,5 @@
-// integration.ts: Astro integration factory.
-// Injects configured xidMiddleware into the Astro SSR request pipeline via addMiddleware.
-//
-// Usage (astro.config.mjs):
-//   import { xidIntegration } from '@xid-kit/astro/integration'
-//   export default defineConfig({
-//     integrations: [xidIntegration({
-//       browser: { mode: 'oidc', issuer, clientId, redirectUri },
-//       jwtKey: jwks,
-//     })]
-//   })
-//
-// The integration:
-//   - Registers @xid-kit/astro/integration-middleware as a pre-middleware for SSR/hybrid output.
-//   - Supplies serializable server options through a Vite virtual module.
-//   - Injects an inline client-side script that sets window.__XID_CONFIG for island hydration.
-//     The client.ts initClient() reads this on first island mount.
-//
-// Security: only the explicit browser OIDC/same-origin configuration enters the browser script.
-// jwtKey remains in the server bundle. Imported CryptoKey, fetcher, tokenCache, now and AbortSignal
-// are intentionally unsupported because they cannot cross the build-time serialization boundary.
-//
-// Note: Astro integration API is provided by the astro peer dep at runtime.
-// Local type declarations avoid a hard bundle dependency on the full astro package.
+// 通过 addMiddleware + Vite virtual module 注入服务端配置;browser 写入 head-inline 的 __XID_CONFIG。
+// 仅可序列化公开配置进入浏览器脚本;jwtKey 与 CryptoKey/fetcher 等不可跨构建序列化边界。
 
 import type { XidMiddlewareOptions } from './types'
 import type { XidIntegrationOptions } from './types'
@@ -35,7 +13,7 @@ type VitePlugin = {
   load: (id: string) => string | undefined
 }
 
-// Minimal Astro integration type contract (peer dep).
+// 局部类型契约,避免强依赖 astro 全量(peer dep 运行时提供)。
 type AstroIntegrationHooks = {
   'astro:config:setup'?: (params: {
     addMiddleware: (params: { entrypoint: string; order: 'pre' | 'post' }) => void
@@ -127,7 +105,6 @@ function configPlugin(options: SerializableMiddlewareOptions): VitePlugin {
   }
 }
 
-// xidIntegration: injects a configured server middleware and a client-side config script.
 export function xidIntegration(options: XidIntegrationOptions): AstroIntegration {
   assertSerializableOptions(options)
 

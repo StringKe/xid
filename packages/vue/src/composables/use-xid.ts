@@ -1,6 +1,3 @@
-// useXid:返回完整 XidState 的响应式只读引用(对标 react 的 useAuth 原始状态)。
-// 对标 Clerk Vue useAuth()。
-
 import type { DeepReadonly, Ref } from 'vue'
 
 import type { GetTokenOptions, XidState } from '@xid-kit/core'

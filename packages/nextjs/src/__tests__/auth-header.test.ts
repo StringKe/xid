@@ -1,4 +1,4 @@
-// auth-header 序列化/反序列化单元测试(含 HMAC 签名纵深防御)。
+// auth-header 序列化/反序列化（含 HMAC 纵深防御）。
 import { describe, it, expect } from 'vitest'
 import { serializeAuthHeader, parseAuthHeader, readAuthFromHeaders } from '../auth-header'
 import type { AuthObject, UnauthenticatedAuthObject } from '../types'
@@ -74,14 +74,13 @@ describe('serializeAuthHeader / parseAuthHeader (signed, HMAC defense-in-depth)'
   })
 
   it('rejects an unsigned (forged) header when secret is configured', async () => {
-    // 攻击者伪造纯 JSON 头,server 配置了 secret -> 无有效签名,按未认证处理。
+    // 配置 secret 时纯 JSON 伪造头必须按未认证处理。
     const forged = JSON.stringify(AUTH_OBJ)
     expect(await parseAuthHeader(forged, SECRET)).toEqual(UNAUTHENTICATED)
   })
 
   it('rejects a tampered payload (signature mismatch)', async () => {
     const raw = await serializeAuthHeader(AUTH_OBJ, SECRET)
-    // 篡改 payload 部分(替换 user id 的 base64 片段)使签名失配。
     const tampered = raw.replace('v1.', 'v1.AAAA')
     expect(await parseAuthHeader(tampered, SECRET)).toEqual(UNAUTHENTICATED)
   })

@@ -148,8 +148,7 @@ async function processMessage(message: Message<ScimSyncQueueMessage>, env: Env):
     }
 
     const delaySeconds = retryDelaySeconds(attempt, error)
-    // Cloudflare counts the initial delivery as attempt 1. max_retries = 5 therefore
-    // reaches the dead-letter boundary only on delivery attempt 6.
+    // CF 首次投递计为 attempt 1;max_retries=5 时第 6 次才进死信。
     const terminalAttempt = attempt > MAX_RETRIES
     await env.AUDIT_QUEUE.send(
       auditMessage(

@@ -1,14 +1,10 @@
-// 平台运营实体(见 08 章 17.2-17.8):audit_events / usage_daily / usage_monthly / webhooks /
-// webhook_deliveries / api_keys / platform_admins / notification_failures /
-// notification_delivery_outbox / queue_dead_letters。
-// audit_events 仅 INSERT 无 UPDATE/DELETE,occurred_at 例外用 ISO TEXT(入 hash 输入)。
-// platform_admins 平台级无 tenant_id(独立管理路径,见 tenant-isolation rule)。
+// 平台运营(08 章 17+):audit 仅 INSERT;occurred_at 用 ISO TEXT 入 hash;platform_admins 无 tenant_id。
 
 import { sql } from 'drizzle-orm'
 import { index, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { createdAt, numCol, tenantId, timestamps, tsMs } from './common'
 
-// 17.2 audit_events(append-only 审计,复合 PK(tenant_id, seq),occurred_at ISO TEXT)
+// append-only 审计,复合 PK(tenant_id, seq)。
 export const auditEvents = sqliteTable(
   'audit_events',
   {
@@ -41,10 +37,7 @@ export const auditEvents = sqliteTable(
   ],
 )
 
-// 17.2b audit_dead_letters(审计毒消息死信落库,见 07 章 5 + cloudflare-bindings 审计链节)
-// 永久错误(反序列化失败)或重试超限的审计消息落此表而非无限 retry,避免单条毒消息卡死整链。
-// 不进 audit_events(无 seq/hash,不参与链),仅供运营排查。tenant_id 可 null:消息体损坏无法解析时。
-// reason:'permanent'(反序列化/校验失败)| 'max_attempts'(可重试错误超限)。
+// 审计毒消息死信:不参与 hash 链,防单条卡死;tenant_id 可 null(消息体损坏时)。
 export const auditDeadLetters = sqliteTable(
   'audit_dead_letters',
   {
@@ -68,7 +61,6 @@ export const auditDeadLetters = sqliteTable(
   ],
 )
 
-// 17.3 usage_daily(计量,复合 PK(tenant_id, day))
 export const usageDaily = sqliteTable(
   'usage_daily',
   {
@@ -85,7 +77,6 @@ export const usageDaily = sqliteTable(
   ],
 )
 
-// 17.3 usage_monthly(MAU,复合 PK(tenant_id, year_month);archived_at ISO TEXT)
 export const usageMonthly = sqliteTable(
   'usage_monthly',
   {
@@ -100,13 +91,7 @@ export const usageMonthly = sqliteTable(
   ],
 )
 
-// 17.4 webhooks(订阅)
-// signing_secret_hash:遗留列(存 SHA-256 哈希,不可用于 HMAC 签名,保留做历史兼容)。
-// signing_secret_iv / signing_secret_ciphertext / signing_secret_tag:
-//   AES-256-GCM 信封加密三 blob(见 signing-keys rule / crypto-boundary rule),
-//   KEK 存 Workers Secrets,运行时 envelopeDecrypt 解密得签名 secret 原值用于 HMAC。
-//   迁移:新建 webhook 必须填 encrypted 三列;旧行三列为 null 视为不可投递(跳过)。
-//   后续 migration:generate + apply,不删 signing_secret_hash 以免破坏旧索引/查询。
+// signing_secret_hash 遗留不可 HMAC;新建须填信封三列,旧行 null 视为不可投递,不删 hash 列。
 export const webhooks = sqliteTable(
   'webhooks',
   {
@@ -115,7 +100,6 @@ export const webhooks = sqliteTable(
     url: text('url').notNull(),
     eventTypes: text('event_types', { mode: 'json' }).$type<string[]>().notNull().default([]),
     signingSecretHash: text('signing_secret_hash').notNull(),
-    // 信封加密三 blob:iv/ciphertext/tag 均为 base64url 编码 TEXT,nullable 兼容旧行。
     signingSecretIv: text('signing_secret_iv'),
     signingSecretCiphertext: text('signing_secret_ciphertext'),
     signingSecretTag: text('signing_secret_tag'),
@@ -128,7 +112,6 @@ export const webhooks = sqliteTable(
   ],
 )
 
-// 17.4 webhook_deliveries(投递记录,重试/死信)
 export const webhookDeliveries = sqliteTable(
   'webhook_deliveries',
   {
@@ -154,7 +137,6 @@ export const webhookDeliveries = sqliteTable(
   ],
 )
 
-// 17.5 api_keys(scoped,哈希存储)
 export const apiKeys = sqliteTable(
   'api_keys',
   {
@@ -179,7 +161,7 @@ export const apiKeys = sqliteTable(
   ],
 )
 
-// 17.6 platform_admins(平台级,无 tenant_id)
+// 平台级,无 tenant_id。
 export const platformAdmins = sqliteTable(
   'platform_admins',
   {
@@ -196,14 +178,7 @@ export const platformAdmins = sqliteTable(
   ],
 )
 
-// 17.8 notification_failures(通知死信落库 DLQ,见 07 章 3 通知系统)
-// tenant_id 可 null:平台级通知(xid.dev 系统邮件)无租户上下文。
-// channel:投递渠道('email' | 'whatsapp' | 'sms')。
-// type:通知模板名(verify_email / magic_link / otp / password_reset 等)。
-// recipient/payload 只存 hash 与非秘密元数据,不存完整邮箱、手机号、token、link、code 或消息正文。
-// reason:失败原因字符串,与 apps/server/worker/queues/email.ts recordFailure 列名对齐。
-// provider:provider name(cloudflare/twilio/meta/vonage),email consumer 当前不写入(null)。
-// failed_at:ISO 8601 UTC TEXT(与 email consumer INSERT 格式一致)。
+// 通知死信:recipient/payload 不存明文密钥材料;tenant_id 可 null(平台级通知)。
 export const notificationFailures = sqliteTable(
   'notification_failures',
   {
@@ -231,8 +206,7 @@ export const notificationFailures = sqliteTable(
   ],
 )
 
-// Durable notification handoff:recipient 和 payload 均以 KEK envelope encryption 三元组保存,
-// 使 Queue 短暂不可用时可重派且不将 plaintext recipient、token、link 或 OTP 持久化。
+// Queue 不可用时可重派;recipient/payload 仅 KEK 信封,禁止明文 token/OTP 落库。
 export const notificationDeliveryOutbox = sqliteTable(
   'notification_delivery_outbox',
   {
@@ -279,8 +253,7 @@ export const notificationDeliveryOutbox = sqliteTable(
   ],
 )
 
-// Provider 的明确拒绝和调用结果不确定均单独持久化。Queue retry 只能依据此记录人工
-// 处置不确定投递，不能把未知结果重新发送给外部 provider。
+// provider 明确拒绝与结果不确定单独落库;不确定结果禁止 Queue 自动重发外部。
 export const notificationDeliveryFailures = sqliteTable(
   'notification_delivery_failures',
   {
@@ -310,10 +283,7 @@ export const notificationDeliveryFailures = sqliteTable(
   ],
 )
 
-// 17.11 queue_dead_letters(所有业务 Queue 的运营死信登记)。
-// 每条源 Queue 使用独立 DLQ，source_queue + message_id 唯一标识一次源投递。
-// 原消息只允许以 KEK envelope ciphertext 保存，列表和详情 API 不返回 ciphertext，也不存在
-// plaintext payload 列。event_type / error_code 是受控运营元数据，禁止承载 provider 响应或用户输入。
+// 业务 Queue 死信:原消息仅 KEK 密文;API 不返回 ciphertext;event_type/error_code 禁载用户输入。
 export const queueDeadLetters = sqliteTable(
   'queue_dead_letters',
   {
@@ -348,9 +318,7 @@ export const queueDeadLetters = sqliteTable(
   ],
 )
 
-// Optional service-plan accounting. This is deployer billing metadata only: XID is MIT licensed,
-// self-hosted deployments keep the complete feature set, and no authentication capability reads
-// this table as a license gate.
+// 部署方计费元数据,非许可证门闸;鉴权路径永不读此表。
 export const organizationPlans = sqliteTable(
   'organization_plans',
   {
@@ -372,9 +340,7 @@ export const organizationPlans = sqliteTable(
   ],
 )
 
-// Quotas govern resource creation and operational accounting, never sign-in or protocol access.
-// A null limit means unlimited. The hard seats quota counts distinct active membership users across
-// the complete tenant; organizations.seat_limit is only a compatibility mirror.
+// 配额只管资源创建/运营计量,不挡登录;null=无限;seats 计全租户 active 成员,seat_limit 仅兼容镜像。
 export const organizationQuotas = sqliteTable(
   'organization_quotas',
   {
@@ -391,8 +357,7 @@ export const organizationQuotas = sqliteTable(
   ],
 )
 
-// Durable Stripe meter cursor. A pending identifier is persisted before the provider call, then
-// reused until the acknowledged target is committed, so a D1 failure cannot double-report usage.
+// 先落 pending identifier 再调 Stripe,防 D1 失败导致用量双报。
 export const billingMeterReports = sqliteTable(
   'billing_meter_reports',
   {
@@ -420,9 +385,7 @@ export const billingMeterReports = sqliteTable(
   ],
 )
 
-// One active provider Checkout reservation per tenant. The provider idempotency key is persisted
-// before the external call, and an unexpired hosted session is reused instead of creating another
-// subscription.
+// 每租户一个活跃 Checkout 预留;幂等键先落库,未过期 session 复用。
 export const stripeCheckoutReservations = sqliteTable(
   'stripe_checkout_reservations',
   {
@@ -443,8 +406,7 @@ export const stripeCheckoutReservations = sqliteTable(
   ],
 )
 
-// Stripe event id is the durable idempotency key. Persist it before applying an event so retries
-// cannot repeat a billing-label transition; status/error_code retain only bounded operational state.
+// Stripe event id 作幂等键,先落库再应用,防重试重复计费标签切换。
 export const stripeWebhookEvents = sqliteTable(
   'stripe_webhook_events',
   {
@@ -575,8 +537,7 @@ export const complianceDocuments = sqliteTable(
   ],
 )
 
-// Platform mutations first persist a redacted audit intent. Queue dispatch is retried by Cron with
-// the stable outbox id as sourceMessageId, preserving the append-only AuditSeqDO chain.
+// 平台变更先落脱敏审计意图;Cron 用 outbox id 作 sourceMessageId 重投,保 append-only 链。
 export const platformAuditOutbox = sqliteTable(
   'platform_audit_outbox',
   {

@@ -1,5 +1,3 @@
-// refresh 轮换 + family 重放检测纯算法正反例(03 章 9.3/11)。
-// 重放(revoked 二次出现)-> revokeFamily 指令;过期/client 不符/DPoP 换绑全拒。
 import { describe, it, expect } from 'vitest'
 
 import {

@@ -1,19 +1,10 @@
-// account portal 内部共享 hooks:调用 /v1/me/* 系列端点。
-// 调用方不感知具体 fetch 逻辑,只拿 data/loading/error 三态 + 操作函数。
-// 错误一律从 XidError 取 message/longMessage;code 预留给 lingui 文案映射(后续扩展)。
-// 设计真相源:docs/design/05-users-sessions.md
-
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../../lib/api'
-
-// --- 通用 RemoteData 类型 ---
 
 export type RemoteData<T> =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ok'; data: T }
-
-// --- 用户档案 ---
 
 export type UserProfile = {
   id: string
@@ -34,8 +25,6 @@ export type UpdateProfilePayload = {
   locale?: string | null
   timezone?: string | null
 }
-
-// --- MFA ---
 
 export type TotpFactor = {
   id: string
@@ -76,8 +65,6 @@ export type BackupCodesResponse = {
   codes: string[]
 }
 
-// --- Passkey ---
-
 export type PasskeyCredential = {
   id: string
   deviceName: string | null
@@ -86,8 +73,6 @@ export type PasskeyCredential = {
   transports: readonly string[]
 }
 
-// --- 社交连接 ---
-
 export type SocialConnection = {
   id: string
   provider: string
@@ -95,8 +80,6 @@ export type SocialConnection = {
   email: string | null
   connectedAt: string
 }
-
-// --- 会话 ---
 
 export type ActiveSession = {
   id: string
@@ -108,8 +91,6 @@ export type ActiveSession = {
   isCurrent: boolean
 }
 
-// --- 信任设备 ---
-
 export type TrustedDevice = {
   id: string
   deviceName: string | null
@@ -117,8 +98,6 @@ export type TrustedDevice = {
   trustedAt: string
   lastSeenAt: string
 }
-
-// --- Privacy requests ---
 
 export type PrivacyRequest = {
   id: string
@@ -134,8 +113,6 @@ export type PrivacyRequest = {
   createdAt: string
   updatedAt: string
 }
-
-// --- hook 工厂:简单列表拉取 ---
 
 function useRemoteList<T>(api: ApiClient, path: string): [RemoteData<T[]>, () => void] {
   const [state, setState] = useState<RemoteData<T[]>>({ status: 'loading' })
@@ -160,8 +137,6 @@ function useRemoteList<T>(api: ApiClient, path: string): [RemoteData<T[]>, () =>
 
   return [state, load]
 }
-
-// --- useProfile ---
 
 export type UseProfileResult = {
   profile: RemoteData<UserProfile>
@@ -188,7 +163,6 @@ export function useProfile(api: ApiClient): UseProfileResult {
     reload()
   }, [reload])
 
-  // Returns null on success, error message on failure.
   const update = useCallback(
     async (payload: UpdateProfilePayload): Promise<string | null> => {
       const result = await api.patch<UserProfile>('/v1/me/profile', payload)
@@ -203,8 +177,6 @@ export function useProfile(api: ApiClient): UseProfileResult {
 
   return { profile, update, reload }
 }
-
-// --- useMfaFactors ---
 
 export type UseMfaFactorsResult = {
   factors: RemoteData<MfaFactor[]>
@@ -229,8 +201,6 @@ export function useMfaFactors(api: ApiClient): UseMfaFactorsResult {
 
   return { factors, remove, reload }
 }
-
-// --- usePasskeys ---
 
 export type UsePasskeysResult = {
   passkeys: RemoteData<PasskeyCredential[]>
@@ -269,8 +239,6 @@ export function usePasskeys(api: ApiClient): UsePasskeysResult {
   return { passkeys, rename, remove, reload }
 }
 
-// --- useSocialConnections ---
-
 export type UseSocialConnectionsResult = {
   connections: RemoteData<SocialConnection[]>
   disconnect: (id: string) => Promise<string | null>
@@ -294,8 +262,6 @@ export function useSocialConnections(api: ApiClient): UseSocialConnectionsResult
 
   return { connections, disconnect, reload }
 }
-
-// --- useSessions ---
 
 export type UseSessionsResult = {
   sessions: RemoteData<ActiveSession[]>
@@ -330,8 +296,6 @@ export function useSessions(api: ApiClient): UseSessionsResult {
 
   return { sessions, revoke, revokeAll, reload }
 }
-
-// --- useTrustedDevices ---
 
 export type UseTrustedDevicesResult = {
   devices: RemoteData<TrustedDevice[]>

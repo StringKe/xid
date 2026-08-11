@@ -1,6 +1,3 @@
-// Web Crypto 可用性自检(见 crypto-boundary rule:密码学原语只用 Web Crypto,禁止自研)。
-// 验证测试环境中 crypto.subtle 全部必要操作可用。
-
 import { describe, it, expect } from 'vitest'
 
 describe('Web Crypto availability (crypto-boundary rule)', () => {
@@ -12,14 +9,13 @@ describe('Web Crypto availability (crypto-boundary rule)', () => {
   it('crypto.getRandomValues generates distinct values', () => {
     const a = crypto.getRandomValues(new Uint8Array(32))
     const b = crypto.getRandomValues(new Uint8Array(32))
-    // 密码学安全随机数:两次调用结果应不同
     expect(a).not.toEqual(b)
   })
 
   it('AES-256-GCM key generation succeeds (envelope encryption KEK material)', async () => {
     const key = (await crypto.subtle.generateKey(
       { name: 'AES-GCM', length: 256 },
-      false, // 不可导出,符合 signing-keys rule 私钥不入库
+      false,
       ['encrypt', 'decrypt'],
     )) as CryptoKey
     expect(key.type).toBe('secret')

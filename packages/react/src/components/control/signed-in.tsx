@@ -1,5 +1,3 @@
-// SignedIn:仅登录用户可见的控制容器。
-
 import type { ReactNode } from 'react'
 
 import { useXidStore } from '../../hooks/use-xid-store'

@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-// 重算 docs/zh-Hans/ 下每个中文镜像首行 xid-translation 标记的 source-blob 并原地更新。
-// 用途:译文确认已跟上英文正本之后一键刷新,避免手抄 40 位 sha 出错。
-//
-// 警告:刷新 sha 等于声称"该译文已与英文正本同步"。译文没跟上时不要跑这个脚本,
-// 否则会把真实漂移抹掉,门禁 tests/docs/translation-drift.test.mjs 就再也测不出来。
+// 译文已确认跟上英文正本后再跑：重算 zh-Hans 镜像首行 source-blob；未跟上时勿跑，否则会抹掉真实漂移并使 translation-drift 门禁失效。
 
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'

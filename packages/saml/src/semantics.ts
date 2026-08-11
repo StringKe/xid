@@ -1,6 +1,4 @@
-// 8.7 Assertion 语义校验(验签通过后顺序执行):issuer/时间窗/audience/recipient/InResponseTo/status。
-// 重放(8.7 step 6)与 InResponseTo 一次性消费(8.7 step 4)依赖 Durable Object,本层只做纯断言;
-// DO 交互由 worker/sso/saml.ts 在调用前后完成(本层无 binding,保持 packages/saml 纯净)。
+// Assertion 语义校验。重放与 InResponseTo 一次性消费在 worker DO,本层无 binding。
 
 import { SAMLP_NS, SAML_ASSERTION_NS } from './precheck'
 import { assertionChild, assertionChildren } from './extract'
@@ -14,25 +12,18 @@ const SUBJECT_CONFIRMATION_BEARER = 'urn:oasis:names:tc:SAML:2.0:cm:bearer'
 const A = SAML_ASSERTION_NS
 
 export type SemanticInput = {
-  // 整个 Response 文档(取 Status,见 8.7 step 5)。
   responseRoot: Element
-  // 已验证的明文 Assertion 元素(只从此元素提取)。
   assertion: Element
-  // connection 配置的 IdP EntityID(8.7 step 1 精确匹配)。
   expectedIssuer: string
-  // 本 SP EntityID(8.7 step 3 AudienceRestriction 命中)。
   expectedAudience: string
-  // 本 ACS URL(8.7 step 4 Recipient 精确匹配)。
   acsUrl: string
-  // true:要求 InResponseTo;false:要求缺省;auto:根据 Assertion 是否携带 InResponseTo 推断。
+  // true/false 强制有无 InResponseTo;auto 按 Assertion 是否携带推断。
   spInitiated: boolean | 'auto'
-  // 当前时间(ms),便于测试注入。
   now: number
-  // connection 配置的时钟容忍,默认 +-3min,最大 +-5min。
+  // 默认 ±3min,上限 ±5min。
   clockSkewToleranceMs?: number
 }
 
-// 8.7 step 5:samlp:Status/StatusCode/@Value == Success,否则透传 IdP 状态码报错。
 function checkStatus(responseRoot: Element): SamlResult<true> {
   const status = assertionChild(responseRoot, SAMLP_NS, 'Status')
   const code = status ? assertionChild(status, SAMLP_NS, 'StatusCode') : null
@@ -51,14 +42,13 @@ function checkResponseDestination(responseRoot: Element, acsUrl: string): SamlRe
   return okResult(true)
 }
 
-// 8.7 step 1:Issuer 精确匹配 connection 配置 IdP EntityID。
 function checkIssuer(assertion: Element, expected: string): SamlResult<string> {
   const issuer = assertionChild(assertion, A, 'Issuer')?.textContent?.trim() ?? ''
   if (issuer !== expected) return failResult('issuer_mismatch', `issuer "${issuer}"`)
   return okResult(issuer)
 }
 
-// 8.7 step 2 + 3:Conditions 时间窗(排他上界)+ AudienceRestriction 含本 SP。
+// Conditions 时间窗(上界排他)+ Audience 须含本 SP。
 function checkConditions(
   assertion: Element,
   expectedAudience: string,
@@ -86,7 +76,7 @@ function checkConditions(
   return okResult({ notBefore: nb, notOnOrAfter: noa })
 }
 
-// SP-initiated 要求 InResponseTo 存在;IdP-initiated 要求缺省(防混淆,见 8.7 step 4)。
+// SP-initiated 要求 InResponseTo;IdP-initiated 要求缺省,防两种模式混淆。
 function checkInResponseTo(
   inResponseTo: string | null,
   spInitiated: boolean | 'auto',
@@ -104,7 +94,6 @@ function checkInResponseTo(
   return okResult({})
 }
 
-// 8.7 step 4:SubjectConfirmationData @Recipient/@NotOnOrAfter/@InResponseTo。返回 InResponseTo(SP-initiated)。
 function checkSubjectConfirmation(
   input: SemanticInput,
   clockSkewToleranceMs: number,
@@ -161,7 +150,7 @@ export type SemanticOk = {
   notOnOrAfter: number
 }
 
-// 顺序校验,任一失败立即返回(对应 8.8 错误分支)。返回 Assertion @ID 供重放集消费。
+// 顺序校验,失败即返;assertionId 供 worker 重放集消费。
 export function validateAssertionSemantics(input: SemanticInput): SamlResult<SemanticOk> {
   const clockSkewToleranceMs = input.clockSkewToleranceMs ?? DEFAULT_SAML_CLOCK_SKEW_MS
   if (

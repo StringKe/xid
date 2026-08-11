@@ -1,20 +1,15 @@
-// WebAuthn assertion 测试向量(见 webauthn rule 四验证:challenge/origin/rpIdHash/signature)。
-// 合法 assertion + origin 篡改 + rpIdHash 篡改 + 低 sign_count 克隆检测向量。
-// 用 Web Crypto 真算合法值;篡改向量在合法向量基础上单点变异。
-// 向量本身由 assertion-vectors.test.ts 的自检套件覆盖。
+// assertion 测试向量：合法路径用 Web Crypto 真算，负路径在合法值上单点变异。
 
 import type { StoredCredential, WebAuthnVerificationInput } from '@xid-kit/types'
 
-// sign_count 克隆检测从生产模块 import,避免 fixtures 与生产逻辑漂移。
+// 从生产模块 import，避免 fixtures 与克隆检测逻辑漂移。
 import { detectSignCountAnomaly } from '../../verify-authentication'
 
-// base64url 编解码工具
 function base64UrlEncode(bytes: Uint8Array): string {
   const base64 = btoa(String.fromCharCode(...bytes))
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-// clientDataJSON 构造(见 01 章 clientDataJSON:type/challenge/origin/crossOrigin)。
 function buildClientDataJson(params: {
   type: 'webauthn.get' | 'webauthn.create'
   challenge: Uint8Array
@@ -31,20 +26,16 @@ function buildClientDataJson(params: {
   return new TextEncoder().encode(JSON.stringify(obj))
 }
 
-// authenticatorData 构造(见 01 章 authData 布局:rpIdHash[32] + flags[1] + signCount[4])。
-// flags: bit0=UP(user presence) bit2=UV(user verification) bit3=BE bit4=BS bit6=AT
 async function buildAuthenticatorData(params: {
   rpId: string
   userVerified: boolean
   signCount: number
-  // AT flag(注册时携带 attestedCredentialData),认证时通常 false
   attestedCredentialData?: boolean
 }): Promise<Uint8Array> {
   const rpIdHash = new Uint8Array(
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(params.rpId)),
   )
 
-  // flags 字节:UP=1 始终设置;UV 按参数
   let flags = 0x01 // UP
   if (params.userVerified) flags |= 0x04 // UV
   if (params.attestedCredentialData) flags |= 0x40 // AT
@@ -52,14 +43,12 @@ async function buildAuthenticatorData(params: {
   const authData = new Uint8Array(37)
   authData.set(rpIdHash, 0)
   authData[32] = flags
-  // signCount big-endian 4 bytes
   const view = new DataView(authData.buffer)
   view.setUint32(33, params.signCount, false)
 
   return authData
 }
 
-// 生成 P-256 EC 密钥对(供 assertion 签名)。
 export async function generateAssertionKeyPair(): Promise<CryptoKeyPair> {
   return (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
     'sign',
@@ -67,13 +56,12 @@ export async function generateAssertionKeyPair(): Promise<CryptoKeyPair> {
   ])) as CryptoKeyPair
 }
 
-// 导出 CryptoKey 为 COSE 格式字节(简化:直接输出 raw public key,测试中作 StoredCredential.publicKey)。
+// 测试用简化导出：raw 公钥字节，非完整 COSE map。
 export async function exportPublicKeyBytes(publicKey: CryptoKey): Promise<Uint8Array> {
   const raw = (await crypto.subtle.exportKey('raw', publicKey)) as ArrayBuffer
   return new Uint8Array(raw)
 }
 
-// assertion 签名 = ECDSA(authData || SHA-256(clientDataJSON))。
 async function buildAssertionSignature(
   authenticatorData: Uint8Array,
   clientDataJson: Uint8Array,
@@ -88,14 +76,12 @@ async function buildAssertionSignature(
   return new Uint8Array(sig)
 }
 
-// 合法 assertion 向量。
 export type ValidAssertionVector = {
   description: string
   input: WebAuthnVerificationInput
   storedCredential: StoredCredential
 }
 
-// 构建合法 assertion 向量。
 export async function buildValidAssertionVector(
   rpId: string,
   origin: string,
@@ -113,8 +99,8 @@ export async function buildValidAssertionVector(
   const storedCredential: StoredCredential = {
     credentialId,
     publicKey: publicKeyBytes,
-    coseAlg: -7, // ES256
-    signCount: 0, // 历史签名计数(上次记录值)
+    coseAlg: -7,
+    signCount: 0,
     aaguid: new Uint8Array(16),
   }
 
@@ -135,7 +121,6 @@ export async function buildValidAssertionVector(
   }
 }
 
-// Origin 篡改向量:clientDataJSON 中 origin 与 expectedOrigins 不匹配。
 export type OriginTamperedVector = {
   description: string
   input: WebAuthnVerificationInput
@@ -149,7 +134,6 @@ export async function buildOriginTamperedVector(
 ): Promise<OriginTamperedVector> {
   const keyPair = await generateAssertionKeyPair()
   const challenge = crypto.getRandomValues(new Uint8Array(32))
-  // clientDataJSON 使用篡改 origin
   const clientDataJson = buildClientDataJson({
     type: 'webauthn.get',
     challenge,
@@ -166,7 +150,7 @@ export async function buildOriginTamperedVector(
       ceremony: 'authentication',
       expectedChallenge: challenge,
       expectedRpId: rpId,
-      expectedOrigins: [legitimateOrigin], // 合法 origin
+      expectedOrigins: [legitimateOrigin],
       clientDataJson,
       authenticatorData: authData,
       signature,
@@ -182,7 +166,6 @@ export async function buildOriginTamperedVector(
   }
 }
 
-// rpIdHash 篡改向量:authenticatorData 中 rpIdHash 与 expectedRpId 不匹配。
 export type RpIdHashTamperedVector = {
   description: string
   input: WebAuthnVerificationInput
@@ -197,7 +180,6 @@ export async function buildRpIdHashTamperedVector(
   const keyPair = await generateAssertionKeyPair()
   const challenge = crypto.getRandomValues(new Uint8Array(32))
   const clientDataJson = buildClientDataJson({ type: 'webauthn.get', challenge, origin })
-  // authenticatorData 使用篡改 rpId 计算 rpIdHash
   const authData = await buildAuthenticatorData({
     rpId: tamperedRpId,
     userVerified: true,
@@ -212,7 +194,7 @@ export async function buildRpIdHashTamperedVector(
     input: {
       ceremony: 'authentication',
       expectedChallenge: challenge,
-      expectedRpId: legitimateRpId, // 期望合法 rpId
+      expectedRpId: legitimateRpId,
       expectedOrigins: [origin],
       clientDataJson,
       authenticatorData: authData,
@@ -229,12 +211,11 @@ export async function buildRpIdHashTamperedVector(
   }
 }
 
-// sign_count 克隆检测向量(见 webauthn rule:新值 <= 历史非零值 -> 标记异常)。
+// shouldFlagAnomaly=true 表示应标记异常，不直接拒绝。
 export type SignCountCloneVector = {
   description: string
   newSignCount: number
   storedSignCount: number
-  // true = 应标记 signCountAnomaly(不直接拒绝,触发风险审查)
   shouldFlagAnomaly: boolean
 }
 

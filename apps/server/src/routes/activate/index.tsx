@@ -1,6 +1,4 @@
-// /activate:OAuth Device Authorization Grant 用户端 activation 页面。
-// 支持 verification_uri_complete?user_code=... 和手动输入 user_code。
-// 已登录后调用 /auth/device-activation 查询并 approve/deny。
+// OAuth Device Flow 用户端 activation;登录后走 /auth/device-activation approve/deny。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useMemo, useState } from 'react'

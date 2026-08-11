@@ -66,8 +66,7 @@ export function productionWildcardProbeBaseUrl(
   return tenantOrigin.origin
 }
 
-// 生产 smoke 需要真实收信,但仓库不得内置任何真实收件地址(公开仓库里的默认收件人
-// 既是隐私泄露,也让任何人能把陌生部署的登录邮件寄到该地址)。操作者必须显式指定自己控制的邮箱。
+// 公开仓库不得内置真实收件地址;操作者必须显式注入自己控制的邮箱。
 export function requireProductionEmail(variableName, environment = process.env) {
   const value = environment[variableName]?.trim().toLowerCase()
   if (!value) {
@@ -78,8 +77,7 @@ export function requireProductionEmail(variableName, environment = process.env) 
   return value
 }
 
-// 生产 smoke 的口令会写进 https://xid.dev 的真实账号,仓库内不得留任何默认口令:
-// 公开仓库里的默认口令等于把线上账号的凭证一起公开。操作者必须自行生成并注入。
+// 口令会写入真实生产账号,仓库不得留默认口令;必须由操作者生成并注入。
 export function requireProductionPassword(variableName, environment = process.env) {
   const value = environment[variableName]
   if (!value || value.trim().length === 0) {
@@ -90,13 +88,12 @@ export function requireProductionPassword(variableName, environment = process.en
   return value
 }
 
-// 默认收件人惰性求值:仓库里没有任何真实地址可以当模块级常量,而默认参数在调用时才求值,
-// 所以只有真正省略收件人的调用方才会因为缺 XID_PRODUCTION_EMAIL 而失败。
+// 惰性求值:避免模块加载时因缺邮箱崩溃,仅在真正省略收件人的调用方失败。
 export function defaultProductionEmail() {
   return requireProductionEmail('XID_PRODUCTION_EMAIL')
 }
 
-// plus-address 变体:每次 smoke 生成独立收件地址,仍投递到同一个操作者信箱。
+// plus-address:每次 smoke 独立收件地址,仍投递到同一操作者信箱。
 export function productionEmailAlias(base, tag) {
   const at = base.lastIndexOf('@')
   if (at <= 0 || at === base.length - 1) return base
@@ -107,10 +104,8 @@ export const baseUrl = productionBaseUrl()
 export const dbBinding = 'DB'
 export const workerFilter = '@xid-kit/server'
 export const otpRetryMs = Number(process.env['XID_PRODUCTION_OTP_RETRY_MS'] ?? '65000')
-// default organization 的 id 由 bootstrap 现场 crypto.randomUUID() 生成,每个部署各不相同,清空重建
-// D1 后也必然变成新值。它同时是 assertSweepTargetsArePrefixed 的护栏值:指向一个已不存在的 id 时,
-// 真正的 default org 反而失去保护,smoke 残留清扫可能打到它。所以对自己的部署跑生产 smoke 前,
-// 用 XID_PRODUCTION_TENANT_ID 指向你自己的 default organization。
+// default org id 每部署/重建 D1 都不同,且是扫除护栏:指错 id 会让真实 default org 失去保护。
+// 对自己的部署跑 smoke 前用 XID_PRODUCTION_TENANT_ID 指向本部署 default organization。
 export const DEFAULT_INSTANCE_ORG_ID =
   process.env['XID_PRODUCTION_TENANT_ID']?.trim() || 'org_d4c15812-bf22-45f7-9cf7-f766ff13545b'
 
@@ -763,9 +758,7 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
 }
 
-// 历史事故:4 个 cleanup 串在同一个 try 里,首步 signOut 的一次网络抖动让后 3 步全部不执行,
-// 带 instance_manager 的 smoke 账号因此留在生产 default org。清理步骤之间不允许有连坐关系,
-// 每步独立 try/catch,失败只记账不中断;是否判红由调用方决定(清理失败必须可见,不能静默)。
+// 清理步骤禁止连坐:每步独立 try/catch,失败只记账;调用方决定是否判红(清理失败必须可见)。
 export async function runCleanupSteps(steps, { stderr = process.stderr } = {}) {
   const failures = []
   for (const step of steps) {
@@ -791,8 +784,7 @@ export const SMOKE_ID_PREFIXES = Object.freeze({
 
 const SMOKE_PREFIX_PATTERN = /^[a-z]{2,8}_smoke_[a-z_]*$/
 
-// 前缀是 SQL 字面量的唯一来源,必须先过白名单:任何不含 `_smoke_` 的字符串都可能把 DELETE
-// 的锚定面扩大到真实数据,拒绝比转义更可靠。
+// 前缀进 SQL 字面量前必须过白名单;拒绝比转义更可靠,防 DELETE 锚定面扩到真实数据。
 export function assertSmokePrefix(prefix) {
   if (typeof prefix !== 'string' || !SMOKE_PREFIX_PATTERN.test(prefix)) {
     throw new Error(`refusing to build a sweep predicate from non-smoke prefix: ${String(prefix)}`)
@@ -800,17 +792,14 @@ export function assertSmokePrefix(prefix) {
   return prefix
 }
 
-// SQLite 的 LIKE 里 `_` 是单字符通配符,'user_smoke_%' 会命中 'userXsmokeY-real-account'
-// 这类真实 id(sqlite3 3.51 与 node:sqlite 均实测复现)。前缀匹配一律走 ESCAPE 把 `_` 还原成字面量。
+// SQLite LIKE 中 `_` 是单字符通配符;前缀匹配必须 ESCAPE,否则会误命中真实 id。
 export function smokePrefixPredicate(column, prefix) {
   assertSmokePrefix(prefix)
   const escaped = prefix.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
   return `${column} LIKE '${escaped}%' ESCAPE '\\'`
 }
 
-// 删除顺序 = 权限 -> 令牌/凭证 -> 关联 -> 主体。中途失败时残留的是无权限的孤儿行,
-// 而不是仍能进生产 platform console 的 instance_manager 账号。
-// 物理 schema 无 FOREIGN KEY(packages/db/drizzle/*.sql 无 REFERENCES),顺序是语义要求不是 FK 要求。
+// 删除顺序:权限 -> 令牌/凭证 -> 关联 -> 主体(schema 无 FK,语义要求;中途失败只留无权限孤儿行)。
 const SMOKE_SWEEP_TABLES = Object.freeze([
   {
     table: 'manager_assignments',
@@ -838,9 +827,7 @@ const SMOKE_SWEEP_TABLES = Object.freeze([
   { table: 'gdpr_consents', user: true, tenant: true },
   { table: 'user_identities', user: true, tenant: true },
   { table: 'user_phones', user: true, tenant: true },
-  // 用量聚合按 tenant 落库(worker/queues/metering.ts 的 INSERT ... ON CONFLICT),主键是
-  // (tenant_id, day) / (tenant_id, year_month),没有 id 与 user_id 可锚,只能靠 tenant 前缀。
-  // 漏了这两张表会让守卫假绿:主体删干净了,用量行仍按 smoke tenant 留在生产计费数据里。
+  // 用量聚合仅 tenant 主键,无 user_id 可锚;漏扫会让主体已删而计费行仍留在生产库。
   { table: 'usage_daily', tenant: true },
   { table: 'usage_monthly', tenant: true },
   { table: 'user_emails', idPrefix: SMOKE_ID_PREFIXES.email, user: true, tenant: true },
@@ -852,8 +839,7 @@ export function smokeSweepTables() {
   return SMOKE_SWEEP_TABLES
 }
 
-// 三个锚定:自身 smoke id 前缀 / 属于 smoke 用户 / 属于 smoke org。
-// 三者 OR,任一成立即是残留;没有锚定的表不允许进扫除清单(否则就是无 WHERE 的 DELETE)。
+// 锚定:自身 smoke id / smoke user / smoke org(OR);无锚定的表禁止进清单(防无 WHERE DELETE)。
 export function smokeResidueWhere(entry) {
   const parts = []
   if (entry.idPrefix) parts.push(smokePrefixPredicate('id', entry.idPrefix))
@@ -886,9 +872,7 @@ export function smokeResidueDeleteSql(tables = SMOKE_SWEEP_TABLES) {
     .join('\n')}\n`
 }
 
-// 主体表(有自己的 smoke id 前缀)的 id 在删除前回读一遍,用 JS 复核 startsWith。
-// 三个锚定前缀都由同一个 smokePrefixPredicate 生成,抽验这 5 张表即可证明转义没写错;
-// 阈值只是爆炸半径上限,真正的正确性门在这里。
+// 删前 JS startsWith 复核主体表 id:阈值只限爆炸半径,正确性门在此(证明 ESCAPE 未写错)。
 export function smokeResidueProbeSql(limit, tables = SMOKE_SWEEP_TABLES) {
   const branches = tables
     .filter((entry) => entry.idPrefix)
@@ -945,15 +929,10 @@ async function assertSweepTargetsArePrefixed(exec, limit) {
   }
 }
 
-// 一次完整 browser smoke 的实体足迹约 35 行(2 user / 2 email / 2 membership / 1 manager_assignment /
-// 2 org / password / password_history / 若干 session 与 verification_token / 1 mfa_factor / 10 backup_code /
-// 1 passkey)。200 约等于 5 轮完整泄漏:再多要么是扫除很久没跑,要么是锚定写错,两种都该先让人看一眼
-// 再让 DELETE 打到生产库。阈值是爆炸半径上限,不是正确性门(正确性门是 assertSweepTargetsArePrefixed)。
+// 爆炸半径上限(~5 轮完整 browser smoke);正确性门是 assertSweepTargetsArePrefixed。
 export const SMOKE_SWEEP_MAX_ROWS = 200
 
-// dryRun 默认 false(真删)。这个函数的存在意义是"下一轮 smoke 开头自动扫掉上一轮的残留":
-// 默认只统计的话,漏传 dryRun:false 就退化成"发现了但没人清",正是本次事故里 org_smoke_password_*
-// 躺好几天的失败模式。安全性由前缀锚定 + JS 复核 + 阈值三层保证,dryRun 保留给人工先看一眼。
+// dryRun 默认 false(真删):默认只统计会让残留无人清;安全靠前缀锚定 + JS 复核 + 阈值。
 export async function sweepSmokeResidue(options = {}) {
   const { dryRun = false, maxRows = SMOKE_SWEEP_MAX_ROWS, exec = d1, log = printResult } = options
 
@@ -988,7 +967,7 @@ export async function sweepSmokeResidue(options = {}) {
   return { dryRun: false, total: before.total, counts: before.counts, deleted: true }
 }
 
-// smoke 收尾守卫:清理失败必须让这次 smoke 判红。静默容忍等于把残留推给下一次。
+// 收尾守卫:清理失败必须判红,静默容忍等于把残留推给下一次。
 export async function assertNoSmokeResidue({ exec = d1, log = printResult } = {}) {
   const { counts, total, instanceManager } = await readSmokeResidueCounts(exec)
   if (instanceManager !== 0) {
@@ -1015,9 +994,7 @@ function rejectAfterMs(ms, signal) {
   })
 }
 
-// finally 在 Ctrl-C 与 CI runner 杀进程时都不执行,残留因此永久留库。处理器只做一件事:
-// 跑一次 cleanup(硬超时封顶),然后按信号约定的退出码退出。重复触发直接忽略(第二次 Ctrl-C
-// 不重入),注册即返回卸载函数,避免多个 harness 叠加注册。
+// finally 在信号杀进程时不跑;处理器只跑一次 cleanup(硬超时)再按约定退出码退出,防重入。
 export function registerCleanupSignalHandlers(cleanup, options = {}) {
   const {
     signals = CLEANUP_SIGNALS,

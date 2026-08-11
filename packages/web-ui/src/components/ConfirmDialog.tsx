@@ -1,10 +1,5 @@
-// ConfirmDialog:危险操作二次确认对话框(删除/撤销)。
-// 用 <dialog> 原生元素实现(a11y:focus trap / aria-modal / Escape 关闭)。
-// 调用方传 onConfirm(async) + onCancel;isLoading 期间禁止重复提交。
-// 文案全走 lingui(children prop),禁硬编码。
-// 进出场由 motion 驱动:打开 opacity + scale 0.96 -> 1;取消(按钮 / Escape)先播 exit,
-// onAnimationComplete 后再 close + 回调父级卸载(backdrop 淡出见 styles.css)。
-// 确认成功路径由父级直接卸载,不走 exit(组件无法拦截父级 unmount)。
+// 危险操作二次确认:<dialog> 原生 a11y;取消/Escape 先播 exit 再 close;
+// 确认成功由父级卸载不走 exit(组件无法拦截 unmount)。
 
 import { Trans } from '@lingui/react/macro'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -15,16 +10,11 @@ import { tokens } from '../styles/tokens.stylex'
 import { Button } from './ui'
 
 export type ConfirmDialogProps = {
-  // 对话框标题(已本地化)。
   title: ReactNode
-  // 对话框描述内容(已本地化)。
   description: ReactNode
-  // 可选表单区(如 impersonation 的 select),渲染在描述与按钮之间,
-  // 交互控件不再塞进 description 的 <p>(a11y:控件不属于被 aria-describedby 引用的段落)。
+  // 交互控件放 children,勿塞进 description 的 <p>(aria-describedby 段落不应含控件)。
   children?: ReactNode
-  // 确认按钮文案(默认 "Confirm")。
   confirmLabel?: ReactNode
-  // 确认按钮变体(默认 danger)。
   confirmVariant?: 'danger' | 'primary'
   isLoading?: boolean
   onConfirm: () => void
@@ -84,12 +74,11 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps): ReactNode {
   const dialogRef = useRef<HTMLDialogElement>(null)
-  // true = 正在播 exit;动画完成才 close + 通知父级。
+  // exit 播完才 close + 通知父级。
   const [closing, setClosing] = useState(false)
   const titleId = useId()
   const descId = useId()
 
-  // 挂载即打开 dialog(modal mode),卸载时关闭。
   useEffect(() => {
     const el = dialogRef.current
     if (!el) return
@@ -97,7 +86,7 @@ export function ConfirmDialog({
     return () => el.close()
   }, [])
 
-  // Escape 默认会触发 cancel 事件并关闭 dialog;接管为先播 exit 再关闭。
+  // 原生 cancel 会立刻关 dialog;接管为先播 exit。
   const handleCancel = (event: React.SyntheticEvent): void => {
     event.preventDefault()
     setClosing(true)

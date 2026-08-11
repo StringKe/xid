@@ -1,9 +1,5 @@
 ---
-/**
- * PackageManagers — code block with a tab per package manager (npm,
- * pnpm, yarn, bun). Selection syncs across instances via sessionStorage;
- * an inline custom element restores the saved tab before paint.
- */
+// 包管理器多 tab 代码块；sessionStorage 跨实例同步，内联自定义元素首屏恢复选中。
 import { createHash } from "node:crypto";
 import { Icon } from "astro-icon/components";
 import { getTabs } from "@cloudflare/nimbus-docs/lib/pkgm";
@@ -19,9 +15,7 @@ interface Props extends CommandOptions {
 
 const { pkg, type = "add", args, dev, comment } = Astro.props;
 const tabs = getTabs(type, pkg, { args, dev, comment });
-// Prop hash + a per-page counter (on Astro.locals) so two blocks with
-// identical props still get distinct ids. Counter order is stable within a
-// render, so incremental/warm builds match cold — unlike crypto.randomUUID().
+// props 哈希 + 页内计数，同 props 多块仍唯一；计数顺序稳定，冷热构建一致（不用 randomUUID）。
 const localsAny = Astro.locals as Record<string, unknown>;
 const counters =
   (localsAny.__nbCounters as Map<string, number>) ??

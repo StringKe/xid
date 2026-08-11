@@ -1,4 +1,4 @@
-// Test OTP capture for local SMS/WhatsApp L3 smoke. Stores last OTP per tenant/recipient in KV.
+// 本地 SMS/WhatsApp L3:按 tenant/recipient 把最近 OTP 存 KV。
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'

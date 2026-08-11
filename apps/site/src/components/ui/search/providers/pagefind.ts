@@ -28,23 +28,7 @@ interface PagefindApi {
 
 let pagefind: PagefindApi | undefined
 
-/**
- * Default Pagefind filters applied to every search.
- *
- * Versioning: when the site has a `versions.deprecated` list, the
- * layout emits `data-pagefind-filter="status:deprecated"` on every
- * deprecated-version page. Search defaults to excluding those results
- * (readers searching for "auth" want the current version's auth page,
- * not the deprecated one). Future UI work can expose a "include
- * deprecated" toggle; for now the default is current + non-deprecated.
- *
- * Versions are still searchable individually — readers on a v0 page
- * who explicitly search from there can opt the UI into a version-scoped
- * filter. The default exclusion is just for the top-level search.
- *
- * Computed at module-import time so we don't pay the config lookup on
- * every keystroke.
- */
+// 默认排除 deprecated 版本结果（布局会打 status:deprecated）；模块导入时算一次，避免每键查 config。
 const defaultFilters: PagefindFilters | undefined =
   config.versions && config.versions.deprecated && config.versions.deprecated.length > 0
     ? { status: { none: 'deprecated' } }

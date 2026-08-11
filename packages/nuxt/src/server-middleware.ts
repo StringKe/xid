@@ -1,12 +1,5 @@
-// createXidServerMiddleware:Nuxt server middleware(H3 event handler)。
-// 职责:从请求提取并验证 JWT,将 AuthResult 注入 event.context.xidAuth。
-// 参照 @xid-kit/nextjs xidMiddleware 语义,但使用 H3/Nitro API。
-// 依赖 @xid-kit/backend authenticateRequest(networkless JWT 验证)。
-//
-// 安全铁律:event.context.xidAuth 只在服务端 Nitro handler 可见,不会下发给客户端。
-// 生产配置中须保证:
-//   1) 此 middleware 注册为全局 server middleware(覆盖所有 Nitro routes);
-//   2) 部署边界剥离客户端传入的 x-xid-auth 等伪造头。
+// JWT 验签结果写入 event.context.xidAuth（仅 Nitro 服务端可见）。
+// 生产须全局注册本 middleware，并在部署边界剥离客户端伪造的 x-xid-auth 等头。
 
 import {
   authenticateRequest,
@@ -28,22 +21,16 @@ const UNAUTHENTICATED: AuthResult = {
 }
 
 export type XidServerMiddlewareOptions = {
-  // JWKS 公钥:networkless 验签所需(JwtKey = PublicJwk | PublicJwk[])。
   jwtKey: JwtKey
-  // 期望 issuer。
   issuer?: string
-  // 授权方白名单(azp 校验)。
   authorizedParties?: readonly string[]
-  // 应用自己持有的 short-lived JWT cookie。无默认值。
+  // 应用侧 short-lived JWT cookie 名；无默认值，须显式配置。
   jwtCookieName?: string
   // 同源 Core opaque cookie -> short-lived JWT exchange。
   sessionTokenExchange?: SessionTokenExchangeOptions
-  // H3 v1 Node/Nitro 在无法提供完整 Web Request URL 时使用的可信应用 origin。
-  // 仅用于解析相对 req.url,不会读取可由客户端伪造的 forwarded host/proto。
+  // H3 v1 相对 URL 时的可信应用 origin；禁止用客户端可伪造的 forwarded host/proto 拼接。
   requestOrigin?: string
-  // 受保护路由前缀列表;匹配且未登录则返回 401。
   protectedRoutes?: readonly string[]
-  // 自定义保护响应:返回 non-null 可短路 default 401 处理。
   onUnauthenticated?: (event: H3Event) => { statusCode: number; message: string } | null
 }
 
@@ -82,7 +69,6 @@ function absoluteEventUrl(event: H3Event): URL | undefined {
   }
 }
 
-// 把 H3 event 适配为标准 Request(authenticateRequest 接受标准 Request)。
 function toWebRequest(
   event: H3Event,
   trustedOrigin: URL | undefined,
@@ -91,10 +77,8 @@ function toWebRequest(
   const standardRequest = webStandardRequest(event)
   if (standardRequest) return standardRequest
 
-  // 优先取 event.headers(Nuxt 3.9+ H3 unified request),回退到 node.req.headers。
   const headers = new Headers()
   if (event.headers) {
-    // event.headers 是 Headers 实例时直接用。
     event.headers.forEach((value, key) => {
       headers.set(key, value)
     })
@@ -106,8 +90,7 @@ function toWebRequest(
     }
   }
 
-  // Nitro/H3 v1 Node adapter 通常只提供相对 URL。同源 cookie exchange 不能信任
-  // x-forwarded-host/proto 来拼目的地,因此必须使用配置的可信 origin。
+  // Nitro/H3 v1 Node 常只给相对 URL；同源 cookie exchange 不得信任 x-forwarded-*，须用配置的可信 origin。
   const rawUrl = event.node.req.url ?? '/'
   const absoluteUrl = absoluteEventUrl(event)
   if (!absoluteUrl && requireTrustedOrigin && !trustedOrigin) {
@@ -120,11 +103,6 @@ function toWebRequest(
   return new Request(url, { method: event.method ?? 'GET', headers })
 }
 
-// createXidServerMiddleware:工厂函数,返回 H3 event handler。
-// 用法:
-//   // server/middleware/xid.ts
-//   import { createXidServerMiddleware } from '@xid-kit/nuxt'
-//   export default createXidServerMiddleware({ jwtKey: { ... } })
 export function createXidServerMiddleware(options: XidServerMiddlewareOptions) {
   const {
     jwtKey,
@@ -165,10 +143,8 @@ export function createXidServerMiddleware(options: XidServerMiddlewareOptions) {
       authResult = UNAUTHENTICATED
     }
 
-    // 注入认证结果到 event.context.xidAuth(服务端专属,不下发客户端)。
     event.context[XID_AUTH_CONTEXT_KEY] = authResult
 
-    // 路由保护:匹配受保护路由且未认证 -> 401。
     const pathname = new URL(webReq.url).pathname
     const isProtected =
       protectedRoutes.length > 0 && protectedRoutes.some((prefix) => pathname.startsWith(prefix))
@@ -191,8 +167,6 @@ export function createXidServerMiddleware(options: XidServerMiddlewareOptions) {
   }
 }
 
-// getXidAuth:从 event.context 读取 middleware 注入的 AuthResult。
-// 供 server routes / defineEventHandler 快速访问。
 export function getXidAuth(event: H3Event): AuthResult {
   return (event.context[XID_AUTH_CONTEXT_KEY] as AuthResult | undefined) ?? UNAUTHENTICATED
 }

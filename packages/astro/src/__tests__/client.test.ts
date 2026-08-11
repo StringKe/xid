@@ -1,4 +1,3 @@
-// client.ts island helper 单元测试。
 import { describe, it, expect, beforeEach } from 'vitest'
 import { getClient, initClient, resetClient } from '../client'
 

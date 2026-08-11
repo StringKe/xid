@@ -1,9 +1,3 @@
-// createXidServerMiddleware 单元测试:
-// - event.context.xidAuth 注入正确(已认证 / 未认证)
-// - 受保护路由未认证时返回 401
-// - 受保护路由已认证时不返回 401
-// - getXidAuth 从 event.context 读取结果
-// @xid-kit/backend 用 crypto key 生成真实 JWT 测试 networkless 验证路径。
 import { describe, it, expect } from 'vitest'
 
 import { exportPublicJwk, signJwt } from '@xid-kit/crypto'
@@ -47,7 +41,6 @@ async function mintToken(key: TestKey, sub = 'user_nuxt'): Promise<string> {
   )
 }
 
-// 构造最小 H3Event mock。
 function makeEvent(url: string, cookieHeader?: string, bearerToken?: string): H3Event {
   const rawHeaders: Record<string, string> = {}
   if (cookieHeader) rawHeaders['cookie'] = cookieHeader
@@ -207,7 +200,6 @@ describe('createXidServerMiddleware', () => {
     const event = makeEvent('https://app.com/api/admin/users', `__Host-app.xid.jwt=${token}`)
     const result = await mw(event)
 
-    // No 401 response returned; middleware passes through.
     expect(result).toBeUndefined()
   })
 

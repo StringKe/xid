@@ -1,19 +1,13 @@
-// getAuth / requireAuth server helper 单元测试。
-// 覆盖:Authorization header / cookie 认证路径、sessionStorage fallback、
-// requireAuth redirect 行为、负路径(无 token、过期 token)。
+// getAuth / requireAuth：Bearer、JWT cookie、sessionStorage fallback、redirect 与负路径。
 import { describe, it, expect } from 'vitest'
 
 import { getAuth, requireAuth } from '../server'
 import type { AuthObject } from '../types'
 import { makeEs256Key, mintAccessToken, mintExpiredToken } from './test-keys'
 
-// ---- helpers ----
-
 function makeRequest(url: string, headers?: Record<string, string>): Request {
   return new Request(url, { headers })
 }
-
-// ---- getAuth: Authorization header path ----
 
 describe('getAuth via Authorization: Bearer header', () => {
   it('returns authenticated AuthObject for valid token in Authorization header', async () => {
@@ -51,8 +45,6 @@ describe('getAuth via Authorization: Bearer header', () => {
     expect(auth.userId).toBeNull()
   })
 })
-
-// ---- getAuth: explicit application JWT cookie path ----
 
 describe('getAuth via application JWT cookie', () => {
   it('returns authenticated AuthObject for valid token in an explicitly named cookie', async () => {
@@ -116,14 +108,11 @@ describe('getAuth via application JWT cookie', () => {
   })
 })
 
-// ---- getAuth: sessionStorage fallback ----
-
 describe('getAuth via sessionStorage fallback', () => {
   it('returns authenticated AuthObject when token found in sessionStorage', async () => {
     const key = await makeEs256Key('kid_ss')
     const token = await mintAccessToken(key)
 
-    // Mock sessionStorage: getSession returns a session holding the token under default key.
     const mockSessionStorage = {
       async getSession(_cookie: string | null | undefined) {
         return {
@@ -182,8 +171,6 @@ describe('getAuth via sessionStorage fallback', () => {
   })
 })
 
-// ---- getAuth: org claims extraction ----
-
 describe('getAuth extracts org claims from token', () => {
   it('populates orgId/orgRole/orgPermissions from token claims', async () => {
     const key = await makeEs256Key('kid_org')
@@ -217,8 +204,6 @@ describe('getAuth extracts org claims from token', () => {
     expect(auth.orgPermissions).toBeUndefined()
   })
 })
-
-// ---- requireAuth ----
 
 describe('requireAuth', () => {
   it('returns AuthObject for authenticated request', async () => {
@@ -307,7 +292,6 @@ describe('requireAuth', () => {
     })
     const auth: AuthObject = await requireAuth(request, { jwtKey: key.publicJwk })
 
-    // TypeScript 类型守卫:到这里 userId 必须是 string(不是 null)。
     const userId: string = auth.userId
     expect(typeof userId).toBe('string')
   })

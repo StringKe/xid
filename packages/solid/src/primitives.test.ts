@@ -1,12 +1,4 @@
-// Tests for @xid-kit/solid reactive primitives.
-// Strategy:
-//   1. createAuth/createUser/createOrganization/createSession: called inside createRoot()
-//      with useXidContext mocked to supply a controlled client.
-//   2. XidStore subscription lifecycle: tested via plain subscribe/unsubscribe (no SolidJS needed).
-//   3. Protect RBAC guard logic: pure function test extracted from components.tsx.
-//
-// vi.mock must appear at the top level (hoisted by Vitest) before any import that
-// resolves './context'. The import below re-imports after the mock is applied.
+// vi.mock 会被 Vitest 提升到文件顶层；须写在会解析 ./context 的 import 之前，下方再 import 才能拿到 mock。
 
 import { describe, expect, it, vi } from 'vitest'
 import { createRoot } from 'solid-js'
@@ -17,15 +9,12 @@ import type { XidOrganization, XidState, XidUser } from '@xid-kit/core'
 import { createAuth, createOrganization, createSession, createUser } from './primitives'
 import type { XidContextValue } from './context'
 
-// Mock useXidContext so primitives receive a controlled client without JSX or a real Provider.
 vi.mock('./context', async (importOriginal) => {
   const mod = await importOriginal<typeof import('./context')>()
   return { ...mod, useXidContext: vi.fn() }
 })
 
 import { useXidContext } from './context'
-
-// ---- fixtures ---------------------------------------------------------------
 
 const organization: XidOrganization = {
   id: 'org_1',
@@ -107,10 +96,7 @@ const signedOutState: XidState = {
   error: null,
 }
 
-// ---- helpers ----------------------------------------------------------------
-
-// Build a mock XidContextValue whose client always returns `state` from getSnapshot()
-// and whose subscribe is a no-op (state stays constant for synchronous unit tests).
+// subscribe 设为 no-op，保证同步单测中 state 固定。
 function makeContextValue(state: XidState): XidContextValue {
   const client = new XidClient()
   vi.spyOn(client, 'getSnapshot').mockReturnValue(state)
@@ -118,8 +104,6 @@ function makeContextValue(state: XidState): XidContextValue {
   return { client, mode: 'same-origin' }
 }
 
-// withMockedContext: points useXidContext at a controlled client, runs fn inside
-// a SolidJS reactive root, then disposes the root.
 function withMockedContext(state: XidState, fn: () => void): void {
   const ctx = makeContextValue(state)
   vi.mocked(useXidContext).mockReturnValue(ctx)
@@ -128,8 +112,6 @@ function withMockedContext(state: XidState, fn: () => void): void {
     dispose()
   })
 }
-
-// ---- createAuth primitive ---------------------------------------------------
 
 describe('createAuth primitive (real implementation)', () => {
   it('isLoaded() returns true when signed in', () => {
@@ -161,8 +143,6 @@ describe('createAuth primitive (real implementation)', () => {
     })
   })
 })
-
-// ---- createUser primitive ---------------------------------------------------
 
 describe('createUser primitive (real implementation)', () => {
   it('returns user when signed in', () => {
@@ -196,8 +176,6 @@ describe('createUser primitive (real implementation)', () => {
     })
   })
 })
-
-// ---- createOrganization primitive -------------------------------------------
 
 describe('createOrganization primitive (real implementation)', () => {
   it('resolves active membership when org is active', () => {
@@ -244,8 +222,6 @@ describe('createOrganization primitive (real implementation)', () => {
   })
 })
 
-// ---- createSession primitive ------------------------------------------------
-
 describe('createSession primitive (real implementation)', () => {
   it('returns active session when signed in', () => {
     withMockedContext(readyState, () => {
@@ -279,8 +255,6 @@ describe('createSession primitive (real implementation)', () => {
     })
   })
 })
-
-// ---- XidStore subscription --------------------------------------------------
 
 describe('XidStore subscription (signal source for createXidState)', () => {
   it('emits updated state to subscribers when setState is called', () => {
@@ -331,9 +305,7 @@ describe('XidStore subscription (signal source for createXidState)', () => {
   })
 })
 
-// ---- Protect RBAC guard logic -----------------------------------------------
-// Tests the active-org-only permission check extracted from components.tsx Protect.
-
+// 从 Protect 抽出的 active-org 权限判定，避免挂载完整组件。
 function shouldProtectRender(
   snap: XidState,
   opts: { permission?: string; role?: 'owner' | 'admin' | 'member' },

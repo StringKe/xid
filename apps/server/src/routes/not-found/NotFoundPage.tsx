@@ -1,6 +1,4 @@
-// NotFoundPage: 未知 SPA 路径的兜底页(路由 $)。
-// 不静默重定向到登录:公开文档 typo 不应被当成未认证。
-// 提供回首页与登录的明确出口;文案走 lingui。
+// 未知路径 404,不静默重定向登录(公开 typo 不应被当成未认证)。
 
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'

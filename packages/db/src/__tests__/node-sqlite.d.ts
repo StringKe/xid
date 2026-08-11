@@ -19,7 +19,7 @@ declare module '*.sql?raw' {
   export default sql
 }
 
-// packages/db tsconfig 只带 workers-types;测试读 migration 目录所需的最小 node 模块声明。
+// tsconfig 仅 workers-types;测试读 migration 所需的最小 node 声明。
 declare module 'node:fs' {
   export function readFileSync(path: string, encoding: BufferEncoding): string
   export function readdirSync(path: string): string[]
@@ -33,7 +33,6 @@ declare module 'node:url' {
   export function fileURLToPath(url: URL): string
 }
 
-// 读 migration 目录需要 import.meta.url。
 interface ImportMeta {
   readonly url: string
 }

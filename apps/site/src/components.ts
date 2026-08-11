@@ -1,8 +1,4 @@
-/**
- * MDX globals registry — components available inside MDX without `import`.
- * Wired via `<Content components={components} />` in `[...slug].astro`.
- * Add new components here as you build (or install) them.
- */
+// MDX 全局组件表：由 [...slug].astro 的 Content components 注入，无需在 MDX 内 import。
 
 import { Aside } from './components/ui/aside'
 import Render from './components/Render.astro'

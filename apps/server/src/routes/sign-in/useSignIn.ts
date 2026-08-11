@@ -1,7 +1,5 @@
-// useSignIn:登录页业务逻辑(TanStack Router useSearch + Query useMutation)。
-// 五条认证路径:passkey(委托 usePasskeySignIn)/ 密码 / magic-link / email+WhatsApp+SMS OTP / 社交。
-// 枚举防护(铁律):认证失败统一模糊 key,magic-link/OTP 成功不泄露联系方式是否存在。
-// Turnstile token 由 SignInPage 注入;每次服务端校验后清空并让 widget 生成新的单次 token。
+// 登录业务逻辑;枚举防护:失败统一模糊 key,magic-link/OTP 成功不泄露联系方式是否存在。
+// Turnstile 每次服务端校验后清空,由 widget 签发新单次 token。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
@@ -89,8 +87,7 @@ export function enabledSignInMethodsForIntent(
   intent: string | null | undefined,
 ): readonly SignInMethod[] {
   const methods = enabledSignInMethods(config)
-  // Passkey registration is a separate authenticated account ceremony. Until Hosted Auth has an
-  // explicit registration flow, a sign-up intent must never execute the passkey sign-in ceremony.
+  // sign-up 尚无独立 passkey 注册流,禁止跑登录 ceremony。
   return isSignUpIntent(intent) ? methods.filter((method) => method !== 'passkey') : methods
 }
 
@@ -109,7 +106,7 @@ export type SignInState = {
   error: SignInErrorKey | null
   otpStep: 'input' | 'sent'
   turnstileToken: string | null
-  // /auth/config 未返回且 URL 参数不排除 guest 时为 true:SignInPage 据此渲染固定高度占位,防 CLS。
+  // config 未返回且 URL 不排除 guest 时为 true,页面固定高度占位防 CLS。
   guestEntryPending: boolean
   tenantSelection: {
     loginHint: string | null
@@ -141,7 +138,7 @@ export type SignInActions = {
 export function useSignIn(): [SignInState, SignInActions] {
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
-  // strict:false -- /sign-in 经兼容工厂挂载,不绑定单一 route id;透传任意 query。
+  // strict:false:兼容工厂挂载,不绑单一 route id。
   const search = useSearch({ strict: false }) as {
     authz_request_id?: string
     continue?: string
@@ -164,8 +161,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     ...(search.invitation_token ? { invitationToken: search.invitation_token } : {}),
   }
 
-  // 初始方法来自 deny-by-default fallback,默认租户首屏为 magic-link。
-  // passkey 探测成功只揭示 passkey tab(SignInTabs 据 passkeySupport 渲染),用户主动点 tab 才切换,绝不自动切 active panel。
+  // deny-by-default 首屏 magic-link;passkey 探测只揭示 tab,绝不自动切面板。
   const [method, setMethodState] = useState<SignInMethod>(() =>
     initialSignInMethod(DEFAULT_PUBLIC_AUTH_CONFIG),
   )
@@ -207,7 +203,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     return 'unknown'
   }
 
-  // 登录成功统一收尾:刷新 /v1/me 后导航到回跳目标。
+
   const finishSignIn = useCallback(
     async (redirectUrl: string | undefined, method: AuthMethod): Promise<void> => {
       clearPendingAuthCompletion()
@@ -226,7 +222,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     [authFlowIntent, authzRequestId, hostedReturn, navigate, refresh],
   )
 
-  // 认证类提交后的统一结果处理:失败置错误 key,成功收尾导航。
+
   const handleAuthResult = useCallback(
     async (result: SignInResult): Promise<void> => {
       if (!result.ok) {
@@ -303,7 +299,7 @@ export function useSignIn(): [SignInState, SignInActions] {
         trackMagicLinkSent(analyticsAuthIntent)
         setPendingAuthCompletion({ method: 'magic_link', intent: analyticsAuthIntent })
       }
-      // 成功不区分邮箱是否存在(枚举防护),统一显示"已发送"。
+      // 枚举防护:不区分邮箱是否存在,统一"已发送"。
       setError(result.ok ? 'magic_link_sent' : apiErrorToKey(result.error.code))
     },
     onSettled: resetTurnstile,
@@ -415,9 +411,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     onSettled: resetTurnstile,
   })
 
-  // 访客登录:无凭证建立 guest session(契约:POST /auth/guest,Set-Cookie 建会话,
-  // 成功响应对齐既有登录成功形态 { redirectUrl? }),收尾走统一 finishSignIn。
-  // Turnstile 随请求体提交(与 password/OTP 同一模式),服务端配置 TURNSTILE_SECRET 时强制校验。
+
   const guestMutation = useMutation({
     mutationFn: (capabilityToken: string) =>
       api.post<{ redirectUrl: string }>('/auth/guest', {
@@ -437,7 +431,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     },
   })
 
-  // 社交登录:整页跳到 OAuth 端点,带 continue 让 callback 回跳正确目标。
+
   const handleSocial = useCallback(
     (provider: string): void => {
       trackEvent('social_login_start', { provider })
@@ -531,12 +525,11 @@ export function useSignIn(): [SignInState, SignInActions] {
     isLoading,
     passkeySupport: passkey.support,
     conditionalUiRunning: passkey.conditionalRunning,
-    // passkey verify 错误优先(其分支独立于表单错误)。
+
     error: passkey.error ?? error,
     otpStep,
     turnstileToken,
-    // 对齐服务端 permitsRootGuestOnboarding 的 URL 参数维度:org/client/invitation/authz
-    // 任一存在即不可能出现 guest 入口,不占位。租户维度只能等 config,占位期间保持未知。
+    // org/client/invitation/authz 任一存在则无 guest 入口;租户维度须等 config。
     guestEntryPending:
       authConfigQuery.isPending &&
       !search.organization_id &&

@@ -1,5 +1,4 @@
-// Input:受控/非受控 <input>,StyleX 样式 + 主题 tokens + invalid 态边框。
-// 不自带 label(由 Field 组合);invalid 时 aria-invalid 由调用方/Field 透传。
+// 不自带 label(由 Field 组合);focus 本地压掉全局 outline 避免双描边。
 
 import { forwardRef } from 'react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
@@ -11,10 +10,8 @@ export type InputProps = InputHTMLAttributes<HTMLInputElement> & {
 }
 
 const styles = stylex.create({
-  // focus 切 accent 边框(文本控件 :focus-visible 恒命中,本地压掉全局 outline 避免双描边);无阴影。
   base: {
     width: '100%',
-    // 桌面 40px;触屏抬到 44px 触控目标。
     minHeight: {
       default: '2.5rem',
       '@media (pointer: coarse)': '2.75rem',

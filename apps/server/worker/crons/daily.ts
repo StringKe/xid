@@ -848,7 +848,7 @@ export async function runDaily(env: Env): Promise<void> {
     },
     failures,
   )
-  // Optional managed-service adapter. Self-hosted deployments with no Stripe config return here.
+  // 未配 Stripe 时 report 立即返回;自托管无此路径副作用。
   await runDailyPhase('stripe_metering', () => reportStripeMauUsage(env), failures)
 
   if (failures.length > 0) {

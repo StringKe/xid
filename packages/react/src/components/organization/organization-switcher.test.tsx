@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// OrganizationSwitcher 弹出层行为契约:进出场存在性、Escape / 外部点击关闭、关闭后焦点回 trigger。
 
 import { setupI18n } from '@lingui/core'
 import { I18nProvider } from '@lingui/react'

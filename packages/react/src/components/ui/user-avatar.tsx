@@ -1,7 +1,3 @@
-// UserAvatar:用户头像组件(对标 Clerk <UserAvatar>)。
-// 有 imageUrl -> img;无 -> 姓名首字母缩写;两者皆无 -> 默认用户图标。
-// a11y:img 带 alt;缩写容器带 role=img + aria-label。
-
 import type { ReactNode, CSSProperties } from 'react'
 
 import { useLingui } from '@lingui/react'

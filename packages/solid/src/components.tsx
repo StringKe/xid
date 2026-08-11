@@ -1,7 +1,3 @@
-// Prebuilt headless components: SignInButton / SignOutButton / Protect.
-// No styles -- purely behavioral wrappers analogous to @xid-kit/react counterparts.
-// Text labels use lingui runtime descriptors via @lingui/core (no @lingui/react needed).
-
 import { type JSX, Show, createSignal } from 'solid-js'
 import type { OrganizationMembershipRole } from '@xid-kit/types'
 
@@ -9,13 +5,9 @@ import { useXidContext } from './context'
 import { t, sdkMessages } from './i18n-runtime'
 import { createAuth } from './primitives'
 
-// ---- SignInButton -----------------------------------------------------------
-
 export type SignInButtonProps = {
   readonly children?: JSX.Element
-  // Sign-in page path (Hosted UI). Default: '/sign-in'.
   readonly signInUrl?: string
-  // Redirect after successful sign-in.
   readonly redirectUrl?: string
   readonly mode?: 'redirect'
   readonly onError?: (error: unknown) => void
@@ -61,13 +53,10 @@ export function SignInButton(props: SignInButtonProps): JSX.Element {
   )
 }
 
-// ---- SignOutButton ----------------------------------------------------------
-
 export type SignOutButtonProps = {
   readonly children?: JSX.Element
-  // Target a browser-held session; omit to sign out the current active session.
+  // 指定浏览器持有的 session；省略则签退当前 active session。
   readonly sessionId?: string
-  // Redirect after sign-out. Default: no redirect.
   readonly redirectUrl?: string
   readonly 'aria-label'?: string
 }
@@ -102,33 +91,24 @@ export function SignOutButton(props: SignOutButtonProps): JSX.Element {
   )
 }
 
-// ---- Protect ----------------------------------------------------------------
-
 export type ProtectProps = {
   readonly children: JSX.Element
-  // Require this org permission (e.g. "org:member:read").
   readonly permission?: string
-  // Require this Organization membership role.
   readonly role?: OrganizationMembershipRole
-  // Rendered when condition not met. Default: null.
   readonly fallback?: JSX.Element
 }
 
 export function Protect(props: ProtectProps): JSX.Element {
-  // createAuth() and useXidContext() are called at component init (reactive root).
-  // Accessing their values inside shouldRender() (a derived computation) is safe
-  // because SolidJS tracks signal reads, not context reads.
+  // hooks 必须在组件顶层建立；shouldRender 内读 signal 会被追踪，读 context 本身不会。
   const auth = createAuth()
   const { client } = useXidContext()
 
   const shouldRender = (): boolean => {
     if (!auth.isLoaded() || !auth.isSignedIn()) return false
 
-    // No RBAC constraint -- being signed in is sufficient.
     if (props.permission === undefined && props.role === undefined) return true
 
-    // Re-read the snapshot. The auth signals already track the underlying store,
-    // so any store change will re-trigger this derivation.
+    // 权限数据走 getSnapshot；依赖 auth signal 在 store 变更时重跑本推导。
     const state = client.getSnapshot()
     const memberships = state.user?.organizationMemberships ?? []
     const activeMembership = memberships.find((m) => m.organization.id === state.organization?.id)

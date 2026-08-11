@@ -1,7 +1,6 @@
 import type { ClientStateResponse, TokenResponse } from '../api-client'
 import type { XidSession, XidUser } from '../types'
 
-// 构造受控 fetch:按 path 返回预设响应,记录调用次数,供刷新去重/缓存命中断言。
 export type RouteHandler = (request: { method: string; body: unknown }) => {
   status: number
   json: unknown
@@ -72,7 +71,6 @@ export function makeState(overrides: Partial<ClientStateResponse> = {}): ClientS
 }
 
 export function makeTokenResponse(overrides: Partial<TokenResponse> = {}): TokenResponse {
-  // exp 远在未来,leeway 内不触发刷新。
   const token = makeJwt({ exp: 9_999_999_999, sub: 'user_1' })
   return { token, ...overrides }
 }
@@ -81,7 +79,7 @@ export function makeJwt(payload: Record<string, unknown>): string {
   return `${b64url({ alg: 'ES256', kid: 'k1' })}.${b64url(payload)}.${b64url('sig')}`
 }
 
-// 浏览器标准 base64url 编码(不依赖 Node Buffer,保持包 DOM-pure)。
+// 用 btoa 而非 Buffer,保持测试与 DOM 运行时一致。
 function b64url(obj: unknown): string {
   return btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
 }

@@ -1,5 +1,4 @@
-// 服务器实际支持的标准 scope 单一目录。端点可在此集合之上叠加已注册的 resource scope,
-// 但不得各自维护一份会漂移的 OIDC 列表。
+// 标准 scope 单一目录:端点可叠加 resource scope,不得各自再维护一份会漂移的 OIDC 列表。
 export const STANDARD_OIDC_SCOPES = [
   'openid',
   'profile',

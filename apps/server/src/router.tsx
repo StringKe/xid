@@ -1,22 +1,5 @@
-// 路由树(@tanstack/react-router,code-based)。
-// 选 code-based 而非 file-based:契合现有显式 routes 结构,避免 router-plugin 代码生成与
-// Cloudflare/lingui/StyleX 的 Vite 链路争用,路由表一处可读。
-//
-// 路径与 Hosted UI / console 设计对齐(01/02/05/06 章):
-//   /sign-in /sign-up /forgot-password /reset-password /verify-email /mfa  Hosted UI(公开)
-//   /consent     OIDC 同意页(须登录)
-//   /activate    OAuth Device Flow 用户端授权页(须登录)
-//   /account/*   account portal(须登录,AccountLayout)
-//   / 和公开文档路径由独立 apps/site Nimbus Worker 接管
-//   /console/*   由独立 apps/console SPA 与 Worker 接管,Core 路由树不挂载管理页面
-//
-// 守卫策略:沿用 React 组件守卫(RequireAuth),因 auth 态在 AuthProvider context,
-// beforeLoad 跑在 React 之外读不到该 context。如需 loader 级守卫,把 auth 注入 router
-// context(createRootRouteWithContext)后改用 beforeLoad + redirect,结构已为此预留。
-//
-// 代码分割:页面经 createRoute(...).lazy() 动态 import。
-// search:root validateSearch passthrough 透传任意 query(continue/redirect_to/prompt_id/token/method/step_up),
-// 兼容现有 useSearchParams().get(key) 读取(见 lib/router compat)。
+// code-based 路由树:避免 file-based 插件与 Cloudflare/lingui/StyleX 链路争用。
+// 守卫用 RequireAuth(auth 在 React context,beforeLoad 读不到);/,/console/* 由独立 Worker 接管。
 
 import type { ReactNode } from 'react'
 import {
@@ -35,7 +18,6 @@ import { RoutePageSeo } from './components/RoutePageSeo'
 import { Spinner } from './components/ui'
 import { RequireAuth } from './components/RequireAuth'
 
-// 默认导出页面模块的最小形状。
 type PageModule = { default: () => ReactNode }
 type PageLoader = () => Promise<PageModule>
 
@@ -48,8 +30,6 @@ const styles = stylex.create({
   },
 })
 
-// ---- 加载骨架 ----
-
 function CenterLoader(): ReactNode {
   return (
     <div {...stylex.props(styles.centerLoader)}>
@@ -58,9 +38,6 @@ function CenterLoader(): ReactNode {
   )
 }
 
-// ---- 路由工厂:每个工厂把"动态 import 的页面"包成 createLazyRoute,套上对应守卫/壳 ----
-
-// 须登录页:RequireAuth 包裹。
 function protectedRoute(id: string, path: string, load: PageLoader) {
   return createRoute({ getParentRoute: () => rootRoute, path }).lazy(() =>
     load().then((m) => {
@@ -76,7 +53,6 @@ function protectedRoute(id: string, path: string, load: PageLoader) {
   )
 }
 
-// account portal 页:RequireAuth + AccountLayout(并行加载布局与页面)。
 function accountRoute(id: string, path: string, load: PageLoader) {
   return createRoute({ getParentRoute: () => rootRoute, path }).lazy(() =>
     Promise.all([import('./routes/account/AccountLayout'), load()]).then(([layout, m]) => {
@@ -95,10 +71,8 @@ function accountRoute(id: string, path: string, load: PageLoader) {
   )
 }
 
-// ---- 根路由 ----
-
 const rootRoute = createRootRoute({
-  // 透传任意 query,使现有 useSearchParams().get(key) 仍可读到(token/continue/redirect_to 等)。
+  // 透传任意 query,兼容 useSearchParams().get(key) 读 token/continue 等。
   validateSearch: (search: Record<string, unknown>) => search,
   component: () => (
     <>
@@ -110,9 +84,6 @@ const rootRoute = createRootRoute({
   ),
 })
 
-// ---- 公开 ----
-
-// sign-in / sign-up / forgot-password / mfa / verify-email 已导出 TanStack 原生 Route,直接挂 .lazy。
 const signInRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/sign-in',
@@ -127,7 +98,7 @@ const forgotPasswordRoute = createRoute({
   path: '/forgot-password',
 }).lazy(() => import('./routes/forgot-password/index').then((m) => m.Route))
 
-// /reset-password?token= 复用 forgot-password 的 reset 步骤。
+// /reset-password?token= 与 forgot-password 共用 reset 步骤。
 const resetPasswordRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/reset-password',
@@ -158,8 +129,6 @@ const selectOrganizationRoute = createRoute({
   path: '/select-organization',
 }).lazy(() => import('./routes/select-organization/index').then((m) => m.Route))
 
-// ---- 须登录:consent ----
-
 const consentRoute = protectedRoute('/consent', '/consent', () => import('./routes/consent/index'))
 const activateRoute = protectedRoute(
   '/activate',
@@ -171,8 +140,6 @@ const cibaActivationRoute = protectedRoute(
   '/ciba-activation',
   () => import('./routes/ciba-activation/index'),
 )
-
-// ---- 须登录:account portal ----
 
 const accountProfileRoute = accountRoute(
   '/account',
@@ -200,8 +167,7 @@ const accountDevicesRoute = accountRoute(
   () => import('./routes/account/DevicesPage'),
 )
 
-// ---- 兜底:未知路径 404(不静默重定向登录,避免公开 typo 被当成未认证) ----
-
+// 未知路径 404,不静默重定向登录(公开 typo 不应被当成未认证)。
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '$',
@@ -210,8 +176,6 @@ const notFoundRoute = createRoute({
     createLazyRoute('$')({ component: m.default }),
   ),
 )
-
-// ---- 组装路由树 ----
 
 const routeTree = rootRoute.addChildren([
   signInRoute,
@@ -239,7 +203,6 @@ export const router = createRouter({
   defaultPendingComponent: CenterLoader,
 })
 
-// 全局类型注册:Link/navigate 的路由感知。
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router

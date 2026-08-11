@@ -1,5 +1,4 @@
-// Select:受控/非受控 <select>,与 Input 同尺度(2.5rem / 触屏 2.75rem)+ invalid 态。
-// 不自带 label(由 Field 组合);全产品面唯一 select 控件,页面不再各写样式。
+// 与 Input 同尺度;不自带 label(由 Field 组合)。
 
 import { forwardRef } from 'react'
 import type { ReactNode, SelectHTMLAttributes } from 'react'

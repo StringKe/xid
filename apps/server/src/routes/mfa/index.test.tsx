@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
 
-// MFA 挑战页动线测试:
-// - 每个挑战分支都有 "Cancel and sign out" 出口,点击调用 signOut()。
-// - 跳转目标统一过 safeInternalPath:协议外 / 协议相对 URL 回退 /console,站内路径透传。
-
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

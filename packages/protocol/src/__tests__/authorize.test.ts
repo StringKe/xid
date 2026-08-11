@@ -1,4 +1,3 @@
-// /authorize 状态机正反例(03 章 10):redirect 精确匹配/response_type/scope/PKCE/prompt 分支/code 过期。
 import { describe, it, expect } from 'vitest'
 
 import {
@@ -238,7 +237,7 @@ describe('evaluateAuthorize session + prompt branches', () => {
       consent: granted,
       now: NOW,
     })
-    // login 触发重认证优先(状态机第三段先跑 session)。
+    // prompt 含 login 时优先重认证,不进入 consent。
     expect(d.kind).toBe('need_login')
   })
 

@@ -1,8 +1,3 @@
-// server.ts:Astro SSR server 侧 helper。
-// getAuth(locals):从 Astro.locals 读取 middleware 注入的 AuthResult(同步,无网络)。
-// currentUser(locals, options):懒加载 /v1/me 完整 User。
-// xidClient(options):server 端 Management API 入口(sk_ 认证)。
-
 import { trimTrailingSlashes } from '@xid-kit/core'
 import type { XidUser } from '@xid-kit/core'
 import type { Result } from '@xid-kit/types'
@@ -11,8 +6,6 @@ import type { AuthResult, XidServerClientOptions } from './types'
 
 type LocalsLike = Record<string, unknown>
 
-// getAuth:从 Astro.locals 读取 xidAuth(middleware 注入)。
-// 直接同步读取,无网络开销。locals 不含 xidAuth 时返回未认证。
 export function getAuth(locals: LocalsLike): AuthResult {
   const auth = locals['xidAuth']
   if (isAuthResult(auth)) return auth
@@ -32,7 +25,6 @@ function isAuthResult(v: unknown): v is AuthResult {
   return typeof v === 'object' && v !== null && 'userId' in v
 }
 
-// XidServerApiClient:server 端 Management API 入口(sk_ 认证)。
 class XidServerApiClient {
   readonly #secretKey: string
   readonly #baseUrl: string
@@ -96,13 +88,10 @@ function parseJsonSafe(text: string): unknown {
   }
 }
 
-// xidClient 工厂函数:server 端 Management API 入口。
-// 用法:const client = xidClient({ secretKey: import.meta.env.XID_SECRET_KEY })
 export function xidClient(options: XidServerClientOptions): XidServerApiClient {
   return new XidServerApiClient(options)
 }
 
-// currentUser:从 Astro.locals 读 userId,再调 Management API /v1/users/{userId}。
 export async function currentUser(
   locals: LocalsLike,
   clientOptions?: XidServerClientOptions,
@@ -110,9 +99,7 @@ export async function currentUser(
   const authResult = getAuth(locals)
   if (!authResult.userId) return null
 
-  // secretKey 优先从调用方传入;其次读 process.env(Node/Bun);
-  // Astro SSR vite 环境下 import.meta.env 在 .astro 文件中可用,
-  // 但 library 内不能静态引用,由调用方在 .astro 文件中显式传入。
+  // secretKey 须调用方传入或读 process.env;library 内不能静态引用 import.meta.env。
   const sk =
     clientOptions?.secretKey ??
     (typeof process !== 'undefined' && process.env ? process.env['XID_SECRET_KEY'] : undefined)

@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
-// harness 模块在 import 时就要求真实收件人与口令(公开仓库不留默认值),单测只需要它的纯函数,
-// 因此先注入占位值再动态 import。这些值不参与任何 SQL,也不发往 https://xid.dev。
+// harness import 时要求真实邮箱/口令;单测先注入占位值再动态 import,不参与 SQL 与外发。
 const DEFAULT_ORG_ID = 'org_11111111-2222-3333-4444-555555555555'
 const SMOKE_ORG_ID = 'org_smoke_pwreset_11111111-2222-3333-4444-555555555555'
 

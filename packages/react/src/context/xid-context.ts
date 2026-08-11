@@ -1,5 +1,4 @@
-// XidContext:React context 持有 XidClient 实例及显式认证模式。
-// 组件与 hooks 通过 useXidContext() 访问,禁止直接用 useContext(XidContext)。
+// 必须经 useXidContext() 访问,禁止直接 useContext(XidContext) 绕过 Provider 校验。
 
 import { createContext, useContext } from 'react'
 

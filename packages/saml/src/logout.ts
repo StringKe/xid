@@ -1,5 +1,4 @@
-// SAML 2.0 Single Logout:LogoutRequest/LogoutResponse 解析、验签、生成与签名。
-// XML-DSig 走 xmldsigjs + Web Crypto,与 Response 验签共用 structure/cert 层。
+// LogoutRequest/Response 解析、验签与签名;与 Response 共用 structure/cert。
 
 import { toBufferSource } from '@xid-kit/crypto'
 import { Parse, SignedXml, Stringify } from 'xmldsigjs'
@@ -121,7 +120,7 @@ async function deflateRawBase64(xml: string): Promise<string> {
   return btoa(binary)
 }
 
-// HTTP-POST:标准 base64;HTTP-Redirect:DEFLATE(raw)+base64。
+// POST 为标准 base64;Redirect 为 DEFLATE(raw)+base64。
 export async function decodeSamlBindingPayload(
   encoded: string,
   binding: 'post' | 'redirect',
@@ -344,7 +343,7 @@ export async function verifyRedirectBindingSignature(
       if (await crypto.subtle.verify(params, key.publicKey, toBufferSource(sigBytes), data))
         return okResult(true)
     } catch {
-      // try next key
+      // 证书轮换:单把失败继续试下一把。
     }
   }
   return failResult('signature_invalid', 'redirect binding signature invalid')

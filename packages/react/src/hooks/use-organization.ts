@@ -1,6 +1,3 @@
-// useOrganization:当前活跃 org hook(对标 @clerk/clerk-react useOrganization)。
-// 含 setActive 切换 org + 成员关系列表。
-
 import type { XidOrganization, XidOrganizationMembership } from '@xid-kit/core'
 import type { Result, XidError } from '@xid-kit/types'
 

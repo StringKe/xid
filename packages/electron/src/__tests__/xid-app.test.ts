@@ -1,16 +1,6 @@
-// XidElectronApp OAuth orchestration tests.
-// Covers the critical protocol paths: state CSRF protection, PKCE verifier
-// one-time use, token exchange error paths, and AbortSignal cancellation.
-// These are the paths that testing.md designates as mandatory (protocol correctness).
-//
-// Uses constructor-level injection of a testable storage + mock callbacks
-// rather than mocking the Electron IPC layer.
+// XidElectronApp：state CSRF、PKCE 一次性、token 错误路径、AbortSignal（协议必测路径）。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-
-// ---------------------------------------------------------------------------
-// Module mocks
-// ---------------------------------------------------------------------------
 
 const fakeFs: Record<string, Buffer | string> = {}
 
@@ -28,7 +18,7 @@ vi.mock('node:crypto', async (importOriginal) => {
         },
       }
     },
-    // Provide the real webcrypto from the original module so PKCE generation works.
+    // 保留真实 webcrypto 以生成 PKCE。
     webcrypto: original.webcrypto,
   }
 })
@@ -69,11 +59,6 @@ vi.mock('electron', () => ({
   },
 }))
 
-// ---------------------------------------------------------------------------
-// Helpers to drive #handleSignIn without a real loopback server.
-// We test the internal logic by reaching into the class via the IPC mock.
-// ---------------------------------------------------------------------------
-
 import { XidElectronApp } from '../main/xid-app'
 import { IPC_CHANNELS } from '../types'
 
@@ -97,16 +82,12 @@ function createMockIpcMain(): {
   const invoke = async (channel: string, ...args: unknown[]): Promise<unknown> => {
     const handler = handlers.get(channel)
     if (!handler) throw new Error(`No handler for channel: ${channel}`)
-    // Electron IPC wraps with an event object as first arg; use a stub.
+    // Electron IPC 首参为 event，此处用空 stub。
     return handler({} as import('electron').IpcMainInvokeEvent, ...args)
   }
 
   return { ipcMain, invoke }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('XidElectronApp: init + dispose', () => {
   beforeEach(() => {
@@ -223,14 +204,7 @@ describe('XidElectronApp: GET_ACCESS_TOKEN returns null before sign-in', () => {
 })
 
 describe('XidElectronApp: SIGN_IN state CSRF protection', () => {
-  // We directly test the internal #exchangeCode logic by simulating the
-  // scenario where state was set by a real #handleSignIn call.
-  // Because #handleSignIn opens a browser and waits for a real callback,
-  // we test the state/PKCE invariants at the token-exchange stage using
-  // a controlled loopback mock that immediately resolves.
-  //
-  // The loopback server is mocked at the module level inside the test to
-  // return a callback URL with correct or incorrect state.
+  // 无真实 Electron 时，用 parseCallbackUrl 覆盖 #handleSignIn 对缺 code 回调的委托。
 
   beforeEach(() => {
     Object.keys(fakeFs).forEach((k) => delete fakeFs[k])
@@ -238,7 +212,6 @@ describe('XidElectronApp: SIGN_IN state CSRF protection', () => {
   })
 
   it('rejects a callback URL with no authorization code', async () => {
-    // Build a loopback that returns a URL with no code param.
     const loopbackMock = {
       redirectUri: 'http://127.0.0.1:9999/callback',
       waitForCallback: vi
@@ -250,10 +223,6 @@ describe('XidElectronApp: SIGN_IN state CSRF protection', () => {
       startLoopbackServer: vi.fn().mockResolvedValue(loopbackMock),
     }))
 
-    // We cannot drive the full sign-in from IPC without spinning up an actual
-    // Electron environment, so we verify the parseCallbackUrl helper returns
-    // null for a URL that has state but no code -- which is what #handleSignIn
-    // delegates to.
     const { parseCallbackUrl } = await import('../pkce')
     const url = new URL('http://127.0.0.1:9999/callback?state=xyz')
     expect(parseCallbackUrl(url)).toBeNull()
@@ -268,8 +237,6 @@ describe('XidElectronApp: local authorization-code session', () => {
   })
 
   it('GET_ACCESS_TOKEN returns stored token after manual storage population', async () => {
-    // Manually populate the storage to simulate a completed sign-in,
-    // then verify GET_ACCESS_TOKEN retrieves it.
     const app = new XidElectronApp({
       issuer: 'https://xid.dev',
       clientId: 'client_test',
@@ -278,7 +245,6 @@ describe('XidElectronApp: local authorization-code session', () => {
     const { ipcMain, invoke } = createMockIpcMain()
     await app.init(ipcMain)
 
-    // Simulate writing an access token directly to storage.
     await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.manually-set')
     await invoke(
       IPC_CHANNELS.STORAGE_SET,
@@ -300,7 +266,6 @@ describe('XidElectronApp: local authorization-code session', () => {
     const { ipcMain, invoke } = createMockIpcMain()
     await app.init(ipcMain)
 
-    // Pre-populate storage.
     await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:access-token', 'at.to-clear')
     await invoke(IPC_CHANNELS.STORAGE_SET, 'xid:refresh-token', 'legacy-only')
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
@@ -316,7 +281,6 @@ describe('XidElectronApp: local authorization-code session', () => {
 
 describe('XidElectronApp: AbortSignal cancellation', () => {
   it('signIn() respects an already-aborted signal', async () => {
-    // AbortSignal.abort() creates a pre-aborted signal.
     const signal = AbortSignal.abort()
 
     const app = new XidElectronApp({
@@ -327,17 +291,13 @@ describe('XidElectronApp: AbortSignal cancellation', () => {
     const { ipcMain, invoke } = createMockIpcMain()
     await app.init(ipcMain)
 
-    // Invoking sign-in with an already-aborted signal must reject.
     await expect(invoke(IPC_CHANNELS.SIGN_IN, { signal })).rejects.toThrow('aborted')
   })
 })
 
 describe('XidElectronApp: PKCE verifier is cleared after use (one-time use)', () => {
   it('invoking sign-in twice starts a fresh PKCE flow (prior state is cleared)', async () => {
-    // The second sign-in should start with a fresh #pendingPkce and #pendingState.
-    // We verify this indirectly: if state were shared across calls, a stale state
-    // would cause a mismatch. This is an architectural invariant test.
-    // Use pre-aborted signals so neither call actually completes the flow.
+    // 预中止两次登录：应均为 aborted，而非串用旧 PKCE。
     const app = new XidElectronApp({
       issuer: 'https://xid.dev',
       clientId: 'client_test',
@@ -346,7 +306,6 @@ describe('XidElectronApp: PKCE verifier is cleared after use (one-time use)', ()
     const { ipcMain, invoke } = createMockIpcMain()
     await app.init(ipcMain)
 
-    // Both calls should fail with "aborted", not with "no pending PKCE challenge".
     const r1 = invoke(IPC_CHANNELS.SIGN_IN, { signal: AbortSignal.abort() })
     await expect(r1).rejects.toThrow('aborted')
 

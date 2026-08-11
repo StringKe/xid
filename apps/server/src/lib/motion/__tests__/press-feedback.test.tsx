@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-// 按压反馈契约:StyleX runtimeInjection 把编译 CSS 经 CSSOM insertRule 注入
-// (<style> textContent 为空),class 名是 hash 不稳定,断言 CSSOM 规则文本本身。
+// StyleX 经 CSSOM insertRule,class hash 不稳定,断言规则文本。
 
 import { describe, expect, it } from 'vitest'
 import { Button } from '../../../components/ui/Button'

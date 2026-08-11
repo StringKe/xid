@@ -336,8 +336,7 @@ export class CloudflareCustomHostnamesClient {
         body: '{}',
       })
     } catch (error) {
-      // A previous attempt can delete the provider object and fail before D1 is updated.
-      // Treat the retry as complete so remote-first cleanup remains recoverable.
+      // 上次可能已删远端对象但 D1 未更新;404 视为清理完成以便可恢复重试。
       if (
         error instanceof CloudflareCustomHostnameError &&
         error.code === 'cloudflare_for_saas_http' &&

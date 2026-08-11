@@ -1,4 +1,4 @@
-// WebMCP 实验 API 最小类型(Chrome origin trial);无第三方类型包。
+// Chrome origin trial WebMCP 手写类型(无官方包)。
 
 export type WebMcpJsonSchema = {
   type: 'object'

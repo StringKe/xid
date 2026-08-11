@@ -1,13 +1,9 @@
-// 凭证与认证实体(见 08 章 12):passwords / password_history / password_reset_tokens /
-// verification_tokens / passkey_credentials / mfa_factors / backup_codes / trusted_devices /
-// metering_outbox。
-// 所有 token/secret 类一律只存哈希/密文,明文展示一次(见 18 决策、各 rule)。私钥永不入库。
+// 凭证与认证(08 章 12):token/secret 只存哈希或密文,私钥永不入库。
 
 import { sql } from 'drizzle-orm'
 import { blob, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, createdAt, numCol, tenantId, timestamps, tsMs } from './common'
 
-// 12.1 passwords(密码哈希,1:1 当前密码)
 export const passwords = sqliteTable(
   'passwords',
   {
@@ -25,7 +21,6 @@ export const passwords = sqliteTable(
   (t) => [uniqueIndex('passwords_user_unq').on(t.userId)],
 )
 
-// 12.2 password_history(密码历史,拒绝重用)
 export const passwordHistory = sqliteTable(
   'password_history',
   {
@@ -39,7 +34,6 @@ export const passwordHistory = sqliteTable(
   (t) => [index('password_history_tenant_user_idx').on(t.tenantId, t.userId, t.createdAt)],
 )
 
-// 12.3 password_reset_tokens(重置令牌,仅存哈希)
 export const passwordResetTokens = sqliteTable(
   'password_reset_tokens',
   {
@@ -58,7 +52,7 @@ export const passwordResetTokens = sqliteTable(
   ],
 )
 
-// 12.3 注:verification_tokens(magic link / OTP 共用短期 token 表;OtpCode/MagicLinkToken)
+// magic link / OTP 共用短期 token 表,仅存哈希。
 export const verificationTokens = sqliteTable(
   'verification_tokens',
   {
@@ -84,7 +78,7 @@ export const verificationTokens = sqliteTable(
   ],
 )
 
-// 12.4 passkey_credentials(WebAuthn 凭证,COSE 原始字节存 blob,私钥永不入库)
+// COSE 公钥存 blob,私钥永不入库。
 export const passkeyCredentials = sqliteTable(
   'passkey_credentials',
   {
@@ -117,7 +111,7 @@ export const passkeyCredentials = sqliteTable(
   ],
 )
 
-// 12.5 mfa_factors(MFA 因子;TOTP secret 信封加密存 blob)
+// TOTP secret 信封加密存 blob。
 export const mfaFactors = sqliteTable(
   'mfa_factors',
   {
@@ -140,7 +134,6 @@ export const mfaFactors = sqliteTable(
   ],
 )
 
-// 12.6 backup_codes(一次性恢复码,批次管理)
 export const backupCodes = sqliteTable(
   'backup_codes',
   {
@@ -160,7 +153,7 @@ export const backupCodes = sqliteTable(
   ],
 )
 
-// 12.7 trusted_devices(记住的设备,token/指纹存哈希)
+// token/指纹只存哈希。
 export const trustedDevices = sqliteTable(
   'trusted_devices',
   {
@@ -185,8 +178,7 @@ export const trustedDevices = sqliteTable(
   ],
 )
 
-// 12.8 metering_outbox:认证成功计量的持久恢复队列。
-// 同一租户用户同日只保留一个待恢复事件，Queue 至少一次投递不会放大 DAU 事实。
+// 计量恢复队列:(tenant,user,day) 唯一,防 Queue 至少一次投递放大 DAU。
 export const meteringOutbox = sqliteTable(
   'metering_outbox',
   {

@@ -1,5 +1,4 @@
-// OrgUnit 树服务层测试(见 docs/design/org-structure-access/design-org-structure.md 第 6 节
-// 1-4、6 项):in-memory node:sqlite + 全量 migration 链,真实唯一索引与批量 UPDATE 语义。
+// OrgUnit 服务层:真 SQLite + 全量 migration,覆盖树/主岗/经理/TOCTOU/跨租户(设计 6)。
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
@@ -86,7 +85,6 @@ async function mustUnit(
   return resolved.value
 }
 
-// 建一条 depth 1..n 的链,返回各层节点(下标 0 = 根)。
 async function buildChain(scope: OrgUnitScope, depth: number): Promise<OrgUnitRow[]> {
   const chain: OrgUnitRow[] = []
   for (let level = 1; level <= depth; level += 1) {
@@ -104,7 +102,6 @@ async function buildChain(scope: OrgUnitScope, depth: number): Promise<OrgUnitRo
 }
 
 describe('org-units service', () => {
-  // 设计 6.1:树完整性(listTree 字典序 / 深度上限 / 同级 slug 冲突)。
   it('creates a 3-level tree and listTree returns path lexicographic order', async () => {
     const scope = makeScope()
     const root = await mustUnit(createUnit(scope, { slug: 'company', name: 'Company' }))
@@ -123,7 +120,7 @@ describe('org-units service', () => {
 
     const tree = await listTree(scope)
     expect(tree.map((row) => row.id).sort()).toEqual([root.id, eng.id, fe.id].sort())
-    // 物化路径字典序:返回顺序等于 path 排序,且父节点永远先于子节点。
+    // path 字典序 = 先根遍历,父节点先于子节点。
     const paths = tree.map((row) => row.path)
     expect(paths).toEqual([...paths].sort())
     expect(paths.indexOf(root.path)).toBeLessThan(paths.indexOf(eng.path))
@@ -165,7 +162,6 @@ describe('org-units service', () => {
     if (!rename.ok) expect(rename.error.code).toBe('already_exists')
   })
 
-  // 设计 6.2:moveUnit 子树重写与非法移动。
   it('rewrites path and depth for the whole subtree on move', async () => {
     const scope = makeScope()
     const root = await mustUnit(createUnit(scope, { slug: 'company', name: 'Company' }))
@@ -211,13 +207,12 @@ describe('org-units service', () => {
     const deepest = deepChain[deepChain.length - 1] as OrgUnitRow
     const [sub] = await buildChain(scope, 2)
     const subtree = sub as OrgUnitRow
-    // subtree 高 2(根 + 1 子),挂到 depth 8 节点下后最深节点 depth = 9 + 1 > 8。
+    // 高 2 子树挂到 depth 8 下会超限。
     const result = await moveUnit(scope, subtree.id, deepest.id)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('unprocessable_entity')
   })
 
-  // 设计 6.3:主岗唯一(设新主岗自动降级旧主岗;partial unique index 兜底并发)。
   it('keeps exactly one primary unit per user across set operations', async () => {
     const scope = makeScope()
     seedMembership(scope.sqlite, { id: 'mem_u1', userId: 'user_1' })
@@ -254,7 +249,7 @@ describe('org-units service', () => {
     expect(flagOf(unitA.id)).toBe(1)
     expect(flagOf(unitB.id)).toBe(0)
 
-    // partial unique index 兜底:直接写第二行 is_primary=1 必须失败(并发双主岗不可能落库)。
+    // partial unique 兜底:直接双主岗 INSERT 必须失败。
     expect(() =>
       scope.sqlite.database
         .prepare(
@@ -266,7 +261,6 @@ describe('org-units service', () => {
     ).toThrow(/UNIQUE constraint failed/)
   })
 
-  // 设计 6.4:经理解析(回溯 / 全空 null / archived 跳过 / depth 最近者优先)。
   it('resolves the nearest manager up the primary unit chain', async () => {
     const scope = makeScope()
     seedMembership(scope.sqlite, { id: 'mem_u2', userId: 'user_2' })
@@ -287,14 +281,12 @@ describe('org-units service', () => {
     const added = await addUnitMember(scope, leaf.id, 'user_2', { isPrimary: true })
     expect(added.ok).toBe(true)
 
-    // 主岗 unit 无 manager -> 最近的 depth 优先(mid 优先于 root)。
     expect(await resolveApproverChain(scope, 'user_2')).toEqual({
       managerUserId: 'mgr_mid',
       viaUnitId: mid.id,
       depth: 2,
     })
 
-    // mid manager 清空 -> 回溯到祖父节点 root。
     const cleared = await updateUnit(scope, mid.id, { managerUserId: null })
     expect(cleared.ok).toBe(true)
     expect(await resolveApproverChain(scope, 'user_2')).toEqual({
@@ -303,7 +295,7 @@ describe('org-units service', () => {
       depth: 1,
     })
 
-    // archived 节点被跳过:leaf 设 manager 后归档,解析仍落到 root。
+    // archived 节点跳过,解析落到 root。
     const withManager = await updateUnit(scope, leaf.id, { managerUserId: 'mgr_leaf' })
     expect(withManager.ok).toBe(true)
     expect((await resolveApproverChain(scope, 'user_2'))?.managerUserId).toBe('mgr_leaf')
@@ -316,16 +308,13 @@ describe('org-units service', () => {
     const scope = makeScope()
     seedMembership(scope.sqlite, { id: 'mem_u3', userId: 'user_3' })
     const [root, leaf] = (await buildChain(scope, 2)) as [OrgUnitRow, OrgUnitRow]
-    // 无主岗 -> null。
     expect(await resolveApproverChain(scope, 'user_3')).toBeNull()
     const added = await addUnitMember(scope, leaf.id, 'user_3', { isPrimary: true })
     expect(added.ok).toBe(true)
-    // 链上全空 -> null。
     expect(root.managerUserId).toBeNull()
     expect(await resolveApproverChain(scope, 'user_3')).toBeNull()
   })
 
-  // 设计 6.6:成员前置过滤(无 active Membership 的用户入 unit 被拒)。
   it('rejects adding a user without an active membership to a unit', async () => {
     const scope = makeScope()
     seedMembership(scope.sqlite, { id: 'mem_u4', userId: 'user_4' })
@@ -344,7 +333,6 @@ describe('org-units service', () => {
     expect(active.ok).toBe(true)
   })
 
-  // listSubtreeMembers:path 前缀聚合 + memberships 状态过滤 + archived 节点排除。
   it('lists subtree members with active membership only and excludes archived units', async () => {
     const scope = makeScope()
     seedMembership(scope.sqlite, { id: 'mem_u6', userId: 'user_6' })
@@ -360,8 +348,7 @@ describe('org-units service', () => {
       expect(members.value.map((row) => row.userId).sort()).toEqual(['user_6', 'user_7'])
     }
 
-    // suspended membership 的用户不能入 unit,但悬挂成员行(历史数据)在查询中不可见:
-    // 直接插入一行模拟悬挂数据,断言 join memberships 过滤生效。
+    // 悬挂成员行(无 active membership)经 join 过滤不可见。
     scope.sqlite.database
       .prepare(
         `INSERT INTO org_unit_members
@@ -375,7 +362,6 @@ describe('org-units service', () => {
       expect(withDangling.value.map((row) => row.userId).sort()).toEqual(['user_6', 'user_7'])
     }
 
-    // 归档 leaf 后其成员行从子树查询中排除。
     expect((await archiveUnit(scope, leaf.id)).ok).toBe(true)
     const afterArchive = await listSubtreeMembers(scope, root.id)
     expect(afterArchive.ok).toBe(true)
@@ -384,9 +370,7 @@ describe('org-units service', () => {
     }
   })
 
-  // 设计 6.2 补充:TOCTOU 守卫路径的直接验证。单线程测试无法真实交错,用包装 d1 模拟:
-  // batch 执行前并发事务已把节点 path 改掉 -> 语句 1 的 `AND path = 校验时旧 path` 失配
-  // (零行) -> 语句 2 的 EXISTS 引用语句 1 落点必然失配 -> 409,树不出现半重写。
+  // 包装 d1 在 batch 前改 path,验证 TOCTOU 守卫返回 409 且不半重写。
   it('returns conflict when the node path changes concurrently during move (TOCTOU guard)', async () => {
     const scope = makeScope()
     const root = await mustUnit(createUnit(scope, { slug: 'company', name: 'Company' }))
@@ -397,7 +381,6 @@ describe('org-units service', () => {
     const concurrentD1 = {
       prepare: (query: string) => scope.d1.prepare(query),
       batch: async (statements: D1PreparedStatement[]) => {
-        // 模拟并发:校验读与 batch 写之间,另一事务已把 a 移到别处(path 改变)。
         scope.sqlite.database
           .prepare(`UPDATE org_units SET path = ? WHERE tenant_id = ? AND id = ?`)
           .run(`${a.path}/concurrent`, TENANT, a.id)
@@ -409,7 +392,6 @@ describe('org-units service', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('conflict')
 
-    // 树未被半重写:parent 指针未动,后代 path 保持旧前缀(只有模拟的并发改动落库)。
     const tree = await listTree(scope)
     const byId = new Map(tree.map((row) => [row.id, row]))
     const aAfter = byId.get(a.id) as OrgUnitRow
@@ -419,8 +401,7 @@ describe('org-units service', () => {
     expect(bAfter.path).toBe(b.path)
   })
 
-  // TOCTOU 守卫路径的直接验证:createUnit 的 guarded INSERT 执行前 parent 已被并发 move
-  // (path 改变) -> WHERE EXISTS 失配 -> 零行 -> 409,不落到已失效 path 前缀下的孤儿节点。
+  // create 的 EXISTS 守卫:parent path 并发变更 -> 409,无孤儿节点。
   it('returns conflict when the parent path changes concurrently during create (TOCTOU guard)', async () => {
     const scope = makeScope()
     const root = await mustUnit(createUnit(scope, { slug: 'company', name: 'Company' }))
@@ -429,7 +410,6 @@ describe('org-units service', () => {
       prepare: (query: string) => {
         const statement = scope.d1.prepare(query)
         if (!query.startsWith('INSERT INTO org_units')) return statement
-        // 只拦截 guarded INSERT:run() 前模拟并发事务改掉 parent 的 path。
         return {
           bind: (...bindings: unknown[]) => {
             const bound = statement.bind(...bindings)
@@ -456,13 +436,10 @@ describe('org-units service', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('conflict')
 
-    // 未落任何节点:整树仍只有 root。
     const tree = await listTree(scope)
     expect(tree.map((row) => row.id)).toEqual([root.id])
   })
 
-  // 设计 6.5:跨租户隔离(tenant-isolation rule)。tenant_b 上下文读不到/写不进 tenant_a
-  // 的 unit 与 member,且 tenant_a 数据不被触动。
   it('isolates units and members across tenants', async () => {
     const scope = makeScope()
     const scopeB = makeScopeIn(scope.sqlite, 'tenant_b', ORG)
@@ -474,12 +451,10 @@ describe('org-units service', () => {
     seedMembership(scope.sqlite, { id: 'mem_b', userId: 'user_b', tenantId: 'tenant_b' })
     expect((await addUnitMember(scope, eng.id, 'user_a')).ok).toBe(true)
 
-    // 读:tenant_b 整树为空;tenant_a 的 unit 在 tenant_b 上下文中不存在。
     expect(await listTree(scopeB)).toEqual([])
     const subtreeB = await listSubtreeMembers(scopeB, eng.id)
     expect(subtreeB.ok).toBe(false)
 
-    // 写:tenant_b 不能引用 tenant_a 的节点建子节点、改节点、移动、加成员。
     const createB = await createUnit(scopeB, { parentUnitId: root.id, slug: 'x', name: 'X' })
     expect(createB.ok).toBe(false)
     if (!createB.ok) expect(createB.error.code).toBe('not_found')
@@ -490,7 +465,6 @@ describe('org-units service', () => {
     const addB = await addUnitMember(scopeB, eng.id, 'user_b')
     expect(addB.ok).toBe(false)
 
-    // tenant_a 数据未被触动:名称不变,成员仍只见 user_a。
     const engAfter = (await listTree(scope)).find((row) => row.id === eng.id) as OrgUnitRow
     expect(engAfter.name).toBe('Engineering')
     const membersA = await listSubtreeMembers(scope, root.id)

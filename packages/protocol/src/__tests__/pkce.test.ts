@@ -1,6 +1,3 @@
-// PKCE 向量自检测试(见 oidc-oauth rule:PKCE S256 强制,拒 plain;testing rule)。
-// 验证 pkce-vectors.ts 中的 helper 函数与向量本身正确。
-
 import { describe, it, expect, beforeAll } from 'vitest'
 import {
   buildValidS256Vectors,
@@ -43,7 +40,6 @@ describe('PKCE S256 vectors self-check', () => {
 
   it('challenge is base64url without padding', () => {
     for (const v of validVectors) {
-      // base64url: no +, no /, no = padding
       expect(v.challenge).not.toContain('+')
       expect(v.challenge).not.toContain('/')
       expect(v.challenge).not.toContain('=')
@@ -53,7 +49,6 @@ describe('PKCE S256 vectors self-check', () => {
   it('S256 challenge is 43 chars (SHA-256 = 32 bytes -> base64url = 43 chars)', async () => {
     const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
     const challenge = await computeS256Challenge(verifier)
-    // SHA-256 -> 32 bytes -> 43 base64url chars (32*8/6 = 42.67 -> ceil = 43)
     expect(challenge.length).toBe(43)
   })
 
@@ -82,7 +77,6 @@ describe('PKCE plain challenge reject vectors', () => {
 
   it('plain challenge equals verifier (downgrade: no real hash)', () => {
     for (const v of PLAIN_CHALLENGE_REJECT_VECTORS) {
-      // plain method: challenge == verifier (no transform)
       expect(v.challenge).toBe(v.verifier)
     }
   })

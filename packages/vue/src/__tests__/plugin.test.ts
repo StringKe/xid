@@ -1,14 +1,9 @@
-// XidPlugin 单元测试:
-// - install 调用 app.provide 注入 client
-// - useXidClient 在无注入时 throw
-// - createXidClient 返回 XidClient 实例
 import { describe, it, expect, vi } from 'vitest'
 
 import { XidClient } from '@xid-kit/core'
 
 import { createXidClient, XidPlugin, XID_INJECTION_KEY } from '../plugin'
 
-// 最小 Vue App mock:记录 provide 调用
 function makeAppMock() {
   const provided = new Map<symbol, unknown>()
   const app = {
@@ -49,7 +44,7 @@ describe('createXidClient', () => {
 describe('XidPlugin.install', () => {
   it('calls app.provide with XID_INJECTION_KEY', () => {
     const { app, provided } = makeAppMock()
-    // Pass pre-built client to avoid network call inside install.
+    // 预建 client，避免 install 内发起网络请求。
     const client = createXidClient({
       fetcher: () => Promise.resolve(anonymousMeResponse()),
     })

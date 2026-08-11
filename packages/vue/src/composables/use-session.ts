@@ -1,5 +1,3 @@
-// useSession:当前活跃 session composable(对标 @clerk/clerk-react useSession 的 Vue 版)。
-
 import { computed } from 'vue'
 
 import type { GetTokenOptions, XidSession } from '@xid-kit/core'

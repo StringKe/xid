@@ -1,6 +1,4 @@
-// i18n 中间件:每请求创建 Lingui 实例，避免同一 Worker isolate 的并发请求互相覆盖 locale。
-// 优先级解析在 lib/locale.ts；catalog 只读缓存可跨请求共享，activate 只能发生在请求实例。
-// 缺失 catalog 时 lingui 回落英文源文本,不显示 key 名。
+// 每请求独立 Lingui 实例,防 isolate 内并发覆盖 locale;catalog 可共享,activate 仅限请求实例。
 
 import { setupI18n } from '@lingui/core'
 import type { I18n } from '@lingui/core'

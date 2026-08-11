@@ -1,6 +1,3 @@
-// platform console 合规中心:GET/POST/PATCH/DELETE /v1/platform/compliance-documents + cursor 分页。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列登记表单 + hairline 分节列表。
-// 删除走 ConfirmDialog(danger),mutation 错误走 ConsolePageNotice 固定本地化文案。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
@@ -34,8 +31,7 @@ import {
 } from './queries'
 import type { ComplianceDocument } from './types'
 
-// These values demonstrate machine-readable identifiers and paths, so translating them would make
-// the examples invalid.
+// 机器可读标识/路径示例,翻译会破坏可用性。
 const TECHNICAL_EXAMPLES = {
   documentType: 'dpa',
   version: '2026-07',

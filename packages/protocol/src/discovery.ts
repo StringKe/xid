@@ -1,12 +1,10 @@
-// Discovery 元数据(03 章 1、9):/.well-known/openid-configuration 与 oauth-authorization-server
-// 合并输出,避免两份元数据不一致。issuer 多租户隔离,全字段从 TenantContext 派生。
+// Discovery:openid-configuration 与 oauth-authorization-server 合并输出,避免两份元数据漂移;字段均从 TenantContext 派生。
 
 import { SIGNING_ALGS } from '@xid-kit/types'
 import type { SigningAlg, TenantContext } from '@xid-kit/types'
 import { ALLOWED_DPOP_ALGS } from './dpop'
 import { STANDARD_OIDC_SCOPES } from './scopes'
 
-// 本实现支持的算法/方法集合(对齐 03 章 endpoint 表 + grant 表)。
 const RESPONSE_TYPES = ['code', 'code id_token'] as const
 const RESPONSE_MODES = ['query', 'fragment', 'form_post', 'query.jwt', 'fragment.jwt'] as const
 const GRANT_TYPES = [
@@ -27,10 +25,9 @@ const TOKEN_AUTH_METHODS = [
   'none',
 ] as const
 
-const CODE_CHALLENGE_METHODS = ['S256'] as const // 拒 plain(oidc-oauth rule)
+const CODE_CHALLENGE_METHODS = ['S256'] as const // 拒 plain
 const AUTHORIZATION_DETAILS_TYPES = ['resource_access'] as const
-// claims_supported = userinfo/ID token 实出集合:profile/phone 投影见 userinfo.ts。
-// sid 随 authorization_codes/refresh_tokens.session_id 写入 ID token(仅 hosted session 链路,见 03 章 9.1)。
+// claims_supported 仅列实际会发出的 claim;sid 仅 hosted session 链路写入。
 const CLAIMS = [
   'sub',
   'iss',
@@ -109,7 +106,6 @@ export type ProtectedResourceMetadata = {
   resource_documentation: string
 }
 
-// 从 TenantContext 派生 issuer + 端点 + 支持的算法集(签名算法取自 active 密钥集)。
 export function buildDiscoveryMetadata(input: {
   ctx: TenantContext
   requirePar?: boolean
@@ -148,11 +144,11 @@ export function buildDiscoveryMetadata(input: {
     id_token_signing_alg_values_supported: algs,
     code_challenge_methods_supported: CODE_CHALLENGE_METHODS,
     claims_supported: CLAIMS,
-    // DPoP proof 验签白名单(dpop.ts),与服务器签名密钥集无关。
+    // DPoP 验签白名单与服务器签发密钥集无关。
     dpop_signing_alg_values_supported: ALLOWED_DPOP_ALGS,
     request_parameter_supported: true,
     request_uri_parameter_supported: true,
-    // request object 按 client 注册 JWKS 的 jwk.alg 验签(request-object.ts),接受 SigningAlg 全集。
+    // request object 按 client JWKS 的 jwk.alg 验签,接受 SigningAlg 全集。
     request_object_signing_alg_values_supported: SIGNING_ALGS,
     authorization_details_types_supported: AUTHORIZATION_DETAILS_TYPES,
     frontchannel_logout_supported: true,
@@ -163,14 +159,13 @@ export function buildDiscoveryMetadata(input: {
     backchannel_authentication_endpoint: at('/backchannel_authentication'),
     backchannel_token_delivery_modes_supported: ['poll'],
     federation_registration_endpoint: at('/federation_registration'),
-    // RFC9207:成功与错误回跳均带 iss 参数(authorize.ts)。
+    // RFC9207:成功与错误回跳均带 iss。
     authorization_response_iss_parameter_supported: true,
     browser_based_apps_profile_supported: input.browserBasedAppsProfileSupported === true,
     fapi_profile_supported: input.fapiProfileSupported === true,
   }
 }
 
-// RFC9728 protected resource metadata for XID-hosted OAuth resource endpoints.
 export function buildProtectedResourceMetadata(input: {
   ctx: TenantContext
 }): ProtectedResourceMetadata {
@@ -185,7 +180,6 @@ export function buildProtectedResourceMetadata(input: {
   }
 }
 
-// active 密钥集里出现过的算法去重(默认 alg 排首)。
 function signingAlgsOf(ctx: TenantContext): readonly SigningAlg[] {
   const seen = new Set<SigningAlg>([ctx.signingKeys.defaultAlg])
   for (const k of ctx.signingKeys.keys) seen.add(k.alg)

@@ -1,5 +1,3 @@
-// useSignIn:React SDK 自定义登录流底层 hook。
-
 import type {
   SignInAnonymouslyInput,
   SignInAnonymouslyResult,

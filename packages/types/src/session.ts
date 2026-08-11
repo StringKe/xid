@@ -1,5 +1,4 @@
-// Browser session HTTP wire contracts shared by Core Worker, private web-ui, and public SDKs.
-// Keeping the response shapes here prevents one consumer from silently inventing a field or route.
+// Browser session 的 HTTP wire 契约；集中定义避免各消费方私自加字段或路径。
 
 import type { OrganizationMembershipRole, TenantManagerRoleScope } from './rbac'
 
@@ -12,8 +11,7 @@ export type BrowserAuthUser = {
   locale: string | null
   hasMfa: boolean
   instanceManager: boolean
-  // 是否已有 passwords 行:account portal 用它在 "Change password" 与 "Set a password"(邮件
-  // 链接仪式)之间切换。可选以兼容旧版 Core 响应,缺失时前端回退 change-password 形态。
+  // account portal 据此在「改密」与「设密」间切换；可选以兼容旧 Core 响应，缺失时前端按改密处理
   hasPassword?: boolean
   provisioned_by?: 'anonymous' | (string & {}) | null
 }

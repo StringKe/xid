@@ -1,16 +1,9 @@
-// @xid-kit/react:React SDK 组件库 + hooks(对标 @clerk/clerk-react)。
-// 文案走 lingui runtime descriptor;appearance prop 支持主题变量覆盖;a11y 达标。
-// 依赖 @xid-kit/core(XidClient/store);peerDep react 19。
-// 见 docs/design/06-developer-experience.md、api-sdk-conventions rule、i18n-lingui rule。
-
-// --- Provider ---
 export { XidProvider } from './context/xid-provider'
 export type { XidProviderProps } from './context/xid-provider'
 
 export { useXidContext } from './context/xid-context'
 export type { XidContextValue } from './context/xid-context'
 
-// --- Hooks ---
 export { useAuth } from './hooks/use-auth'
 export type { UseAuthReturn } from './hooks/use-auth'
 
@@ -38,7 +31,6 @@ export type { UseOrganizationListReturn } from './hooks/use-organization-list'
 export { useAPIKeys } from './hooks/use-api-keys'
 export type { UseAPIKeysReturn } from './hooks/use-api-keys'
 
-// --- Control components ---
 export { SignedIn } from './components/control/signed-in'
 export type { SignedInProps } from './components/control/signed-in'
 
@@ -87,7 +79,6 @@ export type { SignOutButtonProps } from './components/control/sign-out-button'
 export { SignUpButton } from './components/control/sign-up-button'
 export type { SignUpButtonProps } from './components/control/sign-up-button'
 
-// --- UI components ---
 export { SignIn } from './components/ui/sign-in'
 export type { SignInProps } from './components/ui/sign-in'
 
@@ -106,7 +97,6 @@ export type { UserProfileProps } from './components/ui/user-profile'
 export { GuestUpgradeBanner } from './components/ui/guest-upgrade-banner'
 export type { GuestUpgradeBannerProps } from './components/ui/guest-upgrade-banner'
 
-// --- Organization components ---
 export { OrganizationSwitcher } from './components/organization/organization-switcher'
 export type { OrganizationSwitcherProps } from './components/organization/organization-switcher'
 
@@ -119,7 +109,6 @@ export type { CreateOrganizationProps } from './components/organization/create-o
 export { OrganizationList } from './components/organization/organization-list'
 export type { OrganizationListProps } from './components/organization/organization-list'
 
-// --- Appearance ---
 export type { Appearance, AppearanceVariables, AppearanceElements } from './appearance'
 
 export type { OrganizationMembershipRole } from '@xid-kit/types'

@@ -1,6 +1,4 @@
-// Instance Manager plan/quota editor. Plans are accounting and support labels only:
-// they never license-gate self-hosted features or authentication/protocol paths.
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + notice 通栏;表单 5/7 双列(SplitSection)。
+// Plan/quota 仅记账与支持标签,不 license-gate 自托管功能或认证/协议路径。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { FormEvent, ReactNode } from 'react'

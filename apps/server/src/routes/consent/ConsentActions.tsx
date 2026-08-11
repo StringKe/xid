@@ -1,4 +1,3 @@
-// Allow / Deny 操作区。
 
 import { Trans } from '@lingui/react/macro'
 import { useEffect, useRef } from 'react'
@@ -30,7 +29,6 @@ const styles = stylex.create({
 })
 
 export function ConsentActions({ isSubmitting, onAllow, onDeny }: ConsentActionsProps): ReactNode {
-  // 第一次 render 时 focus Allow 按钮(键盘友好)。
   const allowRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     allowRef.current?.focus()

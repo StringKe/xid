@@ -313,8 +313,7 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
 
   return withTenant(c, tenant, async () => {
     const verified = await verifyEmailVerifyJwt(tenant, rawToken)
-    // Invitation ownership is proved only by the dedicated claim-token ceremony.
-    // Reject legacy verification JWTs before loading or consuming any persisted token.
+    // 邀请归属只由 claim-token 仪式证明;在此拒绝带 invitationId 的旧验证 JWT。
     if (verified.invitationId) throw new AppError('token_invalid')
     if (verified.applicationClientId) {
       const applicationTenant = await resolveTenantContextByApplicationClientId(

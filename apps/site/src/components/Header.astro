@@ -17,20 +17,15 @@ import { translateSiteMessage } from "@/lib/site-i18n";
 import { siteShellMessages } from "@/lib/site-shell-messages";
 
 interface Props {
-  /** Astro collection id for the current page, forwarded from DocsLayout. */
   collection?: string;
-  /** Astro entry id for the current page, forwarded from DocsLayout. */
+  // Props 保留 entryId 供版本切换配方转发；基座 Header 不解构以免 unused-var。
   entryId?: string;
-  /** Whether the surrounding layout provides a mobile navigation dialog. */
   showMobileMenu?: boolean;
 }
 
-// `entryId` is part of Props as a forward-compat hook (the version-switcher
-// recipe reads it) but the base Header doesn't use it — leave it off the
-// destructure to avoid an unused-var warning.
 const { showMobileMenu = true } = Astro.props;
 
-// Normalize trailing slash so isActive matches sidebar hrefs.
+// 去掉尾斜杠，与侧栏 href 的 isActive 对齐。
 const currentSlug = Astro.url.pathname.replace(/\/$/, "") || "/";
 const locale = getSiteLocale(Astro.url.pathname);
 const homeHref = localizeSitePath("/", locale);

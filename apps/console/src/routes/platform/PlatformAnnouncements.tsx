@@ -1,6 +1,3 @@
-// platform console 公告页:GET/POST/PATCH/DELETE /v1/platform/announcements + cursor 分页。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列创建表单 + hairline 分节列表。
-// 删除走 ConfirmDialog(danger),mutation 错误走 ConsolePageNotice 固定本地化文案。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
@@ -35,7 +32,7 @@ import {
 } from './queries'
 import type { PlatformAnnouncement } from './types'
 
-// This is a persisted identifier shape rather than natural-language copy.
+// 持久化 id 形态,非自然语言文案。
 const TENANT_ID_EXAMPLE = 'org_...'
 
 const styles = stylex.create({

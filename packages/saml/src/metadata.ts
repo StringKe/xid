@@ -1,6 +1,4 @@
-// 8.9 SP metadata XML 生成(GET /saml/metadata/{connection_id},Content-Type application/samlmetadata+xml)。
-// EntityID/ACS/签名加密证书/NameIDFormat/AuthnRequestsSigned/WantAssertionsSigned 必填(见 8.9 清单)。
-// metadata 自身签名为 P1,首版不签(见 8.9 末)。证书轮换期可输出多 KeyDescriptor(新旧并存)。
+// SP metadata 生成。自身签名为 P1 未实现;轮换期可输出多把 KeyDescriptor。
 
 const MD_NS = 'urn:oasis:names:tc:SAML:2.0:metadata'
 const DS_NS = 'http://www.w3.org/2000/09/xmldsig#'
@@ -9,19 +7,14 @@ const POST_BINDING = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
 const REDIRECT_BINDING = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'
 
 export type SpMetadataInput = {
-  // 本 SP EntityID(= https://{tenant}.xid.dev/saml/{connection_id},租户隔离,8.9)。
   entityId: string
-  // 本 SP ACS URL。
   acsUrl: string
-  // 本 SP SLO URL(可选,P1)。
   sloUrl?: string
   authnRequestsSigned: boolean
   wantAssertionsSigned: boolean
-  // 签名证书(base64 DER,无 PEM 头)。轮换期可多把。
+  // base64 DER,无 PEM 头;轮换期可多把。
   signingCertsB64: readonly string[]
-  // 加密证书(支持 EncryptedAssertion 时必填,8.9)。
   encryptionCertsB64?: readonly string[]
-  // 接受的 NameID 格式(至少 emailAddress + persistent,8.9)。
   nameIdFormats?: readonly string[]
 }
 

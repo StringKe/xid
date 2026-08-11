@@ -1,5 +1,3 @@
-// useSession:当前活跃 session 视图 hook(对标 @clerk/clerk-react useSession)。
-
 import type { GetTokenOptions, XidSession } from '@xid-kit/core'
 import type { Result, XidError } from '@xid-kit/types'
 

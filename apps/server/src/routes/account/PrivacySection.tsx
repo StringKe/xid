@@ -1,5 +1,4 @@
-// Account profile privacy controls: asynchronous export and cancelable 30-day erasure.
-// The destructive flow is two-step in UI and the API independently requires confirmation=DELETE.
+// 隐私:异步导出 + 可取消 30 天 erasure;UI 两步确认且 API 独立要求 confirmation=DELETE。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

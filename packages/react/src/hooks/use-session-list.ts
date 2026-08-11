@@ -1,5 +1,3 @@
-// useSessionList:多会话列表与 active session 切换 hook。
-
 import type { XidSession, XidState } from '@xid-kit/core'
 import type { Result, XidError } from '@xid-kit/types'
 

@@ -1,6 +1,3 @@
-// org 管理路由共享类型。对照 /v1 Management API 契约。
-// 不含密钥/凭证;tenant_id 从 JWT/session 取不信任请求 body。
-
 import type {
   OrganizationMembershipRole,
   TenantManagerRole as SharedTenantManagerRole,
@@ -400,7 +397,7 @@ export type DeliveryChannelReadiness = {
   smsOtp: DeliveryChannelReadinessItem
 }
 
-// org 策略覆盖(API 面):字段为 null 表示未覆盖,回退 instance 默认。
+// null = 未覆盖,回退 instance 默认。
 export type OrgSessionPolicyOverride = {
   idleTimeoutMin: number | null
   absoluteTimeoutDays: number | null
@@ -460,22 +457,19 @@ export type UpdateOrgAuthPolicyInput = Pick<
 export type UpdateOrgDeliveryChannelsInput = OrgDeliveryChannels
 export type UpdateOrgSocialProvidersInput = OrgSocialProviders
 
-// cursor 分页通用容器。
 export type Page<T> = {
   data: T[]
   nextCursor: string | null
   total: number
 }
 
-// Management API v1 扁平资源(/v1/applications、/v1/webhooks、/v1/api-keys)的列表响应。
-// 与 org-scoped Page<T> 不同:字段为 next_cursor / has_more,无 total。
+// 扁平 /v1 资源列表:next_cursor/has_more,与 org-scoped Page(total) 不同。
 export type V1Page<T> = {
   data: T[]
   next_cursor: string | null
   has_more: boolean
 }
 
-// OAuth client(/v1/applications),字段对照 worker/v1/applications.ts toResponse。
 export type OAuthApplication = {
   id: string
   client_id: string
@@ -497,7 +491,7 @@ export type OAuthApplication = {
   updated_at: string
 }
 
-// 创建/轮换返回 client_secret 一次性明文。
+// 创建/轮换时 client_secret 只出现一次。
 export type CreatedOAuthApplication = OAuthApplication & {
   client_secret?: string
 }
@@ -511,7 +505,6 @@ export type CreateApplicationInput = {
   redirect_uris: string[]
 }
 
-// webhook 端点(/v1/webhooks),字段对照 worker/v1/webhooks.ts toResponse。
 export type WebhookEndpoint = {
   id: string
   url: string
@@ -534,7 +527,6 @@ export type CreateWebhookInput = {
   event_types: string[]
 }
 
-// API key(/v1/api-keys),字段对照 worker/v1/api-keys.ts toResponse。
 export type ApiKey = {
   id: string
   name: string
@@ -557,7 +549,6 @@ export type CreateApiKeyInput = {
   scopes: string[]
 }
 
-// 审计事件(/v1/organizations/:orgId/audit-events),字段对照 worker/v1/organizations.ts 的 org 审计响应。
 export type AuditEvent = {
   id: string
   seq: number

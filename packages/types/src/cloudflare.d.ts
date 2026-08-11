@@ -15,11 +15,8 @@ import type {
 } from '@xid-kit/types'
 
 /**
- * Cloudflare Worker bindings for the XID identity Core.
- *
- * This type-only server subpath deliberately owns the Cloudflare ambient type reference. Browser
- * consumers should import shared contracts from `@xid-kit/types` and do not need
- * `@cloudflare/workers-types`.
+ * Core Worker 的 Cloudflare binding 类型。
+ * ambient 引用集中在本 type-only 子路径，避免浏览器侧误拉 `@cloudflare/workers-types`。
  */
 export type Env = CloudflareForSaasEnv & {
   DB: D1Database

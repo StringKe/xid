@@ -141,7 +141,7 @@ vi.mock('@xid-kit/web-ui/ui', () => ({
   Spinner: () => <span>Loading</span>,
 }))
 
-// 捕获 motion 组件 props:layoutId 是共享指示条的契约,SSR 输出无可断言标记。
+// layoutId 是共享指示条契约;SSR 无稳定 DOM 标记,改捕获 motion props。
 vi.mock('@xid-kit/web-ui/motion', () => ({
   motion: {
     span: ({

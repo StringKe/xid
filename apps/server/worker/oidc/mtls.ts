@@ -1,5 +1,4 @@
-// mTLS client authentication helpers (RFC 8705).
-// Reads Cloudflare `cf.tlsClientAuth` metadata and matches registered subject DN.
+// RFC 8705 mTLS 客户端认证:读 CF `cf.tlsClientAuth`,匹配已注册 subject DN。
 
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'

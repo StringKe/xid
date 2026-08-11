@@ -1,16 +1,6 @@
-// Main process: custom protocol (deep link) callback handler.
-// Alternative to the loopback strategy for apps that register a custom
-// URL scheme (e.g. 'myapp') with Electron / the OS.
-//
-// OAuth redirect_uri: myapp://callback
-//
-// Integration steps (caller's responsibility):
-//   1. app.setAsDefaultProtocolClient('myapp') in main before app.ready
-//   2. Register the 'open-url' (macOS/Linux) or second-instance (Windows) handler
-//      by calling registerCustomSchemeHandler() from this module.
-//   3. Pass the XidCustomSchemeHandler to XidElectronApp in the main process.
-//
-// This module must only run in the main process.
+// 自定义协议 deep link 回调；与 loopback 二选一。
+// 调用方须先 setAsDefaultProtocolClient，再 register，并交给 XidElectronApp。
+// 仅 main 进程。
 
 import type { App } from 'electron'
 
@@ -23,12 +13,7 @@ type PendingCallback = {
   reject: (reason: Error) => void
 }
 
-/**
- * Custom-scheme callback handler.
- * Wraps the Electron 'open-url' / second-instance event as a
- * LoopbackCallbackServer-compatible interface so the rest of the OAuth flow
- * can treat both strategies uniformly.
- */
+/** 将 open-url / second-instance 适配为与 loopback 相同的 waitForCallback 接口。 */
 export class XidCustomSchemeHandler {
   readonly #scheme: string
   #pending: PendingCallback | null = null
@@ -37,26 +22,19 @@ export class XidCustomSchemeHandler {
     this.#scheme = scheme
   }
 
-  /**
-   * Call during app.whenReady() to start listening for deep links.
-   */
   register(app: App): void {
-    // macOS / Linux: app emits 'open-url' for deep links when already running.
+    // macOS/Linux：进程已运行时 deep link 走 open-url。
     app.on('open-url', (_event, url) => {
       this.#dispatchUrl(url)
     })
 
-    // Windows / Linux (second instance): deep link arrives as argv.
+    // Windows/Linux 第二实例：deep link 在 argv 中。
     app.on('second-instance', (_event, argv) => {
       const deepLink = argv.find((arg) => arg.startsWith(`${this.#scheme}://`))
       if (deepLink) this.#dispatchUrl(deepLink)
     })
   }
 
-  /**
-   * Returns a LoopbackCallbackServer-compatible object for a single sign-in
-   * attempt. The redirectUri uses the custom scheme.
-   */
   asCallbackServer(): LoopbackCallbackServer {
     const redirectUri = `${this.#scheme}://callback`
     return {
@@ -81,7 +59,7 @@ export class XidCustomSchemeHandler {
 
   #waitForCallback(timeoutMs: number): Promise<URL> {
     if (this.#pending) {
-      // Reject any previous waiter before creating a new one.
+      // 新登录覆盖旧 waiter，避免并发 sign-in 串状态。
       this.#pending.reject(new Error('[xid-electron] replaced by new sign-in attempt'))
     }
     return new Promise((resolve, reject) => {

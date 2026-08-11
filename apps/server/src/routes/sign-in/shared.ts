@@ -1,5 +1,4 @@
-// 登录页共享:认证方法枚举、错误 key 映射、open-redirect 安全的回跳解析。
-// 枚举防护(铁律):认证类错误统一模糊文案,不区分"用户不存在"/"密码错误"。
+// 登录共享:枚举防护统一模糊错误;回跳仅允许同源相对路径。
 
 import type { XidErrorCode } from '@xid-kit/types'
 import type { PublicHostedAuthConfig } from './auth-config'
@@ -186,7 +185,6 @@ function identifierProfileFields(
   return []
 }
 
-// 错误/提示 key:实际文案由 SignInPage 组件用 lingui t`...` 渲染(macro 提取),此处仅作标记。
 export type SignInErrorKey =
   | 'auth_failed'
   | 'rate_limited'
@@ -198,7 +196,7 @@ export type SignInErrorKey =
   | 'verify_email_sent'
   | 'passkey_unavailable'
 
-// API 错误 code -> 登录页错误 key。认证类错误统一收敛为 auth_failed(枚举防护)。
+// 认证类错误统一收敛为 auth_failed(枚举防护)。
 export function apiErrorToKey(code: XidErrorCode): SignInErrorKey {
   if (code === 'rate_limited') return 'rate_limited'
   if (code === 'account_locked' || code === 'account_suspended' || code === 'account_banned') {
@@ -211,7 +209,6 @@ export function apiErrorToKey(code: XidErrorCode): SignInErrorKey {
 
 const DEFAULT_SIGN_IN_RETURN_PATH = '/console'
 
-// 登录成功跳转目标:OIDC authorize continue/redirect URL 或 console 页。
 // 只允许同源相对路径,避免 open redirect。
 export function resolveRedirect(continueUrl: string | null | undefined): string {
   if (!continueUrl) return DEFAULT_SIGN_IN_RETURN_PATH
@@ -219,7 +216,6 @@ export function resolveRedirect(continueUrl: string | null | undefined): string 
     const url = new URL(continueUrl, globalThis.location.origin)
     if (url.origin === globalThis.location.origin) return url.pathname + url.search + url.hash
   } catch {
-    // 非法 URL 直接丢弃,回落 console。
   }
   return DEFAULT_SIGN_IN_RETURN_PATH
 }

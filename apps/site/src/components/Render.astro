@@ -1,21 +1,10 @@
 ---
-/**
- * Render — include a reusable partial in any docs page.
- *
- *   <Render file="quickstart" />
- *   <Render file="workers/setup" params={{ runtime: "node" }} />
- *
- * Partials live in `src/content/partials/` as MDX. Declare params in
- * partial frontmatter (`params: [runtime, version?]`); required params
- * fail at build time, optional use a `?` suffix.
- */
+// 嵌入 partials/ 下 MDX；frontmatter params 声明必填/可选（?），缺必填则构建失败。
 import { getCollection, getEntry, render } from "astro:content";
 import { components } from "../components";
 
 interface Props {
-  /** Partial ID — path relative to src/content/partials/ without extension. */
   file: string;
-  /** Parameters passed to the partial as props. */
   params?: Record<string, unknown>;
 }
 
@@ -73,7 +62,7 @@ if (declaredParams) {
 
 const { Content } = await render(partial);
 
-/** Levenshtein distance — inlined to keep this component dep-free. */
+// 内联编辑距离，避免为拼写提示再引依赖。
 function distance(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length) return b.length;

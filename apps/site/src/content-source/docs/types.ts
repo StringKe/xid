@@ -82,9 +82,9 @@ export type DocumentAst = {
   title: RichText
   summary: RichText
   sections: readonly DocumentSection[]
-  /** Omitted for normal publication. Nimbus excludes drafts from production output. */
+  /** 正常发布省略；draft 时 Nimbus 不产出生产构建。 */
   draft?: boolean
-  /** Omitted for normal publication. The HTML remains available but is not agent-indexed. */
+  /** 正常发布省略；HTML 仍可访问但不进 agent 索引。 */
   noindex?: boolean
 }
 
@@ -111,7 +111,7 @@ export type DocumentHubSection =
     }
 
 export type DocumentHubAst = {
-  /** The product hub is always published and intentionally has no draft/noindex controls. */
+  /** 产品 hub 始终发布，故意不暴露 draft/noindex。 */
   eyebrow: MessageDescriptor
   title: MessageDescriptor
   summary: MessageDescriptor

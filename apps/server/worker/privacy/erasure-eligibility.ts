@@ -10,8 +10,7 @@ export type PrivacyErasureEligibility = {
   blocksInstanceManagerErasure: boolean
 }
 
-// An owner replacement must be usable, not merely another stale Membership row. This protects
-// every Organization Membership the erasure would remove, while keeping all lookups tenant-scoped.
+// 擦除会删掉 owner 身份:须已有另一 active owner,且查询保持 tenant 范围。
 const BLOCKS_OWNER_ERASURE_SQL = `EXISTS (
   SELECT 1
     FROM memberships target_owner
@@ -35,8 +34,7 @@ const BLOCKS_OWNER_ERASURE_SQL = `EXISTS (
      )
 )`
 
-// Instance Manager authority is platform-wide. The target assignment is narrowed to the erasure
-// tenant, while a replacement may live in any tenant and must belong to another active user.
+// 目标 assignment 限擦除租户;替代 instance_manager 可跨租户但必须是另一 active 用户。
 const BLOCKS_INSTANCE_MANAGER_ERASURE_SQL = `EXISTS (
   SELECT 1
     FROM manager_assignments target_manager
@@ -106,8 +104,7 @@ export async function requirePrivacyErasureEligibility(
 ): Promise<void> {
   const eligibility = await readPrivacyErasureEligibility(env, tenantId, userId)
   if (eligibility.blocksOwnerErasure || eligibility.blocksInstanceManagerErasure) {
-    // Keep the response opaque. Revealing which platform role exists would leak authorization
-    // state through a self-service endpoint.
+    // 自助端点不区分阻塞原因,避免泄露平台角色。
     throw new AppError('conflict', { httpStatus: 409 })
   }
 }
@@ -116,9 +113,7 @@ export function preparePrivacyErasureAtomicGuard(
   env: Env,
   input: { requestId: string; tenantId: string; userId: string },
 ): D1PreparedStatement {
-  // id is NOT NULL. The SELECT emits no row only while the claimed request still exists and remains
-  // eligible. Otherwise this first statement in the erasure batch attempts the NULL assertion row,
-  // causing D1 to roll back every statement atomically instead of committing a partial erasure.
+  // id NOT NULL:请求仍存在且可擦除时 SELECT 无行,否则首条 INSERT 触发 NULL 断言,整批原子回滚。
   return env.DB.prepare(
     `INSERT INTO privacy_requests (
        id, tenant_id, user_id, request_type, status, created_at, updated_at

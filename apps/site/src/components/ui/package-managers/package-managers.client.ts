@@ -1,8 +1,4 @@
-/**
- * Sync key `ui-pm-tab` (sessionStorage) is shared with the
- * `<nb-pm-restore>` early-paint element to avoid flash across navigations.
- */
-
+// sessionStorage 键 ui-pm-tab 与 <nb-pm-restore> 首屏元素共用，避免导航闪烁。
 import { mount, initTabs } from '@cloudflare/nimbus-docs/client'
 
 function cloneIcon(tpl: HTMLTemplateElement | null): Node {

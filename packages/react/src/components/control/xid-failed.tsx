@@ -1,6 +1,3 @@
-// XidFailed:SDK 加载遇到不可恢复错误(status==='error')时渲染 children。
-// children 可通过 useAuth().session(null) + error 字段展示错误详情。
-
 import type { ReactNode } from 'react'
 
 import { useXidStore } from '../../hooks/use-xid-store'

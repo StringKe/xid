@@ -1,22 +1,10 @@
-// Keychain adapter contract and implementations.
-// XidKeychainAdapter is the interface the rest of the package uses for token storage.
-// Two implementations:
-//   - MemoryKeychainAdapter: for dev and unit tests (no Tauri runtime required)
-//   - TauriKeychainAdapter: delegates to a Rust plugin via Tauri invoke
-
-// ---------------------------------------------------------------------------
-// Adapter contract
-// ---------------------------------------------------------------------------
+// 内存适配器供 dev/test；Tauri 适配器经 invoke 调 plugin:xid-keychain（见 templates/xid-keychain-plugin.rs）。
 
 export type XidKeychainAdapter = {
   getItem(key: string): Promise<string | null>
   setItem(key: string, value: string): Promise<void>
   removeItem(key: string): Promise<void>
 }
-
-// ---------------------------------------------------------------------------
-// Memory adapter (dev / test)
-// ---------------------------------------------------------------------------
 
 export function createMemoryKeychainAdapter(): XidKeychainAdapter {
   const store = new Map<string, string>()
@@ -33,19 +21,11 @@ export function createMemoryKeychainAdapter(): XidKeychainAdapter {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Tauri keychain adapter
-// Calls the `plugin:xid-keychain` Rust plugin commands via Tauri invoke.
-// See templates/xid-keychain-plugin.rs for the Rust side reference.
-// ---------------------------------------------------------------------------
-
-// Pass window.__TAURI__.core.invoke or the named import from @tauri-apps/api/core.
-// Typed as a narrow function signature to avoid importing @tauri-apps/api at runtime.
+// 注入 window.__TAURI__.core.invoke 或 @tauri-apps/api/core 的 invoke；窄类型避免运行时依赖该包。
 export type TauriInvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
 
 export type TauriKeychainAdapterOptions = {
   invoke: TauriInvokeFn
-  // Tauri plugin command prefix. Default: "plugin:xid-keychain"
   pluginPrefix?: string
 }
 

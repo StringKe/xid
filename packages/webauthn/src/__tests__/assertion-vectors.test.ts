@@ -1,5 +1,4 @@
-// WebAuthn assertion 向量自检测试(见 webauthn rule 四验证 + testing rule)。
-// 验证 assertion-vectors.ts 中的辅助函数与向量本身正确。
+// 断言测试向量与辅助构造的自检。
 
 import { describe, it, expect } from 'vitest'
 import {
@@ -28,7 +27,7 @@ describe('valid assertion vector', () => {
     expect(input.expectedChallenge).toHaveLength(32)
     expect(input.signature).toBeDefined()
     expect(input.storedCredential).toBeDefined()
-    expect(storedCredential.coseAlg).toBe(-7) // ES256
+    expect(storedCredential.coseAlg).toBe(-7)
   })
 
   it('clientDataJSON contains challenge and origin', async () => {
@@ -48,7 +47,6 @@ describe('valid assertion vector', () => {
 
   it('authenticatorData has correct length (37 bytes minimum)', async () => {
     const { input } = await buildValidAssertionVector(TEST_RP_ID, TEST_ORIGIN, 1)
-    // rpIdHash(32) + flags(1) + signCount(4) = 37
     expect(input.authenticatorData.length).toBeGreaterThanOrEqual(37)
   })
 
@@ -68,7 +66,6 @@ describe('valid assertion vector', () => {
       signCount: 1,
     })
     const flags = authData[32]!
-    // UV bit = 0x04
     expect(flags & 0x04).toBe(0x04)
   })
 

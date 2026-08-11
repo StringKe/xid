@@ -1,5 +1,3 @@
-// org 投递渠道页:WhatsApp / SMS 各一个 5/7 双列配置节,provider 切换联动 secretRefs。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;readiness 说明放左列 meta。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
@@ -40,7 +38,6 @@ const styles = stylex.create({
     justifyContent: 'center',
     paddingBlock: '2.25rem',
   },
-  // 渠道左列 meta:状态徽章 + readiness 说明
   channelMeta: {
     display: 'flex',
     flexDirection: 'column',
@@ -201,7 +198,6 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
         </ConsolePageSection>
       ) : (
         <form onSubmit={(event) => void handleSave(event)} noValidate>
-          {/* WhatsApp provider */}
           <ConsolePageSplitSection
             title={<Trans>WhatsApp provider</Trans>}
             meta={
@@ -277,7 +273,6 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
             </Field>
           </ConsolePageSplitSection>
 
-          {/* SMS provider */}
           <ConsolePageSplitSection
             title={<Trans>SMS provider</Trans>}
             meta={

@@ -1,7 +1,3 @@
-// platform console 计费总览页:所有 organization MAU/DAU/seat 使用/欠费状态。
-// 调 GET /v1/platform/billing?cursor=&limit=20(TanStack Query + DataTable)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;表格横贯 section。
-// 状态 Badge 统一 statusToneFor(status) + useBillingStatusLabel(enum-labels)。
 
 import { Trans } from '@lingui/react/macro'
 import { useState } from 'react'

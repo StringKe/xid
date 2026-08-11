@@ -1,23 +1,19 @@
-// SHA-256 摘要(Web Crypto 原语,不自研,见 crypto-boundary rule 第一类)。
-// 审计链式 hash(07 章 5.1.2)与其它需小写十六进制摘要的场景统一走此模块。
+// SHA-256 / HMAC-SHA256 经 Web Crypto;HMAC 输出标准 base64,对齐 svix webhook 签名格式。
 
 import { toBufferSource } from './buffer-source'
 
 const encoder = new TextEncoder()
 
-// SHA-256 -> 小写十六进制(64 字符)。输入为 UTF-8 字符串。
 export async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(input))
   return bytesToHex(new Uint8Array(digest))
 }
 
-// SHA-256 -> 小写十六进制(64 字符)。输入为字节。
 export async function sha256HexBytes(input: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', toBufferSource(input))
   return bytesToHex(new Uint8Array(digest))
 }
 
-// HMAC-SHA256(Web Crypto 原语),返回 base64 标准编码(svix webhook 签名格式)。
 export async function hmacSha256Base64(secret: Uint8Array, message: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
@@ -30,7 +26,7 @@ export async function hmacSha256Base64(secret: Uint8Array, message: string): Pro
   return bytesToBase64(new Uint8Array(sig))
 }
 
-// HMAC-SHA256 验证(constant-time 比较,防时序侧信道)。
+// constant-time 比较,避免时序侧信道。
 export async function hmacSha256Verify(
   secret: Uint8Array,
   message: string,

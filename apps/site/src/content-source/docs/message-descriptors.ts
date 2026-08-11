@@ -1,4 +1,4 @@
-// Generated from documents.json. Do not edit.
+// 由 documents.json 生成，勿手改。
 export const docsMessageDescriptors = [
   /*i18n*/ { id: "-6NyRG", message: "Client" },
   /*i18n*/ { id: "2nqK4G", message: "Package status is <0>Implemented and verified locally</0>. The Rust unit-test suite passes. Secret Service D-Bus storage, xdg-open, the complete loopback callback, and a real IdP round-trip still require a desktop Linux integration environment. This page documents implemented behavior; it is not a production-readiness claim." },

@@ -1,19 +1,10 @@
-// Tests for XidAuthService state bridging logic.
-// XidAuthService wraps XidClient.subscribe/getSnapshot into RxJS Observables.
-// We verify:
-//   - Initial state is exposed correctly via getSnapshot()
-//   - Observables emit when XidClient state changes
-//   - Unsubscribe happens when service is destroyed (ngOnDestroy)
-// Angular TestBed is not used; XidClient is passed directly via the
-// XidAuthServiceOptions constructor parameter so the real service class runs.
+// 通过 options.client 直注 XidClient，不走 TestBed，验证 Observable 桥接与销毁退订。
 
 import { describe, expect, it, vi } from 'vitest'
 import { firstValueFrom } from 'rxjs'
 import { XidClient, type XidState } from '@xid-kit/core'
 
 import { XidAuthService } from './xid-auth.service'
-
-// ---- Helpers ----
 
 function makeLoadedResponse(isSignedIn: boolean) {
   const body = isSignedIn
@@ -56,12 +47,9 @@ function makeLoadedResponse(isSignedIn: boolean) {
   })
 }
 
-// Build a real XidAuthService with a directly-supplied XidClient (no Angular DI).
 function makeService(client: XidClient): XidAuthService {
   return new XidAuthService({ client })
 }
-
-// ---- Tests ----
 
 describe('XidAuthService (real class, DI bypassed via options.client)', () => {
   it('initial snapshot has isLoaded=false and isSignedIn=false', () => {
@@ -139,7 +127,6 @@ describe('XidAuthService (real class, DI bypassed via options.client)', () => {
     const service = makeService(client)
 
     service.ngOnDestroy()
-    // After destroy, loading should not throw.
     await expect(client.load()).resolves.toBeUndefined()
   })
 
@@ -183,7 +170,7 @@ describe('XidAuthService (real class, DI bypassed via options.client)', () => {
   })
 
   it('state$ observable emits updated state when client state changes', () => {
-    // XidClient 的 store 是 ES 私有字段(#store),测试通过 subscribe 契约的 mock client 推送更新。
+    // XidClient 的 store 是 ES 私有字段(#store)，测试通过 subscribe 契约的 mock client 推送更新。
     const initialState: XidState = {
       status: 'loading',
       isLoaded: false,

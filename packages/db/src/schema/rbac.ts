@@ -1,13 +1,10 @@
-// RBAC + 组织成员实体(见 08 章 13、14):roles / permissions / role_permissions / user_grants /
-// manager_assignments / memberships / invitations / organization_domains。
-// role/permission key 在 project 内唯一,第一列 tenant_id(见 9.5)。Manager 角色不进业务 token。
+// RBAC + 成员(08 章 13/14):role/permission key 在 project 内唯一且 tenant_id 打头;Manager 不进业务 token。
 
 import { sql } from 'drizzle-orm'
 import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, createdAt, numCol, tenantId, timestamps, tsMs } from './common'
 import type { ManagerRole, ManagerScopeType, OrganizationMembershipRole } from '@xid-kit/types'
 
-// 13.1 roles(Project 级角色)
 export const roles = sqliteTable(
   'roles',
   {
@@ -29,7 +26,6 @@ export const roles = sqliteTable(
   ],
 )
 
-// 13.2 permissions(原子能力 feature:action)
 export const permissions = sqliteTable(
   'permissions',
   {
@@ -50,7 +46,6 @@ export const permissions = sqliteTable(
   ],
 )
 
-// 13.3 role_permissions(角色权限映射 + ABAC condition)
 export const rolePermissions = sqliteTable(
   'role_permissions',
   {
@@ -64,8 +59,7 @@ export const rolePermissions = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [
-    // Referenced entity IDs are globally unique. Retaining the legacy index keeps this migration
-    // additive for rolling Workers deployments while the tenant-first index states the data model.
+    // 旧全局唯一索引保留:migration 只许 additive,滚动部署期间新旧 Workers 共库。
     uniqueIndex('role_permissions_role_perm_unq').on(t.roleId, t.permissionId),
     uniqueIndex('role_permissions_tenant_role_perm_unq').on(t.tenantId, t.roleId, t.permissionId),
     index('role_permissions_tenant_role_idx').on(t.tenantId, t.roleId),
@@ -73,7 +67,6 @@ export const rolePermissions = sqliteTable(
   ],
 )
 
-// 13.4 user_grants(用户角色授予)
 export const userGrants = sqliteTable(
   'user_grants',
   {
@@ -83,9 +76,10 @@ export const userGrants = sqliteTable(
     projectId: text('project_id').notNull(),
     roleId: text('role_id').notNull(),
     grantedViaGrantId: text('granted_via_grant_id'),
-    // 溯源 access_request(见 design-access-request 1.2);跨 org 授予走 granted_via_grant_id,两者互斥。
+    // 溯源 access_request;与 granted_via_grant_id 互斥(跨 org 走后者)。
     grantedViaRequestId: text('granted_via_request_id'),
-    expiresAt: tsMs('expires_at'), // null = 永久;JIT 限时授权,过期视同无 grant
+    // null = 永久;JIT 过期视同无 grant。
+    expiresAt: tsMs('expires_at'),
     revokedAt: tsMs('revoked_at'),
     ...timestamps(),
   },
@@ -103,7 +97,7 @@ export const userGrants = sqliteTable(
   ],
 )
 
-// 13.5 manager_assignments(平台管理角色,不进业务 token)
+// 平台管理角色,不进业务 token。
 export const managerAssignments = sqliteTable(
   'manager_assignments',
   {
@@ -116,8 +110,7 @@ export const managerAssignments = sqliteTable(
     ...timestamps(),
   },
   (t) => [
-    // Keep the legacy global-ID constraint alongside the tenant-first constraints so old and new
-    // Workers can share the schema throughout a rolling deployment.
+    // 旧全局唯一索引保留,滚动部署期间新旧 Workers 共库。
     uniqueIndex('manager_assignments_unq').on(t.userId, t.managerRole, t.scopeType, t.scopeId),
     uniqueIndex('manager_assignments_tenant_scope_unq')
       .on(t.tenantId, t.userId, t.managerRole, t.scopeType, t.scopeId)
@@ -134,7 +127,6 @@ export const managerAssignments = sqliteTable(
   ],
 )
 
-// 14.1 memberships(User 与 Organization 成员关系)
 export const memberships = sqliteTable(
   'memberships',
   {
@@ -159,7 +151,7 @@ export const memberships = sqliteTable(
   ],
 )
 
-// 14.2 invitations(邀请,token 哈希存储)
+// 邀请 token 只存哈希。
 export const invitations = sqliteTable(
   'invitations',
   {
@@ -217,7 +209,7 @@ export const invitations = sqliteTable(
   ],
 )
 
-// 14.3 organization_domains(组织邮箱域;domain 全局唯一,一域一 org)
+// domain 全局唯一,一域一 org。
 export const organizationDomains = sqliteTable(
   'organization_domains',
   {

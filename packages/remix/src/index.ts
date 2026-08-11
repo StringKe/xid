@@ -1,19 +1,7 @@
-// @xid-kit/remix: Remix SDK -- client-side entry.
-// This file exports ONLY client-safe APIs.
-// Server-only APIs (getAuth / requireAuth / xidClient / verifyToken / verifyWebhook)
-// are in the ./server subpath export to prevent them from entering client bundles.
-//
-// Usage:
-//   // In route components (client):
-//   import { useAuth, SignInButton } from '@xid-kit/remix'
-//
-//   // In loader/action (server-only):
-//   import { getAuth, requireAuth } from '@xid-kit/remix/server'
+// 客户端入口：仅导出 client-safe API。getAuth / requireAuth / xidClient 等须从 @xid-kit/remix/server 引入，避免进入 client bundle。
 
-// --- Re-export @xid-kit/react client components and hooks ---
 export * from '@xid-kit/react'
 
-// --- Re-export @xid-kit/core public API ---
 export {
   XidClient,
   XidStore,
@@ -54,7 +42,6 @@ export type {
 
 export type { OrganizationMembershipRole } from '@xid-kit/types'
 
-// --- Remix session storage helpers (shared between client + server) ---
 export {
   createXidSessionStorage,
   getTokenFromSession,
@@ -63,7 +50,6 @@ export {
   clearTokensFromSession,
 } from './session'
 
-// --- Shared types ---
 export type {
   AuthObject,
   UnauthenticatedAuthObject,

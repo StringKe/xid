@@ -1,6 +1,4 @@
-// Pagination:"加载更多"cursor 分页控件。
-// 不用页码(cursor 分页无法随机访问),仅"加载更多"按钮。文案由调用方走 lingui。
-// 容器样式走 StyleX。
+// cursor 分页无法随机访问,仅"加载更多"。
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
@@ -9,7 +7,6 @@ import { Button } from './Button'
 export type PaginationProps = {
   nextCursor: string | null
   isLoading?: boolean
-  // 已本地化的按钮文案。
   loadMoreLabel: ReactNode
   onLoadMore: (cursor: string) => void
 }

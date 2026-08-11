@@ -1,8 +1,3 @@
-// /account/sessions:活跃会话列表 + 单条撤销 + 全部撤销。
-// 全宽版式:display 标题区(含操作按钮) + 列表节(自持 gutter + hairline);
-// 表格行式:零卡片横贯,hairline 行线 + tabular-nums,首尾列对齐 gutter。
-// 数据层 TanStack Query(useSessionsQuery/useRevokeSession/useRevokeAllSessions)。
-// 设计真相源:docs/design/05-users-sessions.md 第 8 节会话管理。
 
 import { plural } from '@lingui/core/macro'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -62,7 +57,6 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontVariantNumeric: 'tabular-nums',
   },
-  // 窄屏可见的副文本(IP + 时间,在主列下方);宽屏由 SectionRow split 元信息列承载
   metaInline: {
     margin: '0.1875rem 0 0',
     fontSize: '0.8125rem',
@@ -237,7 +231,6 @@ function SessionRow({ session, revokeMutate }: SessionRowProps): ReactNode {
       <SectionRow
         variant="split"
         label={
-          // 主块:设备名 + Current badge;窄屏下含 IP 和时间
           <>
             <div {...stylex.props(styles.nameRow)}>
               <p {...stylex.props(styles.deviceName)}>{deviceLabel}</p>

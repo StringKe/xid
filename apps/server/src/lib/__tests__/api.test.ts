@@ -1,5 +1,3 @@
-// API client 测试:XidError 解析(结构化/非结构化)、401 回调、credentials/method 透传。
-// node 环境无浏览器 fetch 真实网络,stub globalThis.fetch 断言请求装配与响应映射。
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApiClient, observeApiClientErrors } from '../api'

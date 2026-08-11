@@ -1,8 +1,4 @@
-// Main process: loopback HTTP callback server for OIDC authorization code flow.
-// Implements RFC 8252 s.7.3: bind on 127.0.0.1 with OS-assigned port, serve
-// exactly one GET /callback, then shut down.
-//
-// This module runs only in the main process (uses node:http).
+// RFC 8252 s.7.3：127.0.0.1 + OS 分配端口，只服务一次 GET /callback。仅 main。
 
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
@@ -11,17 +7,6 @@ import type { LoopbackCallbackServer } from '../types'
 
 const DEFAULT_TIMEOUT_MS = 300_000 // 5 minutes
 
-/**
- * Bind a loopback HTTP server on an OS-assigned port and wait for the
- * OAuth /callback GET request.
- *
- * Usage in the main process:
- *   const loopback = await startLoopbackServer()
- *   // Pass loopback.redirectUri to the authorize URL
- *   // After shell.openExternal(authorizeUrl) ...
- *   const callbackUrl = await loopback.waitForCallback()
- *   await loopback.close()
- */
 export async function startLoopbackServer(): Promise<LoopbackCallbackServer> {
   const server = await bindServer()
   const address = server.address()
@@ -57,7 +42,7 @@ function waitForCallback(server: Server, timeoutMs: number): Promise<URL> {
 
     server.on('request', (req, res) => {
       const rawUrl = req.url ?? ''
-      // Only handle /callback requests; ignore browser favicon etc.
+      // 忽略 favicon 等非 /callback，避免误消费登录等待。
       if (!rawUrl.startsWith('/callback')) {
         res.writeHead(404).end()
         return
@@ -65,10 +50,9 @@ function waitForCallback(server: Server, timeoutMs: number): Promise<URL> {
 
       clearTimeout(timer)
 
-      // Respond immediately so the browser shows a confirmation.
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(CALLBACK_HTML)
 
-      // Reconstruct absolute URL (with port) for parseCallbackUrl() downstream.
+      // 拼绝对 URL 供下游 parseCallbackUrl。
       const address = server.address()
       const port = typeof address === 'object' && address ? address.port : 0
       const fullUrl = new URL(`http://127.0.0.1:${port}${rawUrl}`)

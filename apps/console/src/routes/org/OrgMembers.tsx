@@ -1,6 +1,3 @@
-// org 成员管理页:成员列表(cursor 分页)+ 邀请列表 + 邀请表单。
-// 成员状态徽章、角色显示、移除成员操作。调 /v1/organizations/:orgId/members 与 /invitations。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;邀请表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -36,7 +33,6 @@ import { useOrgTarget } from './useOrgTarget'
 import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 const styles = stylex.create({
-  // 邀请表单控件行(email 拉伸 + role 固宽 + 提交按钮)
   inviteForm: {
     display: 'flex',
     flexDirection: 'column',

@@ -1,10 +1,5 @@
 ---
-/**
- * TabItem — single tab panel in the `<Tabs>` component.
- *
- * The `label` prop is read by `tabs.client.ts` to synthesize the matching
- * trigger button. Each TabItem becomes one `[data-nb-tabs-content]` panel.
- */
+// label 供 tabs.client 合成对应 trigger；本组件只渲染 panel。
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";
 

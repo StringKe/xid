@@ -1,7 +1,4 @@
-// platform console 全局用户搜索页:跨 organization 搜索用户。调 GET /v1/platform/users?q=。
-// 搜索触发才拉取(enabled:!query 防空查询);GDPR:仅 Instance Manager 可访问。
-// impersonation 走 ConfirmDialog children 表单插槽选择目标 organization,确认后 POST 启动只读会话。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + toolbar 搜索 + hairline 分节。
+// 空 query 不拉取;impersonation 选定目标 org 后 POST 启动只读会话。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

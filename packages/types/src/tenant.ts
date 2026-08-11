@@ -1,18 +1,15 @@
-// 第 1 组契约:TenantContext + 租户策略覆盖。
-// 对照 docs/design/00-overview.md 第 5 节、tenant-context rule、02 章 5、08 章 10.6 org_policies。
-// 铁律:issuer/签名密钥/rpId/配置一律从 TenantContext 取,内核禁止全局单例直接引用。
+// TenantContext 与租户策略覆盖。issuer/签名密钥/rpId/配置一律从此取，禁止内核全局单例。
 
 import type { SigningAlg, SigningKeyMaterial } from './signing'
 
-// MFA 强制三层继承(platform/tenant/org),null 回退上层默认(见 02 章 5、password-auth rule)
+// MFA 三层继承（platform/tenant/org），null 回退上层
 export const MFA_ENFORCEMENT = ['required', 'optional', 'disabled'] as const
 export type MfaEnforcement = (typeof MFA_ENFORCEMENT)[number]
 
-// MFA 方法白名单项(见 password-auth rule:TOTP/SMS/Email OTP/passkey;SMS 不得作唯一因子)
+// SMS 不得作为唯一 MFA 因子
 export const MFA_METHODS = ['totp', 'sms_otp', 'email_otp', 'passkey'] as const
 export type MfaMethod = (typeof MFA_METHODS)[number]
 
-// 密码策略覆盖(见 08 章 10.6 password_policy、password-auth rule)
 export type PasswordPolicy = {
   minLength: number
   maxLength: number
@@ -20,14 +17,13 @@ export type PasswordPolicy = {
   historyCount: number
 }
 
-// 会话策略覆盖(见 08 章 10.6 session_idle/absolute、05 章 8)
 export type SessionPolicy = {
   idleTimeoutMin: number
   absoluteTimeoutDays: number
   rememberMeDefault?: boolean
 }
 
-// token TTL 策略(见 03 章 Token 生命周期;refresh 轮换 7d 绝对 + 30d 空闲)
+// refresh 轮换：7d 绝对 + 30d 空闲
 export type TokenPolicy = {
   accessTokenTtlSec: number
   sessionTokenTtlSec: number
@@ -35,7 +31,7 @@ export type TokenPolicy = {
   refreshAbsoluteTimeoutDays: number
 }
 
-// 登录流程策略覆盖(见 02 章 5:force_sso 绑定 SSO 后禁密码登录 / allow_password_login)
+// forceSso 绑定 SSO 后禁密码登录
 export type LoginPolicy = {
   forceSso: boolean
   allowPasswordLogin: boolean
@@ -102,7 +98,7 @@ export type HostedAuthPolicy = {
   enterpriseSso: EnterpriseSsoPolicy
 }
 
-// 社交登录 provider 配置(见 01 章 social OAuth):配置来自 TenantContext,client secret 只引用 Workers Secret 名称。
+// 配置来自 TenantContext；client secret 只引用 Workers Secret 名称，不存明文
 export type SocialProviderPolicy = {
   authorizationEndpoint: string
   tokenEndpoint: string
@@ -135,12 +131,12 @@ export type DeliveryChannelsPolicy = {
   sms?: DeliveryChannelProviderPolicy
 }
 
-// 租户级策略覆盖,未设字段回退 instance 默认(见 02 章 5、08 章 10.6)
 export type OidcProfilePolicy = {
   fapiProfileSupported?: boolean
   browserBasedAppsProfileSupported?: boolean
 }
 
+// 未设字段回退 instance 默认
 export type TenantPolicy = {
   mfaEnforcement?: MfaEnforcement
   mfaAllowedMethods?: readonly MfaMethod[]
@@ -195,13 +191,13 @@ export const DEFAULT_HOSTED_AUTH_POLICY: HostedAuthPolicy = {
   },
 }
 
-// 内置默认会话策略:idle 3 天 / absolute 30 天(产品拍板值;instance/org 可覆盖,见 05 章 8)
+// 默认 idle 3 天 / absolute 30 天（产品拍板；instance/org 可覆盖）
 export const DEFAULT_SESSION_POLICY: SessionPolicy = {
   idleTimeoutMin: 4320,
   absoluteTimeoutDays: 30,
 }
 
-// 内置默认 token TTL:access 1h、session token 60s(SDK networkless 验证窗口)、refresh idle 30d / absolute 7d(见 03 章)
+// session token 60s 是 SDK networkless 验证窗口
 export const DEFAULT_TOKEN_POLICY: TokenPolicy = {
   accessTokenTtlSec: 3600,
   sessionTokenTtlSec: 60,
@@ -209,7 +205,7 @@ export const DEFAULT_TOKEN_POLICY: TokenPolicy = {
   refreshAbsoluteTimeoutDays: 7,
 }
 
-// 可配边界:normalize clamp 用,出界取边界值;worker 端 valibot 校验复用同一组边界
+// normalize clamp 与 worker valibot 共用同一组边界
 export const SESSION_POLICY_BOUNDS = {
   idleTimeoutMin: { min: 5, max: 43200 },
   absoluteTimeoutDays: { min: 1, max: 365 },
@@ -265,18 +261,17 @@ export function normalizeDomainList(
   return [...new Set(source.map((item) => item.trim().toLowerCase()).filter(Boolean))]
 }
 
-// 非有限数字(含 NaN/Infinity)视为非法 -> 回退默认;有限数字出界 -> clamp 到边界
+// 非有限数字（NaN/Infinity）回退默认；有限数字出界 clamp
 function clampedNumberOr(value: unknown, fallback: number, bounds: { min: number; max: number }) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.min(Math.max(value, bounds.min), bounds.max)
 }
 
-// DB JSON 列为 snake_case,SDK/console 侧为 camelCase,两种键都接受(同 normalizeDeliveryChannelProviderPolicy 先例)
+// DB JSON 为 snake_case，SDK/console 为 camelCase，两种键都接受
 function policyField(source: Record<string, unknown>, camelKey: string, snakeKey: string): unknown {
   return source[camelKey] ?? source[snakeKey]
 }
 
-// partial/未知输入 -> 完整 SessionPolicy:逐字段校验类型,非法回退默认,出界 clamp
 export function normalizeSessionPolicy(input: unknown): SessionPolicy {
   const source = isRecord(input) ? input : {}
   const rememberMeDefault = policyField(source, 'rememberMeDefault', 'remember_me_default')
@@ -295,7 +290,6 @@ export function normalizeSessionPolicy(input: unknown): SessionPolicy {
   }
 }
 
-// partial/未知输入 -> 完整 TokenPolicy:逐字段校验类型,非法回退默认,出界 clamp
 export function normalizeTokenPolicy(input: unknown): TokenPolicy {
   const source = isRecord(input) ? input : {}
   return {
@@ -473,14 +467,14 @@ export function normalizeDeliveryChannelsPolicy(raw: unknown): DeliveryChannelsP
   return whatsapp || sms ? { whatsapp, sms } : undefined
 }
 
-// 当前 active 签名密钥集:多 kid 并存,activeKid 指向当前签名用 kid(见 signing-keys rule 四步轮换)
+// 多 kid 并存；activeKid 为当前签名 kid
 export type ActiveSigningKeySet = {
   activeKid: string
   defaultAlg: SigningAlg
   keys: readonly SigningKeyMaterial[]
 }
 
-// 多租户唯一上下文。单租户=配置驱动单例,多租户=按 Host 头从 D1 解析(见 00 章 5.1、tenant-context rule)。
+// 多租户唯一上下文；单租户=配置驱动，多租户=按 Host 从 D1 解析
 export type TenantContext = {
   tenantId: string
   instanceId?: string

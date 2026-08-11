@@ -1,5 +1,3 @@
-/** Wires Collapsible via the disclosure module. */
-
 import { mount, makeDisclosure } from '@cloudflare/nimbus-docs/client'
 
 function initCollapsible(root: HTMLElement): () => void {

@@ -1,4 +1,4 @@
-// Fake WS-Federation IdP harness for local WS-Fed passive sign-in L3 evidence.
+// 本地 WS-Fed 被动登录 L3 用假 IdP。
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'

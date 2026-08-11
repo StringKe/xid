@@ -1,12 +1,5 @@
-// server.ts:SvelteKit server hooks helper(对标 @xid-kit/nextjs xidMiddleware / auth 语义)。
-// handleXid:SvelteKit handle 钩子,在 +hooks.server.ts 中使用。
-// getXidAuth:在 +page.server.ts / +layout.server.ts 的 load 函数中读取认证态。
-//
-// 安全模型:
-//   1) 部署边界必须剥离客户端传入的 x-xid-auth,只允许 handleXid 内部注入。
-//   2) 认证态存入 event.locals[localsKey],在 load 函数中通过 getXidAuth(event.locals) 读取。
-//
-// peerDep:@sveltejs/kit >= 2.0.0(可选);@xid-kit/backend(动态 import)。
+// SvelteKit handle/load 认证桥接，对标 @xid-kit/nextjs xidMiddleware。
+// 安全：剥离客户端传入的 x-xid-auth，仅允许 handle 内注入后写入 locals。
 
 import { isOrganizationMembershipRole, type AccessTokenClaims } from '@xid-kit/types'
 
@@ -14,7 +7,7 @@ import type { AuthResult } from './types'
 
 export { XID_AUTH_HEADER } from './types'
 
-// SvelteKit event / resolve 最小契约(不直接 import @sveltejs/kit)。
+// 不直接 import @sveltejs/kit，保持 peer 可选。
 type MinimalEvent = {
   request: Request
   url: URL
@@ -22,9 +15,7 @@ type MinimalEvent = {
 }
 type ResolveFn = (event: MinimalEvent) => Promise<Response> | Response
 
-// @xid-kit/backend RequestState 的结构最小镜像(避免静态 import)。
-// SignedInState: { isSignedIn: true, userId, sessionId?, claims: AccessTokenClaims }
-// SignedOutState: { isSignedIn: false, reason }
+// 结构镜像，避免静态 import @xid-kit/backend。
 type BackendRequestState =
   | {
       isSignedIn: true
@@ -53,25 +44,23 @@ type AuthenticateRequestFn = (
 ) => Promise<BackendRequestState>
 
 export type HandleXidOptions = {
-  // JWKS 公钥(必填) -- 格式同 @xid-kit/backend JwtKey。
-  // 通常从 process.env.XID_JWT_KEY 读取后 JSON.parse。
+  // 同 @xid-kit/backend JwtKey；通常 JSON.parse(process.env.XID_JWT_KEY)
   jwtKey: unknown
   issuer?: string
   authorizedParties?: readonly string[]
-  // 应用自己持有的 short-lived JWT cookie。无默认值。
+  // 应用侧 short-lived JWT cookie，无库内默认名
   jwtCookieName?: string
-  // 同源 Core opaque cookie -> short-lived JWT exchange。
+  // 同源 Core opaque cookie 换 short-lived JWT
   sessionTokenExchange?: {
     endpoint?: string
     fetcher?: typeof fetch
     signal?: AbortSignal
   }
-  // 受保护路由 pathname 前缀;匹配且未登录则 302 到 signInUrl。
+  // pathname 前缀命中且未登录则 302
   protectedRoutes?: readonly string[]
   signInUrl?: string
-  // 公开路由:matcher 也覆盖时排除。
+  // protected 命中时仍放行
   publicRoutes?: readonly string[]
-  // event.locals 注入 key;默认 'xidAuth'。
   localsKey?: string
 }
 
@@ -99,10 +88,6 @@ function buildAuthResult(rs: BackendRequestState): AuthResult {
 
 const XID_AUTH_HEADER_NAME = 'x-xid-auth'
 
-// handleXid:SvelteKit handle 工厂。
-// 用法(src/hooks.server.ts):
-//   import { handleXid } from '@xid-kit/svelte/server'
-//   export const handle = handleXid({ jwtKey: JSON.parse(process.env.XID_JWT_KEY!) })
 export function handleXid(options: HandleXidOptions) {
   const {
     jwtKey,
@@ -122,13 +107,13 @@ export function handleXid(options: HandleXidOptions) {
   }): Promise<Response> {
     const { event, resolve } = input
 
-    // 动态 import 避免库 bundle 静态引入 @xid-kit/backend。
+    // 动态 import，避免库 bundle 静态拉入 @xid-kit/backend
     const backendMod = (await import('@xid-kit/backend')) as {
       authenticateRequest: AuthenticateRequestFn
     }
     const { authenticateRequest } = backendMod
 
-    // 剥离客户端可能伪造的 x-xid-auth header。
+    // 剥离客户端可能伪造的 x-xid-auth
     const cleanHeaders = new Headers(event.request.headers)
     cleanHeaders.delete(XID_AUTH_HEADER_NAME)
     const cleanRequest = new Request(event.request, { headers: cleanHeaders })
@@ -143,10 +128,8 @@ export function handleXid(options: HandleXidOptions) {
 
     const authResult = buildAuthResult(requestState)
 
-    // 存入 event.locals,下游 load 函数通过 getXidAuth 读取。
     event.locals[localsKey] = authResult
 
-    // 路由保护。
     const { pathname } = event.url
     const isProtected =
       protectedRoutes.length > 0 &&
@@ -163,14 +146,7 @@ export function handleXid(options: HandleXidOptions) {
   }
 }
 
-// getXidAuth:从 event.locals 读取 handleXid 注入的认证态。
-// 未找到(例如未在 handleXid 子树内)时返回未认证对象,不 throw。
-// 用法(+page.server.ts):
-//   import { getXidAuth } from '@xid-kit/svelte/server'
-//   export const load = async ({ locals }) => {
-//     const auth = getXidAuth(locals)
-//     if (!auth.userId) throw redirect(303, '/sign-in')
-//   }
+// 未注入时返回未认证对象，不 throw
 export function getXidAuth(locals: Record<string, unknown>, localsKey = 'xidAuth'): AuthResult {
   const auth = locals[localsKey]
   if (isAuthResult(auth)) return auth

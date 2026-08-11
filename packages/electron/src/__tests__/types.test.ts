@@ -1,15 +1,8 @@
-// XidBridge and IPC_CHANNELS contract tests.
-// Verifies that the public API surface of the contextBridge matches the
-// Shared native contract from docs/sdks/platform-matrix.md and that IPC
-// channel names are unique, namespaced, and non-empty.
+// IPC 通道与 XidBridge 契约：唯一、xid: 前缀、覆盖 Shared native 表面。
 
 import { describe, expect, it } from 'vitest'
 
 import { IPC_CHANNELS, XID_BRIDGE_KEY } from '../types'
-
-// ---------------------------------------------------------------------------
-// IPC_CHANNELS
-// ---------------------------------------------------------------------------
 
 describe('IPC_CHANNELS', () => {
   it('all channel names are non-empty strings', () => {
@@ -55,10 +48,6 @@ describe('IPC_CHANNELS', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// XID_BRIDGE_KEY
-// ---------------------------------------------------------------------------
-
 describe('XID_BRIDGE_KEY', () => {
   it('equals xidBridge', () => {
     expect(XID_BRIDGE_KEY).toBe('xidBridge')
@@ -70,14 +59,8 @@ describe('XID_BRIDGE_KEY', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// XidBridge shape -- verified at type level and via key inspection
-// ---------------------------------------------------------------------------
-
 describe('XidBridge Shared native contract surface', () => {
-  // We cannot instantiate XidBridge without Electron, but we can verify that
-  // the IPC_CHANNELS constant includes entries for every method the contract
-  // requires, which is the binding between the type and the runtime channels.
+  // 无 Electron 时以 IPC_CHANNELS 与类型契约对齐。
 
   it('has a SIGN_IN channel covering signIn()', () => {
     expect(IPC_CHANNELS.SIGN_IN).toBeDefined()

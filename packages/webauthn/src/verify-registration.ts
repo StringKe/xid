@@ -1,7 +1,4 @@
-// 注册验证(W3C WebAuthn L3 §7.1,见 docs/design/01-authentication.md 注册验证步骤)。
-// 校验 challenge(constant-time)/ origin / rpIdHash;解析 attestationObject 提取 attestedCredentialData。
-// enterprise attestation:按 policy 验 attStmt 签名链;none 直接接受。
-// 可信值(expectedChallenge/expectedRpId/expectedOrigins)由调用方从 DO + TenantContext 注入。
+// 注册：challenge/origin/rpIdHash + AT 提取公钥；attestation 按 policy 验链，none 直接接受。
 
 import type { XidError, Result, VerifiedPasskey, WebAuthnVerificationInput } from '@xid-kit/types'
 
@@ -29,7 +26,6 @@ function invalidCredentials(message: string): Result<VerifiedPasskey, XidError> 
   return fail(webauthnError('invalid_credentials', message))
 }
 
-// 注册验证编排。返回 Result;challenge/origin/rpIdHash 任一失败返回模糊错误。
 export async function verifyRegistration(
   input: WebAuthnVerificationInput,
   options: RegistrationVerificationOptions = {},

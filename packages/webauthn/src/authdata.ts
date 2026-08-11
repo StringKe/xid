@@ -1,7 +1,4 @@
-// authenticatorData 字节解析(W3C WebAuthn L3 §6.1)。见 docs/design/01-authentication.md authData 字节结构表。
-// 固定头 37 字节:rpIdHash[0..32] + flags[32] + signCount[33..37](uint32 big-endian)。
-// flags.AT=1 时跟 attestedCredentialData;flags.ED=1 时跟 extensions(CBOR map)。
-// 纯字节解析(格式编解码自研);COSE 公钥解析委托 cose.ts。
+// authenticatorData 解析（W3C WebAuthn L3 §6.1）：37 字节固定头后按 AT/ED 位接 attestedCredentialData 与 extensions。
 
 import { parseCoseKeyAt } from './cose'
 import type { ParsedCoseKey } from './cose'
@@ -13,7 +10,6 @@ const HEADER_LEN = 37
 const AAGUID_LEN = 16
 const CRED_ID_LEN_MAX = 1023
 
-// flags 位定义(LSB=bit0,见 01 章 flags 位定义)。
 const FLAG_UP = 0x01
 const FLAG_UV = 0x04
 const FLAG_BE = 0x08
@@ -34,7 +30,7 @@ export type AttestedCredentialData = {
   aaguid: Uint8Array
   credentialId: Uint8Array
   coseKey: ParsedCoseKey
-  // 规范化后的 COSE public key 字节(注册原样持久化,见 01 章 step 9)。
+  // 注册时原样持久化的 COSE 字节，认证路径再 importKey，避免编码往返漂移。
   coseKeyBytes: Uint8Array
 }
 
@@ -56,7 +52,6 @@ function parseFlags(byte: number): AuthDataFlags {
   }
 }
 
-// 解析 attestedCredentialData(从 authData 偏移 37 起):aaguid[16] + credIdLen[2] + credId[L] + COSE_Key。
 async function parseAttestedCredentialData(authData: Uint8Array): Promise<AttestedCredentialData> {
   if (authData.length < HEADER_LEN + AAGUID_LEN + 2) {
     throw new Error('authData: truncated attestedCredentialData header')
@@ -75,13 +70,12 @@ async function parseAttestedCredentialData(authData: Uint8Array): Promise<Attest
   return { aaguid, credentialId, coseKey: parsed, coseKeyBytes: coseBytes }
 }
 
-// 解析 authenticatorData。注册需 attestedCredentialData(AT=1);认证通常无(37 字节 + 可选 extensions)。
 export async function parseAuthData(authData: Uint8Array): Promise<ParsedAuthData> {
   if (authData.length < HEADER_LEN) throw new Error('authData: shorter than 37-byte header')
   const flags = parseFlags(authData[FLAGS_OFFSET]!)
   const view = new DataView(authData.buffer, authData.byteOffset, authData.byteLength)
   const signCount = view.getUint32(SIGN_COUNT_OFFSET, false)
-  // 约束:BE=0 时 BS 必须为 0(见 01 章 flags 位定义)。
+  // BE=0 时 BS 必须为 0（规范非法组合，拒绝而非静默忽略）。
   if (!flags.backupEligible && flags.backupState) {
     throw new Error('authData: BS set while BE clear (illegal backup state)')
   }
@@ -96,7 +90,6 @@ export async function parseAuthData(authData: Uint8Array): Promise<ParsedAuthDat
   return result
 }
 
-// BE/BS 派生:credentialDeviceType / credentialBackedUp(见 VerifiedPasskey 字段)。
 export function deriveDeviceType(flags: AuthDataFlags): 'singleDevice' | 'multiDevice' {
   return flags.backupEligible ? 'multiDevice' : 'singleDevice'
 }

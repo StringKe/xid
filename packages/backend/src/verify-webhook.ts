@@ -1,6 +1,4 @@
-// verifyWebhook:svix 风格 HMAC-SHA256 webhook 签名验证(见 api-sdk-conventions rule:svix-id/timestamp/signature,HMAC-SHA256,5min 窗防重放)。
-// 签名底文 = `${id}.${timestamp}.${body}`,密钥为 whsec_ 前缀的 standard base64 secret;svix-signature 头含空格分隔的 `v1,<base64sig>` 多签名。
-// HMAC 验签复用 @xid-kit/crypto hmacSha256Verify(constant-time 比较),不自研密码学原语。
+// svix 风格验签:底文 `${id}.${timestamp}.${body}`,多 v1 签名并存以支持密钥轮换,默认 5min 防重放。
 
 import type { Result } from '@xid-kit/types'
 import { base64UrlDecode, hmacSha256Verify } from '@xid-kit/crypto'
@@ -11,11 +9,8 @@ const DEFAULT_TOLERANCE_SEC = 300
 const LEGACY_HEX_SECRET = /^[0-9a-f]{64}$/u
 
 export type VerifyWebhookOptions = {
-  // webhook signing secret(svix 格式 `whsec_<base64>`、裸 base64 或旧版 64 位 hex)。
   secret: string
-  // 时间窗容忍(秒),默认 300(5min,见 api-sdk-conventions rule 防重放)。
   toleranceSec?: number
-  // 当前时间(秒),默认 now。测试注入用。
   now?: number
 }
 
@@ -41,7 +36,7 @@ function err(error: WebhookVerifyError): Result<VerifiedWebhook, WebhookVerifyEr
   return { ok: false, error }
 }
 
-// 旧版 API 返回 64 位 hex 文本并直接以其 UTF-8 字节签名;保留读取兼容让存量订阅可验签到轮换。
+// 旧版 secret 为 64 位 hex 的 UTF-8 字节,非 base64;兼容存量订阅直至轮换。
 function decodeSecret(secret: string): Uint8Array {
   if (!secret.startsWith(WHSEC_PREFIX) && LEGACY_HEX_SECRET.test(secret)) {
     return new TextEncoder().encode(secret)
@@ -68,7 +63,7 @@ function checkTimestamp(
   return { ok: true, value: timestamp }
 }
 
-// 校验 svix-signature 头中任一 v1 签名匹配(头可含多签名,密钥轮换期并存)。
+// 任一 v1 签名匹配即可(轮换期多签名并存)。
 async function matchAnySignature(
   secret: Uint8Array,
   signingContent: string,
@@ -90,8 +85,6 @@ async function matchAnySignature(
   return false
 }
 
-// 验证 webhook Request:取 svix-id/timestamp/signature -> 校验时间窗 -> HMAC 验签底文 `${id}.${ts}.${body}`。
-// 可预期失败返回 Result error(缺头/时间窗外/签名不匹配),成功返回解析后的 payload。
 export async function verifyWebhook(
   request: Request,
   options: VerifyWebhookOptions,

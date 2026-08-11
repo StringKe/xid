@@ -1,5 +1,4 @@
-// 端到端 verifySamlResponse 测试:验签成功 + 8.8 各错误分支(签名/语义/解码/预检)。
-// 用真实 RSA 证书 + 私钥(fixtures)签 Response/Assertion,真实跑 crypto.subtle 验签。
+// verifySamlResponse 端到端:成功路径与各错误分支,真实 crypto.subtle 验签。
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { toBufferSource } from '@xid-kit/crypto'
@@ -20,7 +19,7 @@ import {
   signResponse,
 } from './fixtures'
 
-// 另一把无关 RSA 证书(other.example.com),用于验签失败用例。
+// 无关证书,用于公钥不匹配用例。
 const OTHER_CERT_B64 =
   'MIICtDCCAZwCCQDnJfqAQozYiDANBgkqhkiG9w0BAQsFADAcMRowGAYDVQQDDBFvdGhlci5leGFtcGxlLmNvbTAeFw0yNjA2MDEyMDAzNTVaFw0yNzA2MDEyMDAzNTVaMBwxGjAYBgNVBAMMEW90aGVyLmV4YW1wbGUuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxuiqChBxRbzWh0Q7c7vTy5LocCnauxHVJMb0lAiFabDjnrb+1dLqVXOkfCNnrGHhcgr00JgjeVHNVbBwQVLOHnEKMqwAuxmMbn2kO8eRb6097JAJS3OqF5/g/9e+1PsHa0R/WWvoJT8xZ0XLHv9pxDiftO+yTL1zxidC4Y5bUhLTNO7/ZdyqWQ6i8kOjsyUEbdVSDNSHKOL+Uw4dUKV5n/HHaMFXvc2x8oBlb6xDbXLtl4bkJl8ukePzJSbvZKxVF/kSC6oqB073FunI3n9ZwurHsaCUAj9LOqeyEZBWAXq8+gcyQlbytdcp5c9bbMXZ7ADjt50FZ0jH3+WBJxc8RQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB4W4hlYrpGhN1W2aY/oHzKbv/e+NR+HoAwmkc1ZFAmEcRrK9i8SJTXm42/BCXpraX4zBfG38Nkdcv617N/pQ1OE+aqsmZk3BopHdNVbBQqYvHpPOl4BVFzBgkhNyM3Y/weCWdTIffCBdZUSTNKDsW7MUqdayS6kQJ6W5TnouJwXOYLm4lheqaS5yoKL5VTkW+w9bvMxcNIMHMA4N24fnaKcNJ6ps0by/BFnxMidJnRw3QMlPDXZ/UAF5zPTDDMku5pp8HpOPvgeh+mRFgp35bMR7VLwvvxi9pOtkBjaB4PZtj6bpQkdmtr1kglxZanuUE67LTz0amLjMOYXiMn5ALF'
 
@@ -87,7 +86,6 @@ describe('verifySamlResponse end-to-end', () => {
   })
 
   it('signature_invalid when verified with an unrelated cert', async () => {
-    // 用 IdP 私钥签,但 connection 配置一把无关证书(other.example.com)-> 公钥不匹配,验签失败。
     const xml = await signedResponse()
     const result = await verifySamlResponse(xml, opts({ idpCertificatesB64: [OTHER_CERT_B64] }))
     expect(result.ok).toBe(false)
@@ -356,14 +354,13 @@ describe('verifySamlResponse SP-initiated InResponseTo', () => {
   })
 })
 
-// 提取签名后 Response 中第一个 <saml:Assertion>...</saml:Assertion> 完整片段(含其 enveloped Signature)。
 function extractSignedAssertion(responseXml: string): string {
   const start = responseXml.indexOf('<saml:Assertion ')
   const end = responseXml.indexOf('</saml:Assertion>') + '</saml:Assertion>'.length
   return responseXml.slice(start, end)
 }
 
-// 在 Response 的 Status 之后、原 Assertion 之前注入一段片段(模拟 XSW 包装位置)。
+// 在原 Assertion 前注入片段(XSW 包装位置)。
 function injectBeforeAssertion(responseXml: string, fragment: string): string {
   const at = responseXml.indexOf('<saml:Assertion ')
   return responseXml.slice(0, at) + fragment + responseXml.slice(at)
@@ -467,7 +464,6 @@ async function signStandaloneAssertion(assertionXml: string, key: CryptoKey): Pr
   return Stringify(doc)
 }
 
-// 伪造一个未签名 Assertion(攻击者 NameID),用于注入测试。
 function forgedAssertion(id: string, email: string): string {
   return [
     `<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="${id}" Version="2.0" IssueInstant="2026-06-01T08:00:00Z">`,
@@ -482,20 +478,18 @@ function forgedAssertion(id: string, email: string): string {
   ].join('')
 }
 
-// XSW(XML Signature Wrapping)负测试:签名节点移位 / 重复 Assertion / 引用目标偏移,verify 必须拒绝。
+// XSW 负测试:重复/注入 Assertion 等必须在结构层拒绝。
 describe('verifySamlResponse XSW (signature wrapping) defense', () => {
   beforeAll(async () => {
     setSamlEngine(crypto)
     signKey = await importIdpSigningKey()
   })
 
-  // 仅签 Assertion 的配置(把 XSW 焦点放在 Assertion 层包装)。
   function assertionOnly(over: Record<string, unknown> = {}) {
     return opts({ wantAuthnResponseSigned: false, wantAssertionsSigned: true, ...over })
   }
 
   it('rejects duplicated signed Assertion at the structural boundary', async () => {
-    // 复制整段已签名 Assertion(同 ID),Response 不再满足单一 payload allowlist。
     const signed = await signedResponse({}, { response: false, assertion: true })
     const clone = extractSignedAssertion(signed)
     const tampered = injectBeforeAssertion(signed, clone)
@@ -505,8 +499,6 @@ describe('verifySamlResponse XSW (signature wrapping) defense', () => {
   })
 
   it('rejects forged unsigned Assertion injected before the signed one', async () => {
-    // 在已签名 Assertion 前注入伪造未签名 Assertion(攻击者 email)。
-    // Response 同时出现伪造与合法 Assertion,在选择待验签节点前即拒绝。
     const signed = await signedResponse({}, { response: false, assertion: true })
     const evil = forgedAssertion('_evil_assert', 'attacker@evil.example.com')
     const tampered = injectBeforeAssertion(signed, evil)
@@ -516,7 +508,7 @@ describe('verifySamlResponse XSW (signature wrapping) defense', () => {
   })
 
   it('rejects when both want-signed flags are false (baseline forces assertion signature)', async () => {
-    // 双 false 配置:实现回退到强制 assertion 签名,未签名 Response 被拒。
+    // 双 false 回退强制 assertion 签名。
     const unsigned = buildResponseXml()
     const result = await verifySamlResponse(
       unsigned,

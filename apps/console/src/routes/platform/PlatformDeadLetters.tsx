@@ -1,5 +1,3 @@
-// platform console 死信队列页(独立页面):GET /v1/platform/dead-letters + 重放。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'

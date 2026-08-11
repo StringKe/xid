@@ -1,12 +1,9 @@
-// SCIM 目录同步实体(见 08 章 16.4-16.7):directories / directory_users / directory_groups /
-// directory_group_members / directory_pending_members。
-// scim_token 存哈希(明文展示一次);SCIM 查询强制 WHERE tenant_id=? AND directory_id=?(见 04 章 9.4)。
+// SCIM 目录同步(08 章 16.4+):scim_token 只存哈希;查询须 tenant_id + directory_id(04 章 9.4)。
 
 import { sql } from 'drizzle-orm'
 import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, createdAt, tenantId, timestamps, tsMs } from './common'
 
-// 16.4 directories(SCIM 目录连接)
 export const directories = sqliteTable(
   'directories',
   {
@@ -32,7 +29,6 @@ export const directories = sqliteTable(
   ],
 )
 
-// 16.5 directory_users(SCIM 同步用户,双向绑定)
 export const directoryUsers = sqliteTable(
   'directory_users',
   {
@@ -75,7 +71,6 @@ export const directoryUsers = sqliteTable(
   ],
 )
 
-// 16.6 directory_groups(SCIM 同步组 + group->role 映射)
 export const directoryGroups = sqliteTable(
   'directory_groups',
   {
@@ -109,7 +104,6 @@ export const directoryGroups = sqliteTable(
   ],
 )
 
-// 16.7 directory_group_members(已解析成员)
 export const directoryGroupMembers = sqliteTable(
   'directory_group_members',
   {
@@ -125,7 +119,7 @@ export const directoryGroupMembers = sqliteTable(
   ],
 )
 
-// 16.7 directory_pending_members(unknown member 幂等占位,OneLogin quirk)
+// unknown member 幂等占位(OneLogin 投递顺序 quirk)。
 export const directoryPendingMembers = sqliteTable(
   'directory_pending_members',
   {
@@ -141,7 +135,6 @@ export const directoryPendingMembers = sqliteTable(
   ],
 )
 
-// 16.11 scim_targets(XID 作为 SCIM client 向下游 SaaS 推送用户和组)
 export const scimTargets = sqliteTable(
   'scim_targets',
   {
@@ -165,7 +158,7 @@ export const scimTargets = sqliteTable(
   ],
 )
 
-// 16.12 scim_target_resources(下游 SCIM User/Group 稳定 identity mapping)
+// 下游 SCIM 资源稳定 identity mapping。
 export const scimTargetResources = sqliteTable(
   'scim_target_resources',
   {

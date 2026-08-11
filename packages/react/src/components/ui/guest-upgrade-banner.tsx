@@ -1,6 +1,4 @@
-// GuestUpgradeBanner:guest 用户的转正引导条(对标 Firebase anonymous upgrade 提示)。
-// 仅当已登录且用户匿名开通(provisionedBy === 'anonymous')时渲染,其余情况渲染 null。
-// 文案走 lingui runtime descriptor;无样式,class 走 xid-guest-upgrade-banner 命名约定。
+// 仅 isGuestUser(provisionedBy === 'anonymous') 时渲染。
 
 import type { CSSProperties, ReactNode } from 'react'
 
@@ -14,9 +12,7 @@ import { Rt, sdkMessages } from '../../i18n-runtime'
 import { runAuthorizationRedirect } from '../control/authorization-redirect'
 
 export type GuestUpgradeBannerProps = {
-  // 转正入口(Hosted UI 注册/设置登录方式页)
   upgradeUrl?: string
-  // 转正完成后回跳地址
   redirectUrl?: string
   appearance?: Appearance
   className?: string

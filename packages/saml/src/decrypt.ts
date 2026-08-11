@@ -1,6 +1,5 @@
-// 8.6 EncryptedAssertion 解密(decrypt-then-verify):RSA-OAEP 解会话密钥 -> AES-GCM/CBC 解明文 Assertion。
-// SP 解密私钥由 worker 从 CertStore 信封解密后以不可导出 CryptoKey 传入(见 signing-keys rule,私钥不出 isolate)。
-// 密码学原语只用 crypto.subtle(见 crypto-boundary rule)。算法不在白名单一律拒。
+// EncryptedAssertion decrypt-then-verify:RSA-OAEP 解会话密钥后 AES-GCM/CBC 解明文。
+// 私钥由 worker 以不可导出 CryptoKey 传入;仅 crypto.subtle,算法白名单外一律拒。
 
 import { toBufferSource } from '@xid-kit/crypto'
 import { XENC_NS, SAMLP_NS, SAML_ASSERTION_NS } from './precheck'
@@ -9,10 +8,8 @@ import type { SamlResult } from './errors'
 
 const DS_NS = 'http://www.w3.org/2000/09/xmldsig#'
 
-// RSA-OAEP 密钥包装算法白名单(按 xenc:EncryptionMethod 声明,8.6 step 2)。
 const RSA_OAEP = 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p'
 const RSA_OAEP_11 = 'http://www.w3.org/2009/xmlenc11#rsa-oaep'
-// 数据加密算法白名单(8.6 step 3)。
 const AES_GCM = new Map<string, number>([
   ['http://www.w3.org/2009/xmlenc11#aes128-gcm', 128],
   ['http://www.w3.org/2009/xmlenc11#aes256-gcm', 256],
@@ -49,7 +46,6 @@ function encryptionAlg(encrypted: Element): string {
   return child(encrypted, XENC_NS, 'EncryptionMethod')?.getAttribute('Algorithm') ?? ''
 }
 
-// 解 xenc:EncryptedKey(RSA-OAEP)-> 对称会话密钥原始字节。
 async function unwrapSessionKey(
   encryptedData: Element,
   spPrivateKey: CryptoKey,
@@ -113,7 +109,6 @@ async function decryptData(
   }
 }
 
-// 定位 /samlp:Response/saml:EncryptedAssertion/xenc:EncryptedData(绝对路径,唯一),解出明文 Assertion XML。
 export async function decryptEncryptedAssertion(
   responseRoot: Element,
   spPrivateKey: CryptoKey,
@@ -128,7 +123,6 @@ export async function decryptEncryptedAssertion(
   return decryptData(encryptedData, sessionKey.value)
 }
 
-// 判断 Response 是否含明文 Assertion 或 EncryptedAssertion(决定走解密路径)。
 export function hasEncryptedAssertion(responseRoot: Element): boolean {
   return child(responseRoot, SAML_ASSERTION_NS, 'EncryptedAssertion') !== null
 }

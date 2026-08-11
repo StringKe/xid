@@ -1,4 +1,4 @@
-// Monorepo 质量门禁汇总:关键目录测试文件数与 it() 下限,防止大面积误删回归测试。
+// 质量门禁:关键目录测试文件数与 it() 下限,防止大面积误删回归测试。
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'

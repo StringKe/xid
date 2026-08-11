@@ -1,4 +1,4 @@
-// Instance-manager gate for OIDC management stubs (SSF, federation registration).
+// OIDC 管理 stub(SSF/federation)的 instance_manager 门控。
 
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'

@@ -1,5 +1,3 @@
-// org 社交登录 provider 页:每条 provider 一个 5/7 双列配置节,模板/自定义 key 添加,本地编辑后统一保存。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;移除 provider 走 ConfirmDialog。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
@@ -48,7 +46,6 @@ const styles = stylex.create({
     flex: '1 1 240px',
     minWidth: 0,
   },
-  // provider 左列 meta:状态徽章 + 移除操作 + readiness 说明
   providerMeta: {
     display: 'flex',
     flexDirection: 'column',
@@ -326,7 +323,6 @@ export default function OrgSocialProvidersPage(): ReactNode {
         </ConsolePageSection>
       ) : (
         <form onSubmit={(event) => void handleSave(event)} noValidate>
-          {/* Provider connections:add from template or custom key */}
           <ConsolePageSplitSection
             title={<Trans>Provider connections</Trans>}
             description={
@@ -366,7 +362,6 @@ export default function OrgSocialProvidersPage(): ReactNode {
             </div>
           </ConsolePageSplitSection>
 
-          {/* Provider list */}
           {socialEntries.length === 0 ? (
             <ConsolePageSection>
               <EmptyState title={<Trans>No social providers configured.</Trans>} />

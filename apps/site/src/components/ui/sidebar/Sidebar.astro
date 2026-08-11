@@ -1,9 +1,4 @@
 ---
-/**
- * Sidebar — recursive navigation tree from a `SidebarItem[]`. Composes
- * SidebarGroup + SidebarLink. Pass `persist` to opt into sessionStorage
- * for open/scroll state (desktop only).
- */
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";
 import SidebarGroup from "./SidebarGroup.astro";
@@ -13,7 +8,7 @@ import { sidebarHash } from "@cloudflare/nimbus-docs";
 
 interface Props extends HTMLAttributes<"div"> {
   items: SidebarItem[];
-  /** Persist open/scroll state to sessionStorage. Desktop sidebar only. */
+  /** 桌面侧栏：open/scroll 写入 sessionStorage。 */
   persist?: boolean;
 }
 

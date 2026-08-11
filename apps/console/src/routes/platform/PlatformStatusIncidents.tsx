@@ -1,6 +1,3 @@
-// platform console 状态事件页:GET/POST/PATCH/DELETE /v1/platform/status-incidents + 追加时间线更新。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列创建表单 + hairline 分节列表。
-// 解决事件走 useUpdateStatusIncident(PATCH status + resolvedAt),删除走 ConfirmDialog(danger)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'

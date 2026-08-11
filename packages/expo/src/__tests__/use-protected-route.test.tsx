@@ -1,13 +1,8 @@
-// useProtectedRoute unit tests.
-// Tests the redirect logic (the behavior inside useEffect) by mocking @xid-kit/react-native useAuth
-// and using @testing-library/react renderHook so effects actually run.
-
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
 
-// Mock useAuth from @xid-kit/react-native so effects run with controlled auth state.
-// Do NOT import XidContext internal path -- that is not a public API.
+// 经公共 API mock useAuth，勿 import 内部 XidContext 路径。
 vi.mock('@xid-kit/react-native', async (importOriginal) => {
   const original = await importOriginal<typeof import('@xid-kit/react-native')>()
   return {

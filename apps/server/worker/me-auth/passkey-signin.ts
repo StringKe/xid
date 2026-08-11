@@ -1,10 +1,5 @@
-// POST /auth/passkey/challenge + /auth/passkey/verify:发现式 passkey 登录(前端 usePasskeySignIn)。
-// 对齐既有 passkey.ts login/options + login/verify,但契约差异:
-//   - challenge handle 放响应体字段 sessionId(替代既有 __Host-xid.anon cookie + anonKey)。
-//   - verify 响应 { redirectUrl? }(替代 { sessionId, userId })。
-// 四验证(challenge/origin/rpIdHash/signature)+ sign_count 克隆检测无跳过路径(webauthn rule)。
-// challenge 存 WEBAUTHN_CHALLENGE DO,key 用 sessionId(per 匿名 ceremony,一次性消费防重放)。
-// 枚举防护:凭证不存在与验签失败返回相同 invalid_credentials。
+// 发现式 passkey 登录:challenge handle 用响应体 sessionId;四验证 + sign_count 无跳过。
+// 凭证不存在与验签失败同 invalid_credentials。
 
 import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, resolveTenantContextById, schema } from '@xid-kit/db'

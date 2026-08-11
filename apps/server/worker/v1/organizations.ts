@@ -2182,8 +2182,7 @@ app.post('/:id/scim-targets', async (c) => {
   if (!provider || !rawBaseUrl) {
     throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'base_url' } })
   }
-  // Legacy clients could select any env binding through token_secret_ref. Reject the field rather
-  // than using it; the server derives a target-specific SCIM_TARGET_TOKEN_<target id> name.
+  // 拒绝客户端自选 token_secret_ref;服务端派生 SCIM_TARGET_TOKEN_<target id>。
   if (body.token_secret_ref !== undefined) {
     throw new AppError('validation_failed', {
       httpStatus: 422,
@@ -2241,7 +2240,7 @@ app.patch('/:id/scim-targets/:targetId', async (c) => {
       meta: { paramName: 'token_secret_ref' },
     })
   }
-  // Any legacy arbitrary reference becomes inert and is normalized on the next safe update.
+  // 安全更新时把任意旧引用归一到派生 secret 名。
   patch.tokenSecretRef = scimTargetTokenSecretName(existing.id)
   const gate = assignmentGateFromBody(body)
   if (gate) {

@@ -1,6 +1,3 @@
-// /account/security:密码修改 + MFA 因子管理 + Passkey 管理。
-// 全宽版式:display 标题区 + 各区块自含 gutter 节(hairline 分节),不使用 page.root 窄容器。
-// 各区块状态自包含,此文件仅负责组装与页面框架。
 
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'

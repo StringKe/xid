@@ -1,6 +1,4 @@
-// JWT 签发/校验(自研协议逻辑,见 crypto-boundary rule:JWT 签发校验全自研;原语用 Web Crypto)。
-// 支持 ES256(默认)/RS256/PS256。ES256 走 JOSE P1363(r||s)定长签名,Web Crypto ECDSA 原生即 P1363,无需 DER 转换。
-// verify 校验 exp/iat 与签名,可预期失败返回 Result(见错误处理铁律);格式损坏 throw。
+// JWT 签验自研;ES256 使用 Web Crypto 原生 JOSE P1363 签名,无需 DER。可预期失败返回 Result,格式损坏才 throw。
 
 import type { Result, SigningAlg } from '@xid-kit/types'
 
@@ -32,14 +30,12 @@ export type JwtClaims = {
   [claim: string]: unknown
 }
 
-// alg -> Web Crypto sign/verify 算法参数(workers-types SubtleCryptoSignAlgorithm)。
 function signAlgParams(alg: SigningAlg): SubtleCryptoSignAlgorithm {
   if (alg === 'ES256') return { name: 'ECDSA', hash: 'SHA-256' }
   if (alg === 'PS256') return { name: 'RSA-PSS', saltLength: P256_COORD_BYTES }
   return { name: 'RSASSA-PKCS1-v1_5' }
 }
 
-// 签发 JWT。header 强制带 kid(见 signing-keys rule 多 kid)。signingKey 为不可导出私钥句柄。
 export async function signJwt(
   input: { header: Omit<JwtHeader, 'typ'> & { typ?: string }; payload: JwtClaims },
   signingKey: CryptoKey,
@@ -54,21 +50,16 @@ export async function signJwt(
   return `${signingInput}.${base64UrlEncode(rawSig)}`
 }
 
-// 校验输入:单个公钥(带 alg)或 JWKS(按 kid 选公钥)。
 export type VerifyKey = { alg: SigningAlg; publicKey: CryptoKey }
 export type VerifyKeySet = {
   keys: readonly { kid: string; alg: SigningAlg; publicKey: CryptoKey }[]
 }
 
 export type VerifyOptions = {
-  // 当前时间(秒);默认 now。用于 exp/nbf/iat 判定。
   now?: number
-  // exp/nbf 容忍偏差(秒),默认 60。
   clockToleranceSec?: number
-  // 跳过 exp 判定(RP-Initiated Logout 的 id_token_hint 允许已过期);nbf/iat 仍按
-  // clockToleranceSec 校验,不放宽成无限容差,否则未来签发的 token 会一并被放行。
+  // RP-Initiated Logout 的 id_token_hint 可已过期;跳过 exp 时 nbf/iat 仍按 clockToleranceSec 校验,避免未来签发的 token 被放行。
   allowExpired?: boolean
-  // 期望 iss / aud,提供则校验。
   expectedIssuer?: string
   expectedAudience?: string
 }
@@ -103,8 +94,7 @@ function resolveKey(header: JwtHeader, key: VerifyKey | VerifyKeySet): VerifyKey
   if ('publicKey' in key) return key
   const match = key.keys.find((k) => k.kid === header.kid)
   if (match) return { alg: match.alg, publicKey: match.publicKey }
-  // 单钥占位:已导入的 CryptoKey 无 kid(toVerifyKeySet 填占位 ''),token 带真实 kid 时仍用该唯一 key 验签。
-  // 仅当唯一 key 的 kid 为空才放宽;有真实 kid 的多/单钥集一律要求精确匹配,保持轮换隔离与 unknown_kid 语义。
+  // CryptoKey 无 kid 时 toVerifyKeySet 用空串占位;仅唯一 key 且 kid 为空才放宽匹配,避免多 kid 轮换误用错误公钥。
   const only = key.keys.length === 1 ? key.keys[0] : undefined
   return only && only.kid === '' ? { alg: only.alg, publicKey: only.publicKey } : undefined
 }
@@ -138,7 +128,6 @@ function checkClaims(
   return undefined
 }
 
-// 解析三段:拆 header/payload,校验格式与必备字段。
 type ParsedJwt = {
   header: JwtHeader
   payload: JwtClaims
@@ -167,7 +156,6 @@ function parseJwt(token: string): Result<ParsedJwt, JwtVerifyError> {
   }
 }
 
-// 选公钥 + alg 匹配 + 验签。
 async function verifySignature(
   parsed: ParsedJwt,
   key: VerifyKey | VerifyKeySet,
@@ -184,7 +172,6 @@ async function verifySignature(
   return valid ? undefined : 'bad_signature'
 }
 
-// 校验 JWT:kid 选公钥 -> alg 匹配 -> 验签 -> exp/nbf/iat -> iss/aud。任一失败返回 Result error,不抛。
 export async function verifyJwt(
   token: string,
   key: VerifyKey | VerifyKeySet,

@@ -1,10 +1,7 @@
-// createXidMiddleware 单元测试。
-// 由于 @xid-kit/backend authenticateRequest 依赖 Web Crypto 验签,
-// 这里 mock authenticateRequest 测试 middleware 的路由保护/locals 注入逻辑。
+// mock authenticateRequest:真实验签依赖 Web Crypto,此处只测路由保护与 locals 注入。
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock @xid-kit/backend authenticateRequest。
 vi.mock('@xid-kit/backend', () => ({
   authenticateRequest: vi.fn(),
 }))
@@ -41,7 +38,7 @@ const SIGNED_OUT_STATE = {
   reason: 'no_token' as const,
 }
 
-// authenticateRequest 已被 mock,公钥不会真正用于验签;只需满足 JwtKey 结构。
+// 满足 JwtKey 结构即可,mock 路径不会真正验签。
 const mockJwtKey: JwtKey = {
   kty: 'EC',
   crv: 'P-256',

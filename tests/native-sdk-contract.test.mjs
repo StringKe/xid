@@ -235,10 +235,8 @@ const NATIVE_DOC_SLUGS = [
 
 const SERVER_DOC_SLUGS = NATIVE_DOC_SLUGS.slice(0, 7)
 
-// CI runs the static directory, manifest, metadata, and README distribution checks below. Native
-// toolchains remain an explicit local action because the 13 SDKs are source-only and no external
-// registry publish is authorized. To run one real suite:
-// XID_NATIVE_SDK_PLATFORM=go node --test tests/native-sdk-contract.test.mjs
+// CI 只跑静态目录/清单/元数据/README;原生工具链需本地显式执行(源码-only、无 registry 发布授权)。
+// 例:XID_NATIVE_SDK_PLATFORM=go node --test tests/native-sdk-contract.test.mjs
 test('every native SDK platform in the matrix points at a real directory', () => {
   for (const [platform, steps] of Object.entries(NATIVE_SDK_MATRIX)) {
     assert.ok(steps.length > 0, `${platform} has no steps`)

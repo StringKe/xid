@@ -1,4 +1,3 @@
-// JWT 签发/校验正反例:合法验证通过;过期/篡改/错 kid/iss/aud 不匹配拒绝(见 oidc-oauth / signing-keys rule)。
 import type { SigningAlg } from '@xid-kit/types'
 import { describe, it, expect } from 'vitest'
 

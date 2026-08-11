@@ -1,11 +1,4 @@
-// Angular route guards wrapping XidAuthService (Angular 17+ functional guards).
-// All guards are CanActivateFn factories that inject XidAuthService and redirect
-// to /sign-in (or a custom path) when the condition is not met.
-//
-// Usage:
-//   { path: 'dashboard', canActivate: [authGuard()] }
-//   { path: 'org-settings', canActivate: [hasOrganizationGuard()] }
-//   { path: 'admin', canActivate: [hasPermissionGuard('org:settings:write')] }
+// 基于 XidAuthService 的 Angular 17+ 函数式 CanActivateFn 工厂。
 
 import { inject } from '@angular/core'
 import { Router, type CanActivateFn, type UrlTree } from '@angular/router'
@@ -14,11 +7,9 @@ import { map, take, type Observable } from 'rxjs'
 import { XidAuthService } from './xid-auth.service'
 
 type GuardOptions = {
-  // Route to navigate to when the guard rejects. Defaults to '/sign-in'.
   redirectTo?: string
 }
 
-// authGuard: rejects unauthenticated users and redirects to sign-in.
 export function authGuard(options: GuardOptions = {}): CanActivateFn {
   return (): Observable<boolean | UrlTree> => {
     const service = inject(XidAuthService)
@@ -37,7 +28,6 @@ export function authGuard(options: GuardOptions = {}): CanActivateFn {
   }
 }
 
-// hasOrganizationGuard: rejects users without an active organization context.
 export function hasOrganizationGuard(options: GuardOptions = {}): CanActivateFn {
   return (): Observable<boolean | UrlTree> => {
     const service = inject(XidAuthService)
@@ -56,10 +46,7 @@ export function hasOrganizationGuard(options: GuardOptions = {}): CanActivateFn 
   }
 }
 
-// hasPermissionGuard: rejects users without a specific permission in the active org membership.
-// Only checks the membership for the currently active organization (state.organization),
-// not any membership across all orgs -- cross-org permission leakage would let a user
-// who is admin in org A pass a guard that is meant for org B.
+// 只查当前 active org 的 membership，禁止用 org A 权限通过 org B 路由（防 cross-org 泄漏）。
 export function hasPermissionGuard(permission: string, options: GuardOptions = {}): CanActivateFn {
   return (): Observable<boolean | UrlTree> => {
     const service = inject(XidAuthService)

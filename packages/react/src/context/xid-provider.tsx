@@ -1,6 +1,3 @@
-// XidProvider:注入 XidClient,启动时调用 client.load()。
-// 对标 @clerk/clerk-react ClerkProvider。
-
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -43,7 +40,6 @@ export function XidProvider(props: XidProviderProps): ReactNode {
       ),
   )
 
-  // 首次挂载拉取登录态;AbortController 在卸载时取消。
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {

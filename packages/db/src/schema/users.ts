@@ -1,17 +1,12 @@
-// 用户与身份实体(见 08 章 11):users / user_emails / user_phones / user_identities / gdpr_consents。
-// 租户内唯一约束(email/phone/external_id/username + provider+provider_user_id)第一列必为 tenant_id(见 9.5)。
+// 用户与身份(08 章 11):租户内唯一约束第一列必为 tenant_id(9.5)。
 
 import { sql } from 'drizzle-orm'
 import { blob, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, numCol, tenantId, timestamps, tsMs } from './common'
 
-// users.provisioned_by 取值登记:text 字段无枚举,新值在此登记后才允许写入。
-// 既有值:hosted_password / hosted_passwordless / hosted_passkey / invitation_email_claim /
-// jit_sso / bootstrap / scim。
-// hosted_passkey:guest 转正经 passkey 注册仪式(passkey 无独立建号路径,仅转正使用)。
+// provisioned_by 无 DB 枚举;新值须先在此登记。hosted_passkey 仅 guest 转正,无独立建号路径。
 export const USER_PROVISIONED_BY_ANONYMOUS = 'anonymous'
 
-// 11.1 users(平台级用户主体;即 JWT sub)
 export const users = sqliteTable(
   'users',
   {
@@ -83,7 +78,6 @@ export const users = sqliteTable(
   ],
 )
 
-// 11.2 user_emails(多值邮箱,租户内唯一)
 export const userEmails = sqliteTable(
   'user_emails',
   {
@@ -119,7 +113,6 @@ export const userEmails = sqliteTable(
   ],
 )
 
-// 11.3 user_phones(多值手机,E.164,租户内唯一)
 export const userPhones = sqliteTable(
   'user_phones',
   {
@@ -140,7 +133,7 @@ export const userPhones = sqliteTable(
   ],
 )
 
-// 11.4 user_identities(登录方式关联 + 社交绑定;token 信封加密存 blob)
+// 社交 token 信封加密存 blob,明文不入库。
 export const userIdentities = sqliteTable(
   'user_identities',
   {
@@ -169,7 +162,7 @@ export const userIdentities = sqliteTable(
   ],
 )
 
-// 11.5 gdpr_consents(GDPR 数据处理同意,与 oauth_consents 区分)
+// GDPR 数据处理同意,与 oauth_consents 区分。
 export const gdprConsents = sqliteTable(
   'gdpr_consents',
   {

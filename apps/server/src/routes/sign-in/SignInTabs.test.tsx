@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
-// sign-in 方法切换动效契约:
-//   - 面板 opacity 由 motion 驱动(StyleX 产物里 panel 相关类不得再带 transition)。
-//   - 面板渲染为 motion 元素(行内 opacity),inert 结构不变。
-//   - 激活药丸是全局唯一共享元素,跟随激活 tab 移动(layoutId 语义的结构断言)。
-// StyleX runtimeInjection 经 CSSOM insertRule 注入,class 名是 hash,断言规则文本本身。
+// 面板 opacity 由 motion 驱动(StyleX 不得再带 transition);药丸 layoutId 唯一共享。
 
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -46,7 +42,6 @@ function cssRulesFor(classNames: readonly string[]): CSSStyleRule[] {
     Array.from(document.styleSheets)
       .flatMap((sheet) => Array.from(sheet.cssRules))
       .filter((rule): rule is CSSStyleRule => 'selectorText' in rule)
-      // 注入选择器形如 `.x1hc1fzr:not(#\#):not(#\#)`,按 hash class 子串匹配。
       .filter((rule) => classNames.some((className) => rule.selectorText.includes(`.${className}`)))
   )
 }

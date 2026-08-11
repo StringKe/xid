@@ -1,7 +1,3 @@
-// /account/devices:信任设备列表 + 撤销信任。
-// 全宽版式:display 标题区(含 lead 说明) + 列表节(自持 gutter + hairline)。
-// 数据层 TanStack Query(useTrustedDevicesQuery/useRevokeTrustedDevice)。
-// 设计真相源:docs/design/01-authentication.md 第 7 节设备信任。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -48,7 +44,6 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontVariantNumeric: 'tabular-nums',
   },
-  // 窄屏可见的副文本(日期,在主列下方);宽屏由 SectionRow split 元信息列承载
   metaInline: {
     margin: '0.1875rem 0 0',
     fontSize: '0.8125rem',
@@ -171,7 +166,6 @@ function DeviceRow({ device }: DeviceRowProps): ReactNode {
       <SectionRow
         variant="split"
         label={
-          // 主块:设备名;窄屏下含日期
           <>
             <p {...stylex.props(styles.deviceName)}>{displayName}</p>
             <p {...stylex.props(styles.metaInline)}>

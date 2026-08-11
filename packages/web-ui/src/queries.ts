@@ -1,10 +1,4 @@
-// TanStack Query 数据层:把 api.ts 的 Result<T> 调用封装成 useQuery/useMutation hooks,
-// 约定:
-//   - queryKey 走 queryKeys 工厂(扁平命名空间,失效时按前缀 invalidate)。
-//   - queryFn 经 unwrap 把 Result<T> 失败抛成 XidError(契约冻结),成功返回 value;
-//     react-query 的 error 即 XidError,页面用 error.code 走 lingui、meta.paramName 映射字段。
-//   - mutation 成功后按受影响 queryKey 前缀 invalidate,触发自动 refetch。
-//   - credentials/401:沿用 api client(credentials:'include' + onUnauthorized),hooks 取 useAuth().api。
+// Result<T> -> useQuery/useMutation:失败 throw XidError;mutation 成功后按 queryKey 前缀 invalidate。
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -18,9 +12,6 @@ import type { Result, XidError } from '@xid-kit/types'
 import { useSession } from './session/SessionProvider'
 import type { ApiClient, ApiRequestOptions } from './api'
 import type { MeResponse } from './session/contracts'
-
-// --- queryKey 工厂 ---
-// 扁平 as const 元组;列表 key 末位带可变参(orgId/cursor/query)便于精确与前缀失效。
 
 export const queryKeys = {
   me: ['me'] as const,
@@ -127,7 +118,7 @@ export const queryKeys = {
     ['organizations', orgId, 'compliance-documents'] as const,
 } as const
 
-// 失效前缀:列表 query 的 key 末位带 cursor 对象,invalidate 用 3 段前缀(react-query 部分匹配命中所有分页变体)。
+// 列表 key 末位带 cursor,invalidate 用短前缀做部分匹配以命中全部页。
 export const queryKeyPrefixes = {
   organizations: ['organizations'] as const,
   orgMembers: (orgId: string) => ['organizations', orgId, 'members'] as const,
@@ -163,14 +154,11 @@ export const queryKeyPrefixes = {
   platformManagerAssignments: ['platform', 'manager-assignments'] as const,
 } as const
 
-// --- queryFn 基础:Result<T> -> throw XidError | return value ---
-
 function unwrap<T>(result: Result<T>): T {
   if (result.ok) return result.value
   throw result.error
 }
 
-// path/options 组合的 GET queryFn 工厂(列表/详情通用)。
 function getFn<T>(
   api: ApiClient,
   path: string,
@@ -180,11 +168,8 @@ function getFn<T>(
     unwrap(await api.get<T>(path, { ...options, signal }))
 }
 
-// --- 通用 query/mutation 包装(显式 XidError 错误类型) ---
-
 type QueryConfig<T> = Omit<UseQueryOptions<T, XidError, T, QueryKey>, 'queryKey' | 'queryFn'>
 
-// 读:queryKey + path,自动注入共享 api client、AbortSignal、XidError 错误类型。
 export function useApiQuery<T>(
   key: QueryKey,
   path: string,
@@ -203,11 +188,9 @@ type MutationConfig<TData, TVars> = Omit<
   UseMutationOptions<TData, XidError, TVars>,
   'mutationFn'
 > & {
-  // mutation 成功后失效的 queryKey 前缀列表(react-query 默认按前缀匹配子键)。
   invalidate?: readonly QueryKey[]
 }
 
-// 写:mutationFn 拿 api client,成功后按 invalidate 列表失效。
 export function useApiMutation<TData, TVars>(
   mutationFn: (api: ApiClient, vars: TVars) => Promise<Result<TData>>,
   config?: MutationConfig<TData, TVars>,
@@ -227,9 +210,6 @@ export function useApiMutation<TData, TVars>(
   })
 }
 
-// --- /v1/me 会话(auth-context 复用) ---
-
-// 当前会话上下文。staleTime 给一个非 0(query.ts 默认 30s 已覆盖),401 由 api client 归一。
 export function useMe(config?: QueryConfig<MeResponse>): UseQueryResult<MeResponse, XidError> {
   return useApiQuery<MeResponse>(queryKeys.me, '/v1/me', config)
 }

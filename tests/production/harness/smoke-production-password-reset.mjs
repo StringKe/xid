@@ -55,9 +55,7 @@ const newPassword = requireProductionPassword('XID_PRODUCTION_PASSWORD_RESET_NEW
 const PWRESET_ORG_PREFIX = 'org_smoke_pwreset_'
 const ORPHAN_SWEEP_LIMIT = 50
 
-// 前缀有两个外部约束,写错任何一个都会变成安全问题,因此在模块加载时就证伪:
-// 1. 必须通过共享白名单(含 `_smoke_`),否则它不配出现在任何 DELETE 的锚定面里;
-// 2. 必须落在共享扫除器的 org_smoke_ 锚定面内,否则本 harness 的 org 变成全局扫除扫不到的孤儿。
+// 模块加载时证伪前缀:须过共享白名单,且落在 org_smoke_ 全局扫除锚定面内。
 assertSmokePrefix(PWRESET_ORG_PREFIX)
 if (!PWRESET_ORG_PREFIX.startsWith(SMOKE_ID_PREFIXES.organization)) {
   throw new Error(
@@ -94,7 +92,7 @@ async function waitForVersion(port, timeoutMs = 15_000) {
       const res = await fetch(`http://127.0.0.1:${port}/json/version`)
       if (res.ok) return await res.json()
     } catch {
-      // Chrome is still starting.
+      // CDP 尚未就绪。
     }
     await delay(250)
   }
@@ -386,10 +384,7 @@ function passwordSmokeHostedAuthPolicy() {
   }
 }
 
-// 这个 harness 的清理是 tenant_id 维度的批量 DELETE,而 full 模式下的 organizationId 来自
-// 操作者粘贴的重置链接里的 tenant_id -- 一条来自生产 default org 的真实链接会让这段 DELETE
-// 清空该 org 的全部用户、成员与授权。organizationId 进入任何 DELETE 之前必须先证明它是本
-// harness 造的 smoke org,这是收窄爆炸半径的唯一防线。
+// full 模式 org id 来自重置链接 tenant_id;DELETE 前必须证明是本 harness smoke org。
 export function assertPasswordResetSmokeOrg(organizationId) {
   if (typeof organizationId !== 'string' || !organizationId.startsWith(PWRESET_ORG_PREFIX)) {
     throw new Error(
@@ -402,9 +397,7 @@ export function assertPasswordResetSmokeOrg(organizationId) {
   return organizationId
 }
 
-// 表清单直接取共享扫除器的清单(权限 -> 令牌/凭证 -> 关联 -> 主体),不再本地手抄:
-// 手抄的那份漏了 backup_codes / refresh_tokens / metering_outbox 等 11 张表,
-// 与全局扫除对不齐的差集就是下一次残留。这里锚定的是精确 tenant_id,不是 LIKE 前缀。
+// 复用共享扫除清单,按精确 tenant_id 锚定(非 LIKE 前缀),避免本地手抄漂移。
 export function passwordResetCleanupSql(organizationId) {
   const tenant = sqlString(organizationId)
   return `${smokeSweepTables()
@@ -428,11 +421,7 @@ export async function cleanupPasswordResetSmokeOrganization(organizationId, opti
   log('PASS', 'production password reset cleanup', `org=${organizationId}`)
 }
 
-// send-only 与 full 是两个进程:send-only 故意把 org 留给下一轮,交接一旦没跟上(操作者没跑 full、
-// 进程被杀、CI 超时),那个 org 里躺着的是一个带真实密码的生产账号,而且没有任何机制会回来收它
-// (旧的 cleanup 只认当次的 organizationId)。造新 org 之前先按本 harness 自己的前缀扫一遍。
-// 只扫 org_smoke_pwreset_,不调共享的全局 sweepSmokeResidue:后者会连带删掉其它 harness
-// (magic-link / phone-otp)故意留着等 full 运行的 send-only org。
+// send-only 交接失败会留下带真实密码的 org;造新前按本前缀扫,不调全局 sweep 以免误删其它 harness。
 export async function sweepPasswordResetSmokeOrphans(options = {}) {
   const { exec = d1, log = printResult } = options
   const rows = await exec(
@@ -445,7 +434,7 @@ LIMIT ${ORPHAN_SWEEP_LIMIT};
 `,
     'load orphaned production password reset smoke organizations',
   )
-  // SQL 侧已按前缀锚定,这里再用 JS startsWith 复核一遍:LIKE 的转义写错时它是唯一能拦住的地方。
+  // JS startsWith 复核:LIKE ESCAPE 写错时唯一能拦住的地方。
   const orphans = rows
     .map((row) => String(row.id))
     .filter((id) => id.startsWith(PWRESET_ORG_PREFIX) && id !== DEFAULT_INSTANCE_ORG_ID)
@@ -760,8 +749,7 @@ export async function runProductionPasswordResetSmoke() {
   let retainedOrganizationId = null
   let primaryError = null
 
-  // finally 在 Ctrl-C 与 CI runner 杀进程时都不执行,而这个 harness 被杀时留在生产库的是
-  // 一个带真实密码的账号。信号走与 finally 相同的清理路径,读的是当前的 organizationId。
+  // 信号杀进程时 finally 不跑,会留下带真实密码的账号;信号走同一清理路径。
   const unregisterSignals = registerCleanupSignalHandlers(async () => {
     if (!organizationId) return
     await runCleanupSteps([
@@ -775,8 +763,7 @@ export async function runProductionPasswordResetSmoke() {
   try {
     if (!providedUrl) {
       await sweepPasswordResetSmokeOrphans()
-      // id 先落到被 finally 与信号处理器读取的变量,再写库:先写库后 return 的写法里,
-      // INSERT 成功到 return 之间任何一次抛错都会让这个 org 永久无人认领。
+      // 先赋值再写库:否则 INSERT 成功到 return 之间抛错会让 org 无人认领。
       organizationId = `${PWRESET_ORG_PREFIX}${crypto.randomUUID()}`
       await seedPasswordResetSmokeOrganization(organizationId)
       await checkPasswordResetSmokeAuthConfig(organizationId)
@@ -821,7 +808,7 @@ export async function runProductionPasswordResetSmoke() {
         run: () => cleanupPasswordResetSmokeOrganization(organizationId),
       },
     ]
-    // send-only 故意把 org 留给下一轮,此时残留为 0 的断言必然失败;其余路径收尾必须是零残留。
+    // send-only 故意保留 org,跳过零残留断言;其余路径必须清零。
     if (!retainedOrganizationId) {
       steps.push({ name: 'assert no smoke residue', run: () => assertNoSmokeResidue() })
     }

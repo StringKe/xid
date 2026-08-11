@@ -1,5 +1,3 @@
-// org 认证策略页:hosted flow 标识/方法/profile 字段 + session/token 覆盖。GET/PATCH /v1/organizations/:orgId/auth-policy。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列配置节(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
@@ -69,7 +67,6 @@ const styles = stylex.create({
     justifyContent: 'center',
     paddingBlock: '2.25rem',
   },
-  // methods 网格:宽屏 2 列,特宽 3 列
   methodGrid: {
     display: 'grid',
     gridTemplateColumns: {
@@ -241,7 +238,7 @@ function normalizePolicy(data: OrgAuthPolicy): OrgAuthPolicy {
   }
 }
 
-// 空串 -> null(清除覆盖回退 instance 默认);非法数字 -> null,服务端 BOUNDS 校验兜底。
+// 空串/非法数字 -> null 清除覆盖,回退 instance 默认;BOUNDS 由服务端兜底。
 function numberOrNull(value: string): number | null {
   if (value.trim() === '') return null
   const parsed = Number(value)
@@ -391,7 +388,6 @@ export default function OrgAuthPolicyPage(): ReactNode {
         </ConsolePageSection>
       ) : (
         <form onSubmit={(event) => void handleSave(event)} noValidate>
-          {/* Identity rules */}
           <ConsolePageSplitSection
             title={<Trans>Identity rules</Trans>}
             description={
@@ -440,7 +436,6 @@ export default function OrgAuthPolicyPage(): ReactNode {
             </Field>
           </ConsolePageSplitSection>
 
-          {/* Hosted flow */}
           <ConsolePageSplitSection
             title={<Trans>Hosted flow</Trans>}
             description={
@@ -474,7 +469,6 @@ export default function OrgAuthPolicyPage(): ReactNode {
             </div>
           </ConsolePageSplitSection>
 
-          {/* Profile fields */}
           <ConsolePageSplitSection
             title={<Trans>Profile fields</Trans>}
             description={
@@ -500,7 +494,6 @@ export default function OrgAuthPolicyPage(): ReactNode {
             ))}
           </ConsolePageSplitSection>
 
-          {/* Methods */}
           <ConsolePageSplitSection
             title={<Trans>Methods</Trans>}
             description={
@@ -571,7 +564,6 @@ export default function OrgAuthPolicyPage(): ReactNode {
             </div>
           </ConsolePageSplitSection>
 
-          {/* Passkey attestation */}
           <ConsolePageSplitSection
             title={<Trans>Passkey attestation</Trans>}
             description={
@@ -598,7 +590,6 @@ export default function OrgAuthPolicyPage(): ReactNode {
             </Field>
           </ConsolePageSplitSection>
 
-          {/* Session & token */}
           <ConsolePageSplitSection
             title={<Trans>Session &amp; token</Trans>}
             description={
@@ -700,7 +691,6 @@ export default function OrgAuthPolicyPage(): ReactNode {
             </Field>
           </ConsolePageSplitSection>
 
-          {/* Inbound enterprise SSO */}
           <ConsolePageSplitSection
             title={<Trans>Inbound enterprise SSO</Trans>}
             description={

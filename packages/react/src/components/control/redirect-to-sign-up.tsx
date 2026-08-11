@@ -1,5 +1,4 @@
-// RedirectToSignUp:挂载即跳转到注册页(对标 Clerk <RedirectToSignUp>)。
-// 在 useEffect 中执行重定向,避免 SSR hydration 问题。
+// 在 useEffect 中跳转,避免 SSR hydration 期间改 location。
 
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
@@ -8,9 +7,7 @@ import { useXidContext } from '../../context/xid-context'
 import { runAuthorizationRedirect } from './authorization-redirect'
 
 export type RedirectToSignUpProps = {
-  // 注册页路径,默认 /sign-up
   signUpUrl?: string
-  // 注册后返回的应用内 URL。
   redirectUrl?: string
   onError?: (error: unknown) => void
 }

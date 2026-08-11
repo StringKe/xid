@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// useUpgradeGuest 状态流转:pending / error / isGuest 暴露契约。
 
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'

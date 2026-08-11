@@ -1,5 +1,3 @@
-// org 下游 SCIM target 页:向 SaaS 推送用户/组。GET/POST/PATCH /v1/organizations/:orgId/scim-targets。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'

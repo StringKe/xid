@@ -1,5 +1,4 @@
-// 测试用 TenantContext + 签名密钥构建(复用 @xid-kit/crypto generateTenantSigningKey)。
-// 协议测试从 TenantContext 取 issuer/签名密钥,验证内核不依赖全局单例(tenant-context rule)。
+// 协议测试从 TenantContext 取 issuer/签名密钥,验证内核不依赖全局单例。
 
 import type { TenantContext } from '@xid-kit/types'
 import { generateTenantSigningKey } from '@xid-kit/crypto'
@@ -9,7 +8,6 @@ export type TestTenant = {
   signingKey: CryptoKey
 }
 
-// 构建一个单 active ES256 kid 的租户上下文 + 可签名私钥句柄。
 export async function buildTestTenant(
   options: { tenantId?: string; issuer?: string; kid?: string } = {},
 ): Promise<TestTenant> {

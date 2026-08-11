@@ -12,7 +12,7 @@ import { useCanManageOrg } from './useOrgTarget'
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-// Hostname syntax must remain byte-for-byte usable in every locale.
+// 主机名语法各 locale 必须保持可原样提交,不可本地化占位符。
 const HOSTNAME_EXAMPLE = 'login.example.com'
 
 type DnsRecord = {

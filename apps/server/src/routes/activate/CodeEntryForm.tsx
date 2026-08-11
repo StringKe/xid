@@ -10,7 +10,6 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
-  // device code 输入:mono + tabular-nums,视觉对齐 OTP 输入密度。
   codeInputWrap: {
     fontVariantNumeric: 'tabular-nums',
     fontFamily: tokens['--xid-font-mono'],

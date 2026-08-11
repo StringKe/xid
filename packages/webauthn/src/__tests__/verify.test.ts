@@ -1,6 +1,4 @@
-// 四验证编排测试(见 webauthn rule 四验证无跳过 + testing rule)。
-// 各负路径独立断言:challenge 不符 / origin 篡改 / rpIdHash 篡改 / 签名无效 / UV 缺失各拒绝;
-// sign_count 克隆标记;注册提取 VerifiedPasskey。复用 assertion-vectors 负路径向量。
+// 四验证编排与负路径；sign_count 异常标记；注册提取 VerifiedPasskey。
 
 import { derToP1363, p1363ToDer } from '@xid-kit/crypto'
 import type { StoredCredential, WebAuthnVerificationInput } from '@xid-kit/types'
@@ -23,18 +21,17 @@ function base64UrlEncode(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-// 把 P-256 public key(raw 0x04||x||y,65 字节)编码为 COSE_Key CBOR map 字节。
-// map(5){ 1:2(EC2), 3:-7(ES256), -1:1(P-256), -2:x(32), -3:y(32) }。
+// raw P-256 (0x04||x||y) 手写为 COSE_Key CBOR map，避免测试依赖完整编解码。
 function coseEncodeEs256(rawPublicKey: Uint8Array): Uint8Array {
   const x = rawPublicKey.subarray(1, 33)
   const y = rawPublicKey.subarray(33, 65)
   const out: number[] = []
-  out.push(0xa5) // map of 5 pairs
-  out.push(0x01, 0x02) // 1: 2
-  out.push(0x03, 0x26) // 3: -7  (nint 6 -> 0x20|6)
-  out.push(0x20, 0x01) // -1: 1  (nint 0 -> 0x20, value 1)
-  out.push(0x21, 0x58, 0x20, ...x) // -2: bytes(32)
-  out.push(0x22, 0x58, 0x20, ...y) // -3: bytes(32)
+  out.push(0xa5)
+  out.push(0x01, 0x02)
+  out.push(0x03, 0x26)
+  out.push(0x20, 0x01)
+  out.push(0x21, 0x58, 0x20, ...x)
+  out.push(0x22, 0x58, 0x20, ...y)
   return new Uint8Array(out)
 }
 
@@ -64,7 +61,7 @@ async function buildAuthData(
   return authData
 }
 
-// 构建合法认证输入:COSE 公钥 + DER 签名(verifyAuthentication 内部 DER->P1363)。
+// 合法输入使用 DER 签名，覆盖生产路径的 derToP1363。
 async function buildValidAuth(opts: {
   rpId?: string
   origin?: string
@@ -89,7 +86,7 @@ async function buildValidAuth(opts: {
   const rawSig = new Uint8Array(
     await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keyPair.privateKey, toSign),
   )
-  const derSig = p1363ToDer(rawSig) // 真 WebAuthn 是 DER,转换后验证 DER->P1363 路径
+  const derSig = p1363ToDer(rawSig)
   const rawPub = new Uint8Array(
     (await crypto.subtle.exportKey('raw', keyPair.publicKey)) as ArrayBuffer,
   )
@@ -194,18 +191,15 @@ describe('verifyAuthentication: valid path', () => {
     }
   })
 
-  // 本包契约:ES256 签名只接受 DER,始终走 derToP1363。
-  // DER 签名验签通过;同一签名的 raw P1363(64 字节)形式被 derToP1363 判为畸形 DER 拒绝。
-  // 不按长度分流,否则恰好 64 字节的真实 DER 会被误当 P1363,导致合法登录偶发失败。
+  // ES256 只接受 DER：raw P1363 必须拒绝，禁止按长度分流误放行。
   it('verifies the DER form but rejects the raw P1363 form of the same signature', async () => {
     const { input } = await buildValidAuth({ newSignCount: 5, storedSignCount: 0 })
     const derSig = input.signature!
-    expect(derSig[0]).toBe(0x30) // buildValidAuth 产出 DER
+    expect(derSig[0]).toBe(0x30)
 
     const derResult = await verifyAuthentication(input)
     expect(derResult.ok).toBe(true)
 
-    // 把 DER 转回 raw P1363(64 字节),冒充已转换输入,必须不被放行。
     const rawP1363 = derToP1363(derSig)
     expect(rawP1363.length).toBe(64)
     const rawResult = await verifyAuthentication({ ...input, signature: rawP1363 })
@@ -241,7 +235,6 @@ describe('verifyAuthentication: four-verification negative paths', () => {
 
   it('rejects on invalid signature (verification 4)', async () => {
     const { input } = await buildValidAuth({})
-    // 篡改签名第一字节,保持 DER 结构可解析但验签失败
     const badSig = new Uint8Array(input.signature!)
     badSig[badSig.length - 1] = badSig[badSig.length - 1]! ^ 0xff
     const result = await verifyAuthentication({ ...input, signature: badSig })
@@ -319,7 +312,6 @@ describe('verifyAuthentication: sign_count clone detection', () => {
 })
 
 describe('verifyRegistration', () => {
-  // 构建注册 attestationObject:CBOR map{ fmt, attStmt, authData(含 attestedCredentialData) }。
   function coseEncodeEd25519(x: Uint8Array): Uint8Array {
     const out: number[] = []
     out.push(0xa4, 0x01, 0x01, 0x03, 0x27, 0x20, 0x06)
@@ -369,15 +361,13 @@ describe('verifyRegistration', () => {
     const fmt = opts.fmt ?? 'none'
     const attStmt = opts.attStmt ?? new Uint8Array([0xa0])
 
-    // attestationObject = a3 (map3) { "fmt":fmt, "attStmt":attStmt, "authData": authData }
     const out: number[] = []
     out.push(0xa3)
-    out.push(0x63, 0x66, 0x6d, 0x74) // "fmt"
+    out.push(0x63, 0x66, 0x6d, 0x74)
     out.push(0x60 + fmt.length, ...new TextEncoder().encode(fmt))
-    out.push(0x67, 0x61, 0x74, 0x74, 0x53, 0x74, 0x6d, 0x74) // "attStmt"
+    out.push(0x67, 0x61, 0x74, 0x74, 0x53, 0x74, 0x6d, 0x74)
     out.push(...attStmt)
-    out.push(0x68, 0x61, 0x75, 0x74, 0x68, 0x44, 0x61, 0x74, 0x61) // "authData"
-    // bytes(authData.length) header
+    out.push(0x68, 0x61, 0x75, 0x74, 0x68, 0x44, 0x61, 0x74, 0x61)
     out.push(0x59, (authData.length >> 8) & 0xff, authData.length & 0xff)
     const attestationObject = new Uint8Array(out.length + authData.length)
     attestationObject.set(out, 0)

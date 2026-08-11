@@ -1,13 +1,6 @@
-// Seed / bootstrap(铁律 8、00 章 default org、02 章 Manager Roles、08 章 10/13.5/16.3):
-// 从空 D1 到第一个租户可用。一次性幂等创建平台 instance + default organization +
-// instance ES256 签名密钥(KEK 信封加密私钥)+ 初始 super admin user + instance_manager ManagerAssignment。
-// 平台级操作:在 tenant 中间件之前注册(此刻无 instance,tenant 解析必 404),走独立管理路径不复用业务 API。
-//
-// 安全门控:D1 已有任何 instance -> 409 already_initialized(幂等,二次调用不重复创建);
-// 可选 X-Bootstrap-Token 必须等长 constant-time 匹配 env.BOOTSTRAP_TOKEN(配置则强制,防公网滥用)。
-//
-// 隔离:bootstrap 是空库到首个 Tenant 的唯一多表初始化边界。全部 relational row
-// 在一个 D1 batch transaction 中创建,每条 tenant row 都显式绑定同一个 tenant_id。
+// 空 D1 一次性幂等初始化:instance + default org + ES256 签名密钥 + super admin + instance_manager。
+// 须在 tenant 中间件前;已有 instance 返 409;可选 BOOTSTRAP_TOKEN 等长 constant-time 校验。
+// 全部 relational row 同一 D1 batch,显式同一 tenant_id。
 
 import { generateTenantSigningKey } from '@xid-kit/crypto'
 import { schema } from '@xid-kit/db'
@@ -21,10 +14,9 @@ import { emailSchema, firstIssuePath, readJsonBody } from '../lib/validate'
 import { decodeKek } from '../oidc/shared'
 import { PLAN_DEFAULTS } from '../platform/plans'
 
-// KEK 版本(首版单 KEK,与 oidc/token 信封加密一致,见 signing-keys rule)。
 const KEK_VERSION = 1
 
-// 平台默认密码 / 会话 / token 策略(08 章 10.1 instances 默认 json;与 @xid-kit/types 的 DEFAULT_* 对齐,snake_case 落库)。
+// instances 默认策略 json(与 @xid-kit/types DEFAULT_* 对齐,snake_case 落库)。
 const DEFAULT_PASSWORD_POLICY = {
   min_length: 12,
   max_length: 128,
@@ -42,26 +34,20 @@ const DEFAULT_TOKEN_POLICY = {
   refresh_absolute_timeout_days: 7,
 }
 
-// 请求体:全部可选,缺省回退 env / 部署 Host。
+// 字段全可选(缺省 env/Host);adminEmail 必填且无内置默认,防部署方误建归属他人的超管。
 const bootstrapBodySchema = v.object({
-  // 平台主域(如 xid.dev);缺省取部署 Host 的 hostname。
   primaryDomain: v.optional(v.string()),
-  // 解析模式:single_tenant(自托管默认)/ multi_tenant(xid.dev),缺省 single_tenant。
   mode: v.optional(v.picklist(['single_tenant', 'multi_tenant'])),
   instanceName: v.optional(v.string()),
-  // 初始 default organization。
   defaultOrgName: v.optional(v.string()),
   defaultOrgSlug: v.optional(v.string()),
-  // 初始 super admin 用户(承载 instance_manager ManagerAssignment)。
-  // 必填:没有内置默认值,任何硬编码地址都会让部署方在自己的 instance 里创建归属他人的超管账号。
   adminEmail: emailSchema,
 })
 type BootstrapBody = v.InferOutput<typeof bootstrapBodySchema>
 
-// 成功响应(绝不返回私钥 / 密文 / KEK)。
+// 成功响应绝不含私钥/密文/KEK。
 type BootstrapResult = {
   instanceId: string
-  // default organization id(= tenantId)。
   defaultOrgId: string
   orgId: string
   tenantId: string
@@ -83,7 +69,7 @@ function hostnameOf(c: Context<XidHonoEnv>): string | undefined {
   return (i === -1 ? host : host.slice(0, i)).toLowerCase()
 }
 
-// 等长 constant-time 比较(避免 timing 泄露 token),长度不等直接 false。
+// 等长 constant-time;长度不等直接 false,防 timing 泄露。
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false
   let diff = 0
@@ -91,7 +77,6 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0
 }
 
-// slug 归一化:小写,非 [a-z0-9-] 折叠为 -,去首尾 -。
 function normalizeSlug(input: string): string {
   return input
     .toLowerCase()
@@ -110,14 +95,13 @@ function defaultOrgMetadata(): Record<string, unknown> {
   return { hostedAuth: DEFAULT_HOSTED_AUTH_POLICY }
 }
 
-// 注册 bootstrap 路由。调用方(index.ts)在 tenant 中间件之前挂载到根 app。
 export function registerBootstrapRoute(app: Hono<XidHonoEnv>): void {
   app.post('/admin/bootstrap', async (c) => handleBootstrap(c))
   app.post('/admin/bootstrap/repair', async (c) => handleBootstrapRepair(c))
 }
 
 async function handleBootstrap(c: Context<XidHonoEnv>): Promise<Response> {
-  // 门控 1:可选 X-Bootstrap-Token(配置 env.BOOTSTRAP_TOKEN 则强制,防公网滥用)。
+  // 可选 X-Bootstrap-Token;配置 BOOTSTRAP_TOKEN 则强制。
   const bootstrapGate = requireBootstrapToken(c, { allowMissingSecret: true })
   if (bootstrapGate) {
     return bootstrapGate
@@ -125,7 +109,7 @@ async function handleBootstrap(c: Context<XidHonoEnv>): Promise<Response> {
 
   const db = drizzle(c.env.DB, { schema })
 
-  // 门控 2:D1 已有任何 instance -> 已初始化,幂等返回 409(不重复创建)。
+  // 已有 instance -> 409 幂等,不重复创建。
   const existing = await db.select().from(schema.instances).limit(1)
   if (existing[0]) {
     const body: ErrorBody = {
@@ -142,7 +126,7 @@ async function handleBootstrap(c: Context<XidHonoEnv>): Promise<Response> {
   const primaryDomain = (body.primaryDomain ?? hostnameOf(c) ?? 'localhost').toLowerCase()
   const mode = body.mode ?? 'single_tenant'
 
-  // 先在内存生成所有 ids 与信封加密 signing key。此时尚未持久化任何 row。
+  // 先内存生成 ids 与信封密钥,尚未落库。
   const instanceId = createPersistedId('instance')
   const defaultOrgId = createPersistedId('organization')
   const defaultSlug = normalizeSlug(body.defaultOrgSlug ?? 'default')
@@ -154,8 +138,7 @@ async function handleBootstrap(c: Context<XidHonoEnv>): Promise<Response> {
   const now = Date.now()
   const seatLimit = PLAN_DEFAULTS.free.seatLimit
 
-  // D1 batch 是 SQL transaction。任一 statement 失败会回滚整个序列,因此 instance row
-  // 不能再早于其余 bootstrap resources 单独提交并让重试误判 already_initialized。
+  // 整批事务:instance 不可先于其余资源单独提交,否则重试误判 already_initialized。
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO instances (
@@ -309,8 +292,7 @@ function requireBootstrapToken(
   return undefined
 }
 
-// 解析请求体:坏 JSON / 形状失败 -> 自家 ErrorBody validation_failed 400
-// (bootstrap 不经 AppError/XidAPIError,错误契约是 {code,message})。
+// bootstrap 错误契约是 {code,message},不经 AppError。
 async function readBody(c: Context<XidHonoEnv>): Promise<BootstrapBody | Response> {
   const json = await readJsonBody(c)
   if (!json.ok) return validationFailedBody(c, 'body')

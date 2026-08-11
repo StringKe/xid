@@ -1,5 +1,3 @@
-// SignUpButton:无样式注册触发按钮(对标 Clerk <SignUpButton>)。
-
 import type { ReactNode } from 'react'
 
 import { useLingui } from '@lingui/react'

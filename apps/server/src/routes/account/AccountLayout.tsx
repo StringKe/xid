@@ -1,7 +1,4 @@
-// AccountLayout:account portal 全宽壳。
-// 锚定规范:rail 贴左全高 sticky(brand 驻栏顶与顶栏同高同底线),main 零 padding;
-// 内容区 gutter 由各页面自持 clamp(1rem,2.5vw,4rem)。
-// 小屏 rail 收为横向滚动 tab 栏(bottom),激活态 accent 缘线(桌面左缘 / 小屏底缘),不用底色块。
+// account portal 壳:rail sticky,main 零 padding,gutter 由页面自持。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -33,7 +30,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/account/devices', label: <Trans>Trusted devices</Trans> },
 ]
 
-// 全宽规范口径:rail 宽、顶栏高与各页面对齐。
 const RAIL_WIDTH_DESKTOP = '13.5rem'
 const TOPBAR_HEIGHT = '3rem'
 
@@ -41,7 +37,6 @@ const styles = stylex.create({
   root: {
     minHeight: '100dvh',
     display: 'grid',
-    // 桌面:rail + 内容区;小屏:单列(rail 在底部 sticky)
     gridTemplateColumns: {
       default: '1fr',
       '@media (min-width: 48rem)': `${RAIL_WIDTH_DESKTOP} 1fr`,
@@ -53,7 +48,7 @@ const styles = stylex.create({
     backgroundColor: tokens['--xid-bg'],
     fontFamily: tokens['--xid-font'],
   },
-  // 顶栏:全宽横贯,brand + 操作区同行;下沿 1px hairline
+  // 桌面 brand 由 rail 持有,topbar 只露右侧操作(zIndex 叠层)。
   topbar: {
     gridColumn: '1 / -1',
     gridRow: '1',
@@ -70,15 +65,11 @@ const styles = stylex.create({
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
     borderBottomColor: tokens['--xid-border'],
-    // 桌面下顶栏 brand 区由 rail 内部 brand 行持有,topbar 只露出右侧操作
-    // 让 rail 自行覆盖顶栏左段:topbar 用 grid 叠层,rail 自带 zIndex
   },
-  // 桌面顶栏右侧操作区(LanguageSwitcher)
   topbarActions: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
-    // 桌面:操作区在 rail 右侧,小屏:操作区与 brand 同行
     marginInlineStart: {
       default: 'auto',
       '@media (min-width: 48rem)': 'auto',
@@ -88,7 +79,6 @@ const styles = stylex.create({
       '@media (min-width: 48rem)': 'clamp(1rem, 2.5vw, 4rem)',
     },
   },
-  // 小屏 brand 块(桌面下 rail 持 brand,此行隐藏)
   topbarBrand: {
     display: {
       default: 'inline-flex',
@@ -109,7 +99,6 @@ const styles = stylex.create({
     color: tokens['--xid-fg'],
     whiteSpace: 'nowrap',
   },
-  // 顶栏租户 logo:与 AuthLayout 同口径(ThemeProvider brand.logoUrl)。
   tenantLogo: {
     height: '1.125rem',
     objectFit: 'contain',
@@ -122,7 +111,7 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     maxWidth: '16rem',
   },
-  // Rail:贴左全高 sticky;小屏变为底部 sticky tab 栏
+  // 小屏改为底部 sticky tab。
   rail: {
     gridRow: {
       default: '3',
@@ -174,7 +163,6 @@ const styles = stylex.create({
       '@media (min-width: 48rem)': 'auto',
     },
   },
-  // 桌面 rail 顶部 brand 行:与 topbar 同高同底线
   railBrand: {
     display: {
       default: 'none',
@@ -189,7 +177,6 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: tokens['--xid-border'],
   },
-  // 导航组标签:mono microlabel
   navGroupLabel: {
     display: {
       default: 'none',
@@ -229,7 +216,6 @@ const styles = stylex.create({
     },
     minWidth: 0,
   },
-  // main:零 padding;内容区 gutter 由页面自持
   main: {
     gridRow: {
       default: '2',
@@ -242,7 +228,7 @@ const styles = stylex.create({
     minWidth: 0,
     paddingBottom: 'clamp(2rem, 3vw, 4rem)',
   },
-  // 缘线激活指示:桌面 2px 左缘 / 小屏 2px 底缘;透明占位防跳动。
+  // 透明占位防激活缘线跳动。
   navLink: {
     display: 'flex',
     alignItems: 'center',
@@ -313,7 +299,6 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
   )
   return (
     <div {...stylex.props(styles.root)}>
-      {/* 顶栏:小屏 brand + 全局操作;桌面仅右侧操作(brand 由 rail 持有) */}
       <div {...stylex.props(styles.topbar)}>
         <span {...stylex.props(styles.topbarBrand)}>
           {brandMark}
@@ -338,9 +323,7 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
         </div>
       </div>
 
-      {/* Rail:桌面贴左全高 sticky;小屏底部 sticky tab 栏 */}
       <nav aria-label={t`Account settings navigation`} {...stylex.props(styles.rail)}>
-        {/* 桌面 brand 行:与 topbar 同高对齐 */}
         <div {...stylex.props(styles.railBrand)}>
           {brandMark}
           <span aria-hidden="true" {...stylex.props(styles.brandDivider)} />
@@ -360,7 +343,6 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
         </div>
       </nav>
 
-      {/* main:零 padding;页面自持 gutter */}
       <main {...stylex.props(styles.main)}>
         <GuestConversionBanner />
         {children}

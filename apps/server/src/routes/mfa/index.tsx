@@ -1,14 +1,4 @@
-// MFA 挑战页:根据 URL ?method= 渲染当前用户真实可用挑战(totp/backup/sms)。
-// 设计源:01 章 MFA/step-up;step-up token 含 acr:step-up,5min 有效。
-// method 缺失或不识别 -> 渲染方法选择列表(按 /v1/me/mfa-factors 可用因子展示)。
-// TanStack Router useSearch + useMutation 提交。
-//
-// 视觉对齐 sign-in 锚定规范:
-//   - stack gap 1.25rem(与 sign-in styles.stack 一致)。
-//   - method 选择链接:1px border + surface bg + radius,零阴影,hover 仅 border-strong 切换。
-//   - 数字 OTP 输入:tabular-nums + fontFamily mono,视觉对齐 sign-in microlabel 密度。
-//   - 辅助链接(切换方式):下划线常驻弱化(35%),hover 升满,对齐 styles.textLink。
-//   - resend 按钮:link 外观,字体 token 显式。
+// MFA 挑战:按 ?method= 与可用因子渲染;step-up token 含 acr:step-up(5min)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -48,11 +38,10 @@ function isMfaMethod(value: string | null): value is MfaMethod {
   return value === 'totp' || value === 'backup' || value === 'sms' || value === 'passkey'
 }
 
-// POST /auth/mfa/verify 请求体。
 type MfaVerifyBody = {
   method: MfaMethod
   code: string
-  // step-up 场景下传递,server 据此颁发含 acr:step-up 的短期 token。
+  // step-up 时 server 颁发含 acr:step-up 的短期 token。
   stepUp?: boolean
 }
 
@@ -79,20 +68,17 @@ function buildMethodSearch(method: MfaMethod, search: MfaSearch): string {
 }
 
 const styles = stylex.create({
-  // 卡片内主栈:与 sign-in styles.stack 对齐(gap 1.25rem)。
   stack: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.25rem',
     minWidth: 0,
   },
-  // 表单内部字段组:与 sign-in styles.panel 对齐(gap 1rem)。
   form: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
   },
-  // 辅助文本行(居中):字体 token 显式。
   helperText: {
     margin: 0,
     textAlign: 'center',
@@ -101,7 +87,6 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     color: tokens['--xid-muted-foreground'],
   },
-  // 切换方式链接:下划线常驻弱化 35%,hover 升满(对齐 sign-in textLink)。
   switchLink: {
     color: tokens['--xid-primary'],
     textDecorationLine: 'underline',
@@ -119,7 +104,6 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     fontSize: '0.8125rem',
   },
-  // button 元素套用 textLink 外观时的原生样式重置(配合 switchLink 叠加使用)。
   buttonReset: {
     backgroundColor: 'transparent',
     borderWidth: 0,
@@ -127,21 +111,18 @@ const styles = stylex.create({
     padding: 0,
     cursor: 'pointer',
   },
-  // 加载失败恢复区:重试按钮 + 返回登录链接纵排。
   errorActions: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
     alignItems: 'flex-start',
   },
-  // 方法选择导航列表。
   nav: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.625rem',
   },
-  // 方法选择链接:surface + 1px border + radius,零阴影,hover 仅收紧 border。
-  // 过渡只动 border-color/color,不动 layout。
+  // 过渡只动 border-color,不动 layout。
   methodLink: {
     display: 'block',
     padding: '0.875rem 1rem',
@@ -161,7 +142,6 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     lineHeight: 1.45,
     backgroundColor: tokens['--xid-surface'],
-    // 按压即时反馈:pointer-down 立刻缩小,与 ui/Button 同口径。
     transform: { default: 'none', ':active': 'scale(0.97)' },
     transitionProperty: {
       default: 'border-color, transform',
@@ -176,13 +156,11 @@ const styles = stylex.create({
       outlineColor: tokens['--xid-primary'],
     },
   },
-  // OTP 数字输入包裹层:tabular-nums + mono 字体通过继承作用到 input 元素。
   otpInputWrap: {
     fontVariantNumeric: 'tabular-nums',
     fontFamily: tokens['--xid-font-mono'],
     letterSpacing: '0.05em',
   },
-  // resend 按钮:link 外观,字体 token 显式。disabled 态 opacity 0.55 + not-allowed 对齐 Button。
   resendButton: {
     backgroundColor: 'transparent',
     borderWidth: 0,
@@ -214,7 +192,7 @@ const styles = stylex.create({
   },
 })
 
-// 挑战出口:取消并退出登录,消除"守卫循环"错觉。textLink 外观的 button。
+// 取消并登出,避免守卫循环。
 function CancelSignOut(): ReactNode {
   const { signOut } = useAuth()
   return (
@@ -705,7 +683,7 @@ function MfaChallenge({ method, isStepUp }: MfaChallengeProps): ReactNode {
 
 function MfaPage(): ReactNode {
   const { t } = useLingui()
-  // strict:false -- /mfa 参数在 root validateSearch passthrough 下透传。
+  // strict:false:root validateSearch 透传,不绑单一 route id。
   const search = useSearch({ strict: false }) as MfaSearch
   const { data: factors, isPending, error, refetch, isRefetching } = useMfaFactorsQuery()
   const methodParam = search.method ?? null
@@ -737,8 +715,7 @@ function MfaPage(): ReactNode {
           </div>
         </div>
       ) : activeMethod ? (
-        // key=method:路由切换方法时重挂载,enter 重播;reduced-motion 下 MotionConfig
-        // 自动关掉 y 位移只留 opacity。
+        // key=method:切换方法时重挂载以重播 enter。
         <motion.div
           key={activeMethod}
           initial={{ opacity: 0, y: 6 }}

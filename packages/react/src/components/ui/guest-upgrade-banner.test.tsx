@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// GuestUpgradeBanner 渲染契约:guest 渲染引导,非 guest / 未登录渲染 null。
 
 import { setupI18n } from '@lingui/core'
 import { I18nProvider } from '@lingui/react'

@@ -1,4 +1,3 @@
-// per-tenant 签名密钥:生成 / 不可导出载入 / 私钥永不明文落地 / 四步轮换(见 signing-keys rule)。
 import type { SigningAlg } from '@xid-kit/types'
 import { describe, it, expect } from 'vitest'
 
@@ -46,13 +45,12 @@ describe('generateTenantSigningKey', () => {
     const kek = randomKek()
     const { material } = await generateTenantSigningKey({ kid: 'k', kekRaw: kek, kekVersion: 1 })
 
-    // 落库材料里不存在明文私钥,只有 iv/ciphertext/tag。
     const enc = material.encryptedPrivateKey
     expect(enc.ciphertext.byteLength).toBeGreaterThan(0)
     expect(enc.iv.byteLength).toBe(12)
     expect(enc.tag.byteLength).toBe(16)
 
-    // 用 KEK 解出的 PKCS8 能重新载入为可签名 key,证明密文确为私钥而非明文驻留。
+    // 密文可解密为可重载 PKCS8,证明落库的是信封密文而非明文私钥。
     const pkcs8 = await envelopeDecrypt(enc, kek)
     expect(pkcs8.byteLength).toBeGreaterThan(0)
     const reloaded = await loadSigningKey(enc, kek)
@@ -68,7 +66,7 @@ describe('generateTenantSigningKey', () => {
       key,
       new TextEncoder().encode('payload'),
     )
-    expect(sig.byteLength).toBe(64) // ES256 P1363 r||s
+    expect(sig.byteLength).toBe(64)
   })
 })
 

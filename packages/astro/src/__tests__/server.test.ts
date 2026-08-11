@@ -1,4 +1,3 @@
-// server.ts getAuth / currentUser / xidClient unit tests.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { getAuth, currentUser, xidClient } from '../server'
 import type { AuthObject, UnauthenticatedAuthObject } from '../types'
@@ -87,7 +86,6 @@ describe('xidClient', () => {
   })
 
   it('sends Authorization header with secretKey in requests', async () => {
-    // XidServerApiClient calls fetch(urlString, init) -- capture the RequestInit to read headers.
     type FetchCall = { url: string; init: RequestInit }
     const calls: FetchCall[] = []
     const mockFetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {

@@ -1,6 +1,3 @@
-// UserProfile:用户资料面板(对标 Clerk <UserProfile>)。
-// 嵌入式展示用户基本信息 + 链接到 Hosted UI account portal。
-
 import type { ReactNode, CSSProperties } from 'react'
 
 import { useLingui } from '@lingui/react'
@@ -12,7 +9,6 @@ import { Rt, rt, sdkMessages } from '../../i18n-runtime'
 import { UserAvatar } from './user-avatar'
 
 export type UserProfileProps = {
-  // account portal URL(Hosted UI)
   profileUrl?: string
   appearance?: Appearance
   className?: string

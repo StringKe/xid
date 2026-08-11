@@ -1,6 +1,3 @@
-// org 合规中心:已发布的合规证据(DPA 等)列表、校验和、下载与 DPA 接受记录。
-// GET /v1/organizations/:orgId/compliance/documents,POST 接受 DPA。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;证据行是本页特有版式。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'

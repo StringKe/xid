@@ -17,7 +17,6 @@ describe('motion presets', () => {
   })
 
   it('all spring durations stay within the ui-polish motion budget', () => {
-    // ui-polish:布局/编排封顶 500ms,按压等即时反馈在 300ms 内
     for (const spring of [springDefault, springMomentum, springSnappy]) {
       expect(spring.duration).toBeLessThanOrEqual(0.5)
     }

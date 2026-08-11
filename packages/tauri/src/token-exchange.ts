@@ -1,13 +1,10 @@
-// Authorization code -> token exchange.
-// Uses a plain fetch against /token (form-encoded, no cookies).
-// Tauri runs outside the HttpOnly cookie context, so tokens are held in OS keychain.
+// Tauri 无 HttpOnly cookie 上下文，token 落 OS keychain；对 /token 做 form POST 换发。
 
 import { trimTrailingSlashes } from '@xid-kit/core'
 
 export type TokenSet = {
   accessToken: string
-  // epoch seconds
-  expiresAt: number
+  expiresAt: number // epoch 秒
   idToken: string | null
 }
 
@@ -23,7 +20,6 @@ type TokenEndpointErrorBody = {
   error_description?: string
 }
 
-// Exchange an authorization code for tokens.
 export async function exchangeCodeForTokens(input: {
   issuer: string
   clientId: string
@@ -58,7 +54,7 @@ export async function exchangeCodeForTokens(input: {
 }
 
 function buildTokenEndpoint(issuer: string): string {
-  // The XID server registers the token endpoint at /token (not /oauth/token).
+  // XID token 路径是 /token，不是 /oauth/token。
   return `${trimTrailingSlashes(issuer)}/token`
 }
 
@@ -85,7 +81,6 @@ async function parseTokenResponse(response: Response, now: () => number): Promis
   }
 }
 
-// Typed error for authorization and token-exchange failures.
 export class TauriTokenError extends Error {
   override readonly name = 'TauriTokenError'
   readonly code: string

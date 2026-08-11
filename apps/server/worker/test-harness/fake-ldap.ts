@@ -1,4 +1,4 @@
-// Fake LDAP bind endpoint for local LDAP direct bind L3 evidence.
+// 本地 LDAP direct bind L3 用假 bind 端点。
 
 import { Hono } from 'hono'
 import type { Context } from 'hono'

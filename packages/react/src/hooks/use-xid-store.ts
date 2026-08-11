@@ -1,5 +1,4 @@
-// use-xid-store:订阅 XidStore 的 React adapter。
-// 用 useSyncExternalStore 保证 concurrent mode 下 tearing-free 读取。
+// useSyncExternalStore 保证 concurrent mode 无 tearing;第三参 server snapshot 避免 SSR hydration mismatch。
 
 import { useSyncExternalStore } from 'react'
 
@@ -12,7 +11,6 @@ export function useXidStore(): XidState {
   return useSyncExternalStore(
     client.subscribe.bind(client),
     client.getSnapshot,
-    // server snapshot:SSR 场景返回初始未加载状态,避免 hydration mismatch。
     () => client.getSnapshot(),
   )
 }

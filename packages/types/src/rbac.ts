@@ -1,5 +1,4 @@
-// Organization management roles are fixed platform contracts. Project/Application business roles
-// remain tenant-defined rows and intentionally do not use these enums.
+// 组织管理角色为平台固定契约；Project/Application 业务角色由租户自定义，不用本枚举。
 
 export const ORGANIZATION_MEMBERSHIP_ROLES = ['owner', 'admin', 'member'] as const
 export type OrganizationMembershipRole = (typeof ORGANIZATION_MEMBERSHIP_ROLES)[number]

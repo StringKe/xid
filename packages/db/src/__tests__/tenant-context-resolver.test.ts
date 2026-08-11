@@ -34,7 +34,7 @@ describe('resolveTenantContext', () => {
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.value.tenantId).toBe('org_acme')
-      // buildContext 必须产出 instanceId:org 创建/子域冲突检查依赖该值,缺失会恒回退 tenantId。
+      // instanceId 缺失会使 org 创建/子域冲突检查恒回退 tenantId。
       expect(result.value.instanceId).toBe('inst_1')
       expect(result.value.rpId).toBe('acme.xid.test')
       expect(result.value.issuer).toBe('https://xid.test')

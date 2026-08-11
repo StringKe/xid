@@ -49,7 +49,6 @@ async function waitForChrome(port) {
       const response = await fetch(`http://127.0.0.1:${port}/json/version`)
       if (response.ok) return
     } catch {
-      // Chrome is still starting.
     }
     await delay(250)
   }

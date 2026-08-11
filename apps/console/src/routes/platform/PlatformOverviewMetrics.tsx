@@ -1,5 +1,3 @@
-// platform 概览指标带:PlatformStats -> 共享 ui/MetricsBand 的数据映射层(与 OrgOverviewMetrics 同口径)。
-// 消费方:PlatformAdminOverview.tsx。
 
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'

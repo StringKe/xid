@@ -1,6 +1,5 @@
 import { defineCollection } from 'astro:content'
-// `z` re-exported from `astro:content` is deprecated; import it from
-// `astro/zod` (the pattern nimbus-docs' own schema helpers document).
+// astro:content 的 z 已弃用，按 nimbus-docs 约定从 astro/zod 导入。
 import { z } from 'astro/zod'
 import { docsCollection, partialsCollection } from '@cloudflare/nimbus-docs/content'
 import { generateLocalizedContent } from '../scripts/generate-localized-content.mjs'
@@ -14,8 +13,7 @@ export const collections = {
       base: 'generated/docs',
       schemaFields: {
         locale: z.enum(DOCUMENT_LOCALES),
-        // Nimbus docs are agent-friendly by default. Set `audience: human`
-        // to flag a page that's written primarily for human readers.
+        // 默认面向 agent；设 audience: human 标记以人类读者为主的页面。
         audience: z.literal('human').optional(),
       },
     }),

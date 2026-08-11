@@ -1,12 +1,9 @@
-// 企业 SSO + 密钥实体(见 08 章 16):sso_connections / cert_store / instance_signing_keys /
-// saml_service_providers。证书/签名私钥信封加密(iv/ciphertext/tag 拆三 blob,见 16.2/16.3 决策)。
-// 私钥明文永不入库(见 signing-keys rule)。
+// SSO + 签名密钥(08 章 16):私钥信封加密拆三 blob,明文永不入库。
 
 import { sql } from 'drizzle-orm'
 import { blob, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { boolCol, numCol, tenantId, timestamps, tsMs } from './common'
 
-// 16.1 sso_connections(per-org 上游 IdP 连接,1:1 org)
 export const ssoConnections = sqliteTable(
   'sso_connections',
   {
@@ -51,7 +48,7 @@ export const ssoConnections = sqliteTable(
   ],
 )
 
-// 16.2 cert_store(SAML 证书/私钥,信封加密,iv/ciphertext/tag 拆三字段)
+// SAML 证书/私钥信封加密(与 OIDC 签发密钥表分离)。
 export const certStore = sqliteTable(
   'cert_store',
   {
@@ -78,7 +75,7 @@ export const certStore = sqliteTable(
   ],
 )
 
-// 16.3 instance_signing_keys(instance issuer 默认签发密钥;私钥信封加密拆三 blob)
+// instance issuer 默认签发密钥;私钥信封加密。
 export const instanceSigningKeys = sqliteTable(
   'instance_signing_keys',
   {
@@ -107,7 +104,6 @@ export const instanceSigningKeys = sqliteTable(
   ],
 )
 
-// 16.8 saml_service_providers(XID 作 IdP 时下游 SP 注册,P2)
 export const samlServiceProviders = sqliteTable(
   'saml_service_providers',
   {
@@ -138,7 +134,7 @@ export const samlServiceProviders = sqliteTable(
   ],
 )
 
-// SAML SLO SessionIndex / NameID -> session 映射(寿命对齐 session,不走 ChallengeStore 10min TTL)。
+// SLO SessionIndex/NameID -> session;寿命对齐 session,不走 ChallengeStore 短 TTL。
 export const samlSessionBindings = sqliteTable(
   'saml_session_bindings',
   {

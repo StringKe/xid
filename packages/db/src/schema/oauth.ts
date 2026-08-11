@@ -1,12 +1,10 @@
-// OIDC / OAuth 实体(见 08 章 15):authorization_codes / refresh_tokens / oauth_consents / resource_servers。
-// device_codes / par_requests 走 DO 强一致(非 D1 表,见 15.2/15.3),此处不建表。
-// token 本体不入库,refresh_tokens 存 token_hash(UNIQUE 全局)。
+// OIDC/OAuth D1 实体(08 章 15);device_codes/PAR 走 DO 不建表;token 明文不入库,只存 hash。
 
 import type { AmrValue, AuthorizationDetails } from '@xid-kit/types'
 import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { createdAt, numCol, tenantId, timestamps, tsMs } from './common'
 
-// 15.1 authorization_codes(授权码,code 本体即主键,一次性)
+// code 即主键,一次性。
 export const authorizationCodes = sqliteTable(
   'authorization_codes',
   {
@@ -14,7 +12,7 @@ export const authorizationCodes = sqliteTable(
     tenantId: tenantId(),
     clientId: text('client_id').notNull(),
     userId: text('user_id').notNull(),
-    // hosted session 关联:ID token sid 来源(03 章 9.1);非 session 链路签发的 code 留空。
+    // ID token sid 来源;非 session 链路签发留空(03 章 9.1)。
     sessionId: text('session_id'),
     redirectUri: text('redirect_uri'),
     scope: text('scope').notNull(),
@@ -44,7 +42,7 @@ export const authorizationCodes = sqliteTable(
   ],
 )
 
-// 15.4 refresh_tokens(刷新令牌,轮换 + family,token_hash UNIQUE)
+// 轮换 + family;token_hash 全局 UNIQUE。
 export const refreshTokens = sqliteTable(
   'refresh_tokens',
   {
@@ -55,7 +53,7 @@ export const refreshTokens = sqliteTable(
     parentTokenId: text('parent_token_id'),
     authorizationCode: text('authorization_code'),
     userId: text('user_id').notNull(),
-    // hosted session 关联,首发继承 authorization_code.session_id,轮换顺延(03 章 9.3)。
+    // 首发继承 authorization_code.session_id,轮换顺延(03 章 9.3)。
     sessionId: text('session_id'),
     clientId: text('client_id').notNull(),
     scope: text('scope').notNull(),
@@ -86,7 +84,7 @@ export const refreshTokens = sqliteTable(
   ],
 )
 
-// 15.4a access_token_revocations(JWT access token 即时撤销 denylist,只存 jti,不存 token 明文)
+// 即时撤销 denylist,只存 jti。
 export const accessTokenRevocations = sqliteTable(
   'access_token_revocations',
   {
@@ -106,8 +104,7 @@ export const accessTokenRevocations = sqliteTable(
   ],
 )
 
-// 15.4b access_token_issuances:仅保存可被 replay 连锁撤销的 access JWT 元数据。
-// token 明文不入库,authorization_code 或 refresh_family_id 用于定位受影响 jti。
+// 可被 replay 连锁撤销的 access JWT 元数据;靠 code/family 定位 jti。
 export const accessTokenIssuances = sqliteTable(
   'access_token_issuances',
   {
@@ -129,7 +126,6 @@ export const accessTokenIssuances = sqliteTable(
   ],
 )
 
-// 15.5 oauth_consents(OIDC client scope 授权持久化)
 export const oauthConsents = sqliteTable(
   'oauth_consents',
   {
@@ -146,7 +142,6 @@ export const oauthConsents = sqliteTable(
   ],
 )
 
-// 15.6 resource_servers(受保护 API,audience + scope)
 export const resourceServers = sqliteTable(
   'resource_servers',
   {

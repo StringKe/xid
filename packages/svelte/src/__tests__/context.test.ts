@@ -1,4 +1,3 @@
-// context.test.ts:setXidContext / getXidContext 单元测试。
 import { describe, it, expect } from 'vitest'
 import { setXidContext, getXidContext, XID_CONTEXT_KEY } from '../context'
 import type { XidStores } from '../stores'
@@ -25,7 +24,6 @@ describe('setXidContext / getXidContext', () => {
   it('getXidContext returns stores set by setXidContext', () => {
     const stores = makeStoresMock()
 
-    // Simulate a simple in-memory context map.
     const contextMap = new Map<symbol, XidStores>()
     const setContext = (key: symbol, value: XidStores) => {
       contextMap.set(key, value)

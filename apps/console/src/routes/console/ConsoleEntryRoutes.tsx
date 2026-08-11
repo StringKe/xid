@@ -39,7 +39,7 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     fontWeight: 600,
     textDecoration: 'none',
-    // hover 时长对齐 motion springPress 预算(0.25s),按压/hover 微交互同口径
+    // 0.25s 对齐 springPress 预算,与按压微交互同口径。
     transitionProperty: 'opacity',
     transitionDuration: '0.25s',
     transitionTimingFunction: 'ease-out',
@@ -131,8 +131,7 @@ function EmptyOrganizationState(): ReactNode {
   )
 }
 
-// Settings 卡片由 ORG_NAV 元数据生成:nav 是唯一事实源,新增 org 页自动出现在这里。
-// 描述按路径补充;缺描述的路径仍然出卡,只是没有说明文案。
+// Settings 卡从 ORG_NAV 派生;描述可选,缺省仍出卡。
 const SETTINGS_DESCRIPTIONS: Record<string, ReactNode> = {
   '/console/org/auth-policy': (
     <Trans>
@@ -271,8 +270,7 @@ export function ConsoleSettingsEntry(): ReactNode {
 
 function ConsoleEntry({ target }: { target: EntryTarget }): ReactNode {
   const { activeOrg, organizations } = useAuth()
-  // member 不属于 org 管理面:activeOrg 角色不足直接回 /account;
-  // 选择列表只列可管理 org,member-only 用户同样落 /account(与 requireOrgManager 403 对齐)。
+  // member 与仅 member org 均回 /account,与 requireOrgManager 403 对齐。
   const manageableOrgs = organizations.filter((org) => isOrgManagerRole(org.role))
   const soleOrg = manageableOrgs.length === 1 ? manageableOrgs[0] : null
   if (activeOrg && !isOrgManagerRole(activeOrg.role)) return <Navigate to="/account" replace />
@@ -299,7 +297,6 @@ function AutoSelectOrganization({ target, org }: { target: EntryTarget; org: Aut
     })
   }, [destination, navigate, org, setActiveOrganization])
 
-  // 中间态对齐页头版式:loading 与落地页同骨架,切换不跳动。
   return (
     <ConsolePage title={<Trans>Open organization</Trans>}>
       <ConsolePageSection>

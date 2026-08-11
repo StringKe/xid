@@ -1,9 +1,5 @@
-// XidAuthService: Injectable Angular service wrapping XidClient state as RxJS Observables.
-// Bridges XidStore's subscribe/snapshot pattern into Angular's reactive model.
-// Angular templates can use the async pipe or toSignal() on any exported observable.
-//
-// The optional `options.client` parameter lets unit tests supply a pre-built
-// XidClient directly, bypassing Angular DI (no TestBed required).
+// 将 XidClient 的 subscribe/snapshot 桥接为 RxJS Observable；模板可用 async pipe 或 toSignal()。
+// options.client 供单测直接注入，绕过 Angular DI（无需 TestBed）。
 
 import { inject, Injectable, type OnDestroy } from '@angular/core'
 import {
@@ -40,7 +36,7 @@ export class XidAuthService implements OnDestroy {
     this.#state$.complete()
   }
 
-  // Full state stream. Prefer the derived streams below for template bindings.
+  // 完整状态流；模板绑定优先用下方派生流。
   get state$(): Observable<XidState> {
     return this.#state$.asObservable()
   }
@@ -80,27 +76,22 @@ export class XidAuthService implements OnDestroy {
     )
   }
 
-  // Synchronous snapshot for guards and one-shot reads.
   getSnapshot(): XidState {
     return this.#client.getSnapshot()
   }
 
-  // Delegates to XidClient.getToken(). Returns the JWT or an error result.
   getToken(options?: GetTokenOptions): Promise<Result<string, XidError>> {
     return this.#client.getToken(options)
   }
 
-  // Signs out the given session (or all sessions when sessionId is omitted).
   signOut(options?: { sessionId?: string }): Promise<Result<null, XidError>> {
     return this.#client.signOut(options)
   }
 
-  // Sets the active organization context on the current session.
   setActiveOrganization(organizationId: string | null): Promise<Result<XidState, XidError>> {
     return this.#client.setActiveOrganization({ organizationId })
   }
 
-  // Switches the active session (multi-session accounts).
   setActiveSession(sessionId: string): Promise<Result<XidState, XidError>> {
     return this.#client.setActiveSession({ sessionId })
   }

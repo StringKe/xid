@@ -1,8 +1,4 @@
-// org webhook 端点管理页:端点列表 + 创建(URL + 订阅事件)+ 轮换签名密钥 + 删除。
-// 签名密钥只在创建/轮换时一次性展示(参照 OrgScim token 展示模式)。
-// 后端无重放/投递状态 endpoint(worker/v1/webhooks.ts 仅 CRUD + rotate-secret),故不提供该入口。
-// 调 /v1/webhooks(扁平租户级 Management API)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建表单 5/7 双列(SplitSection)。
+// 后端无重放/投递状态 API,UI 不提供该入口;签名密钥只在创建/轮换时一次性展示。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -35,7 +31,6 @@ const styles = stylex.create({
     flexWrap: 'wrap',
     gap: '0.25rem',
   },
-  // 一次性 secret 展示:成功 Alert + mono 代码块
   secretStack: {
     display: 'flex',
     flexDirection: 'column',

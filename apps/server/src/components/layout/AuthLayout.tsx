@@ -1,9 +1,4 @@
-// AuthLayout:Hosted UI(登录/consent/account 入口)的居中卡片布局,认证页视觉锚点。
-// brand logo 来自 ThemeProvider 的 brand.logoUrl;无 logo 时回落 appName 文字。
-// 布局:单列 grid,垂直自由空间按 0.62:1(黄金比)分配,整列水平居中、视觉重心约 38% 视线高度。
-// 层次:bg 上铺极淡品牌细节(accent 4% 顶部晕染 + fg 3% 1px 细网格,均经 color-mix 走 token,
-// dark 随 token 翻转),卡片以 surface + 1px 边框立于其上,不靠投影。
-// 入场:整列 0.3s opacity + 4px 位移一次入场,prefers-reduced-motion 直接终态。
+// Hosted UI 居中卡片;垂直自由空间 0.62:1 偏上分配,入场一次 opacity+位移。
 
 import { useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -16,7 +11,6 @@ import { LanguageSwitcher } from '../LanguageSwitcher'
 export type AuthLayoutProps = {
   children: ReactNode
   footer?: ReactNode
-  // 向导步骤指示(mono microlabel),渲染在 topBar brand 与 LanguageSwitcher 之间。
   steps?: {
     current: number
     total: number
@@ -35,7 +29,6 @@ const styles = stylex.create({
   main: {
     minHeight: '100dvh',
     display: 'grid',
-    // 黄金比偏上:上下 spacer 按 0.62:1 分自由空间;小视口收到下限后内容自然滚动。
     gridTemplateRows: 'minmax(2.5rem, 0.62fr) auto minmax(2.5rem, 1fr)',
     justifyItems: 'center',
     paddingInline: '1.25rem',
@@ -44,7 +37,6 @@ const styles = stylex.create({
     backgroundSize: 'auto, 2.75rem 2.75rem, 2.75rem 2.75rem',
     fontFamily: tokens['--xid-font'],
   },
-  // logo 行 + 卡片 + 页脚同列同宽成组,整列一次入场。
   column: {
     gridRow: 2,
     width: '100%',

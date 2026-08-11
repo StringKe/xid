@@ -1,7 +1,3 @@
-// RequireAuth:受保护路由守卫。未登录重定向到 /sign-in?continue=...,加载中显示 spinner。
-// 已登录才渲染 children;配合 useAuth 的三态(loading/authenticated/unauthenticated)。
-// 加载态容器样式走 StyleX。
-
 import { useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from '@xid-kit/web-ui/tanstack-router'
@@ -28,7 +24,7 @@ function mfaGateRedirect(
   pathname: string,
   search: string,
 ): string | null {
-  // redirect_to 保留完整 search+hash(如 ?orgId=),与 unauthenticated 分支的 continue 同口径。
+  // redirect_to 保留 search(如 ?orgId=),与 continue 同口径。
   const target = `${pathname}${search}`
   if (sessionStatus === 'pending_mfa' && !pathname.startsWith('/mfa')) {
     const params = new URLSearchParams({ redirect_to: target })

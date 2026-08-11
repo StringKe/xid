@@ -1,6 +1,3 @@
-// org SCIM 目录同步页:目录列表(provider/状态/用户数/组数/最后同步)+ 创建目录 + token 轮换。
-// 调 GET /v1/organizations/:orgId/directories(TanStack Query)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建表单 5/7 双列(SplitSection)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

@@ -1,5 +1,4 @@
-// 产品面(Hosted UI / account / console)共享布局与排版尺度。
-// 页面 agent 引用 page.* 减少重复的 heading/grid/loading 样式块。
+// Hosted UI / account / console 共享布局;page.title/lead 与 PageHeader 同口径供直排标题对齐。
 
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from './tokens.stylex'
@@ -11,8 +10,6 @@ export const page = stylex.create({
     gap: '1.5rem',
     minWidth: 0,
   },
-  // title/lead 与 PageHeader 同口径(紧行高低字重标题 + muted 导语),
-  // 供不经 PageHeader 组件的直排标题(activate / not-found / OTP status)对齐。
   title: {
     margin: 0,
     fontSize: '1.375rem',
@@ -36,8 +33,7 @@ export const page = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
-  // 小节标签:mono microlabel(与 DataTable 表头 / 指标带 label 同签名),
-  // console/account 信息密度型分区的标准小节标题,替代加重字号的 sectionTitle。
+  // 与 DataTable 表头 / 指标带 label 同 mono 签名。
   sectionLabel: {
     margin: 0,
     fontFamily: tokens['--xid-font-mono'],
@@ -99,7 +95,7 @@ export const page = stylex.create({
     textDecoration: 'none',
     color: 'inherit',
   },
-  // 行内文本链接(auth 卡 footer / onboarding 出口),全产品面唯一定义。
+  // 全产品面唯一行内文本链接定义。
   textLink: {
     fontSize: '0.8125rem',
     color: tokens['--xid-primary'],
@@ -145,7 +141,7 @@ export const page = stylex.create({
   },
 })
 
-// Console / account 全宽锚定版式:gutter + display 标题 + hairline 分节。
+// Console / account 全宽锚定:gutter + display 标题 + hairline 分节。
 export const consoleShell = stylex.create({
   gutter: {
     paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
@@ -203,7 +199,6 @@ export const consoleShell = stylex.create({
     fontSize: '0.9375rem',
     fontFamily: tokens['--xid-font'],
   },
-  // --- 页面骨架槽位(ConsolePage 组件族与原 controlPlaneStyles 的合一来源) ---
   lead: {
     maxWidth: '48rem',
     margin: '0.5rem 0 0',
@@ -274,7 +269,7 @@ export const consoleShell = stylex.create({
     fontSize: '0.8125rem',
     lineHeight: 1.55,
   },
-  // 5/7 双列节:左 meta(小节说明),右 controls(表单),宽屏带 inline-start hairline。
+  // 5/7 双列:左 meta 右 controls,宽屏带 inline-start hairline。
   createSection: {
     display: 'grid',
     gridTemplateColumns: {

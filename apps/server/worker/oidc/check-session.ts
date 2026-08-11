@@ -1,4 +1,4 @@
-// OIDC Session Management check_session iframe (postMessage OP iframe).
+// OIDC Session Management:check_session iframe(postMessage OP iframe)。
 
 import { getCookie, setCookie } from 'hono/cookie'
 import type { Context, Hono } from 'hono'

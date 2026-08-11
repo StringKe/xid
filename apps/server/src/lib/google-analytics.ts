@@ -1,5 +1,4 @@
-// Google Analytics 4 + 标记网关(G-M7Q66DQ8KX)客户端事件层。
-// gtag/dataLayer 与 /ts/ 脚本由 index.html 加载;此处只发事件,不重复注入。
+// GA4 客户端事件层;gtag 由 index.html 注入,此处只发事件。
 
 export const GA_MEASUREMENT_ID = 'G-M7Q66DQ8KX'
 

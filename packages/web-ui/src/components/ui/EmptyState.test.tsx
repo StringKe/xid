@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-// 捕获 motion.div props:enter 动画契约是 initial/animate/transition,SSR 输出无可断言标记。
+// SSR 无动画标记,改捕获 motion props 断言 initial/animate/transition 契约。
 const captured = vi.hoisted(() => ({ motionDivProps: [] as Record<string, unknown>[] }))
 
 vi.mock('motion/react', () => ({

@@ -1,4 +1,3 @@
-// 登录页共享逻辑测试:OTP 聚合入口按启用渠道解析,避免未启用 SMS 出现在 UI。
 
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PUBLIC_AUTH_CONFIG } from './auth-config'

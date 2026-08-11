@@ -1,21 +1,13 @@
-// Renderer process: IPC-backed SecureStorageAdapter.
-// Calls into the contextBridge-exposed xidBridge.storage which the preload
-// script wires to ipcRenderer.invoke calls on the main process.
+// 经 contextBridge 的 SecureStorageAdapter；绑定由 preload 在运行时写入。
 
 import type { SecureStorageAdapter, XidBridge } from '../types'
 import { XID_BRIDGE_KEY } from '../types'
 
-// Typed window augmentation so TypeScript knows about window.xidBridge.
-// The actual binding is created by the preload script at runtime.
 type BridgedWindow = typeof globalThis & {
   readonly [XID_BRIDGE_KEY]?: XidBridge
 }
 
-/**
- * Returns the SecureStorageAdapter from the contextBridge.
- * Throws if the preload script has not set up the bridge (i.e. the renderer
- * was loaded without the correct preload).
- */
+/** 未挂载 preload 时抛错，避免静默落到未加密存储。 */
 export function getIpcStorageAdapter(): SecureStorageAdapter {
   const bridge = (globalThis as BridgedWindow)[XID_BRIDGE_KEY]
   if (!bridge) {
@@ -27,10 +19,6 @@ export function getIpcStorageAdapter(): SecureStorageAdapter {
   return bridge.storage
 }
 
-/**
- * Returns the full XidBridge. Useful when the renderer needs signIn/signOut
- * without going through XidClient.
- */
 export function getXidBridge(): XidBridge {
   const bridge = (globalThis as BridgedWindow)[XID_BRIDGE_KEY]
   if (!bridge) {

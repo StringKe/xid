@@ -214,7 +214,7 @@ export class BrowserOidcSession {
       redirectUri: this.#redirectUri,
       returnUrl,
       intent: input.intent ?? 'sign-in',
-      // prompt=none 标记 silent 事务:回跳的交互类拒绝按预期失败处理而非抛错(03 章 §6)。
+      // prompt=none 记为 silent:回跳交互类拒绝按预期失败,不抛错。
       silent: input.prompt === 'none',
       createdAt: this.#now(),
     }
@@ -251,8 +251,7 @@ export class BrowserOidcSession {
     const pending = await this.#consumePending(state)
     const oauthError = singleQueryParameter(url, 'error')
     if (oauthError) {
-      // silent(prompt=none)回跳的交互类拒绝是预期失败而非异常(03 章 §6):返回静默失败
-      // 变体,由调用方决定降级普通交互式授权或回 returnUrl;非 silent 行为不变。
+      // silent 事务的交互类拒绝返回静默失败变体,非 silent 仍抛错。
       if (pending.silent && isSilentAuthorizationError(oauthError)) {
         return { returnUrl: pending.returnUrl, silentError: oauthError }
       }
@@ -292,9 +291,7 @@ export class BrowserOidcSession {
     return { returnUrl: pending.returnUrl, intent: pending.intent }
   }
 
-  // 静默重认证第一级:隐藏 iframe + prompt=none,仅 best-effort(03 章 §6)。
-  // session cookie 是 SameSite=Lax,第三方 cookie 被拦截时跨站 iframe 拿不到,
-  // 该尝试确定性以 login_required 收场——预期结果而非错误,调用方应降级 redirect 兜底。
+  // iframe + prompt=none 仅 best-effort:SameSite=Lax 在第三方 cookie 拦截下常得 login_required。
   async signInSilent(
     input: SignInSilentInput = {},
   ): Promise<Result<HandleRedirectCallbackResult, XidError>> {
@@ -377,9 +374,7 @@ export class BrowserOidcSession {
     }
   }
 
-  // 静默重认证第二级(可靠兜底):顶层 redirect + prompt=none(03 章 §6)。
-  // 顶层导航携带 Lax cookie;returnUrl 已随 pending 事务持久化,回跳后由
-  // handleRedirectCallback 收尾(交互类拒绝映射为静默失败,不再抛错)。
+  // 顶层 redirect + prompt=none:可带 Lax cookie;回跳由 handleRedirectCallback 收尾。
   async signInSilentWithRedirect(
     input: { returnUrl?: string; signal?: AbortSignal } = {},
   ): Promise<void> {
@@ -532,8 +527,7 @@ export class BrowserOidcSession {
     ) {
       throw new BrowserOidcError('server_error', 'OIDC token response is incomplete.', 502)
     }
-    // The browser baseline never requests offline_access. Persisting a bearer refresh token in
-    // JavaScript storage is intentionally outside this release.
+    // 浏览器基线不请求 offline_access,也不在 JS 存储持久化 refresh token。
     if (typeof token.refresh_token === 'string' && token.refresh_token.length > 0) {
       throw new BrowserOidcError(
         'server_error',
@@ -557,8 +551,7 @@ export class BrowserOidcSession {
     signal?: AbortSignal,
   ): Promise<UserInfo> {
     const url = new URL('/userinfo', `${this.#issuer}/`)
-    // Public browser clients need client_id on the CORS preflight because OPTIONS has no
-    // Authorization header from which the issuer can resolve the registered origin allowlist.
+    // OPTIONS 无 Authorization,公开客户端须在 query 带 client_id 供 origin 白名单解析。
     url.searchParams.set('client_id', this.#clientId)
     const response = await this.#fetcher(url.toString(), {
       method: 'GET',
@@ -589,7 +582,7 @@ function defaultTokenCache(namespace: string): XidTokenCache {
       return new SessionStorageTokenCache(`xid:${namespace}`, globalThis.sessionStorage)
     }
   } catch {
-    // Privacy modes can deny sessionStorage; memory keeps the current page functional.
+    // 隐私模式可能拒绝 sessionStorage,回退内存以保持本页可用。
   }
   return new MemoryTokenCache(`xid-memory:${namespace}`)
 }
@@ -696,8 +689,7 @@ function isSilentAuthorizationError(value: string): value is SilentAuthorization
   return (SILENT_AUTHORIZATION_ERRORS as readonly string[]).includes(value)
 }
 
-// 跨站 iframe 停在 IdP 域时读 contentWindow.location 抛 SecurityError,
-// 这是轮询期间的正常中间态(302 尚未落回 RP 同源 redirect_uri),继续轮询。
+// iframe 仍在 IdP 域时读 location 会 SecurityError,属 302 落回前的正常中间态。
 function readSameOriginIframeHref(iframe: HTMLIFrameElement): string | null {
   try {
     const href = iframe.contentWindow?.location.href
@@ -732,7 +724,7 @@ function parsePending(raw: string): PendingAuthorization | null {
     ) {
       return null
     }
-    // 改动前写入的 pending 没有 silent 字段,按非 silent 事务处理。
+    // 缺 silent 的旧 pending 按非 silent 处理。
     return { ...value, silent: value.silent === true } as PendingAuthorization
   } catch {
     return null

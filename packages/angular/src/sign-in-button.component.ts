@@ -1,12 +1,4 @@
-// SignInButton: minimal standalone Angular component that navigates to the
-// Hosted UI sign-in page (Authorization Code + PKCE S256 flow via server).
-// No NgModule required (Angular 17+ standalone).
-//
-// Usage:
-//   <xid-sign-in-button />
-//   <xid-sign-in-button signInUrl="/auth/sign-in" redirectUrl="/dashboard">
-//     Log in
-//   </xid-sign-in-button>
+// 跳转到 Hosted UI 登录页（Authorization Code + PKCE S256，由服务端完成）。
 
 import { Component, Input } from '@angular/core'
 
@@ -20,11 +12,8 @@ import { Component, Input } from '@angular/core'
   `,
 })
 export class SignInButton {
-  // Route to the Hosted UI sign-in page. Defaults to '/sign-in'.
   @Input() signInUrl = '/sign-in'
-  // After successful sign-in the server will redirect here.
   @Input() redirectUrl?: string
-  // Accessible label for assistive technology; optional.
   @Input() ariaLabel?: string
 
   handleClick(): void {

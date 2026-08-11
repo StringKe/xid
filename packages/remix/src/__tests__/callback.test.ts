@@ -1,9 +1,6 @@
-// handleCallback unit tests: OAuth callback processing core logic paths.
-// @remix-run/node redirect is a peer dep (not installed); vi.mock injects a minimal implementation.
-// token endpoint calls are intercepted via vi.stubGlobal fetch.
+// handleCallback 单测；@remix-run/node 为 peer dep（未安装），vi.mock 注入 redirect；token endpoint 用 stubGlobal fetch。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock @remix-run/node redirect (peer dep, provided by consumer at runtime).
 vi.mock('@remix-run/node', () => ({
   redirect: (url: string, init?: { headers?: Record<string, string> | Headers }) => {
     const headers = new Headers(
@@ -21,8 +18,6 @@ vi.mock('@remix-run/node', () => ({
 const { handleCallback } = await import('../callback')
 import type { XidSession, XidSessionStorage } from '../types'
 import { XID_SESSION_ACCESS_TOKEN_KEY, XID_SESSION_REFRESH_TOKEN_KEY } from '../types'
-
-// ---- helpers ----
 
 type SessionStore = Map<string, string>
 
@@ -98,9 +93,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
 })
-
-// ---- success path ----
-// All success paths include state + code_verifier in session (both are required).
 
 describe('handleCallback success path', () => {
   it('uses the Core root /token endpoint by default', async () => {
@@ -262,14 +254,12 @@ describe('handleCallback success path', () => {
   })
 })
 
-// ---- state/CSRF enforcement ----
-
 describe('handleCallback state/CSRF validation', () => {
   it('rejects when state param is absent from the callback URL', async () => {
     const store: SessionStore = new Map([['xid:oauth_state', 'st_stored']])
     const sessionStorage = makeTestSessionStorage(store)
 
-    // No state param in URL -- must be rejected even if session has a stored state.
+    // URL 无 state 即使 session 有存储值也必须拒绝。
     const request = new Request('https://app.example.com/auth/callback?code=c')
     const result = await handleCallback(request, {
       clientId: 'client_test_123',
@@ -335,12 +325,9 @@ describe('handleCallback state/CSRF validation', () => {
   })
 })
 
-// ---- PKCE enforcement ----
-
 describe('handleCallback PKCE enforcement', () => {
   it('rejects when code_verifier is missing from session', async () => {
     mockFetchSuccess()
-    // State matches but no code_verifier in session.
     const store: SessionStore = new Map([['xid:oauth_state', 'st_pkce']])
     const sessionStorage = makeTestSessionStorage(store)
 
@@ -388,8 +375,6 @@ describe('handleCallback PKCE enforcement', () => {
   })
 })
 
-// ---- open redirect protection ----
-
 describe('handleCallback return_to open redirect prevention', () => {
   it('rejects absolute URL in return_to query param (falls back to /)', async () => {
     mockFetchSuccess()
@@ -412,7 +397,6 @@ describe('handleCallback return_to open redirect prevention', () => {
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    // Must NOT redirect to evil.com; falls back to defaultReturnTo.
     expect(result.response.headers.get('location')).toBe('/safe')
     expect(result.response.headers.get('location')).not.toContain('evil.com')
   })
@@ -441,8 +425,6 @@ describe('handleCallback return_to open redirect prevention', () => {
     expect(result.response.headers.get('location')).toBe('/safe')
   })
 })
-
-// ---- error paths ----
 
 describe('handleCallback error paths', () => {
   it('returns error when authorization code is missing from URL', async () => {

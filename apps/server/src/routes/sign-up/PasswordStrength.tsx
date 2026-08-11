@@ -1,7 +1,4 @@
-// PasswordStrength:zxcvbn score(0-4)可视化进度条 + 文字标签。
-// score=0 时调用方不渲染本组件;此处仍处理 0 以保持类型完整。
-// 纯展示,无副作用,a11y: role=meter + aria-valuenow/min/max + aria-label。
-// 强度档用语义色 token:danger(0-1) / warning(2) / success(3-4),不写裸色值。
+// zxcvbn score 可视化;强度色用语义 token,不写裸色值。
 
 import { useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -34,13 +31,11 @@ const styles = stylex.create({
     transitionDuration: '0.2s',
     transitionTimingFunction: 'ease-out',
   },
-  // 进度宽度按 score 分 5 档(score+1)/5 * 100%
   width0: { width: '20%' },
   width1: { width: '40%' },
   width2: { width: '60%' },
   width3: { width: '80%' },
   width4: { width: '100%' },
-  // 填充色:danger(0-1) / warning(2) / success(3-4)
   fillDanger: { backgroundColor: tokens['--xid-danger'] },
   fillWarning: { backgroundColor: tokens['--xid-warning'] },
   fillSuccess: { backgroundColor: tokens['--xid-success'] },

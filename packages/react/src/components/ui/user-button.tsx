@@ -1,6 +1,3 @@
-// UserButton:头像按钮 + 下拉弹窗(对标 Clerk <UserButton>)。
-// 含用户信息摘要、管理账户链接、多会话切换、登出。文案走 lingui。
-
 import { type ReactNode, type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useLingui } from '@lingui/react'
@@ -14,8 +11,7 @@ import { useXidStore } from '../../hooks/use-xid-store'
 import { Rt, rt, sdkMessages } from '../../i18n-runtime'
 import { UserAvatar } from './user-avatar'
 
-// 弹出层弹簧:与 apps/server lib/motion 的 springSnappy/popoverMotion 同值;
-// 包内复制一份,SDK 不依赖 app 内部模块。
+// 与 apps/server lib/motion 同值;SDK 不能依赖 app 内部模块,故包内复制。
 const popoverTransition = { type: 'spring', bounce: 0, duration: 0.3 } as const satisfies Transition
 const popoverMotion = {
   initial: { opacity: 0, scale: 0.96, y: -4 },
@@ -24,9 +20,7 @@ const popoverMotion = {
 } as const
 
 export type UserButtonProps = {
-  // 用户管理页(account portal)URL
   userProfileUrl?: string
-  // 登出后跳转
   signOutRedirectUrl?: string
   appearance?: Appearance
   className?: string
@@ -55,7 +49,7 @@ export function UserButton({
   )
   const popoverClass = cx('xid-user-button__popover', appearance?.elements?.userButtonPopover)
 
-  // 外部点击 / Escape 关闭后焦点回 trigger:菜单关闭后焦点不能丢在已卸载节点里。
+  // 关闭后焦点回 trigger,避免焦点落在已卸载的菜单节点上
   const closePopover = useCallback(() => {
     setOpen(false)
     triggerRef.current?.focus()
@@ -124,8 +118,7 @@ export function UserButton({
         />
       </button>
 
-      {/* MotionConfig 包在组件内部:SDK 消费者不一定挂 MotionConfig,
-          reducedMotion="user" 保证跟随系统减少动态效果设置。 */}
+      {/* 消费者未必挂 MotionConfig;包在内部并 reducedMotion="user" 跟随系统设置 */}
       <MotionConfig reducedMotion="user">
         <AnimatePresence>
           {open && (
@@ -138,7 +131,6 @@ export function UserButton({
               transition={popoverTransition}
               style={{ position: 'absolute', zIndex: 1000, transformOrigin: 'top right' }}
             >
-              {/* 用户信息摘要 */}
               <div className="xid-user-button__user-info" role="menuitem" aria-disabled>
                 <UserAvatar
                   imageUrl={user.imageUrl}
@@ -159,7 +151,6 @@ export function UserButton({
 
               <hr role="separator" />
 
-              {/* 管理账户 */}
               <a
                 href={userProfileUrl}
                 className="xid-user-button__menu-item"
@@ -169,7 +160,6 @@ export function UserButton({
                 <Rt {...sdkMessages.manageAccount} />
               </a>
 
-              {/* 多会话切换 */}
               {state.sessions.length > 1 && (
                 <>
                   <hr role="separator" />
@@ -194,7 +184,6 @@ export function UserButton({
 
               <hr role="separator" />
 
-              {/* 登出 */}
               {signOutError && (
                 <p className="xid-user-button__sign-out-error" role="alert">
                   {signOutError}

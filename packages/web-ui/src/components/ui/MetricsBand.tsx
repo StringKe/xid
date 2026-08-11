@@ -1,8 +1,4 @@
-// MetricsBand:overview 页全宽指标带(ledger 语言)-- 上下 1px hairline 收束,横贯内容列全宽。
-// 全宽壳(零 padding)规范下 gutter 由带内自持;指标等宽分布(repeat(4, 1fr)),宽屏指标间 1px 竖分隔;
-// 数值字号随视口 clamp 上探(1440-2860 主力区间),tabular-nums。
-// side(可选):次要计数行列表,挂带尾定宽列(15-18rem);不传则纯指标带。
-// 文案零持有:label/term 由调用方传入(已本地化)。消费方:Org/PlatformOverviewMetrics 数据映射层。
+// overview 全宽指标带:壳零 padding 故 gutter 自持;宽屏 4 等列 + 1px 竖分隔,可选 side 挂尾。
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
@@ -25,12 +21,10 @@ export type MetricsBandProps = {
   side?: readonly MetricsBandSideItem[]
 }
 
-// 内容列水平 gutter:与 ConsoleLayout 零 padding 壳的页面节同口径。
+// 与 ConsoleLayout 零 padding 壳同口径。
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 
 const styles = stylex.create({
-  // 指标带:上下 1px hairline 收束,不做独立卡片。
-  // 小屏 2 列网格;宽屏 4 等列横贯全宽(带 side 时尾挂定宽行列表列)。
   band: {
     display: 'grid',
     gridTemplateColumns: {
@@ -81,7 +75,6 @@ const styles = stylex.create({
       '@media (min-width: 64rem)': '2.5rem',
     },
   },
-  // mono microlabel:与 DataTable 表头 / 图表标题同一签名。
   metricLabel: {
     margin: 0,
     fontFamily: tokens['--xid-font-mono'],
@@ -91,7 +84,6 @@ const styles = stylex.create({
     textTransform: 'uppercase',
     color: tokens['--xid-muted-foreground'],
   },
-  // 字号做功、字重退后;tabular-nums 数字对齐。
   metricValue: {
     margin: 0,
     fontVariantNumeric: 'tabular-nums',
@@ -113,7 +105,7 @@ const styles = stylex.create({
   valueBad: {
     color: tokens['--xid-danger'],
   },
-  // 次要计数行列表:label 左 / 数值右,行间 hairline。小屏整行垫底,宽屏挂带尾竖分隔。
+  // 小屏整行垫底,宽屏挂带尾竖分隔。
   sideList: {
     margin: 0,
     gridColumn: {
@@ -155,7 +147,6 @@ const styles = stylex.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
     gap: '1rem',
-    // hairline 邻接 >= 1.25rem:行文本与上下分隔线各保 1.25rem(与 Section row / DataTable cell 同口径)
     paddingBlock: '1.25rem',
   },
   sideRowDivided: {

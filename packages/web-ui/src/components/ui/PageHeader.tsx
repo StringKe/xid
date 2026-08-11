@@ -1,6 +1,4 @@
-// PageHeader:页面头(标题 + 可选导语 + 操作区)。
-// 层次靠字号/字重 + muted 导语表达,不加 hairline:auth 卡内与分段控制器同屏时,
-// 一条全宽底线会与控制器底槽叠出第二层强调(一个面板最多一层强调)。
+// 不加 hairline:auth 卡内与分段控制器同屏时全宽底线会叠出第二层强调。
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'

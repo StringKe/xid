@@ -1,4 +1,4 @@
-// 测试用 ES256 密钥与 token 工坊:直接 generateKey + crypto signJwt,自包含不依赖 KEK/信封加密。
+// 测试密钥自包含,不依赖 KEK/信封加密。
 import type { PublicJwk } from '@xid-kit/crypto'
 import { exportPublicJwk, signJwt } from '@xid-kit/crypto'
 

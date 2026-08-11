@@ -1,5 +1,3 @@
-// Shared Signals Framework SET (Security Event Token) helpers.
-
 import type { SigningAlg, TenantContext } from '@xid-kit/types'
 import { signJwt } from '@xid-kit/crypto'
 

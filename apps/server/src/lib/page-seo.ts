@@ -1,4 +1,3 @@
-// 按路由解析页面 SEO 配置,并写入 document.title / meta(随 locale 切换刷新)。
 
 import type { I18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'

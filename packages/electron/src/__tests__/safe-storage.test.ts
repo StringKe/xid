@@ -1,11 +1,8 @@
-// ElectronSafeStorage unit tests -- mocks Electron and node:fs/node:crypto
-// so the tests run without an actual Electron environment.
+// ElectronSafeStorage：mock Electron/fs/crypto，无真实 Electron 环境。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-// ---------------------------------------------------------------------------
-// Module mocks -- must be hoisted before any imports that use them.
-// ---------------------------------------------------------------------------
+// vi.mock 须在被测 import 之前 hoist。
 
 const fakeFs: Record<string, Buffer | string> = {}
 
@@ -44,15 +41,12 @@ vi.mock('node:path', () => ({
   join: (...parts: string[]) => parts.join('/'),
 }))
 
-// Default mock: encryption IS available.
 const mockSafeStorage = {
   isEncryptionAvailable: vi.fn(() => true),
   encryptString: vi.fn((text: string) => Buffer.from(`enc:${text}`)),
   decryptString: vi.fn((buf: Buffer) => {
     const raw = buf.toString()
-    // Only strip the enc: prefix that this mock's encryptString writes.
-    // This makes plaintext writes distinguishable from encrypted writes at
-    // the mock level: encrypted data always has the prefix; plaintext never does.
+    // 仅识别 mock 写入的 enc: 前缀，便于区分明文误写。
     if (!raw.startsWith('enc:')) throw new Error('decryptString: not an encrypted blob')
     return raw.slice(4)
   }),
@@ -62,22 +56,13 @@ vi.mock('electron', () => ({
   safeStorage: mockSafeStorage,
 }))
 
-// ---------------------------------------------------------------------------
-// Actual imports (after mocks are set up)
-// ---------------------------------------------------------------------------
-
 import { ElectronSafeStorage, ElectronStorageError } from '../main/safe-storage'
 import * as fsPromises from 'node:fs/promises'
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('ElectronSafeStorage', () => {
   beforeEach(() => {
     Object.keys(fakeFs).forEach((k) => delete fakeFs[k])
     vi.clearAllMocks()
-    // Reset encryption to available by default.
     mockSafeStorage.isEncryptionAvailable.mockReturnValue(true)
     mockSafeStorage.encryptString.mockImplementation((text: string) => Buffer.from(`enc:${text}`))
     mockSafeStorage.decryptString.mockImplementation((buf: Buffer) => {
@@ -101,12 +86,8 @@ describe('ElectronSafeStorage', () => {
     await storage.setItem('my-key', 'secret-value')
     const result = await storage.getItem('my-key')
 
-    // The mock encryptString writes enc: prefix; decryptString strips it.
-    // Round-trip must recover the original plaintext.
     expect(result).toBe('secret-value')
-    // encryptString must have been called (not a plaintext bypass).
     expect(mockSafeStorage.encryptString).toHaveBeenCalledWith('secret-value')
-    // decryptString must have been called on read.
     expect(mockSafeStorage.decryptString).toHaveBeenCalled()
   })
 
@@ -143,10 +124,6 @@ describe('ElectronSafeStorage', () => {
     expect(await storage.getItem('key-b')).toBe('value-b')
   })
 
-  // ---------------------------------------------------------------------------
-  // Encryption-unavailable branches
-  // ---------------------------------------------------------------------------
-
   it('setItem() throws ElectronStorageError when encryption is unavailable', async () => {
     mockSafeStorage.isEncryptionAvailable.mockReturnValue(false)
     const storage = new ElectronSafeStorage('/tmp/test')
@@ -174,10 +151,9 @@ describe('ElectronSafeStorage', () => {
     try {
       await storage.setItem('key', 'my-secret')
     } catch {
-      // Expected throw -- ignore.
+      // 预期抛错。
     }
 
-    // writeFile must NOT have been called with the plaintext value.
     expect(fsPromises.writeFile).not.toHaveBeenCalled()
   })
 
@@ -189,10 +165,6 @@ describe('ElectronSafeStorage', () => {
 
     expect(result).toBeNull()
   })
-
-  // ---------------------------------------------------------------------------
-  // IPC handler registration
-  // ---------------------------------------------------------------------------
 
   it('registerIpcHandlers registers the 3 storage IPC channels', () => {
     const storage = new ElectronSafeStorage('/tmp/test')

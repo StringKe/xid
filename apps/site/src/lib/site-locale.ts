@@ -117,7 +117,7 @@ export function isLocalizableSitePath(pathname: string): boolean {
 
 export function hostedAuthHref(action: 'sign-in' | 'sign-up', locale: SiteLocale): string {
   const bcp = encodeURIComponent(locale)
-  // Registration stays inside the unified Hosted Auth state machine.
+  // 注册走统一 Hosted Auth 状态机，不单独开注册入口。
   if (action === 'sign-up') {
     return `/sign-in?intent=sign-up&locale=${bcp}`
   }

@@ -29,7 +29,6 @@ type ClaimRecovery = {
   recoveryKey: string
 }
 
-// 页面状态机:所有分支收敛到单一 AuthLayout 渲染,主栈结构一致。
 type InvitationPageStatus =
   | 'loading'
   | 'claim-confirm'
@@ -65,7 +64,6 @@ const styles = stylex.create({
     justifyContent: 'center',
     width: '100%',
   },
-  // button 形态的行内文本链接:重置 button 默认外观,与 page.textLink 叠加使用。
   textButton: {
     alignSelf: 'flex-start',
     padding: 0,
@@ -111,7 +109,7 @@ async function rememberClaimToken(token: string): Promise<string> {
     storage.setItem(claimTokenStorageKey(identifier), token)
     storage.setItem(CURRENT_CLAIM_IDENTIFIER_KEY, identifier)
   } catch {
-    // The claim remains usable from component memory when browser storage is unavailable.
+    // 存储不可用时 claim 仍可从组件内存使用。
   }
   return identifier
 }
@@ -138,7 +136,7 @@ async function getOrCreateRecovery(
         return { identifier, recoveryKey: stored }
       }
     } catch {
-      // A fresh in-memory recovery key still keeps retries idempotent in this page instance.
+      // 内存 recovery key 仍保证本页实例内重试幂等。
     }
   }
 
@@ -147,7 +145,7 @@ async function getOrCreateRecovery(
     try {
       storage.setItem(recoveryStorageKey(identifier), recovery.recoveryKey)
     } catch {
-      // The in-memory recovery key is sufficient until this page is closed.
+      // 关页前内存 recovery key 足够。
     }
   }
   return recovery
@@ -163,7 +161,7 @@ function clearClaimStorage(identifier: string): void {
       storage.removeItem(CURRENT_CLAIM_IDENTIFIER_KEY)
     }
   } catch {
-    // A successful response has already consumed the one-time server proof.
+    // 成功响应已消费一次性 server proof。
   }
 }
 
@@ -178,7 +176,7 @@ function clearCurrentClaimStorage(): void {
     }
     storage.removeItem(CURRENT_CLAIM_IDENTIFIER_KEY)
   } catch {
-    // A raw invitation remains usable even if stale session storage cannot be cleared.
+    // 清理 session storage 失败时原始邀请仍可用。
   }
 }
 
@@ -337,8 +335,7 @@ export function AcceptInvitationPage(): ReactNode {
   const claimStartDisabled =
     claimStartPending || waitingForAuthConfig || (turnstileRequired && turnstileToken === null)
 
-  // footer 的 Sign out 出口只在存在会话时渲染:匿名访客(claim 邮件流的大多数)没有会话可签退,
-  // preview 态的身份切换由 "Not you?" 入口承担。
+  // Sign out 仅有会话时渲染;匿名 claim 流无会话,preview 身份切换走 "Not you?"。
   const footer = user ? (
     <button
       type="button"
@@ -502,7 +499,7 @@ export function AcceptInvitationPage(): ReactNode {
       ) : (
         <div {...stylex.props(styles.stack)}>
           {renderStatus()}
-          {/* preview -> check-email 切换保持同一挂载点,Turnstile widget 不重建,resend 可拿到新 challenge。 */}
+          {/* 同挂载点切换,Turnstile 不重建以便 resend 拿新 challenge。 */}
           {status === 'preview' || status === 'check-email' ? (
             <div ref={containerRef} {...stylex.props(styles.turnstile)} />
           ) : null}

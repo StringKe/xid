@@ -1,4 +1,3 @@
-// verifyPkce / enforcePkceBinding 正反例(复用 pkce-vectors;oidc-oauth rule:S256 强制,拒 plain)。
 import { describe, it, expect, beforeAll } from 'vitest'
 
 import { verifyPkce, enforcePkceBinding, computeS256Challenge } from '../pkce'

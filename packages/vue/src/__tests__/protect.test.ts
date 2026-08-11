@@ -1,9 +1,4 @@
-// Protect 组件单元测试:
-// - 未登录时渲染 fallback
-// - 已登录无 permission/role 要求时渲染 default slot
-// - role 不匹配时渲染 fallback
-// - permission 不匹配时渲染 fallback
-// 用 Vue 3 effectScope + inject mock 模拟 Protect 内部 composable 环境。
+// Vue 3 非组件上下文无 inject；用 effectScope + inject mock 测门控逻辑。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { effectScope } from 'vue'
 
@@ -37,9 +32,6 @@ function makeClient(stateOverrides: Partial<XidState> = {}): XidClient {
   vi.spyOn(client, 'subscribe').mockReturnValue(() => {})
   return client
 }
-
-// Protect uses useXidState which uses useXidClient which calls inject.
-// We test the guard logic through useXidState -> state value.
 
 import { useXidState } from '../composables/use-xid-state'
 
@@ -201,7 +193,6 @@ describe('Protect permission/role logic', () => {
       (m) => m.organization.id === stateRef?.value.organization?.id,
     )
 
-    // Required role is 'admin', actual is 'member' -> block
     expect(activeMembership?.role).not.toBe('admin')
     scope.stop()
   })

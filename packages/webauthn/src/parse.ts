@@ -1,6 +1,4 @@
-// clientDataJSON 解析与校验(W3C WebAuthn L3 §7.1/§7.2,见 01 章 clientDataJSON 校验)。
-// type/challenge/origin/crossOrigin 校验,challenge 走 constant-time 等长字节比对(防 timing)。
-// 可预期失败返回判别原因,由调用方映射 XidError;格式损坏 throw。
+// clientDataJSON 校验：challenge 等长 constant-time 比对；可预期失败回判别原因，格式损坏 throw。
 
 import { base64UrlDecode } from '@xid-kit/crypto'
 import type { WebAuthnCeremony } from '@xid-kit/types'
@@ -28,7 +26,7 @@ const CEREMONY_TYPE: Record<WebAuthnCeremony, string> = {
   authentication: 'webauthn.get',
 }
 
-// 等长字节常量时间比对(见 01 章 challenge constant-time 比对)。不等长直接 false,避免泄露长度旁路。
+// 等长字节 constant-time 比对；长度不等直接 false，避免长度旁路。
 export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false
   let diff = 0
@@ -65,7 +63,6 @@ function parseClientDataJson(bytes: Uint8Array): ClientData {
   return result
 }
 
-// 按 01 章 1-5 顺序校验 clientDataJSON。verification 1(challenge)与 verification 2(origin)在此完成。
 export function checkClientData(input: {
   clientDataJson: Uint8Array
   ceremony: WebAuthnCeremony
@@ -79,12 +76,10 @@ export function checkClientData(input: {
     return { ok: false, reason: 'malformed' }
   }
 
-  // 1. type
   if (clientData.type !== CEREMONY_TYPE[input.ceremony]) {
     return { ok: false, reason: 'type_mismatch' }
   }
 
-  // 2. challenge:base64url 解码后 constant-time 比对(verification 1)
   let challengeBytes: Uint8Array
   try {
     challengeBytes = base64UrlDecode(clientData.challenge)
@@ -95,12 +90,11 @@ export function checkClientData(input: {
     return { ok: false, reason: 'challenge_invalid' }
   }
 
-  // 3. origin:精确匹配集合(scheme+host+port 全等,verification 2)
   if (!input.expectedOrigins.includes(clientData.origin)) {
     return { ok: false, reason: 'origin_mismatch' }
   }
 
-  // 4. crossOrigin:存在且为 true 拒绝(不允许跨源 iframe 内调用)
+  // 禁止跨源 iframe 内发起仪式（crossOrigin=true 映射为 origin 失败）。
   if (clientData.crossOrigin === true) {
     return { ok: false, reason: 'origin_mismatch' }
   }

@@ -1,7 +1,4 @@
-// platform console 概览页:全局 DAU/MAU、组织总数、全局登录成功率 + 趋势图表。
-// 组织总数/用户总数由 MetricsBand side 承载,不再重复出第二组(同概念同权重,不重复占位)。
-// 数据从 GET /v1/platform/stats 拉取(TanStack Query)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;空态走 EmptyState。
+// 组织/用户总数走 MetricsBand side,勿再挂第二组同权重指标。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'

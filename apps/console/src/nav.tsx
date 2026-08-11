@@ -1,16 +1,12 @@
-// nav:console 三个区域的侧栏导航定义(唯一事实源)。
-// ConsoleLayout 消费渲染;Settings 总览等入口页也从这里派生卡片,新增页面只改这一处。
+// 侧栏导航唯一事实源;Settings 等入口页也从这里派生,新增页只改此处。
 
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 
-// 单个侧栏导航项(to 为路由路径,label 已本地化)。
-// groupKey:稳定字符串键,相邻相同 groupKey 的 item 合并为同一分组(ReactNode 不可用 === 比较)。
-// groupLabel:分组可本地化显示文案;undefined groupKey = 无分组(如 Overview 独立项)。
+// groupKey 用稳定 string 分组(ReactNode 不能 ===);无 key 则不分组。权限过滤在 route 层做。
 export type ConsoleNavItem = {
   to: string
   label: ReactNode
-  // 可选:仅 Instance Manager 可见(route agent 据 activeOrg/permissions 过滤后再传入,此处不做权限判断)。
   end?: boolean
   groupKey?: string
   groupLabel?: ReactNode

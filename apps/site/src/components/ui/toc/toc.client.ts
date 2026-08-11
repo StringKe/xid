@@ -1,9 +1,4 @@
-/**
- * Scroll-spy + animated rail indicator. Active heading tracked via a single
- * IntersectionObserver; the dash slides by arc-length so it weaves through the
- * rail's curves instead of cutting across.
- */
-
+// 目录 scroll-spy：单 IO 跟踪当前标题；active 轨按弧长滑动以贴合弯轨。
 import { mount } from '@cloudflare/nimbus-docs/client'
 
 const READING_BAND = 0.25
@@ -18,9 +13,7 @@ function initToc(root: HTMLElement): () => void {
 
   const scrollHost = root.closest<HTMLElement>('[data-nb-toc-scroll-host]') ?? root
   const slugs = Array.from(links).map((l) => l.dataset.nbSlug!)
-  // Observe only resolvable headings, each carrying its original index, so
-  // scroll-spy stays aligned with the full-length links/segments even when a
-  // heading slugs to "" (e.g. emoji-only `## 🎉`) and has no DOM target.
+  // 只观察能 resolve 的标题并保留原 index，避免 emoji-only 等无 DOM id 的 slug 打乱 rail 段对齐。
   const observed = slugs
     .map((slug, index) => ({ el: document.getElementById(slug), index }))
     .filter((o): o is { el: HTMLElement; index: number } => o.el !== null)
@@ -33,8 +26,6 @@ function initToc(root: HTMLElement): () => void {
   let currentLink: HTMLElement | null = null
   let hasApplied = false
 
-  // Measure the rail from the DOM so the path stays pixel-perfect over the
-  // static gray rail, capturing each link's arc-length range as we go.
   function buildRail() {
     const navRect = nav!.getBoundingClientRect()
 
@@ -50,13 +41,7 @@ function initToc(root: HTMLElement): () => void {
     let d = ''
     const newSegments: { start: number; length: number }[] = []
 
-    // Measure each command in isolation (O(1)) and accumulate, rather than
-    // re-measuring the whole cumulatively-growing path with getTotalLength()
-    // on every iteration — the latter is O(n^2) and blocks the main thread on
-    // pages with hundreds of headings. Arc length is additive across
-    // contiguous commands, so summing isolated sub-paths matches the total.
-    // activePath doubles as the scratch measurer here; the full `d` is written
-    // back once at the end.
+    // 分段 getTotalLength 再累加（O(n)），避免整 path 每步重测的 O(n^2) 卡顿；弧长可加。
     const measure = (subPath: string) => {
       activePath!.setAttribute('d', subPath)
       return activePath!.getTotalLength()
@@ -77,7 +62,7 @@ function initToc(root: HTMLElement): () => void {
         if (Math.abs(cur.x - prev.x) < 0.5) {
           connector = `L ${cur.x} ${cur.yTop} `
         } else {
-          // Indent change → S-curve matching the static gap SVG.
+          // 缩进变化用与静态轨一致的 S 曲线。
           const midY = (prev.yBot + cur.yTop) / 2
           connector = `C ${prev.x} ${midY}, ${cur.x} ${midY}, ${cur.x} ${cur.yTop} `
         }
@@ -108,7 +93,7 @@ function initToc(root: HTMLElement): () => void {
 
     if (instant) {
       activePath!.setAttribute('data-initial', 'true')
-      // Force recalc so only opacity transitions on first paint (no dash sweep).
+      // 强制回流，首帧只做透明度过渡，避免 dash 扫过。
       void activePath!.getBoundingClientRect()
     }
 
@@ -167,7 +152,7 @@ function initToc(root: HTMLElement): () => void {
     setActive(atBottom ? links.length - 1 : observedIndex)
   }
 
-  // rootMargin collapses the root to the top band; deepest in-band heading wins.
+  // rootMargin 压到顶部阅读带；带内最深标题胜出。
   const spy = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
@@ -271,7 +256,7 @@ function initToc(root: HTMLElement): () => void {
     { signal: controller.signal },
   )
 
-  // Hand-driven scrolling releases the pin and resumes auto-tracking.
+  // 手动滚动解除 pin，恢复自动跟踪。
   function releasePin() {
     if (pinnedIndex === null) return
     pinnedIndex = null

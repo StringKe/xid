@@ -1,5 +1,4 @@
-// IdP metadata XML 解析:仅抽取 SAML EntityID、SSO URL、IdP 验签证书。
-// 用安全预检 + xmldsigjs Parse,不信任 metadata 内的其它扩展节点。
+// 仅抽取 EntityID/SSO/SLO/验签证书,其它扩展节点不信任。
 
 import { Parse } from 'xmldsigjs'
 import { DS_NS, securityPrecheck } from './precheck'

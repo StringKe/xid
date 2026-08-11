@@ -1,4 +1,4 @@
-// OIDC CIBA (Client Initiated Backchannel Authentication) minimal subset.
+// OIDC CIBA 最小子集(Client Initiated Backchannel Authentication)。
 
 import { base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'

@@ -1,7 +1,4 @@
-// 密码区:有 passwords 行 -> current + new + confirm 改密表单;
-// passwordless(guest / social / OTP 建号)-> "Set a password" 邮件链接仪式
-// (已验证邮箱发 setup 链接;未验证先发验证邮件;无邮箱引导加 passkey)。
-// 状态与 mutation 完全自包含,经 Section/SectionRow 共享骨架渲染。
+// 有密码走改密表单;passwordless 走邮件 setup 链接(未验证先发验证;无邮箱引导 passkey)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -17,7 +14,6 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
-    // hairline 邻接 >= 1.25rem:SectionRow 末行底线到提交按钮文本 >= 1.25rem
     paddingBlockStart: '1.25rem',
     paddingBlockEnd: '0.875rem',
   },
@@ -44,14 +40,13 @@ function errorText(err: unknown, fallback: string): string {
 
 export function ChangePasswordSection(): ReactNode {
   const { user } = useAuth()
-  // hasPassword 缺失(旧版 Core)回退改密表单,保持既有行为。
+  // hasPassword 缺失(旧 Core)回退改密表单。
   if (user?.hasPassword === false) {
     return <SetPasswordSection email={user.email} emailVerified={user.emailVerified} />
   }
   return <ChangePasswordForm />
 }
 
-// passwordless 设密:不设密码字段,统一走邮件证明仪式(setup 链接 = reset token 仪式)。
 function SetPasswordSection({
   email,
   emailVerified,

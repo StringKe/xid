@@ -1,4 +1,3 @@
-// SPA 路由级 GA4 page_view(配合 index.html 加载的 Google 标记网关 /ts)。
 
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'

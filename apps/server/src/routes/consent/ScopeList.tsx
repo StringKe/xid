@@ -1,4 +1,3 @@
-// scope 权限列表与 authorization_details 资源访问列表。
 
 import { msg } from '@lingui/core/macro'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -8,8 +7,7 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import type { ConsentParams } from './index'
 
-// 标准 scope 描述的本地化标签(worker consent.ts 只产出英文回退,多语言在此渲染;
-// 与 lib/enum-labels.tsx 同一模式)。自定义 scope 无映射回退 server description。
+// worker 只给英文回退;标准 scope 在此本地化,自定义 scope 回退 server description。
 const SCOPE_DESCRIPTION_LABELS: Record<string, MessageDescriptor> = {
   openid: msg`Verify your identity`,
   profile: msg`Access your basic profile information`,
@@ -19,7 +17,6 @@ const SCOPE_DESCRIPTION_LABELS: Record<string, MessageDescriptor> = {
   offline_access: msg`Maintain access while you are offline`,
 }
 
-// 行式列表:无 listStyle / padding,行间 hairline。
 const styles = stylex.create({
   permissionSection: {
     display: 'flex',
@@ -33,7 +30,6 @@ const styles = stylex.create({
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: tokens['--xid-muted-foreground'],
-    // hairline 邻接 >= 1.25rem:label 文本距列表顶线 1.25rem(与 ui/Section 区头同口径)
     marginBottom: '1.25rem',
   },
   rowList: {
@@ -50,7 +46,6 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.125rem',
-    // hairline 邻接 >= 1.25rem:行文本与上下行线各保 1.25rem
     paddingBlock: '1.25rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',

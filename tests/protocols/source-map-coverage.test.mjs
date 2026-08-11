@@ -8,7 +8,7 @@ const sourceMapPath = 'docs/protocols/source-map.md'
 const protocolGoalPath = 'docs/standards-sources.md'
 const protocolReadmePath = 'docs/protocols/README.md'
 const providerCompatibilityPath = 'docs/protocols/provider-compatibility.md'
-// docs/design/** is the English source of truth; docs/zh-Hans/design/** is a one-to-one mirror.
+// docs/design/** 为英文正本;docs/zh-Hans/design/** 为一一对应镜像。
 const oidcDesignPath = 'docs/design/03-oidc-oauth.md'
 const enterpriseSsoDesignPath = 'docs/design/04-enterprise-sso.md'
 const overviewDesignPath = 'docs/design/00-overview.md'
@@ -18,9 +18,7 @@ const authDesignZhPath = 'docs/zh-Hans/design/01-authentication.md'
 const oidcDesignZhPath = 'docs/zh-Hans/design/03-oidc-oauth.md'
 const enterpriseSsoDesignZhPath = 'docs/zh-Hans/design/04-enterprise-sso.md'
 
-// The English chapters are hard-wrapped at ~100 columns, so a boundary sentence routinely spans
-// several source lines. Collapsing whitespace keeps these assertions anchored to the wording rather
-// than to the current wrap points.
+// 英文章节按约 100 列硬折行,折叠空白使断言锚定措辞而非当前换行点。
 const collapseWhitespace = (text) => text.replace(/\s+/gu, ' ')
 const apiContractsPath = 'docs/api-contracts.md'
 const publicDocsRegistryPath = 'packages/types/src/public-docs.ts'
@@ -411,8 +409,7 @@ const expectedOidcDesignBoundaryTerms = [
   'Generic OIDC client evidence MUST NOT be interpreted directly as Slack, GitHub, Microsoft custom enterprise app, Atlassian, Salesforce, or Zoom being production-supported',
 ]
 
-// The Chinese mirror carries the same boundary statements. Without these the whole boundary section
-// could be deleted from docs/zh-Hans/design/03-*.md while the gate stayed green.
+// 中文镜像须含同等边界句,否则删掉 zh 边界段门禁仍绿。
 const expectedOidcDesignZhBoundaryTerms = [
   '下游 SaaS OIDC IdP 是独立能力',
   'Microsoft Entra custom OIDC app',
@@ -513,9 +510,7 @@ const expectedEnterpriseSsoDesignScimTargetTerms = [
   'Real Slack, GitHub Enterprise, Atlassian, Salesforce, and Zoom admin L4 evidence is still missing',
 ]
 
-// Chinese mirror of expectedEnterpriseSsoDesignBoundaryTerms plus
-// expectedEnterpriseSsoDesignScimTargetTerms, so section 2 / 3 / 7.1 / 7.2 cannot be rewritten into
-// a production-supported claim in one language only.
+// 中文镜像须锁定 2/3/7.1/7.2 边界,防止单语种改写成 production-supported。
 const expectedEnterpriseSsoDesignZhBoundaryTerms = [
   '## 2. 下游 SaaS SSO(我们作为 IdP)',
   'outbound SAML IdP 已落地(本地 L1-L3)',
@@ -544,36 +539,16 @@ const expectedEnterpriseSsoDesignZhScimTargetTerms = [
   '真实 Slack/GitHub Enterprise/Atlassian/Salesforce/Zoom admin L4 仍缺',
 ]
 
-// Anti-overclaim guards.
-//
-// Scope, stated precisely because an overstated guard is the exact failure mode these exist to
-// prevent: each entry matches a small enumerated set of *claim shapes* (adverb plus support verb,
-// one-shot plus no-phasing) within a single sentence. That covers the canonical phrasings and the
-// common rewordings of them, and it does NOT cover arbitrary paraphrase. A sufficiently novel
-// wording ("wall-to-wall support") escapes, by construction -- a whitelist of shapes cannot be
-// closed. Treat these as regression guards over known overclaim shapes, not as a general-purpose
-// overclaim detector. The load-bearing honesty control is the per-cell support matrix in
-// `docs/protocols/**`, which is asserted exactly; this is a secondary net over prose.
-//
-// Matching is deliberately biased toward false negatives. A false positive here turns `pnpm check`
-// red, which blocks the production build, and it does so on *honest* wording -- which would teach
-// the next writer to soften a truthful denial or delete the guard. An escape only costs one round of
-// prose review.
-//
-// Hence `denialAware`: for support claims, a sentence carrying any denial marker is skipped rather
-// than parsed, so "does not provide full support for X" stays green. It is off for the one-shot
-// family, where "no phasing" is *part of the claim* rather than a denial of it -- skipping on "no"
-// there would disarm the guard against the very sentence it exists to catch.
+// 防过度宣称:只匹配已知 claim shape(副词+支持动词 / 一次性+无分期),非万能检测器;
+// 主真相源是 docs/protocols 矩阵。偏向漏报:假阳性会卡死 pnpm check 并逼人软化真实否定。
+// denialAware 跳过含否定标记的支持句;one-shot 族关闭它,"无分期"本身是 claim 的一半。
 const SENTENCE_SPLIT = /[.。!?！？]+/u
 const DENIAL_EN =
   /\b(?:not|never|no|without|lacks?|lacking|missing|absent|cannot|can't|isn't|aren't|doesn't|don't|won't|yet to|far from|short of|rather than|instead of)\b/iu
-// Bare 无 is deliberately absent: it occurs inside 无密码 (passwordless) and 无状态 (stateless), so
-// treating it as a denial marker would skip the exact sentences these guards must inspect.
+// 刻意不含裸"无":会命中"无密码/无状态"等正常术语,反而跳过应检查的句子。
 const DENIAL_ZH = /[不未没缺]|并非|无法|并无|尚待|谈不上|算不上/u
 
-// A claim is a set of patterns that must all appear in one sentence. Co-occurrence rather than
-// ordering, because either language lets the subject precede or follow the support verb, and
-// enumerating the permutations was how the previous version let "supports passwordless fully" slip.
+// claim 是句内共现(不看语序):主谓前后置都会出现,按序枚举会漏 "supports passwordless fully"。
 const overclaim = (label, patterns, { denialAware = true } = {}) => ({
   label,
   patterns,
@@ -586,29 +561,23 @@ const matchesOverclaim = (text, claim) =>
     return claim.patterns.every((pattern) => pattern.test(sentence))
   })
 
-// An adverb can sit several words from its verb ("fully, and in production, supports"), so the two
-// halves of a support shape get a short gap. Sentences are already split, so it cannot cross one.
+// 副词与动词可隔若干词;句已切分,gap 不会跨句。
 const ADVERB_VERB_GAP = String.raw`[^.]{0,40}?`
 
-// "full support matrix" / "支持矩阵" name an artifact, they do not claim a support level.
+// "full support matrix" / "支持矩阵" 指工件名,不是支持等级宣称。
 const NOT_AN_ARTIFACT_EN = String.raw`(?!\s+(?:matrix|matrices|level|levels|table|tables|status|tier|tiers|claim|claims))`
 const NOT_AN_ARTIFACT_ZH = String.raw`(?!(?:矩阵|等级|级别|层级|表|状态))`
 
-// "fully / completely / entirely / comprehensively supported", in either order, plus the
-// noun-with-predicate-adjective shape ("passwordless support is complete").
 const SCOPE_ADVERB_EN = String.raw`\b(?:full|fully|complete|completely|comprehensive|comprehensively|entire|entirely|total|totally)\b`
 const FULL_SUPPORT_EN = String.raw`(?:${SCOPE_ADVERB_EN}${ADVERB_VERB_GAP}\bsupport(?:s|ed|ing)?\b${NOT_AN_ARTIFACT_EN}|\bsupport(?:s|ed|ing)?${ADVERB_VERB_GAP}${SCOPE_ADVERB_EN}|\bsupport\b${ADVERB_VERB_GAP}\b(?:is|are|was|were)\s+(?:now\s+|already\s+)?${SCOPE_ADVERB_EN})`
-// 全功能支持 / 完全支持 / 全面支持 / 均已支持 / 支持全部, plus the 地 adverbial infix.
 const FULL_SUPPORT_ZH = String.raw`(?:(?:全功能|完全|完整|全面|全部|悉数|统统|均已|都已|已全部|已完全)地?支持${NOT_AN_ARTIFACT_ZH}|支持(?:全部|所有|全量))`
 
-// "delivered in one shot" paired with "no phased / pre-launch / post-launch split".
 const ONE_SHOT_EN = String.raw`(?:\ball at once\b|\bin one (?:shot|go|pass|release|batch)\b|\bone[-\s]shot\b|\bsingle[-\s](?:shot|release|phase|batch|drop)\b|\bbig[-\s]bang\b)`
 const NO_PHASING_EN = String.raw`(?:\bno\s+(?:pre[-\s/]?(?:launch|post)|phase|phases|phased|phasing|staged|staging|sequencing)\b|\bnot\s+phased\b|\bwithout\s+(?:phases|phasing|a\s+phased\s+rollout|staging|staged\s+rollout)\b)`
 const ONE_SHOT_ZH = String.raw`(?:一次性?(?:做全|做完|交付|上线|完成|全量|全部)|一步到位|一把梭|一轮(?:做完|交付))`
 const NO_PHASING_ZH = String.raw`(?:无(?:前置|后置|分期|分阶段|阶段|灰度)|不分(?:阶段|期|前后)|没有(?:前置|后置|分期|阶段|灰度)|不做(?:分期|灰度|分阶段))`
 
-// "the whole scope is delivered in one shot, with no pre-launch/post-launch split". Both halves are
-// required, which is what keeps an honest "ships in one go, and no stage blocks login" green.
+// 两半必须同句共现,避免诚实的"一轮交付且无阶段挡登录"被误杀。
 const forbiddenOverviewScopeClaims = [
   overclaim(
     'one-shot delivery with no phasing (en)',
@@ -622,16 +591,12 @@ const forbiddenOverviewScopeClaims = [
   ),
 ]
 
-// "fully supports password, social, passwordless, MFA, and enterprise SSO"
 const forbiddenAuthSupportClaims = [
   overclaim('full auth support (en)', [new RegExp(FULL_SUPPORT_EN, 'iu'), /\bpasswordless\b/iu]),
   overclaim('full auth support (zh)', [new RegExp(FULL_SUPPORT_ZH, 'iu'), /passwordless|无密码/iu]),
 ]
 
-// Inbound SCIM prose overclaims. The table-cell guard below only sees `| SCIM users and groups |
-// production L4`, so an overclaim written as a sentence anywhere else in the file escapes it.
-// Boundary text that denies the claim ("MUST NOT promise production-supported") carries a denial
-// marker, so `matchesOverclaim` drops its sentence before these patterns ever run.
+// 表单元格守卫看不到散文句中的 inbound SCIM 过度宣称;含否定的边界句由 denialAware 跳过。
 const forbiddenInboundScimProseClaims = [
   overclaim('inbound SCIM is production-supported', [
     /\binbound SCIM\b/iu,
@@ -1266,9 +1231,7 @@ function splitTableRow(line) {
     .map((cell) => cell.trim())
 }
 
-// Top level only. The protocol support matrices live in these files, and the file list itself is
-// asserted with toEqual against expectedProtocolDocs, so this MUST NOT start descending into
-// docs/protocols/runbooks/.
+// 仅顶层:文件列表对 expectedProtocolDocs 做 toEqual,不可下钻 runbooks。
 function protocolMarkdownFiles() {
   return readdirSync(protocolsDir)
     .filter((file) => file.endsWith('.md'))
@@ -1276,8 +1239,7 @@ function protocolMarkdownFiles() {
     .sort()
 }
 
-// Recursive. Used only by content scans (placeholder wording), where the 16 runbooks under
-// docs/protocols/runbooks/ are just as publishable as the top-level matrices.
+// 递归(含 runbooks):仅用于占位措辞等内容扫描。
 function protocolMarkdownFilesRecursive(dir = protocolsDir) {
   const found = []
 
@@ -1694,9 +1656,7 @@ describe('protocol source map coverage', () => {
       `${authDesignPath} auth support level boundary`,
     ).toBe(true)
 
-    // Boundary and overclaim guards run against the English source of truth and the Chinese mirror,
-    // so neither language can quietly drop a boundary statement or reintroduce a "we already
-    // support everything" claim.
+    // 边界与过度宣称守卫对英/中双语文稿各跑一遍。
     const overviewDesignZh = collapseWhitespace(readFileSync(overviewDesignZhPath, 'utf8'))
     const authDesignZh = collapseWhitespace(readFileSync(authDesignZhPath, 'utf8'))
     const oidcDesignZh = collapseWhitespace(readFileSync(oidcDesignZhPath, 'utf8'))
@@ -1958,11 +1918,9 @@ describe('protocol source map coverage', () => {
 
   it('keeps API contracts aligned with protocol role boundaries', () => {
     const apiContracts = readFileSync(apiContractsPath, 'utf8')
-    // Table assertions run against squeezed whitespace: oxfmt re-pads columns to the widest cell,
-    // so an assertion must never depend on the current padding.
+    // 表断言挤掉空格:oxfmt 会按最宽列重垫,断言不得依赖当前 padding。
     const apiContractsTable = apiContracts.replace(/ +/gu, ' ')
-    // Prose assertions collapse newlines too: paragraphs are hard-wrapped, so an overclaim sentence
-    // routinely spans several source lines.
+    // 散文断言折叠换行:硬折行使过度宣称句常跨多行。
     const apiContractsProse = collapseWhitespace(apiContracts)
 
     for (const claim of forbiddenInboundScimProseClaims) {
@@ -1980,8 +1938,7 @@ describe('protocol source map coverage', () => {
       apiContracts.includes('`apps/server/worker/oauth/par.ts`'),
       `${apiContractsPath} stale PAR path`,
     ).toBe(false)
-    // Over-claim guard: `production L4` is the exact status label 18 other rows in this table
-    // legitimately carry, so it is the wording an over-claimer would reach for on the SCIM row.
+    // production L4 是表中其它合法行的状态字,SCIM 行若抄它即为过度宣称。
     expect(
       apiContractsTable.includes('| SCIM users and groups | production L4'),
       `${apiContractsPath} inbound SCIM boundary`,

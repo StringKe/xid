@@ -1,4 +1,3 @@
-// DPoP proof 校验正反例(RFC9449、03 章 9.8):合法通过;typ/alg/签名篡改/htm/htu/iat 全拒。
 import { describe, it, expect } from 'vitest'
 
 import { verifyDpopProof, verifyDpopForResource, computeJkt, normalizeHtu } from '../dpop'
@@ -54,7 +53,6 @@ async function buildProof(input: {
   return `${signingInput}.${sigStr}`
 }
 
-// 返回 proof 字符串 + 公钥 jwk(供资源端 jkt/ath 断言)。
 async function buildProofWithJwk(input: {
   header?: Record<string, unknown>
   payload?: Record<string, unknown>

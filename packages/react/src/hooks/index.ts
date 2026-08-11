@@ -25,5 +25,5 @@ export type { UseOrganizationListReturn } from './use-organization-list'
 export { useAPIKeys } from './use-api-keys'
 export type { UseAPIKeysReturn } from './use-api-keys'
 
-// 内部:仅供组件层使用,不对外 re-export
+// 仅组件层内部使用,不从包入口 re-export
 export { useXidStore } from './use-xid-store'

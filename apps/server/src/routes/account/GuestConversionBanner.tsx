@@ -1,9 +1,4 @@
-// GuestConversionBanner:guest 用户在 account 区的转正引导横幅。
-// 判定:isGuestUser(provisioned_by === 'anonymous');非 guest 不渲染。
-// 关闭仅本次会话记忆(sessionStorage),不持久化到服务端;整页刷新后同 tab 内不再出现。
-// 引导链向既有凭证设置入口 /account/security(转正 = 走任一既有凭证仪式,sub 不变,UI 无新流程)。
-// band 口径与 console verificationBand 一致:全宽 section(aria-label)+ gutter + 下沿 hairline,
-// band 本体无色,warning tone 由 Alert 持有,CTA 与关闭右置成行,不再是悬浮卡片。
+// guest 转正引导:关闭仅 sessionStorage;转正走 /account/security 既有凭证仪式(sub 不变)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -28,7 +23,7 @@ function writeDismissed(): void {
   try {
     globalThis.sessionStorage?.setItem(DISMISS_KEY, '1')
   } catch {
-    // sessionStorage 不可用(隐私模式)时横幅保持 React state 级关闭,不阻断。
+    // 隐私模式下 sessionStorage 不可用,仅 React state 关闭。
   }
 }
 
@@ -59,12 +54,11 @@ const styles = stylex.create({
     gap: '0.5rem',
     flexShrink: 0,
   },
-  // CTA 镜像 Button secondary 口径(surface 底 + strong 描边),导航语义保留 <a>。
+  // 导航用 <a>,外观对齐 Button secondary。
   actionLink: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    // 桌面密度与 Button 一致;触屏抬到 44px 触控目标。
     minHeight: {
       default: '2.375rem',
       '@media (pointer: coarse)': '2.75rem',

@@ -1,5 +1,4 @@
-// SAML IdP 输出:metadata + signed Response。用于 XID 作为下游 SaaS 的 IdP。
-// XML-DSig 仍走 xmldsigjs + Web Crypto,不手写签名。
+// XID 作为 IdP 时输出 metadata 与已签 Response;签名仍走 xmldsigjs。
 
 import { Parse, SignedXml, Stringify } from 'xmldsigjs'
 import { SAML_ASSERTION_NS, SAMLP_NS } from './precheck'

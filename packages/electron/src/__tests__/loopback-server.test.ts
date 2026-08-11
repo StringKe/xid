@@ -1,8 +1,4 @@
-// Tests for the loopback HTTP callback server (RFC 8252 s.7.3).
-// Verifies that it correctly captures the OAuth callback URL, handles
-// timeouts, and rejects non-/callback requests.
-//
-// These tests spin up real HTTP servers on loopback ports.
+// loopback 回调服务器（RFC 8252 s.7.3）：真实本机 HTTP。
 
 import { describe, expect, it } from 'vitest'
 
@@ -35,7 +31,6 @@ describe('startLoopbackServer', () => {
 
     const callbackPromise = server.waitForCallback({ timeoutMs: 5000 })
 
-    // Simulate the OAuth server redirecting back to the loopback.
     const callbackUrl = `${server.redirectUri}?code=auth_code_abc&state=csrf_token_xyz`
     await fetch(callbackUrl)
 
@@ -73,7 +68,6 @@ describe('startLoopbackServer', () => {
     const server = await startLoopbackServer()
 
     await expect(server.close()).resolves.toBeUndefined()
-    // Second close should not throw.
     await expect(server.close()).resolves.toBeUndefined()
   })
 
@@ -82,12 +76,10 @@ describe('startLoopbackServer', () => {
 
     const callbackPromise = server.waitForCallback({ timeoutMs: 1000 })
 
-    // Send a favicon request (browser auto-requests this on page load).
+    // 浏览器自动请求的 favicon 不得结束 waitForCallback。
     const baseUrl = server.redirectUri.replace('/callback', '')
     await fetch(`${baseUrl}/favicon.ico`).catch(() => undefined)
 
-    // The callback promise must still be pending (not resolved by favicon request).
-    // Wait a bit -- if it resolved, the race would complete immediately.
     const raceResult = await Promise.race([
       callbackPromise.then(() => 'resolved'),
       new Promise<string>((r) => setTimeout(() => r('pending'), 100)),

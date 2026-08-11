@@ -1,6 +1,4 @@
-// platform console 数据层(TanStack Query):/v1/platform/* 读写。
-// 搜索类列表用 enabled 控制(query 为空不发请求)。
-// cookie session + instance_manager 才能访问;错误为 XidError。
+// 搜索列表 query 为空时 enabled=false,不发空请求。
 
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 import type { XidError } from '@xid-kit/types'

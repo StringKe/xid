@@ -31,7 +31,7 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   select: {
-    // 桌面 32px;触屏抬到 44px 触控目标。
+    // 触屏抬到 44px 触控目标。
     minHeight: {
       default: '2rem',
       '@media (pointer: coarse)': '2.75rem',

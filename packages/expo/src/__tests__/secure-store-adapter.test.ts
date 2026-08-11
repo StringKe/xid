@@ -16,7 +16,7 @@ function makeSecureStore() {
   }
 }
 
-// expo-secure-store only allows [A-Za-z0-9._-] in key names.
+// expo-secure-store key 仅允许 [A-Za-z0-9._-]。
 function isValidSecureStoreKey(key: string): boolean {
   return /^[A-Za-z0-9._-]+$/.test(key)
 }

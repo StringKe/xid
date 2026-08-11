@@ -1,6 +1,4 @@
-// COSE_Key(RFC 9052)解析为 CryptoKey。支持 EC2(ES256)/ RSA(RS256)/ OKP(EdDSA)。
-// 密码学原语只用 Web Crypto importKey(见 crypto-boundary rule);CBOR/COSE 解码是格式编解码,自研无第三方。
-// 见 docs/design/01-authentication.md "COSE_Key 解析为 CryptoKey"。
+// COSE_Key 解码后仅用 Web Crypto importKey；支持 EC2(ES256)/RSA(RS256)/OKP(EdDSA)。
 
 import { base64UrlEncode } from '@xid-kit/crypto'
 import type { CoseAlg } from '@xid-kit/types'
@@ -8,7 +6,6 @@ import type { CoseAlg } from '@xid-kit/types'
 import { cborDecode, cborDecodeFirst } from './cbor'
 import type { CborMap, CborValue } from './cbor'
 
-// COSE_Key 整数 label(RFC 9052 §7、RFC 9053)。
 const LABEL_KTY = 1
 const LABEL_ALG = 3
 const LABEL_EC2_CRV = -1
@@ -111,14 +108,14 @@ async function importFromMap(map: CborMap): Promise<ParsedCoseKey> {
   throw new Error(`cose key: unsupported kty ${kty}`)
 }
 
-// 解析完整 COSE_Key 字节(整个输入即一个 map)。注册时持久化的 publicKey 走此路径复用。
+// 注册后持久化的 publicKey 整段复用此路径 import。
 export async function parseCoseKey(coseBytes: Uint8Array): Promise<ParsedCoseKey> {
   const decoded = cborDecode(coseBytes)
   if (!(decoded instanceof Map)) throw new Error('cose key: expected CBOR map')
   return importFromMap(decoded)
 }
 
-// 从 authData 偏移处解析 COSE_Key,返回 key 与消费的字节数(credentialPublicKey 长度由 CBOR 决定)。
+// authData 内 credentialPublicKey 长度由 CBOR 决定，须返回 bytesUsed 才能切分。
 export async function parseCoseKeyAt(
   authData: Uint8Array,
   offset: number,

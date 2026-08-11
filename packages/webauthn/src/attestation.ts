@@ -1,5 +1,4 @@
-// Enterprise attestation verification(WebAuthn L3 attStmt + x5c chain)。
-// 密码学原语只用 Web Crypto(crypto.subtle);可信根由调用方从 KV/env 注入。
+// attStmt 验签与 x5c 链校验仅用 Web Crypto；可信根必须由调用方注入，本模块不内置根证书。
 
 import { toBufferSource } from '@xid-kit/crypto'
 import type { Result, XidError } from '@xid-kit/types'

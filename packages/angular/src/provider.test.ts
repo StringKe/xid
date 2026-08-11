@@ -1,10 +1,3 @@
-// Tests for provideXid factory and XID_CLIENT token.
-// Validates that:
-//   - provideXid returns an EnvironmentProviders-shaped object
-//   - XID_CLIENT token is a valid InjectionToken
-//   - createClientFactory produces an XidClient with the expected initial snapshot
-//   - initializerFactory calls client.load() when invoked
-
 import { describe, expect, it, vi } from 'vitest'
 import { XidClient } from '@xid-kit/core'
 
@@ -77,7 +70,6 @@ describe('XidClient factory (framework-agnostic validation)', () => {
     unsubscribe()
 
     await loadPromise
-    // Unsubscribed before load completed, so listener must not have been called.
     expect(listener).not.toHaveBeenCalled()
   })
 

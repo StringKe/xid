@@ -94,7 +94,7 @@ describe('XidClient.signInAnonymously', () => {
       expect(result.value.redirectUrl).toBe('/create-organization?source=worker')
       expect(result.value.nextStep).toBe('redirect')
       expect(result.value.state).toBe(instance.getSnapshot())
-      // 兼容旧调用:result.value 仍然保持 XidState 的扁平字段。
+      // 兼容旧 Result:扁平字段与 state 并存。
       expect(result.value.status).toBe('ready')
       expect(result.value.user?.id).toBe('user_guest')
     }
@@ -126,7 +126,7 @@ describe('XidClient.signInAnonymously', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('rate_limited')
     expect(instance.isSignedIn).toBe(false)
-    // 失败路径不得触发状态重拉。
+    // 失败不得再 GET /v1/me。
     expect(fetcher.calls.map((call) => call.path)).toEqual([
       '/auth/config?intent=sign-up',
       '/auth/guest',

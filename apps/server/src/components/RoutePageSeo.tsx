@@ -1,4 +1,3 @@
-// 随路由与 locale 同步 document.title 与 head meta(lingui 本地化)。
 
 import { useLingui } from '@lingui/react'
 import { useEffect } from 'react'

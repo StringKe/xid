@@ -136,9 +136,7 @@ export async function persistCustomHostnameStateWithAudit(
     throw new AppError('not_found', { httpStatus: 404 })
   }
 
-  // Queue delivery is deliberately after the atomic D1 commit. A failed immediate send leaves the
-  // durable outbox pending for Cron redelivery and must not turn a committed hostname mutation into
-  // an apparent request failure.
+  // 先 D1 提交再投递:即时发送失败留 outbox 给 Cron,不把已提交变更表现为请求失败。
   await enqueuePersistedPlatformAudit(env, audit)
   return updated
 }

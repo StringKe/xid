@@ -1,12 +1,9 @@
-// passkey 注册 ceremony 的浏览器侧工具:base64url 编解码 + navigator.credentials.create 封装。
-// 只做格式编解码(crypto-boundary rule:格式编解码自研);四验证在 server 侧,见 webauthn rule。
-// 请求/响应形状对照 apps/server/worker/auth/passkey.ts 的 register options/verify handler。
+// 浏览器侧 passkey 注册:仅 base64url 与 credentials.create;四验证在 server。
 
 import type { Result, XidError } from '@xid-kit/types'
 
 import { makeXidError } from './errors'
 
-// POST /auth/passkey/register/options 响应体。
 export type PasskeyRegistrationOptions = {
   challenge: string
   rp: { id: string; name: string }
@@ -22,7 +19,6 @@ export type PasskeyRegistrationOptions = {
   }>
 }
 
-// POST /auth/passkey/register/verify 请求体。
 export type PasskeyRegistrationVerifyBody = {
   id: string
   rawId: string
@@ -34,7 +30,6 @@ export type PasskeyRegistrationVerifyBody = {
   deviceName?: string
 }
 
-// base64url -> bytes(challenge / user.id / excludeCredentials.id 解码)。
 export function b64urlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
   const binary = atob(base64)
@@ -43,7 +38,6 @@ export function b64urlToBytes(value: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
-// bytes -> base64url(rawId / clientDataJSON / attestationObject 编码)。
 export function bytesToB64url(bytes: ArrayBuffer | Uint8Array): string {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
   let binary = ''
@@ -51,7 +45,6 @@ export function bytesToB64url(bytes: ArrayBuffer | Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replaceAll('=', '')
 }
 
-// register/options 响应 -> navigator.credentials.create 入参(base64url 字段转 bytes)。
 export function registrationOptionsToPublicKey(
   options: PasskeyRegistrationOptions,
 ): PublicKeyCredentialCreationOptions {
@@ -69,9 +62,7 @@ export function registrationOptionsToPublicKey(
   }
 }
 
-// 执行注册 ceremony 并把 attestation 序列化为 register/verify 请求体。
-// 用户取消认证器提示(NotAllowedError)是预期失败 -> Result,不 throw 裸异常(error-handling rule);
-// 其余 DOMException 属意外,继续 throw。
+// NotAllowedError(用户取消)为预期失败 -> Result;其余 DOMException 继续 throw。
 export async function createPasskeyCredential(
   options: PasskeyRegistrationOptions,
   input: { deviceName?: string } = {},

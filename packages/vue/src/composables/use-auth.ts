@@ -1,6 +1,3 @@
-// useAuth: top-level auth state composable (Vue port of @clerk/clerk-react useAuth).
-// Returns isLoaded/isSignedIn/userId/sessionId/session + getToken/signOut reactive derivatives.
-
 import { computed } from 'vue'
 
 import type { GetTokenOptions, XidSession } from '@xid-kit/core'
@@ -14,7 +11,6 @@ export type UseAuthReturn = {
   readonly isSignedIn: boolean
   readonly userId: string | null
   readonly sessionId: string | null
-  // Active session object; null when signed out or not yet loaded.
   readonly session: XidSession | null
   getToken: (options?: GetTokenOptions) => Promise<Result<string, XidError>>
   signOut: (options?: { sessionId?: string }) => Promise<Result<null, XidError>>

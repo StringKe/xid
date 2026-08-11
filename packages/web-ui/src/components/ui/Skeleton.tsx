@@ -40,8 +40,7 @@ export function Skeleton({
   ...rest
 }: SkeletonProps): ReactNode {
   const base = stylex.props(styles.base)
-  // enter 淡入挂外层 wrapper:内层 pulse 是 CSS animation,级联上覆盖内联 opacity,
-  // 同元素上 motion 的 enter 会被吃掉;父子 opacity 相乘,enter 与 pulse 互不干扰。
+  // pulse 是 CSS animation,会盖掉同元素 motion opacity;enter 挂外层,父子 opacity 相乘互不干扰。
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={springDefault}>
       <div

@@ -1,9 +1,5 @@
-// Invitation capability format:
-// xid_inv_v1.<base64url tenant_id>.<256-bit random secret>.
-//
-// The locator only selects a candidate Tenant. The database stores SHA-256 of the complete token,
-// so changing the locator also changes the credential and cannot pass the selected Tenant's scoped
-// tokenHash lookup. This avoids a global token lookup and does not require another signing secret.
+// 邀请 token:xid_inv_v1.<base64url tenant_id>.<256-bit secret>。
+// locator 仅选候选租户;库内存完整 token 的 SHA-256,改 locator 即改凭证,无需全局查找或额外签名密钥。
 
 import { base64UrlDecodeToString, base64UrlEncode, base64UrlEncodeString } from '@xid-kit/crypto'
 

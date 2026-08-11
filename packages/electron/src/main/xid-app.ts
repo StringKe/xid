@@ -1,7 +1,4 @@
-// Main process orchestrator: wires safeStorage, PKCE, loopback/custom-scheme,
-// token exchange, and IPC handlers into a single XidElectronApp class.
-//
-// One instance per Electron app; created in the main process.
+// main 编排：safeStorage、PKCE、loopback/custom-scheme、换 token、IPC。每应用一个实例。
 
 import type { IpcMain } from 'electron'
 import { webcrypto } from 'node:crypto'
@@ -20,7 +17,7 @@ import { startLoopbackServer } from './loopback-server'
 
 const TOKEN_STORAGE_KEY = 'xid:access-token'
 const LEGACY_REFRESH_TOKEN_STORAGE_KEY = 'xid:refresh-token'
-// This public client has no DPoP proof implementation, so it is authorization-code-only.
+// 公钥客户端尚未实现 DPoP，仅 authorization_code，不含 refresh。
 const DEFAULT_SCOPES = ['openid', 'profile', 'email'] as const
 
 type StoredTokenMeta = {
@@ -30,12 +27,7 @@ type StoredTokenMeta = {
 const SESSION_META_KEY = 'xid:session-meta'
 
 /**
- * Main-process XID application.
- *
- * Lifecycle:
- *   1. Construct during app.whenReady() with your XidElectronMainOptions.
- *   2. Call app.init(ipcMain) once to register IPC handlers and storage.
- *   3. Call app.dispose(ipcMain) on BrowserWindow close / app quit.
+ * whenReady 中构造 -> init 注册 IPC/存储 -> 窗口关闭/退出时 dispose。
  */
 export class XidElectronApp {
   readonly #options: Required<
@@ -48,7 +40,6 @@ export class XidElectronApp {
   readonly #storage: ElectronSafeStorage
   readonly #customSchemeHandler: XidCustomSchemeHandler | null
 
-  // In-flight PKCE state for CSRF validation.
   #pendingPkce: PkceChallenge | null = null
   #pendingState: string | null = null
 
@@ -69,18 +60,11 @@ export class XidElectronApp {
         : null
   }
 
-  /**
-   * Register custom-scheme deep-link handler with the Electron app.
-   * Must be called before or during app.whenReady() for custom-scheme strategy.
-   */
+  /** custom-scheme 策略须在 whenReady 前/中注册 deep link。 */
   registerDeepLinkHandler(electronApp: import('electron').App): void {
     this.#customSchemeHandler?.register(electronApp)
   }
 
-  /**
-   * Initialize storage directory and register IPC handlers.
-   * Call once inside app.whenReady().
-   */
   async init(ipcMain: IpcMain): Promise<void> {
     await this.#storage.init()
     await this.#storage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY)
@@ -92,9 +76,6 @@ export class XidElectronApp {
     this.#registerSetTokenStorageHandler(ipcMain)
   }
 
-  /**
-   * Remove all IPC handlers. Call on app quit or BrowserWindow destroyed.
-   */
   dispose(ipcMain: IpcMain): void {
     this.#storage.removeIpcHandlers(ipcMain)
     ipcMain.removeHandler(IPC_CHANNELS.SIGN_IN)
@@ -103,10 +84,6 @@ export class XidElectronApp {
     ipcMain.removeHandler(IPC_CHANNELS.GET_SESSION)
     ipcMain.removeHandler(IPC_CHANNELS.SET_TOKEN_STORAGE)
   }
-
-  // ---------------------------------------------------------------------------
-  // IPC handler registration (private)
-  // ---------------------------------------------------------------------------
 
   #registerSignInHandler(ipcMain: IpcMain): void {
     ipcMain.handle(IPC_CHANNELS.SIGN_IN, (_event, options?: SignInOptions) =>
@@ -127,15 +104,9 @@ export class XidElectronApp {
   }
 
   #registerSetTokenStorageHandler(ipcMain: IpcMain): void {
-    // For the main-process implementation, token storage is always safeStorage-backed.
-    // This handler exists to satisfy the Shared native contract; it is a no-op here
-    // because the storage adapter cannot be swapped at runtime in the IPC model.
+    // Shared native 契约需要此通道；IPC 模型下 storage 不可热替换，故 no-op。
     ipcMain.handle(IPC_CHANNELS.SET_TOKEN_STORAGE, () => undefined)
   }
-
-  // ---------------------------------------------------------------------------
-  // Token management
-  // ---------------------------------------------------------------------------
 
   async #getAccessToken(): Promise<string | null> {
     const accessToken = await this.#storage.getItem(TOKEN_STORAGE_KEY)
@@ -182,14 +153,10 @@ export class XidElectronApp {
     ])
   }
 
-  // ---------------------------------------------------------------------------
-  // Sign-in flow
-  // ---------------------------------------------------------------------------
-
   async #handleSignIn(options?: SignInOptions): Promise<string> {
     const subtle = webcrypto.subtle
     const randomValues = (arr: Uint8Array): Uint8Array => {
-      // Node 26 types require Uint8Array<ArrayBuffer>; copy into a fresh buffer view.
+      // Node 26 类型要求 Uint8Array<ArrayBuffer>；必要时拷入再写回。
       const view =
         arr.buffer instanceof ArrayBuffer
           ? new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)
@@ -219,7 +186,6 @@ export class XidElectronApp {
 
     await openExternalBrowser(authorizeUrl.toString())
 
-    // Consume the AbortSignal if provided; reject the callback wait on abort.
     let callbackUrl: URL
     try {
       callbackUrl = await (options?.signal
@@ -240,7 +206,7 @@ export class XidElectronApp {
     }
 
     if (!this.#pendingState || parsed.state !== this.#pendingState) {
-      // Clear PKCE state to prevent reuse of a potentially tampered flow.
+      // state 不匹配时立刻清 PKCE，防被篡改的流程复用 verifier。
       this.#pendingPkce = null
       this.#pendingState = null
       throw new Error('[xid-electron] state mismatch - possible CSRF attack')
@@ -250,7 +216,7 @@ export class XidElectronApp {
     }
 
     const codeVerifier = this.#pendingPkce.codeVerifier
-    // Clear PKCE verifier immediately (one-time use).
+    // verifier 一次性使用，换 token 前立即清除。
     this.#pendingPkce = null
     this.#pendingState = null
 
@@ -318,9 +284,7 @@ function assertAuthorizationCodeOnlyScopes(scopes: readonly string[]): void {
 }
 
 function defaultStorageDir(): string {
-  // Try to use Electron's app.getPath('userData') for production apps.
-  // Fall back to a relative path only when Electron is not yet initialized
-  // (e.g. in test environments that construct XidElectronApp without a real app).
+  // 生产走 userData；测试等 Electron 未初始化场景才回落到相对路径。
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const electron = require('electron') as typeof import('electron')
@@ -328,10 +292,8 @@ function defaultStorageDir(): string {
       return `${electron.app.getPath('userData')}/xid-tokens`
     }
   } catch {
-    // Electron not available in this environment.
+    // Electron 不可用。
   }
-  // Explicit caller override always takes precedence; this path is only for
-  // environments where Electron's app module is not initialized.
   return './xid-tokens'
 }
 

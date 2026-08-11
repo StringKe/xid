@@ -1,7 +1,3 @@
-// Managed projects 页:project_manager / project_grant_manager 委托范围的管理视图。
-// GET/PATCH/DELETE /v1/managed-projects、/v1/project-grants/:id/user-grants。
-// 壳走 ConsolePage 骨架(web-ui):Managed scope 选择器进 ConsolePageToolbar;project 定义、
-// 编辑表单与 user grants 走 ConsolePageSection/SplitSection;mutation 失败固定本地化文案。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

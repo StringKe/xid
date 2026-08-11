@@ -8,15 +8,9 @@ const DEFAULT_SESSION_TOKEN_ENDPOINT = '/v1/sessions/token'
 export type SessionTokenExchangeError = 'no_core_session' | 'session_rejected'
 
 export type SessionTokenExchangeOptions = {
-  /**
-   * Core's cookie-to-JWT endpoint. Relative paths are resolved against the
-   * incoming request and the resolved URL must stay on that exact origin.
-   */
+  // 相对路径按 request 解析,解析后必须仍在 exact same origin。
   endpoint?: string
-  /**
-   * Optional server-side fetch implementation. Browser fetch must not be used:
-   * this helper forwards HttpOnly cookies from the incoming server request.
-   */
+  // 须服务端 fetch:会转发入站 Request 的 HttpOnly Cookie,禁止浏览器 fetch。
   fetcher?: typeof fetch
   signal?: AbortSignal
 }
@@ -66,14 +60,7 @@ function parseSessionTokenResponse(value: unknown): SessionTokenResponse | null 
   return { token }
 }
 
-/**
- * Exchange Core's opaque refresh cookie for a short-lived signed JWT.
- *
- * The opaque value is never inspected locally. The complete Cookie header is
- * forwarded only to an exact same-origin Core endpoint because multi-session
- * selection also depends on the HttpOnly active-session pointer. Separate
- * origins must use an explicit Bearer/JWT handoff instead.
- */
+// opaque refresh 不本地解析;整段 Cookie 仅转发 exact same-origin,因多会话选择依赖 HttpOnly active-session 指针。
 export async function exchangeSessionToken(
   request: Request,
   options: SessionTokenExchangeOptions = {},

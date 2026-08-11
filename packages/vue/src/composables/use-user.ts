@@ -1,6 +1,3 @@
-// useUser:当前登录用户视图 composable(对标 @clerk/clerk-react useUser 的 Vue 版)。
-// 使用判别联合返回类型保证 TypeScript 类型收窄。
-
 import { computed } from 'vue'
 
 import type { XidUser } from '@xid-kit/core'

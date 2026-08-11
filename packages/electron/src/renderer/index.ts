@@ -1,10 +1,7 @@
-// @xid-kit/electron -- ./renderer entry point.
-// All exports here are safe to use in the Electron renderer process.
-// This file does NOT import any Node.js or Electron main-process APIs.
+// renderer 入口：禁止引入 Node / main 进程 API。
 
 export { getIpcStorageAdapter, getXidBridge } from './ipc-storage'
 
-// Re-export @xid-kit/core types that renderer code needs directly.
 export {
   XidClient,
   XidStore,

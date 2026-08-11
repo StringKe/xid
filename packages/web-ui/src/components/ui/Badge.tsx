@@ -11,7 +11,7 @@ export type BadgeProps = {
 }
 
 const styles = stylex.create({
-  // mono 小写罩大写 + 小圆角用于保持 spec chip 的紧凑信息密度。
+  // mono 小写罩大写 + 小圆角,保持 chip 信息密度。
   base: {
     display: 'inline-flex',
     alignItems: 'center',

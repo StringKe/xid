@@ -1,7 +1,3 @@
-// platform console Feature Flags 页:全局 flag 列表 + 全局默认开关。
-// 调 GET /v1/platform/feature-flags;PATCH /v1/platform/feature-flags/:key。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;
-// hairline ledger(borderBlock 1px)包裹行列表,flags 行 4/8 不对称双列(左 flag 信息,右控件)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -14,7 +10,6 @@ import { useFeatureFlagsQuery, useSetFeatureFlagDefault } from './queries'
 import type { FeatureFlag } from './types'
 
 const styles = stylex.create({
-  // ledger 带:borderBlock 1px 包裹 flag 行列表
   flagList: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
@@ -31,7 +26,7 @@ const styles = stylex.create({
     },
     alignItems: 'center',
     gap: '1rem',
-    // hairline 邻接 >= 1.25rem:行文本与上方 borderTop hairline 各需 1.25rem
+    // 1.25rem:行文与上下 hairline 邻接下限。
     paddingBlock: '1.25rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',

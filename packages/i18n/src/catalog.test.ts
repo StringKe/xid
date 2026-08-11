@@ -53,7 +53,7 @@ const allowedSameAsSource = new Set([
   'you@example.com',
   'admin, owner',
   'user_abc, user_def',
-  // 包名 / 函数名 / URL / 颜色 / 占位符 / 逗号分隔事件名与错误码列表等不可译标识符(填原文)。
+  // 包名、URL、颜色、占位符、事件名等不可译标识符。
   '#10b981',
   '#6366f1',
   '#ffffff',
@@ -115,7 +115,7 @@ const allowedSameAsSource = new Set([
   'verifyToken',
   'verifyWebhook',
   'xxxxxxxx',
-  // 代码标识符 / 框架词 / 环境变量列表 / hook 签名 / 字体栈 / 事件名(译者正确保留英文)。
+  // 框架词、环境变量、hook 签名、字体栈等保留英文。
   'Events API',
   'Hook',
   'Hooks',
@@ -133,7 +133,7 @@ const allowedSameAsSource = new Set([
   'subscription.created, subscription.updated, paymentAttempt.succeeded, paymentAttempt.failed',
   'user.created',
   'whatsapp:+15550000000',
-  // SDK/SSO 文档里的品牌/产品/协议专名,CJK 文档惯例保留英文。
+  // 品牌、产品、协议专名,CJK 文档惯例保留英文。
   'AD FS',
   'Android',
   'Apple',
@@ -167,7 +167,7 @@ const allowedSameAsSource = new Set([
   'Zoom',
   'iOS',
   'macOS',
-  // 全生态 SDK 矩阵的运行时/语言/框架专名,CJK 文档惯例保留英文。
+  // SDK 矩阵运行时、语言、框架专名,CJK 文档惯例保留英文。
   '.NET',
   'Angular',
   'Astro',
@@ -195,9 +195,9 @@ const allowedSameAsSource = new Set([
   'Vanilla JS / Web',
   'Vue',
   'Windows',
-  // fr 的 session 与英文同拼写,ICU plural 串与源同形。
+  // fr 的 session 与英文同拼写,ICU plural 与源同形。
   '{sessionCount, plural, one {# session} other {# sessions}}',
-  // SDK 详情页的依赖版本号/平台最低版本/导出类型与服务名/TS 类型字面量/标识符列表/协议字段,均为代码事实(填原文)。
+  // 版本号、TS 类型、协议字段等代码事实。
   '^1.2.2',
   '^3.0.3',
   '^4.0.0',
@@ -221,11 +221,11 @@ const allowedSameAsSource = new Set([
   'macOS 13+',
   'readonly string[]',
   'string',
-  // API 表 Kind 列的小写框架词,与已允许的 'Hook'/'Hooks' 同类(CJK 文档惯例保留英文)。
+  // 与 Hook/Hooks 同类的小写框架词。
   'hook',
-  // fr 的 "5 minutes" 与英文同拼写;CJK locale 均已意译,不受此豁免影响。
+  // fr 的 "5 minutes" 与英文同拼写;CJK 已意译不受此豁免影响。
   '5 minutes',
-  // 文档里的协议专名与技术标识符,CJK 文档惯例保留英文。
+  // 协议专名与技术标识符,CJK 文档惯例保留英文。
   'ACS URL',
   'ETag and If-Match',
   'GNAP, UMA, HEART, OpenID4VP, OpenID4VCI',
@@ -362,8 +362,7 @@ describe('i18n catalogs', () => {
         targetScript.push(`${scriptCheck.description}: ${entry.msgid}`)
       }
 
-      // 防线:译者偷懒贴"翻译:/翻訳:/번역:"前缀(伪翻译)直接判失败,
-      // 否则 targetScript 的"含目标字形即过"会被前缀里的汉字蒙混。
+      // 拦截伪翻译前缀,否则 targetScript 会被前缀汉字误判为已翻译。
       if (/^(?:翻译|翻訳|번역)\s*[:：]|^(?:FR|DE|ES|PT-BR):\s*/u.test(entry.msgstr.trimStart())) {
         prefixGarbage.push(entry.msgid)
       }

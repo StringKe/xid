@@ -1,4 +1,3 @@
-// 信封加密 round-trip + 防篡改 + KEK 校验(见 signing-keys rule、08 章 16.3)。
 import { describe, it, expect } from 'vitest'
 
 import { envelopeEncrypt, envelopeDecrypt } from '../envelope'

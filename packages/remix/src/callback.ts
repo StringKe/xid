@@ -1,19 +1,10 @@
-// callback.ts: OAuth callback action helper.
-// handleCallback(request, options): processes /auth/callback,
-// validates state (CSRF) and PKCE code_verifier, exchanges the authorization code,
-// writes tokens to the session cookie, then redirects to return_to.
-//
-// Security model:
-//   - state param is ALWAYS required; missing state in the callback is rejected.
-//   - PKCE code_verifier is ALWAYS required; missing verifier rejects the exchange.
-//   - return_to is validated to be a same-origin relative path (no open redirect).
-//   - Public client: no client_secret is included in the token request.
+// OAuth callback：强制 state（CSRF）与 PKCE code_verifier；return_to 仅允许相对路径防开放重定向；公开客户端 token 请求不含 client_secret。
 
 import { XID_SESSION_RETURN_TO_KEY } from './types'
 import type { XidSessionStorage } from './types'
 import { setTokensInSession } from './session'
 
-// @remix-run/node redirect minimal interface contract (peer dep).
+// @remix-run/node redirect 最小接口（peer dep，运行时由消费者提供）。
 type RemixRedirectFn = (
   url: string,
   init?: { headers: Headers | Record<string, string> },
@@ -28,7 +19,6 @@ async function getRemixRedirect(): Promise<RemixRedirectFn> {
   return mod.redirect
 }
 
-// OAuth 2.0 token response shape.
 type TokenEndpointResponse = {
   access_token: string
   token_type: string
@@ -38,48 +28,26 @@ type TokenEndpointResponse = {
   scope?: string
 }
 
-// handleCallback configuration.
 export type HandleCallbackOptions = {
-  // XID token endpoint URL, default https://xid.dev/token.
-  // Override this with the issuer's /token URL for self-hosted instances.
+  // 默认 https://xid.dev/token；自托管时改为 issuer 的 /token。
   tokenEndpoint?: string
-  // Registered public OAuth client_id. This is not a Management API key.
+  // 已注册的公开 OAuth client_id，不是 Management API key。
   clientId: string
-  // redirect_uri exact match (OIDC requirement, no wildcard).
+  // OIDC 要求 exact match，禁止通配。
   redirectUri: string
-  // Session storage for persisting access_token / refresh_token.
   sessionStorage: XidSessionStorage
-  // Default redirect path when return_to is absent.
   defaultReturnTo?: string
 }
 
-// handleCallback result: success returns Response (redirect + Set-Cookie), failure returns { error }.
 export type HandleCallbackResult = { ok: true; response: Response } | { ok: false; error: string }
 
-// isRelativePath: returns true when the path is a relative URL (no scheme, no external host).
-// Prevents open-redirect attacks via the return_to parameter.
+// return_to 必须是同源相对路径，拒绝 //evil.com 等协议相对 URL。
 function isRelativePath(value: string): boolean {
   if (!value.startsWith('/')) return false
-  // Reject protocol-relative URLs like //evil.com
   if (value.startsWith('//')) return false
   return true
 }
 
-// handleCallback: processes the OAuth authorization code exchange and session write.
-//
-// Usage (routes/auth.callback.ts):
-//   import { handleCallback } from '@xid-kit/remix'
-//   import { sessionStorage } from '~/sessions.server'
-//
-//   export async function action({ request }: ActionFunctionArgs) {
-//     const result = await handleCallback(request, {
-//       clientId: process.env.XID_CLIENT_ID!,
-//       redirectUri: process.env.XID_REDIRECT_URI!,
-//       sessionStorage,
-//     })
-//     if (!result.ok) throw new Response(result.error, { status: 400 })
-//     return result.response
-//   }
 export async function handleCallback(
   request: Request,
   options: HandleCallbackOptions,
@@ -92,7 +60,7 @@ export async function handleCallback(
     return { ok: false, error: 'Missing authorization code' }
   }
 
-  // state is always required -- absence is a CSRF violation.
+  // 缺 state 即 CSRF 风险，一律拒绝。
   if (!stateParam) {
     return { ok: false, error: 'State mismatch: possible CSRF' }
   }
@@ -100,20 +68,18 @@ export async function handleCallback(
   const cookieHeader = request.headers.get('cookie')
   const session = await options.sessionStorage.getSession(cookieHeader)
 
-  // Validate state against the session-stored value.
   const storedState = session.get('xid:oauth_state')
   if (!storedState || storedState !== stateParam) {
     return { ok: false, error: 'State mismatch: possible CSRF' }
   }
   session.unset('xid:oauth_state')
 
-  // PKCE code_verifier is always required (public client, no client_secret).
+  // 公开客户端无 client_secret，PKCE verifier 必填。
   const codeVerifier = session.get('xid:code_verifier')
   if (!codeVerifier) {
     return { ok: false, error: 'Missing PKCE code verifier' }
   }
 
-  // Exchange the authorization code for tokens.
   const tokenEndpoint = options.tokenEndpoint ?? 'https://xid.dev/token'
   const tokenResult = await exchangeCode({
     tokenEndpoint,
@@ -127,17 +93,15 @@ export async function handleCallback(
     return { ok: false, error: tokenResult.error }
   }
 
-  // Clean up PKCE verifier (single-use, delete immediately after exchange).
+  // PKCE 单次使用，交换后立即清除。
   session.unset('xid:code_verifier')
 
-  // Write tokens to session.
   setTokensInSession(session, {
     accessToken: tokenResult.value.access_token,
     ...(tokenResult.value.refresh_token ? { refreshToken: tokenResult.value.refresh_token } : {}),
   })
 
-  // Determine redirect target: return_to param -> session-stored return_to -> defaultReturnTo -> /.
-  // return_to from query params must be a relative path to prevent open redirect.
+  // 优先级：query return_to -> session return_to -> defaultReturnTo -> /；query 侧必须经相对路径校验。
   const rawReturnTo = url.searchParams.get('return_to')
   const sessionReturnTo = session.get(XID_SESSION_RETURN_TO_KEY) ?? undefined
 
@@ -161,8 +125,7 @@ export async function handleCallback(
   return { ok: true, response }
 }
 
-// exchangeCode: fetches tokens from the XID token endpoint.
-// No client_secret (public client + PKCE S256).
+// 公开客户端 + PKCE S256，请求体不含 client_secret。
 async function exchangeCode(params: {
   tokenEndpoint: string
   clientId: string

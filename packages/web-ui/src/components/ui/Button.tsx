@@ -1,7 +1,4 @@
-// Button:语义 <button>,变体(primary/secondary/ghost/danger)+ loading 态。
-// loading 时 disabled + aria-busy,内联 Spinner;文案由 children 提供(调用方走 lingui)。
-// 统一管理 UI 的字重、缓动和 primary 暗边,避免同一操作层级出现多套视觉反馈。
-// focus-visible 走全局 :focus-visible outline(styles.css),组件不自带焦点样式。
+// focus-visible 走全局 outline(styles.css),组件不自带焦点样式。
 
 import { forwardRef } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
@@ -34,7 +31,7 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.5rem',
-    // 桌面密度 38px;触屏设备抬到 44px 触控目标,不影响鼠标端密度。
+    // 触屏抬到 44px 触控目标,不影响鼠标端密度。
     minHeight: {
       default: '2.375rem',
       '@media (pointer: coarse)': '2.75rem',
@@ -48,15 +45,13 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     fontSize: '0.875rem',
     fontWeight: 560,
-    // 按钮文案永不折行:窄表格列里两字按钮折成竖排会破坏触控目标形状。
+    // 窄列两字折成竖排会破坏触控目标形状。
     whiteSpace: 'nowrap',
-    // 按压即时反馈:pointer-down 立刻缩小(Apple 流体手感);disabled/loading
-    // 的 <button> 不触发 :active,天然豁免。
+    // disabled/loading 的 button 不触发 :active,天然豁免。
     transform: { default: 'none', ':active': 'scale(0.97)' },
     ...transition,
   },
-  // hover/active 用 color-mix 向 black 暗化,避免引入脱离主题 token 的 oklch/hex 字面量;
-  // 1px 同色暗边替代阴影给按钮收边。
+  // color-mix 向 black 暗化,避免引入脱离主题 token 的字面量;1px 同色暗边替代阴影。
   primary: {
     backgroundColor: {
       default: tokens['--xid-primary'],

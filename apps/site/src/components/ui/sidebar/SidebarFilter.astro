@@ -1,5 +1,4 @@
 ---
-/** SidebarFilter — text input that filters the adjacent Sidebar. Press "/" to focus. */
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";
 import { translateSiteMessage } from "@/lib/site-i18n";
@@ -27,7 +26,7 @@ const { class: className, placeholder = `${filter}...`, ...attrs } = Astro.props
     aria-label={filterNavigation}
     autocomplete="off"
   />
-  {/* Shortcut hint — press "/" to focus. Hidden once the input is focused or has a value. */}
+  {/* 聚焦或有值时隐藏；`/` 快捷键提示。 */}
   <kbd
     aria-hidden="true"
     class="pointer-events-none absolute right-2 top-1/2 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-[0.6875rem] font-semibold leading-none text-muted-foreground transition-opacity duration-150 peer-focus:opacity-0 peer-[:not(:placeholder-shown)]:opacity-0 motion-reduce:transition-none"

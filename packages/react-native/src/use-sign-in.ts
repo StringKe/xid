@@ -1,7 +1,3 @@
-// useSignIn(RN):触发 hosted redirect 登录流程。
-// 职责:构建 PKCE 授权 URL -> 打开浏览器 -> 处理 deep link 回调 -> token exchange -> 存储。
-// 网络层 token 请求走 fetch(Web Crypto PKCE);存储走注入的 tokenCache。
-
 import { useCallback, useState } from 'react'
 
 import { useXidRnContext } from './xid-rn-context'
@@ -38,8 +34,7 @@ type PendingAuthorization = {
   redirectUri: string
 }
 
-// Parses the callback URL, validates CSRF state, exchanges code for tokens.
-// Extracted as module-level function to avoid unstable closure in useCallback deps.
+// 模块级函数，避免 processCallback 进入 useCallback 依赖导致闭包不稳定。
 async function processCallback(input: {
   url: string
   tokenCache: TokenCache
@@ -168,7 +163,6 @@ export function useSignIn(): UseSignInReturn {
           )
         }
 
-        // All PKCE + tokenCache + browser calls inside try: any failure -> error state.
         const verifier = createPkceVerifier(64)
         const state = createRandomString(32)
         const nonce = createRandomString(43)

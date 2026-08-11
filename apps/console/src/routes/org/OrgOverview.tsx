@@ -1,7 +1,3 @@
-// org 概览页:DAU/MAU、登录成功率、MFA 采用率当前指标 + 关键数字。
-// 数据从 GET /v1/organizations/:orgId/stats 拉取(TanStack Query)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头由骨架承担;页面特有下区为
-// 7fr/5fr 不对称双列(Trends 图表 | 次要计数 ledger 列),中缝 1px 竖 hairline,64rem 以下回落单列。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -16,7 +12,7 @@ import { MetricsBand, SecondaryCounts } from './OrgOverviewMetrics'
 import type { OrgStats } from './OrgOverviewMetrics'
 import { useCanManageOrg, useOrgTarget } from './useOrgTarget'
 
-// 页面特有下区口径:内容列 gutter / 节纵距 / 双列中缝两侧留白(与 ConsoleLayout、MetricsBand 同源)。
+// gutter/节距与 ConsoleLayout、MetricsBand 同源。
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
 const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
@@ -24,10 +20,9 @@ const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
 const styles = stylex.create({
   bandLabel: {
     paddingInline: GUTTER,
-    // hairline 邻接 >= 1.25rem:microlabel 文本到 MetricsBand 顶线 >= 1.25rem
+    // microlabel 与 MetricsBand 顶线 hairline 邻接下限。
     marginBottom: '1.25rem',
   },
-  // 下区:7fr/5fr 不对称双列,中缝 1px 竖 hairline;底缘 1px 收束(ledger 闭合线)。
   lowerGrid: {
     display: 'grid',
     gridTemplateColumns: {

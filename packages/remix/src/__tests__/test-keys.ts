@@ -1,4 +1,4 @@
-// 测试用 ES256 密钥与 token 工坊:自包含,不依赖 KEK/信封加密。
+// 测试用 ES256 密钥与 token 工坊：自包含，不依赖 KEK/信封加密。
 import type { PublicJwk } from '@xid-kit/crypto'
 import { exportPublicJwk, signJwt } from '@xid-kit/crypto'
 
@@ -46,6 +46,6 @@ export async function mintAccessToken(
 
 export async function mintExpiredToken(key: TestKey): Promise<string> {
   const nowSec = Math.floor(Date.now() / 1000)
-  // exp 必须越过 verifyJwt 默认 60s clock tolerance(判定为 now > exp + 60),取 now - 120。
+  // exp 须越过 verifyJwt 默认 60s clock tolerance（判定 now > exp + 60），取 now - 120。
   return mintAccessToken(key, { exp: nowSec - 120, iat: nowSec - 3720, nbf: nowSec - 3720 })
 }

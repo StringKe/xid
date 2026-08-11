@@ -1,13 +1,4 @@
-// provideXid: Angular standalone provider factory (Angular 17+, no NgModule).
-// Registers XidClient as a singleton via InjectionToken, wires APP_INITIALIZER
-// to call client.load() on bootstrap, and cleans up via DestroyRef on the
-// application injector lifetime.
-//
-// Usage (app.config.ts):
-//   import { provideXid } from '@xid-kit/angular'
-//   export const appConfig: ApplicationConfig = {
-//     providers: [provideXid({ mode: 'same-origin' })]
-//   }
+// provideXid：standalone 工厂，注册 XidClient 单例并在 APP_INITIALIZER 中 load，随 DestroyRef 清理。
 
 import {
   APP_INITIALIZER,
@@ -21,8 +12,7 @@ import { XidClient, type XidClientOptions } from '@xid-kit/core'
 
 export type ProvideXidOptions = XidClientOptions
 
-// XID_CLIENT: app-level injection token for the XidClient singleton.
-// Prefer injecting XidAuthService; use this token only when you need raw client access.
+// 优先注入 XidAuthService；仅在需要裸 XidClient 时使用此 token。
 export const XID_CLIENT = new InjectionToken<XidClient>('XidClient')
 
 function createClientFactory(options: ProvideXidOptions): () => XidClient {
@@ -37,7 +27,6 @@ function initializerFactory(): () => Promise<void> {
   return () => client.load({ signal: ac.signal })
 }
 
-// provideXid: registers XidClient singleton + APP_INITIALIZER bootstrap.
 export function provideXid(options: ProvideXidOptions = {}): EnvironmentProviders {
   return makeEnvironmentProviders([
     {

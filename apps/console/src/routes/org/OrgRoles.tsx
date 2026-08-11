@@ -1,7 +1,4 @@
-// org 项目 RBAC 页:选中 project 后管理其 role / permission key 与 role-permission 映射(可带 ABAC 条件)。
-// 也嵌入 console 的 ManagedProjects(managedProjectId/grantId/readOnly/embedded)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;编辑/映射表单 5/7 双列(SplitSection),
-// 深层上下文锚点(selected role)在 SplitSection meta 的 selectorSummary。
+// 可嵌入 ManagedProjects(managedProjectId/grantId/readOnly/embedded)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'

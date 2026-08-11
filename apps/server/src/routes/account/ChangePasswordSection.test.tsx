@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-// ChangePasswordSection 分形态测试:有密码 -> 改密表单;passwordless -> 邮件仪式面板
-// (已验证邮箱 setup link / 未验证 resend verification / 无邮箱 passkey 引导)。
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'

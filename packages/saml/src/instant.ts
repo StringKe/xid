@@ -1,5 +1,4 @@
-// SAML time attributes use the XML Schema dateTime lexical form. Date.parse is intentionally not
-// used as the validator because it accepts non-dateTime forms and normalizes invalid calendar dates.
+// 严格按 XML Schema dateTime 解析。不用 Date.parse:它接受非 dateTime 形态并会归一非法日历日。
 
 const SAML_DATE_TIME =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/

@@ -1,10 +1,7 @@
-// SAML 处理层内部错误码 + Result 工具(对照 04 章 8.8 内部 error code 列)。
-// 本层用自有 union(覆盖验签/解密/语义全部分支),worker/sso/saml.ts 把它映射到 SsoErrorCode + HTTP 状态。
-// 预期失败一律走 Result,不 throw(见全局错误处理铁律)。
+// 内部 SamlErrorCode;worker 映射到 SsoErrorCode。预期失败走 Result,不 throw。
 
 import type { SamlAssertionResult } from '@xid-kit/types'
 
-// 04 章 8.8 表内部 error code 全集(验签 8.1-8.5、解密 8.6、语义 8.7)。
 export const SAML_ERROR_CODES = [
   'malformed_request',
   'malformed_xml',
@@ -25,7 +22,7 @@ export type SamlErrorCode = (typeof SAML_ERROR_CODES)[number]
 export type SamlError = {
   code: SamlErrorCode
   reason: string
-  // IdP StatusCode(idp_status_error 时透传到日志,见 8.8 idp_status_<status>)。
+  // idp_status_error 时透传日志,不回客户端。
   idpStatus?: string
 }
 

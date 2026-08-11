@@ -1,12 +1,5 @@
-// social.ts:Social OAuth 登录 handler(OAuth client/RP 端,见 01 章 3)。
-// state/nonce/PKCE 存 OAuthFlowDO(OAUTH_STATE),强一致防重放,回调一次性消费。
-// account linking 判断树:SocialConnection 已存在 -> 直接登录;已验证 email -> 自动合并;
-//   未验证 email 且用户已存在 -> 拒绝自动合并;全新 -> 新建 user。
-// provider token(access/refresh)落 DB 前用租户 KEK 信封加密(AES-256-GCM)。
-// 枚举防护:不依 provider_user_id 存在与否返回不同响应。
-// Apple:response_mode=form_post,首次持久化 email/name,私密转发邮箱原样存。
-// GitHub non-OIDC:调 /user + /user/emails 取 idp_user_id + 已验证 email。
-// provider 集成层(配置/验签/profile/code exchange/token 加密)见 social-providers.ts。
+// Social OAuth(RP):state/nonce/PKCE 存 OAuthFlowDO 一次性消费;token 落库前 KEK 信封加密。
+// linking:已连直接登;已验证 email 合并;未验证且用户存在拒合并;否则建号。不按 provider_user_id 分支响应。
 
 import { base64UrlEncode } from '@xid-kit/crypto'
 import {

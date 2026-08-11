@@ -1,7 +1,3 @@
-// org 品牌定制页:颜色/字体/logo URL 设置。调 GET/PATCH /v1/organizations/:orgId/branding。
-// 实时预览走 CSS 变量;logo 存储由 URL 字段接入。
-// 数据层:useOrgBrandingQuery(read) + useUpdateOrgBranding(mutation)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + 5/7 双列配置节(SplitSection);预览带 inline 在控件列内。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
@@ -26,7 +22,6 @@ const styles = stylex.create({
     justifyContent: 'center',
     paddingBlock: '2.25rem',
   },
-  // 颜色/字体:2 列 auto-fill 网格
   colorsGrid: {
     display: 'grid',
     gridTemplateColumns: {
@@ -43,7 +38,6 @@ const styles = stylex.create({
     },
     gap: '1rem',
   },
-  // 色彩预览带:hairline 顶分隔
   previewStrip: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
@@ -198,7 +192,6 @@ export default function OrgBranding(): ReactNode {
         </ConsolePageSection>
       ) : (
         <form onSubmit={(e) => void handleSave(e)} noValidate>
-          {/* Colors */}
           <ConsolePageSplitSection
             title={<Trans>Colors</Trans>}
             description={
@@ -244,7 +237,6 @@ export default function OrgBranding(): ReactNode {
             <BrandPreviewStrip form={form} />
           </ConsolePageSplitSection>
 
-          {/* Typography and shape */}
           <ConsolePageSplitSection
             title={<Trans>Typography and shape</Trans>}
             description={
@@ -277,7 +269,6 @@ export default function OrgBranding(): ReactNode {
             </div>
           </ConsolePageSplitSection>
 
-          {/* Logo */}
           <ConsolePageSplitSection
             title={<Trans>Logo</Trans>}
             description={

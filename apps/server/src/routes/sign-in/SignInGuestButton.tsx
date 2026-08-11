@@ -1,6 +1,3 @@
-// SignInGuestButton:访客模式入口(POST /auth/guest,由 useSignIn.submitGuest 承载)。
-// 视觉层级:次于主登录方式的分隔区(复用 separator 样式),secondary 全宽按钮不与主路径抢权重。
-// loading/disabled 复用 Button 既有模式;支持文案为 muted 小字,说明数据不可找回。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'

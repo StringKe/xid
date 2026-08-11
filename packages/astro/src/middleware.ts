@@ -1,9 +1,6 @@
-// xidMiddleware:Astro SSR middleware,调用 @xid-kit/backend authenticateRequest,
-// 把认证结果注入 locals.xidAuth,支持路由保护重定向。
-//
-// 安全模型:locals 是 Astro 服务端私有作用域,不暴露给客户端。
-// short-lived JWT 来自 Bearer、应用自有 JWT cookie,或显式同源 Core cookie-to-JWT exchange。
-// Core __Host-xid.rt.* 是 opaque refresh token,本 middleware 永不本地验证它。
+// Astro SSR middleware:认证结果写入 locals.xidAuth。
+// locals 仅服务端可见;JWT 来自 Bearer / 应用 JWT cookie / 显式同源 exchange。
+// 永不本地验证 Core __Host-xid.rt.* opaque refresh token。
 
 import { authenticateRequest } from '@xid-kit/backend'
 import {
@@ -14,8 +11,7 @@ import {
 
 import type { AuthResult, XidMiddlewareOptions } from './types'
 
-// Astro middleware 类型契约(peer dep,运行时由 astro:middleware 提供)。
-// 用局部类型声明避免在 library bundle 强依赖 astro 包全量。
+// 局部类型契约,避免 library bundle 强依赖 astro 全量。
 type AstroLocals = Record<string, unknown>
 
 type AstroAPIContext = {
@@ -49,7 +45,6 @@ type SignedInFields = {
   orgPermissions: string[] | undefined
 }
 
-// 把 SignedInFields 映射为 AuthResult(Astro 版,直接注入 locals)。
 function toAuthResult(fields: SignedInFields): AuthResult {
   return {
     userId: fields.userId,
@@ -61,11 +56,6 @@ function toAuthResult(fields: SignedInFields): AuthResult {
   }
 }
 
-// createXidMiddleware: returns an Astro onRequest middleware handler.
-// Usage in src/middleware.ts:
-//   import { sequence } from 'astro:middleware'
-//   import { createXidMiddleware } from '@xid-kit/astro'
-//   export const onRequest = sequence(createXidMiddleware({ jwtKey: ... }))
 export function createXidMiddleware(options: XidMiddlewareOptions): AstroMiddlewareHandler {
   const {
     jwtKey,
@@ -93,7 +83,6 @@ export function createXidMiddleware(options: XidMiddlewareOptions): AstroMiddlew
     let authResult: AuthResult
     if (requestState.isSignedIn) {
       const { claims } = requestState
-      // active_org_id / org_role / org_permissions are typed optional fields on AccessTokenClaims.
       const orgId = typeof claims.active_org_id === 'string' ? claims.active_org_id : undefined
       const orgRole = isOrganizationMembershipRole(claims.org_role) ? claims.org_role : undefined
       const orgPermissions = Array.isArray(claims.org_permissions)
@@ -112,12 +101,10 @@ export function createXidMiddleware(options: XidMiddlewareOptions): AstroMiddlew
       authResult = UNAUTHENTICATED
     }
 
-    // 注入 locals.xidAuth。
     context.locals['xidAuth'] = authResult
 
     const pathname = context.url.pathname
 
-    // 路由保护:受保护路径 + 未认证 + 非公开路径 -> 302 到 signInUrl。
     const isProtected =
       protectedRoutes.length > 0 &&
       protectedRoutes.some((prefix) => pathname.startsWith(prefix)) &&

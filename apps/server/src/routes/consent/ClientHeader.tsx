@@ -1,5 +1,3 @@
-// client 身份区块:logo 左对齐行式布局 + 标题 + 导语。
-// 不用 hairline 收束(与 ui/PageHeader 同口径):层次靠中性阶 + 字重,避免多条横线叠屏。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'

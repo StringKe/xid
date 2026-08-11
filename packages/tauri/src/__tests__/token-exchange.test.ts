@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { TauriTokenError, exchangeCodeForTokens } from '../token-exchange'
 
-// Build a minimal fake fetch that returns a fixed JSON response.
 function makeFakeFetch(status: number, body: unknown): typeof fetch {
   return async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
     return new Response(JSON.stringify(body), { status })
@@ -35,7 +34,6 @@ describe('exchangeCodeForTokens', () => {
     expect(result.accessToken).toBe('at.jwt')
     expect(result).not.toHaveProperty('refreshToken')
     expect(result.idToken).toBe('it.jwt')
-    // expiresAt = now() + expires_in = 1_000_000 + 3600
     expect(result.expiresAt).toBe(1_003_600)
   })
 

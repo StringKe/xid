@@ -138,7 +138,7 @@ describe('OrgAuthPolicyPage', () => {
     expect(html).toContain('Session token TTL (seconds)')
     expect(html).toContain('Refresh token idle timeout (days)')
     expect(html).toContain('Refresh token absolute timeout (days)')
-    // 留空 = 继承 instance 默认(静态渲染不跑 useEffect,初始态即空值占位)。
+    // 静态渲染不跑 useEffect,空值即 Inherit instance default 占位。
     expect(html.match(/Inherit instance default/g)).toHaveLength(6)
   })
 })

@@ -1,13 +1,8 @@
-// Tests for XidCustomSchemeHandler -- pure Node logic, no Electron runtime needed.
-// We mock the App event emitter interface to avoid importing Electron.
+// XidCustomSchemeHandler：用 App 事件 mock，不依赖真实 Electron。
 
 import { describe, expect, it } from 'vitest'
 
 import { XidCustomSchemeHandler } from '../main/custom-scheme'
-
-// ---------------------------------------------------------------------------
-// Minimal App event-emitter mock
-// ---------------------------------------------------------------------------
 
 type AppEventName = 'open-url' | 'second-instance'
 type AppListener = (...args: unknown[]) => void
@@ -35,10 +30,6 @@ function createMockApp(): {
 
   return { app, emit }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('XidCustomSchemeHandler', () => {
   it('asCallbackServer() redirectUri uses the registered scheme', () => {
@@ -93,7 +84,7 @@ describe('XidCustomSchemeHandler', () => {
     const server = handler.asCallbackServer()
     const promise = server.waitForCallback({ timeoutMs: 50 })
 
-    // Wrong scheme -- should not resolve the promise.
+    // 错误 scheme 不得 resolve。
     emit('second-instance', {}, ['electron', '.', 'other://callback?code=xxx&state=yyy'])
 
     await expect(promise).rejects.toThrow('timed out')
@@ -113,11 +104,9 @@ describe('XidCustomSchemeHandler', () => {
     const server = handler.asCallbackServer()
     const first = server.waitForCallback({ timeoutMs: 5000 })
 
-    // Start a second waiter -- should reject the first.
     const second = server.waitForCallback({ timeoutMs: 5000 })
     await expect(first).rejects.toThrow('replaced')
 
-    // Now emit the callback -- second should resolve.
     emit('open-url', {}, 'myapp://callback?code=fresh&state=ok')
     const result = await second
     expect(result.searchParams.get('code')).toBe('fresh')

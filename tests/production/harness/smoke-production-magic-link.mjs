@@ -69,7 +69,7 @@ async function waitForVersion(port, timeoutMs = 15_000) {
       const res = await fetch(`http://127.0.0.1:${port}/json/version`)
       if (res.ok) return await res.json()
     } catch {
-      // Chrome is still starting.
+      // CDP 尚未就绪。
     }
     await delay(250)
   }
@@ -283,11 +283,7 @@ function assertNoConsoleErrors(page, name) {
   }
 }
 
-// /auth/magic-link/send 在发送时就建号(worker/auth/magic-link.ts sendMagicLink ->
-// createPasswordlessEmailUser),而 default org 的 magicLink.allowUserCreation=true。
-// XID_PRODUCTION_EMAIL 打错一个字符就会在生产 default org 无声建出一个真实用户,
-// 而这个用户没有任何清理路径(它不带 smoke 前缀,共享扫除看不见它)。
-// 所以发送前先确认该邮箱已存在:不存在就拒发,把泄漏挡在写库之前而不是事后补删。
+// send 在 default org 可静默建号且无 smoke 前缀;发前确认邮箱已存在,把泄漏挡在写库前。
 async function assertMagicLinkTargetExists() {
   const rows = await d1(
     `
@@ -311,17 +307,14 @@ LIMIT 1;
   )
 }
 
-// 登录成功后的 session 是这个 harness 唯一自己造出来的长寿命实体,而且属于生产
-// instance_manager 账号(verifyMeForEmail expectedInstanceManager: true)。
-// 不登出就是每跑一次留一条平台最高权限的活 session,只能等 30 天空闲过期。
+// session 属生产 instance_manager,无 smoke 前缀;不登出会留下平台最高权限活 session。
 async function signOutMagicLinkSession(cookie) {
   if (!cookie) return
   const { res, text } = await fetchText('/auth/sign-out', { method: 'POST', cookie })
   if (res.status !== 200) {
     throw new Error(`magic link sign out failed http=${res.status} body=${text}`)
   }
-  // revokeSession 把 D1 sessions.status 置 revoked 并清 SessionDO;用同一个 cookie 再打一次
-  // /v1/me 才算证明撤销真的落到了生产,而不是只收到一个 200。
+  // 用同一 cookie 再打 /v1/me 证明撤销落到生产,而非只收到 200。
   const after = await fetchText('/v1/me', { cookie })
   if (after.res.status === 200) {
     throw new Error('magic link session still authenticates after sign out')
@@ -371,9 +364,7 @@ async function verifyMagicLinkFromEmail(url, preSmokeContext, session) {
 
   await withChrome(async (page) => {
     await page.navigateUrl(`${baseUrl}${parsed.path}`, 'magic link verify')
-    // 导航一返回 session 就已经建好了,所以先取 cookie 再做断言:cookie 到手后任何断言失败
-    // 都还能在 finally 里登出;反过来先断言,断言一失败就等于把一条已建好的
-    // instance_manager session 永久留在生产库(Chrome 关掉不等于 session 失效)。
+    // 先取 cookie 再断言:导航返回即已建 session,断言失败仍须能在 finally 登出。
     const cookie = await page.sessionCookieHeader()
     session.cookie = cookie
     await page.waitFor(
@@ -473,7 +464,7 @@ export async function runProductionMagicLinkSmoke() {
     const { failures } = await runCleanupSteps([
       { name: 'magic link session sign out', run: () => signOutMagicLinkSession(session.cookie) },
     ])
-    // 在 finally 里直接 throw:清理失败必须判红,且不依赖 try 里有没有提前 return。
+    // finally 内直接 throw:清理失败必须判红,且不依赖 try 是否提前 return。
     if (failures.length > 0 && !primaryError) {
       throw new Error(
         `magic link cleanup failed: ${failures.map((failure) => failure.name).join(', ')}`,

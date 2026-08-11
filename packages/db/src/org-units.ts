@@ -1,16 +1,6 @@
-// OrgUnit 树核心服务(见 docs/design/org-structure-access/design-org-structure.md 第 3 节)。
-// 全部单表读写走 createTenantDb 租户层(tenant_id + org_id 双注入,见 tenant-isolation rule);
-// raw SQL 仅用于 scoped accessor 无法表达的三处:子树 path/depth 批量重写、主岗清旧设新的原子
-// batch、listSubtreeMembers 的多表 join,均显式绑定 tenant_id(与 apps/server 的 env.DB.batch
-// 先例一致;D1 无交互事务,原子多写一律 d1.batch)。
-// 树一致性(path 生成、深度上限 8、移动子树)集中在本模块(设计 2.3)。可预期失败返回 Result,
-// 意外错误抛出(见 error-handling rule)。
-// 子树匹配一律 `path GLOB node.path || '*'`(完整 pattern 单参数绑定):SQLite 默认
-// case_sensitive_like=OFF,`? || '%'` 是 CONCAT 表达式,LIKE 前缀对 BINARY collation 列不走
-// 索引;path 段全是 base62 id([A-Za-z0-9]),不含 GLOB 元字符 *?[],GLOB 走
-// org_units_tenant_path_idx(tenant_id, org_id, path) 范围扫描。
-// moveUnit/createUnit 的 TOCTOU 自防卫:校验读与 batch 写非原子,写语句在 WHERE/EXISTS 中
-// 绑定校验时读到的快照(path),并发改动导致 0 行 -> 409 conflict,不允许半重写落库。
+// OrgUnit 树服务:单表走 createTenantDb 双注入;raw SQL 仅用于子树 path 重写、主岗原子 pair、多表 join,
+// 且显式绑定 tenant_id(D1 无交互事务,多写用 d1.batch)。子树用 GLOB 走 path 索引(LIKE 对 BINARY
+// 列不走索引);TOCTOU 靠 WHERE/EXISTS 绑定校验快照,并发 0 行 -> 409,禁止半重写。
 
 import type { Result, TenantContext, XidError } from '@xid-kit/types'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -28,18 +18,16 @@ export type ApproverResolution = {
   depth: number
 }
 
-// 所有函数的统一作用域:D1 binding + TenantContext + 目标 org(tenant_id/org_id 双注入的来源)。
 export type OrgUnitScope = {
   d1: D1Database
   ctx: TenantContext
   orgId: string
 }
 
-// 树深度上限(设计 2.1:根 = 1,上限 8,应用层检查)。
+// 根 = 1,上限 8(设计 2.1,应用层检查)。
 export const ORG_UNIT_MAX_DEPTH = 8
 
-// 持久化 id 契约与 apps/server/worker/lib/persisted-id.ts 一致:前缀 + 21 位 base62,
-// crypto.getRandomValues 拒绝采样保证等概率(不复用该模块:packages 不依赖 apps)。
+// 与 apps persisted-id 同契约(前缀 + 21 位 base62 拒绝采样);packages 不依赖 apps 故内联。
 const BASE62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 const RANDOM_LENGTH = 21
 const ACCEPT_BELOW = 248
@@ -66,8 +54,7 @@ function err(code: XidError['code'], message: string, httpStatus: number): Resul
 
 const notFound = (message: string): Result<never> => err('not_found', message, 404)
 
-// D1/SQLite 唯一冲突判定:命中唯一索引是预期失败(Result),其余错误原样抛出。
-// drizzle 会把底层错误包进 "Failed query" Error,原始错误在 cause 链上。
+// 唯一冲突是预期 Result;drizzle 把底层错误包进 "Failed query",真实信息在 cause 链。
 function isUniqueViolation(cause: unknown): boolean {
   let current: unknown = cause
   while (current instanceof Error) {
@@ -90,11 +77,8 @@ export type CreateUnitInput = {
   managerUserId?: string
 }
 
-// 创建节点:查 parent(同 tenant+org 且 active)-> depth+1 <= 8 -> 生成 id/path -> INSERT。
-// 同级 slug 撞唯一索引返回 already_exists(根节点 slug 重名 v1 接受,见设计 2.1)。
-// TOCTOU 自防卫:有 parent 时 INSERT ... SELECT ... WHERE EXISTS 绑定校验时读到的 parent
-// 快照(status='active' 且 path 未变);parent 在读后被并发 move/path 改写 -> 0 行 -> 409,
-// 避免把新节点挂到已失效的 path 前缀下。
+// INSERT...SELECT...WHERE EXISTS 绑定 parent 快照;并发 path 改写 -> 0 行 409,防挂到失效前缀。
+// 根节点 slug 重名 v1 接受(SQLite NULL 不参与唯一比较,设计 2.1)。
 export async function createUnit(
   scope: OrgUnitScope,
   input: CreateUnitInput,
@@ -179,7 +163,6 @@ export type UpdateUnitInput = {
   managerUserId?: string | null
 }
 
-// 改 name/slug/manager:slug 改动撞同级唯一返回 already_exists。
 export async function updateUnit(
   scope: OrgUnitScope,
   unitId: string,
@@ -201,11 +184,7 @@ export async function updateUnit(
   }
 }
 
-// 移动子树:目标 parent 同 org 且 active;拒绝移动到自身或自身后代;移动后子树最深节点
-// depth 不得超上限。path/depth 重写 + parent 指针更新放进一个 d1.batch(原子;raw SQL 显式
-// 绑定 tenant_id)。TOCTOU 自防卫:校验读与 batch 写非原子,语句 1 在 WHERE 绑定校验时读到的
-// 旧 path,语句 2 以 EXISTS 引用语句 1 的落点;并发改动(如互逆移动)导致语句 1 零行 ->
-// 语句 2 必然零行 -> 409 conflict,不会出现半重写的树(并发成环不可能落库)。
+// path/depth 重写与 parent 更新同 batch;语句 1 WHERE 绑旧 path,语句 2 EXISTS 引用落点,防半重写。
 export async function moveUnit(
   scope: OrgUnitScope,
   unitId: string,
@@ -220,7 +199,7 @@ export async function moveUnit(
   if (target.id === node.id || target.path.startsWith(`${node.path}/`)) {
     return err('conflict', 'cannot move a unit into itself or its descendant', 409)
   }
-  // 子树含自身:GLOB `node.path*` 同时匹配 node.path 自身(* 匹配零字符)与全部后代。
+  // GLOB `path*` 同时匹配自身(* 零字符)与全部后代。
   const subtree = await db.orgUnits.findMany(sql`${orgUnits.path} GLOB ${`${node.path}*`}`)
   const subtreeMaxDepth = subtree.reduce((max, row) => Math.max(max, row.depth), node.depth)
   const depthDelta = target.depth + 1 - node.depth
@@ -230,8 +209,7 @@ export async function moveUnit(
   const now = Date.now()
   const newPrefix = `${target.path}/${node.id}`
   const results = await d1.batch([
-    // 语句 1:本节点 parent 指针 + 新 path/depth;WHERE 绑定校验时读到的旧 path 做乐观并发
-    // 控制,path 已被并发改动时零行。
+    // 语句 1:WHERE 绑旧 path 做乐观并发控制。
     d1
       .prepare(
         `UPDATE org_units
@@ -242,8 +220,7 @@ export async function moveUnit(
           WHERE tenant_id = ? AND org_id = ? AND id = ? AND path = ?`,
       )
       .bind(target.id, newPrefix, target.depth + 1, now, ctx.tenantId, orgId, node.id, node.path),
-    // 语句 2:重写全部后代的 path/depth(GLOB 旧前缀;语句 1 已把本节点 path 改掉,故只命中
-    // 后代)。EXISTS 引用语句 1 的落点:语句 1 失败时本句必然零行,子树不会被半重写。
+    // 语句 2:EXISTS 引用语句 1 落点;语句 1 失败则本句零行,避免半重写。
     d1
       .prepare(
         `UPDATE org_units
@@ -278,7 +255,6 @@ export async function moveUnit(
   return { ok: true, value: moved }
 }
 
-// 软归档:有 active 子节点时拒绝;归档后节点由查询路径排除(status='active' 过滤)。
 export async function archiveUnit(
   scope: OrgUnitScope,
   unitId: string,
@@ -294,7 +270,6 @@ export async function archiveUnit(
   return { ok: true, value: row }
 }
 
-// 直接子节点(active);parentUnitId 省略或 null 时列根节点。
 export async function listChildren(
   scope: OrgUnitScope,
   parentUnitId?: string | null,
@@ -309,7 +284,6 @@ export async function listChildren(
   })
 }
 
-// 整树:status='active' ORDER BY path(物化路径字典序 = 先根遍历)。
 export async function listTree(scope: OrgUnitScope): Promise<OrgUnitRow[]> {
   const db = orgDb(scope)
   return db.orgUnits.findMany(eq(orgUnits.status, 'active'), { orderBy: orgUnits.path })
@@ -326,11 +300,7 @@ type SubtreeMemberRawRow = {
   updated_at: number
 }
 
-// 节点及后代成员:从 org_units 驱动(SQLite CROSS JOIN 固定连接顺序),u.path GLOB 前缀走
-// org_units_tenant_path_idx(tenant_id, org_id, path) 范围扫描,成本 = O(子树成员数) 而非
-// O(org 总成员数);再 join org_unit_members 取成员、join memberships 过滤 status='active'
-// (设计 2.2:悬挂成员行不可见)。archived 节点被排除。
-// 多表 join 超出 scoped accessor 表达力,raw SQL 显式绑定 tenant_id。
+// org_units 驱动 + GLOB 走 path 索引 O(子树);join memberships 滤 active,悬挂成员不可见(设计 2.2)。
 export async function listSubtreeMembers(
   scope: OrgUnitScope,
   unitId: string,
@@ -368,8 +338,7 @@ export async function listSubtreeMembers(
   return { ok: true, value: rows }
 }
 
-// 清旧主岗 + 设新主岗的原子 pair(partial unique index 兜底并发,见设计 2.2)。
-// raw SQL 显式绑定 tenant_id;statements 由调用方组装进 d1.batch。
+// 清主岗语句;与设新主岗同 batch,partial unique 兜底并发(设计 2.2)。
 function clearPrimaryStatement(d1: D1Database, tenantId: string, orgId: string, userId: string) {
   return d1
     .prepare(
@@ -380,8 +349,7 @@ function clearPrimaryStatement(d1: D1Database, tenantId: string, orgId: string, 
     .bind(Date.now(), tenantId, orgId, userId)
 }
 
-// 加入成员:前置校验用户有该 org 的 active Membership;is_primary=true 时在同一 batch 内
-// 清旧主岗(与 setPrimaryUnit 同语义)。同 unit 重复加入撞唯一索引返回 already_exists。
+// 入 Unit 前须有 active Membership(设计 1);is_primary 时同 batch 清旧主岗。
 export async function addUnitMember(
   scope: OrgUnitScope,
   unitId: string,
@@ -392,7 +360,6 @@ export async function addUnitMember(
   const { d1, ctx, orgId } = scope
   const unit = await db.orgUnits.findOne(activeUnit(unitId))
   if (!unit) return notFound('unit not found')
-  // 前置校验:用户必须先有该 org 的 active Membership 才能入 Unit(设计 1 不变式)。
   const membership = await db.memberships.findOne(
     and(eq(memberships.userId, userId), eq(memberships.status, 'active')),
   )
@@ -432,7 +399,7 @@ export async function addUnitMember(
   }
 }
 
-// 移出成员(物理删除成员行;unit 本身是软归档,成员行无保留语义)。
+// 成员行物理删除(无保留语义;unit 才是软归档)。
 export async function removeUnitMember(
   scope: OrgUnitScope,
   unitId: string,
@@ -449,7 +416,6 @@ export async function removeUnitMember(
   return { ok: true, value: row }
 }
 
-// 设主岗:清旧设新一个 batch 完成(partial unique index 兜底并发双主岗)。
 export async function setPrimaryUnit(
   scope: OrgUnitScope,
   unitId: string,
@@ -479,12 +445,8 @@ export async function setPrimaryUnit(
   return { ok: true, value: row }
 }
 
-// 经理解析(P1 审批路由数据源):主岗 unit -> path 拆祖先 id 序列(含自身)-> 一次查询取
-// 祖先链(<= 8 行),应用层取 depth 最大且 manager 非空的节点。链上全空返回 null(P1 回落
-// project/org manager)。
-// manager 非空过滤不放进 WHERE:祖先链按主键 IN 取行后,`manager_user_id IS NOT NULL` 只
-// 会误导优化器在无统计时选择 manager 索引扫全租户行;链上最多 8 行,应用层过滤代价为零。
-// 解析结果等于请求者本人时由 P1 顺延,P0 只返回原始结果(设计 3 排除规则)。
+// 主岗 path 拆祖先后应用层取最近非空 manager;WHERE 不滤 manager,避免误走 manager 全表索引。
+// 等于请求者本人时由 P1 顺延,本层只返原始结果(设计 3)。
 export async function resolveApproverChain(
   scope: OrgUnitScope,
   userId: string,

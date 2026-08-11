@@ -1,4 +1,3 @@
-// theme 测试:brandToCssVars 纯函数把 brand + scheme 展开为 CSS 变量(light/dark 切换、自定义品牌覆盖)。
 
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_BRAND, brandToCssVars } from '../theme'

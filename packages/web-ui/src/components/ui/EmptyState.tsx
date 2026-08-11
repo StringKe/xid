@@ -10,7 +10,7 @@ export type EmptyStateProps = {
 }
 
 const styles = stylex.create({
-  // 1px hairline + 透明底:空态是页面的一段留白,不做虚线占位卡。
+  // 空态是留白而非虚线占位卡:1px hairline + 透明底。
   root: {
     display: 'flex',
     flexDirection: 'column',
@@ -43,8 +43,7 @@ const styles = stylex.create({
 })
 
 export function EmptyState({ title, description, action }: EmptyStateProps): ReactNode {
-  // 首次 mount 淡入(springDefault):loading -> 空态切换不跳闪;motion 只动 opacity,
-  // reduced-motion 下自动豁免 transform/layout,opacity 淡入保留(可接受的降级)。
+  // loading -> 空态只淡 opacity,避免跳闪;reduced-motion 仍保留 opacity 降级。
   return (
     <motion.div
       {...stylex.props(styles.root)}

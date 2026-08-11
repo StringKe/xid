@@ -1,5 +1,3 @@
-// OrganizationList:当前用户所有 org 成员关系列表(对标 Clerk <OrganizationList>)。
-
 import type { ReactNode, CSSProperties } from 'react'
 
 import { useLingui } from '@lingui/react'
@@ -11,7 +9,7 @@ import { useXidStore } from '../../hooks/use-xid-store'
 import { Rt, rt, sdkMessages } from '../../i18n-runtime'
 
 export type OrganizationListProps = {
-  // 点击某 org 后的跳转模板("/:slug" 会被替换)
+  // 路径模板,其中 ":slug" 会被替换为 org slug
   organizationProfileUrl?: string
   hidePersonal?: boolean
   createOrganizationUrl?: string

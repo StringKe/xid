@@ -1,6 +1,3 @@
-// JWT 向量自检测试(见 oidc-oauth rule 3.2 Token + testing rule)。
-// 验证 jwt-vectors.ts 中的 helper 与向量正确:合法 JWT 结构/过期样本/jti 重放样本。
-
 import { describe, it, expect, beforeAll } from 'vitest'
 import {
   buildValidJwtVectors,
@@ -71,7 +68,6 @@ describe('valid JWT vectors self-check', () => {
       const parts = v.token.split('.')
       if (!parts[0] || !parts[1] || !parts[2]) throw new Error('malformed token')
       const signingInput = `${parts[0]}.${parts[1]}`
-      // decode base64url signature
       const sigB64 = parts[2]
         .replace(/-/g, '+')
         .replace(/_/g, '/')

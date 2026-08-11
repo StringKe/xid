@@ -1,5 +1,3 @@
-// locale 测试:detectLocale 优先级(query -> storage -> navigator -> en)与 isSupportedLocale 精确匹配。
-// node 环境无 window,逐项 stub globalThis.location / localStorage / navigator。
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { detectLocale, isSupportedLocale, persistLocale } from '../locale'

@@ -1,5 +1,4 @@
-// PB-1 回归:OrgOverview 的 enabled 必须与服务端 requireOrgManager 同源判角色。
-// spa vitest 环境是 node,用最小 useApiQuery 替身记录被测路径和 enabled 门控。
+// enabled 须与 requireOrgManager 同源;node 环境用最小 useApiQuery 替身门控。
 
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

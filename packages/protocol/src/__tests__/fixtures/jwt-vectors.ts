@@ -1,8 +1,5 @@
-// JWT 测试向量(见 oidc-oauth rule 3.2 Token 章节 + signing-keys rule)。
 // 合法 JWT 用 Web Crypto(ES256)真算;过期/jti 重放样本为预定义常量。
-// 向量本身由 jwt.test.ts 的自检套件覆盖。
 
-// base64url 无填充编码。
 function base64UrlEncode(bytes: Uint8Array): string {
   const base64 = btoa(String.fromCharCode(...bytes))
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
@@ -37,7 +34,6 @@ export type JwtPayload = {
   client_id?: string
 }
 
-// 生成 ES256 密钥对(供测试 suite 用)。
 export async function generateEs256KeyPair(): Promise<CryptoKeyPair> {
   return (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
     'sign',
@@ -45,8 +41,7 @@ export async function generateEs256KeyPair(): Promise<CryptoKeyPair> {
   ])) as CryptoKeyPair
 }
 
-// 签发 ES256 JWT(header.payload.signature)。
-// 仅用于测试向量生成,不做任何业务校验。
+// 仅用于测试向量生成,不做业务校验。
 export async function signJwt(
   payload: JwtPayload,
   privateKey: CryptoKey,
@@ -64,7 +59,6 @@ export async function signJwt(
   return `${signingInput}.${sig}`
 }
 
-// 拆解 JWT 头(不验签,测试用)。
 export function decodeJwtHeader(token: string): { alg: string; typ: string; kid?: string } {
   const parts = token.split('.')
   if (parts.length !== 3 || !parts[0]) throw new Error('invalid JWT format')
@@ -72,7 +66,6 @@ export function decodeJwtHeader(token: string): { alg: string; typ: string; kid?
   return JSON.parse(raw) as { alg: string; typ: string; kid?: string }
 }
 
-// 拆解 JWT payload(不验签,测试用)。
 export function decodeJwtPayload(token: string): JwtPayload {
   const parts = token.split('.')
   if (parts.length !== 3 || !parts[1]) throw new Error('invalid JWT format')
@@ -80,7 +73,6 @@ export function decodeJwtPayload(token: string): JwtPayload {
   return JSON.parse(raw) as JwtPayload
 }
 
-// 合法 JWT 向量容器。
 export type ValidJwtVector = {
   description: string
   token: string
@@ -89,7 +81,6 @@ export type ValidJwtVector = {
   publicKey: CryptoKey
 }
 
-// 构建合法 JWT 向量(异步,需要 Web Crypto)。
 export async function buildValidJwtVectors(): Promise<ValidJwtVector[]> {
   const keyPair = await generateEs256KeyPair()
   const kid = 'test-kid-001'
@@ -138,10 +129,9 @@ export async function buildValidJwtVectors(): Promise<ValidJwtVector[]> {
   ]
 }
 
-// 过期 JWT 样本(exp 已过去)。
 export type ExpiredJwtSample = {
   description: string
-  // 预定义的已过期 JWT 结构常量(不做真实签名验证,测试解析逻辑)。
+  // 预定义过期结构,不做真实签名验证。
   expiredPayload: JwtPayload
   expectedErrorCode: 'invalid_grant' | 'session_expired'
 }
@@ -176,7 +166,7 @@ export const EXPIRED_JWT_SAMPLES: readonly ExpiredJwtSample[] = [
   },
 ]
 
-// jti 重放样本(相同 jti 二次使用应触发 family 吊销,见 oidc-oauth rule refresh rotation)。
+// 相同 jti 二次使用应触发 family 吊销。
 export type JtiReplaySample = {
   description: string
   jti: string

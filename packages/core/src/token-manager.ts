@@ -1,6 +1,4 @@
-// token 刷新逻辑(对照 06 章:getToken 返回 short-lived JWT,建议 60s;到期前刷新)。
-// 缓存当前 token,距 exp 小于 leeway 即从 /v1/sessions/token 取新;并发 getToken 去重为单次在途请求。
-// 不在前端验签(crypto-boundary rule),只解码 exp 调度刷新(见 jwt-decode)。
+// short-lived JWT 缓存与到期前刷新;并发 getToken 去重,只解码 exp 不验签。
 
 import type { Result, XidError } from '@xid-kit/types'
 
@@ -19,7 +17,6 @@ export class TokenManager {
   readonly #api: XidApiClient
   readonly #now: () => number
   #cache: CachedToken | null = null
-  // 在途刷新去重:并发 getToken 只发一次请求。
   #inflight: Promise<Result<string, XidError>> | null = null
   #generation = 0
 
@@ -41,7 +38,7 @@ export class TokenManager {
     return this.#refresh(options)
   }
 
-  // 清缓存(sign-out / 切换会话后调用,防旧 token 泄漏到新上下文)。
+  // sign-out / 切会话后清缓存,防止旧 token 落到新上下文。
   clear(): void {
     this.#generation += 1
     this.#cache = null
@@ -75,8 +72,7 @@ export class TokenManager {
     })
     if (!result.ok) return result
 
-    // A sign-out or session switch can clear state while the request is in flight. Do not let
-    // that stale completion repopulate the cache for the new browser session.
+    // clear() 会抬 generation;在途完成不得把过期会话的 token 写回新会话缓存。
     if (this.#generation === generation) this.#cache = toCachedToken(result.value)
     return { ok: true, value: result.value.token }
   }

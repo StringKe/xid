@@ -1,16 +1,5 @@
 ---
-/**
- * MobileTOC — compact "jump to section" menu for narrow viewports.
- *
- * The desktop `TOC` rail only renders at `xl+` (right column). Below that
- * there's no on-this-page nav, so this native `<select>` fills the gap: it
- * sits under the page title, tracks the active heading via scroll-spy, and
- * jumps to a section on change.
- *
- * A native `<select>` whose options are the page headings, indented by depth.
- * The caret is an overlaid icon since native selects can't be styled, and the
- * client mirrors the active heading back into the select value.
- */
+// 窄屏补全桌面 xl+ 右栏 TOC：原生 select + 客户端 scroll-spy 回写当前标题。
 import { Icon } from "astro-icon/components";
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";

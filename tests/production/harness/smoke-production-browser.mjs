@@ -61,8 +61,7 @@ const forbiddenText = [
   'e=>n(',
 ]
 
-// docs/goal、docs/verification、docs/current-gap-audit、docs/implementation-status 的 markdown 已删除,
-// 条目仍保留:公开页面永远不得出现这些路径,防止未来复用同名 slug 时静默泄露。
+// 含已下线内部文档 slug:公开页面永远不得出现这些路径,防止复用同名 slug 时静默泄露。
 const forbiddenPublicDocsText = [
   'docs/design',
   'docs/goal',
@@ -206,7 +205,6 @@ async function firstExistingPath(paths, name) {
       await access(path)
       return path
     } catch {
-      // Keep probing the next workspace layout.
     }
   }
   throw new Error(`${name} not found: ${paths.join(', ')}`)
@@ -430,7 +428,7 @@ async function waitForVersion(port, timeoutMs = 15_000) {
       const res = await fetch(`http://127.0.0.1:${port}/json/version`)
       if (res.ok) return await res.json()
     } catch {
-      // Chrome is still starting.
+      // CDP 尚未就绪。
     }
     await delay(250)
   }
@@ -2098,13 +2096,11 @@ async function getMe(cookie) {
   return parseJson(text, '/v1/me')
 }
 
-// seed 的实体 id 在写库前先登记:d1() 在写库成功之后仍可能抛错(响应 JSON 解析失败 / success 校验),
-// 那一刻 return 值永远拿不到,只有登记表还认得这行数据。org_smoke_password_* 躺在生产库好几天就是这么来的。
+// 写库前登记 id:d1 成功后仍可能抛错,return 值丢失时只有登记表还能认领残留。
 const seededSmokeUserIds = new Set()
 const seededSmokeOrganizationIds = new Set()
 
-// 生产 default org 里有真实用户和真实 instance_manager。按 tenant_id 批量删之前必须先证明目标是
-// smoke org,否则一次传参错误(organizationId 变成 default org)就是删库。
+// 按 tenant_id 批量删前必须证明是 smoke org,否则误传 default org 就是删库。
 function assertSmokeOrganizationId(organizationId) {
   const value = String(organizationId ?? '')
   if (!value.startsWith(SMOKE_ID_PREFIXES.organization) || value === DEFAULT_INSTANCE_ORG_ID) {
@@ -2121,8 +2117,7 @@ function assertSmokeUserId(userId) {
   return value
 }
 
-// smoke 用户有两种来源:自己 seed 的(user_smoke_ 前缀,落在生产 default org),以及 Hosted UI 在
-// smoke org 里现场注册的(随机 id,但 tenant_id 是 org_smoke_)。两者之外的行都是真实数据,不许碰。
+// 可删:user_smoke_ 前缀,或 tenant_id 为 org_smoke_(Hosted UI 现场注册);其余是真实数据。
 function isSmokeOwnedUser(row) {
   const userId = String(row?.user_id ?? '')
   const tenantId = String(row?.tenant_id ?? '')
@@ -2131,9 +2126,7 @@ function isSmokeOwnedUser(row) {
   )
 }
 
-// 删除清单直接取共享扫除表,不在 harness 里手写第二份:两份清单必然漂移,上一次泄漏中
-// metering_outbox / refresh_tokens / trusted_devices / oauth_consents 就是这么漏掉的。
-// 顺序沿用共享清单(权限 -> 令牌凭证 -> 关联 -> 主体),中途失败时残留的是无权限孤儿行。
+// 删除清单复用共享扫除表,避免本地第二份漂移漏表;顺序沿用共享清单。
 function smokeUserDeleteSql(userId) {
   const id = sqlString(userId)
   const statements = []
@@ -2180,9 +2173,7 @@ VALUES
   printResult('PASS', 'production browser smoke grants', `user=${userId}`)
 }
 
-// 权限授予与回收必须一一对应:ensureSmokeManager 一条 SQL 同时给 memberships.owner 与
-// manager_assignments.instance_manager,回收就必须有一步单独、最先执行地把这两行拿掉,
-// 不依赖后面任何一步(email 查 user_id、org 批量删)是否成功。
+// 回收必须独立且最先执行:不依赖后续 email 查 id / org 批量删是否成功。
 async function revokeSmokeGrants(userId) {
   if (!userId) return
   const id = sqlString(assertSmokeUserId(userId))
@@ -2234,11 +2225,11 @@ WHERE email = ${sqlString(targetEmail)};
 `,
     'load production browser smoke user for cleanup',
   )
-  // 原实现带 LIMIT 1:同一邮箱在多个 org 各留一行时每轮只清一个,残留逐轮累积。全取再逐个删。
+  // 全取再逐个删:LIMIT 1 时同一邮箱多 org 残留会逐轮累积。
   const targets = rows.filter((row) => isSmokeOwnedUser(row))
   const skipped = rows.length - targets.length
   if (skipped > 0) {
-    // XID_PRODUCTION_BROWSER_EMAIL 被指到操作者真实账号时,这里必须停手而不是删掉真人。
+    // 邮箱指到操作者真实账号时必须停手,不可删真人。
     printResult('SKIP', 'production browser smoke cleanup', `non_smoke_rows=${skipped}`)
   }
   for (const row of targets) {
@@ -2272,7 +2263,7 @@ async function cleanupSmokeOrganization(organizationId) {
   )
 }
 
-// 兜底:seed 登记过但调用方没拿到 id(d1 写库后抛错)、或中途异常导致没走到定向清理的实体。
+// 兜底清:写库后抛错或中途异常时,仅靠登记表认领的实体。
 async function cleanupRegisteredSmokeOrganizations() {
   for (const organizationId of [...seededSmokeOrganizationIds]) {
     await deleteSmokeOrganization(
@@ -2415,8 +2406,7 @@ async function checkPlatformOrganizationMutation(cookie) {
     await patchPlatformOrganization(cookie, organizationId, 'active')
     printResult('PASS', 'production platform organization mutation', `org=${organizationId}`)
   } finally {
-    // 清理失败不该盖掉 try 里的真实断言错误。org id 已登记,主 finally 的 registered 步骤会重试,
-    // 最后由 assertNoSmokeResidue 兜底判红。
+    // 清理失败不盖掉 try 内断言错误;org 已登记,主 finally 与 assertNoSmokeResidue 兜底。
     await runCleanupSteps([
       {
         name: 'cleanup platform smoke organization',
@@ -2591,10 +2581,7 @@ function formatCleanupFailures(failures) {
   return failures.map((failure) => `${failure.name}: ${failure.message}`).join('; ')
 }
 
-// 每一步独立 try/catch(runCleanupSteps),前一步失败不再连坐后面的步骤 -- 这正是把带
-// instance_manager 的账号留在生产 default org 的那条路径。顺序是权限优先:先摘掉高权限,
-// 再拆实体,最后用共享扫除兜住所有按前缀可识别的残留(含上一轮崩溃留下的孤儿),
-// 再 assertNoSmokeResidue 让清理失败判红,而不是把残留推给下一次。
+// 步骤独立、权限优先,末尾共享扫除 + assertNoSmokeResidue 判红(禁止连坐、禁止静默残留)。
 function smokeCleanupSteps(state) {
   return [
     { name: 'revoke smoke grants', run: () => revokeSmokeGrants(state.smokeUserId) },
@@ -2624,7 +2611,7 @@ export async function runProductionBrowserSmoke() {
     return await runCleanupSteps(smokeCleanupSteps(state))
   }
 
-  // finally 在 Ctrl-C 与 CI runner 杀进程时都不执行,残留因此永久留库。
+  // 信号杀进程时 finally 不跑,需额外注册清理。
   const unregisterSignals = registerCleanupSignalHandlers(async (signal) => {
     process.stderr.write(`production browser smoke interrupted by ${signal}, cleaning up\n`)
     await runSmokeCleanup()
@@ -2691,7 +2678,7 @@ export async function runProductionBrowserSmoke() {
         organizationId,
         passwordResult.userId,
       )
-      // 两次注销互不连坐:passkey 会话注销失败不该让 MFA 会话继续挂着。
+      // 两次注销互不连坐。
       const signOutFailures = await runCleanupSteps([
         { name: 'sign out passkey session', run: () => signOutSmokeUser(passkeyResult.cookie) },
         { name: 'sign out mfa session', run: () => signOutSmokeUser(mfaResult.cookie) },

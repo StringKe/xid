@@ -392,8 +392,7 @@ export async function enqueueStripeMauUsageReports(
   now: Date = new Date(),
 ): Promise<void> {
   const eventName = requireStripeMeteringConfiguration(env)
-  // Metered billing is an independent opt-in. A deployer can use Stripe subscriptions without a
-  // usage meter; only a configured meter name turns this daily provider path on.
+  // 用量计费独立 opt-in:仅配置了 meter 名才走日批上报路径。
   if (!eventName) return
   await env.METERING_QUEUE.send({
     type: 'stripe_mau_dispatch',
@@ -466,8 +465,7 @@ export async function handleStripeMeteringQueueMessage(
   })
 }
 
-// Compatibility entrypoint retained for existing Cron imports. It only enqueues bounded work and
-// never performs provider I/O inside the scheduled invocation.
+// Cron 兼容入口:只入队有界任务,scheduled 内不做 provider I/O。
 export async function reportStripeMauUsage(env: Env, now: Date = new Date()): Promise<void> {
   await enqueueStripeMauUsageReports(env, now)
 }

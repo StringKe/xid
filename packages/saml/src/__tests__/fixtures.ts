@@ -1,6 +1,4 @@
-// SAML 验签测试夹具:用真实 openssl 生成的 RSA 证书 + 私钥(idp.example.com)签 Response/Assertion。
-// 证书 DER(base64)= connection 存的 IdP 证书;私钥 PKCS8(base64)= IdP 签名私钥(测试用)。
-// 真实 IdP round-trip(Okta/Azure/Google)留上线前(04 章 8 step 4)。
+// 用 openssl 生成的 RSA 夹具证书/私钥签 Response/Assertion(真 IdP round-trip 上线前另做)。
 
 import { generateKeyPairSync } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -74,7 +72,6 @@ export function certificateWithValidity(
   return Buffer.from(certificate.toSchema(true).toBER(false)).toString('base64')
 }
 
-// IdP 私钥导入(RSASSA-PKCS1-v1_5 / SHA-256),供测试签名 Response/Assertion。
 export async function importIdpSigningKey(): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     'pkcs8',
@@ -152,14 +149,13 @@ const RESPONSE_DEFAULTS: Required<ResponseParts> = {
 
 function withDefaults(p: ResponseParts): Required<ResponseParts> {
   const merged = { ...RESPONSE_DEFAULTS, ...p }
-  // subjConfirmExpiry 默认跟随 notOnOrAfter(未单独指定时)。
+  // 未单独指定时,subjConfirmExpiry 跟随 notOnOrAfter。
   if (p.subjConfirmExpiry === undefined && p.notOnOrAfter !== undefined) {
     merged.subjConfirmExpiry = p.notOnOrAfter
   }
   return merged
 }
 
-// 构造未签名 Response XML(含一个登录 Assertion + AuthnStatement + attributes)。
 export function buildResponseXml(parts: ResponseParts = {}): string {
   const p = withDefaults(parts)
   return [
@@ -172,8 +168,7 @@ export function buildResponseXml(parts: ResponseParts = {}): string {
   ].join('')
 }
 
-// enveloped + exclusive-c14n 签某 ID 的元素。SAML schema 要求 Signature
-// 紧跟 Issuer,测试夹具必须生成与生产接收 allowlist 相同的固定顺序。
+// Signature 须紧跟 Issuer,与生产接收 allowlist 顺序一致。
 async function signElement(doc: Document, target: Element, key: CryptoKey): Promise<void> {
   const id = target.getAttribute('ID') ?? ''
   const signedXml = new SignedXml(doc)
@@ -195,7 +190,7 @@ function firstChildByLocalName(parent: Element, localName: string): Element | nu
   return null
 }
 
-// 签 Response 与/或 Assertion(Assertion 先签,Response 后签,保证 enveloped 嵌套正确)。
+// Assertion 先签、Response 后签,保证 enveloped 嵌套正确。
 export async function signResponse(
   xml: string,
   key: CryptoKey,

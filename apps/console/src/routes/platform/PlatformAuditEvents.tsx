@@ -1,7 +1,3 @@
-// platform console 全局事件流页:汇聚所有 organization 审计事件 + cursor 分页。
-// 调 GET /v1/platform/audit-events?cursor=&limit=30(TanStack Query + DataTable);
-// audit chain 验证调 GET /v1/platform/audit/verify,结果结构化呈现(chain_valid / broken_at_seq / record_count)。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + split 验证节 + hairline 分节。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -58,8 +54,7 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     fontVariantNumeric: 'tabular-nums',
   },
-  // 事件类型 chip:用 span 而非 code ---- 全局 :not(pre) > code 在 <=48rem 降级 white-space:normal
-  // 会把 token 从词中断开;表格自带横向滚动,不需要 prose 式断行。
+  // 用 span 不用 code:全局 :not(pre)>code 在窄屏会 white-space:normal 拆断 token。
   codeTag: {
     fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.8125rem',
@@ -76,7 +71,7 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     color: tokens['--xid-muted-foreground'],
   },
-  // actor/target 的裸 ID 列宽有限:单行截断 + title 留全文,不折成多行 UUID。
+  // 裸 ID 单行截断 + title 全文,避免多行 UUID。
   actorId: {
     display: 'block',
     maxWidth: '100%',

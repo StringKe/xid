@@ -1,5 +1,3 @@
-// org SSO 连接管理页:SAML/OIDC 连接列表、创建、编辑和删除。
-// 版式走 ConsolePage 骨架(web-ui):display 页头 + hairline 分节;创建/编辑表单 5/7 双列(SplitSection)。
 
 import { msg } from '@lingui/core/macro'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -65,7 +63,7 @@ const INBOUND_PRESETS = [
   { key: 'keycloak', label: 'Keycloak' },
 ] as const
 
-// legacy 协议是描述性文案(非产品名),走 lingui 描述符翻译。
+// legacy 协议是描述文案非产品名,需 lingui。
 const LEGACY_PRESETS = [
   { key: 'ldap', label: msg`LDAP direct bind` },
   { key: 'wsfed', label: msg`WS-Federation` },
@@ -98,7 +96,6 @@ const EMPTY_FORM: ConnectionForm = {
 }
 
 const styles = stylex.create({
-  // 协议列代码标签(SAML/OIDC),tabular-nums 对齐
   protocolCode: {
     fontVariantNumeric: 'tabular-nums',
     fontSize: '0.8125rem',

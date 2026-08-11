@@ -1,8 +1,4 @@
-// RequirePlatformAdmin:platform console 模块守卫。
-// 平台管理权限来自 ManagerAssignment(instance_manager / scope=instance),不进入业务 token。
-// 此组件检查 /v1/me 的 user.instanceManager 字段;worker 侧与平台 API 守卫共用同一语义。
-// 未通过:重定向回 /console(与 RequireAuth 叠用:外层 RequireAuth 保证已登录),
-// 不让用户停留在整组 nav 都指向同一拒绝页的 URL 上。
+// 权限来自 ManagerAssignment(instance_manager),不进业务 token;未通过回 /console,避免停在全拒 URL。
 
 import type { ReactNode } from 'react'
 import { Navigate } from '@xid-kit/web-ui/tanstack-router'

@@ -1,7 +1,4 @@
-// account portal 数据层(TanStack Query):/v1/me/* 系列读写。
-// 替代 ./hooks 的手写 RemoteData/loading 三态;读用 useApiQuery,写用 useApiMutation(成功 invalidate)。
-// 实体类型沿用 ./hooks 导出契约;错误为 XidError(页面用 code 走 lingui)。
-// 设计真相源:docs/design/05-users-sessions.md
+// account portal /v1/me/* 数据层;实体类型契约仍从 ./hooks 导出。
 
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 import type { XidError } from '@xid-kit/types'
@@ -206,12 +203,12 @@ export function useChangePassword(): UseMutationResult<
   )
 }
 
-// passwordless 用户(guest / social / OTP 建号)设密:服务端向已验证 primary email 发 reset token 链接。
+// passwordless 设密:向已验证 primary email 发 reset token 链接。
 export function useSendPasswordSetupLink(): UseMutationResult<unknown, XidError, void> {
   return useApiMutation<unknown, void>((api) => api.post<unknown>('/v1/me/password/setup-link'))
 }
 
-// 未验证邮箱先走验证仪式;验证成功后回到 /account/security 发设密链接。
+// 未验证邮箱先走验证;验证后回 /account/security 再发设密链接。
 export function useResendVerificationEmail(): UseMutationResult<unknown, XidError, void> {
   return useApiMutation<unknown, void>((api) => api.post<unknown>('/auth/resend-verification'), {
     invalidate: [queryKeys.me],

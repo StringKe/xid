@@ -50,9 +50,7 @@ async function probeConsoleWildcard(fetchImpl, origin) {
     let current = url
     let res
     let hops = 0
-    // The assets binding canonicalizes /console to /console/ with a redirect,
-    // so follow redirects manually and fail closed if any hop leaves the
-    // Console Worker.
+    // assets binding 会把 /console 重定向到 /console/;手动跟随且任一步离开 Console Worker 即 fail-closed。
     for (;;) {
       res = await fetchImpl(current, {
         redirect: 'manual',

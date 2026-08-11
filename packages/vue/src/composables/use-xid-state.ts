@@ -1,6 +1,4 @@
-// useXidState:从 XidClient 订阅状态并包装为 Vue 响应式 Ref。
-// 由具体 composable(useAuth/useUser/useOrganization/useSession)复用。
-// onScopeDispose 在组件 onUnmounted 与 effectScope.stop() 两个路径都有效。
+// 订阅 XidClient 并包成 Vue Ref；onScopeDispose 同时覆盖 onUnmounted 与 effectScope.stop()。
 
 import { onScopeDispose, readonly, ref, type DeepReadonly, type Ref } from 'vue'
 
@@ -16,9 +14,8 @@ export function useXidState(): DeepReadonly<Ref<XidState>> {
     state.value = nextState
   })
 
-  // onScopeDispose 在组件卸载与 effectScope.stop() 时都会触发清理。
   onScopeDispose(unsubscribe)
 
-  // DeepReadonly 防止 composable 消费者意外直接修改状态。
+  // DeepReadonly：防止消费者直接改状态。
   return readonly(state) as DeepReadonly<Ref<XidState>>
 }

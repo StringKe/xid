@@ -16,7 +16,7 @@ export const PUBLIC_DOCS_TOTAL = 352
 
 function registrySizeOk() {
   return (
-    // Each locale publishes the product homepage, docs hub, registry documents, and status.
+    // +3: 首页、docs 枢纽、status;与 registry 文档合计为每 locale 固定条数。
     PUBLIC_DOC_SLUGS.length + 3 === PUBLIC_DOCS_PER_SECTION &&
     PUBLIC_DOC_SECTIONS.length * PUBLIC_DOCS_PER_SECTION === PUBLIC_DOCS_TOTAL
   )

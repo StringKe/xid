@@ -1,5 +1,3 @@
-// SignUp:Hosted Auth 注册重定向卡片(对标 Clerk <SignUp>)。
-
 import type { ReactNode, CSSProperties } from 'react'
 
 import { useLingui } from '@lingui/react'

@@ -1,8 +1,5 @@
-// 第 2 组契约:统一错误模型 + Result 判别联合 + 全量错误码。
-// 对照 docs/design/03-oidc-oauth.md 9.7 OAuth error 表、api-sdk-conventions rule(XidAPIError)。
-// 契约冻结:错误码 union 为全局约束,后续不得单边改字段。
+// 统一错误模型与全量错误码；错误码 union 冻结后不得单边改字段。
 
-// OAuth/OIDC 标准错误码(RFC6749 5.2 + RFC8628/RFC8693/RFC9449 扩展,见 03 章 9.7)
 export const OAUTH_ERROR_CODES = [
   'invalid_request',
   'invalid_client',
@@ -18,7 +15,6 @@ export const OAUTH_ERROR_CODES = [
   'slow_down',
   'expired_token',
   'access_denied',
-  // /authorize 重定向错误(OIDC Core 3.1.2.6,见 03 章 10.7)
   'unsupported_response_type',
   'login_required',
   'consent_required',
@@ -27,7 +23,6 @@ export const OAUTH_ERROR_CODES = [
   'temporarily_unavailable',
 ] as const
 
-// 认证(密码/MFA/passwordless/WebAuthn,见 01 章、password-auth/webauthn/anti-abuse rule)
 export const AUTH_ERROR_CODES = [
   'invalid_credentials',
   'account_locked',
@@ -45,27 +40,23 @@ export const AUTH_ERROR_CODES = [
   'otp_expired',
   'magic_link_invalid',
   'magic_link_expired',
-  // 密码重置 / 邮箱验证一次性 token(15min,只存哈希,见 password-auth rule)
   'token_invalid',
   'token_expired',
   'rate_limited',
   'captcha_required',
   'captcha_failed',
-  // WebAuthn 四验证(见 webauthn rule;无跳过路径)
   'challenge_invalid',
   'origin_mismatch',
   'rpid_mismatch',
   'signature_invalid',
   'user_verification_required',
   'credential_cloned',
-  // 组织邀请(见 02 章 2、05 章 2)
   'invitation_invalid',
   'invitation_expired',
   'invitation_email_mismatch',
   'invitation_already_accepted',
 ] as const
 
-// 多租户 RBAC / 隔离(见 02 章、tenant-isolation/tenant-context rule)
 export const TENANCY_ERROR_CODES = [
   'tenant_not_found',
   'tenant_suspended',
@@ -78,14 +69,12 @@ export const TENANCY_ERROR_CODES = [
   'cross_tenant_access_denied',
   'seat_limit_exceeded',
   'resource_quota_exceeded',
-  // Project 访问申请 / 审批(见 design-access-request 3.1/3.2)
   'project_not_found',
   'grant_already_exists',
   'request_already_decided',
   'no_available_approver',
 ] as const
 
-// 企业 SSO(SAML/SCIM,见 04 章 8.8 错误分支)
 export const SSO_ERROR_CODES = [
   'malformed_request',
   'malformed_xml',
@@ -104,7 +93,6 @@ export const SSO_ERROR_CODES = [
   'scim_token_invalid',
 ] as const
 
-// 会话(见 05 章 8)
 export const SESSION_ERROR_CODES = [
   'session_not_found',
   'session_revoked',
@@ -113,7 +101,6 @@ export const SESSION_ERROR_CODES = [
   'refresh_token_reused',
 ] as const
 
-// 管理 API(见 06 章、api-sdk-conventions rule)
 export const ADMIN_ERROR_CODES = [
   'not_found',
   'already_exists',
@@ -142,12 +129,11 @@ export type XidErrorCode =
   | SessionErrorCode
   | AdminErrorCode
 
-// 结构化错误(对照 api-sdk-conventions rule:code / message / longMessage / meta.paramName)。
-// message 由 lingui i18n._() 渲染后填入(见 i18n-lingui rule),契约只持渲染后的字符串。
 export type XidErrorMeta = {
   paramName?: string
 }
 
+// message 由请求侧 lingui 渲染后填入，契约只持渲染后的字符串
 export type XidError = {
   code: XidErrorCode
   message: string
@@ -156,5 +142,5 @@ export type XidError = {
   meta?: XidErrorMeta
 }
 
-// 可预期失败用 Result 判别联合(见全局错误处理铁律);意外/不可恢复仍走 throw typed AppError。
+// 可预期失败用 Result；意外/不可恢复仍 throw typed AppError
 export type Result<T, E = XidError> = { ok: true; value: T } | { ok: false; error: E }

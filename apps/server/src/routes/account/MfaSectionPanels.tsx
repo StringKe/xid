@@ -1,5 +1,3 @@
-// MFA 区内的临时展示面板:TOTP 设置表单 + backup codes 展示网格。
-// 均为纯展示/交互组件,状态由 MfaSection 持有并经 props 传入。
 
 import { Trans } from '@lingui/react/macro'
 import type { FormEvent, ReactNode } from 'react'
@@ -13,7 +11,6 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
-    // hairline 邻接 >= 1.25rem:panel 文本与底线 >= 1.25rem
     paddingBlock: '1.25rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',

@@ -1,5 +1,4 @@
-// RedirectToSignIn:未登录时重定向到登录页(对标 Clerk <RedirectToSignIn>)。
-// 在 useEffect 中执行重定向,避免 SSR hydration 问题。
+// 在 useEffect 中跳转,避免 SSR hydration 期间改 location。
 
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
@@ -8,9 +7,7 @@ import { useXidContext } from '../../context/xid-context'
 import { runAuthorizationRedirect } from './authorization-redirect'
 
 export type RedirectToSignInProps = {
-  // 登录页路径,默认 /sign-in
   signInUrl?: string
-  // 登录后返回的应用内 URL。
   redirectUrl?: string
   onError?: (error: unknown) => void
 }

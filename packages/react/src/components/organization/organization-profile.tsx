@@ -1,5 +1,3 @@
-// OrganizationProfile:当前活跃 org 资料面板(对标 Clerk <OrganizationProfile>)。
-
 import type { ReactNode, CSSProperties } from 'react'
 
 import { useLingui } from '@lingui/react'
@@ -10,7 +8,6 @@ import { useXidStore } from '../../hooks/use-xid-store'
 import { Rt, rt, sdkMessages } from '../../i18n-runtime'
 
 export type OrganizationProfileProps = {
-  // org 管理页 URL(Hosted UI)
   organizationProfileUrl?: string
   appearance?: Appearance
   className?: string

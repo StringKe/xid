@@ -1,21 +1,13 @@
-// @xid-kit/tauri: XID identity SDK for Tauri v2 desktop apps.
-// Provides the JS bridge (WebView side) and OS keychain adapter for sign-in,
-// authorization-code token exchange and session storage.
-// Rust side: see templates/xid-keychain-plugin.rs for the plugin reference.
-//
-// Public API follows the "Shared native contract" from docs/sdks/platform-matrix.md:
-//   signIn / handleRedirect / getSession / getAccessToken / signOut / setTokenStorage
+// Tauri v2 WebView 桥 + OS keychain；与 platform-matrix Shared native contract 对齐。
+// Rust 插件参考 templates/xid-keychain-plugin.rs；并 re-export @xid-kit/core 以便单入口导入。
 
 export const PACKAGE = '@xid-kit/tauri'
 
-// Primary client factory
 export { createXidTauriClient } from './client'
 
-// Keychain adapters
 export { createMemoryKeychainAdapter, createTauriKeychainAdapter } from './keychain'
 export type { XidKeychainAdapter, TauriInvokeFn, TauriKeychainAdapterOptions } from './keychain'
 
-// Public types
 export type {
   XidTauriClientOptions,
   SignInOptions,
@@ -24,14 +16,11 @@ export type {
   XidTauriClient,
 } from './types'
 
-// PKCE utilities (advanced use: host app may need to call deriveS256Challenge independently)
 export { generatePkce, deriveS256Challenge, generateBase64UrlRandom } from './pkce'
 export type { PkceChallenge } from './pkce'
 
-// Error type
 export { TauriTokenError } from './token-exchange'
 
-// Re-export full @xid-kit/core public API so callers need only one import.
 export {
   XidClient,
   XidStore,

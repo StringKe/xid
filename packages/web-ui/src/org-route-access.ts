@@ -1,10 +1,8 @@
 import type { AuthOrg } from './session/contracts'
 import type { OrganizationMembershipRole } from '@xid-kit/types'
 
-// 与 worker requireOrgManager 的放行语义镜像(worker/v1/shared.ts):
-// 只有 org owner/admin 能进 org 管理 console;member 落 /account 自助门户。
-// /v1/me 已把 org_manager 行映射为 admin role(worker/me/me.ts),此处无需再认 manager 角色。
-// instance_manager 不在此放行:平台跨 org 视图走 /console/platform 独立守卫。
+// 镜像 worker requireOrgManager:仅 owner/admin 进 org console;/v1/me 已把 org_manager 映射为 admin,
+// 此处不再认 manager;instance_manager 走 /console/platform 独立守卫。
 export function isOrgManagerRole(role: OrganizationMembershipRole): boolean {
   return role === 'owner' || role === 'admin'
 }

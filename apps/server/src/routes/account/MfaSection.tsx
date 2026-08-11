@@ -1,5 +1,3 @@
-// MFA 因子管理区:TOTP 添加流程 + backup codes 生成 + 因子列表删除。
-// TotpSetupPanel / BackupCodesPanel 的样式在 MfaSectionPanels.tsx 中持有。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -25,7 +23,6 @@ const styles = stylex.create({
     gap: '0.5rem',
     flexWrap: 'wrap',
     alignItems: 'center',
-    // hairline 邻接 >= 1.25rem:按钮文本到底线 1.25rem(内联副本需同步 PasskeySection 口径)
     paddingBlockStart: '0.875rem',
     paddingBlockEnd: '1.25rem',
     borderBottomWidth: '1px',

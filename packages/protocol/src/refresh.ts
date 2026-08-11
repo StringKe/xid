@@ -1,6 +1,4 @@
-// Refresh token 轮换 + family 重放检测纯算法(03 章 9.3、11.1-11.4)。
-// protocol 只给纯判定与材料组装;DO 的 CAS、D1 持久化、撤销传播由 endpoint 层注入,本层不碰 I/O。
-// token 明文用 crypto.getRandomValues 生成,token_hash = SHA256(明文) 入库,明文不入库。
+// Refresh 轮换与 family 重放检测:纯判定与材料组装,不碰 I/O;明文只出一次,入库仅 token_hash。
 
 import type { AmrValue, AuthorizationDetails, XidError, Result } from '@xid-kit/types'
 import { base64UrlEncode } from '@xid-kit/crypto'
@@ -11,7 +9,6 @@ const REFRESH_RANDOM_BYTES = 32 // 256 bit
 const DEFAULT_IDLE_TTL_SEC = 30 * 24 * 60 * 60 // 30d
 const DEFAULT_ABSOLUTE_TTL_SEC = 7 * 24 * 60 * 60 // 7d
 
-// D1 RefreshToken 记录(11.1)。protocol 接收已查出的记录做判定,不发查询。
 export type RefreshTokenRecord = {
   id: string
   tenantId: string
@@ -19,7 +16,6 @@ export type RefreshTokenRecord = {
   familyId: string
   parentTokenId: string | null
   userId: string
-  // 关联的 hosted session(id token sid 来源);无 session 链路为 null。
   sessionId: string | null
   clientId: string
   scope: string
@@ -37,20 +33,18 @@ export type RefreshTokenRecord = {
   createdAt: number
 }
 
-// 新签发的 token 明文 + 落库材料。明文只返回一次,供响应体,绝不持久化。
+// 明文只返回一次供响应体,绝不持久化。
 export type IssuedRefreshToken = {
   token: string
   tokenHash: string
   record: RefreshTokenRecord
 }
 
-// 生成 refresh token 明文(rt_ 前缀 + 256bit base64url)。
 export function generateRefreshToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(REFRESH_RANDOM_BYTES))
   return `${REFRESH_TOKEN_PREFIX}${base64UrlEncode(bytes)}`
 }
 
-// token_hash = base64url(SHA256(明文 ASCII))(11.1)。
 export async function hashRefreshToken(token: string): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(token)))
   return base64UrlEncode(digest)
@@ -64,7 +58,7 @@ function invalidScope(message: string): Result<never, XidError> {
   return { ok: false, error: { code: 'invalid_scope', message, httpStatus: 400 } }
 }
 
-// 重放/判定结果。replay 命中时携带 revokeFamily 指令(endpoint 层据此撤销整个 family)。
+// replay 命中时携带 revokeFamily 指令,endpoint 层据此撤销整个 family。
 export type RefreshDecision =
   | { kind: 'replay'; familyId: string; tenantId: string }
   | { kind: 'expired'; tokenId: string }
@@ -72,8 +66,7 @@ export type RefreshDecision =
   | { kind: 'dpop_mismatch' }
   | { kind: 'ok'; record: RefreshTokenRecord }
 
-// 纯判定(11.2 consumeRefreshToken 的 judge 部分):给定已查出的记录,判断下一步。
-// 已被轮换(revokedAt != null)二次出现 = 重放 -> 指示撤销 family。
+// 已轮换(revokedAt != null)再次出现 = 重放,须撤销 family。
 export function detectReplay(input: {
   record: RefreshTokenRecord
   clientId: string
@@ -90,14 +83,13 @@ export function detectReplay(input: {
   if (rec.clientId !== input.clientId) {
     return { kind: 'client_mismatch' }
   }
-  // DPoP sender-constrained:原 token 绑定 jkt 时,本次 proof jkt 必须相等(9.3 第 5 步)。
+  // DPoP sender-constrained:原 token 已绑 jkt 时,本次 proof jkt 必须相等。
   if (rec.jkt !== null && rec.jkt !== input.presentedJkt) {
     return { kind: 'dpop_mismatch' }
   }
   return { kind: 'ok', record: rec }
 }
 
-// 把 RefreshDecision 映射为 OAuth Result(endpoint 层据 kind 决定是否撤销 family)。
 export function decisionToResult(decision: RefreshDecision): Result<RefreshTokenRecord, XidError> {
   switch (decision.kind) {
     case 'ok':
@@ -113,7 +105,7 @@ export function decisionToResult(decision: RefreshDecision): Result<RefreshToken
   }
 }
 
-// scope 收敛:请求 scope 必须 ⊆ 原 token scope(RFC6749 6 只能缩小)(9.3 第 6 步)。
+// 请求 scope 必须 ⊆ 原 token scope,只能缩小不能扩大(RFC6749 6)。
 export function narrowScope(
   originalScope: string,
   requestedScope: string | null,
@@ -129,7 +121,6 @@ export function narrowScope(
   return { ok: true, value: requested.join(' ') }
 }
 
-// 首次签发 refresh token(9.1 第 8 步:新建 family)。生成明文 + 记录,absolute 上限创建时定。
 export async function issueRefreshFamily(input: {
   tenantId: string
   userId: string
@@ -180,8 +171,7 @@ export async function issueRefreshFamily(input: {
   return { token, tokenHash, record }
 }
 
-// 轮换签发(9.3 第 7-8 步):旧记录标 revoked,新记录同 family,parent=旧 id;
-// idle 刷新,absolute 继承不顺延。返回新 token 材料 + 旧记录的 revokedAt 更新值。
+// 轮换:idle 刷新,absoluteExpiresAt 继承不顺延。
 export async function rotateRefresh(input: {
   old: RefreshTokenRecord
   scope: string
@@ -212,7 +202,7 @@ export async function rotateRefresh(input: {
     amr: input.old.amr,
     revokedAt: null,
     expiresAt: input.now + idleTtl,
-    absoluteExpiresAt: input.old.absoluteExpiresAt, // 继承,不顺延(11.4)
+    absoluteExpiresAt: input.old.absoluteExpiresAt, // 继承,不顺延
     createdAt: input.now,
   }
   const revokedOld: RefreshTokenRecord = { ...input.old, revokedAt: input.now }

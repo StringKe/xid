@@ -1,6 +1,4 @@
-// OAuth JAR(RFC9101) request object validation.
-// Supports signed by-value `request` objects with registered client JWKS. JWE and remote request_uri
-// fetch are intentionally not implemented.
+// RFC9101 JAR:仅支持 client JWKS 签名的 by-value request;JWE 与远程 request_uri 未实现。
 
 import { importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
 import type { VerifyKeySet } from '@xid-kit/crypto'

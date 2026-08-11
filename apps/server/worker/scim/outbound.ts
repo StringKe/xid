@@ -657,8 +657,7 @@ async function deprovisionStaleMappings({
             Operations: [{ op: 'replace', path: 'active', value: false }],
           }),
         },
-        // A stale mapping may point at a resource already removed by a SaaS admin. That is the
-        // desired deprovisioned state, so persist it locally instead of poisoning every retry.
+        // 远端已删是期望的解配状态,本地持久化 404,避免重试毒化。
         acceptedStatuses: [404],
       })
       deactivations += 1
@@ -671,7 +670,7 @@ async function deprovisionStaleMappings({
         path: `/Groups/${encodeURIComponent(mapping.downstreamId)}`,
         init: {
           method: 'PUT',
-          // Cleanup also handles legacy mappings whose display name predates the fixed role enum.
+          // 顺带纠正 display name 早于固定 role 枚举的旧映射。
           body: JSON.stringify(emptyScimGroupForResource(mapping.localResourceId)),
         },
         acceptedStatuses: [404],

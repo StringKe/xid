@@ -18,7 +18,6 @@ const authState = vi.hoisted(() => ({
     ok: false,
     error: { code: 'unauthorized', message: '', httpStatus: 401 },
   })) as () => Result<unknown>,
-  // 可变的 post 实现:各用例注入成功 / 失败结果。
   postImpl: ((_path: string, _body?: unknown) => ({
     ok: false,
     error: { code: 'rate_limited', message: '', httpStatus: 429 },

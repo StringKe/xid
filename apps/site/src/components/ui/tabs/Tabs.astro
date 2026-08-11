@@ -1,18 +1,10 @@
 ---
-/**
- *   <Tabs syncKey="pkg">
- *     <TabItem label="npm">npm install</TabItem>
- *     <TabItem label="pnpm">pnpm install</TabItem>
- *   </Tabs>
- *
- * For manual control: TabsList, TabsTrigger, TabsContent.
- */
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";
 import TabsList from "./TabsList.astro";
 
 interface Props extends HTMLAttributes<"div"> {
-  /** Sync tab selection across instances with the same key via localStorage */
+  /** 同 key 多实例经 localStorage 同步选中 tab。 */
   syncKey?: string;
 }
 

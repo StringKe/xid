@@ -1,7 +1,4 @@
-// tenant 中间件:从 Host 头解析 TenantContext 注入 c.set('tenant')。
-// 解析走 @xid-kit/db resolveTenantContext(单租户=配置单例,多租户=按 Host 查 D1,见 tenant-context rule)。
-// 铁律:issuer/签名密钥/rpId/策略唯一来源是 TenantContext,后续路由一律 c.get('tenant')。
-// 解析失败返回 404 模糊响应(枚举防护:不泄露租户是否存在,见 anti-abuse rule)。
+// Host -> TenantContext 注入;issuer/密钥/rpId/策略唯一来源。失败统一 404,不泄露租户是否存在。
 
 import { sha256Hex } from '@xid-kit/crypto'
 import {
@@ -111,9 +108,7 @@ export const tenantMiddleware: MiddlewareHandler<XidHonoEnv> = async (c, next) =
       await next()
       return
     }
-    // A supplied client_id must never fall through to an unrelated browser cookie. Unknown or
-    // inactive clients still reach the protocol handler in the Host-resolved instance context so
-    // it can emit the endpoint-specific invalid_client/invalid_request response.
+    // 有 client_id 时不可回落到无关浏览器 cookie;未知/停用 client 仍进 Host 解析上下文以返回协议错误。
     const hostTenant = await resolveTenantContext(c.req.raw, c.env)
     if (!hostTenant.ok) return notFound()
     c.set('tenant', hostTenant.value)

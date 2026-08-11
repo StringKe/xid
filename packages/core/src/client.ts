@@ -1,7 +1,4 @@
-// XidClient:浏览器登录态核心(对标 @clerk/clerk-js Clerk 类)。
-// 职责:load/cache 登录态、multi-session 切换、active org 切换、getToken(short-lived JWT)、sign-out。
-// opaque refresh credential 存 HttpOnly cookie(worker 设),SDK 只读状态并按需换取 JWT;
-// 不读取 refresh credential,也不持任何密钥。
+// 浏览器登录态:只读状态与 getToken;refresh 在 HttpOnly cookie,不持密钥。
 
 import type { Result, XidError } from '@xid-kit/types'
 
@@ -46,7 +43,6 @@ export class XidClient {
   readonly #tokens: TokenManager
   readonly #now: () => number
   readonly #oidc: BrowserOidcSession | null
-  // active org 解析缓存:org id -> Organization(避免每次重拉)。
   readonly #orgCache = new Map<string, XidOrganization>()
 
   constructor(options: XidClientOptions = {}) {
@@ -65,14 +61,12 @@ export class XidClient {
     this.#tokens = new TokenManager({ api: this.#api, now: this.#now })
   }
 
-  // 订阅状态变更(框架层 useSyncExternalStore 用)。
   subscribe(listener: XidStateListener): Unsubscribe {
     return this.#store.subscribe(listener)
   }
 
   getSnapshot = (): XidState => this.#store.getSnapshot()
 
-  // 资源访问器(对照 06 章资源访问器:user/organization/session 状态)。
   get user(): XidUser | null {
     return this.#store.getSnapshot().user
   }
@@ -93,12 +87,10 @@ export class XidClient {
     return this.#store.getSnapshot().isSignedIn
   }
 
-  // guest 判定:当前用户由匿名开通(provisionedBy === 'anonymous')。
   get isAnonymous(): boolean {
     return isGuestUser(this.#store.getSnapshot().user)
   }
 
-  // 初始化:拉取登录态快照(/v1/me)。SDK 启动时调用一次,失败置 error/degraded 状态。
   async load(input: { signal?: AbortSignal } = {}): Promise<void> {
     if (this.#oidc) {
       try {
@@ -130,7 +122,6 @@ export class XidClient {
     await this.#applyState(result.value)
   }
 
-  // getToken:到期前刷新的 short-lived JWT(对照 06 章 networkless 验证前置)。
   async getToken(options: GetTokenOptions = {}): Promise<Result<string, XidError>> {
     if (this.#oidc) {
       const token = await this.#oidc.getAccessToken()
@@ -155,8 +146,7 @@ export class XidClient {
     return result
   }
 
-  // guest 开通(Firebase signInAnonymously 惰性语义):本地已有有效 session 直接返回,
-  // 不发请求;否则 POST /auth/guest 建立 cookie session 并重拉状态。
+  // 本地已有有效 session 则不请求(惰性);否则 POST /auth/guest 后重拉状态。
   async signInAnonymously(
     input: SignInAnonymouslyInput = {},
   ): Promise<Result<SignInAnonymouslyResult, XidError>> {
@@ -180,7 +170,7 @@ export class XidClient {
       ...(input.signal ? { signal: input.signal } : {}),
     })
     if (!result.ok) return result
-    // 新 session 的 cookie 已换人,缓存的 token 属于旧会话,必须清掉。
+    // cookie 已换会话,旧 token 不得继续用。
     this.#tokens.clear()
     await this.load(input.signal ? { signal: input.signal } : {})
     const state = this.#store.getSnapshot()
@@ -196,14 +186,11 @@ export class XidClient {
     }
   }
 
-  // guest 一键转正 passkey(01 章 §8):客户端组合 register options -> ceremony -> verify,
-  // 不新增服务端能力。worker 在 verify 成功后原地转正并轮换 session(新 cookie),
-  // 所以收尾与 signInAnonymously 同口径:清 token 缓存并重拉 /v1/me。
+  // worker verify 后原地转正并轮换 session cookie,收尾须清 token 并重拉 /v1/me。
   async upgradeGuestWithPasskey(
     input: UpgradeGuestWithPasskeyInput = {},
   ): Promise<Result<XidState, XidError>> {
     if (this.#oidc) return unsupportedInOidcMode()
-    // 非 guest 调用是业务规则拒绝,属预期失败而非异常。
     if (!isGuestUser(this.#store.getSnapshot().user)) {
       return {
         ok: false,
@@ -216,7 +203,6 @@ export class XidClient {
 
     const optionsResult = await this.#api.passkeyRegisterOptions({ signal: input.signal })
     if (!optionsResult.ok) return optionsResult
-    // 用户取消认证器提示时 ceremony 返回预期失败 Result,直接透传。
     const ceremonyResult = await createPasskeyCredential(optionsResult.value, {
       ...(input.deviceName ? { deviceName: input.deviceName } : {}),
     })
@@ -231,7 +217,6 @@ export class XidClient {
     return { ok: true, value: this.#store.getSnapshot() }
   }
 
-  // multi-session 切换:把目标 session 设为活跃,刷新派生态并清 token 缓存。
   async setActiveSession(input: {
     sessionId: string
     signal?: AbortSignal
@@ -249,7 +234,6 @@ export class XidClient {
     return { ok: true, value: this.#store.getSnapshot() }
   }
 
-  // 切换当前 session 的 active org;null = 退回个人上下文。
   async setActiveOrganization(input: {
     organizationId: string | null
     signal?: AbortSignal
@@ -260,14 +244,13 @@ export class XidClient {
       ...(input.signal ? { signal: input.signal } : {}),
     })
     if (!result.ok) return result
-    // org 切换改变 token claims(org_id/org_role/permissions),必须清缓存强制下次重取。
+    // org claims 已变,须清缓存强制重取 token。
     this.#tokens.clear()
     await this.load(input.signal ? { signal: input.signal } : {})
     return { ok: true, value: this.#store.getSnapshot() }
   }
 
-  // 登出当前 session。若指定另一个 browser-held session,先把它设为 active 再走同一
-  // /auth/sign-out 契约;成功后重拉 /v1/me,以便自动落到剩余 session 或匿名壳。
+  // 指定其他 session 时先切换再 /auth/sign-out;成功后重拉以落到剩余 session 或匿名壳。
   async signOut(
     input: { sessionId?: string; signal?: AbortSignal } = {},
   ): Promise<Result<null, XidError>> {
@@ -367,8 +350,7 @@ export class XidClient {
     if (!this.#oidc) return unsupportedOutsideOidcMode()
     try {
       const value = await this.#oidc.handleRedirectCallback(callbackUrl, input.signal)
-      // silent(prompt=none)回跳被 IdP 拒绝:映射为失败 Result(error.code 即拒绝原因),
-      // 不污染 session 状态,调用方决定继续交互登录或回 returnUrl(03 章 §6)。
+      // silent 回跳被拒 -> 失败 Result,不污染 session。
       if ('silentError' in value) {
         return {
           ok: false,
@@ -387,9 +369,7 @@ export class XidClient {
     }
   }
 
-  // 静默重认证(06 章 signInSilent):先隐藏 iframe prompt=none best-effort。
-  // 失败 Result 的 error.code 为 login_required/consent_required/interaction_required
-  // (IdP 拒绝)或 temporarily_unavailable(iframe 超时)时,降级 signInSilentWithRedirect 兜底。
+  // iframe + prompt=none 的 best-effort;交互类拒绝或超时应再调 signInSilentWithRedirect。
   async signInSilent(
     input: SignInSilentInput = {},
   ): Promise<Result<HandleRedirectCallbackResult, XidError>> {
@@ -405,8 +385,7 @@ export class XidClient {
     }
   }
 
-  // 静默重认证兜底:顶层 redirect + prompt=none,整页跳转不返回;
-  // 回跳后由 handleRedirectCallback 收尾。
+  // 顶层 redirect + prompt=none 兜底;回跳由 handleRedirectCallback 收尾。
   async signInSilentWithRedirect(
     input: { returnUrl?: string; signal?: AbortSignal } = {},
   ): Promise<Result<null, XidError>> {
@@ -428,7 +407,6 @@ export class XidClient {
     }
   }
 
-  // 把后端快照映射为 store 状态:解析活跃 session、active org,组装派生态。
   async #applyState(snapshot: ClientStateResponse): Promise<void> {
     const session = resolveActiveSession(snapshot)
     const isSignedIn = session !== null && session.status === 'active' && snapshot.user !== null
@@ -446,7 +424,6 @@ export class XidClient {
     })
   }
 
-  // 解析 active org:优先从 user 的成员关系命中,未命中再回源 /v1/organizations/{id}。
   async #resolveOrganization(
     session: XidSession,
     user: XidUser | null,
@@ -508,7 +485,6 @@ function toXidError(error: unknown): XidError {
   })
 }
 
-// 选活跃 session:后端指定的 activeSessionId 优先,回退首个 active 状态会话。
 function resolveActiveSession(snapshot: ClientStateResponse): XidSession | null {
   if (snapshot.activeSessionId) {
     const match = snapshot.sessions.find((s) => s.id === snapshot.activeSessionId)

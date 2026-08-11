@@ -1,6 +1,4 @@
-// useTurnstile:显式加载 Turnstile widget,token 就绪时回调注入。
-// widget 使用 interaction-only appearance:正常访客无视觉占位,需要交互时仍保持可访问。
-// site key 缺失时不回退测试 key:禁用以防生产环境跳过人机验证(anti-abuse rule)。
+// interaction-only Turnstile;site key 缺失不回退测试 key(防生产跳过校验)。
 
 import { useEffect, useRef } from 'react'
 import { TURNSTILE_ACTION } from '../../../shared/turnstile'
@@ -38,7 +36,7 @@ export function normalizeTurnstileSiteKey(value: string | null | undefined): str
   return sitekey.length > 0 ? sitekey : null
 }
 
-// token 被调用方清空时 reset widget,保证每次服务端校验都使用全新的单次 token。
+// token 被清空时 reset widget,保证每次校验用新单次 token。
 export function useTurnstile(
   siteKey: string | null | undefined,
   token: string | null,
@@ -48,7 +46,7 @@ export function useTurnstile(
 } {
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetIdRef = useRef<string | null>(null)
-  // 用 ref 持有最新回调,避免把 onToken 进依赖数组导致重复初始化 widget。
+  // ref 持最新回调,避免 onToken 进 deps 重复初始化 widget。
   const onTokenRef = useRef(onToken)
   onTokenRef.current = onToken
 
@@ -79,7 +77,6 @@ export function useTurnstile(
     }
 
     if (!mount()) {
-      // 脚本异步:轮询直到 window.turnstile 就绪。
       timer = setInterval(() => {
         if (mount() && timer) {
           clearInterval(timer)

@@ -1,7 +1,4 @@
-// /auth/config 查询装配:queryKey/queryFn 在 SignInPage 懒 chunk 内外共享。
-// main.tsx 在 chunk 瀑布(locale catalog -> SignInPage 懒 chunk)完成前用同一装配预热,
-// 使配置请求与 JS 下载并行;staleTime 避免预热结果在页面挂载时立即判 stale 而重复请求。
-// config 内含一次性 guest capability,只允许秒级短 stale,不做长缓存。
+// /auth/config 查询装配(主 chunk 预热与页面共享);guest capability 仅秒级 short stale。
 
 import type { QueryClient } from '@tanstack/react-query'
 import { api, type ApiClient } from '../../lib/api'
@@ -64,7 +61,7 @@ export function authConfigQueryOptions(search: AuthConfigSearch, client: ApiClie
   }
 }
 
-// 页面 chunk 外的预热入口(main.tsx)。失败不处理:页面内 query 会以同 key 自行兜底。
+// 主 chunk 预热入口;失败由页面内同 key query 兜底。
 export function prefetchAuthConfig(queryClient: QueryClient, search: AuthConfigSearch): void {
   void queryClient.prefetchQuery(authConfigQueryOptions(search, api))
 }
