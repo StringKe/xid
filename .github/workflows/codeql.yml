@@ -15,10 +15,136 @@ concurrency:
 permissions:
   contents: read
 
+# Language matrix is path-gated on pull_request so a docs/i18n-only change does not spin up
+# macos Swift builds or other native SDK scanners. push to main, weekly schedule, and manual
+# dispatch still analyze every configured language.
+#
+# Important: job-level `if` with `needs` cannot use the `matrix` context. The detect job therefore
+# emits the concrete matrix JSON and analyze consumes it with fromJSON.
 jobs:
+  changes:
+    name: Detect languages
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      has_work: ${{ steps.select.outputs.has_work }}
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Select languages to analyze
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # language|build_mode|runner
+          all_rows=(
+            'actions|none|ubuntu-latest'
+            'javascript-typescript|none|ubuntu-latest'
+            'go|autobuild|ubuntu-latest'
+            'python|none|ubuntu-latest'
+            'ruby|none|ubuntu-latest'
+            'java-kotlin|none|ubuntu-latest'
+            'csharp|none|ubuntu-latest'
+            'swift|manual|macos-latest'
+          )
+
+          selected=()
+
+          append_row() {
+            local row="$1"
+            selected+=("$row")
+          }
+
+          append_all() {
+            local row
+            for row in "${all_rows[@]}"; do
+              append_row "$row"
+            done
+          }
+
+          # Full matrix outside pull requests (main, schedule, workflow_dispatch).
+          if [[ "${{ github.event_name }}" != 'pull_request' ]]; then
+            append_all
+          else
+            # PRs always scan workflow YAML and the TypeScript/JavaScript surface.
+            append_row 'actions|none|ubuntu-latest'
+            append_row 'javascript-typescript|none|ubuntu-latest'
+
+            base='${{ github.event.pull_request.base.sha }}'
+            head='${{ github.event.pull_request.head.sha }}'
+            mapfile -t files < <(git diff --name-only "$base" "$head")
+
+            match() {
+              local re="$1"
+              local f
+              for f in "${files[@]}"; do
+                if [[ "$f" =~ $re ]]; then
+                  return 0
+                fi
+              done
+              return 1
+            }
+
+            if match '^sdk/go/'; then
+              append_row 'go|autobuild|ubuntu-latest'
+            fi
+            if match '^sdk/python/'; then
+              append_row 'python|none|ubuntu-latest'
+            fi
+            if match '^sdk/ruby/'; then
+              append_row 'ruby|none|ubuntu-latest'
+            fi
+            if match '^sdk/(java|android)/'; then
+              append_row 'java-kotlin|none|ubuntu-latest'
+            fi
+            if match '^sdk/(dotnet|windows)/'; then
+              append_row 'csharp|none|ubuntu-latest'
+            fi
+            if match '^sdk/(ios|macos)/'; then
+              append_row 'swift|manual|macos-latest'
+            fi
+          fi
+
+          if [[ ${#selected[@]} -eq 0 ]]; then
+            echo 'has_work=false' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo 'No CodeQL languages selected.'
+            exit 0
+          fi
+
+          include_json='['
+          first=1
+          for row in "${selected[@]}"; do
+            IFS='|' read -r language build_mode runner <<<"$row"
+            if [[ $first -eq 0 ]]; then
+              include_json+=','
+            fi
+            first=0
+            include_json+=$(printf '{"language":"%s","build_mode":"%s","runner":"%s"}' \
+              "$language" "$build_mode" "$runner")
+          done
+          include_json+=']'
+
+          matrix_json=$(printf '{"include":%s}' "$include_json")
+          {
+            echo "has_work=true"
+            echo "matrix=$matrix_json"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Selected CodeQL matrix: $matrix_json"
+
   analyze:
     name: Analyze ${{ matrix.language }}
-    if: github.event.repository.visibility == 'public'
+    needs: changes
+    if: |
+      github.event.repository.visibility == 'public' &&
+      needs.changes.outputs.has_work == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
@@ -27,43 +153,19 @@ jobs:
       security-events: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - language: actions
-            build-mode: none
-            runner: ubuntu-latest
-          - language: javascript-typescript
-            build-mode: none
-            runner: ubuntu-latest
-          - language: go
-            build-mode: autobuild
-            runner: ubuntu-latest
-          - language: python
-            build-mode: none
-            runner: ubuntu-latest
-          - language: ruby
-            build-mode: none
-            runner: ubuntu-latest
-          - language: java-kotlin
-            build-mode: none
-            runner: ubuntu-latest
-          - language: csharp
-            build-mode: none
-            runner: ubuntu-latest
-          - language: swift
-            build-mode: manual
-            runner: macos-latest
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
+      # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          build-mode: ${{ matrix.build_mode }}
 
       - name: Build Swift packages
-        if: matrix.build-mode == 'manual' && matrix.language == 'swift'
+        if: matrix.language == 'swift'
         run: |
           swift build --package-path sdk/ios
           swift build --package-path sdk/macos
