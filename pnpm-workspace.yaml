@@ -25,6 +25,8 @@ catalog:
   '@types/node': ^26.1.2
   '@types/react': ^19.2.18
   '@types/react-dom': ^19.2.4
+  # Native TypeScript 7 compiler (bin: tsc). Pair with catalog:typescript (JS API 6.x).
+  '@typescript/native': npm:typescript@^7.0.2
   '@vitest/coverage-v8': ^4.1.10
   '@xmldom/xmldom': ^0.9.10
   asn1js: 3.0.10
@@ -41,7 +43,10 @@ catalog:
   react-dom: ^19.2.8
   rxjs: ^7.8.1
   solid-js: ^1.9.7
-  typescript: ^6.0.3
+  # TypeScript 7 has no stable JS API yet; keep 6.x under the `typescript` name for
+  # require('typescript') consumers (astro check, i18n AST audit). CLI typecheck uses
+  # @typescript/native (tsc from typescript@7). See TS 7.0 side-by-side guidance.
+  typescript: npm:@typescript/typescript6@^6.0.2
   valibot: ^1.4.2
   vite: ^8.1.5
   vite-plugin-solid: ^2.11.14
@@ -78,7 +83,8 @@ overrides:
   rxjs: ^7.8.1
   solid-js: ^1.9.7
   turbo-stream: ^3.2.0
-  typescript: ^6.0.3
+  # Force tools that peer-depend on `typescript` onto the JS 6.x API package.
+  typescript: npm:@typescript/typescript6@^6.0.2
   undici: ^7.28.0
   vite: 8.2.1
   vue: ^3.5.41
