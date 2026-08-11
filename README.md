@@ -325,11 +325,17 @@ guides exist in English only, because a stale translation of a support matrix is
 
 ## Contributing, security, and license
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request; it covers the toolchain,
-the required gates, and the Developer Certificate of Origin sign-off. Participation is governed by
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), and [`SUPPORT.md`](SUPPORT.md) covers questions that
-are not code changes. Do not open a public issue for a vulnerability -- reporting channels, scope,
-and the disclosure timeline are in [`SECURITY.md`](SECURITY.md).
+| Topic | Where |
+| ----- | ----- |
+| How to contribute (PR flow, DCO, testing policy, coding standards) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Bug reports, feature requests, questions | [`SUPPORT.md`](SUPPORT.md) · [Issues](https://github.com/StringKe/xid/issues) · [Discussions](https://github.com/StringKe/xid/discussions) |
+| Vulnerability reports (private only) | [`SECURITY.md`](SECURITY.md) |
+| Code of conduct | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
+| OpenSSF Best Practices (Passing) checklist and form answers | [`docs/openssf-best-practices.md`](docs/openssf-best-practices.md) |
+| License | [`LICENSE`](LICENSE) (MIT) |
+
+Do not open a public issue for a vulnerability. Reporting channels, scope, fix timelines, and the
+cryptography summary are in [`SECURITY.md`](SECURITY.md).
 
 XID is licensed under the MIT License; see [`LICENSE`](LICENSE). You may use, modify, and
 distribute it, including commercially and in closed-source products, as long as you retain the

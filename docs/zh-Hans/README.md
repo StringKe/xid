@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/README.md source-commit=5d55b0c source-blob=342a76913a2c2cb0068775fe066f2a8422e0e424 -->
+<!-- xid-translation source=docs/README.md source-commit=5d55b0c source-blob=c9d3cbf6aa2902877ab4179ae482c13ee9c70ecb -->
 
 > Translation of `docs/README.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/README.md`](../README.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -83,6 +83,15 @@ XID 是跑在 Cloudflare Workers 上的多租户身份认证平台:OIDC/OAuth2 I
 | 删除接口的真实语义        | [soft-delete.md](./soft-delete.md)                                |
 
 部署前至少读 [deployment.md](./deployment.md) 的 Secrets 一节:`KEK` 和 `PEPPER` 丢失不可恢复。
+
+## 我维护这个开源项目（治理与徽章）
+
+| 目标                                    | 文档                                                      |
+| --------------------------------------- | --------------------------------------------------------- |
+| OpenSSF Best Practices Passing 表单答案 | [openssf-best-practices.md](../openssf-best-practices.md) |
+| 漏洞流程与密码学摘要                    | [SECURITY.md](../../SECURITY.md)                          |
+| 贡献与测试策略                          | [CONTRIBUTING.md](../../CONTRIBUTING.md)                  |
+| 社区支持渠道                            | [SUPPORT.md](../../SUPPORT.md)                            |
 
 ## 我想改 XID 的代码
 

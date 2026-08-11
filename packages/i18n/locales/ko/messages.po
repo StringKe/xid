@@ -2084,6 +2084,10 @@ msgstr "Microsoft로 계속"
 msgid "Continue with SSO"
 msgstr "SSO로 계속"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Contributing"
+msgstr "기여 가이드"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Control components"
 msgstr "제어 컴포넌트"
@@ -4145,6 +4149,7 @@ msgid "Getting started"
 msgstr "시작하기"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "GitHub"
 msgstr "GitHub"
 
@@ -7289,6 +7294,10 @@ msgstr "프로젝트 보조금 관리자"
 msgid "Project identity remains stable while its name and description change."
 msgstr "이름과 설명이 변경되더라도 프로젝트 정체성은 안정적으로 유지됩니다."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Project links"
+msgstr "프로젝트 링크"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project manager"
@@ -8812,6 +8821,7 @@ msgstr "SecureStore 키 네임스페이싱"
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/SecurityPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Security"
 msgstr "보안"
 
@@ -9681,6 +9691,7 @@ msgid "Success"
 msgstr "성공"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "지원"
 

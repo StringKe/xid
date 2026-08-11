@@ -79,6 +79,15 @@ Downstream SaaS (sign in to them with XID):
 | Evidence levels and commands (L0 to L4) | [protocols/conformance-plan.md](./protocols/conformance-plan.md) |
 | What a DELETE endpoint really does      | [soft-delete.md](./soft-delete.md)                               |
 
+## I maintain the open source project (governance and badges)
+
+| Goal                                              | Document                                                     |
+| ------------------------------------------------- | ------------------------------------------------------------ |
+| OpenSSF Best Practices Passing form answers       | [openssf-best-practices.md](./openssf-best-practices.md)     |
+| Vulnerability process and crypto summary          | [SECURITY.md](../SECURITY.md)                                |
+| Contribution and testing policy                   | [CONTRIBUTING.md](../CONTRIBUTING.md)                        |
+| Community support channels                        | [SUPPORT.md](../SUPPORT.md)                                  |
+
 Before deploying, read at least the Secrets section of [deployment.md](./deployment.md): losing `KEK` or `PEPPER` is unrecoverable.
 
 ## I want to change XID's code

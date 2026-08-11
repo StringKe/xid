@@ -238,11 +238,24 @@ Reuse the existing kernel packages instead of reimplementing: `@xid-kit/crypto` 
 hashing, `@xid-kit/protocol` for OIDC/OAuth logic, `@xid-kit/webauthn` for assertion verification,
 `@xid-kit/saml` for SAML.
 
-## Tests
+## Testing policy
 
-Vitest, files named `<name>.test.ts` next to the code under test. Arrange, Act, Assert, separated by
-blank lines. Test names describe the scenario and expectation, for example
-`it('rejects PKCE plain challenge', ...)`.
+When a **major new feature** is added to software this project produces, automated tests for that
+feature **must** be added in the same change set (or an immediately following commit in the same
+pull request). This is a standing project policy, not optional guidance.
+
+Vitest is the FLOSS automated test suite for TypeScript packages and apps. Files are named
+`<name>.test.ts` next to the code under test. Arrange, Act, Assert, separated by blank lines. Test
+names describe the scenario and expectation, for example `it('rejects PKCE plain challenge', ...)`.
+
+Invoke tests the standard way:
+
+```bash
+pnpm test           # turbo run test (Vitest across the workspace)
+pnpm run check      # full gate including coverage and protocol gates
+```
+
+CI runs these on every pull request and on pushes to `main` (see `.github/workflows/ci.yml`).
 
 A pull request **must** include tests when it touches:
 
@@ -261,6 +274,25 @@ A pull request **must** include tests when it touches:
 Prefer boundary and failure paths: empty input, oversized input, expired tokens, clock skew, cloned
 `sign_count`, malformed external IdP responses. Do not write tests for placeholders, pure types, or
 third-party library behavior.
+
+The pull request template repeats this policy under its checklist so reviewers can verify that tests
+were considered. Evidence that the policy is followed appears in co-located `*.test.ts` files and
+repository-level gates under `tests/`.
+
+## Warnings, lint, and static analysis
+
+Quality gates (not optional for merge):
+
+| Tool | Role | How it runs |
+| ---- | ---- | ----------- |
+| Oxlint + Oxfmt | Lint and format (warnings treated as CI failures where configured as errors) | `pnpm run check` / `pnpm run lint` |
+| TypeScript `tsc --noEmit` | Strict typecheck | `pnpm run typecheck` via turbo in `pnpm run check` |
+| CodeQL | Static analysis for common vulnerability classes | `.github/workflows/codeql.yml` on PR, push to `main`, weekly cron |
+| `pnpm audit` | Production dependency advisories | `pnpm run security:dependencies` |
+| Secret scan script | Repo secret leak check | `pnpm run security:secret-scan` |
+
+Do not disable lint or type rules to hide a defect. Fix the root cause or, for a true false positive,
+narrow the exception with a documented reason next to the config change.
 
 ## Commits and pull requests
 

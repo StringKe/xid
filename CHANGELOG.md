@@ -5,10 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-The repository has no release tags yet. The root `package.json` version is `0.0.0`. Until a `0.x`
-tag is published, `main` is the only reference point and the public API is unstable.
+## Versioning
+
+| Situation | Identifier |
+| --------- | ---------- |
+| Pre-release development on `main` | Git **commit SHA** (unique per revision). Root `package.json` remains `0.0.0` until the first tagged release. |
+| Published release | Annotated git tag `vMAJOR.MINOR.PATCH` (SemVer), matching a GitHub Release and a CHANGELOG section. |
+| Public API stability | Unstable until 1.0.0; breaking changes may land without a long deprecation window while pre-1.0. |
+
+When a release is cut: add a dated `## [X.Y.Z] - YYYY-MM-DD` section, move items out of
+`[Unreleased]`, and tag the repository. Every published release is identified in version control by
+that tag.
+
+### Security entries
+
+Every **publicly known** vulnerability fixed in a release **must** be listed under a `### Security`
+heading in that release’s notes (CVE or advisory URL when available). If a release has no security
+fixes, omit the heading. Private reports that never became public need not be listed until
+disclosure.
+
+OpenSSF Best Practices self-certification notes: [`docs/openssf-best-practices.md`](docs/openssf-best-practices.md).
 
 ## [Unreleased]
+
+### Security
+
+- No publicly disclosed vulnerability fixes in this period.
+- Documented OpenSSF-aligned fix timelines (60-day public medium+ fixes, critical prioritization),
+  cryptography defaults, and static/dynamic analysis practices in `SECURITY.md`.
 
 ### Changed
 
@@ -16,8 +40,17 @@ tag is published, `main` is the only reference point and the public API is unsta
   OSI-approved license. The Elastic License restrictions (no hosted service offering, no license key
   circumvention, no removal of license notices) no longer apply. The only remaining obligation is to
   retain the copyright and permission notice.
+- Clarified versioning (commit SHA until first SemVer tag) and Security release-note rules in
+  `CHANGELOG.md`.
+- Homepage footer and README community tables now link Support, Security, and Contributing for
+  feedback and contribution discovery.
 
 ### Added
+
+- OpenSSF Best Practices Passing self-certification pack:
+  [`docs/openssf-best-practices.md`](docs/openssf-best-practices.md) with paste-ready Met/N/A
+  justifications for project 13783.
+- Explicit Testing policy and warnings/static-analysis section in `CONTRIBUTING.md`.
 
 - Enterprise org structure (OrgUnit): an in-org business tree with adjacency plus materialized path
   (depth cap 8), primary/secondary post placement, reporting-line manager resolution walking up the

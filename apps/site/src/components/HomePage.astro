@@ -142,9 +142,12 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
 
     <footer class="home-footer home-shell">
       <span>XID</span>
-      <nav aria-label={surface.readDocs}>
+      <nav aria-label={surface.footerNavLabel}>
         <a href={docsHref}>{surface.readDocs}</a>
-        <a href="https://github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/StringKe/xid/blob/main/SUPPORT.md" target="_blank" rel="noopener noreferrer">{surface.footerSupport}</a>
+        <a href="https://github.com/StringKe/xid/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">{surface.footerSecurity}</a>
+        <a href="https://github.com/StringKe/xid/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">{surface.footerContributing}</a>
+        <a href="https://github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">{surface.footerGitHub}</a>
       </nav>
     </footer>
   </div>

@@ -291,10 +291,16 @@ release 声明。
 
 ## 贡献、安全与许可
 
-提交 pull request 前请先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md),其中涵盖工具链、必过关卡与 Developer
-Certificate of Origin 签署。参与行为受 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) 约束,
-[`SUPPORT.md`](SUPPORT.md) 覆盖代码变更之外的提问渠道。发现漏洞请勿开公开 issue:报告渠道、范围与披露
-时间线见 [`SECURITY.md`](SECURITY.md)。
+| 主题 | 位置 |
+| ---- | ---- |
+| 如何贡献（PR 流程、DCO、测试策略、编码规范） | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Bug / 功能请求 / 提问 | [`SUPPORT.md`](SUPPORT.md) · [Issues](https://github.com/StringKe/xid/issues) · [Discussions](https://github.com/StringKe/xid/discussions) |
+| 漏洞报告（仅私密渠道） | [`SECURITY.md`](SECURITY.md) |
+| 行为准则 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
+| OpenSSF Best Practices（Passing）清单与表单答案 | [`docs/openssf-best-practices.md`](docs/openssf-best-practices.md) |
+| 许可 | [`LICENSE`](LICENSE)（MIT） |
+
+发现漏洞请勿开公开 issue。报告渠道、范围、修复时限与密码学摘要见 [`SECURITY.md`](SECURITY.md)。
 
 XID 以 MIT License 授权,见 [`LICENSE`](LICENSE)。你可以使用、修改和分发它,包括商业用途和闭源产品,
 只要保留版权声明与许可证文本。
