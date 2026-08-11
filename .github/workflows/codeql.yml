@@ -15,10 +15,120 @@ concurrency:
 permissions:
   contents: read
 
+# Language matrix is path-gated on pull_request so a docs/i18n-only change does not spin up
+# macos Swift builds or other native SDK scanners. push to main, weekly schedule, and manual
+# dispatch still analyze every configured language.
 jobs:
+  changes:
+    name: Detect languages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      actions: ${{ steps.select.outputs.actions }}
+      javascript-typescript: ${{ steps.select.outputs.javascript-typescript }}
+      go: ${{ steps.select.outputs.go }}
+      python: ${{ steps.select.outputs.python }}
+      ruby: ${{ steps.select.outputs.ruby }}
+      java-kotlin: ${{ steps.select.outputs.java-kotlin }}
+      csharp: ${{ steps.select.outputs.csharp }}
+      swift: ${{ steps.select.outputs.swift }}
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Select languages to analyze
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          enable_all() {
+            {
+              echo 'actions=true'
+              echo 'javascript-typescript=true'
+              echo 'go=true'
+              echo 'python=true'
+              echo 'ruby=true'
+              echo 'java-kotlin=true'
+              echo 'csharp=true'
+              echo 'swift=true'
+            } >> "$GITHUB_OUTPUT"
+          }
+
+          # Full matrix outside pull requests (main, schedule, workflow_dispatch).
+          if [[ "${{ github.event_name }}" != 'pull_request' ]]; then
+            enable_all
+            exit 0
+          fi
+
+          # PRs always scan workflow YAML and the TypeScript/JavaScript surface.
+          {
+            echo 'actions=true'
+            echo 'javascript-typescript=true'
+          } >> "$GITHUB_OUTPUT"
+
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          mapfile -t files < <(git diff --name-only "$base" "$head")
+
+          match() {
+            local re="$1"
+            local f
+            for f in "${files[@]}"; do
+              if [[ "$f" =~ $re ]]; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          if match '^sdk/go/'; then echo 'go=true'; else echo 'go=false'; fi >> "$GITHUB_OUTPUT"
+          if match '^sdk/python/'; then echo 'python=true'; else echo 'python=false'; fi >> "$GITHUB_OUTPUT"
+          if match '^sdk/ruby/'; then echo 'ruby=true'; else echo 'ruby=false'; fi >> "$GITHUB_OUTPUT"
+          if match '^sdk/(java|android)/'; then
+            echo 'java-kotlin=true'
+          else
+            echo 'java-kotlin=false'
+          fi >> "$GITHUB_OUTPUT"
+          if match '^sdk/(dotnet|windows)/'; then
+            echo 'csharp=true'
+          else
+            echo 'csharp=false'
+          fi >> "$GITHUB_OUTPUT"
+          if match '^sdk/(ios|macos)/'; then
+            echo 'swift=true'
+          else
+            echo 'swift=false'
+          fi >> "$GITHUB_OUTPUT"
+
+          {
+            echo 'Selected CodeQL languages for this pull request:'
+            echo "  actions=true"
+            echo "  javascript-typescript=true"
+            echo "  go=$(grep '^go=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
+            echo "  python=$(grep '^python=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
+            echo "  ruby=$(grep '^ruby=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
+            echo "  java-kotlin=$(grep '^java-kotlin=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
+            echo "  csharp=$(grep '^csharp=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
+            echo "  swift=$(grep '^swift=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
+          }
+
   analyze:
     name: Analyze ${{ matrix.language }}
-    if: github.event.repository.visibility == 'public'
+    needs: changes
+    if: |
+      github.event.repository.visibility == 'public' && (
+        (matrix.language == 'actions' && needs.changes.outputs.actions == 'true') ||
+        (matrix.language == 'javascript-typescript' && needs.changes.outputs.javascript-typescript == 'true') ||
+        (matrix.language == 'go' && needs.changes.outputs.go == 'true') ||
+        (matrix.language == 'python' && needs.changes.outputs.python == 'true') ||
+        (matrix.language == 'ruby' && needs.changes.outputs.ruby == 'true') ||
+        (matrix.language == 'java-kotlin' && needs.changes.outputs.java-kotlin == 'true') ||
+        (matrix.language == 'csharp' && needs.changes.outputs.csharp == 'true') ||
+        (matrix.language == 'swift' && needs.changes.outputs.swift == 'true')
+      )
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
@@ -54,6 +164,7 @@ jobs:
             build-mode: manual
             runner: macos-latest
     steps:
+      # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Initialize CodeQL
