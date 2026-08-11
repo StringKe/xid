@@ -1,4 +1,3 @@
-
 import type { I18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { buildPublicCanonicalUrl } from './google-analytics'

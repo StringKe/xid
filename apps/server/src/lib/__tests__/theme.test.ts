@@ -1,4 +1,3 @@
-
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_BRAND, brandToCssVars } from '../theme'
 import type { BrandConfig } from '../theme'

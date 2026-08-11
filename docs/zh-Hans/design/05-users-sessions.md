@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=c471fc07acf30c24c960ee6546205261b94fe43c -->
+<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=f14f3ec1449c42a816929eea5c965e7c3f307de3 -->
 
 > Translation of `docs/design/05-users-sessions.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/05-users-sessions.md`](../../design/05-users-sessions.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -404,16 +404,16 @@ org(`org_id = tenant_id`)membership;`intent=sign-up`、OAuth 续跑(redirect 含
 credential-provisioning flag:所有 holder 都进入 proof-first Email claim,包括当前已登录 user。
 raw authenticated acceptance 被禁用。Invitation proof 与自助建 org 都走显式 membership 路径。
 
-| 入口                                         | 新建用户时默认 tenant membership | 说明                                                                                     |
-| -------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
-| 密码注册（常规登录）                         | 写入                             | 已有成员走登录,不重复写入                                                                |
-| 密码注册（`intent=sign-up`）                 | 跳过                             | credential 验证后跳转 `/create-organization`                                             |
-| Passwordless / magic link（`intent=sign-up`） | 跳过                             | 与密码注册一致                                                                           |
-| Social OAuth 新建用户                        | 默认写入                         | `authz_request_id` 续跑或 `intent=sign-up` 时跳过;invitation capability 不是 social proof |
-| Enterprise SSO JIT（SAML / OIDC RP）新建用户 | 写入 connection org membership   | OAuth 续跑标志为 true 时跳过 connection org membership;已存在用户仍同步 membership       |
-| Invitation Email claim 发起                  | 不写 User 或 Membership          | 只向精确邀请 Email 发送;不提交 credential、identity、session 或 account lookup           |
-| Invitation claim verification                | 写入邀请 org                     | 只复用 exact claim-proven identity;否则创建 clean User;proof 原子落地后再可恢复地完成 session/Membership acceptance |
-| Self-service 顶层 Tenant 创建                | 写入新建 org（owner）            | 仅无 Membership 的新用户;迁移 user-owned 行和 session 行,并设置 `session.active_org_id`   |
+| 入口                                          | 新建用户时默认 tenant membership | 说明                                                                                                                |
+| --------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 密码注册（常规登录）                          | 写入                             | 已有成员走登录,不重复写入                                                                                           |
+| 密码注册（`intent=sign-up`）                  | 跳过                             | credential 验证后跳转 `/create-organization`                                                                        |
+| Passwordless / magic link（`intent=sign-up`） | 跳过                             | 与密码注册一致                                                                                                      |
+| Social OAuth 新建用户                         | 默认写入                         | `authz_request_id` 续跑或 `intent=sign-up` 时跳过;invitation capability 不是 social proof                           |
+| Enterprise SSO JIT（SAML / OIDC RP）新建用户  | 写入 connection org membership   | OAuth 续跑标志为 true 时跳过 connection org membership;已存在用户仍同步 membership                                  |
+| Invitation Email claim 发起                   | 不写 User 或 Membership          | 只向精确邀请 Email 发送;不提交 credential、identity、session 或 account lookup                                      |
+| Invitation claim verification                 | 写入邀请 org                     | 只复用 exact claim-proven identity;否则创建 clean User;proof 原子落地后再可恢复地完成 session/Membership acceptance |
+| Self-service 顶层 Tenant 创建                 | 写入新建 org（owner）            | 仅无 Membership 的新用户;迁移 user-owned 行和 session 行,并设置 `session.active_org_id`                             |
 
 guest 与 `intent=sign-up` 凭证流程都使用最后一行。邀请、enterprise JIT、SCIM、OAuth resume 和普通
 sign-in 保持各自显式行,不会附带创建顶层 Tenant。

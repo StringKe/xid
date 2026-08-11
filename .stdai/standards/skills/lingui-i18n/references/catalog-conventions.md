@@ -22,11 +22,11 @@ packages/i18n/locales/...                 # ko, fr, de, es, pt-BR
 
 ## Locale tags (BCP 47)
 
-| Use       | Do not use                        |
-| --------- | --------------------------------- |
-| `zh-Hans` | `zh-CN` / `zh`                    |
-| `zh-Hant` | `zh-TW`                           |
-| `pt-BR`   | `pt`                              |
+| Use       | Do not use                         |
+| --------- | ---------------------------------- |
+| `zh-Hans` | `zh-CN` / `zh`                     |
+| `zh-Hant` | `zh-TW`                            |
+| `pt-BR`   | `pt`                               |
 | `en`      | `en-US` (unless en-GB needs split) |
 
 Runtime resolution matches the exact tag first, then falls back by language subtag (`zh` -> `zh-Hans`, `pt` -> `pt-BR`).

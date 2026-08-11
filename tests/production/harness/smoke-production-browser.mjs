@@ -204,8 +204,7 @@ async function firstExistingPath(paths, name) {
     try {
       await access(path)
       return path
-    } catch {
-    }
+    } catch {}
   }
   throw new Error(`${name} not found: ${paths.join(', ')}`)
 }

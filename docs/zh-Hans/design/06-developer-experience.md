@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=a1fdf8d2ef1c6bf5433bf0e0a4b76c223ebf7263 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=c3f68af09f74ab6bd87b4c616cee410a5143847b -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -433,17 +433,17 @@ ManagerAssignment provisioning 是显式能力。tenant role 使用 `/v1/manager
 OrgUnit 管理挂在 `/v1/organizations/:orgId/units` 下,由携带 `org-units:read` /
 `org-units:write` 的 API key 或 org manager cookie session 鉴权:
 
-| 方法   | 路径                                                      | 说明                                   |
-| ------ | --------------------------------------------------------- | -------------------------------------- |
-| GET    | `/v1/organizations/:orgId/units`                          | `?parent_unit_id=` 过滤;默认按 path 排序返回整树 |
-| POST   | `/v1/organizations/:orgId/units`                          | 创建节点(深度上限 8)                   |
-| GET    | `/v1/organizations/:orgId/units/:unitId`                  | 详情,含 `depth`/`path`                 |
-| PATCH  | `/v1/organizations/:orgId/units/:unitId`                  | 更新 `name`/`slug`/`manager_user_id`   |
-| POST   | `/v1/organizations/:orgId/units/:unitId/move`             | 移动子树到新 parent                    |
-| DELETE | `/v1/organizations/:orgId/units/:unitId`                  | 归档(仅叶子),非物理删除                |
-| GET    | `/v1/organizations/:orgId/units/:unitId/members`          | 成员;`include_descendants` 默认 true   |
-| PUT    | `/v1/organizations/:orgId/units/:unitId/members/:userId`  | 放置成员,可选设为主岗                  |
-| DELETE | `/v1/organizations/:orgId/units/:unitId/members/:userId`  | 移出成员                               |
+| 方法   | 路径                                                     | 说明                                             |
+| ------ | -------------------------------------------------------- | ------------------------------------------------ |
+| GET    | `/v1/organizations/:orgId/units`                         | `?parent_unit_id=` 过滤;默认按 path 排序返回整树 |
+| POST   | `/v1/organizations/:orgId/units`                         | 创建节点(深度上限 8)                             |
+| GET    | `/v1/organizations/:orgId/units/:unitId`                 | 详情,含 `depth`/`path`                           |
+| PATCH  | `/v1/organizations/:orgId/units/:unitId`                 | 更新 `name`/`slug`/`manager_user_id`             |
+| POST   | `/v1/organizations/:orgId/units/:unitId/move`            | 移动子树到新 parent                              |
+| DELETE | `/v1/organizations/:orgId/units/:unitId`                 | 归档(仅叶子),非物理删除                          |
+| GET    | `/v1/organizations/:orgId/units/:unitId/members`         | 成员;`include_descendants` 默认 true             |
+| PUT    | `/v1/organizations/:orgId/units/:unitId/members/:userId` | 放置成员,可选设为主岗                            |
+| DELETE | `/v1/organizations/:orgId/units/:unitId/members/:userId` | 移出成员                                         |
 
 Project 访问申请在 Management API 上只读:`GET /v1/organizations/:orgId/access-requests`
 (支持 `?status=` 与 `?project_id=` 过滤,cursor 分页)与

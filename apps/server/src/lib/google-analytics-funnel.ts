@@ -1,4 +1,3 @@
-
 import { trackEvent } from './google-analytics'
 
 export type AuthMethod =

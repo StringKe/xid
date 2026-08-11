@@ -1,4 +1,3 @@
-
 import { Trans } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'

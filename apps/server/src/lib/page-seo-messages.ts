@@ -1,4 +1,3 @@
-
 import { msg } from '@lingui/core/macro'
 
 export const seoNotFoundTitle = msg`Page not found | XID`

@@ -203,7 +203,6 @@ export function useSignIn(): [SignInState, SignInActions] {
     return 'unknown'
   }
 
-
   const finishSignIn = useCallback(
     async (redirectUrl: string | undefined, method: AuthMethod): Promise<void> => {
       clearPendingAuthCompletion()
@@ -221,7 +220,6 @@ export function useSignIn(): [SignInState, SignInActions] {
     },
     [authFlowIntent, authzRequestId, hostedReturn, navigate, refresh],
   )
-
 
   const handleAuthResult = useCallback(
     async (result: SignInResult): Promise<void> => {
@@ -411,7 +409,6 @@ export function useSignIn(): [SignInState, SignInActions] {
     onSettled: resetTurnstile,
   })
 
-
   const guestMutation = useMutation({
     mutationFn: (capabilityToken: string) =>
       api.post<{ redirectUrl: string }>('/auth/guest', {
@@ -430,7 +427,6 @@ export function useSignIn(): [SignInState, SignInActions] {
       await authConfigQuery.refetch()
     },
   })
-
 
   const handleSocial = useCallback(
     (provider: string): void => {

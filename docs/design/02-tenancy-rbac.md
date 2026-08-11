@@ -27,7 +27,7 @@ source.
 - An OrgUnit belongs to exactly one Organization (top-level or sub-org, referenced by `org_id`);
   `tenant_id` remains the top-level Organization id, so tenant isolation injection is unchanged.
 - The tree combines adjacency (`parent_unit_id`) with a materialized path (`path = parent.path +
-  '/' + id`, root `/<id>`, including the node itself), so subtree and ancestor queries are prefix
+'/' + id`, root `/<id>`, including the node itself), so subtree and ancestor queries are prefix
   scans. Depth is capped at 8 (root = 1), enforced in the application layer -- the same strategy as
   the SubOrg depth limit.
 - Tree consistency (path generation, depth checks, subtree moves) is centralized in
@@ -647,11 +647,11 @@ Each Project carries an `access_policy` column (default `open`, opt-in per Proje
 same-Organization authorization branch (`project.org_id === active_org.id`; the cross-org
 ProjectGrant path in 7.4 is unaffected):
 
-| policy              | Same-org user without an effective UserGrant          | Self-service entry             |
-| ------------------- | ----------------------------------------------------- | ------------------------------ |
-| `open`              | Allowed (the pre-existing behavior)                   | None needed                    |
-| `restricted`        | Denied (`access_denied`)                              | None; an admin creates the grant directly |
-| `approval_required` | Denied with an identifiable error                     | Self-service AccessRequest     |
+| policy              | Same-org user without an effective UserGrant | Self-service entry                        |
+| ------------------- | -------------------------------------------- | ----------------------------------------- |
+| `open`              | Allowed (the pre-existing behavior)          | None needed                               |
+| `restricted`        | Denied (`access_denied`)                     | None; an admin creates the grant directly |
+| `approval_required` | Denied with an identifiable error            | Self-service AccessRequest                |
 
 An "effective UserGrant" is a same-org grant row (`granted_via_grant_id IS NULL`) that is not
 revoked and not past `expires_at`; an expired grant is treated as no grant at every check point

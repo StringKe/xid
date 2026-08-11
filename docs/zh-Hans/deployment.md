@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=ce0831647557526083513214f2d4e1d7f54c1fab -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=9e6e184722e39ea655fed8dfafef865f33771876 -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -46,11 +46,11 @@ apex domain 仍是 instance issuer、API base URL、Console base URL 与 Hosted 
 
 Cloudflare route ownership:
 
-| Owner       | Routes                                                                                                                                                                                                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner       | Routes                                                                                                                                                                                                                                                                                                                 |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Nimbus Site | 精确 apex 产品首页、`/docs` 文档首页、English detail routes 与已登记的 `/docs/*` compatibility routes;每个受支持的非英文 locale root、docs hub 与 subtree;`/_astro/*`、`/_nimbus/*`、`/pagefind/*`、`/og/*`、`/brand/*`、`/icons/*`、`/fonts/*`;精确 sitemap、robots、LLM、manifest 与 icon 文件;`www.<your-domain>/*` |
-| Console     | `<your-domain>/console`、`<your-domain>/console/*`、`*.<your-domain>/console`、`*.<your-domain>/console/*`                                                                                                                                                                                  |
-| Core        | Custom Domain `<your-domain>`、organization fallback `*.<your-domain>/*` 与 Cloudflare for SaaS zone fallback `*/*`;Core SPA chunks 隔离在 `/_core/*`                                                                                                                                       |
+| Console     | `<your-domain>/console`、`<your-domain>/console/*`、`*.<your-domain>/console`、`*.<your-domain>/console/*`                                                                                                                                                                                                             |
+| Core        | Custom Domain `<your-domain>`、organization fallback `*.<your-domain>/*` 与 Cloudflare for SaaS zone fallback `*/*`;Core SPA chunks 隔离在 `/_core/*`                                                                                                                                                                  |
 
 Site 与 Console routes 是覆盖 Core Custom Domain、tenant wildcard 和 zone-wide `*/*`
 fallback 的显式且更具体的 Worker Routes。两个 frontend Worker 都不能声明

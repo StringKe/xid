@@ -1,4 +1,3 @@
-
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PUBLIC_AUTH_CONFIG } from './auth-config'
 import {

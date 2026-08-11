@@ -141,11 +141,7 @@ const SERVER_REQUEST_AUTH_CONTRACT = {
     forbidden: ['SessionCookieName { get; init; } = "__session"'],
   },
   go: {
-    files: [
-      'sdk/go/xid/client.go',
-      'sdk/go/xid/verify.go',
-      'sdk/go/xid/session_exchange.go',
-    ],
+    files: ['sdk/go/xid/client.go', 'sdk/go/xid/verify.go', 'sdk/go/xid/session_exchange.go'],
     required: [
       'CookieName string',
       'if cookieName != ""',
@@ -169,13 +165,10 @@ const SERVER_REQUEST_AUTH_CONTRACT = {
     forbidden: ['sessionCookieName  = "__session"'],
   },
   php: {
-    files: [
-      'sdk/php/src/XidClient.php',
-      'sdk/php/src/Http/RequestAuthenticator.php',
-    ],
+    files: ['sdk/php/src/XidClient.php', 'sdk/php/src/Http/RequestAuthenticator.php'],
     required: [
       "$config['cookie_name']",
-      'array_keys($body) !== [\'token\']',
+      "array_keys($body) !== ['token']",
       'SessionTokenTransport $transport',
       'return null;',
     ],
@@ -282,10 +275,15 @@ test('every native SDK has honest source-only distribution metadata', () => {
 })
 
 test('server SDK request authentication and Core exchange stay aligned', () => {
-  assert.deepEqual(
-    Object.keys(SERVER_REQUEST_AUTH_CONTRACT).sort(),
-    ['dotnet', 'go', 'java', 'php', 'python', 'ruby', 'rust'],
-  )
+  assert.deepEqual(Object.keys(SERVER_REQUEST_AUTH_CONTRACT).sort(), [
+    'dotnet',
+    'go',
+    'java',
+    'php',
+    'python',
+    'ruby',
+    'rust',
+  ])
 
   for (const [platform, contract] of Object.entries(SERVER_REQUEST_AUTH_CONTRACT)) {
     const source = contract.files
@@ -311,10 +309,7 @@ test('server SDK request authentication and Core exchange stay aligned', () => {
 
 test('all public native SDK pages use source checkout installation and the server auth contract', () => {
   const bundle = JSON.parse(
-    readFileSync(
-      resolve(repoRoot, 'apps/site/src/content-source/docs/documents.json'),
-      'utf8',
-    ),
+    readFileSync(resolve(repoRoot, 'apps/site/src/content-source/docs/documents.json'), 'utf8'),
   )
   const documents = new Map(bundle.documents.map((document) => [document.slug, document]))
   const forbiddenInstallFragments = [
@@ -347,7 +342,11 @@ test('all public native SDK pages use source checkout installation and the serve
     const source = JSON.stringify(documents.get(slug))
     assert.ok(source.includes('"id":"AJ2GJl"'), `${slug} is missing the request auth contract`)
     assert.ok(source.includes('/v1/sessions/token'), `${slug} is missing Core session exchange`)
-    for (const staleDefault of ['"value":"__session"', '"value":"__xid_token"', '"value":"__xid_session"']) {
+    for (const staleDefault of [
+      '"value":"__session"',
+      '"value":"__xid_token"',
+      '"value":"__xid_session"',
+    ]) {
       assert.equal(source.includes(staleDefault), false, `${slug} retains ${staleDefault}`)
     }
   }
@@ -367,9 +366,7 @@ test('guest design and Worker response agree on the bootstrap wire contract', ()
   }
   assert.ok(worker.includes('c.json({ sessionId, redirectUrl: GUEST_ONBOARDING_PATH })'))
   assert.ok(
-    worker.includes(
-      'c.json({ sessionId: current.sessionId, redirectUrl: GUEST_ONBOARDING_PATH })',
-    ),
+    worker.includes('c.json({ sessionId: current.sessionId, redirectUrl: GUEST_ONBOARDING_PATH })'),
   )
 })
 

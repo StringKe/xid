@@ -117,37 +117,37 @@ try Xid.shared.setTokenStorage(EnterpriseKeychain())
 
 Singleton entry point.
 
-| Method                                                 | Description                                     |
-| ------------------------------------------------------ | ----------------------------------------------- |
-| `configure(options:)`                                  | Initialize SDK; must be called first            |
-| `signIn(options:) async throws`                        | Start authorization flow, opens system browser  |
-| `handleRedirect(url:) async throws -> XidSession`      | Handle callback URL, complete code exchange     |
-| `getSession() async throws -> XidSession?`             | Return an unexpired session; expiry requires authorization |
+| Method                                                 | Description                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `configure(options:)`                                  | Initialize SDK; must be called first                                     |
+| `signIn(options:) async throws`                        | Start authorization flow, opens system browser                           |
+| `handleRedirect(url:) async throws -> XidSession`      | Handle callback URL, complete code exchange                              |
+| `getSession() async throws -> XidSession?`             | Return an unexpired session; expiry requires authorization               |
 | `getAccessToken(forceRefresh:) async throws -> String` | Return an unexpired token; expiry or forceRefresh requires authorization |
-| `signOut(callEndSession:) async throws`                | Sign out, clear local tokens                    |
-| `setTokenStorage(_:) throws`                           | Replace token persistence adapter               |
+| `signOut(callEndSession:) async throws`                | Sign out, clear local tokens                                             |
+| `setTokenStorage(_:) throws`                           | Replace token persistence adapter                                        |
 
 ### `XidConfiguration`
 
-| Property       | Type                  | Description                                                |
-| -------------- | --------------------- | ---------------------------------------------------------- |
-| `issuer`       | `URL`                 | XID issuer, e.g. `https://xid.dev`                         |
-| `clientId`     | `String`              | Public client ID; no client secret                         |
-| `redirectUri`  | `URL`                 | Registered callback URI                                    |
+| Property       | Type                  | Description                                                            |
+| -------------- | --------------------- | ---------------------------------------------------------------------- |
+| `issuer`       | `URL`                 | XID issuer, e.g. `https://xid.dev`                                     |
+| `clientId`     | `String`              | Public client ID; no client secret                                     |
+| `redirectUri`  | `URL`                 | Registered callback URI                                                |
 | `scopes`       | `[String]`            | Default `["openid", "profile", "email"]`; `offline_access` is rejected |
-| `tokenStorage` | `TokenStorageAdapter` | Default `KeychainTokenStorage`                             |
+| `tokenStorage` | `TokenStorageAdapter` | Default `KeychainTokenStorage`                                         |
 
 ### `XidSession`
 
-| Property       | Type      | Description                        |
-| -------------- | --------- | ---------------------------------- |
-| `accessToken`  | `String`  | JWT access token                   |
+| Property       | Type      | Description                                        |
+| -------------- | --------- | -------------------------------------------------- |
+| `accessToken`  | `String`  | JWT access token                                   |
 | `refreshToken` | `String?` | Reserved; always nil until the SDK implements DPoP |
-| `idToken`      | `String`  | JWT ID token                       |
-| `expiresAt`    | `Date`    | Access token expiry time           |
-| `user`         | `XidUser` | Claims decoded from ID token       |
-| `isExpired`    | `Bool`    | Whether the session has expired    |
-| `isNearExpiry` | `Bool`    | Expires within 60 s                |
+| `idToken`      | `String`  | JWT ID token                                       |
+| `expiresAt`    | `Date`    | Access token expiry time                           |
+| `user`         | `XidUser` | Claims decoded from ID token                       |
+| `isExpired`    | `Bool`    | Whether the session has expired                    |
+| `isNearExpiry` | `Bool`    | Expires within 60 s                                |
 
 ## Security
 

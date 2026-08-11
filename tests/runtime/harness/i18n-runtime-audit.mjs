@@ -148,10 +148,7 @@ async function withTargetBaseUrl(fn) {
   const persistPath = await mkdtemp(join(tmpdir(), 'xid-i18n-runtime-'))
   const entryConfigPath = join(persistPath, 'entry.wrangler.jsonc')
   const consumerConfigPath = join(persistPath, 'queue-consumer.wrangler.jsonc')
-  const sourceConfig = await readFile(
-    join(process.cwd(), 'apps/server/wrangler.jsonc'),
-    'utf8',
-  )
+  const sourceConfig = await readFile(join(process.cwd(), 'apps/server/wrangler.jsonc'), 'utf8')
   const smokeConfigs = createSmokeWranglerConfigs(sourceConfig)
   const secrets = testSecrets()
   await Promise.all([
@@ -192,15 +189,7 @@ async function withTargetBaseUrl(fn) {
   )
   const child = spawn(
     'pnpm',
-    [
-      '--filter',
-      '@xid-kit/server',
-      'dev',
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(port),
-    ],
+    ['--filter', '@xid-kit/server', 'dev', '--host', '127.0.0.1', '--port', String(port)],
     { env: runtimeEnv },
   )
 

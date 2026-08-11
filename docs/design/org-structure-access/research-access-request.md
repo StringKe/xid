@@ -61,14 +61,14 @@
 
 ## 5. 否决项与理由
 
-| 否决方案 | 理由 |
-| --- | --- |
-| 多级会签 / 并行审批引擎 | v1 明确不做；Entra 3-stage 是 IGA 产品形态，xid 单级审批 + fallback 链已覆盖主线场景。 |
-| Access Package / Entitlement 目录 | 打包多资源的目录产品是 IGA 层形态；xid v1 申请单元就是单个 Project role，无打包需求。 |
-| 审批人表达式语言 | v1 明确不做；固定优先级链（unit manager -> project_manager -> org_manager）可预测、可测试。 |
-| 挂 Application 级 policy | 见第 4 节；且 N 个 App 同 Project 会产生 N 份重复申请。 |
-| 跨 org 也走申请流 | 跨 org 已有 `project_grants` 授权模型（由对方 org 管理端控制），引入跨 org 申请会把两个 org 的审批语义混在一起，v1 不碰。 |
-| 审批可用性走消息队列异步发放 | 批准写 grant 是授权正确性关键路径，必须同步事务；异步发放（Entra Delivering 态）是 package 多资源发放的产物，单 grant 不需要。 |
+| 否决方案                          | 理由                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 多级会签 / 并行审批引擎           | v1 明确不做；Entra 3-stage 是 IGA 产品形态，xid 单级审批 + fallback 链已覆盖主线场景。                                         |
+| Access Package / Entitlement 目录 | 打包多资源的目录产品是 IGA 层形态；xid v1 申请单元就是单个 Project role，无打包需求。                                          |
+| 审批人表达式语言                  | v1 明确不做；固定优先级链（unit manager -> project_manager -> org_manager）可预测、可测试。                                    |
+| 挂 Application 级 policy          | 见第 4 节；且 N 个 App 同 Project 会产生 N 份重复申请。                                                                        |
+| 跨 org 也走申请流                 | 跨 org 已有 `project_grants` 授权模型（由对方 org 管理端控制），引入跨 org 申请会把两个 org 的审批语义混在一起，v1 不碰。      |
+| 审批可用性走消息队列异步发放      | 批准写 grant 是授权正确性关键路径，必须同步事务；异步发放（Entra Delivering 态）是 package 多资源发放的产物，单 grant 不需要。 |
 
 ## 6. 对确认清单的表态（P1 部分）
 

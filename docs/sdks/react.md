@@ -61,25 +61,25 @@ function Layout() {
 
 ### Hooks
 
-| Export                      | Kind | Returns                                                           |
-| --------------------------- | ---- | ----------------------------------------------------------------- |
-| `useAuth`                   | hook | `isLoaded`, `isSignedIn`, `userId`, `signOut`, `getToken`         |
-| `useUser`                   | hook | `isLoaded`, `isSignedIn`, `user: XidUser \| null`                 |
-| `useSession`                | hook | `isLoaded`, `isSignedIn`, `session: XidSession \| null`           |
-| `useSessionList`            | hook | `isLoaded`, `sessions`, `setActive` for multi-session switcher    |
-| `useSignIn`                 | hook | Helpers for Hosted Auth sign-in flow                              |
-| `useOrganization`           | hook | `isLoaded`, `organization: XidOrganization \| null`, `membership` |
-| `useOrganizationList`       | hook | `isLoaded`, `userMemberships` for organization switcher UI        |
-| `useAPIKeys`                | hook | Management API key list and actions for console embeds            |
+| Export                      | Kind | Returns                                                                                                                              |
+| --------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `useAuth`                   | hook | `isLoaded`, `isSignedIn`, `userId`, `signOut`, `getToken`                                                                            |
+| `useUser`                   | hook | `isLoaded`, `isSignedIn`, `user: XidUser \| null`                                                                                    |
+| `useSession`                | hook | `isLoaded`, `isSignedIn`, `session: XidSession \| null`                                                                              |
+| `useSessionList`            | hook | `isLoaded`, `sessions`, `setActive` for multi-session switcher                                                                       |
+| `useSignIn`                 | hook | Helpers for Hosted Auth sign-in flow                                                                                                 |
+| `useOrganization`           | hook | `isLoaded`, `organization: XidOrganization \| null`, `membership`                                                                    |
+| `useOrganizationList`       | hook | `isLoaded`, `userMemberships` for organization switcher UI                                                                           |
+| `useAPIKeys`                | hook | Management API key list and actions for console embeds                                                                               |
 | `useUpgradeGuest`           | hook | `isLoaded`, `isGuest`, `pending`, `error`, `upgradeGuestWithPasskey` for the one-click guest passkey upgrade (same-origin mode only) |
-| `UseAuthReturn`             | type | Return type of `useAuth`                                          |
-| `UseUserReturn`             | type | Return type of `useUser`                                          |
-| `UseSessionReturn`          | type | Return type of `useSession`                                       |
-| `UseSessionListReturn`      | type | Return type of `useSessionList`                                   |
-| `UseSignInReturn`           | type | Return type of `useSignIn`                                        |
-| `UseOrganizationReturn`     | type | Return type of `useOrganization`                                  |
-| `UseOrganizationListReturn` | type | Return type of `useOrganizationList`                              |
-| `UseAPIKeysReturn`          | type | Return type of `useAPIKeys`                                       |
+| `UseAuthReturn`             | type | Return type of `useAuth`                                                                                                             |
+| `UseUserReturn`             | type | Return type of `useUser`                                                                                                             |
+| `UseSessionReturn`          | type | Return type of `useSession`                                                                                                          |
+| `UseSessionListReturn`      | type | Return type of `useSessionList`                                                                                                      |
+| `UseSignInReturn`           | type | Return type of `useSignIn`                                                                                                           |
+| `UseOrganizationReturn`     | type | Return type of `useOrganization`                                                                                                     |
+| `UseOrganizationListReturn` | type | Return type of `useOrganizationList`                                                                                                 |
+| `UseAPIKeysReturn`          | type | Return type of `useAPIKeys`                                                                                                          |
 
 ### Control components
 
@@ -120,27 +120,27 @@ function Layout() {
 
 ### UI components
 
-| Export                      | Kind      | Description                                   |
-| --------------------------- | --------- | --------------------------------------------- |
-| `SignIn`                    | component | Embedded sign-in panel (Hosted Auth)          |
-| `SignUp`                    | component | Embedded sign-up panel                        |
-| `UserAvatar`                | component | User avatar image with fallback initials      |
-| `UserButton`                | component | Avatar menu: session switch and sign-out      |
-| `UserProfile`               | component | Account security and profile management panel |
-| `OrganizationSwitcher`      | component | Active organization selector                  |
-| `OrganizationProfile`       | component | Members, roles, and SSO admin embed           |
-| `CreateOrganization`        | component | Organization creation flow                    |
-| `OrganizationList`          | component | List of user's organizations for switcher UI  |
+| Export                      | Kind      | Description                                                         |
+| --------------------------- | --------- | ------------------------------------------------------------------- |
+| `SignIn`                    | component | Embedded sign-in panel (Hosted Auth)                                |
+| `SignUp`                    | component | Embedded sign-up panel                                              |
+| `UserAvatar`                | component | User avatar image with fallback initials                            |
+| `UserButton`                | component | Avatar menu: session switch and sign-out                            |
+| `UserProfile`               | component | Account security and profile management panel                       |
+| `OrganizationSwitcher`      | component | Active organization selector                                        |
+| `OrganizationProfile`       | component | Members, roles, and SSO admin embed                                 |
+| `CreateOrganization`        | component | Organization creation flow                                          |
+| `OrganizationList`          | component | List of user's organizations for switcher UI                        |
 | `GuestUpgradeBanner`        | component | Prompts an anonymous (guest) user to convert to a permanent account |
-| `SignInProps`               | type      | Props for `SignIn`                            |
-| `SignUpProps`               | type      | Props for `SignUp`                            |
-| `UserAvatarProps`           | type      | Props for `UserAvatar`                        |
-| `UserButtonProps`           | type      | Props for `UserButton`                        |
-| `UserProfileProps`          | type      | Props for `UserProfile`                       |
-| `OrganizationSwitcherProps` | type      | Props for `OrganizationSwitcher`              |
-| `OrganizationProfileProps`  | type      | Props for `OrganizationProfile`               |
-| `CreateOrganizationProps`   | type      | Props for `CreateOrganization`                |
-| `OrganizationListProps`     | type      | Props for `OrganizationList`                  |
+| `SignInProps`               | type      | Props for `SignIn`                                                  |
+| `SignUpProps`               | type      | Props for `SignUp`                                                  |
+| `UserAvatarProps`           | type      | Props for `UserAvatar`                                              |
+| `UserButtonProps`           | type      | Props for `UserButton`                                              |
+| `UserProfileProps`          | type      | Props for `UserProfile`                                             |
+| `OrganizationSwitcherProps` | type      | Props for `OrganizationSwitcher`                                    |
+| `OrganizationProfileProps`  | type      | Props for `OrganizationProfile`                                     |
+| `CreateOrganizationProps`   | type      | Props for `CreateOrganization`                                      |
+| `OrganizationListProps`     | type      | Props for `OrganizationList`                                        |
 
 ### Appearance
 

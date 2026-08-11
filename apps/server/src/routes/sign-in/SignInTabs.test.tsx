@@ -38,12 +38,10 @@ afterEach(() => {
 })
 
 function cssRulesFor(classNames: readonly string[]): CSSStyleRule[] {
-  return (
-    Array.from(document.styleSheets)
-      .flatMap((sheet) => Array.from(sheet.cssRules))
-      .filter((rule): rule is CSSStyleRule => 'selectorText' in rule)
-      .filter((rule) => classNames.some((className) => rule.selectorText.includes(`.${className}`)))
-  )
+  return Array.from(document.styleSheets)
+    .flatMap((sheet) => Array.from(sheet.cssRules))
+    .filter((rule): rule is CSSStyleRule => 'selectorText' in rule)
+    .filter((rule) => classNames.some((className) => rule.selectorText.includes(`.${className}`)))
 }
 
 describe('SignInPanel motion contract', () => {

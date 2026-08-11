@@ -1,4 +1,3 @@
-
 import { Trans, useLingui } from '@lingui/react/macro'
 import { OUTBOUND_CONSOLE_PRESETS } from '@xid-kit/protocol'
 import { useEffect, useState } from 'react'

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=6a3632d89ac64c47f86d1b8f1580add42af86412 -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=ea60840b2fb80010f42f6516baf6821274f58c4d -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -523,11 +523,11 @@ WHERE ug.user_id = :user_id
 每个 Project 携带 `access_policy` 列(默认 `open`,按 Project opt-in),约束同 Organization
 授权分支(`project.org_id === active_org.id`;7.4 的跨 org ProjectGrant 路径不受影响):
 
-| policy | 同 org 用户无有效 UserGrant 时 | 自助申请入口 |
-| --- | --- | --- |
-| `open` | 放行(既有行为) | 不需要 |
-| `restricted` | 拒绝(`access_denied`) | 无,只能管理端直接创建 grant |
-| `approval_required` | 拒绝且错误可识别 | 自助 AccessRequest |
+| policy              | 同 org 用户无有效 UserGrant 时 | 自助申请入口                |
+| ------------------- | ------------------------------ | --------------------------- |
+| `open`              | 放行(既有行为)                 | 不需要                      |
+| `restricted`        | 拒绝(`access_denied`)          | 无,只能管理端直接创建 grant |
+| `approval_required` | 拒绝且错误可识别               | 自助 AccessRequest          |
 
 「有效 UserGrant」指同 org grant 行(`granted_via_grant_id IS NULL`)、未 revoked、未过
 `expires_at`;过期 grant 在每个检查点(`/authorize` 与 token 签发)都视同无 grant,这正是

@@ -1,4 +1,3 @@
-
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApiClient, observeApiClientErrors } from '../api'
 

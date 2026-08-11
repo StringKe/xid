@@ -48,8 +48,7 @@ async function waitForChrome(port) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/json/version`)
       if (response.ok) return
-    } catch {
-    }
+    } catch {}
     await delay(250)
   }
   throw new Error('Chrome did not expose CDP before timeout')

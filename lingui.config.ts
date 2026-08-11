@@ -18,12 +18,7 @@ export default defineConfig({
       // include 必须显式 /** 递归:lingui 用 node:fs globSync,含通配符的 include(apps/*/src)
       // 不被识别为目录,不会自动补 /**/*.*,只匹配目录本身致深层 route 文件漏扫。
       include: ['apps/*/src/**', 'apps/*/worker/**', 'packages/*/src/**'],
-      exclude: [
-        '**/*.d.ts',
-        '**/dist/**',
-        '**/node_modules/**',
-        '**/__tests__/**',
-      ],
+      exclude: ['**/*.d.ts', '**/dist/**', '**/node_modules/**', '**/__tests__/**'],
     },
   ],
   format: formatter({ lineNumbers: false }),

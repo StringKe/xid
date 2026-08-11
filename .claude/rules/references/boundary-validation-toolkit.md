@@ -27,7 +27,7 @@ before validating a new external input, adding an endpoint, or changing an error
   1. `AppError` -- code, status, `meta`, `longMessage` pass through.
   2. A structured `XidError` shape (`code` string + `httpStatus` number) that was thrown.
   3. Anything else -- logged with `console.error`, then flattened to `server_error` / 500 with no detail.
-  Every error response carries `Cache-Control: no-store`.
+     Every error response carries `Cache-Control: no-store`.
 - Keep the cause chain (`new AppError(code, { cause: err })`). `cause` is server-side only and MUST NOT reach the client.
 - To turn a `Result` error branch into a thrown response, use `throwXidError(err)` from the same module instead of hand-building an `AppError`.
 

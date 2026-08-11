@@ -1,4 +1,3 @@
-
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
 import type { ReactNode } from 'react'

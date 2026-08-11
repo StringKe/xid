@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation } from '../lib/router'

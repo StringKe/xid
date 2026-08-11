@@ -94,59 +94,59 @@ await xid.setActiveOrganization({ organizationId: 'org_abc123' })
 
 ### Passkey ceremony (WebAuthn)
 
-| Export                           | Kind     | Description                                                                                                                         |
-| -------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Export                           | Kind     | Description                                                                                                                                             |
+| -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `createPasskeyCredential`        | function | Runs `navigator.credentials.create` and serializes the attestation for `/auth/passkey/register/verify`; cancellation maps to an expected-failure Result |
-| `registrationOptionsToPublicKey` | function | Converts server registration options (base64url fields) into `PublicKeyCredentialCreationOptions`                                    |
-| `b64urlToBytes`                  | function | Decodes a base64url string to bytes                                                                                                  |
-| `bytesToB64url`                  | function | Encodes bytes as base64url                                                                                                           |
-| `PasskeyRegistrationOptions`     | type     | `/auth/passkey/register/options` response shape                                                                                      |
-| `PasskeyRegistrationVerifyBody`  | type     | `/auth/passkey/register/verify` request body                                                                                         |
+| `registrationOptionsToPublicKey` | function | Converts server registration options (base64url fields) into `PublicKeyCredentialCreationOptions`                                                       |
+| `b64urlToBytes`                  | function | Decodes a base64url string to bytes                                                                                                                     |
+| `bytesToB64url`                  | function | Encodes bytes as base64url                                                                                                                              |
+| `PasskeyRegistrationOptions`     | type     | `/auth/passkey/register/options` response shape                                                                                                         |
+| `PasskeyRegistrationVerifyBody`  | type     | `/auth/passkey/register/verify` request body                                                                                                            |
 
 ### Constants
 
-| Export                          | Kind             | Description                                                                                |
-| ------------------------------- | ---------------- | ------------------------------------------------------------------------------------------ |
-| `SESSION_STATUS`                | `as const` tuple | Valid session status values: `active`, `pending`, `expired`, `removed`, `ended`, `revoked` |
-| `CLIENT_STATUS`                 | `as const` tuple | Valid SDK client status values: `loading`, `ready`, `degraded`, `error`                    |
-| `SILENT_AUTHORIZATION_ERRORS`   | `as const` tuple | `prompt=none` interaction errors: `login_required`, `consent_required`, `interaction_required` |
-| `PACKAGE`                       | string constant  | Package name identifier `'@xid-kit/core'`                                                  |
+| Export                        | Kind             | Description                                                                                    |
+| ----------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `SESSION_STATUS`              | `as const` tuple | Valid session status values: `active`, `pending`, `expired`, `removed`, `ended`, `revoked`     |
+| `CLIENT_STATUS`               | `as const` tuple | Valid SDK client status values: `loading`, `ready`, `degraded`, `error`                        |
+| `SILENT_AUTHORIZATION_ERRORS` | `as const` tuple | `prompt=none` interaction errors: `login_required`, `consent_required`, `interaction_required` |
+| `PACKAGE`                     | string constant  | Package name identifier `'@xid-kit/core'`                                                      |
 
 ### Types
 
-| Export                      | Description                                                        |
-| --------------------------- | ------------------------------------------------------------------ |
-| `XidUser`                   | Read-only view of the authenticated user (no secrets or hashes)    |
-| `XidOrganization`           | Public organization view                                           |
-| `XidOrganizationMembership` | User membership in an org; `role` is `owner`, `admin`, or `member` |
-| `XidSession`                | Session view including status, expiry, and active org              |
-| `XidApiKey`                 | API key without secret (list view)                                 |
-| `XidApiKeyWithSecret`       | API key returned once at creation, includes `key` field            |
-| `XidPage<T>`                | Cursor-paginated response envelope                                 |
-| `CreateApiKeyInput` | Input type for `createApiKey` |
-| `SignInPasswordInput` | Input type for `signInPassword` |
-| `SignInResult` | Result from `signInPassword`: next step or redirect URL |
-| `SessionStatus` | Union of `SESSION_STATUS` values |
-| `ClientStatus` | Union of `CLIENT_STATUS` values |
-| `XidState` | Full SDK state snapshot subscribed from `XidStore` |
-| `XidStateListener` | State change listener callback type |
-| `Unsubscribe` | Return type of `XidStore.subscribe` |
-| `GetTokenOptions` | Options for `getToken`: skipCache, leewaySeconds, signal |
-| `XidClientOptions` | Union of explicit `same-origin` and `oidc` browser options |
-| `SameOriginXidClientOptions` | Exact-origin cookie mode options |
-| `OidcXidClientOptions` | Cross-origin OIDC options: issuer, clientId, redirectUri, scopes |
-| `CreateAuthorizationUrlInput` | OIDC authorize redirect options |
-| `HandleRedirectCallbackResult` | Validated OIDC callback result |
-| `ListUsersInput` | Input type for `listUsers` |
-| `ListSessionsInput` | Input type for `listSessions` |
-| `ManagementUser` | Management API user resource shape |
-| `ManagementSession` | Management API session resource shape |
-| `TokenResponse` | Raw token endpoint response shape |
-| `ClientStateResponse` | Raw `/v1/me` response shape |
-| `DecodedTokenClaims` | JWT payload claims returned by `decodeTokenClaims` |
-| `UpgradeGuestWithPasskeyInput` | Input type for `upgradeGuestWithPasskey`: optional `deviceName`, `signal` |
-| `SignInSilentInput` | Input type for `signInSilent`: optional `timeoutMs` (default 10 s), `signal` |
-| `SilentAuthorizationError` | Union of `SILENT_AUTHORIZATION_ERRORS` values |
+| Export                         | Description                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `XidUser`                      | Read-only view of the authenticated user (no secrets or hashes)                      |
+| `XidOrganization`              | Public organization view                                                             |
+| `XidOrganizationMembership`    | User membership in an org; `role` is `owner`, `admin`, or `member`                   |
+| `XidSession`                   | Session view including status, expiry, and active org                                |
+| `XidApiKey`                    | API key without secret (list view)                                                   |
+| `XidApiKeyWithSecret`          | API key returned once at creation, includes `key` field                              |
+| `XidPage<T>`                   | Cursor-paginated response envelope                                                   |
+| `CreateApiKeyInput`            | Input type for `createApiKey`                                                        |
+| `SignInPasswordInput`          | Input type for `signInPassword`                                                      |
+| `SignInResult`                 | Result from `signInPassword`: next step or redirect URL                              |
+| `SessionStatus`                | Union of `SESSION_STATUS` values                                                     |
+| `ClientStatus`                 | Union of `CLIENT_STATUS` values                                                      |
+| `XidState`                     | Full SDK state snapshot subscribed from `XidStore`                                   |
+| `XidStateListener`             | State change listener callback type                                                  |
+| `Unsubscribe`                  | Return type of `XidStore.subscribe`                                                  |
+| `GetTokenOptions`              | Options for `getToken`: skipCache, leewaySeconds, signal                             |
+| `XidClientOptions`             | Union of explicit `same-origin` and `oidc` browser options                           |
+| `SameOriginXidClientOptions`   | Exact-origin cookie mode options                                                     |
+| `OidcXidClientOptions`         | Cross-origin OIDC options: issuer, clientId, redirectUri, scopes                     |
+| `CreateAuthorizationUrlInput`  | OIDC authorize redirect options                                                      |
+| `HandleRedirectCallbackResult` | Validated OIDC callback result                                                       |
+| `ListUsersInput`               | Input type for `listUsers`                                                           |
+| `ListSessionsInput`            | Input type for `listSessions`                                                        |
+| `ManagementUser`               | Management API user resource shape                                                   |
+| `ManagementSession`            | Management API session resource shape                                                |
+| `TokenResponse`                | Raw token endpoint response shape                                                    |
+| `ClientStateResponse`          | Raw `/v1/me` response shape                                                          |
+| `DecodedTokenClaims`           | JWT payload claims returned by `decodeTokenClaims`                                   |
+| `UpgradeGuestWithPasskeyInput` | Input type for `upgradeGuestWithPasskey`: optional `deviceName`, `signal`            |
+| `SignInSilentInput`            | Input type for `signInSilent`: optional `timeoutMs` (default 10 s), `signal`         |
+| `SilentAuthorizationError`     | Union of `SILENT_AUTHORIZATION_ERRORS` values                                        |
 | `SilentRedirectCallbackResult` | Internal silent-callback variant mapped by `XidClient` to an expected-failure Result |
 
 Organization membership roles use the fixed `OrganizationMembershipRole` contract. Tenant-defined

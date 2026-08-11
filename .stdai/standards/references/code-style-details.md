@@ -77,11 +77,11 @@ wondering whether a given rule is actually enforced by Oxlint.
 
 The `lint.rules` block in the root `vite.config.ts` is deliberately small:
 
-| Rule               | Level                              | Notes                                                            |
-| ------------------ | ---------------------------------- | ---------------------------------------------------------------- |
-| `no-console`       | error, allows `warn` / `error`     | off for worker and kernel packages via `lint.overrides`           |
-| `no-explicit-any`  | error                              | repo-wide                                                        |
-| `max-params`       | warn, 4                            | `apps/server` runs a zero-warning budget, so it is fatal there    |
+| Rule              | Level                          | Notes                                                          |
+| ----------------- | ------------------------------ | -------------------------------------------------------------- |
+| `no-console`      | error, allows `warn` / `error` | off for worker and kernel packages via `lint.overrides`        |
+| `no-explicit-any` | error                          | repo-wide                                                      |
+| `max-params`      | warn, 4                        | `apps/server` runs a zero-warning budget, so it is fatal there |
 
 Type-aware linting is off (`lint.options.typeAware: false`, `typeCheck: false`): tsgo crashed and
 under-reported on the larger packages, so type correctness is owned by the separate turbo

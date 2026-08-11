@@ -1,4 +1,3 @@
-
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
 import type { FormEvent, ReactNode } from 'react'

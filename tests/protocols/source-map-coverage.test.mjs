@@ -1459,9 +1459,7 @@ function hasExplicitMissingEvidence(value) {
 }
 
 function publicDocPathsFromCell(value) {
-  return [...value.matchAll(/`(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)`/g)].map(
-    (match) => match[1],
-  )
+  return [...value.matchAll(/`(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)`/g)].map((match) => match[1])
 }
 
 function readConformancePlan() {
@@ -2526,10 +2524,9 @@ describe('protocol source map coverage', () => {
     ].join('\n')
 
     for (const slug of internalDocSlugsRequiredInGuard) {
-      expect(
-        distAuditSource.includes(`'${slug}'`),
-        `Site docs root denylist missing ${slug}`,
-      ).toBe(true)
+      expect(distAuditSource.includes(`'${slug}'`), `Site docs root denylist missing ${slug}`).toBe(
+        true,
+      )
     }
 
     for (const required of [
@@ -2538,10 +2535,7 @@ describe('protocol source map coverage', () => {
       '`${prefix}/docs/${slug}`',
       '404-page',
     ]) {
-      expect(
-        guardSources.includes(required),
-        `Site docs guards missing ${required}`,
-      ).toBe(true)
+      expect(guardSources.includes(required), `Site docs guards missing ${required}`).toBe(true)
     }
   })
 })

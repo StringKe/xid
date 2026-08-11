@@ -1,4 +1,3 @@
-
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'

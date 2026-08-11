@@ -1,4 +1,3 @@
-
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useRef } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'

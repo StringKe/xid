@@ -94,13 +94,13 @@ export const getServerSideProps = async (ctx) => {
 
 ### Types
 
-| Export                      | Description                                            |
-| --------------------------- | ------------------------------------------------------ |
+| Export                      | Description                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
 | `AuthObject`                | Authenticated state: userId, orgId, orgRole, sessionId; orgRole is `owner`, `admin`, or `member` |
-| `UnauthenticatedAuthObject` | Unauthenticated state with null fields                 |
-| `AuthResult`                | Union of `AuthObject` and `UnauthenticatedAuthObject`  |
-| `PaginationParams`          | Cursor and limit params for Management API list calls  |
-| `PaginatedResponse<T>`      | Paginated response envelope                            |
+| `UnauthenticatedAuthObject` | Unauthenticated state with null fields                                                           |
+| `AuthResult`                | Union of `AuthObject` and `UnauthenticatedAuthObject`                                            |
+| `PaginationParams`          | Cursor and limit params for Management API list calls                                            |
+| `PaginatedResponse<T>`      | Paginated response envelope                                                                      |
 
 ### Re-exports from @xid-kit/react
 

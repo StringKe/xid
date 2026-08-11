@@ -135,15 +135,15 @@ Xid.signOut(context = this@MainActivity, openEndSession = true)
 
 ## API reference
 
-| Method            | Signature                                                            | Description                                     |
-| ----------------- | -------------------------------------------------------------------- | ----------------------------------------------- |
-| `configure`       | `fun configure(context: Context, config: XidConfig)`                 | Initialize SDK in Application.onCreate          |
-| `setTokenStorage` | `fun setTokenStorage(adapter: TokenStorageAdapter)`                  | Replace default secure storage                  |
-| `signIn`          | `suspend fun signIn(context: Context, options: SignInOptions)`       | Launch Chrome Custom Tabs authorization         |
-| `handleRedirect`  | `suspend fun handleRedirect(url: String): XidSession`                | Handle callback URI, complete code exchange     |
-| `getSession`      | `suspend fun getSession(): XidSession?`                              | Return an unexpired session; expiry returns null |
+| Method            | Signature                                                            | Description                                              |
+| ----------------- | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `configure`       | `fun configure(context: Context, config: XidConfig)`                 | Initialize SDK in Application.onCreate                   |
+| `setTokenStorage` | `fun setTokenStorage(adapter: TokenStorageAdapter)`                  | Replace default secure storage                           |
+| `signIn`          | `suspend fun signIn(context: Context, options: SignInOptions)`       | Launch Chrome Custom Tabs authorization                  |
+| `handleRedirect`  | `suspend fun handleRedirect(url: String): XidSession`                | Handle callback URI, complete code exchange              |
+| `getSession`      | `suspend fun getSession(): XidSession?`                              | Return an unexpired session; expiry returns null         |
 | `getAccessToken`  | `suspend fun getAccessToken(options: GetAccessTokenOptions): String` | Return an unexpired token; expiry requires authorization |
-| `signOut`         | `suspend fun signOut(context, openEndSession)`                       | Clear local tokens, optionally open end_session |
+| `signOut`         | `suspend fun signOut(context, openEndSession)`                       | Clear local tokens, optionally open end_session          |
 
 ### Error types (sealed class XidException)
 

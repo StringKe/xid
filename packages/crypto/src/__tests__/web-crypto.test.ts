@@ -13,11 +13,10 @@ describe('Web Crypto availability (crypto-boundary rule)', () => {
   })
 
   it('AES-256-GCM key generation succeeds (envelope encryption KEK material)', async () => {
-    const key = (await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt'],
-    )) as CryptoKey
+    const key = (await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+      'encrypt',
+      'decrypt',
+    ])) as CryptoKey
     expect(key.type).toBe('secret')
     expect(key.algorithm.name).toBe('AES-GCM')
   })

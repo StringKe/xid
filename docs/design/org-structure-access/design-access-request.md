@@ -11,11 +11,11 @@ accessPolicy: text('access_policy').notNull().default('open'),
 // 'open' | 'restricted' | 'approval_required'
 ```
 
-| policy | 同 org 用户无有效 user_grant 时 | 申请入口 |
-| --- | --- | --- |
-| `open`（默认，= 现状） | 放行 | 无（不需要） |
-| `restricted` | `access_denied` | 无，只能管理端直接创建 grant |
-| `approval_required` | `access_denied` + 可识别错误码 | 自助申请 |
+| policy                 | 同 org 用户无有效 user_grant 时 | 申请入口                     |
+| ---------------------- | ------------------------------- | ---------------------------- |
+| `open`（默认，= 现状） | 放行                            | 无（不需要）                 |
+| `restricted`           | `access_denied`                 | 无，只能管理端直接创建 grant |
+| `approval_required`    | `access_denied` + 可识别错误码  | 自助申请                     |
 
 - 默认 `open` 保证存量 project 行为零变化；policy 按 project opt-in。
 - 跨 org 路径（`project_grants` + `user_grants`）不受 policy 影响，维持现状。
@@ -27,25 +27,25 @@ accessPolicy: text('access_policy').notNull().default('open'),
 export const accessRequests = sqliteTable(
   'access_requests',
   {
-    id: text('id').primaryKey(),                    // ar_ 前缀 ULID
+    id: text('id').primaryKey(), // ar_ 前缀 ULID
     tenantId: tenantId(),
-    orgId: text('org_id').notNull(),                // 申请发生的 org（= requester active org）
+    orgId: text('org_id').notNull(), // 申请发生的 org（= requester active org）
     projectId: text('project_id').notNull(),
-    roleId: text('role_id'),                        // 申请的角色；null = 由审批人决定
+    roleId: text('role_id'), // 申请的角色；null = 由审批人决定
     requesterUserId: text('requester_user_id').notNull(),
     justification: text('justification'),
     status: text('status').notNull().default('pending'),
     // 'pending' | 'approved' | 'denied' | 'cancelled' | 'expired'
-    approverUserId: text('approver_user_id'),       // 实际处理人
+    approverUserId: text('approver_user_id'), // 实际处理人
     decidedAt: tsMs('decided_at'),
     decisionReason: text('decision_reason'),
-    grantExpiresAt: tsMs('grant_expires_at'),       // 批准后写入 user_grants.expires_at
+    grantExpiresAt: tsMs('grant_expires_at'), // 批准后写入 user_grants.expires_at
     ...timestamps(),
   },
   (t) => [
     uniqueIndex('access_requests_pending_unq')
       .on(t.tenantId, t.projectId, t.requesterUserId)
-      .where(sql`${t.status} = 'pending'`),         // 同 (user, project) 至多一个 pending
+      .where(sql`${t.status} = 'pending'`), // 同 (user, project) 至多一个 pending
     index('access_requests_tenant_org_status_idx').on(t.tenantId, t.orgId, t.status, t.id),
     index('access_requests_tenant_project_status_idx').on(t.tenantId, t.projectId, t.status),
     index('access_requests_tenant_requester_idx').on(t.tenantId, t.requesterUserId, t.status),
@@ -111,33 +111,33 @@ else:
 
 挂现有 me 体系（`apps/server/worker/me-auth/`，与 consent 同模式）：
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/auth/access-requests` | body `{project_id, role_id?, justification?}`；校验 project 属当前 active org、policy = `approval_required`、requester 有 active membership；已有有效 grant -> 409 `grant_already_exists`；已有 pending -> 409（partial unique index 兜底） |
-| GET | `/auth/access-requests` | 我的申请列表（含惰性过期处理） |
-| POST | `/auth/access-requests/:id/cancel` | 仅本人 pending 可取消 |
+| 方法 | 路径                               | 说明                                                                                                                                                                                                                                        |
+| ---- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST | `/auth/access-requests`            | body `{project_id, role_id?, justification?}`；校验 project 属当前 active org、policy = `approval_required`、requester 有 active membership；已有有效 grant -> 409 `grant_already_exists`；已有 pending -> 409（partial unique index 兜底） |
+| GET  | `/auth/access-requests`            | 我的申请列表（含惰性过期处理）                                                                                                                                                                                                              |
+| POST | `/auth/access-requests/:id/cancel` | 仅本人 pending 可取消                                                                                                                                                                                                                       |
 
 - 枚举防护：project_id 不属于当前 org 或 policy 不符时返回统一 404 `project_not_found`，不区分「不存在」与「不可申请」（org 内用户对其他 project 的存在性探测）。
 - justification 长度上限 2000，valibot 边界校验。
 
 ### 3.2 审批（approver，cookie session）
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/auth/access-approvals` | 待我审批的 pending 列表（= 我是解析出的 approver 的 requests） |
+| 方法 | 路径                                 | 说明                                                                            |
+| ---- | ------------------------------------ | ------------------------------------------------------------------------------- |
+| GET  | `/auth/access-approvals`             | 待我审批的 pending 列表（= 我是解析出的 approver 的 requests）                  |
 | POST | `/auth/access-approvals/:id/approve` | body `{role_id?, grant_expires_at?}`；事务：条件 UPDATE + 写 user_grants + 审计 |
-| POST | `/auth/access-approvals/:id/deny` | body `{decision_reason}`（必填） |
+| POST | `/auth/access-approvals/:id/deny`    | body `{decision_reason}`（必填）                                                |
 
 - 处理权限 = 实时重新执行 `resolveAccessRequestApprover` 并比对当前用户，不预存 approver 快照（负责人变更即时生效，避免快照过期争议；性能成本 = 每次 3 级查询，可接受）。
 - approve 时 `role_id`：request 带 `role_id` 则优先且审批人不可改（v1 简化）；request 未带则审批人必填。
 
 ### 3.3 管理端（`/v1`，API key 或 org manager）
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/v1/organizations/:orgId/access-requests` | `?status=&project_id=` 过滤，cursor 分页 |
-| GET | `/v1/organizations/:orgId/access-requests/:id` | 详情 |
-| PATCH | `/v1/projects/:projectId` | 现有 project 更新端点扩展 `access_policy` 字段（`projects:write`） |
+| 方法  | 路径                                           | 说明                                                               |
+| ----- | ---------------------------------------------- | ------------------------------------------------------------------ |
+| GET   | `/v1/organizations/:orgId/access-requests`     | `?status=&project_id=` 过滤，cursor 分页                           |
+| GET   | `/v1/organizations/:orgId/access-requests/:id` | 详情                                                               |
+| PATCH | `/v1/projects/:projectId`                      | 现有 project 更新端点扩展 `access_policy` 字段（`projects:write`） |
 
 管理端 v1 不做代审批（approve/deny 只走 3.2 本人路径）——审批行为必须绑定到真实负责人身份进审计，org_manager 的退化路径是直接操作 user_grants（现有 `/v1` user-grants API）。
 

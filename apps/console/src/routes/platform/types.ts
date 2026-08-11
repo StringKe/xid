@@ -1,4 +1,3 @@
-
 export type PlatformOrganization = {
   id: string
   slug: string

@@ -215,8 +215,7 @@ export function resolveRedirect(continueUrl: string | null | undefined): string 
   try {
     const url = new URL(continueUrl, globalThis.location.origin)
     if (url.origin === globalThis.location.origin) return url.pathname + url.search + url.hash
-  } catch {
-  }
+  } catch {}
   return DEFAULT_SIGN_IN_RETURN_PATH
 }
 

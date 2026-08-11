@@ -8,9 +8,7 @@ import { useXidContext } from '../context/xid-context'
 
 export function useXidStore(): XidState {
   const { client } = useXidContext()
-  return useSyncExternalStore(
-    client.subscribe.bind(client),
-    client.getSnapshot,
-    () => client.getSnapshot(),
+  return useSyncExternalStore(client.subscribe.bind(client), client.getSnapshot, () =>
+    client.getSnapshot(),
   )
 }

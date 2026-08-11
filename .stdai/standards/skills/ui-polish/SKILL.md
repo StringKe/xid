@@ -20,14 +20,14 @@ function first -- never polish a half-built thing.
 
 Two budgets, split by surface, never mixed:
 
-|               | product (`apps/server/src`, `apps/console/src`)                                      | docs (`apps/site/src`)                                      |
-| ------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Role          | The design serves the task; motion only communicates state                          | Nimbus makes technical content readable and navigable        |
-| Motion budget | 150-250ms across the board, no page-load choreography                               | 100-300ms controls, no page-load choreography                 |
-| Typography    | Fixed rem steps plus one clamped page title                                         | Nimbus CSS tokens and documentation type scale                |
-| Color         | Accent only for primary action, selection, and status                               | Nimbus semantic CSS tokens                                    |
-| Density       | Long table rows are normal                                                          | Reading density with stable sidebar and table of contents     |
-| Tokens        | `tokens` from `packages/web-ui/src/styles/tokens.stylex.ts`                         | Nimbus tokens in `apps/site/src/styles`                       |
+|               | product (`apps/server/src`, `apps/console/src`)             | docs (`apps/site/src`)                                    |
+| ------------- | ----------------------------------------------------------- | --------------------------------------------------------- |
+| Role          | The design serves the task; motion only communicates state  | Nimbus makes technical content readable and navigable     |
+| Motion budget | 150-250ms across the board, no page-load choreography       | 100-300ms controls, no page-load choreography             |
+| Typography    | Fixed rem steps plus one clamped page title                 | Nimbus CSS tokens and documentation type scale            |
+| Color         | Accent only for primary action, selection, and status       | Nimbus semantic CSS tokens                                |
+| Density       | Long table rows are normal                                  | Reading density with stable sidebar and table of contents |
+| Tokens        | `tokens` from `packages/web-ui/src/styles/tokens.stylex.ts` | Nimbus tokens in `apps/site/src/styles`                   |
 
 ## 1. Hard numbers (red lines -- violations get fixed, not discussed)
 
@@ -66,12 +66,12 @@ Layering and z-index:
 
 Duration table (the 100 / 300 / 500 rule):
 
-| Duration  | Purpose             | Examples                              |
-| --------- | ------------------- | ------------------------------------- |
-| 100-150ms | Immediate feedback  | Press, toggle, color change           |
-| 200-300ms | State change        | Menu open, tooltip, hover, tab        |
-| 300-500ms | Layout change       | Collapsible panel, modal, drawer      |
-| 500-800ms | Not used            | XID ships no page-load choreography   |
+| Duration  | Purpose            | Examples                            |
+| --------- | ------------------ | ----------------------------------- |
+| 100-150ms | Immediate feedback | Press, toggle, color change         |
+| 200-300ms | State change       | Menu open, tooltip, hover, tab      |
+| 300-500ms | Layout change      | Collapsible panel, modal, drawer    |
+| 500-800ms | Not used           | XID ships no page-load choreography |
 
 Spring physics (the `motion` library; shared primitives in `packages/web-ui/src/motion/`):
 
@@ -149,7 +149,7 @@ A missing state is a hole in the experience, not a follow-up ticket. XID specifi
    way out) / overlong content (a truncation or wrapping strategy) / no data
 10. Responsiveness: check every breakpoint. The codebase uses 48rem (768px) and 64rem (1024px) as
     its two main breakpoints, so verify at 360px, 768px, 1024px, and a wide viewport. Touch targets
-    >= 44x44. Mobile body text >= 14px. No horizontal scrolling
+    > = 44x44. Mobile body text >= 14px. No horizontal scrolling
 11. Performance: no CLS (fixed image dimensions, skeletons at row height); expensive effects confined
     to small areas; 60fps measured, not assumed
 12. Code: remove `console.log`, dead code, unreferenced styles. Product surfaces replace one-off

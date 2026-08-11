@@ -331,7 +331,6 @@ function ForgotPasswordPage(): ReactNode {
   const organizationId = search.organization_id ?? null
   const [requestDone, setRequestDone] = useState(false)
 
-
   const isResetFlow = Boolean(token)
 
   if (requestDone) {

@@ -153,7 +153,7 @@ Replaces the token storage backend. Default: `SecureStorageAdapter` (flutter_sec
 | `flutter_secure_storage` | ^9.2.4  | Platform secure storage (Keychain/Keystore/DPAPI) |
 | `crypto`                 | ^3.0.3  | SHA-256 for PKCE S256 challenge                   |
 | `cryptography`           | ^2.7.0  | ID token ES256 verification API                   |
-| `cryptography_flutter`   | ^2.3.4  | Android/iOS/macOS native ECDSA backend             |
+| `cryptography_flutter`   | ^2.3.4  | Android/iOS/macOS native ECDSA backend            |
 | `http`                   | ^1.2.2  | HTTP client for discovery + token endpoints       |
 
 ## Known limits (pending before production use)

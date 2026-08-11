@@ -1,4 +1,3 @@
-
 import { useLingui } from '@lingui/react'
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'

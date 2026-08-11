@@ -17,17 +17,17 @@ repo, when you are adding a workspace member, or when you are about to edit
 
 ## Command Reference
 
-| Action      | apps/site                         | apps/console                        | apps/server                         | packages/\*                        | Whole repo                              |
-| ----------- | --------------------------------- | ----------------------------------- | ----------------------------------- | ---------------------------------- | --------------------------------------- |
-| Install     | `pnpm install`                    | `pnpm install`                      | `pnpm install`                      | --                                 | `pnpm install`                          |
-| Dev         | `pnpm --filter @xid-kit/site dev` | `pnpm --filter @xid-kit/console dev`| `pnpm --filter @xid-kit/server dev` | --                                 | `pnpm dev`                              |
-| Build       | `pnpm --filter @xid-kit/site build` | `pnpm --filter @xid-kit/console build` | `pnpm --filter @xid-kit/server build` | `vp pack`                       | `pnpm build`                            |
-| Check       | package `check` script            | package `check` script              | zero-warning budget wrapper         | `vp check`                         | `turbo run check`                       |
-| Type check  | package `typecheck` script        | `tsc --noEmit -p tsconfig.json`     | `tsc --noEmit -p tsconfig.json`     | `tsc --noEmit -p tsconfig.json`    | `pnpm typecheck`                        |
-| Test        | package `test` plus route audit   | package `test`                      | Worker + SPA Vitest configs         | `vp test`                          | `pnpm test`                             |
-| Format      | --                                | --                                  | --                                  | --                                 | `pnpm fmt`                              |
-| Full gate   | --                                | --                                  | --                                  | --                                 | `pnpm check`                            |
-| Release     | Workers Builds `wrangler deploy` | Workers Builds `wrangler deploy` | Workers Builds D1 migration plus `wrangler deploy` | -- | Cloudflare Workers Builds |
+| Action     | apps/site                           | apps/console                           | apps/server                                        | packages/\*                     | Whole repo                |
+| ---------- | ----------------------------------- | -------------------------------------- | -------------------------------------------------- | ------------------------------- | ------------------------- |
+| Install    | `pnpm install`                      | `pnpm install`                         | `pnpm install`                                     | --                              | `pnpm install`            |
+| Dev        | `pnpm --filter @xid-kit/site dev`   | `pnpm --filter @xid-kit/console dev`   | `pnpm --filter @xid-kit/server dev`                | --                              | `pnpm dev`                |
+| Build      | `pnpm --filter @xid-kit/site build` | `pnpm --filter @xid-kit/console build` | `pnpm --filter @xid-kit/server build`              | `vp pack`                       | `pnpm build`              |
+| Check      | package `check` script              | package `check` script                 | zero-warning budget wrapper                        | `vp check`                      | `turbo run check`         |
+| Type check | package `typecheck` script          | `tsc --noEmit -p tsconfig.json`        | `tsc --noEmit -p tsconfig.json`                    | `tsc --noEmit -p tsconfig.json` | `pnpm typecheck`          |
+| Test       | package `test` plus route audit     | package `test`                         | Worker + SPA Vitest configs                        | `vp test`                       | `pnpm test`               |
+| Format     | --                                  | --                                     | --                                                 | --                              | `pnpm fmt`                |
+| Full gate  | --                                  | --                                     | --                                                 | --                              | `pnpm check`              |
+| Release    | Workers Builds `wrangler deploy`    | Workers Builds `wrangler deploy`       | Workers Builds D1 migration plus `wrangler deploy` | --                              | Cloudflare Workers Builds |
 
 Notes that matter when you run these:
 

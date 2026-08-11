@@ -22,8 +22,7 @@ export function clearPendingAuthCompletion(): void {
   if (typeof sessionStorage === 'undefined') return
   try {
     sessionStorage.removeItem(STORAGE_KEY)
-  } catch {
-  }
+  } catch {}
 }
 
 export function consumePendingAuthCompletion(): PendingAuthCompletion | null {

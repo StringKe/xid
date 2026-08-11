@@ -510,17 +510,17 @@ from tenant-scoped APIs.
 OrgUnit management lives under `/v1/organizations/:orgId/units`, guarded by an API key with
 `org-units:read` / `org-units:write` or an org manager cookie session:
 
-| Method | Path                                                    | Notes                                             |
-| ------ | ------------------------------------------------------- | ------------------------------------------------- |
-| GET    | `/v1/organizations/:orgId/units`                        | `?parent_unit_id=` filter; defaults to the whole tree in path order |
-| POST   | `/v1/organizations/:orgId/units`                        | Create a node (depth cap 8)                       |
-| GET    | `/v1/organizations/:orgId/units/:unitId`                | Detail including `depth`/`path`                   |
-| PATCH  | `/v1/organizations/:orgId/units/:unitId`                | Update `name`/`slug`/`manager_user_id`            |
-| POST   | `/v1/organizations/:orgId/units/:unitId/move`           | Move the subtree under a new parent               |
-| DELETE | `/v1/organizations/:orgId/units/:unitId`                | Archive (leaves only), not a physical delete      |
-| GET    | `/v1/organizations/:orgId/units/:unitId/members`        | Members; `include_descendants` defaults to true   |
-| PUT    | `/v1/organizations/:orgId/units/:unitId/members/:userId`| Place a member, optionally as the primary post    |
-| DELETE | `/v1/organizations/:orgId/units/:unitId/members/:userId`| Remove a member                                   |
+| Method | Path                                                     | Notes                                                               |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------- |
+| GET    | `/v1/organizations/:orgId/units`                         | `?parent_unit_id=` filter; defaults to the whole tree in path order |
+| POST   | `/v1/organizations/:orgId/units`                         | Create a node (depth cap 8)                                         |
+| GET    | `/v1/organizations/:orgId/units/:unitId`                 | Detail including `depth`/`path`                                     |
+| PATCH  | `/v1/organizations/:orgId/units/:unitId`                 | Update `name`/`slug`/`manager_user_id`                              |
+| POST   | `/v1/organizations/:orgId/units/:unitId/move`            | Move the subtree under a new parent                                 |
+| DELETE | `/v1/organizations/:orgId/units/:unitId`                 | Archive (leaves only), not a physical delete                        |
+| GET    | `/v1/organizations/:orgId/units/:unitId/members`         | Members; `include_descendants` defaults to true                     |
+| PUT    | `/v1/organizations/:orgId/units/:unitId/members/:userId` | Place a member, optionally as the primary post                      |
+| DELETE | `/v1/organizations/:orgId/units/:unitId/members/:userId` | Remove a member                                                     |
 
 Project access requests are read-only on the Management API: `GET
 /v1/organizations/:orgId/access-requests` (with `?status=` and `?project_id=` filters, cursor

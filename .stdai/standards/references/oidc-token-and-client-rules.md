@@ -30,12 +30,12 @@ of truth: `docs/design/03-oidc-oauth.md`.
 
 ## Clients
 
-| Type                       | PKCE                | Secret                       |
-| -------------------------- | ------------------- | ---------------------------- |
-| confidential (web server)  | optional (S256 if sent) | required                 |
-| public / SPA               | required            | none                         |
-| native / mobile            | required            | none                         |
-| M2M (service account)      | N/A                 | required, or private_key_jwt |
+| Type                      | PKCE                    | Secret                       |
+| ------------------------- | ----------------------- | ---------------------------- |
+| confidential (web server) | optional (S256 if sent) | required                     |
+| public / SPA              | required                | none                         |
+| native / mobile           | required                | none                         |
+| M2M (service account)     | N/A                     | required, or private_key_jwt |
 
 - `redirect_uris` are **matched exactly, wildcards are never allowed**. Native clients may register loopback HTTP and custom-scheme URIs (RFC 8252); fragments are always rejected.
 - `client_secret` is stored hashed, never in plaintext, and compared in constant time.
