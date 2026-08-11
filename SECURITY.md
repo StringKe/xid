@@ -70,6 +70,43 @@ window collapses to whatever is needed to ship a fix.
 
 Reporters are credited in the published advisory unless they ask not to be. There is no bug bounty.
 
+## Fix timelines
+
+These targets align with OpenSSF Best Practices (Passing) expectations:
+
+| Class | Target |
+| ----- | ------ |
+| Acknowledgement of a private report | 5 business days (badge maximum 14 days) |
+| Medium or higher severity vulnerability that is **publicly known** | Fixed and available on `main` within **60 days** of public knowledge |
+| Critical severity after private report | Prioritized for the fastest practical fix; timeline shared after assessment |
+| Publicly disclosed fixed vulnerability | Listed under a `### Security` section in [`CHANGELOG.md`](CHANGELOG.md) when the fix ships |
+
+Public knowledge means a published CVE/NVD entry, or the project publishes the issue. Severity for the 60-day rule follows CVSS 2.0 base score ≥ 4 (medium or higher), consistent with the badge criterion.
+
+There are no long-term support branches. The fix lands on `main`; consumers track `main` or rebase onto it.
+
+## Cryptography
+
+XID is identity infrastructure and uses cryptography heavily. Defaults:
+
+| Area | Practice |
+| ---- | -------- |
+| Primitives | Platform **Web Crypto** (`crypto.subtle`, `crypto.getRandomValues`) only. Application code does not implement AES, RSA, ECDSA, SHA, HKDF, or random generators. |
+| Password hashing | **Argon2id** via `@noble/hashes`, unique per-user salt, server-side pepper in Workers Secrets (never in D1). |
+| Token signing | Instance **ES256** (P-256) keys; private keys envelope-encrypted with **AES-256-GCM** under a KEK in Workers Secrets. Plaintext private keys are never persisted. |
+| Hashing for integrity | SHA-256 (audit chain, digests). Not MD5/SHA-1 for security. |
+| Transport | HTTPS/TLS at the edge (Cloudflare). No http distribution of the project site or repository. |
+| Forbidden for secrets | `Math.random`, home-grown crypto, storing password or reset secrets in plaintext. |
+
+Design detail: `docs/design/00-overview.md` (build-vs-buy and signing keys). Contributor rules: crypto boundary in project AI standards and `CONTRIBUTING.md`.
+
+## Static and dynamic analysis
+
+- **Static analysis:** GitHub CodeQL on pull requests, pushes to `main`, and a weekly schedule (`.github/workflows/codeql.yml`). Confirmed medium/high exploitable findings are fixed promptly.
+- **Dependency review:** Dependabot and dependency-review workflow on pull requests.
+- **Secret scanning:** GitHub secret scanning and push protection, plus `pnpm run security:secret-scan`.
+- **Dynamic analysis:** Vitest unit/integration suites and Workers smoke tests exercise protocol and auth paths with varied inputs (`pnpm test`, CI).
+
 ## In scope
 
 Vulnerabilities in the code in this repository, in particular:

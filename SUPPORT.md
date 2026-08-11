@@ -1,18 +1,23 @@
 # Support
 
 XID is maintained as an open source project. Community support is best-effort with no service level
-agreement.
+agreement. This file is the project’s public map for **how to get help, report bugs, request
+enhancements, and contribute**.
 
 ## Where to go
 
-| Need                                    | Channel                                                                |
-| --------------------------------------- | ---------------------------------------------------------------------- |
-| Security vulnerability                  | [`SECURITY.md`](SECURITY.md). Never a public issue.                    |
-| Bug report                              | [Issues](https://github.com/StringKe/xid/issues) with the bug template |
-| Protocol or specification conformance   | Issues, protocol conformance template                                  |
-| Feature request                         | Issues, feature request template                                       |
-| Question, integration help, design idea | [Discussions](https://github.com/StringKe/xid/discussions)             |
-| Contributing a change                   | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                   |
+| Need                                    | Channel                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Security vulnerability                  | [`SECURITY.md`](SECURITY.md). **Never** a public issue. Prefer GitHub private vulnerability reporting. |
+| Bug report                              | [New issue](https://github.com/StringKe/xid/issues/new/choose) using the **bug** template          |
+| Protocol or specification conformance   | Issues, **protocol conformance** template                                                        |
+| Feature / enhancement request           | Issues, **feature request** template, or [Discussions](https://github.com/StringKe/xid/discussions) |
+| Question, integration help, design idea | [Discussions](https://github.com/StringKe/xid/discussions)                                       |
+| Contributing a change                   | [`CONTRIBUTING.md`](CONTRIBUTING.md) (pull requests + DCO)                                        |
+| Code of conduct                         | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)                                                       |
+
+Public issue and discussion history is the searchable archive of reports and replies:
+https://github.com/StringKe/xid/issues
 
 ## Before opening an issue
 

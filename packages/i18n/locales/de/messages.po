@@ -2084,6 +2084,10 @@ msgstr "Mit Microsoft fortfahren"
 msgid "Continue with SSO"
 msgstr "Mit SSO fortfahren"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Contributing"
+msgstr "Mitwirken"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Control components"
 msgstr "Steuerungskomponenten"
@@ -4145,6 +4149,7 @@ msgid "Getting started"
 msgstr "Erste Schritte"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "GitHub"
 msgstr "GitHub"
 
@@ -7289,6 +7294,10 @@ msgstr "Projektzuschussmanager"
 msgid "Project identity remains stable while its name and description change."
 msgstr "Die Projektidentität bleibt stabil, während sich Name und Beschreibung ändern."
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Project links"
+msgstr "Projektlinks"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project manager"
@@ -8812,6 +8821,7 @@ msgstr "SecureStore-Schlüssel-Namensgebung"
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/SecurityPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Security"
 msgstr "Sicherheit"
 
@@ -9681,6 +9691,7 @@ msgid "Success"
 msgstr "Erfolg"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "Unterstützung"
 

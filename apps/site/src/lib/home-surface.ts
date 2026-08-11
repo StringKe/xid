@@ -49,6 +49,11 @@ export const homeMessages = {
   productHuntAlt: msg`XID, an edge-native identity platform on Cloudflare Workers, featured on Product Hunt`,
   scorecardAlt: msg`OpenSSF Scorecard for XID`,
   bestPracticesAlt: msg`OpenSSF Best Practices badge for XID`,
+  footerNavLabel: msg`Project links`,
+  footerSupport: msg`Support`,
+  footerSecurity: msg`Security`,
+  footerContributing: msg`Contributing`,
+  footerGitHub: msg`GitHub`,
 } as const
 
 export type HomeFeature = {
@@ -88,6 +93,11 @@ export type HomeSurface = {
   productHuntAlt: string
   scorecardAlt: string
   bestPracticesAlt: string
+  footerNavLabel: string
+  footerSupport: string
+  footerSecurity: string
+  footerContributing: string
+  footerGitHub: string
 }
 
 export function getHomeSurface(locale: SiteLocale): HomeSurface {
@@ -167,6 +177,11 @@ export function getHomeSurface(locale: SiteLocale): HomeSurface {
     productHuntAlt: translate(homeMessages.productHuntAlt),
     scorecardAlt: translate(homeMessages.scorecardAlt),
     bestPracticesAlt: translate(homeMessages.bestPracticesAlt),
+    footerNavLabel: translate(homeMessages.footerNavLabel),
+    footerSupport: translate(homeMessages.footerSupport),
+    footerSecurity: translate(homeMessages.footerSecurity),
+    footerContributing: translate(homeMessages.footerContributing),
+    footerGitHub: translate(homeMessages.footerGitHub),
   }
 }
 
