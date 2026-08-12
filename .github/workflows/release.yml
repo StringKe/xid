@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # actions/checkout v6.0.1
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+
+      - name: Validate annotated SemVer tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Unsupported release tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"
+          package_version="$(node -p \
+            "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
+          test "$GITHUB_REF_NAME" = "v$package_version"
+          grep -F "## [$package_version]" CHANGELOG.md
+
+      # orhun/git-cliff-action v4.8.0, running git-cliff v2.13.1
+      - name: Generate release notes
+        id: git-cliff
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
+        with:
+          version: v2.13.1
+          config: cliff.toml
+          args: --current --strip all --verbose
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          OUTPUT: RELEASE_NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Validate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s RELEASE_NOTES.md
+          grep -F "## [${GITHUB_REF_NAME#v}]" RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "GitHub Release $GITHUB_REF_NAME already exists"
+            exit 0
+          fi
+          # No build, package publication, container, or custom release asset is produced here.
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file RELEASE_NOTES.md \
+            --latest

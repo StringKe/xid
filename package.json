@@ -1,6 +1,6 @@
 {
   "name": "xid",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "XID is an open-source, edge-native identity platform on Cloudflare Workers: OIDC/OAuth provider, multi-tenant RBAC, enterprise SSO federation (SAML and SCIM) and passkey-first hosted auth UI.",
   "keywords": [
@@ -37,6 +37,7 @@
   },
   "type": "module",
   "scripts": {
+    "changelog": "git-cliff --output CHANGELOG.md",
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
     "check": "pnpm run sdk:distribution:contract && turbo run check && turbo run typecheck && pnpm run native:verify && pnpm run i18n:audit && pnpm run protocols:source-map && pnpm run docs:translations && pnpm run test:web-routes && pnpm run test:key-paths && pnpm run test:quality-gate && pnpm run test:release-contracts && pnpm run test:coverage-gate && pnpm run test:worker-coverage-gate",
