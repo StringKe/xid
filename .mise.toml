@@ -3,5 +3,6 @@
 # 不用 prettier/eslint:代码质量走 vite-plus 内置 oxlint(lint)+ oxfmt(format),见根 vite.config.ts。
 
 [tools]
+git-cliff = "2.13.1"
 node = "24.15.0"
 pnpm = "10.33.4"
