@@ -17,6 +17,7 @@ import { handleResetPasswordSuccess } from './reset-success'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
+import { forgotPasswordHref, passwordRecoverySignInHref } from './navigation'
 
 type RequestStepProps = {
   organizationId?: string | null
@@ -26,6 +27,7 @@ type RequestStepProps = {
 type ResetStepProps = {
   token: string
   clearToken: () => void
+  requestNewLinkHref: string
 }
 
 function scorePassword(password: string): 0 | 1 | 2 | 3 | 4 {
@@ -178,7 +180,7 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
   )
 }
 
-function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
+function ResetStep({ token, clearToken, requestNewLinkHref }: ResetStepProps): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
@@ -262,7 +264,7 @@ function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
 
       {tokenInvalid ? (
         <p {...stylex.props(styles.footerText)}>
-          <Link to="/forgot-password" {...stylex.props(styles.textLink)}>
+          <Link to={requestNewLinkHref} {...stylex.props(styles.textLink)}>
             <Trans>Request a new reset link</Trans>
           </Link>
         </p>
@@ -317,10 +319,19 @@ function RequestDoneView(): ReactNode {
   )
 }
 
-function BackToSignIn(): ReactNode {
+function BackToSignIn({
+  organizationId,
+  locale,
+}: {
+  organizationId?: string | null
+  locale?: string | null
+}): ReactNode {
   return (
     <p {...stylex.props(styles.footerText)}>
-      <Link to="/sign-in" {...stylex.props(styles.textLink)}>
+      <Link
+        to={passwordRecoverySignInHref({ organizationId, locale })}
+        {...stylex.props(styles.textLink)}
+      >
         <Trans>Back to sign in</Trans>
       </Link>
     </p>
@@ -329,7 +340,11 @@ function BackToSignIn(): ReactNode {
 
 function ForgotPasswordPage(): ReactNode {
   // 挂两条路径,strict:false 不绑单一 route id。
-  const search = useSearch({ strict: false }) as { token?: string; organization_id?: string }
+  const search = useSearch({ strict: false }) as {
+    token?: string
+    organization_id?: string
+    locale?: string
+  }
   const { pathname } = useLocation()
   const isResetRoute = pathname === '/reset-password'
   const { token, ready, clearToken } = useOneTimeLinkToken({
@@ -337,11 +352,14 @@ function ForgotPasswordPage(): ReactNode {
     legacyQueryToken: isResetRoute ? (search.token ?? null) : null,
   })
   const organizationId = search.organization_id ?? null
+  const locale = search.locale ?? null
+  const backToSignIn = <BackToSignIn organizationId={organizationId} locale={locale} />
+  const requestNewLinkHref = forgotPasswordHref({ organizationId, locale })
   const [requestDone, setRequestDone] = useState(false)
 
   if (isResetRoute && !ready) {
     return (
-      <AuthLayout footer={<BackToSignIn />}>
+      <AuthLayout footer={backToSignIn}>
         <div {...stylex.props(styles.stack)} aria-live="polite">
           <Spinner size={24} />
           <Trans>Preparing password reset...</Trans>
@@ -352,13 +370,13 @@ function ForgotPasswordPage(): ReactNode {
 
   if (isResetRoute && token === null) {
     return (
-      <AuthLayout footer={<BackToSignIn />}>
+      <AuthLayout footer={backToSignIn}>
         <div {...stylex.props(styles.stack)}>
           <PageHeader title={<Trans>Reset link unavailable</Trans>} />
           <Alert tone="error">
             <Trans>This reset link is invalid or has expired. Please request a new one.</Trans>
           </Alert>
-          <Link to="/forgot-password" {...stylex.props(styles.textLink)}>
+          <Link to={requestNewLinkHref} {...stylex.props(styles.textLink)}>
             <Trans>Request a new reset link</Trans>
           </Link>
         </div>
@@ -368,16 +386,20 @@ function ForgotPasswordPage(): ReactNode {
 
   if (requestDone) {
     return (
-      <AuthLayout footer={<BackToSignIn />}>
+      <AuthLayout footer={backToSignIn}>
         <RequestDoneView />
       </AuthLayout>
     )
   }
 
   return (
-    <AuthLayout footer={<BackToSignIn />}>
+    <AuthLayout footer={backToSignIn}>
       {isResetRoute ? (
-        <ResetStep token={token as string} clearToken={clearToken} />
+        <ResetStep
+          token={token as string}
+          clearToken={clearToken}
+          requestNewLinkHref={requestNewLinkHref}
+        />
       ) : (
         <RequestStep organizationId={organizationId} onDone={() => setRequestDone(true)} />
       )}

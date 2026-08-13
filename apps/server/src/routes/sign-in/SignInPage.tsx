@@ -17,6 +17,7 @@ import { SignInGuestButton } from './SignInGuestButton'
 import { useSignIn } from './useSignIn'
 import { useTurnstile } from './useTurnstile'
 import { isProductSignUpIntent, isSignUpIntent } from '../../../shared/hosted-auth-intent'
+import { forgotPasswordHref } from '../forgot-password/navigation'
 import {
   getEnabledOtpMethods,
   identifierPrompt,
@@ -50,6 +51,7 @@ type SignInSearch = {
   reauthenticate?: string
   select_account?: string
   verified?: string
+  locale?: string
 }
 
 function buildIntentSwitchSearch(search: SignInSearch, target: 'sign-in' | 'sign-up'): string {
@@ -516,7 +518,13 @@ function SignInPage(): ReactNode {
                       </span>
                     </label>
                     {isSignUpFlow ? null : (
-                      <a href="/forgot-password" {...stylex.props(styles.textLink)}>
+                      <a
+                        href={forgotPasswordHref({
+                          organizationId: search.organization_id,
+                          locale: search.locale,
+                        })}
+                        {...stylex.props(styles.textLink)}
+                      >
                         <Trans>Forgot password?</Trans>
                       </a>
                     )}

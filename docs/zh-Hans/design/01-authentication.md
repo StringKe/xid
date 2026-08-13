@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=6c610d32301fb5605e8c5afdc0b8cdd9e21cc74c -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=82d86c30cd528fd3306de13caaae8a7debcefb92 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -163,6 +163,10 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 - 重置 token 只存哈希(SHA-256),token 本身不入 DB,防 DB 泄露后重放
 - 再次发送重置邮件不会撤销仍在 15 分钟 TTL 内且尚未消费的旧链接。每条链接仍各自单次有效;
   后续签发会顺带清理已消费和已过期行。
+- 从 Organization-scoped Hosted Auth 页面进入密码找回时,两个方向都必须保留
+  `organization_id` 和 locale。请求通过正常 Tenant resolver 使用该 Organization hint;
+  如果丢失,枚举抗性的请求会静默落到 Instance default Tenant,导致有效的 Organization-local
+  账户收不到邮件。
 - pepper 存 Secrets 不入 DB,轮换保留旧版本号兼容验证
 
 ### 数据模型

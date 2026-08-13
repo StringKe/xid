@@ -223,6 +223,16 @@ describe('SignInPage authenticated redirect', () => {
     expect(rendered.html).toContain('autocomplete="current-password"')
   })
 
+  it('keeps organization and locale context in password recovery navigation', async () => {
+    authState.status = 'unauthenticated'
+    routerState.search = { organization_id: 'org-1', locale: 'en' }
+    signInState.enabledMethods = ['password']
+
+    const rendered = await renderPage()
+
+    expect(rendered.html).toContain('href="/forgot-password?organization_id=org-1&amp;locale=en"')
+  })
+
   it('renders guest entry only when the server config includes the capability', async () => {
     authState.status = 'unauthenticated'
     signInState.guestCapability = true
