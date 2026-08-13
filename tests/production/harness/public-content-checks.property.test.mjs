@@ -12,7 +12,9 @@ describe('public content check properties', () => {
     fc.assert(
       fc.property(fc.string({ maxLength: 512 }), (suffix) => {
         const path = encodeURIComponent(suffix)
-        const injected = `${llms}\n- [Internal](https://xid.dev/docs/design/${path})\n`
+        const target = new URL(`/docs/design/${path}`, 'https://xid.dev')
+        fc.pre(target.pathname.startsWith('/docs/design/'))
+        const injected = `${llms}\n- [Internal](${target.href})\n`
 
         expect(llmsOk(injected)).toBe(false)
       }),
