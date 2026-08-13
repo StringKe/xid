@@ -879,6 +879,53 @@ WHERE ${policyDeniedWhere(input, afterMs)};
     }
   }
 
+  async function checkMagicLinkLegacyGetUiGate() {
+    const path = '/auth/magic-link/verify?token=invalid'
+    const url = `${coreBaseUrl}${path}`
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { accept: 'text/html' },
+      })
+      const location = res.headers.get('location') ?? ''
+      const setCookie = res.headers.get('set-cookie') ?? ''
+      let brandedUiLocation = false
+      try {
+        const target = new URL(location, coreBaseUrl)
+        brandedUiLocation =
+          target.pathname === '/magic-link' &&
+          !target.searchParams.has('token') &&
+          !new URLSearchParams(target.hash.slice(1)).has('token')
+      } catch {
+        brandedUiLocation = false
+      }
+      const ok =
+        res.status === 303 &&
+        webRouteOwnerMatches(res.headers, 'core') &&
+        brandedUiLocation &&
+        !setCookie.includes('__Host-xid.rt.')
+      if (!ok) failed = true
+      results.push({
+        name: 'magic-link-legacy-get-branded-ui-gate',
+        status: ok ? 'PASS' : 'FAIL',
+        httpStatus: res.status,
+        routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
+        location,
+        url,
+      })
+    } catch (error) {
+      failed = true
+      results.push({
+        name: 'magic-link-legacy-get-branded-ui-gate',
+        status: 'FAIL',
+        httpStatus: 'ERROR',
+        url,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   async function checkForgotPasswordDisabledGate() {
     const path = '/auth/forgot-password'
     const url = `${coreBaseUrl}${path}`
@@ -1119,6 +1166,7 @@ LIMIT 1;
   }
 
   await checkMagicLinkVerifyRouteGate()
+  await checkMagicLinkLegacyGetUiGate()
   await checkForgotPasswordDisabledGate()
   await checkDefaultAuthConfigResolvers()
   await checkDefaultOrgBootstrapShape()
