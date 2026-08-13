@@ -51,6 +51,7 @@ catalog:
   xmldsigjs: ^2.8.8
 
 overrides:
+  'astro-icon>@iconify/tools': 5.0.12
   '@astrojs/internal-helpers>js-yaml': 4.3.1
   '@esbuild-kit/core-utils>esbuild': 0.25.12
   '@cloudflare/vitest-pool-workers': ^0.16.11
