@@ -1328,6 +1328,7 @@ msgstr "콘솔로 돌아가기"
 #: apps/server/src/routes/accept-invitation/index.tsx
 #: apps/server/src/routes/consent/index.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Back to sign in"
@@ -1964,6 +1965,10 @@ msgstr "확인"
 msgid "Confirm and join"
 msgstr "확인하고 참여"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm email address"
+msgstr "이메일 주소 확인"
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Confirm new password"
 msgstr "새 비밀번호 확인"
@@ -1971,6 +1976,18 @@ msgstr "새 비밀번호 확인"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Confirm password"
 msgstr "비밀번호 확인"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Confirm sign in"
+msgstr "로그인 확인"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Confirm sign in | XID"
+msgstr "로그인 확인 | XID"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm your email"
+msgstr "이메일 확인"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Confirm your invitation"
@@ -2054,10 +2071,22 @@ msgstr "게스트로 계속"
 msgid "Continue only if you opened this link from the invitation email sent to you."
 msgstr "본인에게 전송된 초대 이메일에서 이 링크를 연 경우에만 계속하세요."
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Continue only if you opened this link from the verification email sent to you."
+msgstr "본인에게 전송된 인증 이메일에서 이 링크를 연 경우에만 계속하세요."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue only if you requested this sign-in link."
+msgstr "본인이 이 로그인 링크를 요청한 경우에만 계속하세요."
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.continueToSignIn"
 msgstr "로그인으로 계속"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue to sign in"
+msgstr "로그인 계속"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -5421,6 +5450,10 @@ msgstr "매직 링크"
 msgid "Magic Link"
 msgstr "매직 링크"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Magic link sign in"
+msgstr "매직 링크 로그인"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main and renderer bridge, safeStorage, and loopback or custom scheme callbacks."
 msgstr "메인 프로세스와 렌더러 브리지, safeStorage, loopback 또는 사용자 정의 스킴 콜백."
@@ -5990,6 +6023,10 @@ msgstr "보고된 사건은 없습니다."
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No instance managers found."
 msgstr "인스턴스 관리자를 찾을 수 없습니다."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "No magic-link token found. Please use the link from your email."
+msgstr "매직 링크 토큰을 찾을 수 없습니다. 이메일의 링크를 사용하세요."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No managers assigned to this scope."
@@ -7161,6 +7198,18 @@ msgstr "Preload 스크립트"
 msgid "Preparing"
 msgstr "준비 중"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Preparing password reset..."
+msgstr "비밀번호 재설정을 준비하는 중..."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Preparing sign in..."
+msgstr "로그인을 준비하는 중..."
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Preparing verification..."
+msgstr "인증을 준비하는 중..."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Preset"
 msgstr "프리셋"
@@ -8187,6 +8236,10 @@ msgstr "초대 이메일 다시 보내기"
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "인증 이메일 다시 보내기"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Reset link unavailable"
+msgstr "재설정 링크를 사용할 수 없음"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
@@ -9303,6 +9356,10 @@ msgstr "로그인 및 가입 흐름 옵션입니다. 새 계정 생성 허용 �
 msgid "Sign-in and sign-out"
 msgstr "로그인 및 로그아웃"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Sign-in confirmed. Redirecting..."
+msgstr "로그인이 확인되었습니다. 이동하는 중..."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Sign-in failed. Please check your credentials and try again."
 msgstr "로그인에 실패했습니다. 자격 증명을 확인하고 다시 시도하세요."
@@ -9339,6 +9396,10 @@ msgstr "서명 인증서"
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Signing secret generated. Store it now; it will not be shown again."
 msgstr "서명 비밀값이 생성되었습니다. 지금 저장하세요. 다시 표시되지 않습니다."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signing you in..."
+msgstr "로그인하는 중..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signOut clears the local session and legacy credentials without a refresh or revoke request; storage failures surface in signOutState."
@@ -10277,6 +10338,14 @@ msgstr "이 링크는 유효하지 않습니다. 새 링크를 요청하세요."
 #: packages/i18n/src/messages.ts
 msgid "This magic link has expired. Please request a new one."
 msgstr "이 매직 링크는 만료되었습니다. 새 링크를 요청하세요."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link has expired. Request a new link to continue."
+msgstr "이 매직 링크는 만료되었습니다. 계속하려면 새 링크를 요청하세요."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link is invalid or has already been used."
+msgstr "이 매직 링크는 유효하지 않거나 이미 사용되었습니다."
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."

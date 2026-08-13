@@ -78,6 +78,26 @@ export const verificationTokens = sqliteTable(
   ],
 )
 
+// 新 magic link 独立 ledger:不设 active-row 唯一约束,TTL 内每条链接各自单次有效。
+// verification_tokens 中的 magic_link 行只用于 rolling-deployment 兼容读取。
+export const magicLinkTokens = sqliteTable(
+  'magic_link_tokens',
+  {
+    id: text('id').primaryKey(),
+    tenantId: tenantId(),
+    userId: text('user_id').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    flowContext: text('flow_context').notNull(),
+    consumedAt: tsMs('consumed_at'),
+    expiresAt: tsMs('expires_at').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('magic_link_tokens_hash_unq').on(t.tokenHash),
+    index('magic_link_tokens_tenant_user_expiry_idx').on(t.tenantId, t.userId, t.expiresAt),
+  ],
+)
+
 // COSE 公钥存 blob,私钥永不入库。
 export const passkeyCredentials = sqliteTable(
   'passkey_credentials',

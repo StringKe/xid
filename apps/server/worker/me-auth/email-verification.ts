@@ -388,7 +388,7 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
         return c.json({
           ok: true,
           email: target.email,
-          redirectUrl: `/reset-password?token=${encodeURIComponent(setup.token)}`,
+          redirectUrl: `/reset-password#${new URLSearchParams({ token: setup.token }).toString()}`,
         })
       }
     }

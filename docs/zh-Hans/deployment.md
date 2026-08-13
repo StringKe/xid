@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=9e6e184722e39ea655fed8dfafef865f33771876 -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=cc3f6a7c7413d904381c3636371bae0c8444b2ec -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -955,8 +955,8 @@ light 和 dark rendering。
 三个 Worker 也都关闭 automatic request traces,因为 automatic Fetch span 会持久化
 `url.full`,其中可能包含 OAuth code 或一次性认证 token。应用日志使用结构化输出,并移除
 exception message、stack、cause、cookie、Authorization、IP、URL/query、provider payload
-与 user identifier。Core、Site、Console production logs 都采样 10%,Core staging logs
-采样 100%。Workers Logs 在 Free plan 保留 3 天、Paid plan 保留 7 天,整体上限为 7 天。
+与 user identifier。Core、Site、Console production logs 和 Core staging logs 都采样
+100%。Workers Logs 在 Free plan 保留 3 天、Paid plan 保留 7 天,整体上限为 7 天。
 当前只读证据显示托管账号为 Free,所以预期 retention 是 3 天;active account plan 与实际
 retention 在账号内完成 reconciliation 前仍标记为 `EXTERNAL`。官方来源:
 `https://developers.cloudflare.com/workers/observability/logs/workers-logs/`。

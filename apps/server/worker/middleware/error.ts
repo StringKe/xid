@@ -10,7 +10,7 @@ import {
   isResourceQuotaConstraintError,
   isSeatLimitConstraintError,
 } from '../lib/errors'
-import { logWorkerError } from '../lib/safe-log'
+import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
 
 function isXidErrorShape(value: unknown): value is XidError {
@@ -63,6 +63,28 @@ function bodyFromUnknown(c: Parameters<ErrorHandler<XidHonoEnv>>[1]): MappedErro
   return { status: 500, body: { code, message: renderErrorMessage(c, code) } }
 }
 
+const ONE_TIME_LINK_OPERATIONS: Readonly<Record<string, string>> = {
+  '/auth/magic-link/verify': 'magic_link',
+  '/auth/verify-email': 'email_verification',
+  '/auth/reset-password': 'password_reset',
+  '/auth/invitation/claim/verify': 'invitation_email_claim',
+}
+
+function logOneTimeLinkRejection(
+  c: Parameters<ErrorHandler<XidHonoEnv>>[1],
+  error: AppError | XidError,
+): void {
+  const path = (c as unknown as { req?: { path?: string } }).req?.path
+  const operation = path ? ONE_TIME_LINK_OPERATIONS[path] : undefined
+  if (!operation) return
+  logWorkerWarning('auth.one_time_link.rejected', {
+    component: 'auth',
+    operation,
+    outcome: error.code,
+    status: error.httpStatus,
+  })
+}
+
 // 未知错误恒打日志;结构化预期失败不打;响应 no-store。
 export const errorHandler: ErrorHandler<XidHonoEnv> = (err, c) => {
   const normalized = isSeatLimitConstraintError(err)
@@ -74,6 +96,9 @@ export const errorHandler: ErrorHandler<XidHonoEnv> = (err, c) => {
     logWorkerError('request.unhandled_exception', err, {
       component: 'error-middleware',
     })
+  }
+  if (isAppError(normalized) || isXidErrorShape(normalized)) {
+    logOneTimeLinkRejection(c, normalized)
   }
   const mapped = isAppError(normalized)
     ? bodyFromAppError(c, normalized)

@@ -452,7 +452,7 @@ Implemented baseline:
   severity, an allowlisted error type/code, and bounded operational fields. Error message, stack,
   cause, cookie, Authorization, IP, raw URL/query, provider payload, and user identifiers are never
   passed to `console`.
-- Production Workers Logs sample 10%; staging logs sample 100%. Cloudflare invocation logs and
+- Production and staging Workers Logs sample 100%. Cloudflare invocation logs and
   automatic request traces are disabled in every environment because both persist the request URL,
   and automatic Fetch spans include `url.full`. Core URLs can carry OAuth codes, invitation tokens,
   verification tokens, and other one-time secrets.

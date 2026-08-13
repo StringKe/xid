@@ -1328,6 +1328,7 @@ msgstr "Back to Console"
 #: apps/server/src/routes/accept-invitation/index.tsx
 #: apps/server/src/routes/consent/index.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Back to sign in"
@@ -1964,6 +1965,10 @@ msgstr "Confirm"
 msgid "Confirm and join"
 msgstr "Confirm and join"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm email address"
+msgstr "Confirm email address"
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Confirm new password"
 msgstr "Confirm new password"
@@ -1971,6 +1976,18 @@ msgstr "Confirm new password"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Confirm password"
 msgstr "Confirm password"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Confirm sign in"
+msgstr "Confirm sign in"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Confirm sign in | XID"
+msgstr "Confirm sign in | XID"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm your email"
+msgstr "Confirm your email"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Confirm your invitation"
@@ -2054,9 +2071,21 @@ msgstr "Continue as guest"
 msgid "Continue only if you opened this link from the invitation email sent to you."
 msgstr "Continue only if you opened this link from the invitation email sent to you."
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Continue only if you opened this link from the verification email sent to you."
+msgstr "Continue only if you opened this link from the verification email sent to you."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue only if you requested this sign-in link."
+msgstr "Continue only if you requested this sign-in link."
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.continueToSignIn"
+msgstr "Continue to sign in"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue to sign in"
 msgstr "Continue to sign in"
 
 #. js-lingui-explicit-id
@@ -5421,6 +5450,10 @@ msgstr "Magic link"
 msgid "Magic Link"
 msgstr "Magic Link"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Magic link sign in"
+msgstr "Magic link sign in"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main and renderer bridge, safeStorage, and loopback or custom scheme callbacks."
 msgstr "Main and renderer bridge, safeStorage, and loopback or custom scheme callbacks."
@@ -5990,6 +6023,10 @@ msgstr "No incidents have been reported."
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No instance managers found."
 msgstr "No instance managers found."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "No magic-link token found. Please use the link from your email."
+msgstr "No magic-link token found. Please use the link from your email."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No managers assigned to this scope."
@@ -7161,6 +7198,18 @@ msgstr "Preload script"
 msgid "Preparing"
 msgstr "Preparing"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Preparing password reset..."
+msgstr "Preparing password reset..."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Preparing sign in..."
+msgstr "Preparing sign in..."
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Preparing verification..."
+msgstr "Preparing verification..."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Preset"
 msgstr "Preset"
@@ -8187,6 +8236,10 @@ msgstr "Resend invitation email"
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "Resend verification email"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Reset link unavailable"
+msgstr "Reset link unavailable"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
@@ -9303,6 +9356,10 @@ msgstr "Sign-in and registration flow options — whether new accounts can be cr
 msgid "Sign-in and sign-out"
 msgstr "Sign-in and sign-out"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Sign-in confirmed. Redirecting..."
+msgstr "Sign-in confirmed. Redirecting..."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Sign-in failed. Please check your credentials and try again."
 msgstr "Sign-in failed. Please check your credentials and try again."
@@ -9339,6 +9396,10 @@ msgstr "Signing certificates"
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Signing secret generated. Store it now; it will not be shown again."
 msgstr "Signing secret generated. Store it now; it will not be shown again."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signing you in..."
+msgstr "Signing you in..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signOut clears the local session and legacy credentials without a refresh or revoke request; storage failures surface in signOutState."
@@ -10277,6 +10338,14 @@ msgstr "This link is invalid. Please request a new one."
 #: packages/i18n/src/messages.ts
 msgid "This magic link has expired. Please request a new one."
 msgstr "This magic link has expired. Please request a new one."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link has expired. Request a new link to continue."
+msgstr "This magic link has expired. Request a new link to continue."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link is invalid or has already been used."
+msgstr "This magic link is invalid or has already been used."
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."

@@ -28,6 +28,7 @@ function buildApp(): Hono<XidHonoEnv> {
 describe('errorHandler', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   it('maps AppError to status, localized message, meta, and no-store cache', async () => {
@@ -106,6 +107,34 @@ describe('errorHandler', () => {
     vi.mocked(console.error).mockClear()
     await buildApp().request('/app-error', {}, { ENVIRONMENT: 'production' } as Env)
     expect(console.error).not.toHaveBeenCalled()
+  })
+
+  it('logs one-time-link rejection as low-cardinality metadata without credential material', async () => {
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('i18n', { _: (descriptor: { id: string }) => `localized:${descriptor.id}` } as never)
+      await next()
+    })
+    app.onError(errorHandler)
+    app.post('/auth/magic-link/verify', () => {
+      throw new AppError('magic_link_expired')
+    })
+
+    const res = await app.request('/auth/magic-link/verify?token=raw-secret', { method: 'POST' })
+
+    expect(res.status).toBe(400)
+    expect(console.warn).toHaveBeenCalledWith({
+      event: 'auth.one_time_link.rejected',
+      severity: 'warning',
+      component: 'auth',
+      operation: 'magic_link',
+      outcome: 'magic_link_expired',
+      status: 400,
+    })
+    const logged = JSON.stringify(vi.mocked(console.warn).mock.calls)
+    expect(logged).not.toContain('raw-secret')
+    expect(logged).not.toContain('token=')
+    expect(logged).not.toContain('https://')
   })
 
   it('keeps an error response available when request i18n is absent', async () => {

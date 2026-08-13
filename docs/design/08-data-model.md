@@ -763,6 +763,10 @@ Indexes: `INDEX(tenant_id, user_id, created_at)`.
 
 Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id)`.
 
+Issuing another password-reset link preserves every unconsumed row whose `expires_at` is still in
+the future. Each row remains independently single-use. Issuance may hard-delete only consumed or
+expired rows for the same user and purpose.
+
 ### 12.3a verification_tokens (the shared short-lived token table for magic link and OTP, = the OtpCode/MagicLinkToken entities, see chapter 01 section 4)
 
 | Field         | Type           | Constraints                                | Default | Notes                                                                                                         |
@@ -780,9 +784,11 @@ Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id)`.
 | expires_at    | integer ts_ms  | NOT NULL                                   | --      | magic link 15min / email OTP 10min / phone OTP 5min (see chapter 01 section 4)                                |
 | created_at    | integer ts_ms  | NOT NULL                                   | See 9.3 |                                                                                                               |
 
-Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id)`, and the partial
+Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id)`, and the legacy partial
 `UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose IN ('magic_link','otp')`
-(at most one active row per user, purpose, and channel; a resend invalidates the old row first).
+(at most one active legacy row per user, purpose, and channel). New magic-link issuance uses
+`magic_link_tokens` in section 12.3b so this compatibility index can remain in place during rolling
+deployment; OTP continues to replace the prior active code before insert.
 
 New passwordless `magic_link` and `otp` rows require `flow_context`; an SMS OTP row used only as an
 MFA factor may leave it null. It stores only bounded, normalized control data and never an invitation
@@ -797,7 +803,26 @@ normalized Email targeted at issue time. D1 continues to store only the jti hash
 `verification_tokens.token_hash`; no plaintext Email or additional target column is required.
 Consumption compares the signed `email_hash` with the current primary Email or
 `users.pending_email`, then updates only the matching target. A changed target invalidates the
-token, and resend invalidates the prior active token before issuing a replacement.
+token. Resend preserves other unconsumed Email-verification rows within their TTL and deletes only
+consumed or expired rows for the same user and purpose.
+
+### 12.3b magic_link_tokens (parallel-valid magic-link ledger, hash only)
+
+| Field        | Type          | Constraints                                | Default | Notes                                                                                         |
+| ------------ | ------------- | ------------------------------------------ | ------- | --------------------------------------------------------------------------------------------- |
+| id           | text          | PK                                         | nanoid  |                                                                                               |
+| tenant_id    | text          | NOT NULL, FK -> organizations.id           | --      |                                                                                               |
+| user_id      | text          | NOT NULL, FK -> users.id ON DELETE cascade | --      |                                                                                               |
+| token_hash   | text          | NOT NULL, UNIQUE                           | --      | `SHA-256(jti)`; the plaintext signed JWT never enters D1                                      |
+| flow_context | text json     | NOT NULL                                   | --      | Exact serialized `PasswordlessFlowContext`, matched against the signed JWT before consumption |
+| consumed_at  | integer ts_ms | nullable                                   | null    | Single use; filled by the conditional consume                                                 |
+| expires_at   | integer ts_ms | NOT NULL                                   | --      | 15-minute validity                                                                            |
+| created_at   | integer ts_ms | NOT NULL                                   | See 9.3 |                                                                                               |
+
+Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id, expires_at)`. There is deliberately no
+active-row uniqueness constraint: every unconsumed row remains valid until its own expiry. Issuance
+may hard-delete only consumed or expired rows for the same user. Verification reads this ledger
+first and falls back to the legacy `verification_tokens` row for one TTL window across deployment.
 
 ### 12.4 passkey_credentials (WebAuthn credentials, see chapter 01 section 1 and the webauthn rule)
 

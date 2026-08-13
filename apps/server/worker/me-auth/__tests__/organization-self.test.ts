@@ -156,6 +156,7 @@ function makeOnboardingSqlite(): SqliteD1 {
     CREATE TABLE passwords (tenant_id TEXT NOT NULL, user_id TEXT NOT NULL);
     CREATE TABLE password_history (tenant_id TEXT NOT NULL, user_id TEXT NOT NULL);
     CREATE TABLE password_reset_tokens (tenant_id TEXT NOT NULL, user_id TEXT NOT NULL);
+    CREATE TABLE magic_link_tokens (tenant_id TEXT NOT NULL, user_id TEXT NOT NULL);
     CREATE TABLE verification_tokens (tenant_id TEXT NOT NULL, user_id TEXT NOT NULL);
     CREATE TABLE passkey_credentials (tenant_id TEXT NOT NULL, user_id TEXT NOT NULL);
     CREATE TABLE mfa_factors (tenant_id TEXT NOT NULL, user_id TEXT NOT NULL);

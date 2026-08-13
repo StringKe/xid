@@ -159,7 +159,7 @@ app.post('/setup-link', async (c) => {
       tenantId: tenant.tenantId,
       userId: user.id,
       token,
-      link: `${hostedAuthOriginForTenant(tenant)}/reset-password?token=${encodeURIComponent(token)}`,
+      link: `${hostedAuthOriginForTenant(tenant)}/reset-password#${new URLSearchParams({ token }).toString()}`,
       expires: 15,
       expiresInMin: 15,
     },

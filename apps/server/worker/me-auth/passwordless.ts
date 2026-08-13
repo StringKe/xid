@@ -15,7 +15,11 @@ import { issueSession } from '../lib/session'
 import { EMAIL_OTP_AUTH_CONTEXT, SMS_OTP_AUTH_CONTEXT } from '../lib/auth-context'
 import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
 import { otpCodeSchema, readJsonBody, validateCredentialBody } from '../lib/validate'
-import { handleMagicLinkVerify, sendMagicLink } from '../auth/magic-link'
+import {
+  handleMagicLinkVerify,
+  handleMagicLinkVerifyRedirect,
+  sendMagicLink,
+} from '../auth/magic-link'
 import {
   consumeVerifiableOtp,
   constantTimeEqualStr,
@@ -194,7 +198,7 @@ export async function handleMagicLinkSend(c: Context<XidHonoEnv>): Promise<Respo
   return c.json({ ok: true })
 }
 
-export { handleMagicLinkVerify }
+export { handleMagicLinkVerify, handleMagicLinkVerifyRedirect }
 
 // OTP 发送核心(channel/target 复用 persistAndSendOtp);限流 + 枚举防护(200)。
 async function sendOtp(input: OtpSendInput): Promise<Response> {

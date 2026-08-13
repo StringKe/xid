@@ -1,14 +1,14 @@
-// 找回密码:request 枚举防护始终"已发送";reset 靠 ?token=(server 15min 哈希一次性)。
+// 找回密码:request 枚举防护始终"已发送";reset token 从 URL fragment 捕获并在提交表单时消费。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useCallback, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
-import { Link, useNavigate } from '../../lib/router'
+import { Link, useLocation, useNavigate } from '../../lib/router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
+import { Alert, Button, Field, Input, PageHeader, Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
 import { useAuth } from '../../lib/auth-context'
 import { PasswordStrength } from '../sign-up/PasswordStrength'
@@ -16,6 +16,7 @@ import { trackPasswordResetRequest } from '../../lib/google-analytics-funnel'
 import { handleResetPasswordSuccess } from './reset-success'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
+import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
 
 type RequestStepProps = {
   organizationId?: string | null
@@ -24,6 +25,7 @@ type RequestStepProps = {
 
 type ResetStepProps = {
   token: string
+  clearToken: () => void
 }
 
 function scorePassword(password: string): 0 | 1 | 2 | 3 | 4 {
@@ -176,7 +178,7 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
   )
 }
 
-function ResetStep({ token }: ResetStepProps): ReactNode {
+function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
@@ -214,6 +216,7 @@ function ResetStep({ token }: ResetStepProps): ReactNode {
         }
         return
       }
+      clearToken()
       await handleResetPasswordSuccess({
         refresh,
         navigate: async (options) => navigate(options.to, { replace: options.replace }),
@@ -327,11 +330,41 @@ function BackToSignIn(): ReactNode {
 function ForgotPasswordPage(): ReactNode {
   // 挂两条路径,strict:false 不绑单一 route id。
   const search = useSearch({ strict: false }) as { token?: string; organization_id?: string }
-  const token = search.token ?? null
+  const { pathname } = useLocation()
+  const isResetRoute = pathname === '/reset-password'
+  const { token, ready, clearToken } = useOneTimeLinkToken({
+    storageKey: 'xid.password-reset.token',
+    legacyQueryToken: isResetRoute ? (search.token ?? null) : null,
+  })
   const organizationId = search.organization_id ?? null
   const [requestDone, setRequestDone] = useState(false)
 
-  const isResetFlow = Boolean(token)
+  if (isResetRoute && !ready) {
+    return (
+      <AuthLayout footer={<BackToSignIn />}>
+        <div {...stylex.props(styles.stack)} aria-live="polite">
+          <Spinner size={24} />
+          <Trans>Preparing password reset...</Trans>
+        </div>
+      </AuthLayout>
+    )
+  }
+
+  if (isResetRoute && token === null) {
+    return (
+      <AuthLayout footer={<BackToSignIn />}>
+        <div {...stylex.props(styles.stack)}>
+          <PageHeader title={<Trans>Reset link unavailable</Trans>} />
+          <Alert tone="error">
+            <Trans>This reset link is invalid or has expired. Please request a new one.</Trans>
+          </Alert>
+          <Link to="/forgot-password" {...stylex.props(styles.textLink)}>
+            <Trans>Request a new reset link</Trans>
+          </Link>
+        </div>
+      </AuthLayout>
+    )
+  }
 
   if (requestDone) {
     return (
@@ -343,8 +376,8 @@ function ForgotPasswordPage(): ReactNode {
 
   return (
     <AuthLayout footer={<BackToSignIn />}>
-      {isResetFlow ? (
-        <ResetStep token={token as string} />
+      {isResetRoute ? (
+        <ResetStep token={token as string} clearToken={clearToken} />
       ) : (
         <RequestStep organizationId={organizationId} onDone={() => setRequestDone(true)} />
       )}

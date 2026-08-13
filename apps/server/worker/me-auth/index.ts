@@ -12,6 +12,7 @@ import { handleResendVerification, handleVerifyEmail } from './email-verificatio
 import {
   handleMagicLinkSend,
   handleMagicLinkVerify,
+  handleMagicLinkVerifyRedirect,
   handleOtpEmailSend,
   handleOtpEmailVerify,
   handleOtpSmsSend,
@@ -60,7 +61,8 @@ export function registerSessionAuthRoutes(app: Hono<XidHonoEnv>): void {
 
   // passwordless(magic link + 渠道拆分 OTP)
   app.post('/auth/magic-link/send', handleMagicLinkSend)
-  app.get('/auth/magic-link/verify', handleMagicLinkVerify)
+  app.get('/auth/magic-link/verify', handleMagicLinkVerifyRedirect)
+  app.post('/auth/magic-link/verify', handleMagicLinkVerify)
   app.post('/auth/otp/email/send', handleOtpEmailSend)
   app.post('/auth/otp/email/verify', handleOtpEmailVerify)
   app.post('/auth/otp/whatsapp/send', handleOtpWhatsappSend)

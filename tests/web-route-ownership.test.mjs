@@ -164,7 +164,7 @@ describe('Web route ownership', () => {
   })
 
   it('keeps the exact Core SPA manifest under Core without accepting typo descendants', () => {
-    expect(CORE_SPA_ROUTE_PATHS).toHaveLength(17)
+    expect(CORE_SPA_ROUTE_PATHS).toHaveLength(18)
     for (const path of CORE_SPA_ROUTE_PATHS) {
       expectOwner(`https://xid.dev${path}`, 'core')
       expectOwner(`https://tenant.xid.dev${path}`, 'core')

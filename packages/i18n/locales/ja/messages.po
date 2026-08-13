@@ -1328,6 +1328,7 @@ msgstr "コンソールに戻る"
 #: apps/server/src/routes/accept-invitation/index.tsx
 #: apps/server/src/routes/consent/index.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Back to sign in"
@@ -1964,6 +1965,10 @@ msgstr "確認"
 msgid "Confirm and join"
 msgstr "確認して参加"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm email address"
+msgstr "メールアドレスを確認"
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Confirm new password"
 msgstr "新しいパスワードを確認"
@@ -1971,6 +1976,18 @@ msgstr "新しいパスワードを確認"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Confirm password"
 msgstr "パスワードを確認"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Confirm sign in"
+msgstr "サインインを確認"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Confirm sign in | XID"
+msgstr "サインインを確認 | XID"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm your email"
+msgstr "メールアドレスを確認"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Confirm your invitation"
@@ -2054,10 +2071,22 @@ msgstr "ゲストとして続行"
 msgid "Continue only if you opened this link from the invitation email sent to you."
 msgstr "送信された招待メールからこのリンクを開いた場合にのみ続行してください。"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Continue only if you opened this link from the verification email sent to you."
+msgstr "送信された確認メールからこのリンクを開いた場合にのみ続行してください。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue only if you requested this sign-in link."
+msgstr "このサインインリンクをリクエストした場合にのみ続行してください。"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.continueToSignIn"
 msgstr "サインインに進む"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue to sign in"
+msgstr "サインインを続ける"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -5421,6 +5450,10 @@ msgstr "メールリンク"
 msgid "Magic Link"
 msgstr "メールリンク"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Magic link sign in"
+msgstr "メールリンクでサインイン"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main and renderer bridge, safeStorage, and loopback or custom scheme callbacks."
 msgstr "メインとレンダラーのブリッジ、safeStorage、ループバックまたはカスタムスキームコールバック。"
@@ -5990,6 +6023,10 @@ msgstr "報告されたインシデントはありません。"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No instance managers found."
 msgstr "インスタンス マネージャーが見つかりません。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "No magic-link token found. Please use the link from your email."
+msgstr "メールリンクのトークンが見つかりません。メール内のリンクを使用してください。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No managers assigned to this scope."
@@ -7161,6 +7198,18 @@ msgstr "プリロードスクリプト"
 msgid "Preparing"
 msgstr "準備中"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Preparing password reset..."
+msgstr "パスワードのリセットを準備しています..."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Preparing sign in..."
+msgstr "サインインを準備しています..."
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Preparing verification..."
+msgstr "確認を準備しています..."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Preset"
 msgstr "プリセット"
@@ -8187,6 +8236,10 @@ msgstr "招待メールを再送信"
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "確認メールを再送"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Reset link unavailable"
+msgstr "リセットリンクを利用できません"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
@@ -9303,6 +9356,10 @@ msgstr "サインインと登録フローのオプションです。新規アカ
 msgid "Sign-in and sign-out"
 msgstr "サインインとサインアウト"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Sign-in confirmed. Redirecting..."
+msgstr "サインインを確認しました。リダイレクトしています..."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Sign-in failed. Please check your credentials and try again."
 msgstr "サインインに失敗しました。認証情報を確認してもう一度お試しください。"
@@ -9339,6 +9396,10 @@ msgstr "署名証明書"
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Signing secret generated. Store it now; it will not be shown again."
 msgstr "署名シークレットを生成しました。今すぐ保存してください。再表示されません。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signing you in..."
+msgstr "サインインしています..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signOut clears the local session and legacy credentials without a refresh or revoke request; storage failures surface in signOutState."
@@ -10277,6 +10338,14 @@ msgstr "このリンクは無効です。新しいリンクをリクエストし
 #: packages/i18n/src/messages.ts
 msgid "This magic link has expired. Please request a new one."
 msgstr "このメールリンクの有効期限が切れています。新しいリンクをリクエストしてください。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link has expired. Request a new link to continue."
+msgstr "このメールリンクの有効期限が切れています。続行するには新しいリンクをリクエストしてください。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link is invalid or has already been used."
+msgstr "このメールリンクは無効であるか、すでに使用されています。"
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."

@@ -264,7 +264,7 @@ describe('POST /auth/verify-email', () => {
     expect(await res.json()).toEqual({
       ok: true,
       email: 'owner@example.com',
-      redirectUrl: '/reset-password?token=setup.token.sig',
+      redirectUrl: '/reset-password#token=setup.token.sig',
     })
   })
 

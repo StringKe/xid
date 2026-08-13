@@ -56,6 +56,7 @@ export function resolveAnalyticsPageGroup(pathname: string): AnalyticsPageGroup 
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/verify-email') ||
+    pathname.startsWith('/magic-link') ||
     pathname.startsWith('/mfa') ||
     pathname.startsWith('/consent') ||
     pathname.startsWith('/accept-invitation') ||

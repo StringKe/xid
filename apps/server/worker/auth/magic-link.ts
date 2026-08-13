@@ -1,13 +1,13 @@
 // magic-link.ts:Email magic link passwordless 认证 handler。
-// token = HMAC-SHA256 签名 JWT(sub/exp/jti),15min 单次有效(01 章 4)。
-// server 只存 jti SHA-256 哈希(verificationTokens.tokenHash)用于作废;token 明文不入 DB。
+// token = instance ES256 签名 JWT(sub/exp/jti),15min 单次有效(01 章 4)。
+// server 只存 jti SHA-256 哈希(magicLinkTokens.tokenHash)用于作废;token 明文不入 DB。
 // 限流:同一邮箱 1/min + 5/hour(RateLimitStore DO,anti-abuse rule)。
 // 枚举防护:邮箱不存在与已发送统一模糊响应(01 章 7 / anti-abuse rule)。
 
 import { base64UrlEncode, sha256Hex, signJwt, verifyJwt } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { JwtClaims } from '@xid-kit/crypto'
-import { and, eq, gt, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
@@ -31,10 +31,10 @@ import {
 import { resolveTokenTenant } from '../me-auth/token-tenant'
 import { recordAuthTokenIssued } from './token-audit'
 import { resolvePostAuthMfaGate } from '../lib/mfa-session'
-import { replaceActiveVerificationToken } from './otp'
 import { reserveRateLimitWindows } from '../lib/rate-limit'
 import { MAGIC_LINK_TTL_MS } from '../lib/ttl'
 import { SEND_PER_HOUR_POLICY } from '../me-auth/shared'
+import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import {
   createPasswordlessFlowContext,
   parsePasswordlessFlowContext,
@@ -67,28 +67,16 @@ async function resolveMagicLinkTenant(
   return resolveTokenTenant(c, rawToken, 'magic_link_invalid')
 }
 
-function magicLinkHostedOrigin(tenant: TenantVar): string {
-  return new URL(hostedAuthOriginForTenant(tenant)).origin
-}
-
 function noStoreRedirect(c: Context<XidHonoEnv>, url: string): Response {
-  const res = c.redirect(url, 302)
+  const res = c.redirect(url, 303)
   res.headers.set('cache-control', VERIFY_REDIRECT_HEADERS['cache-control'])
   return res
 }
 
-function shouldRedirectToHostedAuthOrigin(c: Context<XidHonoEnv>, tenant: TenantVar): boolean {
-  return new URL(c.req.url).origin !== magicLinkHostedOrigin(tenant)
-}
-
-function magicLinkHostedAuthRedirect(
-  c: Context<XidHonoEnv>,
-  tenant: TenantVar,
-  rawToken: string,
-): Response {
-  const redirectUrl = new URL('/auth/magic-link/verify', hostedAuthOriginForTenant(tenant))
-  redirectUrl.searchParams.set('token', rawToken)
-  return noStoreRedirect(c, redirectUrl.toString())
+function magicLinkConfirmationUrl(tenant: TenantVar, rawToken: string): string {
+  const redirectUrl = new URL('/magic-link', hostedAuthOriginForTenant(tenant))
+  redirectUrl.hash = new URLSearchParams({ token: rawToken }).toString()
+  return redirectUrl.toString()
 }
 
 async function withTenant<T>(
@@ -237,19 +225,20 @@ export async function sendMagicLink(
   // 只存 jti 的 SHA-256 哈希,token 明文不入 DB(01 章 / password-auth rule)。
   const tokenHash = await sha256Hex(jti)
 
-  await replaceActiveVerificationToken({
-    db,
-    channel: null,
-    purpose: 'magic_link',
-    values: {
-      id: crypto.randomUUID(),
-      tenantId: tenant.tenantId,
-      userId,
-      tokenHash,
-      flowContext: serializePasswordlessFlowContext(flow),
-      purpose: 'magic_link',
-      expiresAt: new Date(Date.now() + MAGIC_LINK_TTL_MS),
-    },
+  const now = new Date()
+  await db.magicLinkTokens.hardDelete(
+    and(
+      eq(schema.magicLinkTokens.userId, userId),
+      or(isNotNull(schema.magicLinkTokens.consumedAt), lte(schema.magicLinkTokens.expiresAt, now)),
+    ),
+  )
+  await db.magicLinkTokens.insert({
+    id: crypto.randomUUID(),
+    tenantId: tenant.tenantId,
+    userId,
+    tokenHash,
+    flowContext: serializePasswordlessFlowContext(flow),
+    expiresAt: new Date(now.getTime() + MAGIC_LINK_TTL_MS),
   })
   await recordAuthTokenIssued({
     env: c.env,
@@ -259,9 +248,6 @@ export async function sendMagicLink(
     kid: signer.kid,
   })
 
-  const verifyUrl = new URL('/auth/magic-link/verify', hostedAuthOriginForTenant(tenant))
-  verifyUrl.searchParams.set('token', token)
-
   // 异步发邮件(不阻塞主链路,见 cloudflare-bindings rule)。
   await c.env.EMAIL_QUEUE.send({
     type: 'magic_link',
@@ -270,7 +256,7 @@ export async function sendMagicLink(
       tenantId: tenant.tenantId,
       userId,
       token,
-      link: verifyUrl.toString(),
+      link: magicLinkConfirmationUrl(tenant, token),
       expires: 15,
       expiresInMin: 15,
     },
@@ -314,43 +300,65 @@ async function consumeMagicToken(
   signedFlow: PasswordlessFlowContext,
 ): Promise<string> {
   const tokenHash = await sha256Hex(jti)
-  const tokenRow = await db.verificationTokens.findOne(
-    eq(schema.verificationTokens.tokenHash, tokenHash),
+  const ledgerRow = await db.magicLinkTokens.findOne(
+    eq(schema.magicLinkTokens.tokenHash, tokenHash),
   )
+  const legacyRow = ledgerRow
+    ? undefined
+    : await db.verificationTokens.findOne(eq(schema.verificationTokens.tokenHash, tokenHash))
+  const tokenRow = ledgerRow ?? legacyRow
   if (!tokenRow || tokenRow.consumedAt !== null) throw new AppError('magic_link_invalid')
   if (tokenRow.expiresAt.getTime() <= Date.now()) throw new AppError('magic_link_expired')
-  if (tokenRow.purpose !== 'magic_link') throw new AppError('magic_link_invalid')
+  if (legacyRow && legacyRow.purpose !== 'magic_link') throw new AppError('magic_link_invalid')
   if (
     tokenRow.userId !== signedUserId ||
     tokenRow.flowContext !== serializePasswordlessFlowContext(signedFlow)
   ) {
     throw new AppError('magic_link_invalid')
   }
-  const consumed = await db.verificationTokens.update(
-    { consumedAt: new Date() },
-    and(
-      eq(schema.verificationTokens.tokenHash, tokenHash),
-      eq(schema.verificationTokens.purpose, 'magic_link'),
-      isNull(schema.verificationTokens.consumedAt),
-      gt(schema.verificationTokens.expiresAt, new Date()),
-    ),
-  )
+  const consumed = ledgerRow
+    ? await db.magicLinkTokens.update(
+        { consumedAt: new Date() },
+        and(
+          eq(schema.magicLinkTokens.tokenHash, tokenHash),
+          isNull(schema.magicLinkTokens.consumedAt),
+          gt(schema.magicLinkTokens.expiresAt, new Date()),
+        ),
+      )
+    : await db.verificationTokens.update(
+        { consumedAt: new Date() },
+        and(
+          eq(schema.verificationTokens.tokenHash, tokenHash),
+          eq(schema.verificationTokens.purpose, 'magic_link'),
+          isNull(schema.verificationTokens.consumedAt),
+          gt(schema.verificationTokens.expiresAt, new Date()),
+        ),
+      )
   if (consumed && consumed.length === 0 && tokenRow.id) throw new AppError('magic_link_invalid')
   return tokenRow.userId
 }
 
 const magicLinkVerifyQuerySchema = v.object({ token: v.pipe(v.string(), v.minLength(1)) })
+const magicLinkVerifyBodySchema = v.object({ token: v.pipe(v.string(), v.minLength(1)) })
 
-export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Response> {
-  // token 是凭证:缺失/形状失败与无效 token 同 magic_link_invalid(枚举防护)。
+// 存量 query-string 链接只做 Hosted UI 跳转。GET 永不验签、消费 token 或签发 session。
+export async function handleMagicLinkVerifyRedirect(c: Context<XidHonoEnv>): Promise<Response> {
   const query = v.safeParse(magicLinkVerifyQuerySchema, { token: c.req.query('token') })
   if (!query.success) throw new AppError('magic_link_invalid')
   const rawToken = query.output.token
   const tenant = await resolveMagicLinkTenant(c, rawToken)
+  return noStoreRedirect(c, magicLinkConfirmationUrl(tenant, rawToken))
+}
 
-  if (shouldRedirectToHostedAuthOrigin(c, tenant)) {
-    return magicLinkHostedAuthRedirect(c, tenant, rawToken)
-  }
+export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Response> {
+  const json = await readJsonBody(c)
+  if (!json.ok) throw new AppError('magic_link_invalid')
+  const body = validateCredentialBody(magicLinkVerifyBodySchema, json.value, {
+    code: 'magic_link_invalid',
+    credentialFields: ['token'],
+  })
+  const rawToken = body.token
+  const tenant = await resolveMagicLinkTenant(c, rawToken)
 
   // 失败限流:IP 级 50/min(account 未知,仅按 IP,anti-abuse rule)。
   await enforceVerifyRateLimit({
@@ -393,6 +401,6 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
       userAgent: c.req.header('user-agent') ?? null,
     })
 
-    return noStoreRedirect(c, mfaGate.redirectUrl ?? flow.continuePath)
+    return c.json({ redirectUrl: mfaGate.redirectUrl ?? flow.continuePath })
   })
 }

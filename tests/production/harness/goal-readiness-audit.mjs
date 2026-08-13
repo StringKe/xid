@@ -831,8 +831,10 @@ async function fetchProduction(path, options = {}) {
     redirect: 'manual',
     headers: {
       accept: options.accept ?? 'text/html,application/json;q=0.9,*/*;q=0.8',
+      ...(options.headers ?? {}),
     },
     method: options.method ?? 'GET',
+    body: options.body,
   })
   return {
     res,
@@ -1017,8 +1019,11 @@ async function auditProductionHttpReadiness(incomplete) {
     incomplete.push(`production Core unknown route invalid http=${unknown.res.status}`)
   }
 
-  const magicInvalid = await fetchProduction('/auth/magic-link/verify?token=invalid', {
+  const magicInvalid = await fetchProduction('/auth/magic-link/verify', {
     accept: 'application/json',
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: 'invalid' }),
   })
   if (
     magicInvalid.res.status === 400 &&

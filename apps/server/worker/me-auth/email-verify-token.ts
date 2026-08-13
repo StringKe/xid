@@ -3,7 +3,7 @@
 import { base64UrlEncode, sha256Hex, signJwt, verifyJwt } from '@xid-kit/crypto'
 import type { JwtClaims } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, eq, gt, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import { AppError } from '../lib/errors'
 import type { TenantVar } from '../lib/types'
 import { buildVerifyKeySet, loadActiveSigner } from '../oidc/shared'
@@ -26,7 +26,7 @@ export type VerifiedEmailToken = {
   invitationId: string | null
 }
 
-// 签发邮箱验证 token + 持久化 jti 哈希(删旧同 purpose token),入队发验证邮件。
+// 签发邮箱验证 token + 持久化 jti 哈希;TTL 内未消费的旧链接继续有效。
 export async function issueEmailVerification(opts: {
   env: Env
   tenant: TenantVar
@@ -82,6 +82,10 @@ export async function issueEmailVerification(opts: {
     and(
       eq(schema.verificationTokens.userId, userId),
       eq(schema.verificationTokens.purpose, PURPOSE),
+      or(
+        isNotNull(schema.verificationTokens.consumedAt),
+        lte(schema.verificationTokens.expiresAt, new Date()),
+      ),
     ),
   )
   await db.verificationTokens.insert({
@@ -107,7 +111,7 @@ export async function issueEmailVerification(opts: {
       tenantId: tenant.tenantId,
       userId,
       token,
-      link: `${origin}/verify-email?token=${encodeURIComponent(token)}`,
+      link: `${origin}/verify-email#${new URLSearchParams({ token }).toString()}`,
       expires: 15,
       expiresInMin: 15,
     },

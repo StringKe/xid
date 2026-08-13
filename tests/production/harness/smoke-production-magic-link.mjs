@@ -170,6 +170,29 @@ class CdpPage {
     return result.result.value
   }
 
+  async clickVisibleButton(label) {
+    const clicked = await this.evaluate(`(() => {
+      const label = ${JSON.stringify(label)};
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+      const isVisible = (node) => {
+        if (node.closest('[aria-hidden="true"],[inert]')) return false;
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          Number(style.opacity || '1') > 0.1 &&
+          rect.width > 0 &&
+          rect.height > 0;
+      };
+      const node = Array.from(document.querySelectorAll('button, [role="button"]'))
+        .find((item) => isVisible(item) && !item.disabled && normalize(item.textContent) === label);
+      if (!node) return false;
+      node.click();
+      return true;
+    })()`)
+    if (clicked !== true) throw new Error(`visible enabled button not found: ${label}`)
+  }
+
   async sessionCookieHeader() {
     const result = await this.send('Network.getCookies', { urls: [`${baseUrl}/`] })
     const pairs = (result.cookies ?? [])
@@ -344,17 +367,27 @@ async function readProvidedMagicLinkUrl() {
 
 function parseMagicLink(url) {
   const path = toPathOrUrl(url)
-  if (!path.startsWith('/auth/magic-link/verify?')) {
-    throw new Error('provided URL is not a magic link verify URL')
-  }
   const parsed = new URL(`${baseUrl}${path}`)
-  const token = parsed.searchParams.get('token')
+  const isConfirmation = parsed.pathname === '/magic-link'
+  const isLegacyVerify = parsed.pathname === '/auth/magic-link/verify'
+  if (!isConfirmation && !isLegacyVerify) {
+    throw new Error('provided URL is not a magic link URL')
+  }
+  const fragment = new URLSearchParams(parsed.hash.slice(1))
+  const token = fragment.get('token') ?? parsed.searchParams.get('token')
   if (!token) throw new Error('provided magic link has no token')
   const claims = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'))
   if (claims.purpose !== 'magic_link') throw new Error('provided token is not a magic link token')
   if (claims.iss !== baseUrl) throw new Error(`provided token issuer mismatch iss=${claims.iss}`)
   if (!claims.jti) throw new Error('provided magic link token has no jti')
-  return { path, jti: claims.jti }
+  const confirmation = new URL('/magic-link', baseUrl)
+  confirmation.searchParams.set('locale', 'en')
+  confirmation.hash = new URLSearchParams({ token }).toString()
+  return {
+    path: `${confirmation.pathname}${confirmation.search}${confirmation.hash}`,
+    token,
+    jti: claims.jti,
+  }
 }
 
 async function verifyMagicLinkFromEmail(url, preSmokeContext, session) {
@@ -364,14 +397,26 @@ async function verifyMagicLinkFromEmail(url, preSmokeContext, session) {
 
   await withChrome(async (page) => {
     await page.navigateUrl(`${baseUrl}${parsed.path}`, 'magic link verify')
-    // 先取 cookie 再断言:导航返回即已建 session,断言失败仍须能在 finally 登出。
-    const cookie = await page.sessionCookieHeader()
-    session.cookie = cookie
+    await page.waitFor(
+      () =>
+        document.body.innerText.includes('Confirm sign in') &&
+        document.body.innerText.includes('Continue to sign in'),
+      15_000,
+      'magic link confirmation UI',
+    )
+    const before = await page.browserMe()
+    if (before.status !== 401) {
+      throw new Error(`magic link navigation authenticated before confirmation http=${before.status}`)
+    }
+    await page.clickVisibleButton('Continue to sign in')
     await page.waitFor(
       () => location.pathname.startsWith('/console'),
       15_000,
       'magic link browser default console redirect',
     )
+    // 先取 cookie 再断言:确认动作已建 session,断言失败仍须能在 finally 登出。
+    const cookie = await page.sessionCookieHeader()
+    session.cookie = cookie
     await verifyMeForEmail(cookie, email, { expectedInstanceManager: true })
     const browserMe = await page.browserMe()
     if (browserMe.status !== 200) {
@@ -393,7 +438,11 @@ async function verifyMagicLinkFromEmail(url, preSmokeContext, session) {
 
   await verifyMagicLinkConsumedByHash(tokenHash)
 
-  const second = await fetchText(parsed.path, { method: 'GET' })
+  const second = await fetchText('/auth/magic-link/verify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: parsed.token }),
+  })
   if (second.res.status !== 400) {
     throw new Error(`magic link second click expected 400 got http=${second.res.status}`)
   }

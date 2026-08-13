@@ -37,6 +37,7 @@ const USER_OWNED_TENANT_TABLES = [
   'passwords',
   'password_history',
   'password_reset_tokens',
+  'magic_link_tokens',
   'verification_tokens',
   'passkey_credentials',
   'mfa_factors',

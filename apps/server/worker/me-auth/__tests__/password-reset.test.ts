@@ -180,7 +180,7 @@ describe('POST /auth/forgot-password', () => {
       expect.objectContaining({
         type: 'password_reset',
         payload: expect.objectContaining({
-          link: expect.stringContaining('/reset-password?token='),
+          link: expect.stringContaining('/reset-password#token='),
         }),
       }),
     )
@@ -217,7 +217,7 @@ describe('POST /auth/forgot-password', () => {
       expect.objectContaining({
         type: 'password_reset',
         payload: expect.objectContaining({
-          link: 'https://xid.dev/reset-password?token=reset.token.sig',
+          link: 'https://xid.dev/reset-password#token=reset.token.sig',
         }),
       }),
     )
@@ -284,7 +284,7 @@ describe('POST /auth/forgot-password', () => {
       expect.objectContaining({
         type: 'password_reset',
         payload: expect.objectContaining({
-          link: 'https://xid.dev/reset-password?token=reset.token.sig',
+          link: 'https://xid.dev/reset-password#token=reset.token.sig',
         }),
       }),
     )
@@ -356,7 +356,7 @@ describe('POST /auth/forgot-password', () => {
         type: 'password_reset',
         payload: expect.objectContaining({
           tenantId: 'org-selected',
-          link: 'https://xid.dev/reset-password?token=reset.token.sig',
+          link: 'https://xid.dev/reset-password#token=reset.token.sig',
         }),
       }),
     )
