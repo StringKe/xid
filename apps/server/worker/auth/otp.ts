@@ -93,7 +93,7 @@ export async function persistAndSendOtp(opts: {
   const ttlMs = channel === 'email' ? OTP_EMAIL_TTL_MS : OTP_PHONE_TTL_MS
   const tokenId = crypto.randomUUID()
 
-  await replaceActiveVerificationToken({
+  await replaceActiveOtpToken({
     db,
     channel,
     purpose: 'otp',
@@ -151,10 +151,10 @@ function isActiveCredentialConflict(error: unknown): boolean {
   return error instanceof Error && /unique constraint/iu.test(error.message)
 }
 
-export async function replaceActiveVerificationToken(opts: {
+export async function replaceActiveOtpToken(opts: {
   db: ReturnType<typeof createTenantDb>
-  channel: OtpChannel | null
-  purpose: 'magic_link' | 'otp'
+  channel: OtpChannel
+  purpose: 'otp'
   values: {
     id: string
     tenantId: string
@@ -163,7 +163,7 @@ export async function replaceActiveVerificationToken(opts: {
     codeHash?: string
     flowContext?: string
     channel?: OtpChannel
-    purpose: 'magic_link' | 'otp'
+    purpose: 'otp'
     attemptCount?: number
     expiresAt: Date
   }
@@ -172,9 +172,7 @@ export async function replaceActiveVerificationToken(opts: {
   const currentCredential = and(
     eq(schema.verificationTokens.userId, values.userId),
     eq(schema.verificationTokens.purpose, purpose),
-    channel === null
-      ? isNull(schema.verificationTokens.channel)
-      : eq(schema.verificationTokens.channel, channel),
+    eq(schema.verificationTokens.channel, channel),
     isNull(schema.verificationTokens.consumedAt),
   )
 

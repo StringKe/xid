@@ -1328,6 +1328,7 @@ msgstr "返回控制台"
 #: apps/server/src/routes/accept-invitation/index.tsx
 #: apps/server/src/routes/consent/index.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Back to sign in"
@@ -1964,6 +1965,10 @@ msgstr "确认"
 msgid "Confirm and join"
 msgstr "确认并加入"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm email address"
+msgstr "确认邮箱地址"
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Confirm new password"
 msgstr "确认新密码"
@@ -1971,6 +1976,18 @@ msgstr "确认新密码"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Confirm password"
 msgstr "确认密码"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Confirm sign in"
+msgstr "确认登录"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Confirm sign in | XID"
+msgstr "确认登录 | XID"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirm your email"
+msgstr "确认你的邮箱"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Confirm your invitation"
@@ -2054,9 +2071,21 @@ msgstr "以访客身份继续"
 msgid "Continue only if you opened this link from the invitation email sent to you."
 msgstr "仅当你从发送给你的邀请邮件中打开此链接时才继续。"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Continue only if you opened this link from the verification email sent to you."
+msgstr "仅当你从发送给你的验证邮件中打开此链接时才继续。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue only if you requested this sign-in link."
+msgstr "仅当此登录链接由你本人请求时才继续。"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.continueToSignIn"
+msgstr "继续登录"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue to sign in"
 msgstr "继续登录"
 
 #. js-lingui-explicit-id
@@ -5421,6 +5450,10 @@ msgstr "登录链接"
 msgid "Magic Link"
 msgstr "登录链接"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Magic link sign in"
+msgstr "登录链接验证"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main and renderer bridge, safeStorage, and loopback or custom scheme callbacks."
 msgstr "主进程与渲染进程 bridge、safeStorage 以及 loopback 或自定义 scheme callback。"
@@ -5990,6 +6023,10 @@ msgstr "尚未报告任何事件。"
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No instance managers found."
 msgstr "未找到实例管理器。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "No magic-link token found. Please use the link from your email."
+msgstr "未找到登录链接 token。请使用邮件中的链接。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No managers assigned to this scope."
@@ -7161,6 +7198,18 @@ msgstr "Preload 脚本"
 msgid "Preparing"
 msgstr "准备中"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Preparing password reset..."
+msgstr "正在准备重置密码..."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Preparing sign in..."
+msgstr "正在准备登录..."
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Preparing verification..."
+msgstr "正在准备验证..."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Preset"
 msgstr "预设"
@@ -8187,6 +8236,10 @@ msgstr "重新发送邀请邮件"
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "重新发送验证邮件"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Reset link unavailable"
+msgstr "重置链接不可用"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
@@ -9303,6 +9356,10 @@ msgstr "登录与注册流程选项:是否允许创建新账户、邮箱验证�
 msgid "Sign-in and sign-out"
 msgstr "登录与登出"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Sign-in confirmed. Redirecting..."
+msgstr "登录已确认。正在跳转..."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Sign-in failed. Please check your credentials and try again."
 msgstr "登录失败。请检查凭据后重试。"
@@ -9339,6 +9396,10 @@ msgstr "签名证书"
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Signing secret generated. Store it now; it will not be shown again."
 msgstr "签名密钥已生成。请立即保存，之后不会再次显示。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signing you in..."
+msgstr "正在登录..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signOut clears the local session and legacy credentials without a refresh or revoke request; storage failures surface in signOutState."
@@ -10277,6 +10338,14 @@ msgstr "此链接无效。请重新获取。"
 #: packages/i18n/src/messages.ts
 msgid "This magic link has expired. Please request a new one."
 msgstr "此登录链接已过期。请重新获取。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link has expired. Request a new link to continue."
+msgstr "此登录链接已过期。请重新获取链接后继续。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This magic link is invalid or has already been used."
+msgstr "此登录链接无效或已被使用。"
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."

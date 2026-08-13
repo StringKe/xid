@@ -206,6 +206,7 @@ const TENANT_TABLES = {
   passwordHistory: schema.passwordHistory,
   passwordResetTokens: schema.passwordResetTokens,
   verificationTokens: schema.verificationTokens,
+  magicLinkTokens: schema.magicLinkTokens,
   passkeyCredentials: schema.passkeyCredentials,
   mfaFactors: schema.mfaFactors,
   backupCodes: schema.backupCodes,

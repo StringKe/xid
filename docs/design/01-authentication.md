@@ -244,6 +244,9 @@ detail goes to the audit log):
   sign-in, where a pwned marker prompts a reset on the next sign-in
 - Reset tokens are stored as SHA-256 hashes only; the token itself never enters the database, so a
   database leak cannot be replayed
+- Issuing another reset email does not revoke an unconsumed reset link that is still within its
+  15-minute lifetime. Each link remains independently single-use; consumed and expired rows are
+  removed opportunistically during later issuance.
 - The pepper lives in Workers Secrets and never enters the database; rotation keeps the old version
   number so existing hashes still verify
 
@@ -431,6 +434,17 @@ binding cannot be unlinked.
 
 - The magic link is an instance-key-signed JWT (`sub`/`exp`/`jti`); the server stores only
   `SHA-256(jti)` so it can be invalidated without persisting the plaintext JWT
+- Transactional Email carries the magic-link token in the Hosted UI URL fragment. The browser
+  scrubs that fragment before rendering and does not submit the token until the user presses the
+  explicit confirmation button. Link scanners, prefetchers, and `GET` navigation therefore cannot
+  consume the credential or establish a session.
+- The legacy `GET /auth/magic-link/verify?token=...` endpoint is a mutation-free compatibility shim:
+  it resolves the trusted Hosted Auth origin and redirects to the fragment-based confirmation page.
+  Only `POST /auth/magic-link/verify` may consume the token and issue a session.
+- Resending a magic link does not revoke another unconsumed magic link that is still within its
+  15-minute lifetime. Every issued link remains independently single-use. The same parallel-validity
+  rule applies to Email verification and password-reset links; OTP deliberately keeps only the most
+  recently issued code per user and channel.
 - OTPs are stored as SHA-256 hashes and marked consumed immediately after successful verification
 - Sending an OTP or magic link freezes a versioned `PasswordlessFlowContext`: the validated
   `intent`, normalized local `continuePath`, and application client id. The serialized context is
@@ -615,7 +629,7 @@ counter. KV remains a read-heavy cache and is never the source of truth for rate
 - When an email already exists at sign-up, send an "account already exists" notification email while
   the endpoint still returns 200
 
-### Two accepted tradeoffs in enumeration defense (reviewed and accepted)
+### Enumeration-defense tradeoffs and action-link confirmation
 
 1. **Organization resolution in the instance login resolver**: under multi-tenant hosting, entering an
    email requires resolving which org the user belongs to (the instance login resolver, the
@@ -623,12 +637,13 @@ counter. KV remains a read-heavy cache and is never the source of truth for rate
    anonymous requester whether that email is registered with one org or several. This is inherent to
    what a resolver does (ZITADEL has the same property), so the exposure is accepted. Mitigation: the
    account-level limit of 10 per 15 minutes and the IP-level limit of 50 per minute.
-2. **A magic link GET establishes a session**: clicking a magic link establishes a session directly
-   (an industry convention; Auth0 and Clerk offer the same one-click experience). An attacker who
-   induces a victim to click the attacker's own link can sign the victim in to the attacker's account
-   (a login CSRF variant). However, the token is single-use and valid for 15 minutes, and opening a
-   link on a different device is a legitimate scenario (receive the email on a phone, sign in on a
-   desktop). Binding the link to a browser would break that scenario, so the exposure is accepted.
+2. **Action links require an explicit browser confirmation**: a `GET`, Email-security scanner,
+   prefetcher, or unfurler MUST NOT consume a magic-link or Email-verification credential. Magic-link
+   Email uses a URL fragment and a confirmation page, while the legacy query-string `GET` only
+   redirects to that page. Email verification renders a confirmation action before its existing
+   `POST`; password reset requires a new-password form; invitation Email claim uses a fragment plus
+   `Confirm and join`. Cross-device opening remains supported because confirmation is not bound to
+   the browser that requested the Email.
 
 ## 8. Guest sign-in (anonymous)
 

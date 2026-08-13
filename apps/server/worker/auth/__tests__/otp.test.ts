@@ -3,7 +3,7 @@ import {
   consumeVerifiableOtp,
   persistAndSendOtp,
   recordOtpFailure,
-  replaceActiveVerificationToken,
+  replaceActiveOtpToken,
 } from '../otp'
 
 function makeDb() {
@@ -212,7 +212,7 @@ describe('OTP concurrent state transitions', () => {
     }
 
     await Promise.all([
-      replaceActiveVerificationToken({
+      replaceActiveOtpToken({
         db: db as never,
         channel: 'email',
         purpose: 'otp',
@@ -227,7 +227,7 @@ describe('OTP concurrent state transitions', () => {
           expiresAt: new Date(Date.now() + 60_000),
         },
       }),
-      replaceActiveVerificationToken({
+      replaceActiveOtpToken({
         db: db as never,
         channel: 'email',
         purpose: 'otp',

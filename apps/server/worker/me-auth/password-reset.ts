@@ -6,7 +6,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, eq, gt, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
@@ -62,6 +62,10 @@ export async function issuePasswordResetToken(opts: {
     and(
       eq(schema.passwordResetTokens.userId, userId),
       eq(schema.passwordResetTokens.purpose, RESET_PURPOSE),
+      or(
+        isNotNull(schema.passwordResetTokens.consumedAt),
+        lte(schema.passwordResetTokens.expiresAt, new Date()),
+      ),
     ),
   )
   await db.passwordResetTokens.insert({
@@ -135,7 +139,7 @@ export async function handleForgotPassword(c: Context<XidHonoEnv>): Promise<Resp
       tenantId: tenant.tenantId,
       userId: emailRow.userId,
       token,
-      link: `${hostedAuthOriginForTenant(tenant)}/reset-password?token=${encodeURIComponent(token)}`,
+      link: `${hostedAuthOriginForTenant(tenant)}/reset-password#${new URLSearchParams({ token }).toString()}`,
       expires: 15,
       expiresInMin: 15,
     },

@@ -7,6 +7,7 @@ export const seoSignUpTitle = msg`Sign up | XID`
 export const seoForgotPasswordTitle = msg`Reset password | XID`
 export const seoMfaTitle = msg`Two-factor authentication | XID`
 export const seoVerifyEmailTitle = msg`Verify email | XID`
+export const seoMagicLinkTitle = msg`Confirm sign in | XID`
 export const seoAcceptInvitationTitle = msg`Accept invitation | XID`
 export const seoCreateOrganizationTitle = msg`Create organization | XID`
 export const seoSelectOrganizationTitle = msg`Select organization | XID`

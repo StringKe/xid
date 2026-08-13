@@ -832,10 +832,15 @@ WHERE ${policyDeniedWhere(input, afterMs)};
   }
 
   async function checkMagicLinkVerifyRouteGate() {
-    const path = '/auth/magic-link/verify?token=bad.jwt.sig'
+    const path = '/auth/magic-link/verify'
     const url = `${coreBaseUrl}${path}`
     try {
-      const res = await fetch(url, { redirect: 'manual' })
+      const res = await fetch(url, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'bad.jwt.sig' }),
+      })
       const body = await res.text()
       const setCookie = res.headers.get('set-cookie') ?? ''
       const contentType = res.headers.get('content-type') ?? ''

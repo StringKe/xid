@@ -25,6 +25,7 @@ type UserScopedEraseTable =
   | 'directory_users'
   | 'gdpr_consents'
   | 'manager_assignments'
+  | 'magic_link_tokens'
   | 'memberships'
   | 'metering_outbox'
   | 'mfa_factors'
@@ -235,6 +236,7 @@ export async function completePrivacyErasure(
     deleteByUser(env, 'passwords', input.tenantId, input.userId),
     deleteByUser(env, 'password_history', input.tenantId, input.userId),
     deleteByUser(env, 'password_reset_tokens', input.tenantId, input.userId),
+    deleteByUser(env, 'magic_link_tokens', input.tenantId, input.userId),
     deleteByUser(env, 'verification_tokens', input.tenantId, input.userId),
     deleteByUser(env, 'passkey_credentials', input.tenantId, input.userId),
     deleteByUser(env, 'mfa_factors', input.tenantId, input.userId),

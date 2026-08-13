@@ -30,14 +30,14 @@ function expectPrivateObservability(observability, samplingRate) {
 }
 
 describe('Worker observability privacy config', () => {
-  it('locks Core production sampling to 0.1 and staging sampling to 1', () => {
-    expectPrivateObservability(core.observability, 0.1)
+  it('locks Core production and staging sampling to 1', () => {
+    expectPrivateObservability(core.observability, 1)
     expectPrivateObservability(core.env.staging.observability, 1)
   })
 
-  it('gives Site and Console an explicit production-safe policy', () => {
-    expectPrivateObservability(site.observability, 0.1)
-    expectPrivateObservability(consoleWorker.observability, 0.1)
+  it('gives Site and Console full production sampling with the privacy boundary intact', () => {
+    expectPrivateObservability(site.observability, 1)
+    expectPrivateObservability(consoleWorker.observability, 1)
   })
 
   it('preserves dashboard-managed non-secret Core variables across Workers Builds deploys', () => {

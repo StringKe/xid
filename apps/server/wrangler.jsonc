@@ -25,10 +25,10 @@
   ],
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 0.1,
+    "head_sampling_rate": 1,
     "logs": {
       "enabled": true,
-      "head_sampling_rate": 0.1,
+      "head_sampling_rate": 1,
       "persist": true,
       // Invocation logs include the raw request URL. Core callback URLs can carry protocol
       // parameters, so production keeps them disabled and emits only structured, redacted events.

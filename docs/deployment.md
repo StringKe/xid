@@ -994,7 +994,7 @@ Cloudflare includes the raw request URL in them. Automatic request traces are al
 three because automatic Fetch spans persist `url.full`, which can contain OAuth codes or one-time
 authentication tokens. Application logs are structured and redact exception messages, stacks,
 causes, cookies, Authorization, IPs, URLs/queries, provider payloads, and user identifiers. Core,
-Site, and Console production logs sample 10%; Core staging logs sample 100%. Workers Logs retention
+Site, Console, and Core staging logs sample 100%. Workers Logs retention
 is 3 days on Free and 7 days on Paid, with an overall maximum of 7 days. Current read-only evidence
 identifies the hosted account as Free, so its expected retention is 3 days; the active account plan
 and deployed retention remain `EXTERNAL` until reconciled there. See

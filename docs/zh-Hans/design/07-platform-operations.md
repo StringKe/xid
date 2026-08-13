@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=5d55b0c source-blob=b768c549837f4a6c9c4fef23c0e356e334753b3b -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=5d55b0c source-blob=938bacaf624057b58c3a99e717615551fe0cb57e -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -385,7 +385,7 @@ source consumer 仍需保留自己的 idempotency boundary。已经完成的 `re
   allowlist error type/code 与有界运维字段。Error message、stack、cause、cookie、
   Authorization、IP、原始 URL/query、provider payload 与 user identifier 均不得传给
   `console`。
-- Production Workers Logs 采样 10%,staging logs 采样 100%。所有环境都关闭 Cloudflare
+- Production 和 staging Workers Logs 都采样 100%。所有环境都关闭 Cloudflare
   invocation logs 与 automatic request traces,因为两者都会持久化 request URL,automatic
   Fetch span 还会包含 `url.full`。Core URL 可能携带 OAuth code、invitation token、
   verification token 和其他一次性 secret。

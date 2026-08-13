@@ -194,6 +194,9 @@ describe('gcInactiveGuests', () => {
       statements.some((statement) => statement.sql.startsWith('UPDATE verification_tokens')),
     ).toBe(true)
     expect(
+      statements.some((statement) => statement.sql.startsWith('UPDATE magic_link_tokens')),
+    ).toBe(true)
+    expect(
       statements.some((statement) => statement.sql.startsWith('UPDATE passkey_credentials')),
     ).toBe(true)
     expect(statements.some((statement) => statement.sql.startsWith('UPDATE trusted_devices'))).toBe(

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=6936e9679e33050eeb8d38acdf20b4429003f82e -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=f180d4e4a294b1b2287087d181f2efb90ef6f1e0 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -161,6 +161,8 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 - 存量 bcrypt 读取时原地迁移(验证通过后重哈希 Argon2id)
 - breach detection:注册和改密强制检查,登录异步检查不阻断,标记 pwned 后下次登录提示重置
 - 重置 token 只存哈希(SHA-256),token 本身不入 DB,防 DB 泄露后重放
+- 再次发送重置邮件不会撤销仍在 15 分钟 TTL 内且尚未消费的旧链接。每条链接仍各自单次有效;
+  后续签发会顺带清理已消费和已过期行。
 - pepper 存 Secrets 不入 DB,轮换保留旧版本号兼容验证
 
 ### 数据模型
@@ -270,6 +272,14 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 - magic link 是 instance key 签名 JWT(`sub`/`exp`/`jti`),服务端只存 `SHA-256(jti)`,可作废
   token 且不持久化明文 JWT
+- 事务邮件把 magic-link token 放在 Hosted UI URL fragment 中。浏览器在渲染前清除 fragment,
+  用户点击显式确认按钮后才提交 token。Email scanner、prefetch 和普通 `GET` 均不得消费凭据
+  或建立 session。
+- 旧 `GET /auth/magic-link/verify?token=...` 仅作为无 mutation 的兼容跳转:解析可信 Hosted Auth
+  origin 后跳到 fragment 确认页。只有 `POST /auth/magic-link/verify` 可以消费 token 并签发 session。
+- 重发 magic link 不会撤销仍在 15 分钟 TTL 内且尚未消费的其他链接,每条签发链接各自单次有效。
+  Email verification 和 password reset 使用相同的并行有效规则;OTP 则有意只保留每个 user/channel
+  最新签发的 code。
 - OTP 存 SHA-256 哈希,验证成功后立即标为 consumed
 - 发送 OTP 或 magic link 时冻结一个版本化 `PasswordlessFlowContext`:经过校验的 `intent`、
   normalized local `continuePath` 和 application client id。
@@ -421,10 +431,14 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 - 响应时间归一化(固定加 timing jitter)
 - 注册时 email 已存在 -> 发"已有账户"提醒邮件,接口仍返回 200
 
-### 枚举防护的两处设计取舍(已评审接受)
+### 枚举防护取舍与 action-link 确认
 
 1. **instance login resolver 的组织解析**:多租户托管下,输入邮箱后需要解析用户所属 org(instance login resolver / `/auth/config` 的 login_hint、密码登录的 ambiguous 分支),这会向匿名请求者透露"该邮箱是否注册了单 org/多 org"。这是 resolver 的产品本质(ZITADEL 同型),接受此面;缓解:账户级 10 次/15min + IP 级 50 次/min 限流。
-2. **magic link GET 即建会话**:magic link 点击后直接建立会话(行业惯例,Auth0/Clerk 同款一键体验)。攻击者诱导受害者点击攻击者自己的 link 可让受害者登录到攻击者账户(login CSRF 变体),但 token 一次性 + 15min 有效 + 跨设备打开是合法场景(手机收邮件、桌面登录),绑定浏览器会破坏该场景,接受此面。
+2. **action link 需要浏览器显式确认**:`GET`、Email security scanner、prefetcher 或 unfurler
+   均不得消费 magic-link 或 Email-verification 凭据。magic-link 邮件使用 URL fragment 和确认页,
+   旧 query-string `GET` 只跳转到该页;Email verification 在现有 `POST` 前显示确认动作;
+   password reset 需要提交新密码表单;invitation Email claim 使用 fragment 加 `Confirm and join`。
+   确认不绑定发起邮件请求的浏览器,因此仍支持跨设备打开。
 
 ## 8. Guest 登录(匿名)
 

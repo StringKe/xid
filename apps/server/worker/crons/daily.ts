@@ -680,6 +680,11 @@ function guestGcClosureStatements(opts: {
         WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
     ).bind(nowMs, tenantId, userId, ...claimParams),
     env.DB.prepare(
+      `UPDATE magic_link_tokens
+          SET consumed_at = COALESCE(consumed_at, ?)
+        WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,
+    ).bind(nowMs, tenantId, userId, ...claimParams),
+    env.DB.prepare(
       `UPDATE verification_tokens
           SET consumed_at = COALESCE(consumed_at, ?)
         WHERE tenant_id = ? AND user_id = ? AND ${claimed}`,

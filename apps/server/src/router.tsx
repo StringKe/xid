@@ -98,7 +98,7 @@ const forgotPasswordRoute = createRoute({
   path: '/forgot-password',
 }).lazy(() => import('./routes/forgot-password/index').then((m) => m.Route))
 
-// /reset-password?token= 与 forgot-password 共用 reset 步骤。
+// /reset-password#token= 与 forgot-password 共用 reset 步骤。
 const resetPasswordRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/reset-password',
@@ -113,6 +113,11 @@ const verifyEmailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/verify-email',
 }).lazy(() => import('./routes/verify-email/index').then((m) => m.Route))
+
+const magicLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/magic-link',
+}).lazy(() => import('./routes/magic-link/index').then((m) => m.Route))
 
 const acceptInvitationRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -183,6 +188,7 @@ const routeTree = rootRoute.addChildren([
   forgotPasswordRoute,
   resetPasswordRoute,
   verifyEmailRoute,
+  magicLinkRoute,
   acceptInvitationRoute,
   createOrganizationRoute,
   selectOrganizationRoute,

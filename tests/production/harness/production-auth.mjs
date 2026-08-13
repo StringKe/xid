@@ -424,20 +424,20 @@ export async function loadLatestMagicLinkToken(afterMs, targetEmail = defaultPro
   const rows = await d1(
     `
 SELECT
-  vt.id,
-  vt.tenant_id AS tenant_id,
-  vt.user_id AS user_id,
-  vt.token_hash AS token_hash,
-  vt.code_hash AS code_hash,
-  vt.consumed_at AS consumed_at,
-  vt.expires_at AS expires_at,
-  vt.created_at AS created_at
-FROM verification_tokens vt
-JOIN user_emails ue ON ue.user_id = vt.user_id
+  mlt.id,
+  mlt.tenant_id AS tenant_id,
+  mlt.user_id AS user_id,
+  mlt.token_hash AS token_hash,
+  mlt.consumed_at AS consumed_at,
+  mlt.expires_at AS expires_at,
+  mlt.created_at AS created_at
+FROM magic_link_tokens mlt
+JOIN user_emails ue
+  ON ue.tenant_id = mlt.tenant_id
+ AND ue.user_id = mlt.user_id
 WHERE ue.email = ${sqlString(targetEmail)}
-  AND vt.purpose = 'magic_link'
-  AND vt.created_at >= ${afterMs}
-ORDER BY vt.created_at DESC
+  AND mlt.created_at >= ${afterMs}
+ORDER BY mlt.created_at DESC
 LIMIT 1;
 `,
     'load latest magic link token',
@@ -445,7 +445,6 @@ LIMIT 1;
   const row = rows[0]
   if (!row) throw new Error('magic link token was not written to production D1')
   if (!row.token_hash) throw new Error('magic link token has no token_hash')
-  if (row.code_hash !== null) throw new Error('magic link token unexpectedly has code_hash')
   if (row.consumed_at !== null) throw new Error('magic link token already consumed before smoke')
   if (Number(row.expires_at) <= Date.now()) throw new Error('magic link token already expired')
   printResult(
@@ -460,19 +459,19 @@ export async function loadMagicLinkTokenByHash(tokenHash, targetEmail = defaultP
   const rows = await d1(
     `
 SELECT
-  vt.id,
-  vt.tenant_id AS tenant_id,
-  vt.user_id AS user_id,
-  vt.token_hash AS token_hash,
-  vt.code_hash AS code_hash,
-  vt.consumed_at AS consumed_at,
-  vt.expires_at AS expires_at,
-  vt.created_at AS created_at,
+  mlt.id,
+  mlt.tenant_id AS tenant_id,
+  mlt.user_id AS user_id,
+  mlt.token_hash AS token_hash,
+  mlt.consumed_at AS consumed_at,
+  mlt.expires_at AS expires_at,
+  mlt.created_at AS created_at,
   ue.email AS email
-FROM verification_tokens vt
-JOIN user_emails ue ON ue.user_id = vt.user_id
-WHERE vt.token_hash = ${sqlString(tokenHash)}
-  AND vt.purpose = 'magic_link'
+FROM magic_link_tokens mlt
+JOIN user_emails ue
+  ON ue.tenant_id = mlt.tenant_id
+ AND ue.user_id = mlt.user_id
+WHERE mlt.token_hash = ${sqlString(tokenHash)}
 LIMIT 1;
 `,
     'load magic link token by hash',
@@ -480,7 +479,6 @@ LIMIT 1;
   const row = rows[0]
   if (!row) throw new Error('provided magic link token hash was not found in production D1')
   if (row.email !== targetEmail) throw new Error('provided magic link token email mismatch')
-  if (row.code_hash !== null) throw new Error('magic link token unexpectedly has code_hash')
   if (row.consumed_at !== null) throw new Error('magic link token already consumed before smoke')
   if (Number(row.expires_at) <= Date.now()) throw new Error('magic link token already expired')
   printResult(
@@ -495,9 +493,8 @@ export async function verifyMagicLinkConsumedByHash(tokenHash) {
   const rows = await d1(
     `
 SELECT id, consumed_at
-FROM verification_tokens
+FROM magic_link_tokens
 WHERE token_hash = ${sqlString(tokenHash)}
-  AND purpose = 'magic_link'
 LIMIT 1;
 `,
     'verify magic link consumed',
@@ -816,6 +813,7 @@ const SMOKE_SWEEP_TABLES = Object.freeze([
   { table: 'passwords', user: true, tenant: true },
   { table: 'password_history', user: true, tenant: true },
   { table: 'password_reset_tokens', user: true, tenant: true },
+  { table: 'magic_link_tokens', user: true, tenant: true },
   { table: 'verification_tokens', user: true, tenant: true },
   { table: 'passkey_credentials', user: true, tenant: true },
   { table: 'mfa_factors', user: true, tenant: true },

@@ -1,12 +1,12 @@
-// magic-link 单元测试:jti 哈希入库(非 token 明文)、旧 token 轮换、枚举防护、
-// continue 路径净化、一次性消费防重放。对齐 password-auth 01 章 4 与 anti-abuse rule。
+// magic-link 单元测试:jti 哈希入库(非 token 明文)、TTL 内并行有效、scanner-safe GET、
+// 显式 POST 消费、continue 路径净化与防重放。
 
 import { Hono } from 'hono'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sha256Hex, signJwt, verifyJwt } from '@xid-kit/crypto'
 import { createTenantDb } from '@xid-kit/db'
 import type { TenantVar, XidHonoEnv } from '../../lib/types'
-import { handleMagicLinkVerify, sendMagicLink } from '../magic-link'
+import { handleMagicLinkVerify, handleMagicLinkVerifyRedirect, sendMagicLink } from '../magic-link'
 import { execCtx, makeEnv, makeTenant, testErrorHandler } from '../../me-auth/__tests__/helpers'
 import { resolveTokenTenant } from '../../me-auth/token-tenant'
 import { loadActiveSigner } from '../../oidc/shared'
@@ -73,6 +73,7 @@ function magicLinkDb(overrides: Record<string, unknown> = {}) {
       update: vi.fn().mockResolvedValue([]),
     },
     verificationTokens: { hardDelete, insert, findOne: vi.fn(), update: vi.fn() },
+    magicLinkTokens: { hardDelete, insert, findOne: vi.fn(), update: vi.fn() },
     users: { findOne: vi.fn().mockResolvedValue({ id: 'user-existing', primaryEmailId: null }) },
     sessions: { update: vi.fn().mockResolvedValue([]) },
     organizations: { findOne: vi.fn() },
@@ -120,14 +121,9 @@ describe('sendMagicLink', () => {
     expect(jti).toBeTruthy()
 
     const db = vi.mocked(createTenantDb).mock.results[0]?.value as ReturnType<typeof magicLinkDb>
-    expect(db.verificationTokens.update).toHaveBeenCalledWith(
-      expect.objectContaining({ consumedAt: expect.any(Date) }),
-      expect.anything(),
-    )
-    expect(db.verificationTokens.insert).toHaveBeenCalledWith(
+    expect(db.magicLinkTokens.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-existing',
-        purpose: 'magic_link',
         tokenHash: await sha256Hex(jti),
       }),
     )
@@ -137,12 +133,12 @@ describe('sendMagicLink', () => {
         recipient: 'user@example.com',
         payload: expect.objectContaining({
           token: 'header.payload.signature',
-          link: expect.stringContaining('/auth/magic-link/verify?token='),
+          link: expect.stringContaining('/magic-link#token='),
         }),
       }),
     )
     const queued = emailSend.mock.calls[0]?.[0] as { payload: { link: string } }
-    expect(queued.payload.link).toContain('token=header.payload.signature')
+    expect(queued.payload.link).toContain('#token=header.payload.signature')
   })
 
   it('uses one combined rate-limit reservation for magic-link delivery', async () => {
@@ -173,19 +169,15 @@ describe('sendMagicLink', () => {
     })
   })
 
-  it('concurrent resend leaves one active magic-link credential', async () => {
-    let activeTokenHash: string | null = 'old'
-    const update = vi.fn(async () => {
-      activeTokenHash = null
-      return []
-    })
+  it('concurrent resend preserves both independently valid magic-link credentials', async () => {
+    const activeTokenHashes = new Set<string>()
+    const hardDelete = vi.fn(async () => undefined)
     const insert = vi.fn(async (values: { tokenHash: string }) => {
-      if (activeTokenHash !== null) throw new Error('UNIQUE constraint failed')
-      activeTokenHash = values.tokenHash
+      activeTokenHashes.add(values.tokenHash)
       return { id: values.tokenHash }
     })
     vi.mocked(createTenantDb).mockReturnValue(
-      magicLinkDb({ verificationTokens: { update, insert, findOne: vi.fn() } }),
+      magicLinkDb({ magicLinkTokens: { hardDelete, insert, findOne: vi.fn(), update: vi.fn() } }),
     )
     const emailSend = vi.fn()
     const env = makeEnv({ emailSend })
@@ -194,7 +186,7 @@ describe('sendMagicLink', () => {
     const responses = await Promise.all([postSend(app, env), postSend(app, env)])
 
     expect(responses.map((response) => response.status)).toEqual([200, 200])
-    expect(activeTokenHash).toBeTruthy()
+    expect(activeTokenHashes.size).toBe(2)
     expect(emailSend).toHaveBeenCalledTimes(2)
   })
 
@@ -256,11 +248,10 @@ describe('handleMagicLinkVerify', () => {
     )
     vi.mocked(createTenantDb).mockReturnValue(
       magicLinkDb({
-        verificationTokens: {
+        magicLinkTokens: {
           findOne: vi.fn().mockResolvedValue({
             tokenHash,
             userId: 'user-1',
-            purpose: 'magic_link',
             flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: null,
             expiresAt: new Date(Date.now() + 600_000),
@@ -298,19 +289,50 @@ describe('handleMagicLinkVerify', () => {
       c.set('tenant', tenant)
       await next()
     })
-    app.get('/auth/magic-link/verify', handleMagicLinkVerify)
+    app.get('/auth/magic-link/verify', handleMagicLinkVerifyRedirect)
+    app.post('/auth/magic-link/verify', handleMagicLinkVerify)
     return app
   }
+
+  function postVerify(app: Hono<XidHonoEnv>, env: Env, query = ''): Promise<Response> {
+    return app.request(
+      `https://tenant-1.xid.dev/auth/magic-link/verify${query}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'valid.jwt.sig' }),
+      },
+      env,
+      execCtx,
+    )
+  }
+
+  it('legacy GET redirects to a fragment confirmation without consuming the token', async () => {
+    const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
+    const app = verifyApp(tenant)
+
+    const res = await app.request(
+      'https://tenant-1.xid.dev/auth/magic-link/verify?token=valid.jwt.sig',
+      {},
+      makeEnv(),
+      execCtx,
+    )
+
+    expect(res.status).toBe(303)
+    expect(res.headers.get('Location')).toBe(
+      'https://tenant-1.xid.dev/magic-link#token=valid.jwt.sig',
+    )
+    expect(createTenantDb).not.toHaveBeenCalled()
+  })
 
   it('rejects replay when verification token already consumed', async () => {
     const tokenHash = await sha256Hex(verifyJti)
     vi.mocked(createTenantDb).mockReturnValue(
       magicLinkDb({
-        verificationTokens: {
+        magicLinkTokens: {
           findOne: vi.fn().mockResolvedValue({
             tokenHash,
             userId: 'user-1',
-            purpose: 'magic_link',
             flowContext: LOGIN_FLOW_CONTEXT,
             consumedAt: new Date(),
             expiresAt: new Date(Date.now() + 600_000),
@@ -323,12 +345,7 @@ describe('handleMagicLinkVerify', () => {
     )
     const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
     const app = verifyApp(tenant)
-    const res = await app.request(
-      'https://tenant-1.xid.dev/auth/magic-link/verify?token=valid.jwt.sig',
-      {},
-      makeEnv(),
-      execCtx,
-    )
+    const res = await postVerify(app, makeEnv())
     expect(res.status).toBe(400)
     expect(((await res.json()) as { code: string }).code).toBe('magic_link_invalid')
   })
@@ -336,15 +353,9 @@ describe('handleMagicLinkVerify', () => {
   it('ignores a rewritten continue query and follows the signed server flow', async () => {
     const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
     const app = verifyApp(tenant)
-    const res = await app.request(
-      'https://tenant-1.xid.dev/auth/magic-link/verify?token=valid.jwt.sig&continue=//evil.test/phish',
-      {},
-      makeEnv(),
-      execCtx,
-    )
-    expect(res.status).toBe(302)
-    expect(res.headers.get('Location')).toBe('/console')
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    const res = await postVerify(app, makeEnv(), '?continue=//evil.test/phish')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ redirectUrl: '/console' })
   })
 
   it('rejects JWT with non-magic_link purpose', async () => {
@@ -357,12 +368,7 @@ describe('handleMagicLinkVerify', () => {
     } as never)
     const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
     const app = verifyApp(tenant)
-    const res = await app.request(
-      'https://tenant-1.xid.dev/auth/magic-link/verify?token=valid.jwt.sig',
-      {},
-      makeEnv(),
-      execCtx,
-    )
+    const res = await postVerify(app, makeEnv())
     expect(((await res.json()) as { code: string }).code).toBe('magic_link_invalid')
   })
 })

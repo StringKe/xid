@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=70fb17f1ec8527dd3823e82429de9e38666e0fa3 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=9de278f2512f56d33e0d653943522ddf1e7fcbf5 -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -700,6 +700,9 @@ gdpr_consents:
 
 索引:`UNIQUE(token_hash)`、`INDEX(tenant_id, user_id)`。
 
+再次签发 password-reset link 时保留所有 `expires_at` 仍在未来且未消费的行,每行各自单次有效。
+签发时只允许 hard-delete 同一 user/purpose 下已消费或已过期的行。
+
 ### 12.3a verification_tokens(magic link / OTP 共用短期 token 表,= 实体清单 OtpCode/MagicLinkToken,见 01 章 4)
 
 | 字段          | 类型           | 约束                                       | 默认   | 说明                                                                                          |
@@ -717,7 +720,10 @@ gdpr_consents:
 | expires_at    | integer ts_ms  | NOT NULL                                   | --     | magic link 15min / email OTP 10min / phone OTP 5min(见 01 章 4)                               |
 | created_at    | integer ts_ms  | NOT NULL                                   | 见 9.3 |                                                                                               |
 
-索引:`UNIQUE(token_hash)`、`INDEX(tenant_id, user_id)`、部分 `UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose IN ('magic_link','otp')`(同用户同用途同渠道同时至多一条 active,重发先作废旧条)。
+索引:`UNIQUE(token_hash)`、`INDEX(tenant_id, user_id)`、legacy partial
+`UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose IN ('magic_link','otp')`
+(同 user/purpose/channel 至多一条 active legacy row)。新 magic-link 签发使用 12.3b 的
+`magic_link_tokens`,使该兼容索引可以在 rolling deployment 中继续存在;OTP 仍在插入前替换旧 active code。
 
 新建 passwordless `magic_link` 与 `otp` 行必须有 `flow_context`;仅作为 MFA factor 的 SMS OTP
 行可以保持 null。它只保存有界、规范化的控制数据,不保存 invitation token 或 row id。Invitation
@@ -728,7 +734,25 @@ verifier 使用该冻结 context,不采用 verification request 上后来变化�
 当 `purpose = 'email_verification'` 时,签名 JWT 携带 `email_hash`,值为签发时精确 normalized Email
 的 SHA-256。D1 继续只在 `verification_tokens.token_hash` 保存 jti 哈希,不保存明文 Email,也不新增
 target 列。核销时把签名 `email_hash` 与当前 primary Email 或 `users.pending_email` 对比,只更新匹配
-目标。目标变化会使 token 失效;重发时先作废旧 active token,再签发替代 token。
+目标。目标变化会使 token 失效。resend 保留 TTL 内其他未消费 Email-verification row,只删除同一
+user/purpose 下已消费或已过期的 row。
+
+### 12.3b magic_link_tokens(并行有效的 magic-link ledger,只存哈希)
+
+| 字段         | 类型          | 约束                                       | 默认   | 说明                                                                                     |
+| ------------ | ------------- | ------------------------------------------ | ------ | ---------------------------------------------------------------------------------------- |
+| id           | text          | PK                                         | nanoid |                                                                                          |
+| tenant_id    | text          | NOT NULL, FK -> organizations.id           | --     |                                                                                          |
+| user_id      | text          | NOT NULL, FK -> users.id ON DELETE cascade | --     |                                                                                          |
+| token_hash   | text          | NOT NULL, UNIQUE                           | --     | `SHA-256(jti)`;明文 signed JWT 不进入 D1                                                |
+| flow_context | text json     | NOT NULL                                   | --     | 精确序列化的 `PasswordlessFlowContext`,消费前与 signed JWT 比对                         |
+| consumed_at  | integer ts_ms | null                                       | null   | 单次有效;条件消费成功后写入                                                              |
+| expires_at   | integer ts_ms | NOT NULL                                   | --     | 15 分钟有效期                                                                            |
+| created_at   | integer ts_ms | NOT NULL                                   | 见 9.3 |                                                                                          |
+
+索引:`UNIQUE(token_hash)`、`INDEX(tenant_id, user_id, expires_at)`。有意不设置 active-row 唯一约束:
+每个未消费 row 都在自身过期前有效。签发时只允许 hard-delete 同一 user 下已消费或已过期的 row。
+验证先读取该 ledger,并在部署后的一个 TTL 窗口内 fallback 到 legacy `verification_tokens` row。
 
 ### 12.4 passkey_credentials(WebAuthn 凭证,见 01 章 1、webauthn rule)
 

@@ -1,11 +1,11 @@
-// 邮箱验证回调;token 一次性(server 控 15min JWT),queryKey 去重防 StrictMode 双调。
+// 邮箱验证确认页;GET/页面加载永不消费 token,仅显式按钮触发 POST。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { Link, useNavigate } from '../../lib/router'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import type { XidErrorCode } from '@xid-kit/types'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
@@ -14,6 +14,7 @@ import { AuthLayout } from '../../components/layout'
 import { useAuth } from '../../lib/auth-context'
 import { trackEmailVerified } from '../../lib/google-analytics-funnel'
 import { styles as signInStyles } from '../sign-in/styles'
+import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
 
 type VerifyErrorKind = 'expired' | 'invalid'
 type VerifyEmailResult = { ok: true; email?: string; redirectUrl?: string }
@@ -67,20 +68,21 @@ const styles = stylex.create({
 
 function VerifyEmailPage(): ReactNode {
   const search = useSearch({ strict: false }) as { token?: string }
-  const token = search.token ?? null
+  const { token, ready, clearToken } = useOneTimeLinkToken({
+    storageKey: 'xid.verify-email.token',
+    legacyQueryToken: search.token ?? null,
+  })
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
 
-  // token 作 queryKey 去重;失败不重试(一次性)。
-  const verification = useQuery({
-    queryKey: ['verify-email', token],
-    enabled: token !== null,
-    retry: false,
-    queryFn: async (): Promise<VerifyEmailResult | never> => {
+  const verification = useMutation({
+    mutationFn: async (): Promise<VerifyEmailResult | never> => {
+      if (!token) throw new Error('missing verification token')
       const result = await api.post<VerifyEmailResult>('/auth/verify-email', { token })
       if (!result.ok) throw result.error
       trackEmailVerified()
       await refresh()
+      clearToken()
       return result.value
     },
   })
@@ -108,9 +110,33 @@ function VerifyEmailPage(): ReactNode {
   return (
     <AuthLayout>
       <div {...stylex.props(styles.stack)}>
-        <PageHeader title={<Trans>Verify your email</Trans>} />
+        <PageHeader
+          title={
+            ready && token !== null && verification.isIdle ? (
+              <Trans>Confirm your email</Trans>
+            ) : (
+              <Trans>Verify your email</Trans>
+            )
+          }
+          lead={
+            ready && token !== null && verification.isIdle ? (
+              <Trans>
+                Continue only if you opened this link from the verification email sent to you.
+              </Trans>
+            ) : undefined
+          }
+        />
 
-        {token === null ? (
+        {!ready ? (
+          <div {...stylex.props(styles.pendingRow)} aria-live="polite">
+            <Spinner size={16} />
+            <span {...stylex.props(styles.pendingLabel)}>
+              <Trans>Preparing verification...</Trans>
+            </span>
+          </div>
+        ) : null}
+
+        {ready && token === null && !verification.isSuccess ? (
           <>
             <Alert tone="error">
               <Trans>No verification token found. Please use the link from your email.</Trans>
@@ -119,7 +145,13 @@ function VerifyEmailPage(): ReactNode {
           </>
         ) : null}
 
-        {token !== null && verification.isPending ? (
+        {ready && token !== null && verification.isIdle ? (
+          <Button type="button" fullWidth onClick={() => verification.mutate()}>
+            <Trans>Confirm email address</Trans>
+          </Button>
+        ) : null}
+
+        {verification.isPending ? (
           <div {...stylex.props(styles.pendingRow)} aria-live="polite">
             <Spinner size={16} />
             <span {...stylex.props(styles.pendingLabel)}>

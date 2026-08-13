@@ -24,6 +24,12 @@ vi.mock('@xid-kit/db', () => ({
   resolveTenantContextByIssuer: vi.fn(),
   schema: {
     verificationTokens: { tokenHash: 'tokenHash' },
+    magicLinkTokens: {
+      tokenHash: 'tokenHash',
+      consumedAt: 'consumedAt',
+      expiresAt: 'expiresAt',
+      userId: 'userId',
+    },
     userEmails: { userId: 'userId', isPrimary: 'isPrimary' },
     userPhones: { userId: 'userId', isPrimary: 'isPrimary' },
     users: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
@@ -138,6 +144,12 @@ function unsignedJwtPayload(payload: Record<string, unknown>): string {
 function sessionDb(overrides: Record<string, unknown> = {}) {
   return {
     verificationTokens: { hardDelete: vi.fn().mockResolvedValue(undefined) },
+    magicLinkTokens: {
+      findOne: vi.fn().mockResolvedValue(undefined),
+      update: vi.fn().mockResolvedValue([]),
+      hardDelete: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn().mockResolvedValue(undefined),
+    },
     users: {
       findOne: vi.fn().mockResolvedValue({ id: 'user-1', status: 'active', deletedAt: null }),
       insert: vi.fn().mockResolvedValue({ id: 'user-new' }),
@@ -353,7 +365,7 @@ describe('POST /auth/magic-link/send', () => {
   })
 })
 
-describe('GET /auth/magic-link/verify', () => {
+describe('magic-link scanner-safe GET and explicit POST verification', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(resolveTenantContextByIssuer).mockReset()
@@ -384,14 +396,14 @@ describe('GET /auth/magic-link/verify', () => {
   it('签名错误 -> magic_link_invalid', async () => {
     setVerifyFail('bad_signature')
     const app = makeApp(registerSessionAuthRoutes)
-    const res = await get(app, makeEnv(), '/auth/magic-link/verify?token=bad.jwt.sig')
+    const res = await post(app, makeEnv(), '/auth/magic-link/verify', { token: 'bad.jwt.sig' })
     expect(((await res.json()) as { code: string }).code).toBe('magic_link_invalid')
   })
 
   it('签名过期 -> magic_link_expired', async () => {
     setVerifyFail('expired')
     const app = makeApp(registerSessionAuthRoutes)
-    const res = await get(app, makeEnv(), '/auth/magic-link/verify?token=expired.jwt.sig')
+    const res = await post(app, makeEnv(), '/auth/magic-link/verify', { token: 'expired.jwt.sig' })
     expect(((await res.json()) as { code: string }).code).toBe('magic_link_expired')
   })
 
@@ -424,10 +436,9 @@ describe('GET /auth/magic-link/verify', () => {
       }),
     )
     const app = makeApp(registerSessionAuthRoutes)
-    const res = await get(app, makeEnv(), '/auth/magic-link/verify?token=valid.jwt.sig')
-    expect(res.status).toBe(302)
-    expect(res.headers.get('Location')).toBe('/console')
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    const res = await post(app, makeEnv(), '/auth/magic-link/verify', { token: 'valid.jwt.sig' })
+    expect(res.status).toBe(200)
+    expect(await res.clone().json()).toEqual({ redirectUrl: '/console' })
     expect(res.headers.get('Set-Cookie')).toContain('__Host-xid.rt.')
     expect(emailUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ verified: true, verificationStatus: 'verified' }),
@@ -463,11 +474,9 @@ describe('GET /auth/magic-link/verify', () => {
     const tenant = makeTenant()
     tenant.policy.hostedAuth.forceSso = true
     const app = makeApp(registerSessionAuthRoutes, { tenant: tenant as never })
-    const res = await get(
-      app,
-      makeEnv({ auditSend }),
-      '/auth/magic-link/verify?token=valid.jwt.sig',
-    )
+    const res = await post(app, makeEnv({ auditSend }), '/auth/magic-link/verify', {
+      token: 'valid.jwt.sig',
+    })
 
     expect(res.status).toBe(401)
     expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
@@ -512,15 +521,19 @@ describe('GET /auth/magic-link/verify', () => {
       tenant_id: 'tenant-resolved',
     })
 
-    const res = await get(
-      app,
+    const res = await app.request(
+      'https://xid.dev/auth/magic-link/verify',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token }),
+      },
       env,
-      `https://xid.dev/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
+      execCtx,
     )
 
-    expect(res.status).toBe(302)
-    expect(res.headers.get('Location')).toBe('/console')
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.status).toBe(200)
+    expect(await res.clone().json()).toEqual({ redirectUrl: '/console' })
     expect(resolveTenantContextByIssuer).toHaveBeenCalledWith(
       expect.any(Request),
       env,
@@ -569,7 +582,7 @@ describe('GET /auth/magic-link/verify', () => {
     expect(createTenantDb).not.toHaveBeenCalled()
   })
 
-  it('子域入口 instance issuer token -> 302 回 hosted auth origin 且不消费 token', async () => {
+  it('子域 legacy GET -> 303 回 hosted auth confirmation 且不消费 token', async () => {
     const resolvedTenant = {
       ...makeTenant('tenant-resolved', 'https://xid.dev'),
       hostedAuthOrigin: 'https://xid.dev',
@@ -591,10 +604,8 @@ describe('GET /auth/magic-link/verify', () => {
       `https://admin.xid.dev/auth/magic-link/verify?token=${encodeURIComponent(token)}&continue=%2Fconsole`,
     )
 
-    expect(res.status).toBe(302)
-    expect(res.headers.get('Location')).toBe(
-      `https://xid.dev/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
-    )
+    expect(res.status).toBe(303)
+    expect(res.headers.get('Location')).toBe(`https://xid.dev/magic-link#token=${token}`)
     expect(res.headers.get('Cache-Control')).toBe('no-store')
     expect(resolveTenantContextByIssuer).not.toHaveBeenCalled()
     expect(verifyJwt).not.toHaveBeenCalled()
@@ -602,7 +613,7 @@ describe('GET /auth/magic-link/verify', () => {
     expect(res.headers.get('Set-Cookie')).toBeNull()
   })
 
-  it('hosted auth origin 入口按当前 tenant 消费 token', async () => {
+  it('hosted auth origin legacy GET 只跳确认页,不消费 token', async () => {
     const resolvedTenant = makeTenant('tenant-resolved', 'https://xid.dev')
     resolvedTenant.issuer = 'https://xid.dev'
     setVerifyOk({ sub: 'user-1', jti: 'jti-123', purpose: 'magic_link', action: 'login' })
@@ -627,12 +638,12 @@ describe('GET /auth/magic-link/verify', () => {
       `https://xid.dev/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
     )
 
-    expect(res.status).toBe(302)
-    expect(res.headers.get('Location')).toBe('/console')
+    expect(res.status).toBe(303)
+    expect(res.headers.get('Location')).toBe(`https://xid.dev/magic-link#token=${token}`)
     expect(res.headers.get('Cache-Control')).toBe('no-store')
     expect(resolveTenantContextByIssuer).not.toHaveBeenCalled()
-    expect(createTenantDb).toHaveBeenCalledWith(env.DB, resolvedTenant)
-    expect(res.headers.get('Set-Cookie')).toContain('__Host-xid.rt.')
+    expect(createTenantDb).not.toHaveBeenCalled()
+    expect(res.headers.get('Set-Cookie')).toBeNull()
   })
 
   it('已消费 token -> magic_link_invalid', async () => {
@@ -654,20 +665,25 @@ describe('GET /auth/magic-link/verify', () => {
       }),
     )
     const app = makeApp(registerSessionAuthRoutes)
-    const res = await get(app, makeEnv(), '/auth/magic-link/verify?token=valid.jwt.sig')
+    const res = await post(app, makeEnv(), '/auth/magic-link/verify', { token: 'valid.jwt.sig' })
     expect(((await res.json()) as { code: string }).code).toBe('magic_link_invalid')
   })
 
   it('失败限流触发 -> 429', async () => {
     setVerifyOk({ sub: 'user-1', jti: 'jti-123', purpose: 'magic_link', action: 'login' })
     const app = makeApp(registerSessionAuthRoutes)
-    const res = await get(
-      app,
-      makeEnv({ rateLimitAllowed: false }),
-      '/auth/magic-link/verify?token=valid.jwt.sig',
+    const res = await app.request(
+      'https://tenant-1.xid.dev/auth/magic-link/verify',
       {
-        'cf-connecting-ip': '203.0.113.7',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'cf-connecting-ip': '203.0.113.7',
+        },
+        body: JSON.stringify({ token: 'valid.jwt.sig' }),
       },
+      makeEnv({ rateLimitAllowed: false }),
+      execCtx,
     )
     expect(res.status).toBe(429)
   })

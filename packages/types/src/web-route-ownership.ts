@@ -98,6 +98,7 @@ export const CORE_SPA_ROUTE_PATHS = [
   '/sign-in',
   '/sign-up',
   '/forgot-password',
+  '/magic-link',
   '/reset-password',
   '/verify-email',
   '/accept-invitation',

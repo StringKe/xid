@@ -8,6 +8,7 @@ import type { InputHTMLAttributes, ReactNode } from 'react'
 const routerState = vi.hoisted(() => ({
   navigate: vi.fn(),
   search: {} as Record<string, string>,
+  pathname: '/forgot-password',
 }))
 
 const mutationState = vi.hoisted(() => ({
@@ -31,6 +32,7 @@ vi.mock('../../lib/router', () => ({
     <a href={typeof to === 'string' ? to : ''}>{children}</a>
   ),
   useNavigate: () => routerState.navigate,
+  useLocation: () => ({ pathname: routerState.pathname }),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -56,6 +58,7 @@ vi.mock('../../components/ui', () => ({
   Field: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   PageHeader: ({ title }: { title: ReactNode }) => <h1>{title}</h1>,
+  Spinner: () => <span>Loading</span>,
 }))
 
 vi.mock('../../lib/auth-context', () => ({
@@ -122,6 +125,9 @@ describe('ForgotPasswordPage navigation links', () => {
     routerState.navigate.mockClear()
     mutationState.captured.length = 0
     routerState.search = {}
+    routerState.pathname = '/forgot-password'
+    globalThis.sessionStorage.clear()
+    globalThis.history.replaceState({}, '', '/forgot-password')
   })
 
   it('shows Back to sign in on the request step', async () => {
@@ -135,6 +141,8 @@ describe('ForgotPasswordPage navigation links', () => {
 
   it('shows Back to sign in on the reset step', async () => {
     routerState.search = { token: 'reset-token' }
+    routerState.pathname = '/reset-password'
+    globalThis.history.replaceState({}, '', '/reset-password?token=reset-token')
     const { container, root, html, text } = await renderPage()
 
     expect(text).toContain('Choose a new password')
@@ -145,6 +153,8 @@ describe('ForgotPasswordPage navigation links', () => {
 
   it('offers Request a new reset link when the token is invalid or expired', async () => {
     routerState.search = { token: 'expired-token' }
+    routerState.pathname = '/reset-password'
+    globalThis.history.replaceState({}, '', '/reset-password?token=expired-token')
     const { container, root } = await renderPage()
 
     await act(async () => {
@@ -161,6 +171,8 @@ describe('ForgotPasswordPage navigation links', () => {
 
   it('does not offer the reset-link exit for other errors', async () => {
     routerState.search = { token: 'valid-token' }
+    routerState.pathname = '/reset-password'
+    globalThis.history.replaceState({}, '', '/reset-password?token=valid-token')
     const { container, root } = await renderPage()
 
     await act(async () => {

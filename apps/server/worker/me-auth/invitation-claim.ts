@@ -436,6 +436,19 @@ async function stageClaimProof(opts: {
   )
   statements.push(
     env.DB.prepare(
+      `UPDATE magic_link_tokens
+          SET consumed_at = ?
+        WHERE tenant_id = ?
+          AND consumed_at IS NULL
+          AND user_id IN (
+            SELECT id FROM users
+             WHERE tenant_id = ? AND pending_email = ?
+          )
+          AND ${claimWinnerGuardSql()}`,
+    ).bind(nowMs, tenant.tenantId, tenant.tenantId, email, ...winnerGuard),
+  )
+  statements.push(
+    env.DB.prepare(
       `UPDATE users
           SET pending_email = NULL,
               updated_at = ?
@@ -443,6 +456,19 @@ async function stageClaimProof(opts: {
           AND pending_email = ?
           AND ${claimWinnerGuardSql()}`,
     ).bind(nowMs, tenant.tenantId, email, ...winnerGuard),
+  )
+  statements.push(
+    env.DB.prepare(
+      `UPDATE magic_link_tokens
+          SET consumed_at = ?
+        WHERE tenant_id = ?
+          AND consumed_at IS NULL
+          AND user_id = (
+            SELECT displaced_user_id FROM invitations
+             WHERE tenant_id = ? AND id = ? AND email_claim_consumption_id = ?
+          )
+          AND ${claimGuardSql()}`,
+    ).bind(nowMs, tenant.tenantId, tenant.tenantId, invitation.id, consumptionId, ...guard),
   )
   statements.push(
     env.DB.prepare(

@@ -622,11 +622,12 @@ async function readProvidedResetUrl() {
 
 function parsePasswordResetUrl(url) {
   const path = toPathOrUrl(url)
-  if (!path.startsWith('/reset-password?')) {
+  const parsed = new URL(`${baseUrl}${path}`)
+  if (parsed.pathname !== '/reset-password') {
     throw new Error('provided URL is not a password reset URL')
   }
-  const parsed = new URL(`${baseUrl}${path}`)
-  const token = parsed.searchParams.get('token')
+  const fragment = new URLSearchParams(parsed.hash.slice(1))
+  const token = fragment.get('token') ?? parsed.searchParams.get('token')
   if (!token) throw new Error('provided password reset URL has no token')
   const claims = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'))
   if (claims.purpose !== 'password_reset') {
@@ -635,7 +636,13 @@ function parsePasswordResetUrl(url) {
   if (claims.iss !== baseUrl) throw new Error(`provided token issuer mismatch iss=${claims.iss}`)
   if (!claims.tenant_id) throw new Error('provided password reset token has no tenant_id')
   parsed.searchParams.set('locale', 'en')
-  return { path: `${parsed.pathname}${parsed.search}`, token, tenantId: claims.tenant_id }
+  parsed.searchParams.delete('token')
+  parsed.hash = new URLSearchParams({ token }).toString()
+  return {
+    path: `${parsed.pathname}${parsed.search}${parsed.hash}`,
+    token,
+    tenantId: claims.tenant_id,
+  }
 }
 
 async function verifyBrowserPasswordReset(input) {

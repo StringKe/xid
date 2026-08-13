@@ -1,4 +1,5 @@
 // 自动生成:node apps/server/scripts/sync-page-seo-descriptors.mjs
+// 页面级 SEO MessageDescriptor(无 macro,供测试与 SSR 直引)。源文案在 page-seo-messages.ts。
 
 import type { MessageDescriptor } from '@lingui/core'
 
@@ -12,6 +13,7 @@ export const seoSignUpTitle = seoDescriptor('tq4FUn', `Sign up | XID`)
 export const seoForgotPasswordTitle = seoDescriptor('gDD4V6', `Reset password | XID`)
 export const seoMfaTitle = seoDescriptor('IATXQ-', `Two-factor authentication | XID`)
 export const seoVerifyEmailTitle = seoDescriptor('Hpiwvx', `Verify email | XID`)
+export const seoMagicLinkTitle = seoDescriptor('v7d8xN', `Confirm sign in | XID`)
 export const seoAcceptInvitationTitle = seoDescriptor('vNPiA5', `Accept invitation | XID`)
 export const seoCreateOrganizationTitle = seoDescriptor('DanXHh', `Create organization | XID`)
 export const seoSelectOrganizationTitle = seoDescriptor('t0KHdN', `Select organization | XID`)
