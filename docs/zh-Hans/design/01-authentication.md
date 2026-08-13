@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=f180d4e4a294b1b2287087d181f2efb90ef6f1e0 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=6c610d32301fb5605e8c5afdc0b8cdd9e21cc74c -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -276,7 +276,9 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
   用户点击显式确认按钮后才提交 token。Email scanner、prefetch 和普通 `GET` 均不得消费凭据
   或建立 session。
 - 旧 `GET /auth/magic-link/verify?token=...` 仅作为无 mutation 的兼容跳转:解析可信 Hosted Auth
-  origin 后跳到 fragment 确认页。只有 `POST /auth/magic-link/verify` 可以消费 token 并签发 session。
+  origin 后跳到 fragment 确认页。缺失或无法解析的旧 credential 必须跳到不带 token 的 Hosted UI
+  错误状态,不得向浏览器展示 API JSON。只有 `POST /auth/magic-link/verify` 可以消费 token 并签发
+  session。
 - 重发 magic link 不会撤销仍在 15 分钟 TTL 内且尚未消费的其他链接,每条签发链接各自单次有效。
   Email verification 和 password reset 使用相同的并行有效规则;OTP 则有意只保留每个 user/channel
   最新签发的 code。

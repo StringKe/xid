@@ -97,4 +97,29 @@ describe('MagicLinkPage explicit confirmation', () => {
     queryClient.clear()
     container.remove()
   })
+
+  it('renders a branded recovery state without exposing JSON when the token is missing', async () => {
+    globalThis.history.replaceState({}, '', '/magic-link')
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <MagicLinkPage />
+        </QueryClientProvider>,
+      )
+    })
+
+    expect(authState.post).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('No magic-link token found')
+    expect(container.querySelector('a')?.getAttribute('href')).toBe('/sign-in')
+    expect(container.textContent).not.toContain('{"code"')
+
+    await act(async () => root.unmount())
+    queryClient.clear()
+    container.remove()
+  })
 })

@@ -387,10 +387,13 @@ describe('magic-link scanner-safe GET and explicit POST verification', () => {
     )
   })
 
-  it('missing token -> magic_link_invalid', async () => {
+  it('legacy GET missing token -> branded error UI redirect', async () => {
     const app = makeApp(registerSessionAuthRoutes)
     const res = await get(app, makeEnv(), '/auth/magic-link/verify')
-    expect(((await res.json()) as { code: string }).code).toBe('magic_link_invalid')
+    expect(res.status).toBe(303)
+    expect(res.headers.get('Location')).toBe('https://tenant-1.xid.dev/magic-link')
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('Set-Cookie')).toBeNull()
   })
 
   it('签名错误 -> magic_link_invalid', async () => {
@@ -544,7 +547,7 @@ describe('magic-link scanner-safe GET and explicit POST verification', () => {
     expect(res.headers.get('Set-Cookie')).toContain('__Host-xid.rt.')
   })
 
-  it('root 入口旧 per-org issuer token -> 直接拒绝且不消费 token', async () => {
+  it('root 入口旧 per-org issuer token 无法解析 -> 品牌错误页且不消费 token', async () => {
     vi.mocked(resolveTenantContextByIssuer).mockResolvedValue({
       ok: false,
       error: { code: 'tenant_not_found', message: 'Tenant not found', httpStatus: 404 },
@@ -570,8 +573,10 @@ describe('magic-link scanner-safe GET and explicit POST verification', () => {
       `https://xid.dev/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
     )
 
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as { code: string }).code).toBe('magic_link_invalid')
+    expect(res.status).toBe(303)
+    expect(res.headers.get('Location')).toBe('https://xid.dev/magic-link')
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('Set-Cookie')).toBeNull()
     expect(resolveTenantContextByIssuer).toHaveBeenCalledWith(
       expect.any(Request),
       env,

@@ -440,7 +440,9 @@ binding cannot be unlinked.
   consume the credential or establish a session.
 - The legacy `GET /auth/magic-link/verify?token=...` endpoint is a mutation-free compatibility shim:
   it resolves the trusted Hosted Auth origin and redirects to the fragment-based confirmation page.
-  Only `POST /auth/magic-link/verify` may consume the token and issue a session.
+  Missing or unresolvable legacy credentials redirect to the tokenless Hosted UI error state instead
+  of returning an API JSON document to the browser. Only `POST /auth/magic-link/verify` may consume
+  the token and issue a session.
 - Resending a magic link does not revoke another unconsumed magic link that is still within its
   15-minute lifetime. Every issued link remains independently single-use. The same parallel-validity
   rule applies to Email verification and password-reset links; OTP deliberately keeps only the most

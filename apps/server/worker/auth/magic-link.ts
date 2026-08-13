@@ -79,6 +79,10 @@ function magicLinkConfirmationUrl(tenant: TenantVar, rawToken: string): string {
   return redirectUrl.toString()
 }
 
+function magicLinkErrorUrl(c: Context<XidHonoEnv>): string {
+  return new URL('/magic-link', c.req.url).toString()
+}
+
 async function withTenant<T>(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
@@ -344,9 +348,17 @@ const magicLinkVerifyBodySchema = v.object({ token: v.pipe(v.string(), v.minLeng
 // 存量 query-string 链接只做 Hosted UI 跳转。GET 永不验签、消费 token 或签发 session。
 export async function handleMagicLinkVerifyRedirect(c: Context<XidHonoEnv>): Promise<Response> {
   const query = v.safeParse(magicLinkVerifyQuerySchema, { token: c.req.query('token') })
-  if (!query.success) throw new AppError('magic_link_invalid')
+  if (!query.success) return noStoreRedirect(c, magicLinkErrorUrl(c))
   const rawToken = query.output.token
-  const tenant = await resolveMagicLinkTenant(c, rawToken)
+  let tenant: TenantVar
+  try {
+    tenant = await resolveMagicLinkTenant(c, rawToken)
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'magic_link_invalid') {
+      return noStoreRedirect(c, magicLinkErrorUrl(c))
+    }
+    throw error
+  }
   return noStoreRedirect(c, magicLinkConfirmationUrl(tenant, rawToken))
 }
 
