@@ -247,6 +247,10 @@ detail goes to the audit log):
 - Issuing another reset email does not revoke an unconsumed reset link that is still within its
   15-minute lifetime. Each link remains independently single-use; consumed and expired rows are
   removed opportunistically during later issuance.
+- Entering password recovery from an Organization-scoped Hosted Auth page preserves the
+  `organization_id` and locale in both directions. The request sends that Organization hint through
+  the normal Tenant resolver; dropping it would silently run the enumeration-resistant request
+  against the Instance default Tenant and leave a valid Organization-local account without mail.
 - The pepper lives in Workers Secrets and never enters the database; rotation keeps the old version
   number so existing hashes still verify
 

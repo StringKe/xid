@@ -139,6 +139,16 @@ describe('ForgotPasswordPage navigation links', () => {
     await unmount(container, root)
   })
 
+  it('keeps organization and locale context when returning to sign in', async () => {
+    routerState.search = { organization_id: 'org-1', locale: 'en' }
+    globalThis.history.replaceState({}, '', '/forgot-password?organization_id=org-1&locale=en')
+
+    const { container, root, html } = await renderPage()
+
+    expect(html).toContain('href="/sign-in?organization_id=org-1&amp;locale=en"')
+    await unmount(container, root)
+  })
+
   it('shows Back to sign in on the reset step', async () => {
     routerState.search = { token: 'reset-token' }
     routerState.pathname = '/reset-password'
@@ -166,6 +176,33 @@ describe('ForgotPasswordPage navigation links', () => {
 
     expect(container.textContent).toContain('Request a new reset link')
     expect(container.innerHTML).toContain('href="/forgot-password"')
+    await unmount(container, root)
+  })
+
+  it('keeps recovery context when requesting another link', async () => {
+    routerState.search = {
+      token: 'expired-token',
+      organization_id: 'org-1',
+      locale: 'en',
+    }
+    routerState.pathname = '/reset-password'
+    globalThis.history.replaceState(
+      {},
+      '',
+      '/reset-password?token=expired-token&organization_id=org-1&locale=en',
+    )
+    const { container, root } = await renderPage()
+
+    await act(async () => {
+      await mutationState.captured[0]?.onSuccess?.({
+        ok: false,
+        error: { code: 'token_expired', message: 'expired' },
+      })
+    })
+
+    expect(container.innerHTML).toContain(
+      'href="/forgot-password?organization_id=org-1&amp;locale=en"',
+    )
     await unmount(container, root)
   })
 
