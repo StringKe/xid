@@ -75,6 +75,7 @@ describe('resolveTokenTenant', () => {
     const c = await makeContext(unresolvedTenant()).getCtx()
     await expect(resolveTokenTenant(c, 'not-a-jwt', 'invalid_token')).rejects.toMatchObject({
       code: 'invalid_token',
+      logReason: 'token_tenant_hint_missing',
     })
   })
 
@@ -105,6 +106,7 @@ describe('resolveTokenTenant', () => {
     const token = fakeJwt({ iss: 'https://missing.xid.dev' })
     await expect(resolveTokenTenant(c, token, 'invalid_token')).rejects.toMatchObject({
       code: 'invalid_token',
+      logReason: 'token_tenant_resolution_failed',
     })
   })
 })

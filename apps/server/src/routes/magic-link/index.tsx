@@ -3,22 +3,22 @@ import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
-import type { XidErrorCode } from '@xid-kit/types'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { Link, useNavigate } from '../../lib/router'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
+import { classifyOneTimeLinkError, type OneTimeLinkErrorKind } from '../../lib/one-time-link-error'
 import { styles as signInStyles } from '../sign-in/styles'
 import { tokens } from '../../styles/tokens.stylex'
 
 type MagicLinkResult = { redirectUrl: string }
-type MagicLinkErrorKind = 'expired' | 'invalid'
 
-function classifyError(code: XidErrorCode): MagicLinkErrorKind {
-  return code === 'magic_link_expired' ? 'expired' : 'invalid'
-}
+const MAGIC_LINK_TERMINAL_CODES = {
+  expired: 'magic_link_expired',
+  invalid: 'magic_link_invalid',
+} as const
 
 const styles = stylex.create({
   stack: {
@@ -60,6 +60,9 @@ export function MagicLinkPage(): ReactNode {
       clearToken()
       return result.value
     },
+    onError: (error) => {
+      if (classifyOneTimeLinkError(error, MAGIC_LINK_TERMINAL_CODES) !== 'retryable') clearToken()
+    },
   })
 
   useEffect(() => {
@@ -73,12 +76,9 @@ export function MagicLinkPage(): ReactNode {
     return () => globalThis.clearTimeout(timer)
   }, [navigate, verification.data?.redirectUrl, verification.isSuccess])
 
-  const errorKind: MagicLinkErrorKind | null =
-    verification.error && typeof verification.error === 'object' && 'code' in verification.error
-      ? classifyError((verification.error as { code: XidErrorCode }).code)
-      : verification.error
-        ? 'invalid'
-        : null
+  const errorKind: OneTimeLinkErrorKind | null = verification.error
+    ? classifyOneTimeLinkError(verification.error, MAGIC_LINK_TERMINAL_CODES)
+    : null
 
   const confirmReady = ready && token !== null && verification.isIdle
 
@@ -103,7 +103,7 @@ export function MagicLinkPage(): ReactNode {
           </div>
         ) : null}
 
-        {ready && token === null && !verification.isSuccess ? (
+        {ready && token === null && !verification.isSuccess && !verification.error ? (
           <Alert tone="error">
             <Trans>No magic-link token found. Please use the link from your email.</Trans>
           </Alert>
@@ -140,6 +140,22 @@ export function MagicLinkPage(): ReactNode {
           <Alert tone="error">
             <Trans>This magic link is invalid or has already been used.</Trans>
           </Alert>
+        ) : null}
+
+        {errorKind === 'retryable' ? (
+          <>
+            <Alert tone="error">
+              <Trans>Something went wrong. Please try again.</Trans>
+            </Alert>
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              onClick={() => verification.mutate()}
+            >
+              <Trans>Try again</Trans>
+            </Button>
+          </>
         ) : null}
 
         {ready && !verification.isPending && !verification.isSuccess ? (

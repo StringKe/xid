@@ -37,10 +37,14 @@ export async function resolveTokenTenant(
   const current = c.get('tenant')
   if (!current.resolution?.unresolvedRoot) return current
   const hint = tokenTenantHint(rawToken)
-  if (!hint.issuer) throw new AppError(invalidCode)
+  if (!hint.issuer) {
+    throw new AppError(invalidCode, { logReason: 'token_tenant_hint_missing' })
+  }
   const result = await resolveTenantContextByIssuer(c.req.raw, c.env, hint.issuer, {
     tenantId: hint.tenantId,
   })
-  if (!result.ok) throw new AppError(invalidCode)
+  if (!result.ok) {
+    throw new AppError(invalidCode, { logReason: 'token_tenant_resolution_failed' })
+  }
   return result.value.tenant
 }

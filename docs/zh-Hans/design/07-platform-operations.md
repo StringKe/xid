@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=5d55b0c source-blob=938bacaf624057b58c3a99e717615551fe0cb57e -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=2b0943beb7dee06cee997a8ee9a334f6c10600b8 -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -385,6 +385,9 @@ source consumer 仍需保留自己的 idempotency boundary。已经完成的 `re
   allowlist error type/code 与有界运维字段。Error message、stack、cause、cookie、
   Authorization、IP、原始 URL/query、provider payload 与 user identifier 均不得传给
   `console`。
+- 一次性链接拒绝会为失败的 verification stage 增加静态、低基数 `reason`,例如 Tenant
+  resolution、JWT validation 或 ledger consumption。该 reason 仅供服务端使用,必须符合
+  safe-log identifier allowlist,且绝不包含 credential 或 request URL。
 - Production 和 staging Workers Logs 都采样 100%。所有环境都关闭 Cloudflare
   invocation logs 与 automatic request traces,因为两者都会持久化 request URL,automatic
   Fetch span 还会包含 `url.full`。Core URL 可能携带 OAuth code、invitation token、

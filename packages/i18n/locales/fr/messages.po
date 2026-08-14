@@ -9509,6 +9509,8 @@ msgid "SolidJS context provider, signal-based auth primitives, and headless comp
 msgstr "Fournisseur de contexte SolidJS, primitives d'authentification basées surdes signaux et composants headless construits sur @xid-kit/core."
 
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
 msgid "Something went wrong. Please try again."
 msgstr "Une erreur s'est produite. Réessayez."
 
@@ -10591,7 +10593,9 @@ msgstr "Appareils de confiance | Compte | XID"
 msgid "Trusted devices can skip or reduce MFA checks. Remove a device if you no longer trust it or if it was lost."
 msgstr "Les appareils de confiance peuvent ignorer ou réduire les vérifications MFA. Supprimez un appareil si vous ne lui faites plus confiance ou s'il a été perdu."
 
+#: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
 msgid "Try again"
 msgstr "Réessayer"
 

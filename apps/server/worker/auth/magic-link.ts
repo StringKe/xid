@@ -60,6 +60,10 @@ type SignMagicTokenInput = {
 
 type MagicLinkAction = 'login' | 'user_creation'
 
+function rejectMagicLink(reason: string): never {
+  throw new AppError('magic_link_invalid', { logReason: reason })
+}
+
 async function resolveMagicLinkTenant(
   c: Context<XidHonoEnv>,
   rawToken: string,
@@ -280,19 +284,32 @@ async function verifyMagicJwt(
   const verifyKeys = await buildVerifyKeySet(tenant)
   const verified = await verifyJwt(rawToken, verifyKeys, { expectedIssuer: tenant.issuer })
   if (!verified.ok) {
-    throw new AppError(
-      verified.error.reason === 'expired' ? 'magic_link_expired' : 'magic_link_invalid',
-    )
+    if (verified.error.reason === 'expired') {
+      throw new AppError('magic_link_expired', { logReason: 'jwt_expired' })
+    }
+    rejectMagicLink('jwt_verification_failed')
   }
   const { sub: userId, jti, purpose, action, flow_context: rawFlowContext } = verified.value.payload
-  if (!userId || !jti || purpose !== 'magic_link') throw new AppError('magic_link_invalid')
-  if (action !== 'login' && action !== 'user_creation') throw new AppError('magic_link_invalid')
-  if (typeof rawFlowContext !== 'string') throw new AppError('magic_link_invalid')
+  if (!userId || !jti || purpose !== 'magic_link') rejectMagicLink('jwt_claims_invalid')
+  if (action !== 'login' && action !== 'user_creation') rejectMagicLink('jwt_action_invalid')
+  if (typeof rawFlowContext !== 'string') rejectMagicLink('flow_context_missing')
+  let flow: PasswordlessFlowContext
+  try {
+    flow = parsePasswordlessFlowContext(rawFlowContext, 'magic_link_invalid')
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'magic_link_invalid') {
+      throw new AppError('magic_link_invalid', {
+        cause: error,
+        logReason: 'flow_context_invalid',
+      })
+    }
+    throw error
+  }
   return {
     jti,
     userId,
     action,
-    flow: parsePasswordlessFlowContext(rawFlowContext, 'magic_link_invalid'),
+    flow,
   }
 }
 
@@ -311,14 +328,17 @@ async function consumeMagicToken(
     ? undefined
     : await db.verificationTokens.findOne(eq(schema.verificationTokens.tokenHash, tokenHash))
   const tokenRow = ledgerRow ?? legacyRow
-  if (!tokenRow || tokenRow.consumedAt !== null) throw new AppError('magic_link_invalid')
-  if (tokenRow.expiresAt.getTime() <= Date.now()) throw new AppError('magic_link_expired')
-  if (legacyRow && legacyRow.purpose !== 'magic_link') throw new AppError('magic_link_invalid')
+  if (!tokenRow) rejectMagicLink('ledger_token_missing')
+  if (tokenRow.consumedAt !== null) rejectMagicLink('ledger_token_consumed')
+  if (tokenRow.expiresAt.getTime() <= Date.now()) {
+    throw new AppError('magic_link_expired', { logReason: 'ledger_token_expired' })
+  }
+  if (legacyRow && legacyRow.purpose !== 'magic_link') rejectMagicLink('ledger_purpose_invalid')
   if (
     tokenRow.userId !== signedUserId ||
     tokenRow.flowContext !== serializePasswordlessFlowContext(signedFlow)
   ) {
-    throw new AppError('magic_link_invalid')
+    rejectMagicLink('ledger_binding_mismatch')
   }
   const consumed = ledgerRow
     ? await db.magicLinkTokens.update(
@@ -338,7 +358,7 @@ async function consumeMagicToken(
           gt(schema.verificationTokens.expiresAt, new Date()),
         ),
       )
-  if (consumed && consumed.length === 0 && tokenRow.id) throw new AppError('magic_link_invalid')
+  if (consumed && consumed.length === 0 && tokenRow.id) rejectMagicLink('ledger_consume_conflict')
   return tokenRow.userId
 }
 
@@ -364,11 +384,22 @@ export async function handleMagicLinkVerifyRedirect(c: Context<XidHonoEnv>): Pro
 
 export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Response> {
   const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('magic_link_invalid')
-  const body = validateCredentialBody(magicLinkVerifyBodySchema, json.value, {
-    code: 'magic_link_invalid',
-    credentialFields: ['token'],
-  })
+  if (!json.ok) rejectMagicLink('request_body_invalid')
+  let body: { token: string }
+  try {
+    body = validateCredentialBody(magicLinkVerifyBodySchema, json.value, {
+      code: 'magic_link_invalid',
+      credentialFields: ['token'],
+    })
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'magic_link_invalid') {
+      throw new AppError('magic_link_invalid', {
+        cause: error,
+        logReason: 'request_token_invalid',
+      })
+    }
+    throw error
+  }
   const rawToken = body.token
   const tenant = await resolveMagicLinkTenant(c, rawToken)
 
@@ -384,7 +415,7 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
   return withTenant(c, tenant, async () => {
     const { jti, userId: signedUserId, action, flow } = await verifyMagicJwt(tenant, rawToken)
     // Legacy magic-link tokens carrying an invitation continuation must never consume or accept it.
-    if (flow.invitationId) throw new AppError('magic_link_invalid')
+    if (flow.invitationId) rejectMagicLink('invitation_flow_unsupported')
     try {
       assertMethodAllowed(tenant, 'magicLink', action)
     } catch (error) {

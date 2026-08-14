@@ -27,7 +27,6 @@ type RequestStepProps = {
 type ResetStepProps = {
   token: string
   clearToken: () => void
-  requestNewLinkHref: string
 }
 
 function scorePassword(password: string): 0 | 1 | 2 | 3 | 4 {
@@ -183,7 +182,7 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
   )
 }
 
-function ResetStep({ token, clearToken, requestNewLinkHref }: ResetStepProps): ReactNode {
+function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
@@ -193,8 +192,6 @@ function ResetStep({ token, clearToken, requestNewLinkHref }: ResetStepProps): R
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [globalError, setGlobalError] = useState<string | null>(null)
-
-  const [tokenInvalid, setTokenInvalid] = useState(false)
 
   const handlePasswordChange = useCallback((value: string): void => {
     setPassword(value)
@@ -208,8 +205,7 @@ function ResetStep({ token, clearToken, requestNewLinkHref }: ResetStepProps): R
       if (!result.ok) {
         const { error } = result
         if (error.code === 'token_expired' || error.code === 'token_invalid') {
-          setGlobalError(t`This reset link is invalid or has expired. Please request a new one.`)
-          setTokenInvalid(true)
+          clearToken()
         } else if (error.code === 'password_breached') {
           setPasswordError(
             t`This password has appeared in a data breach. Please choose a different password.`,
@@ -235,7 +231,6 @@ function ResetStep({ token, clearToken, requestNewLinkHref }: ResetStepProps): R
     setPasswordError(null)
     setConfirmError(null)
     setGlobalError(null)
-    setTokenInvalid(false)
 
     let hasError = false
     if (password.length < 12) {
@@ -264,14 +259,6 @@ function ResetStep({ token, clearToken, requestNewLinkHref }: ResetStepProps): R
       />
 
       {globalError ? <Alert tone="error">{globalError}</Alert> : null}
-
-      {tokenInvalid ? (
-        <p {...stylex.props(styles.footerText)}>
-          <Link to={requestNewLinkHref} {...stylex.props(styles.textLink)}>
-            <Trans>Request a new reset link</Trans>
-          </Link>
-        </p>
-      ) : null}
 
       <div {...stylex.props(styles.formFields)}>
         <div {...stylex.props(styles.passwordGroup)}>
@@ -398,11 +385,7 @@ function ForgotPasswordPage(): ReactNode {
   return (
     <AuthLayout footer={backToSignIn}>
       {isResetRoute ? (
-        <ResetStep
-          token={token as string}
-          clearToken={clearToken}
-          requestNewLinkHref={requestNewLinkHref}
-        />
+        <ResetStep token={token as string} clearToken={clearToken} />
       ) : (
         <RequestStep organizationId={organizationId} onDone={() => setRequestDone(true)} />
       )}
