@@ -1,5 +1,9 @@
 export const INSTANCE_CONSOLE_ROUTE_CHECKS = [
-  { path: '/console', expectedPathPrefix: '/console' },
+  {
+    path: '/console',
+    expectedPathPrefix: '/console/org',
+    expectedText: 'Key metrics',
+  },
   {
     path: '/console/managed-projects',
     expectedPathPrefix: '/console/managed-projects',
@@ -7,13 +11,13 @@ export const INSTANCE_CONSOLE_ROUTE_CHECKS = [
   },
   {
     path: '/console/users',
-    expectedPathPrefix: '/console/platform/users',
-    expectedText: 'Global user search',
+    expectedPathPrefix: '/console/org/members',
+    expectedText: 'Members',
   },
   {
     path: '/console/organizations',
-    expectedPathPrefix: '/console/platform/organizations',
-    expectedText: 'Organizations',
+    expectedPathPrefix: '/console/org',
+    expectedText: 'Key metrics',
   },
   {
     path: '/console/settings',
