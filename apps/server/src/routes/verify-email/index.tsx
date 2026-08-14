@@ -6,7 +6,6 @@ import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { Link, useNavigate } from '../../lib/router'
 import { useMutation } from '@tanstack/react-query'
-import type { XidErrorCode } from '@xid-kit/types'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
@@ -15,13 +14,14 @@ import { useAuth } from '../../lib/auth-context'
 import { trackEmailVerified } from '../../lib/google-analytics-funnel'
 import { styles as signInStyles } from '../sign-in/styles'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
+import { classifyOneTimeLinkError, type OneTimeLinkErrorKind } from '../../lib/one-time-link-error'
 
-type VerifyErrorKind = 'expired' | 'invalid'
 type VerifyEmailResult = { ok: true; email?: string; redirectUrl?: string }
 
-function classifyError(code: XidErrorCode): VerifyErrorKind {
-  return code === 'token_expired' ? 'expired' : 'invalid'
-}
+const VERIFY_EMAIL_TERMINAL_CODES = {
+  expired: 'token_expired',
+  invalid: 'token_invalid',
+} as const
 
 // 回 sign-in 附 verified=1 + login_hint,供成功 Alert 与预填。
 function withVerifiedHint(target: string, email: string | undefined): string {
@@ -85,6 +85,9 @@ function VerifyEmailPage(): ReactNode {
       clearToken()
       return result.value
     },
+    onError: (error) => {
+      if (classifyOneTimeLinkError(error, VERIFY_EMAIL_TERMINAL_CODES) !== 'retryable') clearToken()
+    },
   })
 
   // 短暂停留再跳转,让用户看到成功提示。
@@ -100,12 +103,9 @@ function VerifyEmailPage(): ReactNode {
     return () => globalThis.clearTimeout(timer)
   }, [navigate, verification.data?.email, verification.data?.redirectUrl, verification.isSuccess])
 
-  const errorKind: VerifyErrorKind | null =
-    verification.error && typeof verification.error === 'object' && 'code' in verification.error
-      ? classifyError((verification.error as { code: XidErrorCode }).code)
-      : verification.error
-        ? 'invalid'
-        : null
+  const errorKind: OneTimeLinkErrorKind | null = verification.error
+    ? classifyOneTimeLinkError(verification.error, VERIFY_EMAIL_TERMINAL_CODES)
+    : null
 
   return (
     <AuthLayout>
@@ -136,7 +136,7 @@ function VerifyEmailPage(): ReactNode {
           </div>
         ) : null}
 
-        {ready && token === null && !verification.isSuccess ? (
+        {ready && token === null && !verification.isSuccess && !verification.error ? (
           <>
             <Alert tone="error">
               <Trans>No verification token found. Please use the link from your email.</Trans>
@@ -181,6 +181,22 @@ function VerifyEmailPage(): ReactNode {
               <Trans>This verification link is invalid or has already been used.</Trans>
             </Alert>
             <ResendLink />
+          </>
+        ) : null}
+
+        {errorKind === 'retryable' ? (
+          <>
+            <Alert tone="error">
+              <Trans>Something went wrong. Please try again.</Trans>
+            </Alert>
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              onClick={() => verification.mutate()}
+            >
+              <Trans>Try again</Trans>
+            </Button>
           </>
         ) : null}
       </div>

@@ -9509,6 +9509,8 @@ msgid "SolidJS context provider, signal-based auth primitives, and headless comp
 msgstr "@xid-kit/core 기반의 SolidJS 컨텍스트 provider, 신호 기반 인증 프리미티브, 헤드리스 컴포넌트."
 
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
 msgid "Something went wrong. Please try again."
 msgstr "문제가 발생했습니다. 다시 시도하세요."
 
@@ -10591,7 +10593,9 @@ msgstr "신뢰 기기 | 계정 | XID"
 msgid "Trusted devices can skip or reduce MFA checks. Remove a device if you no longer trust it or if it was lost."
 msgstr "신뢰된 디바이스는 MFA 확인을 건너뛰거나 줄일 수 있습니다. 더 이상 신뢰하지 않거나 분실한 디바이스는 제거하세요."
 
+#: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
 msgid "Try again"
 msgstr "다시 시도"
 

@@ -203,6 +203,7 @@ describe('ForgotPasswordPage navigation links', () => {
 
     expect(container.textContent).toContain('Request a new reset link')
     expect(container.innerHTML).toContain('href="/forgot-password"')
+    expect(globalThis.sessionStorage.getItem('xid.password-reset.token')).toBeNull()
     await unmount(container, root)
   })
 

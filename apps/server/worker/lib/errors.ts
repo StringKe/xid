@@ -93,6 +93,8 @@ export type AppErrorOptions = {
   longMessage?: string
   // 原始底层错误,仅用于服务端日志,绝不外泄(见错误处理铁律不吞错)。
   cause?: unknown
+  // 低基数诊断原因,仅进入服务端结构化日志,绝不进入响应体。
+  logReason?: string
 }
 
 // 业务/协议失败的 typed 错误。message 在 onError 阶段由 i18n 渲染,此处只持 code。
@@ -101,6 +103,7 @@ export class AppError extends Error {
   readonly httpStatus: number
   readonly meta?: XidErrorMeta
   readonly longMessage?: string
+  readonly logReason?: string
 
   constructor(code: XidErrorCode, options: AppErrorOptions = {}) {
     super(code, options.cause === undefined ? undefined : { cause: options.cause })
@@ -109,6 +112,7 @@ export class AppError extends Error {
     this.httpStatus = options.httpStatus ?? httpStatusForCode(code)
     if (options.meta) this.meta = options.meta
     if (options.longMessage) this.longMessage = options.longMessage
+    if (options.logReason) this.logReason = options.logReason
   }
 }
 

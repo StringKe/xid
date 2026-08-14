@@ -130,4 +130,72 @@ describe('VerifyEmailPage explicit confirmation', () => {
     queryClient.clear()
     container.remove()
   })
+
+  it('clears a rejected credential without stacking the missing-token state', async () => {
+    authState.post.mockResolvedValue({
+      ok: false,
+      error: { code: 'token_invalid', message: 'invalid', httpStatus: 400 },
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <VerifyEmailPage />
+        </QueryClientProvider>,
+      )
+    })
+    const button = container.querySelector('button')
+    if (!button) throw new Error('confirmation button missing')
+    await act(async () => button.click())
+    await flush()
+
+    expect(globalThis.sessionStorage.getItem('xid.verify-email.token')).toBeNull()
+    expect(container.textContent).toContain(
+      'This verification link is invalid or has already been used.',
+    )
+    expect(container.textContent).not.toContain('No verification token found')
+
+    await act(async () => root.unmount())
+    queryClient.clear()
+    container.remove()
+  })
+
+  it('retains the credential and offers retry for a transient failure', async () => {
+    authState.post.mockResolvedValue({
+      ok: false,
+      error: { code: 'server_error', message: 'unavailable', httpStatus: 500 },
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <VerifyEmailPage />
+        </QueryClientProvider>,
+      )
+    })
+    const confirm = container.querySelector('button')
+    if (!confirm) throw new Error('confirmation button missing')
+    await act(async () => confirm.click())
+    await flush()
+    await act(async () => vi.runOnlyPendingTimers())
+    await flush()
+
+    expect(globalThis.sessionStorage.getItem('xid.verify-email.token')).toBe('signed-token')
+    expect(container.textContent).toContain('Something went wrong. Please try again.')
+    expect(
+      Array.from(container.querySelectorAll('button')).map((button) => button.textContent),
+    ).toEqual(['Try again'])
+
+    await act(async () => root.unmount())
+    queryClient.clear()
+    container.remove()
+  })
 })

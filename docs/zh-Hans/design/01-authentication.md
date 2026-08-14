@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=6f95c0e0ce4dc2b39fc84c505698edab2111b744 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=e3a5ce3b2ccbb795b74cc9450f7c608152e36e1f -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -279,6 +279,10 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 - 事务邮件把 magic-link token 放在 Hosted UI URL fragment 中。浏览器在渲染前清除 fragment,
   用户点击显式确认按钮后才提交 token。Email scanner、prefetch 和普通 `GET` 均不得消费凭据
   或建立 session。
+- 清除 fragment 后,浏览器只允许为同一个 History entry 在 `sessionStorage` 中保留 credential,
+  使该确认页 reload 后仍可继续。缺少匹配 History marker 的 navigation 不得恢复其他链接尝试
+  留下的 stale credential。成功、过期、无效或其他终态 verification rejection 必须先清除
+  stored token 与 History marker,再展示 recovery state。
 - 旧 `GET /auth/magic-link/verify?token=...` 仅作为无 mutation 的兼容跳转:解析可信 Hosted Auth
   origin 后跳到 fragment 确认页。缺失或无法解析的旧 credential 必须跳到不带 token 的 Hosted UI
   错误状态,不得向浏览器展示 API JSON。只有 `POST /auth/magic-link/verify` 可以消费 token 并签发

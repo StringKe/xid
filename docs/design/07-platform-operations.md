@@ -452,6 +452,9 @@ Implemented baseline:
   severity, an allowlisted error type/code, and bounded operational fields. Error message, stack,
   cause, cookie, Authorization, IP, raw URL/query, provider payload, and user identifiers are never
   passed to `console`.
+- One-time-link rejections add a static low-cardinality `reason` for the failed verification stage
+  such as tenant resolution, JWT validation, or ledger consumption. The reason is server-side only,
+  must match the safe-log identifier allowlist, and never contains the credential or request URL.
 - Production and staging Workers Logs sample 100%. Cloudflare invocation logs and
   automatic request traces are disabled in every environment because both persist the request URL,
   and automatic Fetch spans include `url.full`. Core URLs can carry OAuth codes, invitation tokens,

@@ -2,6 +2,7 @@ type SafeLogContext = {
   component?: string
   operation?: string
   outcome?: string
+  reason?: string
   queue?: string
   attempt?: number
   status?: number

@@ -117,7 +117,7 @@ describe('errorHandler', () => {
     })
     app.onError(errorHandler)
     app.post('/auth/magic-link/verify', () => {
-      throw new AppError('magic_link_expired')
+      throw new AppError('magic_link_expired', { logReason: 'jwt_expired' })
     })
 
     const res = await app.request('/auth/magic-link/verify?token=raw-secret', { method: 'POST' })
@@ -129,12 +129,37 @@ describe('errorHandler', () => {
       component: 'auth',
       operation: 'magic_link',
       outcome: 'magic_link_expired',
+      reason: 'jwt_expired',
       status: 400,
     })
     const logged = JSON.stringify(vi.mocked(console.warn).mock.calls)
     expect(logged).not.toContain('raw-secret')
     expect(logged).not.toContain('token=')
     expect(logged).not.toContain('https://')
+  })
+
+  it('drops an unsafe one-time-link log reason without leaking it', async () => {
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('i18n', { _: (descriptor: { id: string }) => `localized:${descriptor.id}` } as never)
+      await next()
+    })
+    app.onError(errorHandler)
+    app.post('/auth/magic-link/verify', () => {
+      throw new AppError('magic_link_invalid', { logReason: 'token=raw-secret' })
+    })
+
+    await app.request('/auth/magic-link/verify', { method: 'POST' })
+
+    expect(console.warn).toHaveBeenCalledWith({
+      event: 'auth.one_time_link.rejected',
+      severity: 'warning',
+      component: 'auth',
+      operation: 'magic_link',
+      outcome: 'magic_link_invalid',
+      status: 400,
+    })
+    expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain('raw-secret')
   })
 
   it('keeps an error response available when request i18n is absent', async () => {

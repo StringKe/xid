@@ -442,6 +442,11 @@ binding cannot be unlinked.
   scrubs that fragment before rendering and does not submit the token until the user presses the
   explicit confirmation button. Link scanners, prefetchers, and `GET` navigation therefore cannot
   consume the credential or establish a session.
+- After scrubbing, the browser may retain the credential in `sessionStorage` only for the same
+  History entry so a reload of that confirmation page remains usable. A navigation without the
+  matching History marker must not recover a stale credential from another link attempt. Success,
+  expiry, invalidity, or any other terminal verification rejection clears both the stored token and
+  its History marker before the recovery state is shown.
 - The legacy `GET /auth/magic-link/verify?token=...` endpoint is a mutation-free compatibility shim:
   it resolves the trusted Hosted Auth origin and redirects to the fragment-based confirmation page.
   Missing or unresolvable legacy credentials redirect to the tokenless Hosted UI error state instead

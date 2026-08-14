@@ -70,6 +70,8 @@ const ONE_TIME_LINK_OPERATIONS: Readonly<Record<string, string>> = {
   '/auth/invitation/claim/verify': 'invitation_email_claim',
 }
 
+const SAFE_LOG_REASON = /^[a-z][a-z0-9_]{0,63}$/u
+
 function logOneTimeLinkRejection(
   c: Parameters<ErrorHandler<XidHonoEnv>>[1],
   error: AppError | XidError,
@@ -81,6 +83,11 @@ function logOneTimeLinkRejection(
     component: 'auth',
     operation,
     outcome: error.code,
+    ...(error instanceof AppError &&
+    error.logReason !== undefined &&
+    SAFE_LOG_REASON.test(error.logReason)
+      ? { reason: error.logReason }
+      : {}),
     status: error.httpStatus,
   })
 }
