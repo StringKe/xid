@@ -244,11 +244,9 @@ describe('MagicLinkPage explicit confirmation', () => {
         </QueryClientProvider>,
       )
     })
-    const replaceState = vi
-      .spyOn(globalThis.history, 'replaceState')
-      .mockImplementation(() => {
-        throw new DOMException('History unavailable', 'SecurityError')
-      })
+    const replaceState = vi.spyOn(globalThis.history, 'replaceState').mockImplementation(() => {
+      throw new DOMException('History unavailable', 'SecurityError')
+    })
     const button = container.querySelector('button')
     if (!button) throw new Error('confirmation button missing')
     await act(async () => button.click())
