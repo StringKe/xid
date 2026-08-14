@@ -41,6 +41,11 @@ import {
 } from './production-evidence.mjs'
 import { docsAuthActionsOk, docsLocaleMetadataOk } from './public-doc-html.mjs'
 import { webRouteOwnerMatches } from './web-route-owner.mjs'
+import {
+  INSTANCE_CONSOLE_ROUTE_CHECKS,
+  ORGANIZATION_CONSOLE_ROUTE_CHECKS,
+  PLATFORM_CONSOLE_ROUTE_CHECKS,
+} from './console-route-checks.mjs'
 
 const CHROME_PATH =
   process.env['XID_CHROME_PATH'] ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -451,6 +456,7 @@ class CdpPage {
     this.pending = new Map()
     this.events = []
     this.networkLog = []
+    this.routeNetworkLog = []
   }
 
   async connect() {
@@ -489,6 +495,13 @@ class CdpPage {
     }
     if (message.method === 'Network.responseReceived') {
       const url = String(message.params?.response?.url ?? '')
+      if (url.startsWith(`${baseUrl}/v1/`) || url.startsWith(`${baseUrl}/auth/`)) {
+        this.routeNetworkLog.push({
+          url,
+          requestId: message.params.requestId,
+          status: message.params.response.status,
+        })
+      }
       if (
         url.includes('/v1/me') ||
         url.includes('/auth/passkey') ||
@@ -510,6 +523,11 @@ class CdpPage {
       if (row) {
         row.failed = true
         row.errorText = message.params.errorText
+      }
+      const routeRow = this.routeNetworkLog.find((entry) => entry.requestId === requestId)
+      if (routeRow) {
+        routeRow.failed = true
+        routeRow.errorText = message.params.errorText
       }
     }
   }
@@ -562,6 +580,7 @@ class CdpPage {
 
   async navigate(path) {
     this.events = []
+    this.routeNetworkLog = []
     await this.send('Page.navigate', { url: `${baseUrl}${path}` })
     await this.waitFor(() => document.readyState === 'complete', 15_000, `load ${path}`)
     await this.waitFor(
@@ -961,6 +980,32 @@ function assertSignedInSnapshot(snapshot, name, expectedEmail) {
   if (snapshot.hasPlaceholderHref) throw new Error(`${name} has placeholder href`)
   if (snapshot.badClass || snapshot.htmlHasFunctionClass)
     throw new Error(`${name} has function class`)
+}
+
+function assertNoRawJsonError(snapshot, name) {
+  if (/\{\s*"(?:code|error|message)"\s*:/.test(snapshot.text)) {
+    throw new Error(`${name} exposes a raw JSON error`)
+  }
+}
+
+function assertNoVisibleLoadError(snapshot, name) {
+  if (
+    /\bFailed to\b|\bcould not be loaded\b|\bUnable to load\b|\bSomething went wrong\b/i.test(
+      snapshot.text,
+    )
+  ) {
+    throw new Error(`${name} exposes a visible load error`)
+  }
+}
+
+function assertNoRouteApiErrors(page, name) {
+  const failures = page.routeNetworkLog.filter(
+    (entry) => entry.failed || !Number.isFinite(entry.status) || entry.status >= 400,
+  )
+  if (failures.length > 0) {
+    const safeFailures = redactKnownText(JSON.stringify(failures), [smokeEmail])
+    throw new Error(`${name} has API request failures: ${safeFailures.slice(0, 1200)}`)
+  }
 }
 
 async function checkWebManifestHttp() {
@@ -1917,7 +1962,7 @@ async function checkDocs(
   printResult('PASS', `browser ${path}`, `nimbus=true lang=${snapshot.lang}`)
 }
 
-async function checkConsoleRoute(page, path, expectedPathPrefix) {
+async function checkConsoleRoute(page, path, expectedPathPrefix, expectedText) {
   const ownerResponse = await fetch(`${baseUrl}${path}`, {
     redirect: 'manual',
     headers: { accept: 'text/html' },
@@ -1945,6 +1990,22 @@ async function checkConsoleRoute(page, path, expectedPathPrefix) {
       { cause: error },
     )
   }
+
+  if (expectedText) {
+    const foldedExpectedText = expectedText.toLowerCase()
+    await page.waitFor(
+      Function(
+        `return document.body.innerText.toLowerCase().includes(${JSON.stringify(foldedExpectedText)})`,
+      ),
+      30_000,
+      `${path} expected content`,
+    )
+  }
+  await page.waitFor(
+    () => document.querySelector('main [role="status"]') === null,
+    30_000,
+    `${path} settled content`,
+  )
   const snapshot = await page.snapshot()
   if (!snapshot.pathname.startsWith(expectedPathPrefix)) {
     throw new Error(`${path} expected ${expectedPathPrefix}, got ${snapshot.href}`)
@@ -1958,52 +2019,38 @@ async function checkConsoleRoute(page, path, expectedPathPrefix) {
       `${path} missing signed in email me_http=${browserMe.status} me_body=${safeBody.slice(0, 500)} text=${safeText.slice(0, 500)}`,
     )
   }
+  if (expectedText && !snapshot.text.toLowerCase().includes(expectedText.toLowerCase())) {
+    throw new Error(`${path} missing expected content: ${expectedText}`)
+  }
   assertSignedInSnapshot(snapshot, path, smokeEmail)
+  assertNoRawJsonError(snapshot, path)
+  assertNoVisibleLoadError(snapshot, path)
+  assertNoRouteApiErrors(page, path)
   assertNoConsoleErrors(page, path)
   printResult('PASS', `browser ${path}`, `url=${snapshot.pathname}`)
 }
 
-async function checkOrgConsoleRoutes(page) {
-  const routes = [
-    { path: '/console/org', expectedText: 'Key metrics' },
-    { path: '/console/org/members', expectedText: 'Invite member' },
-    { path: '/console/org/roles', expectedText: 'Roles and permissions' },
-    { path: '/console/org/auth-policy', expectedText: 'Authentication policy' },
-    { path: '/console/org/delivery-channels', expectedText: 'Delivery channels' },
-    { path: '/console/org/social-providers', expectedText: 'Social providers' },
-    { path: '/console/org/sso', expectedText: 'SSO connections' },
-    { path: '/console/org/scim', expectedText: 'Directory sync (SCIM)' },
-    { path: '/console/org/domains', expectedText: 'Organization domains' },
-    { path: '/console/org/branding', expectedText: 'Brand customization' },
-  ]
-
+async function checkConsoleRouteSet(page, routes, options = {}) {
   for (const route of routes) {
-    await checkConsoleRoute(page, route.path, route.path)
-    const expectedText = route.expectedText
-    const foldedExpectedText = expectedText.toLowerCase()
-    try {
-      await page.waitFor(
-        Function(
-          `return document.body.innerText.toLowerCase().includes(${JSON.stringify(foldedExpectedText)})`,
-        ),
-        15_000,
-        `${route.path} expected content`,
-      )
-    } catch (error) {
-      const snapshot = await page.snapshot()
-      const browserMe = await page.browserMe()
-      const fetchLog = await page.fetchLog()
-      const authLog = await page.authNetworkLog()
-      throw new Error(
-        `${route.path} expected content timed out expected=${expectedText} path=${snapshot.pathname} me_http=${browserMe.status} me_body=${redactKnownText(browserMe.body, [smokeEmail]).slice(0, 500)} text=${redactKnownText(snapshot.text, [smokeEmail]).slice(0, 800)} fetch_log=${redactKnownText(JSON.stringify(fetchLog), [smokeEmail]).slice(0, 1600)} auth_log=${redactKnownText(JSON.stringify(authLog), [smokeEmail]).slice(0, 1600)}`,
-        { cause: error },
-      )
-    }
-    const snapshot = await page.snapshot()
-    if (!snapshot.text.toLowerCase().includes(foldedExpectedText)) {
-      throw new Error(`${route.path} missing expected content: ${route.expectedText}`)
-    }
+    const path = route.organizationQuery
+      ? `${route.path}?tenantId=${encodeURIComponent(options.organizationId ?? '')}`
+      : route.path
+    await checkConsoleRoute(page, path, route.expectedPathPrefix, route.expectedText)
   }
+}
+
+async function checkInstanceConsoleRoutes(page) {
+  await checkConsoleRouteSet(page, INSTANCE_CONSOLE_ROUTE_CHECKS)
+  await checkConsoleSettingsOverview(page)
+  printResult(
+    'PASS',
+    'browser instance console routes',
+    `count=${INSTANCE_CONSOLE_ROUTE_CHECKS.length}`,
+  )
+}
+
+async function checkOrgConsoleRoutes(page) {
+  await checkConsoleRouteSet(page, ORGANIZATION_CONSOLE_ROUTE_CHECKS)
 
   const links =
     await page.evaluate(`Array.from(document.querySelectorAll('aside nav a')).map((a) => ({
@@ -2017,7 +2064,21 @@ async function checkOrgConsoleRoutes(page) {
     throw new Error('org navigation missing Delivery channels')
   }
 
-  printResult('PASS', 'browser org console routes', `count=${routes.length}`)
+  printResult(
+    'PASS',
+    'browser org console routes',
+    `count=${ORGANIZATION_CONSOLE_ROUTE_CHECKS.length}`,
+  )
+}
+
+async function checkPlatformConsoleRoutes(page, organizationId) {
+  if (!organizationId) throw new Error('platform route smoke requires an organization id')
+  await checkConsoleRouteSet(page, PLATFORM_CONSOLE_ROUTE_CHECKS, { organizationId })
+  printResult(
+    'PASS',
+    'browser platform console routes',
+    `count=${PLATFORM_CONSOLE_ROUTE_CHECKS.length}`,
+  )
 }
 
 async function checkConsoleSettingsOverview(page) {
@@ -2651,14 +2712,12 @@ export async function runProductionBrowserSmoke() {
         expectedOgLocale: 'zh_CN',
         expectedLlmsIndex: 'https://xid.dev/zh-hans/llms.txt',
       })
-      await checkConsoleRoute(page, '/console', '/console')
-      await checkConsoleRoute(page, '/console/organizations', '/console/platform/organizations')
-      await checkConsoleRoute(page, '/console/users', '/console/platform/users')
-      await checkConsoleSettingsOverview(page)
+      await checkInstanceConsoleRoutes(page)
       await checkConsoleRoute(page, '/console/sessions', '/account/sessions')
       await checkConsoleRoute(page, '/console/security', '/account/security')
       await checkActiveOrganization(page, state.cookie, me)
       await checkOrgConsoleRoutes(page)
+      await checkPlatformConsoleRoutes(page, me.organizations[0]?.id ?? me.activeOrg?.id ?? null)
       await checkSdkBrowserIntegration(page, state.cookie, me)
       await checkMfaProviderGate(page, state.cookie)
       const organizationId = state.passwordOrganizationId
