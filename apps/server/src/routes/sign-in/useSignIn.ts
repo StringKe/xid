@@ -106,6 +106,7 @@ export type SignInState = {
   error: SignInErrorKey | null
   otpStep: 'input' | 'sent'
   turnstileToken: string | null
+  turnstileReady: boolean
   // config 未返回且 URL 不排除 guest 时为 true,页面固定高度占位防 CLS。
   guestEntryPending: boolean
   tenantSelection: {
@@ -177,6 +178,8 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const authConfigQuery = useQuery(authConfigQueryOptions(search, api))
   const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
+  const turnstileReady =
+    !authConfigQuery.isPending && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
   const enabledMethods = useMemo<readonly SignInMethod[]>(() => {
     return enabledSignInMethodsForIntent(
       authConfig,
@@ -244,7 +247,7 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const passkey = usePasskeySignIn({
     api,
-    enabled: enabledMethods.includes('passkey'),
+    enabled: enabledMethods.includes('passkey') && turnstileReady,
     identifier,
     organizationId: selectedOrganizationId,
     applicationClientId: search.client_id,
@@ -430,6 +433,7 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const handleSocial = useCallback(
     (provider: string): void => {
+      if (!turnstileReady) return
       trackEvent('social_login_start', { provider })
       setPendingAuthCompletion({ method: 'social', intent: analyticsAuthIntent })
       const url = buildSocialAuthorizeUrl({
@@ -458,6 +462,7 @@ export function useSignIn(): [SignInState, SignInActions] {
       search.client_id,
       search.invitation_token,
       turnstileToken,
+      turnstileReady,
     ],
   )
 
@@ -525,6 +530,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     error: passkey.error ?? error,
     otpStep,
     turnstileToken,
+    turnstileReady,
     // org/client/invitation/authz 任一存在则无 guest 入口;租户维度须等 config。
     guestEntryPending:
       authConfigQuery.isPending &&
@@ -549,15 +555,27 @@ export function useSignIn(): [SignInState, SignInActions] {
     setRememberMe,
     setOtpCode: (value) => setOtpCode(value.replace(/\D/g, '')),
     setTurnstileToken,
-    submitPassword: () => passwordMutation.mutate(),
-    submitMagicLink: () => magicLinkMutation.mutate(),
-    submitOtpRequest: () => otpRequestMutation.mutate(),
-    submitOtpVerify: () => otpVerifyMutation.mutate(),
-    submitEnterpriseSso: () => enterpriseSsoMutation.mutate(),
-    submitGuest: () => {
-      if (authConfig.guest) guestMutation.mutate(authConfig.guest.capabilityToken)
+    submitPassword: () => {
+      if (turnstileReady) passwordMutation.mutate()
     },
-    triggerPasskeyButton: passkey.triggerButton,
+    submitMagicLink: () => {
+      if (turnstileReady) magicLinkMutation.mutate()
+    },
+    submitOtpRequest: () => {
+      if (turnstileReady) otpRequestMutation.mutate()
+    },
+    submitOtpVerify: () => otpVerifyMutation.mutate(),
+    submitEnterpriseSso: () => {
+      if (turnstileReady) enterpriseSsoMutation.mutate()
+    },
+    submitGuest: () => {
+      if (authConfig.guest && turnstileReady) {
+        guestMutation.mutate(authConfig.guest.capabilityToken)
+      }
+    },
+    triggerPasskeyButton: () => {
+      if (turnstileReady) passkey.triggerButton()
+    },
     handleSocial,
     selectOrganizationContext,
   }

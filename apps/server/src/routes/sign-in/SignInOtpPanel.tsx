@@ -27,6 +27,7 @@ export type SignInOtpPanelProps = {
   profileFields: readonly ProfileFieldKey[]
   requiredProfileFields: readonly ProfileFieldKey[]
   isLoading: boolean
+  isTurnstileReady: boolean
   onChangeIdentifier: (value: string) => void
   onChangeProfileValue: (field: ProfileFieldKey, value: string) => void
   onChangeCode: (value: string) => void
@@ -45,6 +46,7 @@ export function SignInOtpPanel({
   profileFields,
   requiredProfileFields,
   isLoading,
+  isTurnstileReady,
   onChangeIdentifier,
   onChangeProfileValue,
   onChangeCode,
@@ -63,7 +65,7 @@ export function SignInOtpPanel({
   }, [step])
 
   function handleIdentifierKey(event: KeyboardEvent<HTMLInputElement>): void {
-    if (event.key === 'Enter' && identifier.trim()) onRequestOtp()
+    if (event.key === 'Enter' && identifier.trim() && isTurnstileReady) onRequestOtp()
   }
 
   function handleCodeKey(event: KeyboardEvent<HTMLInputElement>): void {
@@ -138,7 +140,7 @@ export function SignInOtpPanel({
           <Button
             fullWidth
             isLoading={isLoading}
-            disabled={!identifier.trim() || !profileComplete}
+            disabled={!identifier.trim() || !profileComplete || !isTurnstileReady}
             onClick={onRequestOtp}
           >
             {isEmail ? (

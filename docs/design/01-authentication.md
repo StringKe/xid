@@ -611,6 +611,8 @@ and validity window.
 ### Bot protection intervention points
 
 - Sign-in page load: Turnstile explicit widget with `interaction-only` appearance
+- Protected sign-in controls remain disabled until auth configuration resolves and, when Turnstile
+  is configured, the widget yields a single-use token; the widget is mounted before those controls
 - Sign-up: Turnstile plus optional email verification
 - Password reset requests: Turnstile to prevent flooding
 - OTP send endpoint: its own rate limit

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { Result } from '@xid-kit/types'
 import type { ApiClient } from '../../lib/api'
+import type { PublicHostedAuthConfig } from './auth-config'
 
 const passkeyCalls = vi.hoisted(
   (): Array<{
@@ -16,6 +17,9 @@ const passkeyCalls = vi.hoisted(
   }> => [],
 )
 const postCalls = vi.hoisted((): Array<{ path: string; body: unknown }> => [])
+const authConfigState = vi.hoisted(() => ({
+  config: null as PublicHostedAuthConfig | null,
+}))
 const routerState = vi.hoisted(() => ({
   search: {} as Record<string, string | undefined>,
   navigate: vi.fn(),
@@ -39,7 +43,10 @@ vi.mock('../../lib/router', () => ({
 vi.mock('../../lib/auth-context', () => ({
   useAuth: () => ({
     api: {
-      get: async <T,>() => failure<T>(),
+      get: async <T,>() =>
+        authConfigState.config
+          ? ({ ok: true, value: authConfigState.config as T } satisfies Result<T>)
+          : failure<T>(),
       post: async <T,>(path: string, body?: unknown) => {
         postCalls.push({ path, body })
         return failure<T>()
@@ -231,6 +238,7 @@ describe('useSignIn passkey policy gate', () => {
 
 describe('useSignIn rememberMe', () => {
   it('密码提交 body 带 rememberMe:默认 false,勾选后 true', async () => {
+    authConfigState.config = null
     postCalls.length = 0
     routerState.search = {}
     ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
@@ -249,6 +257,9 @@ describe('useSignIn rememberMe', () => {
           <Host />
         </QueryClientProvider>,
       )
+    })
+    await act(async () => {
+      await vi.waitFor(() => expect(captured?.[0].turnstileReady).toBe(true))
     })
 
     expect(captured?.[0].rememberMe).toBe(false)
@@ -275,5 +286,74 @@ describe('useSignIn rememberMe', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+})
+
+describe('useSignIn Turnstile action gate', () => {
+  it('blocks protected actions until the configured widget produces a token', async () => {
+    authConfigState.config = {
+      ...DEFAULT_PUBLIC_AUTH_CONFIG,
+      turnstileSiteKey: 'site-key',
+      methods: {
+        ...DEFAULT_PUBLIC_AUTH_CONFIG.methods,
+        passkey: { enabled: true, allowLogin: true, allowUserCreation: false },
+      },
+    }
+    postCalls.length = 0
+    passkeyCalls.length = 0
+    routerState.search = {}
+    ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+    const queryClient = new QueryClient()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    let captured: ReturnType<typeof useSignIn> | null = null
+    function Host(): ReactNode {
+      captured = useSignIn()
+      return null
+    }
+    const root = createRoot(container)
+
+    try {
+      await act(async () => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <Host />
+          </QueryClientProvider>,
+        )
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured?.[0].authConfig.turnstileSiteKey).toBe('site-key'))
+      })
+
+      expect(captured?.[0].turnstileReady).toBe(false)
+      expect(passkeyCalls.at(-1)?.enabled).toBe(false)
+
+      await act(async () => {
+        captured?.[1].submitMagicLink()
+        captured?.[1].submitPassword()
+        captured?.[1].submitOtpRequest()
+        captured?.[1].submitEnterpriseSso()
+        captured?.[1].triggerPasskeyButton()
+      })
+      expect(postCalls).toEqual([])
+
+      await act(async () => {
+        captured?.[1].setTurnstileToken('turnstile-token-1')
+      })
+      expect(captured?.[0].turnstileReady).toBe(true)
+      expect(passkeyCalls.at(-1)?.enabled).toBe(true)
+
+      await act(async () => {
+        captured?.[1].submitMagicLink()
+      })
+      expect(postCalls.at(-1)).toMatchObject({
+        path: '/auth/magic-link/send',
+        body: { turnstileToken: 'turnstile-token-1' },
+      })
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+      authConfigState.config = null
+    }
   })
 })

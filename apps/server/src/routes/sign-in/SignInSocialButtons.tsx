@@ -11,6 +11,7 @@ export type SignInSocialButtonsProps = {
   providers: readonly PublicSocialProvider[]
   onSelect: (provider: string) => void
   isLoading: boolean
+  disabled?: boolean
 }
 
 function GoogleIcon(): ReactNode {
@@ -111,6 +112,7 @@ export function SignInSocialButtons({
   providers,
   onSelect,
   isLoading,
+  disabled = false,
 }: SignInSocialButtonsProps): ReactNode {
   const visibleProviders = useProviders(providers)
 
@@ -123,7 +125,7 @@ export function SignInSocialButtons({
           key={p.id}
           variant="secondary"
           fullWidth
-          disabled={isLoading}
+          disabled={isLoading || disabled}
           onClick={() => onSelect(p.id)}
           {...stylex.props(styles.socialButton)}
         >

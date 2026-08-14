@@ -114,6 +114,8 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
     turnstileToken,
     setTurnstileToken,
   )
+  const turnstileReady =
+    !authConfigQuery.isPending && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
 
   const requestMutation = useMutation({
     mutationFn: (emailValue: string) =>
@@ -145,6 +147,7 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
       setEmailError(t`Enter a valid email address`)
       return
     }
+    if (!turnstileReady) return
     await requestMutation.mutateAsync(email)
   }
 
@@ -171,10 +174,10 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
           />
         </Field>
 
-        <Button type="submit" fullWidth isLoading={isSubmitting}>
+        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
+        <Button type="submit" fullWidth isLoading={isSubmitting} disabled={!turnstileReady}>
           <Trans>Send reset link</Trans>
         </Button>
-        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
       </div>
     </form>
   )
