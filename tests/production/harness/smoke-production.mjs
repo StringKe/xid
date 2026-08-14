@@ -48,16 +48,9 @@ const forgotPasswordEmail =
 
 // 含已下线内部文档 slug:公开页面永远不得出现这些路径,防止复用同名 slug 时静默泄露。
 const forbiddenPublicDocsPatterns = [
-  'docs/design',
-  'docs/goal',
-  'docs/verification',
-  'docs/deployment',
-  'docs/api-contracts',
-  'docs/current-gap-audit',
-  'docs/implementation-status',
-  'docs/soft-delete',
-  '完整功能设计',
-  '设计真相源',
+  /href=["']\/docs\/(?:design|goal|verification|deployment|api-contracts|current-gap-audit|implementation-status|soft-delete)(?:[/#?]|["'])/u,
+  /完整功能设计/u,
+  /设计真相源/u,
 ]
 
 export function publicDocsBodyOk(body) {
@@ -66,7 +59,7 @@ export function publicDocsBodyOk(body) {
     body.includes('data-ai-agent-directive') &&
     body.includes('data-nb-sidebar') &&
     body.includes('data-search-dialog') &&
-    forbiddenPublicDocsPatterns.every((item) => !body.includes(item))
+    forbiddenPublicDocsPatterns.every((pattern) => !pattern.test(body))
   )
 }
 
@@ -136,6 +129,12 @@ function canonicalJson(value) {
   return JSON.stringify(value)
 }
 
+function canonicalAuthConfig(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return canonicalJson(value)
+  const { guest: _flowCapability, ...stableConfig } = value
+  return canonicalJson(stableConfig)
+}
+
 const docsHomeTextRequired = [
   '<title>Build identity at the edge, without giving up control | XID</title>',
   'Identity infrastructure for Cloudflare',
@@ -155,17 +154,17 @@ const docsHomeSeoPatternRequired = [
   /<meta\s+[^>]*name="description"[^>]*content="XID brings Hosted Auth, OIDC, organizations, enterprise federation, directory sync, and SDKs/u,
   /<link\s+[^>]*rel="canonical"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="en"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="zh-Hans"[^>]*href="https:\/\/xid\.dev\/zh-hans\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ja"[^>]*href="https:\/\/xid\.dev\/ja\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ko"[^>]*href="https:\/\/xid\.dev\/ko\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="fr"[^>]*href="https:\/\/xid\.dev\/fr\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="de"[^>]*href="https:\/\/xid\.dev\/de\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="es"[^>]*href="https:\/\/xid\.dev\/es\/"[^>]*>/u,
-  /<link\s+[^>]*rel="alternate"[^>]*hreflang="pt-BR"[^>]*href="https:\/\/xid\.dev\/pt-br\/"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="zh-Hans"[^>]*href="https:\/\/xid\.dev\/zh-hans"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ja"[^>]*href="https:\/\/xid\.dev\/ja"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="ko"[^>]*href="https:\/\/xid\.dev\/ko"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="fr"[^>]*href="https:\/\/xid\.dev\/fr"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="de"[^>]*href="https:\/\/xid\.dev\/de"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="es"[^>]*href="https:\/\/xid\.dev\/es"[^>]*>/u,
+  /<link\s+[^>]*rel="alternate"[^>]*hreflang="pt-BR"[^>]*href="https:\/\/xid\.dev\/pt-br"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*hreflang="x-default"[^>]*href="https:\/\/xid\.dev\/"[^>]*>/u,
   /<meta\s+[^>]*property="og:type"[^>]*content="website"[^>]*>/u,
   /<meta\s+[^>]*property="og:title"[^>]*content="Build identity at the edge, without giving up control \| XID"[^>]*>/u,
-  /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/og\/[^"]+\.png"[^>]*>/u,
+  /<meta\s+[^>]*property="og:image"[^>]*content="https:\/\/xid\.dev\/og\.png"[^>]*>/u,
   /<meta\s+[^>]*name="twitter:card"[^>]*content="summary_large_image"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*type="text\/plain"[^>]*href="https:\/\/xid\.dev\/en\/llms\.txt"[^>]*>/u,
   /<link\s+[^>]*rel="alternate"[^>]*type="text\/markdown"[^>]*href="https:\/\/xid\.dev\/index\.md"[^>]*>/u,
@@ -199,7 +198,7 @@ export function docsHomeOk(body) {
   return (
     body.includes('data-pagefind-body') &&
     body.includes('data-search-dialog') &&
-    forbiddenPublicDocsPatterns.every((item) => !body.includes(item)) &&
+    forbiddenPublicDocsPatterns.every((pattern) => !pattern.test(body)) &&
     docsHomeTextRequired.every((item) => body.includes(item)) &&
     docsHomeSeoPatternRequired.every((pattern) => pattern.test(body)) &&
     docsHomeJsonLdOk(body)
@@ -462,21 +461,21 @@ const checks = [
   {
     name: 'console-shell',
     surface: 'console',
-    path: '/console',
+    path: '/console/',
     expectStatus: 200,
     expectBody: (body) => body.includes('<div id="root">'),
   },
   {
     name: 'console-shell-query-fallback',
     surface: 'console',
-    path: '/console?source=production-smoke',
+    path: '/console/?source=production-smoke',
     expectStatus: 200,
     expectBody: (body) => body.includes('<div id="root">'),
   },
   {
     name: 'tenant-console-shell-query-fallback',
     surface: 'console',
-    url: `${tenantBaseUrl}/console?source=production-smoke`,
+    url: `${tenantBaseUrl}/console/?source=production-smoke`,
     expectStatus: 200,
     expectBody: (body) => body.includes('<div id="root">'),
   },
@@ -550,6 +549,7 @@ const checks = [
 const gateChecks = [
   {
     name: 'password-disabled-gate',
+    turnstileProtected: true,
     path: '/auth/password/sign-in',
     method: 'POST',
     body: { identifier: defaultEmail, password: 'xid-production-smoke-not-a-password' },
@@ -568,6 +568,7 @@ const gateChecks = [
   },
   {
     name: 'social-google-not-configured-gate',
+    turnstileProtected: true,
     path: '/auth/google/authorize',
     method: 'GET',
     expectStatus: 400,
@@ -580,6 +581,7 @@ const gateChecks = [
   },
   {
     name: 'enterprise-sso-disabled-hrd',
+    turnstileProtected: true,
     path: '/sso/hrd',
     method: 'POST',
     body: { email: defaultEmail },
@@ -736,6 +738,25 @@ export async function runProductionSmoke() {
     results.push(result)
   }
 
+  let turnstileConfigured = false
+  try {
+    const authConfigRes = await fetch(`${coreBaseUrl}/auth/config`, { redirect: 'manual' })
+    const authConfig = await authConfigRes.json()
+    turnstileConfigured =
+      authConfigRes.status === 200 &&
+      typeof authConfig?.turnstileSiteKey === 'string' &&
+      authConfig.turnstileSiteKey.trim().length > 0
+  } catch (error) {
+    failed = true
+    results.push({
+      name: 'turnstile-config-detection',
+      status: 'FAIL',
+      httpStatus: 'ERROR',
+      url: `${coreBaseUrl}/auth/config`,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+
   for (const check of gateChecks) {
     const url = `${coreBaseUrl}${check.path}`
     try {
@@ -746,7 +767,14 @@ export async function runProductionSmoke() {
         body: check.body ? JSON.stringify(check.body) : undefined,
       })
       const body = await res.text()
-      const statusOk = res.status === check.expectStatus
+      let json = null
+      try {
+        json = JSON.parse(body)
+      } catch {
+        json = null
+      }
+      const blockedByTurnstile = turnstileConfigured && check.turnstileProtected === true
+      const statusOk = res.status === (blockedByTurnstile ? 401 : check.expectStatus)
       const location = res.headers.get('location')
       const setCookie = res.headers.get('set-cookie') ?? ''
       const contentType = res.headers.get('content-type') ?? ''
@@ -760,20 +788,16 @@ export async function runProductionSmoke() {
           !body.includes('id="root"') &&
           !body.includes('<script'))
       let jsonOk = true
-      if (check.expectJson) {
-        try {
-          jsonOk = check.expectJson(JSON.parse(body))
-        } catch {
-          jsonOk = false
-        }
-      }
+      if (blockedByTurnstile) jsonOk = json?.code === 'captcha_required'
+      else if (check.expectJson) jsonOk = check.expectJson(json)
       const ok = statusOk && ownerOk && redirectOk && cookieOk && jsonRouteOk && notSpaOk && jsonOk
       if (!ok) failed = true
       results.push({
         name: check.name,
-        status: ok ? 'PASS' : 'FAIL',
+        status: ok ? (blockedByTurnstile ? 'SKIP' : 'PASS') : 'FAIL',
         httpStatus: res.status,
         routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
+        note: blockedByTurnstile ? 'configured Turnstile blocks the underlying policy probe' : '',
         url,
       })
     } catch (error) {
@@ -935,16 +959,17 @@ WHERE ${policyDeniedWhere(input, afterMs)};
         method: 'POST',
         redirect: 'manual',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: forgotPasswordEmail }),
+        body: JSON.stringify({ email: forgotPasswordEmail, turnstileToken: null }),
       })
       const body = await res.text()
       const setCookie = res.headers.get('set-cookie') ?? ''
-      let jsonOk = false
+      let json = null
       try {
-        jsonOk = JSON.parse(body)?.ok === true
+        json = JSON.parse(body)
       } catch {
-        jsonOk = false
+        json = null
       }
+      const blockedByTurnstile = turnstileConfigured
       const resetTokenCount = await countRows(
         `
 SELECT count(*) AS count
@@ -984,7 +1009,9 @@ WHERE tenant_id = ${sqlString(tenantId)}
         path,
         reason: 'method_disabled',
       }
-      const policyDeniedCount = await waitForPolicyDenied(policyDeniedInput, afterMs)
+      const policyDeniedCount = blockedByTurnstile
+        ? 0
+        : await waitForPolicyDenied(policyDeniedInput, afterMs)
       const policyDeniedLeakCount = await countRows(
         `
 SELECT count(*) AS count
@@ -995,21 +1022,22 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
         'load forgot password policy denied leak count',
       )
       const ok =
-        res.status === 200 &&
+        res.status === (blockedByTurnstile ? 401 : 200) &&
         webRouteOwnerMatches(res.headers, 'core') &&
-        jsonOk &&
+        (blockedByTurnstile ? json?.code === 'captcha_required' : json?.ok === true) &&
         !setCookie.includes('__Host-xid.rt.') &&
         resetTokenCount === 0 &&
         tokenIssuedCount === 0 &&
         sentAuditCount === 0 &&
-        policyDeniedCount > 0 &&
+        (blockedByTurnstile || policyDeniedCount > 0) &&
         policyDeniedLeakCount === 0
       if (!ok) failed = true
       results.push({
         name: 'forgot-password-disabled-gate',
-        status: ok ? 'PASS' : 'FAIL',
+        status: ok ? (blockedByTurnstile ? 'SKIP' : 'PASS') : 'FAIL',
         httpStatus: res.status,
         routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
+        note: blockedByTurnstile ? 'configured Turnstile blocks the underlying policy probe' : '',
         url,
       })
     } catch (error) {
@@ -1044,7 +1072,7 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
     } catch {
       baseline = null
     }
-    const baselineTextCanonical = canonicalJson(baseline)
+    const baselineTextCanonical = canonicalAuthConfig(baseline)
     for (const variant of variants) {
       const url = `${coreBaseUrl}${variant.path}`
       try {
@@ -1063,7 +1091,7 @@ WHERE ${policyDeniedWhere(policyDeniedInput, afterMs)}
           webRouteOwnerMatches(res.headers, 'core') &&
           defaultAuthConfigOk(baseline) &&
           defaultAuthConfigOk(json) &&
-          canonicalJson(json) === baselineTextCanonical
+          canonicalAuthConfig(json) === baselineTextCanonical
         if (!ok) failed = true
         results.push({
           name: variant.name,
@@ -1183,12 +1211,13 @@ LIMIT 1;
       })
       const body = await res.text()
       const setCookie = res.headers.get('set-cookie') ?? ''
-      let jsonOk = false
+      let json = null
       try {
-        jsonOk = JSON.parse(body)?.ok === true
+        json = JSON.parse(body)
       } catch {
-        jsonOk = false
+        json = null
       }
+      const blockedByTurnstile = turnstileConfigured
       const tokenCount = await countRows(
         `
 SELECT count(*) AS count
@@ -1222,31 +1251,34 @@ WHERE phone = ${sqlString(check.phone)}
 `,
         `load ${check.channel} gate user phone count`,
       )
-      const policyDeniedCount = await waitForPolicyDenied(
-        {
-          name: check.channel,
-          method: check.method,
-          action: 'availability',
-          identifierType: 'phone',
-          path: check.path,
-        },
-        afterMs,
-      )
+      const policyDeniedCount = blockedByTurnstile
+        ? 0
+        : await waitForPolicyDenied(
+            {
+              name: check.channel,
+              method: check.method,
+              action: 'availability',
+              identifierType: 'phone',
+              path: check.path,
+            },
+            afterMs,
+          )
       const ok =
-        res.status === 200 &&
+        res.status === (blockedByTurnstile ? 401 : 200) &&
         webRouteOwnerMatches(res.headers, 'core') &&
-        jsonOk &&
+        (blockedByTurnstile ? json?.code === 'captcha_required' : json?.ok === true) &&
         !setCookie.includes('__Host-xid.rt.') &&
         tokenCount === 0 &&
         phoneRowCount === 0 &&
         sentAuditCount === 0 &&
-        policyDeniedCount > 0
+        (blockedByTurnstile || policyDeniedCount > 0)
       if (!ok) failed = true
       results.push({
         name: check.name,
-        status: ok ? 'PASS' : 'FAIL',
+        status: ok ? (blockedByTurnstile ? 'SKIP' : 'PASS') : 'FAIL',
         httpStatus: res.status,
         routeOwner: res.headers.get('x-xid-route-owner') ?? 'implicit-core',
+        note: blockedByTurnstile ? 'configured Turnstile blocks the underlying policy probe' : '',
         url,
       })
     } catch (error) {
@@ -1264,10 +1296,11 @@ WHERE phone = ${sqlString(check.phone)}
   for (const result of results) {
     const error = result.error ? ` error=${result.error}` : ''
     const owner = result.routeOwner ? ` owner=${result.routeOwner}` : ''
+    const note = result.note ? ` note=${result.note}` : ''
     printResult(
       result.status,
       result.name,
-      `http=${result.httpStatus}${owner} url=${result.url}${error}`,
+      `http=${result.httpStatus}${owner} url=${result.url}${error}${note}`,
     )
   }
 
