@@ -5,6 +5,12 @@ import {
   webRedirectLocationMatches,
   webRouteOwnerMatches,
 } from './harness/web-route-owner.mjs'
+import {
+  CONSOLE_SPA_ROUTE_CHECKS,
+  INSTANCE_CONSOLE_ROUTE_CHECKS,
+  ORGANIZATION_CONSOLE_ROUTE_CHECKS,
+  PLATFORM_CONSOLE_ROUTE_CHECKS,
+} from './harness/console-route-checks.mjs'
 
 describe('production web route owner contract', () => {
   it('requires explicit Site and Console owners', () => {
@@ -93,10 +99,10 @@ describe('production web route owner contract', () => {
     expect(httpHarness).toContain('xid\\.dev\\/zh-hans"')
     expect(httpHarness).toContain('xid\\.dev\\/pt-br"')
     expect(browserHarness).toContain(
-      "checkConsoleRoute(page, '/console/sessions', '/account/sessions')",
+      "checkAccountCompatibilityRoute(\n        page,\n        '/console/sessions',\n        '/account/sessions',",
     )
     expect(browserHarness).toContain(
-      "checkConsoleRoute(page, '/console/security', '/account/security')",
+      "checkAccountCompatibilityRoute(\n        page,\n        '/console/security',\n        '/account/security',",
     )
     expect(browserHarness).toContain("webRouteOwnerMatches(ownerResponse.headers, 'console')")
     expect(readinessHarness).toContain("webRouteOwnerMatches(internalDocs.res.headers, 'site')")
@@ -105,5 +111,24 @@ describe('production web route owner contract', () => {
     expect(wildcardHarness).toContain('productionWildcardProbeBaseUrl(environment, nonce)')
     expect(wildcardHarness).toContain("webRouteOwnerMatches(res.headers, 'core')")
     expect(wildcardHarness).toContain("webRouteOwnerMatches(res.headers, 'console')")
+  })
+
+  it('covers every Console SPA route in the production browser smoke', async () => {
+    const routerSource = await readFile(
+      new URL('../../apps/console/src/router.tsx', import.meta.url),
+      'utf8',
+    )
+    const routeList = routerSource.match(
+      /export const CONSOLE_SPA_ROUTE_PATHS = \[([\s\S]*?)\] as const/,
+    )
+    expect(routeList).not.toBeNull()
+    const routerPaths = [...routeList[1].matchAll(/'([^']+)'/g)].map((match) => match[1])
+    const smokePaths = CONSOLE_SPA_ROUTE_CHECKS.map((route) => route.path)
+
+    expect(INSTANCE_CONSOLE_ROUTE_CHECKS).toHaveLength(5)
+    expect(ORGANIZATION_CONSOLE_ROUTE_CHECKS).toHaveLength(18)
+    expect(PLATFORM_CONSOLE_ROUTE_CHECKS).toHaveLength(13)
+    expect(new Set(smokePaths).size).toBe(36)
+    expect(smokePaths.toSorted()).toEqual(routerPaths.toSorted())
   })
 })
