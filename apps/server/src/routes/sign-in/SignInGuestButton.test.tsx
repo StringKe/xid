@@ -52,6 +52,17 @@ describe('SignInGuestButton', () => {
     expect(onContinue).toHaveBeenCalledTimes(1)
 
     await act(async () => {
+      root.render(<SignInGuestButton onContinue={onContinue} isLoading={false} disabled={true} />)
+    })
+    const turnstileBlockedButton = container.querySelector('button')
+    expect(turnstileBlockedButton?.disabled).toBe(true)
+
+    await act(async () => {
+      turnstileBlockedButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onContinue).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
       root.unmount()
     })
     container.remove()

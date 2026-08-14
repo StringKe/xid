@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
 const routerState = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -15,6 +15,11 @@ const mutationState = vi.hoisted(() => ({
   captured: [] as {
     onSuccess?: (result: unknown, variables?: unknown, context?: unknown) => unknown
   }[],
+}))
+
+const authConfigState = vi.hoisted(() => ({
+  data: undefined as { turnstileSiteKey: string | null } | undefined,
+  isPending: false,
 }))
 
 vi.mock('@lingui/react/macro', () => ({
@@ -36,7 +41,11 @@ vi.mock('../../lib/router', () => ({
 }))
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: undefined, isPending: false, error: null }),
+  useQuery: () => ({
+    data: authConfigState.data,
+    isPending: authConfigState.isPending,
+    error: null,
+  }),
   useMutation: (options: (typeof mutationState.captured)[number]) => {
     mutationState.captured.push(options)
     return { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isSuccess: false }
@@ -54,7 +63,11 @@ vi.mock('../../components/layout', () => ({
 
 vi.mock('../../components/ui', () => ({
   Alert: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   Field: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   PageHeader: ({ title }: { title: ReactNode }) => <h1>{title}</h1>,
@@ -126,6 +139,8 @@ describe('ForgotPasswordPage navigation links', () => {
     mutationState.captured.length = 0
     routerState.search = {}
     routerState.pathname = '/forgot-password'
+    authConfigState.data = undefined
+    authConfigState.isPending = false
     globalThis.sessionStorage.clear()
     globalThis.history.replaceState({}, '', '/forgot-password')
   })
@@ -136,6 +151,18 @@ describe('ForgotPasswordPage navigation links', () => {
     expect(text).toContain('Reset your password')
     expect(text).toContain('Back to sign in')
     expect(html).toContain('href="/sign-in"')
+    await unmount(container, root)
+  })
+
+  it('disables reset-link delivery until Turnstile is ready', async () => {
+    authConfigState.data = { turnstileSiteKey: 'site-key' }
+
+    const { container, root } = await renderPage()
+
+    const submit = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Send reset link'),
+    )
+    expect(submit?.disabled).toBe(true)
     await unmount(container, root)
   })
 

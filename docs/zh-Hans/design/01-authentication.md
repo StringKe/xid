@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=82d86c30cd528fd3306de13caaae8a7debcefb92 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=6f95c0e0ce4dc2b39fc84c505698edab2111b744 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -415,6 +415,8 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 ### Bot 防护介入点
 
 - 登录页加载:Turnstile 显式 widget,使用 `interaction-only` appearance
+- 认证配置返回前,受保护的登录操作保持禁用;配置 Turnstile 时,widget 签发单次 token 后才可操作,
+  且 widget 挂载在这些操作之前
 - 注册:Turnstile + 可选 email 验证
 - 密码重置请求:Turnstile 防刷
 - OTP 发送接口:独立速率限制

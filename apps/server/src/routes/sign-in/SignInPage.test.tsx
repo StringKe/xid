@@ -127,6 +127,7 @@ vi.mock('./useSignIn', () => ({
       error: null,
       otpStep: 'input',
       turnstileToken: null,
+      turnstileReady: true,
       tenantSelection: signInState.tenantSelection,
     },
     {

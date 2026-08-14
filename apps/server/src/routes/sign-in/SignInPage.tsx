@@ -354,10 +354,13 @@ function SignInPage(): ReactNode {
           </Alert>
         ) : null}
 
+        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
+
         <SignInSocialButtons
           providers={state.authConfig.socialProviders}
           onSelect={actions.handleSocial}
           isLoading={state.isLoading}
+          disabled={!state.turnstileReady}
         />
 
         {showSeparator ? (
@@ -426,7 +429,7 @@ function SignInPage(): ReactNode {
                     type="submit"
                     fullWidth
                     isLoading={state.isLoading}
-                    disabled={!state.identifier.trim()}
+                    disabled={!state.identifier.trim() || !state.turnstileReady}
                   >
                     <Trans>Continue with SSO</Trans>
                   </Button>
@@ -461,6 +464,7 @@ function SignInPage(): ReactNode {
                 <Button
                   fullWidth
                   isLoading={state.isLoading}
+                  disabled={!state.turnstileReady}
                   onClick={actions.triggerPasskeyButton}
                   aria-label={t`Sign in with passkey`}
                 >
@@ -534,7 +538,10 @@ function SignInPage(): ReactNode {
                     fullWidth
                     isLoading={state.isLoading}
                     disabled={
-                      !state.identifier.trim() || !state.password.trim() || !requiredProfileComplete
+                      !state.identifier.trim() ||
+                      !state.password.trim() ||
+                      !requiredProfileComplete ||
+                      !state.turnstileReady
                     }
                   >
                     {isSignUpFlow ? <Trans>Sign up</Trans> : <Trans>Sign in</Trans>}
@@ -572,7 +579,9 @@ function SignInPage(): ReactNode {
                     type="submit"
                     fullWidth
                     isLoading={state.isLoading}
-                    disabled={!state.identifier.trim() || !requiredProfileComplete}
+                    disabled={
+                      !state.identifier.trim() || !requiredProfileComplete || !state.turnstileReady
+                    }
                   >
                     <Trans>Send magic link</Trans>
                   </Button>
@@ -592,6 +601,7 @@ function SignInPage(): ReactNode {
                   profileFields={profileFields}
                   requiredProfileFields={requiredFields}
                   isLoading={state.isLoading}
+                  isTurnstileReady={state.turnstileReady}
                   onChangeIdentifier={actions.setIdentifier}
                   onChangeProfileValue={actions.setProfileValue}
                   onChangeCode={actions.setOtpCode}
@@ -605,12 +615,14 @@ function SignInPage(): ReactNode {
         ) : null}
 
         {ambiguousResolution ? null : state.authConfig.guest ? (
-          <SignInGuestButton onContinue={actions.submitGuest} isLoading={state.isLoading} />
+          <SignInGuestButton
+            onContinue={actions.submitGuest}
+            isLoading={state.isLoading}
+            disabled={!state.turnstileReady}
+          />
         ) : state.guestEntryPending ? (
           <div aria-hidden="true" {...stylex.props(styles.guestEntryPlaceholder)} />
         ) : null}
-
-        <div ref={containerRef} {...stylex.props(styles.turnstile)} />
       </div>
     </AuthLayout>
   )

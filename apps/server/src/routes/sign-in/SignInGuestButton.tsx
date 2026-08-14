@@ -25,9 +25,14 @@ const guestStyles = stylex.create({
 export type SignInGuestButtonProps = {
   onContinue: () => void
   isLoading: boolean
+  disabled?: boolean
 }
 
-export function SignInGuestButton({ onContinue, isLoading }: SignInGuestButtonProps): ReactNode {
+export function SignInGuestButton({
+  onContinue,
+  isLoading,
+  disabled = false,
+}: SignInGuestButtonProps): ReactNode {
   const { t } = useLingui()
   return (
     <div {...stylex.props(guestStyles.stack)}>
@@ -40,6 +45,7 @@ export function SignInGuestButton({ onContinue, isLoading }: SignInGuestButtonPr
         variant="secondary"
         fullWidth
         isLoading={isLoading}
+        disabled={disabled}
         aria-label={t`Continue as guest`}
         onClick={onContinue}
       >

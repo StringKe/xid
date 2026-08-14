@@ -20,18 +20,22 @@ function profileValues(): ProfileValues {
   }
 }
 
-function renderPanel(enabledMethods: readonly OtpSignInMethod[]): string {
+function renderPanel(
+  enabledMethods: readonly OtpSignInMethod[],
+  options: { identifier?: string; isTurnstileReady?: boolean } = {},
+): string {
   return renderToStaticMarkup(
     <SignInOtpPanel
       method={enabledMethods[0] ?? 'otp-email'}
       enabledMethods={enabledMethods}
       step="input"
-      identifier=""
+      identifier={options.identifier ?? ''}
       otpCode=""
       profileValues={profileValues()}
       profileFields={[]}
       requiredProfileFields={[]}
       isLoading={false}
+      isTurnstileReady={options.isTurnstileReady ?? true}
       onChangeIdentifier={vi.fn()}
       onChangeProfileValue={vi.fn()}
       onChangeCode={vi.fn()}
@@ -59,5 +63,19 @@ describe('SignInOtpPanel', () => {
     expect(html).toContain('SMS OTP')
     expect(html.indexOf('WhatsApp OTP')).toBeLessThan(html.indexOf('SMS OTP'))
     expect(html).not.toContain('Email OTP')
+  })
+
+  it('disables OTP delivery until Turnstile is ready', () => {
+    const blocked = renderPanel(['otp-email'], {
+      identifier: 'owner@example.com',
+      isTurnstileReady: false,
+    })
+    const ready = renderPanel(['otp-email'], {
+      identifier: 'owner@example.com',
+      isTurnstileReady: true,
+    })
+
+    expect(blocked).toMatch(/<button[^>]*disabled=""[^>]*>Send code via email<\/button>/)
+    expect(ready).not.toMatch(/<button[^>]*disabled=""[^>]*>Send code via email<\/button>/)
   })
 })
