@@ -1,6 +1,6 @@
 {
   "name": "xid",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "description": "XID is an open-source, edge-native identity platform on Cloudflare Workers: OIDC/OAuth provider, multi-tenant RBAC, enterprise SSO federation (SAML and SCIM) and passkey-first hosted auth UI.",
   "keywords": [
