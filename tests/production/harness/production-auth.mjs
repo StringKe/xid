@@ -187,12 +187,24 @@ export function productionD1Args(command) {
 }
 
 export async function d1(command, name, { runCommand = run } = {}) {
-  const stdout = await runCommand('pnpm', productionD1Args(command))
-  const parsed = JSON.parse(stdout)
-  const failed = parsed.find((item) => !item?.success)
-  if (failed) throw new Error(`${name} failed`)
-  const first = parsed[0]
-  return first.results ?? []
+  const maxAttempts = 3
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const stdout = await runCommand('pnpm', productionD1Args(command))
+      const parsed = JSON.parse(stdout)
+      const failed = parsed.find((item) => !item?.success)
+      if (failed) throw new Error(`${name} failed`)
+      const first = parsed[0]
+      return first.results ?? []
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const retryable = /\bcode:\s*7403\b/.test(message)
+      if (!retryable || attempt === maxAttempts) throw error
+      console.warn(`RETRY ${name} after Cloudflare D1 control-plane error attempt=${attempt}`)
+      await delay(attempt * 500)
+    }
+  }
+  throw new Error(`${name} failed without a D1 result`)
 }
 
 export function collectSetCookie(res) {
@@ -736,8 +748,11 @@ LIMIT 1;
 `,
     'verify email otp consumed',
   )
-  if (rows.length !== 0) throw new Error('email otp token still exists after verify')
-  printResult('PASS', 'email otp one time consume', 'deleted=true')
+  const row = rows[0]
+  if (!row || row.consumed_at === null) {
+    throw new Error('email otp token was not marked consumed after verify')
+  }
+  printResult('PASS', 'email otp one time consume', 'consumed=true')
 }
 
 export async function signInWithEmailOtp() {

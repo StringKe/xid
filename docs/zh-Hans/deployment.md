@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=cc3f6a7c7413d904381c3636371bae0c8444b2ec -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=d36bcd22e93368196fe62a0d4f18694adcd5293a -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -807,19 +807,19 @@ smoke。
 
 涉及真实 provider 的 smoke 需要真实凭证或真实收到的验证码。这类输入一律用 **file 变量**传入,不用直接环境变量,避免出现在 shell history、进程环境或命令日志中。
 
-| 命令                                      | 覆盖                                    | 必需输入                                                                               |
-| ----------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------- |
-| `pnpm smoke:production:auth`              | Email OTP 真实 cookie + `/v1/me`        | `XID_PRODUCTION_EMAIL`                                                                 |
-| `pnpm smoke:production:browser`           | headless Chrome 验证 DOM、console、导航 | `XID_PRODUCTION_EMAIL`                                                                 |
-| `pnpm smoke:production:magic-link-send`   | Magic Link 发送与审计链路               | `XID_PRODUCTION_EMAIL`                                                                 |
-| `pnpm smoke:production:magic-link`        | Magic Link 真实点击登录                 | `XID_PRODUCTION_MAGIC_LINK_URL_FILE`                                                   |
-| `pnpm smoke:production:whatsapp-otp-send` | WhatsApp OTP 发送侧                     | `XID_PRODUCTION_PHONE_OTP_PHONE_FILE`(provider 未配置时 SKIP)                          |
-| `pnpm smoke:production:sms-otp-send`      | SMS OTP 发送侧                          | 同上                                                                                   |
-| `pnpm smoke:production:whatsapp-otp`      | WhatsApp OTP 完整验证                   | `XID_PRODUCTION_PHONE_OTP_ORGANIZATION_ID` + phone file + code file                    |
-| `pnpm smoke:production:sms-otp`           | SMS OTP 完整验证                        | 同上                                                                                   |
-| `pnpm smoke:production:social-oauth`      | Social OAuth 真实 callback              | `XID_PRODUCTION_SOCIAL_OAUTH_CALLBACK_URL_FILE`                                        |
-| `pnpm smoke:production:enterprise-sso`    | 企业 SSO 真实 IdP callback              | OIDC 用 `..._CALLBACK_URL_FILE`;SAML 用 `..._SAML_RESPONSE_FILE` + `..._CONNECTION_ID` |
-| `pnpm smoke:production:mfa-sms`           | MFA SMS step-up                         | `XID_PRODUCTION_MFA_SMS_COOKIE_FILE` + `XID_PRODUCTION_MFA_SMS_CODE_FILE`              |
+| 命令                                      | 覆盖                                                                                                                                                             | 必需输入                                                                               |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm smoke:production:auth`              | Email OTP 真实 cookie + `/v1/me`                                                                                                                                 | `XID_PRODUCTION_EMAIL`                                                                 |
+| `pnpm smoke:production:browser`           | Chrome 验证 DOM、console、导航；生产 Turnstile 拒绝 headless 自动化时设置 `XID_PRODUCTION_BROWSER_HEADED=1`。macOS 会在后台启动 headed Chrome，并通过 CDP 关闭。 | `XID_PRODUCTION_EMAIL`                                                                 |
+| `pnpm smoke:production:magic-link-send`   | Magic Link 发送与审计链路                                                                                                                                        | `XID_PRODUCTION_EMAIL`                                                                 |
+| `pnpm smoke:production:magic-link`        | Magic Link 真实点击登录                                                                                                                                          | `XID_PRODUCTION_MAGIC_LINK_URL_FILE`                                                   |
+| `pnpm smoke:production:whatsapp-otp-send` | WhatsApp OTP 发送侧                                                                                                                                              | `XID_PRODUCTION_PHONE_OTP_PHONE_FILE`(provider 未配置时 SKIP)                          |
+| `pnpm smoke:production:sms-otp-send`      | SMS OTP 发送侧                                                                                                                                                   | 同上                                                                                   |
+| `pnpm smoke:production:whatsapp-otp`      | WhatsApp OTP 完整验证                                                                                                                                            | `XID_PRODUCTION_PHONE_OTP_ORGANIZATION_ID` + phone file + code file                    |
+| `pnpm smoke:production:sms-otp`           | SMS OTP 完整验证                                                                                                                                                 | 同上                                                                                   |
+| `pnpm smoke:production:social-oauth`      | Social OAuth 真实 callback                                                                                                                                       | `XID_PRODUCTION_SOCIAL_OAUTH_CALLBACK_URL_FILE`                                        |
+| `pnpm smoke:production:enterprise-sso`    | 企业 SSO 真实 IdP callback                                                                                                                                       | OIDC 用 `..._CALLBACK_URL_FILE`;SAML 用 `..._SAML_RESPONSE_FILE` + `..._CONNECTION_ID` |
+| `pnpm smoke:production:mfa-sms`           | MFA SMS step-up                                                                                                                                                  | `XID_PRODUCTION_MFA_SMS_COOKIE_FILE` + `XID_PRODUCTION_MFA_SMS_CODE_FILE`              |
 
 Magic Link 完整 smoke 的正确顺序是:先跑 `magic-link-send`,从真实邮件里取**这次**最新链接写入临时文件,再跑 `magic-link`。否则会出现"发了一封新邮件却消费了另一封旧链接"的证据错位。
 

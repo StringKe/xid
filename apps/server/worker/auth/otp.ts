@@ -1,5 +1,5 @@
 // otp.ts:Email OTP(6 位,10min)+ WhatsApp/SMS OTP(6 位,5min)passwordless 认证 handler。
-// OTP 存 HMAC-SHA256 哈希(verificationTokens.codeHash),验证后立即删(01 章 4)。
+// OTP 存 HMAC-SHA256 哈希(verificationTokens.codeHash),验证后以 consumedAt CAS 标记消费。
 // 限流:同一邮箱/手机 1/min + 5/hour(RateLimitStore DO,anti-abuse rule)。
 // 最多 5 次错误后 token 作废(01 章 4:Email OTP 5 次错误后作废)。
 // Phone OTP 国家白名单默认 US/CA,租户可扩展(01 章 4)。

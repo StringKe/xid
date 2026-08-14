@@ -139,4 +139,33 @@ describe('production auth D1 target', () => {
 
     expect(captured).toEqual({ command: 'pnpm', args: productionD1Args('SELECT 1') })
   })
+
+  it('retries a transient Cloudflare D1 authorization response', async () => {
+    let attempts = 0
+    await expect(
+      d1('SELECT 1', 'retry D1 command', {
+        runCommand: async () => {
+          attempts += 1
+          if (attempts === 1) {
+            throw new Error('Cloudflare API failed: not authorized [code: 7403]')
+          }
+          return '[{"success":true,"results":[{"ok":1}]}]'
+        },
+      }),
+    ).resolves.toEqual([{ ok: 1 }])
+    expect(attempts).toBe(2)
+  })
+
+  it('does not retry an unrelated D1 failure', async () => {
+    let attempts = 0
+    await expect(
+      d1('SELECT 1', 'failed D1 command', {
+        runCommand: async () => {
+          attempts += 1
+          throw new Error('D1 query failed')
+        },
+      }),
+    ).rejects.toThrow('D1 query failed')
+    expect(attempts).toBe(1)
+  })
 })

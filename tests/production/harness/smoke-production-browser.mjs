@@ -375,6 +375,9 @@ export async function buildSdkBrowserBundle() {
   const typecheckConfigPath = join(buildDir, 'tsconfig.json')
   const esbuildPath = await firstExistingPath(
     [
+      join(reactPackageDir, 'node_modules/esbuild/bin/esbuild'),
+      join(repoRoot, 'node_modules/esbuild/bin/esbuild'),
+      join(repoRoot, 'node_modules/.pnpm/node_modules/esbuild/bin/esbuild'),
       join(reactPackageDir, 'node_modules/.bin/esbuild'),
       join(repoRoot, 'node_modules/.bin/esbuild'),
       join(repoRoot, 'node_modules/.pnpm/node_modules/.bin/esbuild'),
@@ -382,6 +385,12 @@ export async function buildSdkBrowserBundle() {
     'esbuild',
   )
   try {
+    await runCommand(
+      'pnpm',
+      ['--filter', '@xid-kit/core...', 'build'],
+      { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] },
+      'build sdk browser smoke workspace dependencies',
+    )
     await writeFile(entryPath, sdkBrowserEntrySource(), 'utf8')
     await writeFile(
       typecheckConfigPath,
@@ -469,6 +478,10 @@ class CdpPage {
     await this.send('Page.enable')
     await this.send('Runtime.enable')
     await this.send('Network.enable')
+    await this.send('Network.setExtraHTTPHeaders', {
+      headers: { 'Accept-Language': 'en-US,en;q=0.9' },
+    })
+    await this.send('Emulation.setLocaleOverride', { locale: 'en-US' })
     await this.send('Log.enable')
     await this.send('WebAuthn.enable')
   }
@@ -581,7 +594,17 @@ class CdpPage {
   async navigate(path) {
     this.events = []
     this.routeNetworkLog = []
-    await this.send('Page.navigate', { url: `${baseUrl}${path}` })
+    const documentMarker = `xid-navigation-${process.pid}-${Date.now()}`
+    await this.evaluate(`globalThis.__xidNavigationMarker = ${JSON.stringify(documentMarker)}`)
+    const navigation = await this.send('Page.navigate', { url: `${baseUrl}${path}` })
+    if (navigation.errorText) {
+      throw new Error(`navigate ${path} failed: ${navigation.errorText}`)
+    }
+    await this.waitFor(
+      Function(`return globalThis.__xidNavigationMarker !== ${JSON.stringify(documentMarker)}`),
+      15_000,
+      `document navigation ${path}`,
+    )
     await this.waitFor(() => document.readyState === 'complete', 15_000, `load ${path}`)
     await this.waitFor(
       () => !document.body.innerText.includes('Loading your session'),
@@ -685,6 +708,32 @@ class CdpPage {
       return true;
     })()`)
     if (clicked !== true) throw new Error(`visible submit button not found: ${formSelector}`)
+  }
+
+  async waitForVisibleSubmitButton(formSelector = 'form', timeoutMs) {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      const ready = await this.evaluate(`(() => {
+        const formSelector = ${JSON.stringify(formSelector)};
+        const isVisible = (node) => {
+          if (node.closest('[aria-hidden="true"],[inert]')) return false;
+          const style = getComputedStyle(node);
+          const rect = node.getBoundingClientRect();
+          return style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            Number(style.opacity || '1') > 0.1 &&
+            rect.width > 0 &&
+            rect.height > 0;
+        };
+        const form = Array.from(document.querySelectorAll(formSelector)).find(isVisible);
+        if (!form) return false;
+        return Array.from(form.querySelectorAll('button[type="submit"], button:not([type])'))
+          .some((node) => isVisible(node) && !node.disabled);
+      })()`)
+      if (ready === true) return
+      await delay(250)
+    }
+    throw new Error(`visible submit button ${formSelector} timed out`)
   }
 
   async hasVisibleButton(label) {
@@ -888,16 +937,35 @@ function containsAny(text, values) {
 async function withChrome(fn) {
   const port = await freePort()
   const profileDir = await mkdtemp(join(tmpdir(), 'xid-chrome-'))
-  const chrome = spawn(CHROME_PATH, [
-    '--headless=new',
+  const headed = process.env['XID_PRODUCTION_BROWSER_HEADED'] === '1'
+  const backgroundHeaded = headed && process.platform === 'darwin'
+  const chromeArgs = [
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
     '--disable-gpu',
+    '--disable-renderer-backgrounding',
     '--lang=en-US',
     '--no-first-run',
     '--no-default-browser-check',
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profileDir}`,
     'about:blank',
-  ])
+  ]
+  let chrome
+  if (backgroundHeaded) {
+    const appPathMarker = '/Contents/MacOS/'
+    const markerIndex = CHROME_PATH.indexOf(appPathMarker)
+    const chromeAppPath =
+      process.env['XID_CHROME_APP_PATH'] ??
+      (markerIndex >= 0 ? CHROME_PATH.slice(0, markerIndex) : null)
+    if (!chromeAppPath) {
+      throw new Error('XID_CHROME_APP_PATH is required for background headed Chrome')
+    }
+    chrome = spawn('/usr/bin/open', ['-gn', chromeAppPath, '--args', ...chromeArgs])
+  } else {
+    if (!headed) chromeArgs.unshift('--headless=new')
+    chrome = spawn(CHROME_PATH, chromeArgs)
+  }
 
   let stderr = ''
   chrome.stderr.on('data', (chunk) => {
@@ -907,28 +975,33 @@ async function withChrome(fn) {
   let result
   let mainError
   let cleanupError
+  let page
   try {
     await waitForVersion(port)
     const wsUrl = await createTab(port)
-    const page = new CdpPage(wsUrl)
+    page = new CdpPage(wsUrl)
     await page.connect()
     try {
       result = await fn(page)
     } finally {
+      if (backgroundHeaded) await page.send('Browser.close').catch(() => undefined)
       await page.close()
     }
   } catch (error) {
     if (stderr) process.stderr.write(stderr)
     mainError = error
   } finally {
-    chrome.kill('SIGTERM')
-    await new Promise((resolve) => {
-      chrome.once('exit', resolve)
-      setTimeout(resolve, 3000)
-    })
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    if (!backgroundHeaded) {
+      chrome.kill('SIGTERM')
+      await new Promise((resolve) => {
+        chrome.once('exit', resolve)
+        setTimeout(resolve, 3000)
+      })
+    }
+    for (let attempt = 1; attempt <= 10; attempt++) {
       try {
         await rm(profileDir, { recursive: true, force: true })
+        cleanupError = undefined
         break
       } catch (error) {
         cleanupError = error
@@ -1243,17 +1316,64 @@ async function checkSignInEmailOtpFlow(page) {
     'email otp send button',
   )
   await page.setVisibleInputValue('input[type="email"], input[autocomplete="email"]', smokeEmail)
+  const emailOtpSendLabel = (await page.hasVisibleText('Send code via email'))
+    ? 'Send code via email'
+    : '通过邮箱发送验证码'
+  try {
+    await page.waitForVisibleButton(emailOtpSendLabel, 45_000)
+  } catch (error) {
+    const failedSnapshot = await page.snapshot()
+    const turnstileState = await page.evaluate(`({
+      scriptPresent: document.getElementById('xid-turnstile-script') !== null,
+      apiPresent: typeof globalThis.turnstile?.render === 'function',
+      iframeCount: document.querySelectorAll('iframe[src*="challenges.cloudflare.com"]').length,
+      buttons: Array.from(document.querySelectorAll('button')).map((node) => ({
+        text: node.innerText.trim(),
+        disabled: node.disabled,
+      })).filter((entry) => entry.text.length > 0),
+    })`)
+    throw new Error(
+      `${error.message}; path=${failedSnapshot.pathname} turnstile=${JSON.stringify(turnstileState)} text=${redactKnownText(failedSnapshot.text, [smokeEmail]).slice(0, 1200)}`,
+      { cause: error },
+    )
+  }
   const afterMs = Date.now()
-  if ((await page.hasVisibleButton('Send code via email')) === true) {
-    await page.clickVisibleButton('Send code via email')
-  } else await page.clickVisibleButton('通过邮箱发送验证码')
-  await page.waitFor(
-    () =>
-      document.body.innerText.includes('Verification code') ||
-      document.body.innerText.includes('验证码'),
-    15_000,
-    'email otp code input',
-  )
+  await page.clickVisibleButton(emailOtpSendLabel)
+  try {
+    await page.waitFor(
+      () =>
+        document.body.innerText.includes('Verification code') ||
+        document.body.innerText.includes('验证码'),
+      15_000,
+      'email otp code input',
+    )
+  } catch (error) {
+    const failedSnapshot = await page.snapshot()
+    const failedRows = await d1(
+      `
+SELECT vt.consumed_at AS consumed_at
+FROM verification_tokens vt
+JOIN user_emails ue ON ue.user_id = vt.user_id
+WHERE ue.email = ${sqlString(smokeEmail)}
+  AND vt.purpose = 'otp'
+  AND vt.channel = 'email'
+  AND vt.created_at >= ${afterMs}
+ORDER BY vt.created_at DESC
+LIMIT 1;
+`,
+      'diagnose email otp send timeout',
+    )
+    const failedRouteLog = page.routeNetworkLog.slice(-20).map((entry) => ({
+      url: entry.url,
+      status: entry.status,
+      failed: entry.failed ?? false,
+      errorText: entry.errorText ?? null,
+    }))
+    throw new Error(
+      `${error.message}; token_written=${failedRows.length === 1} token_consumed=${failedRows[0]?.consumed_at !== null && failedRows[0]?.consumed_at !== undefined} text=${redactKnownText(failedSnapshot.text, [smokeEmail]).slice(0, 1000)} route_log=${redactKnownText(JSON.stringify(failedRouteLog), [smokeEmail]).slice(0, 2400)}`,
+      { cause: error },
+    )
+  }
   const row = await waitForLatestBrowserOtpHash(afterMs)
   const code = await recoverOtpFromHash(String(row.code_hash))
   await waitForLatestNotificationSent({
@@ -1275,11 +1395,30 @@ async function checkSignInEmailOtpFlow(page) {
   if ((await page.hasVisibleButton('Verify code')) === true)
     await page.clickVisibleButton('Verify code')
   else await page.clickVisibleButton('验证验证码')
-  await page.waitFor(
-    () => location.pathname.startsWith('/console'),
-    15_000,
-    'email otp default console redirect',
-  )
+  try {
+    await page.waitFor(
+      () => location.pathname.startsWith('/console'),
+      15_000,
+      'email otp default console redirect',
+    )
+  } catch (error) {
+    const failedSnapshot = await page.snapshot()
+    const failedNetwork = await page.authNetworkLog()
+    const failedTokenRows = await d1(
+      `SELECT consumed_at FROM verification_tokens WHERE id = ${sqlString(String(row.id))} LIMIT 1;`,
+      'diagnose email otp redirect timeout',
+    )
+    const failedRouteLog = page.routeNetworkLog.slice(-20).map((entry) => ({
+      url: entry.url,
+      status: entry.status,
+      failed: entry.failed ?? false,
+      errorText: entry.errorText ?? null,
+    }))
+    throw new Error(
+      `${error.message}; path=${failedSnapshot.pathname} token_consumed=${failedTokenRows[0]?.consumed_at !== null && failedTokenRows[0]?.consumed_at !== undefined} text=${redactKnownText(failedSnapshot.text, [smokeEmail]).slice(0, 800)} auth_log=${redactKnownText(JSON.stringify(failedNetwork), [smokeEmail]).slice(0, 1600)} route_log=${redactKnownText(JSON.stringify(failedRouteLog), [smokeEmail]).slice(0, 2400)}`,
+      { cause: error },
+    )
+  }
   const cookie = await page.sessionCookieHeader()
   const me = await verifyMeForEmail(cookie, smokeEmail, { expectedInstanceManager: true })
   const browserMe = await page.browserMe()
@@ -1293,6 +1432,19 @@ async function checkSignInEmailOtpFlow(page) {
   assertSignedInSnapshot(snapshot, 'console after UI login', smokeEmail)
   assertNoConsoleErrors(page, 'sign-in email otp')
   await verifyTokenConsumed(String(row.id))
+  const replay = await fetchText('/auth/otp/email/verify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: smokeEmail, code }),
+  })
+  const replayBody = parseJson(replay.text, 'email otp replay')
+  if (replay.res.status !== 400 || replayBody.code !== 'otp_invalid') {
+    throw new Error(`email otp replay was not rejected: http=${replay.res.status}`)
+  }
+  if ((replay.res.headers.get('set-cookie') ?? '').includes('__Host-xid.rt.')) {
+    throw new Error('email otp replay wrote a session cookie')
+  }
+  printResult('PASS', 'email otp replay invalid', `http=${replay.res.status}`)
   printResult('PASS', 'browser sign-in email otp default console', `url=${snapshot.pathname}`)
   return { cookie, me }
 }
@@ -1325,7 +1477,7 @@ async function checkPasswordSmokeAuthConfig(organizationId) {
   printResult('PASS', 'production password smoke auth config', `org=${organizationId}`)
 }
 
-async function submitPasswordSignIn(page, organizationId) {
+async function submitPasswordSignIn(page, organizationId, allowTurnstileRetry = true) {
   await page.clearSessionCookies()
   await page.navigate(
     `/sign-in?organization_id=${encodeURIComponent(organizationId)}&continue=${encodeURIComponent('/console')}&locale=en`,
@@ -1356,6 +1508,27 @@ async function submitPasswordSignIn(page, organizationId) {
     passwordSmokeEmail,
   )
   await page.setVisibleInputValue('input[type="password"]', passwordSmokePassword)
+  try {
+    await page.waitForVisibleSubmitButton('form[aria-label]', 45_000)
+  } catch (error) {
+    const failedSnapshot = await page.snapshot()
+    const turnstileState = await page.evaluate(`({
+      scriptPresent: document.getElementById('xid-turnstile-script') !== null,
+      apiPresent: typeof globalThis.turnstile?.render === 'function',
+      iframeCount: document.querySelectorAll('iframe[src*="challenges.cloudflare.com"]').length,
+      buttons: Array.from(document.querySelectorAll('button')).map((node) => ({
+        text: node.innerText.trim(),
+        disabled: node.disabled,
+      })).filter((entry) => entry.text.length > 0),
+    })`)
+    if (allowTurnstileRetry) {
+      return await submitPasswordSignIn(page, organizationId, false)
+    }
+    throw new Error(
+      `${error.message}; path=${failedSnapshot.pathname} turnstile=${JSON.stringify(turnstileState)} text=${redactKnownText(failedSnapshot.text, [passwordSmokeEmail]).slice(0, 1200)}`,
+      { cause: error },
+    )
+  }
   await page.clickVisibleSubmitButton('form[aria-label]')
 }
 
@@ -1364,9 +1537,9 @@ async function checkPasswordSignInFlow(page, organizationId) {
   await submitPasswordSignIn(page, organizationId)
   try {
     await page.waitFor(
-      () => location.pathname.startsWith('/console'),
+      () => location.pathname.startsWith('/account'),
       30_000,
-      'password smoke default console redirect',
+      'password smoke default account redirect',
     )
   } catch (error) {
     const snapshot = await page.snapshot()
@@ -1444,16 +1617,21 @@ LIMIT 1;
   if (Number(row.verified) !== 0 || row.membership_status !== 'active' || !row.password_id) {
     throw new Error(`password smoke credential row mismatch: ${JSON.stringify(row)}`)
   }
+  await page.waitFor(
+    Function(`return document.body.innerText.includes(${JSON.stringify(passwordSmokeEmail)})`),
+    15_000,
+    'account after password signed in shell',
+  )
   const snapshot = await page.snapshot()
-  if (!snapshot.pathname.startsWith('/console')) {
+  if (!snapshot.pathname.startsWith('/account')) {
     throw new Error(`password smoke default target mismatch: ${snapshot.href}`)
   }
   if (!snapshot.text.includes(passwordSmokeEmail)) {
-    throw new Error('console missing signed in password smoke email')
+    throw new Error('account missing signed in password smoke email')
   }
-  assertSignedInSnapshot(snapshot, 'console after password', passwordSmokeEmail)
+  assertSignedInSnapshot(snapshot, 'account after password', passwordSmokeEmail)
   assertNoConsoleErrors(page, 'sign-in password smoke')
-  printResult('PASS', 'browser password sign-in default console', `url=${snapshot.pathname}`)
+  printResult('PASS', 'browser password sign-in default account', `url=${snapshot.pathname}`)
   printResult('PASS', 'browser password cookie', cookie.split('; ')[0].split('=')[0])
   printResult('PASS', 'browser password me active organization', `org=${organizationId}`)
   return { cookie, userId: row.user_id }
@@ -1507,9 +1685,9 @@ async function checkMfaLoginChallengeFlow(page, organizationId, userId, secret) 
   await page.clickVisibleButton('Verify')
   try {
     await page.waitFor(
-      () => location.pathname.startsWith('/console'),
+      () => location.pathname.startsWith('/account'),
       45_000,
-      'mfa challenge default console redirect',
+      'mfa challenge default account redirect',
     )
   } catch (error) {
     const snapshot = await page.snapshot()
@@ -1544,8 +1722,13 @@ async function checkMfaLoginChallengeFlow(page, organizationId, userId, secret) 
   if (meBody.user?.hasMfa !== true) {
     throw new Error(`/v1/me MFA challenge hasMfa mismatch: ${browserMe.body}`)
   }
+  await page.waitFor(
+    Function(`return document.body.innerText.includes(${JSON.stringify(passwordSmokeEmail)})`),
+    15_000,
+    'account after MFA signed in shell',
+  )
   const snapshot = await page.snapshot()
-  assertSignedInSnapshot(snapshot, 'console after MFA', passwordSmokeEmail)
+  assertSignedInSnapshot(snapshot, 'account after MFA', passwordSmokeEmail)
   assertNoConsoleErrors(page, 'password MFA challenge smoke')
   printResult('PASS', 'browser password mfa challenge', `url=${snapshot.pathname}`)
   printResult('PASS', 'browser password mfa cookie', cookie.split('; ')[0].split('=')[0])
@@ -1608,17 +1791,61 @@ LIMIT 1;
   return { factors, backupCodes }
 }
 
+async function waitForAccountSecurityMfaUi(page, allowReload = true) {
+  await page.navigate('/account/security')
+  try {
+    await page.waitFor(
+      () =>
+        Array.from(document.querySelectorAll('select')).some((select) =>
+          Array.from(select.options).some((option) => option.value === 'en'),
+        ),
+      15_000,
+      'production account locale selector',
+    )
+    const locale = await page.evaluate(`(() => {
+      const select = Array.from(document.querySelectorAll('select')).find((item) =>
+        Array.from(item.options).some((option) => option.value === 'en')
+      );
+      if (!select) return { found: false, previous: null };
+      const previous = select.value;
+      if (previous !== 'en') {
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+        setter?.call(select, 'en');
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return { found: true, previous };
+    })()`)
+    if (!locale.found) throw new Error('production account locale selector missing')
+    if (locale.previous !== 'en') {
+      await page.waitFor(
+        () => document.body.innerText.includes('Two-factor authentication'),
+        15_000,
+        'production account English locale',
+      )
+      printResult('PASS', 'production account locale switch', `${locale.previous}->en`)
+    }
+    await page.waitFor(
+      () =>
+        document.body.innerText.toLowerCase().includes('two-factor authentication') &&
+        document.body.innerText.includes('Add authenticator app'),
+      30_000,
+      'production account security mfa UI',
+    )
+  } catch (error) {
+    if (allowReload) return await waitForAccountSecurityMfaUi(page, false)
+    const snapshot = await page.snapshot()
+    const browserMe = await page.browserMe()
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; path=${snapshot.pathname} text=${redactKnownText(snapshot.text, [passwordSmokeEmail]).slice(0, 1600)} me_http=${browserMe.status} route_log=${redactKnownText(JSON.stringify(page.routeNetworkLog.slice(-20)), [passwordSmokeEmail]).slice(0, 2400)}`,
+      { cause: error },
+    )
+  }
+}
+
 async function setupTotpSelfService(page, organizationId, userId) {
   const backupGateCopy = 'Add an authenticator app before generating backup codes.'
   await cleanupMfaSelfService(organizationId, userId)
-  await page.navigate('/account/security')
-  await page.waitFor(
-    () =>
-      document.body.innerText.toLowerCase().includes('two-factor authentication') &&
-      document.body.innerText.includes('Add authenticator app'),
-    15_000,
-    'production account security mfa UI',
-  )
+  await waitForAccountSecurityMfaUi(page)
   await page.waitFor(
     Function(`return document.body.innerText.includes(${JSON.stringify(backupGateCopy)}) ||
       Array.from(document.querySelectorAll('button')).some(
@@ -1850,10 +2077,8 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
     15_000,
     'passkey sign-in UI',
   )
-  const hasPasskeyButton =
-    (await page.hasVisibleButton('Sign in with passkey')) === true ||
-    (await page.hasVisibleButton('使用通行密钥登录')) === true
-  if (hasPasskeyButton !== true) {
+  const hasPasskeyPanel = await page.hasVisibleText(['Sign in with passkey', '使用通行密钥登录'])
+  if (hasPasskeyPanel !== true) {
     await page.waitForVisibleButton('Passkey', 15_000)
     await page.clickVisibleButton('Passkey')
   }
@@ -1861,10 +2086,29 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
     'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
     passwordSmokeEmail,
   )
-  if ((await page.hasVisibleButton('Sign in with passkey')) === true) {
-    await page.clickVisibleButton('Sign in with passkey')
-  } else await page.clickVisibleButton('使用通行密钥登录')
-  await page.waitFor(() => location.pathname.startsWith('/console'), 15_000, 'console redirect')
+  const passkeySignInLabel = (await page.hasVisibleText('Sign in with passkey'))
+    ? 'Sign in with passkey'
+    : '使用通行密钥登录'
+  try {
+    await page.waitForVisibleButton(passkeySignInLabel, 45_000)
+  } catch (error) {
+    const failedSnapshot = await page.snapshot()
+    const turnstileState = await page.evaluate(`({
+      scriptPresent: document.getElementById('xid-turnstile-script') !== null,
+      apiPresent: typeof globalThis.turnstile?.render === 'function',
+      iframeCount: document.querySelectorAll('iframe[src*="challenges.cloudflare.com"]').length,
+      buttons: Array.from(document.querySelectorAll('button')).map((node) => ({
+        text: node.innerText.trim(),
+        disabled: node.disabled,
+      })).filter((entry) => entry.text.length > 0),
+    })`)
+    throw new Error(
+      `${error.message}; path=${failedSnapshot.pathname} turnstile=${JSON.stringify(turnstileState)} text=${redactKnownText(failedSnapshot.text, [passwordSmokeEmail]).slice(0, 1200)}`,
+      { cause: error },
+    )
+  }
+  await page.clickVisibleButton(passkeySignInLabel)
+  await page.waitFor(() => location.pathname.startsWith('/account'), 15_000, 'account redirect')
 
   const cookie = await page.sessionCookieHeader()
   const browserMe = await page.browserMe()
@@ -1883,13 +2127,18 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
   if (meBody.activeOrg?.id !== organizationId) {
     throw new Error(`/v1/me passkey activeOrg mismatch: ${browserMe.body}`)
   }
+  await page.waitFor(
+    Function(`return document.body.innerText.includes(${JSON.stringify(passwordSmokeEmail)})`),
+    15_000,
+    'account after passkey signed in shell',
+  )
   const snapshot = await page.snapshot()
-  if (!snapshot.pathname.startsWith('/console')) {
+  if (!snapshot.pathname.startsWith('/account')) {
     throw new Error(`passkey default target mismatch: ${snapshot.href}`)
   }
-  assertSignedInSnapshot(snapshot, 'console after passkey', passwordSmokeEmail)
+  assertSignedInSnapshot(snapshot, 'account after passkey', passwordSmokeEmail)
   assertNoConsoleErrors(page, 'sign-in passkey smoke')
-  printResult('PASS', 'browser passkey sign-in default console', `url=${snapshot.pathname}`)
+  printResult('PASS', 'browser passkey sign-in default account', `url=${snapshot.pathname}`)
   printResult('PASS', 'browser passkey cookie', cookie.split('; ')[0].split('=')[0])
   printResult('PASS', 'browser passkey me active organization', `org=${organizationId}`)
   return { cookie }
@@ -1904,6 +2153,7 @@ async function checkDocs(
     expectedMarkdown,
     expectedOgLocale,
     expectedLlmsIndex,
+    expectNimbusSidebar = true,
   },
 ) {
   const ownerResponse = await fetch(`${baseUrl}${path}`, {
@@ -1932,14 +2182,23 @@ async function checkDocs(
   }
 
   await page.navigate(path)
-  await page.waitFor(
-    () =>
-      document.querySelector('[data-nb-sidebar]') !== null &&
-      document.querySelector('[data-search-dialog]') !== null &&
-      document.querySelector('[data-ai-agent-directive]') !== null,
-    15_000,
-    `${path} Nimbus docs shell`,
-  )
+  try {
+    await page.waitFor(
+      Function(
+        `return ${expectNimbusSidebar ? "document.querySelector('[data-nb-sidebar]') !== null" : 'true'} &&
+          document.querySelector('[data-search-dialog]') !== null &&
+          document.querySelector('[data-ai-agent-directive]') !== null`,
+      ),
+      15_000,
+      `${path} Nimbus docs shell`,
+    )
+  } catch (error) {
+    const snapshot = await page.snapshot()
+    throw new Error(
+      `${path} Nimbus docs shell timed out path=${snapshot.pathname} sidebar=${snapshot.hasNimbusSidebar} search=${snapshot.hasNimbusSearch} agent=${snapshot.hasAgentDirective}`,
+      { cause: error },
+    )
+  }
   const snapshot = await page.snapshot()
   if (snapshot.pathname !== path) throw new Error(`${path} pathname mismatch: ${snapshot.href}`)
   if (snapshot.text.includes('Sign in to XID')) throw new Error(`${path} rendered sign-in`)
@@ -1953,13 +2212,21 @@ async function checkDocs(
   if (snapshot.markdownHref !== expectedMarkdown) {
     throw new Error(`${path} markdown alternate mismatch: ${snapshot.markdownHref}`)
   }
-  if (!snapshot.hasNimbusSidebar || !snapshot.hasNimbusSearch || !snapshot.hasAgentDirective) {
+  if (
+    (expectNimbusSidebar && !snapshot.hasNimbusSidebar) ||
+    !snapshot.hasNimbusSearch ||
+    !snapshot.hasAgentDirective
+  ) {
     throw new Error(`${path} missing Nimbus docs shell`)
   }
   assertTextAbsent(snapshot, path, forbiddenPublicDocsText)
   if (snapshot.hasPlaceholderHref) throw new Error(`${path} has placeholder href`)
   assertNoConsoleErrors(page, path)
-  printResult('PASS', `browser ${path}`, `nimbus=true lang=${snapshot.lang}`)
+  printResult(
+    'PASS',
+    `browser ${path}`,
+    `nimbus=true sidebar=${snapshot.hasNimbusSidebar} lang=${snapshot.lang}`,
+  )
 }
 
 async function checkConsoleRoute(page, path, expectedPathPrefix, expectedText) {
@@ -2001,11 +2268,22 @@ async function checkConsoleRoute(page, path, expectedPathPrefix, expectedText) {
       `${path} expected content`,
     )
   }
-  await page.waitFor(
-    () => document.querySelector('main [role="status"]') === null,
-    30_000,
-    `${path} settled content`,
-  )
+  try {
+    await page.waitFor(
+      () => document.querySelector('main [role="status"] > [aria-hidden="true"]') === null,
+      30_000,
+      `${path} settled content`,
+    )
+  } catch (error) {
+    const snapshot = await page.snapshot()
+    const statusText = await page.evaluate(
+      `Array.from(document.querySelectorAll('main [role="status"]')).map((node) => node.innerText.trim()).filter(Boolean)`,
+    )
+    throw new Error(
+      `${path} settled content timed out path=${snapshot.pathname} status=${redactKnownText(JSON.stringify(statusText), [smokeEmail]).slice(0, 1200)} route_log=${redactKnownText(JSON.stringify(page.routeNetworkLog.slice(-20)), [smokeEmail]).slice(0, 2400)}`,
+      { cause: error },
+    )
+  }
   const snapshot = await page.snapshot()
   if (!snapshot.pathname.startsWith(expectedPathPrefix)) {
     throw new Error(`${path} expected ${expectedPathPrefix}, got ${snapshot.href}`)
@@ -2021,6 +2299,40 @@ async function checkConsoleRoute(page, path, expectedPathPrefix, expectedText) {
   }
   if (expectedText && !snapshot.text.toLowerCase().includes(expectedText.toLowerCase())) {
     throw new Error(`${path} missing expected content: ${expectedText}`)
+  }
+  assertSignedInSnapshot(snapshot, path, smokeEmail)
+  assertNoRawJsonError(snapshot, path)
+  assertNoVisibleLoadError(snapshot, path)
+  assertNoRouteApiErrors(page, path)
+  assertNoConsoleErrors(page, path)
+  printResult('PASS', `browser ${path}`, `url=${snapshot.pathname}`)
+}
+
+async function checkAccountCompatibilityRoute(page, path, expectedPath, expectedText) {
+  const ownerResponse = await fetch(`${baseUrl}${path}`, {
+    redirect: 'manual',
+    headers: { accept: 'text/html' },
+  })
+  if (!webRouteOwnerMatches(ownerResponse.headers, 'console')) {
+    const actualOwner = ownerResponse.headers.get('x-xid-route-owner') ?? 'missing'
+    throw new Error(`${path} route owner mismatch: ${actualOwner}`)
+  }
+
+  await page.navigate(path)
+  await page.waitFor(
+    Function(
+      `return document.querySelector('nav[aria-label]') !== null &&
+        document.querySelector('main')?.innerText.includes(${JSON.stringify(expectedText)}) === true`,
+    ),
+    15_000,
+    `${path} account content`,
+  )
+  const snapshot = await page.snapshot()
+  if (snapshot.pathname !== expectedPath) {
+    throw new Error(`${path} expected ${expectedPath}, got ${snapshot.href}`)
+  }
+  if (!snapshot.text.includes('Back to Console')) {
+    throw new Error(`${path} missing account navigation`)
   }
   assertSignedInSnapshot(snapshot, path, smokeEmail)
   assertNoRawJsonError(snapshot, path)
@@ -2098,15 +2410,28 @@ async function checkConsoleSettingsOverview(page) {
   const requiredText = [
     'Auth policy',
     'Social providers',
-    'Enterprise SSO',
+    'Inbound SSO',
+    'Outbound SSO',
     'Directory sync',
+    'SCIM targets',
+    'Delivery channels',
+    'Applications',
+    'Projects',
+    'Roles and permissions',
+    'API keys',
+    'Webhooks',
     'Domains',
     'Branding',
-    'Open auth policy',
-    'Open social providers',
+    'Members',
+    'Audit events',
+    'Compliance',
   ]
   for (const text of requiredText) {
-    if (!snapshot.text.includes(text)) throw new Error(`${path} missing ${text}`)
+    if (!snapshot.text.includes(text)) {
+      throw new Error(
+        `${path} missing ${text}; text=${redactKnownText(snapshot.text, [smokeEmail]).slice(0, 4000)}`,
+      )
+    }
   }
   const forbiddenSettingsText = [
     ...forbiddenText,
@@ -2119,15 +2444,15 @@ async function checkConsoleSettingsOverview(page) {
     href: a.getAttribute('href'),
     text: a.textContent?.trim() ?? '',
   }))`)
-  const hasAuthPolicyLink = links.some(
-    (link) => link.href === '/console/org/auth-policy' && link.text === 'Open auth policy',
+  const expectedSettingsHrefs = ORGANIZATION_CONSOLE_ROUTE_CHECKS.map((route) => route.path).filter(
+    (href) => href !== '/console/org',
   )
-  const hasSocialProvidersLink = links.some(
-    (link) =>
-      link.href === '/console/org/social-providers' && link.text === 'Open social providers',
+  const missingSettingsHrefs = expectedSettingsHrefs.filter(
+    (href) => !links.some((link) => link.href === href && link.text === 'Open'),
   )
-  if (!hasAuthPolicyLink) throw new Error(`${path} missing auth policy link`)
-  if (!hasSocialProvidersLink) throw new Error(`${path} missing social providers link`)
+  if (missingSettingsHrefs.length > 0) {
+    throw new Error(`${path} missing settings links: ${missingSettingsHrefs.join(',')}`)
+  }
   if (snapshot.hasPlaceholderHref) throw new Error(`${path} has placeholder href`)
   if (snapshot.badClass || snapshot.htmlHasFunctionClass)
     throw new Error(`${path} has function class`)
@@ -2495,7 +2820,7 @@ async function checkActiveOrganization(page, cookie, originalMe) {
   await postActiveOrganization(cookie, null)
   const clearedMe = await getMe(cookie)
   if (clearedMe.activeOrg !== null) throw new Error('/v1/me activeOrg did not clear')
-  await checkConsoleRoute(page, '/console/organizations', '/console/platform/organizations')
+  await checkConsoleRoute(page, '/console/organizations', '/console/org', 'Key metrics')
 
   await postActiveOrganization(cookie, targetOrg.id)
   const updatedMe = await getMe(cookie)
@@ -2690,6 +3015,7 @@ export async function runProductionBrowserSmoke() {
       me = result.me
       await checkDocs(page, {
         path: '/',
+        expectNimbusSidebar: false,
         expectedLanguage: 'en',
         expectedCanonical: 'https://xid.dev/',
         expectedMarkdown: 'https://xid.dev/index.md',
@@ -2713,14 +3039,26 @@ export async function runProductionBrowserSmoke() {
         expectedLlmsIndex: 'https://xid.dev/zh-hans/llms.txt',
       })
       await checkInstanceConsoleRoutes(page)
-      await checkConsoleRoute(page, '/console/sessions', '/account/sessions')
-      await checkConsoleRoute(page, '/console/security', '/account/security')
+      await checkAccountCompatibilityRoute(
+        page,
+        '/console/sessions',
+        '/account/sessions',
+        'Active sessions',
+      )
+      await checkAccountCompatibilityRoute(
+        page,
+        '/console/security',
+        '/account/security',
+        'Security',
+      )
       await checkActiveOrganization(page, state.cookie, me)
       await checkOrgConsoleRoutes(page)
       await checkPlatformConsoleRoutes(page, me.organizations[0]?.id ?? me.activeOrg?.id ?? null)
       await checkSdkBrowserIntegration(page, state.cookie, me)
       await checkMfaProviderGate(page, state.cookie)
-      const organizationId = state.passwordOrganizationId
+    })
+    const organizationId = state.passwordOrganizationId
+    await withChrome(async (page) => {
       const passwordResult = await checkPasswordSignInFlow(page, organizationId)
       await checkMfaSelfServiceFlow(page, organizationId, passwordResult.userId)
       const mfaLogin = await setupTotpSelfService(page, organizationId, passwordResult.userId)
