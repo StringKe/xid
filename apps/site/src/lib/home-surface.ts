@@ -16,6 +16,19 @@ export const homeMessages = {
   architectureEyebrow: msg`One deployment model`,
   architectureTitle: msg`Three focused Workers. One identity platform.`,
   architectureDescription: msg`Public content and management stay binding-free. Identity state, protocols, and policy remain in Core.`,
+  demoUrl: msg`https://xid.dev/sign-in`,
+  demoLogLabel: msg`Protocol traffic`,
+  demoLogAuthorize: msg`GET /authorize`,
+  demoLogDiscovery: msg`GET /.well-known/openid-configuration`,
+  demoLogToken: msg`POST /token`,
+  demoLogJwks: msg`GET /jwks`,
+  demoLogUserinfo: msg`GET /userinfo`,
+  demoSignInTitle: msg`Sign in`,
+  demoTabPasskey: msg`Passkey`,
+  demoTabMagicLink: msg`Magic link`,
+  demoEmailPlaceholder: msg`you@example.com`,
+  demoContinue: msg`Continue`,
+  demoCreateAccount: msg`New to XID? Create an account`,
   siteLabel: msg`Site`,
   siteDescription: msg`Product, documentation, search, and agent-readable content`,
   consoleLabel: msg`Console`,
@@ -78,6 +91,19 @@ export type HomeSurface = {
   architectureTitle: string
   architectureDescription: string
   architecture: readonly { label: string; description: string }[]
+  demoUrl: string
+  demoLogLabel: string
+  demoLogAuthorize: string
+  demoLogDiscovery: string
+  demoLogToken: string
+  demoLogJwks: string
+  demoLogUserinfo: string
+  demoSignInTitle: string
+  demoTabPasskey: string
+  demoTabMagicLink: string
+  demoEmailPlaceholder: string
+  demoContinue: string
+  demoCreateAccount: string
   proofs: readonly { value: string; label: string }[]
   capabilitiesEyebrow: string
   capabilitiesTitle: string
@@ -133,6 +159,19 @@ export function getHomeSurface(locale: SiteLocale): HomeSurface {
         description: translate(homeMessages.coreDescription),
       },
     ],
+    demoUrl: translate(homeMessages.demoUrl),
+    demoLogLabel: translate(homeMessages.demoLogLabel),
+    demoLogAuthorize: translate(homeMessages.demoLogAuthorize),
+    demoLogDiscovery: translate(homeMessages.demoLogDiscovery),
+    demoLogToken: translate(homeMessages.demoLogToken),
+    demoLogJwks: translate(homeMessages.demoLogJwks),
+    demoLogUserinfo: translate(homeMessages.demoLogUserinfo),
+    demoSignInTitle: translate(homeMessages.demoSignInTitle),
+    demoTabPasskey: translate(homeMessages.demoTabPasskey),
+    demoTabMagicLink: translate(homeMessages.demoTabMagicLink),
+    demoEmailPlaceholder: translate(homeMessages.demoEmailPlaceholder),
+    demoContinue: translate(homeMessages.demoContinue),
+    demoCreateAccount: translate(homeMessages.demoCreateAccount),
     proofs: [
       { value: 'MIT', label: translate(homeMessages.licenseLabel) },
       { value: translate(homeMessages.threeWorkers), label: translate(homeMessages.runtimeLabel) },

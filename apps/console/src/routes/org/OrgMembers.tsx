@@ -208,7 +208,7 @@ export default function OrgMembers(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Members</Trans>}>
+      <ConsolePage wide title={<Trans>Members</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -220,6 +220,7 @@ export default function OrgMembers(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Members</Trans>}
       lead={<Trans>Manage organization members and pending invitations.</Trans>}
     >

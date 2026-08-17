@@ -15,7 +15,7 @@ export const buttonBase =
   'group inline-flex w-max shrink-0 items-center justify-center rounded-lg font-medium whitespace-nowrap no-underline transition-all cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
 
 export const buttonVariantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover hover:shadow',
+  primary: 'bg-brand text-brand-foreground shadow-sm hover:bg-brand-hover',
   secondary:
     'bg-card text-foreground ring ring-border shadow-sm hover:bg-accent hover:ring-border-strong',
   ghost: 'bg-transparent text-foreground shadow-none hover:bg-accent',

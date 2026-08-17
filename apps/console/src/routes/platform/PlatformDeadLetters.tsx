@@ -125,6 +125,7 @@ export default function PlatformDeadLetters(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Dead letters</Trans>}
       lead={
         <Trans>

@@ -1,12 +1,14 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Spinner } from '@xid-kit/web-ui/ui'
+import { Alert, Icon, Spinner } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice } from '@xid-kit/web-ui/ui'
 import { MetricBarChart } from '@xid-kit/web-ui/ui/MetricBarChart'
+import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useApiQuery } from '@xid-kit/web-ui/queries'
+import type { AuthOrg } from '@xid-kit/web-ui/session'
 import { MetricsBand, SecondaryCounts } from './OrgOverviewMetrics'
 import type { OrgStats } from './OrgOverviewMetrics'
 import { useCanManageOrg, useOrgTarget } from './useOrgTarget'
@@ -21,6 +23,44 @@ const styles = stylex.create({
     paddingInline: GUTTER,
     // microlabel 与 MetricsBand 顶线 hairline 邻接下限。
     marginBottom: '1.25rem',
+  },
+  // 页头动作只保留真正高频的创建入口,不重复侧栏的资源导航。
+  quickActions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  quickAction: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.4375rem',
+    paddingBlock: '0.375rem',
+    paddingInline: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
+    minHeight: '2.5rem',
+    borderRadius: tokens['--xid-radius'],
+    backgroundColor: {
+      default: tokens['--xid-surface'],
+      ':hover': tokens['--xid-muted'],
+      ':focus-visible': tokens['--xid-muted'],
+    },
+    color: tokens['--xid-fg'],
+    fontSize: '0.8125rem',
+    fontWeight: 550,
+    textDecoration: 'none',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+    transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
+    outlineOffset: '2px',
+    outlineColor: tokens['--xid-primary'],
+  },
+  quickActionIcon: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    color: tokens['--xid-muted-foreground'],
   },
   lowerGrid: {
     display: 'grid',
@@ -154,9 +194,39 @@ function OrgStatsSections({ data }: { data: OrgStats }): ReactNode {
   )
 }
 
+// 直达创建流,icon 与侧栏导航同源,保证动作与目的地的视觉对应。
+function OrgQuickActions({ org }: { org: AuthOrg }): ReactNode {
+  const { t } = useLingui()
+  const actions = [
+    {
+      to: '/console/org/applications',
+      label: <Trans>Create application</Trans>,
+      icon: 'squares-four',
+    },
+    { to: '/console/org/members', label: <Trans>Invite member</Trans>, icon: 'users' },
+    { to: '/console/org/api-keys', label: <Trans>Create API key</Trans>, icon: 'key' },
+  ] as const
+  return (
+    <nav aria-label={t`Quick actions`} {...stylex.props(styles.quickActions)}>
+      {actions.map((action) => (
+        <Link
+          key={action.to}
+          to={`${action.to}?orgId=${encodeURIComponent(org.id)}`}
+          {...stylex.props(styles.quickAction)}
+        >
+          <span aria-hidden="true" {...stylex.props(styles.quickActionIcon)}>
+            <Icon name={action.icon} size={16} />
+          </span>
+          {action.label}
+        </Link>
+      ))}
+    </nav>
+  )
+}
+
 export default function OrgOverview(): ReactNode {
   const { t } = useLingui()
-  const { orgId } = useOrgTarget()
+  const { orgId, activeOrg } = useOrgTarget()
   const canManage = useCanManageOrg(orgId)
   const { data, isLoading, isError } = useApiQuery<OrgStats>(
     ['organizations', orgId, 'stats'] as const,
@@ -166,7 +236,7 @@ export default function OrgOverview(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Overview</Trans>}>
+      <ConsolePage wide title={<Trans>Overview</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>
@@ -179,7 +249,11 @@ export default function OrgOverview(): ReactNode {
   }
 
   return (
-    <ConsolePage title={<Trans>Overview</Trans>}>
+    <ConsolePage
+      wide
+      title={<Trans>Overview</Trans>}
+      actions={activeOrg ? <OrgQuickActions org={activeOrg} /> : null}
+    >
       {isLoading ? (
         <div {...stylex.props(page.loadingCenter)}>
           <Spinner label={t`Loading organization stats`} />

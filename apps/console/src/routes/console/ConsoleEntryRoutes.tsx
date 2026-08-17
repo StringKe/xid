@@ -5,10 +5,10 @@ import * as stylex from '@stylexjs/stylex'
 import { Link, Navigate, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import {
   Button,
-  Card,
   ConsolePage,
   ConsolePageSection,
   EmptyState,
+  Icon,
   Spinner,
 } from '@xid-kit/web-ui/ui'
 import { useAuth } from '@xid-kit/web-ui/session'
@@ -21,11 +21,6 @@ import { ORG_NAV } from '../../nav'
 import type { ConsoleNavItem } from '../../nav'
 
 const styles = stylex.create({
-  orgMeta: {
-    margin: '0 0 1rem',
-    color: tokens['--xid-muted-foreground'],
-    fontSize: '0.8125rem',
-  },
   primaryLink: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -53,6 +48,133 @@ const styles = stylex.create({
       outlineColor: tokens['--xid-primary'],
     },
   },
+  orgList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    maxWidth: '40rem',
+  },
+  // 行而非卡:列表语义;hover 抬升 1px + shadow-sm,等同 Button 的 0.12s 过渡口径。
+  orgRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    paddingBlock: '0.625rem',
+    paddingInline: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
+    borderRadius: tokens['--xid-radius'],
+    backgroundColor: tokens['--xid-surface'],
+    transitionProperty: {
+      default: 'transform, box-shadow, border-color',
+      '@media (prefers-reduced-motion: reduce)': 'none',
+    },
+    transitionDuration: '0.12s',
+    transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    ':hover': {
+      transform: 'translateY(-1px)',
+      boxShadow: tokens['--xid-shadow-sm'],
+      borderColor: tokens['--xid-border-strong'],
+    },
+  },
+  orgAvatar: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '2rem',
+    height: '2rem',
+    flexShrink: 0,
+    borderRadius: tokens['--xid-radius-sm'],
+    backgroundColor: tokens['--xid-accent'],
+    color: tokens['--xid-primary-foreground'],
+    fontSize: '0.8125rem',
+    fontWeight: 650,
+    textTransform: 'uppercase',
+  },
+  orgText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    minWidth: 0,
+    flexGrow: 1,
+  },
+  orgName: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: tokens['--xid-fg'],
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  orgSlug: {
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: '0.6875rem',
+    letterSpacing: '0.04em',
+    color: tokens['--xid-muted-foreground'],
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  settingsList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: tokens['--xid-border'],
+  },
+  settingsItem: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  settingsRow: {
+    display: 'grid',
+    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+    alignItems: 'center',
+    gap: '0.875rem',
+    minHeight: '4.75rem',
+    paddingBlock: '0.875rem',
+    paddingInline: '0.25rem',
+    color: tokens['--xid-fg'],
+    textDecoration: 'none',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': tokens['--xid-muted'],
+      ':focus-visible': tokens['--xid-muted'],
+    },
+    transitionProperty: 'background-color',
+    transitionDuration: '0.12s',
+    transitionTimingFunction: 'ease-out',
+    outlineOffset: '2px',
+    outlineColor: tokens['--xid-primary'],
+  },
+  settingsCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    minWidth: 0,
+  },
+  settingsCardIcon: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    color: tokens['--xid-muted-foreground'],
+  },
+  settingsCardDescription: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    lineHeight: 1.5,
+    color: tokens['--xid-muted-foreground'],
+  },
+  navArrow: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    color: tokens['--xid-muted-foreground'],
+  },
 })
 
 type EntryTarget = 'home' | 'organizations' | 'users' | 'settings'
@@ -67,6 +189,12 @@ export function orgSelectionTarget(destination: string, org: AuthOrg): string {
   if (!destination.startsWith('/console/org')) return destination
   const params = new URLSearchParams({ orgId: org.id })
   return `${destination}?${params.toString()}`
+}
+
+// 首字母方块取原始 name/slug;displayName 可能是 Trans 节点,取不出字符。
+function orgInitial(org: AuthOrg): string {
+  const letter = (org.name ?? org.slug ?? '').trim().charAt(0)
+  return letter ? letter.toUpperCase() : '?'
 }
 
 type OrganizationSelectionProps = {
@@ -85,24 +213,30 @@ function OrganizationSelection({ target, organizations }: OrganizationSelectionP
       lead={<Trans>Choose an organization to continue in the console.</Trans>}
     >
       <ConsolePageSection>
-        <div {...stylex.props(page.gridActions)}>
+        <ul {...stylex.props(styles.orgList)}>
           {organizations.map((org) => (
-            <Card key={org.id} variant="raised">
-              <h2 {...stylex.props(page.sectionTitle)}>{organizationDisplayName(org)}</h2>
-              <p {...stylex.props(styles.orgMeta)}>{org.slug}</p>
+            <li key={org.id} {...stylex.props(styles.orgRow)}>
+              <span aria-hidden="true" {...stylex.props(styles.orgAvatar)}>
+                {orgInitial(org)}
+              </span>
+              <span {...stylex.props(styles.orgText)}>
+                <span {...stylex.props(styles.orgName)}>{organizationDisplayName(org)}</span>
+                <span {...stylex.props(styles.orgSlug)}>{org.slug}</span>
+              </span>
               <Button
                 type="button"
+                variant="secondary"
                 onClick={() => {
                   void setActiveOrganization(org.id).then((ok) => {
                     if (ok) navigate(orgSelectionTarget(destination, org), { replace: true })
                   })
                 }}
               >
-                <Trans>Open organization</Trans>
+                <Trans>Open</Trans>
               </Button>
-            </Card>
+            </li>
           ))}
-        </div>
+        </ul>
       </ConsolePageSection>
     </ConsolePage>
   )
@@ -116,8 +250,9 @@ function EmptyOrganizationState(): ReactNode {
           title={<Trans>No organization access</Trans>}
           description={
             <Trans>
-              You do not have access to an organization yet. Create one to start managing
-              authentication, users, and applications.
+              An organization is where you register OAuth applications, invite members, and turn on
+              enterprise SSO or directory sync. Create one to get your first issuer and managed
+              sign-in pages.
             </Trans>
           }
           action={
@@ -131,7 +266,7 @@ function EmptyOrganizationState(): ReactNode {
   )
 }
 
-// Settings 卡从 ORG_NAV 派生;描述可选,缺省仍出卡。
+// Settings 从 ORG_NAV 派生,图标与信息架构同源。
 const SETTINGS_DESCRIPTIONS: Record<string, ReactNode> = {
   '/console/org/auth-policy': (
     <Trans>
@@ -233,19 +368,28 @@ function SettingsOverview(): ReactNode {
     >
       {settingsGroups().map((group) => (
         <ConsolePageSection key={group.key} title={group.label}>
-          <div {...stylex.props(page.gridActions)}>
+          <ul {...stylex.props(styles.settingsList)}>
             {group.items.map((item) => (
-              <Card key={item.to} variant="raised">
-                <h2 {...stylex.props(page.sectionTitle)}>{item.label}</h2>
-                {SETTINGS_DESCRIPTIONS[item.to] ? (
-                  <p {...stylex.props(styles.orgMeta)}>{SETTINGS_DESCRIPTIONS[item.to]}</p>
-                ) : null}
-                <Link to={item.to} {...stylex.props(styles.primaryLink)}>
-                  <Trans>Open</Trans>
+              <li key={item.to} {...stylex.props(styles.settingsItem)}>
+                <Link to={item.to} {...stylex.props(styles.settingsRow)}>
+                  <span aria-hidden="true" {...stylex.props(styles.settingsCardIcon)}>
+                    <Icon name={item.icon ?? 'gear'} size={18} />
+                  </span>
+                  <div {...stylex.props(styles.settingsCopy)}>
+                    <h2 {...stylex.props(page.sectionTitle)}>{item.label}</h2>
+                    {SETTINGS_DESCRIPTIONS[item.to] ? (
+                      <p {...stylex.props(styles.settingsCardDescription)}>
+                        {SETTINGS_DESCRIPTIONS[item.to]}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span aria-hidden="true" {...stylex.props(styles.navArrow)}>
+                    <Icon name="arrow-right" size={14} />
+                  </span>
                 </Link>
-              </Card>
+              </li>
             ))}
-          </div>
+          </ul>
         </ConsolePageSection>
       ))}
     </ConsolePage>

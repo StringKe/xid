@@ -233,7 +233,7 @@ export default function OrgOutboundSso(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Outbound enterprise SSO</Trans>}>
+      <ConsolePage wide title={<Trans>Outbound enterprise SSO</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -247,6 +247,7 @@ export default function OrgOutboundSso(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Outbound enterprise SSO</Trans>}
       lead={
         <Trans>

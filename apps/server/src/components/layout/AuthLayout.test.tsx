@@ -1,8 +1,17 @@
+import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
+// vitest 不走 lingui 编译,Trans 直出 children,t 还原模板拼接。
 vi.mock('@lingui/react/macro', () => ({
-  useLingui: () => ({ t: (_strings: TemplateStringsArray, value: string) => `${value} logo` }),
+  Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useLingui: () => ({
+    t: (strings: TemplateStringsArray, ...values: unknown[]) =>
+      strings.reduce(
+        (acc, part, index) => acc + (index > 0 ? String(values[index - 1]) : '') + part,
+        '',
+      ),
+  }),
 }))
 
 vi.mock('../../lib/theme', () => ({
@@ -30,6 +39,17 @@ describe('AuthLayout', () => {
 
     expect(html.indexOf('aria-label="Language"')).toBeGreaterThan(-1)
     expect(html.indexOf('aria-label="Language"')).toBeLessThan(html.indexOf('<section'))
+  })
+
+  it('renders the brand panel tagline', () => {
+    const html = renderToStaticMarkup(
+      <AuthLayout>
+        <h1>Sign in</h1>
+      </AuthLayout>,
+    )
+
+    expect(html).toContain('<aside')
+    expect(html).toContain('One XID account. Every application.')
   })
 
   it('does not render an empty footer without footer content', () => {

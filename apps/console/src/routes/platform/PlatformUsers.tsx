@@ -163,6 +163,7 @@ export default function PlatformUsers(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Global user search</Trans>}
       lead={
         <Trans>

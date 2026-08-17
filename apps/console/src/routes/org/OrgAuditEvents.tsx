@@ -184,7 +184,7 @@ export default function OrgAuditEvents(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Audit events</Trans>}>
+      <ConsolePage wide title={<Trans>Audit events</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -196,6 +196,7 @@ export default function OrgAuditEvents(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Audit events</Trans>}
       lead={<Trans>Read-only event log for this organization.</Trans>}
     >

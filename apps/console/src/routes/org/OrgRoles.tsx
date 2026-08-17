@@ -452,7 +452,7 @@ export default function OrgRoles({
 
   if (!orgId && !managed) {
     return (
-      <ConsolePage title={<Trans>Roles and permissions</Trans>}>
+      <ConsolePage wide title={<Trans>Roles and permissions</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -1017,6 +1017,7 @@ export default function OrgRoles({
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Roles and permissions</Trans>}
       lead={
         <Trans>

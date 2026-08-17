@@ -51,6 +51,11 @@ vi.mock('@xid-kit/web-ui/session', () => ({
 }))
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
+  Link: ({ to, children, ...rest }: { to: string; children: ReactNode; className?: string }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
   useSearchParams: () => [new URLSearchParams('orgId=org_query&orgName=Untrusted%20Organization')],
 }))
 
@@ -296,6 +301,17 @@ describe('org target pages', () => {
     const html = renderToStaticMarkup(page)
 
     expect(html).not.toContain('No organization selected')
+  })
+
+  it('leads the overview with quick actions into the create flows', () => {
+    const html = renderToStaticMarkup(<OrgOverview />)
+
+    expect(html).toContain('Create application')
+    expect(html).toContain('Invite member')
+    expect(html).toContain('Create API key')
+    expect(html).toContain('href="/console/org/applications?orgId=org_active"')
+    expect(html).toContain('href="/console/org/members?orgId=org_active"')
+    expect(html).toContain('href="/console/org/api-keys?orgId=org_active"')
   })
 
   it('only offers canonical Organization Membership roles in the invitation form', () => {

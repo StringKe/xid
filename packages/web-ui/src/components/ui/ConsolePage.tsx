@@ -8,22 +8,26 @@ export type ConsolePageProps = {
   title: ReactNode
   lead?: ReactNode
   actions?: ReactNode
+  // wide 豁免 72rem 内容列上限,DataTable 全宽表格页使用。
+  wide?: boolean
   children: ReactNode
 }
 
-export function ConsolePage({ title, lead, actions, children }: ConsolePageProps): ReactNode {
+export function ConsolePage({ title, lead, actions, wide, children }: ConsolePageProps): ReactNode {
   return (
     <div {...stylex.props(consoleShell.root)}>
-      <header {...stylex.props(consoleShell.headerZone)}>
-        <div {...stylex.props(consoleShell.headerRow)}>
-          <div {...stylex.props(consoleShell.headerText)}>
-            <h1 {...stylex.props(consoleShell.displayTitle)}>{title}</h1>
-            {lead ? <p {...stylex.props(consoleShell.lead)}>{lead}</p> : null}
+      <div {...stylex.props(consoleShell.contentCap, wide && consoleShell.contentCapWide)}>
+        <header {...stylex.props(consoleShell.headerZone)}>
+          <div {...stylex.props(consoleShell.headerRow)}>
+            <div {...stylex.props(consoleShell.headerText)}>
+              <h1 {...stylex.props(consoleShell.displayTitle)}>{title}</h1>
+              {lead ? <p {...stylex.props(consoleShell.lead)}>{lead}</p> : null}
+            </div>
+            {actions ? <div {...stylex.props(consoleShell.headerActions)}>{actions}</div> : null}
           </div>
-          {actions ? <div {...stylex.props(consoleShell.headerActions)}>{actions}</div> : null}
-        </div>
-      </header>
-      {children}
+        </header>
+        {children}
+      </div>
     </div>
   )
 }

@@ -21,6 +21,7 @@ const authState = vi.hoisted(
     session: AuthSession | null
     apiPost: ReturnType<typeof vi.fn>
     refresh: ReturnType<typeof vi.fn>
+    signOut: ReturnType<typeof vi.fn>
     returnFromImpersonation: ReturnType<typeof vi.fn>
     openEmailVerification: ReturnType<typeof vi.fn>
   } => ({
@@ -45,6 +46,7 @@ const authState = vi.hoisted(
     session: null,
     apiPost: vi.fn(),
     refresh: vi.fn(),
+    signOut: vi.fn(),
     returnFromImpersonation: vi.fn(),
     openEmailVerification: vi.fn(),
   }),
@@ -83,7 +85,7 @@ vi.mock('@xid-kit/web-ui/session', () => ({
     api: { post: authState.apiPost },
     refresh: authState.refresh,
     setActiveOrganization: async () => true,
-    signOut: async () => undefined,
+    signOut: authState.signOut,
     openEmailVerification: authState.openEmailVerification,
   }),
   isGuestUser: (user: { provisioned_by?: string } | null | undefined) =>
@@ -116,30 +118,35 @@ vi.mock('../ActiveAnnouncementsBanner', () => ({
   ),
 }))
 
-vi.mock('@xid-kit/web-ui/ui', () => ({
-  Alert: ({ title, children }: { title?: ReactNode; children: ReactNode }) => (
-    <div role="status">
-      {title}
-      {children}
-    </div>
-  ),
-  Button: ({
-    children,
-    disabled,
-    isLoading,
-    onClick,
-  }: {
-    children: ReactNode
-    disabled?: boolean
-    isLoading?: boolean
-    onClick?: () => void
-  }) => (
-    <button type="button" disabled={disabled || isLoading} onClick={onClick}>
-      {children}
-    </button>
-  ),
-  Spinner: () => <span>Loading</span>,
-}))
+// Dropdown/Icon 用真实实现(布局的菜单行为是它);Alert/Button/Spinner 保持轻量替身。
+vi.mock('@xid-kit/web-ui/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@xid-kit/web-ui/ui')>()
+  return {
+    ...actual,
+    Alert: ({ title, children }: { title?: ReactNode; children: ReactNode }) => (
+      <div role="status">
+        {title}
+        {children}
+      </div>
+    ),
+    Button: ({
+      children,
+      disabled,
+      isLoading,
+      onClick,
+    }: {
+      children: ReactNode
+      disabled?: boolean
+      isLoading?: boolean
+      onClick?: () => void
+    }) => (
+      <button type="button" disabled={disabled || isLoading} onClick={onClick}>
+        {children}
+      </button>
+    ),
+    Spinner: () => <span>Loading</span>,
+  }
+})
 
 // layoutId 是共享指示条契约;SSR 无稳定 DOM 标记,改捕获 motion props。
 vi.mock('@xid-kit/web-ui/motion', () => ({
@@ -157,8 +164,20 @@ vi.mock('@xid-kit/web-ui/motion', () => ({
         {children}
       </span>
     ),
+    ul: ({
+      children,
+      initial: _initial,
+      animate: _animate,
+      exit: _exit,
+      transition: _transition,
+      ...rest
+    }: Record<string, unknown> & { children?: ReactNode }): ReactNode => (
+      <ul {...rest}>{children}</ul>
+    ),
   },
+  AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
   springDefault: {},
+  popoverMotion: { initial: {}, animate: {}, exit: {}, transition: {} },
 }))
 
 describe('ConsoleLayout', () => {
@@ -173,6 +192,7 @@ describe('ConsoleLayout', () => {
     authState.session = null
     authState.apiPost.mockReset()
     authState.refresh.mockReset()
+    authState.signOut.mockReset()
     authState.returnFromImpersonation.mockReset()
     authState.openEmailVerification.mockClear()
   })
@@ -193,6 +213,8 @@ describe('ConsoleLayout', () => {
     expect(html).toContain('Social providers')
     expect(html).toContain('Default organization')
     expect(html).toContain('data-active-announcements="true"')
+    expect(html).toContain('href="https://xid.dev/docs"')
+    expect(html).toContain('Documentation')
     expect(html).not.toContain('isActive')
     expect(html).not.toContain('=&gt;')
     expect(html).not.toContain('e=&gt;')
@@ -273,15 +295,49 @@ describe('ConsoleLayout', () => {
     expect(html).not.toContain('Console is read-only')
   })
 
-  it('renders a document link to the account portal in the user area', () => {
-    const html = renderToStaticMarkup(
-      <ConsoleLayout navItems={[{ to: '/console/settings', label: 'Settings' }]}>
-        <span>Content</span>
-      </ConsoleLayout>,
-    )
+  it('groups account actions into an account menu behind the avatar', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
 
-    expect(html).toContain('<a href="/account"')
-    expect(html).toContain('Account settings')
+    await act(async () => {
+      root.render(
+        <ConsoleLayout navItems={[{ to: '/console/settings', label: 'Settings' }]}>
+          <span>Content</span>
+        </ConsoleLayout>,
+      )
+    })
+
+    // 邮箱收进菜单头部,两个头像触发器(移动顶栏 + 桌面 rail)都不含邮箱文本。
+    expect(container.textContent).not.toContain('owner@example.com')
+    const accountTrigger = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.getAttribute('aria-label') === 'Account menu',
+    )
+    if (!accountTrigger) throw new Error('Account menu trigger was not rendered')
+
+    await act(async () => {
+      accountTrigger.click()
+    })
+
+    const menu = container.querySelector('[role="menu"]')
+    if (!menu) throw new Error('Account menu did not open')
+    expect(menu.textContent).toContain('owner@example.com')
+    const accountLink = menu.querySelector('a[href="/account"]')
+    expect(accountLink?.textContent).toContain('Account settings')
+
+    const signOutItem = Array.from(menu.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Sign out'),
+    )
+    if (!signOutItem) throw new Error('Sign out menu item was not rendered')
+    await act(async () => {
+      signOutItem.click()
+    })
+    expect(authState.signOut).toHaveBeenCalledOnce()
+    expect(container.querySelector('[role="menu"]')).toBeNull()
+
+    await act(async () => root.unmount())
+    container.remove()
   })
 
   it('renders layoutId indicators on the active nav item only', () => {
@@ -298,8 +354,8 @@ describe('ConsoleLayout', () => {
     )
 
     expect(html).toContain('data-layout-id="console-nav-rail"')
-    expect(html).toContain('data-layout-id="console-nav-tab"')
-    expect(html.match(/data-layout-id=/g)).toHaveLength(2)
+    expect(html).not.toContain('data-layout-id="console-nav-tab"')
+    expect(html.match(/data-layout-id=/g)).toHaveLength(1)
   })
 
   it('shows the global read-only notice and opens email verification', async () => {
@@ -366,7 +422,10 @@ describe('ConsoleLayout', () => {
     expect(container.textContent).toContain('Impersonation session')
     expect(container.textContent).toContain('Management changes are disabled.')
     expect(container.textContent).not.toContain('Verify email')
-    expect(container.querySelector('select')?.disabled).toBe(true)
+    const orgSwitcher = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.getAttribute('aria-label') === 'Switch organization',
+    )
+    expect(orgSwitcher?.disabled).toBe(true)
     const endButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'End impersonation',
     )

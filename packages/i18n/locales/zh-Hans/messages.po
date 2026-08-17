@@ -489,6 +489,10 @@ msgstr "封装 isLoaded / isSignedIn / user 判别联合的访问器"
 msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
 msgstr "AccessRequest 从<0>待处理</0>变为<1>已批准</1>、<2>已拒绝</2>、<3>已取消</3>或<4>已过期</4>。每个结果都是最终结果，待处理的请求会在 14 天后延迟过期。"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Account"
+msgstr "账户"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion"
 msgstr "账户删除"
@@ -496,6 +500,10 @@ msgstr "账户删除"
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion is scheduled in 30 days."
 msgstr "账户将在 30 天后删除。"
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Account menu"
+msgstr "账户菜单"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Account security and profile management"
@@ -874,6 +882,10 @@ msgstr "实例包含顶级组织。一个组织可以包含一级子组织；每
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "发生内部错误。请重试。"
+
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
+msgstr "组织用于注册 OAuth 应用、邀请成员、开启企业 SSO 或目录同步。创建一个组织即可获得你的第一个 issuer 和托管登录页面。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
@@ -2063,6 +2075,10 @@ msgstr "用于存储认证结果的上下文 key（'xidAuth'）"
 msgid "sdk.continue"
 msgstr "继续"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Continue"
+msgstr "继续"
+
 #: apps/server/src/routes/sign-in/SignInGuestButton.tsx
 msgid "Continue as guest"
 msgstr "以访客身份继续"
@@ -2227,6 +2243,7 @@ msgid "Create announcement"
 msgstr "创建公告"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create API key"
 msgstr "创建 API 密钥"
 
@@ -2235,6 +2252,7 @@ msgid "Create app"
 msgstr "创建应用"
 
 #: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create application"
 msgstr "创建应用"
 
@@ -2974,6 +2992,7 @@ msgstr "显示时机"
 msgid "Document type"
 msgstr "文件类型"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Documentation"
 msgstr "文档"
@@ -4173,6 +4192,22 @@ msgid "Generic OIDC baseline is available locally. SaaS-specific app templates a
 msgstr "通用 OIDC 基线已在本地可用。在生产支持声明之前，仍需 SaaS 专项应用模板和真实 SaaS L4。"
 
 #: apps/site/src/lib/home-surface.ts
+msgid "GET /.well-known/openid-configuration"
+msgstr "GET /.well-known/openid-configuration"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /authorize"
+msgstr "GET /authorize"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /jwks"
+msgstr "GET /jwks"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /userinfo"
+msgstr "GET /userinfo"
+
+#: apps/site/src/lib/home-surface.ts
 msgid "Get started"
 msgstr "开始使用"
 
@@ -4528,6 +4563,10 @@ msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 msgid "https://xid.dev/auth/google/callback"
 msgstr "https://xid.dev/auth/google/callback"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "https://xid.dev/sign-in"
+msgstr "https://xid.dev/sign-in"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "IANA timezone, e.g. Asia/Shanghai."
 msgstr "IANA 时区，例如 Asia/Shanghai。"
@@ -4842,6 +4881,7 @@ msgid "Invitation unavailable"
 msgstr "邀请不可用"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Invite member"
 msgstr "邀请成员"
 
@@ -5443,6 +5483,7 @@ msgstr "macOS 13+"
 
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Magic link"
 msgstr "登录链接"
 
@@ -5877,6 +5918,10 @@ msgstr "新提供商密钥"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "New sessions store access and ID tokens in platform secure storage. The refreshToken compatibility field remains null, and offline_access is rejected until DPoP is implemented."
 msgstr "新会话将 access token 和 ID token 存入平台 secure storage。refreshToken compatibility field 保持为 null，并且在实现 DPoP 之前会拒绝 offline_access。"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "New to XID? Create an account"
+msgstr "第一次使用 XID？创建账户"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Next"
@@ -6355,6 +6400,10 @@ msgstr "开启"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "本页内容"
+
+#: apps/server/src/components/layout/AuthLayout.tsx
+msgid "One {appName} account. Every application."
+msgstr "一个 {appName} 账户，通行所有应用。"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "One control plane from sign-in to enterprise access"
@@ -6836,6 +6885,7 @@ msgstr "请将 <0>appearance</0> 传给 <1>SignIn</1>、<2>UserProfile</2> 或 <
 #: apps/server/src/routes/account/MfaSection.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
+#: apps/site/src/lib/home-surface.ts
 msgid "Passkey"
 msgstr "通行密钥"
 
@@ -7182,6 +7232,10 @@ msgstr "请稍后再轮询。"
 msgid "Plugin setup"
 msgstr "插件配置"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "POST /token"
+msgstr "POST /token"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "偏好设置"
@@ -7421,6 +7475,10 @@ msgstr "协议"
 msgid "Protocol requirements"
 msgstr "协议要求"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Protocol traffic"
+msgstr "协议流量"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "协议"
@@ -7636,6 +7694,10 @@ msgstr "Python"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
 msgstr "查询"
+
+#: apps/console/src/routes/org/OrgOverview.tsx
+msgid "Quick actions"
+msgstr "快捷操作"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Quick start"
@@ -9246,6 +9308,7 @@ msgstr "登录"
 #: apps/server/src/routes/not-found/NotFoundPage.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign in"
 msgstr "登录"
@@ -11604,10 +11667,6 @@ msgstr "您无法向自己授予实例访问权限。"
 msgid "You do not belong to any organizations yet."
 msgstr "你尚未加入任何组织。"
 
-#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
-msgid "You do not have access to an organization yet. Create one to start managing authentication, users, and applications."
-msgstr "你还没有任何组织的访问权限。创建一个组织，即可开始管理认证、用户和应用。"
-
 #: packages/i18n/src/messages.ts
 msgid "You do not have permission to perform this action."
 msgstr "你没有权限执行此操作。"
@@ -11619,6 +11678,7 @@ msgstr "继续前必须设置多因素认证。"
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
 

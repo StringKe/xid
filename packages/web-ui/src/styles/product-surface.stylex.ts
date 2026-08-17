@@ -143,6 +143,15 @@ export const page = stylex.create({
 
 // Console / account 全宽锚定:gutter + display 标题 + hairline 分节。
 export const consoleShell = stylex.create({
+  // 内容列上限 72rem 居中,hairline 随列宽收敛;wide 恢复全宽,供 DataTable 等宽表格页豁免。
+  contentCap: {
+    width: '100%',
+    maxWidth: '72rem',
+    marginInline: 'auto',
+  },
+  contentCapWide: {
+    maxWidth: 'none',
+  },
   gutter: {
     paddingInline: 'clamp(1rem, 2.5vw, 4rem)',
   },

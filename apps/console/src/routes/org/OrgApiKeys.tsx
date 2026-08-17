@@ -166,7 +166,7 @@ export default function OrgApiKeys(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>API keys</Trans>}>
+      <ConsolePage wide title={<Trans>API keys</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -178,6 +178,7 @@ export default function OrgApiKeys(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>API keys</Trans>}
       lead={<Trans>Create and revoke API keys for server-side integrations.</Trans>}
     >

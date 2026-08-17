@@ -31,10 +31,20 @@ vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
 }))
 
 vi.mock('@xid-kit/web-ui/ui', () => ({
-  Button: ({ children, ...props }: { children: ReactNode }) => (
-    <button {...props}>{children}</button>
+  Button: ({
+    children,
+    variant: _variant,
+    ...props
+  }: {
+    children: ReactNode
+    variant?: string
+    onClick?: () => void
+    type?: 'button'
+  }) => <button {...props}>{children}</button>,
+  Icon: ({ name }: { name: string }) => <span data-icon={name} />,
+  Card: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <section className={className}>{children}</section>
   ),
-  Card: ({ children }: { children: ReactNode }) => <section>{children}</section>,
   ConsolePage: ({
     title,
     lead,

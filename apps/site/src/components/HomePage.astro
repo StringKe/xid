@@ -54,7 +54,7 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
     <Header showMobileMenu={false} />
     <main id="main-content" data-pagefind-body>
       <section class="home-shell home-hero" aria-labelledby="home-title">
-        <div class="home-hero-copy">
+        <div class="hero-copy">
           <p class="home-eyebrow">{surface.eyebrow}</p>
           <h1 id="home-title">{surface.title}</h1>
           <p class="home-lead">{surface.description}</p>
@@ -62,31 +62,65 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
             <a class="home-action home-action-primary" href={gettingStartedHref}>{surface.getStarted}</a>
             <a class="home-action home-action-secondary" href={docsHref}>{surface.readDocs}</a>
           </div>
-        </div>
-
-        <aside class="architecture-panel" aria-labelledby="architecture-title">
-          <p class="home-eyebrow">{surface.architectureEyebrow}</p>
-          <h2 id="architecture-title">{surface.architectureTitle}</h2>
-          <p>{surface.architectureDescription}</p>
-          <dl>
-            {surface.architecture.map((item, index) => (
+          <dl class="hero-facts">
+            {surface.proofs.map((proof) => (
               <div>
-                <dt><span aria-hidden="true">0{index + 1}</span>{item.label}</dt>
-                <dd>{item.description}</dd>
+                <dt>{proof.label}</dt>
+                <dd>{proof.value}</dd>
               </div>
             ))}
           </dl>
-        </aside>
-      </section>
+        </div>
 
-      <dl class="home-shell proof-rail">
-        {surface.proofs.map((proof) => (
-          <div>
-            <dt>{proof.label}</dt>
-            <dd>{proof.value}</dd>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="demo-frame">
+            <div class="demo-frame-bar">
+              <span>{surface.demoUrl}</span>
+            </div>
+            <div class="demo-frame-body">
+              <div class="demo-auth">
+                <div class="demo-card">
+                  <span class="demo-wordmark">XID</span>
+                  <p class="demo-title">{surface.demoSignInTitle}</p>
+                  <div class="demo-tabs">
+                    <span class="demo-tab demo-tab-active">{surface.demoTabPasskey}</span>
+                    <span class="demo-tab">{surface.demoTabMagicLink}</span>
+                  </div>
+                  <input
+                    class="demo-field"
+                    type="email"
+                    placeholder={surface.demoEmailPlaceholder}
+                    disabled
+                    tabindex="-1"
+                  />
+                  <span class="demo-button">{surface.demoContinue}</span>
+                  <p class="demo-foot">{surface.demoCreateAccount}</p>
+                </div>
+              </div>
+              <div class="demo-log">
+                <p class="demo-log-label">{surface.demoLogLabel}</p>
+                <ul class="demo-log-list">
+                  <li>
+                    <span class="demo-log-status demo-log-redirect">302</span><code>{surface.demoLogAuthorize}</code>
+                  </li>
+                  <li>
+                    <span class="demo-log-status">200</span><code>{surface.demoLogDiscovery}</code>
+                  </li>
+                  <li>
+                    <span class="demo-log-status">200</span><code>{surface.demoLogToken}</code>
+                  </li>
+                  <li>
+                    <span class="demo-log-status">200</span><code>{surface.demoLogJwks}</code>
+                  </li>
+                  <li>
+                    <span class="demo-log-status">200</span><code>{surface.demoLogUserinfo}</code>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
-        ))}
-      </dl>
+        </div>
+      </section>
 
       <section class="home-shell capability-section" aria-labelledby="capabilities-title">
         <header>
@@ -97,12 +131,44 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
         <div class="capability-list">
           {surface.features.map((feature, index) => (
             <a href={feature.href}>
-              <span aria-hidden="true">0{index + 1}</span>
-              <strong>{feature.title}</strong>
+              <div class="capability-row">
+                <span aria-hidden="true">0{index + 1}</span>
+                <strong>{feature.title}</strong>
+                <svg
+                  class="capability-arrow"
+                  viewBox="0 0 16 16"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2.5 8h11M9.5 3.5 14 8l-4.5 4.5" />
+                </svg>
+              </div>
               <p>{feature.description}</p>
             </a>
           ))}
         </div>
+      </section>
+
+      <section class="home-shell architecture-section" aria-labelledby="architecture-title">
+        <header>
+          <p class="home-eyebrow">{surface.architectureEyebrow}</p>
+          <h2 id="architecture-title">{surface.architectureTitle}</h2>
+          <p>{surface.architectureDescription}</p>
+        </header>
+        <dl class="architecture-list">
+          {surface.architecture.map((item, index) => (
+            <div>
+              <dt><span aria-hidden="true">0{index + 1}</span>{item.label}</dt>
+              <dd>{item.description}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
       <section class="home-shell evidence-section" aria-labelledby="evidence-title">
@@ -128,14 +194,12 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
           <a href="https://www.producthunt.com/products/xid?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-xid" target="_blank" rel="noopener noreferrer">
             <img alt={surface.productHuntAlt} width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1217874&amp;theme=light&amp;t=1786263008879" />
           </a>
-          <div>
-            <a href="https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">
-              <img alt={surface.scorecardAlt} width="142" height="20" loading="lazy" src="https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge" />
-            </a>
-            <a href="https://www.bestpractices.dev/projects/13783" target="_blank" rel="noopener noreferrer">
-              <img alt={surface.bestPracticesAlt} width="120" height="20" loading="lazy" src="https://www.bestpractices.dev/projects/13783/badge" />
-            </a>
-          </div>
+          <a href="https://securityscorecards.dev/viewer/?uri=github.com/StringKe/xid" target="_blank" rel="noopener noreferrer">
+            <img class="badge-compact" alt={surface.scorecardAlt} width="142" height="20" loading="lazy" src="https://api.securityscorecards.dev/projects/github.com/StringKe/xid/badge" />
+          </a>
+          <a href="https://www.bestpractices.dev/projects/13783" target="_blank" rel="noopener noreferrer">
+            <img class="badge-compact" alt={surface.bestPracticesAlt} width="120" height="20" loading="lazy" src="https://www.bestpractices.dev/projects/13783/badge" />
+          </a>
         </div>
       </section>
     </main>
@@ -161,10 +225,14 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
 
   .home-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.7fr);
-    gap: clamp(3rem, 7vw, 7rem);
-    align-items: end;
-    padding-block: clamp(5rem, 11vw, 9rem) clamp(4rem, 8vw, 6rem);
+    grid-template-columns: minmax(18rem, 0.82fr) minmax(34rem, 1.18fr);
+    align-items: center;
+    gap: clamp(2.5rem, 6vw, 5.5rem);
+    padding-block: clamp(4rem, 9vw, 7.5rem);
+  }
+
+  .hero-copy {
+    min-width: 0;
   }
 
   .home-eyebrow {
@@ -179,18 +247,18 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
   }
 
   .home-hero h1 {
-    max-width: 42rem;
+    max-width: 39rem;
     margin: 0;
-    font-size: clamp(2.75rem, 6.5vw, 4.75rem);
+    font-size: clamp(2.75rem, 5.2vw, 4.5rem);
     font-weight: 620;
-    letter-spacing: -0.055em;
-    line-height: 0.98;
+    letter-spacing: -0.038em;
+    line-height: 1;
     text-wrap: balance;
   }
 
   .home-lead {
-    max-width: 42rem;
-    margin: 1.75rem 0 0;
+    max-width: 36rem;
+    margin: 1.5rem 0 0;
     color: var(--nb-muted-foreground);
     font-size: clamp(1.05rem, 2vw, 1.25rem);
     line-height: 1.7;
@@ -211,7 +279,7 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
     justify-content: center;
     padding: 0.65rem 1rem;
     border: 1px solid var(--nb-border-strong);
-    border-radius: 0.45rem;
+    border-radius: var(--nb-radius-md);
     font-size: 0.875rem;
     font-weight: 600;
     text-decoration: none;
@@ -219,14 +287,15 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
   }
 
   .home-action-primary {
-    border-color: var(--nb-primary);
-    background: var(--nb-primary);
-    color: var(--nb-primary-foreground);
+    border-color: var(--nb-brand);
+    background: var(--nb-brand);
+    color: var(--nb-brand-foreground);
+    box-shadow: var(--nb-shadow-sm);
   }
 
   .home-action-primary:hover {
-    border-color: var(--nb-primary-hover);
-    background: var(--nb-primary-hover);
+    border-color: var(--nb-brand-hover);
+    background: var(--nb-brand-hover);
   }
 
   .home-action-secondary {
@@ -237,113 +306,252 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
     background: var(--nb-accent);
   }
 
-  .architecture-panel {
-    border-top: 1px solid var(--nb-border-strong);
-    padding-top: 1.25rem;
+  .hero-visual {
+    min-width: 0;
   }
 
-  .architecture-panel h2 {
-    margin: 0;
-    font-size: clamp(1.4rem, 2.5vw, 2rem);
-    font-weight: 610;
-    letter-spacing: -0.03em;
-    line-height: 1.15;
+  .demo-frame {
+    width: 100%;
+    border: 1px solid var(--nb-border-strong);
+    border-radius: var(--nb-radius-lg);
+    background: var(--nb-card);
+    overflow: hidden;
+    text-align: left;
   }
 
-  .architecture-panel > p:not(.home-eyebrow) {
-    margin: 1rem 0 1.75rem;
-    color: var(--nb-muted-foreground);
-    font-size: 0.9rem;
-    line-height: 1.65;
-  }
-
-  .architecture-panel dl {
-    margin: 0;
-  }
-
-  .architecture-panel dl > div {
-    display: grid;
-    grid-template-columns: 5rem 1fr;
-    gap: 1rem;
-    padding-block: 0.9rem;
-    border-top: 1px solid var(--nb-border);
-  }
-
-  .architecture-panel dt {
+  .demo-frame-bar {
     display: flex;
-    gap: 0.55rem;
-    font-size: 0.78rem;
-    font-weight: 650;
-  }
-
-  .architecture-panel dt span {
+    align-items: center;
+    justify-content: center;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--nb-border);
     color: var(--nb-muted-foreground);
     font-family: var(--nb-font-mono);
-    font-size: 0.65rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
   }
 
-  .architecture-panel dd {
+  .demo-frame-body {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+
+  .demo-auth {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(1.75rem, 4vw, 2.75rem) 1.5rem;
+    background: var(--nb-background);
+  }
+
+  .demo-log {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.9rem;
+    padding: clamp(1.25rem, 3vw, 1.75rem);
+    background: var(--nb-code-surface);
+    color: var(--nb-code-foreground);
+    font-family: var(--nb-font-mono);
+  }
+
+  .demo-log-label {
     margin: 0;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  .demo-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .demo-log-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: 0.72rem;
+    line-height: 1.6;
+  }
+
+  .demo-log-list code {
+    overflow-wrap: anywhere;
+  }
+
+  .demo-log-status {
+    flex-shrink: 0;
+    padding: 0.05rem 0.4rem;
+    border: 1px solid color-mix(in oklch, var(--nb-success) 45%, transparent);
+    border-radius: var(--nb-radius-sm);
+    color: var(--nb-success);
+    font-size: 0.66rem;
+    font-weight: 600;
+  }
+
+  .demo-log-redirect {
+    border-color: color-mix(in oklch, var(--nb-info) 45%, transparent);
+    color: var(--nb-info);
+  }
+
+  .demo-card {
+    width: min(100%, 20rem);
+    padding: 1.75rem;
+    border: 1px solid var(--nb-border);
+    border-radius: var(--nb-radius-lg);
+    background: var(--nb-card);
+    box-shadow: var(--nb-shadow-sm);
+  }
+
+  .demo-wordmark {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+
+  .demo-title {
+    margin: 1rem 0 1.1rem;
+    font-size: 1.2rem;
+    font-weight: 640;
+    letter-spacing: -0.015em;
+  }
+
+  .demo-tabs {
+    display: flex;
+    gap: 0.2rem;
+    padding: 0.22rem;
+    border-radius: var(--nb-radius-md);
+    background: var(--nb-muted);
+  }
+
+  .demo-tab {
+    flex: 1;
+    padding: 0.4rem 0.5rem;
+    border-radius: var(--nb-radius-sm);
+    color: var(--nb-muted-foreground);
+    font-size: 0.82rem;
+    text-align: center;
+  }
+
+  .demo-tab-active {
+    background: var(--nb-card);
+    color: var(--nb-foreground);
+    font-weight: 600;
+    box-shadow: var(--nb-shadow-sm);
+  }
+
+  .demo-field {
+    display: block;
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--nb-border-strong);
+    border-radius: var(--nb-radius-sm);
+    background: var(--nb-background);
+    color: var(--nb-foreground);
+    font-family: inherit;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
+
+  .demo-field::placeholder {
+    color: var(--nb-muted-foreground);
+  }
+
+  .demo-field:disabled {
+    opacity: 1;
+  }
+
+  .demo-button {
+    display: block;
+    margin-top: 0.8rem;
+    padding: 0.65rem;
+    border-radius: var(--nb-radius-sm);
+    background: var(--nb-brand);
+    color: var(--nb-brand-foreground);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .demo-foot {
+    margin: 1.1rem 0 0;
     color: var(--nb-muted-foreground);
     font-size: 0.78rem;
-    line-height: 1.55;
+    text-align: center;
   }
 
-  .proof-rail {
+  .hero-facts {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    border-block: 1px solid var(--nb-border-strong);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    margin: 2.5rem 0 0;
+    padding: 0;
+    border-top: 1px solid var(--nb-border-strong);
   }
 
-  .proof-rail > div {
-    min-height: 7rem;
-    padding: 1.25rem;
-    border-right: 1px solid var(--nb-border);
+  .hero-facts > div {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0.3rem;
+    min-width: 0;
+    padding-block: 0.875rem;
+    padding-right: 1rem;
+    border-bottom: 1px solid var(--nb-border);
   }
 
-  .proof-rail > div:last-child {
-    border-right: 0;
-  }
-
-  .proof-rail dt {
+  .hero-facts dt {
     color: var(--nb-muted-foreground);
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
 
-  .proof-rail dd {
-    margin: 1.4rem 0 0;
+  .hero-facts dd {
+    margin: 0;
     font-family: var(--nb-font-mono);
-    font-size: clamp(1rem, 2vw, 1.35rem);
-    font-weight: 600;
+    font-size: 0.8125rem;
+    font-weight: 550;
+    color: var(--nb-foreground);
+    overflow-wrap: anywhere;
   }
 
-  .capability-section {
+  .capability-section,
+  .architecture-section {
     display: grid;
     grid-template-columns: minmax(15rem, 0.75fr) minmax(0, 1.5fr);
     gap: clamp(3rem, 8vw, 8rem);
-    padding-block: clamp(5rem, 10vw, 9rem);
+    padding-block: clamp(3.5rem, 8vw, 6.5rem);
   }
 
-  .capability-section header {
+  .capability-section header,
+  .architecture-section header {
     align-self: start;
     position: sticky;
     top: 6rem;
   }
 
   .capability-section h2,
+  .architecture-section h2,
   .evidence-section h2,
   .open-source-section h2 {
     margin: 0;
     font-size: clamp(2rem, 4.5vw, 3.4rem);
     font-weight: 610;
-    letter-spacing: -0.045em;
+    letter-spacing: -0.038em;
     line-height: 1.05;
     text-wrap: balance;
   }
 
   .capability-section header > p:last-child,
+  .architecture-section header > p:last-child,
   .open-source-copy > p {
     margin: 1.25rem 0 0;
     color: var(--nb-muted-foreground);
@@ -355,33 +563,82 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
   }
 
   .capability-list a {
-    display: grid;
-    grid-template-columns: 2rem minmax(10rem, 0.65fr) minmax(0, 1.2fr);
-    gap: 1.25rem;
-    align-items: baseline;
-    padding-block: 1.5rem;
+    display: block;
+    padding-block: 1.4rem;
     border-bottom: 1px solid var(--nb-border);
     color: inherit;
     text-decoration: none;
   }
 
-  .capability-list a:hover strong {
-    color: var(--nb-primary-hover);
+  .capability-row {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
   }
 
-  .capability-list span {
+  .capability-row span {
     color: var(--nb-muted-foreground);
     font-family: var(--nb-font-mono);
     font-size: 0.7rem;
   }
 
-  .capability-list strong {
+  .capability-row strong {
     font-size: 0.95rem;
     transition: color 150ms ease;
   }
 
+  .capability-arrow {
+    color: var(--nb-muted-foreground);
+    transition: transform 150ms ease, color 150ms ease;
+  }
+
+  .capability-list a:hover strong {
+    color: var(--nb-brand);
+  }
+
+  .capability-list a:hover .capability-arrow {
+    color: var(--nb-brand);
+    transform: translateX(2px);
+  }
+
   .capability-list p {
+    margin: 0.4rem 0 0;
+    padding-left: 3rem;
+    padding-right: 2rem;
+    color: var(--nb-muted-foreground);
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+
+  .architecture-list {
     margin: 0;
+    border-top: 1px solid var(--nb-border-strong);
+  }
+
+  .architecture-list > div {
+    padding-block: 1.4rem;
+    border-bottom: 1px solid var(--nb-border);
+  }
+
+  .architecture-list dt {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    font-size: 0.95rem;
+    font-weight: 620;
+  }
+
+  .architecture-list dt span {
+    min-width: 2rem;
+    color: var(--nb-muted-foreground);
+    font-family: var(--nb-font-mono);
+    font-size: 0.7rem;
+  }
+
+  .architecture-list dd {
+    margin: 0.4rem 0 0;
+    padding-left: 3rem;
     color: var(--nb-muted-foreground);
     font-size: 0.9rem;
     line-height: 1.65;
@@ -390,15 +647,10 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
   .evidence-section {
     display: grid;
     grid-template-columns: 0.9fr 1.1fr;
-    gap: clamp(3rem, 8vw, 8rem);
-    padding: clamp(2rem, 5vw, 4rem);
-    background: var(--nb-primary);
-    color: var(--nb-primary-foreground);
-  }
-
-  .evidence-section .home-eyebrow,
-  .evidence-section p {
-    color: color-mix(in oklch, var(--nb-primary-foreground) 68%, transparent);
+    gap: clamp(2rem, 6vw, 5rem);
+    margin-block: clamp(3.5rem, 8vw, 6.5rem);
+    padding-block: clamp(2rem, 4vw, 3.5rem);
+    border-block: 1px solid var(--nb-border-strong);
   }
 
   .evidence-section > div:last-child {
@@ -407,11 +659,12 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
 
   .evidence-section p {
     margin: 0 0 1.5rem;
+    color: var(--nb-muted-foreground);
     line-height: 1.75;
   }
 
   .evidence-section a {
-    color: var(--nb-primary-foreground);
+    color: var(--nb-foreground);
     font-size: 0.875rem;
     font-weight: 650;
     text-underline-offset: 0.3rem;
@@ -419,10 +672,13 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
 
   .open-source-section {
     display: grid;
-    grid-template-columns: 1fr minmax(18rem, 0.8fr);
-    gap: clamp(3rem, 8vw, 8rem);
-    align-items: end;
-    padding-block: clamp(5rem, 9vw, 8rem);
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding-block: clamp(3.5rem, 8vw, 6.5rem);
+  }
+
+  .open-source-copy {
+    max-width: 42rem;
   }
 
   .open-source-copy > a {
@@ -435,27 +691,24 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
   }
 
   .project-badges {
-    display: grid;
-    gap: 1rem;
-    justify-items: start;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--nb-border-strong);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.25rem;
   }
 
   .project-badges a {
     display: inline-flex;
   }
 
-  .project-badges > div {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-
   .project-badges img {
     display: block;
-    max-width: 100%;
-    height: auto;
+    width: auto;
+    height: 2.5rem;
+  }
+
+  .project-badges img.badge-compact {
+    height: 1.4rem;
   }
 
   .home-footer {
@@ -482,33 +735,32 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
     color: var(--nb-foreground);
   }
 
-  @media (max-width: 54rem) {
+  @media (max-width: 60rem) {
     .home-hero,
     .capability-section,
-    .evidence-section,
-    .open-source-section {
+    .architecture-section,
+    .evidence-section {
       grid-template-columns: 1fr;
     }
 
-    .home-hero {
-      align-items: start;
+    .hero-visual {
+      width: 100%;
+      max-width: 56rem;
     }
 
-    .capability-section header {
+    .capability-section header,
+    .architecture-section header {
       position: static;
     }
 
-    .proof-rail {
-      grid-template-columns: repeat(2, 1fr);
+    .demo-frame-body {
+      grid-template-columns: 1fr;
     }
 
-    .proof-rail > div:nth-child(2) {
-      border-right: 0;
+    .demo-log {
+      display: none;
     }
 
-    .proof-rail > div:nth-child(-n + 2) {
-      border-bottom: 1px solid var(--nb-border);
-    }
   }
 
   @media (max-width: 38rem) {
@@ -520,16 +772,19 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
       font-size: clamp(2.5rem, 13vw, 3.75rem);
     }
 
-    .capability-list a {
-      grid-template-columns: 1.5rem 1fr;
+    .capability-row {
+      grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+      gap: 0.75rem;
     }
 
     .capability-list p {
-      grid-column: 2;
+      padding-left: 2.25rem;
+      padding-right: 0;
     }
 
-    .evidence-section {
-      padding-inline: 1.25rem;
+    .architecture-list dd {
+      padding-left: 2.25rem;
     }
+
   }
 </style>

@@ -51,7 +51,7 @@ const styles = stylex.create({
     transform: { default: 'none', ':active': 'scale(0.97)' },
     ...transition,
   },
-  // color-mix 向 black 暗化,避免引入脱离主题 token 的字面量;1px 同色暗边替代阴影。
+  // color-mix 向 black 暗化,避免引入脱离主题 token 的字面量。
   primary: {
     backgroundColor: {
       default: tokens['--xid-primary'],
@@ -60,6 +60,7 @@ const styles = stylex.create({
     },
     color: tokens['--xid-primary-foreground'],
     borderColor: `color-mix(in oklch, ${tokens['--xid-primary']} 84%, black)`,
+    boxShadow: tokens['--xid-shadow-sm'],
   },
   secondary: {
     backgroundColor: {

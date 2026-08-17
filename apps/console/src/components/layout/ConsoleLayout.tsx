@@ -1,4 +1,5 @@
 // org/instance 共用全宽壳;nav 由调用方按角色注入(铁律 8 不另建 admin 壳)。
+// 桌面端侧栏主导:org 切换在 rail 顶部,用户菜单在 rail 底部;移动端用单一当前页菜单。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
@@ -6,16 +7,16 @@ import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { useAuth } from '@xid-kit/web-ui/session'
 import { isGuestUser } from '@xid-kit/web-ui/session'
+import type { AuthOrg, AuthUser } from '@xid-kit/web-ui/session'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { motion, springDefault } from '@xid-kit/web-ui/motion'
 import { useTheme } from '@xid-kit/web-ui/theme'
 import { BrandLogo } from '@xid-kit/web-ui/BrandLogo'
 import { LanguageSwitcher } from '../LanguageSwitcher'
-import { Alert, Button, Spinner } from '@xid-kit/web-ui/ui'
+import { Alert, Button, Dropdown, Icon, Spinner } from '@xid-kit/web-ui/ui'
 import {
   returnFromImpersonation,
   type ImpersonationEndResponse,
@@ -30,7 +31,7 @@ export type ConsoleLayoutProps = {
   navItems: readonly ConsoleNavItem[]
 }
 
-// 页面节与顶栏共用 gutter;rail brand 与顶栏同高以续成一条横 hairline。
+// 页面节与移动端顶栏共用 gutter;rail 内统一 0.75rem 内边距 + 0.625rem 项内距 = 1.375rem 对齐线。
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 const BAR_MIN_HEIGHT = '3.5rem'
 
@@ -45,16 +46,18 @@ const styles = stylex.create({
     },
     gridTemplateRows: {
       default: 'auto auto 1fr',
-      '@media (min-width: 48rem)': 'auto 1fr',
+      // 桌面无顶栏,内容区独占一行。
+      '@media (min-width: 48rem)': '1fr',
     },
     backgroundColor: tokens['--xid-bg'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
   },
+  // 顶栏只在移动端存在:brand + org 切换 + 用户头像菜单。
   header: {
-    gridColumn: { default: '1', '@media (min-width: 48rem)': '2' },
+    display: { default: 'flex', '@media (min-width: 48rem)': 'none' },
+    gridColumn: '1',
     gridRow: '1',
-    display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -72,12 +75,9 @@ const styles = stylex.create({
     gap: '0.75rem',
     minWidth: 0,
   },
-  // display 互斥:任一断点 AT 只见一份 brand,避免双读。
+  // display 互斥:任一断点 AT 只见一份 brand/控件,避免双读。
   brandNarrow: {
-    display: {
-      default: 'inline-flex',
-      '@media (min-width: 48rem)': 'none',
-    },
+    display: 'inline-flex',
     alignItems: 'center',
     gap: '0.5rem',
     fontWeight: 600,
@@ -87,32 +87,74 @@ const styles = stylex.create({
     display: 'inline-flex',
     flexShrink: 0,
   },
-  orgSwitcher: {
-    minWidth: 'min(16rem, 48vw)',
-    maxWidth: '20rem',
-    minHeight: '2rem',
+  orgTrigger: {
+    gap: '0.5rem',
+    minWidth: 0,
+    maxWidth: 'min(20rem, 56vw)',
     paddingBlock: '0.25rem',
-    paddingInline: '0.5rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
+    paddingInline: '0.375rem',
     borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.8125rem',
-    fontWeight: 550,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': tokens['--xid-muted'],
+      ':focus-visible': tokens['--xid-muted'],
+    },
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+    transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
+  },
+  // rail 顶部的整行切换器:与导航项同一条 1.375rem 对齐线。
+  orgTriggerRail: {
+    gap: '0.5rem',
+    width: '100%',
+    minWidth: 0,
+    paddingBlock: '0.4375rem',
+    paddingInline: '0.625rem',
+    borderRadius: tokens['--xid-radius-sm'],
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': tokens['--xid-muted'],
+      ':focus-visible': tokens['--xid-muted'],
+    },
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+    transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
+  },
+  orgAvatar: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '1.5rem',
+    height: '1.5rem',
+    flexShrink: 0,
+    borderRadius: tokens['--xid-radius-sm'],
+    backgroundColor: tokens['--xid-accent'],
+    color: tokens['--xid-primary-foreground'],
+    fontSize: '0.6875rem',
+    fontWeight: 650,
+    textTransform: 'uppercase',
+  },
+  orgName: {
+    minWidth: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    ':focus-visible': {
-      outlineStyle: 'solid',
-      outlineWidth: '2px',
-      outlineOffset: '2px',
-      outlineColor: tokens['--xid-primary'],
-    },
+    fontSize: '0.8125rem',
+    fontWeight: 550,
+    color: tokens['--xid-fg'],
   },
-  // 无 org 时不用 disabled select(永不可用控件),改静态文案。
+  caret: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    color: tokens['--xid-muted-foreground'],
+  },
+  caretEnd: {
+    marginInlineStart: 'auto',
+  },
+  caretOpen: {
+    transform: 'rotate(180deg)',
+  },
+  // 无 org 时不用 disabled 控件(永不可用),改静态文案。
   orgEmpty: {
     fontSize: '0.8125rem',
     color: tokens['--xid-muted-foreground'],
@@ -126,27 +168,28 @@ const styles = stylex.create({
     gap: '0.5rem 1rem',
     minWidth: 0,
   },
-  email: {
-    fontSize: '0.8125rem',
-    color: tokens['--xid-muted-foreground'],
+  userTrigger: {
+    borderRadius: tokens['--xid-radius-full'],
+  },
+  userAvatar: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '1.75rem',
+    height: '1.75rem',
+    borderRadius: tokens['--xid-radius-full'],
+    backgroundColor: tokens['--xid-muted'],
+    color: tokens['--xid-fg'],
+    fontSize: '0.6875rem',
+    fontWeight: 650,
+    textTransform: 'uppercase',
   },
   aside: {
+    display: { default: 'none', '@media (min-width: 48rem)': 'block' },
     gridColumn: '1',
-    gridRow: {
-      default: '2',
-      '@media (min-width: 48rem)': '1 / -1',
-    },
+    gridRow: '1 / -1',
     backgroundColor: tokens['--xid-sidebar'],
-    borderBottomWidth: {
-      default: '1px',
-      '@media (min-width: 48rem)': '0',
-    },
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-    borderInlineEndWidth: {
-      default: '0',
-      '@media (min-width: 48rem)': '1px',
-    },
+    borderInlineEndWidth: '1px',
     borderInlineEndStyle: 'solid',
     borderInlineEndColor: tokens['--xid-border'],
     minWidth: 0,
@@ -161,38 +204,36 @@ const styles = stylex.create({
       default: 'none',
       '@media (min-width: 48rem)': '100dvh',
     },
+    height: { default: 'auto', '@media (min-width: 48rem)': '100dvh' },
     display: 'flex',
     flexDirection: 'column',
   },
-  brandRail: {
-    display: {
-      default: 'none',
-      '@media (min-width: 48rem)': 'flex',
-    },
-    alignItems: 'center',
-    gap: '0.5rem',
-    minHeight: BAR_MIN_HEIGHT,
-    paddingInline: '1.375rem',
+  // rail 头部:brand 行 + org 切换器,与导航共用对齐线;仅桌面。
+  sidebarHead: {
+    display: { default: 'none', '@media (min-width: 48rem)': 'flex' },
+    flexDirection: 'column',
+    gap: '0.25rem',
+    paddingBlock: '0.5rem 0.75rem',
+    paddingInline: '0.75rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
     borderBottomColor: tokens['--xid-border'],
-    fontWeight: 600,
-    fontSize: '0.9375rem',
     flexShrink: 0,
   },
+  brandRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    minHeight: '2.25rem',
+    paddingInline: '0.625rem',
+    fontWeight: 600,
+    fontSize: '0.9375rem',
+  },
   navRegion: {
-    padding: {
-      default: '0.625rem 1rem',
-      '@media (min-width: 48rem)': '1.25rem 0.75rem',
-    },
-    overflowX: {
-      default: 'auto',
-      '@media (min-width: 48rem)': 'hidden',
-    },
-    overflowY: {
-      default: 'hidden',
-      '@media (min-width: 48rem)': 'auto',
-    },
+    minHeight: 0,
+    padding: '1.25rem 0.75rem',
+    overflowX: 'hidden',
+    overflowY: 'auto',
     flexGrow: 1,
   },
   navList: {
@@ -200,22 +241,16 @@ const styles = stylex.create({
     margin: 0,
     padding: 0,
     display: 'flex',
-    flexDirection: {
-      default: 'row',
-      '@media (min-width: 48rem)': 'column',
-    },
-    flexWrap: {
-      default: 'nowrap',
-      '@media (min-width: 48rem)': 'wrap',
-    },
-    gap: {
-      default: '0.5rem',
-      '@media (min-width: 48rem)': '0.125rem',
-    },
+    flexDirection: 'column',
+    flexWrap: 'wrap',
+    gap: '0.125rem',
   },
-  // 2px 透明缘线恒占位,避免激活指示条叠上时布局跳动。
+  // 桌面端 hover 只改文字色:背景块是激活态专属,hover 出块会与激活块撞色。
   navLink: {
-    display: 'block',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    position: 'relative',
     paddingBlock: '0.4375rem',
     paddingInline: '0.625rem',
     color: {
@@ -225,29 +260,20 @@ const styles = stylex.create({
     },
     backgroundColor: {
       default: 'transparent',
-      ':hover': tokens['--xid-muted'],
-      ':focus-visible': tokens['--xid-muted'],
+      ':hover': {
+        default: tokens['--xid-muted'],
+        '@media (min-width: 48rem)': 'transparent',
+      },
+      ':focus-visible': {
+        default: tokens['--xid-muted'],
+        '@media (min-width: 48rem)': 'transparent',
+      },
     },
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 48rem)': '2px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: 'transparent',
-    borderBottomWidth: {
-      default: '2px',
-      '@media (min-width: 48rem)': '0',
-    },
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'transparent',
     textDecoration: 'none',
     fontSize: '0.8125rem',
     fontWeight: 450,
-    whiteSpace: {
-      default: 'nowrap',
-      '@media (min-width: 48rem)': 'normal',
-    },
-    // 仅过渡色;指示条位移走 motion,勿放进 CSS transition。
+    whiteSpace: 'normal',
+    // 仅过渡色;激活块位移走 motion,勿放进 CSS transition。
     transitionProperty: 'background-color, color',
     transitionDuration: '150ms',
     transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
@@ -256,30 +282,24 @@ const styles = stylex.create({
     outlineColor: tokens['--xid-primary'],
   },
   navLinkActive: {
-    color: tokens['--xid-accent'],
+    color: tokens['--xid-fg'],
     fontWeight: 550,
+  },
+  navIcon: {
+    display: 'inline-flex',
+    flexShrink: 0,
   },
   navItem: {
     position: 'relative',
   },
+  // 桌面 rail:激活=muted 圆角块 + 左侧 1px 品牌指示条,layoutId 在项间滑动。
   navIndicatorRail: {
-    display: { default: 'none', '@media (min-width: 48rem)': 'block' },
+    display: 'block',
     position: 'absolute',
-    insetInlineStart: 0,
-    top: 0,
-    bottom: 0,
-    width: '2px',
-    backgroundColor: tokens['--xid-accent'],
-    pointerEvents: 'none',
-  },
-  navIndicatorTab: {
-    display: { default: 'block', '@media (min-width: 48rem)': 'none' },
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '2px',
-    backgroundColor: tokens['--xid-accent'],
+    inset: 0,
+    borderRadius: tokens['--xid-radius-sm'],
+    backgroundColor: tokens['--xid-muted'],
+    boxShadow: `inset 1px 0 0 ${tokens['--xid-primary']}`,
     pointerEvents: 'none',
   },
   // paddingTop 1.25rem:label 与上方 hairline 邻接距离下限。
@@ -308,9 +328,91 @@ const styles = stylex.create({
     borderTopStyle: 'solid',
     borderTopColor: tokens['--xid-border'],
   },
+  // rail footer 只服务桌面侧栏;移动端横向导航里放 footer 会挤占 tab 空间。
+  railFooter: {
+    display: { default: 'none', '@media (min-width: 48rem)': 'flex' },
+    flexDirection: 'column',
+    gap: '0.125rem',
+    paddingBlock: '0.75rem',
+    paddingInline: '0.75rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: tokens['--xid-border'],
+    flexShrink: 0,
+  },
+  footerLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    paddingBlock: '0.4375rem',
+    paddingInline: '0.625rem',
+    borderRadius: tokens['--xid-radius-sm'],
+    color: {
+      default: tokens['--xid-muted-foreground'],
+      ':hover': tokens['--xid-fg'],
+      ':focus-visible': tokens['--xid-fg'],
+    },
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': tokens['--xid-muted'],
+      ':focus-visible': tokens['--xid-muted'],
+    },
+    textDecoration: 'none',
+    fontSize: '0.8125rem',
+    fontWeight: 450,
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
+    transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
+    outlineOffset: '2px',
+    outlineColor: tokens['--xid-primary'],
+  },
+  footerLinkExternal: {
+    display: 'inline-flex',
+    marginInlineStart: 'auto',
+  },
+  footerLanguage: {
+    paddingBlock: '0.4375rem',
+    paddingInline: '0.625rem',
+  },
+  footerUser: {
+    marginBlockStart: '0.375rem',
+    paddingInline: '0.625rem',
+  },
+  mobileNavigation: {
+    display: { default: 'block', '@media (min-width: 48rem)': 'none' },
+    gridColumn: '1',
+    gridRow: '2',
+    paddingBlock: '0.625rem',
+    paddingInline: GUTTER,
+    backgroundColor: tokens['--xid-sidebar'],
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  mobileNavTrigger: {
+    gap: '0.625rem',
+    minHeight: '2.75rem',
+    paddingBlock: '0.5rem',
+    paddingInline: '0.75rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
+    borderRadius: tokens['--xid-radius'],
+    backgroundColor: tokens['--xid-surface'],
+  },
+  mobileNavLabel: {
+    flexGrow: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: tokens['--xid-fg'],
+    fontSize: '0.875rem',
+    fontWeight: 550,
+  },
   content: {
     gridColumn: { default: '1', '@media (min-width: 48rem)': '2' },
-    gridRow: { default: '3', '@media (min-width: 48rem)': '2' },
+    gridRow: { default: '3', '@media (min-width: 48rem)': '1 / -1' },
     backgroundColor: tokens['--xid-bg'],
     minWidth: 0,
   },
@@ -349,6 +451,12 @@ function navItemTo(item: ConsoleNavItem, search: string): string {
   return match ? `${item.to}?orgId=${match[1]}` : item.to
 }
 
+// 首字母方块/圆头像的字母取自原始 name/slug/email,不取 displayName(可能是 Trans 节点)。
+function firstLetter(value: string | null | undefined): string {
+  const letter = value?.trim().charAt(0)
+  return letter ? letter.toUpperCase() : '?'
+}
+
 // 相邻相同 groupKey 合并为段;无 key 的项各自独段(ReactNode 无法用 === 比分组)。
 type NavSegment = { key: string | null; label: ReactNode; items: readonly ConsoleNavItem[] }
 
@@ -369,23 +477,15 @@ function segmentNavItems(items: readonly ConsoleNavItem[]): readonly NavSegment[
   return segments
 }
 
-// layoutId 跨路由重挂载仍接续动画;rail/tab 分两组,reduced-motion 由 motion 瞬时处理。
+// layoutId 跨路由重挂载仍接续动画,reduced-motion 由 motion 瞬时处理。
 function ActiveNavIndicator(): ReactNode {
   return (
-    <>
-      <motion.span
-        aria-hidden="true"
-        layoutId="console-nav-rail"
-        transition={springDefault}
-        {...stylex.props(styles.navIndicatorRail)}
-      />
-      <motion.span
-        aria-hidden="true"
-        layoutId="console-nav-tab"
-        transition={springDefault}
-        {...stylex.props(styles.navIndicatorTab)}
-      />
-    </>
+    <motion.span
+      aria-hidden="true"
+      layoutId="console-nav-rail"
+      transition={springDefault}
+      {...stylex.props(styles.navIndicatorRail)}
+    />
   )
 }
 
@@ -395,10 +495,15 @@ function ConsoleNavLi({ item, search }: { item: ConsoleNavItem; search: string }
   const href = navItemTo(item, search)
   return (
     <li {...stylex.props(styles.navItem)}>
+      {active ? <ActiveNavIndicator /> : null}
       <Link to={href} className={active ? navLinkActive : navLinkBase}>
+        {item.icon ? (
+          <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+            <Icon name={item.icon} size={16} />
+          </span>
+        ) : null}
         {item.label}
       </Link>
-      {active ? <ActiveNavIndicator /> : null}
     </li>
   )
 }
@@ -419,7 +524,12 @@ function ConsoleNav({
         <>
           <ul {...stylex.props(styles.navList)}>
             <ConsoleNavLi
-              item={{ to: '/console', label: <Trans>Back to console</Trans>, end: true }}
+              item={{
+                to: '/console',
+                label: <Trans>Back to console</Trans>,
+                icon: 'arrow-left',
+                end: true,
+              }}
               search={location.search}
             />
           </ul>
@@ -449,12 +559,85 @@ function ConsoleNav({
           </p>
           <ul {...stylex.props(styles.navList)}>
             <ConsoleNavLi
-              item={{ to: '/console/platform', label: <Trans>Platform management</Trans> }}
+              item={{
+                to: '/console/platform',
+                label: <Trans>Platform management</Trans>,
+                icon: 'shield-check',
+              }}
               search={location.search}
             />
           </ul>
         </div>
       ) : null}
+    </nav>
+  )
+}
+
+function MobileConsoleNavigation({
+  navItems,
+  isInstanceManager,
+}: {
+  navItems: readonly ConsoleNavItem[]
+  isInstanceManager: boolean
+}): ReactNode {
+  const { t } = useLingui()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isPlatformNav = navItems.some((item) => item.to === '/console/platform' && item.end)
+  const contextualItems: readonly ConsoleNavItem[] = [
+    ...(isPlatformNav
+      ? [
+          {
+            to: '/console',
+            label: <Trans>Back to console</Trans>,
+            icon: 'arrow-left' as const,
+            end: true,
+          },
+        ]
+      : []),
+    ...navItems,
+    ...(isInstanceManager && !isPlatformNav
+      ? [
+          {
+            to: '/console/platform',
+            label: <Trans>Platform management</Trans>,
+            icon: 'shield-check' as const,
+          },
+        ]
+      : []),
+  ]
+  const currentItem =
+    contextualItems.find((item) => navItemActive(location.pathname, item)) ?? contextualItems[0]
+
+  if (!currentItem) return null
+
+  return (
+    <nav aria-label={t`Primary navigation`} {...stylex.props(styles.mobileNavigation)}>
+      <Dropdown
+        ariaLabel={t`Primary navigation`}
+        fullWidth
+        triggerStyle={styles.mobileNavTrigger}
+        trigger={({ open }) => (
+          <>
+            {currentItem.icon ? (
+              <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+                <Icon name={currentItem.icon} size={17} />
+              </span>
+            ) : null}
+            <span {...stylex.props(styles.mobileNavLabel)}>{currentItem.label}</span>
+            <span aria-hidden="true" {...stylex.props(styles.caret, open && styles.caretOpen)}>
+              <Icon name="caret-down" size={14} />
+            </span>
+          </>
+        )}
+        items={contextualItems.map((item) => ({
+          key: item.to,
+          label: item.label,
+          icon: item.icon,
+          checked: navItemActive(location.pathname, item),
+          onSelect: () => navigate(navItemTo(item, location.search)),
+        }))}
+      />
     </nav>
   )
 }
@@ -467,6 +650,105 @@ function BrandMark({ appName }: { appName: string }): ReactNode {
       </span>
       <span>{appName}</span>
     </>
+  )
+}
+
+// org 切换器在移动端顶栏与桌面 rail 顶部各渲染一份(display 互斥);fullWidth 对应 rail 整行触发器。
+function OrganizationMenu({
+  manageableOrganizations,
+  activeOrg,
+  disabled,
+  onSwitch,
+  fullWidth = false,
+}: {
+  manageableOrganizations: readonly AuthOrg[]
+  activeOrg: AuthOrg | null
+  disabled: boolean
+  onSwitch: (organizationId: string) => void
+  fullWidth?: boolean
+}): ReactNode {
+  const { t } = useLingui()
+  if (manageableOrganizations.length === 0) {
+    return (
+      <span {...stylex.props(styles.orgEmpty)}>
+        <Trans>No organization selected</Trans>
+      </span>
+    )
+  }
+  return (
+    <Dropdown
+      ariaLabel={t`Switch organization`}
+      align="start"
+      fullWidth={fullWidth}
+      triggerStyle={fullWidth ? styles.orgTriggerRail : styles.orgTrigger}
+      disabled={disabled}
+      trigger={
+        <>
+          <span aria-hidden="true" {...stylex.props(styles.orgAvatar)}>
+            {activeOrg ? (
+              firstLetter(activeOrg.name ?? activeOrg.slug)
+            ) : (
+              <Icon name="building" size={14} />
+            )}
+          </span>
+          <span {...stylex.props(styles.orgName)}>
+            {activeOrg ? organizationDisplayName(activeOrg) : <Trans>Select organization</Trans>}
+          </span>
+          <span aria-hidden="true" {...stylex.props(styles.caret, fullWidth && styles.caretEnd)}>
+            <Icon name="caret-down" size={14} />
+          </span>
+        </>
+      }
+      items={manageableOrganizations.map((organization) => ({
+        key: organization.id,
+        label: organizationDisplayName(organization),
+        checked: organization.id === activeOrg?.id,
+        onSelect: () => onSwitch(organization.id),
+      }))}
+    />
+  )
+}
+
+// 用户菜单在移动端顶栏(向下)与桌面 rail 底部(向上)各渲染一份;触发器只放头像,邮箱收进菜单头部。
+function UserMenu({
+  user,
+  onSignOut,
+  side = 'bottom',
+  align = 'end',
+}: {
+  user: AuthUser
+  onSignOut: () => void
+  side?: 'bottom' | 'top'
+  align?: 'start' | 'end'
+}): ReactNode {
+  const { t } = useLingui()
+  return (
+    <Dropdown
+      ariaLabel={t`Account menu`}
+      align={align}
+      side={side}
+      header={user.email}
+      triggerStyle={styles.userTrigger}
+      trigger={
+        <span aria-hidden="true" {...stylex.props(styles.userAvatar)}>
+          {firstLetter(user.name ?? user.email)}
+        </span>
+      }
+      items={[
+        {
+          key: 'account',
+          label: <Trans>Account settings</Trans>,
+          icon: 'user-circle',
+          href: '/account',
+        },
+        {
+          key: 'sign-out',
+          label: <Trans>Sign out</Trans>,
+          icon: 'sign-out',
+          onSelect: () => void onSignOut(),
+        },
+      ]}
+    />
   )
 }
 
@@ -500,6 +782,10 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   const manageableOrganizations = organizations.filter((organization) =>
     isOrgManagerRole(organization.role),
   )
+  const organizationSwitchDisabled =
+    status !== 'authenticated' ||
+    switchingOrganizationId !== null ||
+    session?.isImpersonation === true
 
   async function switchOrganization(organizationId: string): Promise<void> {
     if (!organizationId || organizationId === activeOrg?.id) return
@@ -533,34 +819,12 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
           <span {...stylex.props(styles.brandNarrow)}>
             <BrandMark appName={appName} />
           </span>
-          {manageableOrganizations.length === 0 ? (
-            <span {...stylex.props(styles.orgEmpty)}>
-              <Trans>No organization selected</Trans>
-            </span>
-          ) : (
-            <select
-              aria-label={t`Switch organization`}
-              disabled={
-                status !== 'authenticated' ||
-                switchingOrganizationId !== null ||
-                session?.isImpersonation === true
-              }
-              onChange={(event) => void switchOrganization(event.currentTarget.value)}
-              value={activeOrg?.id ?? ''}
-              {...stylex.props(styles.orgSwitcher)}
-            >
-              {activeOrg ? null : (
-                <option disabled value="">
-                  <Trans>Select organization</Trans>
-                </option>
-              )}
-              {manageableOrganizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organizationDisplayName(organization)}
-                </option>
-              ))}
-            </select>
-          )}
+          <OrganizationMenu
+            manageableOrganizations={manageableOrganizations}
+            activeOrg={activeOrg}
+            disabled={organizationSwitchDisabled}
+            onSwitch={(organizationId) => void switchOrganization(organizationId)}
+          />
         </div>
 
         <div {...stylex.props(styles.userArea)}>
@@ -568,29 +832,67 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
           {status === 'loading' ? (
             <Spinner size={16} />
           ) : user ? (
-            <>
-              <span {...stylex.props(styles.email)}>{user.email}</span>
-              <a href="/account" {...stylex.props(page.textLink)}>
-                <Trans>Account settings</Trans>
-              </a>
-              <Button variant="ghost" onClick={() => void signOut()} aria-label={t`Sign out`}>
-                <Trans>Sign out</Trans>
-              </Button>
-            </>
+            <UserMenu user={user} onSignOut={() => void signOut()} />
           ) : null}
         </div>
       </header>
 
+      <MobileConsoleNavigation
+        navItems={visibleNavItems}
+        isInstanceManager={user?.instanceManager === true}
+      />
+
       <aside aria-label={t`Primary navigation`} {...stylex.props(styles.aside)}>
         <div {...stylex.props(styles.railPin)}>
-          <span {...stylex.props(styles.brandRail)}>
-            <BrandMark appName={appName} />
-          </span>
+          <div {...stylex.props(styles.sidebarHead)}>
+            <span {...stylex.props(styles.brandRow)}>
+              <BrandMark appName={appName} />
+            </span>
+            <OrganizationMenu
+              manageableOrganizations={manageableOrganizations}
+              activeOrg={activeOrg}
+              disabled={organizationSwitchDisabled}
+              onSwitch={(organizationId) => void switchOrganization(organizationId)}
+              fullWidth
+            />
+          </div>
           <div {...stylex.props(styles.navRegion)}>
             <ConsoleNav
               navItems={visibleNavItems}
               isInstanceManager={user?.instanceManager === true}
             />
+          </div>
+          <div {...stylex.props(styles.railFooter)}>
+            <a
+              href="https://xid.dev/docs"
+              target="_blank"
+              rel="noreferrer"
+              {...stylex.props(styles.footerLink)}
+            >
+              <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+                <Icon name="book" size={16} />
+              </span>
+              <Trans>Documentation</Trans>
+              <span aria-hidden="true" {...stylex.props(styles.footerLinkExternal)}>
+                <Icon name="arrow-up-right" size={12} />
+              </span>
+            </a>
+            <a href="/account" {...stylex.props(styles.footerLink)}>
+              <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+                <Icon name="user-circle" size={16} />
+              </span>
+              <Trans>Account</Trans>
+            </a>
+            <div {...stylex.props(styles.footerLanguage)}>
+              <LanguageSwitcher />
+            </div>
+            {status === 'loading' ? (
+              <Spinner size={16} />
+            ) : user ? (
+              <div {...stylex.props(styles.footerUser)}>
+                <UserMenu user={user} onSignOut={() => void signOut()} side="top" align="start" />
+              </div>
+            ) : null}
           </div>
         </div>
       </aside>
