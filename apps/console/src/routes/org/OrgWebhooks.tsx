@@ -153,7 +153,7 @@ export default function OrgWebhooks(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Webhooks</Trans>}>
+      <ConsolePage wide title={<Trans>Webhooks</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -165,6 +165,7 @@ export default function OrgWebhooks(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Webhooks</Trans>}
       lead={<Trans>Deliver signed event notifications to your HTTPS endpoints.</Trans>}
     >

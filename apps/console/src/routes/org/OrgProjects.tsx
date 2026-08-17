@@ -300,7 +300,7 @@ export default function OrgProjects(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Projects and access</Trans>}>
+      <ConsolePage wide title={<Trans>Projects and access</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -322,6 +322,7 @@ export default function OrgProjects(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Projects and access</Trans>}
       lead={
         <Trans>

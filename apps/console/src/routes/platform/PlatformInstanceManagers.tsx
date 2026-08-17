@@ -152,6 +152,7 @@ export default function PlatformInstanceManagers(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Instance managers</Trans>}
       lead={
         <Trans>

@@ -31,6 +31,15 @@ vi.mock('@xid-kit/web-ui/session', () => ({
   useAuth: () => ({ activeOrg: authState.activeOrg, api: { get: apiGet } }),
 }))
 
+// quick actions/context bar 移出 data 分支后,activeOrg 非空即渲染 Link。
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
+  Link: ({ to, children, ...rest }: { to: string; children: ReactNode; className?: string }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
+}))
+
 vi.mock('@xid-kit/web-ui/queries', () => ({
   useApiQuery: (_key: readonly unknown[], path: string, options?: { enabled?: boolean }) => {
     if (options?.enabled !== false) {

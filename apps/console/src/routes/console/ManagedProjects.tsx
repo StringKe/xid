@@ -155,6 +155,7 @@ export default function ManagedProjects(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Managed projects</Trans>}
       lead={
         <Trans>

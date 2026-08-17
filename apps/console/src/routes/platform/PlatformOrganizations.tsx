@@ -182,6 +182,7 @@ export default function PlatformOrganizations(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Organizations</Trans>}
       lead={<Trans>Every organization on this instance, with plan and lifecycle status.</Trans>}
     >

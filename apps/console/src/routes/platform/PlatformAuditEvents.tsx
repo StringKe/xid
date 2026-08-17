@@ -197,6 +197,7 @@ export default function PlatformAuditEvents(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Global event stream</Trans>}
       lead={
         <Trans>

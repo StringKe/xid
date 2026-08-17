@@ -40,6 +40,21 @@
   --nb-primary-foreground: oklch(0.97 0 0);
   --nb-primary-hover: oklch(0.371 0 0);
 
+  /* Brand accent — 与产品端 --xid-primary 同一紫色,跨端统一锚点 */
+  --nb-brand: oklch(0.43 0.2 278);
+  --nb-brand-foreground: oklch(0.985 0.004 280);
+  --nb-brand-hover: oklch(0.37 0.18 278);
+  --nb-brand-muted: oklch(0.96 0.02 280);
+
+  /* Code/log surfaces — 亮色下也用近黑底(Stripe/Supabase 式代码块) */
+  --nb-code-surface: oklch(0.21 0.02 280);
+  --nb-code-foreground: oklch(0.93 0.01 280);
+
+  /* Radii — 与产品端 --xid-radius-* 对齐 */
+  --nb-radius-sm: 0.375rem;
+  --nb-radius-md: 0.5rem;
+  --nb-radius-lg: 0.75rem;
+
   /* Borders / focus */
   --nb-border: oklch(0.935 0 0);
   --nb-border-strong: oklch(0.87 0 0);
@@ -118,6 +133,14 @@
   --nb-primary-foreground: oklch(0.085 0 0);
   --nb-primary-hover: oklch(0.7 0 0);
 
+  --nb-brand: oklch(0.62 0.14 278);
+  --nb-brand-foreground: oklch(0.16 0.02 280);
+  --nb-brand-hover: oklch(0.68 0.13 278);
+  --nb-brand-muted: oklch(0.22 0.04 280);
+
+  --nb-code-surface: oklch(0.14 0.015 280);
+  --nb-code-foreground: oklch(0.93 0.01 280);
+
   --nb-border: oklch(0.269 0 0);
   --nb-border-strong: oklch(0.371 0 0);
   --nb-selected: oklch(0.371 0 0);
@@ -164,6 +187,14 @@
   --color-primary: var(--nb-primary);
   --color-primary-foreground: var(--nb-primary-foreground);
   --color-primary-hover: var(--nb-primary-hover);
+
+  --color-brand: var(--nb-brand);
+  --color-brand-foreground: var(--nb-brand-foreground);
+  --color-brand-hover: var(--nb-brand-hover);
+  --color-brand-muted: var(--nb-brand-muted);
+
+  --color-code-surface: var(--nb-code-surface);
+  --color-code-foreground: var(--nb-code-foreground);
 
   --color-border: var(--nb-border);
   --color-border-strong: var(--nb-border-strong);

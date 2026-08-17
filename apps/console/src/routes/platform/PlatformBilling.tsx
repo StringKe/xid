@@ -98,6 +98,7 @@ export default function PlatformBilling(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Billing overview</Trans>}
       lead={<Trans>Usage, seats, and billing status for every organization.</Trans>}
     >

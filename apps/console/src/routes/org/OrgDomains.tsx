@@ -127,7 +127,7 @@ export default function OrgDomains(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Domains</Trans>}>
+      <ConsolePage wide title={<Trans>Domains</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -139,6 +139,7 @@ export default function OrgDomains(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Domains</Trans>}
       lead={
         <Trans>

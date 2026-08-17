@@ -246,6 +246,7 @@ export default function OrgScimTargets(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>SCIM targets</Trans>}
       lead={<Trans>Push organization users and groups to downstream SaaS SCIM APIs.</Trans>}
     >

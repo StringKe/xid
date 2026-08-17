@@ -489,6 +489,10 @@ msgstr "Accessor wrapping discriminated union on isLoaded / isSignedIn / user"
 msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
 msgstr "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Account"
+msgstr "Account"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion"
 msgstr "Account deletion"
@@ -496,6 +500,10 @@ msgstr "Account deletion"
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion is scheduled in 30 days."
 msgstr "Account deletion is scheduled in 30 days."
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Account menu"
+msgstr "Account menu"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Account security and profile management"
@@ -874,6 +882,10 @@ msgstr "An Instance contains top-level Organizations. An Organization can contai
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "An internal error occurred. Please try again."
+
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
+msgstr "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
@@ -2063,6 +2075,10 @@ msgstr "Context key used to store auth result ('xidAuth')"
 msgid "sdk.continue"
 msgstr "Continue"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Continue"
+msgstr "Continue"
+
 #: apps/server/src/routes/sign-in/SignInGuestButton.tsx
 msgid "Continue as guest"
 msgstr "Continue as guest"
@@ -2227,6 +2243,7 @@ msgid "Create announcement"
 msgstr "Create announcement"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create API key"
 msgstr "Create API key"
 
@@ -2235,6 +2252,7 @@ msgid "Create app"
 msgstr "Create app"
 
 #: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create application"
 msgstr "Create application"
 
@@ -2974,6 +2992,7 @@ msgstr "Displayed when"
 msgid "Document type"
 msgstr "Document type"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Documentation"
 msgstr "Documentation"
@@ -4173,6 +4192,22 @@ msgid "Generic OIDC baseline is available locally. SaaS-specific app templates a
 msgstr "Generic OIDC baseline is available locally. SaaS-specific app templates and real SaaS L4 are still required before production support claims."
 
 #: apps/site/src/lib/home-surface.ts
+msgid "GET /.well-known/openid-configuration"
+msgstr "GET /.well-known/openid-configuration"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /authorize"
+msgstr "GET /authorize"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /jwks"
+msgstr "GET /jwks"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /userinfo"
+msgstr "GET /userinfo"
+
+#: apps/site/src/lib/home-surface.ts
 msgid "Get started"
 msgstr "Get started"
 
@@ -4528,6 +4563,10 @@ msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 msgid "https://xid.dev/auth/google/callback"
 msgstr "https://xid.dev/auth/google/callback"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "https://xid.dev/sign-in"
+msgstr "https://xid.dev/sign-in"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "IANA timezone, e.g. Asia/Shanghai."
 msgstr "IANA timezone, e.g. Asia/Shanghai."
@@ -4842,6 +4881,7 @@ msgid "Invitation unavailable"
 msgstr "Invitation unavailable"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Invite member"
 msgstr "Invite member"
 
@@ -5443,6 +5483,7 @@ msgstr "macOS 13+"
 
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Magic link"
 msgstr "Magic link"
 
@@ -5877,6 +5918,10 @@ msgstr "New provider key"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "New sessions store access and ID tokens in platform secure storage. The refreshToken compatibility field remains null, and offline_access is rejected until DPoP is implemented."
 msgstr "New sessions store access and ID tokens in platform secure storage. The refreshToken compatibility field remains null, and offline_access is rejected until DPoP is implemented."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "New to XID? Create an account"
+msgstr "New to XID? Create an account"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Next"
@@ -6355,6 +6400,10 @@ msgstr "ON"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "On this page"
+
+#: apps/server/src/components/layout/AuthLayout.tsx
+msgid "One {appName} account. Every application."
+msgstr "One {appName} account. Every application."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "One control plane from sign-in to enterprise access"
@@ -6836,6 +6885,7 @@ msgstr "Pass <0>appearance</0> to prebuilt UI components such as <1>SignIn</1>, 
 #: apps/server/src/routes/account/MfaSection.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
+#: apps/site/src/lib/home-surface.ts
 msgid "Passkey"
 msgstr "Passkey"
 
@@ -7182,6 +7232,10 @@ msgstr "Please wait before polling again."
 msgid "Plugin setup"
 msgstr "Plugin setup"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "POST /token"
+msgstr "POST /token"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "Preferences"
@@ -7421,6 +7475,10 @@ msgstr "Protocol"
 msgid "Protocol requirements"
 msgstr "Protocol requirements"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Protocol traffic"
+msgstr "Protocol traffic"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "Protocols"
@@ -7636,6 +7694,10 @@ msgstr "Python"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
 msgstr "Query"
+
+#: apps/console/src/routes/org/OrgOverview.tsx
+msgid "Quick actions"
+msgstr "Quick actions"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Quick start"
@@ -9246,6 +9308,7 @@ msgstr "Sign in"
 #: apps/server/src/routes/not-found/NotFoundPage.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign in"
 msgstr "Sign in"
@@ -11604,10 +11667,6 @@ msgstr "You cannot grant instance access to yourself."
 msgid "You do not belong to any organizations yet."
 msgstr "You do not belong to any organizations yet."
 
-#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
-msgid "You do not have access to an organization yet. Create one to start managing authentication, users, and applications."
-msgstr "You do not have access to an organization yet. Create one to start managing authentication, users, and applications."
-
 #: packages/i18n/src/messages.ts
 msgid "You do not have permission to perform this action."
 msgstr "You do not have permission to perform this action."
@@ -11619,6 +11678,7 @@ msgstr "You must set up multi-factor authentication before continuing."
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
 

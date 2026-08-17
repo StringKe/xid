@@ -195,6 +195,11 @@ export const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     textWrap: 'pretty',
   },
+  // 登录/注册切换入口收在卡片底部居中,不抢标题下的首屏位置。
+  intentSwitch: {
+    marginTop: '0.25rem',
+    textAlign: 'center',
+  },
   footerLink: {
     color: tokens['--xid-primary'],
     textDecorationLine: 'underline',

@@ -172,7 +172,7 @@ export default function OrgApplications(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>OAuth applications</Trans>}>
+      <ConsolePage wide title={<Trans>OAuth applications</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -184,6 +184,7 @@ export default function OrgApplications(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>OAuth applications</Trans>}
       lead={<Trans>Register OAuth 2.0 clients and manage their credentials.</Trans>}
     >

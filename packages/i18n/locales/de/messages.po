@@ -489,6 +489,10 @@ msgstr "Accessor, der eine Discriminated Union über isLoaded / isSignedIn / use
 msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>, <3>cancelled</3>, or <4>expired</4>. Every outcome is terminal, and pending requests expire lazily after 14 days."
 msgstr "AccessRequest wechselt von <0>ausstehend</0> zu <1>genehmigt</1>, <2>verweigert</2>, <3>abgebrochen</3> oder <4>abgelaufen</4>. Jedes Ergebnis ist tödlich und ausstehende Anfragen verfallen nach 14 Tagen."
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Account"
+msgstr "Konto"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion"
 msgstr "Kontolöschung"
@@ -496,6 +500,10 @@ msgstr "Kontolöschung"
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Account deletion is scheduled in 30 days."
 msgstr "Die Löschung des Kontos ist in 30 Tagen geplant."
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Account menu"
+msgstr "Kontomenü"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Account security and profile management"
@@ -874,6 +882,10 @@ msgstr "Eine Instanz enthält Organisationen der obersten Ebene. Eine Organisati
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "Ein interner Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
+
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
+msgstr "In einer Organisation registrieren Sie OAuth-Anwendungen, laden Mitglieder ein und aktivieren Enterprise-SSO oder Verzeichnissynchronisierung. Erstellen Sie eine, um Ihren ersten Issuer und verwaltete Anmeldeseiten zu erhalten."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An OrgUnit is a department or team inside one Organization. It never changes TenantContext, issuer, token claims, or the one-level SubOrg limit."
@@ -2063,6 +2075,10 @@ msgstr "Kontextschlüssel zum Speichern des Auth-Ergebnisses ('xidAuth')"
 msgid "sdk.continue"
 msgstr "Fortfahren"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Continue"
+msgstr "Weiter"
+
 #: apps/server/src/routes/sign-in/SignInGuestButton.tsx
 msgid "Continue as guest"
 msgstr "Als Gast fortfahren"
@@ -2227,6 +2243,7 @@ msgid "Create announcement"
 msgstr "Ankündigung erstellen"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create API key"
 msgstr "API-Schlüssel erstellen"
 
@@ -2235,6 +2252,7 @@ msgid "Create app"
 msgstr "App erstellen"
 
 #: apps/console/src/routes/org/OrgApplications.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Create application"
 msgstr "Anwendung erstellen"
 
@@ -2974,6 +2992,7 @@ msgstr "Angezeigt wenn"
 msgid "Document type"
 msgstr "Dokumenttyp"
 
+#: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Documentation"
 msgstr "Dokumentation"
@@ -4173,6 +4192,22 @@ msgid "Generic OIDC baseline is available locally. SaaS-specific app templates a
 msgstr "Eine generische OIDC-Basis ist lokal verfügbar. SaaS-spezifische Anwendungsvorlagen und ein echter SaaS-L4 sind weiterhin erforderlich, bevor Produktionsunterstützung zugesichert werden kann."
 
 #: apps/site/src/lib/home-surface.ts
+msgid "GET /.well-known/openid-configuration"
+msgstr "GET /.well-known/openid-configuration"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /authorize"
+msgstr "GET /authorize"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /jwks"
+msgstr "GET /jwks"
+
+#: apps/site/src/lib/home-surface.ts
+msgid "GET /userinfo"
+msgstr "GET /userinfo"
+
+#: apps/site/src/lib/home-surface.ts
 msgid "Get started"
 msgstr "Fangen Sie an"
 
@@ -4528,6 +4563,10 @@ msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 msgid "https://xid.dev/auth/google/callback"
 msgstr "https://xid.dev/auth/google/callback"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "https://xid.dev/sign-in"
+msgstr "https://xid.dev/sign-in"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "IANA timezone, e.g. Asia/Shanghai."
 msgstr "IANA-Zeitzone, z. B. Asia/Shanghai."
@@ -4842,6 +4881,7 @@ msgid "Invitation unavailable"
 msgstr "Einladung nicht verfügbar"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
+#: apps/console/src/routes/org/OrgOverview.tsx
 msgid "Invite member"
 msgstr "Mitglied einladen"
 
@@ -5443,6 +5483,7 @@ msgstr "macOS 13+"
 
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 msgid "Magic link"
 msgstr "Magischer Link"
 
@@ -5877,6 +5918,10 @@ msgstr "Neuer Anbieterschlüssel"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "New sessions store access and ID tokens in platform secure storage. The refreshToken compatibility field remains null, and offline_access is rejected until DPoP is implemented."
 msgstr "Neue Sitzungen speichern Zugriffs- und ID-Tokens im sicheren Plattformspeicher. Das Kompatibilitätsfeld refreshToken bleibt null und offline_access wird abgelehnt, bis DPoP implementiert ist."
+
+#: apps/site/src/lib/home-surface.ts
+msgid "New to XID? Create an account"
+msgstr "Neu bei XID? Konto erstellen"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Next"
@@ -6355,6 +6400,10 @@ msgstr "Ein"
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "Auf dieser Seite"
+
+#: apps/server/src/components/layout/AuthLayout.tsx
+msgid "One {appName} account. Every application."
+msgstr "Ein {appName}-Konto. Jede Anwendung."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "One control plane from sign-in to enterprise access"
@@ -6836,6 +6885,7 @@ msgstr "Übergeben Sie <0>appearance</0> an vorgefertigte UI-Komponenten wie <1>
 #: apps/server/src/routes/account/MfaSection.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
+#: apps/site/src/lib/home-surface.ts
 msgid "Passkey"
 msgstr "Passkey"
 
@@ -7182,6 +7232,10 @@ msgstr "Bitte warten Sie, bevor Sie erneut abfragen."
 msgid "Plugin setup"
 msgstr "Plugin-Einrichtung"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "POST /token"
+msgstr "POST /token"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
 msgstr "Einstellungen"
@@ -7421,6 +7475,10 @@ msgstr "Protokoll"
 msgid "Protocol requirements"
 msgstr "Protokollanforderungen"
 
+#: apps/site/src/lib/home-surface.ts
+msgid "Protocol traffic"
+msgstr "Protokollverkehr"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protocols"
 msgstr "Protokolle"
@@ -7636,6 +7694,10 @@ msgstr "Python"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
 msgstr "Abfrage"
+
+#: apps/console/src/routes/org/OrgOverview.tsx
+msgid "Quick actions"
+msgstr "Schnellaktionen"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Quick start"
@@ -9246,6 +9308,7 @@ msgstr "Anmelden"
 #: apps/server/src/routes/not-found/NotFoundPage.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
+#: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign in"
 msgstr "Anmelden"
@@ -11604,10 +11667,6 @@ msgstr "Sie können sich selbst keinen Instanzzugriff gewähren."
 msgid "You do not belong to any organizations yet."
 msgstr "Sie gehören noch keiner Organisation an."
 
-#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
-msgid "You do not have access to an organization yet. Create one to start managing authentication, users, and applications."
-msgstr "Sie haben noch keinen Zugriff auf eine Organisation. Erstellen Sie eine, um Authentifizierung, Benutzer und Anwendungen zu verwalten."
-
 #: packages/i18n/src/messages.ts
 msgid "You do not have permission to perform this action."
 msgstr "Sie haben keine Berechtigung, diese Aktion auszuführen."
@@ -11619,6 +11678,7 @@ msgstr "Sie müssen Mehrfaktor-Authentifizierung einrichten, bevor Sie fortfahre
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
 

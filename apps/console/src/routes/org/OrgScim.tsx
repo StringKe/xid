@@ -140,7 +140,7 @@ export default function OrgScim(): ReactNode {
 
   if (!orgId) {
     return (
-      <ConsolePage title={<Trans>Directory sync (SCIM)</Trans>}>
+      <ConsolePage wide title={<Trans>Directory sync (SCIM)</Trans>}>
         <ConsolePageNotice>
           <Alert tone="info">
             <Trans>No organization selected.</Trans>
@@ -154,6 +154,7 @@ export default function OrgScim(): ReactNode {
 
   return (
     <ConsolePage
+      wide
       title={<Trans>Directory sync (SCIM)</Trans>}
       lead={
         <Trans>

@@ -326,24 +326,6 @@ function SignInPage(): ReactNode {
           title={isSignUpFlow ? <Trans>Create your account</Trans> : <Trans>Sign in</Trans>}
         />
 
-        <p {...stylex.props(styles.footerText)}>
-          {isSignUpFlow ? (
-            <Link
-              to={{ pathname: '/sign-in', search: buildIntentSwitchSearch(search, 'sign-in') }}
-              {...stylex.props(styles.textLink)}
-            >
-              <Trans>Already have an account? Sign in</Trans>
-            </Link>
-          ) : (
-            <Link
-              to={{ pathname: '/sign-in', search: buildIntentSwitchSearch(search, 'sign-up') }}
-              {...stylex.props(styles.textLink)}
-            >
-              <Trans>New here? Create an account</Trans>
-            </Link>
-          )}
-        </p>
-
         {errorMessage ? (
           <Alert tone="error">{errorMessage}</Alert>
         ) : successMessage ? (
@@ -623,6 +605,24 @@ function SignInPage(): ReactNode {
         ) : state.guestEntryPending ? (
           <div aria-hidden="true" {...stylex.props(styles.guestEntryPlaceholder)} />
         ) : null}
+
+        <p {...stylex.props(styles.footerText, styles.intentSwitch)}>
+          {isSignUpFlow ? (
+            <Link
+              to={{ pathname: '/sign-in', search: buildIntentSwitchSearch(search, 'sign-in') }}
+              {...stylex.props(styles.textLink)}
+            >
+              <Trans>Already have an account? Sign in</Trans>
+            </Link>
+          ) : (
+            <Link
+              to={{ pathname: '/sign-in', search: buildIntentSwitchSearch(search, 'sign-up') }}
+              {...stylex.props(styles.textLink)}
+            >
+              <Trans>New here? Create an account</Trans>
+            </Link>
+          )}
+        </p>
       </div>
     </AuthLayout>
   )
