@@ -813,7 +813,10 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   }
 
   return (
-    <div {...stylex.props(styles.shell)}>
+    <div
+      data-smoke-authenticated-console={status === 'authenticated' ? 'true' : undefined}
+      {...stylex.props(styles.shell)}
+    >
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headerContext)}>
           <span {...stylex.props(styles.brandNarrow)}>

@@ -562,7 +562,7 @@ async function assertAuthenticatedConsole(page, options) {
   const { origin, browserHost, email, name } = options
   await page.navigate(`${origin}/console/platform`)
   await page.waitFor(
-    () => document.body.innerText.includes('admin@xid-smoke.test'),
+    () => document.querySelector('[data-smoke-authenticated-console]') !== null,
     `${name} authenticated Console`,
   )
   if (page.documentOwner('/console/platform', browserHost) !== 'console') {
@@ -607,7 +607,7 @@ async function switchLocales(page, origin) {
     await page.waitFor(
       () =>
         document.documentElement.lang === window.__xidExpectedLocale &&
-        document.body.innerText.includes('admin@xid-smoke.test'),
+        document.querySelector('[data-smoke-authenticated-console]') !== null,
       `Console locale ${locale}`,
     )
   }
@@ -704,7 +704,7 @@ export async function runThreeWorkerBrowserSmoke(options) {
 
     await page.navigate(`${apexOrigin}/console/platform`)
     await page.waitFor(
-      () => document.body.innerText.includes('admin@xid-smoke.test'),
+      () => document.querySelector('[data-smoke-authenticated-console]') !== null,
       'apex session after tenant logout',
     )
     const apexMe = await readMe(page)

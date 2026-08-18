@@ -212,6 +212,7 @@ describe('ConsoleLayout', () => {
 
     expect(html).toContain('Social providers')
     expect(html).toContain('Default organization')
+    expect(html).toContain('data-smoke-authenticated-console="true"')
     expect(html).toContain('data-active-announcements="true"')
     expect(html).toContain('href="https://xid.dev/docs"')
     expect(html).toContain('Documentation')
