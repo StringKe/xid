@@ -315,7 +315,7 @@ async function assertNimbusProductLanding(page, origin) {
         document.documentElement.lang === globalThis.__xidExpectedSiteLocale &&
         document.querySelector('[data-pagefind-body]') !== null &&
         document.querySelector('#home-title') !== null &&
-        document.querySelector('.architecture-panel') !== null &&
+        document.querySelector('[data-smoke-architecture]') !== null &&
         document.querySelector('.capability-list') !== null &&
         document.querySelector('#desktop-sidebar') === null &&
         document.querySelector('astro-island[component-url*="SiteApp."]') === null &&

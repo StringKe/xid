@@ -161,7 +161,7 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
           <h2 id="architecture-title">{surface.architectureTitle}</h2>
           <p>{surface.architectureDescription}</p>
         </header>
-        <dl class="architecture-list">
+        <dl class="architecture-list" data-smoke-architecture>
           {surface.architecture.map((item, index) => (
             <div>
               <dt><span aria-hidden="true">0{index + 1}</span>{item.label}</dt>
