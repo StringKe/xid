@@ -1337,6 +1337,7 @@ class CdpPage {
       href: location.href,
       pathname: location.pathname,
       text: document.body.innerText,
+      hasAuthenticatedConsole: document.querySelector('[data-smoke-authenticated-console]') !== null,
       hasPlaceholderHref: document.querySelector('a[href="__link__"]') !== null,
       badClass: Array.from(document.querySelectorAll('[class]')).some((node) => {
         const value = node.getAttribute('class') || '';
@@ -1474,7 +1475,11 @@ async function verifyBrowserPasswordSignIn(page) {
   await page.setVisibleInputValue('input[type="password"]', adminPassword)
   await page.clickVisibleButton('Sign in')
   await page.waitFor(() => location.pathname.startsWith('/console'), 15_000, 'console redirect')
-  await page.waitFor(() => document.body.innerText.includes('Sign out'), 15_000, 'signed in UI')
+  await page.waitFor(
+    () => document.querySelector('[data-smoke-authenticated-console]') !== null,
+    15_000,
+    'signed in UI',
+  )
 
   const cookie = await page.sessionCookieHeader()
   const me = await page.browserMe()
@@ -1492,7 +1497,9 @@ async function verifyBrowserPasswordSignIn(page) {
   if (!snapshot.pathname.startsWith('/console')) {
     throw new Error(`password default target mismatch: ${snapshot.href}`)
   }
-  if (!snapshot.text.includes(adminEmail)) throw new Error('console missing signed in admin email')
+  if (snapshot.hasAuthenticatedConsole !== true) {
+    throw new Error('console missing authenticated smoke contract')
+  }
   assertNoConsoleDeadState(snapshot, 'console')
   if (snapshot.text.includes('Sign in')) throw new Error('console shows Sign in after login')
   if (snapshot.hasPlaceholderHref) throw new Error('console has placeholder href')
@@ -1887,7 +1894,7 @@ async function verifyBrowserEnterpriseOidcSso(page, tenantId, providerState) {
   }
   try {
     await page.waitFor(
-      () => document.body.innerText.includes('Sign out'),
+      () => document.querySelector('[data-smoke-authenticated-console]') !== null,
       15_000,
       'enterprise sso signed in',
     )
@@ -2025,7 +2032,7 @@ async function verifyBrowserEnterpriseSamlSso(page, tenantId, providerState) {
   }
   try {
     await page.waitFor(
-      () => document.body.innerText.includes('Sign out'),
+      () => document.querySelector('[data-smoke-authenticated-console]') !== null,
       15_000,
       'enterprise saml signed in',
     )

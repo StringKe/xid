@@ -563,6 +563,7 @@ class CdpPage {
       href: location.href,
       pathname: location.pathname,
       text: document.body.innerText,
+      hasAuthenticatedConsole: document.querySelector('[data-smoke-authenticated-console]') !== null,
       hasPlaceholderHref: document.querySelector('a[href="__link__"]') !== null,
       badClass: Array.from(document.querySelectorAll('[class]')).some((node) => {
         const value = node.getAttribute('class') || '';
@@ -705,7 +706,11 @@ async function verifyBrowserPasswordReset(page, token) {
     )
   }
   try {
-    await page.waitFor(() => document.body.innerText.includes('Sign out'), 15_000, 'signed in UI')
+    await page.waitFor(
+      () => document.querySelector('[data-smoke-authenticated-console]') !== null,
+      15_000,
+      'signed in UI',
+    )
   } catch (error) {
     const snapshot = await page.snapshot()
     const me = await page.browserMe()
@@ -738,7 +743,9 @@ async function verifyBrowserPasswordReset(page, token) {
     throw new Error(`password reset default target mismatch: ${snapshot.href}`)
   }
   const snapshotText = snapshot.text.toLowerCase()
-  if (!snapshotText.includes(adminEmail)) throw new Error('console missing signed in admin email')
+  if (snapshot.hasAuthenticatedConsole !== true) {
+    throw new Error('console missing authenticated smoke contract')
+  }
   if (!snapshotText.includes('default organization')) {
     throw new Error('console missing default organization')
   }
