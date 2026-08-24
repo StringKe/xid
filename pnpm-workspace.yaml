@@ -5,7 +5,7 @@ packages:
 # 统一第三方依赖版本,各包用 "catalog:" 引用,避免多版本漂移
 catalog:
   '@astrojs/check': 0.9.10
-  '@astrojs/react': 6.0.2
+  '@astrojs/react': 6.0.4
   '@cloudflare/vite-plugin': ^1.51.1
   '@cloudflare/nimbus-docs': 0.9.0
   '@cloudflare/workers-types': ^5.20260804.1
@@ -25,10 +25,10 @@ catalog:
   '@types/node': ^26.1.2
   '@types/react': ^19.2.18
   '@types/react-dom': ^19.2.4
-  '@vitest/coverage-v8': ^4.1.10
+  '@vitest/coverage-v8': ^4.1.11
   '@xmldom/xmldom': ^0.9.10
   asn1js: 3.0.10
-  astro: 7.2.0
+  astro: 7.2.4
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
   dompurify: ^3.4.13
@@ -43,11 +43,11 @@ catalog:
   solid-js: ^1.9.7
   typescript: ^6.0.3
   valibot: ^1.4.2
-  vite: ^8.1.5
+  vite: ^8.2.2
   vite-plugin-solid: ^2.11.14
   vitest: ^4.1.10
   vue: ^3.5.41
-  wrangler: ^4.120.0
+  wrangler: ^4.125.0
   xmldsigjs: ^2.8.8
 
 overrides:
