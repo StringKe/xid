@@ -1,7 +1,7 @@
 // XID Android SDK -- build.gradle.kts
 // MIT
 plugins {
-    id("com.android.library") version "9.3.1"
+    id("com.android.library") version "9.4.0"
     id("org.jetbrains.kotlin.android") version "2.4.10"
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.10"
     id("maven-publish")
@@ -50,7 +50,7 @@ android {
 dependencies {
     // Android platform core
     implementation("androidx.core:core-ktx:1.19.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.appcompat:appcompat:1.8.0")
 
     // Chrome Custom Tabs -- authorization browser session (PKCE S256 flow)
     implementation("androidx.browser:browser:1.10.0")
@@ -65,7 +65,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // HTTP -- OkHttp (supports certificate pinning)
-    implementation("com.squareup.okhttp3:okhttp:5.4.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.0")
 
     // JSON -- Kotlinx Serialization (KMP-friendly, no reflection)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
@@ -76,7 +76,7 @@ dependencies {
     // Unit tests (JVM, no device required)
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
 
     // Instrumented tests
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
