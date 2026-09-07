@@ -5,10 +5,10 @@ packages:
 # 统一第三方依赖版本,各包用 "catalog:" 引用,避免多版本漂移
 catalog:
   '@astrojs/check': 0.9.10
-  '@astrojs/react': 6.0.2
-  '@cloudflare/vite-plugin': ^1.51.1
+  '@astrojs/react': 6.0.5
+  '@cloudflare/vite-plugin': ^1.54.4
   '@cloudflare/nimbus-docs': 0.9.0
-  '@cloudflare/workers-types': ^5.20260804.1
+  '@cloudflare/workers-types': ^5.20260904.1
   '@lingui/babel-plugin-lingui-macro': ^6.6.0
   '@lingui/cli': ^6.6.0
   '@lingui/core': ^6.6.0
@@ -18,36 +18,36 @@ catalog:
   '@rolldown/plugin-babel': ^0.2.3
   '@stylexjs/stylex': ^0.19.0
   '@stylexjs/unplugin': ^0.19.0
-  '@tanstack/react-query': ^5.101.4
-  '@tanstack/react-router': ^1.170.22
-  '@tanstack/react-table': ^9.0.1
-  '@testing-library/react': ^16.3.0
-  '@types/node': ^26.1.2
+  '@tanstack/react-query': ^5.102.8
+  '@tanstack/react-router': ^1.170.32
+  '@tanstack/react-table': ^9.2.4
+  '@testing-library/react': ^16.3.3
+  '@types/node': ^26.4.1
   '@types/react': ^19.2.18
-  '@types/react-dom': ^19.2.4
+  '@types/react-dom': ^19.2.7
   '@vitest/coverage-v8': ^4.1.10
-  '@xmldom/xmldom': ^0.9.10
+  '@xmldom/xmldom': ^0.9.12
   asn1js: 3.0.10
-  astro: 7.2.0
+  astro: 7.3.1
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
-  dompurify: ^3.4.13
-  es-toolkit: ^1.50.0
-  hono: ^4.12.34
+  dompurify: ^3.4.14
+  es-toolkit: ^1.52.0
+  hono: ^4.13.5
   jsdom: ^30.0.1
-  motion: ^13.0.0
+  motion: ^13.2.0
   pkijs: 3.4.0
   react: ^19.2.8
   react-dom: ^19.2.8
   rxjs: ^7.8.1
-  solid-js: ^1.9.7
+  solid-js: ^1.9.15
   typescript: ^6.0.3
   valibot: ^1.4.2
-  vite: ^8.1.5
+  vite: ^8.2.2
   vite-plugin-solid: ^2.11.14
   vitest: ^4.1.10
-  vue: ^3.5.41
-  wrangler: ^4.120.0
+  vue: ^3.5.42
+  wrangler: ^4.129.0
   xmldsigjs: ^2.8.8
 
 overrides:
@@ -59,16 +59,16 @@ overrides:
   '@sveltejs/kit>cookie': 0.7.2
   '@stylexjs/stylex': ^0.19.0
   '@stylexjs/unplugin': ^0.19.0
-  '@testing-library/react': ^16.3.0
-  '@types/node': ^26.1.2
-  '@xmldom/xmldom': ^0.9.10
+  '@testing-library/react': ^16.3.3
+  '@types/node': ^26.4.1
+  '@xmldom/xmldom': ^0.9.12
   '@hono/node-server': 2.0.10
   '@modelcontextprotocol/sdk': 1.30.0
   astro>js-yaml: 4.3.1
   '@textlint/linter-formatter>js-yaml': 3.15.1
   brace-expansion: 5.0.9
   fast-uri: 3.1.5
-  hono: ^4.12.34
+  hono: ^4.13.5
   jsdom: ^30.0.1
   'minimatch@<10.2.5': 10.2.5
   'next>postcss': 8.5.23
@@ -77,11 +77,11 @@ overrides:
   postcss: 8.5.23
   'rc-config-loader>js-yaml': 4.3.1
   rxjs: ^7.8.1
-  solid-js: ^1.9.7
+  solid-js: ^1.9.15
   turbo-stream: ^3.2.0
   typescript: ^6.0.3
   undici: ^7.28.0
   vite: 8.2.1
-  vue: ^3.5.41
+  vue: ^3.5.42
   'xcode>uuid': 11.1.1
   xmldsigjs: ^2.8.8
