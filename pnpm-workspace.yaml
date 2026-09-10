@@ -28,7 +28,7 @@ catalog:
   '@vitest/coverage-v8': ^4.1.10
   '@xmldom/xmldom': ^0.9.10
   asn1js: 3.0.10
-  astro: 7.2.0
+  astro: 7.2.8
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
   dompurify: ^3.4.13
