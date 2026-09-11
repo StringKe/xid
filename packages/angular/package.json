@@ -49,7 +49,7 @@
     "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
-    "@angular/common": "22.1.0",
+    "@angular/common": "22.1.1",
     "@angular/core": "22.1.0",
     "@angular/router": "22.1.0",
     "rxjs": "catalog:",
