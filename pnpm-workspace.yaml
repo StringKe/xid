@@ -45,7 +45,7 @@ catalog:
   valibot: ^1.4.2
   vite: ^8.1.5
   vite-plugin-solid: ^2.11.14
-  vitest: ^4.1.10
+  vitest: ^4.1.11
   vue: ^3.5.41
   wrangler: ^4.120.0
   xmldsigjs: ^2.8.8
