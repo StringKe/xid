@@ -17,7 +17,7 @@ jobs:
       contents: write
     steps:
       # actions/checkout v6.0.1
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
 
@@ -38,7 +38,7 @@ jobs:
       # orhun/git-cliff-action v4.8.0, running git-cliff v2.13.1
       - name: Generate release notes
         id: git-cliff
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
+        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2
         with:
           version: v2.13.1
           config: cliff.toml
