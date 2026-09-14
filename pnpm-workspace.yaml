@@ -5,12 +5,12 @@ packages:
 # 统一第三方依赖版本,各包用 "catalog:" 引用,避免多版本漂移
 catalog:
   '@astrojs/check': 0.9.10
-  '@astrojs/react': 6.0.2
+  '@astrojs/react': 6.0.5
   '@cloudflare/vite-plugin': ^1.51.1
   '@cloudflare/nimbus-docs': 0.9.0
   '@cloudflare/workers-types': ^5.20260804.1
   '@lingui/babel-plugin-lingui-macro': ^6.6.0
-  '@lingui/cli': ^6.6.0
+  '@lingui/cli': ^6.7.0
   '@lingui/core': ^6.6.0
   '@lingui/react': ^6.6.0
   '@lingui/vite-plugin': ^6.6.0
@@ -43,7 +43,7 @@ catalog:
   solid-js: ^1.9.7
   typescript: ^6.0.3
   valibot: ^1.4.2
-  vite: ^8.1.5
+  vite: ^8.3.0
   vite-plugin-solid: ^2.11.14
   vitest: ^4.1.10
   vue: ^3.5.41

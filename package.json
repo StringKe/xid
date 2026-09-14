@@ -91,7 +91,7 @@
     "smoke:production:mfa-sms": "vitest run tests/production/smoke-production-mfa-sms.test.mjs"
   },
   "devDependencies": {
-    "@lingui/cli": "^6.6.0",
+    "@lingui/cli": "^6.7.0",
     "@lingui/conf": "^6.6.0",
     "@lingui/format-po": "^6.6.0",
     "@vitest/coverage-v8": "catalog:",
