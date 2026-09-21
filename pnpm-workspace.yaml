@@ -5,12 +5,12 @@ packages:
 # 统一第三方依赖版本,各包用 "catalog:" 引用,避免多版本漂移
 catalog:
   '@astrojs/check': 0.9.10
-  '@astrojs/react': 6.0.2
+  '@astrojs/react': 6.0.6
   '@cloudflare/vite-plugin': ^1.51.1
   '@cloudflare/nimbus-docs': 0.9.0
   '@cloudflare/workers-types': ^5.20260804.1
   '@lingui/babel-plugin-lingui-macro': ^6.6.0
-  '@lingui/cli': ^6.6.0
+  '@lingui/cli': ^6.7.0
   '@lingui/core': ^6.6.0
   '@lingui/react': ^6.6.0
   '@lingui/vite-plugin': ^6.6.0
@@ -28,7 +28,7 @@ catalog:
   '@vitest/coverage-v8': ^4.1.10
   '@xmldom/xmldom': ^0.9.10
   asn1js: 3.0.10
-  astro: 7.2.0
+  astro: 7.3.3
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
   dompurify: ^3.4.13
@@ -43,11 +43,11 @@ catalog:
   solid-js: ^1.9.7
   typescript: ^6.0.3
   valibot: ^1.4.2
-  vite: ^8.1.5
+  vite: ^8.3.0
   vite-plugin-solid: ^2.11.14
   vitest: ^4.1.10
   vue: ^3.5.41
-  wrangler: ^4.120.0
+  wrangler: ^4.135.0
   xmldsigjs: ^2.8.8
 
 overrides:
