@@ -31,7 +31,7 @@ catalog:
   astro: 7.2.0
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
-  dompurify: ^3.4.13
+  dompurify: ^3.4.16
   es-toolkit: ^1.50.0
   hono: ^4.12.34
   jsdom: ^30.0.1
