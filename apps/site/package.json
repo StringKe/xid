@@ -32,13 +32,13 @@
     "@xid-kit/i18n": "workspace:*",
     "@xid-kit/types": "workspace:*",
     "astro": "catalog:",
-    "astro-icon": "^1.1.0",
-    "astro-og-canvas": "^0.13.0",
-    "canvaskit-wasm": "^0.41.1",
+    "astro-icon": "^1.2.0",
+    "astro-og-canvas": "^0.13.2",
+    "canvaskit-wasm": "^0.42.0",
     "clsx": "^2.1.1",
     "dompurify": "catalog:",
     "mermaid": "^11.16.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@astrojs/check": "catalog:",
