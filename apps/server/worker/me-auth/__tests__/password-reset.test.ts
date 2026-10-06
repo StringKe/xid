@@ -522,6 +522,50 @@ describe('POST /auth/forgot-password', () => {
     )
   })
 
+  it('root 上持 A 的 session cookie 为只属于 B 的邮箱找回密码 -> B 收到重置链接', async () => {
+    const emailSend = vi.fn()
+    const tenantB = { ...makeTenant('tenant-b', 'https://xid.dev'), issuer: 'https://xid.dev' }
+    vi.mocked(resolveInstanceLogin).mockResolvedValue({
+      ok: true,
+      value: { status: 'resolved', matchedBy: 'email', tenant: tenantB },
+    } as never)
+    vi.mocked(createTenantDb).mockImplementation(
+      (_d1, tenant) =>
+        ({
+          userEmails: {
+            findOne: vi
+              .fn()
+              .mockResolvedValue(tenant.tenantId === 'tenant-b' ? { userId: 'user-b' } : undefined),
+          },
+          passwordResetTokens: {
+            hardDelete: vi.fn().mockResolvedValue(undefined),
+            insert: vi.fn().mockResolvedValue({ id: 't-1' }),
+          },
+        }) as unknown as ReturnType<typeof createTenantDb>,
+    )
+    const app = makeApp(registerSessionAuthRoutes, {
+      tenant: {
+        ...makeTenant('tenant-a', 'https://xid.dev'),
+        resolution: { kind: 'tenant', sessionDerivedRoot: true },
+      } as never,
+    })
+
+    const res = await post(app, makeEnv({ emailSend }), 'https://xid.dev/auth/forgot-password', {
+      email: 'only-b@example.com',
+    })
+
+    expect(res.status).toBe(200)
+    expect(createResetToken).toHaveBeenCalledTimes(1)
+    expect(createResetToken).toHaveBeenCalledWith(
+      'user-b',
+      expect.anything(),
+      expect.objectContaining({ tenantId: 'tenant-b' }),
+    )
+    expect(emailSend).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: expect.objectContaining({ tenantId: 'tenant-b' }) }),
+    )
+  })
+
   it('应用续跑上下文写进重置 token,非法 continue 返回 invalid_request', async () => {
     vi.mocked(createTenantDb).mockReturnValue({
       userEmails: { findOne: vi.fn().mockResolvedValue({ userId: 'user-1' }) },

@@ -28,6 +28,7 @@ type EntryFlow = {
 
 type EntryResolution =
   | { kind: 'tenant'; tenant: TenantVar }
+  | { kind: 'session'; tenant: TenantVar }
   | { kind: 'ambiguous'; matches: readonly InstanceLoginMatch[] }
 
 function isLoginIdentifierArray(
@@ -130,14 +131,32 @@ async function resolveEntry(
     return { kind: 'tenant', tenant: selected.value.tenant }
   }
   // cookie 推出的租户只让位于显式组织选择;identifier 不改选租户,guest 转正等仪式留在当前租户。
-  if (!current.resolution?.unresolvedRoot) return { kind: 'tenant', tenant: current }
+  if (!current.resolution?.unresolvedRoot) return { kind: 'session', tenant: current }
+  return lookupIdentifierTenant(c, identifier, current)
+}
+
+async function lookupIdentifierTenant(
+  c: Context<XidHonoEnv>,
+  identifier: LoginIdentifier | readonly LoginIdentifier[],
+  fallback: TenantVar,
+): Promise<EntryResolution> {
   const result = isLoginIdentifierArray(identifier)
     ? await resolveInstanceLoginCandidates(c.req.raw, c.env, identifier)
     : await resolveInstanceLogin(c.req.raw, c.env, identifier)
-  if (!result.ok) return { kind: 'tenant', tenant: current }
+  if (!result.ok) return { kind: 'tenant', tenant: fallback }
   if (result.value.status === 'ambiguous')
     return { kind: 'ambiguous', matches: result.value.matches }
   return { kind: 'tenant', tenant: result.value.tenant }
+}
+
+async function tenantsById(
+  c: Context<XidHonoEnv>,
+  matches: readonly InstanceLoginMatch[],
+): Promise<readonly TenantVar[]> {
+  const tenants = await Promise.all(
+    matches.map((match) => resolveTenantContextById(c.req.raw, c.env, match.tenantId)),
+  )
+  return tenants.flatMap((tenant) => (tenant.ok ? [tenant.value.tenant] : []))
 }
 
 // identifier 对应多个组织时抛 organization_selection_required,由 Hosted UI 带 login_hint 展示组织选择。
@@ -152,6 +171,24 @@ export async function resolveEntryTenant(
   return resolution.tenant
 }
 
+// 根域 cookie 推出的租户之外,identifier 实际所在的组织也要收到邮件:多组织用户持 A 的 cookie
+// 为 B 的邮箱找回密码时不能只在 A 里查。
+async function sessionRootSendTenants(
+  c: Context<XidHonoEnv>,
+  identifier: LoginIdentifier,
+  current: TenantVar,
+): Promise<readonly TenantVar[]> {
+  const result = await resolveInstanceLogin(c.req.raw, c.env, identifier)
+  const matched = !result.ok
+    ? []
+    : result.value.status === 'ambiguous'
+      ? await tenantsById(c, result.value.matches)
+      : result.value.status === 'resolved'
+        ? [result.value.tenant]
+        : []
+  return [current, ...matched.filter((tenant) => tenant.tenantId !== current.tenantId)]
+}
+
 // 恒 200 的发送端点(找回密码、重发验证)不能要求选组织:返回全部匹配组织,由调用方逐个处理。
 export async function resolveEntryTenants(
   c: Context<XidHonoEnv>,
@@ -161,10 +198,8 @@ export async function resolveEntryTenants(
 ): Promise<readonly TenantVar[]> {
   const resolution = await resolveEntry(c, identifier, tenantId, flow)
   if (resolution.kind === 'tenant') return [resolution.tenant]
-  const tenants = await Promise.all(
-    resolution.matches.map((match) => resolveTenantContextById(c.req.raw, c.env, match.tenantId)),
-  )
-  return tenants.flatMap((tenant) => (tenant.ok ? [tenant.value.tenant] : []))
+  if (resolution.kind === 'session') return sessionRootSendTenants(c, identifier, resolution.tenant)
+  return tenantsById(c, resolution.matches)
 }
 
 export async function withTenant<T>(
