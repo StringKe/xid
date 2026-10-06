@@ -101,14 +101,12 @@ vi.mock('@xid-kit/web-ui/ui/DataTable', () => ({
 
 vi.mock('@xid-kit/web-ui/ui/Pagination', () => ({
   Pagination: ({
-    nextCursor,
-    onLoadMore,
+    query,
   }: {
-    nextCursor: string | null
-    onLoadMore: (cursor: string) => void
+    query: { hasNextPage: boolean; fetchNextPage: () => Promise<unknown> }
   }) =>
-    nextCursor ? (
-      <button type="button" onClick={() => onLoadMore(nextCursor)}>
+    query.hasNextPage ? (
+      <button type="button" onClick={() => void query.fetchNextPage()}>
         Load more
       </button>
     ) : null,
@@ -290,22 +288,26 @@ describe('PlatformUsers impersonation action', () => {
     container.remove()
   })
 
-  it('follows the next cursor for the submitted global user search', async () => {
+  it('loads the next page of the submitted global user search', async () => {
+    const fetchNextPage = vi.fn(() => Promise.resolve())
     mocks.useGlobalUsersQuery.mockReturnValue({
       data: { data: [globalUser], nextCursor: 'user_cursor_2', total: 21 },
       isLoading: false,
       isError: false,
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      fetchNextPage,
     })
     const { container, root } = await renderSearchedUsers()
 
-    expect(mocks.useGlobalUsersQuery).toHaveBeenCalledWith('target', undefined)
+    expect(mocks.useGlobalUsersQuery).toHaveBeenCalledWith('target')
     const loadMore = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Load more',
     )
     if (!loadMore) throw new Error('Load more button was not rendered')
     await act(async () => loadMore.click())
 
-    expect(mocks.useGlobalUsersQuery).toHaveBeenCalledWith('target', 'user_cursor_2')
+    expect(fetchNextPage).toHaveBeenCalledOnce()
 
     await act(async () => root.unmount())
     container.remove()

@@ -1,8 +1,10 @@
 // Result<T> -> useQuery/useMutation:失败 throw XidError;mutation 成功后按 queryKey 前缀 invalidate。
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
+  InfiniteData,
   QueryKey,
+  UseInfiniteQueryResult,
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
@@ -23,52 +25,25 @@ export const queryKeys = {
   mePrivacyRequests: ['me', 'privacy-requests'] as const,
   users: (query?: string) => ['users', { query: query ?? null }] as const,
   user: (userId: string) => ['users', userId] as const,
-  organizations: (cursor?: string) => ['organizations', { cursor: cursor ?? null }] as const,
   organization: (orgId: string) => ['organizations', orgId] as const,
-  orgMembers: (orgId: string, cursor?: string) =>
-    ['organizations', orgId, 'members', { cursor: cursor ?? null }] as const,
-  orgInvitations: (orgId: string, cursor?: string) =>
-    ['organizations', orgId, 'invitations', { cursor: cursor ?? null }] as const,
-  orgRoles: (orgId: string) => ['organizations', orgId, 'roles'] as const,
-  orgProjects: (orgId: string, status: 'active' | 'deleted', cursor?: string) =>
-    ['organizations', orgId, 'projects', status, { cursor: cursor ?? null }] as const,
-  projectRoles: (
-    projectId: string,
-    status: 'active' | 'deleted',
-    cursor?: string,
-    grantId?: string,
-  ) =>
-    [
-      'projects',
-      projectId,
-      'roles',
-      status,
-      { cursor: cursor ?? null, grantId: grantId ?? null },
-    ] as const,
-  projectPermissions: (
-    projectId: string,
-    status: 'active' | 'deleted',
-    cursor?: string,
-    grantId?: string,
-  ) =>
-    [
-      'projects',
-      projectId,
-      'permissions',
-      status,
-      { cursor: cursor ?? null, grantId: grantId ?? null },
-    ] as const,
-  rolePermissions: (roleId: string, cursor?: string, grantId?: string) =>
-    ['roles', roleId, 'permissions', { cursor: cursor ?? null, grantId: grantId ?? null }] as const,
+  orgMembers: (orgId: string) => ['organizations', orgId, 'members'] as const,
+  orgInvitations: (orgId: string) => ['organizations', orgId, 'invitations'] as const,
+  orgProjects: (orgId: string, status: 'active' | 'deleted') =>
+    ['organizations', orgId, 'projects', status] as const,
+  projectRoles: (projectId: string, status: 'active' | 'deleted', grantId?: string) =>
+    ['projects', projectId, 'roles', status, { grantId: grantId ?? null }] as const,
+  projectPermissions: (projectId: string, status: 'active' | 'deleted', grantId?: string) =>
+    ['projects', projectId, 'permissions', status, { grantId: grantId ?? null }] as const,
+  rolePermissions: (roleId: string, grantId?: string) =>
+    ['roles', roleId, 'permissions', { grantId: grantId ?? null }] as const,
   managedProject: (projectId: string, status: 'active' | 'all', grantId?: string) =>
     ['managed-projects', projectId, status, { grantId: grantId ?? null }] as const,
   projectGrant: (grantId: string) => ['project-grants', grantId] as const,
-  userGrants: (projectId: string, grantId: string, cursor?: string) =>
-    ['projects', projectId, 'user-grants', grantId, { cursor: cursor ?? null }] as const,
-  projectGrants: (projectId: string, cursor?: string) =>
-    ['projects', projectId, 'grants', { cursor: cursor ?? null }] as const,
-  managerAssignments: (scopeType: 'org' | 'project' | 'grant', scopeId: string, cursor?: string) =>
-    ['manager-assignments', scopeType, scopeId, { cursor: cursor ?? null }] as const,
+  userGrants: (projectId: string, grantId: string) =>
+    ['projects', projectId, 'user-grants', grantId] as const,
+  projectGrants: (projectId: string) => ['projects', projectId, 'grants'] as const,
+  managerAssignments: (scopeType: 'org' | 'project' | 'grant', scopeId: string) =>
+    ['manager-assignments', scopeType, scopeId] as const,
   orgSsoConnections: (orgId: string) => ['organizations', orgId, 'sso-connections'] as const,
   orgOutboundSamlApps: (orgId: string) => ['organizations', orgId, 'outbound-saml-apps'] as const,
   orgScimDirectories: (orgId: string) => ['organizations', orgId, 'directories'] as const,
@@ -78,46 +53,38 @@ export const queryKeys = {
   orgAuthPolicy: (orgId: string) => ['organizations', orgId, 'auth-policy'] as const,
   orgDeliveryChannels: (orgId: string) => ['organizations', orgId, 'delivery-channels'] as const,
   orgSocialProviders: (orgId: string) => ['organizations', orgId, 'social-providers'] as const,
-  orgAuditEvents: (orgId: string, cursor?: string) =>
-    ['organizations', orgId, 'audit-events', { cursor: cursor ?? null }] as const,
-  applications: (cursor?: string) => ['applications', { cursor: cursor ?? null }] as const,
+  orgAuditEvents: (orgId: string, filters: Readonly<Record<string, string | undefined>>) =>
+    ['organizations', orgId, 'audit-events', filters] as const,
+  applications: ['applications', 'list'] as const,
   application: (appId: string) => ['applications', appId] as const,
-  webhooks: (cursor?: string) => ['webhooks', { cursor: cursor ?? null }] as const,
-  apiKeys: (cursor?: string) => ['api-keys', { cursor: cursor ?? null }] as const,
-  platformOrganizations: (cursor?: string, query?: string) =>
-    ['platform', 'organizations', { cursor: cursor ?? null, query: query ?? null }] as const,
-  platformUsers: (query?: string, cursor?: string) =>
-    ['platform', 'users', { query: query ?? null, cursor: cursor ?? null }] as const,
-  platformAuditEvents: (cursor?: string) =>
-    ['platform', 'audit-events', { cursor: cursor ?? null }] as const,
+  webhooks: ['webhooks', 'list'] as const,
+  apiKeys: ['api-keys', 'list'] as const,
+  platformOrganizations: (query?: string) =>
+    ['platform', 'organizations', { query: query ?? null }] as const,
+  platformUsers: (query?: string) => ['platform', 'users', { query: query ?? null }] as const,
+  platformAuditEvents: ['platform', 'audit-events', 'list'] as const,
   platformAuditVerification: (tenantId?: string, fromSeq?: number, toSeq?: number) =>
     [
       'platform',
       'audit-verification',
       { tenantId: tenantId ?? null, fromSeq: fromSeq ?? null, toSeq: toSeq ?? null },
     ] as const,
-  platformDeadLetters: (cursor?: string) =>
-    ['platform', 'dead-letters', { cursor: cursor ?? null }] as const,
+  platformDeadLetters: ['platform', 'dead-letters', 'list'] as const,
   platformFeatureFlags: ['platform', 'feature-flags'] as const,
   platformSettings: ['platform', 'settings'] as const,
-  platformBilling: (cursor?: string) =>
-    ['platform', 'billing', { cursor: cursor ?? null }] as const,
+  platformBilling: ['platform', 'billing', 'list'] as const,
   platformStripeBilling: (tenantId: string) => ['platform', 'billing', 'stripe', tenantId] as const,
   platformPlan: (tenantId: string) => ['platform', 'plans', tenantId] as const,
-  platformAnnouncements: (cursor?: string) =>
-    ['platform', 'announcements', { cursor: cursor ?? null }] as const,
-  platformStatusIncidents: (cursor?: string) =>
-    ['platform', 'status-incidents', { cursor: cursor ?? null }] as const,
-  platformComplianceDocuments: (cursor?: string) =>
-    ['platform', 'compliance-documents', { cursor: cursor ?? null }] as const,
-  platformManagerAssignments: (cursor?: string) =>
-    ['platform', 'manager-assignments', { cursor: cursor ?? null }] as const,
+  platformAnnouncements: ['platform', 'announcements', 'list'] as const,
+  platformStatusIncidents: ['platform', 'status-incidents', 'list'] as const,
+  platformComplianceDocuments: ['platform', 'compliance-documents', 'list'] as const,
+  platformManagerAssignments: ['platform', 'manager-assignments', 'list'] as const,
   activeAnnouncements: ['announcements', 'active'] as const,
   orgComplianceDocuments: (orgId: string) =>
     ['organizations', orgId, 'compliance-documents'] as const,
 } as const
 
-// 列表 key 末位带 cursor,invalidate 用短前缀做部分匹配以命中全部页。
+// invalidate 用短前缀做部分匹配,同时命中列表与带筛选条件的 key。
 export const queryKeyPrefixes = {
   organizations: ['organizations'] as const,
   orgMembers: (orgId: string) => ['organizations', orgId, 'members'] as const,
@@ -180,6 +147,44 @@ export function useApiQuery<T>(
     queryKey: key,
     queryFn: getFn<T>(api, path, query ? { query } : undefined),
     ...rest,
+  })
+}
+
+// 管理 API 的游标分页:扁平 /v1 资源用 next_cursor,platform 资源用 nextCursor。
+export type CursorPage<T> = {
+  data: T[]
+  next_cursor?: string | null
+  nextCursor?: string | null
+  total?: number
+}
+
+function nextPageCursor(page: CursorPage<unknown>): string | undefined {
+  return page.next_cursor ?? page.nextCursor ?? undefined
+}
+
+// 「加载更多」把后续页追加到已加载的列表;key 不含游标,mutation 失效后从第一页重新拉取已加载的页。
+export function useApiInfiniteQuery<P extends CursorPage<unknown>>(
+  key: QueryKey,
+  path: string,
+  config?: { enabled?: boolean; query?: ApiRequestOptions['query'] },
+): UseInfiniteQueryResult<P, XidError> {
+  const { api } = useSession()
+  return useInfiniteQuery<P, XidError, P, QueryKey, string | undefined>({
+    queryKey: key,
+    queryFn: async ({ pageParam, signal }) =>
+      unwrap(
+        await api.get<P>(path, {
+          query: { ...config?.query, ...(pageParam ? { cursor: pageParam } : {}) },
+          signal,
+        }),
+      ),
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) => nextPageCursor(lastPage),
+    select: (data: InfiniteData<P, string | undefined>) => {
+      const last = data.pages[data.pages.length - 1]
+      return { ...last, data: data.pages.flatMap((page) => page.data) } as P
+    },
+    enabled: config?.enabled,
   })
 }
 

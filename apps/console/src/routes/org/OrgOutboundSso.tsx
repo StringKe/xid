@@ -22,7 +22,9 @@ import {
 } from './queries'
 import type { AssignmentGate, CreateOutboundSamlAppInput, OutboundSamlApp } from './types'
 import { EndpointList } from './EndpointList'
-import { useOrgTarget } from './useOrgTarget'
+import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
+import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 
 const styles = stylex.create({
   presetRow: { display: 'flex', flexWrap: 'wrap', gap: '0.5rem' },
@@ -142,6 +144,8 @@ function buildAssignmentGate(
 
 export default function OrgOutboundSso(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
+  const locked = useOrgSelfServiceLocked()
   const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgOutboundSamlAppsQuery(orgId)
   const createApp = useCreateOutboundSamlApp(orgId)
@@ -204,7 +208,7 @@ export default function OrgOutboundSso(): ReactNode {
     }
   }
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleCreate(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (!createForm.acsUrl.trim()) {
       setMessage({ tone: 'error', text: t`ACS URL is required.` })
@@ -217,23 +221,29 @@ export default function OrgOutboundSso(): ReactNode {
       })
       return
     }
-    const app = await createApp.mutateAsync({
-      ...toPayload(createForm),
-      assignment_gate: buildAssignmentGate(
-        createGateMode,
-        createAllowedRoles,
-        createAllowedUserIds,
-      ),
-    })
-    setCreateForm(EMPTY_FORM)
-    setCreateGateMode('all')
-    setCreateAllowedRoles('')
-    setCreateAllowedUserIds('')
-    setSelectedId(app.id)
-    setMessage({ tone: 'success', text: t`Outbound SAML app created.` })
+    createApp.mutate(
+      {
+        ...toPayload(createForm),
+        assignment_gate: buildAssignmentGate(
+          createGateMode,
+          createAllowedRoles,
+          createAllowedUserIds,
+        ),
+      },
+      {
+        onSuccess: (app) => {
+          setCreateForm(EMPTY_FORM)
+          setCreateGateMode('all')
+          setCreateAllowedRoles('')
+          setCreateAllowedUserIds('')
+          setSelectedId(app.id)
+          setMessage({ tone: 'success', text: t`Outbound SAML app created.` })
+        },
+      },
+    )
   }
 
-  async function handleUpdate(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleUpdate(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (!selected) return
     if (editForm.sloUrl.trim() && parseCertificates(editForm.spCertificates).length === 0) {
@@ -243,22 +253,27 @@ export default function OrgOutboundSso(): ReactNode {
       })
       return
     }
-    await updateApp.mutateAsync({
-      appId: selected.id,
-      payload: {
-        ...toPayload(editForm),
-        assignment_gate: buildAssignmentGate(editGateMode, editAllowedRoles, editAllowedUserIds),
+    updateApp.mutate(
+      {
+        appId: selected.id,
+        payload: {
+          ...toPayload(editForm),
+          assignment_gate: buildAssignmentGate(editGateMode, editAllowedRoles, editAllowedUserIds),
+        },
       },
-    })
-    setMessage({ tone: 'success', text: t`Outbound SAML app saved.` })
+      { onSuccess: () => setMessage({ tone: 'success', text: t`Outbound SAML app saved.` }) },
+    )
   }
 
-  async function handleDelete(): Promise<void> {
+  function handleDelete(): void {
     if (!selected) return
-    await deleteApp.mutateAsync(selected.id)
-    setSelectedId(null)
-    setPendingDelete(false)
-    setMessage({ tone: 'success', text: t`Outbound SAML app deleted.` })
+    deleteApp.mutate(selected.id, {
+      onSuccess: () => {
+        setSelectedId(null)
+        setMessage({ tone: 'success', text: t`Outbound SAML app deleted.` })
+      },
+      onSettled: () => setPendingDelete(false),
+    })
   }
 
   if (!orgId) {
@@ -273,7 +288,7 @@ export default function OrgOutboundSso(): ReactNode {
     )
   }
 
-  const actionError = createApp.isError || updateApp.isError || deleteApp.isError
+  const actionError = createApp.error ?? updateApp.error ?? deleteApp.error
 
   return (
     <ConsolePage
@@ -286,14 +301,11 @@ export default function OrgOutboundSso(): ReactNode {
         </Trans>
       }
     >
-      {message || actionError || isError ? (
+      {locked || message || actionError || isError ? (
         <ConsolePageNotice>
+          {locked ? <SelfServiceLockNotice /> : null}
           {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
-          {actionError ? (
-            <Alert tone="error">
-              <Trans>Failed to save outbound SAML app changes. Try again.</Trans>
-            </Alert>
-          ) : null}
+          {actionError ? <Alert tone="error">{errorMessage(actionError)}</Alert> : null}
           {isError ? (
             <Alert tone="error">
               <Trans>Failed to load outbound SAML apps.</Trans>
@@ -323,154 +335,50 @@ export default function OrgOutboundSso(): ReactNode {
           </Trans>
         }
       >
-        <div {...stylex.props(styles.presetRow)}>
-          {OUTBOUND_CONSOLE_PRESETS.map((preset) => (
-            <Button
-              key={preset.key}
-              type="button"
-              variant="secondary"
-              onClick={() => applyPreset(preset.key)}
-            >
-              <Trans>Add {preset.label} template</Trans>
-            </Button>
-          ))}
-        </div>
-        <form
-          onSubmit={(event) => void handleCreate(event)}
-          noValidate
-          {...stylex.props(styles.formGrid)}
-        >
-          <Field label={t`SP entity ID`}>
-            <Input
-              value={createForm.spEntityId}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, spEntityId: event.target.value }))
-              }
-            />
-          </Field>
-          <Field label={t`ACS URL`}>
-            <Input
-              value={createForm.acsUrl}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, acsUrl: event.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field label={t`SLO URL (optional)`}>
-            <Input
-              value={createForm.sloUrl}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, sloUrl: event.target.value }))
-              }
-            />
-          </Field>
-          <Field label={t`Binding`}>
-            <Select
-              value={createForm.sloBinding}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  sloBinding: event.target.value as AppForm['sloBinding'],
-                }))
-              }
-            >
-              <option value="redirect">{t`HTTP-Redirect`}</option>
-              <option value="post">{t`HTTP-POST`}</option>
-            </Select>
-          </Field>
-          <Field
-            label={t`SP signing certificates`}
-            hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
-          >
-            <Textarea
-              value={createForm.spCertificates}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, spCertificates: event.target.value }))
-              }
-              placeholder={t`MIIC...`}
-            />
-          </Field>
-          <OidcRedirectHint presetKey={createForm.preset} />
-          <Field label={t`Assignment mode`}>
-            <Select
-              value={createGateMode}
-              onChange={(event) => setCreateGateMode(event.target.value as AssignmentGate['mode'])}
-            >
-              <option value="all">{t`All members`}</option>
-              <option value="restricted">{t`Restricted roles`}</option>
-            </Select>
-          </Field>
-          {createGateMode === 'restricted' ? (
-            <>
-              <Field label={t`Allowed roles (comma-separated)`}>
-                <Input
-                  value={createAllowedRoles}
-                  onChange={(event) => setCreateAllowedRoles(event.target.value)}
-                  placeholder={t`admin, owner`}
-                />
-              </Field>
-              <Field label={t`Allowed user IDs (comma-separated)`}>
-                <Input
-                  value={createAllowedUserIds}
-                  onChange={(event) => setCreateAllowedUserIds(event.target.value)}
-                  placeholder={t`user_abc, user_def`}
-                />
-              </Field>
-            </>
-          ) : null}
-          <div {...stylex.props(styles.actions)}>
-            <Button type="submit" isLoading={createApp.isPending}>
-              <Trans>Create app</Trans>
-            </Button>
+        <LockableFieldset locked={locked}>
+          <div {...stylex.props(styles.presetRow)}>
+            {OUTBOUND_CONSOLE_PRESETS.map((preset) => (
+              <Button
+                key={preset.key}
+                type="button"
+                variant="secondary"
+                onClick={() => applyPreset(preset.key)}
+              >
+                <Trans>Add {preset.label} template</Trans>
+              </Button>
+            ))}
           </div>
-        </form>
-      </ConsolePageSplitSection>
-
-      {selected ? (
-        <ConsolePageSplitSection
-          title={<Trans>Edit app</Trans>}
-          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selected.provider}</p>}
-          description={
-            <Trans>Enter these XID identity provider values in the downstream SaaS admin.</Trans>
-          }
-        >
-          <IdpEndpoints app={selected} />
-          <form
-            onSubmit={(event) => void handleUpdate(event)}
-            noValidate
-            {...stylex.props(styles.formGrid)}
-          >
+          <form onSubmit={handleCreate} noValidate {...stylex.props(styles.formGrid)}>
             <Field label={t`SP entity ID`}>
               <Input
-                value={editForm.spEntityId}
+                value={createForm.spEntityId}
                 onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, spEntityId: event.target.value }))
+                  setCreateForm((prev) => ({ ...prev, spEntityId: event.target.value }))
                 }
               />
             </Field>
             <Field label={t`ACS URL`}>
               <Input
-                value={editForm.acsUrl}
+                value={createForm.acsUrl}
                 onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, acsUrl: event.target.value }))
+                  setCreateForm((prev) => ({ ...prev, acsUrl: event.target.value }))
                 }
                 required
               />
             </Field>
             <Field label={t`SLO URL (optional)`}>
               <Input
-                value={editForm.sloUrl}
+                value={createForm.sloUrl}
                 onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, sloUrl: event.target.value }))
+                  setCreateForm((prev) => ({ ...prev, sloUrl: event.target.value }))
                 }
               />
             </Field>
             <Field label={t`Binding`}>
               <Select
-                value={editForm.sloBinding}
+                value={createForm.sloBinding}
                 onChange={(event) =>
-                  setEditForm((prev) => ({
+                  setCreateForm((prev) => ({
                     ...prev,
                     sloBinding: event.target.value as AppForm['sloBinding'],
                   }))
@@ -485,58 +393,162 @@ export default function OrgOutboundSso(): ReactNode {
               hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
             >
               <Textarea
-                value={editForm.spCertificates}
+                value={createForm.spCertificates}
                 onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, spCertificates: event.target.value }))
+                  setCreateForm((prev) => ({ ...prev, spCertificates: event.target.value }))
                 }
                 placeholder={t`MIIC...`}
               />
             </Field>
-            <OidcRedirectHint presetKey={selected.provider} />
-            <Field
-              label={t`Assignment mode`}
-              hint={
-                <Trans>
-                  Restricted mode limits outbound SSO launch and SCIM sync to members with selected
-                  roles or explicit user IDs.
-                </Trans>
-              }
-            >
+            <OidcRedirectHint presetKey={createForm.preset} />
+            <Field label={t`Assignment mode`}>
               <Select
-                value={editGateMode}
-                onChange={(event) => setEditGateMode(event.target.value as AssignmentGate['mode'])}
+                value={createGateMode}
+                onChange={(event) =>
+                  setCreateGateMode(event.target.value as AssignmentGate['mode'])
+                }
               >
                 <option value="all">{t`All members`}</option>
                 <option value="restricted">{t`Restricted roles`}</option>
               </Select>
             </Field>
-            {editGateMode === 'restricted' ? (
+            {createGateMode === 'restricted' ? (
               <>
                 <Field label={t`Allowed roles (comma-separated)`}>
                   <Input
-                    value={editAllowedRoles}
-                    onChange={(event) => setEditAllowedRoles(event.target.value)}
+                    value={createAllowedRoles}
+                    onChange={(event) => setCreateAllowedRoles(event.target.value)}
                     placeholder={t`admin, owner`}
                   />
                 </Field>
                 <Field label={t`Allowed user IDs (comma-separated)`}>
                   <Input
-                    value={editAllowedUserIds}
-                    onChange={(event) => setEditAllowedUserIds(event.target.value)}
+                    value={createAllowedUserIds}
+                    onChange={(event) => setCreateAllowedUserIds(event.target.value)}
                     placeholder={t`user_abc, user_def`}
                   />
                 </Field>
               </>
             ) : null}
             <div {...stylex.props(styles.actions)}>
-              <Button type="submit" isLoading={updateApp.isPending}>
-                <Trans>Save changes</Trans>
-              </Button>
-              <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
-                <Trans>Delete app</Trans>
+              <Button type="submit" isLoading={createApp.isPending}>
+                <Trans>Create app</Trans>
               </Button>
             </div>
           </form>
+        </LockableFieldset>
+      </ConsolePageSplitSection>
+
+      {selected ? (
+        <ConsolePageSplitSection
+          title={<Trans>Edit app</Trans>}
+          meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selected.provider}</p>}
+          description={
+            <Trans>Enter these XID identity provider values in the downstream SaaS admin.</Trans>
+          }
+        >
+          <IdpEndpoints app={selected} />
+          <LockableFieldset locked={locked}>
+            <form onSubmit={handleUpdate} noValidate {...stylex.props(styles.formGrid)}>
+              <Field label={t`SP entity ID`}>
+                <Input
+                  value={editForm.spEntityId}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, spEntityId: event.target.value }))
+                  }
+                />
+              </Field>
+              <Field label={t`ACS URL`}>
+                <Input
+                  value={editForm.acsUrl}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, acsUrl: event.target.value }))
+                  }
+                  required
+                />
+              </Field>
+              <Field label={t`SLO URL (optional)`}>
+                <Input
+                  value={editForm.sloUrl}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, sloUrl: event.target.value }))
+                  }
+                />
+              </Field>
+              <Field label={t`Binding`}>
+                <Select
+                  value={editForm.sloBinding}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      sloBinding: event.target.value as AppForm['sloBinding'],
+                    }))
+                  }
+                >
+                  <option value="redirect">{t`HTTP-Redirect`}</option>
+                  <option value="post">{t`HTTP-POST`}</option>
+                </Select>
+              </Field>
+              <Field
+                label={t`SP signing certificates`}
+                hint={t`Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line.`}
+              >
+                <Textarea
+                  value={editForm.spCertificates}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, spCertificates: event.target.value }))
+                  }
+                  placeholder={t`MIIC...`}
+                />
+              </Field>
+              <OidcRedirectHint presetKey={selected.provider} />
+              <Field
+                label={t`Assignment mode`}
+                hint={
+                  <Trans>
+                    Restricted mode limits outbound SSO launch and SCIM sync to members with
+                    selected roles or explicit user IDs.
+                  </Trans>
+                }
+              >
+                <Select
+                  value={editGateMode}
+                  onChange={(event) =>
+                    setEditGateMode(event.target.value as AssignmentGate['mode'])
+                  }
+                >
+                  <option value="all">{t`All members`}</option>
+                  <option value="restricted">{t`Restricted roles`}</option>
+                </Select>
+              </Field>
+              {editGateMode === 'restricted' ? (
+                <>
+                  <Field label={t`Allowed roles (comma-separated)`}>
+                    <Input
+                      value={editAllowedRoles}
+                      onChange={(event) => setEditAllowedRoles(event.target.value)}
+                      placeholder={t`admin, owner`}
+                    />
+                  </Field>
+                  <Field label={t`Allowed user IDs (comma-separated)`}>
+                    <Input
+                      value={editAllowedUserIds}
+                      onChange={(event) => setEditAllowedUserIds(event.target.value)}
+                      placeholder={t`user_abc, user_def`}
+                    />
+                  </Field>
+                </>
+              ) : null}
+              <div {...stylex.props(styles.actions)}>
+                <Button type="submit" isLoading={updateApp.isPending}>
+                  <Trans>Save changes</Trans>
+                </Button>
+                <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
+                  <Trans>Delete app</Trans>
+                </Button>
+              </div>
+            </form>
+          </LockableFieldset>
         </ConsolePageSplitSection>
       ) : null}
 
@@ -551,7 +563,7 @@ export default function OrgOutboundSso(): ReactNode {
           }
           confirmLabel={<Trans>Delete app</Trans>}
           isLoading={deleteApp.isPending}
-          onConfirm={() => void handleDelete()}
+          onConfirm={handleDelete}
           onCancel={() => setPendingDelete(false)}
         />
       ) : null}

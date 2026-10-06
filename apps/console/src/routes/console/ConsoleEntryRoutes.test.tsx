@@ -134,6 +134,9 @@ const org: AuthOrg = {
   name: 'Default',
   role: 'owner',
   permissions: [],
+  parentOrgId: null,
+  allowOrgSelfService: true,
+  canManageOwners: true,
 }
 
 describe('Console entry routes', () => {

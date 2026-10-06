@@ -1,17 +1,38 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import type {
-  CreatedScimDirectory,
-  OrgBranding as OrgBrandingData,
-  OrgDomain,
-  OrgInvitation,
-  OrgMember,
-  OrgRole,
-  RotateScimTokenResult,
-  ScimDirectory,
-  SsoConnection,
-} from './types'
+import type { OAuthApplication, OrgBranding as OrgBrandingData } from './types'
+
+const { listResult, mutation, authState } = vi.hoisted(() => {
+  const activeOrg = {
+    id: 'org_active',
+    slug: 'active',
+    name: 'Active Organization',
+    role: 'owner',
+    permissions: [],
+    parentOrgId: null as string | null,
+    allowOrgSelfService: true,
+    canManageOwners: true,
+  }
+  return {
+    authState: { activeOrg },
+    listResult: (rows: unknown[] = []) => ({
+      data: { data: rows, next_cursor: null, has_more: false },
+      isLoading: false,
+      isError: false,
+      error: null,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: () => Promise.resolve(),
+    }),
+    mutation: () => ({
+      error: null,
+      isPending: false,
+      mutate: () => undefined,
+      mutateAsync: () => Promise.resolve(),
+    }),
+  }
+})
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -26,7 +47,9 @@ vi.mock('@lingui/core/macro', () => ({
 }))
 
 vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useManagementErrorMessage: () => (error: { code: string } | null | undefined) => error?.code,
   useApiErrorMessage: () => () => 'error',
+  errorTargetsField: () => false,
 }))
 
 vi.mock('@xid-kit/web-ui/session', () => ({
@@ -34,23 +57,11 @@ vi.mock('@xid-kit/web-ui/session', () => ({
     user: {
       id: 'user_owner',
       email: 'owner@example.com',
+      instanceManager: false,
     },
-    organizations: [
-      {
-        id: 'org_active',
-        slug: 'active',
-        name: 'Active Organization',
-        role: 'owner',
-        permissions: [],
-      },
-    ],
-    activeOrg: {
-      id: 'org_active',
-      slug: 'active',
-      name: 'Active Organization',
-      role: 'owner',
-      permissions: [],
-    },
+    organizations: [authState.activeOrg],
+    activeOrg: authState.activeOrg,
+    managerAssignments: [],
   }),
 }))
 
@@ -76,110 +87,86 @@ vi.mock('@xid-kit/web-ui/queries', () => ({
     isLoading: false,
     isError: false,
   }),
-  useApiMutation: () => ({
-    error: null,
-    isPending: false,
-    mutateAsync: vi.fn(),
-  }),
+  useApiInfiniteQuery: () => listResult(),
+  useApiMutation: () => mutation(),
 }))
 
+const APPLICATIONS: OAuthApplication[] = [
+  {
+    id: 'app_confidential',
+    client_id: 'client_confidential',
+    client_type: 'confidential',
+    token_endpoint_auth_method: 'client_secret_basic',
+    redirect_uris: ['https://service.example.com/callback'],
+    post_logout_redirect_uris: [],
+    allowed_grant_types: ['authorization_code', 'refresh_token'],
+    allowed_response_types: ['code'],
+    allowed_scopes: ['openid', 'profile', 'email', 'offline_access'],
+    require_pkce: true,
+    dpop_bound_access_tokens: false,
+    status: 'active',
+    created_at: new Date(0).toISOString(),
+    updated_at: new Date(0).toISOString(),
+  },
+  {
+    id: 'app_public',
+    client_id: 'client_public',
+    client_type: 'public',
+    token_endpoint_auth_method: 'none',
+    redirect_uris: ['https://spa.example.com/callback'],
+    post_logout_redirect_uris: [],
+    allowed_grant_types: ['authorization_code'],
+    allowed_response_types: ['code'],
+    allowed_scopes: ['openid', 'profile', 'email'],
+    require_pkce: true,
+    dpop_bound_access_tokens: false,
+    status: 'active',
+    created_at: new Date(0).toISOString(),
+    updated_at: new Date(0).toISOString(),
+  },
+]
+
 vi.mock('./queries', () => ({
-  useOrgMembersQuery: () => ({
-    data: { data: [] as OrgMember[], nextCursor: null },
-    isLoading: false,
-    isError: false,
-  }),
-  useOrgInvitationsQuery: () => ({
-    data: { data: [] as OrgInvitation[], nextCursor: null },
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateOrgInvitation: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRevokeOrgInvitation: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRemoveOrgMember: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useOrgRolesQuery: () => ({
-    data: [] as OrgRole[],
-    isLoading: false,
-    isError: false,
-  }),
-  useProjectsQuery: () => ({
-    data: { data: [], next_cursor: null, has_more: false },
-    isLoading: false,
-    isError: false,
-  }),
-  useProjectRolesQuery: () => ({
-    data: { data: [], next_cursor: null, has_more: false },
-    isLoading: false,
-    isError: false,
-  }),
-  useProjectPermissionsQuery: () => ({
-    data: { data: [], next_cursor: null, has_more: false },
-    isLoading: false,
-    isError: false,
-  }),
-  useRolePermissionsQuery: () => ({
-    data: { data: [], next_cursor: null, has_more: false },
-    isLoading: false,
-    isError: false,
-  }),
-  useProjectGrantsQuery: () => ({
-    data: { data: [], next_cursor: null, has_more: false },
-    isLoading: false,
-    isError: false,
-  }),
-  useManagerAssignmentsQuery: () => ({
-    data: { data: [], next_cursor: null, has_more: false },
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateProject: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useUpdateProject: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteProject: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRestoreProject: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useCreateProjectGrant: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRevokeProjectGrant: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useCreateManagerAssignment: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteManagerAssignment: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useCreateProjectRole: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useUpdateProjectRole: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteProjectRole: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRestoreProjectRole: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useCreateProjectPermission: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useUpdateProjectPermission: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteProjectPermission: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRestoreProjectPermission: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useCreateRolePermission: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useUpdateRolePermission: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteRolePermission: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useOrgSsoConnectionsQuery: () => ({
-    data: [] as SsoConnection[],
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateSsoConnection: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useUpdateSsoConnection: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteSsoConnection: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useOrgScimDirectoriesQuery: () => ({
-    data: [] as ScimDirectory[],
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateScimDirectory: () => ({
-    error: null,
-    isPending: false,
-    mutateAsync: vi.fn<() => Promise<CreatedScimDirectory>>(),
-  }),
-  useRotateScimToken: () => ({
-    error: null,
-    isPending: false,
-    mutateAsync: vi.fn<() => Promise<RotateScimTokenResult>>(),
-  }),
-  useDeleteScimDirectory: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useOrgDomainsQuery: () => ({
-    data: [] as OrgDomain[],
-    isLoading: false,
-    isError: false,
-  }),
+  useOrgMembersQuery: () => listResult(),
+  useOrgInvitationsQuery: () => listResult(),
+  useCreateOrgInvitation: mutation,
+  useRevokeOrgInvitation: mutation,
+  useRemoveOrgMember: mutation,
+  useProjectsQuery: () => listResult(),
+  useProjectRolesQuery: () => listResult(),
+  useProjectPermissionsQuery: () => listResult(),
+  useRolePermissionsQuery: () => listResult(),
+  useProjectGrantsQuery: () => listResult(),
+  useManagerAssignmentsQuery: () => listResult(),
+  useCreateProject: mutation,
+  useUpdateProject: mutation,
+  useDeleteProject: mutation,
+  useRestoreProject: mutation,
+  useCreateProjectGrant: mutation,
+  useRevokeProjectGrant: mutation,
+  useCreateManagerAssignment: mutation,
+  useDeleteManagerAssignment: mutation,
+  useCreateProjectRole: mutation,
+  useUpdateProjectRole: mutation,
+  useDeleteProjectRole: mutation,
+  useRestoreProjectRole: mutation,
+  useCreateProjectPermission: mutation,
+  useUpdateProjectPermission: mutation,
+  useDeleteProjectPermission: mutation,
+  useRestoreProjectPermission: mutation,
+  useCreateRolePermission: mutation,
+  useUpdateRolePermission: mutation,
+  useDeleteRolePermission: mutation,
+  useOrgSsoConnectionsQuery: () => ({ data: [], isLoading: false, isError: false }),
+  useCreateSsoConnection: mutation,
+  useUpdateSsoConnection: mutation,
+  useDeleteSsoConnection: mutation,
+  useOrgScimDirectoriesQuery: () => ({ data: [], isLoading: false, isError: false }),
+  useCreateScimDirectory: mutation,
+  useRotateScimToken: mutation,
+  useDeleteScimDirectory: mutation,
+  useOrgDomainsQuery: () => listResult(),
+  useCreateOrgDomain: mutation,
   useOrgBrandingQuery: () => ({
     data: {
       primaryColor: null,
@@ -189,88 +176,32 @@ vi.mock('./queries', () => ({
       borderRadius: null,
       logoUrl: null,
       logoDarkUrl: null,
-    } satisfies Partial<OrgBrandingData>,
+    } satisfies OrgBrandingData,
     isLoading: false,
     isError: false,
   }),
-  useUpdateOrgBranding: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useApplicationsQuery: () => ({
-    data: {
-      data: [
-        {
-          id: 'app_confidential',
-          client_id: 'client_confidential',
-          client_type: 'confidential',
-          token_endpoint_auth_method: 'client_secret_basic',
-          redirect_uris: ['https://service.example.com/callback'],
-          post_logout_redirect_uris: [],
-          allowed_grant_types: ['authorization_code', 'refresh_token'],
-          allowed_response_types: ['code'],
-          allowed_scopes: ['openid', 'profile', 'email', 'offline_access'],
-          require_pkce: true,
-          dpop_bound_access_tokens: false,
-          status: 'active',
-          created_at: new Date(0).toISOString(),
-          updated_at: new Date(0).toISOString(),
-        },
-        {
-          id: 'app_public',
-          client_id: 'client_public',
-          client_type: 'public',
-          token_endpoint_auth_method: 'none',
-          redirect_uris: ['https://spa.example.com/callback'],
-          post_logout_redirect_uris: [],
-          allowed_grant_types: ['authorization_code'],
-          allowed_response_types: ['code'],
-          allowed_scopes: ['openid', 'profile', 'email'],
-          require_pkce: true,
-          dpop_bound_access_tokens: false,
-          status: 'active',
-          created_at: new Date(0).toISOString(),
-          updated_at: new Date(0).toISOString(),
-        },
-      ],
-      next_cursor: null,
-      has_more: false,
-    },
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateApplication: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteApplication: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRotateClientSecret: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useApiKeysQuery: () => ({
-    data: { data: [], next_cursor: null },
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateApiKey: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRevokeApiKey: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useWebhooksQuery: () => ({
-    data: { data: [], next_cursor: null },
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateWebhook: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteWebhook: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useRotateWebhookSecret: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useOrgScimTargetsQuery: () => ({
-    data: [],
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateScimTarget: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useUpdateScimTarget: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteScimTarget: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useSyncScimTarget: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useOrgOutboundSamlAppsQuery: () => ({
-    data: [],
-    isLoading: false,
-    isError: false,
-  }),
-  useCreateOutboundSamlApp: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useUpdateOutboundSamlApp: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
-  useDeleteOutboundSamlApp: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
+  useUpdateOrgBranding: mutation,
+  useApplicationsQuery: () => listResult(APPLICATIONS),
+  useCreateApplication: mutation,
+  useUpdateApplication: mutation,
+  useDeleteApplication: mutation,
+  useRotateClientSecret: mutation,
+  useApiKeysQuery: () => listResult(),
+  useCreateApiKey: mutation,
+  useRevokeApiKey: mutation,
+  useWebhooksQuery: () => listResult(),
+  useCreateWebhook: mutation,
+  useDeleteWebhook: mutation,
+  useRotateWebhookSecret: mutation,
+  useOrgScimTargetsQuery: () => ({ data: [], isLoading: false, isError: false }),
+  useCreateScimTarget: mutation,
+  useUpdateScimTarget: mutation,
+  useDeleteScimTarget: mutation,
+  useSyncScimTarget: mutation,
+  useOrgOutboundSamlAppsQuery: () => ({ data: [], isLoading: false, isError: false }),
+  useCreateOutboundSamlApp: mutation,
+  useUpdateOutboundSamlApp: mutation,
+  useDeleteOutboundSamlApp: mutation,
 }))
 
 import OrgApiKeys from './OrgApiKeys'
@@ -319,12 +250,32 @@ describe('org target pages', () => {
     expect(html).toContain('href="/console/org/api-keys?orgId=org_active"')
   })
 
-  it('only offers canonical Organization Membership roles in the invitation form', () => {
+  it('hides tenant-wide quick actions and pages for a child organization', () => {
+    authState.activeOrg.parentOrgId = 'org_parent'
+
+    const overview = renderToStaticMarkup(<OrgOverview />)
+    const apiKeys = renderToStaticMarkup(<OrgApiKeys />)
+    authState.activeOrg.parentOrgId = null
+
+    expect(overview).toContain('Invite member')
+    expect(overview).not.toContain('Create API key')
+    expect(apiKeys).toContain('Switch to the top-level')
+  })
+
+  it('offers owner invitations only to callers who can manage owners', () => {
     const html = renderToStaticMarkup(<OrgMembers />)
 
     expect(html).toContain('<option value="member"')
     expect(html).toContain('<option value="admin"')
+    expect(html).toContain('<option value="owner"')
     expect(html).not.toContain('<option value="viewer"')
+  })
+
+  it('shows webhook subscriptions from the emitted event catalog', () => {
+    const html = renderToStaticMarkup(<OrgWebhooks />)
+
+    expect(html).toContain('organizationInvitation.revoked')
+    expect(html).not.toContain('session.revoked')
   })
 
   it('warns that a custom hostname requires passkey re-registration', () => {

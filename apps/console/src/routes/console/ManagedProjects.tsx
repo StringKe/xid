@@ -60,9 +60,8 @@ export default function ManagedProjects(): ReactNode {
   const [projectDescription, setProjectDescription] = useState('')
   const [pendingProjectDelete, setPendingProjectDelete] = useState(false)
 
-  const [userGrantCursor, setUserGrantCursor] = useState<string | undefined>()
-  const userGrants = useUserGrantsQuery(projectId, grantId, userGrantCursor)
-  const grantRoles = useProjectRolesQuery(projectId, 'active', undefined, grantId || undefined)
+  const userGrants = useUserGrantsQuery(projectId, grantId)
+  const grantRoles = useProjectRolesQuery(projectId, 'active', grantId || undefined)
   const createUserGrant = useCreateUserGrant(projectId, grantId)
   const revokeUserGrant = useRevokeUserGrant(projectId, grantId)
   const [grantUserId, setGrantUserId] = useState('')
@@ -187,7 +186,6 @@ export default function ManagedProjects(): ReactNode {
                   value={assignment?.id ?? ''}
                   onChange={(event) => {
                     setSelectedAssignmentId(event.currentTarget.value)
-                    setUserGrantCursor(undefined)
                     setEditingProject(false)
                   }}
                 >
@@ -379,13 +377,10 @@ export default function ManagedProjects(): ReactNode {
                           isLoading={userGrants.isLoading}
                           emptyMessage={<Trans>No active user grants.</Trans>}
                         />
-                        {userGrants.data ? (
-                          <Pagination
-                            nextCursor={userGrants.data.next_cursor}
-                            loadMoreLabel={<Trans>Load more user grants</Trans>}
-                            onLoadMore={setUserGrantCursor}
-                          />
-                        ) : null}
+                        <Pagination
+                          query={userGrants}
+                          loadMoreLabel={<Trans>Load more user grants</Trans>}
+                        />
                       </>
                     )}
                     <form

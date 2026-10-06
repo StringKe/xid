@@ -53,8 +53,8 @@ function statusBadge(status: QueueDeadLetter['status']): ReactNode {
 
 export default function PlatformDeadLetters(): ReactNode {
   const { t } = useLingui()
-  const [cursor, setCursor] = useState<string | undefined>()
-  const { data, isLoading, isError } = useDeadLettersQuery(cursor)
+  const list = useDeadLettersQuery()
+  const { data, isLoading, isError } = list
   const replay = useReplayDeadLetter()
   const [pendingReplay, setPendingReplay] = useState<QueueDeadLetter | null>(null)
   const columns = useMemo<ColumnDef<QueueDeadLetter>[]>(
@@ -162,11 +162,7 @@ export default function PlatformDeadLetters(): ReactNode {
           emptyMessage={<Trans>No dead letters found.</Trans>}
         />
         {data ? (
-          <Pagination
-            nextCursor={data.nextCursor}
-            loadMoreLabel={<Trans>Load more dead letters</Trans>}
-            onLoadMore={setCursor}
-          />
+          <Pagination query={list} loadMoreLabel={<Trans>Load more dead letters</Trans>} />
         ) : null}
       </ConsolePageSection>
 

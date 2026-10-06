@@ -32,6 +32,7 @@ import {
 } from './queries'
 import type { ManagerAssignment, ManagerScopeType, Project, ProjectGrant } from './types'
 import { useOrgTarget } from './useOrgTarget'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 
 function managerRoleLabel(scopeType: ManagerScopeType): ReactNode {
   if (scopeType === 'org') return <Trans>Organization manager</Trans>
@@ -41,15 +42,12 @@ function managerRoleLabel(scopeType: ManagerScopeType): ReactNode {
 
 export default function OrgProjects(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
   const { orgId } = useOrgTarget()
   const { organizations, user } = useAuth()
 
-  const [activeCursor, setActiveCursor] = useState<string | undefined>()
-  const [deletedCursor, setDeletedCursor] = useState<string | undefined>()
-  const [grantCursor, setGrantCursor] = useState<string | undefined>()
-  const [assignmentCursor, setAssignmentCursor] = useState<string | undefined>()
-  const activeProjects = useProjectsQuery(orgId, 'active', activeCursor)
-  const deletedProjects = useProjectsQuery(orgId, 'deleted', deletedCursor)
+  const activeProjects = useProjectsQuery(orgId, 'active')
+  const deletedProjects = useProjectsQuery(orgId, 'deleted')
 
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const selectedProject =
@@ -58,7 +56,7 @@ export default function OrgProjects(): ReactNode {
     null
   const projectId = selectedProject?.id ?? ''
 
-  const projectGrants = useProjectGrantsQuery(projectId, grantCursor)
+  const projectGrants = useProjectGrantsQuery(projectId)
   const grants = projectGrants.data?.data ?? []
   const [selectedGrantId, setSelectedGrantId] = useState('')
   const grantId = grants.find((grant) => grant.id === selectedGrantId)?.id ?? grants[0]?.id ?? ''
@@ -66,7 +64,7 @@ export default function OrgProjects(): ReactNode {
 
   const [scopeType, setScopeType] = useState<ManagerScopeType>('org')
   const scopeId = scopeType === 'org' ? orgId : scopeType === 'project' ? projectId : grantId
-  const assignments = useManagerAssignmentsQuery(scopeType, scopeId, assignmentCursor)
+  const assignments = useManagerAssignmentsQuery(scopeType, scopeId)
   const createAssignment = useCreateManagerAssignment(scopeType, scopeId)
   const deleteAssignment = useDeleteManagerAssignment(scopeType, scopeId)
 
@@ -94,8 +92,6 @@ export default function OrgProjects(): ReactNode {
   const selectProject = (project: Project): void => {
     setSelectedProjectId(project.id)
     setSelectedGrantId('')
-    setGrantCursor(undefined)
-    if (scopeType !== 'org') setAssignmentCursor(undefined)
   }
 
   const activeColumns: ColumnDef<Project>[] = [
@@ -310,15 +306,15 @@ export default function OrgProjects(): ReactNode {
     )
   }
 
-  const mutationFailed =
-    createProject.isError ||
-    updateProject.isError ||
-    deleteProject.isError ||
-    restoreProject.isError ||
-    createGrant.isError ||
-    revokeGrant.isError ||
-    createAssignment.isError ||
-    deleteAssignment.isError
+  const mutationError =
+    createProject.error ??
+    updateProject.error ??
+    deleteProject.error ??
+    restoreProject.error ??
+    createGrant.error ??
+    revokeGrant.error ??
+    createAssignment.error ??
+    deleteAssignment.error
 
   return (
     <ConsolePage
@@ -331,11 +327,9 @@ export default function OrgProjects(): ReactNode {
         </Trans>
       }
     >
-      {mutationFailed ? (
+      {mutationError ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to save project changes. Try again.</Trans>
-          </Alert>
+          <Alert tone="error">{errorMessage(mutationError)}</Alert>
         </ConsolePageNotice>
       ) : null}
 
@@ -357,9 +351,8 @@ export default function OrgProjects(): ReactNode {
             />
             {activeProjects.data ? (
               <Pagination
-                nextCursor={activeProjects.data.next_cursor}
+                query={activeProjects}
                 loadMoreLabel={<Trans>Load more projects</Trans>}
-                onLoadMore={setActiveCursor}
               />
             ) : null}
           </>
@@ -480,17 +473,13 @@ export default function OrgProjects(): ReactNode {
               getRowId={(grant) => grant.id}
               isLoading={projectGrants.isLoading}
               emptyMessage={<Trans>No active grants for this project.</Trans>}
-              onRowClick={(grant) => {
-                setSelectedGrantId(grant.id)
-                if (scopeType === 'grant') setAssignmentCursor(undefined)
-              }}
+              onRowClick={(grant) => setSelectedGrantId(grant.id)}
               isRowSelected={(grant) => grant.id === grantId}
             />
             {projectGrants.data ? (
               <Pagination
-                nextCursor={projectGrants.data.next_cursor}
+                query={projectGrants}
                 loadMoreLabel={<Trans>Load more project grants</Trans>}
-                onLoadMore={setGrantCursor}
               />
             ) : null}
             <form
@@ -564,10 +553,7 @@ export default function OrgProjects(): ReactNode {
           <Field label={<Trans>Scope type</Trans>}>
             <Select
               value={scopeType}
-              onChange={(event) => {
-                setScopeType(event.currentTarget.value as ManagerScopeType)
-                setAssignmentCursor(undefined)
-              }}
+              onChange={(event) => setScopeType(event.currentTarget.value as ManagerScopeType)}
             >
               <option value="org">{t`Organization`}</option>
               <option value="project">{t`Selected project`}</option>
@@ -601,9 +587,8 @@ export default function OrgProjects(): ReactNode {
             />
             {assignments.data ? (
               <Pagination
-                nextCursor={assignments.data.next_cursor}
+                query={assignments}
                 loadMoreLabel={<Trans>Load more manager assignments</Trans>}
-                onLoadMore={setAssignmentCursor}
               />
             ) : null}
             <form
@@ -676,9 +661,8 @@ export default function OrgProjects(): ReactNode {
             />
             {deletedProjects.data ? (
               <Pagination
-                nextCursor={deletedProjects.data.next_cursor}
+                query={deletedProjects}
                 loadMoreLabel={<Trans>Load more deleted projects</Trans>}
-                onLoadMore={setDeletedCursor}
               />
             ) : null}
           </>

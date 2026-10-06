@@ -13,6 +13,8 @@ export type ConsoleNavItem = {
   end?: boolean
   groupKey?: string
   groupLabel?: ReactNode
+  // 整个租户共享的资源,只在顶层组织下显示。
+  tenantScope?: boolean
 }
 
 // 受托 Project 不属于任何 org 视角,ConsoleLayout 在有 manager assignment 时把它补进每个侧栏。
@@ -82,13 +84,6 @@ export const ORG_NAV: readonly ConsoleNavItem[] = [
     groupLabel: <Trans>Authentication</Trans>,
   },
   {
-    to: '/console/org/applications',
-    label: <Trans>Applications</Trans>,
-    icon: 'squares-four',
-    groupKey: 'resources',
-    groupLabel: <Trans>Resources</Trans>,
-  },
-  {
     to: '/console/org/projects',
     label: <Trans>Projects</Trans>,
     icon: 'folder',
@@ -99,20 +94,6 @@ export const ORG_NAV: readonly ConsoleNavItem[] = [
     to: '/console/org/roles',
     label: <Trans>Roles and permissions</Trans>,
     icon: 'shield-check',
-    groupKey: 'resources',
-    groupLabel: <Trans>Resources</Trans>,
-  },
-  {
-    to: '/console/org/api-keys',
-    label: <Trans>API keys</Trans>,
-    icon: 'key',
-    groupKey: 'resources',
-    groupLabel: <Trans>Resources</Trans>,
-  },
-  {
-    to: '/console/org/webhooks',
-    label: <Trans>Webhooks</Trans>,
-    icon: 'webhook',
     groupKey: 'resources',
     groupLabel: <Trans>Resources</Trans>,
   },
@@ -145,11 +126,36 @@ export const ORG_NAV: readonly ConsoleNavItem[] = [
     groupLabel: <Trans>Activity</Trans>,
   },
   {
+    to: '/console/org/applications',
+    label: <Trans>Applications</Trans>,
+    icon: 'squares-four',
+    groupKey: 'tenant',
+    groupLabel: <Trans>Tenant settings</Trans>,
+    tenantScope: true,
+  },
+  {
+    to: '/console/org/api-keys',
+    label: <Trans>API keys</Trans>,
+    icon: 'key',
+    groupKey: 'tenant',
+    groupLabel: <Trans>Tenant settings</Trans>,
+    tenantScope: true,
+  },
+  {
+    to: '/console/org/webhooks',
+    label: <Trans>Webhooks</Trans>,
+    icon: 'webhook',
+    groupKey: 'tenant',
+    groupLabel: <Trans>Tenant settings</Trans>,
+    tenantScope: true,
+  },
+  {
     to: '/console/org/compliance',
     label: <Trans>Compliance</Trans>,
     icon: 'seal-check',
-    groupKey: 'activity',
-    groupLabel: <Trans>Activity</Trans>,
+    groupKey: 'tenant',
+    groupLabel: <Trans>Tenant settings</Trans>,
+    tenantScope: true,
   },
 ]
 

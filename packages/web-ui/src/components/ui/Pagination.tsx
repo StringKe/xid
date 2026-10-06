@@ -1,14 +1,18 @@
-// cursor 分页无法随机访问,仅"加载更多"。
+// cursor 分页无法随机访问,「加载更多」把下一页追加到已加载的列表。
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Button } from './Button'
 
+export type PaginationQuery = {
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
+  fetchNextPage: () => Promise<unknown>
+}
+
 export type PaginationProps = {
-  nextCursor: string | null
-  isLoading?: boolean
+  query: PaginationQuery
   loadMoreLabel: ReactNode
-  onLoadMore: (cursor: string) => void
 }
 
 const styles = stylex.create({
@@ -20,17 +24,16 @@ const styles = stylex.create({
   },
 })
 
-export function Pagination({
-  nextCursor,
-  isLoading = false,
-  loadMoreLabel,
-  onLoadMore,
-}: PaginationProps): ReactNode {
-  if (!nextCursor) return null
+export function Pagination({ query, loadMoreLabel }: PaginationProps): ReactNode {
+  if (!query.hasNextPage) return null
 
   return (
     <div {...stylex.props(styles.row)}>
-      <Button variant="secondary" isLoading={isLoading} onClick={() => onLoadMore(nextCursor)}>
+      <Button
+        variant="secondary"
+        isLoading={query.isFetchingNextPage}
+        onClick={() => void query.fetchNextPage()}
+      >
         {loadMoreLabel}
       </Button>
     </div>

@@ -11,9 +11,11 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
+import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useOrgDomainsQuery } from './queries'
-import { useApiMutation } from '@xid-kit/web-ui/queries'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { CopyValue } from './CopyValue'
+import { useCreateOrgDomain, useOrgDomainsQuery } from './queries'
 import type { OrgDomain } from './types'
 import { useOrgTarget } from './useOrgTarget'
 import { OrgCustomHostnames } from './OrgCustomHostnames'
@@ -23,19 +25,17 @@ const styles = stylex.create({
     display: 'flex',
     gap: '0.75rem',
     alignItems: 'flex-end',
+    flexWrap: 'wrap',
   },
   addInputWrap: {
     flex: '1 1 200px',
     minWidth: 0,
   },
-  tokenCode: {
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
-    background: tokens['--xid-muted'],
-    paddingBlock: '0.125rem',
-    paddingInline: '0.375rem',
-    borderRadius: tokens['--xid-radius-sm'],
-    wordBreak: 'break-all',
+  recordStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    minWidth: 0,
   },
   mutedSmall: {
     color: tokens['--xid-muted-foreground'],
@@ -46,6 +46,10 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font-mono'],
   },
 })
+
+function isVerified(row: OrgDomain): boolean {
+  return row.verification_status === 'verified'
+}
 
 function VerifiedBadge({ verified }: { verified: boolean }): ReactNode {
   return verified ? (
@@ -60,17 +64,26 @@ function VerifiedBadge({ verified }: { verified: boolean }): ReactNode {
 }
 
 function TxtRecord({ row }: { row: OrgDomain }): ReactNode {
-  if (row.verificationToken && !row.verified) {
-    return <code {...stylex.props(styles.tokenCode)}>{row.verificationToken}</code>
-  }
-  if (row.verified && row.verifiedAt) {
-    return (
+  const { t } = useLingui()
+  if (isVerified(row)) {
+    return row.verified_at ? (
       <span {...stylex.props(styles.mutedSmall)}>
-        {new Date(row.verifiedAt).toLocaleDateString()}
+        {new Date(row.verified_at).toLocaleDateString()}
       </span>
-    )
+    ) : null
   }
-  return null
+  return (
+    <div {...stylex.props(styles.recordStack)}>
+      <span {...stylex.props(styles.mutedSmall)}>
+        <Trans>Name</Trans>
+      </span>
+      <CopyValue value={row.verification_record.name} label={t`TXT record name`} />
+      <span {...stylex.props(styles.mutedSmall)}>
+        <Trans>Value</Trans>
+      </span>
+      <CopyValue value={row.verification_record.value} label={t`TXT record value`} />
+    </div>
+  )
 }
 
 const columns: ColumnDef<OrgDomain>[] = [
@@ -82,47 +95,39 @@ const columns: ColumnDef<OrgDomain>[] = [
   {
     id: 'verified',
     header: () => <Trans>Verification</Trans>,
-    cell: ({ row }) => <VerifiedBadge verified={row.original.verified} />,
+    cell: ({ row }) => <VerifiedBadge verified={isVerified(row.original)} />,
     meta: { width: '160px' },
   },
   {
-    id: 'enrollment',
-    header: () => <Trans>Enrollment mode</Trans>,
-    cell: ({ row }) =>
-      row.original.enrollmentMode === 'automatic' ? (
-        <Trans>Automatic</Trans>
-      ) : (
-        <Trans>Invite required</Trans>
-      ),
-    meta: { width: '140px' },
-  },
-  {
     id: 'token',
-    header: () => <Trans>TXT record</Trans>,
+    header: () => <Trans>DNS TXT record</Trans>,
     cell: ({ row }) => <TxtRecord row={row.original} />,
   },
 ]
 
 export default function OrgDomains(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
   const { orgId } = useOrgTarget()
-  const { data, isLoading, isError } = useOrgDomainsQuery(orgId)
+  const domains = useOrgDomainsQuery(orgId)
+  const addDomain = useCreateOrgDomain(orgId)
 
   const [newDomain, setNewDomain] = useState('')
   const [addSuccess, setAddSuccess] = useState(false)
 
-  const addDomain = useApiMutation<OrgDomain, { domain: string }>(
-    (api, payload) => api.post<OrgDomain>(`/v1/organizations/${orgId}/domains`, payload),
-    { invalidate: [['organizations', orgId, 'domains']] },
-  )
-
-  async function handleAdd(e: FormEvent): Promise<void> {
+  function handleAdd(e: FormEvent): void {
     e.preventDefault()
     if (!orgId || !newDomain.trim()) return
     setAddSuccess(false)
-    await addDomain.mutateAsync({ domain: newDomain.trim() })
-    setAddSuccess(true)
-    setNewDomain('')
+    addDomain.mutate(
+      { domain: newDomain.trim() },
+      {
+        onSuccess: () => {
+          setAddSuccess(true)
+          setNewDomain('')
+        },
+      },
+    )
   }
 
   if (!orgId) {
@@ -143,46 +148,42 @@ export default function OrgDomains(): ReactNode {
       title={<Trans>Domains</Trans>}
       lead={
         <Trans>
-          Verify email domains for enrollment and routing. Domain removal and re-verification are
-          managed through the Management API.
+          Verify email domains for enrollment and routing. Domain removal is managed through the
+          Management API.
         </Trans>
       }
     >
-      {isError ? (
+      {domains.error ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to load domains.</Trans>
-          </Alert>
+          <Alert tone="error">{errorMessage(domains.error)}</Alert>
         </ConsolePageNotice>
       ) : null}
 
       <ConsolePageSection title={<Trans>Domain list</Trans>}>
         <DataTable
           columns={columns}
-          data={data ?? []}
+          data={domains.data?.data ?? []}
           getRowId={(row) => row.id}
-          isLoading={isLoading}
+          isLoading={domains.isLoading}
           emptyMessage={<Trans>No domains added yet.</Trans>}
         />
+        <Pagination query={domains} loadMoreLabel={<Trans>Load more domains</Trans>} />
       </ConsolePageSection>
 
       <ConsolePageSplitSection
         title={<Trans>Add domain</Trans>}
         description={
           <Trans>
-            Add an email domain to enable automatic org enrollment. After adding, you must verify
-            ownership by adding the DNS TXT record shown in the table.
+            Add an email domain, then create the DNS TXT record shown in the table with the exact
+            name and value. Verification runs automatically once a day. Verified domains route
+            sign-in for matching email addresses to this tenant.
           </Trans>
         }
       >
-        <form onSubmit={(e) => void handleAdd(e)} noValidate>
+        <form onSubmit={handleAdd} noValidate>
           <div {...stylex.props(styles.addRow)}>
             <div {...stylex.props(styles.addInputWrap)}>
-              <Field
-                label={<Trans>Domain</Trans>}
-                error={addDomain.isError ? t`Failed to add domain. Try again.` : undefined}
-                required
-              >
+              <Field label={<Trans>Domain</Trans>} error={errorMessage(addDomain.error)} required>
                 <Input
                   type="text"
                   value={newDomain}
@@ -200,7 +201,7 @@ export default function OrgDomains(): ReactNode {
           {addSuccess ? (
             <Alert tone="success">
               <Trans>
-                Domain added. Add the DNS TXT record shown in the table to verify ownership.
+                Domain added. Create the DNS TXT record shown in the table to verify ownership.
               </Trans>
             </Alert>
           ) : null}

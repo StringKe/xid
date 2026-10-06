@@ -1,12 +1,24 @@
-// 读请求 enabled 一律 useCanManageOrg,角色未确认前不发请求。
+// 读请求 enabled 一律 useCanManageOrg,角色未确认前不发请求;租户级资源另需顶层组织。
 
-import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
+import type {
+  UseInfiniteQueryResult,
+  UseMutationResult,
+  UseQueryResult,
+} from '@tanstack/react-query'
 import type { OrganizationMembershipRole, XidError } from '@xid-kit/types'
-import { queryKeyPrefixes, queryKeys, useApiMutation, useApiQuery } from '@xid-kit/web-ui/queries'
-import { useCanManageOrg } from './useOrgTarget'
+import {
+  queryKeyPrefixes,
+  queryKeys,
+  useApiInfiniteQuery,
+  useApiMutation,
+  useApiQuery,
+} from '@xid-kit/web-ui/queries'
+import { useCanManageOrg, useIsTenantScopeOrg } from './useOrgTarget'
 import type {
   ApiKey,
-  AuditEventPage,
+  AuditEvent,
+  AuditEventFilters,
+  CreateOrgDomainInput,
   CreateManagerAssignmentInput,
   CreateApiKeyInput,
   CreateApplicationInput,
@@ -33,10 +45,8 @@ import type {
   OrgDomain,
   OrgInvitation,
   OrgMember,
-  OrgRole,
   ManagerAssignment,
   OrgSocialProviders,
-  Page,
   Project,
   ProjectGrant,
   ProjectPermission,
@@ -50,6 +60,7 @@ import type {
   ScimTarget,
   ScimTargetSyncAccepted,
   SsoConnection,
+  UpdateApplicationInput,
   UpdateOrgAuthPolicyInput,
   UpdateOrgDeliveryChannelsInput,
   UpdateOrgSocialProvidersInput,
@@ -65,49 +76,34 @@ import type {
   WebhookEndpoint,
 } from './types'
 
-export function useOrgMembersQuery(
-  orgId: string,
-  cursor?: string,
-): UseQueryResult<Page<OrgMember>, XidError> {
+type ListResult<T> = UseInfiniteQueryResult<V1Page<T>, XidError>
+
+export function useOrgMembersQuery(orgId: string): ListResult<OrgMember> {
   const canManage = useCanManageOrg(orgId)
-  return useApiQuery<Page<OrgMember>>(
-    queryKeys.orgMembers(orgId, cursor),
+  return useApiInfiniteQuery<V1Page<OrgMember>>(
+    queryKeys.orgMembers(orgId),
     `/v1/organizations/${orgId}/members`,
-    { enabled: canManage, query: { limit: 20, cursor } },
+    { enabled: canManage, query: { limit: 20 } },
   )
 }
 
-export function useOrgInvitationsQuery(
-  orgId: string,
-  cursor?: string,
-): UseQueryResult<Page<OrgInvitation>, XidError> {
+export function useOrgInvitationsQuery(orgId: string): ListResult<OrgInvitation> {
   const canManage = useCanManageOrg(orgId)
-  return useApiQuery<Page<OrgInvitation>>(
-    queryKeys.orgInvitations(orgId, cursor),
+  return useApiInfiniteQuery<V1Page<OrgInvitation>>(
+    queryKeys.orgInvitations(orgId),
     `/v1/organizations/${orgId}/invitations`,
-    { enabled: canManage, query: { limit: 20, cursor } },
+    { enabled: canManage, query: { limit: 20 } },
   )
 }
 
-export function useOrgRolesQuery(orgId: string): UseQueryResult<OrgRole[], XidError> {
+export function useProjectsQuery(orgId: string, status: ProjectStatus): ListResult<Project> {
   const canManage = useCanManageOrg(orgId)
-  return useApiQuery<OrgRole[]>(queryKeys.orgRoles(orgId), `/v1/organizations/${orgId}/roles`, {
-    enabled: canManage,
-  })
-}
-
-export function useProjectsQuery(
-  orgId: string,
-  status: ProjectStatus,
-  cursor?: string,
-): UseQueryResult<V1Page<Project>, XidError> {
-  const canManage = useCanManageOrg(orgId)
-  return useApiQuery<V1Page<Project>>(
-    queryKeys.orgProjects(orgId, status, cursor),
+  return useApiInfiniteQuery<V1Page<Project>>(
+    queryKeys.orgProjects(orgId, status),
     '/v1/projects',
     {
       enabled: canManage,
-      query: { org_id: orgId, status, limit: 50, cursor },
+      query: { org_id: orgId, status, limit: 50 },
     },
   )
 }
@@ -202,15 +198,14 @@ export function useRestoreProject(orgId: string): UseMutationResult<Project, Xid
 export function useProjectRolesQuery(
   projectId: string,
   status: ProjectStatus,
-  cursor?: string,
   grantId?: string,
-): UseQueryResult<V1Page<ProjectRole>, XidError> {
-  return useApiQuery<V1Page<ProjectRole>>(
-    queryKeys.projectRoles(projectId, status, cursor, grantId),
+): ListResult<ProjectRole> {
+  return useApiInfiniteQuery<V1Page<ProjectRole>>(
+    queryKeys.projectRoles(projectId, status, grantId),
     '/v1/roles',
     {
       enabled: projectId.length > 0,
-      query: { project_id: projectId, grant_id: grantId, status, limit: 50, cursor },
+      query: { project_id: projectId, grant_id: grantId, status, limit: 50 },
     },
   )
 }
@@ -255,15 +250,14 @@ export function useRestoreProjectRole(
 export function useProjectPermissionsQuery(
   projectId: string,
   status: ProjectStatus,
-  cursor?: string,
   grantId?: string,
-): UseQueryResult<V1Page<ProjectPermission>, XidError> {
-  return useApiQuery<V1Page<ProjectPermission>>(
-    queryKeys.projectPermissions(projectId, status, cursor, grantId),
+): ListResult<ProjectPermission> {
+  return useApiInfiniteQuery<V1Page<ProjectPermission>>(
+    queryKeys.projectPermissions(projectId, status, grantId),
     '/v1/permissions',
     {
       enabled: projectId.length > 0,
-      query: { project_id: projectId, grant_id: grantId, status, limit: 50, cursor },
+      query: { project_id: projectId, grant_id: grantId, status, limit: 50 },
     },
   )
 }
@@ -316,15 +310,14 @@ export function useRestoreProjectPermission(
 
 export function useRolePermissionsQuery(
   roleId: string,
-  cursor?: string,
   grantId?: string,
-): UseQueryResult<V1Page<RolePermission>, XidError> {
-  return useApiQuery<V1Page<RolePermission>>(
-    queryKeys.rolePermissions(roleId, cursor, grantId),
+): ListResult<RolePermission> {
+  return useApiInfiniteQuery<V1Page<RolePermission>>(
+    queryKeys.rolePermissions(roleId, grantId),
     '/v1/role-permissions',
     {
       enabled: roleId.length > 0,
-      query: { role_id: roleId, grant_id: grantId, limit: 50, cursor },
+      query: { role_id: roleId, grant_id: grantId, limit: 50 },
     },
   )
 }
@@ -357,16 +350,13 @@ export function useDeleteRolePermission(
   )
 }
 
-export function useProjectGrantsQuery(
-  projectId: string,
-  cursor?: string,
-): UseQueryResult<V1Page<ProjectGrant>, XidError> {
-  return useApiQuery<V1Page<ProjectGrant>>(
-    queryKeys.projectGrants(projectId, cursor),
+export function useProjectGrantsQuery(projectId: string): ListResult<ProjectGrant> {
+  return useApiInfiniteQuery<V1Page<ProjectGrant>>(
+    queryKeys.projectGrants(projectId),
     '/v1/project-grants',
     {
       enabled: projectId.length > 0,
-      query: { granted_project_id: projectId, limit: 50, cursor },
+      query: { granted_project_id: projectId, limit: 50 },
     },
   )
 }
@@ -402,22 +392,13 @@ export function useRevokeProjectGrant(
   )
 }
 
-export function useUserGrantsQuery(
-  projectId: string,
-  grantId: string,
-  cursor?: string,
-): UseQueryResult<V1Page<UserGrant>, XidError> {
-  return useApiQuery<V1Page<UserGrant>>(
-    queryKeys.userGrants(projectId, grantId, cursor),
+export function useUserGrantsQuery(projectId: string, grantId: string): ListResult<UserGrant> {
+  return useApiInfiniteQuery<V1Page<UserGrant>>(
+    queryKeys.userGrants(projectId, grantId),
     '/v1/user-grants',
     {
       enabled: projectId.length > 0 && grantId.length > 0,
-      query: {
-        project_id: projectId,
-        granted_via_grant_id: grantId,
-        limit: 50,
-        cursor,
-      },
+      query: { project_id: projectId, granted_via_grant_id: grantId, limit: 50 },
     },
   )
 }
@@ -450,14 +431,13 @@ export function useRevokeUserGrant(
 export function useManagerAssignmentsQuery(
   scopeType: CreateManagerAssignmentInput['scope_type'],
   scopeId: string,
-  cursor?: string,
-): UseQueryResult<V1Page<ManagerAssignment>, XidError> {
-  return useApiQuery<V1Page<ManagerAssignment>>(
-    queryKeys.managerAssignments(scopeType, scopeId, cursor),
+): ListResult<ManagerAssignment> {
+  return useApiInfiniteQuery<V1Page<ManagerAssignment>>(
+    queryKeys.managerAssignments(scopeType, scopeId),
     '/v1/manager-assignments',
     {
       enabled: scopeId.length > 0,
-      query: { scope_type: scopeType, scope_id: scopeId, limit: 50, cursor },
+      query: { scope_type: scopeType, scope_id: scopeId, limit: 50 },
     },
   )
 }
@@ -536,12 +516,21 @@ export function useOrgScimTargetsQuery(orgId: string): UseQueryResult<ScimTarget
   )
 }
 
-export function useOrgDomainsQuery(orgId: string): UseQueryResult<OrgDomain[], XidError> {
+export function useOrgDomainsQuery(orgId: string): ListResult<OrgDomain> {
   const canManage = useCanManageOrg(orgId)
-  return useApiQuery<OrgDomain[]>(
+  return useApiInfiniteQuery<V1Page<OrgDomain>>(
     queryKeys.orgDomains(orgId),
     `/v1/organizations/${orgId}/domains`,
-    { enabled: canManage },
+    { enabled: canManage, query: { limit: 50 } },
+  )
+}
+
+export function useCreateOrgDomain(
+  orgId: string,
+): UseMutationResult<OrgDomain, XidError, CreateOrgDomainInput> {
+  return useApiMutation<OrgDomain, CreateOrgDomainInput>(
+    (api, payload) => api.post<OrgDomain>(`/v1/organizations/${orgId}/domains`, payload),
+    { invalidate: [queryKeys.orgDomains(orgId)] },
   )
 }
 
@@ -606,7 +595,8 @@ export function useRevokeOrgInvitation(
 
 export function useRemoveOrgMember(orgId: string): UseMutationResult<unknown, XidError, string> {
   return useApiMutation<unknown, string>(
-    (api, memberId) => api.del<unknown>(`/v1/organizations/${orgId}/members/${memberId}`),
+    (api, membershipId) =>
+      api.del<unknown>(`/v1/organizations/${orgId}/memberships/${membershipId}`),
     { invalidate: [queryKeyPrefixes.orgMembers(orgId)] },
   )
 }
@@ -792,12 +782,23 @@ export function useSyncScimTarget(
   )
 }
 
-export function useApplicationsQuery(
-  cursor?: string,
-): UseQueryResult<V1Page<OAuthApplication>, XidError> {
-  return useApiQuery<V1Page<OAuthApplication>>(queryKeys.applications(cursor), '/v1/applications', {
-    query: { limit: 20, cursor },
+export function useApplicationsQuery(): ListResult<OAuthApplication> {
+  const isTenantScope = useIsTenantScopeOrg()
+  return useApiInfiniteQuery<V1Page<OAuthApplication>>(queryKeys.applications, '/v1/applications', {
+    enabled: isTenantScope,
+    query: { limit: 20 },
   })
+}
+
+export function useUpdateApplication(): UseMutationResult<
+  OAuthApplication,
+  XidError,
+  { id: string; payload: UpdateApplicationInput }
+> {
+  return useApiMutation<OAuthApplication, { id: string; payload: UpdateApplicationInput }>(
+    (api, { id, payload }) => api.patch<OAuthApplication>(`/v1/applications/${id}`, payload),
+    { invalidate: [queryKeyPrefixes.applications] },
+  )
 }
 
 export function useCreateApplication(): UseMutationResult<
@@ -829,11 +830,11 @@ export function useDeleteApplication(): UseMutationResult<unknown, XidError, str
   )
 }
 
-export function useWebhooksQuery(
-  cursor?: string,
-): UseQueryResult<V1Page<WebhookEndpoint>, XidError> {
-  return useApiQuery<V1Page<WebhookEndpoint>>(queryKeys.webhooks(cursor), '/v1/webhooks', {
-    query: { limit: 20, cursor },
+export function useWebhooksQuery(): ListResult<WebhookEndpoint> {
+  const isTenantScope = useIsTenantScopeOrg()
+  return useApiInfiniteQuery<V1Page<WebhookEndpoint>>(queryKeys.webhooks, '/v1/webhooks', {
+    enabled: isTenantScope,
+    query: { limit: 20 },
   })
 }
 
@@ -867,9 +868,11 @@ export function useDeleteWebhook(): UseMutationResult<unknown, XidError, string>
   )
 }
 
-export function useApiKeysQuery(cursor?: string): UseQueryResult<V1Page<ApiKey>, XidError> {
-  return useApiQuery<V1Page<ApiKey>>(queryKeys.apiKeys(cursor), '/v1/api-keys', {
-    query: { limit: 20, cursor },
+export function useApiKeysQuery(): ListResult<ApiKey> {
+  const isTenantScope = useIsTenantScopeOrg()
+  return useApiInfiniteQuery<V1Page<ApiKey>>(queryKeys.apiKeys, '/v1/api-keys', {
+    enabled: isTenantScope,
+    query: { limit: 20 },
   })
 }
 
@@ -887,27 +890,27 @@ export function useRevokeApiKey(): UseMutationResult<unknown, XidError, string> 
   )
 }
 
-// 审计归属由后端租户/org 隔离,前端不做客户端过滤。
+// 审计归属与筛选都在服务端执行,筛选条件进入 query key,变化时从第一页重新加载。
 export function useAuditEventsQuery(
   orgId: string,
-  cursor?: string,
-): UseQueryResult<AuditEventPage, XidError> {
+  filters: AuditEventFilters,
+): ListResult<AuditEvent> {
   const canManage = useCanManageOrg(orgId)
-  return useApiQuery<AuditEventPage>(
-    queryKeys.orgAuditEvents(orgId, cursor),
+  return useApiInfiniteQuery<V1Page<AuditEvent>>(
+    queryKeys.orgAuditEvents(orgId, filters),
     `/v1/organizations/${orgId}/audit-events`,
-    { enabled: canManage, query: { limit: 30, cursor } },
+    { enabled: canManage, query: { limit: 30, ...filters } },
   )
 }
 
 export function useOrgComplianceDocumentsQuery(
   orgId: string,
 ): UseQueryResult<OrgComplianceDocument[], XidError> {
-  const canManage = useCanManageOrg(orgId)
+  const isTenantScope = useIsTenantScopeOrg()
   return useApiQuery<OrgComplianceDocument[]>(
     queryKeys.orgComplianceDocuments(orgId),
     '/v1/compliance/documents',
-    { enabled: canManage },
+    { enabled: isTenantScope },
   )
 }
 

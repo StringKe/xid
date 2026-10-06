@@ -31,8 +31,10 @@ type QueryState = {
 
 const apiMocks = vi.hoisted(() => ({
   queries: new Map<string, QueryState>(),
+  fetchNextPage: vi.fn(),
   useApiMutation: vi.fn(),
   useApiQuery: vi.fn(),
+  useApiInfiniteQuery: vi.fn(),
 }))
 
 vi.mock('@lingui/react/macro', () => ({
@@ -51,6 +53,7 @@ vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
     ...actual,
     useApiMutation: apiMocks.useApiMutation,
     useApiQuery: apiMocks.useApiQuery,
+    useApiInfiniteQuery: apiMocks.useApiInfiniteQuery,
   }
 })
 
@@ -268,6 +271,8 @@ describe('platform pages', () => {
   beforeEach(() => {
     apiMocks.useApiMutation.mockReset()
     apiMocks.useApiQuery.mockReset()
+    apiMocks.useApiInfiniteQuery.mockReset()
+    apiMocks.fetchNextPage.mockReset()
     apiMocks.queries.clear()
     apiMocks.queries.set('/v1/platform/stats', queryState(stats))
     apiMocks.queries.set(
@@ -348,6 +353,18 @@ describe('platform pages', () => {
     apiMocks.useApiQuery.mockImplementation((_queryKey: readonly unknown[], path: string) =>
       apiMocks.queries.get(path),
     )
+    apiMocks.useApiInfiniteQuery.mockImplementation(
+      (_queryKey: readonly unknown[], path: string) => {
+        const state = apiMocks.queries.get(path)
+        const page = state?.data as { nextCursor?: string | null } | undefined
+        return {
+          ...state,
+          hasNextPage: Boolean(page?.nextCursor),
+          isFetchingNextPage: false,
+          fetchNextPage: apiMocks.fetchNextPage,
+        }
+      },
+    )
     apiMocks.useApiMutation.mockReturnValue({
       error: null,
       isError: false,
@@ -371,10 +388,10 @@ describe('platform pages', () => {
   it('requests and renders organizations with scoped management links', () => {
     const html = renderToStaticMarkup(<PlatformOrganizations />)
 
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
+    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/organizations',
-      { query: { cursor: undefined, limit: 20, q: '' } },
+      { query: { limit: 20, q: '' } },
     )
     expect(html).toContain('Acme Platform')
     expect(html).toContain('Suspend')
@@ -385,10 +402,11 @@ describe('platform pages', () => {
   it('keeps the global user query disabled until a search is submitted', () => {
     const html = renderToStaticMarkup(<PlatformUsers />)
 
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(expect.anything(), '/v1/platform/users', {
-      enabled: false,
-      query: { cursor: undefined, limit: 20, q: '' },
-    })
+    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      '/v1/platform/users',
+      { enabled: false, query: { limit: 20, q: '' } },
+    )
     expect(html).toContain('Global user search')
     expect(html).toContain('Enter a search query to find users.')
     expect(html).not.toContain(globalUser.email)
@@ -397,10 +415,10 @@ describe('platform pages', () => {
   it('renders instance managers and prevents self-revocation', () => {
     const html = renderToStaticMarkup(<PlatformInstanceManagers />)
 
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
+    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/manager-assignments',
-      { query: { cursor: undefined, limit: 50 } },
+      { query: { limit: 50 } },
     )
     expect(html).toContain('Instance managers')
     expect(html).toContain(globalUser.id)
@@ -411,10 +429,10 @@ describe('platform pages', () => {
   it('requests and renders the global audit event stream', () => {
     const html = renderToStaticMarkup(<PlatformAuditEvents />)
 
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
+    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/audit-events',
-      { query: { cursor: undefined, limit: 30 } },
+      { query: { limit: 30 } },
     )
     expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
       expect.anything(),
@@ -436,10 +454,10 @@ describe('platform pages', () => {
   it('requests and renders dead letters as a standalone page', () => {
     const html = renderToStaticMarkup(<PlatformDeadLetters />)
 
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
+    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/dead-letters',
-      { query: { cursor: undefined, limit: 30 } },
+      { query: { limit: 30 } },
     )
     expect(html).toContain(deadLetter.sourceQueue)
     expect(html).toContain(deadLetter.eventType)
@@ -463,25 +481,22 @@ describe('platform pages', () => {
     {
       name: 'announcements',
       path: '/v1/platform/announcements',
-      cursor: 'announcement_cursor_2',
       content: announcement.title,
       component: <PlatformAnnouncements />,
     },
     {
       name: 'status incidents',
       path: '/v1/platform/status-incidents',
-      cursor: 'incident_cursor_2',
       content: statusIncident.title,
       component: <PlatformStatusIncidents />,
     },
     {
       name: 'compliance documents',
       path: '/v1/platform/compliance-documents',
-      cursor: 'compliance_cursor_2',
       content: complianceDocument.title,
       component: <PlatformCompliance />,
     },
-  ])('follows the server cursor for $name', async ({ component, content, cursor, path }) => {
+  ])('appends the next server page for $name', async ({ component, content, path }) => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -491,8 +506,8 @@ describe('platform pages', () => {
     })
 
     expect(container.textContent).toContain(content)
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(expect.anything(), path, {
-      query: { cursor: undefined, limit: 30 },
+    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(expect.anything(), path, {
+      query: { limit: 30 },
     })
 
     const loadMore = [...container.querySelectorAll('button')].find(
@@ -504,9 +519,7 @@ describe('platform pages', () => {
       loadMore?.click()
     })
 
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(expect.anything(), path, {
-      query: { cursor, limit: 30 },
-    })
+    expect(apiMocks.fetchNextPage).toHaveBeenCalledOnce()
 
     await act(async () => {
       root.unmount()
@@ -516,9 +529,11 @@ describe('platform pages', () => {
   it('requests and renders the billing overview', () => {
     const html = renderToStaticMarkup(<PlatformBilling />)
 
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(expect.anything(), '/v1/platform/billing', {
-      query: { cursor: undefined, limit: 20 },
-    })
+    expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      '/v1/platform/billing',
+      { query: { limit: 20 } },
+    )
     expect(html).toContain(billingOverview.organizationName)
     expect(html).toContain('25')
     expect(html).toContain('50')

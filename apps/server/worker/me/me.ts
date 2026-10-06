@@ -444,6 +444,7 @@ app.get('/', async (c) => {
         permissions: permissionsByOrg.get(organization.id) ?? [],
         parentOrgId: organization.parentOrgId,
         allowOrgSelfService: organization.allowOrgSelfService,
+        canManageOwners: membership.role === 'owner' || managedOrgIds.has(membership.orgId),
       },
     ]
   })
@@ -460,6 +461,7 @@ app.get('/', async (c) => {
       permissions: permissionsByOrg.get(organization.id) ?? [],
       parentOrgId: organization.parentOrgId,
       allowOrgSelfService: organization.allowOrgSelfService,
+      canManageOwners: true,
     })
   }
   const activeOrg = session.activeOrgId

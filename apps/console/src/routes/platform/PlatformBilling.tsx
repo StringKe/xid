@@ -1,5 +1,4 @@
 import { Trans } from '@lingui/react/macro'
-import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
@@ -36,8 +35,8 @@ const styles = stylex.create({
 
 export default function PlatformBilling(): ReactNode {
   const billingStatusLabel = useBillingStatusLabel()
-  const [cursor, setCursor] = useState<string | undefined>()
-  const { data, isLoading, isError } = useBillingOverviewQuery(cursor)
+  const list = useBillingOverviewQuery()
+  const { data, isLoading, isError } = list
 
   const columns: ColumnDef<BillingOverview>[] = [
     {
@@ -121,13 +120,7 @@ export default function PlatformBilling(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No billing data available.</Trans>}
         />
-        {data ? (
-          <Pagination
-            nextCursor={data.nextCursor}
-            loadMoreLabel={<Trans>Load more</Trans>}
-            onLoadMore={setCursor}
-          />
-        ) : null}
+        {data ? <Pagination query={list} loadMoreLabel={<Trans>Load more</Trans>} /> : null}
       </ConsolePageSection>
     </ConsolePage>
   )

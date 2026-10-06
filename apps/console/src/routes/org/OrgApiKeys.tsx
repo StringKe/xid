@@ -5,7 +5,8 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
-import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
+import { API_KEY_SCOPE_RESOURCES, type ApiKeyEnvironment } from '@xid-kit/types'
+import { Alert, Badge, Button, Checkbox, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -15,17 +16,24 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
-import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
+import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { errorTargetsField, useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { ChoiceList } from './ChoiceList'
 import { useApiKeysQuery, useCreateApiKey, useRevokeApiKey } from './queries'
+import { TenantScopeGate } from './TenantScopeGate'
 import type { ApiKey } from './types'
-import { useOrgTarget } from './useOrgTarget'
 
 const ENV_TONE: Record<string, BadgeTone> = {
   live: 'success',
   test: 'warning',
 }
+
+const SCOPE_OPTIONS = API_KEY_SCOPE_RESOURCES.flatMap((resource) => [
+  `${resource}:read`,
+  `${resource}:write`,
+])
 
 const styles = stylex.create({
   formRow: {
@@ -39,7 +47,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   formFieldFixed: {
-    flex: '0 0 160px',
+    flex: '0 0 180px',
   },
   keyStack: {
     display: 'flex',
@@ -59,6 +67,17 @@ const styles = stylex.create({
   mutedText: {
     color: tokens['--xid-muted-foreground'],
   },
+  scopeStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  checkRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+  },
 })
 
 function EnvBadge({ environment }: { environment: string }): ReactNode {
@@ -76,18 +95,46 @@ function LastUsed({ lastUsedAt }: { lastUsedAt: string | null }): ReactNode {
   )
 }
 
-export default function OrgApiKeys(): ReactNode {
-  const { t } = useLingui()
-  const { orgId } = useOrgTarget()
+function Scopes({ scopes }: { scopes: string[] }): ReactNode {
+  if (scopes.includes('*')) {
+    return (
+      <Badge tone="warning">
+        <Trans>Full access</Trans>
+      </Badge>
+    )
+  }
+  return <span {...stylex.props(styles.prefixText)}>{scopes.join(', ')}</span>
+}
 
-  const [cursor, setCursor] = useState<string | undefined>()
-  const { data, isLoading, isError } = useApiKeysQuery(cursor)
+// 日期输入按本地时区取当天结束时刻,服务端只接受未来时间。
+function endOfLocalDay(date: string): string | undefined {
+  if (!date) return undefined
+  return new Date(`${date}T23:59:59.999`).toISOString()
+}
+
+export default function OrgApiKeys(): ReactNode {
+  return (
+    <TenantScopeGate title={<Trans>API keys</Trans>}>
+      <ApiKeysPage />
+    </TenantScopeGate>
+  )
+}
+
+function ApiKeysPage(): ReactNode {
+  const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
+  const apiKeys = useApiKeysQuery()
+  const { data, isLoading, error } = apiKeys
 
   const createApiKey = useCreateApiKey()
   const revokeApiKey = useRevokeApiKey()
 
   const [name, setName] = useState('')
-  const [environment, setEnvironment] = useState<'live' | 'test'>('live')
+  const [environment, setEnvironment] = useState<ApiKeyEnvironment>('live')
+  const [scopes, setScopes] = useState<string[]>([])
+  const [fullAccess, setFullAccess] = useState(false)
+  const [expiresOn, setExpiresOn] = useState('')
+  const [scopesMissing, setScopesMissing] = useState(false)
   const [revealedKey, setRevealedKey] = useState<string | null>(null)
   const [pendingRevoke, setPendingRevoke] = useState<ApiKey | null>(null)
 
@@ -107,18 +154,28 @@ export default function OrgApiKeys(): ReactNode {
     },
     {
       id: 'environment',
-      header: () => <Trans>Environment</Trans>,
+      header: () => <Trans>Label</Trans>,
       cell: ({ row }) => <EnvBadge environment={row.original.environment} />,
-      meta: { width: '120px' },
+      meta: { width: '100px' },
     },
     {
-      id: 'created',
-      header: () => <Trans>Created</Trans>,
-      cell: ({ row }) => (
-        <span {...stylex.props(styles.timeText)}>
-          {new Date(row.original.created_at).toLocaleDateString()}
-        </span>
-      ),
+      id: 'scopes',
+      header: () => <Trans>Scopes</Trans>,
+      cell: ({ row }) => <Scopes scopes={row.original.scopes} />,
+    },
+    {
+      id: 'expires',
+      header: () => <Trans>Expires</Trans>,
+      cell: ({ row }) =>
+        row.original.expires_at ? (
+          <span {...stylex.props(styles.timeText)}>
+            {new Date(row.original.expires_at).toLocaleDateString()}
+          </span>
+        ) : (
+          <span {...stylex.props(styles.mutedText)}>
+            <Trans>Never</Trans>
+          </span>
+        ),
       meta: { width: '120px' },
     },
     {
@@ -145,54 +202,64 @@ export default function OrgApiKeys(): ReactNode {
     },
   ]
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleCreate(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (!name.trim()) return
+    const requestedScopes = fullAccess ? ['*'] : scopes
+    setScopesMissing(requestedScopes.length === 0)
+    if (requestedScopes.length === 0) return
     setRevealedKey(null)
-    const result = await createApiKey.mutateAsync({
-      name: name.trim(),
-      environment,
-      scopes: ['*'],
-    })
-    setRevealedKey(result.key)
-    setName('')
-  }
-
-  async function confirmRevoke(): Promise<void> {
-    if (!pendingRevoke) return
-    await revokeApiKey.mutateAsync(pendingRevoke.id)
-    setPendingRevoke(null)
-  }
-
-  if (!orgId) {
-    return (
-      <ConsolePage wide title={<Trans>API keys</Trans>}>
-        <ConsolePageNotice>
-          <Alert tone="info">
-            <Trans>No organization selected.</Trans>
-          </Alert>
-        </ConsolePageNotice>
-      </ConsolePage>
+    const expiresAt = endOfLocalDay(expiresOn)
+    createApiKey.mutate(
+      {
+        name: name.trim(),
+        environment,
+        scopes: requestedScopes,
+        ...(expiresAt ? { expires_at: expiresAt } : {}),
+      },
+      {
+        onSuccess: (result) => {
+          setRevealedKey(result.key)
+          setName('')
+          setScopes([])
+          setFullAccess(false)
+          setExpiresOn('')
+        },
+      },
     )
   }
+
+  function confirmRevoke(): void {
+    if (!pendingRevoke) return
+    revokeApiKey.mutate(pendingRevoke.id, { onSettled: () => setPendingRevoke(null) })
+  }
+
+  const fieldError = (field: string): string | undefined =>
+    errorTargetsField(createApiKey.error, field) ? errorMessage(createApiKey.error) : undefined
+  const formError =
+    createApiKey.error &&
+    !['scopes', 'expires_at', 'environment'].some((field) =>
+      errorTargetsField(createApiKey.error, field),
+    )
+      ? errorMessage(createApiKey.error)
+      : undefined
 
   return (
     <ConsolePage
       wide
       title={<Trans>API keys</Trans>}
-      lead={<Trans>Create and revoke API keys for server-side integrations.</Trans>}
+      lead={
+        <Trans>
+          Create and revoke API keys for server-side integrations. API keys are shared by every
+          organization in the tenant.
+        </Trans>
+      }
     >
-      {isError || revokeApiKey.isError ? (
+      {error || revokeApiKey.error ? (
         <ConsolePageNotice>
-          {isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load API keys.</Trans>
-            </Alert>
-          ) : null}
-          {revokeApiKey.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to revoke API key. Try again.</Trans>
-            </Alert>
+          {error ? <Alert tone="error">{errorMessage(error)}</Alert> : null}
+          {revokeApiKey.error ? (
+            <Alert tone="error">{errorMessage(revokeApiKey.error)}</Alert>
           ) : null}
         </ConsolePageNotice>
       ) : null}
@@ -205,55 +272,87 @@ export default function OrgApiKeys(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No active API keys.</Trans>}
         />
-        {data ? (
-          <Pagination
-            nextCursor={data.next_cursor}
-            loadMoreLabel={<Trans>Load more keys</Trans>}
-            onLoadMore={setCursor}
-          />
-        ) : null}
+        <Pagination query={apiKeys} loadMoreLabel={<Trans>Load more keys</Trans>} />
       </ConsolePageSection>
 
       <ConsolePageSplitSection
         title={<Trans>Create API key</Trans>}
         description={
           <Trans>
-            The full key is shown once at creation. Live keys have full access; test keys are
-            sandbox-only.
+            The full key is shown once at creation. Live and test keys have the same permissions;
+            the label only marks the intended use. Grant only the scopes the integration needs.
           </Trans>
         }
       >
-        <form onSubmit={(event) => void handleCreate(event)} noValidate>
-          <div {...stylex.props(styles.formRow)}>
-            <div {...stylex.props(styles.formFieldGrow)}>
-              <Field
-                label={<Trans>Key name</Trans>}
-                error={createApiKey.error ? t`Failed to create API key. Try again.` : undefined}
-                required
-              >
-                <Input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t`Production backend`}
-                  required
-                />
-              </Field>
-            </div>
-            <div {...stylex.props(styles.formFieldFixed)}>
-              <Field label={<Trans>Environment</Trans>}>
-                <Select
-                  value={environment}
-                  onChange={(event) => setEnvironment(event.target.value as 'live' | 'test')}
-                  aria-label={t`Select key environment`}
+        <form onSubmit={handleCreate} noValidate>
+          <div {...stylex.props(page.gridForm)}>
+            <div {...stylex.props(styles.formRow)}>
+              <div {...stylex.props(styles.formFieldGrow)}>
+                <Field label={<Trans>Key name</Trans>} error={formError} required>
+                  <Input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder={t`Production backend`}
+                    required
+                  />
+                </Field>
+              </div>
+              <div {...stylex.props(styles.formFieldFixed)}>
+                <Field label={<Trans>Label</Trans>} error={fieldError('environment')}>
+                  <Select
+                    value={environment}
+                    onChange={(event) => setEnvironment(event.target.value as ApiKeyEnvironment)}
+                    aria-label={t`Select key label`}
+                  >
+                    <option value="live">{t`live`}</option>
+                    <option value="test">{t`test`}</option>
+                  </Select>
+                </Field>
+              </div>
+              <div {...stylex.props(styles.formFieldFixed)}>
+                <Field
+                  label={<Trans>Expires on</Trans>}
+                  hint={<Trans>Optional</Trans>}
+                  error={fieldError('expires_at')}
                 >
-                  <option value="live">{t`live`}</option>
-                  <option value="test">{t`test`}</option>
-                </Select>
-              </Field>
+                  <Input
+                    type="date"
+                    value={expiresOn}
+                    onChange={(event) => setExpiresOn(event.target.value)}
+                  />
+                </Field>
+              </div>
             </div>
-            <Button type="submit" isLoading={createApiKey.isPending}>
-              <Trans>Create key</Trans>
-            </Button>
+            <Field
+              label={<Trans>Scopes</Trans>}
+              error={scopesMissing ? t`Select at least one scope.` : fieldError('scopes')}
+              required
+            >
+              <div {...stylex.props(styles.scopeStack)}>
+                <label {...stylex.props(styles.checkRow)}>
+                  <Checkbox
+                    checked={fullAccess}
+                    onChange={(event) => setFullAccess(event.target.checked)}
+                  />
+                  <span>
+                    <Trans>Full access to every resource in the tenant</Trans>
+                  </span>
+                </label>
+                {fullAccess ? null : (
+                  <ChoiceList
+                    options={SCOPE_OPTIONS}
+                    selected={scopes}
+                    onChange={setScopes}
+                    label={t`Scopes`}
+                  />
+                )}
+              </div>
+            </Field>
+            <div>
+              <Button type="submit" isLoading={createApiKey.isPending}>
+                <Trans>Create key</Trans>
+              </Button>
+            </div>
           </div>
         </form>
         {revealedKey ? (
@@ -277,7 +376,7 @@ export default function OrgApiKeys(): ReactNode {
           }
           confirmLabel={<Trans>Revoke</Trans>}
           isLoading={revokeApiKey.isPending}
-          onConfirm={() => void confirmRevoke()}
+          onConfirm={confirmRevoke}
           onCancel={() => setPendingRevoke(null)}
         />
       ) : null}

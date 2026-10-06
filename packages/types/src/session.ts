@@ -27,6 +27,8 @@ export type BrowserAuthOrganization = {
   // null 表示租户顶层组织;Applications、API keys、Webhooks、Compliance 只能由顶层组织管理。
   parentOrgId: string | null
   allowOrgSelfService: boolean
+  // owner 或该组织的 org_manager 才能授予或移除 owner,与服务端 canManageOwners 一致。
+  canManageOwners: boolean
 }
 
 export type BrowserAuthSession = {

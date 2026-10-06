@@ -12,7 +12,9 @@ import {
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useOrgDeliveryChannelsQuery, useUpdateOrgDeliveryChannels } from './queries'
 import type { OrgDeliveryChannels } from './types'
-import { useOrgTarget } from './useOrgTarget'
+import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
+import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 
 const WHATSAPP_PROVIDERS = ['twilio', 'meta', 'test'] as const
 const SMS_PROVIDERS = ['twilio', 'vonage', 'infobip', 'messagebird', 'test'] as const
@@ -96,6 +98,8 @@ function channelConfigured(input: { enabled: boolean; credentialsReady: boolean 
 
 export default function OrgDeliveryChannelsPage(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
+  const locked = useOrgSelfServiceLocked()
   const { orgId } = useOrgTarget()
   const query = useOrgDeliveryChannelsQuery(orgId)
   const updateChannels = useUpdateOrgDeliveryChannels(orgId)
@@ -152,12 +156,15 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
     patchSms({ provider, secretRefs: SMS_SECRET_REFS[provider] })
   }
 
-  async function handleSave(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleSave(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    if (!form) return
-    const next = await updateChannels.mutateAsync(form)
-    setForm(next)
-    setSaveSuccess(true)
+    if (!form || locked) return
+    updateChannels.mutate(form, {
+      onSuccess: (next) => {
+        setForm(next)
+        setSaveSuccess(true)
+      },
+    })
   }
 
   return (
@@ -169,17 +176,16 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
         </Trans>
       }
     >
-      {query.isError || updateChannels.error || saveSuccess ? (
+      {locked || query.isError || updateChannels.error || saveSuccess ? (
         <ConsolePageNotice>
+          {locked ? <SelfServiceLockNotice /> : null}
           {query.isError ? (
             <Alert tone="error">
               <Trans>Failed to load delivery channels.</Trans>
             </Alert>
           ) : null}
           {updateChannels.error ? (
-            <Alert tone="error">
-              <Trans>Failed to save delivery channels. Try again.</Trans>
-            </Alert>
+            <Alert tone="error">{errorMessage(updateChannels.error)}</Alert>
           ) : null}
           {saveSuccess ? (
             <Alert tone="success">
@@ -196,155 +202,161 @@ export default function OrgDeliveryChannelsPage(): ReactNode {
           </div>
         </ConsolePageSection>
       ) : (
-        <form onSubmit={(event) => void handleSave(event)} noValidate>
-          <ConsolePageSplitSection
-            title={<Trans>WhatsApp provider</Trans>}
-            meta={
-              <div {...stylex.props(styles.channelMeta)}>
-                <div>
-                  <Badge tone={channelConfigured(form.whatsapp) ? 'success' : 'neutral'}>
-                    {channelConfigured(form.whatsapp) ? (
-                      <Trans>Ready</Trans>
-                    ) : (
-                      <Trans>Not ready</Trans>
+        <form onSubmit={handleSave} noValidate>
+          <LockableFieldset locked={locked}>
+            <ConsolePageSplitSection
+              title={<Trans>WhatsApp provider</Trans>}
+              meta={
+                <div {...stylex.props(styles.channelMeta)}>
+                  <div>
+                    <Badge tone={channelConfigured(form.whatsapp) ? 'success' : 'neutral'}>
+                      {channelConfigured(form.whatsapp) ? (
+                        <Trans>Ready</Trans>
+                      ) : (
+                        <Trans>Not ready</Trans>
+                      )}
+                    </Badge>
+                  </div>
+                  <p
+                    {...stylex.props(
+                      styles.readinessNote,
+                      channelConfigured(form.whatsapp) ? styles.readinessReady : undefined,
                     )}
-                  </Badge>
+                  >
+                    {channelConfigured(form.whatsapp) ? (
+                      <Trans>WhatsApp delivery is ready for Hosted UI.</Trans>
+                    ) : (
+                      <Trans>
+                        WhatsApp delivery stays hidden until the provider is enabled and all
+                        referenced Workers Secrets exist.
+                      </Trans>
+                    )}
+                  </p>
                 </div>
-                <p
-                  {...stylex.props(
-                    styles.readinessNote,
-                    channelConfigured(form.whatsapp) ? styles.readinessReady : undefined,
-                  )}
-                >
-                  {channelConfigured(form.whatsapp) ? (
-                    <Trans>WhatsApp delivery is ready for Hosted UI.</Trans>
-                  ) : (
-                    <Trans>
-                      WhatsApp delivery stays hidden until the provider is enabled and all
-                      referenced Workers Secrets exist.
-                    </Trans>
-                  )}
-                </p>
-              </div>
-            }
-          >
-            <label {...stylex.props(styles.checkRow)}>
-              <Checkbox
-                checked={form.whatsapp.enabled}
-                onChange={(event) => patchWhatsapp({ enabled: event.target.checked })}
-              />
-              <span>
-                <Trans>Enabled</Trans>
-              </span>
-            </label>
-            <Field label={<Trans>Provider</Trans>}>
-              <Select
-                value={form.whatsapp.provider}
-                onChange={(event) =>
-                  selectWhatsappProvider(
-                    event.target.value as OrgDeliveryChannels['whatsapp']['provider'],
-                  )
-                }
-              >
-                {WHATSAPP_PROVIDERS.map((p) => (
-                  <option key={p} value={p}>
-                    {whatsappProviderLabels[p]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={<Trans>Sender</Trans>}>
-              <Input
-                value={form.whatsapp.from}
-                onChange={(event) => patchWhatsapp({ from: event.target.value.trim() })}
-                placeholder={t`whatsapp:+15550000000`}
-              />
-            </Field>
-            <Field
-              label={<Trans>Secret bindings</Trans>}
-              hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+              }
             >
-              <Input
-                value={listToText(form.whatsapp.secretRefs)}
-                readOnly
-                placeholder={t`WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_ACCESS_TOKEN`}
-              />
-            </Field>
-          </ConsolePageSplitSection>
+              <label {...stylex.props(styles.checkRow)}>
+                <Checkbox
+                  checked={form.whatsapp.enabled}
+                  onChange={(event) => patchWhatsapp({ enabled: event.target.checked })}
+                />
+                <span>
+                  <Trans>Enabled</Trans>
+                </span>
+              </label>
+              <Field label={<Trans>Provider</Trans>}>
+                <Select
+                  value={form.whatsapp.provider}
+                  onChange={(event) =>
+                    selectWhatsappProvider(
+                      event.target.value as OrgDeliveryChannels['whatsapp']['provider'],
+                    )
+                  }
+                >
+                  {WHATSAPP_PROVIDERS.map((p) => (
+                    <option key={p} value={p}>
+                      {whatsappProviderLabels[p]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={<Trans>Sender</Trans>}>
+                <Input
+                  value={form.whatsapp.from}
+                  onChange={(event) => patchWhatsapp({ from: event.target.value.trim() })}
+                  placeholder={t`whatsapp:+15550000000`}
+                />
+              </Field>
+              <Field
+                label={<Trans>Secret bindings</Trans>}
+                hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+              >
+                <Input
+                  value={listToText(form.whatsapp.secretRefs)}
+                  readOnly
+                  placeholder={t`WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_ACCESS_TOKEN`}
+                />
+              </Field>
+            </ConsolePageSplitSection>
 
-          <ConsolePageSplitSection
-            title={<Trans>SMS provider</Trans>}
-            meta={
-              <div {...stylex.props(styles.channelMeta)}>
-                <div>
-                  <Badge tone={channelConfigured(form.sms) ? 'success' : 'neutral'}>
-                    {channelConfigured(form.sms) ? <Trans>Ready</Trans> : <Trans>Not ready</Trans>}
-                  </Badge>
+            <ConsolePageSplitSection
+              title={<Trans>SMS provider</Trans>}
+              meta={
+                <div {...stylex.props(styles.channelMeta)}>
+                  <div>
+                    <Badge tone={channelConfigured(form.sms) ? 'success' : 'neutral'}>
+                      {channelConfigured(form.sms) ? (
+                        <Trans>Ready</Trans>
+                      ) : (
+                        <Trans>Not ready</Trans>
+                      )}
+                    </Badge>
+                  </div>
+                  <p
+                    {...stylex.props(
+                      styles.readinessNote,
+                      channelConfigured(form.sms) ? styles.readinessReady : undefined,
+                    )}
+                  >
+                    {channelConfigured(form.sms) ? (
+                      <Trans>SMS delivery is ready for Hosted UI.</Trans>
+                    ) : (
+                      <Trans>
+                        SMS delivery stays hidden until the provider is enabled, a sender is set,
+                        and all referenced Workers Secrets exist.
+                      </Trans>
+                    )}
+                  </p>
                 </div>
-                <p
-                  {...stylex.props(
-                    styles.readinessNote,
-                    channelConfigured(form.sms) ? styles.readinessReady : undefined,
-                  )}
-                >
-                  {channelConfigured(form.sms) ? (
-                    <Trans>SMS delivery is ready for Hosted UI.</Trans>
-                  ) : (
-                    <Trans>
-                      SMS delivery stays hidden until the provider is enabled, a sender is set, and
-                      all referenced Workers Secrets exist.
-                    </Trans>
-                  )}
-                </p>
-              </div>
-            }
-          >
-            <label {...stylex.props(styles.checkRow)}>
-              <Checkbox
-                checked={form.sms.enabled}
-                onChange={(event) => patchSms({ enabled: event.target.checked })}
-              />
-              <span>
-                <Trans>Enabled</Trans>
-              </span>
-            </label>
-            <Field label={<Trans>Provider</Trans>}>
-              <Select
-                value={form.sms.provider}
-                onChange={(event) =>
-                  selectSmsProvider(event.target.value as OrgDeliveryChannels['sms']['provider'])
-                }
-              >
-                {SMS_PROVIDERS.map((p) => (
-                  <option key={p} value={p}>
-                    {smsProviderLabels[p]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={<Trans>Sender</Trans>}>
-              <Input
-                value={form.sms.from}
-                onChange={(event) => patchSms({ from: event.target.value.trim() })}
-                placeholder={t`+15550000000`}
-              />
-            </Field>
-            <Field
-              label={<Trans>Secret bindings</Trans>}
-              hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+              }
             >
-              <Input
-                value={listToText(form.sms.secretRefs)}
-                readOnly
-                placeholder={t`TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN`}
-              />
-            </Field>
-            <div>
-              <Button type="submit" isLoading={updateChannels.isPending}>
-                <Trans>Save changes</Trans>
-              </Button>
-            </div>
-          </ConsolePageSplitSection>
+              <label {...stylex.props(styles.checkRow)}>
+                <Checkbox
+                  checked={form.sms.enabled}
+                  onChange={(event) => patchSms({ enabled: event.target.checked })}
+                />
+                <span>
+                  <Trans>Enabled</Trans>
+                </span>
+              </label>
+              <Field label={<Trans>Provider</Trans>}>
+                <Select
+                  value={form.sms.provider}
+                  onChange={(event) =>
+                    selectSmsProvider(event.target.value as OrgDeliveryChannels['sms']['provider'])
+                  }
+                >
+                  {SMS_PROVIDERS.map((p) => (
+                    <option key={p} value={p}>
+                      {smsProviderLabels[p]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={<Trans>Sender</Trans>}>
+                <Input
+                  value={form.sms.from}
+                  onChange={(event) => patchSms({ from: event.target.value.trim() })}
+                  placeholder={t`+15550000000`}
+                />
+              </Field>
+              <Field
+                label={<Trans>Secret bindings</Trans>}
+                hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+              >
+                <Input
+                  value={listToText(form.sms.secretRefs)}
+                  readOnly
+                  placeholder={t`TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN`}
+                />
+              </Field>
+              <div>
+                <Button type="submit" isLoading={updateChannels.isPending}>
+                  <Trans>Save changes</Trans>
+                </Button>
+              </div>
+            </ConsolePageSplitSection>
+          </LockableFieldset>
         </form>
       )}
     </ConsolePage>

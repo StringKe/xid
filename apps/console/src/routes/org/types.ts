@@ -1,4 +1,6 @@
 import type {
+  ApiKeyEnvironment,
+  OrgBranding as SharedOrgBranding,
   OrganizationMembershipRole,
   TenantManagerRole as SharedTenantManagerRole,
   TenantManagerRoleScopeWire,
@@ -22,14 +24,6 @@ export type OrgInvitation = {
   status: 'pending' | 'expired' | 'accepted' | 'revoked'
   expiresAt: string
   createdAt: string
-}
-
-export type OrgRole = {
-  id: string
-  key: string
-  displayName: string
-  group: string | null
-  permissions: string[]
 }
 
 export type OrgPermission = {
@@ -321,21 +315,16 @@ export type RotateScimTokenResult = {
 export type OrgDomain = {
   id: string
   domain: string
-  verified: boolean
-  enrollmentMode: 'automatic' | 'invite_required'
-  verificationToken: string | null
-  verifiedAt: string | null
+  verification_status: string
+  verification_record: { type: 'TXT'; name: string; value: string }
+  verified_at: string | null
 }
 
-export type OrgBranding = {
-  primaryColor: string | null
-  backgroundColor: string | null
-  accentColor: string | null
-  borderRadius: string | null
-  fontFamily: string | null
-  logoUrl: string | null
-  logoDarkUrl: string | null
+export type CreateOrgDomainInput = {
+  domain: string
 }
+
+export type OrgBranding = SharedOrgBranding
 
 export type HostedAuthMethodPolicy = {
   enabled: boolean
@@ -473,17 +462,12 @@ export type UpdateOrgAuthPolicyInput = Pick<
 export type UpdateOrgDeliveryChannelsInput = OrgDeliveryChannels
 export type UpdateOrgSocialProvidersInput = OrgSocialProviders
 
-export type Page<T> = {
-  data: T[]
-  nextCursor: string | null
-  total: number
-}
-
-// 扁平 /v1 资源列表:next_cursor/has_more,与 org-scoped Page(total) 不同。
+// /v1 列表统一形状;成员、邀请、审计等需要计数的列表附带 total。
 export type V1Page<T> = {
   data: T[]
   next_cursor: string | null
   has_more: boolean
+  total?: number
 }
 
 export type OAuthApplication = {
@@ -519,6 +503,13 @@ export type RotateClientSecretResult = {
 export type CreateApplicationInput = {
   client_type: 'confidential' | 'public'
   redirect_uris: string[]
+  post_logout_redirect_uris: string[]
+}
+
+export type UpdateApplicationInput = {
+  redirect_uris: string[]
+  post_logout_redirect_uris: string[]
+  allowed_scopes: string[]
 }
 
 export type WebhookEndpoint = {
@@ -561,8 +552,9 @@ export type CreatedApiKey = ApiKey & {
 
 export type CreateApiKeyInput = {
   name: string
-  environment: 'live' | 'test'
+  environment: ApiKeyEnvironment
   scopes: string[]
+  expires_at?: string
 }
 
 export type AuditEvent = {
@@ -580,10 +572,10 @@ export type AuditEvent = {
   occurredAt: string
 }
 
-export type AuditEventPage = {
-  data: AuditEvent[]
-  nextCursor: string | null
-  total: number
+export type AuditEventFilters = {
+  event_type?: string
+  occurred_from?: string
+  occurred_to?: string
 }
 
 export type OrgComplianceDocument = {

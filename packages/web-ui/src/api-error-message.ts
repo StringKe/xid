@@ -18,3 +18,17 @@ export function useApiErrorMessage(): (error: ApiErrorInput, options: ApiErrorOp
   const { i18n } = useLingui()
   return (error, options) => i18n._(apiErrorDescriptor(classifyApiError(error, options)))
 }
+
+// 管理面(非凭证)表单与操作的错误文案;没有错误时返回 undefined,便于直接传给 Field.error。
+export function useManagementErrorMessage(): (
+  error: ApiErrorInput | null | undefined,
+) => string | undefined {
+  const format = useApiErrorMessage()
+  return (error) => (error ? format(error, { surface: 'general' }) : undefined)
+}
+
+// paramName 可能是数组下标路径(redirect_uris.0),按首段归属到表单字段。
+export function errorTargetsField(error: ApiErrorInput | null | undefined, field: string): boolean {
+  const paramName = error?.meta?.paramName
+  return paramName === field || paramName?.startsWith(`${field}.`) === true
+}

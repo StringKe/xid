@@ -417,10 +417,10 @@ type SettingsGroup = {
   items: ConsoleNavItem[]
 }
 
-function settingsGroups(): readonly SettingsGroup[] {
+function settingsGroups(isTopLevelOrg: boolean): readonly SettingsGroup[] {
   const groups: SettingsGroup[] = []
   for (const item of ORG_NAV) {
-    if (item.end) continue
+    if (item.end || (item.tenantScope && !isTopLevelOrg)) continue
     const key = item.groupKey ?? 'general'
     const existing = groups.find((group) => group.key === key)
     if (existing) {
@@ -433,6 +433,8 @@ function settingsGroups(): readonly SettingsGroup[] {
 }
 
 function SettingsOverview(): ReactNode {
+  const { activeOrg } = useAuth()
+  const isTopLevelOrg = activeOrg?.parentOrgId === null
   return (
     <ConsolePage
       title={<Trans>Settings</Trans>}
@@ -443,7 +445,7 @@ function SettingsOverview(): ReactNode {
         </Trans>
       }
     >
-      {settingsGroups().map((group) => (
+      {settingsGroups(isTopLevelOrg).map((group) => (
         <ConsolePageSection key={group.key} title={group.label}>
           <ul {...stylex.props(styles.settingsList)}>
             {group.items.map((item) => (

@@ -1,6 +1,6 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
 import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
@@ -20,6 +20,7 @@ import {
   useRoleLabel,
 } from '@xid-kit/web-ui/enum-labels'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import {
   useOrgMembersQuery,
   useOrgInvitationsQuery,
@@ -28,7 +29,7 @@ import {
   useRemoveOrgMember,
 } from './queries'
 import type { OrgInvitation, OrgMember } from './types'
-import { useOrgTarget } from './useOrgTarget'
+import { useCanManageOwners, useOrgTarget } from './useOrgTarget'
 import type { OrganizationMembershipRole } from '@xid-kit/types'
 
 const styles = stylex.create({
@@ -69,24 +70,21 @@ export default function OrgMembers(): ReactNode {
   const invitationStatusLabel = useInvitationStatusLabel()
   const roleLabel = useRoleLabel()
 
-  const [memberCursor, setMemberCursor] = useState<string | undefined>()
-  const [inviteCursor, setInviteCursor] = useState<string | undefined>()
-
-  const {
-    data: membersPage,
-    isLoading: membersLoading,
-    isError: membersError,
-  } = useOrgMembersQuery(orgId, memberCursor)
-
+  const errorMessage = useManagementErrorMessage()
+  const canManageOwners = useCanManageOwners()
+  const members = useOrgMembersQuery(orgId)
+  const invitations = useOrgInvitationsQuery(orgId)
+  const { data: membersPage, isLoading: membersLoading, isError: membersError } = members
   const {
     data: invitationsPage,
     isLoading: invitationsLoading,
     isError: invitationsError,
-  } = useOrgInvitationsQuery(orgId, inviteCursor)
+  } = invitations
 
   const createInvitation = useCreateOrgInvitation(orgId)
   const revokeInvitation = useRevokeOrgInvitation(orgId)
   const removeMember = useRemoveOrgMember(orgId)
+  const actionError = removeMember.error ?? revokeInvitation.error
 
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<OrganizationMembershipRole>('member')
@@ -123,17 +121,18 @@ export default function OrgMembers(): ReactNode {
     {
       id: 'actions',
       header: () => <Trans>Actions</Trans>,
-      cell: ({ row }) => (
-        <Button
-          variant="danger"
-          isLoading={removeMember.isPending && pendingRemoveMember?.id === row.original.id}
-          onClick={() => setPendingRemoveMember(row.original)}
-          aria-label={t`Remove ${row.original.email} from organization`}
-          {...stylex.props(consoleShell.actionButton)}
-        >
-          <Trans>Remove</Trans>
-        </Button>
-      ),
+      cell: ({ row }) =>
+        row.original.role !== 'owner' || canManageOwners ? (
+          <Button
+            variant="danger"
+            isLoading={removeMember.isPending && pendingRemoveMember?.id === row.original.id}
+            onClick={() => setPendingRemoveMember(row.original)}
+            aria-label={t`Remove ${row.original.email} from organization`}
+            {...stylex.props(consoleShell.actionButton)}
+          >
+            <Trans>Remove</Trans>
+          </Button>
+        ) : null,
       meta: { width: '100px' },
     },
   ]
@@ -185,25 +184,31 @@ export default function OrgMembers(): ReactNode {
     },
   ]
 
-  async function handleInvite(e: React.FormEvent): Promise<void> {
+  function handleInvite(e: FormEvent): void {
     e.preventDefault()
     if (!orgId || !inviteEmail.trim()) return
     setInviteSuccess(false)
-    await createInvitation.mutateAsync({ email: inviteEmail.trim(), role: inviteRole })
-    setInviteSuccess(true)
-    setInviteEmail('')
+    createInvitation.mutate(
+      { email: inviteEmail.trim(), role: inviteRole },
+      {
+        onSuccess: () => {
+          setInviteSuccess(true)
+          setInviteEmail('')
+        },
+      },
+    )
   }
 
-  async function confirmRemove(): Promise<void> {
+  function confirmRemove(): void {
     if (!orgId || !pendingRemoveMember) return
-    await removeMember.mutateAsync(pendingRemoveMember.id)
-    setPendingRemoveMember(null)
+    removeMember.mutate(pendingRemoveMember.id, { onSettled: () => setPendingRemoveMember(null) })
   }
 
-  async function confirmRevokeInvitation(): Promise<void> {
+  function confirmRevokeInvitation(): void {
     if (!orgId || !pendingRevokeInvitation) return
-    await revokeInvitation.mutateAsync(pendingRevokeInvitation.id)
-    setPendingRevokeInvitation(null)
+    revokeInvitation.mutate(pendingRevokeInvitation.id, {
+      onSettled: () => setPendingRevokeInvitation(null),
+    })
   }
 
   if (!orgId) {
@@ -224,11 +229,9 @@ export default function OrgMembers(): ReactNode {
       title={<Trans>Members</Trans>}
       lead={<Trans>Manage organization members and pending invitations.</Trans>}
     >
-      {removeMember.error ? (
+      {actionError ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to remove member. Try again.</Trans>
-          </Alert>
+          <Alert tone="error">{errorMessage(actionError)}</Alert>
         </ConsolePageNotice>
       ) : null}
 
@@ -246,13 +249,7 @@ export default function OrgMembers(): ReactNode {
               isLoading={membersLoading}
               emptyMessage={<Trans>No members found.</Trans>}
             />
-            {membersPage ? (
-              <Pagination
-                nextCursor={membersPage.nextCursor}
-                loadMoreLabel={<Trans>Load more members</Trans>}
-                onLoadMore={setMemberCursor}
-              />
-            ) : null}
+            <Pagination query={members} loadMoreLabel={<Trans>Load more members</Trans>} />
           </>
         )}
       </ConsolePageSection>
@@ -271,13 +268,7 @@ export default function OrgMembers(): ReactNode {
               isLoading={invitationsLoading}
               emptyMessage={<Trans>No pending invitations.</Trans>}
             />
-            {invitationsPage ? (
-              <Pagination
-                nextCursor={invitationsPage.nextCursor}
-                loadMoreLabel={<Trans>Load more invitations</Trans>}
-                onLoadMore={setInviteCursor}
-              />
-            ) : null}
+            <Pagination query={invitations} loadMoreLabel={<Trans>Load more invitations</Trans>} />
           </>
         )}
       </ConsolePageSection>
@@ -288,18 +279,12 @@ export default function OrgMembers(): ReactNode {
           <Trans>The recipient will receive an email with a link to join this organization.</Trans>
         }
       >
-        <form
-          onSubmit={(e) => void handleInvite(e)}
-          noValidate
-          {...stylex.props(styles.inviteForm)}
-        >
+        <form onSubmit={handleInvite} noValidate {...stylex.props(styles.inviteForm)}>
           <div {...stylex.props(styles.inviteRow)}>
             <div {...stylex.props(styles.inviteEmailWrap)}>
               <Field
                 label={<Trans>Email address</Trans>}
-                error={
-                  createInvitation.error ? t`Failed to send invitation. Try again.` : undefined
-                }
+                error={errorMessage(createInvitation.error)}
                 required
               >
                 <Input
@@ -321,6 +306,7 @@ export default function OrgMembers(): ReactNode {
                 >
                   <option value="member">{roleLabel('member')}</option>
                   <option value="admin">{roleLabel('admin')}</option>
+                  {canManageOwners ? <option value="owner">{roleLabel('owner')}</option> : null}
                 </Select>
               </Field>
             </div>
@@ -346,7 +332,7 @@ export default function OrgMembers(): ReactNode {
           }
           confirmLabel={<Trans>Remove</Trans>}
           isLoading={removeMember.isPending}
-          onConfirm={() => void confirmRemove()}
+          onConfirm={confirmRemove}
           onCancel={() => setPendingRemoveMember(null)}
         />
       ) : null}
@@ -362,7 +348,7 @@ export default function OrgMembers(): ReactNode {
           }
           confirmLabel={<Trans>Revoke</Trans>}
           isLoading={revokeInvitation.isPending}
-          onConfirm={() => void confirmRevokeInvitation()}
+          onConfirm={confirmRevokeInvitation}
           onCancel={() => setPendingRevokeInvitation(null)}
         />
       ) : null}

@@ -5,7 +5,9 @@ import { Alert, Badge, Button, EmptyState, Spinner } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useAcceptDpa, useOrgComplianceDocumentsQuery } from './queries'
+import { TenantScopeGate } from './TenantScopeGate'
 import type { OrgComplianceDocument } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
@@ -135,7 +137,16 @@ function EvidenceRow({
 }
 
 export default function OrgCompliance(): ReactNode {
+  return (
+    <TenantScopeGate title={<Trans>Compliance center</Trans>}>
+      <CompliancePage />
+    </TenantScopeGate>
+  )
+}
+
+function CompliancePage(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
   const { orgId } = useOrgTarget()
   const query = useOrgComplianceDocumentsQuery(orgId)
   const accept = useAcceptDpa(orgId)
@@ -146,15 +157,13 @@ export default function OrgCompliance(): ReactNode {
       lead={
         <Trans>
           Review published compliance evidence, verify its checksum, and retain an immutable DPA
-          acceptance record for this organization.
+          acceptance record for the tenant.
         </Trans>
       }
     >
-      {accept.isError ? (
+      {accept.error ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to record DPA acceptance. Try again.</Trans>
-          </Alert>
+          <Alert tone="error">{errorMessage(accept.error)}</Alert>
         </ConsolePageNotice>
       ) : null}
       <ConsolePageSection>

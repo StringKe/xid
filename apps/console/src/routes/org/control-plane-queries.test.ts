@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const queryMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>())
+const listMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>())
 const mutationMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>())
 
 vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
@@ -8,15 +9,18 @@ vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
   return {
     ...actual,
     useApiQuery: queryMock,
+    useApiInfiniteQuery: listMock,
     useApiMutation: mutationMock,
   }
 })
 
 vi.mock('./useOrgTarget', () => ({
   useCanManageOrg: () => true,
+  useIsTenantScopeOrg: () => true,
 }))
 
 import {
+  useAuditEventsQuery,
   useManagedProjectGrantQuery,
   useManagedProjectQuery,
   useManagerAssignmentsQuery,
@@ -31,42 +35,28 @@ import { useInstanceManagerAssignmentsQuery } from '../platform/queries'
 describe('control-plane Console query contracts', () => {
   beforeEach(() => {
     queryMock.mockReset()
+    listMock.mockReset()
     mutationMock.mockReset()
     queryMock.mockReturnValue({})
+    listMock.mockReturnValue({})
     mutationMock.mockReturnValue({})
   })
 
   it('keeps active and deleted project lists in distinct persistent queries', () => {
-    useProjectsQuery('org_1', 'active', 'cursor_active')
-    useProjectsQuery('org_1', 'deleted', 'cursor_deleted')
+    useProjectsQuery('org_1', 'active')
+    useProjectsQuery('org_1', 'deleted')
 
-    expect(queryMock).toHaveBeenNthCalledWith(
+    expect(listMock).toHaveBeenNthCalledWith(
       1,
-      ['organizations', 'org_1', 'projects', 'active', { cursor: 'cursor_active' }],
+      ['organizations', 'org_1', 'projects', 'active'],
       '/v1/projects',
-      {
-        enabled: true,
-        query: {
-          org_id: 'org_1',
-          status: 'active',
-          limit: 50,
-          cursor: 'cursor_active',
-        },
-      },
+      { enabled: true, query: { org_id: 'org_1', status: 'active', limit: 50 } },
     )
-    expect(queryMock).toHaveBeenNthCalledWith(
+    expect(listMock).toHaveBeenNthCalledWith(
       2,
-      ['organizations', 'org_1', 'projects', 'deleted', { cursor: 'cursor_deleted' }],
+      ['organizations', 'org_1', 'projects', 'deleted'],
       '/v1/projects',
-      {
-        enabled: true,
-        query: {
-          org_id: 'org_1',
-          status: 'deleted',
-          limit: 50,
-          cursor: 'cursor_deleted',
-        },
-      },
+      { enabled: true, query: { org_id: 'org_1', status: 'deleted', limit: 50 } },
     )
   })
 
@@ -74,34 +64,22 @@ describe('control-plane Console query contracts', () => {
     useProjectRolesQuery('project_1', 'deleted')
     useProjectPermissionsQuery('project_1', 'deleted')
 
-    expect(queryMock).toHaveBeenNthCalledWith(
+    expect(listMock).toHaveBeenNthCalledWith(
       1,
-      ['projects', 'project_1', 'roles', 'deleted', { cursor: null, grantId: null }],
+      ['projects', 'project_1', 'roles', 'deleted', { grantId: null }],
       '/v1/roles',
       {
         enabled: true,
-        query: {
-          project_id: 'project_1',
-          grant_id: undefined,
-          status: 'deleted',
-          limit: 50,
-          cursor: undefined,
-        },
+        query: { project_id: 'project_1', grant_id: undefined, status: 'deleted', limit: 50 },
       },
     )
-    expect(queryMock).toHaveBeenNthCalledWith(
+    expect(listMock).toHaveBeenNthCalledWith(
       2,
-      ['projects', 'project_1', 'permissions', 'deleted', { cursor: null, grantId: null }],
+      ['projects', 'project_1', 'permissions', 'deleted', { grantId: null }],
       '/v1/permissions',
       {
         enabled: true,
-        query: {
-          project_id: 'project_1',
-          grant_id: undefined,
-          status: 'deleted',
-          limit: 50,
-          cursor: undefined,
-        },
+        query: { project_id: 'project_1', grant_id: undefined, status: 'deleted', limit: 50 },
       },
     )
   })
@@ -109,9 +87,9 @@ describe('control-plane Console query contracts', () => {
   it('binds every delegated read to the exact project grant', () => {
     useManagedProjectGrantQuery('grant_1')
     useManagedProjectQuery('project_1', 'grant_1')
-    useProjectRolesQuery('project_1', 'active', undefined, 'grant_1')
-    useProjectPermissionsQuery('project_1', 'active', undefined, 'grant_1')
-    useRolePermissionsQuery('role_1', undefined, 'grant_1')
+    useProjectRolesQuery('project_1', 'active', 'grant_1')
+    useProjectPermissionsQuery('project_1', 'active', 'grant_1')
+    useRolePermissionsQuery('role_1', 'grant_1')
     useUserGrantsQuery('project_1', 'grant_1')
 
     expect(queryMock).toHaveBeenNthCalledWith(
@@ -126,70 +104,40 @@ describe('control-plane Console query contracts', () => {
       '/v1/projects',
       {
         enabled: true,
-        query: {
-          project_id: 'project_1',
-          grant_id: 'grant_1',
-          status: 'active',
-          limit: 1,
-        },
+        query: { project_id: 'project_1', grant_id: 'grant_1', status: 'active', limit: 1 },
       },
     )
-    expect(queryMock).toHaveBeenNthCalledWith(
-      3,
-      ['projects', 'project_1', 'roles', 'active', { cursor: null, grantId: 'grant_1' }],
+    expect(listMock).toHaveBeenNthCalledWith(
+      1,
+      ['projects', 'project_1', 'roles', 'active', { grantId: 'grant_1' }],
       '/v1/roles',
       {
         enabled: true,
-        query: {
-          project_id: 'project_1',
-          grant_id: 'grant_1',
-          status: 'active',
-          limit: 50,
-          cursor: undefined,
-        },
+        query: { project_id: 'project_1', grant_id: 'grant_1', status: 'active', limit: 50 },
       },
     )
-    expect(queryMock).toHaveBeenNthCalledWith(
-      4,
-      ['projects', 'project_1', 'permissions', 'active', { cursor: null, grantId: 'grant_1' }],
+    expect(listMock).toHaveBeenNthCalledWith(
+      2,
+      ['projects', 'project_1', 'permissions', 'active', { grantId: 'grant_1' }],
       '/v1/permissions',
       {
         enabled: true,
-        query: {
-          project_id: 'project_1',
-          grant_id: 'grant_1',
-          status: 'active',
-          limit: 50,
-          cursor: undefined,
-        },
+        query: { project_id: 'project_1', grant_id: 'grant_1', status: 'active', limit: 50 },
       },
     )
-    expect(queryMock).toHaveBeenNthCalledWith(
-      5,
-      ['roles', 'role_1', 'permissions', { cursor: null, grantId: 'grant_1' }],
+    expect(listMock).toHaveBeenNthCalledWith(
+      3,
+      ['roles', 'role_1', 'permissions', { grantId: 'grant_1' }],
       '/v1/role-permissions',
-      {
-        enabled: true,
-        query: {
-          role_id: 'role_1',
-          grant_id: 'grant_1',
-          limit: 50,
-          cursor: undefined,
-        },
-      },
+      { enabled: true, query: { role_id: 'role_1', grant_id: 'grant_1', limit: 50 } },
     )
-    expect(queryMock).toHaveBeenNthCalledWith(
-      6,
-      ['projects', 'project_1', 'user-grants', 'grant_1', { cursor: null }],
+    expect(listMock).toHaveBeenNthCalledWith(
+      4,
+      ['projects', 'project_1', 'user-grants', 'grant_1'],
       '/v1/user-grants',
       {
         enabled: true,
-        query: {
-          project_id: 'project_1',
-          granted_via_grant_id: 'grant_1',
-          limit: 50,
-          cursor: undefined,
-        },
+        query: { project_id: 'project_1', granted_via_grant_id: 'grant_1', limit: 50 },
       },
     )
   })
@@ -202,12 +150,7 @@ describe('control-plane Console query contracts', () => {
       '/v1/projects',
       {
         enabled: true,
-        query: {
-          project_id: 'project_1',
-          grant_id: undefined,
-          status: 'all',
-          limit: 1,
-        },
+        query: { project_id: 'project_1', grant_id: undefined, status: 'all', limit: 1 },
       },
     )
   })
@@ -216,25 +159,32 @@ describe('control-plane Console query contracts', () => {
     useManagerAssignmentsQuery('grant', 'project_grant_1')
     useInstanceManagerAssignmentsQuery()
 
-    expect(queryMock).toHaveBeenNthCalledWith(
+    expect(listMock).toHaveBeenNthCalledWith(
       1,
-      ['manager-assignments', 'grant', 'project_grant_1', { cursor: null }],
+      ['manager-assignments', 'grant', 'project_grant_1'],
       '/v1/manager-assignments',
       {
         enabled: true,
-        query: {
-          scope_type: 'grant',
-          scope_id: 'project_grant_1',
-          limit: 50,
-          cursor: undefined,
-        },
+        query: { scope_type: 'grant', scope_id: 'project_grant_1', limit: 50 },
       },
     )
-    expect(queryMock).toHaveBeenNthCalledWith(
+    expect(listMock).toHaveBeenNthCalledWith(
       2,
-      ['platform', 'manager-assignments', { cursor: null }],
+      ['platform', 'manager-assignments', 'list'],
       '/v1/platform/manager-assignments',
-      { query: { limit: 50, cursor: undefined } },
+      { query: { limit: 50 } },
+    )
+  })
+
+  it('sends audit filters to the server and keys the list by those filters', () => {
+    const filters = { event_type: 'api_key.', occurred_from: '2026-01-01T00:00:00.000Z' }
+
+    useAuditEventsQuery('org_1', filters)
+
+    expect(listMock).toHaveBeenCalledWith(
+      ['organizations', 'org_1', 'audit-events', filters],
+      '/v1/organizations/org_1/audit-events',
+      { enabled: true, query: { limit: 30, ...filters } },
     )
   })
 })

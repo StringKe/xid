@@ -1,7 +1,7 @@
-// 后端按 org 归属过滤;前端过滤仅展示层。
+// 归属与筛选都由后端执行,前端只组装筛选参数。
 
 import { Trans, useLingui } from '@lingui/react/macro'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
@@ -16,8 +16,9 @@ import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useAuditEventsQuery } from './queries'
-import type { AuditEvent } from './types'
+import type { AuditEvent, AuditEventFilters } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
 const styles = stylex.create({
@@ -149,38 +150,45 @@ const columns: ColumnDef<AuditEvent>[] = [
   },
 ]
 
-function afterStart(occurredAt: string, fromDate: string): boolean {
-  if (!fromDate) return true
-  return new Date(occurredAt).getTime() >= new Date(fromDate).getTime()
+const FILTER_DEBOUNCE_MS = 300
+
+// 日期输入按本地时区换算:From 取当天 00:00,To 取次日 00:00 作为不含上界。
+function localDayStart(date: string, offsetDays = 0): string | undefined {
+  if (!date) return undefined
+  const start = new Date(`${date}T00:00:00`)
+  start.setDate(start.getDate() + offsetDays)
+  return start.toISOString()
 }
 
-function beforeEnd(occurredAt: string, toDate: string): boolean {
-  if (!toDate) return true
-  // toDate 无时分,加一天作当日闭区间上界。
-  return new Date(occurredAt).getTime() < new Date(toDate).getTime() + 86_400_000
+function useDebouncedValue(value: string): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), FILTER_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [value])
+  return debounced
 }
 
 export default function OrgAuditEvents(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
   const { orgId } = useOrgTarget()
 
-  const [cursor, setCursor] = useState<string | undefined>()
   const [eventTypeFilter, setEventTypeFilter] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const eventTypePrefix = useDebouncedValue(eventTypeFilter.trim())
 
-  const { data, isLoading, isError } = useAuditEventsQuery(orgId, cursor)
-
-  const rows = useMemo(() => {
-    const all = data?.data ?? []
-    const needle = eventTypeFilter.trim().toLowerCase()
-    return all.filter((event) => {
-      if (needle && !event.eventType.toLowerCase().includes(needle)) return false
-      if (!afterStart(event.occurredAt, fromDate)) return false
-      if (!beforeEnd(event.occurredAt, toDate)) return false
-      return true
-    })
-  }, [data, eventTypeFilter, fromDate, toDate])
+  const filters = useMemo<AuditEventFilters>(
+    () => ({
+      event_type: eventTypePrefix || undefined,
+      occurred_from: localDayStart(fromDate),
+      occurred_to: localDayStart(toDate, 1),
+    }),
+    [eventTypePrefix, fromDate, toDate],
+  )
+  const events = useAuditEventsQuery(orgId, filters)
+  const { data, isLoading, error } = events
 
   if (!orgId) {
     return (
@@ -200,22 +208,23 @@ export default function OrgAuditEvents(): ReactNode {
       title={<Trans>Audit events</Trans>}
       lead={<Trans>Read-only event log for this organization.</Trans>}
     >
-      {isError ? (
+      {error ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to load audit events.</Trans>
-          </Alert>
+          <Alert tone="error">{errorMessage(error)}</Alert>
         </ConsolePageNotice>
       ) : null}
 
       <ConsolePageToolbar>
         <div role="search" aria-label={t`Filter audit events`} {...stylex.props(styles.filterRow)}>
           <div {...stylex.props(consoleShell.toolbarField)}>
-            <Field label={<Trans>Event type</Trans>}>
+            <Field
+              label={<Trans>Event type</Trans>}
+              hint={<Trans>Matches names that start with this text.</Trans>}
+            >
               <Input
                 value={eventTypeFilter}
                 onChange={(event) => setEventTypeFilter(event.target.value)}
-                placeholder={t`user.created`}
+                placeholder={t`api_key.`}
               />
             </Field>
           </div>
@@ -245,18 +254,12 @@ export default function OrgAuditEvents(): ReactNode {
       <ConsolePageSection title={<Trans>Events</Trans>}>
         <DataTable
           columns={columns}
-          data={rows}
+          data={data?.data ?? []}
           getRowId={(row) => row.id}
           isLoading={isLoading}
           emptyMessage={<Trans>No audit events match the current filters.</Trans>}
         />
-        {data ? (
-          <Pagination
-            nextCursor={data.nextCursor}
-            loadMoreLabel={<Trans>Load more events</Trans>}
-            onLoadMore={setCursor}
-          />
-        ) : null}
+        <Pagination query={events} loadMoreLabel={<Trans>Load more events</Trans>} />
       </ConsolePageSection>
     </ConsolePage>
   )

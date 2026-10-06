@@ -33,8 +33,7 @@ function userStatusLabel(status: GlobalUser['status']): ReactNode {
 export default function PlatformInstanceManagers(): ReactNode {
   const { t } = useLingui()
   const { user } = useAuth()
-  const [cursor, setCursor] = useState<string | undefined>()
-  const assignments = useInstanceManagerAssignmentsQuery(cursor)
+  const assignments = useInstanceManagerAssignmentsQuery()
   const createAssignment = useCreateInstanceManagerAssignment()
   const deleteAssignment = useDeleteInstanceManagerAssignment()
 
@@ -195,9 +194,8 @@ export default function PlatformInstanceManagers(): ReactNode {
             />
             {assignments.data ? (
               <Pagination
-                nextCursor={assignments.data.nextCursor}
+                query={assignments}
                 loadMoreLabel={<Trans>Load more instance managers</Trans>}
-                onLoadMore={setCursor}
               />
             ) : null}
           </>

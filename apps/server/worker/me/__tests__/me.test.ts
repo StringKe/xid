@@ -533,6 +533,7 @@ describe('GET /v1/me', () => {
         permissions: ['users.read'],
         parentOrgId: null,
         allowOrgSelfService: true,
+        canManageOwners: false,
       },
     ])
     expect(body['activeOrg']).toEqual((body['organizations'] as unknown[])[0])
@@ -770,6 +771,7 @@ describe('GET /v1/me', () => {
         permissions: [],
         parentOrgId: null,
         allowOrgSelfService: true,
+        canManageOwners: true,
       },
     ])
   })
@@ -801,6 +803,7 @@ describe('GET /v1/me', () => {
         permissions: [],
         parentOrgId: null,
         allowOrgSelfService: true,
+        canManageOwners: true,
       },
     ])
   })
@@ -837,6 +840,7 @@ describe('GET /v1/me', () => {
         permissions: [],
         parentOrgId: null,
         allowOrgSelfService: true,
+        canManageOwners: false,
       },
     ])
   })

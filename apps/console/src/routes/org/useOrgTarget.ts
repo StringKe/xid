@@ -23,3 +23,21 @@ export function useCanManageOrg(orgId: string): boolean {
   if (!orgId || !activeOrg) return false
   return activeOrg.id === orgId && isOrgManagerRole(activeOrg.role)
 }
+
+// Applications、API keys、Webhooks、Compliance 属于整个租户,服务端只允许顶层组织管理员调用。
+export function useIsTenantScopeOrg(): boolean {
+  const { activeOrg } = useAuth()
+  const canManage = useCanManageOrg(activeOrg?.id ?? '')
+  return canManage && activeOrg?.parentOrgId === null
+}
+
+export function useCanManageOwners(): boolean {
+  const { activeOrg } = useAuth()
+  return activeOrg?.canManageOwners === true
+}
+
+// allow_org_self_service=false 时,SSO、登录策略、投递通道、社交登录与出站 SAML 由平台管理员维护。
+export function useOrgSelfServiceLocked(): boolean {
+  const { activeOrg, user } = useAuth()
+  return activeOrg?.allowOrgSelfService === false && user?.instanceManager !== true
+}

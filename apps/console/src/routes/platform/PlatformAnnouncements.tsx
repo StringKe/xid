@@ -155,8 +155,7 @@ function severityLabel(severity: PlatformAnnouncement['severity']): ReactNode {
 
 export default function PlatformAnnouncements(): ReactNode {
   const { t } = useLingui()
-  const [cursor, setCursor] = useState<string | undefined>()
-  const query = usePlatformAnnouncementsQuery(cursor)
+  const query = usePlatformAnnouncementsQuery()
   const create = useCreatePlatformAnnouncement()
   const update = useUpdatePlatformAnnouncement()
   const remove = useDeletePlatformAnnouncement()
@@ -408,11 +407,7 @@ export default function PlatformAnnouncements(): ReactNode {
                 </article>
               ))}
             </div>
-            <Pagination
-              nextCursor={query.data.nextCursor}
-              loadMoreLabel={<Trans>Load more</Trans>}
-              onLoadMore={setCursor}
-            />
+            <Pagination query={query} loadMoreLabel={<Trans>Load more</Trans>} />
           </>
         ) : null}
       </ConsolePageSection>

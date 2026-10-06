@@ -172,7 +172,6 @@ const columns: ColumnDef<AuditEvent>[] = [
 
 export default function PlatformAuditEvents(): ReactNode {
   const { t } = useLingui()
-  const [cursor, setCursor] = useState<string | undefined>()
   const [tenantId, setTenantId] = useState('')
   const [fromSeq, setFromSeq] = useState('')
   const [toSeq, setToSeq] = useState('')
@@ -181,7 +180,8 @@ export default function PlatformAuditEvents(): ReactNode {
     fromSeq?: number
     toSeq?: number
   } | null>(null)
-  const { data, isLoading, isError } = useGlobalAuditEventsQuery(cursor)
+  const list = useGlobalAuditEventsQuery()
+  const { data, isLoading, isError } = list
   const verificationQuery = useAuditChainVerificationQuery(verification)
 
   const onVerify = (event: FormEvent<HTMLFormElement>): void => {
@@ -294,13 +294,7 @@ export default function PlatformAuditEvents(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No audit events found.</Trans>}
         />
-        {data ? (
-          <Pagination
-            nextCursor={data.nextCursor}
-            loadMoreLabel={<Trans>Load more events</Trans>}
-            onLoadMore={setCursor}
-          />
-        ) : null}
+        {data ? <Pagination query={list} loadMoreLabel={<Trans>Load more events</Trans>} /> : null}
       </ConsolePageSection>
     </ConsolePage>
   )

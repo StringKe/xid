@@ -76,14 +76,13 @@ export default function PlatformOrganizations(): ReactNode {
   const organizationStatusLabel = useOrganizationStatusLabel()
   const [search, setSearch] = useState('')
   const [submitted, setSubmitted] = useState('')
-  const [cursor, setCursor] = useState<string | undefined>()
-  const { data, isLoading, isError } = usePlatformOrganizationsQuery(cursor, submitted)
+  const list = usePlatformOrganizationsQuery(submitted)
+  const { data, isLoading, isError } = list
   const updateStatus = useUpdatePlatformOrganizationStatus()
   const [pendingStatus, setPendingStatus] = useState<PendingStatusChange | null>(null)
 
   function handleSearch(e: React.FormEvent): void {
     e.preventDefault()
-    setCursor(undefined)
     setSubmitted(search)
   }
 
@@ -232,11 +231,7 @@ export default function PlatformOrganizations(): ReactNode {
           emptyMessage={<Trans>No organizations found.</Trans>}
         />
         {data ? (
-          <Pagination
-            nextCursor={data.nextCursor}
-            loadMoreLabel={<Trans>Load more organizations</Trans>}
-            onLoadMore={setCursor}
-          />
+          <Pagination query={list} loadMoreLabel={<Trans>Load more organizations</Trans>} />
         ) : null}
       </ConsolePageSection>
 

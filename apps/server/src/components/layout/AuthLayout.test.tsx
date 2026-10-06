@@ -20,7 +20,9 @@ vi.mock('../../lib/theme', () => ({
       appName: 'XID',
       logoUrl: null,
     },
+    scheme: 'light',
   }),
+  brandLogoUrl: (brand: { logoUrl: string | null }) => brand.logoUrl ?? undefined,
 }))
 
 vi.mock('../LanguageSwitcher', () => ({

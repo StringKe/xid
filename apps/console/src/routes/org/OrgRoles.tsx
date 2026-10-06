@@ -41,6 +41,7 @@ import {
 } from './queries'
 import type { ProjectPermission, ProjectRole, RolePermission } from './types'
 import { useOrgTarget } from './useOrgTarget'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 
 type PendingDelete =
   | { kind: 'role'; value: ProjectRole }
@@ -67,11 +68,11 @@ export default function OrgRoles({
   embedded = false,
 }: OrgRolesProps = {}): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
   const { orgId } = useOrgTarget()
   const managed = Boolean(managedProjectId)
   const canWrite = !readOnly
-  const [projectCursor, setProjectCursor] = useState<string | undefined>()
-  const projects = useProjectsQuery(orgId, 'active', projectCursor)
+  const projects = useProjectsQuery(orgId, 'active')
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const selectedProject =
     projects.data?.data.find((project) => project.id === selectedProjectId) ??
@@ -79,25 +80,16 @@ export default function OrgRoles({
     null
   const projectId = managedProjectId ?? selectedProject?.id ?? ''
 
-  const [roleCursor, setRoleCursor] = useState<string | undefined>()
-  const [deletedRoleCursor, setDeletedRoleCursor] = useState<string | undefined>()
-  const [permissionCursor, setPermissionCursor] = useState<string | undefined>()
-  const [deletedPermissionCursor, setDeletedPermissionCursor] = useState<string | undefined>()
-  const [mappingCursor, setMappingCursor] = useState<string | undefined>()
-  const roles = useProjectRolesQuery(projectId, 'active', roleCursor, grantId)
-  const deletedRoles = useProjectRolesQuery(canWrite ? projectId : '', 'deleted', deletedRoleCursor)
-  const permissions = useProjectPermissionsQuery(projectId, 'active', permissionCursor, grantId)
-  const deletedPermissions = useProjectPermissionsQuery(
-    canWrite ? projectId : '',
-    'deleted',
-    deletedPermissionCursor,
-  )
+  const roles = useProjectRolesQuery(projectId, 'active', grantId)
+  const deletedRoles = useProjectRolesQuery(canWrite ? projectId : '', 'deleted')
+  const permissions = useProjectPermissionsQuery(projectId, 'active', grantId)
+  const deletedPermissions = useProjectPermissionsQuery(canWrite ? projectId : '', 'deleted')
 
   const [selectedRoleId, setSelectedRoleId] = useState('')
   const selectedRole =
     roles.data?.data.find((role) => role.id === selectedRoleId) ?? roles.data?.data[0] ?? null
   const roleId = selectedRole?.id ?? ''
-  const mappings = useRolePermissionsQuery(roleId, mappingCursor, grantId)
+  const mappings = useRolePermissionsQuery(roleId, grantId)
 
   const createRole = useCreateProjectRole(projectId)
   const updateRole = useUpdateProjectRole(projectId)
@@ -133,7 +125,6 @@ export default function OrgRoles({
 
   const selectRole = (role: ProjectRole): void => {
     setSelectedRoleId(role.id)
-    setMappingCursor(undefined)
   }
 
   const roleColumns: ColumnDef<ProjectRole>[] = [
@@ -462,18 +453,18 @@ export default function OrgRoles({
     )
   }
 
-  const mutationFailed =
-    createRole.isError ||
-    updateRole.isError ||
-    deleteRole.isError ||
-    restoreRole.isError ||
-    createPermission.isError ||
-    updatePermission.isError ||
-    deletePermission.isError ||
-    restorePermission.isError ||
-    createMapping.isError ||
-    updateMapping.isError ||
-    deleteMapping.isError
+  const mutationError =
+    createRole.error ??
+    updateRole.error ??
+    deleteRole.error ??
+    restoreRole.error ??
+    createPermission.error ??
+    updatePermission.error ??
+    deletePermission.error ??
+    restorePermission.error ??
+    createMapping.error ??
+    updateMapping.error ??
+    deleteMapping.error
 
   const body = (
     <>
@@ -489,7 +480,6 @@ export default function OrgRoles({
                 onChange={(event) => {
                   setSelectedProjectId(event.currentTarget.value)
                   setSelectedRoleId('')
-                  setMappingCursor(undefined)
                 }}
                 disabled={projects.isLoading || (projects.data?.data.length ?? 0) === 0}
               >
@@ -505,11 +495,7 @@ export default function OrgRoles({
             </Field>
           </div>
           {projects.data ? (
-            <Pagination
-              nextCursor={projects.data.next_cursor}
-              loadMoreLabel={<Trans>Load more projects</Trans>}
-              onLoadMore={setProjectCursor}
-            />
+            <Pagination query={projects} loadMoreLabel={<Trans>Load more projects</Trans>} />
           ) : null}
         </ConsolePageToolbar>
       ) : null}
@@ -522,11 +508,9 @@ export default function OrgRoles({
         </ConsolePageNotice>
       ) : null}
 
-      {mutationFailed ? (
+      {mutationError ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to save role or permission changes. Try again.</Trans>
-          </Alert>
+          <Alert tone="error">{errorMessage(mutationError)}</Alert>
         </ConsolePageNotice>
       ) : null}
 
@@ -570,11 +554,7 @@ export default function OrgRoles({
                       isRowSelected={(role) => role.id === roleId}
                     />
                     {roles.data ? (
-                      <Pagination
-                        nextCursor={roles.data.next_cursor}
-                        loadMoreLabel={<Trans>Load more roles</Trans>}
-                        onLoadMore={setRoleCursor}
-                      />
+                      <Pagination query={roles} loadMoreLabel={<Trans>Load more roles</Trans>} />
                     ) : null}
                   </>
                 )}
@@ -646,9 +626,8 @@ export default function OrgRoles({
                     />
                     {permissions.data ? (
                       <Pagination
-                        nextCursor={permissions.data.next_cursor}
+                        query={permissions}
                         loadMoreLabel={<Trans>Load more permissions</Trans>}
-                        onLoadMore={setPermissionCursor}
                       />
                     ) : null}
                   </>
@@ -780,7 +759,6 @@ export default function OrgRoles({
                 value={roleId}
                 onChange={(event) => {
                   setSelectedRoleId(event.currentTarget.value)
-                  setMappingCursor(undefined)
                 }}
                 disabled={(roles.data?.data.length ?? 0) === 0}
               >
@@ -813,9 +791,8 @@ export default function OrgRoles({
                 />
                 {mappings.data ? (
                   <Pagination
-                    nextCursor={mappings.data.next_cursor}
+                    query={mappings}
                     loadMoreLabel={<Trans>Load more role mappings</Trans>}
-                    onLoadMore={setMappingCursor}
                   />
                 ) : null}
                 {canWrite ? (
@@ -939,9 +916,8 @@ export default function OrgRoles({
                       />
                       {deletedRoles.data ? (
                         <Pagination
-                          nextCursor={deletedRoles.data.next_cursor}
+                          query={deletedRoles}
                           loadMoreLabel={<Trans>Load more deleted roles</Trans>}
-                          onLoadMore={setDeletedRoleCursor}
                         />
                       ) : null}
                     </>
@@ -966,9 +942,8 @@ export default function OrgRoles({
                       />
                       {deletedPermissions.data ? (
                         <Pagination
-                          nextCursor={deletedPermissions.data.next_cursor}
+                          query={deletedPermissions}
                           loadMoreLabel={<Trans>Load more deleted permissions</Trans>}
-                          onLoadMore={setDeletedPermissionCursor}
                         />
                       ) : null}
                     </>

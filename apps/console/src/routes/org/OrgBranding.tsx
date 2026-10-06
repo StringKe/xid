@@ -11,6 +11,8 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import { ORG_BRANDING_FIELDS } from '@xid-kit/types'
+import { errorTargetsField, useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useOrgBrandingQuery, useUpdateOrgBranding } from './queries'
 import type { OrgBranding } from './types'
 import { useOrgTarget } from './useOrgTarget'
@@ -119,6 +121,7 @@ function BrandPreviewStrip({ form }: { form: Partial<OrgBranding> }): ReactNode 
 
 export default function OrgBranding(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
   const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgBrandingQuery(orgId)
   const updateBranding = useUpdateOrgBranding(orgId)
@@ -134,13 +137,20 @@ export default function OrgBranding(): ReactNode {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  async function handleSave(e: FormEvent): Promise<void> {
+  function handleSave(e: FormEvent): void {
     e.preventDefault()
     if (!orgId) return
     setSaveSuccess(false)
-    await updateBranding.mutateAsync(form)
-    setSaveSuccess(true)
+    updateBranding.mutate(form, { onSuccess: () => setSaveSuccess(true) })
   }
+
+  const saveError = updateBranding.error
+  const fieldError = (field: keyof OrgBranding): string | undefined =>
+    errorTargetsField(saveError, field) ? errorMessage(saveError) : undefined
+  const formError =
+    saveError && !ORG_BRANDING_FIELDS.some((field) => errorTargetsField(saveError, field))
+      ? errorMessage(saveError)
+      : undefined
 
   if (!orgId) {
     return (
@@ -163,18 +173,14 @@ export default function OrgBranding(): ReactNode {
         </Trans>
       }
     >
-      {isError || updateBranding.error || saveSuccess ? (
+      {isError || formError || saveSuccess ? (
         <ConsolePageNotice>
           {isError ? (
             <Alert tone="error">
               <Trans>Failed to load branding settings.</Trans>
             </Alert>
           ) : null}
-          {updateBranding.error ? (
-            <Alert tone="error">
-              <Trans>Failed to save branding. Try again.</Trans>
-            </Alert>
-          ) : null}
+          {formError ? <Alert tone="error">{formError}</Alert> : null}
           {saveSuccess ? (
             <Alert tone="success">
               <Trans>Branding saved successfully.</Trans>
@@ -190,13 +196,14 @@ export default function OrgBranding(): ReactNode {
           </div>
         </ConsolePageSection>
       ) : (
-        <form onSubmit={(e) => void handleSave(e)} noValidate>
+        <form onSubmit={handleSave} noValidate>
           <ConsolePageSplitSection
             title={<Trans>Colors</Trans>}
             description={
               <Trans>
-                Override the organization's primary, background, and accent colors for the Hosted
-                UI. Accepts CSS hex values.
+                Override the organization's primary, background, and accent colors on its sign-in
+                and account pages. Accepts six-digit hex values. The background color applies to the
+                light theme only. Clear a field to return to the default.
               </Trans>
             }
           >
@@ -204,6 +211,7 @@ export default function OrgBranding(): ReactNode {
               <Field
                 label={<Trans>Primary color</Trans>}
                 hint={<Trans>Hex color, e.g. #6366f1</Trans>}
+                error={fieldError('primaryColor')}
               >
                 <Input
                   type="text"
@@ -214,7 +222,10 @@ export default function OrgBranding(): ReactNode {
                   aria-label={t`Primary brand color`}
                 />
               </Field>
-              <Field label={<Trans>Background color</Trans>}>
+              <Field
+                label={<Trans>Background color (light theme)</Trans>}
+                error={fieldError('backgroundColor')}
+              >
                 <Input
                   type="text"
                   value={form.backgroundColor ?? ''}
@@ -223,7 +234,7 @@ export default function OrgBranding(): ReactNode {
                   aria-label={t`Background color`}
                 />
               </Field>
-              <Field label={<Trans>Accent color</Trans>}>
+              <Field label={<Trans>Accent color</Trans>} error={fieldError('accentColor')}>
                 <Input
                   type="text"
                   value={form.accentColor ?? ''}
@@ -240,13 +251,17 @@ export default function OrgBranding(): ReactNode {
             title={<Trans>Typography and shape</Trans>}
             description={
               <Trans>
-                Override the font family and border radius used throughout the Hosted UI for this
-                organization.
+                Override the font family and border radius used on this organization's sign-in and
+                account pages. The font must already be available on the visitor's device.
               </Trans>
             }
           >
             <div {...stylex.props(styles.colorsGrid)}>
-              <Field label={<Trans>Font family</Trans>} hint={<Trans>CSS font-family value</Trans>}>
+              <Field
+                label={<Trans>Font family</Trans>}
+                hint={<Trans>Font names separated by commas</Trans>}
+                error={fieldError('fontFamily')}
+              >
                 <Input
                   type="text"
                   value={form.fontFamily ?? ''}
@@ -257,6 +272,7 @@ export default function OrgBranding(): ReactNode {
               <Field
                 label={<Trans>Border radius</Trans>}
                 hint={<Trans>CSS length, e.g. 8px or 0.5rem</Trans>}
+                error={fieldError('borderRadius')}
               >
                 <Input
                   type="text"
@@ -272,13 +288,13 @@ export default function OrgBranding(): ReactNode {
             title={<Trans>Logo</Trans>}
             description={
               <Trans>
-                Provide separate light and dark logo URLs. Both are hosted externally and referenced
-                by URL.
+                Provide separate light and dark logo URLs. Both must be public HTTPS URLs; the light
+                logo is also shown on the consent page.
               </Trans>
             }
           >
             <div {...stylex.props(styles.logoGrid)}>
-              <Field label={<Trans>Logo URL (light)</Trans>}>
+              <Field label={<Trans>Logo URL (light)</Trans>} error={fieldError('logoUrl')}>
                 <Input
                   type="url"
                   value={form.logoUrl ?? ''}
@@ -286,7 +302,7 @@ export default function OrgBranding(): ReactNode {
                   placeholder={t`https://...`}
                 />
               </Field>
-              <Field label={<Trans>Logo URL (dark)</Trans>}>
+              <Field label={<Trans>Logo URL (dark)</Trans>} error={fieldError('logoDarkUrl')}>
                 <Input
                   type="url"
                   value={form.logoDarkUrl ?? ''}

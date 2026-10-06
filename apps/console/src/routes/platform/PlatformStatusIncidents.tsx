@@ -255,8 +255,7 @@ function IncidentItem({
 
 export default function PlatformStatusIncidents(): ReactNode {
   const { t } = useLingui()
-  const [cursor, setCursor] = useState<string | undefined>()
-  const query = usePlatformStatusIncidentsQuery(cursor)
+  const query = usePlatformStatusIncidentsQuery()
   const create = useCreateStatusIncident()
   const append = useAppendStatusIncidentUpdate()
   const update = useUpdateStatusIncident()
@@ -434,11 +433,7 @@ export default function PlatformStatusIncidents(): ReactNode {
                 />
               ))}
             </div>
-            <Pagination
-              nextCursor={query.data.nextCursor}
-              loadMoreLabel={<Trans>Load more</Trans>}
-              onLoadMore={setCursor}
-            />
+            <Pagination query={query} loadMoreLabel={<Trans>Load more</Trans>} />
           </>
         ) : null}
       </ConsolePageSection>

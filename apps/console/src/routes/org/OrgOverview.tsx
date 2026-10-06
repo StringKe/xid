@@ -197,15 +197,28 @@ function OrgStatsSections({ data }: { data: OrgStats }): ReactNode {
 // 直达创建流,icon 与侧栏导航同源,保证动作与目的地的视觉对应。
 function OrgQuickActions({ org }: { org: AuthOrg }): ReactNode {
   const { t } = useLingui()
-  const actions = [
+  const isTopLevelOrg = org.parentOrgId === null
+  const allActions = [
     {
       to: '/console/org/applications',
       label: <Trans>Create application</Trans>,
       icon: 'squares-four',
+      tenantScope: true,
     },
-    { to: '/console/org/members', label: <Trans>Invite member</Trans>, icon: 'users' },
-    { to: '/console/org/api-keys', label: <Trans>Create API key</Trans>, icon: 'key' },
+    {
+      to: '/console/org/members',
+      label: <Trans>Invite member</Trans>,
+      icon: 'users',
+      tenantScope: false,
+    },
+    {
+      to: '/console/org/api-keys',
+      label: <Trans>Create API key</Trans>,
+      icon: 'key',
+      tenantScope: true,
+    },
   ] as const
+  const actions = allActions.filter((action) => isTopLevelOrg || !action.tenantScope)
   return (
     <nav aria-label={t`Quick actions`} {...stylex.props(styles.quickActions)}>
       {actions.map((action) => (

@@ -23,7 +23,9 @@ import {
 } from './queries'
 import type { CreateSsoConnectionInput, SsoConnection, UpdateSsoConnectionInput } from './types'
 import { SsoConnectionEndpoints } from './SsoConnectionEndpoints'
-import { useOrgTarget } from './useOrgTarget'
+import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
+import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 
 const STATUS_TONE: Record<SsoConnection['status'], BadgeTone> = {
   active: 'success',
@@ -270,6 +272,8 @@ const columns: ColumnDef<SsoConnection>[] = [
 
 export default function OrgSso(): ReactNode {
   const { t, i18n } = useLingui()
+  const errorMessage = useManagementErrorMessage()
+  const locked = useOrgSelfServiceLocked()
   const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgSsoConnectionsQuery(orgId)
   const createConnection = useCreateSsoConnection(orgId)
@@ -291,21 +295,24 @@ export default function OrgSso(): ReactNode {
     if (selectedConnection) setEditForm(connectionToForm(selectedConnection))
   }, [selectedConnection])
 
-  async function handleCreateFromPreset(
+  function handleCreateFromPreset(
     presetKey: string,
     protocol: CreateSsoConnectionInput['protocol'] = 'saml',
-  ): Promise<void> {
+  ): void {
     setFormError(null)
     setSuccess(null)
-    const connection = await createConnection.mutateAsync({
-      preset: presetKey,
-      protocol,
-    })
-    setSelectedId(connection.id)
-    setSuccess(t`SSO connection created from template.`)
+    createConnection.mutate(
+      { preset: presetKey, protocol },
+      {
+        onSuccess: (connection) => {
+          setSelectedId(connection.id)
+          setSuccess(t`SSO connection created from template.`)
+        },
+      },
+    )
   }
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleCreate(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     setFormError(null)
     setSuccess(null)
@@ -314,13 +321,16 @@ export default function OrgSso(): ReactNode {
       setFormError(t`Attribute mapping and role mapping must be JSON objects.`)
       return
     }
-    const connection = await createConnection.mutateAsync(payload)
-    setCreateForm(EMPTY_FORM)
-    setSelectedId(connection.id)
-    setSuccess(t`SSO connection created.`)
+    createConnection.mutate(payload, {
+      onSuccess: (connection) => {
+        setCreateForm(EMPTY_FORM)
+        setSelectedId(connection.id)
+        setSuccess(t`SSO connection created.`)
+      },
+    })
   }
 
-  async function handleUpdate(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleUpdate(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (!selectedConnection) return
     setFormError(null)
@@ -330,18 +340,23 @@ export default function OrgSso(): ReactNode {
       setFormError(t`Attribute mapping and role mapping must be JSON objects.`)
       return
     }
-    await updateConnection.mutateAsync({ connectionId: selectedConnection.id, payload })
-    setSuccess(t`SSO connection saved.`)
+    updateConnection.mutate(
+      { connectionId: selectedConnection.id, payload },
+      { onSuccess: () => setSuccess(t`SSO connection saved.`) },
+    )
   }
 
-  async function handleDelete(): Promise<void> {
+  function handleDelete(): void {
     if (!selectedConnection) return
     setFormError(null)
     setSuccess(null)
-    await deleteConnection.mutateAsync(selectedConnection.id)
-    setSelectedId(null)
-    setPendingDelete(false)
-    setSuccess(t`SSO connection deleted.`)
+    deleteConnection.mutate(selectedConnection.id, {
+      onSuccess: () => {
+        setSelectedId(null)
+        setSuccess(t`SSO connection deleted.`)
+      },
+      onSettled: () => setPendingDelete(false),
+    })
   }
 
   if (!orgId) {
@@ -356,8 +371,7 @@ export default function OrgSso(): ReactNode {
     )
   }
 
-  const actionError =
-    createConnection.isError || updateConnection.isError || deleteConnection.isError
+  const actionError = createConnection.error ?? updateConnection.error ?? deleteConnection.error
 
   return (
     <ConsolePage
@@ -370,15 +384,12 @@ export default function OrgSso(): ReactNode {
         </Trans>
       }
     >
-      {formError || success || actionError || isError ? (
+      {locked || formError || success || actionError || isError ? (
         <ConsolePageNotice>
+          {locked ? <SelfServiceLockNotice /> : null}
           {formError ? <Alert tone="error">{formError}</Alert> : null}
           {success ? <Alert tone="success">{success}</Alert> : null}
-          {actionError ? (
-            <Alert tone="error">
-              <Trans>Failed to save SSO connection changes. Try again.</Trans>
-            </Alert>
-          ) : null}
+          {actionError ? <Alert tone="error">{errorMessage(actionError)}</Alert> : null}
           {isError ? (
             <Alert tone="error">
               <Trans>Failed to load inbound SSO connections. Please try again.</Trans>
@@ -408,42 +419,44 @@ export default function OrgSso(): ReactNode {
           </Trans>
         }
       >
-        <div {...stylex.props(styles.presetRow)}>
-          {INBOUND_PRESETS.map((preset) => (
-            <Button
-              key={preset.key}
-              type="button"
-              variant="secondary"
-              onClick={() => void handleCreateFromPreset(preset.key)}
-              isLoading={createConnection.isPending}
-            >
-              <Trans>Add {preset.label} template</Trans>
-            </Button>
-          ))}
-        </div>
-        <div {...stylex.props(styles.presetRow)}>
-          {LEGACY_PRESETS.map((preset) => (
-            <Button
-              key={preset.key}
-              type="button"
-              variant="secondary"
-              onClick={() => void handleCreateFromPreset(preset.key, preset.key)}
-              isLoading={createConnection.isPending}
-            >
-              <Trans>Add {i18n._(preset.label)} template</Trans>
-            </Button>
-          ))}
-        </div>
-        <form onSubmit={(event) => void handleCreate(event)} noValidate>
-          <div {...stylex.props(styles.formGrid)}>
-            <ConnectionFields form={createForm} onChange={setCreateForm} allowProtocolSwitch />
-            <div {...stylex.props(styles.fullSpan, styles.actions)}>
-              <Button type="submit" isLoading={createConnection.isPending}>
-                <Trans>Create connection</Trans>
+        <LockableFieldset locked={locked}>
+          <div {...stylex.props(styles.presetRow)}>
+            {INBOUND_PRESETS.map((preset) => (
+              <Button
+                key={preset.key}
+                type="button"
+                variant="secondary"
+                onClick={() => handleCreateFromPreset(preset.key)}
+                isLoading={createConnection.isPending}
+              >
+                <Trans>Add {preset.label} template</Trans>
               </Button>
-            </div>
+            ))}
           </div>
-        </form>
+          <div {...stylex.props(styles.presetRow)}>
+            {LEGACY_PRESETS.map((preset) => (
+              <Button
+                key={preset.key}
+                type="button"
+                variant="secondary"
+                onClick={() => handleCreateFromPreset(preset.key, preset.key)}
+                isLoading={createConnection.isPending}
+              >
+                <Trans>Add {i18n._(preset.label)} template</Trans>
+              </Button>
+            ))}
+          </div>
+          <form onSubmit={handleCreate} noValidate>
+            <div {...stylex.props(styles.formGrid)}>
+              <ConnectionFields form={createForm} onChange={setCreateForm} allowProtocolSwitch />
+              <div {...stylex.props(styles.fullSpan, styles.actions)}>
+                <Button type="submit" isLoading={createConnection.isPending}>
+                  <Trans>Create connection</Trans>
+                </Button>
+              </div>
+            </div>
+          </form>
+        </LockableFieldset>
       </ConsolePageSplitSection>
 
       {selectedConnection ? (
@@ -455,22 +468,24 @@ export default function OrgSso(): ReactNode {
           }
         >
           <SsoConnectionEndpoints connection={selectedConnection} />
-          <form onSubmit={(event) => void handleUpdate(event)} noValidate>
-            <div {...stylex.props(styles.formGrid)}>
-              <ConnectionFields
-                form={editForm}
-                onChange={setEditForm}
-                allowProtocolSwitch={false}
-              />
-              <div {...stylex.props(styles.fullSpan, styles.actions)}>
-                <Button type="submit" isLoading={updateConnection.isPending}>
-                  <Trans>Save changes</Trans>
-                </Button>
-                <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
-                  <Trans>Delete connection</Trans>
-                </Button>
+          <form onSubmit={handleUpdate} noValidate>
+            <LockableFieldset locked={locked}>
+              <div {...stylex.props(styles.formGrid)}>
+                <ConnectionFields
+                  form={editForm}
+                  onChange={setEditForm}
+                  allowProtocolSwitch={false}
+                />
+                <div {...stylex.props(styles.fullSpan, styles.actions)}>
+                  <Button type="submit" isLoading={updateConnection.isPending}>
+                    <Trans>Save changes</Trans>
+                  </Button>
+                  <Button type="button" variant="danger" onClick={() => setPendingDelete(true)}>
+                    <Trans>Delete connection</Trans>
+                  </Button>
+                </div>
               </div>
-            </div>
+            </LockableFieldset>
           </form>
         </ConsolePageSplitSection>
       ) : null}
@@ -486,7 +501,7 @@ export default function OrgSso(): ReactNode {
           }
           confirmLabel={<Trans>Delete connection</Trans>}
           isLoading={deleteConnection.isPending}
-          onConfirm={() => void handleDelete()}
+          onConfirm={handleDelete}
           onCancel={() => setPendingDelete(false)}
         />
       ) : null}

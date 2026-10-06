@@ -168,8 +168,7 @@ function statusLabel(status: ComplianceDocument['status']): ReactNode {
 
 export default function PlatformCompliance(): ReactNode {
   const { t } = useLingui()
-  const [cursor, setCursor] = useState<string | undefined>()
-  const query = usePlatformComplianceDocumentsQuery(cursor)
+  const query = usePlatformComplianceDocumentsQuery()
   const create = useCreateComplianceDocument()
   const update = useUpdateComplianceDocument()
   const remove = useDeleteComplianceDocument()
@@ -402,11 +401,7 @@ export default function PlatformCompliance(): ReactNode {
                 </article>
               ))}
             </div>
-            <Pagination
-              nextCursor={query.data.nextCursor}
-              loadMoreLabel={<Trans>Load more</Trans>}
-              onLoadMore={setCursor}
-            />
+            <Pagination query={query} loadMoreLabel={<Trans>Load more</Trans>} />
           </>
         ) : null}
       </ConsolePageSection>

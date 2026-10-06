@@ -60,13 +60,13 @@ export default function PlatformUsers(): ReactNode {
   const globalUserStatusLabel = useGlobalUserStatusLabel()
   const [search, setSearch] = useState('')
   const [submitted, setSubmitted] = useState('')
-  const [cursor, setCursor] = useState<string | undefined>()
   const [pendingUser, setPendingUser] = useState<GlobalUser | null>(null)
   const [targetOrganizationId, setTargetOrganizationId] = useState('')
   const [organizationSelectionError, setOrganizationSelectionError] = useState(false)
   const [startingUserId, setStartingUserId] = useState<string | null>(null)
   const [impersonationError, setImpersonationError] = useState(false)
-  const { data, isLoading, isError } = useGlobalUsersQuery(submitted, cursor)
+  const list = useGlobalUsersQuery(submitted)
+  const { data, isLoading, isError } = list
   const columns: ColumnDef<GlobalUser>[] = [
     {
       id: 'email',
@@ -136,7 +136,6 @@ export default function PlatformUsers(): ReactNode {
 
   function handleSearch(e: React.FormEvent): void {
     e.preventDefault()
-    setCursor(undefined)
     setSubmitted(search)
   }
 
@@ -215,13 +214,7 @@ export default function PlatformUsers(): ReactNode {
             isLoading={isLoading}
             emptyMessage={<Trans>No users found matching your query.</Trans>}
           />
-          {data ? (
-            <Pagination
-              nextCursor={data.nextCursor}
-              loadMoreLabel={<Trans>Load more</Trans>}
-              onLoadMore={setCursor}
-            />
-          ) : null}
+          {data ? <Pagination query={list} loadMoreLabel={<Trans>Load more</Trans>} /> : null}
         </ConsolePageSection>
       )}
 

@@ -20,7 +20,9 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useOrgTarget } from './useOrgTarget'
+import { useOrgSelfServiceLocked, useOrgTarget } from './useOrgTarget'
+import { LockableFieldset, SelfServiceLockNotice } from './SelfServiceLock'
+import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useOrgSocialProvidersQuery, useUpdateOrgSocialProviders } from './queries'
 import type { OrgSocialProviderPolicy, OrgSocialProviders } from './types'
 import type { XidError } from '@xid-kit/types'
@@ -208,6 +210,8 @@ function CheckRow({
 
 export default function OrgSocialProvidersPage(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
+  const locked = useOrgSelfServiceLocked()
   const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgSocialProvidersQuery(orgId)
   const updateProviders = useUpdateOrgSocialProviders(orgId)
@@ -280,14 +284,14 @@ export default function OrgSocialProvidersPage(): ReactNode {
     setPendingRemoveProvider(null)
   }
 
-  async function handleSave(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleSave(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    if (!orgId || !form) return
+    if (!orgId || !form || locked) return
     setSaveSuccess(false)
-    await updateProviders.mutateAsync({
-      socialProviders: form.socialProviders,
-    })
-    setSaveSuccess(true)
+    updateProviders.mutate(
+      { socialProviders: form.socialProviders },
+      { onSuccess: () => setSaveSuccess(true) },
+    )
   }
 
   if (!orgId) {
@@ -311,8 +315,9 @@ export default function OrgSocialProvidersPage(): ReactNode {
         <Trans>Social sign-in providers available on this organization&apos;s Hosted UI.</Trans>
       }
     >
-      {isError || updateProviders.error || saveSuccess ? (
+      {locked || isError || updateProviders.error || saveSuccess ? (
         <ConsolePageNotice>
+          {locked ? <SelfServiceLockNotice /> : null}
           {isError ? (
             <Alert tone="error">
               <Trans>Failed to load social providers.</Trans>
@@ -326,7 +331,7 @@ export default function OrgSocialProvidersPage(): ReactNode {
                   userinfo endpoint. Replace any placeholder with your own value.
                 </Trans>
               ) : (
-                <Trans>Failed to save social providers. Try again.</Trans>
+                errorMessage(updateProviders.error)
               )}
             </Alert>
           ) : null}
@@ -345,254 +350,256 @@ export default function OrgSocialProvidersPage(): ReactNode {
           </div>
         </ConsolePageSection>
       ) : (
-        <form onSubmit={(event) => void handleSave(event)} noValidate>
-          <ConsolePageSplitSection
-            title={<Trans>Provider connections</Trans>}
-            description={
-              <Trans>Add a provider from a template or register a custom provider key.</Trans>
-            }
-          >
-            <div {...stylex.props(styles.templateBtnRow)}>
-              {Object.keys(SOCIAL_PROVIDER_TEMPLATES).map((provider) => (
-                <Button
-                  key={provider}
-                  type="button"
-                  variant="secondary"
-                  disabled={Boolean(form.socialProviders[provider])}
-                  onClick={() => addSocialProviderTemplate(provider)}
-                >
-                  <Trans>Add {provider} template</Trans>
-                </Button>
-              ))}
-            </div>
-            <div {...stylex.props(styles.addRow)}>
-              <div {...stylex.props(styles.addInputWrap)}>
-                <Field label={<Trans>New provider key</Trans>}>
-                  <Input
-                    value={newProviderKey}
-                    onChange={(event) => setNewProviderKey(event.target.value)}
-                    placeholder={t`google`}
-                  />
-                </Field>
+        <form onSubmit={handleSave} noValidate>
+          <LockableFieldset locked={locked}>
+            <ConsolePageSplitSection
+              title={<Trans>Provider connections</Trans>}
+              description={
+                <Trans>Add a provider from a template or register a custom provider key.</Trans>
+              }
+            >
+              <div {...stylex.props(styles.templateBtnRow)}>
+                {Object.keys(SOCIAL_PROVIDER_TEMPLATES).map((provider) => (
+                  <Button
+                    key={provider}
+                    type="button"
+                    variant="secondary"
+                    disabled={Boolean(form.socialProviders[provider])}
+                    onClick={() => addSocialProviderTemplate(provider)}
+                  >
+                    <Trans>Add {provider} template</Trans>
+                  </Button>
+                ))}
               </div>
-              <Button
-                type="button"
-                disabled={!normalizeProviderKey(newProviderKey)}
-                onClick={addSocialProvider}
-              >
-                <Trans>Add provider</Trans>
-              </Button>
-            </div>
-          </ConsolePageSplitSection>
-
-          {socialEntries.length === 0 ? (
-            <ConsolePageSection>
-              <EmptyState title={<Trans>No social providers configured.</Trans>} />
-            </ConsolePageSection>
-          ) : (
-            socialEntries.map(([provider, policy]) => (
-              <ConsolePageSplitSection
-                key={provider}
-                title={provider}
-                meta={
-                  <div {...stylex.props(styles.providerMeta)}>
-                    <div {...stylex.props(styles.providerHeader)}>
-                      {policy.credentialsReady ? (
-                        <Badge tone="success">
-                          <Trans>Ready</Trans>
-                        </Badge>
-                      ) : (
-                        <Badge tone="neutral">
-                          <Trans>Not ready</Trans>
-                        </Badge>
-                      )}
-                      <Button
-                        type="button"
-                        variant="danger"
-                        onClick={() => setPendingRemoveProvider(provider)}
-                      >
-                        <Trans>Remove provider</Trans>
-                      </Button>
-                    </div>
-                    <p
-                      {...stylex.props(
-                        styles.readinessNote,
-                        policy.credentialsReady ? styles.readinessReady : undefined,
-                      )}
-                    >
-                      {policy.credentialsReady ? (
-                        <Trans>OAuth credentials are ready for Hosted UI.</Trans>
-                      ) : (
-                        <Trans>
-                          OAuth credentials are not ready. Hosted UI hides this provider until
-                          client ID, authorization endpoint, token endpoint, issuer with JWKS URI or
-                          a userinfo endpoint, client secret reference, and Workers Secret are
-                          configured.
-                        </Trans>
-                      )}
-                    </p>
-                  </div>
-                }
-              >
-                <div {...stylex.props(styles.checkGrid)}>
-                  <CheckRow
-                    checked={policy.enabled}
-                    label={<Trans>Enabled</Trans>}
-                    onChange={(checked) => patchSocialProvider(provider, { enabled: checked })}
-                  />
-                  <CheckRow
-                    checked={policy.allowLogin}
-                    label={<Trans>Allow login</Trans>}
-                    onChange={(checked) => patchSocialProvider(provider, { allowLogin: checked })}
-                  />
-                  <CheckRow
-                    checked={policy.allowUserCreation}
-                    label={<Trans>Allow user creation</Trans>}
-                    onChange={(checked) =>
-                      patchSocialProvider(provider, { allowUserCreation: checked })
-                    }
-                  />
-                  <CheckRow
-                    checked={policy.requireVerifiedEmail}
-                    label={<Trans>Require verified email</Trans>}
-                    onChange={(checked) =>
-                      patchSocialProvider(provider, { requireVerifiedEmail: checked })
-                    }
-                  />
-                  <CheckRow
-                    checked={policy.usesPkce}
-                    label={<Trans>Use PKCE</Trans>}
-                    onChange={(checked) => patchSocialProvider(provider, { usesPkce: checked })}
-                  />
+              <div {...stylex.props(styles.addRow)}>
+                <div {...stylex.props(styles.addInputWrap)}>
+                  <Field label={<Trans>New provider key</Trans>}>
+                    <Input
+                      value={newProviderKey}
+                      onChange={(event) => setNewProviderKey(event.target.value)}
+                      placeholder={t`google`}
+                    />
+                  </Field>
                 </div>
-
-                <Field label={<Trans>Client ID</Trans>}>
-                  <Input
-                    value={policy.clientId}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, { clientId: event.target.value.trim() })
-                    }
-                  />
-                </Field>
-                <Field
-                  label={<Trans>Client secret binding</Trans>}
-                  hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+                <Button
+                  type="button"
+                  disabled={!normalizeProviderKey(newProviderKey)}
+                  onClick={addSocialProvider}
                 >
-                  <Input
-                    value={policy.clientSecretRef ?? ''}
-                    readOnly
-                    placeholder={t`GOOGLE_CLIENT_SECRET`}
-                  />
-                </Field>
-                <Field label={<Trans>Authorization endpoint</Trans>}>
-                  <Input
-                    value={policy.authorizationEndpoint}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        authorizationEndpoint: event.target.value.trim(),
-                      })
-                    }
-                    placeholder={t`https://accounts.google.com/o/oauth2/v2/auth`}
-                  />
-                </Field>
-                <Field label={<Trans>Token endpoint</Trans>}>
-                  <Input
-                    value={policy.tokenEndpoint}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        tokenEndpoint: event.target.value.trim(),
-                      })
-                    }
-                    placeholder={t`https://oauth2.googleapis.com/token`}
-                  />
-                </Field>
-                <Field label={<Trans>Userinfo endpoint</Trans>}>
-                  <Input
-                    value={policy.userInfoEndpoint ?? ''}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        userInfoEndpoint: event.target.value.trim(),
-                      })
-                    }
-                    placeholder={t`https://openidconnect.googleapis.com/v1/userinfo`}
-                  />
-                </Field>
-                <Field
-                  label={<Trans>Issuer</Trans>}
-                  hint={
-                    <Trans>
-                      Enter the exact issuer of your identity provider tenant. Only the Microsoft
-                      template may keep its multi-tenant issuer placeholder.
-                    </Trans>
+                  <Trans>Add provider</Trans>
+                </Button>
+              </div>
+            </ConsolePageSplitSection>
+
+            {socialEntries.length === 0 ? (
+              <ConsolePageSection>
+                <EmptyState title={<Trans>No social providers configured.</Trans>} />
+              </ConsolePageSection>
+            ) : (
+              socialEntries.map(([provider, policy]) => (
+                <ConsolePageSplitSection
+                  key={provider}
+                  title={provider}
+                  meta={
+                    <div {...stylex.props(styles.providerMeta)}>
+                      <div {...stylex.props(styles.providerHeader)}>
+                        {policy.credentialsReady ? (
+                          <Badge tone="success">
+                            <Trans>Ready</Trans>
+                          </Badge>
+                        ) : (
+                          <Badge tone="neutral">
+                            <Trans>Not ready</Trans>
+                          </Badge>
+                        )}
+                        <Button
+                          type="button"
+                          variant="danger"
+                          onClick={() => setPendingRemoveProvider(provider)}
+                        >
+                          <Trans>Remove provider</Trans>
+                        </Button>
+                      </div>
+                      <p
+                        {...stylex.props(
+                          styles.readinessNote,
+                          policy.credentialsReady ? styles.readinessReady : undefined,
+                        )}
+                      >
+                        {policy.credentialsReady ? (
+                          <Trans>OAuth credentials are ready for Hosted UI.</Trans>
+                        ) : (
+                          <Trans>
+                            OAuth credentials are not ready. Hosted UI hides this provider until
+                            client ID, authorization endpoint, token endpoint, issuer with JWKS URI
+                            or a userinfo endpoint, client secret reference, and Workers Secret are
+                            configured.
+                          </Trans>
+                        )}
+                      </p>
+                    </div>
                   }
                 >
-                  <Input
-                    value={policy.issuer ?? ''}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, { issuer: event.target.value.trim() })
-                    }
-                    placeholder={t`https://accounts.google.com`}
-                  />
-                </Field>
-                <Field label={<Trans>JWKS URI</Trans>}>
-                  <Input
-                    value={policy.jwksUri ?? ''}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, { jwksUri: event.target.value.trim() })
-                    }
-                  />
-                </Field>
-                <Field label={<Trans>External ID claim</Trans>}>
-                  <Input
-                    value={policy.externalIdClaim ?? ''}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        externalIdClaim: event.target.value.trim(),
-                      })
-                    }
-                    placeholder={t`external_id`}
-                  />
-                </Field>
-                <Field label={<Trans>Scopes</Trans>}>
-                  <Input
-                    value={listToText([...policy.scopes])}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, { scopes: textToList(event.target.value) })
-                    }
-                    placeholder={t`openid, email, profile`}
-                  />
-                </Field>
-                <Field label={<Trans>Allowed domains</Trans>}>
-                  <Input
-                    value={listToText(policy.allowedEmailDomains)}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        allowedEmailDomains: textToList(event.target.value),
-                      })
-                    }
-                  />
-                </Field>
-                <Field label={<Trans>Blocked domains</Trans>}>
-                  <Input
-                    value={listToText(policy.blockedEmailDomains)}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        blockedEmailDomains: textToList(event.target.value),
-                      })
-                    }
-                  />
-                </Field>
-              </ConsolePageSplitSection>
-            ))
-          )}
+                  <div {...stylex.props(styles.checkGrid)}>
+                    <CheckRow
+                      checked={policy.enabled}
+                      label={<Trans>Enabled</Trans>}
+                      onChange={(checked) => patchSocialProvider(provider, { enabled: checked })}
+                    />
+                    <CheckRow
+                      checked={policy.allowLogin}
+                      label={<Trans>Allow login</Trans>}
+                      onChange={(checked) => patchSocialProvider(provider, { allowLogin: checked })}
+                    />
+                    <CheckRow
+                      checked={policy.allowUserCreation}
+                      label={<Trans>Allow user creation</Trans>}
+                      onChange={(checked) =>
+                        patchSocialProvider(provider, { allowUserCreation: checked })
+                      }
+                    />
+                    <CheckRow
+                      checked={policy.requireVerifiedEmail}
+                      label={<Trans>Require verified email</Trans>}
+                      onChange={(checked) =>
+                        patchSocialProvider(provider, { requireVerifiedEmail: checked })
+                      }
+                    />
+                    <CheckRow
+                      checked={policy.usesPkce}
+                      label={<Trans>Use PKCE</Trans>}
+                      onChange={(checked) => patchSocialProvider(provider, { usesPkce: checked })}
+                    />
+                  </div>
 
-          <ConsolePageSection>
-            <div>
-              <Button type="submit" isLoading={updateProviders.isPending}>
-                <Trans>Save changes</Trans>
-              </Button>
-            </div>
-          </ConsolePageSection>
+                  <Field label={<Trans>Client ID</Trans>}>
+                    <Input
+                      value={policy.clientId}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, { clientId: event.target.value.trim() })
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label={<Trans>Client secret binding</Trans>}
+                    hint={<Trans>Binding names are fixed by the deployment configuration.</Trans>}
+                  >
+                    <Input
+                      value={policy.clientSecretRef ?? ''}
+                      readOnly
+                      placeholder={t`GOOGLE_CLIENT_SECRET`}
+                    />
+                  </Field>
+                  <Field label={<Trans>Authorization endpoint</Trans>}>
+                    <Input
+                      value={policy.authorizationEndpoint}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, {
+                          authorizationEndpoint: event.target.value.trim(),
+                        })
+                      }
+                      placeholder={t`https://accounts.google.com/o/oauth2/v2/auth`}
+                    />
+                  </Field>
+                  <Field label={<Trans>Token endpoint</Trans>}>
+                    <Input
+                      value={policy.tokenEndpoint}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, {
+                          tokenEndpoint: event.target.value.trim(),
+                        })
+                      }
+                      placeholder={t`https://oauth2.googleapis.com/token`}
+                    />
+                  </Field>
+                  <Field label={<Trans>Userinfo endpoint</Trans>}>
+                    <Input
+                      value={policy.userInfoEndpoint ?? ''}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, {
+                          userInfoEndpoint: event.target.value.trim(),
+                        })
+                      }
+                      placeholder={t`https://openidconnect.googleapis.com/v1/userinfo`}
+                    />
+                  </Field>
+                  <Field
+                    label={<Trans>Issuer</Trans>}
+                    hint={
+                      <Trans>
+                        Enter the exact issuer of your identity provider tenant. Only the Microsoft
+                        template may keep its multi-tenant issuer placeholder.
+                      </Trans>
+                    }
+                  >
+                    <Input
+                      value={policy.issuer ?? ''}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, { issuer: event.target.value.trim() })
+                      }
+                      placeholder={t`https://accounts.google.com`}
+                    />
+                  </Field>
+                  <Field label={<Trans>JWKS URI</Trans>}>
+                    <Input
+                      value={policy.jwksUri ?? ''}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, { jwksUri: event.target.value.trim() })
+                      }
+                    />
+                  </Field>
+                  <Field label={<Trans>External ID claim</Trans>}>
+                    <Input
+                      value={policy.externalIdClaim ?? ''}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, {
+                          externalIdClaim: event.target.value.trim(),
+                        })
+                      }
+                      placeholder={t`external_id`}
+                    />
+                  </Field>
+                  <Field label={<Trans>Scopes</Trans>}>
+                    <Input
+                      value={listToText([...policy.scopes])}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, { scopes: textToList(event.target.value) })
+                      }
+                      placeholder={t`openid, email, profile`}
+                    />
+                  </Field>
+                  <Field label={<Trans>Allowed domains</Trans>}>
+                    <Input
+                      value={listToText(policy.allowedEmailDomains)}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, {
+                          allowedEmailDomains: textToList(event.target.value),
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label={<Trans>Blocked domains</Trans>}>
+                    <Input
+                      value={listToText(policy.blockedEmailDomains)}
+                      onChange={(event) =>
+                        patchSocialProvider(provider, {
+                          blockedEmailDomains: textToList(event.target.value),
+                        })
+                      }
+                    />
+                  </Field>
+                </ConsolePageSplitSection>
+              ))
+            )}
+
+            <ConsolePageSection>
+              <div>
+                <Button type="submit" isLoading={updateProviders.isPending}>
+                  <Trans>Save changes</Trans>
+                </Button>
+              </div>
+            </ConsolePageSection>
+          </LockableFieldset>
         </form>
       )}
 

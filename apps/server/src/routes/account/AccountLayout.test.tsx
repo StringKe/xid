@@ -37,7 +37,9 @@ vi.mock('../../lib/default-landing', () => ({
 vi.mock('../../lib/theme', () => ({
   useTheme: () => ({
     brand: { appName: 'XID', logoUrl: null },
+    scheme: 'light',
   }),
+  brandLogoUrl: (brand: { logoUrl: string | null }) => brand.logoUrl ?? undefined,
 }))
 
 type TestOrganization = { id: string; slug: string; name: string; role: 'owner' | 'member' }

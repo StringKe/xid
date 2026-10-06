@@ -777,13 +777,17 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   const appName = brand.appName ?? 'XID'
 
   // Managed projects 只在有 manager assignment 时出现,且在 org 与平台侧栏同样可达。
+  // 租户级资源只对顶层组织显示,子组织调用会被服务端拒绝。
   const listsManagedProjects = navItems.some((item) => item.to === MANAGED_PROJECTS_NAV_ITEM.to)
+  const scopedNavItems = navItems.filter(
+    (item) => !item.tenantScope || activeOrg?.parentOrgId === null,
+  )
   const visibleNavItems =
     managerAssignments.length === 0
-      ? navItems.filter((item) => item.to !== MANAGED_PROJECTS_NAV_ITEM.to)
+      ? scopedNavItems.filter((item) => item.to !== MANAGED_PROJECTS_NAV_ITEM.to)
       : listsManagedProjects
-        ? navItems
-        : [...navItems, MANAGED_PROJECTS_NAV_ITEM]
+        ? scopedNavItems
+        : [...scopedNavItems, MANAGED_PROJECTS_NAV_ITEM]
   // 只列可管理 org;切到 member 会被守卫踢到 /account。
   const manageableOrganizations = organizations.filter((organization) =>
     isOrgManagerRole(organization.role),

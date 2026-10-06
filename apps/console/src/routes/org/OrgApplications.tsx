@@ -5,7 +5,7 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
-import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
+import { Alert, Badge, Button, Field, Select, Textarea } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -18,14 +18,17 @@ import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { errorTargetsField, useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { ApplicationEditor } from './ApplicationEditor'
+import { isWebRedirectUri, parseLines } from './application-uris'
 import {
   useApplicationsQuery,
   useCreateApplication,
   useDeleteApplication,
   useRotateClientSecret,
 } from './queries'
+import { TenantScopeGate } from './TenantScopeGate'
 import type { OAuthApplication } from './types'
-import { useOrgTarget } from './useOrgTarget'
 
 const CLIENT_TYPE_TONE: Record<string, BadgeTone> = {
   confidential: 'info',
@@ -74,21 +77,31 @@ function usesSharedSecret(application: OAuthApplication): boolean {
 }
 
 export default function OrgApplications(): ReactNode {
-  const { t } = useLingui()
-  const { orgId } = useOrgTarget()
+  return (
+    <TenantScopeGate title={<Trans>OAuth applications</Trans>}>
+      <ApplicationsPage />
+    </TenantScopeGate>
+  )
+}
 
-  const [cursor, setCursor] = useState<string | undefined>()
-  const { data, isLoading, isError } = useApplicationsQuery(cursor)
+function ApplicationsPage(): ReactNode {
+  const { t } = useLingui()
+  const errorMessage = useManagementErrorMessage()
+  const applications = useApplicationsQuery()
+  const { data, isLoading, error } = applications
 
   const createApplication = useCreateApplication()
   const rotateSecret = useRotateClientSecret()
   const deleteApplication = useDeleteApplication()
 
-  const [redirectUri, setRedirectUri] = useState('')
+  const [redirects, setRedirects] = useState('')
+  const [redirectsInvalid, setRedirectsInvalid] = useState(false)
   const [clientType, setClientType] = useState<OAuthApplication['client_type']>('confidential')
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
   const [createdPublicClientId, setCreatedPublicClientId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<OAuthApplication | null>(null)
+  const [editing, setEditing] = useState<OAuthApplication | null>(null)
+  const actionError = rotateSecret.error ?? deleteApplication.error
 
   const columns: ColumnDef<OAuthApplication>[] = [
     {
@@ -121,11 +134,19 @@ export default function OrgApplications(): ReactNode {
       header: () => <Trans>Actions</Trans>,
       cell: ({ row }) => (
         <div {...stylex.props(consoleShell.actionGroup)}>
+          <Button
+            variant="secondary"
+            onClick={() => setEditing(row.original)}
+            aria-label={t`Edit application ${row.original.client_id}`}
+            {...stylex.props(consoleShell.actionButton)}
+          >
+            <Trans>Edit</Trans>
+          </Button>
           {usesSharedSecret(row.original) ? (
             <Button
               variant="secondary"
               isLoading={rotateSecret.isPending && rotateSecret.variables === row.original.id}
-              onClick={() => void handleRotate(row.original.id)}
+              onClick={() => handleRotate(row.original.id)}
               {...stylex.props(consoleShell.actionButton)}
             >
               <Trans>Rotate secret</Trans>
@@ -141,65 +162,66 @@ export default function OrgApplications(): ReactNode {
           </Button>
         </div>
       ),
-      meta: { width: '220px' },
+      meta: { width: '300px' },
     },
   ]
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleCreate(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
+    const redirectUris = parseLines(redirects)
+    const invalid = redirectUris.length === 0 || !redirectUris.every(isWebRedirectUri)
+    setRedirectsInvalid(invalid)
+    if (invalid) return
     setRevealedSecret(null)
     setCreatedPublicClientId(null)
-    const result = await createApplication.mutateAsync({
-      client_type: clientType,
-      redirect_uris: redirectUri.trim() ? [redirectUri.trim()] : [],
-    })
-    if (result.client_secret) setRevealedSecret(result.client_secret)
-    else setCreatedPublicClientId(result.client_id)
-    setRedirectUri('')
-  }
-
-  async function handleRotate(appId: string): Promise<void> {
-    setRevealedSecret(null)
-    const result = await rotateSecret.mutateAsync(appId)
-    setRevealedSecret(result.client_secret)
-  }
-
-  async function confirmDelete(): Promise<void> {
-    if (!pendingDelete) return
-    await deleteApplication.mutateAsync(pendingDelete.id)
-    setPendingDelete(null)
-  }
-
-  if (!orgId) {
-    return (
-      <ConsolePage wide title={<Trans>OAuth applications</Trans>}>
-        <ConsolePageNotice>
-          <Alert tone="info">
-            <Trans>No organization selected.</Trans>
-          </Alert>
-        </ConsolePageNotice>
-      </ConsolePage>
+    createApplication.mutate(
+      { client_type: clientType, redirect_uris: redirectUris, post_logout_redirect_uris: [] },
+      {
+        onSuccess: (result) => {
+          if (result.client_secret) setRevealedSecret(result.client_secret)
+          else setCreatedPublicClientId(result.client_id)
+          setRedirects('')
+        },
+      },
     )
   }
+
+  function handleRotate(appId: string): void {
+    setRevealedSecret(null)
+    rotateSecret.mutate(appId, { onSuccess: (result) => setRevealedSecret(result.client_secret) })
+  }
+
+  function confirmDelete(): void {
+    if (!pendingDelete) return
+    deleteApplication.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) })
+  }
+
+  const createError = createApplication.error
+  const redirectError = redirectsInvalid
+    ? t`Enter at least one absolute HTTPS URL without a fragment, one per line.`
+    : errorTargetsField(createError, 'redirect_uris')
+      ? errorMessage(createError)
+      : undefined
+  const formError =
+    createError && !errorTargetsField(createError, 'redirect_uris')
+      ? errorMessage(createError)
+      : undefined
 
   return (
     <ConsolePage
       wide
       title={<Trans>OAuth applications</Trans>}
-      lead={<Trans>Register OAuth 2.0 clients and manage their credentials.</Trans>}
+      lead={
+        <Trans>
+          Register OAuth 2.0 clients and manage their credentials. Applications are shared by every
+          organization in the tenant.
+        </Trans>
+      }
     >
-      {isError || rotateSecret.isError || deleteApplication.isError ? (
+      {error || actionError ? (
         <ConsolePageNotice>
-          {isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load applications.</Trans>
-            </Alert>
-          ) : null}
-          {rotateSecret.isError || deleteApplication.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to save changes. Try again.</Trans>
-            </Alert>
-          ) : null}
+          {error ? <Alert tone="error">{errorMessage(error)}</Alert> : null}
+          {actionError ? <Alert tone="error">{errorMessage(actionError)}</Alert> : null}
         </ConsolePageNotice>
       ) : null}
 
@@ -211,14 +233,16 @@ export default function OrgApplications(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No applications registered.</Trans>}
         />
-        {data ? (
-          <Pagination
-            nextCursor={data.next_cursor}
-            loadMoreLabel={<Trans>Load more applications</Trans>}
-            onLoadMore={setCursor}
-          />
-        ) : null}
+        <Pagination query={applications} loadMoreLabel={<Trans>Load more applications</Trans>} />
       </ConsolePageSection>
+
+      {editing ? (
+        <ApplicationEditor
+          key={editing.id}
+          application={editing}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
 
       <ConsolePageSplitSection
         title={<Trans>Register application</Trans>}
@@ -233,21 +257,21 @@ export default function OrgApplications(): ReactNode {
           )
         }
       >
-        <form onSubmit={(event) => void handleCreate(event)} noValidate>
+        <form onSubmit={handleCreate} noValidate>
+          {formError ? <Alert tone="error">{formError}</Alert> : null}
           <div {...stylex.props(styles.formRow)}>
             <div {...stylex.props(styles.formFieldGrow)}>
               <Field
-                label={<Trans>Redirect URI</Trans>}
-                error={
-                  createApplication.error ? t`Failed to create application. Try again.` : undefined
-                }
-                hint={<Trans>Exact match, no wildcards. Optional at creation.</Trans>}
+                label={<Trans>Redirect URIs</Trans>}
+                error={redirectError}
+                hint={<Trans>Exact match, no wildcards. One HTTPS URI per line.</Trans>}
+                required
               >
-                <Input
-                  type="url"
-                  value={redirectUri}
-                  onChange={(event) => setRedirectUri(event.target.value)}
+                <Textarea
+                  value={redirects}
+                  onChange={(event) => setRedirects(event.target.value)}
                   placeholder={t`https://app.example.com/callback`}
+                  required
                 />
               </Field>
             </div>
@@ -298,7 +322,7 @@ export default function OrgApplications(): ReactNode {
           }
           confirmLabel={<Trans>Delete</Trans>}
           isLoading={deleteApplication.isPending}
-          onConfirm={() => void confirmDelete()}
+          onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
       ) : null}

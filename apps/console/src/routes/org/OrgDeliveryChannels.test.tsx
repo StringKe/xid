@@ -8,6 +8,10 @@ vi.mock('@lingui/react/macro', () => ({
   useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
 }))
 
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useManagementErrorMessage: () => (error: { code: string } | null | undefined) => error?.code,
+}))
+
 vi.mock('@xid-kit/web-ui/session', () => ({
   useAuth: () => ({
     activeOrg: { id: 'org_1', name: 'Default' },
