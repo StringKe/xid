@@ -120,6 +120,11 @@ only those requests through one-way `SITE_WORKER` or `CONSOLE_WORKER` Service Bi
 Request is preserved, frontend Workers do not bind back to Core, and unknown or overmatched paths
 remain in Core.
 
+The root path `/` belongs to Site only on the apex. On tenant subdomains and custom hostnames Core
+serves it and lands the user on the account portal, which sends a signed-out visitor to sign-in. An
+active custom hostname carries Hosted Auth and the account portal but no Console route, so Core
+redirects a `/console` request there to `/account` instead of answering with an empty 404.
+
 The private `@xid-kit/web-ui` package contains the UI primitives, theme, locale, session, API client,
 query helpers, and router adapter shared by Hosted UI and Console. The protocol, WebAuthn, crypto,
 SAML, database, and i18n kernel packages remain internal to Core. The browser, backend, React, and

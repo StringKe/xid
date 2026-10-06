@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=ee43683ccbcd301a620dda366ec15f1f1d3b6993 -->
+<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=3e32437fc76c248114921016c14fe099f0cd71a6 -->
 
 > Translation of `docs/design/00-overview.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/00-overview.md`](../../design/00-overview.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -105,6 +105,10 @@ Worker Route matching 包含 query string,因此带 query 的精确 frontend rou
 Custom Domain。Core 使用同一份 ownership contract 判定,只通过单向 `SITE_WORKER` 或
 `CONSOLE_WORKER` Service Binding 委派这些请求。原始 Request 保持不变,frontend Workers
 不反向绑定 Core,unknown 或 overmatched path 仍留在 Core。
+
+根路径 `/` 只在 apex 上归 Site。tenant 子域与 custom hostname 上由 Core 承载,落到账户门户,
+未登录访客再被送往登录页。active custom hostname 承载 Hosted Auth 与账户门户,不路由 Console,
+因此 Core 把那里的 `/console` 请求重定向到 `/account`,不返回空白 404。
 
 私有 `@xid-kit/web-ui` package 包含 Hosted UI 与 Console 共用的 UI primitives、theme、locale、
 session、API client、query helpers 与 router adapter。protocol、WebAuthn、crypto、SAML、database

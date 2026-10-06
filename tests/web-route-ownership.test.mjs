@@ -158,6 +158,7 @@ describe('Web route ownership', () => {
     }
     expectOwner('https://xid.dev/account', 'core', 'core:apex:fallback')
     expectOwner('https://tenant.xid.dev/account', 'core', 'core:tenant:fallback')
+    expectOwner('https://tenant.xid.dev/', 'core', 'core:tenant:fallback')
     expectOwner(`https://xid.dev${CORE_UI_ASSET_PREFIX}app.js`, 'core', 'core:ui-assets')
     expectOwner(`https://tenant.xid.dev${CORE_UI_ASSET_PREFIX}app.js`, 'core', 'core:ui-assets')
     expectOwner('https://xid.dev/assets/legacy.js', 'core', 'core:apex:fallback')

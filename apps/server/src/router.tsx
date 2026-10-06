@@ -1,5 +1,5 @@
 // code-based 路由树:避免 file-based 插件与 Cloudflare/lingui/StyleX 链路争用。
-// 守卫用 RequireAuth(auth 在 React context,beforeLoad 读不到);/,/console/* 由独立 Worker 接管。
+// 守卫用 RequireAuth(auth 在 React context,beforeLoad 读不到);apex 的 / 与 /console/* 由独立 Worker 接管。
 
 import type { ReactNode } from 'react'
 import {
@@ -17,6 +17,8 @@ import { RoutePageSeo } from './components/RoutePageSeo'
 
 import { Spinner } from './components/ui'
 import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
+import { Navigate } from '@xid-kit/web-ui/tanstack-router'
+import { ACCOUNT_EXACT_PATH } from '@xid-kit/types'
 import type { PendingMfaAuthStatus } from './lib/auth-context'
 
 type PageModule = { default: () => ReactNode }
@@ -179,6 +181,13 @@ const accountDevicesRoute = accountRoute(
   () => import('./routes/account/DevicesPage'),
 )
 
+// 租户子域与自定义域名的 / 由 Core 承载:落账户门户,未登录由 RequireAuth 送去 /sign-in。
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: () => <Navigate to={ACCOUNT_EXACT_PATH} replace />,
+})
+
 // 未知路径 404,不静默重定向登录(公开 typo 不应被当成未认证)。
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -190,6 +199,7 @@ const notFoundRoute = createRoute({
 )
 
 const routeTree = rootRoute.addChildren([
+  indexRoute,
   signInRoute,
   signUpRoute,
   forgotPasswordRoute,

@@ -5,8 +5,8 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Link } from '../../lib/router'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
+import { ACCOUNT_EXACT_PATH } from '@xid-kit/types'
 import { BrandLogo } from '../../components/BrandLogo'
-import { Button } from '../../components/ui'
 import { tokens } from '../../styles/tokens.stylex'
 import { page } from '../../styles/product-surface.stylex'
 
@@ -55,8 +55,29 @@ const styles = stylex.create({
     marginTop: '0.5rem',
   },
   actionLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '2.5rem',
+    paddingBlock: 0,
+    paddingInline: '1rem',
+    borderRadius: tokens['--xid-radius'],
+    fontSize: '0.875rem',
+    fontWeight: 600,
     textDecoration: 'none',
-    color: 'inherit',
+    outlineOffset: '2px',
+    outlineColor: tokens['--xid-primary'],
+  },
+  primaryAction: {
+    backgroundColor: tokens['--xid-primary'],
+    color: tokens['--xid-primary-foreground'],
+  },
+  secondaryAction: {
+    color: tokens['--xid-fg'],
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': tokens['--xid-muted'],
+    },
   },
 })
 
@@ -82,15 +103,11 @@ export default function NotFoundPage(): ReactNode {
       </p>
 
       <div {...stylex.props(styles.actions)}>
-        <Link to="/" {...stylex.props(styles.actionLink)}>
-          <Button variant="primary">
-            <Trans>Go to home</Trans>
-          </Button>
+        <Link to={ACCOUNT_EXACT_PATH} {...stylex.props(styles.actionLink, styles.primaryAction)}>
+          <Trans>Go to account</Trans>
         </Link>
-        <Link to="/sign-in" {...stylex.props(styles.actionLink)}>
-          <Button variant="ghost">
-            <Trans>Sign in</Trans>
-          </Button>
+        <Link to="/sign-in" {...stylex.props(styles.actionLink, styles.secondaryAction)}>
+          <Trans>Sign in</Trans>
         </Link>
       </div>
     </main>

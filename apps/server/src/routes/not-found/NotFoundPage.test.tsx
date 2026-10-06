@@ -25,7 +25,9 @@ describe('NotFoundPage', () => {
 
     expect(html).toContain('404')
     expect(html).toContain('Page not found')
-    expect(html).toContain('href="/"')
+    expect(html).toContain('href="/account"')
     expect(html).toContain('href="/sign-in"')
+    expect(html).not.toContain('href="/"')
+    expect(html).not.toContain('<button')
   })
 })

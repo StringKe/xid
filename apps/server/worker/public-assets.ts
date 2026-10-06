@@ -1,5 +1,12 @@
 import type { Context, Hono } from 'hono'
-import { isConsoleRoute, isCoreSpaRoute, resolveWebRouteOwnership } from '@xid-kit/types'
+import { resolveTenantContext } from '@xid-kit/db'
+import {
+  ACCOUNT_EXACT_PATH,
+  defaultLandingPathFor,
+  isConsoleRoute,
+  isCoreSpaRoute,
+  resolveWebRouteOwnership,
+} from '@xid-kit/types'
 import type { XidHonoEnv } from './lib/types'
 import { applySpaSecurityHeaders } from './security-headers'
 
@@ -44,12 +51,20 @@ function movedSurfaceNotFound(owner: 'site' | 'console'): Response {
   })
 }
 
+// 自定义域名只承载 Hosted Auth 与账户门户(defaultLandingPathFor):/console 改落 /account,不给空白 404。
+async function servesAccountInsteadOfConsole(c: Context<XidHonoEnv>): Promise<boolean> {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return false
+  const tenant = await resolveTenantContext(c.req.raw, c.env)
+  return tenant.ok && defaultLandingPathFor(tenant.value) === ACCOUNT_EXACT_PATH
+}
+
 async function serveCoreSpaAsset(c: Context<XidHonoEnv>): Promise<Response> {
   const url = new URL(c.req.url)
   if (url.pathname === '/docs' || url.pathname.startsWith('/docs/')) {
     return movedSurfaceNotFound('site')
   }
   if (isConsoleRoute(url.pathname)) {
+    if (await servesAccountInsteadOfConsole(c)) return c.redirect(ACCOUNT_EXACT_PATH, 302)
     return movedSurfaceNotFound('console')
   }
 
