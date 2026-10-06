@@ -18,6 +18,10 @@ const SURFACE: Record<ColorScheme, Rgb> = {
   light: { r: 255, g: 255, b: 255 },
   dark: { r: 24, g: 24, b: 24 },
 }
+const GROUND: Record<ColorScheme, Rgb> = {
+  light: { r: 246, g: 246, b: 246 },
+  dark: { r: 17, g: 17, b: 17 },
+}
 const DARK_LABEL: Rgb = { r: 20, g: 20, b: 20 }
 const LIGHT_LABEL: Rgb = { r: 255, g: 255, b: 255 }
 const BLACK: Rgb = { r: 0, g: 0, b: 0 }
@@ -94,10 +98,15 @@ export function deriveAccentPalette(source: string, scheme: ColorScheme): Accent
   const parsed = parseHexColor(source)
   if (!parsed) return null
   const surface = SURFACE[scheme]
-  const accent = ensureContrast(parsed, surface, TEXT_CONTRAST)
+  const onShell = ensureContrast(
+    ensureContrast(parsed, surface, TEXT_CONTRAST),
+    GROUND[scheme],
+    TEXT_CONTRAST,
+  )
+  const accentWash = roundRgb(mix(surface, onShell, scheme === 'light' ? 0.1 : 0.18))
+  const accent = ensureContrast(onShell, accentWash, TEXT_CONTRAST)
   const strongTarget = scheme === 'light' ? BLACK : WHITE
   const accentStrong = roundRgb(mix(accent, strongTarget, scheme === 'light' ? 0.2 : 0.3))
-  const accentWash = roundRgb(mix(surface, accent, scheme === 'light' ? 0.1 : 0.18))
   return {
     accent: toHex(accent),
     accentStrong: toHex(accentStrong),

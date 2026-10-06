@@ -11,6 +11,10 @@ import {
 const WHITE = { r: 255, g: 255, b: 255 }
 const DARK_SURFACE = { r: 24, g: 24, b: 24 }
 const SURFACES: Record<ColorScheme, typeof WHITE> = { light: WHITE, dark: DARK_SURFACE }
+const GROUNDS: Record<ColorScheme, typeof WHITE> = {
+  light: { r: 246, g: 246, b: 246 },
+  dark: { r: 17, g: 17, b: 17 },
+}
 
 function parsed(hex: string): { r: number; g: number; b: number } {
   const color = parseHexColor(hex)
@@ -39,7 +43,7 @@ describe('contrastRatio', () => {
 })
 
 describe('deriveAccentPalette', () => {
-  it.each(['#2e5fa3', '#ffd400', '#00ff88', '#ff00aa', '#111111', '#f5f5f5'])(
+  it.each(['#2e5fa3', '#ffd400', '#00ff88', '#ff00aa', '#e11d48', '#0ea5e9', '#111111', '#f5f5f5'])(
     'keeps accent text readable on the surface for %s in both schemes',
     (source) => {
       for (const scheme of ['light', 'dark'] as const) {
@@ -49,10 +53,17 @@ describe('deriveAccentPalette', () => {
         const accent = parsed(palette.accent)
 
         expect(contrastRatio(accent, SURFACES[scheme])).toBeGreaterThanOrEqual(TEXT_CONTRAST)
+        expect(contrastRatio(accent, GROUNDS[scheme])).toBeGreaterThanOrEqual(TEXT_CONTRAST)
         expect(contrastRatio(parsed(palette.accentForeground), accent)).toBeGreaterThanOrEqual(
           TEXT_CONTRAST,
         )
+        expect(
+          contrastRatio(parsed(palette.accentForeground), parsed(palette.accentStrong)),
+        ).toBeGreaterThanOrEqual(TEXT_CONTRAST)
         expect(contrastRatio(accent, parsed(palette.accentWash))).toBeGreaterThanOrEqual(
+          TEXT_CONTRAST,
+        )
+        expect(contrastRatio(parsed(palette.accentWash), SURFACES[scheme])).toBeLessThan(
           CONTROL_CONTRAST,
         )
       }
