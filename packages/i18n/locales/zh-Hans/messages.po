@@ -47,7 +47,7 @@ msgstr "{0}（{1}）将被删除。成员将无法再使用此 SAML 应用。"
 #. placeholder {1}: pendingRevoke.userId
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "{0} ({1}) will lose platform-wide management access. The server rejects this operation if it would remove the final instance manager."
-msgstr "{0}（{1}）将失去平台级管理权限。如果此操作会移除最后一个实例管理器，服务器会拒绝。"
+msgstr "{0}（{1}）将失去平台级管理权限。如果此操作会移除最后一个实例管理员，服务器会拒绝。"
 
 #. placeholder {0}: selected.provider
 #. placeholder {1}: selected.baseUrl
@@ -58,7 +58,7 @@ msgstr "{0}（{1}）将停止接收用户和组更新。此操作无法撤销。
 #. placeholder {0}: assignments.data.total
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "{0} instance managers"
-msgstr "{0} 实例管理器"
+msgstr "{0} 位实例管理员"
 
 #. placeholder {0}: params.clientName
 #: apps/server/src/routes/consent/ClientHeader.tsx
@@ -616,7 +616,7 @@ msgstr "无法加载当前公告。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Active instance managers"
-msgstr "活动实例管理器"
+msgstr "当前实例管理员"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Active keys"
@@ -1217,7 +1217,7 @@ msgstr "异步优先。同步调用方（Django/Flask）可用 <0>asyncio.run()<
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "At least one instance manager must remain. The list was refreshed."
-msgstr "至少要保留一个实例管理器。列表已刷新。"
+msgstr "至少要保留一个实例管理员。列表已刷新。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Atlassian"
@@ -3829,7 +3829,7 @@ msgstr "无法加载入站 SSO 连接。请重试。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to load instance managers."
-msgstr "无法加载实例管理器。"
+msgstr "无法加载实例管理员。"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Failed to load invitations."
@@ -3837,7 +3837,7 @@ msgstr "加载邀请失败。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Failed to load manager assignments."
-msgstr "无法加载管理器分配。"
+msgstr "无法加载管理员指派。"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Failed to load members."
@@ -4311,7 +4311,7 @@ msgstr "授予实例访问权限"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance manager"
-msgstr "授予实例管理器"
+msgstr "添加实例管理员"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant manager role"
@@ -4837,15 +4837,15 @@ msgstr "实例默认值"
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Instance managers"
-msgstr "实例管理器"
+msgstr "实例管理员"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Instance managers | Console | XID"
-msgstr "实例管理器 | Console | XID"
+msgstr "实例管理员 | Console | XID"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Instance managers administer platform-wide settings and cross-tenant operations. The current user cannot revoke their own assignment, and the server always preserves at least one instance manager."
-msgstr "实例管理器管理平台范围的设置和跨租户操作。当前用户无法撤销自己的分配，并且服务器始终保留至少一个实例管理器。"
+msgstr "实例管理员管理平台范围的设置和跨租户操作。当前用户无法撤销自己的分配，并且服务器始终保留至少一个实例管理员。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Instance public signing keys with active and rotating kids."
@@ -5303,7 +5303,7 @@ msgstr "加载更多事件"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Load more instance managers"
-msgstr "加载更多实例管理器"
+msgstr "加载更多实例管理员"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Load more invitations"
@@ -6105,7 +6105,7 @@ msgstr "尚未报告任何事件。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "No instance managers found."
-msgstr "未找到实例管理器。"
+msgstr "未找到实例管理员。"
 
 #: apps/server/src/routes/magic-link/index.tsx
 msgid "No magic-link token found. Please use the link from your email."
@@ -8619,11 +8619,11 @@ msgstr "撤销授权"
 #. placeholder {0}: managerLabel(row.original)
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Revoke instance manager {0}"
-msgstr "撤销实例管理器 {0}"
+msgstr "撤销实例管理员 {0}"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Revoke instance manager?"
-msgstr "撤销实例管理器？"
+msgstr "撤销实例管理员？"
 
 #. placeholder {0}: row.original.email
 #: apps/console/src/routes/org/OrgMembers.tsx
@@ -10336,7 +10336,7 @@ msgstr "Management API 在 KV 中存储七个组织作用域的品牌值。经�
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The Management API uses cursor pagination and shared API-key or organization-manager guards. It does not reuse end-user business routes."
-msgstr "管理 API 使用光标分页和共享 API 密钥或组织管理器防护。它不重用最终用户业务路由。"
+msgstr "管理 API 使用游标分页，并共用 API 密钥或组织管理员的权限校验。它不复用终端用户的业务路由。"
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "The message was replayed to its source queue."
