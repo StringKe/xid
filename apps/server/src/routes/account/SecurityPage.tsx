@@ -1,7 +1,7 @@
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import { useSearch } from '@tanstack/react-router'
-import { safeInternalPath } from '@xid-kit/web-ui/safe-redirect'
+import { normalizeLocalPath } from '@xid-kit/types'
 import { Alert } from '../../components/ui'
 import * as stylex from '@stylexjs/stylex'
 import { account, consoleShell } from '../../styles/product-surface.stylex'
@@ -24,7 +24,7 @@ export default function SecurityPage(): ReactNode {
   const resumeAfterSetup = showMfaSetupBanner
     ? async (): Promise<void> => {
         await refresh()
-        navigate(safeInternalPath(search.redirect_to, defaultLandingPath), { replace: true })
+        navigate(normalizeLocalPath(search.redirect_to) ?? defaultLandingPath, { replace: true })
       }
     : undefined
 

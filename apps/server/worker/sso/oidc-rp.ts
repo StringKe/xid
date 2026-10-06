@@ -6,7 +6,7 @@
 import { importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
 import type { PublicJwk, VerifyKeySet } from '@xid-kit/crypto'
 import { createTenantDb, resolveTenantContextByApplicationClientId, schema } from '@xid-kit/db'
-import { defaultLandingPathFor } from '@xid-kit/types'
+import { defaultLandingPathFor, normalizeLocalPath } from '@xid-kit/types'
 import type { SigningAlg } from '@xid-kit/types'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -44,7 +44,6 @@ import { readBoundedJson } from './bounded-json'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import {
   isAuthorizeContinuation,
-  normalizeLocalContinuePath,
   resolveApplicationAuthorizeContinuation,
 } from '../../shared/hosted-auth-continuation'
 import { isApplicationSignUpIntent } from '../../shared/hosted-auth-intent'
@@ -543,7 +542,7 @@ async function finalizeSession(p: FinalizeSessionParams): Promise<Response> {
   }
   const safeLocalRedirect =
     applicationContinuation ??
-    normalizeLocalContinuePath(flow.redirectAfterLogin) ??
+    normalizeLocalPath(flow.redirectAfterLogin) ??
     defaultLandingPathFor(c.get('tenant'))
   const mfaGate = await resolvePostAuthMfaGate(c, c.get('tenant'), {
     userId: p.userId,

@@ -2,11 +2,9 @@
 // OAuthFlowDO 一次性 state 存取、PKCE/state/nonce 生成、邀请输入拒绝、浏览器错误回登录页。
 
 import { base64UrlEncode } from '@xid-kit/crypto'
+import { normalizeLocalPath } from '@xid-kit/types'
 import type { Context } from 'hono'
-import {
-  isInvitationContinuation,
-  normalizeLocalContinuePath,
-} from '../../shared/hosted-auth-continuation'
+import { isInvitationContinuation } from '../../shared/hosted-auth-continuation'
 import { AppError, isAppError } from './errors'
 import { logWorkerWarning } from './safe-log'
 import { OAUTH_FLOW_STATE_TTL_MS } from './ttl'
@@ -155,7 +153,7 @@ export function redirectToSignInWithError(
   context: SignInReturnContext = {},
 ): Response {
   const params = new URLSearchParams({ error })
-  const continuePath = normalizeLocalContinuePath(context.continuePath)
+  const continuePath = normalizeLocalPath(context.continuePath)
   if (continuePath && !isInvitationContinuation(continuePath)) {
     params.set('continue', continuePath)
   }

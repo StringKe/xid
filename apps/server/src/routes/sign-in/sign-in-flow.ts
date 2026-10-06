@@ -1,5 +1,7 @@
 // Hosted Auth 续跑契约:所有登录方式发同一组 flow 字段,Worker 用 resolveHostedAuthFlow 复核。
 
+import { normalizeLocalPath } from '@xid-kit/types'
+
 export type SignInFlowSearch = {
   authz_request_id?: string
   continue?: string
@@ -16,18 +18,6 @@ export type SignInFlowFields = {
   invitationToken?: string
 }
 
-// 只允许同源相对路径,避免 open redirect。
-export function sameOriginPath(value: string | null | undefined): string | null {
-  if (!value) return null
-  try {
-    const url = new URL(value, globalThis.location.origin)
-    if (url.origin === globalThis.location.origin) return url.pathname + url.search + url.hash
-  } catch {
-    return null
-  }
-  return null
-}
-
 export function authorizeResumePath(
   authzRequestId: string,
   applicationClientId?: string | null,
@@ -42,7 +32,7 @@ export function resolveHostedContinuation(search: SignInFlowSearch): string | nu
   if (search.authz_request_id) {
     return authorizeResumePath(search.authz_request_id, search.client_id)
   }
-  return sameOriginPath(search.continue ?? search.redirect)
+  return normalizeLocalPath(search.continue ?? search.redirect)
 }
 
 export function resolveHostedReturn(search: SignInFlowSearch, fallback: string): string {

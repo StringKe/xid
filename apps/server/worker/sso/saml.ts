@@ -16,7 +16,7 @@ import {
 } from '@xid-kit/saml'
 import type { AttributeMapping } from '@xid-kit/saml'
 import { createTenantDb, resolveTenantContextByApplicationClientId, schema } from '@xid-kit/db'
-import { DEFAULT_SESSION_POLICY, defaultLandingPathFor } from '@xid-kit/types'
+import { DEFAULT_SESSION_POLICY, defaultLandingPathFor, normalizeLocalPath } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -67,7 +67,6 @@ import { enforceEnterpriseSsoPolicy } from './enterprise-policy'
 import {
   isAuthorizeContinuation,
   isInvitationContinuation,
-  normalizeLocalContinuePath,
   resolveApplicationAuthorizeContinuation,
 } from '../../shared/hosted-auth-continuation'
 import { isApplicationSignUpIntent } from '../../shared/hosted-auth-intent'
@@ -212,7 +211,7 @@ async function checkInResponseTo(
   if (flow.tenantId && flow.tenantId !== tenant.tenantId) {
     throw new AppError('cross_tenant_access_denied')
   }
-  if (normalizeLocalContinuePath(flow.continuePath) !== flow.continuePath) {
+  if (normalizeLocalPath(flow.continuePath) !== flow.continuePath) {
     throw new AppError('server_error')
   }
   if (flow.applicationClientId) {
@@ -659,7 +658,7 @@ async function startSamlLogin(c: Context<XidHonoEnv>): Promise<Response> {
     const applicationContinuation = applicationClientId
       ? resolveApplicationAuthorizeContinuation(rawContinue, applicationClientId)
       : null
-    const continuePath = applicationContinuation ?? normalizeLocalContinuePath(rawContinue)
+    const continuePath = applicationContinuation ?? normalizeLocalPath(rawContinue)
     if (
       !continuePath ||
       (applicationClientId && !applicationContinuation) ||

@@ -1,3 +1,4 @@
+import { normalizeLocalPath } from '@xid-kit/types'
 import {
   isApplicationSignUpIntent,
   isHostedAuthIntent,
@@ -6,33 +7,14 @@ import {
 } from './hosted-auth-intent'
 
 const LOCAL_ORIGIN = 'https://xid.local'
-const MAX_CONTINUE_PATH_LENGTH = 2048
 const MAX_CLIENT_ID_LENGTH = 255
 const MAX_AUTHZ_REQUEST_ID_LENGTH = 255
-
-export function normalizeLocalContinuePath(value: string | null | undefined): string | null {
-  if (
-    !value ||
-    value.length > MAX_CONTINUE_PATH_LENGTH ||
-    !value.startsWith('/') ||
-    value.startsWith('//')
-  ) {
-    return null
-  }
-  try {
-    const parsed = new URL(value, LOCAL_ORIGIN)
-    if (parsed.origin !== LOCAL_ORIGIN) return null
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`
-  } catch {
-    return null
-  }
-}
 
 export function resolveApplicationAuthorizeContinuation(
   value: string | null | undefined,
   applicationClientId: string | null | undefined,
 ): string | null {
-  const normalized = normalizeLocalContinuePath(value)
+  const normalized = normalizeLocalPath(value)
   const clientId = applicationClientId?.trim() ?? ''
   if (!normalized || !clientId || clientId.length > MAX_CLIENT_ID_LENGTH) return null
 
@@ -70,7 +52,7 @@ export function isInvitationContinuation(value: string | null | undefined): bool
 }
 
 export function isAuthorizeContinuation(value: string | null | undefined): boolean {
-  const normalized = normalizeLocalContinuePath(value)
+  const normalized = normalizeLocalPath(value)
   if (!normalized) return false
   return new URL(normalized, LOCAL_ORIGIN).pathname === '/authorize'
 }
@@ -97,7 +79,7 @@ export function resolveHostedAuthFlow(input: {
   const hasInvitation = input.hasInvitation === true
 
   const hasRawContinuePath = Boolean(input.continuePath)
-  const normalizedContinuePath = normalizeLocalContinuePath(input.continuePath)
+  const normalizedContinuePath = normalizeLocalPath(input.continuePath)
   if (hasRawContinuePath && normalizedContinuePath === null) return null
 
   if (

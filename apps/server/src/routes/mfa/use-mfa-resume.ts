@@ -1,5 +1,5 @@
 import { useSearch } from '@tanstack/react-router'
-import { safeInternalPath } from '@xid-kit/web-ui/safe-redirect'
+import { normalizeLocalPath } from '@xid-kit/types'
 import { useDefaultLandingPath } from '../../lib/default-landing'
 import { useNavigate } from '../../lib/router'
 
@@ -8,5 +8,6 @@ export function useMfaResume(): () => void {
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as { redirect_to?: string }
   const defaultLandingPath = useDefaultLandingPath()
-  return () => navigate(safeInternalPath(search.redirect_to, defaultLandingPath), { replace: true })
+  return () =>
+    navigate(normalizeLocalPath(search.redirect_to) ?? defaultLandingPath, { replace: true })
 }

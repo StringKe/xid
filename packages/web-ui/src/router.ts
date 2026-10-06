@@ -3,6 +3,7 @@ import {
   CONSOLE_EXACT_PATH,
   isConsoleRoute,
   isCoreSpaRoute,
+  normalizeLocalPath,
 } from '@xid-kit/types'
 
 export const NAVIGATION_RUNTIMES = ['core', 'console'] as const
@@ -46,25 +47,10 @@ export type RouterAdapter = {
   usesDocumentNavigation: (to: string) => boolean
 }
 
-function hasAsciiControlCharacter(value: string): boolean {
-  for (const character of value) {
-    const codePoint = character.codePointAt(0)
-    if (codePoint !== undefined && (codePoint < 32 || codePoint === 127)) return true
-  }
-  return false
-}
-
+// 同页 ?query / #hash 原样保留;其余目标只接受 normalizeLocalPath 认可的站内路径。
 export function normalizeInternalNavigationTarget(to: string, fallback: string): string {
   if (to.startsWith('?') || to.startsWith('#')) return to
-  if (
-    to.startsWith('/') &&
-    !to.startsWith('//') &&
-    !to.includes('\\') &&
-    !hasAsciiControlCharacter(to)
-  ) {
-    return to
-  }
-  return fallback
+  return normalizeLocalPath(to) ?? fallback
 }
 
 function targetPathname(to: string, currentPathname: string): string {

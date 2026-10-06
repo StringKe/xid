@@ -1,8 +1,7 @@
 import { createTenantDb, schema } from '@xid-kit/db'
-import type { AmrValue } from '@xid-kit/types'
+import { normalizeLocalPath, type AmrValue } from '@xid-kit/types'
 import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
-import { normalizeLocalContinuePath } from '../../shared/hosted-auth-continuation'
 import { isProductSignUpIntent } from '../../shared/hosted-auth-intent'
 import {
   addMfaToAuthContext,
@@ -55,7 +54,7 @@ export async function shouldRequireMfaSetup(
 }
 
 export function sanitizeLocalReturn(value: string | undefined | null, fallback: string): string {
-  return normalizeLocalContinuePath(value) ?? fallback
+  return normalizeLocalPath(value) ?? fallback
 }
 
 export function postAuthRedirectPath(opts: {
