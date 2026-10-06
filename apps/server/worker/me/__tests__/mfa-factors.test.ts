@@ -657,6 +657,27 @@ describe('SMS factor enrollment', () => {
     expect(await res.json()).toMatchObject({ type: 'sms' })
   })
 
+  it('does not enroll a verified phone that belongs to another tenant', async () => {
+    const factors = [totpRow()]
+    const db = makeFakeD1({
+      mfa_factors: factors,
+      user_phones: [{ ...verifiedPhoneRow(), tenant_id: 't_other' }],
+    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session, tenant: SMS_TENANT })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/sms',
+      method: 'POST',
+      env: smsEnv(db),
+      session,
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_request' })
+    expect(factors).toHaveLength(1)
+  })
+
   it('refuses SMS as the only factor', async () => {
     const db = makeFakeD1({ mfa_factors: [], user_phones: [verifiedPhoneRow()] })
     const session = makeSession({ userId: 'u_1' })

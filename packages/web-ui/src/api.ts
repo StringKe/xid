@@ -1,4 +1,4 @@
-// 同源 SPA API client:失败一律 XidError;session cookie 经 credentials:'include';401 走 onUnauthorized。
+// 同源 SPA API client:失败一律 XidError;session cookie 经 credentials:'include';会话失效的 401 走 onUnauthorized。
 
 import type { Result, XidError, XidErrorCode } from '@xid-kit/types'
 
@@ -42,6 +42,19 @@ function toXidError(status: number, body: unknown): XidError {
   }
   // 网关/HTML/空体:模糊通用 code,不外泄底层(枚举防护)。
   return { code: UNKNOWN_ERROR_CODE, message: '', httpStatus: status }
+}
+
+// 只有会话本身失效才降级为匿名;step-up、错码、验证码等 401 属于当前操作失败,会话仍然有效。
+const SESSION_FAILURE_CODES: ReadonlySet<XidErrorCode> = new Set<XidErrorCode>([
+  'unauthorized',
+  'session_expired',
+  'session_revoked',
+  'login_required',
+  UNKNOWN_ERROR_CODE,
+])
+
+function isSessionFailure(error: XidError): boolean {
+  return error.httpStatus === 401 && SESSION_FAILURE_CODES.has(error.code)
 }
 
 function buildUrl(baseUrl: string, path: string, query: ApiRequestOptions['query']): string {
@@ -129,11 +142,13 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
       return { ok: false, error: { code: NETWORK_ERROR_CODE, message: '', httpStatus: 0 } }
     }
 
-    if (response.status === 401) config.onUnauthorized?.()
-
     const body = await parseBody(response)
 
-    if (!response.ok) return { ok: false, error: toXidError(response.status, body) }
+    if (!response.ok) {
+      const error = toXidError(response.status, body)
+      if (isSessionFailure(error)) config.onUnauthorized?.()
+      return { ok: false, error }
+    }
 
     return { ok: true, value: body as T }
   }
