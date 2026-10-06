@@ -211,13 +211,19 @@ Capabilities still missing:
   non-null values of the latest assertion; a missing attribute does not clear the stored value
 - Role mapping: IdP groups or attributes map to an org_role (configured per connection)
 - Conflict handling: exact idp_id match > email association > create new
-- Email association links an existing User only when all three hold: the local Email is verified,
-  the IdP Email is trusted, and the User is already an active member of the connection's
-  Organization. The IdP Email is trusted when the IdP asserts `email_verified: true` (OIDC) or the
-  Email domain is a verified, active `organization_domains` row of that Organization (SAML has no
-  `email_verified`, so it relies on the domain). An existing Email that fails any condition is
-  rejected with `invalid_credentials` and never falls through to user creation
-- A new User's Email is stored as verified only when the IdP Email is trusted by the same rule
+- Email association rule (`apps/server/worker/sso/account-link.ts`, shared by SAML, OIDC, and
+  legacy JIT and by inbound SCIM): the local Email MUST be verified, and then one of two conditions
+  links the existing User:
+  - the Email domain is a verified, active `organization_domains` row of the connection's
+    Organization (wildcard rows cover subdomains); the Organization vouches for every address in
+    that domain, so membership is not required. SAML has no `email_verified` and relies on this
+  - the IdP asserts `email_verified: true` (OIDC) and the User is already an active member of the
+    connection's Organization. Inbound SCIM is a trusted directory and counts as verified
+- An existing Email that fails the rule is rejected with `invalid_credentials`; JIT never logs in,
+  links, or creates a second account for that Email, because `UNIQUE (tenant_id, email)` allows only
+  one owner
+- A new User's Email is stored as verified only when the IdP Email is trusted: the IdP asserts
+  `email_verified: true` or the domain is verified for the Organization
 - A revoked identity for the same `(connection, idp_id)` is rebound to the matched User instead of
   inserting a duplicate row (see chapter 01, identity rows)
 - JIT can be toggled per connection (some enterprises require SCIM-only control and forbid automatic
@@ -256,27 +262,38 @@ verified domain is a precondition for JIT SSO.
   ResourceTypes
 - Bearer token authentication: a per-directory token supporting rotation (with a 30-minute grace
   period for the old token)
-- User provisioning: create, update, deactivate (`active=false`), and delete
+- User provisioning: create, update, deactivate (`active=false`), reactivate, and delete, applied to
+  the bound XID User
 - Group provisioning: create, update, delete, with incremental member PATCH
-- Group-to-role mapping: Group displayName maps to an org role
 - Webhooks: directory events pushed to the application endpoint
-- Attribute mapping: userName, emails[primary], name.givenName, name.familyName, department, and title
-  map onto XID fields
+- Attribute mapping: `emails[primary]` (or `userName` when it is an email) becomes the XID User's
+  verified primary email when the User is created, and `name.givenName` / `name.familyName` update
+  first and last name. A `userName` that is not an email becomes the XID `username`. `department`,
+  `title`, and the remaining attributes stay on the DirectoryUser record (`scim_raw`)
+- Not implemented: Group-to-role mapping. Directory Groups and their members are stored and returned
+  over SCIM, but group membership never changes an org role. Directory-provisioned memberships are
+  created with the `member` role; org admins change roles through the membership APIs
 
 ### Design decisions
 
-- SCIM User and XID User are bound bidirectionally (through the directory_user_id foreign key)
-- Deprovisioning (`active=false`) revokes every session token but does not delete the XID User (which
-  preserves the audit trail). `DELETE /Users/{id}` maps to a directory user soft delete and never
-  physically deletes the XID User
+- SCIM User and XID User are bound through `directory_users.user_id`. An active SCIM User is bound
+  when it is created or first becomes active: an existing XID User is linked only under the email
+  association rule in section 4, otherwise a new XID User is created with `provisioned_by = scim`.
+  When the email already belongs to an account that fails the rule, the request returns 409
+  `uniqueness` and nothing is written. Binding also ensures an `is_managed` membership in the
+  directory's org; a membership the org manages by hand is never rewritten by the directory
+- Deprovisioning (`active=false`) runs the sequence in 10.1.2 and does not delete the XID User (which
+  preserves the audit trail). Reactivation (`active=true`) restores only a User whose status is
+  `deactivated`; `banned` or other administrator states are never lifted by the IdP.
+  `DELETE /Users/{id}` runs the same sequence, sets the managed membership to `inactive`, maps to a
+  directory user soft delete, and never physically deletes the XID User
 - OneLogin quirk: a PATCH of group members can arrive before the user is created, so the server MUST
   handle an unknown member idempotently
-- A Group displayName change MUST update the role mapping in step
 
 ### Data model
 
 The core entities are Directory, DirectoryUser, and DirectoryGroup (see chapter 08): the directory
-connection, the synced users and groups, and the group-to-role mapping.
+connection and the synced users and groups.
 
 ## 7. Supported enterprise IdPs
 
@@ -771,19 +788,23 @@ trail, see the decisions in section 6). `DELETE /Users/{id}` runs the same depro
 sequence and additionally marks the DirectoryUser as deleted. The sequence:
 
 ```
-1. [sync] Validate and parse the PATCH, locating active=false.
-2. [sync] staged.active = false; staged.status = "deactivated".
-3. [sync] Persist User.status=deactivated (D1, with the tenant_id + directory_id isolation filter).
+1. [sync] Validate and parse the PATCH or PUT, locating active=false.
+2. [sync] Persist DirectoryUser.active=false, DirectoryUser.status="deprovisioning".
+3. [sync] Persist User.status=deactivated, only when it is currently active (D1, tenant_id filter).
          Synchronous persistence guarantees later token validation sees the latest state.
 4. [sync] revokeAllSessions(user_id):
            - Call the per-user session revocation Durable Object (see chapter 05 and the cloudflare-bindings rule)
              to clear that user's active session_id set. DO memory updates first (effective within the 60s JWT window).
-           - Mark D1 sessions.status=revoked (persisted to D1 asynchronously; the Durable Object is already the source of truth).
-           - Revoke every refresh token family for that user (effective immediately).
-5. [sync] Return 200 (or 204 with Prefer: return=minimal), with active=false in the body.
-6. [async] emitWebhook("user.deactivated", {user_id, directory_id, org_id}):
+           - Mark D1 sessions.status=revoked.
+           - Revoke every refresh token family for that user and deny its unexpired access tokens.
+         Any failure returns 503 and leaves DirectoryUser.status="deprovisioning", so an IdP retry
+         runs steps 3-4 again.
+5. [sync] Persist DirectoryUser.status="deactivated" (DELETE: "deleted" plus the managed membership
+         set to inactive).
+6. [sync] Return 200 (or 204 with Prefer: return=minimal), with active=false in the body.
+7. [async] emitWebhook("user.deactivated", {user_id, directory_id, org_id}):
            delivered through Queues, without blocking the SCIM response (exponential backoff, 5 attempts, dead letter to D1).
-7. [async] Audit: append-only write of the deprovisioning event (Queues -> the audit consumer).
+8. [async] Audit: append-only write of the deprovisioning event (Queues -> the audit consumer).
 ```
 
 Synchronous versus asynchronous boundary: persisting the status and revoking sessions and refresh
@@ -871,10 +892,11 @@ response carries no scimType but does carry `WWW-Authenticate: Bearer`.
 }
 ```
 
-Mapping (see attribute mapping in section 6): `userName` maps to the primary sign-in identifier;
-`emails[primary].value` maps to email; `name.givenName` and `name.familyName` map to first and last
-name; `enterprise.department` and `title` map to custom_attributes; `active` maps to User.status; and
-`externalId` links to directory_user_id.
+Mapping (see attribute mapping in section 6): `emails[primary].value` (or an email `userName`) maps to
+the primary email; a non-email `userName` maps to `username`; `name.givenName` and `name.familyName`
+map to first and last name; `active` maps to User.status through the sequence in 10.1.2; the response
+body is rendered from the stored DirectoryUser, including `externalId`, `title`, and
+`enterprise.department`.
 
 ### 10.4 Example Group response body
 
@@ -903,8 +925,8 @@ name; `enterprise.department` and `title` map to custom_attributes; `active` map
 }
 ```
 
-`displayName` is the key for the group-to-role mapping (see section 6: a displayName change updates
-the role mapping in step); `members[].value` maps to DirectoryUser.id (an unknown member goes to
+`displayName` is unique within a directory and carries no role semantics (group-to-role mapping is
+not implemented, see section 6); `members[].value` maps to DirectoryUser.id (an unknown member goes to
 pending, see 10.1.1). Every Users and Groups query goes through the Drizzle tenant query layer, which
 injects `WHERE tenant_id = ? AND directory_id = ?` (see the tenant-isolation rule), so cross-directory
 and cross-tenant access returns 404 without leaking existence.

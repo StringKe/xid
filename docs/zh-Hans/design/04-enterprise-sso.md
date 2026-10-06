@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=25767f32ae9e50c28262d2c7cc3c8612da135c06 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=0b17b6953ee066e0f2b54eb45968d48a9b2cb368 -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -149,8 +149,11 @@ discovery 加持久化 mapping。新 mapping 只保证 schema 上线后的 run;�
 - 属性同步:每次登录用最新断言中非空的值覆写 first_name/last_name/custom_attributes;缺失的属性不清空已存值
 - 角色映射:IdP groups/attributes -> org_role(connection 级配置)
 - 冲突处理:idp_id 精确匹配 > email 关联 > 新建
-- email 关联只在三项同时成立时关联现有 User:本地 Email 已验证、IdP Email 可信、该 User 已是 connection 所属 Organization 的 active 成员。IdP 声明 `email_verified: true`(OIDC),或 Email 域名是该 Organization 已验证且有效的 `organization_domains` 行(SAML 没有 `email_verified`,依赖域名)时,IdP Email 可信。Email 已存在但任一条件不满足时返回 `invalid_credentials`,绝不进入新建分支
-- 新建 User 的 Email 按同一规则判定是否记为已验证
+- email 关联规则(`apps/server/worker/sso/account-link.ts`,SAML、OIDC、legacy JIT 与入站 SCIM 共用):本地 Email 必须已验证,然后满足以下任一条件即关联现有 User:
+  - Email 域名是 connection 所属 Organization 已验证且有效的 `organization_domains` 行(通配行覆盖子域)。Organization 为该域下所有地址担保,因此不要求成员关系。SAML 没有 `email_verified`,依赖这一条
+  - IdP 声明 `email_verified: true`(OIDC),且该 User 已是 connection 所属 Organization 的 active 成员。入站 SCIM 是受信目录,视为已验证
+- Email 已存在但不满足规则时返回 `invalid_credentials`;JIT 不登录、不关联,也不为该 Email 新建第二个账号,因为 `UNIQUE (tenant_id, email)` 只允许一个所有者
+- 新建 User 的 Email 只在 IdP Email 可信时记为已验证:IdP 声明 `email_verified: true`,或域名已在该 Organization 验证
 - 同一 `(connection, idp_id)` 的已撤销 identity 改绑到匹配的 User,不插入重复行(见 01 章身份行)
 - JIT 可按 connection 开关(部分企业要求仅 SCIM 管控,禁 JIT 自动建号);关闭且无现有 User 时返回 `provisioning_disabled`(403)
 
@@ -178,22 +181,21 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 - 端点前缀:`/scim/v2/organizations/{organization_id}/`
 - 标准端点:Users、Groups(GET/POST/PUT/PATCH/DELETE)、ServiceProviderConfig、Schemas、ResourceTypes
 - Bearer token 认证:per-directory token,支持 rotate(旧 token 30min 宽限)
-- User provisioning:创建/更新/停用(active=false)/删除
+- User provisioning:创建/更新/停用(active=false)/恢复/删除,作用于绑定的 XID User
 - Group provisioning:创建/更新/删除,Members 增量 PATCH
-- Group-to-role mapping:Group displayName -> org role
 - Webhook:目录事件推送到应用 endpoint
-- 属性映射:userName/emails[primary]/name.givenName/name.familyName/department/title -> XID 字段
+- 属性映射:创建 User 时 `emails[primary]`(或为邮箱格式的 `userName`)成为 XID User 的已验证主邮箱,`name.givenName` / `name.familyName` 更新名和姓。非邮箱格式的 `userName` 写入 XID `username`。`department`、`title` 等其余属性保留在 DirectoryUser 记录(`scim_raw`)
+- 未实现:Group-to-role 映射。目录 Group 及成员会存储并通过 SCIM 返回,但组成员关系不改变任何 org 角色。目录建立的 membership 角色为 `member`,org 管理员通过 membership API 调整角色
 
 ### 设计决策
 
-- SCIM User 与 XID User 双向绑定(directory_user_id 外键)
-- Deprovisioning(active=false):吊销全部 session token,不删 XID User(保留审计链)。`DELETE /Users/{id}` 映射为 directory user 软删除,不物理删除 XID User
+- SCIM User 与 XID User 通过 `directory_users.user_id` 绑定。active 的 SCIM User 在创建或首次变为 active 时绑定:只有满足第 4 节 email 关联规则才关联已有 XID User,否则新建 `provisioned_by = scim` 的 XID User。邮箱已属于不满足规则的账号时,请求返回 409 `uniqueness`,不写入任何数据。绑定同时确保目录所属 org 有一条 `is_managed` membership;org 手工维护的 membership 不被目录改写
+- Deprovisioning(active=false)执行 10.1.2 序列,不删 XID User(保留审计链)。恢复(active=true)只恢复状态为 `deactivated` 的 User;`banned` 等管理员状态不会被 IdP 解除。`DELETE /Users/{id}` 执行相同序列,把 managed membership 置为 `inactive`,映射为 directory user 软删除,不物理删除 XID User
 - OneLogin quirk:PATCH 组成员请求可能早于用户创建,server 需幂等处理 unknown member
-- Group displayName 变更需同步更新 role mapping
 
 ### 数据模型
 
-核心实体 Directory、DirectoryUser、DirectoryGroup(见 08 章):目录连接、同步的用户与组、group->role 映射。
+核心实体 Directory、DirectoryUser、DirectoryGroup(见 08 章):目录连接、同步的用户与组。
 
 ## 7. 支持的企业 IdP
 
@@ -526,19 +528,21 @@ function resolveMember(memberValue):
 触发:`PATCH /Users/{id}` 含 `{"op":"replace","path":"active","value":false}`(或无 path replace `active=false`)。**不删 XID User**(保留审计链,见第 6 节决策)。`DELETE /Users/{id}` 走相同 deprovision 安全序列,并将 DirectoryUser 标记为 deleted。序列:
 
 ```
-1. [同步] 校验 + 解析 PATCH,定位 active=false。
-2. [同步] staged.active = false;staged.status = "deactivated"。
-3. [同步] 落库 User.status=deactivated(D1,带 tenant_id + directory_id 隔离过滤)。
+1. [同步] 校验 + 解析 PATCH 或 PUT,定位 active=false。
+2. [同步] 落库 DirectoryUser.active=false、DirectoryUser.status="deprovisioning"。
+3. [同步] 仅当 User 当前为 active 时落库 User.status=deactivated(D1,带 tenant_id 过滤)。
          同步落库保证后续 token 验证看到最新状态。
 4. [同步] revokeAllSessions(user_id):
            - 调用 per-user 会话撤销 Durable Object(见 05 章 / cloudflare-bindings rule),
              清空该 user active session_id set,DO 内存先更新(JWT 60s 窗口内生效)。
-           - 标记 D1 sessions.status=revoked(异步落 D1,DO 已是真相源)。
-           - 撤销该 user 全部 refresh token family(立即失效)。
-5. [同步] 返回 200(或 204 if Prefer: return=minimal),body 含 active=false。
-6. [异步] emitWebhook("user.deactivated", {user_id, directory_id, org_id}):
+           - 标记 D1 sessions.status=revoked。
+           - 撤销该 user 全部 refresh token family,并拒绝其未过期的 access token。
+         任一步失败返回 503,DirectoryUser.status 保持 "deprovisioning",IdP 重试时重新执行 3-4。
+5. [同步] 落库 DirectoryUser.status="deactivated"(DELETE:写 "deleted",并把 managed membership 置为 inactive)。
+6. [同步] 返回 200(或 204 if Prefer: return=minimal),body 含 active=false。
+7. [异步] emitWebhook("user.deactivated", {user_id, directory_id, org_id}):
            经 Queues 投递,不阻塞 SCIM 响应(指数退避 5 次,死信入 D1)。
-7. [异步] 审计:append-only 写 deprovisioning 事件(Queues -> 审计 Consumer)。
+8. [异步] 审计:append-only 写 deprovisioning 事件(Queues -> 审计 Consumer)。
 ```
 
 同步/异步边界:状态落库 + 会话/refresh 撤销**必须同步**(deprovisioning 安全语义:返回 200 即代表已锁定,不能等异步);webhook + 审计**异步**(不影响安全,经 Queues)。`DELETE /Users/{id}` 返回 204,写入 `DirectoryUser.active=false`、`DirectoryUser.status=deleted`、`DirectoryUser.deleted_at=now`,不删除 XID User。`DELETE /Groups/{id}` 返回 204,清理 group members 后写入 `DirectoryGroup.status=deleted`、`DirectoryGroup.deleted_at=now`。
@@ -611,7 +615,7 @@ Cron(每 15min,见 cloudflare-bindings rule Cron Triggers)清理过期的 `scim_
 }
 ```
 
-映射(见第 6 节属性映射):`userName` -> 主登录标识;`emails[primary].value` -> email;`name.givenName/familyName` -> first/last;`enterprise.department` / `title` -> custom_attributes;`active` -> User.status;`externalId` -> directory_user_id 关联。
+映射(见第 6 节属性映射):`emails[primary].value`(或邮箱格式的 `userName`)-> 主邮箱;非邮箱格式的 `userName` -> `username`;`name.givenName/familyName` -> first/last;`active` 经 10.1.2 序列 -> User.status;响应体从存储的 DirectoryUser 渲染,包括 `externalId`、`title` 和 `enterprise.department`。
 
 ### 10.4 Group 响应体示例
 
@@ -640,4 +644,4 @@ Cron(每 15min,见 cloudflare-bindings rule Cron Triggers)清理过期的 `scim_
 }
 ```
 
-`displayName` -> Group-to-role mapping 键(见第 6 节,displayName 变更同步更新 role mapping);`members[].value` -> DirectoryUser.id(unknown member 进 pending,见 10.1.1)。所有 Users/Groups 查询经 Drizzle 租户查询层强制注入 `WHERE tenant_id = ? AND directory_id = ?`(见 tenant-isolation rule),跨目录 / 跨租户访问返回 404 不泄露存在性。
+`displayName` 在 directory 内唯一,不带角色语义(Group-to-role 映射未实现,见第 6 节);`members[].value` -> DirectoryUser.id(unknown member 进 pending,见 10.1.1)。所有 Users/Groups 查询经 Drizzle 租户查询层强制注入 `WHERE tenant_id = ? AND directory_id = ?`(见 tenant-isolation rule),跨目录 / 跨租户访问返回 404 不泄露存在性。

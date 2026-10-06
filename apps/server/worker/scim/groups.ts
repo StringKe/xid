@@ -1,6 +1,5 @@
 // SCIM 2.0 Groups 端点(/scim/v2/organizations/{organization_id}/Groups)
 // 规格:docs/design/04-enterprise-sso.md 第 9 节(RFC7644)
-// displayName 变更同步更新 mappedRole(04 章 5 决策)
 // unknown member 幂等处理:PATCH add 指向未创建用户时写 pending_members(9.1.1)
 // 租户隔离:所有查询经 @xid-kit/db 租户查询层(P0)
 
@@ -331,11 +330,8 @@ groups.put('/:id', async (c) => {
   const body = parsed.output
   const displayName = body['displayName']
 
-  // displayName 变更同步 mappedRole(04 章 5)
-  const roleUpdates = existing.displayName !== displayName ? { mappedRole: null } : {}
-
   const updated = await db.directoryGroups.update(
-    { displayName, ...roleUpdates },
+    { displayName },
     and(
       eq(schema.directoryGroups.id, id),
       eq(schema.directoryGroups.directoryId, directory.id),
@@ -408,13 +404,11 @@ groups.patch('/:id', async (c) => {
     return scimError(c, 400, patchResult.error.detail, patchResult.error.scimType)
   }
 
-  // displayName 变更同步 mappedRole
   const newDisplayName =
     typeof staged['displayName'] === 'string' ? staged['displayName'] : existing.displayName
-  const roleUpdates = existing.displayName !== newDisplayName ? { mappedRole: null } : {}
 
   const updated = await db.directoryGroups.update(
-    { displayName: newDisplayName, ...roleUpdates },
+    { displayName: newDisplayName },
     and(
       eq(schema.directoryGroups.id, id),
       eq(schema.directoryGroups.directoryId, directory.id),

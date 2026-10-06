@@ -137,7 +137,7 @@ User -> Session -> Token
 | SsoProfile                     | The result of one SSO authentication (idp_id and claims)                            |
 | OrganizationDomain             | A verified domain used for SSO routing                                              |
 | Directory                      | SCIM directory connection (provider, token, sync status)                            |
-| DirectoryUser / DirectoryGroup | Directory-synced users and groups (including the group-to-role mapping)             |
+| DirectoryUser / DirectoryGroup | Directory-synced users (bound to XID Users) and groups                              |
 | SamlServiceProvider            | Downstream SAML SP registration (when XID acts as the IdP)                          |
 | SamlSessionBinding             | SAML SLO SessionIndex/NameID to session mapping                                     |
 | ScimTarget                     | Outbound SCIM target (XID acting as a SCIM client pushing to downstream SaaS)       |
@@ -1416,35 +1416,36 @@ Indexes: `INDEX(tenant_id, org_id)`. SCIM queries MUST inject
 
 ### 16.6 directory_users (SCIM-synced users, bidirectionally bound, see chapter 04 section 6)
 
-| Field                   | Type            | Constraints                                      | Default        | Notes                                                                                   |
-| ----------------------- | --------------- | ------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------- |
-| id                      | text            | PK                                               | `dusr_`+nanoid | The SCIM User.id                                                                        |
-| tenant_id               | text            | NOT NULL, FK -> organizations.id                 | --             |                                                                                         |
-| directory_id            | text            | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                                                         |
-| user_id                 | text            | FK -> users.id ON DELETE set null, nullable      | null           | The bidirectional binding (the directory_user_id foreign key, see chapter 04 section 6) |
-| external_id             | text            | nullable                                         | null           | The SCIM externalId                                                                     |
-| user_name               | text            | NOT NULL                                         | --             | The SCIM userName (the primary sign-in identifier)                                      |
-| scim_raw                | text json       | NOT NULL                                         | `{}`           | The raw SCIM resource (meta.version, ETag, and so on)                                   |
-| active                  | integer boolean | NOT NULL                                         | `1`            | active=false means deprovisioned (a soft delete, see chapter 04 section 10.1.2)         |
-| status                  | text            | NOT NULL                                         | `'active'`     | `active`/`deactivated`/`deleted`                                                        |
-| deleted_at              | integer ts_ms   | nullable                                         | null           | The SCIM DELETE soft delete marker                                                      |
-| created_at / updated_at | integer ts_ms   | NOT NULL                                         | See 9.3        |                                                                                         |
+| Field                   | Type            | Constraints                                      | Default        | Notes                                                                                 |
+| ----------------------- | --------------- | ------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------- |
+| id                      | text            | PK                                               | `dusr_`+nanoid | The SCIM User.id                                                                      |
+| tenant_id               | text            | NOT NULL, FK -> organizations.id                 | --             |                                                                                       |
+| directory_id            | text            | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                                                       |
+| user_id                 | text            | FK -> users.id ON DELETE set null, nullable      | null           | The bound XID User; set when an active SCIM User is linked or created (chapter 04 §6) |
+| external_id             | text            | nullable                                         | null           | The SCIM externalId                                                                   |
+| user_name               | text            | NOT NULL                                         | --             | The SCIM userName (the primary sign-in identifier)                                    |
+| scim_raw                | text json       | NOT NULL                                         | `{}`           | The raw SCIM resource (meta.version, ETag, and so on)                                 |
+| active                  | integer boolean | NOT NULL                                         | `1`            | active=false means deprovisioned (a soft delete, see chapter 04 section 10.1.2)       |
+| status                  | text            | NOT NULL                                         | `'active'`     | `active`/`deprovisioning`/`deactivated`/`deleted`                                     |
+| deleted_at              | integer ts_ms   | nullable                                         | null           | The SCIM DELETE soft delete marker                                                    |
+| created_at / updated_at | integer ts_ms   | NOT NULL                                         | See 9.3        |                                                                                       |
 
 Indexes: `UNIQUE(directory_id, user_name)`, `UNIQUE(directory_id, external_id)`,
 `INDEX(tenant_id, directory_id)`, `INDEX(user_id)`.
 
-### 16.7 directory_groups (SCIM-synced groups plus the group-to-role mapping, see chapter 04 section 6)
+### 16.7 directory_groups (SCIM-synced groups, see chapter 04 section 6)
 
-| Field                   | Type          | Constraints                                      | Default        | Notes                                                                                                  |
-| ----------------------- | ------------- | ------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------ |
-| id                      | text          | PK                                               | `dgrp_`+nanoid | The SCIM Group.id                                                                                      |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                 | --             |                                                                                                        |
-| directory_id            | text          | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                                                                        |
-| display_name            | text          | NOT NULL                                         | --             | The group-to-role mapping key (a change updates the mapping in step, see chapter 04 sections 6 and 10) |
-| mapped_role             | text          | nullable                                         | null           | The mapped org role                                                                                    |
-| status                  | text          | NOT NULL                                         | `'active'`     | `active`/`deleted`                                                                                     |
-| deleted_at              | integer ts_ms | nullable                                         | null           | The SCIM DELETE soft delete marker                                                                     |
-| created_at / updated_at | integer ts_ms | NOT NULL                                         | See 9.3        |                                                                                                        |
+Group-to-role mapping is not implemented, so the table carries no role column.
+
+| Field                   | Type          | Constraints                                      | Default        | Notes                              |
+| ----------------------- | ------------- | ------------------------------------------------ | -------------- | ---------------------------------- |
+| id                      | text          | PK                                               | `dgrp_`+nanoid | The SCIM Group.id                  |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                 | --             |                                    |
+| directory_id            | text          | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                    |
+| display_name            | text          | NOT NULL                                         | --             | Unique within the directory        |
+| status                  | text          | NOT NULL                                         | `'active'`     | `active`/`deleted`                 |
+| deleted_at              | integer ts_ms | nullable                                         | null           | The SCIM DELETE soft delete marker |
+| created_at / updated_at | integer ts_ms | NOT NULL                                         | See 9.3        |                                    |
 
 Indexes: `UNIQUE(directory_id, display_name)`, `INDEX(tenant_id, directory_id)`.
 

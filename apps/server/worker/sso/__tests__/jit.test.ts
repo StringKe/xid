@@ -194,7 +194,7 @@ describe('jitProvision -- 分支 A/B', () => {
     expect(mockUsersInsert).not.toHaveBeenCalled()
   })
 
-  it('分支 B 失败:已验证 email 属于不在本 org 的用户 -> invalid_credentials 且不新建用户', async () => {
+  it('分支 B 失败:已验证 email 属于不在本 org 的用户且邮箱域未验证 -> invalid_credentials 且不新建用户', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
     mockUserIdentitiesFindOne.mockResolvedValue(undefined)
     mockUserEmailsFindOne.mockResolvedValue({
@@ -204,6 +204,7 @@ describe('jitProvision -- 分支 A/B', () => {
       verificationStatus: 'verified',
     })
     mockMembershipsFindOne.mockResolvedValue(undefined)
+    mockOrganizationDomainsFindMany.mockResolvedValue([])
 
     await expect(jitProvision(makeContext(), makeAssertion())).rejects.toSatisfy(
       (err: unknown) => isAppError(err) && err.code === 'invalid_credentials',
@@ -212,6 +213,29 @@ describe('jitProvision -- 分支 A/B', () => {
     expect(mockProvisionAccountAtomically).not.toHaveBeenCalled()
     expect(mockUserIdentitiesInsert).not.toHaveBeenCalled()
     expect(mockMembershipsInsert).not.toHaveBeenCalled()
+  })
+
+  it('分支 B:非成员但邮箱域已在 connection org 验证 -> 关联已有用户', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
+    mockUserIdentitiesFindOne.mockResolvedValue(undefined)
+    mockUserEmailsFindOne.mockResolvedValue({
+      id: 'email-1',
+      userId: 'user-domain-match',
+      verified: true,
+      verificationStatus: 'verified',
+    })
+    mockMembershipsFindOne.mockResolvedValue(undefined)
+    mockOrganizationDomainsFindMany.mockResolvedValue([
+      { domain: 'corp.example.com', isWildcard: false },
+    ])
+    mockUserIdentitiesInsert.mockResolvedValue({})
+    mockUsersUpdate.mockResolvedValue([])
+    mockMembershipsInsert.mockResolvedValue({})
+
+    const result = await jitProvision(makeContext(), makeAssertion())
+
+    expect(result).toEqual({ userId: 'user-domain-match', provisioned: false })
+    expect(mockProvisionAccountAtomically).not.toHaveBeenCalled()
   })
 
   it('分支 B:IdP 未声明 email_verified 但 email 域是本 org 已验证域名 -> 关联已有成员', async () => {

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=c0f89dba0f0625b6349df9338775923262a82a7e -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=a1ea730d99f3285b59dac08006e9cb32a381e89a -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -128,7 +128,7 @@ User -> Session -> Token
 | SsoProfile                     | 一次 SSO 认证结果(idp_id/claims)                    |
 | OrganizationDomain             | SSO 路由用的已验证域名                              |
 | Directory                      | SCIM 目录连接(provider/token/同步状态)              |
-| DirectoryUser / DirectoryGroup | 目录同步的用户与组(含 group->role 映射)             |
+| DirectoryUser / DirectoryGroup | 目录同步的用户(绑定 XID User)与组                   |
 | SamlServiceProvider            | 下游 SAML SP 注册(XID 作 IdP 时)                    |
 | SamlSessionBinding             | SAML SLO SessionIndex/NameID -> session 映射        |
 | ScimTarget                     | 出站 SCIM target(XID 作 SCIM client 推下游 SaaS)    |
@@ -1284,34 +1284,35 @@ provisioning winner,明确排除两种 SP usage)、`INDEX(tenant_id, usage, stat
 
 ### 16.6 directory_users(SCIM 同步用户,双向绑定,见 04 章 6)
 
-| 字段                    | 类型            | 约束                                             | 默认           | 说明                                              |
-| ----------------------- | --------------- | ------------------------------------------------ | -------------- | ------------------------------------------------- |
-| id                      | text            | PK                                               | `dusr_`+nanoid | SCIM User.id                                      |
-| tenant_id               | text            | NOT NULL, FK -> organizations.id                 | --             |                                                   |
-| directory_id            | text            | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                   |
-| user_id                 | text            | FK -> users.id ON DELETE set null, null          | null           | 双向绑定(directory_user_id 外键,见 04 章 6)       |
-| external_id             | text            | null                                             | null           | SCIM externalId                                   |
-| user_name               | text            | NOT NULL                                         | --             | SCIM userName(主登录标识)                         |
-| scim_raw                | text json       | NOT NULL                                         | `{}`           | 原始 SCIM 资源(meta.version/ETag 等)              |
-| active                  | integer boolean | NOT NULL                                         | `1`            | active=false -> deprovision(软删,见 04 章 10.1.2) |
-| status                  | text            | NOT NULL                                         | `'active'`     | `active`/`deactivated`/`deleted`                  |
-| deleted_at              | integer ts_ms   | null                                             | null           | SCIM DELETE 软删除标记                            |
-| created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3         |                                                   |
+| 字段                    | 类型            | 约束                                             | 默认           | 说明                                                       |
+| ----------------------- | --------------- | ------------------------------------------------ | -------------- | ---------------------------------------------------------- |
+| id                      | text            | PK                                               | `dusr_`+nanoid | SCIM User.id                                               |
+| tenant_id               | text            | NOT NULL, FK -> organizations.id                 | --             |                                                            |
+| directory_id            | text            | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                            |
+| user_id                 | text            | FK -> users.id ON DELETE set null, null          | null           | 绑定的 XID User;active SCIM User 关联或新建时写入(04 章 6) |
+| external_id             | text            | null                                             | null           | SCIM externalId                                            |
+| user_name               | text            | NOT NULL                                         | --             | SCIM userName(主登录标识)                                  |
+| scim_raw                | text json       | NOT NULL                                         | `{}`           | 原始 SCIM 资源(meta.version/ETag 等)                       |
+| active                  | integer boolean | NOT NULL                                         | `1`            | active=false -> deprovision(软删,见 04 章 10.1.2)          |
+| status                  | text            | NOT NULL                                         | `'active'`     | `active`/`deprovisioning`/`deactivated`/`deleted`          |
+| deleted_at              | integer ts_ms   | null                                             | null           | SCIM DELETE 软删除标记                                     |
+| created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3         |                                                            |
 
 索引:`UNIQUE(directory_id, user_name)`、`UNIQUE(directory_id, external_id)`、`INDEX(tenant_id, directory_id)`、`INDEX(user_id)`。
 
-### 16.7 directory_groups(SCIM 同步组 + group->role 映射,见 04 章 6)
+### 16.7 directory_groups(SCIM 同步组,见 04 章 6)
 
-| 字段                    | 类型          | 约束                                             | 默认           | 说明                                               |
-| ----------------------- | ------------- | ------------------------------------------------ | -------------- | -------------------------------------------------- |
-| id                      | text          | PK                                               | `dgrp_`+nanoid | SCIM Group.id                                      |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                 | --             |                                                    |
-| directory_id            | text          | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                                                    |
-| display_name            | text          | NOT NULL                                         | --             | group->role mapping 键(变更同步更新,见 04 章 6/10) |
-| mapped_role             | text          | null                                             | null           | 映射的 org role                                    |
-| status                  | text          | NOT NULL                                         | `'active'`     | `active`/`deleted`                                 |
-| deleted_at              | integer ts_ms | null                                             | null           | SCIM DELETE 软删除标记                             |
-| created_at / updated_at | integer ts_ms | NOT NULL                                         | 见 9.3         |                                                    |
+Group-to-role 映射未实现,表中没有角色列。
+
+| 字段                    | 类型          | 约束                                             | 默认           | 说明                   |
+| ----------------------- | ------------- | ------------------------------------------------ | -------------- | ---------------------- |
+| id                      | text          | PK                                               | `dgrp_`+nanoid | SCIM Group.id          |
+| tenant_id               | text          | NOT NULL, FK -> organizations.id                 | --             |                        |
+| directory_id            | text          | NOT NULL, FK -> directories.id ON DELETE cascade | --             |                        |
+| display_name            | text          | NOT NULL                                         | --             | 在 directory 内唯一    |
+| status                  | text          | NOT NULL                                         | `'active'`     | `active`/`deleted`     |
+| deleted_at              | integer ts_ms | null                                             | null           | SCIM DELETE 软删除标记 |
+| created_at / updated_at | integer ts_ms | NOT NULL                                         | 见 9.3         |                        |
 
 索引:`UNIQUE(directory_id, display_name)`、`INDEX(tenant_id, directory_id)`。
 

@@ -13,7 +13,7 @@ import { revokeUserCredentials } from '../lib/revoke-user-credentials'
 import { readAllById } from '../lib/db-pagination'
 import type { XidHonoEnv } from '../lib/types'
 import type { Result, TenantContext } from '@xid-kit/types'
-import type { WebhookQueueMessage } from '@xid-kit/types'
+import type { AuditQueueMessage, WebhookQueueMessage } from '@xid-kit/types'
 import * as v from 'valibot'
 import { logWorkerError } from '../lib/safe-log'
 export { readAllById }
@@ -1045,7 +1045,6 @@ export type DirectoryGroupRow = {
   tenantId: string
   directoryId: string
   displayName: string
-  mappedRole: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -1290,24 +1289,33 @@ export async function revokeAllUserSessions(
   tenant: TenantContext,
   userId: string,
 ): Promise<void> {
+  // D1 失败向上抛出,由调用方返回 503 让 IdP 重试。
   await revokeUserCredentials(env, tenant, userId)
 }
 
-// 异步投递 webhook(不阻塞 SCIM 响应,经 Queues,见 cloudflare-bindings rule)
-export function emitWebhookAsync(c: Context<XidHonoEnv> | Env, msg: WebhookQueueMessage): void {
+function sendInBackground(
+  c: Context<XidHonoEnv> | Env,
+  task: Promise<unknown>,
+  queue: 'webhook' | 'audit',
+): void {
   const executionCtx = readExecutionContext(c)
-  const env = 'env' in c ? c.env : c
-  const task = env.WEBHOOK_QUEUE.send(msg)
   if (executionCtx !== undefined) {
     executionCtx.waitUntil(task)
     return
   }
   void task.catch((error: unknown) =>
-    logWorkerError('scim.webhook_queue.send_failed', error, {
-      component: 'scim',
-      queue: 'webhook',
-    }),
+    logWorkerError(`scim.${queue}_queue.send_failed`, error, { component: 'scim', queue }),
   )
+}
+
+// 异步投递 webhook(不阻塞 SCIM 响应,经 Queues,见 cloudflare-bindings rule)
+export function emitWebhookAsync(c: Context<XidHonoEnv> | Env, msg: WebhookQueueMessage): void {
+  const env = 'env' in c ? c.env : c
+  sendInBackground(c, env.WEBHOOK_QUEUE.send(msg), 'webhook')
+}
+
+export function emitAuditAsync(c: Context<XidHonoEnv>, msg: AuditQueueMessage): void {
+  sendInBackground(c, c.env.AUDIT_QUEUE.send(msg), 'audit')
 }
 
 function readExecutionContext(c: Context<XidHonoEnv> | Env) {

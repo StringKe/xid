@@ -1,15 +1,16 @@
 // SCIM 2.0 Users 端点(/scim/v2/organizations/{organization_id}/Users)
 // 规格:docs/design/04-enterprise-sso.md 第 9 节(RFC7644)
 // 租户隔离:所有查询经 @xid-kit/db 租户查询层,directory_id 额外过滤(P0)
-// deprovisioning 序列:active=false 同步撤销 session+refresh,异步 webhook+审计(9.1.2)
+// User 绑定、停用与恢复见 user-lifecycle.ts(04 章 6、10.1.2)
 // Bearer token:SHA-256 哈希存储,constant-time 比对,30min 宽限(9.2)
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, inArray, isNull, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
-import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
+import { createDirectoryUser, deactivateLinkedAccount, updateDirectoryUser } from './user-lifecycle'
+import { suspendDirectoryMembership } from './user-provisioning'
 import {
   scimError,
   authBearer,
@@ -19,7 +20,6 @@ import {
   readScimJson,
   readScimPatchOps,
   applyUserPatch,
-  revokeAllUserSessions,
   emitWebhookAsync,
   parseScimFilter,
   evaluateScimFilter,
@@ -83,20 +83,17 @@ users.post('/', async (c) => {
   )
   if (existing) return scimError(c, 409, 'userName already exists', 'uniqueness')
 
-  const id = createPersistedId('directoryUser')
-  const externalId = typeof body['externalId'] === 'string' ? body['externalId'] : null
-  const activeVal = body['active'] !== false
-
-  const row = await db.directoryUsers.insert({
-    id,
-    tenantId,
-    directoryId: directory.id,
-    userName,
-    externalId: externalId ?? undefined,
-    active: activeVal,
-    status: activeVal ? 'active' : 'deactivated',
-    scimRaw: body,
-  })
+  const created = await createDirectoryUser(
+    { c, tenant, directory },
+    {
+      userName,
+      externalId: typeof body['externalId'] === 'string' ? body['externalId'] : null,
+      active: body['active'] !== false,
+      scimRaw: body,
+    },
+  )
+  if (!created.ok) return created.error
+  const row = created.value
 
   // pending members 回填:如有该 userName 或 id 对应的 pending member,补建 group member
   // (按 directory.id 约束,避免同租户多 directory 交叉,见 resolvePendingMembers 注释)。
@@ -104,7 +101,7 @@ users.post('/', async (c) => {
     db,
     tenantId,
     directoryId: directory.id,
-    directoryUserId: id,
+    directoryUserId: row.id,
     userName,
   })
 
@@ -279,38 +276,15 @@ users.put('/:id', async (c) => {
   const parsed = v.safeParse(scimUserWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'userName is required', 'invalidValue')
   const body = parsed.output
-  const userName = body['userName']
 
-  const wasActive = existing.active
-  const newActive = body['active'] !== false
-
-  const updated = await db.directoryUsers.update(
-    {
-      userName,
-      externalId: typeof body['externalId'] === 'string' ? body['externalId'] : undefined,
-      active: newActive,
-      status: newActive ? 'active' : 'deactivated',
-      scimRaw: body,
-    },
-    and(
-      eq(schema.directoryUsers.id, id),
-      eq(schema.directoryUsers.directoryId, directory.id),
-      ne(schema.directoryUsers.status, 'deleted'),
-      eq(schema.directoryUsers.updatedAt, versionGuardFromRow(existing.updatedAt)),
-    ),
-  )
-  const row = updated[0]
-  if (!row) return scimError(c, 412, 'Resource version mismatch')
-
-  // deprovisioning(9.1.2):active 从 true -> false 时同步撤销 session
-  if (wasActive && !newActive && existing.userId) {
-    await revokeAllUserSessions(c.env, tenant, existing.userId)
-    emitWebhookAsync(c, {
-      tenantId,
-      event: 'user.deactivated',
-      payload: { userId: existing.userId, directoryId: directory.id, orgId: directory.orgId },
-    })
-  }
+  const updated = await updateDirectoryUser({ c, tenant, directory }, existing, {
+    userName: body['userName'],
+    externalId: typeof body['externalId'] === 'string' ? body['externalId'] : undefined,
+    active: body['active'] !== false,
+    scimRaw: body,
+  })
+  if (!updated.ok) return updated.error
+  const row = updated.value
 
   const prefer = c.req.header('Prefer')
   if (prefer === 'return=minimal') return new Response(null, { status: 204 })
@@ -357,7 +331,6 @@ users.patch('/:id', async (c) => {
   if (!patchOps.ok) return patchOps.error
   const ops = patchOps.value
 
-  const wasActive = existing.active
   const staged: Record<string, unknown> = {
     ...(existing.scimRaw as Record<string, unknown>),
     active: existing.active,
@@ -368,34 +341,13 @@ users.patch('/:id', async (c) => {
     return scimError(c, 400, patchResult.error.detail, patchResult.error.scimType)
   }
 
-  const newActive = staged['active'] !== false
-
-  const updated = await db.directoryUsers.update(
-    {
-      userName: typeof staged['userName'] === 'string' ? staged['userName'] : existing.userName,
-      active: newActive,
-      status: newActive ? 'active' : 'deactivated',
-      scimRaw: staged,
-    },
-    and(
-      eq(schema.directoryUsers.id, id),
-      eq(schema.directoryUsers.directoryId, directory.id),
-      ne(schema.directoryUsers.status, 'deleted'),
-      eq(schema.directoryUsers.updatedAt, versionGuardFromRow(existing.updatedAt)),
-    ),
-  )
-  const row = updated[0]
-  if (!row) return scimError(c, 412, 'Resource version mismatch')
-
-  // deprovisioning(9.1.2)
-  if (wasActive && !newActive && existing.userId) {
-    await revokeAllUserSessions(c.env, tenant, existing.userId)
-    emitWebhookAsync(c, {
-      tenantId,
-      event: 'user.deactivated',
-      payload: { userId: existing.userId, directoryId: directory.id, orgId: directory.orgId },
-    })
-  }
+  const updated = await updateDirectoryUser({ c, tenant, directory }, existing, {
+    userName: typeof staged['userName'] === 'string' ? staged['userName'] : existing.userName,
+    active: staged['active'] !== false,
+    scimRaw: staged,
+  })
+  if (!updated.ok) return updated.error
+  const row = updated.value
 
   const prefer = c.req.header('Prefer')
   if (prefer === 'return=minimal') return new Response(null, { status: 204 })
@@ -458,16 +410,11 @@ users.delete('/:id', async (c) => {
   }
 
   if (requiresSessionRevocation) {
-    await db.users.update(
-      { status: 'deactivated' },
-      and(eq(schema.users.id, sessionUserId), eq(schema.users.status, 'active')),
+    const failure = await deactivateLinkedAccount(
+      { c, tenant, directory },
+      { userId: sessionUserId, reason: 'deleted' },
     )
-
-    try {
-      await revokeAllUserSessions(c.env, tenant, sessionUserId)
-    } catch {
-      return scimError(c, 503, 'Session revocation unavailable')
-    }
+    if (failure) return failure
 
     const finalized = await db.directoryUsers.update(
       { status: 'deleted', deletedAt: new Date() },
@@ -478,6 +425,11 @@ users.delete('/:id', async (c) => {
       ),
     )
     if (finalized.length === 0) return scimError(c, 409, 'User deprovisioning state changed')
+  } else if (existing.userId) {
+    await suspendDirectoryMembership(
+      { db, tenantId: tenant.tenantId, orgId: directory.orgId },
+      existing.userId,
+    )
   }
 
   if (existing.userId) {

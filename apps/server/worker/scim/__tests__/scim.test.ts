@@ -1437,7 +1437,6 @@ describe('SCIM stale ETag has no side effects', () => {
       tenant_id: 't_1',
       directory_id: 'dir_1',
       display_name: 'Engineering',
-      mapped_role: null,
       status: 'active',
       deleted_at: null,
       created_at: now,
@@ -1504,7 +1503,6 @@ describe('SCIM stale ETag has no side effects', () => {
       tenant_id: 't_1',
       directory_id: 'dir_1',
       display_name: 'Engineering',
-      mapped_role: null,
       status: 'active',
       deleted_at: null,
       created_at: now,
@@ -1571,7 +1569,6 @@ describe('SCIM Groups PATCH unknown member(OneLogin quirk)', () => {
       tenant_id: 't_1',
       directory_id: 'dir_1',
       display_name: 'Engineering',
-      mapped_role: null,
       created_at: Date.now(),
       updated_at: Date.now(),
     }
@@ -1697,7 +1694,6 @@ describe('SCIM Groups PATCH unknown member(OneLogin quirk)', () => {
       tenant_id: 't_1',
       directory_id: 'dir_1',
       display_name: 'Engineering',
-      mapped_role: null,
       created_at: Date.now(),
       updated_at: Date.now(),
     }
@@ -1757,7 +1753,6 @@ describe('SCIM Groups PATCH unknown member(OneLogin quirk)', () => {
       tenant_id: 't_1',
       directory_id: 'dir_1',
       display_name: 'Delete Me',
-      mapped_role: null,
       status: 'active',
       deleted_at: null,
       created_at: Date.now(),
@@ -1864,7 +1859,6 @@ describe('SCIM pending member 回填:同租户多 directory 不交叉', () => {
       tenant_id: 't_1',
       directory_id: 'dir_B',
       display_name: 'B-Engineering',
-      mapped_role: null,
       created_at: Date.now(),
       updated_at: Date.now(),
     }
@@ -1929,7 +1923,10 @@ describe('SCIM Bulk', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
     }
-    const env = makeEnv({ DB: makeScimD1({ directories: [dir] }), CACHE: makeFakeKv() })
+    const env = {
+      ...makeEnv({ DB: makeScimD1({ directories: [dir] }), CACHE: makeFakeKv() }),
+      WEBHOOK_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
+    } as unknown as Env
     return { ctx, token, env }
   }
 

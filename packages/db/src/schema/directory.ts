@@ -83,7 +83,6 @@ export const directoryGroups = sqliteTable(
     tenantId: tenantId(),
     directoryId: text('directory_id').notNull(),
     displayName: text('display_name').notNull(),
-    mappedRole: text('mapped_role'),
     status: text('status').notNull().default('active'),
     deletedAt: tsMs('deleted_at'),
     ...timestamps(),
