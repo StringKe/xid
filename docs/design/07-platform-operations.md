@@ -399,7 +399,7 @@ Grouped by domain, with the string format `<domain>.<action>`:
 
 Implemented login outcome events: `auth.login_succeeded` is queued once when a session becomes
 `active`, either at issuance or when a pending MFA session completes MFA; impersonation sessions are
-excluded. `auth.login_failed` is queued when an authentication request ends with
+excluded. `auth.login_failed` is queued when a request under `/auth/*` or `/sso/*` ends with
 `invalid_credentials`, `account_locked`, `account_suspended`, or `account_banned`. The failure event
 carries only the request path, never the identifier or the reason, so a missing account and a wrong
 credential produce the same record. Both are sent through `AUDIT_QUEUE` off the response path. The

@@ -18,7 +18,14 @@ const LOGIN_FAILURE_CODES: ReadonlySet<XidErrorCode> = new Set<XidErrorCode>([
   'account_banned',
 ])
 
+// 只统计登录入口:/v1/me 改密码等已登录操作也会抛 invalid_credentials,不算登录失败。
+const LOGIN_PATH_PREFIXES = ['/auth/', '/sso/'] as const
+
 export const LOGIN_STATS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
+function isLoginPath(pathname: string): boolean {
+  return LOGIN_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
 
 export async function sendLoginSucceededAudit(input: {
   env: Env
@@ -39,6 +46,8 @@ export function recordLoginFailure(c: Context<XidHonoEnv>, code: XidErrorCode): 
   if (!LOGIN_FAILURE_CODES.has(code)) return
   const tenant = c.get('tenant')
   if (!tenant?.tenantId) return
+  const path = new URL(c.req.url).pathname
+  if (!isLoginPath(path)) return
   const logFailure = (error: unknown): void => {
     logWorkerError('auth.login_failure_audit.enqueue_failed', error, { component: 'login-audit' })
   }
@@ -49,7 +58,7 @@ export function recordLoginFailure(c: Context<XidHonoEnv>, code: XidErrorCode): 
         tenantId: tenant.tenantId,
         action: AUTH_LOGIN_FAILED_EVENT,
         ts: Date.now(),
-        payload: { path: new URL(c.req.url).pathname },
+        payload: { path },
       }),
     )
     .catch(logFailure)

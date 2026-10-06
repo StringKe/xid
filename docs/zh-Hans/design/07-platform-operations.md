@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=2163f760d944e478c12edd15e601c42a7eca0a57 -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=2e375332de317ae4fe418cdd4162bf9a56ae9b8e -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -329,7 +329,7 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 - 计费:billing.subscription_created / billing.subscription_updated / billing.payment_failed / billing.quota_exceeded
 
 已实现的登录结果事件:会话变为 `active` 时(签发时,或 pending MFA 会话完成 MFA 时)写一次
-`auth.login_succeeded`,模拟会话不计入。认证请求以 `invalid_credentials`、`account_locked`、
+`auth.login_succeeded`,模拟会话不计入。`/auth/*` 或 `/sso/*` 下的请求以 `invalid_credentials`、`account_locked`、
 `account_suspended` 或 `account_banned` 结束时写一次 `auth.login_failed`。失败事件只带请求路径,
 不带标识符和失败原因,账号不存在与凭据错误写出同一条记录。两类事件都经 `AUDIT_QUEUE` 异步
 发送,不在响应路径上等待。平台与 Organization 概览按这两类事件计算近 30 天登录成功率,没有

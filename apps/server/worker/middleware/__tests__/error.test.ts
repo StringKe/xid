@@ -193,6 +193,27 @@ describe('errorHandler', () => {
     expect(JSON.stringify(send.mock.calls)).not.toContain('alice')
   })
 
+  it('does not count a wrong current password on an account route as a login failure', async () => {
+    const send = vi.fn(async () => undefined)
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('i18n', { _: (descriptor: { id: string }) => `localized:${descriptor.id}` } as never)
+      c.set('tenant', { tenantId: 'tenant_1' } as never)
+      await next()
+    })
+    app.onError(errorHandler)
+    app.post('/v1/me/password', () => {
+      throw new AppError('invalid_credentials')
+    })
+
+    const res = await app.request('/v1/me/password', { method: 'POST' }, {
+      AUDIT_QUEUE: { send },
+    } as never)
+
+    expect(res.status).toBe(401)
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it('keeps the credential error response when the login failure audit cannot be queued', async () => {
     const app = new Hono<XidHonoEnv>()
     app.use('*', async (c, next) => {
