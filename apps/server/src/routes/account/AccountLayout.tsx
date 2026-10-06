@@ -74,6 +74,7 @@ const styles = stylex.create({
   },
   topbarActions: {
     display: 'flex',
+    flexShrink: 0,
     alignItems: 'center',
     gap: '0.5rem',
     marginInlineStart: {
@@ -95,21 +96,27 @@ const styles = stylex.create({
     minWidth: 0,
   },
   brandDivider: {
+    display: { default: 'block', '@media (max-width: 29.99rem)': 'none' },
     width: '1px',
     height: '1rem',
     backgroundColor: tokens['--xid-border-strong'],
   },
   brandLabel: {
+    display: { default: 'inline', '@media (max-width: 29.99rem)': 'none' },
     fontSize: '0.8125rem',
     fontWeight: 550,
     color: tokens['--xid-fg'],
     whiteSpace: 'nowrap',
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
   tenantLogo: {
     height: '1.125rem',
     objectFit: 'contain',
   },
   userEmail: {
+    display: { default: 'none', '@media (min-width: 48rem)': 'inline' },
     fontSize: '0.8125rem',
     color: tokens['--xid-muted-foreground'],
     whiteSpace: 'nowrap',
