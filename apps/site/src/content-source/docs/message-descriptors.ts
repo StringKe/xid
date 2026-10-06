@@ -1,4 +1,4 @@
-// 由 documents.json 生成，勿手改。
+// Generated from documents.json. Do not edit.
 export const docsMessageDescriptors = [
   /*i18n*/ { id: '-6NyRG', message: 'Client' },
   /*i18n*/ {
@@ -645,11 +645,6 @@ export const docsMessageDescriptors = [
   /*i18n*/ { id: 'DsBeuB', message: 'Use' },
   /*i18n*/ { id: 'Dvm5Xt', message: 'Add to <0>Cargo.toml</0>:' },
   /*i18n*/ { id: 'Dw2qif', message: 'Storage adapter' },
-  /*i18n*/ {
-    id: 'E5d13b',
-    message:
-      'Resource GET responses include <0>ETag: W/"<meta.version>"</0> from <1>meta.version</1>. <2>PUT</2> and <3>PATCH</3> require an <4>If-Match</4> header matching the current version; missing headers return <5>428</5> and mismatches return <6>412</6>.',
-  },
   /*i18n*/ { id: 'E8y5YX', message: 'Force-refresh the JWKS cache' },
   /*i18n*/ {
     id: 'EBhjjv',
@@ -2959,5 +2954,10 @@ export const docsMessageDescriptors = [
     id: 'Fxr4JR',
     message:
       'Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed.',
+  },
+  /*i18n*/ {
+    id: 'kSiri_',
+    message:
+      'Resource GET responses include <0>ETag: W/"<meta.version>"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>.',
   },
 ] as const

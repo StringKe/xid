@@ -243,7 +243,10 @@ const allowedSameAsSource = new Set([
   'SAML, OIDC, LDAP legacy baseline',
   'SAML, OIDC, WS-Fed legacy baseline',
   'SP entity ID',
+  'SLO URL',
   'WS-Fed',
+  // 审计事件类型筛选框的占位示例,是事件名前缀字面量。
+  'api_key.',
 ])
 
 const targetScriptChecks = {

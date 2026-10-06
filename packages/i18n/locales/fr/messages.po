@@ -37,15 +37,17 @@ msgstr "\"{deviceLabel}\" sera déconnecté. Cet appareil devra se reconnecter."
 msgid "\"{displayName}\" will be permanently removed. You will need to re-register it to use passkey sign-in on this device."
 msgstr "\"{displayName}\" sera supprimé définitivement. Vous devrez le réenregistrer pour utiliser la connexion par clé d'accès sur cet appareil."
 
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "\"{displayName}\" will no longer be trusted. Future sign-ins from this device will require full MFA verification."
-msgstr "\"{displayName}\" ne sera plus considéré comme fiable. Les prochaines connexions depuis cet appareil exigeront une vérification MFA complète."
-
 #. placeholder {0}: selected.provider
 #. placeholder {1}: selected.spEntityId
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "{0} ({1}) will be deleted. Members can no longer use this SAML application."
 msgstr "{0} ({1}) sera supprimée. Les membres ne pourront plus utiliser cette application SAML."
+
+#. placeholder {0}: managerLabel(pendingRevoke)
+#. placeholder {1}: pendingRevoke.userId
+#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+msgid "{0} ({1}) will lose platform-wide management access. The server rejects this operation if it would remove the final instance manager."
+msgstr "{0} ({1}) perdra l'accès de gestion à l'échelle de la plateforme. Le serveur refuse cette opération si elle supprime le dernier gestionnaire d'instances."
 
 #. placeholder {0}: selected.provider
 #. placeholder {1}: selected.baseUrl
@@ -63,17 +65,17 @@ msgstr "{0} gestionnaires d'instances"
 msgid "{0} logo"
 msgstr "Logo de {0}"
 
-#. placeholder {0}: flag.organizationOverrides
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "{0} organization overrides"
-msgstr "{0} surcharges d'organisation"
-
-#. placeholder {0}: data.total
+#. placeholder {0}: organizations.data.total
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "{0} organizations found"
 msgstr "{0} organisations trouvées"
 
-#. placeholder {0}: data.total
+#. placeholder {0}: pendingDelete.name
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "{0} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
+msgstr "{0} cesse immédiatement d'accepter les requêtes SCIM, y compris avec l'ancien jeton. Les utilisateurs déjà provisionnés conservent leurs comptes."
+
+#. placeholder {0}: users.data.total
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "{0} users found"
 msgstr "{0} utilisateurs trouvés"
@@ -112,6 +114,10 @@ msgstr "{0} cessera d'autoriser l'accès. Votre mission reste détectable afin q
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "{appName} logo"
 msgstr "Logo de {appName}"
+
+#: apps/server/src/routes/account/PasskeySection.tsx
+msgid "{browser} on {platform}"
+msgstr "{browser} sur {platform}"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -159,8 +165,8 @@ msgstr "^9.2.4"
 msgid "sdk.createOrganizationWithPrefix"
 msgstr "+ Créer une organisation"
 
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "+1 555 000 0000"
 msgstr "+1 555 000 0000"
 
@@ -292,7 +298,7 @@ msgstr "<0>XidError</0> utilise <1>thiserror</1> pour les variantes d'erreursstr
 msgid "<0>xidMiddleware()</0> verifies a Bearer or explicit application JWT on the Edge Runtime. For a same-origin Core session, it exchanges the opaque cookie through <1>/v1/sessions/token</1>, verifies the returned JWT, and injects auth state into downstream server request headers."
 msgstr "<0>xidMiddleware()</0> vérifie un JWT Bearer ou applicatif explicite dans l'Edge Runtime. Pour une session Core de même origine, il échange le cookie opaque via <1>/v1/sessions/token</1>, vérifie le JWT retourné et injecte l'état d'authentification dans les en-têtes serveur en aval."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "000000"
 msgstr "000000"
 
@@ -344,9 +350,13 @@ msgstr "8.0.0"
 msgid "8px"
 msgstr "8px"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "A 6-digit code has been sent to your phone."
 msgstr "Un code à 6 chiffres a été envoyé sur votre téléphone."
+
+#: apps/console/src/routes/org/OrgSso.tsx
+msgid "A client secret is configured. Leave blank to keep it."
+msgstr "Un secret client est configuré. Laissez vide pour le conserver."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "A custom hostname changes the WebAuthn RP ID. Existing passkeys will not work on the new hostname, so users must register passkeys again there before you rely on it for sign-in."
@@ -356,9 +366,13 @@ msgstr "Un nom d'hôte personnalisé modifie le WebAuthn RP ID. Les clés d'acc�
 msgid "A digital signature is required."
 msgstr "Une signature numérique est requise."
 
-#: apps/server/src/routes/verify-email/index.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "A new verification email has been sent if your account exists."
 msgstr "Un nouvel e-mail de vérification a été envoyé si votre compte existe."
+
+#: apps/console/src/routes/org/SelfServiceLock.tsx
+msgid "A platform administrator manages this setting for your organization. You can review it, but changes are disabled."
+msgstr "Un administrateur de la plateforme gère ce paramètre pour votre organisation. Vous pouvez le consulter, mais pas le modifier."
 
 #: packages/i18n/src/messages.ts
 msgid "A possible authenticator clone was detected. Please contact support."
@@ -376,6 +390,10 @@ msgstr "Un projet est l'espace de noms pour les clés de rôle, les clés d'auto
 msgid "A real IdP round-trip on production infrastructure is still pending manual verification. This page documents implemented behavior; it is not a readiness claim."
 msgstr "Un aller-retour réel avec un IdP sur une infrastructure de production esten attente de vérification manuelle. Cette page documente le comportementimplémenté ; ce n'est pas une affirmation de disponibilité en production."
 
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "A record hash does not match its contents or predecessor."
+msgstr "Le hachage d'un enregistrement ne correspond pas à son contenu ou à l'enregistrement précédent."
+
 #: packages/i18n/src/messages.ts
 msgid "A replayed assertion was detected."
 msgstr "Une assertion rejouée a été détectée."
@@ -383,6 +401,10 @@ msgstr "Une assertion rejouée a été détectée."
 #: packages/i18n/src/messages.ts
 msgid "A resource with this identifier already exists."
 msgstr "Une ressource avec cet identifiant existe déjà."
+
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "A sequence number is missing from the chain."
+msgstr "Un numéro de séquence manque dans la chaîne."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "A stable role key groups permissions for token and API authorization."
@@ -416,6 +438,10 @@ msgstr "Accepter le DPA"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Accept invitation | XID"
 msgstr "Accepter l’invitation | | XID"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "Accept with this account"
+msgstr "Accepter avec ce compte"
 
 #: apps/console/src/routes/org/OrgCompliance.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
@@ -466,12 +492,12 @@ msgid "Access your email address"
 msgstr "Accéder à votre adresse e-mail"
 
 #: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your phone number"
-msgstr "Accéder à votre numéro de téléphone"
+msgid "Access your organization membership"
+msgstr "Accéder à votre appartenance à l'organisation"
 
 #: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your physical address"
-msgstr "Accéder à votre adresse postale"
+msgid "Access your phone number"
+msgstr "Accéder à votre numéro de téléphone"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Accessor returning organization, membership, and setActive for the active org"
@@ -522,11 +548,16 @@ msgstr "Navigation des paramètres du compte"
 msgid "Accounting plan"
 msgstr "Plan de facturation"
 
+#: apps/server/src/routes/account/ConnectionsPage.tsx
+msgid "Accounts you use to sign in with a social provider appear here."
+msgstr "Les comptes que vous utilisez pour vous connecter avec un fournisseur social apparaissent ici."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ACS endpoint for signed or encrypted SAML responses."
 msgstr "Point de terminaison ACS pour les reponses SAML signees ou chiffrees."
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
+#: apps/console/src/routes/org/SsoConnectionEndpoints.tsx
 msgid "ACS URL"
 msgstr "ACS URL"
 
@@ -546,6 +577,7 @@ msgstr "Action requise"
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
+#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -569,7 +601,6 @@ msgstr "Activer l’appareil | | XID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Active"
@@ -672,12 +703,20 @@ msgid "Add a provider from a template or register a custom provider key."
 msgstr "Ajoutez un fournisseur depuis un modèle ou enregistrez une clé de fournisseur personnalisée."
 
 #: apps/server/src/routes/account/MfaSection.tsx
-msgid "Add an authenticator app before generating backup codes."
-msgstr "Ajoutez une application d'authentification avant de générer des codes de secours."
+msgid "Add an authenticator app or a passkey before generating backup codes or using text message codes."
+msgstr "Ajoutez une application d'authentification ou une clé d'accès avant de générer des codes de secours ou d'utiliser des codes par SMS."
+
+#: apps/server/src/routes/account/GuestEmailConversionSection.tsx
+msgid "Add an email address"
+msgstr "Ajouter une adresse e-mail"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Add an email domain to enable automatic org enrollment. After adding, you must verify ownership by adding the DNS TXT record shown in the table."
-msgstr "Ajoutez un domaine e-mail pour activer l'inscription automatique à l'organisation. Après l'ajout, vous devez vérifier la propriété en ajoutant l'enregistrement DNS TXT indiqué dans le tableau."
+msgid "Add an email domain, then create the DNS TXT record shown in the table with the exact name and value. Verification runs automatically once a day. Verified domains route sign-in for matching email addresses to this tenant."
+msgstr "Ajoutez un domaine de messagerie, puis créez l'enregistrement DNS TXT indiqué dans le tableau avec exactement le même nom et la même valeur. La vérification s'exécute automatiquement une fois par jour. Les connexions avec une adresse d'un domaine vérifié sont dirigées vers ce tenant."
+
+#: packages/i18n/src/messages.ts
+msgid "Add another way to sign in before removing this one."
+msgstr "Ajoutez un autre mode de connexion avant de supprimer celui-ci."
 
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Add authenticator app"
@@ -719,6 +758,10 @@ msgstr "Ajouter une cible SCIM"
 msgid "Add the dependency to your app module's build.gradle.kts:"
 msgstr "Ajoutez la dépendance au fichier build.gradle.kts de votre moduled'application :"
 
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "Add the downstream API token to enable sync."
+msgstr "Ajoutez le jeton d'API du service en aval pour activer la synchronisation."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add the package via Swift Package Manager in Xcode (File -> Add Package Dependencies) or directly in <0>Package.swift</0>:"
 msgstr "Ajoutez le package via Swift Package Manager dans Xcode (Fichier ->Ajouter des dépendances de package) ou directement dans<0>Package.swift</0> :"
@@ -726,10 +769,6 @@ msgstr "Ajoutez le package via Swift Package Manager dans Xcode (Fichier ->Ajout
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add the type reference to <0>src/env.d.ts</0> to get full type coverage on <1>Astro.locals.xidAuth</1>."
 msgstr "Ajoutez la référence de type dans <0>src/env.d.ts</0> pour obtenir unecouverture de type complète sur <1>Astro.locals.xidAuth</1>."
-
-#: apps/server/src/routes/account/MfaSectionPanels.tsx
-msgid "Add this key to your authenticator app, then enter the 6-digit code."
-msgstr "Ajoutez cette clé à votre application d'authentification, puis saisissez le code à 6 chiffres."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Add to <0>Cargo.toml</0>:"
@@ -763,6 +802,10 @@ msgstr "Administrateur"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "admin, owner"
 msgstr "admin, owner"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "After signing in, open the original invitation link again to join with that account."
+msgstr "Après la connexion, rouvrez le lien d'invitation d'origine pour rejoindre l'organisation avec ce compte."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "All BackendErrorCode values: missing_jwt_key, jwks_fetch_failed, invalid_options, session_token_exchange_failed"
@@ -857,6 +900,10 @@ msgstr "Domaines e-mail autorisés"
 msgid "Allowed roles (comma-separated)"
 msgstr "Rôles autorisés (séparés par des virgules)"
 
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "Allowed scopes"
+msgstr "Portées autorisées"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Allowed user IDs (comma-separated)"
@@ -874,6 +921,18 @@ msgstr "Vous avez déjà un compte ? <0>Connectez-vous</0>"
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Already have an account? Sign in"
 msgstr "Vous avez déjà un compte ? Se connecter"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "Already have an account? Sign in to accept"
+msgstr "Vous avez déjà un compte ? Connectez-vous pour accepter"
+
+#: apps/server/src/routes/account/MfaSection.tsx
+msgid "Also accept text message codes"
+msgstr "Accepter aussi les codes par SMS"
+
+#: packages/i18n/src/messages.ts
+msgid "An account already uses this email address. Sign in to that account to accept the invitation."
+msgstr "Un compte utilise déjà cette adresse e-mail. Connectez-vous à ce compte pour accepter l'invitation."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
@@ -940,6 +999,14 @@ msgstr "Annonces"
 msgid "Announcements | Console | XID"
 msgstr "Annonces | Console | XID"
 
+#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+msgid "Another administrator updated this incident. The list was refreshed; review it and try again."
+msgstr "Un autre administrateur a mis à jour cet incident. La liste a été actualisée ; vérifiez-la puis réessayez."
+
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "Another replay of this message is still in progress. Check again later."
+msgstr "Un autre renvoi de ce message est toujours en cours. Revenez vérifier plus tard."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Any Web Crypto compatible runtime (Bun, Deno)"
 msgstr "Tout runtime compatible Web Crypto (Bun, Deno)"
@@ -964,6 +1031,14 @@ msgstr "Clés API"
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "API keys | Console | XID"
 msgstr "Clés API | Console | XID"
+
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "API token"
+msgstr "Jeton d'API"
+
+#: apps/console/src/routes/org/OrgAuditEvents.tsx
+msgid "api_key."
+msgstr "api_key."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "APIs and operations"
@@ -1005,6 +1080,10 @@ msgstr "L'application <0>{0}</0> demande une approbation de connexion."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application must set <UseWinUI>true</UseWinUI> in the project file"
 msgstr "L'application doit définir <UseWinUI>true</UseWinUI> dans le fichier deprojet"
+
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "Application saved."
+msgstr "Application enregistrée."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application-owned JWT cookie name; disabled unless explicitly configured"
@@ -1054,6 +1133,10 @@ msgstr "objet as const"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "as const tuple"
 msgstr "tuple as const"
+
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "Ask an organization admin to invite you."
+msgstr "Demandez à un administrateur de l'organisation de vous inviter."
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Ask your organization admin to send a new invitation."
@@ -1132,9 +1215,17 @@ msgstr "API asynchrone construite sur tokio. Utilise rustls (sans dépendanceOpe
 msgid "Async-first. Sync callers (Django/Flask) can wrap with <0>asyncio.run()</0>."
 msgstr "Asynchrone par défaut. Les appelants synchrones (Django/Flask) peuventutiliser <0>asyncio.run()</0>."
 
+#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+msgid "At least one instance manager must remain. The list was refreshed."
+msgstr "Au moins un gestionnaire d'instances doit rester. La liste a été actualisée."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Atlassian"
 msgstr "Atlassian"
+
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "Attempts"
+msgstr "Tentatives"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Attestation mode"
@@ -1240,7 +1331,7 @@ msgid "Authenticator app added."
 msgstr "Application d'authentification ajoutée."
 
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Authenticator code"
 msgstr "Code d'authentification"
 
@@ -1292,10 +1383,6 @@ msgstr "Erreur d'autorisation"
 msgid "Authorization failed"
 msgstr "Échec de l'autorisation"
 
-#: apps/server/src/routes/consent/index.tsx
-msgid "Authorization failed."
-msgstr "Échec de l'autorisation."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization request"
 msgstr "Demande d'autorisation"
@@ -1307,10 +1394,6 @@ msgstr "La demande d'autorisation est manquante ou a expiré."
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Authorize application | XID"
 msgstr "Autoriser l’application | | XID"
-
-#: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Automatic"
-msgstr "Automatique"
 
 #: packages/i18n/src/messages.ts
 msgid "Automatic provisioning is disabled for this connection."
@@ -1342,7 +1425,7 @@ msgstr "Retour à la console"
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
-#: apps/server/src/routes/verify-email/index.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Back to sign in"
 msgstr "Retour à la connexion"
 
@@ -1359,6 +1442,11 @@ msgstr "Arrière-plan"
 msgid "Background color"
 msgstr "Couleur d'arrière-plan"
 
+#: apps/console/src/routes/org/OrgBranding.tsx
+msgid "Background color (light theme)"
+msgstr "Couleur d'arrière-plan (thème clair)"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Backup code"
 msgstr "Code de secours"
@@ -1368,7 +1456,6 @@ msgstr "Code de secours"
 msgid "Backup codes ({0} remaining)"
 msgstr "Codes de secours ({0} restants)"
 
-#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Banned"
 msgstr "Interdit"
@@ -1483,9 +1570,10 @@ msgstr "Marque enregistrée."
 msgid "Breadcrumb"
 msgstr "Fil d'Ariane"
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Broken at seq"
-msgstr "Rompue à la séquence"
+#. placeholder {0}: result.broken_at_seq
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "Broken at seq {0}"
+msgstr "Rompue à la séquence {0}"
 
 #: apps/server/src/routes/sign-in/SignInGuestButton.tsx
 msgid "Browse without an account. Guest data cannot be recovered after sign-out."
@@ -1559,6 +1647,10 @@ msgstr "Appelez <0>useProtectedRoute</0> dans un composant de mise en page. Il l
 msgid "Callbacks verify state, nonce, issuer, audience, and email policy before creating or linking users."
 msgstr "Les callbacks vérifient state, nonce, issuer, audience et la politique d'adresse e-mail avant de créer ou d'associer des utilisateurs."
 
+#: apps/server/src/routes/account/MfaSectionPanels.tsx
+msgid "Can't scan the code? Enter this key manually instead."
+msgstr "Impossible de scanner le code ? Saisissez plutôt cette clé manuellement."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "CanActivateFn factory"
 msgstr "Fabrique CanActivateFn"
@@ -1574,7 +1666,7 @@ msgstr "Fabrique CanActivateFn"
 msgid "Cancel"
 msgstr "Annuler"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/MfaExits.tsx
 msgid "Cancel and sign out"
 msgstr "Annuler et se déconnecter"
 
@@ -1603,17 +1695,21 @@ msgstr "Statut du certificat :"
 msgid "Certificate validation"
 msgstr "Validation du certificat"
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Chain broken"
 msgstr "Chaîne rompue"
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Chain valid"
 msgstr "Chaîne valide"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Change password"
 msgstr "Changer le mot de passe"
+
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "Check the sequence range. It must exist in the chain and stay within the per-request limit."
+msgstr "Vérifiez la plage de séquences. Elle doit exister dans la chaîne et respecter la limite par requête."
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Check your connection and try again."
@@ -1664,13 +1760,9 @@ msgstr "Choisissez une méthode de vérification."
 msgid "Choose an organization to continue in the console."
 msgstr "Choisissez une organisation pour continuer dans la console."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 msgid "Choose an organization to continue."
 msgstr "Choisissez une organisation pour continuer."
-
-#: apps/server/src/routes/account/ProfilePage.tsx
-msgid "Choose the profile language preference."
-msgstr "Choisissez la préférence de langue du profil."
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Choose which organization to use for this sign-in before continuing."
@@ -1795,6 +1887,7 @@ msgstr "Tolérance au décalage d'horloge pour exp/nbf."
 msgid "Clock skew tolerance in seconds"
 msgstr "Tolérance au décalage d'horloge en secondes"
 
+#: apps/console/src/routes/org/ApplicationEditor.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Close"
 msgstr "Fermer"
@@ -1807,11 +1900,6 @@ msgstr "Fermer le diagramme"
 msgid "Close sidebar"
 msgstr "Fermer la barre latérale"
 
-#: apps/server/src/routes/activate/index.tsx
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Close this page"
-msgstr "Fermer cette page"
-
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Cloudflare is still waiting for DNS verification."
 msgstr "Cloudflare attend toujours la vérification de DNS."
@@ -1823,6 +1911,10 @@ msgstr "Cloudflare Workers"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Cloudflare Workers (primary target)"
 msgstr "Cloudflare Workers (cible principale)"
+
+#: apps/server/src/routes/account/MfaSection.tsx
+msgid "Codes will be sent to the phone number ending in {smsPhoneLast4}."
+msgstr "Les codes seront envoyés au numéro de téléphone se terminant par {smsPhoneLast4}."
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "colleague@example.com"
@@ -1839,10 +1931,6 @@ msgstr "Surcharges de couleurs, de typographie et de logo pour la Hosted UI de c
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Combine logical and comparison operators."
 msgstr "Combiner les opérateurs logiques et de comparaison."
-
-#: apps/console/src/routes/org/OrgWebhooks.tsx
-msgid "Comma-separated event names (for example user.created, session.revoked). Leave blank to receive all events."
-msgstr "Noms d'événements séparés par des virgules (par exemple user.created, session.revoked). Laissez vide pour recevoir tous les événements."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
@@ -1930,8 +2018,8 @@ msgid "Configure downstream SaaS SAML apps from Slack, GitHub, Microsoft, and ot
 msgstr "Configurer des applications SAML SaaS en aval à partir des préréglages Slack, GitHub, Microsoft et autres."
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-msgid "Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets also show the downstream OIDC redirect URI placeholder for manual SaaS admin setup."
-msgstr "Configurer des fournisseurs SAML SaaS en aval à partir de modèles prédéfinis. Les préréglages SAML/OIDC affichent aussi le redirect URI OIDC en aval pour la configuration manuelle côté admin SaaS."
+msgid "Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets also show a reference OIDC redirect URI for manual SaaS admin setup."
+msgstr "Configurez les fournisseurs de services SAML des SaaS en aval à partir de modèles prédéfinis. Les modèles SAML/OIDC affichent aussi un URI de redirection OIDC de référence pour une configuration manuelle dans l'administration du SaaS."
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Configure protocol-specific fields under <0>_legacy</0> in attribute mapping. SWA vaulted credentials are stored via the authenticated <1>/sso/swa/:connectionId/vault</1> API."
@@ -1944,10 +2032,6 @@ msgstr "Configurez les fournisseurs OAuth sociaux tout en distinguant le statut 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Configure the unified sign-in and user creation flow."
 msgstr "Configurez le flux unifié de connexion et de création d’utilisateur."
-
-#: apps/console/src/routes/org/OrgOutboundSso.tsx
-msgid "Configure this redirect URI in the downstream SaaS OIDC app. XID stores SAML fields only; OIDC client registration uses the generic OAuth app catalog."
-msgstr "Configurez ce redirect URI dans l'application OIDC SaaS en aval. XID ne stocke que les champs SAML ; l'enregistrement client OIDC utilise le catalogue OAuth générique."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Configure Turnstile as a complete site-key and secret pair. Optional Cloudflare for SaaS hostnames require a zone, API token, active fallback origin, DNS, and routes. Zone WAF and edge rate limiting remain separate controls; application limits fail closed in RATE_LIMITER."
@@ -1968,6 +2052,10 @@ msgstr "Configurez votre fournisseur d'identité avec l'URL de base"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "configure() was not called"
 msgstr "configure() n'a pas été appelé"
+
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "Configured"
+msgstr "Configuré"
 
 #: packages/web-ui/src/components/ConfirmDialog.tsx
 msgid "Confirm"
@@ -2076,6 +2164,7 @@ msgid "sdk.continue"
 msgstr "Continuer"
 
 #: apps/site/src/lib/home-surface.ts
+#: packages/i18n/src/messages.ts
 msgid "Continue"
 msgstr "Continuer"
 
@@ -2125,7 +2214,7 @@ msgstr "Continuer avec Google"
 msgid "Continue with Microsoft"
 msgstr "Continuer avec Microsoft"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 msgid "Continue with SSO"
 msgstr "Continuer avec le SSO"
 
@@ -2149,13 +2238,33 @@ msgstr "Contrôle si les connexions SSO d'entreprise peuvent authentifier les ut
 msgid "Convert JwtKey (JWK, JWKS, or CryptoKey) to VerifyKeySet for verification"
 msgstr "Convertit JwtKey (JWK, JWKS ou CryptoKey) en VerifyKeySet pour la vérification"
 
+#: apps/console/src/routes/org/CopyableValue.tsx
+#: apps/console/src/routes/org/CopyValue.tsx
+#: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Copied"
 msgstr "Copié"
 
+#: apps/console/src/routes/org/CopyableValue.tsx
+#: apps/console/src/routes/org/CopyValue.tsx
+msgid "Copy"
+msgstr "Copier"
+
+#: apps/console/src/routes/org/CopyValue.tsx
+msgid "Copy {label}"
+msgstr "Copier {label}"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Copy <0>templates/xid-keychain-plugin.rs</0> into <1>src-tauri/src/xid_keychain.rs</1> and register it following <2>templates/tauri-app-setup.rs</2>. Add <3>keyring = \"2\"</3>, <4>tauri-plugin-deep-link = \"2\"</4>, and <5>tauri-plugin-shell = \"2\"</5> to <6>src-tauri/Cargo.toml</6>."
 msgstr "Copiez <0>templates/xid-keychain-plugin.rs</0> dans <1>src-tauri/src/xid_keychain.rs</1> et enregistrez-le en suivant <2>templates/tauri-app-setup.rs</2>. Ajoutez <3>keyring = \"2\"</3>, <4>tauri-plugin-deep-link = \"2\"</4> et <5>tauri-plugin-shell = \"2\"</5> dans <6>src-tauri/Cargo.toml</6>."
+
+#: apps/console/src/routes/org/CopyValue.tsx
+msgid "Copy failed"
+msgstr "Échec de la copie"
+
+#: apps/server/src/routes/account/MfaSectionPanels.tsx
+msgid "Copy key"
+msgstr "Copier la clé"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Copy page"
@@ -2185,18 +2294,36 @@ msgstr "Points de terminaison principaux"
 msgid "Core uses D1 for tenant-scoped relational data, KV only for read-heavy caches, and R2 for private objects. Strongly consistent state never belongs in KV."
 msgstr "Core utilise D1 pour les données relationnelles limitées au tenant, KV uniquement pour les caches à forte lecture et R2 pour les objets privés. Un état fortement cohérent ne doit jamais être stocké dans KV."
 
+#: packages/web-ui/src/components/RequireAuth.tsx
+msgid "Could not check your session"
+msgstr "Impossible de vérifier votre session"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Could not copy"
 msgstr "Échec de la copie"
 
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Could not create organization. Check the email and slug, then try again."
-msgstr "Impossible de créer l'organisation. Vérifiez l'e-mail et le slug, puis réessayez."
+#. placeholder {0}: LOCALE_LABELS[failedLocale]
+#: packages/web-ui/src/components/LanguageSwitcher.tsx
+msgid "Could not load {0}. Try again."
+msgstr "Impossible de charger {0}. Réessayez."
+
+#. placeholder {0}: organizationDisplayName(org)
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "Could not open {0}. Your access may have changed, or the connection failed."
+msgstr "Impossible d'ouvrir {0}. Votre accès a peut-être changé, ou la connexion a échoué."
+
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "Could not open this organization. Try again."
+msgstr "Impossible d'ouvrir cette organisation. Réessayez."
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signOutFailed"
 msgstr "Impossible de se déconnecter. Réessayez."
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "Could not switch organization. Try again or choose another organization."
+msgstr "Impossible de changer d'organisation. Réessayez ou choisissez une autre organisation."
 
 #: apps/server/src/routes/select-organization/index.tsx
 msgid "Could not switch organization. Try again."
@@ -2231,8 +2358,8 @@ msgid "Create and list the current user's requests."
 msgstr "Créez et répertoriez les demandes de l'utilisateur actuel."
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-msgid "Create and revoke API keys for server-side integrations."
-msgstr "Créez et révoquez des clés API pour les intégrations côté serveur."
+msgid "Create and revoke API keys for server-side integrations. API keys are shared by every organization in the tenant."
+msgstr "Créez et révoquez des clés API pour les intégrations côté serveur. Les clés API sont partagées par toutes les organisations du tenant."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Create and revoke secret keys for the Management API."
@@ -2336,7 +2463,9 @@ msgstr "Créer un webhook"
 msgid "sdk.createYourAccount"
 msgstr "Créer votre compte"
 
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
 msgid "Create your account"
 msgstr "Créer votre compte"
@@ -2381,7 +2510,6 @@ msgstr "Créez, mettez à jour, déplacez, archivez et gérez les membres des un
 msgid "Create, update, sync, and remove outbound SCIM targets."
 msgstr "Créez, mettez à jour, synchronisez et supprimez les cibles SCIM sortantes."
 
-#: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgApplications.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
@@ -2445,16 +2573,16 @@ msgid "Cross-organization grants"
 msgstr "Subventions interorganisations"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
-msgid "CSS font-family value"
-msgstr "Valeur CSS font-family"
-
-#: apps/console/src/routes/org/OrgBranding.tsx
 msgid "CSS length, e.g. 8px or 0.5rem"
 msgstr "Longueur CSS, par ex. 8px ou 0.5rem"
 
 #: apps/server/src/routes/account/SessionsPage.tsx
 msgid "Current"
 msgstr "Actuel"
+
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "Current organization"
+msgstr "Organisation actuelle"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Current package"
@@ -2537,8 +2665,8 @@ msgid "Data export"
 msgstr "Exportation de données"
 
 #: apps/console/src/routes/platform/PlatformSettings.tsx
-msgid "Data residency"
-msgstr "Résidence des données"
+msgid "Data residency label"
+msgstr "Libellé de résidence des données"
 
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 msgid "DAU"
@@ -2577,10 +2705,6 @@ msgstr "Défaut"
 msgid "Default export: renderer surface and types"
 msgstr "Export par défaut : surface de rendu et types"
 
-#: apps/console/src/routes/platform/PlatformSettings.tsx
-msgid "Default locale"
-msgstr "Paramètres régionaux par défaut"
-
 #: packages/web-ui/src/display-names.tsx
 msgid "Default organization"
 msgstr "Organisation par défaut"
@@ -2613,6 +2737,7 @@ msgstr "Gestionnaires délégués"
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
@@ -2711,6 +2836,10 @@ msgstr "Supprimer le projet ?"
 msgid "Delete role?"
 msgstr "Supprimer le rôle ?"
 
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "Delete SCIM directory?"
+msgstr "Supprimer l'annuaire SCIM ?"
+
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Delete SCIM target?"
 msgstr "Supprimer la cible SCIM ?"
@@ -2744,8 +2873,8 @@ msgid "Deleted roles"
 msgstr "Rôles supprimés"
 
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-msgid "Deliver signed event notifications to your HTTPS endpoints."
-msgstr "Envoyez des notifications d'événements signées à vos points de terminaison HTTPS."
+msgid "Deliver signed event notifications to your HTTPS endpoints. Webhooks are shared by every organization in the tenant."
+msgstr "Envoyez des notifications d'événements signées à vos points de terminaison HTTPS. Les webhooks sont partagés par toutes les organisations du tenant."
 
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Deliveries are signed with HMAC-SHA256. The signing secret is shown once on creation; store it immediately."
@@ -2875,24 +3004,8 @@ msgid "Device request failed"
 msgstr "La demande de l'appareil a echoue"
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "Device request failed."
-msgstr "La demande de l'appareil a echoue."
-
-#: apps/server/src/routes/activate/index.tsx
 msgid "Device request handled"
 msgstr "Demande de l'appareil traitee"
-
-#: apps/server/src/routes/activate/index.tsx
-msgid "Device request not found or expired."
-msgstr "Demande de l'appareil introuvable ou expiree."
-
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Devices"
-msgstr "Appareils"
-
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Devices are added when you choose \"Trust this device\" during sign-in."
-msgstr "Les appareils sont ajoutés lorsque vous choisissez « Faire confiance à cet appareil » pendant la connexion."
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Diagram failed to render"
@@ -2929,10 +3042,6 @@ msgstr "Synchronisation d’annuaire | Console | XID"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Directory token rotation keeps the previous token valid for a short grace window."
 msgstr "La rotation du jeton d'annuaire garde l'ancien jeton valide pendant une courte période de grâce."
-
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Disable"
-msgstr "Désactiver"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
@@ -2971,6 +3080,10 @@ msgstr "Union discriminée de SignedInState et SignedOutState"
 msgid "Discriminated XidClient constructor options: same-origin accepts apiUrl, secretKey, fetcher, and now; oidc requires issuer, clientId, and redirectUri."
 msgstr "Options discriminées du constructeur XidClient: same-origin accepte apiUrl, secretKey, fetcher et now; oidc exige issuer, clientId et redirectUri."
 
+#: apps/server/src/routes/account/PasskeySection.tsx
+msgid "Dismiss"
+msgstr "Ignorer"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Dismiss banner"
 msgstr "Fermer la bannière"
@@ -2988,6 +3101,14 @@ msgstr "Nom affiché"
 msgid "Displayed when"
 msgstr "Affiché lorsque"
 
+#: apps/console/src/routes/org/OrgDomains.tsx
+msgid "DNS TXT record"
+msgstr "Enregistrement DNS TXT"
+
+#: packages/i18n/src/messages.ts
+msgid "Do you want to sign out of this account?"
+msgstr "Voulez-vous vous déconnecter de ce compte ?"
+
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Document type"
 msgstr "Type de document"
@@ -3003,8 +3124,8 @@ msgid "Domain"
 msgstr "Domaine"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Domain added. Add the DNS TXT record shown in the table to verify ownership."
-msgstr "Domaine ajouté. Ajoutez l'enregistrement DNS TXT indiqué dans le tableau pour vérifier la propriété."
+msgid "Domain added. Create the DNS TXT record shown in the table to verify ownership."
+msgstr "Domaine ajouté. Créez l'enregistrement DNS TXT indiqué dans le tableau pour vérifier la propriété."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Domain discovery matches a verified organization domain."
@@ -3074,6 +3195,10 @@ msgstr "Les clients lies a DPoP doivent presenter une preuve DPoP valide pour le
 msgid "Draft"
 msgstr "Brouillon"
 
+#: apps/console/src/routes/org/OrgSocialProviders.tsx
+msgid "Each enabled provider other than GitHub needs both an issuer and a JWKS URI, or a userinfo endpoint. Replace any placeholder with your own value."
+msgstr "Chaque fournisseur activé autre que GitHub a besoin d'un issuer et d'un URI JWKS, ou d'un point de terminaison userinfo. Remplacez chaque espace réservé par votre propre valeur."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "Chaque membre peut avoir une OrgUnit principale et des emplacements supplémentaires."
@@ -3098,6 +3223,7 @@ msgstr "Chaque Queue source nécessite sa propre dead-letter Queue et sa quarant
 msgid "Edge Runtime middleware: verifies JWT, injects auth headers"
 msgstr "Middleware Edge Runtime : vérifie le JWT, injecte les en-têtes d'authentification"
 
+#: apps/console/src/routes/org/OrgApplications.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Edit"
@@ -3110,6 +3236,13 @@ msgstr "Modifier la condition ABAC"
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Edit app"
 msgstr "Modifier l’application"
+
+#. placeholder {0}: application.client_id
+#. placeholder {0}: row.original.client_id
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+#: apps/console/src/routes/org/OrgApplications.tsx
+msgid "Edit application {0}"
+msgstr "Modifier l'application {0}"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Edit condition"
@@ -3161,10 +3294,13 @@ msgstr "E-mail"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
+#: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Email address"
 msgstr "Adresse e-mail"
 
@@ -3176,7 +3312,7 @@ msgstr "M'envoyer un lien sécurisé par e-mail"
 msgid "Email me a setup link"
 msgstr "M'envoyer un lien de configuration par e-mail"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "Email or username"
 msgstr "E-mail ou nom d'utilisateur"
 
@@ -3209,10 +3345,6 @@ msgstr "vide"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "empty (skip)"
 msgstr "vide (ignorer)"
-
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Enable"
-msgstr "Activer"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Enable domain discovery"
@@ -3253,7 +3385,6 @@ msgstr "Récupération de point de terminaison"
 msgid "Endpoint URL"
 msgstr "URL du point de terminaison"
 
-#: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Endpoints"
@@ -3271,10 +3402,6 @@ msgstr "Application"
 msgid "English"
 msgstr "Anglais"
 
-#: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Enrollment mode"
-msgstr "Mode d'inscription"
-
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Enter a search query to find users."
 msgstr "Saisissez une recherche pour trouver des utilisateurs."
@@ -3283,29 +3410,66 @@ msgstr "Saisissez une recherche pour trouver des utilisateurs."
 msgid "Enter a strong password to secure your account."
 msgstr "Saisissez un mot de passe robuste pour sécuriser votre compte."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Enter a valid 8-character backup code"
 msgstr "Saisissez un code de secours valide de 8 caractères"
 
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Enter a valid email address"
 msgstr "Saisissez une adresse e-mail valide"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "Enter absolute HTTPS URLs without a fragment, one per line."
+msgstr "Saisissez des URL HTTPS absolues sans fragment, une par ligne."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Enter an organization name and a URL slug made of lowercase letters, numbers, and hyphens."
+msgstr "Saisissez un nom d'organisation et un slug d'URL composé de lettres minuscules, de chiffres et de tirets."
+
+#: apps/console/src/routes/org/OrgApplications.tsx
+msgid "Enter at least one absolute HTTPS URL without a fragment, one per line."
+msgstr "Saisissez au moins une URL HTTPS absolue sans fragment, une par ligne."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Enter one of your 8-character backup codes. Each code can only be used once."
 msgstr "Saisissez l'un de vos codes de secours de 8 caractères. Chaque code ne peut être utilisé qu'une seule fois."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Enter the 6-digit code from your authenticator app"
 msgstr "Saisissez le code à 6 chiffres de votre application d'authentification"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Enter the 6-digit code sent to your phone"
 msgstr "Saisissez le code à 6 chiffres envoyé sur votre téléphone"
 
 #: apps/server/src/routes/activate/CodeEntryForm.tsx
 msgid "Enter the code shown on your device."
 msgstr "Saisissez le code affiché sur votre appareil."
+
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "Enter the downstream API token. Sync needs it, and changing the base URL host requires it again."
+msgstr "Saisissez le jeton d'API du service en aval. La synchronisation en a besoin, et il doit être saisi à nouveau si l'hôte de l'URL de base change."
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Enter the email, username, or phone number for your account first."
+msgstr "Saisissez d'abord l'adresse e-mail, le nom d'utilisateur ou le numéro de téléphone de votre compte."
+
+#: apps/console/src/routes/org/OrgSocialProviders.tsx
+msgid "Enter the exact issuer of your identity provider tenant. Only the Microsoft template may keep its multi-tenant issuer placeholder."
+msgstr "Saisissez l'issuer exact du tenant de votre fournisseur d'identité. Seul le modèle Microsoft peut conserver son espace réservé d'issuer multi-tenant."
+
+#: apps/console/src/routes/org/OrgOutboundSso.tsx
+msgid "Enter these XID identity provider values in the downstream SaaS admin."
+msgstr "Saisissez ces valeurs du fournisseur d'identité XID dans l'administration du SaaS en aval."
+
+#: apps/console/src/routes/org/OrgSso.tsx
+msgid "Enter these XID service provider values in your identity provider."
+msgstr "Saisissez ces valeurs du fournisseur de services XID dans votre fournisseur d'identité."
+
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "Enter this URL as the SCIM connector base URL in your identity provider, together with the directory bearer token."
+msgstr "Saisissez cette URL comme URL de base du connecteur SCIM dans votre fournisseur d'identité, avec le jeton bearer de l'annuaire."
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Enter to select"
@@ -3340,10 +3504,7 @@ msgstr "Entrée"
 msgid "Entry points"
 msgstr "Points d'entrée"
 
-#: apps/console/src/routes/org/OrgApiKeys.tsx
-msgid "Environment"
-msgstr "Environnement"
-
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Error"
 msgstr "Erreur"
@@ -3420,8 +3581,8 @@ msgid "Evidence ledger"
 msgstr "Registre des preuves"
 
 #: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Exact match, no wildcards. Optional at creation."
-msgstr "Correspondance exacte, pas de caractères génériques. Facultatif lors de la création."
+msgid "Exact match, no wildcards. One HTTPS URI per line."
+msgstr "Correspondance exacte, sans caractères génériques. Un URI HTTPS par ligne."
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "example.com"
@@ -3496,10 +3657,15 @@ msgstr "Revendication aud JWT attendue"
 msgid "Expired"
 msgstr "Expiré"
 
+#: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/server/src/routes/activate/ActivationDetails.tsx
 msgid "Expires"
 msgstr "Expire"
+
+#: apps/console/src/routes/org/OrgApiKeys.tsx
+msgid "Expires on"
+msgstr "Expire le"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Explore XID"
@@ -3533,7 +3699,7 @@ msgstr "Exporter les données du compte"
 msgid "Exported API"
 msgstr "API exportée"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "External ID"
 msgstr "ID externe"
 
@@ -3545,7 +3711,7 @@ msgstr "Revendication External ID"
 msgid "external_id"
 msgstr "external_id"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "external-id"
 msgstr "external-id"
 
@@ -3577,13 +3743,13 @@ msgstr "Extraire automatiquement les en-têtes svix et valider la signatureHMAC-
 msgid "Factory that returns a standalone XidClient instance"
 msgstr "Fabrique retournant une instance XidClient autonome"
 
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "Failed"
+msgstr "Échec"
+
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "Failed at"
 msgstr "Échec le"
-
-#: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Failed to add domain. Try again."
-msgstr "Impossible d'ajouter le domaine. Réessayez."
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Failed to add passkey."
@@ -3593,37 +3759,9 @@ msgstr "Impossible d'ajouter la clé d'accès."
 msgid "Failed to cancel the request."
 msgstr "Échec de l'annulation de la demande."
 
-#: apps/console/src/routes/org/OrgApiKeys.tsx
-msgid "Failed to create API key. Try again."
-msgstr "Impossible de créer la clé API. Réessayez."
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Failed to create application. Try again."
-msgstr "Impossible de créer l'application. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Failed to create the announcement. Try again."
-msgstr "Impossible de créer l'annonce. Réessayez."
-
-#: apps/console/src/routes/org/OrgWebhooks.tsx
-msgid "Failed to create webhook. Try again."
-msgstr "Impossible de créer le webhook. Réessayez."
-
 #: packages/i18n/src/messages.ts
 msgid "Failed to decrypt the assertion."
 msgstr "Impossible de déchiffrer l'assertion."
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Failed to delete the announcement. Try again."
-msgstr "Impossible de supprimer l'annonce. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformCompliance.tsx
-msgid "Failed to delete the compliance document. Try again."
-msgstr "Impossible de supprimer le document de conformité. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
-msgid "Failed to delete the incident. Try again."
-msgstr "Impossible de supprimer l'incident. Réessayez."
 
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Failed to disconnect account."
@@ -3636,18 +3774,6 @@ msgstr "Impossible de générer les codes de secours."
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Failed to load announcements."
 msgstr "Échec du chargement des annonces."
-
-#: apps/console/src/routes/org/OrgApiKeys.tsx
-msgid "Failed to load API keys."
-msgstr "Impossible de charger les clés API."
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Failed to load applications."
-msgstr "Impossible de charger les applications."
-
-#: apps/console/src/routes/org/OrgAuditEvents.tsx
-msgid "Failed to load audit events."
-msgstr "Impossible de charger les événements d'audit."
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Failed to load audit events. Please try again."
@@ -3696,14 +3822,6 @@ msgstr "Échec du chargement des rôles supprimés."
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Failed to load delivery channels."
 msgstr "Impossible de charger les canaux d'envoi."
-
-#: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Failed to load domains."
-msgstr "Impossible de charger les domaines."
-
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Failed to load feature flags. Please try again."
-msgstr "Impossible de charger les indicateurs de fonctionnalité. Réessayez."
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Failed to load inbound SSO connections. Please try again."
@@ -3806,10 +3924,6 @@ msgstr "Impossible de charger les fournisseurs sociaux."
 msgid "Failed to load status incidents."
 msgstr "Échec du chargement des incidents d'état."
 
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Failed to load trusted devices"
-msgstr "Impossible de charger les appareils de confiance"
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
 msgstr "Échec du chargement des autorisations utilisateur."
@@ -3818,119 +3932,33 @@ msgstr "Échec du chargement des autorisations utilisateur."
 msgid "Failed to load verification methods. Please try again."
 msgstr "Impossible de charger les méthodes de vérification. Réessayez."
 
-#: apps/console/src/routes/org/OrgWebhooks.tsx
-msgid "Failed to load webhooks."
-msgstr "Impossible de charger les webhooks."
-
-#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
-msgid "Failed to open the incident. Try again."
-msgstr "Impossible d'ouvrir l'incident. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
-msgid "Failed to publish the update. Try again."
-msgstr "Impossible de publier la mise à jour. Réessayez."
-
-#: apps/console/src/routes/org/OrgCompliance.tsx
-msgid "Failed to record DPA acceptance. Try again."
-msgstr "Impossible d'enregistrer l'acceptation du DPA. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformCompliance.tsx
-msgid "Failed to register the compliance document. Try again."
-msgstr "Impossible d'enregistrer le document de conformité. Réessayez."
-
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Failed to remove factor."
 msgstr "Impossible de supprimer le facteur."
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Failed to remove member. Try again."
-msgstr "Impossible de retirer le membre. Réessayez."
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Failed to remove passkey."
 msgstr "Impossible de supprimer la clé d'accès."
 
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Failed to remove trusted device."
-msgstr "Impossible de supprimer l'appareil de confiance."
-
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Failed to rename passkey."
 msgstr "Impossible de renommer la clé d'accès."
-
-#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
-msgid "Failed to replay the dead letter. The message was not acknowledged."
-msgstr "Impossible de renvoyer le message non distribué. Le message n'a pas été acquitté."
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Failed to request a data export."
 msgstr "Échec de la demande d'exportation de données."
 
-#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
-msgid "Failed to resolve the incident. Try again."
-msgstr "Impossible de résoudre l'incident. Réessayez."
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to resolve the selected managed scope."
 msgstr "Échec de la résolution de l'étendue gérée sélectionnée."
-
-#: apps/console/src/routes/org/OrgApiKeys.tsx
-msgid "Failed to revoke API key. Try again."
-msgstr "Impossible de révoquer la clé API. Réessayez."
-
-#: apps/console/src/routes/org/OrgAuthPolicy.tsx
-msgid "Failed to save authentication policy. Try again."
-msgstr "Impossible d'enregistrer la politique d'authentification. Réessayez."
-
-#: apps/console/src/routes/org/OrgBranding.tsx
-msgid "Failed to save branding. Try again."
-msgstr "Impossible d'enregistrer la personnalisation de marque. Réessayez."
-
-#: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgWebhooks.tsx
-msgid "Failed to save changes. Try again."
-msgstr "Impossible d'enregistrer les modifications. Réessayez."
-
-#: apps/console/src/routes/org/OrgDeliveryChannels.tsx
-msgid "Failed to save delivery channels. Try again."
-msgstr "Impossible d'enregistrer les canaux de livraison. Réessayez."
-
-#: apps/console/src/routes/org/OrgOutboundSso.tsx
-msgid "Failed to save outbound SAML app changes. Try again."
-msgstr "Impossible d'enregistrer les modifications de l'application SAML sortante. Réessayez."
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Failed to save plan and quota settings. Try again."
 msgstr "Impossible d'enregistrer les paramètres de plan et de quota. Réessayez."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
-#: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Failed to save project changes. Try again."
 msgstr "Impossible d'enregistrer les modifications du projet. Réessayez."
-
-#: apps/console/src/routes/org/OrgRoles.tsx
-msgid "Failed to save role or permission changes. Try again."
-msgstr "Impossible d'enregistrer les modifications de rôles ou d'autorisations. Réessayez."
-
-#: apps/console/src/routes/org/OrgScim.tsx
-msgid "Failed to save SCIM directory changes. Try again."
-msgstr "Impossible d'enregistrer les modifications de l'annuaire SCIM. Réessayez."
-
-#: apps/console/src/routes/org/OrgScimTargets.tsx
-msgid "Failed to save SCIM target changes. Try again."
-msgstr "Impossible d'enregistrer les modifications de la cible SCIM. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformSettings.tsx
-msgid "Failed to save settings. Try again."
-msgstr "Impossible d'enregistrer les paramètres. Réessayez."
-
-#: apps/console/src/routes/org/OrgSocialProviders.tsx
-msgid "Failed to save social providers. Try again."
-msgstr "Impossible d'enregistrer les fournisseurs sociaux. Réessayez."
-
-#: apps/console/src/routes/org/OrgSso.tsx
-msgid "Failed to save SSO connection changes. Try again."
-msgstr "Impossible d'enregistrer les modifications de la connexion SSO. Réessayez."
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Failed to schedule account deletion."
@@ -3943,14 +3971,6 @@ msgstr "Échec de la recherche des utilisateurs."
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Failed to search users. Please try again."
 msgstr "Impossible de rechercher les utilisateurs. Réessayez."
-
-#: apps/console/src/routes/org/OrgMembers.tsx
-msgid "Failed to send invitation. Try again."
-msgstr "Impossible d'envoyer l'invitation. Réessayez."
-
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Failed to send SMS. Please try again."
-msgstr "Impossible d'envoyer le SMS. Réessayez."
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Failed to send the setup link. Try again."
@@ -3980,33 +4000,13 @@ msgstr "Impossible de démarrer la configuration de l'authentificateur."
 msgid "Failed to start managed billing. Try again."
 msgstr "Impossible de démarrer la facturation gérée. Réessayez."
 
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Failed to update feature flag. Try again."
-msgstr "Impossible de mettre à jour le feature flag. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
-msgid "Failed to update instance managers. Try again."
-msgstr "Impossible de mettre à jour les gestionnaires de l'instance. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-msgid "Failed to update organization status. Try again."
-msgstr "Impossible de mettre à jour le statut de l'organisation. Réessayez."
+#: apps/server/src/routes/account/MfaSection.tsx
+msgid "Failed to turn on text message codes."
+msgstr "Impossible d'activer les codes par SMS."
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Failed to update password."
 msgstr "Impossible de mettre à jour le mot de passe."
-
-#: apps/server/src/routes/account/ProfilePage.tsx
-msgid "Failed to update profile."
-msgstr "Impossible de mettre à jour le profil."
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Failed to update the announcement. Try again."
-msgstr "Impossible de mettre à jour l'annonce. Réessayez."
-
-#: apps/console/src/routes/platform/PlatformCompliance.tsx
-msgid "Failed to update the compliance document. Try again."
-msgstr "Impossible de mettre à jour le document de conformité. Réessayez."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -4016,26 +4016,17 @@ msgstr "Impossible de mettre à jour les autorisations utilisateur. Réessayez."
 msgid "Failed to verify authenticator code."
 msgstr "Impossible de vérifier le code d'authentification."
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Failed to verify the audit chain. Please try again."
-msgstr "Impossible de vérifier la chaîne d'audit. Réessayez."
-
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Fair"
 msgstr "Correct"
 
+#: apps/console/src/routes/platform/PlatformSettings.tsx
+msgid "Fallback language"
+msgstr "Langue de repli"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "FastAPI integration"
 msgstr "Intégration FastAPI"
-
-#: apps/console/src/nav.tsx
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Feature flags"
-msgstr "Indicateurs de fonctionnalité"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Feature flags | Console | XID"
-msgstr "Indicateurs de fonctionnalité | Console | XID"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Federation and provisioning"
@@ -4065,6 +4056,10 @@ msgstr "Filtrer les événements jusqu'à la date"
 msgid "Filter navigation"
 msgstr "Filtrer la navigation"
 
+#: apps/console/src/components/PlatformOrganizationPicker.tsx
+msgid "Filter organizations by name or slug"
+msgstr "Filtrer les organisations par nom ou slug"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Filtering, sorting, and pagination"
 msgstr "Filtrage, tri et pagination"
@@ -4087,8 +4082,8 @@ msgstr "Trouver la connexion entreprise pour un domaine e-mail vérifié."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "First name"
 msgstr "Prénom"
 
@@ -4108,6 +4103,10 @@ msgstr "Flutter"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Font family"
 msgstr "Famille de police"
+
+#: apps/console/src/routes/org/OrgBranding.tsx
+msgid "Font names separated by commas"
+msgstr "Noms de polices séparés par des virgules"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "For a developer app on another origin, configure <0>mode: 'oidc'</0> with issuer, clientId, and an exact redirectUri. Use same-origin mode only when the application routes Core auth endpoints on its exact origin. XID has no publishable-key credential."
@@ -4129,7 +4128,8 @@ msgstr "Le SSO forcé masque les méthodes locales lorsqu'une connexion entrepri
 msgid "Force-refresh the JWKS cache"
 msgstr "Forcer le rafraîchissement du cache JWKS"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Forgot password?"
 msgstr "Mot de passe oublié ?"
 
@@ -4159,9 +4159,20 @@ msgid "Free"
 msgstr "Free"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "From"
 msgstr "Depuis"
+
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "From seq"
+msgstr "Depuis la séquence"
+
+#: apps/console/src/routes/org/OrgApiKeys.tsx
+msgid "Full access"
+msgstr "Accès complet"
+
+#: apps/console/src/routes/org/OrgApiKeys.tsx
+msgid "Full access to every resource in the tenant"
+msgstr "Accès complet à toutes les ressources du tenant"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Full SDK state snapshot subscribed from XidStore"
@@ -4229,14 +4240,6 @@ msgstr "GitHub Enterprise Cloud"
 msgid "GitHub social login is separate from GitHub Enterprise Cloud SAML or SCIM."
 msgstr "La connexion sociale GitHub est distincte de SAML ou SCIM pour GitHub Enterprise Cloud."
 
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Global defaults"
-msgstr "Valeurs par défaut globales"
-
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Global defaults for every feature flag, with organization overrides."
-msgstr "Valeurs par défaut globales pour chaque feature flag, avec surcharges par organisation."
-
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Global event stream"
 msgstr "Flux d'événements global"
@@ -4261,9 +4264,16 @@ msgstr "Go"
 msgid "Go server SDK for networkless JWT verification, request authentication, and webhook signature validation."
 msgstr "SDK serveur Go pour la vérification JWT sans réseau, l'authentificationdes requêtes et la validation des signatures webhook."
 
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/server/src/routes/create-organization/index.tsx
 #: apps/server/src/routes/not-found/NotFoundPage.tsx
-msgid "Go to home"
-msgstr "Retour à l'accueil"
+msgid "Go to account"
+msgstr "Accéder au compte"
+
+#: apps/server/src/routes/activate/index.tsx
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Go to your account"
+msgstr "Accéder à votre compte"
 
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Good"
@@ -4559,10 +4569,6 @@ msgstr "https://oauth2.googleapis.com/token"
 msgid "https://openidconnect.googleapis.com/v1/userinfo"
 msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 
-#: apps/console/src/routes/org/OrgSocialProviders.tsx
-msgid "https://xid.dev/auth/google/callback"
-msgstr "https://xid.dev/auth/google/callback"
-
 #: apps/site/src/lib/home-surface.ts
 msgid "https://xid.dev/sign-in"
 msgstr "https://xid.dev/sign-in"
@@ -4608,14 +4614,21 @@ msgstr "Règles d'identité"
 msgid "IdP certificates are stored on the connection. Browser-supplied KeyInfo is ignored."
 msgstr "Les certificats IdP sont stockés sur la connexion. Le KeyInfo fourni par le navigateur est ignoré."
 
+#: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "IdP entity ID"
 msgstr "ID d'entité IdP"
 
+#: apps/console/src/routes/org/OrgOutboundSso.tsx
+msgid "IdP metadata URL"
+msgstr "URL des métadonnées de l'IdP"
+
+#: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "IdP SLO URL"
 msgstr "URL SLO de l'IdP"
 
+#: apps/console/src/routes/org/OrgOutboundSso.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "IdP SSO URL"
 msgstr "URL SSO de l'IdP"
@@ -4684,7 +4697,6 @@ msgstr "Flux implicite, password grant, PKCE plain et redirections avec joker."
 msgid "In-process memory only. Tokens are lost on process exit. Use for testing or CI environments without a Secret Service."
 msgstr "Mémoire en cours de processus uniquement. Les jetons sont perdus à la findu processus. À utiliser pour les tests ou les environnements CI sansSecret Service."
 
-#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Inactive"
 msgstr "Inactif"
@@ -4730,11 +4742,11 @@ msgstr "Incident ouvert."
 msgid "Incident title"
 msgstr "Titre de l'incident"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Incorrect code. Check your authenticator app and try again."
 msgstr "Code incorrect. Vérifiez votre application d'authentification et réessayez."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Incorrect or expired code. Request a new one."
 msgstr "Code incorrect ou expiré. Demandez-en un nouveau."
 
@@ -4851,7 +4863,7 @@ msgstr "Configuration de l'intégration"
 msgid "Inter, system-ui, sans-serif"
 msgstr "Inter, system-ui, sans-serif"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Invalid or already-used backup code."
 msgstr "Code de secours invalide ou déjà utilisé."
 
@@ -4888,10 +4900,6 @@ msgstr "Inviter un membre"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Invite members, manage roles, and review membership status."
 msgstr "Invitez des membres, gérez les rôles et consultez le statut des adhésions."
-
-#: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Invite required"
-msgstr "Invitation requise"
 
 #. placeholder {0}: data?.email
 #: apps/server/src/routes/accept-invitation/index.tsx
@@ -4978,6 +4986,10 @@ msgstr "Rejoindre {0}"
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Join organization"
 msgstr "Rejoindre l'organisation"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "Join this organization with the account you are signed in to."
+msgstr "Rejoignez cette organisation avec le compte auquel vous êtes connecté."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JS and TS native SDKs (React Native, Expo) use a React provider plus hooks model: XidProvider, useSignIn, and useSignOut."
@@ -5107,9 +5119,12 @@ msgstr "Kotlin 1.9+ et AndroidX"
 msgid "Kotlin SDK for Android using Chrome Custom Tabs, PKCE S256 authorization code flow, and Keystore-backed EncryptedSharedPreferences token storage."
 msgstr "SDK Kotlin pour Android utilisant Chrome Custom Tabs, le flux de coded'autorisation PKCE S256 et le stockage des jetons viaEncryptedSharedPreferences reposant sur Keystore."
 
-#: apps/console/src/components/LanguageSwitcher.tsx
-#: apps/server/src/components/LanguageSwitcher.tsx
+#: apps/console/src/routes/org/OrgApiKeys.tsx
+msgid "Label"
+msgstr "Libellé"
+
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/LanguageSwitcher.tsx
 msgid "Language"
 msgstr "Langue"
 
@@ -5123,17 +5138,25 @@ msgstr "Dernière activité : {lastActive}"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Last name"
 msgstr "Nom"
 
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Last seen {lastSeenDate}"
-msgstr "Dernière activité {lastSeenDate}"
+#. placeholder {0}: row.original.lastReplayErrorCode
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "Last replay: {0}"
+msgstr "Dernier renvoi : {0}"
+
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "Last run"
+msgstr "Dernière exécution"
+
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "Last successful sync"
+msgstr "Dernière synchronisation réussie"
 
 #: apps/console/src/routes/org/OrgScim.tsx
-#: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Last sync"
 msgstr "Dernière synchronisation"
 
@@ -5165,13 +5188,13 @@ msgstr "LDAP direct bind, WS-Federation, coffre SWA, SSO par en-têtes et framew
 msgid "Leave blank for unconditional access. JSON must be an object; server validation remains authoritative."
 msgstr "Laissez vide pour un accès inconditionnel. JSON doit être un objet ; la validation du serveur fait autorité."
 
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "Leave blank to keep the current token. The token is never shown again after saving."
+msgstr "Laissez vide pour conserver le jeton actuel. Le jeton n'est plus jamais affiché après l'enregistrement."
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Leave blank to make this mapping unconditional."
 msgstr "Laissez vide pour rendre ce mappage inconditionnel."
-
-#: apps/console/src/routes/platform/PlatformCompliance.tsx
-msgid "Leave empty for all tenants"
-msgstr "Laisser vide pour tous les tenants"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Legacy protocol boundaries"
@@ -5192,10 +5215,6 @@ msgstr "Comme getAuth mais lève une réponse de redirection lorsque non authent
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Limit"
 msgstr "Limite"
-
-#: apps/server/src/routes/account/ConnectionsPage.tsx
-msgid "Link an account to enable social sign-in."
-msgstr "Liez un compte pour activer la connexion sociale."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Linked sign-on, native IWA, and Kerberos termination are not supported."
@@ -5273,6 +5292,10 @@ msgstr "Charger plus de projets supprimés"
 msgid "Load more deleted roles"
 msgstr "Charger plus de rôles supprimés"
 
+#: apps/console/src/routes/org/OrgDomains.tsx
+msgid "Load more domains"
+msgstr "Charger plus de domaines"
+
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Load more events"
@@ -5327,6 +5350,10 @@ msgstr "Charger plus de rôles"
 msgid "Load more user grants"
 msgstr "Charger plus de subventions utilisateur"
 
+#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+msgid "Load more users"
+msgstr "Charger plus d'utilisateurs"
+
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "Load more webhooks"
 msgstr "Charger plus de webhooks"
@@ -5364,10 +5391,6 @@ msgstr "Chargement des canaux de livraison"
 msgid "Loading device request"
 msgstr "Chargement de la demande de l'appareil"
 
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Loading feature flags"
-msgstr "Chargement des feature flags"
-
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Loading invitation"
 msgstr "Chargement de l'invitation"
@@ -5396,8 +5419,7 @@ msgstr "Chargement des fournisseurs sociaux"
 msgid "Loading verification methods."
 msgstr "Chargement des méthodes de vérification."
 
-#: apps/console/src/components/RequireAuth.tsx
-#: apps/server/src/components/RequireAuth.tsx
+#: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Loading your session"
 msgstr "Chargement de votre session"
 
@@ -5426,8 +5448,8 @@ msgstr "Une connexion est requise pour terminer cette demande."
 #: apps/console/src/routes/org/OrgOverviewMetrics.tsx
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 #: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
-msgid "Login success rate"
-msgstr "Taux de réussite des connexions"
+msgid "Login success rate (30 days)"
+msgstr "Taux de connexions réussies (30 jours)"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Logo"
@@ -5655,6 +5677,10 @@ msgstr "Middleware manuel (alternative)"
 msgid "Markdown is recommended for AI consumption"
 msgstr "Markdown est recommandé pour l'utilisation par l'IA"
 
+#: apps/console/src/routes/org/OrgAuditEvents.tsx
+msgid "Matches names that start with this text."
+msgstr "Correspond aux noms qui commencent par ce texte."
+
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 msgid "MAU"
 msgstr "MAU"
@@ -5756,7 +5782,7 @@ msgid "Minimal implementation"
 msgstr "Mise en œuvre minimale"
 
 #: apps/server/src/routes/forgot-password/index.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 msgid "Minimum 12 characters"
 msgstr "Minimum 12 caractères"
 
@@ -5771,6 +5797,10 @@ msgstr "Mineur"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Minor impact"
 msgstr "Impact mineur"
+
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "Missing"
+msgstr "Manquant"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "Missing request"
@@ -5845,18 +5875,19 @@ msgid "Multi-worker deployments share no JWKS cache across processes. A shared c
 msgstr "Les déploiements multi-worker ne partagent pas de cache JWKS entre lesprocessus. Un cache partagé (Redis) est une amélioration prévue."
 
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-msgid "Must be an HTTPS URL."
-msgstr "Doit être une URL HTTPS."
+msgid "Must be a public HTTPS URL."
+msgstr "Doit être une URL HTTPS publique."
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Name"
 msgstr "Nom"
 
@@ -6015,6 +6046,13 @@ msgstr "Aucune preuve de conformité enregistrée."
 msgid "No custom sign-in hostnames added yet."
 msgstr "Aucun nom d'hôte de connexion personnalisé n'a encore été ajouté."
 
+#: apps/console/src/routes/org/OrgOverview.tsx
+#: apps/console/src/routes/org/OrgOverviewMetrics.tsx
+#: apps/console/src/routes/platform/PlatformAdminOverview.tsx
+#: apps/console/src/routes/platform/PlatformOverviewMetrics.tsx
+msgid "No data"
+msgstr "Aucune donnée"
+
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 msgid "No dead letters found."
 msgstr "Aucun message non distribué trouvé."
@@ -6040,13 +6078,13 @@ msgstr "Pas de description"
 msgid "No domains added yet."
 msgstr "Aucun domaine ajouté."
 
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "No downstream API token is configured."
+msgstr "Aucun jeton d'API du service en aval n'est configuré."
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "No email address"
 msgstr "Aucune adresse e-mail"
-
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "No feature flags configured."
-msgstr "Aucun indicateur de fonctionnalité configuré."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No group"
@@ -6097,8 +6135,6 @@ msgstr "Aucun accès à une organisation"
 msgid "No organization selected"
 msgstr "Aucune organisation sélectionnée"
 
-#: apps/console/src/routes/org/OrgApiKeys.tsx
-#: apps/console/src/routes/org/OrgApplications.tsx
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
@@ -6110,7 +6146,6 @@ msgstr "Aucune organisation sélectionnée"
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
-#: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "No organization selected."
 msgstr "Aucune organisation sélectionnée."
 
@@ -6187,6 +6222,10 @@ msgstr "Aucun compte social connecté"
 msgid "No social providers configured."
 msgstr "Aucun fournisseur social configuré."
 
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "No tenant with this ID exists on this instance."
+msgstr "Aucun tenant avec cet ID n'existe sur cette instance."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No third-party dependencies — uses Apple system frameworks (AuthenticationServices, CryptoKit, Security)"
 msgstr "Aucune dépendance tierce — utilise les frameworks système Apple(AuthenticationServices, CryptoKit, Security)"
@@ -6194,10 +6233,6 @@ msgstr "Aucune dépendance tierce — utilise les frameworks système Apple(Auth
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No third-party dependencies — uses Apple system frameworks only"
 msgstr "Aucune dépendance tierce — utilise uniquement les frameworks système Apple"
-
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "No trusted devices"
-msgstr "Aucun appareil de confiance"
 
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "No two-factor methods configured"
@@ -6216,8 +6251,8 @@ msgid "No valid token present; reason field indicates cause"
 msgstr "Aucun jeton valide présent ; le champ reason indique la cause"
 
 #: apps/server/src/routes/mfa/index.tsx
-msgid "No verification method is available for this account."
-msgstr "Aucune méthode de vérification n'est disponible pour ce compte."
+msgid "No verification method is available for this account. Sign out and sign in with another method."
+msgstr "Aucune méthode de vérification n'est disponible pour ce compte. Déconnectez-vous et connectez-vous avec une autre méthode."
 
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "No verification token found. Please use the link from your email."
@@ -6240,6 +6275,10 @@ msgstr "Aucun"
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Not ready"
 msgstr "Non prêt"
+
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "Not run yet"
+msgstr "Pas encore exécuté"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Not yet implemented"
@@ -6290,8 +6329,8 @@ msgid "OAuth callback: validates state, exchanges code, sets session cookie"
 msgstr "Callback OAuth : valide l'état, échange le code, définit le cookie desession"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
-msgid "OAuth credentials are not ready. Hosted UI hides this provider until client ID, authorization endpoint, token endpoint, client secret reference, and Workers Secret are configured."
-msgstr "Les identifiants OAuth ne sont pas prêts. Hosted UI masque ce fournisseur tant que l'ID client, le point de terminaison d'autorisation, le point de terminaison de jeton, la référence du secret client et le secret Workers ne sont pas configurés."
+msgid "OAuth credentials are not ready. Hosted UI hides this provider until client ID, authorization endpoint, token endpoint, issuer with JWKS URI or a userinfo endpoint, client secret reference, and Workers Secret are configured."
+msgstr "Les identifiants OAuth ne sont pas prêts. Hosted UI masque ce fournisseur tant que l'ID client, le point de terminaison d'autorisation, le point de terminaison de jeton, l'issuer avec URI JWKS ou un point de terminaison userinfo, la référence au secret client et le Workers Secret ne sont pas configurés."
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "OAuth credentials are ready for Hosted UI."
@@ -6329,10 +6368,6 @@ msgstr "Objet"
 msgid "Observe only"
 msgstr "Observer seulement"
 
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "OFF"
-msgstr "Désactivé"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "offline_access is rejected until the SDK implements DPoP sender binding; access-token expiry requires reauthorization."
 msgstr "offline_access est rejeté tant que le SDK n'implémente pas la liaison d'expéditeur DPoP; l'expiration du jeton d'accès exige une nouvelle autorisation."
@@ -6357,6 +6392,10 @@ msgstr "Code d'autorisation OIDC"
 msgid "OIDC client ID"
 msgstr "ID client OIDC"
 
+#: apps/console/src/routes/org/OrgSso.tsx
+msgid "OIDC client secret"
+msgstr "Secret client OIDC"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OIDC discovery"
 msgstr "Découverte OIDC"
@@ -6374,8 +6413,12 @@ msgid "OIDC issuer; must match token iss exactly"
 msgstr "Émetteur OIDC ; doit correspondre exactement au iss du jeton"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-msgid "OIDC redirect URI (downstream admin)"
-msgstr "Redirect URI OIDC (admin en aval)"
+msgid "OIDC redirect URI for the downstream app"
+msgstr "URI de redirection OIDC de l'application en aval"
+
+#: apps/console/src/routes/org/SsoConnectionEndpoints.tsx
+msgid "OIDC redirect URIs"
+msgstr "URI de redirection OIDC"
 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "OK"
@@ -6391,10 +6434,6 @@ msgstr "Okta"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "On"
-msgstr "Activé"
-
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "ON"
 msgstr "Activé"
 
 #: apps/site/src/lib/site-shell-messages.ts
@@ -6421,11 +6460,15 @@ msgstr "Une plateforme unique pour l'identité"
 msgid "One tenant"
 msgstr "Un tenant"
 
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "One URI per line."
+msgstr "Un URI par ligne."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One-tap sign-in embed"
 msgstr "Intégration connexion en un clic"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "One-time code"
 msgstr "Code à usage unique"
 
@@ -6440,6 +6483,15 @@ msgstr "N'approuvez cette demande que si le code correspond a votre appareil."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
 msgstr "Seuls les talons de route et de métadonnées négatifs sont exposés. Les opérations non prises en charge renvoient explicitement <0>501 unsupported_feature</0> ; aucune prise en charge de protocole fonctionnel n'est revendiquée."
+
+#. placeholder {0}: result.latest_seq
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "Only part of the chain was verified in this request. The latest seq is {0}."
+msgstr "Seule une partie de la chaîne a été vérifiée dans cette requête. La dernière séquence est {0}."
+
+#: apps/console/src/components/PlatformOrganizationPicker.tsx
+msgid "Only the first matches are listed. Refine the search to narrow them."
+msgstr "Seuls les premiers résultats sont affichés. Affinez la recherche pour les réduire."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -6459,13 +6511,13 @@ msgstr "Ouvrir une fenêtre d'autorisation WebView2 intégrée avec PKCE S256.Re
 msgid "Open ASWebAuthenticationSession with PKCE S256 authorization URL. Returns when the browser session ends."
 msgstr "Ouvrir ASWebAuthenticationSession avec l'URL d'autorisation PKCE S256.Retourne lorsque la session du navigateur se termine."
 
-#: apps/server/src/routes/account/MfaSectionPanels.tsx
-msgid "Open authenticator URI"
-msgstr "Ouvrir l'URI d'authentification"
-
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Open Customer Portal"
 msgstr "Ouvrir Customer Portal"
+
+#: apps/server/src/routes/account/MfaSectionPanels.tsx
+msgid "Open in authenticator app"
+msgstr "Ouvrir dans l'application d'authentification"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Open incident"
@@ -6476,6 +6528,7 @@ msgid "Open navigation"
 msgstr "Ouvrir la navigation"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/console/src/routes/console/RequireActiveOrganization.tsx
 msgid "Open organization"
 msgstr "Ouvrir l'organisation"
 
@@ -6511,7 +6564,7 @@ msgstr "Ouvrez cette page depuis le lien d'autorisation CIBA qui inclut auth_req
 msgid "Open xdg-open browser, start loopback TCP listener on redirect_port, wait for the authorization code callback, exchange it, store tokens, and return a Session."
 msgstr "Ouvrir le navigateur via xdg-open, démarrer l'écouteur TCP loopback surredirect_port, attendre le callback de code d'autorisation, l'échanger,stocker les jetons et retourner une Session."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Open your authenticator app and enter the 6-digit code."
 msgstr "Ouvrez votre application d'authentification et saisissez le code à 6 chiffres."
 
@@ -6528,6 +6581,7 @@ msgid "openid, email, profile"
 msgstr "openid, email, profile"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/console/src/routes/console/RequireActiveOrganization.tsx
 msgid "Opening organization"
 msgstr "Ouverture de l'organisation"
 
@@ -6559,6 +6613,7 @@ msgstr "Opérations"
 msgid "Option"
 msgstr "Option"
 
+#: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Optional"
@@ -6567,6 +6622,10 @@ msgstr "Facultatif"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Optional network-fetching JWKS cache with configurable TTL (default 3600 s); use only when jwtKey is not pre-loaded"
 msgstr "Cache JWKS avec récupération réseau optionnelle et TTL configurable (défaut 3600 s) ; utiliser uniquement si jwtKey n'est pas préchargé"
+
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "Optional. One URI per line."
+msgstr "Facultatif. Un URI par ligne."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Options for authenticateRequest: jwtKey, issuer, audience, authorizedParties, clockToleranceSec, now, jwtCookieName, sessionTokenExchange"
@@ -6608,6 +6667,7 @@ msgstr "org_..."
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Organization"
@@ -6621,6 +6681,10 @@ msgstr "Interface utilisateur de gestion des organisations et des instances"
 msgid "Organization context is not populated from stored tokens yet."
 msgstr "Le contexte d'organisation n'est pas encore alimenté depuis les jetonsstockés."
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Organization creation unavailable"
+msgstr "Création d'organisation indisponible"
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Organization email domain"
 msgstr "Domaine e-mail de l'organisation"
@@ -6628,6 +6692,11 @@ msgstr "Domaine e-mail de l'organisation"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organization hierarchy"
 msgstr "Hiérarchie de l'organisation"
+
+#: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformPlans.tsx
+msgid "Organization ID"
+msgstr "ID de l'organisation"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -6721,12 +6790,12 @@ msgid "Overdue"
 msgstr "En retard"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
-msgid "Override the font family and border radius used throughout the Hosted UI for this organization."
-msgstr "Remplace la police et le rayon de bordure utilisés dans toute l'interface Hosted UI de cette organisation."
+msgid "Override the font family and border radius used on this organization's sign-in and account pages. The font must already be available on the visitor's device."
+msgstr "Remplace la famille de police et le rayon de bordure des pages de connexion et de compte de cette organisation. La police doit déjà être disponible sur l'appareil du visiteur."
 
 #: apps/console/src/routes/org/OrgBranding.tsx
-msgid "Override the organization's primary, background, and accent colors for the Hosted UI. Accepts CSS hex values."
-msgstr "Remplace les couleurs principale, d'arrière-plan et d'accent de l'organisation pour la Hosted UI. Accepte les valeurs hexadécimales CSS."
+msgid "Override the organization's primary, background, and accent colors on its sign-in and account pages. Accepts six-digit hex values. The background color applies to the light theme only. Clear a field to return to the default."
+msgstr "Remplace les couleurs principale, d'arrière-plan et d'accent des pages de connexion et de compte de cette organisation. Accepte des valeurs hexadécimales à six chiffres. La couleur d'arrière-plan ne s'applique qu'au thème clair. Videz un champ pour revenir à la valeur par défaut."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Override the storage directory with <0>storageDir</0> in <1>XidElectronMainOptions</1>."
@@ -6901,15 +6970,11 @@ msgstr "Réenregistrement de la clé d'accès requis"
 msgid "Passkey sign-in is primary AAL2 authentication. Password or OTP sessions can complete MFA through <0>/auth/mfa/passkey/*</0> with user verification required."
 msgstr "La connexion par clé d’accès est l’authentification AAL2 principale. Les sessions mot de passe ou OTP peuvent terminer la MFA via <0>/auth/mfa/passkey/*</0> avec vérification utilisateur requise."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 msgid "Passkey verification"
 msgstr "Vérification de clé d’accès"
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Passkey verification failed."
-msgstr "Échec de la vérification de la clé d’accès."
-
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 msgid "Passkey verification failed. Try another method or try again."
 msgstr "Échec de la vérification de la clé d’accès. Essayez une autre méthode ou réessayez."
 
@@ -6921,8 +6986,16 @@ msgstr "clés d'accès"
 msgid "Passkeys are not supported in this browser. Please use another sign-in method."
 msgstr "Les clés d'accès ne sont pas prises en charge par ce navigateur. Utilisez une autre méthode de connexion."
 
+#: apps/server/src/routes/account/PasskeySection.tsx
+msgid "Passkeys created on a different address do not work here. Add a passkey for this address to keep signing in with a passkey."
+msgstr "Les clés d'accès créées sur une autre adresse ne fonctionnent pas ici. Ajoutez une clé d'accès pour cette adresse afin de continuer à vous connecter avec une clé d'accès."
+
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
+msgid "Passkeys created on a different address do not work here. Sign in another way, then add a passkey for this address from your account security page."
+msgstr "Les clés d'accès créées sur une autre adresse ne fonctionnent pas ici. Connectez-vous autrement, puis ajoutez une clé d'accès pour cette adresse depuis la page de sécurité de votre compte."
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password"
@@ -6987,6 +7060,10 @@ msgstr "Chemin"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Payload structure"
 msgstr "Structure du payload"
+
+#: apps/console/src/routes/platform/PlatformPlans.tsx
+msgid "Payment completed. The plan updates after Stripe confirms the subscription, which can take a minute. Reload this page if it does not change."
+msgstr "Paiement effectué. Le plan est mis à jour après la confirmation de l'abonnement par Stripe, ce qui peut prendre une minute. Rechargez cette page s'il ne change pas."
 
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
@@ -7062,8 +7139,8 @@ msgid "sdk.personalAccount"
 msgstr "Compte personnel"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Phone number"
 msgstr "Numéro de téléphone"
 
@@ -7154,6 +7231,7 @@ msgid "Planned"
 msgstr "Planifié"
 
 #: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Plans and quotas"
@@ -7168,9 +7246,14 @@ msgid "Plans are accounting and support labels. They never disable authenticatio
 msgstr "Les plans sont des libellés de facturation et de support. Ils ne désactivent jamais l'authentification, l'émission de jetons ni les protocoles configurés dans un déploiement auto-hébergé."
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Platform"
 msgstr "Plateforme"
+
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "Platform (instance-level events)"
+msgstr "Plateforme (événements au niveau de l'instance)"
 
 #: apps/console/src/components/RouteMetadata.tsx
 msgid "Platform compliance | Console | XID"
@@ -7235,6 +7318,10 @@ msgstr "Configuration du plugin"
 #: apps/site/src/lib/home-surface.ts
 msgid "POST /token"
 msgstr "POST /token"
+
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "Post-logout redirect URIs"
+msgstr "URI de redirection après déconnexion"
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Preferences"
@@ -7488,8 +7575,8 @@ msgid "Protocols and developer experience"
 msgstr "Protocoles et expérience des développeurs"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
-msgid "Provide separate light and dark logo URLs. Both are hosted externally and referenced by URL."
-msgstr "Fournissez des URL de logo distinctes pour les modes clair et sombre. Les deux sont hébergées en externe et référencées par URL."
+msgid "Provide separate light and dark logo URLs. Both must be public HTTPS URLs; the light logo is also shown on the consent page."
+msgstr "Indiquez des URL de logo distinctes pour le thème clair et le thème sombre. Les deux doivent être des URL HTTPS publiques ; le logo clair apparaît aussi sur la page de consentement."
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
@@ -7690,6 +7777,10 @@ msgstr "Requêtes d'autorisation poussées avec des valeurs request_uri à usage
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Python"
 msgstr "Python"
+
+#: apps/server/src/routes/account/MfaSectionPanels.tsx
+msgid "QR code for adding this account to an authenticator app"
+msgstr "QR code pour ajouter ce compte à une application d'authentification"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
@@ -7893,30 +7984,30 @@ msgstr "Flux recommandé"
 msgid "Recommended for all SCIM clients."
 msgstr "Recommandé pour tous les clients SCIM."
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Recompute the hash chain for one tenant over an optional sequence range."
-msgstr "Recalculez la chaîne de hachage d'un tenant sur une plage de séquences facultative."
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "Recompute the hash chain for one tenant over an optional sequence range. Large chains are verified in segments."
+msgstr "Recalcule la chaîne de hachage d'un tenant sur une plage de séquences facultative. Les longues chaînes sont vérifiées par segments."
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-msgid "Records checked"
-msgstr "Enregistrements vérifiés"
+#: apps/console/src/routes/platform/PlatformSettings.tsx
+msgid "Recorded at deployment as metadata. It does not move or restrict where data is stored, so it cannot be changed here."
+msgstr "Enregistré comme métadonnée lors du déploiement. Il ne déplace ni ne restreint l'emplacement de stockage des données et ne peut donc pas être modifié ici."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect callbacks are claimed app links, universal links, custom schemes, or platform equivalent callback URLs."
 msgstr "Les callbacks de redirection sont des liens d'application revendiqués, des liens universels, des schémas personnalisés ou des URL de callback équivalentes sur la plateforme."
 
-#: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Redirect URI"
-msgstr "URI de redirection"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect URI matching is exact. Wildcards are not accepted."
 msgstr "La correspondance des URI de redirection est exacte. Les caractères génériques ne sont pas acceptés."
 
+#: apps/console/src/routes/org/ApplicationEditor.tsx
 #: apps/console/src/routes/org/OrgApplications.tsx
-#: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Redirect URIs"
 msgstr "URI de redirection"
+
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "Redirect URIs are matched exactly. At least one redirect URI is required for the authorization code flow."
+msgstr "Les URI de redirection doivent correspondre exactement. Le flux du code d'autorisation exige au moins un URI de redirection."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirect users to the unified Hosted Auth flow."
@@ -7941,6 +8032,10 @@ msgstr "Redirige quand l'utilisateur ne dispose pas de la permission spécifiée
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Ref wrapping discriminated union on isLoaded / isSignedIn / user"
 msgstr "Ref encapsulant une union discriminante sur isLoaded / isSignedIn / user"
+
+#: apps/console/src/routes/org/OrgOutboundSso.tsx
+msgid "Reference value from the template. Replace the placeholders and register it in the downstream SaaS OIDC app; XID does not store it. OIDC client registration uses the OAuth application catalog."
+msgstr "Valeur de référence issue du modèle. Remplacez les espaces réservés et enregistrez-la dans l'application OIDC du SaaS en aval ; XID ne la stocke pas. L'enregistrement des clients OIDC passe par le catalogue d'applications OAuth."
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Refresh status"
@@ -7980,8 +8075,8 @@ msgid "Register a downstream SAML service provider from a preset template and ch
 msgstr "Enregistrez un fournisseur de services SAML en aval à partir d'un modèle prédéfini et choisissez quels membres peuvent le lancer."
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
-msgid "Register a downstream SCIM API and choose which members are pushed."
-msgstr "Enregistrez une API SCIM en aval et choisissez quels membres sont poussés."
+msgid "Register a downstream SCIM API and choose which members are pushed. A sync runs after members are removed or deactivated and at least once a day; members no longer in the organization are deactivated downstream."
+msgstr "Enregistrez une API SCIM en aval et choisissez les membres à envoyer. Une synchronisation s'exécute après le retrait ou la désactivation de membres, et au moins une fois par jour ; les membres qui ne font plus partie de l'organisation sont désactivés en aval."
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Register a versioned compliance artifact and control which tenants can download it."
@@ -7995,13 +8090,17 @@ msgstr "Enregistrer une application"
 msgid "Register document"
 msgstr "Enregistrer le document"
 
+#: apps/console/src/routes/org/SsoConnectionEndpoints.tsx
+msgid "Register every URL in the identity provider app. Users return to the host they started signing in from."
+msgstr "Enregistrez chaque URL dans l'application du fournisseur d'identité. Les utilisateurs reviennent sur l'hôte depuis lequel ils ont commencé à se connecter."
+
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "Register evidence"
 msgstr "Enregistrer les preuves"
 
 #: apps/console/src/routes/org/OrgApplications.tsx
-msgid "Register OAuth 2.0 clients and manage their credentials."
-msgstr "Enregistrez des clients OAuth 2.0 et gérez leurs identifiants."
+msgid "Register OAuth 2.0 clients and manage their credentials. Applications are shared by every organization in the tenant."
+msgstr "Enregistrez des clients OAuth 2.0 et gérez leurs identifiants. Les applications sont partagées par toutes les organisations du tenant."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Register OAuth clients, redirect URIs, grants, token policy, and secrets."
@@ -8039,7 +8138,7 @@ msgstr "Relation avec sdk/ios"
 msgid "Release underlying HTTP client resources."
 msgstr "Libérer les ressources du client HTTP sous-jacent."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 msgid "Remember me"
 msgstr "Se souvenir de moi"
 
@@ -8058,7 +8157,6 @@ msgstr "Assistants serveur de loader et action Remix, stockage de session parcoo
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
-#: apps/server/src/routes/account/DevicesPage.tsx
 #: apps/server/src/routes/account/MfaSection.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Remove"
@@ -8100,14 +8198,6 @@ msgstr "Supprimer le fournisseur ?"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Remove role permission mapping?"
 msgstr "Supprimer le mappage des autorisations de rôle ?"
-
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Remove trust for {displayName}"
-msgstr "Supprimer la confiance pour {displayName}"
-
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Remove trusted device?"
-msgstr "Supprimer l'appareil de confiance ?"
 
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Remove two-factor method?"
@@ -8194,6 +8284,11 @@ msgstr "Renvoyé"
 msgid "Replaying"
 msgstr "Renvoi en cours"
 
+#. placeholder {0}: row.original.replayCount
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "Replays: {0}"
+msgstr "Renvois : {0}"
+
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Request a new reset link"
 msgstr "Demander un nouveau lien de réinitialisation"
@@ -8268,6 +8363,10 @@ msgstr "Requis pour les requêtes POST, PUT et PATCH."
 msgid "Required scope"
 msgstr "Portée requise"
 
+#: apps/console/src/routes/org/OrgSso.tsx
+msgid "Required when the identity provider registers XID as a confidential client."
+msgstr "Obligatoire lorsque le fournisseur d'identité enregistre XID comme client confidentiel."
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Required with an SLO URL. Paste PEM blocks or separate base64 DER certificates with a blank line."
 msgstr "Obligatoire avec une URL SLO. Collez des blocs PEM ou séparez les certificats DER encodés en base64 par une ligne vide."
@@ -8284,7 +8383,7 @@ msgstr "Prérequis"
 msgid "Requires a PSR-7 request object for <0>authenticateRequest</0> and <1>verifyWebhook</1>. Convert framework-native requests with a PSR-7 bridge if needed."
 msgstr "Nécessite un objet de requête PSR-7 pour <0>authenticateRequest</0> et<1>verifyWebhook</1>. Convertissez les requêtes natives du framework avecun pont PSR-7 si nécessaire."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Resend code"
 msgstr "Renvoyer le code"
@@ -8294,7 +8393,7 @@ msgid "Resend invitation email"
 msgstr "Renvoyer l'e-mail d'invitation"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
-#: apps/server/src/routes/verify-email/index.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "Renvoyer l'e-mail de vérification"
@@ -8310,15 +8409,6 @@ msgstr "Réinitialiser le mot de passe | | XID"
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Reset your password"
 msgstr "Réinitialiser votre mot de passe"
-
-#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
-msgid "Resolve incident"
-msgstr "Résoudre l'incident"
-
-#. placeholder {0}: incident.title
-#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
-msgid "Resolve incident {0}"
-msgstr "Résoudre l'incident {0}"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 #: apps/site/src/lib/site-shell-messages.ts
@@ -8338,8 +8428,8 @@ msgid "Resource access requested"
 msgstr "Acces aux ressources demande"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>PUT</2> and <3>PATCH</3> require an <4>If-Match</4> header matching the current version; missing headers return <5>428</5> and mismatches return <6>412</6>."
-msgstr "Les réponses GET de ressource incluent <0>ETag: W/\"<meta.version>\"</0> depuis <1>meta.version</1>. <2>PUT</2> et <3>PATCH</3> exigent un en-tête <4>If-Match</4> correspondant à la version actuelle ; absence → <5>428</5>, non-correspondance → <6>412</6>."
+msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
+msgstr "Les réponses GET des ressources incluent <0>ETag: W/\"<meta.version>\"</0> issu de <1>meta.version</1>. <2>If-Match</2> est facultatif pour <3>PUT</3>, <4>PATCH</4> et <5>DELETE</5> ; s'il est présent, il doit correspondre à la version actuelle, et une différence ou une écriture concurrente renvoie <6>412</6>."
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Resource quotas"
@@ -8401,6 +8491,10 @@ msgstr "Retiré"
 msgid "Retries and dead letters"
 msgstr "Relances et dead letters"
 
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "Retrying"
+msgstr "Nouvelle tentative en cours"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Return only schemas, id, and the requested SCIM attributes."
 msgstr "Renvoyer uniquement schemas, id et les attributs SCIM demandés."
@@ -8453,6 +8547,10 @@ msgstr "Type de retour de XidStore.subscribe"
 msgid "Return up to 100 resources from the first result."
 msgstr "Renvoyer jusqu'à 100 ressources à partir du premier résultat."
 
+#: packages/i18n/src/messages.ts
+msgid "Returning you to the application."
+msgstr "Retour à l'application."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Returns"
 msgstr "Retourne"
@@ -8486,8 +8584,8 @@ msgid "Review compliance documents and data-processing posture for this organiza
 msgstr "Consultez les documents de conformité et la posture de traitement des données de cette organisation."
 
 #: apps/console/src/routes/org/OrgCompliance.tsx
-msgid "Review published compliance evidence, verify its checksum, and retain an immutable DPA acceptance record for this organization."
-msgstr "Examinez les preuves de conformité publiées, vérifiez leur somme de contrôle et conservez un enregistrement d'acceptation DPA immuable pour cette organisation."
+msgid "Review published compliance evidence, verify its checksum, and retain an immutable DPA acceptance record for the tenant."
+msgstr "Consultez les preuves de conformité publiées, vérifiez leur somme de contrôle et conservez un enregistrement immuable de l'acceptation du DPA pour le tenant."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Review the read-only event log filtered by type and time range."
@@ -8518,7 +8616,7 @@ msgstr "Révoquer l'affectation"
 msgid "Revoke grant"
 msgstr "Révoquer la subvention"
 
-#. placeholder {0}: row.original.userId
+#. placeholder {0}: managerLabel(row.original)
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Revoke instance manager {0}"
 msgstr "Révoquer le gestionnaire d'instance {0}"
@@ -8740,6 +8838,7 @@ msgid "Save"
 msgstr "Enregistrer"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
+#: apps/console/src/routes/org/ApplicationEditor.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgBranding.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
@@ -8754,6 +8853,10 @@ msgstr "Enregistrer"
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Save changes"
 msgstr "Enregistrer les modifications"
+
+#: apps/server/src/routes/account/MfaSectionPanels.tsx
+msgid "Scan this QR code with your authenticator app, then enter the 6-digit code."
+msgstr "Scannez ce QR code avec votre application d'authentification, puis saisissez le code à 6 chiffres."
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Schedule account deletion?"
@@ -8783,6 +8886,10 @@ msgstr "Contrat de point de terminaison SCIM 2.0 pour provisionner des utilisate
 msgid "SCIM API reference"
 msgstr "Référence de l'API SCIM"
 
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "SCIM base URL"
+msgstr "URL de base SCIM"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SCIM calls use a directory bearer token created from the Management API. XID stores only a hash of the token and returns the plaintext token once when it is created or rotated."
 msgstr "Les appels SCIM utilisent un jeton bearer d'annuaire créé depuis l'API de gestion. XID stocke uniquement un hachage du jeton et renvoie le jeton en clair une seule fois lorsqu'il est créé ou renouvelé."
@@ -8804,8 +8911,8 @@ msgid "SCIM remains the recommended source for deprovisioning and group membersh
 msgstr "SCIM reste la source recommandée pour le désapprovisionnement et le cycle de vie des appartenances aux groupes."
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
-msgid "SCIM sync queued."
-msgstr "La synchronisation SCIM est en file d'attente."
+msgid "SCIM sync queued. The Last run column shows the result."
+msgstr "Synchronisation SCIM mise en file d'attente. La colonne Dernière exécution affiche le résultat."
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "SCIM target created."
@@ -8840,6 +8947,7 @@ msgstr "Portée ID"
 msgid "Scope type"
 msgstr "Type de portée"
 
+#: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Scopes"
 msgstr "Portées"
@@ -9001,13 +9109,17 @@ msgstr "Sélectionnez d'abord un projet actif."
 msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
 msgstr "Sélectionnez une organisation pour voir et modifier son plan et ses quotas. <0>Parcourir les organisations de la plateforme</0>"
 
+#: apps/console/src/routes/org/OrgApiKeys.tsx
+msgid "Select at least one scope."
+msgstr "Sélectionnez au moins une portée."
+
 #: apps/console/src/routes/org/OrgApplications.tsx
 msgid "Select client type"
 msgstr "Sélectionner le type de client"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-msgid "Select key environment"
-msgstr "Sélectionner l'environnement de clé"
+msgid "Select key label"
+msgstr "Sélectionner le libellé de la clé"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -9015,6 +9127,7 @@ msgid "sdk.selectOrganization"
 msgstr "Sélectionner une organisation"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/console/src/components/PlatformOrganizationPicker.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/server/src/routes/select-organization/index.tsx
@@ -9036,6 +9149,10 @@ msgstr "Sélectionnez un rôle"
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Select role for new member"
 msgstr "Sélectionner le rôle du nouveau membre"
+
+#: apps/console/src/routes/org/OrgWebhooks.tsx
+msgid "Select the events to deliver. Leave all unchecked to receive every event."
+msgstr "Sélectionnez les événements à envoyer. Laissez tout décoché pour recevoir tous les événements."
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Selected"
@@ -9074,11 +9191,15 @@ msgstr "Envoyez un lien de vérification à {email}. La console reste en lecture
 msgid "Send a verification link to your email. The Console stays read-only until you use it."
 msgstr "Envoyez un lien de vérification à votre adresse e-mail. La console reste en lecture seule jusqu'à ce que vous utilisiez ce lien."
 
+#: apps/server/src/routes/account/GuestEmailConversionSection.tsx
+msgid "Send code"
+msgstr "Envoyer le code"
+
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Send code via email"
 msgstr "Envoyer le code par e-mail"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Send code via SMS"
 msgstr "Envoyer le code par SMS"
@@ -9091,7 +9212,7 @@ msgstr "Envoyer le code via WhatsApp"
 msgid "Send invitation"
 msgstr "Envoyer l'invitation"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 msgid "Send magic link"
 msgstr "Envoyer le lien magique"
 
@@ -9106,6 +9227,10 @@ msgstr "Envoyer l'e-mail de vérification"
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Sender"
 msgstr "Expéditeur"
+
+#: apps/console/src/routes/org/ApplicationEditor.tsx
+msgid "Separate scopes with spaces."
+msgstr "Séparez les portées par des espaces."
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
@@ -9237,6 +9362,14 @@ msgstr "Configurer la connexion"
 msgid "Set up sign-in method"
 msgstr "Configurer une méthode de connexion"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Set your password"
+msgstr "Définir votre mot de passe"
+
+#: apps/server/src/routes/account/ProfilePage.tsx
+msgid "Sets the language of this account portal and the locale shared with apps you sign in to."
+msgstr "Définit la langue de ce portail de compte et les paramètres régionaux partagés avec les applications auxquelles vous vous connectez."
+
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
@@ -9305,8 +9438,11 @@ msgstr "Affiché dans l'interface à la place de l'e-mail lorsqu'il est défini.
 msgid "sdk.signIn"
 msgstr "Se connecter"
 
+#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/activate/index.tsx
 #: apps/server/src/routes/not-found/NotFoundPage.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
@@ -9316,6 +9452,10 @@ msgstr "Se connecter"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Sign in | XID"
 msgstr "Connexion | | XID"
+
+#: packages/i18n/src/messages.ts
+msgid "Sign in again"
+msgstr "Se reconnecter"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Sign in and sign out"
@@ -9334,17 +9474,21 @@ msgstr "Connectez-vous avec une clé d'accès pour une expérience plus rapide e
 msgid "Sign in with Apple"
 msgstr "Se connecter avec Apple"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 msgid "Sign in with magic link"
 msgstr "Se connecter avec un lien magique"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 msgid "Sign in with passkey"
 msgstr "Se connecter avec une clé d'accès"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 msgid "Sign in with password"
 msgstr "Se connecter avec un mot de passe"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Sign in with the account that this application belongs to."
+msgstr "Connectez-vous avec le compte auquel appartient cette application."
 
 #: packages/i18n/src/messages.ts
 msgid "Sign in with the email address that received this invitation."
@@ -9359,6 +9503,7 @@ msgstr "Se déconnecter"
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 #: apps/server/src/routes/account/AccountLayout.tsx
 #: apps/server/src/routes/account/SessionsPage.tsx
+#: packages/i18n/src/messages.ts
 msgid "Sign out"
 msgstr "Se déconnecter"
 
@@ -9393,7 +9538,7 @@ msgstr "Déconnecter cette session ?"
 msgid "sdk.signUp"
 msgstr "S'inscrire"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign up"
 msgstr "S'inscrire"
@@ -9434,6 +9579,10 @@ msgstr "Identifiants de connexion, flux hébergé, méthodes et surcharges de du
 #: apps/server/src/routes/sign-in/SignInTabs.tsx
 msgid "Sign-in method"
 msgstr "Méthode de connexion"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Sign-in was cancelled. Choose a sign-in method to try again."
+msgstr "La connexion a été annulée. Choisissez un mode de connexion pour réessayer."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Signature"
@@ -9492,6 +9641,10 @@ msgstr "Aller au contenu"
 msgid "Slack"
 msgstr "Slack"
 
+#: apps/console/src/routes/org/SsoConnectionEndpoints.tsx
+msgid "SLO URL"
+msgstr "URL SLO"
+
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "SLO URL (optional)"
 msgstr "URL SLO (facultatif)"
@@ -9500,7 +9653,7 @@ msgstr "URL SLO (facultatif)"
 msgid "Slot-based role and permission gate with default and fallback slots"
 msgstr "Portail de rôle et de permission basé sur les slots avec slots par défautet de secours"
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "SMS code"
 msgstr "Code SMS"
 
@@ -9522,6 +9675,7 @@ msgid "SMS provider"
 msgstr "Fournisseur SMS"
 
 #: apps/server/src/routes/account/MfaSection.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 #: apps/server/src/routes/mfa/index.tsx
 msgid "SMS verification"
 msgstr "Vérification SMS"
@@ -9586,8 +9740,13 @@ msgid "Source queue"
 msgstr "File d'attente source"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
+#: apps/console/src/routes/org/SsoConnectionEndpoints.tsx
 msgid "SP entity ID"
 msgstr "SP entity ID"
+
+#: apps/console/src/routes/org/SsoConnectionEndpoints.tsx
+msgid "SP metadata URL"
+msgstr "URL des métadonnées du SP"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SP metadata XML for the configured connection."
@@ -9776,6 +9935,10 @@ msgstr "chaîne"
 msgid "string constant"
 msgstr "constante string"
 
+#: apps/console/src/routes/platform/PlatformPlans.tsx
+msgid "Stripe Checkout was canceled. The plan was not changed."
+msgstr "Stripe Checkout a été annulé. Le plan n'a pas été modifié."
+
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Strong"
 msgstr "Fort"
@@ -9815,6 +9978,10 @@ msgstr "Caractère générique d'abonnement pour tous les événements utilisate
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Subscription wildcard for every implemented event."
 msgstr "Caractère générique d'abonnement pour chaque événement implémenté."
+
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "Succeeded"
+msgstr "Réussi"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Success"
@@ -9895,6 +10062,7 @@ msgid "Swift SDK for macOS using ASWebAuthenticationSession, PKCE S256 authoriza
 msgstr "SDK Swift pour macOS utilisant ASWebAuthenticationSession, le flux de coded'autorisation PKCE S256 et le stockage des jetons dans le Keychain.Partage le schéma d'implémentation avec sdk/ios."
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/server/src/routes/account/AccountLayout.tsx
 msgid "Switch organization"
 msgstr "Changer d'organisation"
 
@@ -9974,12 +10142,16 @@ msgstr "SDK bureau Tauri v2 avec flux PKCE S256, gestionnaire de callbackdeeplin
 msgid "TauriSession or null for a current unexpired local session; expired state is cleared"
 msgstr "TauriSession ou null pour une session locale actuelle non expirée; l'état expiré est effacé"
 
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
-#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
-msgid "Tenant ID"
-msgstr "ID du tenant"
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "Tenant"
+msgstr "Tenant"
+
+#: apps/console/src/nav.tsx
+msgid "Tenant settings"
+msgstr "Paramètres du tenant"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "test"
@@ -9995,8 +10167,8 @@ msgid "The announcement {0} will be permanently deleted."
 msgstr "L'annonce {0} sera supprimée définitivement."
 
 #: apps/server/src/routes/ciba-activation/index.tsx
-msgid "The application can continue sign-in."
-msgstr "L'application peut poursuivre la connexion."
+msgid "The application can continue sign-in. You can close this page."
+msgstr "L'application peut poursuivre la connexion. Vous pouvez fermer cette page."
 
 #: packages/i18n/src/messages.ts
 msgid "The assertion recipient does not match."
@@ -10019,8 +10191,12 @@ msgid "The authorization server does not support this grant type."
 msgstr "Le serveur d'autorisation ne prend pas en charge ce type d'octroi."
 
 #: apps/server/src/routes/ciba-activation/index.tsx
-msgid "The backchannel request was denied."
-msgstr "La demande backchannel a été refusée."
+msgid "The backchannel request was denied. You can close this page."
+msgstr "La requête backchannel a été refusée. Vous pouvez fermer cette page."
+
+#: apps/console/src/routes/org/OrgScimTargets.tsx
+msgid "The bearer token issued by the downstream app. It is stored encrypted and never shown again."
+msgstr "Le jeton bearer émis par l'application en aval. Il est stocké chiffré et n'est plus jamais affiché."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The branding schema accepts only the seven fields listed above; custom CSS is not accepted."
@@ -10043,10 +10219,6 @@ msgstr "La condition doit être un objet JSON."
 msgid "The cryptographic signature could not be verified."
 msgstr "La signature cryptographique n'a pas pu être vérifiée."
 
-#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
-msgid "The dead letter was replayed or had already been replayed."
-msgstr "Le message non distribué a été renvoyé ou l'avait déjà été."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The default storage encrypts tokens with DPAPI (CurrentUser scope) and persists them in IsolatedStorage. Implement <0>ITokenStorage</0> to use Windows Hello or Credential Manager:"
 msgstr "Le stockage par défaut chiffre les jetons avec DPAPI (portée CurrentUser)et les conserve dans IsolatedStorage. Implémentez <0>ITokenStorage</0>pour utiliser Windows Hello ou le Gestionnaire d'informationsd'identification :"
@@ -10056,20 +10228,28 @@ msgid "The default storage uses Keychain with <0>kSecAttrAccessibleAfterFirstUnl
 msgstr "Le stockage par défaut utilise le Keychain avec<0>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</0> — les jetons nesont pas synchronisés sur le Keychain iCloud. Implémentez le protocole<1>TokenStorageAdapter</1> pour utiliser une politique Keychaind'entreprise :"
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "The device can continue sign-in."
-msgstr "L'appareil peut continuer la connexion."
+msgid "The device can continue sign-in. You can close this page and return to your device."
+msgstr "L'appareil peut poursuivre la connexion. Vous pouvez fermer cette page et revenir à votre appareil."
 
 #: packages/i18n/src/messages.ts
 msgid "The device code or token has expired."
 msgstr "Le code appareil ou le jeton a expiré."
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "The device request was denied."
-msgstr "La demande de l'appareil a ete refusee."
+msgid "The device request was denied. You can close this page."
+msgstr "La requête de l'appareil a été refusée. Vous pouvez fermer cette page."
 
 #: packages/i18n/src/messages.ts
 msgid "The document schema is invalid."
 msgstr "Le schéma du document est invalide."
+
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "The downstream service answered with HTTP {status}."
+msgstr "Le service en aval a répondu avec HTTP {status}."
+
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "The downstream service could not be reached."
+msgstr "Le service en aval est injoignable."
 
 #: packages/i18n/src/messages.ts
 msgid "The DPoP proof is invalid or malformed."
@@ -10090,6 +10270,10 @@ msgstr "Le message chiffré {0} sera rejoué vers {1}."
 msgid "The endpoint {0} will stop receiving event deliveries immediately."
 msgstr "Le point de terminaison {0} cessera de recevoir des livraisons d'événements immédiatement."
 
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "The first record does not start from the genesis hash."
+msgstr "Le premier enregistrement ne commence pas par le hachage de genèse."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The following are on the public roadmap but are not exported from the current package. Do not assume availability in this version."
 msgstr "Les éléments suivants figurent sur la feuille de route publique mais ne sont pas exportés par le package actuel. Ne supposez pas leur disponibilité dans cette version."
@@ -10099,8 +10283,8 @@ msgid "the full documentation index"
 msgstr "l'index complet de la documentation"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
-msgid "The full key is shown once at creation. Live keys have full access; test keys are sandbox-only."
-msgstr "La clé complète n'est affichée qu'une seule fois à la création. Les clés live ont un accès complet ; les clés test sont limitées au bac à sable."
+msgid "The full key is shown once at creation. Live and test keys have the same permissions; the label only marks the intended use. Grant only the scopes the integration needs."
+msgstr "La clé complète n'est affichée qu'une fois, à la création. Les clés live et test ont les mêmes autorisations ; le libellé indique seulement l'usage prévu. N'accordez que les portées dont l'intégration a besoin."
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "The HTML status page reads the current incident ledger from the public Core endpoint."
@@ -10109,6 +10293,14 @@ msgstr "La page d'état HTML lit le registre des incidents actuel à partir du p
 #: packages/i18n/src/messages.ts
 msgid "The identity provider returned an error status."
 msgstr "Le fournisseur d'identité a renvoyé un statut d'erreur."
+
+#: apps/console/src/routes/platform/PlatformUsers.tsx
+msgid "The impersonation link expired or was already used. Start a new impersonation session from this page."
+msgstr "Le lien pour agir en tant qu'autre utilisateur a expiré ou a déjà été utilisé. Démarrez une nouvelle session en tant qu'autre utilisateur depuis cette page."
+
+#: apps/console/src/components/layout/ConsoleLayout.tsx
+msgid "The impersonation session could not be ended. Try again."
+msgstr "Impossible de terminer la session en tant qu'autre utilisateur. Réessayez."
 
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "The impersonation session could not be started. Try again."
@@ -10130,6 +10322,10 @@ msgstr "L'invitation envoyée à {0} sera révoquée et ne pourra plus être acc
 msgid "The key {0} ({1}) will stop working immediately and cannot be restored."
 msgstr "La clé {0} ({1}) cessera de fonctionner immédiatement et ne pourra pas être restaurée."
 
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "The link points to an organization you cannot manage. Choose one of your organizations instead."
+msgstr "Le lien mène à une organisation que vous ne pouvez pas gérer. Choisissez plutôt l'une de vos organisations."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The macOS SDK shares the same Swift implementation pattern as sdk/ios — ASWebAuthenticationSession for browser-based authorization, CryptoKit for PKCE S256, and Keychain for token storage. The two packages target different Apple platform minima and are maintained separately to allow platform-specific entitlement configuration."
 msgstr "Le SDK macOS partage le même schéma d'implémentation Swift que sdk/ios —ASWebAuthenticationSession pour l'autorisation via navigateur, CryptoKitpour PKCE S256 et Keychain pour le stockage des jetons. Les deux packagesciblent des versions minimales différentes de la plateforme Apple et sontmaintenus séparément pour permettre une configuration des droitsspécifique à chaque plateforme."
@@ -10141,6 +10337,10 @@ msgstr "La Management API stocke dans KV sept valeurs de branding propres à l'o
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The Management API uses cursor pagination and shared API-key or organization-manager guards. It does not reuse end-user business routes."
 msgstr "L'API de gestion utilise la pagination du curseur et les gardes de clé API partagée ou de gestionnaire d'organisation. Il ne réutilise pas les itinéraires commerciaux des utilisateurs finaux."
+
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "The message was replayed to its source queue."
+msgstr "Le message a été renvoyé vers sa file d'origine."
 
 #: packages/i18n/src/messages.ts
 msgid "The MFA code is incorrect."
@@ -10185,6 +10385,10 @@ msgstr "La page que vous recherchez n'existe pas ou a été déplacée"
 #: packages/i18n/src/messages.ts
 msgid "The password does not meet the minimum strength requirements."
 msgstr "Le mot de passe ne respecte pas les exigences minimales de robustesse."
+
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "The previous token keeps working until {expiresAt}. Update your identity provider before then."
+msgstr "L'ancien jeton reste valide jusqu'au {expiresAt}. Mettez à jour votre fournisseur d'identité avant cette date."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "The product surface"
@@ -10294,6 +10498,10 @@ msgstr "Le SDK ne possède aucune liaison d'expéditeur DPoP, rejette offline_ac
 msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refresh_token response fields are not persisted."
 msgstr "Le SDK rejette offline_access tant que DPoP n'est pas implémenté; les champs de réponse refresh_token inattendus ne sont pas persistés."
 
+#: packages/web-ui/src/components/RequireAuth.tsx
+msgid "The server could not be reached. Check your connection and try again."
+msgstr "Le serveur est injoignable. Vérifiez votre connexion et réessayez."
+
 #: packages/i18n/src/messages.ts
 msgid "The server requires a DPoP nonce. Retry with the provided nonce."
 msgstr "Le serveur exige un nonce DPoP. Réessayez avec le nonce fourni."
@@ -10326,6 +10534,18 @@ msgstr "La connexion SSO est introuvable."
 msgid "The svix-signature header starts with the literal v1, prefix, followed by the Base64-encoded HMAC-SHA256 of <0>{SVIX_SIGNATURE_INPUT}</0> using the endpoint signing secret."
 msgstr "L'en-tête svix-signature commence par le préfixe littéral v1, suivi du HMAC-SHA256 codé en Base64 de <0>{SVIX_SIGNATURE_INPUT}</0> à l'aide du secret de signature du point de terminaison."
 
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "The sync failed inside XID."
+msgstr "La synchronisation a échoué dans XID."
+
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "The target is no longer available."
+msgstr "La cible n'est plus disponible."
+
+#: apps/console/src/routes/org/ScimTargetRunState.tsx
+msgid "The target settings are invalid."
+msgstr "Les paramètres de la cible ne sont pas valides."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The user submits an access request."
 msgstr "L'utilisateur soumet une demande d'accès."
@@ -10346,6 +10566,18 @@ msgstr "application tierce"
 msgid "This access request has already been decided."
 msgstr "Cette demande d'accès a déjà été traitée."
 
+#: packages/i18n/src/messages.ts
+msgid "This account belongs to more than one organization. Choose an organization to continue."
+msgstr "Ce compte appartient à plusieurs organisations. Choisissez une organisation pour continuer."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "This account cannot create a new organization here. Ask an organization admin to invite you, or sign up with a new account to create your own organization."
+msgstr "Ce compte ne peut pas créer de nouvelle organisation ici. Demandez à un administrateur de l'organisation de vous inviter, ou inscrivez-vous avec un nouveau compte pour créer votre propre organisation."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "This account cannot create a new organization. Ask an organization admin to invite you, or reload the page if you just changed accounts."
+msgstr "Ce compte ne peut pas créer de nouvelle organisation. Demandez à un administrateur de l'organisation de vous inviter, ou rechargez la page si vous venez de changer de compte."
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "This account has no email address yet. Add a passkey below to secure it and keep access after you sign out."
 msgstr "Ce compte n'a pas encore d'adresse e-mail. Ajoutez une clé d'accès ci-dessous pour le sécuriser et conserver l'accès après votre déconnexion."
@@ -10354,17 +10586,37 @@ msgstr "Ce compte n'a pas encore d'adresse e-mail. Ajoutez une clé d'accès ci-
 msgid "This application will be able to access the following information."
 msgstr "Cette application pourra accéder aux informations suivantes."
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "This code is invalid or has expired. Check the code on your device and try again."
+msgstr "Ce code n'est pas valide ou a expiré. Vérifiez le code affiché sur votre appareil et réessayez."
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "This device"
 msgstr "Cet appareil"
+
+#: apps/server/src/routes/account/PasskeySection.tsx
+msgid "This device already has a passkey for your account."
+msgstr "Cet appareil possède déjà une clé d'accès pour votre compte."
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "This device request has already been handled."
+msgstr "Cette requête de l'appareil a déjà été traitée."
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "This documentation version is no longer maintained"
 msgstr "Cette version de la documentation n'est plus maintenue"
 
+#: apps/server/src/routes/account/GuestEmailConversionSection.tsx
+msgid "This email address already belongs to another account. Sign out of the guest account, then sign in with that email."
+msgstr "Cette adresse e-mail appartient déjà à un autre compte. Déconnectez-vous du compte invité, puis connectez-vous avec cette adresse."
+
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "This email belongs to your signed-in account."
 msgstr "Cette adresse e-mail appartient au compte avec lequel vous êtes connecté."
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "This email domain does not use enterprise SSO. Please use another sign-in method."
+msgstr "Ce domaine de messagerie n'utilise pas le SSO d'entreprise. Utilisez un autre mode de connexion."
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "This email link is invalid or expired. Open the latest invitation email and try again."
@@ -10392,6 +10644,10 @@ msgstr "Ce lien d'invitation n'est pas valide ou a déjà été utilisé."
 msgid "This is a first-party application by the same provider."
 msgstr "Cette application interne appartient au même fournisseur."
 
+#: apps/server/src/routes/account/ConnectionsPage.tsx
+msgid "This is your only way to sign in. Add a password or passkey before disconnecting it."
+msgstr "C'est votre seul mode de connexion. Ajoutez un mot de passe ou une clé d'accès avant de le déconnecter."
+
 #: packages/i18n/src/messages.ts
 msgid "This link has expired. Please request a new one."
 msgstr "Ce lien a expiré. Demandez-en un nouveau."
@@ -10399,6 +10655,10 @@ msgstr "Ce lien a expiré. Demandez-en un nouveau."
 #: packages/i18n/src/messages.ts
 msgid "This link is invalid. Please request a new one."
 msgstr "Ce lien est invalide. Demandez-en un nouveau."
+
+#: apps/console/src/routes/console/RequireActiveOrganization.tsx
+msgid "This link opens another organization. Switching the console to it."
+msgstr "Ce lien ouvre une autre organisation. La console bascule vers celle-ci."
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link has expired. Please request a new one."
@@ -10416,6 +10676,10 @@ msgstr "Ce lien magique est invalide ou a déjà été utilisé."
 msgid "This magic link is invalid."
 msgstr "Ce lien magique est invalide."
 
+#: apps/console/src/routes/platform/PlatformDeadLetters.tsx
+msgid "This message had already been replayed. Nothing was sent again."
+msgstr "Ce message avait déjà été renvoyé. Rien n'a été envoyé à nouveau."
+
 #: packages/i18n/src/messages.ts
 msgid "This operation is not supported."
 msgstr "Cette opération n'est pas prise en charge."
@@ -10427,6 +10691,10 @@ msgstr "Ce contexte d'organisation a été suspendu."
 #: packages/i18n/src/messages.ts
 msgid "This organization has been suspended."
 msgstr "Cette organisation a été suspendue."
+
+#: apps/console/src/routes/platform/PlatformOrganizations.tsx
+msgid "This organization's status changed or cannot be changed. The list was refreshed."
+msgstr "Le statut de cette organisation a changé ou ne peut pas être modifié. La liste a été actualisée."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "This package provides only adapters and Expo Router integration. For the base React Native PKCE flow, see <0>@xid-kit/react-native</0>."
@@ -10453,9 +10721,17 @@ msgstr "Ce mot de passe a été utilisé récemment. Choisissez un autre mot de 
 msgid "This path does not exist on this instance. Check the URL or return to a known page."
 msgstr "Ce chemin n'existe pas sur cette instance. Vérifiez l'URL ou revenez à une page connue."
 
+#: apps/server/src/routes/account/ConnectionsPage.tsx
+msgid "This removes the link between your account and {label}. Signing in with the same {label} account again can link it back to your account."
+msgstr "Cette action supprime le lien entre votre compte et {label}. Si vous vous reconnectez avec le même compte {label}, il peut être de nouveau lié à votre compte."
+
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "This reset link is invalid or has expired. Please request a new one."
 msgstr "Ce lien de réinitialisation est invalide ou a expiré. Demandez-en un nouveau."
+
+#: apps/console/src/routes/org/TenantScopeGate.tsx
+msgid "This resource is shared by every organization in the tenant. Switch to the top-level organization to manage it."
+msgstr "Cette ressource est partagée par toutes les organisations du tenant. Basculez vers l'organisation de premier niveau pour la gérer."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "This resource will stop authorizing access and move to the project recycle bin."
@@ -10464,6 +10740,18 @@ msgstr "Cette ressource cessera d’autoriser l’accès et sera déplacée vers
 #: packages/i18n/src/messages.ts
 msgid "This session has been revoked."
 msgstr "Cette session a été révoquée."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This sign-in link cannot be used for this account. Return to sign in to choose another way to continue."
+msgstr "Ce lien de connexion ne peut pas être utilisé pour ce compte. Revenez à la connexion pour choisir un autre moyen de continuer."
+
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "This tenant has no audit records yet. There is nothing to verify."
+msgstr "Ce tenant n'a encore aucun enregistrement d'audit. Il n'y a rien à vérifier."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "This URL slug is already taken. Choose another one."
+msgstr "Ce slug d'URL est déjà utilisé. Choisissez-en un autre."
 
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "This verification link has expired. Please request a new one."
@@ -10476,10 +10764,6 @@ msgstr "Ce lien de vérification est invalide ou a déjà été utilisé."
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "This will remove \"{factorLabel}\" from your account. You may lose access if it is your only 2FA method."
 msgstr "Cela supprimera \"{factorLabel}\" de votre compte. Vous pouvez perdre l'accès si c'est votre seule méthode 2FA."
-
-#: apps/server/src/routes/account/ConnectionsPage.tsx
-msgid "This will remove the link between your account and {label}. You will no longer be able to sign in with {label} unless you reconnect it."
-msgstr "Cela supprimera le lien entre votre compte et {label}. Vous ne pourrez plus vous connecter avec {label} tant que vous ne le reconnecterez pas."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Three focused Workers. One identity platform."
@@ -10508,14 +10792,16 @@ msgid "Title"
 msgstr "Titre"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "To"
 msgstr "Jusqu'au"
 
-#. placeholder {0}: flag.key
-#: apps/console/src/routes/platform/PlatformFeatureFlags.tsx
-msgid "Toggle {0} flag"
-msgstr "Activer ou désactiver l'indicateur {0}"
+#: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+msgid "To resolve the incident, choose Resolved and describe the fix. Every status change is published on the status page timeline."
+msgstr "Pour résoudre l'incident, choisissez Résolu et décrivez le correctif. Chaque changement de statut est publié sur la chronologie de la page de statut."
+
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "To seq"
+msgstr "Jusqu'à la séquence"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Toggle dark mode"
@@ -10536,10 +10822,6 @@ msgstr "Le point de terminaison de jeton a renvoyé une erreur"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Token retrieval and sign-out"
 msgstr "Récupération du jeton et déconnexion"
-
-#: apps/console/src/routes/org/OrgScimTargets.tsx
-msgid "Token secret ref"
-msgstr "Référence du secret du jeton"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Token storage"
@@ -10577,26 +10859,17 @@ msgstr "runtime async tokio"
 msgid "Too many attempts. Please wait a moment and try again."
 msgstr "Trop de tentatives. Patientez un instant puis réessayez."
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Too many attempts. Please wait before trying again."
-msgstr "Trop de tentatives. Patientez avant de réessayer."
-
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Too many requests"
 msgstr "Trop de requêtes"
 
 #: apps/server/src/routes/forgot-password/index.tsx
-#: apps/server/src/routes/verify-email/index.tsx
 msgid "Too many requests. Please wait a minute before trying again."
 msgstr "Trop de requêtes. Patientez une minute avant de réessayer."
 
 #: packages/i18n/src/messages.ts
 msgid "Too many requests. Please wait and try again."
 msgstr "Trop de requêtes. Patientez puis réessayez."
-
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Too many requests. Please wait before sending another code."
-msgstr "Trop de requêtes. Patientez avant d'envoyer un autre code."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
@@ -10635,32 +10908,17 @@ msgstr "Période d'essai"
 msgid "Trigger"
 msgstr "Déclencheur"
 
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Trusted {trustedDate}"
-msgstr "Approuvé le {trustedDate}"
-
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Trusted {trustedDate} · Last seen {lastSeenDate}"
-msgstr "Approuvé le {trustedDate} · Dernière activité {lastSeenDate}"
-
-#: apps/server/src/routes/account/AccountLayout.tsx
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Trusted devices"
-msgstr "Appareils de confiance"
-
-#: apps/server/src/lib/page-seo-messages.ts
-msgid "Trusted devices | Account | XID"
-msgstr "Appareils de confiance | Compte | XID"
-
-#: apps/server/src/routes/account/DevicesPage.tsx
-msgid "Trusted devices can skip or reduce MFA checks. Remove a device if you no longer trust it or if it was lost."
-msgstr "Les appareils de confiance peuvent ignorer ou réduire les vérifications MFA. Supprimez un appareil si vous ne lui faites plus confiance ou s'il a été perdu."
-
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/mfa/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
+#: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Try again"
 msgstr "Réessayer"
+
+#: apps/server/src/routes/mfa/MfaExits.tsx
+msgid "Try another method"
+msgstr "Essayer une autre méthode"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN"
@@ -10680,8 +10938,12 @@ msgid "Two-factor authentication | XID"
 msgstr "Authentification à deux facteurs | | XID"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
-msgid "TXT record"
-msgstr "Enregistrement TXT"
+msgid "TXT record name"
+msgstr "Nom de l'enregistrement TXT"
+
+#: apps/console/src/routes/org/OrgDomains.tsx
+msgid "TXT record value"
+msgstr "Valeur de l'enregistrement TXT"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "type"
@@ -10765,7 +11027,6 @@ msgstr "Identifiant unique du message. Utilisez-le pour dédupliquer les livrais
 msgid "Unix seconds when the message was sent."
 msgstr "Secondes Unix indiquant quand le message a été envoyé."
 
-#: apps/server/src/routes/account/DevicesPage.tsx
 #: apps/server/src/routes/account/SessionsPage.tsx
 msgid "Unknown device"
 msgstr "Appareil inconnu"
@@ -10859,10 +11120,6 @@ msgstr "Utilisez <0>POST /v1/webhooks/:id/restore</0> pour réactiver un point d
 msgid "Use <0>toSignal()</0> from <1>@angular/core/rxjs-interop</1> to convert observables to signals for template reads."
 msgstr "Utilisez <0>toSignal()</0> depuis <1>@angular/core/rxjs-interop</1> pourconvertir des observables en signaux pour les lectures de templates."
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Use a backup code instead"
-msgstr "Utiliser plutôt un code de secours"
-
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Use a customer-owned hostname for Hosted Auth. XID provisions the hostname and certificate through Cloudflare for SaaS, then activates routing only after both are ready."
 msgstr "Utilisez un nom d'hôte appartenant au client pour Hosted Auth. XID provisionne le nom d'hôte et le certificat via Cloudflare for SaaS, puis active le routage uniquement une fois que les deux sont prêts."
@@ -10871,7 +11128,7 @@ msgstr "Utilisez un nom d'hôte appartenant au client pour Hosted Auth. XID prov
 msgid "Use a password with 12 to 128 characters."
 msgstr "Utilisez un mot de passe de 12 à 128 caractères."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 msgid "Use a registered passkey with device verification to complete two-factor authentication."
 msgstr "Utilisez une clé d’accès enregistrée avec vérification de l’appareil pour terminer l’authentification à deux facteurs."
 
@@ -10879,15 +11136,11 @@ msgstr "Utilisez une clé d’accès enregistrée avec vérification de l’appa
 msgid "Use arrow keys to navigate"
 msgstr "Utilisez les touches fléchées pour naviguer"
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Use authenticator app instead"
-msgstr "Utiliser plutôt l'application d'authentification"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use authorization code flow with PKCE S256 for browser and native clients."
 msgstr "Utilisez le flux de code d'autorisation avec PKCE S256 pour les clients navigateur et natifs."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 msgid "Use passkey"
 msgstr "Utiliser une clé d’accès"
 
@@ -10907,6 +11160,10 @@ msgstr "Utilisez l'en-tête <0>svix-id</0> pour dédupliquer les livraisons de v
 msgid "Use the complete platform or adopt the protocol, UI, and SDK layers that fit your architecture."
 msgstr "Utilisez la plateforme complète ou adoptez les couches de protocole, d’interface utilisateur et de SDK adaptées à votre architecture."
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Use the email address of the account you are signed in with."
+msgstr "Utilisez l'adresse e-mail du compte auquel vous êtes connecté."
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Use the same entry for sign-in and account creation. Organization policy decides which actions are allowed."
 msgstr "Utilisez le même point d'entrée pour la connexion et la création de compte. La politique de l'organisation décide quelles actions sont autorisées."
@@ -10914,6 +11171,10 @@ msgstr "Utilisez le même point d'entrée pour la connexion et la création de c
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "useAuth().isSignedIn reflects a locally stored session only after ID token verification; it does not read a web cookie session."
 msgstr "useAuth().isSignedIn reflète une session stockée localement uniquement après la vérification du jeton d'identité; il ne lit pas une session de cookie web."
+
+#: apps/console/src/routes/platform/PlatformSettings.tsx
+msgid "Used for API error messages and one-time sign-in code email when the visitor's browser language is not supported. The sign-in pages, Console and other email do not use it."
+msgstr "Utilisée pour les messages d'erreur de l'API et les e-mails de code de connexion à usage unique lorsque la langue du navigateur du visiteur n'est pas prise en charge. Les pages de connexion, la console de gestion et les autres e-mails ne l'utilisent pas."
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Used in URLs and subdomains. Lowercase letters, numbers, and hyphens."
@@ -10932,11 +11193,6 @@ msgstr "Utilisateur"
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "User {0} will lose management access to this exact scope."
 msgstr "L'utilisateur {0} perdra l'accès de gestion à cette étendue exacte."
-
-#. placeholder {0}: pendingRevoke.userId
-#: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
-msgid "User {0} will lose platform-wide management access. The server rejects this operation if it would remove the final instance manager."
-msgstr "L'utilisateur {0} perdra l'accès à la gestion à l'échelle de la plateforme. Le serveur rejette cette opération s'il devait supprimer le gestionnaire d'instance final."
 
 #. placeholder {0}: pendingUserGrantRevoke.user_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
@@ -11015,14 +11271,6 @@ msgstr "user_..."
 msgid "user_abc, user_def"
 msgstr "user_abc, user_def"
 
-#: apps/console/src/routes/org/OrgAuditEvents.tsx
-msgid "user.created"
-msgstr "user.created"
-
-#: apps/console/src/routes/org/OrgWebhooks.tsx
-msgid "user.created, organization.updated"
-msgstr "user.created, organization.updated"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Userinfo"
 msgstr "Userinfo"
@@ -11031,13 +11279,13 @@ msgstr "Userinfo"
 msgid "Userinfo endpoint"
 msgstr "Point de terminaison Userinfo"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 msgid "username"
 msgstr "nom d'utilisateur"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Username"
 msgstr "Nom d'utilisateur"
 
@@ -11112,6 +11360,7 @@ msgstr "Limite de validation"
 msgid "Validation failed. Please check your input."
 msgstr "La validation a échoué. Vérifiez votre saisie."
 
+#: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Value"
 msgstr "Valeur"
@@ -11132,6 +11381,7 @@ msgstr "Runtimes Vercel Edge Runtime et Node.js serveur"
 msgid "Verification"
 msgstr "Vérification"
 
+#: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Verification code"
 msgstr "Code de vérification"
@@ -11148,10 +11398,6 @@ msgstr "E-mail de vérification envoyé"
 msgid "Verification email sent. After verifying your email, return here to set a password."
 msgstr "E-mail de vérification envoyé. Après avoir vérifié votre e-mail, revenez ici pour définir un mot de passe."
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Verification failed. Please try again."
-msgstr "La vérification a échoué. Réessayez."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verification uses Web Crypto via @xid-kit/crypto."
 msgstr "La vérification utilise Web Crypto via @xid-kit/crypto."
@@ -11164,17 +11410,18 @@ msgstr "Vérifié"
 msgid "Verified message metadata and a typed type/data payload envelope"
 msgstr "Métadonnées de message vérifiées et enveloppe typée pour le payload type/data"
 
-#: apps/server/src/routes/account/MfaSection.tsx
-msgid "Verified phone"
-msgstr "Téléphone vérifié"
+#. placeholder {0}: result.record_count
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "Verified seq {from} to {to}, {0} records"
+msgstr "Séquences {from} à {to} vérifiées, {0} enregistrements"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verifier entropy is 64 bytes; challenge derived via Web Crypto <0>crypto.subtle.digest('SHA-256', ...)</0>."
 msgstr "L'entropie du vérificateur est de 64 octets ; le challenge est dérivé viaWeb Crypto <0>crypto.subtle.digest('SHA-256', ...)</0>."
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Verify"
 msgstr "Vérifier"
 
@@ -11191,7 +11438,11 @@ msgstr "Vérifie un JWT Bearer ou applicatif explicite dans une <0>Request</0> e
 msgid "Verify a JWT string, return <0>*Claims</0> or error."
 msgstr "Vérifier une chaîne JWT, retourner <0>*Claims</0> ou une erreur."
 
-#: apps/console/src/routes/platform/PlatformAuditEvents.tsx
+#: apps/server/src/routes/account/GuestEmailConversionSection.tsx
+msgid "Verify an email address to keep this account and its data after you sign out."
+msgstr "Vérifiez une adresse e-mail pour conserver ce compte et ses données après la déconnexion."
+
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Verify audit chain"
 msgstr "Vérifier la chaîne d'audit"
 
@@ -11204,6 +11455,7 @@ msgid "Verify code"
 msgstr "Vérifier le code"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
+#: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "Verify email"
 msgstr "Vérifier l'e-mail"
 
@@ -11212,8 +11464,13 @@ msgid "Verify email | XID"
 msgstr "Vérifier l’e-mail | | XID"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
-msgid "Verify email domains for enrollment and routing. Domain removal and re-verification are managed through the Management API."
-msgstr "Vérifiez les domaines e-mail pour l'inscription et le routage. La suppression et la revérification des domaines sont gérées via l'API de gestion."
+msgid "Verify email domains for enrollment and routing. Domain removal is managed through the Management API."
+msgstr "Vérifiez des domaines de messagerie pour l'inscription et le routage. La suppression d'un domaine se fait via l'API de gestion."
+
+#. placeholder {0}: to + 1
+#: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
+msgid "Verify from seq {0}"
+msgstr "Vérifier depuis la séquence {0}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verify JWT or session token; returns AuthResult"
@@ -11325,7 +11582,7 @@ msgstr "Patientez une minute avant de demander un autre e-mail de vérification.
 msgid "Waiting"
 msgstr "En attente"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 msgid "Waiting for passkey selection..."
 msgstr "En attente de sélection d'une clé d'accès..."
 
@@ -11341,6 +11598,10 @@ msgstr "Avertissement"
 msgid "We could not send the invitation email. Please try again."
 msgstr "Nous n'avons pas pu envoyer l'e-mail d'invitation. Veuillez réessayer."
 
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "We couldn't sign you in with that account. Please try again or use another sign-in method."
+msgstr "Nous n'avons pas pu vous connecter avec ce compte. Réessayez ou utilisez un autre mode de connexion."
+
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "We sent a 6-digit code to {identifier}. It expires in 10 minutes."
 msgstr "Nous avons envoyé un code à 6 chiffres à {identifier}. Il expire dans 10 minutes."
@@ -11354,14 +11615,14 @@ msgstr "Nous avons envoyé un code à 6 chiffres à {identifier}. Il expire dans
 msgid "We sent a one-time invitation link to {0}. Open it in this browser to continue."
 msgstr "Nous avons envoyé un lien d'invitation à usage unique à {0}. Ouvrez-le dans ce navigateur pour continuer."
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "We will send a 6-digit code to your registered phone number."
-msgstr "Nous enverrons un code à 6 chiffres à votre numéro de téléphone enregistré."
-
 #. placeholder {0}: data?.email
 #: apps/server/src/routes/accept-invitation/index.tsx
-msgid "We will verify {0} before creating your account and adding you to this organization."
-msgstr "Nous vérifierons {0} avant de créer votre compte et de vous ajouter à cette organisation."
+msgid "We will email a secure link to {0}. If you already have an account with this email, sign in to it instead so the invitation joins that account."
+msgstr "Nous enverrons un lien sécurisé à {0}. Si vous avez déjà un compte avec cette adresse e-mail, connectez-vous plutôt à ce compte pour que l'invitation y soit rattachée."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "We will send a 6-digit code to your registered phone number."
+msgstr "Nous enverrons un code à 6 chiffres à votre numéro de téléphone enregistré."
 
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Weak"
@@ -11482,7 +11743,7 @@ msgstr "Windows"
 msgid "WinUI 3 host and WebView2 embedding"
 msgstr "Hôte WinUI 3 et intégration WebView2"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 msgid "Work email"
 msgstr "E-mail professionnel"
 
@@ -11622,7 +11883,7 @@ msgstr "Méthodes XidTauriClient"
 msgid "XML security prechecks, a recursive structural schema allowlist, and the signature/reference structure allowlist are implemented and verified locally. The structural allowlist validates the SAML Response before signature verification and each decrypted Assertion again; it is a closed grammar for the consumed SAML profile, not a general XSD engine. Inbound and outbound SAML Single Logout is covered locally at L1/L2. The Slack profile is excluded because Slack does not support SLO, and real provider L4 evidence remains UNKNOWN."
 msgstr "Les contrôles préalables de sécurité XML, une allowlist récursive du schéma structurel et une allowlist de la structure des signatures et références sont implémentés et vérifiés localement. L'allowlist structurelle valide la SAML Response avant la vérification de la signature, puis valide à nouveau chaque Assertion déchiffrée. Il s'agit d'une grammaire fermée pour le profil SAML utilisé, et non d'un moteur XSD général. Le SAML Single Logout entrant et sortant est couvert localement aux niveaux L1/L2. Le profil Slack est exclu car Slack ne prend pas en charge SLO; les preuves L4 avec des fournisseurs réels restent UNKNOWN."
 
-#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "xxxxxxxx"
 msgstr "xxxxxxxx"
 
@@ -11647,9 +11908,17 @@ msgstr "Vous êtes connecté en tant qu'invité. Configurez une méthode de conn
 msgid "You are signed in as a guest. Sign out and this account and its data cannot be recovered."
 msgstr "Vous êtes connecté en tant qu'invité. Après la déconnexion, ce compte et ses données ne pourront pas être récupérés."
 
+#: packages/i18n/src/messages.ts
+msgid "You are the only owner or administrator of an organization or of this instance. Transfer ownership or add another administrator before deleting your account."
+msgstr "Vous êtes le seul propriétaire ou administrateur d'une organisation ou de cette instance. Transférez la propriété ou ajoutez un autre administrateur avant de supprimer votre compte."
+
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "You are viewing this organization as another user. Management changes are disabled."
 msgstr "Vous consultez cette organisation en tant qu'autre utilisateur. Les modifications de gestion sont désactivées."
+
+#: packages/i18n/src/messages.ts
+msgid "You can close this page or sign in again."
+msgstr "Vous pouvez fermer cette page ou vous reconnecter."
 
 #: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "You can revoke these permissions at any time from your account settings."
@@ -11676,15 +11945,29 @@ msgid "You do not have permission to perform this action."
 msgstr "Vous n'avez pas l'autorisation d'effectuer cette action."
 
 #: packages/i18n/src/messages.ts
+msgid "You have reached the maximum number of passkeys. Remove one before adding another."
+msgstr "Vous avez atteint le nombre maximal de clés d'accès. Supprimez-en une avant d'en ajouter une autre."
+
+#: packages/i18n/src/messages.ts
+msgid "You have signed out"
+msgstr "Vous êtes déconnecté"
+
+#: packages/i18n/src/messages.ts
 msgid "You must set up multi-factor authentication before continuing."
 msgstr "Vous devez configurer l'authentification multifacteur avant de continuer."
 
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/SignInFields.tsx
+#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 #: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 #: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
+
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+msgid "Your account does not manage any organization. Ask an organization admin to invite you or grant you a management role."
+msgstr "Votre compte ne gère aucune organisation. Demandez à un administrateur de l'organisation de vous inviter ou de vous attribuer un rôle de gestion."
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Your account email and profile picture."
@@ -11716,12 +11999,20 @@ msgid "Your email address is not verified yet. We will send a verification email
 msgstr "Votre adresse e-mail n'est pas encore vérifiée. Nous allons vous envoyer un e-mail de vérification ; après la vérification, revenez ici pour définir un mot de passe."
 
 #: apps/server/src/routes/verify-email/index.tsx
+msgid "Your email has been verified. Next, set your password."
+msgstr "Votre adresse e-mail a été vérifiée. Définissez maintenant votre mot de passe."
+
+#: apps/server/src/routes/verify-email/index.tsx
 msgid "Your email has been verified. Redirecting you to sign in..."
 msgstr "Votre e-mail a été vérifié. Redirection vers la connexion..."
 
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Your email has been verified. Sign in to continue."
 msgstr "Votre e-mail a été vérifié. Connectez-vous pour continuer."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Your email is verified. Set a password to finish creating your account."
+msgstr "Votre adresse e-mail est vérifiée. Définissez un mot de passe pour terminer la création de votre compte."
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Your export and deletion requests will appear here."
@@ -11731,13 +12022,17 @@ msgstr "Vos demandes d'exportation et de suppression apparaîtront ici."
 msgid "Your organization requires MFA. Set up an authenticator app or a passkey below before continuing."
 msgstr "Votre organisation exige l'authentification multifacteur. Configurez une application d'authentification ou une clé d'accès ci-dessous avant de continuer."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
+#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 msgid "Your password"
 msgstr "Votre mot de passe"
 
 #: packages/i18n/src/messages.ts
 msgid "Your session has expired. Please sign in again."
 msgstr "Votre session a expiré. Reconnectez-vous."
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Your sign-in attempt expired. Please start again."
+msgstr "Votre tentative de connexion a expiré. Recommencez."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Zoom"
