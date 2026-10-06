@@ -619,7 +619,9 @@ short lifetimes.
   OTP, social, or SSO sign-in any active passkey is a second factor. The second-factor allowlist is
   TOTP, SMS OTP, backup codes, and passkeys
 - A second factor of the same kind as the primary sign-in does not count again: an SMS sign-in is
-  not offered the SMS factor and a passkey sign-in is not offered a passkey. The MFA gate, the `/mfa`
+  not offered the SMS factor and a passkey sign-in is not offered a passkey. A session signed in by
+  SMS cannot use the SMS factor for step-up either; a passkey session can still step up with a
+  passkey, because a passkey-only user has no other way to re-verify. The MFA gate, the `/mfa`
   method list, and the challenge endpoints use one eligibility rule, so the gate never sends a user
   to `/mfa` without a usable method
 - XID does not currently claim NIST AAL3. WebAuthn UV plus the BE/BS flags can establish the current

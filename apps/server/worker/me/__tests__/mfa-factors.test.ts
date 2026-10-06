@@ -221,6 +221,28 @@ describe('GET /v1/me/mfa-factors', () => {
     })
   })
 
+  it('does not offer the SMS factor for step-up on a session signed in by SMS', async () => {
+    const db = makeFakeD1({
+      mfa_factors: [totpRow(), smsFactorRow()],
+      backup_codes: [],
+      user_phones: [verifiedPhoneRow()],
+    })
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1', amr: ['sms'] }),
+      tenant: SMS_TENANT,
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/mfa-factors',
+      { method: 'GET' },
+      smsEnv(db),
+    )
+
+    const body = (await res.json()) as Record<string, unknown>[]
+    expect(body.map((factor) => factor['type'])).toEqual(['totp'])
+  })
+
   it('does not offer a passkey as second factor during a passkey sign-in challenge', async () => {
     const db = makeFakeD1({
       mfa_factors: [],

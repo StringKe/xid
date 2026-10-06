@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=cb0dff95f24888ff17a9f0511127825ef92205ea -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=871a956e2d8f5af6112d78f010adc903e926ed3a -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -406,7 +406,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - TOTP(RFC 6238,30s 步长,时钟偏差容忍 +-1 步)
 - SMS OTP 仅在用户显式开启后作 2FA 第二因子;已验证手机号本身不是 MFA 因子,开启 SMS 要求已有 TOTP 或 passkey。Email OTP / WhatsApp OTP 仅用于 passwordless 登录,不作 MFA 因子
 - 带 UV 的 passkey 登录已达到 AAL2,不再被要求 passkey 第二因子,也不需要 MFA 绑定;但同时有 TOTP 的用户仍会被要求 TOTP。密码、OTP、社交或 SSO 登录后,任意有效 passkey 都可作第二因子。MFA 第二因子白名单:TOTP / SMS OTP / backup codes / passkey
-- 与一次认证同类的第二因子不重复计算:SMS 登录不提供 SMS 因子,passkey 登录不提供 passkey。MFA 门控、`/mfa` 方法列表与挑战端点共用同一资格判定,门控不会把用户送到没有可用方法的 `/mfa`
+- 与一次认证同类的第二因子不重复计算:SMS 登录不提供 SMS 因子,passkey 登录不提供 passkey。SMS 登录的会话做 step-up 时同样不能使用 SMS 因子;passkey 会话仍可用 passkey 做 step-up,因为只有 passkey 的用户没有其他重新验证方式。MFA 门控、`/mfa` 方法列表与挑战端点共用同一资格判定,门控不会把用户送到没有可用方法的 `/mfa`
 - XID 当前不声明 NIST AAL3。WebAuthn UV 与 BE/BS flag 可以支撑当前 AAL2 路径,但不能证明私钥不可导出且受硬件保护。仅有 enterprise attestation 元数据也不能补齐该证据缺口
 - Backup / recovery codes:10 个,8 字符,每个一次性
 - 强制 MFA 策略:platform / tenant / org 三层继承

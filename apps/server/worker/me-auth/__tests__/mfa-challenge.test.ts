@@ -154,6 +154,19 @@ describe('POST /auth/mfa/sms/send', () => {
     expect(persistAndSendOtp).not.toHaveBeenCalled()
   })
 
+  it('SMS 一次认证的 active 会话做 step-up 时也不向同一号码发码', async () => {
+    mockSmsFactor()
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: { ...makeSession(), status: 'active', amr: ['sms'] },
+      tenant: tenantWithSmsDelivery() as never,
+    })
+
+    const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/mfa/sms/send')
+
+    expect(res.status).toBe(403)
+    expect(persistAndSendOtp).not.toHaveBeenCalled()
+  })
+
   it('SMS provider 未配置 -> 403 mfa_setup_required', async () => {
     mockSmsFactor()
     const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })

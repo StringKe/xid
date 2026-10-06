@@ -8,6 +8,7 @@ vi.mock('@xid-kit/db', () => ({
     backupCodes: { userId: 'userId', used: 'used' },
     userPhones: { id: 'id', userId: 'userId', verified: 'verified' },
     passkeyCredentials: { userId: 'userId', revokedAt: 'revokedAt' },
+    sessions: { id: 'id' },
   },
 }))
 
@@ -17,12 +18,13 @@ vi.mock('../../auth/delivery-channels', () => ({
 
 import { createTenantDb } from '@xid-kit/db'
 import {
+  activateSessionAfterMfaSetup,
   mfaSetupRedirectPath,
   resolvePostAuthMfaGate,
   shouldRequireMfaChallenge,
   shouldRequireMfaSetup,
 } from '../mfa-session'
-import type { TenantVar, XidHonoEnv } from '../types'
+import type { SessionData, TenantVar, XidHonoEnv } from '../types'
 
 type FactorState = {
   totp?: boolean
@@ -46,7 +48,27 @@ function context(): Context<XidHonoEnv> {
   return { env: { DB: {} } } as Context<XidHonoEnv>
 }
 
-function mockFactors(state: FactorState): void {
+function setupSession(overrides: Partial<SessionData> = {}): SessionData {
+  return {
+    sessionId: 'sess_1',
+    userId: 'u_1',
+    status: 'pending_mfa_setup',
+    activeOrgId: null,
+    authenticatedAt: new Date(),
+    lastActiveAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    rememberMe: false,
+    isImpersonation: false,
+    impersonatorUserId: null,
+    acr: 'urn:xid:aal1',
+    amr: ['pwd'],
+    aal: 1,
+    ...overrides,
+  }
+}
+
+function mockFactors(state: FactorState): ReturnType<typeof vi.fn> {
+  const sessionUpdate = vi.fn().mockResolvedValue([])
   // listMfaMethods 每轮先查 TOTP 再查 SMS 因子,按调用奇偶返回对应行。
   let calls = 0
   const mfaFactorFindOne = vi.fn().mockImplementation(async () => {
@@ -71,7 +93,9 @@ function mockFactors(state: FactorState): void {
         .fn()
         .mockResolvedValue(state.verifiedPhone ? { id: 'ph_1', phone: '+15555550100' } : undefined),
     },
+    sessions: { update: sessionUpdate },
   } as unknown as ReturnType<typeof createTenantDb>)
+  return sessionUpdate
 }
 
 describe('shouldRequireMfaSetup', () => {
@@ -167,6 +191,51 @@ describe('shouldRequireMfaChallenge', () => {
     })
 
     expect(result).toBe(false)
+  })
+})
+
+describe('activateSessionAfterMfaSetup', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('records the enrolled TOTP as a second factor when forced setup completes', async () => {
+    const sessionUpdate = mockFactors({ totp: true })
+
+    await activateSessionAfterMfaSetup(context(), tenant(), {
+      session: setupSession(),
+      method: 'totp',
+    })
+
+    expect(sessionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'active',
+        acr: 'urn:xid:aal2',
+        amr: ['pwd', 'otp', 'mfa'],
+        aal: 2,
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('leaves an already active session untouched', async () => {
+    const sessionUpdate = mockFactors({ totp: true })
+
+    await activateSessionAfterMfaSetup(context(), tenant(), {
+      session: setupSession({ status: 'active' }),
+      method: 'totp',
+    })
+
+    expect(sessionUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the session pending while the enrolled factor does not satisfy the policy', async () => {
+    const sessionUpdate = mockFactors({})
+
+    await activateSessionAfterMfaSetup(context(), tenant(), {
+      session: setupSession(),
+      method: 'totp',
+    })
+
+    expect(sessionUpdate).not.toHaveBeenCalled()
   })
 })
 
