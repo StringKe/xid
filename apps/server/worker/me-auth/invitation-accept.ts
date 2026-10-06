@@ -6,7 +6,6 @@ import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
-import { logWorkerError } from '../lib/safe-log'
 import { readSessionForTenant } from '../lib/session'
 import type { XidHonoEnv } from '../lib/types'
 import {
@@ -19,7 +18,7 @@ import {
 } from '../auth/invitations'
 import { readJsonBody, validateBody, validateQuery } from '../lib/validate'
 import { assertEmailAllowed } from '../auth/hosted-policy'
-import { resolveClaimTargetTenant } from './invitation-claim'
+import { emitInvitationClaimAudit, resolveClaimTargetTenant } from './invitation-claim-state'
 
 const previewQuerySchema = v.object({
   token: v.optional(v.string()),
@@ -57,34 +56,6 @@ export async function handleInvitationPreview(c: Context<XidHonoEnv>): Promise<R
   const db = createTenantDb(c.env.DB, tenant)
   const preview = await loadInvitationPreview(db, rawToken)
   return c.json(preview)
-}
-
-function emitInvitationAcceptedAudit(
-  c: Context<XidHonoEnv>,
-  input: { tenantId: string; invitationId: string; orgId: string; userId: string },
-): void {
-  const task = c.env.AUDIT_QUEUE.send({
-    tenantId: input.tenantId,
-    action: 'invitation.accepted',
-    actorId: input.userId,
-    ts: Date.now(),
-    payload: {
-      invitationId: input.invitationId,
-      orgId: input.orgId,
-      targetType: 'invitation',
-      targetId: input.invitationId,
-    },
-  })
-  try {
-    c.executionCtx.waitUntil(task)
-  } catch {
-    void task.catch((error: unknown) =>
-      logWorkerError('invitation_accept.audit_queue.send_failed', error, {
-        component: 'invitation-accept',
-        queue: 'audit',
-      }),
-    )
-  }
 }
 
 // 账号任一已验证邮箱与邀请邮箱一致即可接受;认领流程对同样的已验证邮箱拒绝另建账号,两边口径一致。
@@ -136,7 +107,8 @@ export async function handleInvitationAccept(c: Context<XidHonoEnv>): Promise<Re
     { activeOrgId: accepted.orgId },
     and(eq(schema.sessions.id, session.sessionId), eq(schema.sessions.userId, user.id)),
   )
-  emitInvitationAcceptedAudit(c, {
+  emitInvitationClaimAudit(c, {
+    action: 'invitation.accepted',
     tenantId: tenant.tenantId,
     invitationId: invitation.id,
     orgId: accepted.orgId,

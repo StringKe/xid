@@ -13,7 +13,7 @@ import { AppError } from '../../lib/errors'
 import { createTenantBoundInvitationToken } from '../../lib/invitation-token'
 import { readSessionForTenant } from '../../lib/session'
 import { handleInvitationAccept, handleInvitationPreview } from '../invitation-accept'
-import { resolveClaimTargetTenant } from '../invitation-claim'
+import { resolveClaimTargetTenant } from '../invitation-claim-state'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
 
 vi.mock('@xid-kit/db', () => ({
@@ -38,7 +38,8 @@ vi.mock('../../lib/session', () => ({
   readSessionForTenant: vi.fn(),
 }))
 
-vi.mock('../invitation-claim', () => ({
+vi.mock('../invitation-claim-state', () => ({
+  emitInvitationClaimAudit: vi.fn(),
   resolveClaimTargetTenant: vi.fn(),
 }))
 

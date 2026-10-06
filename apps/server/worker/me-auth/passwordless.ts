@@ -59,7 +59,7 @@ import {
   createPasswordlessFlowContext,
   parsePasswordlessFlowContext,
 } from '../auth/passwordless-flow'
-import { startInvitationEmailClaim } from './invitation-claim'
+import { startInvitationEmailClaim } from './invitation-claim-start'
 
 function identifierTypeForChannel(channel: OtpChannel): 'email' | 'phone' {
   return channel === 'email' ? 'email' : 'phone'

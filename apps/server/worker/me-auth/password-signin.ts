@@ -18,7 +18,7 @@ import { assertEmailAllowed, assertMethodAllowed } from '../auth/hosted-policy'
 import { auditPolicyDeniedError } from '../auth/hosted-audit'
 import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import { loginHintCandidates, resolveEntryTenant, withTenant } from './instance-login'
-import { startInvitationEmailClaim } from './invitation-claim'
+import { startInvitationEmailClaim } from './invitation-claim-start'
 import {
   auditIdentifier,
   completePasswordAuth,
