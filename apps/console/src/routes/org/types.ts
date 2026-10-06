@@ -184,6 +184,7 @@ export type SsoConnection = {
   idp_certificates: string[]
   oidc_client_id?: string | null
   oidc_discovery_url?: string | null
+  oidc_client_secret_configured?: boolean
   want_authn_response_signed: boolean
   want_assertions_signed: boolean
   saml_clock_skew_ms: number
@@ -203,6 +204,7 @@ export type CreateSsoConnectionInput = {
   idp_metadata_url?: string
   idp_certificates?: string[]
   oidc_client_id?: string
+  oidc_client_secret?: string
   oidc_discovery_url?: string
   jit_enabled?: boolean
   attribute_mapping?: Record<string, unknown>
@@ -376,7 +378,6 @@ export type OrgSocialProviderPolicy = {
   issuer?: string
   jwksUri?: string
   externalIdClaim?: string
-  redirectUris?: string[]
   enabled: boolean
   allowLogin: boolean
   allowUserCreation: boolean

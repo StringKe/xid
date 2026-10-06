@@ -38,6 +38,8 @@ type ConnectionForm = {
   idpMetadataUrl: string
   idpCertificate: string
   oidcClientId: string
+  oidcClientSecret: string
+  oidcClientSecretConfigured: boolean
   oidcDiscoveryUrl: string
   jitEnabled: boolean
   wantAuthnResponseSigned: boolean
@@ -85,6 +87,8 @@ const EMPTY_FORM: ConnectionForm = {
   idpMetadataUrl: '',
   idpCertificate: '',
   oidcClientId: '',
+  oidcClientSecret: '',
+  oidcClientSecretConfigured: false,
   oidcDiscoveryUrl: '',
   jitEnabled: false,
   wantAuthnResponseSigned: true,
@@ -162,6 +166,8 @@ function connectionToForm(connection: SsoConnection): ConnectionForm {
     idpMetadataUrl: connection.idp_metadata_url ?? '',
     idpCertificate: connection.idp_certificates.join('\n'),
     oidcClientId: connection.oidc_client_id ?? '',
+    oidcClientSecret: '',
+    oidcClientSecretConfigured: connection.oidc_client_secret_configured === true,
     oidcDiscoveryUrl: connection.oidc_discovery_url ?? '',
     jitEnabled: connection.jit_enabled,
     wantAuthnResponseSigned: connection.want_authn_response_signed,
@@ -206,6 +212,7 @@ function createPayload(form: ConnectionForm): CreateSsoConnectionInput | null {
     : {
         protocol: form.protocol,
         oidc_client_id: form.oidcClientId || undefined,
+        oidc_client_secret: form.oidcClientSecret || undefined,
         oidc_discovery_url: form.oidcDiscoveryUrl || undefined,
         jit_enabled: form.jitEnabled,
         attribute_mapping: attributeMapping,
@@ -703,6 +710,25 @@ function ConnectionFields({
               value={form.oidcClientId}
               onChange={(event) => patch({ oidcClientId: event.target.value })}
               placeholder={t`client-id`}
+            />
+          </Field>
+          <Field
+            label={<Trans>OIDC client secret</Trans>}
+            hint={
+              form.oidcClientSecretConfigured ? (
+                <Trans>A client secret is configured. Leave blank to keep it.</Trans>
+              ) : (
+                <Trans>
+                  Required when the identity provider registers XID as a confidential client.
+                </Trans>
+              )
+            }
+          >
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={form.oidcClientSecret}
+              onChange={(event) => patch({ oidcClientSecret: event.target.value })}
             />
           </Field>
           <Field label={<Trans>Discovery URL</Trans>}>

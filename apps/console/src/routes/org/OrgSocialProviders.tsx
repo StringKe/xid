@@ -23,6 +23,7 @@ import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useOrgTarget } from './useOrgTarget'
 import { useOrgSocialProvidersQuery, useUpdateOrgSocialProviders } from './queries'
 import type { OrgSocialProviderPolicy, OrgSocialProviders } from './types'
+import type { XidError } from '@xid-kit/types'
 
 const styles = stylex.create({
   loadingZone: {
@@ -128,6 +129,8 @@ const SOCIAL_PROVIDER_TEMPLATES: Record<string, OrgSocialProviderPolicy> = {
     tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
     clientSecretRef: 'MICROSOFT_CLIENT_SECRET',
     userInfoEndpoint: 'https://graph.microsoft.com/oidc/userinfo',
+    issuer: 'https://login.microsoftonline.com/{tenantid}/v2.0',
+    jwksUri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
     scopes: ['openid', 'email', 'profile'],
   },
   apple: {
@@ -145,11 +148,25 @@ const SOCIAL_PROVIDER_TEMPLATES: Record<string, OrgSocialProviderPolicy> = {
     tokenEndpoint: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
     clientSecretRef: 'GITHUB_EMU_CLIENT_SECRET',
     userInfoEndpoint: 'https://graph.microsoft.com/oidc/userinfo',
-    issuer: 'https://login.microsoftonline.com/{tenant-id}/v2.0',
+    issuer: '',
     jwksUri: 'https://login.microsoftonline.com/organizations/discovery/v2.0/keys',
     externalIdClaim: 'external_id',
     scopes: ['openid', 'email', 'profile'],
   },
+}
+
+const PROFILE_SOURCE_FIELDS = new Set([
+  'authorizationEndpoint',
+  'tokenEndpoint',
+  'userInfoEndpoint',
+  'issuer',
+  'jwksUri',
+])
+
+function isProfileSourceError(error: XidError): boolean {
+  return (
+    error.code === 'validation_failed' && PROFILE_SOURCE_FIELDS.has(error.meta?.paramName ?? '')
+  )
 }
 
 function listToText(value: string[]): string {
@@ -303,7 +320,14 @@ export default function OrgSocialProvidersPage(): ReactNode {
           ) : null}
           {updateProviders.error ? (
             <Alert tone="error">
-              <Trans>Failed to save social providers. Try again.</Trans>
+              {isProfileSourceError(updateProviders.error) ? (
+                <Trans>
+                  Each enabled provider other than GitHub needs both an issuer and a JWKS URI, or a
+                  userinfo endpoint. Replace any placeholder with your own value.
+                </Trans>
+              ) : (
+                <Trans>Failed to save social providers. Try again.</Trans>
+              )}
             </Alert>
           ) : null}
           {saveSuccess ? (
@@ -401,8 +425,9 @@ export default function OrgSocialProvidersPage(): ReactNode {
                       ) : (
                         <Trans>
                           OAuth credentials are not ready. Hosted UI hides this provider until
-                          client ID, authorization endpoint, token endpoint, client secret
-                          reference, and Workers Secret are configured.
+                          client ID, authorization endpoint, token endpoint, issuer with JWKS URI or
+                          a userinfo endpoint, client secret reference, and Workers Secret are
+                          configured.
                         </Trans>
                       )}
                     </p>
@@ -492,7 +517,15 @@ export default function OrgSocialProvidersPage(): ReactNode {
                     placeholder={t`https://openidconnect.googleapis.com/v1/userinfo`}
                   />
                 </Field>
-                <Field label={<Trans>Issuer</Trans>}>
+                <Field
+                  label={<Trans>Issuer</Trans>}
+                  hint={
+                    <Trans>
+                      Enter the exact issuer of your identity provider tenant. Only the Microsoft
+                      template may keep its multi-tenant issuer placeholder.
+                    </Trans>
+                  }
+                >
                   <Input
                     value={policy.issuer ?? ''}
                     onChange={(event) =>
@@ -527,17 +560,6 @@ export default function OrgSocialProvidersPage(): ReactNode {
                       patchSocialProvider(provider, { scopes: textToList(event.target.value) })
                     }
                     placeholder={t`openid, email, profile`}
-                  />
-                </Field>
-                <Field label={<Trans>Redirect URIs</Trans>}>
-                  <Input
-                    value={listToText([...(policy.redirectUris ?? [])])}
-                    onChange={(event) =>
-                      patchSocialProvider(provider, {
-                        redirectUris: textToList(event.target.value),
-                      })
-                    }
-                    placeholder={t`https://xid.dev/auth/google/callback`}
                   />
                 </Field>
                 <Field label={<Trans>Allowed domains</Trans>}>
