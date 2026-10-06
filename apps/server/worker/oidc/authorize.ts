@@ -15,7 +15,6 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import type { Result, XidError } from '@xid-kit/types'
 import type { Context, Hono } from 'hono'
-import { getCookie, setCookie } from 'hono/cookie'
 import * as v from 'valibot'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { renderProtocolErrorPage } from '../lib/error-page'
@@ -37,17 +36,13 @@ import {
   parseAuthorizationDetails,
 } from './authorization-details'
 import type { AuthorizationDetails } from '@xid-kit/types'
-import { verifyStepUpToken } from '../auth/mfa'
 import {
   ACR_AAL2,
-  addMfaToAuthContext,
-  normalizeAuthAssuranceLevel,
   normalizeIssuedAcr,
-  PASSWORD_AUTH_CONTEXT,
   sessionSatisfiesAal2,
   UNSUPPORTED_ACR_AAL3,
 } from '../lib/auth-context'
-import type { AuthContextData } from '../lib/auth-context'
+import { clearStepUpCookie, readStepUpAuthContext } from '../lib/step-up'
 import { ACTIVE_SESSION_STATUS, PENDING_MFA_SETUP_SESSION_STATUS } from '../lib/session'
 import { AUTH_CODE_TTL_SEC, OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
 import { requestsAcr } from './requested-acr'
@@ -62,7 +57,6 @@ const SUPPORTED_RESPONSE_MODES = [
   'query.jwt',
   'fragment.jwt',
 ] as const
-const STEP_UP_COOKIE_NAME = '__Host-xid.acr'
 
 // 白名单收口到 picklist(收窄出 literal union);拒绝路径的错误码仍由
 // localErrorPage / evaluateAuthorize 决定,schema 只做支持性判断。
@@ -400,36 +394,6 @@ function requestedAal2(req: AuthorizeRequest): boolean {
 
 function requestedAal3(req: AuthorizeRequest): boolean {
   return requestsAcr({ acrValues: req.acrValues, claims: req.claims }, UNSUPPORTED_ACR_AAL3)
-}
-
-async function readStepUpAuthContext(
-  c: Context<XidHonoEnv>,
-  session: SessionData,
-): Promise<{ authTime: number; acr: string; amr: SessionData['amr'] } | null> {
-  const token = getCookie(c, STEP_UP_COOKIE_NAME)
-  if (!token) return null
-  const verified = await verifyStepUpToken(token, c.env.PEPPER)
-  if (!verified.ok) return null
-  if (verified.payload.sub !== session.userId || verified.payload.sid !== session.sessionId) {
-    return null
-  }
-  const base: AuthContextData = {
-    acr: normalizeIssuedAcr(session.acr) ?? PASSWORD_AUTH_CONTEXT.acr,
-    amr: session.amr ?? PASSWORD_AUTH_CONTEXT.amr,
-    aal: normalizeAuthAssuranceLevel(session.aal) ?? 1,
-  }
-  const upgraded = addMfaToAuthContext(base, verified.payload.method)
-  return { authTime: verified.payload.iat, acr: upgraded.acr, amr: upgraded.amr }
-}
-
-function clearStepUpCookie(c: Context<XidHonoEnv>): void {
-  setCookie(c, STEP_UP_COOKIE_NAME, '', {
-    path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: 'Lax',
-    maxAge: 0,
-  })
 }
 
 async function resolveAcrContext(

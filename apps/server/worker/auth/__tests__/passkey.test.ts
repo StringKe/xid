@@ -1,13 +1,11 @@
-// passkey handler 单元测试。
-// 验证:注册选项生成 / 注册验证(四验证通过 + 拒绝路径) / 登录验证(枚举防护)。
-// challenge DO 用 stub mock,@xid-kit/webauthn verifyRegistration/verifyAuthentication mock。
-// 枚举防护:凭证不存在与验签失败均抛 invalid_credentials。
+// passkey 注册 handler 单元测试。
+// 验证:注册选项生成 / 注册验证(四验证通过 + 拒绝路径) / 遗留登录端点已下线。
+// challenge DO 用 stub mock,@xid-kit/webauthn verifyRegistration mock。登录断言测试在 me-auth/passkey-signin。
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@xid-kit/webauthn', () => ({
   verifyRegistration: vi.fn(),
-  verifyAuthentication: vi.fn(),
 }))
 
 vi.mock('@xid-kit/db', () => ({
@@ -22,6 +20,7 @@ vi.mock('@xid-kit/db', () => ({
       revokedAt: 'revokedAt',
     },
     users: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
+    userEmails: { id: 'id' },
     sessions: { id: 'id', userId: 'userId' },
     memberships: { userId: 'userId', status: 'status', orgId: 'orgId' },
     organizations: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
@@ -43,7 +42,7 @@ vi.mock('@xid-kit/crypto', async (importOriginal) => {
   }
 })
 
-import { verifyRegistration, verifyAuthentication } from '@xid-kit/webauthn'
+import { verifyRegistration } from '@xid-kit/webauthn'
 import { createTenantDb } from '@xid-kit/db'
 import { Hono } from 'hono'
 import type { TenantVar, XidHonoEnv } from '../../lib/types'
@@ -147,6 +146,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
     },
     mfaFactors: {
       findOne: vi.fn().mockResolvedValue(undefined),
+      count: vi.fn().mockResolvedValue(0),
       insert: vi.fn().mockResolvedValue({ id: 'mf_1' }),
     },
     // guest 转正判定(register/verify 成功后):默认查不到 guest -> 不触发转正钩子。
@@ -183,6 +183,7 @@ function makeTenantDb(overrides: Record<string, unknown> = {}) {
 async function makeApp(
   sessionUserId: string | null = 'user-1',
   tenant: TenantVar = makeTenant() as unknown as TenantVar,
+  sessionOverrides: { aal?: number } = {},
 ) {
   const { registerPasskeyRoutes } = await import('../passkey')
   const app = new Hono<XidHonoEnv>()
@@ -202,7 +203,7 @@ async function makeApp(
         impersonatorUserId: null,
         acr: null,
         amr: null,
-        aal: null,
+        aal: sessionOverrides.aal ?? null,
       })
     } else {
       c.set('session', null)
@@ -233,6 +234,7 @@ describe('POST /auth/passkey/register/options', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(typeof body['challenge']).toBe('string')
     expect(body['rp']).toBeDefined()
+    expect(body['excludeCredentials']).toEqual([])
     expect(body['authenticatorSelection']).toMatchObject({
       residentKey: 'required',
       userVerification: 'required',
@@ -303,9 +305,14 @@ describe('POST /auth/passkey/register/options', () => {
     )
   })
 
-  it('returns 422 when passkey limit reached', async () => {
+  it('returns passkey_limit_reached when the account already holds the maximum', async () => {
+    const existing = Array.from({ length: PASSKEY_LIMIT }, (_, index) => ({
+      credentialId: `cred-${index}`,
+      transports: [],
+    }))
     const db = makeTenantDb({
       passkeyCredentials: {
+        findMany: vi.fn().mockResolvedValue(existing),
         count: vi.fn().mockResolvedValue(PASSKEY_LIMIT),
         findOne: vi.fn(),
         insert: vi.fn(),
@@ -313,10 +320,77 @@ describe('POST /auth/passkey/register/options', () => {
       },
     })
     vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-    const env = makeEnv(async () => new Response(null, { status: 201 }))
     const app = await makeApp()
-    const res = await app.request('/auth/passkey/register/options', { method: 'POST' }, env)
-    expect(res.status).toBe(422)
+
+    const res = await app.request(
+      '/auth/passkey/register/options',
+      { method: 'POST' },
+      makeEnv(async () => new Response(null, { status: 201 })),
+    )
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'passkey_limit_reached' })
+  })
+
+  it('names the credential after the account and excludes already registered authenticators', async () => {
+    const db = makeTenantDb({
+      passkeyCredentials: {
+        findMany: vi.fn().mockResolvedValue([{ credentialId: 'cred-a', transports: ['internal'] }]),
+        count: vi.fn().mockResolvedValue(1),
+        findOne: vi.fn(),
+        insert: vi.fn(),
+        update: vi.fn(),
+      },
+      users: {
+        findOne: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          primaryEmailId: 'eml-1',
+          username: null,
+          displayName: 'Ada Lovelace',
+        }),
+      },
+      userEmails: { findOne: vi.fn().mockResolvedValue({ email: 'ada@example.test' }) },
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    const app = await makeApp('user-1', makeTenant() as unknown as TenantVar, { aal: 2 })
+
+    const res = await app.request(
+      '/auth/passkey/register/options',
+      { method: 'POST' },
+      makeEnv(async () => new Response(null, { status: 201 })),
+    )
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body['user']).toMatchObject({ name: 'ada@example.test', displayName: 'Ada Lovelace' })
+    expect(body['excludeCredentials']).toEqual([
+      { type: 'public-key', id: 'cred-a', transports: ['internal'] },
+    ])
+  })
+
+  it('requires step-up before adding another passkey to an account that already has one', async () => {
+    const db = makeTenantDb({
+      passkeyCredentials: {
+        findMany: vi.fn().mockResolvedValue([{ credentialId: 'cred-a', transports: [] }]),
+        count: vi.fn().mockResolvedValue(1),
+        findOne: vi.fn(),
+        insert: vi.fn(),
+        update: vi.fn(),
+      },
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
+    const app = await makeApp()
+
+    const res = await app.request(
+      '/auth/passkey/register/options',
+      { method: 'POST' },
+      makeEnv(challengeHandler),
+    )
+
+    expect(res.status).toBe(401)
+    expect(await res.json()).toMatchObject({ code: 'step_up_required' })
+    expect(challengeHandler).not.toHaveBeenCalled()
   })
 })
 
@@ -722,284 +796,25 @@ describe('POST /auth/passkey/register/verify', () => {
   })
 })
 
-describe('POST /auth/passkey/login/verify -- 枚举防护', () => {
-  it('Turnstile 配置后缺 token -> 401 且不消费 challenge', async () => {
-    vi.mocked(verifyAuthentication).mockClear()
+describe('legacy passkey sign-in endpoints', () => {
+  it('no longer exposes /auth/passkey/login/options or /login/verify', async () => {
     const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
-    const env = {
-      ...makeEnv(challengeHandler),
-      TURNSTILE_SITE_KEY: 'site-key',
-      TURNSTILE_SECRET: 'secret',
-    } as unknown as Env
     const app = await makeApp(null)
 
-    const res = await app.request(
+    const options = await app.request(
+      '/auth/passkey/login/options',
+      { method: 'POST' },
+      makeEnv(challengeHandler),
+    )
+    const verify = await app.request(
       '/auth/passkey/login/verify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawId: 'Y3JlZC1pZA',
-          anonKey: 'anon-key-123',
-          response: {
-            clientDataJSON: 'Y2xpZW50RGF0YQ',
-            authenticatorData: 'YXV0aERhdGE',
-            signature: 'c2ln',
-          },
-        }),
-      },
-      env,
+      { method: 'POST' },
+      makeEnv(challengeHandler),
     )
 
-    expect(res.status).toBe(401)
-    expect(((await res.json()) as { code: string }).code).toBe('captcha_required')
+    expect(options.status).toBe(404)
+    expect(verify.status).toBe(404)
     expect(challengeHandler).not.toHaveBeenCalled()
-    expect(verifyAuthentication).not.toHaveBeenCalled()
-  })
-
-  it('root entry 未解析 tenant 时拒绝登录 options 并写审计', async () => {
-    const auditSend = vi.fn()
-    const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
-    const env = {
-      ...makeEnv(challengeHandler),
-      AUDIT_QUEUE: { send: auditSend } as unknown as Queue,
-    } as unknown as Env
-    const app = await makeApp(null, makeRootEntryTenant() as unknown as TenantVar)
-    const res = await app.request('/auth/passkey/login/options', { method: 'POST' }, env)
-    expect(res.status).toBe(400)
-    expect(challengeHandler).not.toHaveBeenCalled()
-    expect(auditSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: 'tenant-root',
-        action: 'auth.policy_denied',
-        payload: expect.objectContaining({
-          method: 'passkey',
-          action: 'login',
-          reason: 'instance_tenant_unresolved',
-        }),
-      }),
-    )
-  })
-
-  it('forceSso 拒绝登录 options 且不创建 challenge', async () => {
-    const auditSend = vi.fn()
-    const challengeHandler = vi.fn(async () => new Response(null, { status: 201 }))
-    const env = {
-      ...makeEnv(challengeHandler),
-      AUDIT_QUEUE: { send: auditSend } as unknown as Queue,
-    } as unknown as Env
-    const tenant = makeTenant()
-    tenant.policy.hostedAuth.forceSso = true
-    const app = await makeApp(null, tenant as unknown as TenantVar)
-    const res = await app.request('/auth/passkey/login/options', { method: 'POST' }, env)
-
-    expect(res.status).toBe(401)
-    expect(challengeHandler).not.toHaveBeenCalled()
-    expect(auditSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: 'tenant-1',
-        action: 'auth.policy_denied',
-        payload: expect.objectContaining({
-          method: 'passkey',
-          action: 'login',
-          reason: 'force_sso',
-        }),
-      }),
-    )
-  })
-
-  it('凭证不存在与验签失败均返回 401 invalid_credentials', async () => {
-    const db = makeTenantDb({
-      passkeyCredentials: {
-        findMany: vi.fn().mockResolvedValue([]),
-        findOne: vi.fn().mockResolvedValue(undefined),
-        insert: vi.fn(),
-        update: vi.fn(),
-      },
-    })
-    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-    vi.mocked(verifyAuthentication).mockResolvedValue({
-      ok: false,
-      error: { code: 'invalid_credentials', message: 'fail', httpStatus: 401 },
-    })
-
-    const env = makeEnv(async (req) => {
-      const url = new URL(req.url)
-      if (url.pathname === '/consume') {
-        return new Response(JSON.stringify({ value: 'test-challenge' }), { status: 200 })
-      }
-      return new Response(null, { status: 201 })
-    })
-
-    const app = await makeApp(null)
-    const res = await app.request(
-      '/auth/passkey/login/verify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawId: 'Y3JlZC1pZA',
-          anonKey: 'anon-key-123',
-          response: {
-            clientDataJSON: 'Y2xpZW50RGF0YQ',
-            authenticatorData: 'YXV0aERhdGE',
-            signature: 'c2ln',
-          },
-        }),
-      },
-      env,
-    )
-    expect(res.status).toBe(401)
-    const body = (await res.json()) as { code: string }
-    expect(body.code).toBe('invalid_credentials')
-  })
-
-  it('challenge consume DO 故障时登录返回 500 且不查凭证不验签', async () => {
-    vi.mocked(verifyAuthentication).mockClear()
-    const db = makeTenantDb({
-      passkeyCredentials: {
-        findMany: vi.fn().mockResolvedValue([]),
-        findOne: vi.fn(),
-        insert: vi.fn(),
-        update: vi.fn(),
-      },
-    })
-    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-
-    const env = makeEnv(async (req) => {
-      const url = new URL(req.url)
-      if (url.pathname === '/consume') {
-        return new Response(JSON.stringify({ code: 'server_error' }), { status: 500 })
-      }
-      return new Response(null, { status: 201 })
-    })
-
-    const app = await makeApp(null)
-    const res = await app.request(
-      '/auth/passkey/login/verify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawId: 'Y3JlZC1pZA',
-          anonKey: 'anon-key-123',
-          response: {
-            clientDataJSON: 'Y2xpZW50RGF0YQ',
-            authenticatorData: 'YXV0aERhdGE',
-            signature: 'c2ln',
-          },
-        }),
-      },
-      env,
-    )
-
-    expect(res.status).toBe(500)
-    const body = (await res.json()) as { code: string }
-    expect(body.code).toBe('server_error')
-    expect(verifyAuthentication).not.toHaveBeenCalled()
-    expect(db.passkeyCredentials.findOne).not.toHaveBeenCalled()
-  })
-
-  it('challenge consume 返回体不是 JSON 时登录返回 500 且不查凭证不验签', async () => {
-    vi.mocked(verifyAuthentication).mockClear()
-    const db = makeTenantDb({
-      passkeyCredentials: {
-        findMany: vi.fn().mockResolvedValue([]),
-        findOne: vi.fn(),
-        insert: vi.fn(),
-        update: vi.fn(),
-      },
-    })
-    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-
-    const env = makeEnv(async (req) => {
-      const url = new URL(req.url)
-      if (url.pathname === '/consume') {
-        return new Response('not-json', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-      return new Response(null, { status: 201 })
-    })
-
-    const app = await makeApp(null)
-    const res = await app.request(
-      '/auth/passkey/login/verify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawId: 'Y3JlZC1pZA',
-          anonKey: 'anon-key-123',
-          response: {
-            clientDataJSON: 'Y2xpZW50RGF0YQ',
-            authenticatorData: 'YXV0aERhdGE',
-            signature: 'c2ln',
-          },
-        }),
-      },
-      env,
-    )
-
-    expect(res.status).toBe(500)
-    const body = (await res.json()) as { code: string }
-    expect(body.code).toBe('server_error')
-    expect(verifyAuthentication).not.toHaveBeenCalled()
-    expect(db.passkeyCredentials.findOne).not.toHaveBeenCalled()
-  })
-
-  it('malformed login assertion bytes -> invalid_credentials', async () => {
-    vi.mocked(verifyAuthentication).mockClear()
-    const db = makeTenantDb({
-      passkeyCredentials: {
-        findMany: vi.fn().mockResolvedValue([]),
-        findOne: vi.fn().mockResolvedValue({
-          credentialId: 'Y3JlZC1pZA',
-          userId: 'user-1',
-          signCount: 0,
-          publicKey: new Uint8Array([1]),
-          coseAlg: -7,
-          aaguid: new Uint8Array(16),
-          transports: [],
-          revokedAt: null,
-        }),
-        insert: vi.fn(),
-        update: vi.fn(),
-      },
-    })
-    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-
-    const env = makeEnv(async (req) => {
-      const url = new URL(req.url)
-      if (url.pathname === '/consume') {
-        return new Response(JSON.stringify({ value: 'test-challenge' }), { status: 200 })
-      }
-      return new Response(null, { status: 201 })
-    })
-
-    const app = await makeApp(null)
-    const res = await app.request(
-      '/auth/passkey/login/verify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawId: 'Y3JlZC1pZA',
-          anonKey: 'anon-key-123',
-          response: {
-            clientDataJSON: 'bad-base64url',
-            authenticatorData: 'YXV0aERhdGE',
-            signature: 'c2ln',
-          },
-        }),
-      },
-      env,
-    )
-    expect(res.status).toBe(401)
-    const body = (await res.json()) as { code: string }
-    expect(body.code).toBe('invalid_credentials')
-    expect(verifyAuthentication).not.toHaveBeenCalled()
   })
 })
 

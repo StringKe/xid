@@ -37,6 +37,8 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   mfa_invalid: 401,
   mfa_setup_required: 403,
   step_up_required: 401,
+  passkey_limit_reached: 409,
+  sign_in_method_required: 409,
   email_verification_required: 403,
   password_breached: 422,
   password_reused: 422,

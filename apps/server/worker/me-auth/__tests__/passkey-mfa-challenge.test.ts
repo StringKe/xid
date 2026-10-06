@@ -12,7 +12,6 @@ vi.mock('@xid-kit/db', () => ({
       credentialId: 'credentialId',
       revokedAt: 'revokedAt',
     },
-    mfaFactors: { userId: 'userId', factorType: 'factorType', status: 'status' },
     sessions: { id: 'id' },
   },
 }))
@@ -30,6 +29,7 @@ vi.mock('../../auth/mfa', () => ({
   issueStepUpToken: vi.fn().mockResolvedValue({ token: 'stepup.token.sig' }),
 }))
 
+import { base64UrlEncode } from '@xid-kit/crypto'
 import { verifyAuthentication } from '@xid-kit/webauthn'
 import { createTenantDb } from '@xid-kit/db'
 import { createChallenge } from '../../auth/passkey-helpers'
@@ -56,21 +56,16 @@ function makeOAuthStateNs(pending: Record<string, string> | null): DurableObject
 }
 
 function passkeyDbMocks(
-  overrides: {
-    backedUp?: boolean
-    enterpriseAttestationVerified?: boolean
-    sessionAmr?: string[]
-    linkedFactor?: boolean
-  } = {},
+  overrides: { backedUp?: boolean; enterpriseAttestationVerified?: boolean } = {},
 ) {
   const sessionUpdate = vi.fn().mockResolvedValue(undefined)
   const credential = {
+    id: 'pk_1',
     credentialId: 'cred_1',
     transports: [],
+    deviceName: null,
+    createdAt: new Date(),
     backedUp: overrides.backedUp ?? false,
-    credentialDeviceType: 'singleDevice',
-    attestationFmt: 'none',
-    enterpriseAttestationVerified: overrides.enterpriseAttestationVerified ?? false,
   }
   vi.mocked(createTenantDb).mockReturnValue({
     passkeyCredentials: {
@@ -84,15 +79,6 @@ function passkeyDbMocks(
         attestationFmt: 'none',
         enterpriseAttestationVerified: overrides.enterpriseAttestationVerified ?? false,
       }),
-    },
-    mfaFactors: {
-      findMany: vi
-        .fn()
-        .mockResolvedValue(
-          overrides.linkedFactor === false
-            ? []
-            : [{ passkeyCredentialId: 'cred_1', factorType: 'passkey', status: 'active' }],
-        ),
     },
     sessions: { update: sessionUpdate },
   } as unknown as ReturnType<typeof createTenantDb>)
@@ -129,7 +115,6 @@ describe('passkey MFA challenge routes', () => {
           },
         ]),
       },
-      mfaFactors: { findMany: vi.fn().mockResolvedValue([]) },
     } as unknown as ReturnType<typeof createTenantDb>)
 
     const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })
@@ -239,7 +224,6 @@ describe('passkey MFA challenge routes', () => {
     })
     const res = await post(app, env, '/auth/mfa/passkey/verify', {
       rawId: 'cred_1',
-      redirectTo: '/authorize?authz_request_id=authz_1',
       response: {
         clientDataJSON: 'Y2Q',
         authenticatorData: 'YWQ',
@@ -274,7 +258,6 @@ describe('passkey MFA challenge routes', () => {
     })
     const res = await post(app, env, '/auth/mfa/passkey/verify', {
       rawId: 'cred_1',
-      redirectTo: '/authorize?authz_request_id=authz_1',
       response: {
         clientDataJSON: 'Y2Q',
         authenticatorData: 'YWQ',
@@ -288,27 +271,13 @@ describe('passkey MFA challenge routes', () => {
     )
   })
 
-  it('POST /auth/mfa/passkey/verify rejects unlinked passkey after phr primary login', async () => {
-    vi.mocked(createTenantDb).mockReturnValue({
-      passkeyCredentials: {
-        findMany: vi.fn().mockResolvedValue([
-          {
-            credentialId: 'cred_1',
-            transports: [],
-            backedUp: false,
-            credentialDeviceType: 'singleDevice',
-            attestationFmt: 'none',
-            enterpriseAttestationVerified: false,
-          },
-        ]),
-      },
-      mfaFactors: { findMany: vi.fn().mockResolvedValue([]) },
-    } as unknown as ReturnType<typeof createTenantDb>)
-
+  it('POST /auth/mfa/passkey/verify rejects any passkey as second factor after phr primary login', async () => {
+    passkeyDbMocks()
     const app = makeApp(registerSessionAuthRoutes, {
-      session: { ...makeSession(), amr: ['phr'] },
+      session: { ...makeSession(), status: 'pending_mfa', amr: ['phr'] },
       tenant: makeTenant() as unknown as import('../../lib/types').TenantVar,
     })
+
     const res = await post(app, makeEnv(), '/auth/mfa/passkey/verify', {
       rawId: 'cred_1',
       response: {
@@ -317,6 +286,70 @@ describe('passkey MFA challenge routes', () => {
         signature: 'c2ln',
       },
     })
+
     expect(res.status).toBe(401)
+    expect(verifyAuthentication).not.toHaveBeenCalled()
+  })
+
+  it('POST /auth/mfa/passkey/verify accepts step-up on an active passkey session', async () => {
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      ok: true,
+      value: {
+        signCount: 1,
+        signCountAnomaly: false,
+        userVerified: true,
+        credentialBackedUp: true,
+        credentialDeviceType: 'multiDevice',
+      },
+    } as never)
+    passkeyDbMocks()
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: { ...makeSession(), amr: ['phr'] },
+      tenant: makeTenant() as unknown as import('../../lib/types').TenantVar,
+    })
+
+    const res = await post(app, makeEnv(), '/auth/mfa/passkey/verify', {
+      rawId: 'cred_1',
+      stepUp: true,
+      response: {
+        clientDataJSON: 'Y2Q',
+        authenticatorData: 'YWQ',
+        signature: 'c2ln',
+      },
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('set-cookie')).toContain('__Host-xid.acr=')
+  })
+
+  it('POST /auth/mfa/passkey/verify rejects a userHandle that belongs to another user', async () => {
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      ok: true,
+      value: {
+        signCount: 1,
+        signCountAnomaly: false,
+        userVerified: true,
+        credentialBackedUp: false,
+        credentialDeviceType: 'singleDevice',
+      },
+    } as never)
+    const sessionUpdate = passkeyDbMocks()
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: makeSession(),
+      tenant: makeTenant() as unknown as import('../../lib/types').TenantVar,
+    })
+
+    const res = await post(app, makeEnv(), '/auth/mfa/passkey/verify', {
+      rawId: 'cred_1',
+      response: {
+        clientDataJSON: 'Y2Q',
+        authenticatorData: 'YWQ',
+        signature: 'c2ln',
+        userHandle: base64UrlEncode(new TextEncoder().encode('u_other')),
+      },
+    })
+
+    expect(res.status).toBe(401)
+    expect(sessionUpdate).not.toHaveBeenCalled()
   })
 })

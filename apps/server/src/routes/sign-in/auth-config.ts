@@ -49,6 +49,10 @@ export type PublicHostedAuthConfig = {
     enterpriseSso: HostedAuthPolicy['enterpriseSso']
   }
   socialProviders: readonly PublicSocialProvider[]
+  passkeyEntry: {
+    identifierRequired: boolean
+    reregistrationRequired: boolean
+  }
   defaultLandingPath: DefaultLandingPath
 }
 
@@ -94,6 +98,7 @@ export const DEFAULT_PUBLIC_AUTH_CONFIG: PublicHostedAuthConfig = {
     },
   },
   socialProviders: [],
+  passkeyEntry: { identifierRequired: false, reregistrationRequired: false },
   defaultLandingPath: ACCOUNT_EXACT_PATH,
 }
 

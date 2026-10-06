@@ -372,6 +372,7 @@ export async function completeLegacyLogin(input: {
   const mfaGate = await resolvePostAuthMfaGate(c, c.get('tenant'), {
     userId,
     returnPath: safeLocalRedirect,
+    sessionAmr: SSO_AUTH_CONTEXT.amr,
   })
   await issueSession(c, {
     sessionId: createPersistedId('session'),

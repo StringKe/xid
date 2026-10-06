@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import { isPersistedId } from '../../lib/persisted-id'
 import { registerMfaFactorsRoutes } from '../mfa-factors'
-import { buildApp, makeFakeD1, makeSession, TENANT } from './harness'
+import { buildApp, makeFakeD1, makeSession, stepUpCookieFor, TENANT, TEST_PEPPER } from './harness'
 
 const now = Date.now()
 
@@ -75,6 +75,52 @@ function passkeyRow(overrides: Record<string, unknown> = {}): Record<string, unk
   }
 }
 
+function smsFactorRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return totpRow({
+    id: 'mf_sms',
+    factor_type: 'sms',
+    secret_ciphertext: null,
+    target: 'phone_1',
+    is_default: 0,
+    ...overrides,
+  })
+}
+
+const SMS_TENANT = {
+  ...TENANT,
+  policy: {
+    deliveryChannels: {
+      sms: {
+        provider: 'twilio' as const,
+        enabled: true,
+        secretRefs: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
+        from: '+15550000000',
+      },
+    },
+  },
+} as typeof TENANT
+
+function smsEnv(db: D1Database): Env {
+  return {
+    DB: db,
+    PEPPER: TEST_PEPPER,
+    TWILIO_ACCOUNT_SID: 'AC123',
+    TWILIO_AUTH_TOKEN: 'token',
+    SMS_FROM: '+15550000000',
+  } as unknown as Env
+}
+
+async function stepUpRequest(
+  app: ReturnType<typeof buildApp>,
+  input: { path: string; method: string; env: Env; session: ReturnType<typeof makeSession> },
+): Promise<Response> {
+  return app.request(
+    `https://acme.xid.dev${input.path}`,
+    { method: input.method, headers: { Cookie: await stepUpCookieFor(input.session) } },
+    input.env,
+  )
+}
+
 describe('GET /v1/me/mfa-factors', () => {
   it('returns totp + backup_codes factors as discriminated union', async () => {
     // 使用两条未用码覆盖 count 查询和 used=false 条件。
@@ -126,45 +172,74 @@ describe('GET /v1/me/mfa-factors', () => {
     expect(await res.json()).toEqual([])
   })
 
-  it('lists SMS only when the user has a verified phone and provider is ready', async () => {
+  it('does not list a verified phone as an SMS factor until the user enrolls it', async () => {
     const db = makeFakeD1({
       mfa_factors: [],
       backup_codes: [],
       user_phones: [verifiedPhoneRow()],
     })
-    const env = {
-      DB: db,
-      TWILIO_ACCOUNT_SID: 'AC123',
-      TWILIO_AUTH_TOKEN: 'token',
-      SMS_FROM: '+15550000000',
-    } as unknown as Env
     const app = buildApp({
       register: registerMfaFactorsRoutes,
       session: makeSession({ userId: 'u_1' }),
-      tenant: {
-        ...TENANT,
-        policy: {
-          deliveryChannels: {
-            sms: {
-              provider: 'twilio',
-              enabled: true,
-              secretRefs: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-              from: '+15550000000',
-            },
-          },
-        },
-      },
+      tenant: SMS_TENANT,
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/mfa-factors',
+      { method: 'GET' },
+      smsEnv(db),
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+
+  it('lists the enrolled SMS factor when the provider is ready', async () => {
+    const db = makeFakeD1({
+      mfa_factors: [totpRow(), smsFactorRow()],
+      backup_codes: [],
+      user_phones: [verifiedPhoneRow()],
+    })
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+      tenant: SMS_TENANT,
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/mfa-factors',
+      { method: 'GET' },
+      smsEnv(db),
+    )
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>[]
+    expect(body.find((factor) => factor['type'] === 'sms')).toEqual({
+      id: 'mf_sms',
+      type: 'sms',
+      createdAt: new Date(now).toISOString(),
+    })
+  })
+
+  it('does not offer a passkey as second factor during a passkey sign-in challenge', async () => {
+    const db = makeFakeD1({
+      mfa_factors: [],
+      backup_codes: [],
+      passkey_credentials: [passkeyRow()],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1', amr: ['phr'], status: 'pending_mfa' }),
     })
 
     const res = await app.request('https://acme.xid.dev/v1/me/mfa-factors', { method: 'GET' }, env)
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual([
-      { id: 'phone_1', type: 'sms', createdAt: new Date(now).toISOString() },
-    ])
+    expect(await res.json()).toEqual([])
   })
 
-  it('does not list passkeys after phr login when no linked mfa factor exists', async () => {
+  it('lists passkeys for step-up on an active passkey session', async () => {
     const db = makeFakeD1({
       mfa_factors: [],
       backup_codes: [],
@@ -178,8 +253,7 @@ describe('GET /v1/me/mfa-factors', () => {
 
     const res = await app.request('https://acme.xid.dev/v1/me/mfa-factors', { method: 'GET' }, env)
 
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual([])
+    expect(await res.json()).toEqual([expect.objectContaining({ id: 'pk_1', type: 'passkey' })])
   })
 
   it('lists passkey factors for registered credentials', async () => {
@@ -227,10 +301,26 @@ describe('GET /v1/me/mfa-factors', () => {
 })
 
 describe('DELETE /v1/me/mfa-factors/:id', () => {
-  it('revokes current user TOTP factor', async () => {
+  it('revokes current user TOTP factor after step-up', async () => {
     const row = totpRow()
     const db = makeFakeD1({ mfa_factors: [row], backup_codes: [] })
-    const env = { DB: db } as unknown as Env
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/mf_1',
+      method: 'DELETE',
+      env: { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+      session,
+    })
+
+    expect(res.status).toBe(204)
+    expect(row['status']).toBe('revoked')
+  })
+
+  it('requires step-up before removing a TOTP factor', async () => {
+    const row = totpRow()
+    const db = makeFakeD1({ mfa_factors: [row], backup_codes: [] })
     const app = buildApp({
       register: registerMfaFactorsRoutes,
       session: makeSession({ userId: 'u_1' }),
@@ -239,11 +329,73 @@ describe('DELETE /v1/me/mfa-factors/:id', () => {
     const res = await app.request(
       'https://acme.xid.dev/v1/me/mfa-factors/mf_1',
       { method: 'DELETE' },
-      env,
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
     )
 
+    expect(res.status).toBe(401)
+    expect(await res.json()).toMatchObject({ code: 'step_up_required' })
+    expect(row['status']).toBe('active')
+  })
+
+  it('rejects a step-up token bound to another session', async () => {
+    const row = totpRow()
+    const db = makeFakeD1({ mfa_factors: [row], backup_codes: [] })
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/mf_1',
+      method: 'DELETE',
+      env: { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+      session: makeSession({ userId: 'u_1', sessionId: 's_other' }),
+    })
+
+    expect(res.status).toBe(401)
+    expect(row['status']).toBe('active')
+  })
+
+  it('refuses to remove the last strong factor when the tenant requires MFA', async () => {
+    const row = totpRow()
+    const db = makeFakeD1({ mfa_factors: [row], backup_codes: [] })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session,
+      tenant: { ...TENANT, policy: { mfaEnforcement: 'required' } },
+    })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/mf_1',
+      method: 'DELETE',
+      env: { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+      session,
+    })
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'mfa_required' })
+    expect(row['status']).toBe('active')
+  })
+
+  it('retires the SMS factor and backup codes with the last strong factor', async () => {
+    const totp = totpRow()
+    const sms = smsFactorRow()
+    const code = backupCodeRow(false, 1)
+    const db = makeFakeD1({ mfa_factors: [totp, sms], backup_codes: [code] })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/mf_1',
+      method: 'DELETE',
+      env: { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+      session,
+    })
+
     expect(res.status).toBe(204)
-    expect(row['status']).toBe('revoked')
+    expect(sms['status']).toBe('revoked')
+    expect(code['used']).toBe(1)
   })
 
   it('marks backup code batch used for current user', async () => {
@@ -379,22 +531,17 @@ describe('POST /v1/me/mfa-factors/totp/setup', () => {
 })
 
 describe('POST /v1/me/mfa-factors/backup-codes', () => {
-  it('returns one-time backup codes for the current session user', async () => {
+  it('returns one-time backup codes for the current session user after step-up', async () => {
     const db = makeFakeD1({ mfa_factors: [totpRow()], backup_codes: [] })
-    const env = {
-      DB: db,
-      PEPPER: 'v1:3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3',
-    } as unknown as Env
-    const app = buildApp({
-      register: registerMfaFactorsRoutes,
-      session: makeSession({ userId: 'u_1' }),
-    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session })
 
-    const res = await app.request(
-      'https://acme.xid.dev/v1/me/mfa-factors/backup-codes',
-      { method: 'POST' },
-      env,
-    )
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/backup-codes',
+      method: 'POST',
+      env: { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+      session,
+    })
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
@@ -403,12 +550,8 @@ describe('POST /v1/me/mfa-factors/backup-codes', () => {
     expect((body['codes'] as string[])[0]).toMatch(/^[A-Z2-9]{8}$/)
   })
 
-  it('rejects backup codes when only an active passkey is registered', async () => {
-    const db = makeFakeD1({ passkey_credentials: [passkeyRow()], backup_codes: [] })
-    const env = {
-      DB: db,
-      PEPPER: 'v1:3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3',
-    } as unknown as Env
+  it('requires step-up before regenerating backup codes', async () => {
+    const db = makeFakeD1({ mfa_factors: [totpRow()], backup_codes: [] })
     const app = buildApp({
       register: registerMfaFactorsRoutes,
       session: makeSession({ userId: 'u_1' }),
@@ -417,11 +560,26 @@ describe('POST /v1/me/mfa-factors/backup-codes', () => {
     const res = await app.request(
       'https://acme.xid.dev/v1/me/mfa-factors/backup-codes',
       { method: 'POST' },
-      env,
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
     )
 
-    expect(res.status).toBe(409)
-    expect(await res.json()).toMatchObject({ code: 'mfa_required' })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toMatchObject({ code: 'step_up_required' })
+  })
+
+  it('treats a passkey as a strong factor for backup codes', async () => {
+    const db = makeFakeD1({ passkey_credentials: [passkeyRow()], backup_codes: [] })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/backup-codes',
+      method: 'POST',
+      env: { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+      session,
+    })
+
+    expect(res.status).toBe(200)
   })
 
   it('rejects backup codes when no strong MFA factor exists', async () => {
@@ -461,5 +619,57 @@ describe('POST /v1/me/mfa-factors/backup-codes', () => {
     )
 
     expect(res.status).toBe(401)
+  })
+})
+
+describe('SMS factor enrollment', () => {
+  it('reports SMS as enrollable once a strong factor and verified phone exist', async () => {
+    const db = makeFakeD1({ mfa_factors: [totpRow()], user_phones: [verifiedPhoneRow()] })
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+      tenant: SMS_TENANT,
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/mfa-factors/sms',
+      { method: 'GET' },
+      smsEnv(db),
+    )
+
+    expect(await res.json()).toEqual({ enrollable: true, phoneLast4: '4567' })
+  })
+
+  it('enrolls the verified phone as SMS factor after step-up', async () => {
+    const factors = [totpRow()]
+    const db = makeFakeD1({ mfa_factors: factors, user_phones: [verifiedPhoneRow()] })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session, tenant: SMS_TENANT })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/sms',
+      method: 'POST',
+      env: smsEnv(db),
+      session,
+    })
+
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ type: 'sms' })
+  })
+
+  it('refuses SMS as the only factor', async () => {
+    const db = makeFakeD1({ mfa_factors: [], user_phones: [verifiedPhoneRow()] })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerMfaFactorsRoutes, session, tenant: SMS_TENANT })
+
+    const res = await stepUpRequest(app, {
+      path: '/v1/me/mfa-factors/sms',
+      method: 'POST',
+      env: smsEnv(db),
+      session,
+    })
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'mfa_required' })
   })
 })

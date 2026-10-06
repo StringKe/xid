@@ -23,7 +23,7 @@ import {
   readBrowserSessions,
 } from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
-import { smsDeliveryReady } from '../auth/delivery-channels'
+import { hasStrongMfaFactor } from '../lib/mfa-methods'
 import { loadPrimaryEmail, readAllById, resolveSession } from './shared'
 
 type AuthOrg = BrowserAuthOrganization
@@ -42,26 +42,9 @@ function resolveName(row: typeof schema.users.$inferSelect): string | null {
   return parts.length > 0 ? parts.join(' ') : null
 }
 
-// hasMfa:存在 active mfa_factors(含 passkey)、未撤销 passkey 凭证,或 verified phone + SMS ready。
+// hasMfa:存在强因子(TOTP 或未吊销 passkey);SMS 因子与备份码只能依附强因子存在。
 async function hasMfaEnabled(c: Context<XidHonoEnv>, userId: string): Promise<boolean> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const [factor, passkey] = await Promise.all([
-    db.mfaFactors.findOne(
-      and(eq(schema.mfaFactors.userId, userId), eq(schema.mfaFactors.status, 'active')),
-    ),
-    db.passkeyCredentials.findOne(
-      and(
-        eq(schema.passkeyCredentials.userId, userId),
-        isNull(schema.passkeyCredentials.revokedAt),
-      ),
-    ),
-  ])
-  if (factor || passkey) return true
-  if (!smsDeliveryReady(c.get('tenant'), c.env)) return false
-  const phone = await db.userPhones.findOne(
-    and(eq(schema.userPhones.userId, userId), eq(schema.userPhones.verified, true)),
-  )
-  return Boolean(phone)
+  return hasStrongMfaFactor(createTenantDb(c.env.DB, c.get('tenant')), userId)
 }
 
 async function isInstanceManager(c: Context<XidHonoEnv>, userId: string): Promise<boolean> {

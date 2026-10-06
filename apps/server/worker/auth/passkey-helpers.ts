@@ -1,5 +1,4 @@
-// passkey 注册/登录 handler 的纯辅助:challenge DO 读写、匿名 key 派生、凭证构建与持久化。
-// 从 passkey.ts 抽出以控制文件行数;无路由逻辑,只被 passkey.ts 复用(见 webauthn rule 四验证编排)。
+// passkey ceremony 的纯辅助:challenge DO 读写、匿名 key 派生、凭证构建与持久化。无路由逻辑。
 
 import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
@@ -14,6 +13,8 @@ import { WEBAUTHN_CHALLENGE_TTL_MS } from '../lib/ttl'
 
 // passkey 每账户上限(见 01 章 step 8)
 export const PASSKEY_LIMIT = 10
+// 设备名注册与重命名共用的长度上限(账户页输入框同值)
+export const PASSKEY_DEVICE_NAME_MAX_LENGTH = 64
 // 别名保留:passkey.ts / me-auth/passkey-mfa-challenge.ts 及其测试 mock 按此名引用
 export const CHALLENGE_TTL_MS = WEBAUTHN_CHALLENGE_TTL_MS
 
@@ -178,7 +179,6 @@ export async function persistNewCredential(opts: {
   verified: VerifiedRegistration
   transports: string[]
   deviceName: string | null
-  sessionAmr?: readonly string[] | null
 }): Promise<void> {
   const { db, tenantId, userId, credentialIdBase64, verified, transports, deviceName } = opts
   const existing = await db.passkeyCredentials.findOne(
@@ -189,7 +189,7 @@ export async function persistNewCredential(opts: {
   const count = await db.passkeyCredentials.count(
     and(eq(schema.passkeyCredentials.userId, userId), isNull(schema.passkeyCredentials.revokedAt)),
   )
-  if (count >= PASSKEY_LIMIT) throw new AppError('validation_failed')
+  if (count >= PASSKEY_LIMIT) throw new AppError('passkey_limit_reached')
 
   const validTransports = transports.filter((t): t is AuthenticatorTransport =>
     VALID_TRANSPORTS.includes(t),
@@ -213,23 +213,7 @@ export async function persistNewCredential(opts: {
       lastUsedAt: new Date(),
     })
   } catch (error) {
-    if (isPasskeyLimitError(error)) throw new AppError('validation_failed')
+    if (isPasskeyLimitError(error)) throw new AppError('passkey_limit_reached')
     throw error
   }
-
-  if (sessionAmrIncludesPhr(opts.sessionAmr)) {
-    await db.mfaFactors.insert({
-      id: createPersistedId('mfaFactor'),
-      tenantId,
-      userId,
-      factorType: 'passkey',
-      status: 'active',
-      passkeyCredentialId: credentialIdBase64,
-      activatedAt: new Date(),
-    })
-  }
-}
-
-function sessionAmrIncludesPhr(sessionAmr?: readonly string[] | null): boolean {
-  return Boolean(sessionAmr?.includes('phr'))
 }

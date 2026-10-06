@@ -53,6 +53,8 @@ import {
 } from '@xid-kit/db'
 import { verifyAuthentication } from '@xid-kit/webauthn'
 import { consumeChallenge, createChallenge } from '../../auth/passkey-helpers'
+import { AppError } from '../../lib/errors'
+import { resolvePostAuthMfaGate } from '../../lib/mfa-session'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeTenant } from './helpers'
 
@@ -109,6 +111,19 @@ function dbWithCred(cred: { userId: string; signCount: number; credentialId: str
       }),
     },
   } as unknown as ReturnType<typeof createTenantDb>
+}
+
+function recordingRateLimiter(calls: string[]): DurableObjectNamespace {
+  return {
+    idFromName: (name: string) => ({ toString: () => name }) as DurableObjectId,
+    get: (id: DurableObjectId) =>
+      ({
+        fetch: async (url: string) => {
+          calls.push(`${new URL(url).pathname.slice(1)} ${id.toString()}`)
+          return Response.json({ allowed: true, retryAfter: 0, count: 1 })
+        },
+      }) as unknown as DurableObjectStub,
+  } as unknown as DurableObjectNamespace
 }
 
 function makeRootEntryTenant() {
@@ -426,6 +441,79 @@ describe('POST /auth/passkey/verify', () => {
     })
     expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
     expect(verifyAuthentication).not.toHaveBeenCalled()
+  })
+
+  it('凭证存在但验签失败与凭证不存在返回同一 invalid_credentials', async () => {
+    vi.mocked(consumeChallenge).mockResolvedValue('chal-abc')
+    vi.mocked(verifyAuthentication).mockResolvedValue({ ok: false } as never)
+    vi.mocked(createTenantDb).mockReturnValue(
+      dbWithCred({ userId: 'user-1', signCount: 4, credentialId: 'cred-1' }),
+    )
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await verifyReq(app, makeEnv(), VERIFY_BODY)
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
+  })
+
+  it('challenge consume DO 故障 -> 500 且不查凭证不验签', async () => {
+    vi.mocked(consumeChallenge).mockRejectedValue(new AppError('server_error'))
+    const db = dbWithCred({ userId: 'user-1', signCount: 4, credentialId: 'cred-1' })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await verifyReq(app, makeEnv(), VERIFY_BODY)
+
+    expect(res.status).toBe(500)
+    expect(verifyAuthentication).not.toHaveBeenCalled()
+    expect(db.passkeyCredentials.findOne).not.toHaveBeenCalled()
+  })
+
+  it('userHandle 指向其他用户 -> invalid_credentials 且不签发 session', async () => {
+    vi.mocked(consumeChallenge).mockResolvedValue('chal-abc')
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      ok: true,
+      value: { signCount: 5, signCountAnomaly: false },
+    } as never)
+    const db = dbWithCred({ userId: 'user-1', signCount: 4, credentialId: 'cred-1' })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await verifyReq(app, makeEnv(), {
+      ...VERIFY_BODY,
+      response: { ...VERIFY_BODY.response, userHandle: 'user-2' },
+    })
+
+    expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
+    expect(db.sessions.insert).not.toHaveBeenCalled()
+  })
+
+  it('成功后按 passkey 一次认证进入 MFA 门控并清除凭证维度的失败计数', async () => {
+    vi.mocked(consumeChallenge).mockResolvedValue('chal-abc')
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      ok: true,
+      value: { signCount: 5, signCountAnomaly: false },
+    } as never)
+    vi.mocked(createTenantDb).mockReturnValue(
+      dbWithCred({ userId: 'user-1', signCount: 4, credentialId: 'cred-1' }),
+    )
+    const rateLimitCalls: string[] = []
+    const env = {
+      ...makeEnv(),
+      RATE_LIMITER: recordingRateLimiter(rateLimitCalls),
+    } as unknown as Env
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await verifyReq(app, env, VERIFY_BODY)
+
+    expect(res.status).toBe(200)
+    expect(resolvePostAuthMfaGate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ userId: 'user-1', sessionAmr: ['phr'] }),
+    )
+    expect(rateLimitCalls).toContain('reset verify:acct:tenant-1:passkey:cred-1')
   })
 
   it('限流 -> 429', async () => {

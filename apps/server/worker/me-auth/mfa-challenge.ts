@@ -1,75 +1,66 @@
-// MFA 挑战:sms/send 发已验证手机 OTP;verify 分发 totp/sms/backup,失败统一 otp_invalid。
+// MFA 挑战:sms/send 给显式登记的 SMS 因子发码;verify 分发 totp/sms/backup,失败统一 otp_invalid。
 // stepUp 经独立 __Host-xid.acr cookie(5min),不复用 session token。
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq } from 'drizzle-orm'
-import { setCookie } from 'hono/cookie'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
-import { readSession } from '../lib/session'
-import {
-  addMfaToAuthContext,
-  normalizeAuthAssuranceLevel,
-  normalizeIssuedAcr,
-  PASSWORD_AUTH_CONTEXT,
-} from '../lib/auth-context'
-import { issueStepUpToken, verifyTotp } from '../auth/mfa'
+import { verifyTotp } from '../auth/mfa'
 import { verifyAndConsumeBackupCode } from '../auth/backup-codes'
 import {
   consumeVerifiableOtp,
   constantTimeEqualStr,
   loadVerifiableOtp,
+  MFA_OTP_PURPOSE,
   persistAndSendOtp,
   recordOtpFailure,
 } from '../auth/otp'
 import { smsDeliveryReady } from '../auth/delivery-channels'
+import { excludedMfaMethods } from '../auth/passkey-mfa-eligibility'
+import { findActiveSmsFactor } from '../lib/mfa-methods'
+import { completeMfaOnSession, requireMfaSession } from '../lib/mfa-session'
+import { issueStepUpCookie } from '../lib/step-up'
 import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { enforceSendRateLimit, requestIp } from './shared'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 
-const STEP_UP_TTL_SEC = 5 * 60
-
-const mfaMethodSchema = v.picklist(['totp', 'backup', 'sms', 'passkey'])
-type MfaMethod = v.InferOutput<typeof mfaMethodSchema>
+export const MFA_VERIFY_SCOPE = 'mfa'
 
 const mfaVerifyBodySchema = v.object({
-  method: mfaMethodSchema,
-  code: v.optional(v.string()),
+  method: v.picklist(['totp', 'backup', 'sms']),
+  code: v.pipe(v.string(), v.trim(), v.minLength(1)),
   stepUp: v.optional(v.boolean()),
 })
+type CodeMfaMethod = v.InferOutput<typeof mfaVerifyBodySchema>['method']
 
-async function requireMfaSession(c: Context<XidHonoEnv>): Promise<SessionData> {
-  const current = c.get('session')
-  if (current) return current
-  const session = await readSession(c, ['active', 'pending_mfa'])
-  if (!session) throw new AppError('unauthorized', { httpStatus: 401 })
-  c.set('session', session)
-  return session
+async function loadSmsFactorForSession(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+  session: SessionData,
+): Promise<{ phone: string } | null> {
+  if (!smsDeliveryReady(tenant, c.env)) return null
+  if (excludedMfaMethods(session).includes('sms')) return null
+  return findActiveSmsFactor(createTenantDb(c.env.DB, tenant), session.userId)
 }
 
-// POST /auth/mfa/sms/send -- 给 session 用户已验证手机号发 MFA SMS OTP。
+// POST /auth/mfa/sms/send -- 给显式登记的 SMS 因子手机号发 MFA 验证码。
 export async function handleMfaSmsSend(c: Context<XidHonoEnv>): Promise<Response> {
   const session = await requireMfaSession(c)
   const tenant = c.get('tenant')
+  const factor = await loadSmsFactorForSession(c, tenant, session)
+  if (!factor) throw new AppError('mfa_setup_required')
 
-  const db = createTenantDb(c.env.DB, tenant)
-  const phoneRow = await db.userPhones.findOne(
-    and(eq(schema.userPhones.userId, session.userId), eq(schema.userPhones.verified, true)),
-  )
-  // 无已验证手机号:不可发(MFA 已知用户,无需枚举防护,但也不泄露细节)。
-  if (!phoneRow) throw new AppError('mfa_setup_required')
-  if (!smsDeliveryReady(tenant, c.env)) throw new AppError('invalid_request')
-
-  await enforceSendRateLimit(c.env, `mfasms:${tenant.tenantId}`, phoneRow.phone)
+  await enforceSendRateLimit(c.env, `mfasms:${tenant.tenantId}`, factor.phone)
   await persistAndSendOtp({
     c,
-    db,
+    db: createTenantDb(c.env.DB, tenant),
     tenantId: tenant.tenantId,
     channel: 'sms',
-    target: phoneRow.phone,
+    purpose: MFA_OTP_PURPOSE,
+    target: factor.phone,
     userId: session.userId,
   })
   return c.json({ ok: true })
@@ -79,13 +70,12 @@ export async function handleMfaSmsSend(c: Context<XidHonoEnv>): Promise<Response
 async function verifyTotpFactor(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  userId: string,
-  code: string,
+  input: { userId: string; code: string },
 ): Promise<void> {
   const db = createTenantDb(c.env.DB, tenant)
   const factor = await db.mfaFactors.findOne(
     and(
-      eq(schema.mfaFactors.userId, userId),
+      eq(schema.mfaFactors.userId, input.userId),
       eq(schema.mfaFactors.factorType, 'totp'),
       eq(schema.mfaFactors.status, 'active'),
     ),
@@ -97,32 +87,27 @@ async function verifyTotpFactor(
     d1: c.env.DB,
     replayStore: c.env.WEBAUTHN_CHALLENGE,
     kekRaw: c.env.KEK,
-    userId,
+    userId: input.userId,
     factorId: factor.id,
-    code,
+    code: input.code,
   })
-  if (result.ok) return
   // 所有 TOTP 失败(replayed/invalid_code/factor/decrypt)统一模糊到 otp_invalid(枚举防护)。
-  throw new AppError('otp_invalid')
+  if (!result.ok) throw new AppError('otp_invalid')
 }
 
-// sms:loadVerifiableOtp(channel='sms')+ constant-time 比对 + recordOtpFailure(失败计数/一次性)。
+// sms:只接受显式 SMS 因子 + MFA 专用 purpose 的验证码,免密登录码不能在这里通过。
 async function verifySmsFactor(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  userId: string,
-  code: string,
+  input: { session: SessionData; code: string },
 ): Promise<void> {
-  if (!/^\d{6}$/.test(code)) throw new AppError('otp_invalid')
-  if (!smsDeliveryReady(tenant, c.env)) throw new AppError('otp_invalid')
-  const db = createTenantDb(c.env.DB, tenant)
-  const phoneRow = await db.userPhones.findOne(
-    and(eq(schema.userPhones.userId, userId), eq(schema.userPhones.verified, true)),
-  )
-  if (!phoneRow) throw new AppError('otp_invalid')
+  if (!/^\d{6}$/.test(input.code)) throw new AppError('otp_invalid')
+  const factor = await loadSmsFactorForSession(c, tenant, input.session)
+  if (!factor) throw new AppError('otp_invalid')
 
-  const tokenRow = await loadVerifiableOtp(db, 'sms', phoneRow.phone)
-  const codeHash = await sha256Hex(code)
+  const db = createTenantDb(c.env.DB, tenant)
+  const tokenRow = await loadVerifiableOtp(db, 'sms', factor.phone, MFA_OTP_PURPOSE)
+  const codeHash = await sha256Hex(input.code)
   if (!constantTimeEqualStr(codeHash, tokenRow.codeHash ?? '')) {
     await recordOtpFailure(db, tokenRow)
     throw new AppError('otp_invalid')
@@ -134,14 +119,13 @@ async function verifySmsFactor(
 async function verifyBackupFactor(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  userId: string,
-  code: string,
+  input: { userId: string; code: string },
 ): Promise<void> {
   const result = await verifyAndConsumeBackupCode({
     ctx: tenant,
     d1: c.env.DB,
-    userId,
-    code,
+    userId: input.userId,
+    code: input.code,
     pepper: c.env.PEPPER,
   })
   if (!result.ok) throw new AppError('otp_invalid')
@@ -150,17 +134,12 @@ async function verifyBackupFactor(
 async function dispatchVerify(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  input: { session: SessionData; method: MfaMethod; code: string },
+  input: { session: SessionData; method: CodeMfaMethod; code: string },
 ): Promise<void> {
   const { session, method, code } = input
-  if (method === 'passkey') {
-    throw new AppError('invalid_request', {
-      longMessage: 'Use POST /auth/mfa/passkey/verify for passkey MFA',
-    })
-  }
-  if (method === 'totp') return verifyTotpFactor(c, tenant, session.userId, code)
-  if (method === 'sms') return verifySmsFactor(c, tenant, session.userId, code)
-  return verifyBackupFactor(c, tenant, session.userId, code)
+  if (method === 'totp') return verifyTotpFactor(c, tenant, { userId: session.userId, code })
+  if (method === 'sms') return verifySmsFactor(c, tenant, { session, code })
+  return verifyBackupFactor(c, tenant, { userId: session.userId, code })
 }
 
 export async function handleMfaVerify(c: Context<XidHonoEnv>): Promise<Response> {
@@ -174,64 +153,26 @@ export async function handleMfaVerify(c: Context<XidHonoEnv>): Promise<Response>
     credentialFields: ['method', 'code'],
   })
 
-  const method = body.method
-  const code = (body.code ?? '').trim()
-  if (method !== 'passkey' && !code) throw new AppError('otp_invalid')
-
-  // 失败限流:account=userId + IP(anti-abuse rule)。
+  // 失败限流:account=userId + IP(anti-abuse rule);成功后清除 account 维度计数与退避档。
   await enforceVerifyRateLimit({
     env: c.env,
     tenantId: tenant.tenantId,
-    scope: 'mfa',
+    scope: MFA_VERIFY_SCOPE,
     account: session.userId,
     ip: requestIp(c),
   })
-
-  await dispatchVerify(c, tenant, { session, method, code })
+  await dispatchVerify(c, tenant, { session, method: body.method, code: body.code })
   await resetVerifyAccountRateLimit({
     env: c.env,
     tenantId: tenant.tenantId,
-    scope: 'mfa',
+    scope: MFA_VERIFY_SCOPE,
     account: session.userId,
   })
 
   if (body.stepUp === true) {
-    // step-up:独立颁发 acr:step-up token(5min),经 __Host-xid.acr cookie 投递,不复用 session token。
-    const { token } = await issueStepUpToken({
-      userId: session.userId,
-      sessionId: session.sessionId,
-      method,
-      pepperRaw: c.env.PEPPER,
-    })
-    setCookie(c, '__Host-xid.acr', token, {
-      path: '/',
-      secure: true,
-      httpOnly: true,
-      sameSite: 'Lax',
-      maxAge: STEP_UP_TTL_SEC,
-    })
+    await issueStepUpCookie(c, { session, method: body.method })
     return c.json({})
   }
-
-  // 非 step-up:touch session(已 MFA);MFA 门控在 token 签发处校验(超本端点范围)。
-  const db = createTenantDb(c.env.DB, tenant)
-  const nextAuthContext = addMfaToAuthContext(
-    {
-      acr: normalizeIssuedAcr(session.acr) ?? PASSWORD_AUTH_CONTEXT.acr,
-      amr: session.amr ?? PASSWORD_AUTH_CONTEXT.amr,
-      aal: normalizeAuthAssuranceLevel(session.aal) ?? 1,
-    },
-    method,
-  )
-  await db.sessions.update(
-    {
-      status: 'active',
-      lastActiveAt: new Date(),
-      acr: nextAuthContext.acr,
-      amr: [...nextAuthContext.amr],
-      aal: nextAuthContext.aal,
-    },
-    eq(schema.sessions.id, session.sessionId),
-  )
+  await completeMfaOnSession(c, tenant, { session, method: body.method })
   return c.json({})
 }

@@ -605,7 +605,7 @@ describe('GET /v1/me', () => {
     expect((body['user'] as Record<string, unknown>)['hasMfa']).toBe(true)
   })
 
-  it('reports hasMfa true for verified phone only when SMS provider is ready', async () => {
+  it('does not report a verified phone alone as MFA even when SMS provider is ready', async () => {
     const db = makeFakeD1({
       users: [userRow()],
       user_emails: [emailRow()],
@@ -642,7 +642,7 @@ describe('GET /v1/me', () => {
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect((body['user'] as Record<string, unknown>)['hasMfa']).toBe(true)
+    expect((body['user'] as Record<string, unknown>)['hasMfa']).toBe(false)
   })
 
   it('does not report SMS MFA when provider is not ready', async () => {

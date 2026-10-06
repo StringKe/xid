@@ -633,6 +633,7 @@ async function finalizeSession(p: FinalizeSessionParams): Promise<Response> {
   const mfaGate = await resolvePostAuthMfaGate(p.c, p.c.get('tenant'), {
     userId: p.userId,
     returnPath: safeLocalRedirect,
+    sessionAmr: SSO_AUTH_CONTEXT.amr,
   })
   await issueSession(p.c, {
     sessionId: createPersistedId('session'),

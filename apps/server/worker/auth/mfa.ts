@@ -13,12 +13,11 @@ import type { Result, TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import { constantTimeEqualStr } from './otp'
 import { AppError } from '../lib/errors'
-import { TOTP_REPLAY_TTL_MS, TOTP_STEP_SEC } from '../lib/ttl'
+import { STEP_UP_TTL_SEC, TOTP_REPLAY_TTL_MS, TOTP_STEP_SEC } from '../lib/ttl'
 
 const TOTP_DIGITS = 6
 const TOTP_CLOCK_DRIFT_STEPS = 1 // 容忍正负 1 步
 
-const STEP_UP_TTL_SEC = 5 * 60
 const KEK_VERSION = 1
 
 // HOTP:HMAC-SHA1 + dynamic truncation -> 6 位(Web Crypto only)。

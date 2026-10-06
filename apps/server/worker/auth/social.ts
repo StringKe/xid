@@ -678,7 +678,11 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
         ? resolveRedirect(flowResolution.continuePath, config, defaultLandingPath)
         : flowResolution.continuePath
     const sessionId = createPersistedId('session')
-    const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath: location })
+    const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
+      userId,
+      returnPath: location,
+      sessionAmr: SOCIAL_AUTH_CONTEXT.amr,
+    })
     await issueSession(c, {
       sessionId,
       userId,

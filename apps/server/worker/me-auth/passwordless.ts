@@ -490,15 +490,23 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
     const now = new Date()
     const sessionId = createPersistedId('session')
     const returnPath = flow.continuePath
+    const authContext = channel === 'email' ? EMAIL_OTP_AUTH_CONTEXT : SMS_OTP_AUTH_CONTEXT
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId: tokenRow.userId,
       returnPath,
+      sessionAmr: authContext.amr,
+    })
+    await resetVerifyAccountRateLimit({
+      env: c.env,
+      tenantId: tenant.tenantId,
+      scope: 'otp',
+      account: target,
     })
     await issueSession(c, {
       sessionId,
       userId: tokenRow.userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
-      authContext: channel === 'email' ? EMAIL_OTP_AUTH_CONTEXT : SMS_OTP_AUTH_CONTEXT,
+      authContext,
       authenticatedAt: now,
       ip: requestIp(c),
       userAgent: requestUserAgent(c),

@@ -53,6 +53,8 @@ export const errorMessages: ErrorMessages = {
   signature_invalid: msg`The cryptographic signature could not be verified.`,
   user_verification_required: msg`User verification is required for this authenticator.`,
   credential_cloned: msg`A possible authenticator clone was detected. Please contact support.`,
+  passkey_limit_reached: msg`You have reached the maximum number of passkeys. Remove one before adding another.`,
+  sign_in_method_required: msg`Add another way to sign in before removing this one.`,
   invitation_invalid: msg`This invitation link is invalid or has already been used.`,
   invitation_expired: msg`This invitation has expired. Ask your organization admin to send a new one.`,
   invitation_email_mismatch: msg`Sign in with the email address that received this invitation.`,

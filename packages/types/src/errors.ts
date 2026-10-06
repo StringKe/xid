@@ -51,6 +51,8 @@ export const AUTH_ERROR_CODES = [
   'signature_invalid',
   'user_verification_required',
   'credential_cloned',
+  'passkey_limit_reached',
+  'sign_in_method_required',
   'invitation_invalid',
   'invitation_expired',
   'invitation_email_mismatch',

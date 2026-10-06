@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { registerPasskeysRoutes } from '../passkeys'
-import { buildApp, makeFakeD1, makeSession } from './harness'
+import { buildApp, makeFakeD1, makeSession, stepUpCookieFor, TEST_PEPPER } from './harness'
 
 const now = Date.now()
 
@@ -127,10 +127,41 @@ describe('PATCH / DELETE /v1/me/passkeys/:id', () => {
     expect(row['device_name']).toBe('Work Mac')
   })
 
-  it('revokes current user passkey instead of physical delete', async () => {
+  it('revokes the passkey and its linked MFA factor after step-up', async () => {
     const row = passkeyRow()
-    const db = makeFakeD1({ passkey_credentials: [row] })
-    const env = { DB: db } as unknown as Env
+    const linkedFactor = {
+      id: 'mf_pk',
+      tenant_id: 't_1',
+      user_id: 'u_1',
+      factor_type: 'passkey',
+      status: 'active',
+      passkey_credential_id: 'cred_abc',
+    }
+    const db = makeFakeD1({
+      passkey_credentials: [row],
+      passwords: [{ id: 'pw_1', tenant_id: 't_1', user_id: 'u_1' }],
+      mfa_factors: [linkedFactor],
+    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerPasskeysRoutes, session })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/passkeys/pk_1',
+      { method: 'DELETE', headers: { Cookie: await stepUpCookieFor(session) } },
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+    )
+
+    expect(res.status).toBe(204)
+    expect(row['revoked_at']).toBeTypeOf('number')
+    expect(linkedFactor.status).toBe('revoked')
+  })
+
+  it('requires step-up before removing a passkey', async () => {
+    const row = passkeyRow()
+    const db = makeFakeD1({
+      passkey_credentials: [row],
+      passwords: [{ id: 'pw_1', tenant_id: 't_1', user_id: 'u_1' }],
+    })
     const app = buildApp({
       register: registerPasskeysRoutes,
       session: makeSession({ userId: 'u_1' }),
@@ -139,11 +170,47 @@ describe('PATCH / DELETE /v1/me/passkeys/:id', () => {
     const res = await app.request(
       'https://acme.xid.dev/v1/me/passkeys/pk_1',
       { method: 'DELETE' },
-      env,
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+    )
+
+    expect(res.status).toBe(401)
+    expect(await res.json()).toMatchObject({ code: 'step_up_required' })
+    expect(row['revoked_at']).toBeUndefined()
+  })
+
+  it('accepts a fresh passkey sign-in as step-up for removing one of several passkeys', async () => {
+    const row = passkeyRow()
+    const other = passkeyRow({ id: 'pk_2', credential_id: 'cred_other' })
+    const db = makeFakeD1({ passkey_credentials: [row, other] })
+    const app = buildApp({
+      register: registerPasskeysRoutes,
+      session: makeSession({ userId: 'u_1', amr: ['phr'], acr: 'urn:xid:aal2', aal: 2 }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/passkeys/pk_1',
+      { method: 'DELETE' },
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
     )
 
     expect(res.status).toBe(204)
-    expect(row['revoked_at']).toBeTypeOf('number')
+  })
+
+  it('refuses to remove the only way to sign in', async () => {
+    const row = passkeyRow()
+    const db = makeFakeD1({ passkey_credentials: [row] })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerPasskeysRoutes, session })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/passkeys/pk_1',
+      { method: 'DELETE', headers: { Cookie: await stepUpCookieFor(session) } },
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+    )
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'sign_in_method_required' })
+    expect(row['revoked_at']).toBeUndefined()
   })
 
   it('does not rename another user passkey', async () => {

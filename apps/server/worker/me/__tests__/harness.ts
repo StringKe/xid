@@ -6,6 +6,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { TenantContext } from '@xid-kit/types'
+import { issueStepUpToken } from '../../auth/mfa'
 import { isAppError } from '../../lib/errors'
 import type { SessionData, XidHonoEnv } from '../../lib/types'
 
@@ -236,6 +237,19 @@ export function buildApp(opts: BuildAppOptions): Hono<XidHonoEnv> {
   })
   opts.register(app)
   return app
+}
+
+export const TEST_PEPPER = 'v1:3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3'
+
+// 为当前 session 签一枚有效 step-up token,模拟用户刚在 /mfa?step_up=1 完成重新验证。
+export async function stepUpCookieFor(session: SessionData): Promise<string> {
+  const { token } = await issueStepUpToken({
+    userId: session.userId,
+    sessionId: session.sessionId,
+    method: 'totp',
+    pepperRaw: TEST_PEPPER,
+  })
+  return `__Host-xid.acr=${token}`
 }
 
 export function makeSession(overrides: Partial<SessionData> = {}): SessionData {

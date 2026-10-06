@@ -1,67 +1,49 @@
-// Passkey MFA 可挑战凭证筛选:与 passkey-mfa-challenge / mfa-factors 列表对齐。
-// 主 passkey 登录(phr)后仅允许已链接 mfa_factors 的凭证作第二因子。
+// Passkey 作为第二因子或 step-up 时可挑战的凭证:MFA 门控、/mfa 因子列表与 passkey MFA options/verify 共用。
+// 登录挑战(pending_mfa)排除一次认证已用过的方法类别;step-up(active)接受任意未吊销凭证重新认证。
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
+import { mfaMethodsUsedByPrimary, type MfaMethod } from '../lib/auth-context'
+import { PENDING_MFA_SESSION_STATUS } from '../lib/session'
 import type { SessionData } from '../lib/types'
 import { PASSKEY_LIMIT } from './passkey-helpers'
 
 export type EligiblePasskeyCredential = {
+  id: string
   credentialId: string
   transports: string[]
-  backedUp: boolean
-  credentialDeviceType: string
-  attestationFmt: string
-  enterpriseAttestationVerified: boolean
+  deviceName: string | null
+  createdAt: Date
 }
 
-function sessionUsedPasskeyPrimary(session: SessionData): boolean {
-  return Boolean(session.amr?.includes('phr'))
+export type MfaChallengeContext = Pick<SessionData, 'userId' | 'amr'> & {
+  status: SessionData['status'] | 'gate'
+}
+
+// gate:一次认证刚完成、session 尚未签发,与 pending_mfa 同属本次登录的第二因子挑战。
+export function excludedMfaMethods(context: MfaChallengeContext): readonly MfaMethod[] {
+  const isLoginChallenge =
+    context.status === 'gate' || context.status === PENDING_MFA_SESSION_STATUS
+  return isLoginChallenge ? mfaMethodsUsedByPrimary(context.amr) : []
 }
 
 export async function listEligiblePasskeyCredentials(
   db: ReturnType<typeof createTenantDb>,
-  session: SessionData,
+  context: MfaChallengeContext,
 ): Promise<EligiblePasskeyCredential[]> {
+  if (excludedMfaMethods(context).includes('passkey')) return []
   const rows = await db.passkeyCredentials.findMany(
     and(
-      eq(schema.passkeyCredentials.userId, session.userId),
+      eq(schema.passkeyCredentials.userId, context.userId),
       isNull(schema.passkeyCredentials.revokedAt),
     ),
     { limit: PASSKEY_LIMIT },
   )
-  if (!sessionUsedPasskeyPrimary(session)) {
-    return rows.map((row) => ({
-      credentialId: row.credentialId,
-      transports: row.transports ?? [],
-      backedUp: row.backedUp,
-      credentialDeviceType: row.credentialDeviceType,
-      attestationFmt: row.attestationFmt,
-      enterpriseAttestationVerified: row.enterpriseAttestationVerified,
-    }))
-  }
-
-  const passkeyFactors = await db.mfaFactors.findMany(
-    and(
-      eq(schema.mfaFactors.userId, session.userId),
-      eq(schema.mfaFactors.status, 'active'),
-      eq(schema.mfaFactors.factorType, 'passkey'),
-    ),
-    { limit: PASSKEY_LIMIT },
-  )
-  const linkedIds = new Set(
-    passkeyFactors
-      .map((factor) => factor.passkeyCredentialId)
-      .filter((id): id is string => Boolean(id)),
-  )
-  return rows
-    .filter((row) => linkedIds.has(row.credentialId))
-    .map((row) => ({
-      credentialId: row.credentialId,
-      transports: row.transports ?? [],
-      backedUp: row.backedUp,
-      credentialDeviceType: row.credentialDeviceType,
-      attestationFmt: row.attestationFmt,
-      enterpriseAttestationVerified: row.enterpriseAttestationVerified,
-    }))
+  return rows.map((row) => ({
+    id: row.id,
+    credentialId: row.credentialId,
+    transports: row.transports ?? [],
+    deviceName: row.deviceName ?? null,
+    createdAt: row.createdAt,
+  }))
 }

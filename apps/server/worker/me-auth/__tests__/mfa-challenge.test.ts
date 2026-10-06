@@ -14,8 +14,10 @@ vi.mock('@xid-kit/crypto', async (importOriginal) => {
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   schema: {
-    userPhones: { userId: 'userId', verified: 'verified' },
+    userPhones: { id: 'id', userId: 'userId', verified: 'verified' },
     mfaFactors: { userId: 'userId', factorType: 'factorType', status: 'status' },
+    passkeyCredentials: { userId: 'userId', revokedAt: 'revokedAt' },
+    backupCodes: { userId: 'userId', used: 'used' },
     verificationTokens: { tokenHash: 'tokenHash' },
     sessions: { id: 'id' },
   },
@@ -29,6 +31,7 @@ vi.mock('../../auth/mfa', () => ({
 vi.mock('../../auth/backup-codes', () => ({ verifyAndConsumeBackupCode: vi.fn() }))
 
 vi.mock('../../auth/otp', () => ({
+  MFA_OTP_PURPOSE: 'mfa_otp',
   consumeVerifiableOtp: vi.fn().mockResolvedValue(true),
   constantTimeEqualStr: vi.fn().mockReturnValue(true),
   loadVerifiableOtp: vi.fn(),
@@ -46,7 +49,12 @@ vi.mock('../../lib/session', () => ({
 import { createTenantDb } from '@xid-kit/db'
 import { issueStepUpToken, verifyTotp } from '../../auth/mfa'
 import { verifyAndConsumeBackupCode } from '../../auth/backup-codes'
-import { constantTimeEqualStr, loadVerifiableOtp, recordOtpFailure } from '../../auth/otp'
+import {
+  constantTimeEqualStr,
+  loadVerifiableOtp,
+  persistAndSendOtp,
+  recordOtpFailure,
+} from '../../auth/otp'
 import { readSession } from '../../lib/session'
 import type { TenantVar } from '../../lib/types'
 import { registerSessionAuthRoutes } from '../index'
@@ -63,6 +71,24 @@ function post(app: ReturnType<typeof makeApp>, env: Env, path: string, body?: un
     env,
     execCtx,
   )
+}
+
+function mockSmsFactor(
+  options: { factor?: boolean; verificationTokens?: Record<string, unknown> } = {},
+) {
+  vi.mocked(createTenantDb).mockReturnValue({
+    mfaFactors: {
+      findOne: vi
+        .fn()
+        .mockResolvedValue(
+          options.factor === false
+            ? undefined
+            : { id: 'mf_sms', target: 'ph_1', createdAt: new Date() },
+        ),
+    },
+    userPhones: { findOne: vi.fn().mockResolvedValue({ id: 'ph_1', phone: '+15551234567' }) },
+    ...(options.verificationTokens ? { verificationTokens: options.verificationTokens } : {}),
+  } as unknown as ReturnType<typeof createTenantDb>)
 }
 
 function tenantWithSmsDelivery() {
@@ -87,25 +113,54 @@ describe('POST /auth/mfa/sms/send', () => {
     expect(res.status).toBe(401)
   })
 
-  it('session + 已验证手机号 -> 200', async () => {
-    vi.mocked(createTenantDb).mockReturnValue({
-      userPhones: { findOne: vi.fn().mockResolvedValue({ phone: '+15551234567' }) },
-    } as unknown as ReturnType<typeof createTenantDb>)
+  it('显式 SMS 因子 -> 200,验证码使用 MFA 专用 purpose', async () => {
+    mockSmsFactor()
     const app = makeApp(registerSessionAuthRoutes, {
       session: makeSession(),
       tenant: tenantWithSmsDelivery() as never,
     })
+
     const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/mfa/sms/send')
+
     expect(res.status).toBe(200)
+    expect(persistAndSendOtp).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'mfa_otp', target: '+15551234567' }),
+    )
   })
 
-  it('session + 已验证手机号但 SMS provider 未配置 -> 400', async () => {
-    vi.mocked(createTenantDb).mockReturnValue({
-      userPhones: { findOne: vi.fn().mockResolvedValue({ phone: '+15551234567' }) },
-    } as unknown as ReturnType<typeof createTenantDb>)
+  it('只有已验证手机号、没有登记 SMS 因子 -> 403 mfa_setup_required', async () => {
+    mockSmsFactor({ factor: false })
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: makeSession(),
+      tenant: tenantWithSmsDelivery() as never,
+    })
+
+    const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/mfa/sms/send')
+
+    expect(res.status).toBe(403)
+    expect(persistAndSendOtp).not.toHaveBeenCalled()
+  })
+
+  it('SMS 一次认证后的登录挑战不再向同一号码发码', async () => {
+    mockSmsFactor()
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: { ...makeSession(), status: 'pending_mfa', amr: ['sms'] },
+      tenant: tenantWithSmsDelivery() as never,
+    })
+
+    const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/mfa/sms/send')
+
+    expect(res.status).toBe(403)
+    expect(persistAndSendOtp).not.toHaveBeenCalled()
+  })
+
+  it('SMS provider 未配置 -> 403 mfa_setup_required', async () => {
+    mockSmsFactor()
     const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })
+
     const res = await post(app, makeEnv(), '/auth/mfa/sms/send')
-    expect(res.status).toBe(400)
+
+    expect(res.status).toBe(403)
   })
 })
 
@@ -192,9 +247,7 @@ describe('POST /auth/mfa/verify', () => {
       tokenHash: 'token-hash',
       codeHash: 'code-hash',
     } as never)
-    vi.mocked(createTenantDb).mockReturnValue({
-      userPhones: { findOne: vi.fn().mockResolvedValue({ phone: '+15551234567' }) },
-    } as unknown as ReturnType<typeof createTenantDb>)
+    mockSmsFactor()
     const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })
     const res = await post(app, makeEnv(), '/auth/mfa/verify', {
       method: 'sms',
@@ -212,10 +265,7 @@ describe('POST /auth/mfa/verify', () => {
       codeHash: 'other-hash',
     } as never)
     const hardDelete = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(createTenantDb).mockReturnValue({
-      userPhones: { findOne: vi.fn().mockResolvedValue({ phone: '+15551234567' }) },
-      verificationTokens: { hardDelete },
-    } as unknown as ReturnType<typeof createTenantDb>)
+    mockSmsFactor({ verificationTokens: { hardDelete } })
     const app = makeApp(registerSessionAuthRoutes, {
       session: makeSession(),
       tenant: tenantWithSmsDelivery() as never,
@@ -228,6 +278,12 @@ describe('POST /auth/mfa/verify', () => {
     expect(res.status).toBe(400)
     expect(((await res.json()) as { code: string }).code).toBe('otp_invalid')
     expect(recordOtpFailure).toHaveBeenCalledOnce()
+    expect(loadVerifiableOtp).toHaveBeenCalledWith(
+      expect.anything(),
+      'sms',
+      '+15551234567',
+      'mfa_otp',
+    )
     expect(hardDelete).not.toHaveBeenCalled()
   })
 

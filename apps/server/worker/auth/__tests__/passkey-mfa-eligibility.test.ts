@@ -1,4 +1,4 @@
-// passkey-mfa-eligibility 单元测试:phr 主登录后仅返回已链接 MFA passkey 凭证。
+// passkey-mfa-eligibility 单元测试:登录挑战排除一次认证用过的 passkey,step-up 接受任意未吊销凭证。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { listEligiblePasskeyCredentials } from '../passkey-mfa-eligibility'
@@ -12,38 +12,32 @@ vi.mock('@xid-kit/db', () => ({
       credentialId: 'credentialId',
       revokedAt: 'revokedAt',
     },
-    mfaFactors: {
-      userId: 'userId',
-      factorType: 'factorType',
-      status: 'status',
-      passkeyCredentialId: 'passkeyCredentialId',
-    },
   },
 }))
 
+const CREATED_AT = new Date('2026-01-01T00:00:00Z')
+
 const CRED_A = {
+  id: 'pk_a',
   credentialId: 'cred_a',
   transports: ['internal'],
-  backedUp: false,
-  credentialDeviceType: 'singleDevice',
-  attestationFmt: 'none',
-  enterpriseAttestationVerified: false,
+  deviceName: 'Laptop',
+  createdAt: CREATED_AT,
 }
 
 const CRED_B = {
+  id: 'pk_b',
   credentialId: 'cred_b',
   transports: [],
-  backedUp: true,
-  credentialDeviceType: 'multiDevice',
-  attestationFmt: 'none',
-  enterpriseAttestationVerified: true,
+  deviceName: null,
+  createdAt: CREATED_AT,
 }
 
-function makeSession(amr: string[] | null): SessionData {
+function makeSession(amr: SessionData['amr'], status: SessionData['status']): SessionData {
   return {
     sessionId: 'sess_1',
     userId: 'user_1',
-    status: 'active',
+    status,
     activeOrgId: null,
     authenticatedAt: new Date(),
     expiresAt: new Date(Date.now() + 86400000),
@@ -56,14 +50,8 @@ function makeSession(amr: string[] | null): SessionData {
   }
 }
 
-function mockDb(
-  credentials: (typeof CRED_A)[],
-  factors: Array<{ passkeyCredentialId: string | null; factorType: string; status: string }>,
-) {
-  const db = {
-    passkeyCredentials: { findMany: vi.fn().mockResolvedValue(credentials) },
-    mfaFactors: { findMany: vi.fn().mockResolvedValue(factors) },
-  }
+function mockDb(credentials: (typeof CRED_A | typeof CRED_B)[]) {
+  const db = { passkeyCredentials: { findMany: vi.fn().mockResolvedValue(credentials) } }
   vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
   return db
 }
@@ -73,30 +61,38 @@ describe('listEligiblePasskeyCredentials', () => {
     vi.clearAllMocks()
   })
 
-  it('returns all active credentials when session did not use passkey primary', async () => {
-    mockDb([CRED_A, CRED_B], [])
+  it('returns all active credentials as second factor after password login', async () => {
+    mockDb([CRED_A, CRED_B])
     const db = createTenantDb({} as D1Database, schema, 'tenant_1')
-    const result = await listEligiblePasskeyCredentials(db, makeSession(['pwd']))
-    expect(result).toHaveLength(2)
+
+    const result = await listEligiblePasskeyCredentials(db, makeSession(['pwd'], 'pending_mfa'))
+
     expect(result.map((row) => row.credentialId)).toEqual(['cred_a', 'cred_b'])
-    expect(db.mfaFactors.findMany).not.toHaveBeenCalled()
   })
 
-  it('filters to MFA-linked credentials after passkey primary (phr) login', async () => {
-    mockDb(
-      [CRED_A, CRED_B],
-      [{ passkeyCredentialId: 'cred_b', factorType: 'passkey', status: 'active' }],
-    )
+  it('offers no passkey as second factor after passkey primary login', async () => {
+    const mocked = mockDb([CRED_A, CRED_B])
     const db = createTenantDb({} as D1Database, schema, 'tenant_1')
-    const result = await listEligiblePasskeyCredentials(db, makeSession(['phr']))
-    expect(result).toHaveLength(1)
-    expect(result[0]?.credentialId).toBe('cred_b')
-  })
 
-  it('returns empty list when phr session has no linked passkey MFA factors', async () => {
-    mockDb([CRED_A], [])
-    const db = createTenantDb({} as D1Database, schema, 'tenant_1')
-    const result = await listEligiblePasskeyCredentials(db, makeSession(['phr']))
+    const result = await listEligiblePasskeyCredentials(db, makeSession(['phr'], 'pending_mfa'))
+
     expect(result).toEqual([])
+    expect(mocked.passkeyCredentials.findMany).not.toHaveBeenCalled()
+  })
+
+  it('accepts any active passkey for step-up on an active passkey session', async () => {
+    mockDb([CRED_A, CRED_B])
+    const db = createTenantDb({} as D1Database, schema, 'tenant_1')
+
+    const result = await listEligiblePasskeyCredentials(db, makeSession(['phr'], 'active'))
+
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual({
+      id: 'pk_a',
+      credentialId: 'cred_a',
+      transports: ['internal'],
+      deviceName: 'Laptop',
+      createdAt: CREATED_AT,
+    })
   })
 })

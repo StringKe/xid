@@ -98,6 +98,21 @@ export type PublicHostedAuthConfig = {
     enterpriseSso: HostedAuthPolicy['enterpriseSso']
   }
   socialProviders: readonly PublicSocialProvider[]
+  passkeyEntry: PublicPasskeyEntry
+}
+
+// identifierRequired:根入口尚未解析到具体组织,发现式 passkey 需要先用标识符定位 RPID。
+// reregistrationRequired:当前是自定义域名,原子域名下注册的 passkey 在这里不可用。
+export type PublicPasskeyEntry = {
+  identifierRequired: boolean
+  reregistrationRequired: boolean
+}
+
+function publicPasskeyEntry(tenant: TenantContext): PublicPasskeyEntry {
+  return {
+    identifierRequired: Boolean(tenant.resolution?.unresolvedRoot),
+    reregistrationRequired: Boolean(tenant.customHostname && tenant.requiresPasskeyReregistration),
+  }
 }
 
 export type HostedAuthMethod = Exclude<keyof PublicHostedAuthConfig['methods'], 'enterpriseSso'>
@@ -366,6 +381,7 @@ export function publicHostedAuthConfig(
       enterpriseSso: policy.enterpriseSso,
     },
     socialProviders: providers,
+    passkeyEntry: publicPasskeyEntry(tenant),
   }
 }
 

@@ -89,7 +89,11 @@ export async function completePasswordAuth(
     continueParam: input.flow.continuePath,
     fallback: defaultLandingPathFor(tenant),
   })
-  const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId: input.userId, returnPath })
+  const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
+    userId: input.userId,
+    returnPath,
+    sessionAmr: PASSWORD_AUTH_CONTEXT.amr,
+  })
   await issueSession(c, {
     sessionId: createPersistedId('session'),
     userId: input.userId,

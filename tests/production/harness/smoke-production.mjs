@@ -559,9 +559,9 @@ const gateChecks = [
   },
   {
     name: 'passkey-disabled-gate',
-    path: '/auth/passkey/login/options',
+    path: '/auth/passkey/challenge',
     method: 'POST',
-    body: { email: defaultEmail },
+    body: {},
     expectStatus: 400,
     expectJson: (json) => json?.code === 'invalid_request',
     expectNoSessionCookie: true,

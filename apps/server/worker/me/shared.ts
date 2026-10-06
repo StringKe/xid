@@ -84,6 +84,22 @@ export async function loadPrimaryEmail(
   return { email: primary.email, verified: primary.verified }
 }
 
+export type UserCredentialLabel = { name: string; displayName: string }
+
+// 认证器与验证器应用里展示的账户名:主邮箱 -> 用户名 -> userId;displayName 优先用户显示名。
+export async function loadUserCredentialLabel(
+  db: ReturnType<typeof createTenantDb>,
+  userId: string,
+): Promise<UserCredentialLabel> {
+  const user = await db.users.findOne(eq(schema.users.id, userId))
+  const email = user?.primaryEmailId
+    ? await db.userEmails.findOne(eq(schema.userEmails.id, user.primaryEmailId))
+    : undefined
+  const name = email?.email ?? user?.username ?? userId
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+  return { name, displayName: user?.displayName || fullName || name }
+}
+
 // 指纹脱敏:只回展示用前缀,绝不外泄完整哈希(防关联/重放,见 anti-abuse rule 设备指纹)。
 export function maskFingerprint(hash: string | null | undefined): string | null {
   if (!hash) return null

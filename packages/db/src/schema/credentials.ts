@@ -74,7 +74,7 @@ export const verificationTokens = sqliteTable(
     index('verification_tokens_tenant_user_idx').on(t.tenantId, t.userId),
     uniqueIndex('verification_tokens_active_credential_unq')
       .on(t.tenantId, t.userId, t.purpose, sql`coalesce(${t.channel}, '')`)
-      .where(sql`${t.consumedAt} IS NULL AND ${t.purpose} IN ('magic_link', 'otp')`),
+      .where(sql`${t.consumedAt} IS NULL AND ${t.purpose} IN ('magic_link', 'otp', 'mfa_otp')`),
   ],
 )
 

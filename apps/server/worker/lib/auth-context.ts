@@ -79,8 +79,23 @@ export function sessionSatisfiesAal2(session: { acr: string | null; aal: number 
   )
 }
 
+function mfaMethodAmr(method: MfaMethod): AmrValue {
+  if (method === 'sms') return 'sms'
+  if (method === 'passkey') return 'phr'
+  return 'otp'
+}
+
+// 一次认证已经用过的持有因子不能在同一次登录里再算作第二因子(sms+sms、phr+passkey)。
+export function mfaMethodsUsedByPrimary(amr: readonly AmrValue[] | null | undefined): MfaMethod[] {
+  const used: MfaMethod[] = []
+  if (amr?.includes('sms')) used.push('sms')
+  if (amr?.includes('phr')) used.push('passkey')
+  return used
+}
+
 export function addMfaToAuthContext(base: AuthContextData, method: MfaMethod): AuthContextData {
-  const methodAmr: AmrValue = method === 'sms' ? 'sms' : method === 'passkey' ? 'phr' : 'otp'
+  const methodAmr = mfaMethodAmr(method)
+  if (base.amr.includes(methodAmr)) return base
   const amr = Array.from(new Set([...base.amr, methodAmr, 'mfa'])) as AmrValue[]
   return { acr: ACR_AAL2, amr, aal: 2 }
 }

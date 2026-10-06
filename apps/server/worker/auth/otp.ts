@@ -25,6 +25,11 @@ const PHONE_ALLOWED_PREFIXES = ['+1']
 
 export type OtpChannel = 'email' | 'whatsapp' | 'sms'
 
+// 免密登录码与 MFA 码分属不同 purpose:互不作废,也不能跨端点通过。
+export const SIGN_IN_OTP_PURPOSE = 'otp'
+export const MFA_OTP_PURPOSE = 'mfa_otp'
+export type OtpPurpose = typeof SIGN_IN_OTP_PURPOSE | typeof MFA_OTP_PURPOSE
+
 const RL_MIN_KEY = (target: string, tenantId: string) => `otp:min:${tenantId}:${target}`
 const RL_HOUR_KEY = (target: string, tenantId: string) => `otp:hour:${tenantId}:${target}`
 
@@ -85,11 +90,13 @@ export async function persistAndSendOtp(opts: {
   db: ReturnType<typeof createTenantDb>
   tenantId: string
   channel: OtpChannel
+  purpose?: OtpPurpose
   target: string
   userId: string
   flowContext?: PasswordlessFlowContext
 }): Promise<void> {
   const { c, db, tenantId, channel, target, userId, flowContext } = opts
+  const purpose = opts.purpose ?? SIGN_IN_OTP_PURPOSE
   const code = generateOtp()
   const ttlMs = channel === 'email' ? OTP_EMAIL_TTL_MS : OTP_PHONE_TTL_MS
   const tokenId = crypto.randomUUID()
@@ -97,7 +104,7 @@ export async function persistAndSendOtp(opts: {
   await replaceActiveOtpToken({
     db,
     channel,
-    purpose: 'otp',
+    purpose,
     values: {
       id: tokenId,
       tenantId,
@@ -106,7 +113,7 @@ export async function persistAndSendOtp(opts: {
       codeHash: await sha256Hex(code),
       ...(flowContext ? { flowContext: serializePasswordlessFlowContext(flowContext) } : {}),
       channel,
-      purpose: 'otp',
+      purpose,
       attemptCount: 0,
       expiresAt: new Date(Date.now() + ttlMs),
     },
@@ -156,7 +163,7 @@ function isActiveCredentialConflict(error: unknown): boolean {
 export async function replaceActiveOtpToken(opts: {
   db: ReturnType<typeof createTenantDb>
   channel: OtpChannel
-  purpose: 'otp'
+  purpose: OtpPurpose
   values: {
     id: string
     tenantId: string
@@ -165,7 +172,7 @@ export async function replaceActiveOtpToken(opts: {
     codeHash?: string
     flowContext?: string
     channel?: OtpChannel
-    purpose: 'otp'
+    purpose: OtpPurpose
     attemptCount?: number
     expiresAt: Date
   }
@@ -214,6 +221,7 @@ export async function loadVerifiableOtp(
   db: ReturnType<typeof createTenantDb>,
   channel: OtpChannel,
   target: string,
+  purpose: OtpPurpose = SIGN_IN_OTP_PURPOSE,
 ): Promise<OtpRow> {
   const targetUserId = await resolveTargetUserId(db, channel, target)
   const tokenRow = targetUserId
@@ -221,7 +229,7 @@ export async function loadVerifiableOtp(
         and(
           eq(schema.verificationTokens.userId, targetUserId),
           eq(schema.verificationTokens.channel, channel),
-          eq(schema.verificationTokens.purpose, 'otp'),
+          eq(schema.verificationTokens.purpose, purpose),
           isNull(schema.verificationTokens.consumedAt),
         ),
       )

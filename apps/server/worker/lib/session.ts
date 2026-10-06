@@ -379,7 +379,7 @@ export type IssueSessionInput = {
   activeOrgId?: string | null
   // timestamp_ms 列映射 Date(见 packages/db schema/common.ts)。
   authenticatedAt: Date
-  // 可选覆盖:默认按 policy.session.absoluteTimeoutDays 计算;仅短期会话(auth/passkey sessionExpiryDays)显式传入。
+  // 可选覆盖:默认按 policy.session.absoluteTimeoutDays 计算;仅服务端固定时长的会话(impersonation)显式传入。
   expiresAt?: Date
   rememberMe?: boolean
   isImpersonation?: boolean

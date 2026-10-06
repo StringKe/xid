@@ -1,89 +1,57 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { AmrValue } from '@xid-kit/types'
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { normalizeLocalContinuePath } from '../../shared/hosted-auth-continuation'
 import { isProductSignUpIntent } from '../../shared/hosted-auth-intent'
-import { smsDeliveryReady } from '../auth/delivery-channels'
+import {
+  addMfaToAuthContext,
+  normalizeAuthAssuranceLevel,
+  normalizeIssuedAcr,
+  PASSWORD_AUTH_CONTEXT,
+  type MfaMethod,
+} from './auth-context'
+import { AppError } from './errors'
+import { listMfaMethods } from './mfa-methods'
 import {
   ACTIVE_SESSION_STATUS,
   PENDING_MFA_SESSION_STATUS,
   PENDING_MFA_SETUP_SESSION_STATUS,
+  readSession,
   type ReadSessionStatus,
 } from './session'
 import type { SessionData, TenantVar, XidHonoEnv } from './types'
 
 export { PENDING_MFA_SESSION_STATUS, PENDING_MFA_SETUP_SESSION_STATUS }
 
-function sessionUsedPasskeyPrimary(sessionAmr?: readonly AmrValue[] | null): boolean {
-  return Boolean(sessionAmr?.includes('phr'))
-}
-
-async function hasChallengeablePasskeyFactor(
-  db: ReturnType<typeof createTenantDb>,
-  userId: string,
-  sessionAmr?: readonly AmrValue[] | null,
-): Promise<boolean> {
-  if (!sessionUsedPasskeyPrimary(sessionAmr)) {
-    const credential = await db.passkeyCredentials.findOne(
-      and(
-        eq(schema.passkeyCredentials.userId, userId),
-        isNull(schema.passkeyCredentials.revokedAt),
-      ),
-    )
-    return credential !== undefined
-  }
-
-  const passkeyFactor = await db.mfaFactors.findOne(
-    and(
-      eq(schema.mfaFactors.userId, userId),
-      eq(schema.mfaFactors.status, 'active'),
-      eq(schema.mfaFactors.factorType, 'passkey'),
-    ),
-  )
-  return passkeyFactor !== undefined
+type PrimaryAuthInput = {
+  userId: string
+  sessionAmr: readonly AmrValue[] | null
 }
 
 export async function shouldRequireMfaChallenge(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  userId: string,
-  sessionAmr?: readonly AmrValue[] | null,
+  input: PrimaryAuthInput,
 ): Promise<boolean> {
   if (tenant.policy.mfaEnforcement === 'disabled') return false
-  const db = createTenantDb(c.env.DB, tenant)
-  const factor = await db.mfaFactors.findOne(
-    and(
-      eq(schema.mfaFactors.userId, userId),
-      eq(schema.mfaFactors.status, 'active'),
-      eq(schema.mfaFactors.factorType, 'totp'),
-    ),
-  )
-  if (factor) return true
-
-  const backup = await db.backupCodes.findOne(
-    and(eq(schema.backupCodes.userId, userId), eq(schema.backupCodes.used, false)),
-  )
-  if (backup) return true
-
-  if (await hasChallengeablePasskeyFactor(db, userId, sessionAmr)) return true
-
-  if (!smsDeliveryReady(tenant, c.env)) return false
-  const phone = await db.userPhones.findOne(
-    and(eq(schema.userPhones.userId, userId), eq(schema.userPhones.verified, true)),
-  )
-  return Boolean(phone)
+  const methods = await listMfaMethods(c, tenant, {
+    userId: input.userId,
+    amr: input.sessionAmr,
+    status: 'gate',
+  })
+  return methods.length > 0
 }
 
+// passkey 主认证带 UV 已达 AAL2,本身满足强制 MFA,不再要求另行绑定。
 export async function shouldRequireMfaSetup(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  userId: string,
-  sessionAmr?: readonly AmrValue[] | null,
+  input: PrimaryAuthInput,
 ): Promise<boolean> {
   if (tenant.policy.mfaEnforcement !== 'required') return false
-  if (await shouldRequireMfaChallenge(c, tenant, userId, sessionAmr)) return false
-  return true
+  if (input.sessionAmr?.includes('phr')) return false
+  return !(await shouldRequireMfaChallenge(c, tenant, input))
 }
 
 export function sanitizeLocalReturn(value: string | undefined | null, fallback: string): string {
@@ -112,19 +80,56 @@ export function mfaSetupRedirectPath(returnTo: string): string {
   return `/account/security?${params.toString()}`
 }
 
-// 强制绑定期间登记因子后,仅在租户 MFA 要求已满足时把 session 升为 active。
+// MFA 挑战与 step-up 端点:只接受 active(step-up)与 pending_mfa(登录第二因子)。
+export async function requireMfaSession(c: Context<XidHonoEnv>): Promise<SessionData> {
+  const allowed: readonly ReadSessionStatus[] = [ACTIVE_SESSION_STATUS, PENDING_MFA_SESSION_STATUS]
+  const current = c.get('session')
+  if (current && allowed.includes(current.status)) return current
+  const session = await readSession(c, allowed)
+  if (!session) throw new AppError('unauthorized', { httpStatus: 401 })
+  c.set('session', session)
+  return session
+}
+
+// 完成一个第二因子后把会话升为 active,并在同一次写入里记录 acr/amr/aal。
+export async function completeMfaOnSession(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+  input: { session: SessionData; method: MfaMethod },
+): Promise<void> {
+  const { session, method } = input
+  const next = addMfaToAuthContext(
+    {
+      acr: normalizeIssuedAcr(session.acr) ?? PASSWORD_AUTH_CONTEXT.acr,
+      amr: session.amr ?? PASSWORD_AUTH_CONTEXT.amr,
+      aal: normalizeAuthAssuranceLevel(session.aal) ?? 1,
+    },
+    method,
+  )
+  const db = createTenantDb(c.env.DB, tenant)
+  await db.sessions.update(
+    {
+      status: ACTIVE_SESSION_STATUS,
+      lastActiveAt: new Date(),
+      acr: next.acr,
+      amr: [...next.amr],
+      aal: next.aal,
+    },
+    eq(schema.sessions.id, session.sessionId),
+  )
+}
+
+// 强制绑定期间登记因子后,仅在租户 MFA 要求已满足时把 session 升为 active;绑定时的验证即一次第二因子。
 export async function activateSessionAfterMfaSetup(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  session: SessionData,
+  input: { session: SessionData; method: MfaMethod },
 ): Promise<void> {
+  const { session } = input
   if (session.status !== PENDING_MFA_SETUP_SESSION_STATUS) return
-  if (await shouldRequireMfaSetup(c, tenant, session.userId, session.amr)) return
-  const db = createTenantDb(c.env.DB, tenant)
-  await db.sessions.update(
-    { status: ACTIVE_SESSION_STATUS },
-    eq(schema.sessions.id, session.sessionId),
-  )
+  const requirement = { userId: session.userId, sessionAmr: session.amr ?? null }
+  if (await shouldRequireMfaSetup(c, tenant, requirement)) return
+  await completeMfaOnSession(c, tenant, input)
 }
 
 export type PostAuthMfaGate = {
@@ -132,32 +137,23 @@ export type PostAuthMfaGate = {
   redirectUrl?: string
 }
 
-export type PostAuthMfaGateInput = {
-  userId: string
+export type PostAuthMfaGateInput = PrimaryAuthInput & {
   returnPath: string
-  sessionAmr?: readonly AmrValue[] | null
 }
 
-// 登录后 MFA 门控:先 challenge(已有因子待验证),再 setup(强制 MFA 但无因子)。
+// 登录后 MFA 门控:先 challenge(已有可用第二因子),再 setup(强制 MFA 但无可用因子)。
 export async function resolvePostAuthMfaGate(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
   input: PostAuthMfaGateInput,
 ): Promise<PostAuthMfaGate> {
-  const requiresChallenge = await shouldRequireMfaChallenge(
-    c,
-    tenant,
-    input.userId,
-    input.sessionAmr,
-  )
-  if (requiresChallenge) {
+  if (await shouldRequireMfaChallenge(c, tenant, input)) {
     return {
       sessionStatus: PENDING_MFA_SESSION_STATUS,
       redirectUrl: mfaRedirectPath(input.returnPath),
     }
   }
-  const requiresSetup = await shouldRequireMfaSetup(c, tenant, input.userId, input.sessionAmr)
-  if (requiresSetup) {
+  if (await shouldRequireMfaSetup(c, tenant, input)) {
     return {
       sessionStatus: PENDING_MFA_SETUP_SESSION_STATUS,
       redirectUrl: mfaSetupRedirectPath(input.returnPath),

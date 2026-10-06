@@ -309,6 +309,7 @@ export async function handleResetPassword(c: Context<XidHonoEnv>): Promise<Respo
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId: verified.userId,
       returnPath,
+      sessionAmr: PASSWORD_AUTH_CONTEXT.amr,
     })
     await issueSession(c, {
       sessionId: createPersistedId('session'),

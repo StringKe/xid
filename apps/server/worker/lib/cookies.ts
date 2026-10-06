@@ -8,6 +8,8 @@ import type { Context } from 'hono'
 const RT_COOKIE_PREFIX = '__Host-xid.rt.'
 // 活跃会话指针只含 session id(非凭证);HttpOnly 保证同源请求选同一 refresh cookie。
 const ACTIVE_SESSION_COOKIE = '__Host-xid.active'
+// step-up token 独立于 session token,只携带一次重新验证的结果。
+const STEP_UP_COOKIE_NAME = '__Host-xid.acr'
 // cookie namespace 取 8 字符:sess_ 跳过前缀,存量 UUID 取前 8。
 const SESSION_ID_PREFIX_LEN = 8
 
@@ -69,6 +71,21 @@ export function readActiveSessionCookie(c: Context): string | undefined {
 
 export function clearActiveSessionCookie(c: Context): void {
   setCookie(c, ACTIVE_SESSION_COOKIE, '', { ...HOST_COOKIE_BASE, maxAge: 0 })
+}
+
+export function setStepUpCookie(c: Context, options: { token: string; maxAgeSec: number }): void {
+  setCookie(c, STEP_UP_COOKIE_NAME, options.token, {
+    ...HOST_COOKIE_BASE,
+    maxAge: options.maxAgeSec,
+  })
+}
+
+export function readStepUpCookie(c: Context): string | undefined {
+  return getCookie(c, STEP_UP_COOKIE_NAME)
+}
+
+export function clearStepUpCookie(c: Context): void {
+  setCookie(c, STEP_UP_COOKIE_NAME, '', { ...HOST_COOKIE_BASE, maxAge: 0 })
 }
 
 // tenant/session 中间件须同序检查;活跃指针失效时回落其余凭证,避免一会话吊销遮蔽另一会话。

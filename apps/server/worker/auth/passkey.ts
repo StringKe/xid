@@ -1,51 +1,44 @@
-// passkey.ts:WebAuthn 注册/登录 handler。
+// passkey.ts:WebAuthn 注册 handler。登录走 me-auth/passkey-signin.ts,第二因子走 me-auth/passkey-mfa-challenge.ts。
 // challenge 存 WEBAUTHN_CHALLENGE DO(ChallengeStore),验证后销毁(一次性防重放)。
-// 四验证:challenge(constant-time)/origin/rpIdHash/signature -- 无跳过路径(webauthn rule)。
 // rpId 从 TenantContext 取,禁模块级常量(tenant-context rule)。
-// sign_count 克隆检测:两 0 接受;新 <= 旧非零标记 signCountAnomaly(非拒绝,见 01 章 step 7)。
 // PasskeyCredential 存 @xid-kit/db 租户查询层(自动注入 tenant_id,tenant-isolation rule)。
-// 枚举防护:凭证不存在与验签失败返回相同模糊响应(01 章 认证验证 step 2)。
-// challenge DO 读写 / 凭证构建与持久化等纯辅助见 passkey-helpers.ts。
 
-import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
+import { base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { defaultLandingPathFor } from '@xid-kit/types'
-import { verifyAuthentication, verifyRegistration } from '@xid-kit/webauthn'
+import { verifyRegistration } from '@xid-kit/webauthn'
 import { and, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
-import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
 import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { readJsonBody } from '../lib/validate'
 import { PASSKEY_AUTH_CONTEXT } from '../lib/auth-context'
-import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
+import { requireStepUp } from '../lib/step-up'
 import {
   CHALLENGE_TTL_MS,
+  PASSKEY_DEVICE_NAME_MAX_LENGTH,
   PASSKEY_LIMIT,
-  buildStoredCredential,
   consumeChallenge,
   createChallenge,
-  getOrCreateAnonKey,
   persistNewCredential,
-  persistSignCount,
 } from './passkey-helpers'
+import { decodeWebAuthnBytes, webAuthnOrigins } from './passkey-assertion'
 import { assertMethodAllowed, assertTenantResolvedForWebAuthn } from './hosted-policy'
 import { auditPolicyDeniedError } from './hosted-audit'
 import { activateSessionAfterMfaSetup, resolvePostAuthMfaGate } from '../lib/mfa-session'
-import { requireSession, type SessionRequirement } from '../me/shared'
+import { loadUserCredentialLabel, requireSession, type SessionRequirement } from '../me/shared'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
-import { verifyTurnstile } from '../me-auth/shared'
 
 const passkey = new Hono<XidHonoEnv>()
 
 // 强制 MFA 绑定(pending_mfa_setup)可以注册 passkey 作为满足策略的因子;pending_mfa 不行。
 const PASSKEY_ENROLLMENT_SESSION: SessionRequirement = { pendingStatuses: ['pending_mfa_setup'] }
 
-// attestation/assertion body 形状:嵌套 response 字段必须是非空 base64url 字符串。
+// attestation body 形状:嵌套 response 字段必须是非空 base64url 字符串。
 // 形状失败不落 validation_failed:与验签失败统一 invalid_credentials(枚举防护,见 01 章 step 2)。
 const attestationBodySchema = v.object({
   id: v.optional(v.string()),
@@ -55,31 +48,15 @@ const attestationBodySchema = v.object({
     attestationObject: v.pipe(v.string(), v.minLength(1)),
   }),
   transports: v.optional(v.array(v.string())),
-  deviceName: v.optional(v.string()),
+  deviceName: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(PASSKEY_DEVICE_NAME_MAX_LENGTH))),
 })
 
-const assertionBodySchema = v.object({
-  id: v.optional(v.string()),
-  rawId: v.string(),
-  response: v.object({
-    clientDataJSON: v.pipe(v.string(), v.minLength(1)),
-    authenticatorData: v.pipe(v.string(), v.minLength(1)),
-    signature: v.pipe(v.string(), v.minLength(1)),
-    userHandle: v.optional(v.string()),
-  }),
-  anonKey: v.pipe(v.string(), v.minLength(1)),
-  sessionExpiryDays: v.optional(v.number()),
-  turnstileToken: v.optional(v.string()),
-})
-
-// ceremony body 统一入口:坏 JSON / 形状失败都映射为 invalid_credentials(不走 422,见上方注释)。
-async function readCeremonyBody<TSchema extends v.GenericSchema>(
+async function readCeremonyBody(
   c: Context<XidHonoEnv>,
-  bodySchema: TSchema,
-): Promise<v.InferOutput<TSchema>> {
+): Promise<v.InferOutput<typeof attestationBodySchema>> {
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('invalid_credentials')
-  const result = v.safeParse(bodySchema, json.value)
+  const result = v.safeParse(attestationBodySchema, json.value)
   if (!result.success) throw new AppError('invalid_credentials')
   return result.output
 }
@@ -91,41 +68,21 @@ function resolveAttestationPreference(tenant: TenantVar): 'none' | 'indirect' | 
   return 'none'
 }
 
-async function loadTrustedAttestationRoots(
-  c: Context<XidHonoEnv>,
-  tenantId: string,
-): Promise<string[]> {
-  const fromEnv = c.env.WEBAUTHN_TRUSTED_ROOTS_PEM
-  if (fromEnv)
-    return fromEnv
-      .split('-----END CERTIFICATE-----')
-      .filter(Boolean)
-      .map((part) => `${part}-----END CERTIFICATE-----`)
-  const cached = c.env.CACHE ? await c.env.CACHE.get(`webauthn:trusted_roots:${tenantId}`) : null
-  if (!cached) return []
-  return cached
+function splitPemCertificates(pem: string): string[] {
+  return pem
     .split('-----END CERTIFICATE-----')
     .filter(Boolean)
     .map((part) => `${part}-----END CERTIFICATE-----`)
 }
 
-function webAuthnOrigins(tenant: TenantVar, requestOrigin: string): string[] {
-  return [
-    ...new Set([
-      tenant.issuer,
-      `https://${tenant.rpId}`,
-      hostedAuthOriginForTenant(tenant, requestOrigin),
-      requestOrigin,
-    ]),
-  ]
-}
-
-function decodeWebAuthnBytes(value: string): Uint8Array {
-  try {
-    return base64UrlDecode(value)
-  } catch {
-    throw new AppError('invalid_credentials')
-  }
+async function loadTrustedAttestationRoots(
+  c: Context<XidHonoEnv>,
+  tenantId: string,
+): Promise<string[]> {
+  const fromEnv = c.env.WEBAUTHN_TRUSTED_ROOTS_PEM
+  if (fromEnv) return splitPemCertificates(fromEnv)
+  const cached = c.env.CACHE ? await c.env.CACHE.get(`webauthn:trusted_roots:${tenantId}`) : null
+  return cached ? splitPemCertificates(cached) : []
 }
 
 async function assertResolvedWebAuthnTenant(
@@ -144,33 +101,40 @@ async function assertResolvedWebAuthnTenant(
   }
 }
 
+function registrationChallengeKey(userId: string, tenantId: string): string {
+  return `reg:${userId}:${tenantId}`
+}
+
 // POST /auth/passkey/register/options -- 返回 PublicKeyCredentialCreationOptions
 passkey.post('/register/options', async (c) => {
   const tenant = c.get('tenant')
   const session = await requireSession(c, PASSKEY_ENROLLMENT_SESSION)
   await assertResolvedWebAuthnTenant(c, tenant)
 
-  const anonKey = `reg:${session.userId}:${tenant.tenantId}`
-  const challenge = await createChallenge(c.env, anonKey)
-
   const db = createTenantDb(c.env.DB, tenant)
-  const existing = await db.passkeyCredentials.count(
+  const existing = await db.passkeyCredentials.findMany(
     and(
       eq(schema.passkeyCredentials.userId, session.userId),
       isNull(schema.passkeyCredentials.revokedAt),
     ),
+    { limit: PASSKEY_LIMIT },
   )
-  if (existing >= PASSKEY_LIMIT) {
-    throw new AppError('validation_failed', { longMessage: 'Passkey limit reached' })
-  }
+  if (existing.length >= PASSKEY_LIMIT) throw new AppError('passkey_limit_reached')
+  // 已有强因子时新增凭证属于敏感操作:否则劫持会话的人可以先绑定自己的认证器再完成 step-up。
+  await requireStepUp(c, tenant, session)
 
+  const label = await loadUserCredentialLabel(db, session.userId)
+  const challenge = await createChallenge(
+    c.env,
+    registrationChallengeKey(session.userId, tenant.tenantId),
+  )
   return c.json({
     challenge,
     rp: { id: tenant.rpId, name: tenant.issuer },
     user: {
       id: base64UrlEncode(new TextEncoder().encode(session.userId)),
-      name: session.userId,
-      displayName: session.userId,
+      name: label.name,
+      displayName: label.displayName,
     },
     pubKeyCredParams: [
       { type: 'public-key', alg: -7 },
@@ -181,6 +145,11 @@ passkey.post('/register/options', async (c) => {
       residentKey: 'required',
       userVerification: 'required',
     },
+    excludeCredentials: existing.map((row) => ({
+      type: 'public-key',
+      id: row.credentialId,
+      transports: row.transports ?? [],
+    })),
     attestation: resolveAttestationPreference(tenant),
     timeout: CHALLENGE_TTL_MS,
   })
@@ -192,10 +161,11 @@ passkey.post('/register/verify', async (c) => {
   const session = await requireSession(c, PASSKEY_ENROLLMENT_SESSION)
   await assertResolvedWebAuthnTenant(c, tenant)
 
-  const body = await readCeremonyBody(c, attestationBodySchema)
-
-  const anonKey = `reg:${session.userId}:${tenant.tenantId}`
-  const challengeVal = await consumeChallenge(c.env, anonKey)
+  const body = await readCeremonyBody(c)
+  const challengeVal = await consumeChallenge(
+    c.env,
+    registrationChallengeKey(session.userId, tenant.tenantId),
+  )
   if (!challengeVal) throw new AppError('challenge_invalid')
 
   const attestationMode = tenant.policy.hostedAuth?.attestationMode ?? 'none'
@@ -218,17 +188,15 @@ passkey.post('/register/verify', async (c) => {
 
   if (!result.ok) throw new AppError('invalid_credentials')
 
-  const credentialIdBase64 = base64UrlEncode(result.value.credentialId)
   const db = createTenantDb(c.env.DB, tenant)
   await persistNewCredential({
     db,
     tenantId: tenant.tenantId,
     userId: session.userId,
-    credentialIdBase64,
+    credentialIdBase64: base64UrlEncode(result.value.credentialId),
     verified: result.value,
     transports: body.transports ?? [],
-    deviceName: body.deviceName ?? null,
-    sessionAmr: session.amr,
+    deviceName: body.deviceName || null,
   })
 
   // guest 转正:guest session 注册首个 passkey 成功即转正 -- 钩子改写 provisionedBy /
@@ -254,156 +222,9 @@ passkey.post('/register/verify', async (c) => {
     return c.json({ ok: true })
   }
 
-  await activateSessionAfterMfaSetup(c, tenant, session)
+  await activateSessionAfterMfaSetup(c, tenant, { session, method: 'passkey' })
   return c.json({ ok: true })
 })
-
-// POST /auth/passkey/login/options -- 返回 PublicKeyCredentialRequestOptions
-passkey.post('/login/options', async (c) => {
-  const tenant = c.get('tenant')
-  try {
-    assertTenantResolvedForWebAuthn(tenant)
-    assertMethodAllowed(tenant, 'passkey', 'login')
-  } catch (error) {
-    throw await auditPolicyDeniedError(c, error, {
-      tenant,
-      method: 'passkey',
-      action: 'login',
-    })
-  }
-  const anonKey = getOrCreateAnonKey(c)
-  const challenge = await createChallenge(c.env, `auth:${anonKey}:${tenant.tenantId}`)
-
-  c.header(
-    'Set-Cookie',
-    `__Host-xid.anon=${anonKey}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${CHALLENGE_TTL_MS / 1000}`,
-  )
-
-  return c.json({
-    challenge,
-    rpId: tenant.rpId,
-    userVerification: 'required',
-    timeout: CHALLENGE_TTL_MS,
-  })
-})
-
-// POST /auth/passkey/login/verify -- 验证认证 assertion
-passkey.post('/login/verify', async (c) => {
-  const tenant = c.get('tenant')
-  try {
-    assertTenantResolvedForWebAuthn(tenant)
-    assertMethodAllowed(tenant, 'passkey', 'login')
-  } catch (error) {
-    throw await auditPolicyDeniedError(c, error, {
-      tenant,
-      method: 'passkey',
-      action: 'login',
-    })
-  }
-
-  const body = await readCeremonyBody(c, assertionBodySchema)
-  await verifyTurnstile(body.turnstileToken, c.env, c.req.header('cf-connecting-ip') ?? null)
-
-  const anonKey = body.anonKey
-  const credentialIdBase64 = body.rawId
-  // 失败限流:credentialId 账户级 10/15min + IP 级 50/min(anti-abuse rule)。
-  await enforceVerifyRateLimit({
-    env: c.env,
-    tenantId: tenant.tenantId,
-    scope: 'passkey',
-    account: credentialIdBase64 || null,
-    ip: c.req.header('cf-connecting-ip') ?? null,
-  })
-
-  const db = createTenantDb(c.env.DB, tenant)
-  const userId = await verifyPasskeyAssertion({
-    c,
-    tenant,
-    db,
-    anonKey,
-    credentialIdBase64,
-    response: body.response,
-  })
-  if (credentialIdBase64) {
-    await resetVerifyAccountRateLimit({
-      env: c.env,
-      tenantId: tenant.tenantId,
-      scope: 'passkey',
-      account: credentialIdBase64,
-    })
-  }
-
-  const now = new Date()
-  // sessionExpiryDays 是调用方显式覆盖(可短于策略默认,用于短期会话);未传时走 policy.session.absoluteTimeoutDays。
-  const expiresAt =
-    body.sessionExpiryDays === undefined
-      ? undefined
-      : new Date(now.getTime() + body.sessionExpiryDays * 24 * 60 * 60 * 1000)
-  const { session } = await issueSession(c, {
-    sessionId: createPersistedId('session'),
-    userId,
-    authContext: PASSKEY_AUTH_CONTEXT,
-    authenticatedAt: now,
-    ...(expiresAt ? { expiresAt } : {}),
-    rememberMe: true,
-    ip: c.req.header('cf-connecting-ip') ?? null,
-    userAgent: c.req.header('user-agent') ?? null,
-  })
-
-  return c.json({ sessionId: session.sessionId, userId: session.userId })
-})
-
-type AssertionResponse = {
-  clientDataJSON: string
-  authenticatorData: string
-  signature: string
-  userHandle?: string
-}
-
-// 认证 assertion 四验证编排:消费 challenge + 查凭证 + verifyAuthentication + sign_count 持久化。
-// 查不到凭证与验签失败返回相同 invalid_credentials(枚举防护,01 章 step 2)。返回凭证绑定的 userId。
-async function verifyPasskeyAssertion(opts: {
-  c: Context<XidHonoEnv>
-  tenant: TenantVar
-  db: ReturnType<typeof createTenantDb>
-  anonKey: string
-  credentialIdBase64: string
-  response: AssertionResponse
-}): Promise<string> {
-  const { c, tenant, db, anonKey, credentialIdBase64, response } = opts
-  const challengeVal = await consumeChallenge(c.env, `auth:${anonKey}:${tenant.tenantId}`)
-  if (!challengeVal) throw new AppError('challenge_invalid')
-
-  const cred = await db.passkeyCredentials.findOne(
-    and(
-      eq(schema.passkeyCredentials.credentialId, credentialIdBase64),
-      isNull(schema.passkeyCredentials.revokedAt),
-    ),
-  )
-  const stored = cred ? buildStoredCredential(cred) : undefined
-
-  const result = await verifyAuthentication({
-    ceremony: 'authentication',
-    expectedChallenge: decodeWebAuthnBytes(challengeVal),
-    expectedRpId: tenant.rpId,
-    expectedOrigins: webAuthnOrigins(tenant, new URL(c.req.url).origin),
-    clientDataJson: decodeWebAuthnBytes(response.clientDataJSON),
-    authenticatorData: decodeWebAuthnBytes(response.authenticatorData),
-    signature: decodeWebAuthnBytes(response.signature),
-    storedCredential: stored,
-  })
-  if (!result.ok || !cred) throw new AppError('invalid_credentials')
-
-  await persistSignCount({
-    env: c.env,
-    tenantId: tenant.tenantId,
-    cred: { userId: cred.userId, signCount: cred.signCount, credentialId: credentialIdBase64 },
-    newSignCount: result.value.signCount,
-    signCountAnomaly: result.value.signCountAnomaly,
-    db,
-  })
-  return cred.userId
-}
 
 export function registerPasskeyRoutes(app: Hono<XidHonoEnv>): void {
   app.route('/auth/passkey', passkey)

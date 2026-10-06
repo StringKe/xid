@@ -475,7 +475,11 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
     const now = new Date()
     const sessionId = createPersistedId('session')
     const continuePath = flow.continuePath
-    const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath: continuePath })
+    const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
+      userId,
+      returnPath: continuePath,
+      sessionAmr: MAGIC_LINK_AUTH_CONTEXT.amr,
+    })
     await issueSession(c, {
       sessionId,
       userId,
