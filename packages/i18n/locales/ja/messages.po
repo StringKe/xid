@@ -4455,6 +4455,10 @@ msgstr "非表示"
 msgid "Hide {subject}"
 msgstr "{subject}を非表示"
 
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Hide password"
+msgstr "パスワードを隠す"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "hook"
 msgstr "フック"

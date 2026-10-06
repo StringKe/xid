@@ -142,7 +142,10 @@ export function Dialog({
   return (
     <BaseDialog.Root
       open={open}
-      onOpenChange={(next) => onOpenChange(next)}
+      onOpenChange={(next) => {
+        if (!next && !dismissible) return
+        onOpenChange(next)
+      }}
       onOpenChangeComplete={onOpenChangeComplete}
       disablePointerDismissal={!dismissible}
     >

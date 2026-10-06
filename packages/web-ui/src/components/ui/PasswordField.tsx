@@ -65,7 +65,7 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
           onRevealToggle={() => setIsRevealed((value) => !value)}
           showLabel={t`Show`}
           hideLabel={t`Hide`}
-          toggleLabel={t`Show password`}
+          toggleLabel={isRevealed ? t`Hide password` : t`Show password`}
           {...inputProps}
         />
       </Field>
@@ -107,7 +107,6 @@ const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(function 
       <button
         type="button"
         aria-label={toggleLabel}
-        aria-pressed={isRevealed}
         aria-controls={inputProps.id}
         onClick={onRevealToggle}
         {...stylex.props(styles.reveal)}

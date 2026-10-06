@@ -4455,6 +4455,10 @@ msgstr "隐藏"
 msgid "Hide {subject}"
 msgstr "隐藏{subject}"
 
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Hide password"
+msgstr "隐藏密码"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "hook"
 msgstr "hook"
