@@ -5,11 +5,16 @@ import {
   normalizeScimTargetBaseUrl,
   requireScimTargetToken,
   scimTargetHasToken,
+  scimTargetTokenSecretName,
 } from '../target-credentials'
 
-function testEnv(): Env {
+const TARGET_ID = 'st_legacy-1'
+const LEGACY_SECRET_NAME = 'SCIM_TARGET_TOKEN_st_legacy_1'
+const NO_COLUMNS = { id: TARGET_ID, tokenIv: null, tokenCiphertext: null, tokenTag: null }
+
+function testEnv(extra: Record<string, unknown> = {}): Env {
   const kek = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
-  return { KEK: kek } as unknown as Env
+  return { KEK: kek, ...extra } as unknown as Env
 }
 
 describe('outbound SCIM target credentials', () => {
@@ -17,23 +22,49 @@ describe('outbound SCIM target credentials', () => {
     const env = testEnv()
 
     const columns = await encryptScimTargetToken(env, 'downstream-token')
+    const target = { id: TARGET_ID, ...columns }
 
     expect(JSON.stringify(columns)).not.toContain('downstream-token')
-    expect(scimTargetHasToken(columns)).toBe(true)
-    expect(await requireScimTargetToken(env, columns)).toBe('downstream-token')
+    expect(scimTargetHasToken(env, target)).toBe(true)
+    expect(await requireScimTargetToken(env, target)).toBe('downstream-token')
   })
 
   it('rejects decryption under a different KEK', async () => {
     const columns = await encryptScimTargetToken(testEnv(), 'downstream-token')
 
-    await expect(requireScimTargetToken(testEnv(), columns)).rejects.toThrowError()
+    await expect(
+      requireScimTargetToken(testEnv(), { id: TARGET_ID, ...columns }),
+    ).rejects.toThrowError()
+  })
+
+  it('derives the legacy Workers Secret name from the target id only', () => {
+    expect(scimTargetTokenSecretName(TARGET_ID)).toBe(LEGACY_SECRET_NAME)
+    expect(() => scimTargetTokenSecretName('../KEK')).toThrowError()
+  })
+
+  it('falls back to the legacy Workers Secret when no encrypted token is stored', async () => {
+    const env = testEnv({ [LEGACY_SECRET_NAME]: 'legacy-token' })
+
+    expect(scimTargetHasToken(env, NO_COLUMNS)).toBe(true)
+    expect(await requireScimTargetToken(env, NO_COLUMNS)).toBe('legacy-token')
+  })
+
+  it('prefers the encrypted token over a legacy Workers Secret', async () => {
+    const env = testEnv({ [LEGACY_SECRET_NAME]: 'legacy-token' })
+    const columns = await encryptScimTargetToken(env, 'rotated-token')
+
+    expect(await requireScimTargetToken(env, { id: TARGET_ID, ...columns })).toBe('rotated-token')
+  })
+
+  it('ignores a blank legacy Workers Secret', () => {
+    expect(scimTargetHasToken(testEnv({ [LEGACY_SECRET_NAME]: '  ' }), NO_COLUMNS)).toBe(false)
   })
 
   it('reports a missing token as validation_failed on the token field', async () => {
-    const columns = { tokenIv: null, tokenCiphertext: null, tokenTag: null }
+    const env = testEnv()
 
-    expect(scimTargetHasToken(columns)).toBe(false)
-    await expect(requireScimTargetToken(testEnv(), columns)).rejects.toSatisfy(
+    expect(scimTargetHasToken(env, NO_COLUMNS)).toBe(false)
+    await expect(requireScimTargetToken(env, NO_COLUMNS)).rejects.toSatisfy(
       (error: unknown) =>
         isAppError(error) &&
         error.code === 'validation_failed' &&

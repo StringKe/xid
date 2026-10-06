@@ -83,6 +83,8 @@ export const directoryGroups = sqliteTable(
     tenantId: tenantId(),
     directoryId: text('directory_id').notNull(),
     displayName: text('display_name').notNull(),
+    // group -> role 映射未实现,无读写路径;列保留是为了不对生产表做破坏性 DDL。
+    mappedRole: text('mapped_role'),
     status: text('status').notNull().default('active'),
     deletedAt: tsMs('deleted_at'),
     ...timestamps(),
@@ -152,6 +154,8 @@ export const scimTargets = sqliteTable(
     orgId: text('org_id').notNull(),
     provider: text('provider').notNull(),
     baseUrl: text('base_url').notNull(),
+    // 存量 target 的 token 在 Workers Secret,名称由 target id 派生;解析时不读本列的值选 binding。
+    tokenSecretRef: text('token_secret_ref').notNull(),
     // 下游 bearer token 以 KEK 信封加密(AES-256-GCM),iv/ciphertext/tag 各为 base64url。
     tokenIv: text('token_iv'),
     tokenCiphertext: text('token_ciphertext'),

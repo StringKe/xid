@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=ed5497f32c0958ab2dada8c7089deb7c63c90788 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=95eee31a6192013e095142e19420a414f54f0a12 -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -727,7 +727,8 @@ gdpr_consents:
 索引:`UNIQUE(token_hash)`、`INDEX(tenant_id, user_id)`、legacy partial
 `UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose IN ('magic_link','otp')`
 (同 user/purpose/channel 至多一条 active legacy row)。新 magic-link 签发使用 12.3b 的
-`magic_link_tokens`,使该兼容索引可以在 rolling deployment 中继续存在;OTP 仍在插入前替换旧 active code。
+`magic_link_tokens`,使该兼容索引可以在 rolling deployment 中继续存在;OTP 仍在插入前替换旧 active code。MFA 短信验证码由独立的 partial
+`UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose = 'mfa_otp'` 提供同样的保证。
 
 新建 passwordless `magic_link` 与 `otp` 行必须有 `flow_context`;仅作为 MFA factor 的 SMS OTP
 行可以保持 null。它只保存有界、规范化的控制数据,不保存 invitation token 或 row id。Invitation
@@ -1301,7 +1302,7 @@ provisioning winner,明确排除两种 SP usage)、`INDEX(tenant_id, usage, stat
 
 ### 16.7 directory_groups(SCIM 同步组,见 04 章 6)
 
-Group-to-role 映射未实现,表中没有角色列。
+Group-to-role 映射未实现。D1 中保留可空的旧列 `mapped_role`,迁移因此不需要破坏性 DDL;没有代码读写这一列。
 
 | 字段                    | 类型          | 约束                                             | 默认           | 说明                   |
 | ----------------------- | ------------- | ------------------------------------------------ | -------------- | ---------------------- |
@@ -1385,21 +1386,22 @@ directory_pending_members(unknown member 幂等占位,OneLogin quirk,见 04 章 
 
 ### 16.11 scim_targets(出站 SCIM target,XID 作 SCIM client 向下游 SaaS 推送用户和组,见 04 章 3)
 
-| 字段                                    | 类型          | 约束                                               | 默认         | 说明                                                                                                     |
-| --------------------------------------- | ------------- | -------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
-| id                                      | text          | PK                                                 | `st_`+nanoid |                                                                                                          |
-| tenant_id                               | text          | NOT NULL, FK -> organizations.id                   | --           |                                                                                                          |
-| org_id                                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --           |                                                                                                          |
-| provider                                | text          | NOT NULL                                           | --           | 下游 SaaS 标识(见 04 章 3)                                                                               |
-| base_url                                | text          | NOT NULL                                           | --           | 下游 SCIM endpoint base URL                                                                              |
-| token_iv / token_ciphertext / token_tag | text          | null                                               | null         | 下游 bearer token,以 KEK 做 AES-256-GCM 信封加密,各段 base64url。API 只写不回显;三列皆空表示未配置 token |
-| user_filter                             | text json     | NOT NULL                                           | `{}`         | 推送范围过滤(哪些用户/组出站)                                                                            |
-| status                                  | text          | NOT NULL                                           | `'active'`   | `active`(出站同步仅读 active 行);删除时置 `deleted` 并清空 token 列                                      |
-| last_sync_at                            | integer ts_ms | null                                               | null         | 最近一次成功运行                                                                                         |
-| last_run_status                         | text          | null                                               | null         | `succeeded` / `retrying` / `failed`,由 queue consumer 写入                                               |
-| last_run_error                          | text          | null                                               | null         | 原因码,可带下游 HTTP 状态(`downstream_http:401`);不含响应体或 token                                      |
-| last_run_at                             | integer ts_ms | null                                               | null         | 最近一次运行状态的记录时间                                                                               |
-| created_at / updated_at                 | integer ts_ms | NOT NULL                                           | 见 9.3       |                                                                                                          |
+| 字段                                    | 类型          | 约束                                               | 默认         | 说明                                                                                                                              |
+| --------------------------------------- | ------------- | -------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| id                                      | text          | PK                                                 | `st_`+nanoid |                                                                                                                                   |
+| tenant_id                               | text          | NOT NULL, FK -> organizations.id                   | --           |                                                                                                                                   |
+| org_id                                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --           |                                                                                                                                   |
+| provider                                | text          | NOT NULL                                           | --           | 下游 SaaS 标识(见 04 章 3)                                                                                                        |
+| base_url                                | text          | NOT NULL                                           | --           | 下游 SCIM endpoint base URL                                                                                                       |
+| token_secret_ref                        | text          | NOT NULL                                           | --           | `SCIM_TARGET_TOKEN_<id>`。加密存储上线前创建的 target,token 在这个 Workers Secret 中;Core 由 `id` 派生名称,不按本列的值选 binding |
+| token_iv / token_ciphertext / token_tag | text          | null                                               | null         | 下游 bearer token,以 KEK 做 AES-256-GCM 信封加密,各段 base64url。API 只写不回显;三列皆空表示未配置 token                          |
+| user_filter                             | text json     | NOT NULL                                           | `{}`         | 推送范围过滤(哪些用户/组出站)                                                                                                     |
+| status                                  | text          | NOT NULL                                           | `'active'`   | `active`(出站同步仅读 active 行);删除时置 `deleted` 并清空 token 列                                                               |
+| last_sync_at                            | integer ts_ms | null                                               | null         | 最近一次成功运行                                                                                                                  |
+| last_run_status                         | text          | null                                               | null         | `succeeded` / `retrying` / `failed`,由 queue consumer 写入                                                                        |
+| last_run_error                          | text          | null                                               | null         | 原因码,可带下游 HTTP 状态(`downstream_http:401`);不含响应体或 token                                                               |
+| last_run_at                             | integer ts_ms | null                                               | null         | 最近一次运行状态的记录时间                                                                                                        |
+| created_at / updated_at                 | integer ts_ms | NOT NULL                                           | 见 9.3       |                                                                                                                                   |
 
 索引:`INDEX(tenant_id, org_id)`、`INDEX(tenant_id, status)`。
 

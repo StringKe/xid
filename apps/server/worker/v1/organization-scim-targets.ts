@@ -16,6 +16,7 @@ import {
   encryptScimTargetToken,
   normalizeScimTargetBaseUrl,
   scimTargetHasToken,
+  scimTargetTokenSecretName,
 } from '../scim/target-credentials'
 import {
   assignmentGateFromBody,
@@ -41,12 +42,12 @@ const scimTargetBodySchema = v.object({
   assignmentGate: v.optional(v.unknown()),
 })
 
-function toConsoleScimTarget(row: ScimTargetRecord) {
+function toConsoleScimTarget(env: Env, row: ScimTargetRecord) {
   return {
     id: row.id,
     provider: row.provider,
     baseUrl: row.baseUrl,
-    hasToken: scimTargetHasToken(row),
+    hasToken: scimTargetHasToken(env, row),
     assignmentGate: serializeAssignmentGate(
       parseAssignmentGate(row.userFilter as Record<string, unknown>),
     ),
@@ -78,9 +79,10 @@ function targetWhere(c: Context<XidHonoEnv>, orgId: string) {
 }
 
 // token 以 bearer 发往 base_url,换到别的 origin 必须重新提交,否则改 URL 即可把已存 token 送给新主机。
-function movesTokenToNewOrigin(existing: ScimTargetRecord, nextBaseUrl: string): boolean {
+function movesTokenToNewOrigin(env: Env, existing: ScimTargetRecord, nextBaseUrl: string): boolean {
   return (
-    scimTargetHasToken(existing) && new URL(existing.baseUrl).origin !== new URL(nextBaseUrl).origin
+    scimTargetHasToken(env, existing) &&
+    new URL(existing.baseUrl).origin !== new URL(nextBaseUrl).origin
   )
 }
 
@@ -102,7 +104,7 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
         { orderBy: asc(schema.scimTargets.id), limit },
       ),
     )
-    return c.json(rows.map(toConsoleScimTarget))
+    return c.json(rows.map((row) => toConsoleScimTarget(c.env, row)))
   })
 
   app.post('/:id/scim-targets', async (c) => {
@@ -116,12 +118,14 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
       throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'base_url' } })
     }
     const gate = assignmentGateFromBody(body) ?? parseAssignmentGate({})
+    const targetId = createPersistedId('scimTarget')
     const row = await createTenantDb(c.env.DB, tenant).scimTargets.insert({
-      id: createPersistedId('scimTarget'),
+      id: targetId,
       tenantId: tenant.tenantId,
       orgId: id,
       provider,
       baseUrl: normalizeScimTargetBaseUrl(rawBaseUrl),
+      tokenSecretRef: scimTargetTokenSecretName(targetId),
       ...(body.token ? await encryptScimTargetToken(c.env, body.token) : {}),
       userFilter: withAssignmentGate({}, gate),
       status: 'active',
@@ -138,7 +142,7 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
       targetId: row.id,
       details: { provider },
     })
-    return c.json(toConsoleScimTarget(row), 201)
+    return c.json(toConsoleScimTarget(c.env, row), 201)
   })
 
   app.patch('/:id/scim-targets/:targetId', async (c) => {
@@ -152,7 +156,7 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
     const patch: Partial<typeof schema.scimTargets.$inferInsert> = {}
     if (body.provider?.trim()) patch.provider = body.provider.trim()
     if (body.base_url?.trim()) patch.baseUrl = normalizeScimTargetBaseUrl(body.base_url.trim())
-    if (patch.baseUrl && !body.token && movesTokenToNewOrigin(existing, patch.baseUrl)) {
+    if (patch.baseUrl && !body.token && movesTokenToNewOrigin(c.env, existing, patch.baseUrl)) {
       throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'token' } })
     }
     if (body.token) Object.assign(patch, await encryptScimTargetToken(c.env, body.token))
@@ -170,7 +174,7 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
       targetId: existing.id,
       details: { fields: Object.keys(patch) },
     })
-    return c.json(toConsoleScimTarget(row))
+    return c.json(toConsoleScimTarget(c.env, row))
   })
 
   app.delete('/:id/scim-targets/:targetId', async (c) => {

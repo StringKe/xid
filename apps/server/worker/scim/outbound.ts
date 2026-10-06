@@ -774,7 +774,7 @@ export async function enqueueScimTargetSync(
   target: ScimTarget,
   actorId?: string,
 ): Promise<{ runId: string; targetId: string; status: 'queued' }> {
-  assertScimTargetHasToken(target)
+  assertScimTargetHasToken(c.env, target)
   const message = scimSyncMessage(c.get('tenant'), target, actorId)
   await c.env.SCIM_QUEUE.send(message)
   return { runId: message.runId, targetId: target.id, status: 'queued' }
@@ -792,7 +792,7 @@ export async function enqueueOrgScimTargetSyncs(request: OrgScimSyncRequest): Pr
   const targets = await createTenantDb(request.env.DB, request.tenant)
     .forOrg(request.orgId)
     .scimTargets.findMany(eq(schema.scimTargets.status, 'active'))
-  const ready = targets.filter(scimTargetHasToken)
+  const ready = targets.filter((target) => scimTargetHasToken(request.env, target))
   for (const target of ready) {
     await request.env.SCIM_QUEUE.send(scimSyncMessage(request.tenant, target, undefined))
   }

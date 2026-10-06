@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=9884a9372831c229085736508f5540e5af79eabf -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=98768755408049a291acc091f4967ef52c06a60c -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -468,9 +468,12 @@ product、price、customer、webhook delivery、Checkout、Portal 与 meter-even
 
 ### Outbound SCIM target tokens
 
-出站 SCIM target 不需要按 target 配置 Workers Secret。org 管理员在 Console 填写下游 bearer
+新建的出站 SCIM target 不需要按 target 配置 Workers Secret。org 管理员在 Console 填写下游 bearer
 token,或由集成在创建、更新 target 时通过只写字段 `token` 提交。Core 用 `KEK` 加密后只把密文存入
 D1;响应返回 `hasToken`,为 `true` 之前拒绝同步。因此轮换 `KEK` 后需要重新填写这些 token。
+
+加密存储上线前创建的 target,在没有加密 token 时继续使用已有的 `SCIM_TARGET_TOKEN_<target id>`
+Workers Secret。在 Console 填写 token 后改用加密 token,之后可以删除这个 secret。
 
 ### Turnstile 就绪判定
 

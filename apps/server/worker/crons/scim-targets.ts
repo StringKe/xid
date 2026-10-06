@@ -2,6 +2,7 @@
 // 覆盖未即时触发的成员与账号变化(04 章 3)。cron 无请求级 TenantContext,按 target 行携带的 tenant 投递。
 
 import { instanceIssuerFor } from '@xid-kit/db'
+import { scimTargetHasToken } from '../scim/target-credentials'
 
 const PAGE_SIZE = 100
 
@@ -10,6 +11,9 @@ type ScheduledTargetRow = {
   tenantId: string
   orgId: string
   primaryDomain: string
+  tokenIv: string | null
+  tokenCiphertext: string | null
+  tokenTag: string | null
 }
 
 export async function enqueueScheduledScimTargetSyncs(
@@ -21,17 +25,19 @@ export async function enqueueScheduledScimTargetSyncs(
   while (true) {
     const { results } = await env.DB.prepare(
       `SELECT t.id AS id, t.tenant_id AS tenantId, t.org_id AS orgId,
-              i.primary_domain AS primaryDomain
+              i.primary_domain AS primaryDomain, t.token_iv AS tokenIv,
+              t.token_ciphertext AS tokenCiphertext, t.token_tag AS tokenTag
          FROM scim_targets t
          JOIN organizations o ON o.id = t.tenant_id
          JOIN instances i ON i.id = o.instance_id
-        WHERE t.status = 'active' AND t.token_ciphertext IS NOT NULL AND t.id > ?
+        WHERE t.status = 'active' AND t.id > ?
         ORDER BY t.id
         LIMIT ?`,
     )
       .bind(cursor, PAGE_SIZE)
       .all<ScheduledTargetRow>()
-    for (const row of results) {
+    const ready = results.filter((row) => scimTargetHasToken(env, row))
+    for (const row of ready) {
       await env.SCIM_QUEUE.send({
         tenantId: row.tenantId,
         orgId: row.orgId,
@@ -41,7 +47,7 @@ export async function enqueueScheduledScimTargetSyncs(
         requestedAt: now,
       })
     }
-    total += results.length
+    total += ready.length
     const last = results[results.length - 1]
     if (!last || results.length < PAGE_SIZE) return total
     cursor = last.id

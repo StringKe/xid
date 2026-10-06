@@ -484,11 +484,15 @@ Stripe product, price, customer, webhook delivery, Checkout, Portal, and meter-e
 
 ### Outbound SCIM target tokens
 
-Outbound SCIM targets need no Workers Secret per target. An org admin enters the downstream bearer
-token in the Console, or an integration sends it as the write-only `token` field when creating or
-updating the target. Core encrypts it under `KEK` and stores only the ciphertext in D1; responses
-report `hasToken`, and sync is refused until it is `true`. Rotating `KEK` therefore requires the
-tokens to be entered again.
+New outbound SCIM targets need no Workers Secret per target. An org admin enters the downstream
+bearer token in the Console, or an integration sends it as the write-only `token` field when
+creating or updating the target. Core encrypts it under `KEK` and stores only the ciphertext in D1;
+responses report `hasToken`, and sync is refused until it is `true`. Rotating `KEK` therefore
+requires the tokens to be entered again.
+
+Targets created before encrypted storage keep working from their existing
+`SCIM_TARGET_TOKEN_<target id>` Workers Secret while no encrypted token is stored. Entering a token
+in the Console replaces that source; the secret can be deleted afterwards.
 
 ### Turnstile readiness
 

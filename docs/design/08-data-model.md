@@ -793,7 +793,9 @@ Indexes: `UNIQUE(token_hash)`, `INDEX(tenant_id, user_id)`, and the legacy parti
 `UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose IN ('magic_link','otp')`
 (at most one active legacy row per user, purpose, and channel). New magic-link issuance uses
 `magic_link_tokens` in section 12.3b so this compatibility index can remain in place during rolling
-deployment; OTP continues to replace the prior active code before insert.
+deployment; OTP continues to replace the prior active code before insert. MFA SMS codes have the
+same guarantee from the separate partial
+`UNIQUE(tenant_id, user_id, purpose, coalesce(channel,'')) WHERE consumed_at IS NULL AND purpose = 'mfa_otp'`.
 
 New passwordless `magic_link` and `otp` rows require `flow_context`; an SMS OTP row used only as an
 MFA factor may leave it null. It stores only bounded, normalized control data and never an invitation
@@ -1434,7 +1436,8 @@ Indexes: `UNIQUE(directory_id, user_name)`, `UNIQUE(directory_id, external_id)`,
 
 ### 16.7 directory_groups (SCIM-synced groups, see chapter 04 section 6)
 
-Group-to-role mapping is not implemented, so the table carries no role column.
+Group-to-role mapping is not implemented. The legacy nullable `mapped_role` column stays in D1 so
+the migration needs no destructive DDL; no code reads or writes it.
 
 | Field                   | Type          | Constraints                                      | Default        | Notes                              |
 | ----------------------- | ------------- | ------------------------------------------------ | -------------- | ---------------------------------- |
@@ -1525,21 +1528,22 @@ Indexes: `UNIQUE(tenant_id, direction, scope_id, session_index)`,
 
 ### 16.11 scim_targets (outbound SCIM targets, XID as a SCIM client pushing users and groups to downstream SaaS, see chapter 04 section 3)
 
-| Field                                   | Type          | Constraints                                        | Default      | Notes                                                                                                                                                     |
-| --------------------------------------- | ------------- | -------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id                                      | text          | PK                                                 | `st_`+nanoid |                                                                                                                                                           |
-| tenant_id                               | text          | NOT NULL, FK -> organizations.id                   | --           |                                                                                                                                                           |
-| org_id                                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --           |                                                                                                                                                           |
-| provider                                | text          | NOT NULL                                           | --           | The downstream SaaS identifier (see chapter 04 section 3)                                                                                                 |
-| base_url                                | text          | NOT NULL                                           | --           | The downstream SCIM endpoint base URL                                                                                                                     |
-| token_iv / token_ciphertext / token_tag | text          | nullable                                           | null         | The downstream bearer token, AES-256-GCM envelope-encrypted under the KEK, each part base64url. Write-only through the API; all three null means no token |
-| user_filter                             | text json     | NOT NULL                                           | `{}`         | The push scope filter (which users and groups go outbound)                                                                                                |
-| status                                  | text          | NOT NULL                                           | `'active'`   | `active` (outbound sync reads only active rows); delete sets `deleted` and clears the token columns                                                       |
-| last_sync_at                            | integer ts_ms | nullable                                           | null         | The last successful run                                                                                                                                   |
-| last_run_status                         | text          | nullable                                           | null         | `succeeded` / `retrying` / `failed`, written by the queue consumer                                                                                        |
-| last_run_error                          | text          | nullable                                           | null         | Reason code with an optional downstream HTTP status (`downstream_http:401`); never a response body or token                                               |
-| last_run_at                             | integer ts_ms | nullable                                           | null         | When the last run state was recorded                                                                                                                      |
-| created_at / updated_at                 | integer ts_ms | NOT NULL                                           | See 9.3      |                                                                                                                                                           |
+| Field                                   | Type          | Constraints                                        | Default      | Notes                                                                                                                                                                                    |
+| --------------------------------------- | ------------- | -------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                                      | text          | PK                                                 | `st_`+nanoid |                                                                                                                                                                                          |
+| tenant_id                               | text          | NOT NULL, FK -> organizations.id                   | --           |                                                                                                                                                                                          |
+| org_id                                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --           |                                                                                                                                                                                          |
+| provider                                | text          | NOT NULL                                           | --           | The downstream SaaS identifier (see chapter 04 section 3)                                                                                                                                |
+| base_url                                | text          | NOT NULL                                           | --           | The downstream SCIM endpoint base URL                                                                                                                                                    |
+| token_secret_ref                        | text          | NOT NULL                                           | --           | `SCIM_TARGET_TOKEN_<id>`. The token of a target created before encrypted storage lives in this Workers Secret; Core derives the name from `id` and never selects a binding by this value |
+| token_iv / token_ciphertext / token_tag | text          | nullable                                           | null         | The downstream bearer token, AES-256-GCM envelope-encrypted under the KEK, each part base64url. Write-only through the API; all three null means no token                                |
+| user_filter                             | text json     | NOT NULL                                           | `{}`         | The push scope filter (which users and groups go outbound)                                                                                                                               |
+| status                                  | text          | NOT NULL                                           | `'active'`   | `active` (outbound sync reads only active rows); delete sets `deleted` and clears the token columns                                                                                      |
+| last_sync_at                            | integer ts_ms | nullable                                           | null         | The last successful run                                                                                                                                                                  |
+| last_run_status                         | text          | nullable                                           | null         | `succeeded` / `retrying` / `failed`, written by the queue consumer                                                                                                                       |
+| last_run_error                          | text          | nullable                                           | null         | Reason code with an optional downstream HTTP status (`downstream_http:401`); never a response body or token                                                                              |
+| last_run_at                             | integer ts_ms | nullable                                           | null         | When the last run state was recorded                                                                                                                                                     |
+| created_at / updated_at                 | integer ts_ms | NOT NULL                                           | See 9.3      |                                                                                                                                                                                          |
 
 Indexes: `INDEX(tenant_id, org_id)`, `INDEX(tenant_id, status)`.
 
