@@ -1,6 +1,6 @@
 // ParStore 单元测试:RFC9126 PAR 一次性 / 过期 / 存储。
 // 用内存 mock 替代 DurableObjectStorage,不依赖 Workers 运行时。
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ParStore } from './par-store'
 
 // --- 内存 storage mock ---
@@ -38,8 +38,10 @@ function makeState() {
   const map: StorageMap = new Map()
   const alarmRef = { value: null as number | null }
   const storage = makeStorageMock(map, alarmRef)
-  return { state: { storage } as unknown as DurableObjectState, map, alarmRef }
+  return { state: { storage } as unknown as DurableObjectState, map, alarmRef, storage }
 }
+
+const ALARM_LAG_MS = 60_000
 
 function makeRequest(path: string, body: unknown): Request {
   return new Request(`http://do${path}`, {
@@ -54,12 +56,14 @@ function makeRequest(path: string, body: unknown): Request {
 let store: ParStore
 let map: StorageMap
 let alarmRef: { value: number | null }
+let storage: ReturnType<typeof makeStorageMock>
 
 function setup() {
   const ctx = makeState()
   store = new ParStore(ctx.state)
   map = ctx.map
   alarmRef = ctx.alarmRef
+  storage = ctx.storage
 }
 
 // --- store ---
@@ -97,13 +101,27 @@ describe('ParStore: store', () => {
     expect(res.status).toBe(400)
   })
 
-  it('设置 alarm 为 expiresAt', async () => {
+  it('设置 alarm 为 expiresAt + 60s 批量清理窗口', async () => {
     const now = Date.now()
     const expiresAt = now + 30_000
     await store.fetch(
       makeRequest('/store', { requestUri: 'urn:test', params: { client_id: 'c1' }, expiresAt }),
     )
-    expect(alarmRef.value).toBe(expiresAt)
+    expect(alarmRef.value).toBe(expiresAt + ALARM_LAG_MS)
+  })
+
+  it('后续更晚过期的请求不移动已有 alarm', async () => {
+    const now = Date.now()
+    const firstExpiresAt = now + 10_000
+    await store.fetch(
+      makeRequest('/store', { requestUri: 'urn:a', params: {}, expiresAt: firstExpiresAt }),
+    )
+
+    await store.fetch(
+      makeRequest('/store', { requestUri: 'urn:b', params: {}, expiresAt: now + 50_000 }),
+    )
+
+    expect(alarmRef.value).toBe(firstExpiresAt + ALARM_LAG_MS)
   })
 })
 
@@ -175,6 +193,47 @@ describe('ParStore: cleanup', () => {
     expect(map.has('urn:expired-1')).toBe(false)
     expect(map.has('urn:expired-2')).toBe(false)
     expect(map.has('urn:valid')).toBe(true)
+  })
+
+  it('单次 list 扫描并按剩余最早过期时间 + 60s 再调度 alarm', async () => {
+    const now = Date.now()
+    map.set('urn:expired', { params: {}, expiresAt: now - 1000 })
+    map.set('urn:later', { params: {}, expiresAt: now + 40_000 })
+    map.set('urn:sooner', { params: {}, expiresAt: now + 20_000 })
+    alarmRef.value = null
+    const listSpy = vi.spyOn(storage, 'list')
+
+    await store.alarm()
+
+    expect(listSpy).toHaveBeenCalledTimes(1)
+    expect(alarmRef.value).toBe(now + 20_000 + ALARM_LAG_MS)
+  })
+
+  it('全部过期时清空后不再调度 alarm', async () => {
+    const now = Date.now()
+    map.set('urn:expired-1', { params: {}, expiresAt: now - 1000 })
+    alarmRef.value = null
+
+    await store.alarm()
+
+    expect(map.size).toBe(0)
+    expect(alarmRef.value).toBeNull()
+  })
+
+  it('过期条目超过 128 个时分批删除', async () => {
+    const now = Date.now()
+    for (let i = 0; i < 300; i++) {
+      map.set(`urn:expired-${i}`, { params: {}, expiresAt: now - 1000 })
+    }
+    const deleteSpy = vi.spyOn(storage, 'delete')
+
+    await store.alarm()
+
+    expect(map.size).toBe(0)
+    expect(deleteSpy).toHaveBeenCalledTimes(3)
+    for (const call of deleteSpy.mock.calls) {
+      expect((call[0] as string[]).length).toBeLessThanOrEqual(128)
+    }
   })
 })
 

@@ -17,6 +17,7 @@ type ChallengeRecord = {
 const DEFAULT_TTL_MS = 5 * 60 * 1000 // 5min
 const MAX_TTL_MS = 10 * 60 * 1000 // 10min
 const ALARM_LAG_MS = 60 * 1000 // 1min 后触发 alarm 兜底清理
+const MAX_DELETE_KEYS = 128 // storage.delete 单次 key 上限
 
 export class ChallengeStore {
   private readonly ctx: DurableObjectState
@@ -44,23 +45,24 @@ export class ChallengeStore {
     return new Response('Not Found', { status: 404 })
   }
 
-  // alarm:惰性清理所有已过期 key
+  // alarm:单次扫描批量清理已过期 key,按剩余最早过期时间 + lag 再调度
   async alarm(): Promise<void> {
     const now = Date.now()
     const all = await this.ctx.storage.list<ChallengeRecord>()
     const expired: string[] = []
+    let nextExpiry: number | null = null
     for (const [k, rec] of all) {
       if (rec.expiresAt <= now) {
         expired.push(k)
+      } else if (nextExpiry === null || rec.expiresAt < nextExpiry) {
+        nextExpiry = rec.expiresAt
       }
     }
-    if (expired.length > 0) {
-      await this.ctx.storage.delete(expired)
+    for (let i = 0; i < expired.length; i += MAX_DELETE_KEYS) {
+      await this.ctx.storage.delete(expired.slice(i, i + MAX_DELETE_KEYS))
     }
-    // 若仍有记录则再调度一次 alarm
-    const remaining = await this.ctx.storage.list()
-    if (remaining.size > 0) {
-      await this.ctx.storage.setAlarm(Date.now() + ALARM_LAG_MS)
+    if (nextExpiry !== null) {
+      await this.ctx.storage.setAlarm(nextExpiry + ALARM_LAG_MS)
     }
   }
 

@@ -1,7 +1,7 @@
 // OAuthFlowDO 单元测试:一次性消费 / 过期失效 / 重放拒绝 / PKCE plain 拒绝 / alarm 清理。
 // 见 oidc-oauth rule:state/nonce 防 CSRF;PKCE 强制 S256 only 拒 plain。
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { OAuthFlowDO } from '../oauth-flow-do'
 import { MockDurableObjectState } from './mock-do-state'
 
@@ -148,6 +148,31 @@ describe('OAuthFlowDO.consume - 过期失效', () => {
     expect(state.storage.size()).toBe(1)
     await state.triggerAlarm()
     expect(state.storage.size()).toBe(0)
+  })
+
+  it('alarm 单次 list 扫描,按剩余最早过期时间 + 60s 再调度', async () => {
+    const { state } = makeDO()
+    const now = Date.now()
+    await state.storage.put('st-expired', { state: 'st-expired', expiresAt: now - 1000 })
+    await state.storage.put('st-later', { state: 'st-later', expiresAt: now + 1_800_000 })
+    await state.storage.put('st-sooner', { state: 'st-sooner', expiresAt: now + 600_000 })
+    const listSpy = vi.spyOn(state.storage, 'list')
+
+    await state.triggerAlarm()
+
+    expect(listSpy).toHaveBeenCalledTimes(1)
+    expect(await state.storage.get('st-expired')).toBeUndefined()
+    expect(await state.storage.getAlarm()).toBe(now + 600_000 + 60_000)
+  })
+
+  it('alarm 清空全部过期 state 后不再调度', async () => {
+    const { state } = makeDO()
+    await state.storage.put('st-expired', { state: 'st-expired', expiresAt: Date.now() - 1000 })
+
+    await state.triggerAlarm()
+
+    expect(state.storage.size()).toBe(0)
+    expect(await state.storage.getAlarm()).toBeNull()
   })
 })
 

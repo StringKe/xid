@@ -28,6 +28,9 @@ type ConsumeBody = {
 
 // TTL 上限 60s,alarm 清理过期条目
 const MAX_TTL_MS = 60_000
+// alarm 在过期后滞后 1min 批量清理,避免每条请求各触发一次 alarm
+const ALARM_LAG_MS = 60_000
+const MAX_DELETE_KEYS = 128 // storage.delete 单次 key 上限
 
 export class ParStore {
   private readonly state: DurableObjectState
@@ -90,10 +93,11 @@ export class ParStore {
 
     await this.state.storage.put(body.requestUri, entry)
 
-    // 确保 alarm 在最近的过期时间触发
+    // 只在需要提前时移动 alarm,取 min(现有 alarm, 过期时间 + lag)
+    const target = body.expiresAt + ALARM_LAG_MS
     const currentAlarm = await this.state.storage.getAlarm()
-    if (currentAlarm === null || body.expiresAt < currentAlarm) {
-      await this.state.storage.setAlarm(body.expiresAt)
+    if (currentAlarm === null || target < currentAlarm) {
+      await this.state.storage.setAlarm(target)
     }
 
     return jsonOk({ stored: true })
@@ -125,28 +129,23 @@ export class ParStore {
     const now = Date.now()
     const all = await this.state.storage.list<ParEntry>()
     const toDelete: string[] = []
+    let nextExpiry: number | null = null
 
     for (const [key, entry] of all) {
       if (entry.expiresAt <= now) {
         toDelete.push(key)
+      } else if (nextExpiry === null || entry.expiresAt < nextExpiry) {
+        nextExpiry = entry.expiresAt
       }
     }
 
-    if (toDelete.length > 0) {
-      await this.state.storage.delete(toDelete)
+    for (let i = 0; i < toDelete.length; i += MAX_DELETE_KEYS) {
+      await this.state.storage.delete(toDelete.slice(i, i + MAX_DELETE_KEYS))
     }
 
-    // 若还有未过期条目,设置下一次 alarm
-    const remaining = await this.state.storage.list<ParEntry>()
-    let nextAlarm: number | null = null
-    for (const [, entry] of remaining) {
-      if (nextAlarm === null || entry.expiresAt < nextAlarm) {
-        nextAlarm = entry.expiresAt
-      }
-    }
-
-    if (nextAlarm !== null) {
-      await this.state.storage.setAlarm(nextAlarm)
+    // 若还有未过期条目,按最早过期时间 + lag 设置下一次 alarm
+    if (nextExpiry !== null) {
+      await this.state.storage.setAlarm(nextExpiry + ALARM_LAG_MS)
     }
 
     return jsonOk({ deleted: toDelete.length })

@@ -1,7 +1,7 @@
 // ChallengeStore 单元测试:一次性消费 / 过期失效 / 重放拒绝 / alarm 清理。
 // 见 webauthn rule 四验证 challenge;challenge 存 DO 验证后销毁。
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ChallengeStore } from '../challenge-store'
 import { MockDurableObjectState } from './mock-do-state'
 
@@ -118,6 +118,45 @@ describe('ChallengeStore.consume - 过期失效', () => {
     expect(state.storage.size()).toBe(1)
     await state.triggerAlarm()
     expect(state.storage.size()).toBe(0)
+  })
+
+  it('alarm 单次 list 扫描,按剩余最早过期时间 + 60s 再调度', async () => {
+    const { state } = makeStore()
+    const now = Date.now()
+    await state.storage.put('k-expired', { value: 'v', expiresAt: now - 1000 })
+    await state.storage.put('k-later', { value: 'v', expiresAt: now + 300_000 })
+    await state.storage.put('k-sooner', { value: 'v', expiresAt: now + 120_000 })
+    const listSpy = vi.spyOn(state.storage, 'list')
+
+    await state.triggerAlarm()
+
+    expect(listSpy).toHaveBeenCalledTimes(1)
+    expect(await state.storage.get('k-expired')).toBeUndefined()
+    expect(await state.storage.getAlarm()).toBe(now + 120_000 + 60_000)
+  })
+
+  it('alarm 清空全部过期记录后不再调度', async () => {
+    const { state } = makeStore()
+    await state.storage.put('k-expired', { value: 'v', expiresAt: Date.now() - 1000 })
+
+    await state.triggerAlarm()
+
+    expect(state.storage.size()).toBe(0)
+    expect(await state.storage.getAlarm()).toBeNull()
+  })
+
+  it('alarm 过期记录超过 128 个时分批删除', async () => {
+    const { state } = makeStore()
+    const expiresAt = Date.now() - 1000
+    for (let i = 0; i < 300; i++) {
+      await state.storage.put(`k-${i}`, { value: 'v', expiresAt })
+    }
+    const deleteSpy = vi.spyOn(state.storage, 'delete')
+
+    await state.triggerAlarm()
+
+    expect(state.storage.size()).toBe(0)
+    expect(deleteSpy).toHaveBeenCalledTimes(3)
   })
 })
 

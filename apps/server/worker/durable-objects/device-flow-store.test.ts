@@ -1,6 +1,6 @@
 // DeviceFlowStore 单元测试:RFC8628 device_code/user_code 分离 / 授权流转 / 轮询限速。
 // 用内存 mock 替代 DurableObjectStorage,不依赖 Workers 运行时。
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { DeviceFlowStore } from './device-flow-store'
 
 // --- 内存 storage mock ---
@@ -38,8 +38,10 @@ function makeState() {
   const map: StorageMap = new Map()
   const alarmRef = { value: null as number | null }
   const storage = makeStorageMock(map, alarmRef)
-  return { state: { storage } as unknown as DurableObjectState, map, alarmRef }
+  return { state: { storage } as unknown as DurableObjectState, map, alarmRef, storage }
 }
+
+const ALARM_LAG_MS = 60_000
 
 function makeRequest(path: string, body: unknown): Request {
   return new Request(`http://do${path}`, {
@@ -92,11 +94,15 @@ function makePendingEntry(overrides: Record<string, unknown> = {}) {
 
 let store: DeviceFlowStore
 let map: StorageMap
+let alarmRef: { value: number | null }
+let storage: ReturnType<typeof makeStorageMock>
 
 function setup() {
   const ctx = makeState()
   store = new DeviceFlowStore(ctx.state)
   map = ctx.map
+  alarmRef = ctx.alarmRef
+  storage = ctx.storage
 }
 
 // --- create ---
@@ -331,6 +337,66 @@ describe('DeviceFlowStore: expiry', () => {
       makeRequest('/authorize', { userCode: USER_CODE, userId: USER_ID }),
     )
     expect((await res.json<{ error: string }>()).error).toBe('expired_token')
+  })
+})
+
+// --- alarm 批量清理 ---
+
+describe('DeviceFlowStore: alarm batching', () => {
+  beforeEach(setup)
+
+  it('create 设置 alarm 为 expiresAt + 60s,更晚过期的 create 不移动 alarm', async () => {
+    const firstExpiresAt = Date.now() + 300_000
+    await store.fetch(makeRequest('/create', defaultCreateBody({ expiresAt: firstExpiresAt })))
+
+    await store.fetch(
+      makeRequest(
+        '/create',
+        defaultCreateBody({
+          deviceCode: 'dev_later',
+          userCode: 'WXYZ-9876',
+          expiresAt: Date.now() + 600_000,
+        }),
+      ),
+    )
+
+    expect(alarmRef.value).toBe(firstExpiresAt + ALARM_LAG_MS)
+  })
+
+  it('alarm 单次 list 扫描,删除过期 grant 与 user_code 索引并按剩余最早过期 + 60s 再调度', async () => {
+    const now = Date.now()
+    map.set(DEVICE_CODE, makePendingEntry({ expiresAt: now - 1000 }))
+    map.set(UC_KEY, DEVICE_CODE)
+    map.set(
+      'dev_valid',
+      makePendingEntry({
+        deviceCode: 'dev_valid',
+        userCode: 'WXYZ-9876',
+        expiresAt: now + 120_000,
+      }),
+    )
+    map.set('uc:WXYZ-9876', 'dev_valid')
+    alarmRef.value = null
+    const listSpy = vi.spyOn(storage, 'list')
+
+    await store.alarm()
+
+    expect(listSpy).toHaveBeenCalledTimes(1)
+    expect(map.has(DEVICE_CODE)).toBe(false)
+    expect(map.has(UC_KEY)).toBe(false)
+    expect(map.has('dev_valid')).toBe(true)
+    expect(alarmRef.value).toBe(now + 120_000 + ALARM_LAG_MS)
+  })
+
+  it('全部过期时清空后不再调度 alarm', async () => {
+    map.set(DEVICE_CODE, makePendingEntry({ expiresAt: Date.now() - 1000 }))
+    map.set(UC_KEY, DEVICE_CODE)
+    alarmRef.value = null
+
+    await store.alarm()
+
+    expect(map.size).toBe(0)
+    expect(alarmRef.value).toBeNull()
   })
 })
 

@@ -42,6 +42,7 @@ type AuthorizePendingParams = {
 const DEFAULT_TTL_MS = 10 * 60 * 1000 // 10min
 const MAX_TTL_MS = 30 * 60 * 1000 // 30min 上限(含 login 等待时间)
 const ALARM_LAG_MS = 60 * 1000 // alarm 兜底偏移
+const MAX_DELETE_KEYS = 128 // storage.delete 单次 key 上限
 
 // 验证 store 请求输入,成功返回 null,失败返回错误 Response
 function validateStoreInput(input: Record<string, unknown>): Response | null {
@@ -125,22 +126,24 @@ export class OAuthFlowDO {
     return new Response('Not Found', { status: 404 })
   }
 
-  // alarm:惰性清理过期 state
+  // alarm:单次扫描批量清理过期 state,按剩余最早过期时间 + lag 再调度
   async alarm(): Promise<void> {
     const now = Date.now()
     const all = await this.ctx.storage.list<OAuthFlowRecord>()
     const expired: string[] = []
+    let nextExpiry: number | null = null
     for (const [k, rec] of all) {
       if (rec.expiresAt <= now) {
         expired.push(k)
+      } else if (nextExpiry === null || rec.expiresAt < nextExpiry) {
+        nextExpiry = rec.expiresAt
       }
     }
-    if (expired.length > 0) {
-      await this.ctx.storage.delete(expired)
+    for (let i = 0; i < expired.length; i += MAX_DELETE_KEYS) {
+      await this.ctx.storage.delete(expired.slice(i, i + MAX_DELETE_KEYS))
     }
-    const remaining = await this.ctx.storage.list()
-    if (remaining.size > 0) {
-      await this.ctx.storage.setAlarm(Date.now() + ALARM_LAG_MS)
+    if (nextExpiry !== null) {
+      await this.ctx.storage.setAlarm(nextExpiry + ALARM_LAG_MS)
     }
   }
 

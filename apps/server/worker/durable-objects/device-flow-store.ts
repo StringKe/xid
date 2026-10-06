@@ -71,6 +71,9 @@ const SLOW_DOWN_STEP_S = 5
 const MAX_INTERVAL_S = 30
 // user_code 索引 key 前缀
 const USER_CODE_PREFIX = 'uc:'
+// alarm 在过期后滞后 1min 批量清理,避免每条请求各触发一次 alarm
+const ALARM_LAG_MS = 60_000
+const MAX_DELETE_KEYS = 128 // storage.delete 单次 key 上限
 
 export class DeviceFlowStore {
   private readonly state: DurableObjectState
@@ -142,10 +145,11 @@ export class DeviceFlowStore {
     await this.state.storage.put(body.deviceCode, entry)
     await this.state.storage.put(USER_CODE_PREFIX + body.userCode.toUpperCase(), body.deviceCode)
 
-    // alarm 保证最早过期时间触发清理
+    // 只在需要提前时移动 alarm,取 min(现有 alarm, 过期时间 + lag)
+    const target = body.expiresAt + ALARM_LAG_MS
     const currentAlarm = await this.state.storage.getAlarm()
-    if (currentAlarm === null || body.expiresAt < currentAlarm) {
-      await this.state.storage.setAlarm(body.expiresAt)
+    if (currentAlarm === null || target < currentAlarm) {
+      await this.state.storage.setAlarm(target)
     }
 
     return jsonOk({ created: true })
@@ -336,16 +340,14 @@ export class DeviceFlowStore {
   private async handleCleanup(): Promise<Response> {
     const now = Date.now()
     const all = await this.state.storage.list<DeviceGrantEntry | string>()
-    const toDelete = collectExpiredKeys(all, now)
+    const { toDelete, nextExpiry } = scanExpired(all, now)
 
-    if (toDelete.length > 0) {
-      await this.state.storage.delete(toDelete)
+    for (let i = 0; i < toDelete.length; i += MAX_DELETE_KEYS) {
+      await this.state.storage.delete(toDelete.slice(i, i + MAX_DELETE_KEYS))
     }
 
-    const remaining = await this.state.storage.list<DeviceGrantEntry | string>()
-    const nextAlarm = findNextAlarm(remaining)
-    if (nextAlarm !== null) {
-      await this.state.storage.setAlarm(nextAlarm)
+    if (nextExpiry !== null) {
+      await this.state.storage.setAlarm(nextExpiry + ALARM_LAG_MS)
     }
 
     return jsonOk({ deleted: toDelete.length })
@@ -358,27 +360,23 @@ function isDeviceGrantEntry(v: unknown): v is DeviceGrantEntry {
   return typeof v === 'object' && v !== null && 'expiresAt' in v && 'userCode' in v
 }
 
-function collectExpiredKeys(all: Map<string, DeviceGrantEntry | string>, now: number): string[] {
+// 单次扫描:收集过期 grant 及其 user_code 索引,同时求剩余最早过期时间
+function scanExpired(
+  all: Map<string, DeviceGrantEntry | string>,
+  now: number,
+): { toDelete: string[]; nextExpiry: number | null } {
   const toDelete: string[] = []
+  let nextExpiry: number | null = null
   for (const [key, value] of all) {
-    if (isDeviceGrantEntry(value) && value.expiresAt <= now) {
+    if (!isDeviceGrantEntry(value)) continue
+    if (value.expiresAt <= now) {
       toDelete.push(key)
       toDelete.push(USER_CODE_PREFIX + value.userCode.toUpperCase())
+    } else if (nextExpiry === null || value.expiresAt < nextExpiry) {
+      nextExpiry = value.expiresAt
     }
   }
-  return toDelete
-}
-
-function findNextAlarm(all: Map<string, DeviceGrantEntry | string>): number | null {
-  let nextAlarm: number | null = null
-  for (const [, value] of all) {
-    if (isDeviceGrantEntry(value)) {
-      if (nextAlarm === null || value.expiresAt < nextAlarm) {
-        nextAlarm = value.expiresAt
-      }
-    }
-  }
-  return nextAlarm
+  return { toDelete, nextExpiry }
 }
 
 // --- 类型守卫 ---
