@@ -56,7 +56,7 @@ export function SelectOrganizationPage(): ReactNode {
     (search.authz_request_id
       ? `/authorize?authz_request_id=${encodeURIComponent(search.authz_request_id)}`
       : defaultLandingPath)
-  const { organizations, setActiveOrganization, signOut } = useAuth()
+  const { organizations, setActiveOrganization, signOut, user } = useAuth()
   const navigate = useNavigate()
   const { t } = useLingui()
   const [error, setError] = useState<string | null>(null)
@@ -99,9 +99,15 @@ export function SelectOrganizationPage(): ReactNode {
           <Alert tone="warning">
             <Trans>You do not belong to any organizations yet.</Trans>
           </Alert>
-          <Button type="button" fullWidth onClick={() => navigate('/create-organization')}>
-            <Trans>Create organization</Trans>
-          </Button>
+          {user?.canCreateOrganization ? (
+            <Button type="button" fullWidth onClick={() => navigate('/create-organization')}>
+              <Trans>Create organization</Trans>
+            </Button>
+          ) : (
+            <p {...stylex.props(styles.orgMeta)}>
+              <Trans>Ask an organization admin to invite you.</Trans>
+            </p>
+          )}
         </div>
       </AuthLayout>
     )

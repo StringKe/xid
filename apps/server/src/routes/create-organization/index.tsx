@@ -8,7 +8,9 @@ import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
 import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
 import { trackOrganizationCreated } from '../../lib/google-analytics-funnel'
-import { useNavigate } from '../../lib/router'
+import { Link, useNavigate } from '../../lib/router'
+import { ACCOUNT_EXACT_PATH, type XidError } from '@xid-kit/types'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { page } from '../../styles/product-surface.stylex'
 
 const styles = stylex.create({
@@ -35,6 +37,44 @@ type CreateOrgResponse = {
   redirectUrl: string
 }
 
+type CreateOrganizationErrors = {
+  email?: string
+  slug?: string
+  form?: string
+}
+
+// 资格与 /v1/me canCreateOrganization 同源:不符合时不展示注定失败的表单。
+function CreateOrganizationUnavailable({ onSignOut }: { onSignOut: () => void }): ReactNode {
+  return (
+    <AuthLayout
+      footer={
+        <button
+          type="button"
+          {...stylex.props(page.textLink, styles.textButton)}
+          onClick={onSignOut}
+        >
+          <Trans>Sign out and use a different account</Trans>
+        </button>
+      }
+    >
+      <div {...stylex.props(styles.stack)}>
+        <PageHeader
+          title={<Trans>Organization creation unavailable</Trans>}
+          lead={
+            <Trans>
+              This account cannot create a new organization here. Ask an organization admin to
+              invite you, or sign up with a new account to create your own organization.
+            </Trans>
+          }
+        />
+        <Link to={ACCOUNT_EXACT_PATH} {...stylex.props(page.textLink)}>
+          <Trans>Go to account</Trans>
+        </Link>
+      </div>
+    </AuthLayout>
+  )
+}
+
 function deriveSlug(value: string): string {
   return value
     .trim()
@@ -53,13 +93,35 @@ export function CreateOrganizationPage(): ReactNode {
   const [slug, setSlug] = useState('')
   // slug 默认跟随 name;用户手改后停止跟随。
   const [slugTouched, setSlugTouched] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<CreateOrganizationErrors>({})
   const [loading, setLoading] = useState(false)
+  const apiErrorMessage = useApiErrorMessage()
+
+  function describeError(error: XidError): CreateOrganizationErrors {
+    const paramName = error.meta?.paramName
+    if (error.code === 'already_exists' && paramName === 'slug') {
+      return { slug: t`This URL slug is already taken. Choose another one.` }
+    }
+    if (error.code === 'validation_failed' && paramName === 'email') {
+      return { email: t`Use the email address of the account you are signed in with.` }
+    }
+    if (error.code === 'validation_failed') {
+      return {
+        form: t`Enter an organization name and a URL slug made of lowercase letters, numbers, and hyphens.`,
+      }
+    }
+    if (error.code === 'conflict') {
+      return {
+        form: t`This account cannot create a new organization. Ask an organization admin to invite you, or reload the page if you just changed accounts.`,
+      }
+    }
+    return { form: apiErrorMessage(error, { surface: 'general' }) }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     setLoading(true)
-    setError(null)
+    setErrors({})
     const result = await api.post<CreateOrgResponse>('/v1/organizations/self', {
       email: email.trim(),
       name: name.trim(),
@@ -67,12 +129,16 @@ export function CreateOrganizationPage(): ReactNode {
     })
     setLoading(false)
     if (!result.ok) {
-      setError(t`Could not create organization. Check the email and slug, then try again.`)
+      setErrors(describeError(result.error))
       return
     }
     trackOrganizationCreated()
     await refresh()
     navigate(result.value.redirectUrl, { replace: true })
+  }
+
+  if (user && user.canCreateOrganization !== true) {
+    return <CreateOrganizationUnavailable onSignOut={() => void signOut()} />
   }
 
   return (
@@ -99,6 +165,7 @@ export function CreateOrganizationPage(): ReactNode {
         />
         <Field
           label={<Trans>Email</Trans>}
+          error={errors.email}
           hint={
             isGuest ? (
               <Trans>
@@ -138,6 +205,7 @@ export function CreateOrganizationPage(): ReactNode {
         </Field>
         <Field
           label={<Trans>URL slug</Trans>}
+          error={errors.slug}
           hint={
             <Trans>Used in URLs and subdomains. Lowercase letters, numbers, and hyphens.</Trans>
           }
@@ -153,7 +221,7 @@ export function CreateOrganizationPage(): ReactNode {
             autoComplete="off"
           />
         </Field>
-        {error ? <Alert tone="error">{error}</Alert> : null}
+        {errors.form ? <Alert tone="error">{errors.form}</Alert> : null}
         <Button type="submit" disabled={loading || email.trim() === '' || name.trim() === ''}>
           {loading ? <Trans>Creating…</Trans> : <Trans>Create organization</Trans>}
         </Button>

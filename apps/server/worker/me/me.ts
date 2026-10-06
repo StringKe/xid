@@ -24,6 +24,7 @@ import {
 } from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { hasStrongMfaFactor } from '../lib/mfa-methods'
+import { findSelfOrganizationCreateUser } from '../me-auth/organization-self-eligibility'
 import { loadPrimaryEmail, readAllById, resolveSession } from './shared'
 
 type AuthOrg = BrowserAuthOrganization
@@ -367,6 +368,7 @@ app.get('/', async (c) => {
     managerAssignments,
     browserSessions,
     passwordRow,
+    selfOrganizationCreateUser,
   ] = await Promise.all([
     loadPrimaryEmail(c, userRow.id, userRow.primaryEmailId),
     hasMfaEnabled(c, userRow.id),
@@ -376,6 +378,7 @@ app.get('/', async (c) => {
     listActiveManagerAssignments(db, userRow.id),
     readBrowserSessions(c),
     db.passwords.findOne(eq(schema.passwords.userId, userRow.id)),
+    findSelfOrganizationCreateUser(c.env, { tenant: c.get('tenant'), userId: userRow.id }),
   ])
 
   const user: MeUser = {
@@ -388,6 +391,7 @@ app.get('/', async (c) => {
     hasMfa,
     instanceManager,
     hasPassword: passwordRow !== null && passwordRow !== undefined,
+    canCreateOrganization: selfOrganizationCreateUser !== null,
     provisioned_by: userRow.provisionedBy ?? null,
   }
 

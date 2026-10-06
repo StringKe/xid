@@ -12,6 +12,7 @@ const routerState = vi.hoisted(() => ({
 
 const authState = vi.hoisted(() => ({
   organizations: [] as Array<{ id: string; name: string; slug: string }>,
+  user: { canCreateOrganization: true } as { canCreateOrganization?: boolean },
   setActiveOrganization: vi.fn(async () => true),
   signOut: vi.fn(async () => undefined),
 }))
@@ -36,6 +37,7 @@ vi.mock('../../lib/router', () => ({
 vi.mock('../../lib/auth-context', () => ({
   useAuth: () => ({
     organizations: authState.organizations,
+    user: authState.user,
     setActiveOrganization: authState.setActiveOrganization,
     signOut: authState.signOut,
   }),
@@ -115,6 +117,7 @@ describe('SelectOrganizationPage', () => {
     routerState.search = {}
     routerState.navigate.mockClear()
     authState.organizations = []
+    authState.user = { canCreateOrganization: true }
     authState.setActiveOrganization.mockClear()
     authState.setActiveOrganization.mockResolvedValue(true)
     authState.signOut.mockClear()
@@ -132,6 +135,18 @@ describe('SelectOrganizationPage', () => {
     })
 
     expect(routerState.navigate).toHaveBeenCalledWith('/create-organization')
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('asks for an invitation instead of offering creation to ineligible accounts', async () => {
+    authState.user = { canCreateOrganization: false }
+
+    const { container, root } = await renderPage()
+
+    expect(container.textContent).toContain('Ask an organization admin to invite you.')
+    expect(container.textContent).not.toContain('Create organization')
 
     await act(async () => root.unmount())
     container.remove()

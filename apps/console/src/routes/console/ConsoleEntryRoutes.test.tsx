@@ -316,15 +316,27 @@ describe('Console entry routes', () => {
   })
 
   it('shows an empty organization state instead of redirecting to org settings', () => {
-    authState.user = user
+    authState.user = { ...user, canCreateOrganization: true }
     authState.activeOrg = null
     authState.organizations = []
 
     const html = renderToStaticMarkup(<ConsoleSettingsEntry />)
 
     expect(html).toContain('No organization access')
+    expect(html).toContain('href="/create-organization"')
     expect(html).not.toContain('/console/org')
     expect(html).not.toContain('No organization selected')
+  })
+
+  it('does not offer organization creation to accounts that cannot create one', () => {
+    authState.user = { ...user, canCreateOrganization: false }
+    authState.organizations = []
+
+    const html = renderToStaticMarkup(<ConsoleHomeEntry />)
+
+    expect(html).toContain('No organization access')
+    expect(html).not.toContain('href="/create-organization"')
+    expect(html).toContain('href="/account"')
   })
 
   it('sends members with an active organization to the account portal', () => {

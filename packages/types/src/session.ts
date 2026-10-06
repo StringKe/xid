@@ -13,6 +13,8 @@ export type BrowserAuthUser = {
   instanceManager: boolean
   // account portal 据此在「改密」与「设密」间切换；可选以兼容旧 Core 响应，缺失时前端按改密处理
   hasPassword?: boolean
+  // 自助创建组织的资格(与 POST /auth/organizations 同一判定);缺失时按不可创建处理
+  canCreateOrganization?: boolean
   provisioned_by?: 'anonymous' | (string & {}) | null
 }
 

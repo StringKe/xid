@@ -7,13 +7,15 @@ import { invitationAcceptContinuePath } from '../../auth/invitations'
 import { emitWebhookAsync } from '../../v1/shared'
 import { registerSessionAuthRoutes } from '../index'
 import { buildTenantMigrationStatements } from '../organization-self'
+import { findSelfOrganizationCreateUser } from '../organization-self-eligibility'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant, testErrorHandler } from './helpers'
 
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   schema: {
-    users: { id: 'id', status: 'status', isNewUser: 'isNewUser' },
+    users: { id: 'id', status: 'status', isNewUser: 'isNewUser', deletedAt: 'deletedAt' },
     userEmails: { id: 'id', userId: 'userId', isPrimary: 'isPrimary' },
+    memberships: { userId: 'userId' },
   },
 }))
 
@@ -278,6 +280,7 @@ function mockUser(options: { email?: string; isNewUser?: boolean } = {}) {
   vi.mocked(createTenantDb).mockReturnValue({
     users: { findOne: userFindOne },
     userEmails: { findOne: emailFindOne },
+    memberships: { findOne: vi.fn().mockResolvedValue(null) },
   } as unknown as ReturnType<typeof createTenantDb>)
 }
 
@@ -473,5 +476,53 @@ describe('POST /v1/organizations/self', () => {
     )
     expect(res.status).toBe(429)
     expect(batches).toHaveLength(0)
+  })
+})
+
+describe('findSelfOrganizationCreateUser', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns the provisional user in the default staging tenant', async () => {
+    mockUser()
+
+    const user = await findSelfOrganizationCreateUser(
+      { ...makeEnv(), DB: makeD1().db },
+      {
+        tenant: tenant() as never,
+        userId: 'user-1',
+      },
+    )
+
+    expect(user?.id).toBe('user-1')
+  })
+
+  it('refuses a user who already belongs to an organization', async () => {
+    mockUser()
+    vi.mocked(createTenantDb).mockReturnValue({
+      ...vi.mocked(createTenantDb).mock.results[0]?.value,
+      users: { findOne: vi.fn().mockResolvedValue({ id: 'user-1' }) },
+      memberships: { findOne: vi.fn().mockResolvedValue({ id: 'mem-1' }) },
+    } as unknown as ReturnType<typeof createTenantDb>)
+
+    const user = await findSelfOrganizationCreateUser(
+      { ...makeEnv(), DB: makeD1().db },
+      {
+        tenant: tenant() as never,
+        userId: 'user-1',
+      },
+    )
+
+    expect(user).toBeNull()
+  })
+
+  it('refuses every user outside the multi-tenant default staging tenant', async () => {
+    mockUser()
+
+    const user = await findSelfOrganizationCreateUser(
+      { ...makeEnv(), DB: makeD1({ sourceValid: false }).db },
+      { tenant: tenant() as never, userId: 'user-1' },
+    )
+
+    expect(user).toBeNull()
   })
 })

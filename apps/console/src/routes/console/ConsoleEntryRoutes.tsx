@@ -302,25 +302,42 @@ function OrganizationSelection({
   )
 }
 
-function EmptyOrganizationState(): ReactNode {
+function EmptyOrganizationState({ canCreate }: { canCreate: boolean }): ReactNode {
   return (
     <ConsolePage title={<Trans>Organizations</Trans>}>
       <ConsolePageSection>
-        <EmptyState
-          title={<Trans>No organization access</Trans>}
-          description={
-            <Trans>
-              An organization is where you register OAuth applications, invite members, and turn on
-              enterprise SSO or directory sync. Create one to get your first issuer and managed
-              sign-in pages.
-            </Trans>
-          }
-          action={
-            <a href="/create-organization" {...stylex.props(styles.primaryLink)}>
-              <Trans>Create organization</Trans>
-            </a>
-          }
-        />
+        {canCreate ? (
+          <EmptyState
+            title={<Trans>No organization access</Trans>}
+            description={
+              <Trans>
+                An organization is where you register OAuth applications, invite members, and turn
+                on enterprise SSO or directory sync. Create one to get your first issuer and managed
+                sign-in pages.
+              </Trans>
+            }
+            action={
+              <a href="/create-organization" {...stylex.props(styles.primaryLink)}>
+                <Trans>Create organization</Trans>
+              </a>
+            }
+          />
+        ) : (
+          <EmptyState
+            title={<Trans>No organization access</Trans>}
+            description={
+              <Trans>
+                Your account does not manage any organization. Ask an organization admin to invite
+                you or grant you a management role.
+              </Trans>
+            }
+            action={
+              <a href="/account" {...stylex.props(styles.primaryLink)}>
+                <Trans>Go to account</Trans>
+              </a>
+            }
+          />
+        )}
       </ConsolePageSection>
     </ConsolePage>
   )
@@ -513,7 +530,7 @@ function ConsoleEntry({ target }: { target: EntryTarget }): ReactNode {
   if (user?.instanceManager) return <Navigate to="/console/platform" replace />
   if (managerAssignments.length > 0) return <Navigate to={MANAGED_PROJECTS_NAV_ITEM.to} replace />
   if (organizations.length > 0) return <Navigate to="/account" replace />
-  return <EmptyOrganizationState />
+  return <EmptyOrganizationState canCreate={user?.canCreateOrganization === true} />
 }
 
 function AutoSelectOrganization({ target, org }: { target: EntryTarget; org: AuthOrg }): ReactNode {

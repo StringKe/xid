@@ -12,22 +12,14 @@ import type { XidHonoEnv } from '../lib/types'
 import { emailSchema, readJsonBody, slugSchema, validateBody } from '../lib/validate'
 import { emitWebhookAsync } from '../v1/shared'
 import { PLAN_DEFAULTS } from '../platform/plans'
+import { findSelfOrganizationCreateUser } from './organization-self-eligibility'
 import { checkRateLimit, ORG_CREATE_PER_DAY_POLICY, requireSession } from './shared'
-
-const DEFAULT_TENANT_SLUG = 'default'
 
 const createOrgBodySchema = v.object({
   email: emailSchema,
   slug: v.optional(v.string()),
   name: v.optional(v.string()),
 })
-
-type SourceTenantRow = {
-  instanceMode: string
-  slug: string
-  parentOrgId: string | null
-  orgTenantId: string
-}
 
 const USER_OWNED_TENANT_TABLES = [
   'user_emails',
@@ -69,29 +61,6 @@ function isInstanceSlugConflict(error: unknown): boolean {
       'UNIQUE constraint failed: organizations.instance_id, organizations.slug',
     )
   )
-}
-
-async function loadSourceTenant(
-  env: Env,
-  tenantId: string,
-  instanceId: string,
-): Promise<SourceTenantRow | null> {
-  return env.DB.prepare(
-    `SELECT i.mode AS instanceMode,
-            o.slug AS slug,
-            o.parent_org_id AS parentOrgId,
-            o.tenant_id AS orgTenantId
-       FROM organizations o
-       JOIN instances i ON i.id = o.instance_id
-      WHERE o.id = ?
-        AND o.tenant_id = ?
-        AND o.instance_id = ?
-        AND o.status = 'active'
-        AND o.deleted_at IS NULL
-      LIMIT 1`,
-  )
-    .bind(tenantId, tenantId, instanceId)
-    .first<SourceTenantRow>()
 }
 
 async function instanceSlugExists(env: Env, instanceId: string, slug: string): Promise<boolean> {
@@ -378,29 +347,13 @@ export async function handleSelfOrganizationCreate(c: Context<XidHonoEnv>): Prom
     })
   }
 
-  const sourceTenant = await loadSourceTenant(c.env, tenant.tenantId, instanceId)
-  if (
-    !sourceTenant ||
-    sourceTenant.instanceMode !== 'multi_tenant' ||
-    sourceTenant.slug !== DEFAULT_TENANT_SLUG ||
-    sourceTenant.parentOrgId !== null ||
-    sourceTenant.orgTenantId !== tenant.tenantId
-  ) {
-    throw new AppError('conflict', { httpStatus: 409 })
-  }
+  const user = await findSelfOrganizationCreateUser(c.env, { tenant, userId: session.userId })
+  if (!user) throw new AppError('conflict', { httpStatus: 409 })
   if (await instanceSlugExists(c.env, instanceId, slug)) {
     throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'slug' } })
   }
 
   const db = createTenantDb(c.env.DB, tenant)
-  const user = await db.users.findOne(
-    and(
-      eq(schema.users.id, session.userId),
-      eq(schema.users.status, 'active'),
-      eq(schema.users.isNewUser, true),
-    ),
-  )
-  if (!user || user.deletedAt !== null) throw new AppError('conflict', { httpStatus: 409 })
 
   const existingEmail = await loadExistingEmail(db, user.id, user.primaryEmailId)
   if (existingEmail && existingEmail.trim().toLowerCase() !== email) {

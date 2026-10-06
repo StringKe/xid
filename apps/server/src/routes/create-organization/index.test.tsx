@@ -19,6 +19,7 @@ const authState = vi.hoisted(() => ({
     locale: null,
     hasMfa: false,
     instanceManager: false,
+    canCreateOrganization: true,
     provisioned_by: undefined as string | undefined,
   },
   post: vi.fn(),
@@ -39,7 +40,12 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('../../lib/router', () => ({
+  Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
   useNavigate: () => routerState.navigate,
+}))
+
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useApiErrorMessage: () => (error: { code: string }) => `error:${error.code}`,
 }))
 
 vi.mock('../../lib/auth-context', () => ({
@@ -83,16 +89,19 @@ vi.mock('../../components/ui', () => ({
   Field: ({
     label,
     hint,
+    error,
     children,
   }: {
     label: ReactNode
     hint?: ReactNode
+    error?: ReactNode
     children: ReactNode
   }) => (
     <label>
       {label}
       {children}
       {hint}
+      {error ? <span data-field-error="true">{error}</span> : null}
     </label>
   ),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
@@ -131,6 +140,7 @@ describe('CreateOrganizationPage', () => {
   beforeEach(() => {
     authState.user.email = 'owner@example.com'
     authState.user.provisioned_by = undefined
+    authState.user.canCreateOrganization = true
     authState.post.mockReset()
     authState.refresh.mockClear()
     authState.signOut.mockClear()
@@ -213,6 +223,53 @@ describe('CreateOrganizationPage', () => {
       setInputValue(name, 'Acme Incorporated')
     })
     expect(slug.value).toBe('custom-slug')
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('explains that the account cannot create an organization instead of showing the form', async () => {
+    authState.user.canCreateOrganization = false
+
+    const { container, root } = await renderPage()
+
+    expect(container.textContent).toContain('Organization creation unavailable')
+    expect(container.querySelector('form')).toBeNull()
+    expect(container.querySelector('a[href="/account"]')).not.toBeNull()
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it.each([
+    [
+      { code: 'already_exists', meta: { paramName: 'slug' } },
+      'This URL slug is already taken. Choose another one.',
+    ],
+    [
+      { code: 'validation_failed', meta: { paramName: 'email' } },
+      'Use the email address of the account you are signed in with.',
+    ],
+    [{ code: 'conflict' }, 'This account cannot create a new organization.'],
+    [{ code: 'rate_limited' }, 'error:rate_limited'],
+  ])('maps %o to a specific message', async (error, message) => {
+    authState.post.mockResolvedValue({
+      ok: false,
+      error: { message: '', httpStatus: 409, ...error },
+    })
+    const { container, root } = await renderPage()
+    const name = container.querySelector<HTMLInputElement>('input[name="organization-name"]')
+    const form = container.querySelector('form')
+    if (!name || !form) throw new Error('Expected organization form fields')
+
+    await act(async () => {
+      setInputValue(name, 'Acme')
+    })
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+
+    expect(container.textContent).toContain(message)
 
     await act(async () => root.unmount())
     container.remove()
