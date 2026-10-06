@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=4d178a1f20a1c3c75923d01dc77099f533209c80 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=cb0dff95f24888ff17a9f0511127825ef92205ea -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -25,16 +25,19 @@ credential、不完整 profile 或缺失的必需 Membership。
 - Conditional UI / autofill(username 字段挂 `autocomplete="webauthn"`)
 - 多设备 passkey(平台同步:iCloud Keychain、Google Password Manager)
 - 跨平台漫游 authenticator(硬件密钥,FIDO2 roaming)
-- Passkey 作为主凭证,或作为 MFA 第二因子
-- Progressive enrollment(密码用户登录时提示升级 passkey)
-- 每账户上限 N 个 passkey(参考 Clerk 上限 10)
+- Passkey 作为主凭证,或在非 passkey 登录后作为 MFA 第二因子
+- Progressive enrollment(密码用户登录时提示升级 passkey)**尚未实现**;用户在账户安全页自行添加 passkey
+- 每账户上限 10 个 passkey;注册时凭证名取账户主邮箱(没有时取用户名),排除用户已注册的凭证,设备名默认取浏览器与操作系统
 - Attestation 可选(默认 none,金融/医疗可开 direct)
 - sign_count 追踪与克隆检测
 
 ### 设计决策
 
 - `residentKey: required`,`userVerification: required`,确保 discoverable credentials
-- Conditional UI 前调用 `isConditionalMediationAvailable()`,不支持时降级按钮触发
+- Conditional UI 前调用 `isConditionalMediationAvailable()`,不支持时降级按钮触发。只要浏览器支持 WebAuthn 就显示 passkey 入口;Turnstile 只拦截 verify 提交
+- 租户域上 Conditional UI 无需标识符即可启动。只有尚未解析的实例入口需要先用标识符(或已选组织、client)定位 RPID。conditional 请求在 challenge 过期前、验证失败后重新发起
+- 所有 passkey 登录都走 `POST /auth/passkey/challenge` 与 `POST /auth/passkey/verify`,并经过登录后的 MFA 门控。会话有效期始终取租户策略,客户端不能指定
+- 账户已有强因子时,新增 passkey 需要 step-up(见第 5 节)。删除 passkey 需要 step-up,同时撤销与之关联的 MFA 因子;删除后账户将没有任何登录方式时拒绝删除
 - challenge 绑定匿名 session,存 Durable Object,验证后销毁,TTL 5-10min
 - sign_count:两值均 0(平台同步 passkey 不递增)直接接受;新值 <= 历史非零值时标记异常触发风险审查而非直接拒绝;按 aaguid 区分固定为 0 的平台 passkey 避免误报
 - attestation 默认 none,租户开 enterprise 时切 indirect 并解析 AAGUID 供事故响应
@@ -48,7 +51,7 @@ credential、不完整 profile 或缺失的必需 Membership。
 
 - 私钥永不传服务端,仅存公钥和 sign_count
 - Conditional UI 不泄露凭证是否存在(结果为空不报错)
-- 域名变更前必须迁移或废弃旧 passkey,否则用户锁定
+- 域名变更前必须迁移或废弃旧 passkey,否则用户锁定。自定义域名仍需重新注册时,`/auth/config` 下发 `passkeyEntry.reregistrationRequired`;登录页说明原地址的 passkey 在此不可用并把其他登录方式排在前面,账户安全页提供为当前地址添加 passkey 的入口
 - 同步 passkey(BE=1)的 sign_count 可信度低,不单独作安全门控
 
 ### 实现规格:四验证字节级流程
@@ -401,28 +404,32 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 ### 功能点
 
 - TOTP(RFC 6238,30s 步长,时钟偏差容忍 +-1 步)
-- SMS OTP 作 2FA 第二因子;Email OTP / WhatsApp OTP 仅用于 passwordless 登录,不作 MFA 因子
-- Passkey 登录可达到 AAL2,也可作 MFA 第二因子;MFA 第二因子白名单:TOTP / SMS OTP / backup codes / passkey
+- SMS OTP 仅在用户显式开启后作 2FA 第二因子;已验证手机号本身不是 MFA 因子,开启 SMS 要求已有 TOTP 或 passkey。Email OTP / WhatsApp OTP 仅用于 passwordless 登录,不作 MFA 因子
+- 带 UV 的 passkey 登录已达到 AAL2,不再被要求 passkey 第二因子,也不需要 MFA 绑定;但同时有 TOTP 的用户仍会被要求 TOTP。密码、OTP、社交或 SSO 登录后,任意有效 passkey 都可作第二因子。MFA 第二因子白名单:TOTP / SMS OTP / backup codes / passkey
+- 与一次认证同类的第二因子不重复计算:SMS 登录不提供 SMS 因子,passkey 登录不提供 passkey。MFA 门控、`/mfa` 方法列表与挑战端点共用同一资格判定,门控不会把用户送到没有可用方法的 `/mfa`
 - XID 当前不声明 NIST AAL3。WebAuthn UV 与 BE/BS flag 可以支撑当前 AAL2 路径,但不能证明私钥不可导出且受硬件保护。仅有 enterprise attestation 元数据也不能补齐该证据缺口
 - Backup / recovery codes:10 个,8 字符,每个一次性
 - 强制 MFA 策略:platform / tenant / org 三层继承
 - Step-up authentication(敏感操作二次验证,带 acr scope)
 - Per-org MFA 要求(企业客户可强制全员)
-- MFA 登记提醒(progressive enrollment)
+- MFA 登记提醒(progressive enrollment)**尚未实现**;强制 MFA 走下文的 `pending_mfa_setup` 流程
 
 ### 设计决策
 
-- TOTP secret AES-256-GCM 加密;绑定时展示 QR,确认一次有效 code 后激活
+- TOTP secret AES-256-GCM 加密;绑定时展示在浏览器本地生成的二维码(密钥不经过第三方服务)和分组显示的密钥供手动输入,确认一次有效 code 后激活。强制绑定完成后会话记录第二因子(`acr`、`amr`、`aal`),随后的 `acr_values=aal2` 请求不再重复挑战
+- MFA 短信验证码使用独立的 `mfa_otp` purpose,与 passwordless 登录码分开,两边不能消费或作废对方的码
+- 验证成功后清除该端点账户维度的失败计数和退避档;passkey 第二因子与 step-up 与 TOTP、SMS、备份码共用 `mfa` 计数,不再与 passkey 登录计数累加
 - TOTP 防重放:在每个 factor 的 Durable Object 中原子 claim 已用 code,并按命中的 counter
   计算 TTL,覆盖 `+-1` 时钟容忍下该 counter 的完整可接受生命周期,
   上限为 `TOTP_REPLAY_TTL_MS=90s`,重复拒绝
-- step-up:颁发含 `acr: step-up` 的短期 token(5min),API 网关校验 acr
+- step-up:颁发含 `acr: step-up` 的短期 token(5min),绑定用户与会话。`/authorize` 用它满足 `acr_values=aal2`。账户 API 在删除 MFA 因子或 passkey、重新生成备份码,以及用户已有强因子(TOTP 或 passkey)时新增 TOTP、SMS 或 passkey 之前,要求有效 step-up 或 5 分钟内完成的 AAL2 登录。没有任何强因子的用户无从重新验证,不会被拦截。账户页收到 `step_up_required` 时跳转 `/mfa?step_up=1`,完成后返回
+- 租户要求 MFA 时,删除最后一个强因子返回 `mfa_required`;允许删除时,SMS 因子与剩余备份码一并停用
 - 强制 MFA 开启后新用户进入 pending_mfa_setup,完成绑定前 access token scope 受限
 - backup codes HMAC-SHA256 哈希存储,展示一次,重新生成作废旧批次
 
 ### 数据模型
 
-核心实体 MfaFactor、BackupCode(见 08 章):因子类型与状态、加密 secret、一次性恢复码批次。
+核心实体 MfaFactor、BackupCode(见 08 章):因子类型与状态、加密 secret、一次性恢复码批次。SMS 因子在 `target` 中保存登记的 `user_phones.id`。Passkey 凭证不再镜像到 MfaFactor;存量 `factor_type = 'passkey'` 行不再被读取,随对应凭证一起撤销。
 
 ### 安全注意
 

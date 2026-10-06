@@ -26,9 +26,12 @@ profile, or a missing required Membership.
 - Conditional UI / autofill (the username field carries `autocomplete="webauthn"`)
 - Multi-device passkeys (platform sync via iCloud Keychain, Google Password Manager)
 - Cross-platform roaming authenticators (hardware keys, FIDO2 roaming)
-- Passkey as the primary credential, or as a second MFA factor
-- Progressive enrollment (prompt password users to upgrade to a passkey when they sign in)
-- A per-account passkey limit of N (Clerk's limit of 10 is the reference point)
+- Passkey as the primary credential, or as a second MFA factor after a non-passkey sign-in
+- Progressive enrollment (prompt password users to upgrade to a passkey when they sign in) is
+  **not implemented**; users add passkeys from the account security page
+- A per-account passkey limit of 10; registration names the credential after the account's primary
+  email (or username), excludes credentials the user already registered, and defaults the device
+  name to the browser and operating system
 - Optional attestation (`none` by default; finance and healthcare tenants can enable `direct`)
 - sign_count tracking and clone detection
 
@@ -36,7 +39,17 @@ profile, or a missing required Membership.
 
 - `residentKey: required` and `userVerification: required`, which guarantees discoverable credentials
 - Call `isConditionalMediationAvailable()` before using Conditional UI, and fall back to a
-  button-triggered flow when it is unsupported
+  button-triggered flow when it is unsupported. The passkey entry is shown whenever the browser
+  supports WebAuthn; Turnstile only gates the verify submission
+- On a tenant host Conditional UI starts without an identifier. Only the unresolved instance entry
+  needs an identifier (or a selected organization or client) to locate the RPID first. The
+  conditional request is renewed before the challenge expires and after a failed verification
+- All passkey sign-in goes through `POST /auth/passkey/challenge` and `POST /auth/passkey/verify`,
+  which run the post-authentication MFA gate. Session lifetime always comes from tenant policy; the
+  client cannot choose it
+- Registering an additional passkey on an account that already has a strong factor requires step-up
+  (section 5). Removing a passkey requires step-up, revokes any MFA factor linked to it, and is
+  refused when it would leave the account without any way to sign in
 - The challenge is bound to an anonymous session, stored in a Durable Object, destroyed after
   verification, with a TTL of 5-10 minutes
 - sign_count: when both values are 0 (platform-synced passkeys do not increment), accept directly;
@@ -56,7 +69,11 @@ transports, backup state, and device name. The private key never reaches the dat
 
 - The private key is never transmitted to the server; only the public key and sign_count are stored
 - Conditional UI MUST NOT leak whether a credential exists (an empty result is not an error)
-- Old passkeys MUST be migrated or retired before a domain change, otherwise users are locked out
+- Old passkeys MUST be migrated or retired before a domain change, otherwise users are locked out.
+  On a custom hostname that still needs re-registration, `/auth/config` exposes
+  `passkeyEntry.reregistrationRequired`; the sign-in page explains that passkeys from the previous
+  address do not work and lists other methods first, and the account security page offers adding a
+  passkey for the current address
 - The sign_count of a synced passkey (BE=1) has low reliability and MUST NOT be used as a standalone
   security gate
 
@@ -594,10 +611,17 @@ short lifetimes.
 ### Capabilities
 
 - TOTP (RFC 6238, 30-second step, clock skew tolerance of +-1 step)
-- SMS OTP as a second factor. Email OTP and WhatsApp OTP are used only for passwordless sign-in and
-  MUST NOT act as MFA factors
-- A passkey sign-in can reach AAL2 and can also serve as a second MFA factor. The second-factor
-  allowlist is TOTP, SMS OTP, backup codes, and passkeys
+- SMS OTP as a second factor only after the user explicitly enables it. A verified phone number is
+  not an MFA factor by itself. Enabling SMS requires an existing TOTP factor or passkey. Email OTP
+  and WhatsApp OTP are used only for passwordless sign-in and MUST NOT act as MFA factors
+- A passkey sign-in with UV already reaches AAL2. It is never challenged for a passkey second factor
+  and never needs MFA setup, but a user who also has TOTP is still asked for it. After a password,
+  OTP, social, or SSO sign-in any active passkey is a second factor. The second-factor allowlist is
+  TOTP, SMS OTP, backup codes, and passkeys
+- A second factor of the same kind as the primary sign-in does not count again: an SMS sign-in is
+  not offered the SMS factor and a passkey sign-in is not offered a passkey. The MFA gate, the `/mfa`
+  method list, and the challenge endpoints use one eligibility rule, so the gate never sends a user
+  to `/mfa` without a usable method
 - XID does not currently claim NIST AAL3. WebAuthn UV plus the BE/BS flags can establish the current
   AAL2 path, but they do not prove that the private key is non-exportable and hardware-protected.
   Enterprise attestation metadata alone does not close that evidence gap
@@ -605,18 +629,33 @@ short lifetimes.
 - Mandatory MFA policy inherited across three levels: platform, tenant, and org
 - Step-up authentication (re-verification for sensitive operations, carrying an acr scope)
 - Per-org MFA requirements (enterprise customers can enforce it for everyone)
-- MFA enrollment prompts (progressive enrollment)
+- MFA enrollment prompts (progressive enrollment) are **not implemented**; mandatory MFA uses the
+  `pending_mfa_setup` flow below
 
 ### Design decisions
 
-- The TOTP secret is encrypted with AES-256-GCM. Enrollment shows a QR code and activates the factor
-  only after one valid code is confirmed
+- The TOTP secret is encrypted with AES-256-GCM. Enrollment shows a QR code rendered in the browser
+  (the secret never reaches a third-party service) plus the grouped key for manual entry, and
+  activates the factor only after one valid code is confirmed. Completing forced enrollment records
+  the second factor on the session (`acr`, `amr`, `aal`), so a following `acr_values=aal2` request
+  does not ask again
+- MFA SMS codes use their own `mfa_otp` purpose, separate from passwordless sign-in codes, so neither
+  flow can consume or invalidate the other's code
+- A successful verification clears the account-dimension failure counter and backoff tier for that
+  endpoint; passkey second-factor and step-up verifications share the `mfa` counter with TOTP, SMS,
+  and backup codes instead of the passkey sign-in counter
 - TOTP replay defense: atomically claim used codes in a per-factor Durable Object
   and reject repeats. The claim TTL is derived from the matched counter so it covers the counter's
   complete acceptance lifetime under the `+-1` clock-skew window, capped at
   `TOTP_REPLAY_TTL_MS=90s`
-- Step-up issues a short-lived token (5 minutes) carrying `acr: step-up`, and the API gateway checks
-  the acr value
+- Step-up issues a short-lived token (5 minutes) carrying `acr: step-up`, bound to the user and
+  session. `/authorize` uses it to satisfy `acr_values=aal2`. The account API requires it, or an AAL2
+  sign-in completed within the same 5 minutes, before removing an MFA factor or passkey, regenerating
+  backup codes, or adding TOTP, SMS, or a passkey while the user already has a strong factor (TOTP or
+  passkey). Users without any strong factor have nothing to re-verify with and are not blocked. The
+  account page sends a `step_up_required` response to `/mfa?step_up=1` and returns afterwards
+- Removing the last strong factor is refused with `mfa_required` when the tenant requires MFA. When
+  it is allowed, the SMS factor and remaining backup codes are retired with it
 - Once mandatory MFA is enabled, new users enter `pending_mfa_setup` and their access token scope is
   restricted until enrollment completes
 - Backup codes are stored as HMAC-SHA256 hashes, shown once, and regenerating a batch invalidates the
@@ -625,7 +664,9 @@ short lifetimes.
 ### Data model
 
 The core entities are MfaFactor and BackupCode (see chapter 08): factor type and status, encrypted
-secret, and single-use recovery code batches.
+secret, and single-use recovery code batches. An SMS factor stores the enrolled `user_phones.id` in
+`target`. Passkey credentials are not mirrored into MfaFactor; legacy `factor_type = 'passkey'` rows
+are no longer read and are revoked together with their credential.
 
 ### Security notes
 
