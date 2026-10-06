@@ -27,9 +27,13 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
   'lib/auth-analytics.ts': { count: 1, reason: 'metering outbox id' },
   'me-auth/email-verification.ts': { count: 1, reason: 'user email row id' },
   'me-auth/email-verify-token.ts': { count: 1, reason: 'verification token row id' },
-  'me-auth/invitation-claim.ts': {
-    count: 3,
-    reason: 'user email row id and claim consumption/finalization fencing tokens',
+  'me-auth/invitation-claim-finalize.ts': {
+    count: 1,
+    reason: 'claim finalization fencing token',
+  },
+  'me-auth/invitation-claim-proof.ts': {
+    count: 2,
+    reason: 'user email row id and claim consumption fencing token',
   },
   'me-auth/password-reset-token.ts': { count: 1, reason: 'password reset token row id' },
   'me-auth/password-reset.ts': {
@@ -100,7 +104,9 @@ const REQUIRED_ENTITY_SOURCE_USAGE: Record<string, Record<string, number>> = {
   'crons/daily.ts': { signingKey: 1 },
   'me-auth/consent.ts': { userConsent: 1 },
   'me-auth/guest.ts': { session: 1, user: 1 },
-  'me-auth/invitation-claim.ts': { membership: 1, session: 1, user: 1 },
+  'me-auth/invitation-claim-finalize.ts': { membership: 1 },
+  'me-auth/invitation-claim-proof.ts': { user: 1 },
+  'me-auth/invitation-claim-session.ts': { session: 1 },
   'me-auth/organization-self.ts': { organization: 1, membership: 1 },
   'me-auth/passkey-signin.ts': { session: 1 },
   'me-auth/password-reset.ts': { session: 1 },
