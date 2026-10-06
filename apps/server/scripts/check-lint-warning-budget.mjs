@@ -11,7 +11,7 @@ process.stdout.write(output)
 if (result.error) throw result.error
 if (result.status !== 0) process.exit(result.status ?? 1)
 
-const match = output.match(/Found \d+ errors and (\d+) warnings/u)
+const match = output.match(/Found \d+ errors? and (\d+) warnings?/u)
 const warningCount = match ? Number(match[1]) : output.includes('Found no warnings') ? 0 : null
 if (warningCount === null) throw new Error('lint warning summary is missing')
 const summary = `[lint-warning-budget] baseline=${WARNING_BUDGET} observed=${warningCount}`

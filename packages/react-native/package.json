@@ -49,14 +49,14 @@
     "@xid-kit/protocol": "workspace:^"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.3.3",
+    "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "jsdom": "^30.1.2",
+    "jsdom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "^0.86.3",
-    "typescript": "^6.0.3",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {

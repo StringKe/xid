@@ -50,9 +50,8 @@
     "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
-    "solid-js": "^1.9.15",
-    "typescript": "^6.0.3",
-    "vite": "8.3.3",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
     "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
   },

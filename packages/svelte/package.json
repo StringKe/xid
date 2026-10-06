@@ -57,7 +57,7 @@
     "@sveltejs/kit": "^2.70.3",
     "@xid-kit/backend": "workspace:^",
     "svelte": "^5.57.2",
-    "typescript": "^6.0.3",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
