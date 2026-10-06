@@ -40,6 +40,8 @@ const CLIENT_FORM_PATHS = new Set([
   '/device_authorization',
   '/backchannel_authentication',
 ])
+// 每个 rt cookie 都会触发 D1 查询;客户端可伪造任意数量,只检查活跃指针优先的前若干个。
+const MAX_SESSION_COOKIE_CANDIDATES = 10
 
 function decodeBasicClientId(header: string | undefined): string | null {
   const match = header?.match(/^Basic\s+(.+)$/i)
@@ -123,7 +125,7 @@ export const tenantMiddleware: MiddlewareHandler<XidHonoEnv> = async (c, next) =
     return
   }
 
-  const tokens = readRefreshTokenCookiesInPriorityOrder(c)
+  const tokens = readRefreshTokenCookiesInPriorityOrder(c).slice(0, MAX_SESSION_COOKIE_CANDIDATES)
   for (const token of tokens) {
     const refreshTokenHash = await sha256Hex(token)
     const sessionResult = await resolveTenantContextBySessionHash(

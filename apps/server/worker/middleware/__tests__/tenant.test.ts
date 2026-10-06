@@ -133,6 +133,59 @@ describe('tenantMiddleware', () => {
     )
   })
 
+  it('caps session hash lookups when a request carries many forged refresh cookies', async () => {
+    resolveTenantContextBySessionHash.mockResolvedValue({
+      ok: false,
+      error: { code: 'tenant_not_found', message: 'hidden', httpStatus: 404 },
+    })
+    resolveTenantContext.mockResolvedValue({ ok: true, value: TENANT })
+    const cookie = Array.from(
+      { length: 200 },
+      (_, i) => `__Host-xid.rt.${String(i).padStart(8, '0')}=forged_${i}`,
+    ).join('; ')
+
+    const res = await buildApp().request(
+      'https://xid.dev/probe',
+      { headers: { cookie } },
+      {} as Env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(resolveTenantContextBySessionHash).toHaveBeenCalledTimes(10)
+    expect(resolveTenantContext).toHaveBeenCalledOnce()
+  })
+
+  it('checks the active-session cookie first even when it sorts past the cap', async () => {
+    resolveTenantContextBySessionHash.mockResolvedValue({
+      ok: true,
+      value: { status: 'resolved', tenant: TENANT },
+    })
+    const activeHash = await sha256Hex('active_token')
+    const forged = Array.from(
+      { length: 50 },
+      (_, i) => `__Host-xid.rt.${String(i).padStart(8, '0')}=forged_${i}`,
+    )
+    const cookie = [
+      ...forged,
+      '__Host-xid.rt.zzzzzzzz=active_token',
+      '__Host-xid.active=sess_zzzzzzzzrest',
+    ].join('; ')
+
+    const res = await buildApp().request(
+      'https://xid.dev/probe',
+      { headers: { cookie } },
+      {} as Env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(resolveTenantContextBySessionHash).toHaveBeenCalledOnce()
+    expect(resolveTenantContextBySessionHash).toHaveBeenCalledWith(
+      expect.any(Request),
+      expect.anything(),
+      activeHash,
+    )
+  })
+
   it('resolves a unique client_id before an unrelated browser session', async () => {
     const appTenant = { ...TENANT, tenantId: 'application_tenant' }
     resolveTenantContextByApplicationClientId.mockResolvedValue({
