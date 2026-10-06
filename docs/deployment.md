@@ -758,7 +758,7 @@ Cloudflare uses the repository connection configured on each Workers Builds proj
 
 ### CI
 
-`.github/workflows/ci.yml` triggers on `pull_request`, on `push` to `main`, and on manual `workflow_dispatch`. It defines six jobs, all on `ubuntu-latest`, and every one of them starts with `pnpm install --frozen-lockfile`:
+`.github/workflows/ci.yml` triggers on `pull_request`, on `push` to `main`, and on manual `workflow_dispatch`. It defines six jobs, all on `ubuntu-24.04`, and every one of them starts with `pnpm install --frozen-lockfile`:
 
 | Job                               | Runs on                                | Command after install                                                                         |
 | --------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------- |

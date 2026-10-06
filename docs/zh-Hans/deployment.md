@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=d36bcd22e93368196fe62a0d4f18694adcd5293a -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=e3d5b74483b1ed10d97dbf603756a0ee1d01da4e -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -731,7 +731,7 @@ deployment 的对应关系。
 
 ### CI
 
-`.github/workflows/ci.yml` 的触发条件是 `pull_request`、`push` 到 `main`,以及手动 `workflow_dispatch`。它定义 6 个 job,全部跑在 `ubuntu-latest` 上,每个 job 的第一步都是 `pnpm install --frozen-lockfile`:
+`.github/workflows/ci.yml` 的触发条件是 `pull_request`、`push` 到 `main`,以及手动 `workflow_dispatch`。它定义 6 个 job,全部跑在 `ubuntu-24.04` 上,每个 job 的第一步都是 `pnpm install --frozen-lockfile`:
 
 | Job                               | 触发范围                       | install 之后执行的命令                                                                     |
 | --------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |

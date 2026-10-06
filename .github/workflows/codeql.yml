@@ -25,7 +25,7 @@ jobs:
   changes:
     name: Detect languages
     if: github.event.repository.visibility == 'public'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}
@@ -44,13 +44,13 @@ jobs:
 
           # language|build_mode|runner
           all_rows=(
-            'actions|none|ubuntu-latest'
-            'javascript-typescript|none|ubuntu-latest'
-            'go|autobuild|ubuntu-latest'
-            'python|none|ubuntu-latest'
-            'ruby|none|ubuntu-latest'
-            'java-kotlin|none|ubuntu-latest'
-            'csharp|none|ubuntu-latest'
+            'actions|none|ubuntu-24.04'
+            'javascript-typescript|none|ubuntu-24.04'
+            'go|autobuild|ubuntu-24.04'
+            'python|none|ubuntu-24.04'
+            'ruby|none|ubuntu-24.04'
+            'java-kotlin|none|ubuntu-24.04'
+            'csharp|none|ubuntu-24.04'
             'swift|manual|macos-latest'
           )
 
@@ -73,8 +73,8 @@ jobs:
             append_all
           else
             # PRs always scan workflow YAML and the TypeScript/JavaScript surface.
-            append_row 'actions|none|ubuntu-latest'
-            append_row 'javascript-typescript|none|ubuntu-latest'
+            append_row 'actions|none|ubuntu-24.04'
+            append_row 'javascript-typescript|none|ubuntu-24.04'
 
             base='${{ github.event.pull_request.base.sha }}'
             head='${{ github.event.pull_request.head.sha }}'
@@ -92,19 +92,19 @@ jobs:
             }
 
             if match '^sdk/go/'; then
-              append_row 'go|autobuild|ubuntu-latest'
+              append_row 'go|autobuild|ubuntu-24.04'
             fi
             if match '^sdk/python/'; then
-              append_row 'python|none|ubuntu-latest'
+              append_row 'python|none|ubuntu-24.04'
             fi
             if match '^sdk/ruby/'; then
-              append_row 'ruby|none|ubuntu-latest'
+              append_row 'ruby|none|ubuntu-24.04'
             fi
             if match '^sdk/(java|android)/'; then
-              append_row 'java-kotlin|none|ubuntu-latest'
+              append_row 'java-kotlin|none|ubuntu-24.04'
             fi
             if match '^sdk/(dotnet|windows)/'; then
-              append_row 'csharp|none|ubuntu-latest'
+              append_row 'csharp|none|ubuntu-24.04'
             fi
             if match '^sdk/(ios|macos)/'; then
               append_row 'swift|manual|macos-latest'
@@ -159,7 +159,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build_mode }}
@@ -171,6 +171,6 @@ jobs:
           swift build --package-path sdk/macos
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
         with:
           category: /language:${{ matrix.language }}

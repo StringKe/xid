@@ -108,7 +108,7 @@ describe('CI release contract', () => {
     const runners = [...workflow.matchAll(/^\s*runs-on: (.+)$/gmu)].map((m) => m[1])
     expect(runners.length).toBeGreaterThan(0)
     for (const runner of runners) {
-      expect(runner, 'only ubuntu runners are affordable here').toBe('ubuntu-latest')
+      expect(runner, 'only ubuntu runners are affordable here').toBe('ubuntu-24.04')
     }
 
     for (const name of ['native-linux', 'native-flutter', 'native-ios', 'native-dotnet']) {
