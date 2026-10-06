@@ -411,8 +411,8 @@ describe('DeviceFlowStore: double authorize protection', () => {
     const res2 = await store.fetch(
       makeRequest('/authorize', { userCode: USER_CODE, userId: 'other_user' }),
     )
-    expect(res2.status).toBe(400)
-    expect((await res2.json<{ error: string }>()).error).toBe('invalid_request')
+    expect(res2.status).toBe(409)
+    expect((await res2.json<{ error: string }>()).error).toBe('conflict')
   })
 })
 

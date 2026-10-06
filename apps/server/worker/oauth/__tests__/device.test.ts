@@ -71,12 +71,18 @@ describe('/device_authorization: success', () => {
       device_code: string
       user_code: string
       verification_uri: string
+      verification_uri_complete: string
       expires_in: number
       interval: number
     }>()
     expect(body.device_code.length).toBeGreaterThan(10)
     expect(body.user_code.length).toBe(8)
-    expect(body.verification_uri).toContain('/activate')
+    const verification = new URL(body.verification_uri)
+    expect(verification.pathname).toBe('/activate')
+    expect(verification.searchParams.get('client_id')).toBe('client_abc')
+    const complete = new URL(body.verification_uri_complete)
+    expect(complete.searchParams.get('client_id')).toBe('client_abc')
+    expect(complete.searchParams.get('user_code')).toBe(body.user_code)
     expect(body.expires_in).toBe(600)
     expect(body.interval).toBe(5)
 

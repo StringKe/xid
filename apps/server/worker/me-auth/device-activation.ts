@@ -27,11 +27,15 @@ const deviceActivationQuerySchema = v.object({
   user_code: v.string(),
 })
 
+const DEVICE_FLOW_USER_ERRORS = ['invalid_request', 'expired_token', 'conflict'] as const
+type DeviceFlowUserError = (typeof DEVICE_FLOW_USER_ERRORS)[number]
+
 function invalidUserCodeError(paramName: string): AppError {
-  return new AppError('invalid_request', {
-    meta: { paramName },
-    longMessage: `${paramName} is required`,
-  })
+  return new AppError('invalid_request', { meta: { paramName } })
+}
+
+function isDeviceFlowUserError(code: unknown): code is DeviceFlowUserError {
+  return DEVICE_FLOW_USER_ERRORS.some((item) => item === code)
 }
 
 function deviceFlowStub(env: Env, tenantId: string): DurableObjectStub {
@@ -52,23 +56,15 @@ async function callDeviceFlow(
   })
 }
 
+// DeviceFlowStore 的 error_description 是内部英文诊断,只进日志 cause,客户端只拿稳定错误码。
 async function readDeviceFlowError(res: Response): Promise<AppError> {
   const body = (await res.json().catch(() => ({}))) as {
     error?: string
     error_description?: string
   }
-  const code = body.error
-  if (
-    code === 'invalid_request' ||
-    code === 'expired_token' ||
-    code === 'access_denied' ||
-    code === 'authorization_pending'
-  ) {
-    return new AppError(code, { longMessage: body.error_description })
-  }
-  return new AppError('server_error', {
-    longMessage: body.error_description ?? 'Device activation failed',
-  })
+  const cause = new Error(`device flow store: ${body.error_description ?? res.status}`)
+  if (isDeviceFlowUserError(body.error)) return new AppError(body.error, { cause })
+  return new AppError('server_error', { cause })
 }
 
 async function lookupGrant(

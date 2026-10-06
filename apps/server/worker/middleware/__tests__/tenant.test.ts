@@ -33,6 +33,8 @@ function buildApp(): Hono<XidHonoEnv> {
   app.use('*', tenantMiddleware)
   app.get('/probe', (c) => c.json({ tenantId: c.get('tenant').tenantId }))
   app.get('/authorize', (c) => c.json({ tenantId: c.get('tenant').tenantId }))
+  app.get('/activate', (c) => c.json({ tenantId: c.get('tenant').tenantId }))
+  app.get('/auth/device-activation', (c) => c.json({ tenantId: c.get('tenant').tenantId }))
   return app
 }
 
@@ -208,6 +210,23 @@ describe('tenantMiddleware', () => {
     )
     expect(resolveTenantContextBySessionHash).not.toHaveBeenCalled()
   })
+
+  it.each(['/activate', '/auth/device-activation'])(
+    'device activation path %s resolves the client tenant instead of another tenant cookie',
+    async (path) => {
+      const appTenant = { ...TENANT, tenantId: 'device_client_tenant' }
+      resolveTenantContextByApplicationClientId.mockResolvedValue({ ok: true, value: appTenant })
+
+      const res = await buildApp().request(
+        `https://xid.dev${path}?client_id=tv_app&user_code=BCDFGHJK`,
+        { headers: { cookie: '__Host-xid.rt.session_other=token_other' } },
+        {} as Env,
+      )
+
+      expect(await res.json()).toEqual({ tenantId: 'device_client_tenant' })
+      expect(resolveTenantContextBySessionHash).not.toHaveBeenCalled()
+    },
+  )
 
   it('duplicate client_id never falls through to an unrelated browser session', async () => {
     const hostTenant = { ...TENANT, tenantId: 'instance_entry' }

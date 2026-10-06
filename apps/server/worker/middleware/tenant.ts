@@ -31,6 +31,8 @@ const CLIENT_QUERY_PATHS = new Set([
   '/mfa',
   '/select-organization',
   '/account/security',
+  '/activate',
+  '/auth/device-activation',
 ])
 const CLIENT_FORM_PATHS = new Set([
   '/par',

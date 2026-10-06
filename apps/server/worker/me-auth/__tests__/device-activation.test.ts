@@ -171,6 +171,26 @@ describe('/auth/device-activation', () => {
     expect(await res.json()).toMatchObject({ code: 'expired_token' })
   })
 
+  it('GET 已处理的请求返回 conflict,不回传 DO 内部状态描述', async () => {
+    const env = makeDeviceEnv([], () =>
+      Response.json(
+        { error: 'conflict', error_description: 'Grant already in state: approved' },
+        { status: 409 },
+      ),
+    )
+    const app = makeApp(registerSessionAuthRoutes, {
+      tenant: makeOauthTenant(),
+      session: makeSession('user-device'),
+    })
+
+    const res = await app.request('/auth/device-activation?user_code=ABCD1234', {}, env)
+
+    expect(res.status).toBe(409)
+    const text = await res.text()
+    expect(JSON.parse(text)).toMatchObject({ code: 'conflict' })
+    expect(text).not.toContain('Grant already')
+  })
+
   it('GET pending_mfa session 返回 401', async () => {
     const requests: DeviceFlowRequest[] = []
     const env = makeDeviceEnv(requests)

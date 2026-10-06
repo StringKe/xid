@@ -6,9 +6,14 @@ import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
+import type { ApiErrorInput } from '@xid-kit/web-ui/api-errors'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { AuthLayout } from '../../components/layout'
 import { Alert, Button, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
+import { queryErrorInput } from '../../lib/query-error'
+import { Link } from '../../lib/router'
+import { styles as signInStyles } from '../sign-in/styles'
 import { trackCibaActivationDecision } from '../../lib/google-analytics-funnel'
 import { page } from '../../styles/product-surface.stylex'
 import { tokens } from '../../styles/tokens.stylex'
@@ -17,7 +22,6 @@ type CibaActivationParams = {
   authReqId: string
   clientId: string
   scope: string
-  loginHint: string | null
   expiresAt: string
   firstParty: boolean
 }
@@ -45,6 +49,7 @@ const styles = stylex.create({
 function CibaActivationPage(): ReactNode {
   const { t } = useLingui()
   const { api } = useAuth()
+  const apiErrorMessage = useApiErrorMessage()
   const search = useSearch({ strict: false }) as { auth_req_id?: string }
   const authReqId = useMemo(() => search.auth_req_id?.trim() ?? '', [search.auth_req_id])
 
@@ -89,23 +94,26 @@ function CibaActivationPage(): ReactNode {
         <div {...stylex.props(styles.stack)} aria-live="polite">
           <Alert tone="success" title={<Trans>Request handled</Trans>}>
             {activationMutation.data.value.approved
-              ? t`The application can continue sign-in.`
-              : t`The backchannel request was denied.`}
+              ? t`The application can continue sign-in. You can close this page.`
+              : t`The backchannel request was denied. You can close this page.`}
           </Alert>
-          <Button variant="secondary" fullWidth onClick={() => globalThis.close()}>
-            <Trans>Close this page</Trans>
-          </Button>
+          <Link to="/account" {...stylex.props(signInStyles.textLink)}>
+            <Trans>Go to your account</Trans>
+          </Link>
         </div>
       </AuthLayout>
     )
   }
 
-  const queryError =
-    paramsQuery.error && typeof paramsQuery.error === 'object' && 'longMessage' in paramsQuery.error
-      ? ((paramsQuery.error as { longMessage?: string; message?: string }).longMessage ??
-        (paramsQuery.error as { message?: string }).message ??
-        t`Backchannel request not found or expired.`)
-      : t`Backchannel request not found or expired.`
+  const cibaErrorMessage = (error: ApiErrorInput): string =>
+    error.code === 'invalid_request'
+      ? t`Backchannel request not found or expired.`
+      : apiErrorMessage(error, { surface: 'general' })
+  const queryError = cibaErrorMessage(queryErrorInput(paramsQuery.error))
+  const submitError =
+    activationMutation.isSuccess && activationMutation.data?.ok === false
+      ? cibaErrorMessage(activationMutation.data.error)
+      : null
 
   return (
     <AuthLayout>
@@ -148,6 +156,7 @@ function CibaActivationPage(): ReactNode {
         ) : null}
 
         {paramsQuery.isError ? <Alert tone="error">{queryError}</Alert> : null}
+        {submitError ? <Alert tone="error">{submitError}</Alert> : null}
       </div>
     </AuthLayout>
   )

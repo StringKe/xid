@@ -60,14 +60,24 @@ async function createCiba(
   if (response.status !== 201) throw new AppError('server_error')
 }
 
-export async function lookupCibaRequest(
-  env: Env,
-  tenantId: string,
-  authReqId: string,
+type CibaOwnerInput = {
+  env: Env
+  ctx: TenantContext
+  authReqId: string
+  userId: string
+}
+
+// 查看、批准、拒绝都只对 login_hint 指向的本人开放;不存在、已处理、过期和不属于本人返回同一个 null,
+// 持有 auth_req_id 的其他用户既不能看到 login_hint,也不能拒绝别人的请求。
+export async function lookupOwnedPendingCibaRequest(
+  input: CibaOwnerInput,
 ): Promise<CibaRecord | null> {
-  const record = await readCiba(env, tenantId, authReqId)
-  if (!record) return null
+  const record = await readCiba(input.env, input.ctx.tenantId, input.authReqId)
+  if (!record || record.status !== 'pending') return null
   if (record.expiresAt <= Math.floor(Date.now() / 1000)) return null
+  if (!(await loginHintMatchesUser(input.env, input.ctx, record.loginHint, input.userId))) {
+    return null
+  }
   return record
 }
 
@@ -89,43 +99,31 @@ async function loginHintMatchesUser(
   return false
 }
 
-export async function approveCibaRequest(input: {
-  env: Env
-  ctx: TenantContext
-  authReqId: string
-  userId: string
-}): Promise<boolean> {
-  const record = await readCiba(input.env, input.ctx.tenantId, input.authReqId)
-  if (!record || record.status !== 'pending') return false
-  if (record.expiresAt <= Math.floor(Date.now() / 1000)) return false
-  if (!(await loginHintMatchesUser(input.env, input.ctx, record.loginHint, input.userId))) {
-    return false
-  }
+async function decideCibaRequest(
+  input: CibaOwnerInput & { decision: 'approve' | 'deny' },
+): Promise<boolean> {
+  if (!(await lookupOwnedPendingCibaRequest(input))) return false
   const response = await cibaStub(input.env, input.ctx.tenantId, input.authReqId).fetch(
-    'https://ciba-store/approve',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: input.userId }),
-    },
+    `https://ciba-store/${input.decision}`,
+    input.decision === 'approve'
+      ? {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: input.userId }),
+        }
+      : { method: 'POST' },
   )
   if (response.status === 200) return true
   if (response.status === 404 || response.status === 409 || response.status === 410) return false
   throw new AppError('server_error')
 }
 
-export async function denyCibaRequest(input: {
-  env: Env
-  tenantId: string
-  authReqId: string
-}): Promise<boolean> {
-  const response = await cibaStub(input.env, input.tenantId, input.authReqId).fetch(
-    'https://ciba-store/deny',
-    { method: 'POST' },
-  )
-  if (response.status === 200) return true
-  if (response.status === 404 || response.status === 409 || response.status === 410) return false
-  throw new AppError('server_error')
+export function approveCibaRequest(input: CibaOwnerInput): Promise<boolean> {
+  return decideCibaRequest({ ...input, decision: 'approve' })
+}
+
+export function denyCibaRequest(input: CibaOwnerInput): Promise<boolean> {
+  return decideCibaRequest({ ...input, decision: 'deny' })
 }
 
 type CibaReservation = {

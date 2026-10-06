@@ -256,7 +256,7 @@ export class DeviceFlowStore {
     }
 
     if (entry.status !== 'pending') {
-      return jsonError(400, 'invalid_request', `Grant already in state: ${entry.status}`)
+      return jsonError(409, 'conflict', `Grant already in state: ${entry.status}`)
     }
 
     return jsonOk({
@@ -293,7 +293,7 @@ export class DeviceFlowStore {
     }
 
     if (entry.status !== 'pending') {
-      return jsonError(400, 'invalid_request', `Grant already in state: ${entry.status}`)
+      return jsonError(409, 'conflict', `Grant already in state: ${entry.status}`)
     }
 
     const now = Date.now()
@@ -328,7 +328,7 @@ export class DeviceFlowStore {
     }
 
     if (entry.status !== 'pending') {
-      return jsonError(400, 'invalid_request', `Grant already in state: ${entry.status}`)
+      return jsonError(409, 'conflict', `Grant already in state: ${entry.status}`)
     }
 
     const updated: DeviceGrantEntry = { ...entry, status: 'denied' }

@@ -144,12 +144,17 @@ app.post('/device_authorization', async (c) => {
     expiresAt,
   })
 
-  const verificationUri = `${ctx.issuer}/activate`
+  // 实例根域上多个租户共用 /activate;client_id 让激活页与激活 API 解析到 client 所属租户,
+  // 与已存在的其他租户 cookie 无关(tenant middleware CLIENT_QUERY_PATHS)。
+  const verification = new URL(`${ctx.issuer}/activate`)
+  verification.searchParams.set('client_id', client.clientId)
+  const verificationComplete = new URL(verification)
+  verificationComplete.searchParams.set('user_code', userCode)
   return tokenJson(c, {
     device_code: deviceCode,
     user_code: userCode,
-    verification_uri: verificationUri,
-    verification_uri_complete: `${verificationUri}?user_code=${userCode}`,
+    verification_uri: verification.toString(),
+    verification_uri_complete: verificationComplete.toString(),
     expires_in: DEVICE_CODE_TTL_SEC,
     interval: DEVICE_CODE_POLL_INTERVAL_SEC,
   })

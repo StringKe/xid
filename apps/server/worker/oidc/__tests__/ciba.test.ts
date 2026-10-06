@@ -3,7 +3,7 @@ import { base64UrlDecode, sha256Hex } from '@xid-kit/crypto'
 import { registerCibaRoutes } from '../ciba'
 import { registerTokenRoutes } from '../token'
 import { approveCibaRequest, CIBA_GRANT } from '../ciba'
-import { handleCibaActivation } from '../../me-auth/ciba-activation'
+import { handleCibaActivation, handleCibaActivationParams } from '../../me-auth/ciba-activation'
 import { testErrorHandler } from '../../me-auth/__tests__/helpers'
 import {
   buildTestTenant,
@@ -719,6 +719,77 @@ describe('CIBA', () => {
       userId: 'u_1',
     })
     expect(approved).toBe(false)
+  })
+
+  it('非 login_hint 本人查看或拒绝请求 -> invalid_request,不泄露 login_hint,请求保持 pending', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const env = makeEnv({
+      CACHE: makeFakeKv(),
+      KEK: kekB64,
+      DB: makeFakeD1({
+        applications: [await makeClientRow()],
+        users: [
+          {
+            id: 'u_1',
+            tenant_id: 't_1',
+            primary_email_id: 'eml_1',
+            status: 'active',
+            deleted_at: null,
+          },
+        ],
+        user_emails: [{ id: 'eml_1', tenant_id: 't_1', user_id: 'u_1', email: 'user@example.com' }],
+      }),
+    })
+    const app = makeApp(
+      ctx,
+      (a) => {
+        a.onError(testErrorHandler)
+        registerCibaRoutes(a)
+        registerTokenRoutes(a)
+        a.get('/auth/ciba-activation', handleCibaActivationParams)
+        a.post('/auth/ciba-activation', handleCibaActivation)
+      },
+      session,
+    )
+    const backchannel = await app.request(
+      'https://acme.xid.dev/backchannel_authentication',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: 'ciba_client',
+          client_secret: 'sec_mtls',
+          scope: 'openid',
+          login_hint: 'other@example.com',
+        }).toString(),
+      },
+      env,
+    )
+    const { auth_req_id: authReqId } = (await backchannel.json()) as { auth_req_id: string }
+
+    const view = await app.request(
+      `https://acme.xid.dev/auth/ciba-activation?auth_req_id=${authReqId}`,
+      {},
+      env,
+    )
+    const deny = await app.request(
+      'https://acme.xid.dev/auth/ciba-activation',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ authReqId, approved: false }),
+      },
+      env,
+    )
+
+    expect(view.status).toBe(400)
+    const viewText = await view.text()
+    expect(viewText).toContain('invalid_request')
+    expect(viewText).not.toContain('other@example.com')
+    expect(deny.status).toBe(400)
+    expect(await deny.text()).toContain('invalid_request')
+    const poll = await app.request(redeemRequest(authReqId), {}, env)
+    expect(((await poll.json()) as Record<string, string>)['error']).toBe('authorization_pending')
   })
 
   it('rejects activation approval with pending_mfa session(MFA 未完成不得批准)', async () => {

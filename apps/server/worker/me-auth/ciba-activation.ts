@@ -1,10 +1,11 @@
 // GET/POST /auth/ciba-activation -- authenticated end-user approval for CIBA backchannel requests.
+// 只有 login_hint 指向的本人能查看和处理请求;其余情况与请求不存在返回同一个 invalid_request。
 
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
-import { approveCibaRequest, denyCibaRequest, lookupCibaRequest } from '../oidc/ciba'
+import { approveCibaRequest, denyCibaRequest, lookupOwnedPendingCibaRequest } from '../oidc/ciba'
 import { findClient } from '../oidc/shared'
 import { firstIssuePath, readJsonBody } from '../lib/validate'
 import { requireSession } from './shared'
@@ -19,33 +20,31 @@ const cibaActivationQuerySchema = v.object({
 })
 
 function invalidAuthReqIdError(paramName: string): AppError {
-  return new AppError('invalid_request', {
-    meta: { paramName },
-    longMessage: `${paramName} is required`,
-  })
+  return new AppError('invalid_request', { meta: { paramName } })
 }
 
 // GET /auth/ciba-activation?auth_req_id= -- return pending request metadata for consent UI.
 export async function handleCibaActivationParams(c: Context<XidHonoEnv>): Promise<Response> {
-  await requireSession(c)
+  const session = await requireSession(c)
   const query = v.safeParse(cibaActivationQuerySchema, {
     auth_req_id: c.req.query('auth_req_id'),
   })
   if (!query.success) throw invalidAuthReqIdError('auth_req_id')
   const authReqId = query.output.auth_req_id.trim()
   if (!authReqId) throw invalidAuthReqIdError('auth_req_id')
-  const tenant = c.get('tenant')
-  const record = await lookupCibaRequest(c.env, tenant.tenantId, authReqId)
-  if (!record || record.status !== 'pending') {
-    throw new AppError('invalid_request', { longMessage: 'CIBA request not found or not pending' })
-  }
+  const record = await lookupOwnedPendingCibaRequest({
+    env: c.env,
+    ctx: c.get('tenant'),
+    authReqId,
+    userId: session.userId,
+  })
+  if (!record) throw new AppError('invalid_request')
   const client = await findClient(c, record.clientId)
   if (!client) throw new AppError('invalid_client', { httpStatus: 400 })
   return c.json({
     authReqId,
     clientId: client.clientId,
     scope: record.scope,
-    loginHint: record.loginHint,
     expiresAt: new Date(record.expiresAt * 1000).toISOString(),
     firstParty: client.firstParty,
   })
@@ -54,7 +53,6 @@ export async function handleCibaActivationParams(c: Context<XidHonoEnv>): Promis
 // POST /auth/ciba-activation { authReqId, approved } -- approve or deny a pending CIBA request.
 export async function handleCibaActivation(c: Context<XidHonoEnv>): Promise<Response> {
   const session = await requireSession(c)
-  const tenant = c.get('tenant')
   const json = await readJsonBody(c)
   if (!json.ok) throw invalidAuthReqIdError('authReqId')
   const parsed = v.safeParse(cibaActivationBodySchema, json.value)
@@ -63,30 +61,11 @@ export async function handleCibaActivation(c: Context<XidHonoEnv>): Promise<Resp
     if (paramName.split('.')[0] === 'authReqId') throw invalidAuthReqIdError('authReqId')
     throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName } })
   }
-  const body = parsed.output
-  const authReqId = body.authReqId.trim()
+  const authReqId = parsed.output.authReqId.trim()
   if (!authReqId) throw invalidAuthReqIdError('authReqId')
-  if (body.approved === true) {
-    const ok = await approveCibaRequest({
-      env: c.env,
-      ctx: tenant,
-      authReqId,
-      userId: session.userId,
-    })
-    if (!ok) {
-      throw new AppError('invalid_request', {
-        longMessage: 'CIBA request not found, expired, or login_hint mismatch',
-      })
-    }
-    return c.json({ approved: true })
-  }
-  const denied = await denyCibaRequest({
-    env: c.env,
-    tenantId: tenant.tenantId,
-    authReqId,
-  })
-  if (!denied) {
-    throw new AppError('invalid_request', { longMessage: 'CIBA request not found or not pending' })
-  }
-  return c.json({ approved: false })
+  const approved = parsed.output.approved === true
+  const owner = { env: c.env, ctx: c.get('tenant'), authReqId, userId: session.userId }
+  const handled = approved ? await approveCibaRequest(owner) : await denyCibaRequest(owner)
+  if (!handled) throw new AppError('invalid_request')
+  return c.json({ approved })
 }
