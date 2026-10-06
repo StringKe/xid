@@ -9,6 +9,7 @@
 
 import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { verifyAuthentication, verifyRegistration } from '@xid-kit/webauthn'
 import { and, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -34,11 +35,15 @@ import {
 } from './passkey-helpers'
 import { assertMethodAllowed, assertTenantResolvedForWebAuthn } from './hosted-policy'
 import { auditPolicyDeniedError } from './hosted-audit'
-import { resolvePostAuthMfaGate, sanitizeLocalReturn } from '../lib/mfa-session'
+import { activateSessionAfterMfaSetup, resolvePostAuthMfaGate } from '../lib/mfa-session'
+import { requireSession, type SessionRequirement } from '../me/shared'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
 import { verifyTurnstile } from '../me-auth/shared'
 
 const passkey = new Hono<XidHonoEnv>()
+
+// 强制 MFA 绑定(pending_mfa_setup)可以注册 passkey 作为满足策略的因子;pending_mfa 不行。
+const PASSKEY_ENROLLMENT_SESSION: SessionRequirement = { pendingStatuses: ['pending_mfa_setup'] }
 
 // attestation/assertion body 形状:嵌套 response 字段必须是非空 base64url 字符串。
 // 形状失败不落 validation_failed:与验签失败统一 invalid_credentials(枚举防护,见 01 章 step 2)。
@@ -142,8 +147,7 @@ async function assertResolvedWebAuthnTenant(
 // POST /auth/passkey/register/options -- 返回 PublicKeyCredentialCreationOptions
 passkey.post('/register/options', async (c) => {
   const tenant = c.get('tenant')
-  const session = c.get('session')
-  if (!session) throw new AppError('mfa_required', { httpStatus: 401 })
+  const session = await requireSession(c, PASSKEY_ENROLLMENT_SESSION)
   await assertResolvedWebAuthnTenant(c, tenant)
 
   const anonKey = `reg:${session.userId}:${tenant.tenantId}`
@@ -185,8 +189,7 @@ passkey.post('/register/options', async (c) => {
 // POST /auth/passkey/register/verify -- 验证注册 attestation
 passkey.post('/register/verify', async (c) => {
   const tenant = c.get('tenant')
-  const session = c.get('session')
-  if (!session) throw new AppError('mfa_required', { httpStatus: 401 })
+  const session = await requireSession(c, PASSKEY_ENROLLMENT_SESSION)
   await assertResolvedWebAuthnTenant(c, tenant)
 
   const body = await readCeremonyBody(c, attestationBodySchema)
@@ -235,7 +238,7 @@ passkey.post('/register/verify', async (c) => {
     await markGuestConverted({ c, tenant, db, guest, provisionedBy: 'hosted_passkey' })
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId: guest.userId,
-      returnPath: sanitizeLocalReturn(null),
+      returnPath: defaultLandingPathFor(tenant),
       sessionAmr: PASSKEY_AUTH_CONTEXT.amr,
     })
     await issueSession(c, {
@@ -248,8 +251,10 @@ passkey.post('/register/verify', async (c) => {
       ip: c.req.header('cf-connecting-ip') ?? null,
       userAgent: c.req.header('user-agent') ?? null,
     })
+    return c.json({ ok: true })
   }
 
+  await activateSessionAfterMfaSetup(c, tenant, session)
   return c.json({ ok: true })
 })
 

@@ -1,15 +1,22 @@
-// 受保护路由:未登录重定向 /sign-in?continue=...。
+// 受保护路由:未登录重定向 /sign-in?continue=...;pending MFA 会话只能进入完成 MFA 的页面。
 
 import { useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from '../lib/router'
 import * as stylex from '@stylexjs/stylex'
-import { useAuth, type AuthSession } from '../lib/auth-context'
+import {
+  isPendingMfaStatus,
+  pendingMfaCompletionPath,
+  useAuth,
+  type PendingMfaAuthStatus,
+} from '../lib/auth-context'
 import { Spinner } from './ui'
 import { signInRedirectTarget } from './require-auth-redirect'
 
 export type RequireAuthProps = {
   children: ReactNode
+  // 本页负责完成的 pending MFA 状态:该状态下直接渲染,不重定向。
+  completesPendingMfa?: PendingMfaAuthStatus
 }
 
 const styles = stylex.create({
@@ -21,23 +28,8 @@ const styles = stylex.create({
   },
 })
 
-function mfaGateRedirect(
-  sessionStatus: AuthSession['status'] | undefined,
-  pathname: string,
-): string | null {
-  if (sessionStatus === 'pending_mfa' && !pathname.startsWith('/mfa')) {
-    const params = new URLSearchParams({ redirect_to: pathname })
-    return `/mfa?${params.toString()}`
-  }
-  if (sessionStatus === 'pending_mfa_setup' && !pathname.startsWith('/account/security')) {
-    const params = new URLSearchParams({ setup: 'mfa', redirect_to: pathname })
-    return `/account/security?${params.toString()}`
-  }
-  return null
-}
-
-export function RequireAuth({ children }: RequireAuthProps): ReactNode {
-  const { status, session } = useAuth()
+export function RequireAuth({ children, completesPendingMfa }: RequireAuthProps): ReactNode {
+  const { status } = useAuth()
   const location = useLocation()
   const { t } = useLingui()
 
@@ -58,9 +50,9 @@ export function RequireAuth({ children }: RequireAuthProps): ReactNode {
     )
   }
 
-  const gateRedirect = mfaGateRedirect(session?.status, location.pathname)
-  if (gateRedirect) {
-    return <Navigate to={gateRedirect} replace />
+  if (isPendingMfaStatus(status) && status !== completesPendingMfa) {
+    const returnTo = `${location.pathname}${location.search}`
+    return <Navigate to={pendingMfaCompletionPath(status, returnTo)} replace />
   }
 
   return children

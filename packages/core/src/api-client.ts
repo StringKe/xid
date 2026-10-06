@@ -515,7 +515,7 @@ function normalizeClientState(value: unknown): ClientStateResponse {
     (value.activeOrg !== null && !isRecord(value.activeOrg)) ||
     !value.organizations.every(hasValidOrganizationRole) ||
     (value.activeOrg !== null && !hasValidOrganizationRole(value.activeOrg)) ||
-    (value.user === null) !== (value.session === null)
+    !hasConsistentMeSession(value.user, value.session)
   ) {
     throw new XidNetworkError('Invalid /v1/me response')
   }
@@ -535,6 +535,16 @@ function normalizeClientState(value: unknown): ClientStateResponse {
     sessions,
     user,
   }
+}
+
+// A pending MFA session comes back without a user; it is still signed out for the SDK.
+function hasConsistentMeSession(user: unknown, session: unknown): boolean {
+  if (user !== null) return session !== null
+  if (session === null) return true
+  return (
+    isRecord(session) &&
+    (session['status'] === 'pending_mfa' || session['status'] === 'pending_mfa_setup')
+  )
 }
 
 function mapMeUser(

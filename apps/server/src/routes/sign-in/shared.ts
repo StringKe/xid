@@ -1,6 +1,7 @@
 // 登录共享:枚举防护统一模糊错误;回跳仅允许同源相对路径。
 
-import type { XidErrorCode } from '@xid-kit/types'
+import { classifyApiError } from '@xid-kit/web-ui/api-errors'
+import type { XidError } from '@xid-kit/types'
 import type { PublicHostedAuthConfig } from './auth-config'
 import { enterpriseSsoEnabled, methodEnabled } from './auth-config'
 import type { PublicInstanceLoginMatch } from './auth-config'
@@ -195,41 +196,47 @@ export type SignInErrorKey =
   | 'otp_sent'
   | 'verify_email_sent'
   | 'passkey_unavailable'
+  | SignInCorrectableErrorKey
 
-// 认证类错误统一收敛为 auth_failed(枚举防护)。
-export function apiErrorToKey(code: XidErrorCode): SignInErrorKey {
+// 只可能来自「创建账号」分支或与账户无关的可纠正错误,按错误码给出具体文案。
+export type SignInCorrectableErrorKey =
+  | 'password_too_short'
+  | 'password_breached'
+  | 'password_reused'
+  | 'password_too_weak'
+  | 'validation_failed'
+  | 'email_verification_required'
+  | 'otp_expired'
+  | 'magic_link_expired'
+  | 'token_expired'
+
+const CORRECTABLE_ERROR_KEYS: ReadonlySet<string> = new Set<SignInCorrectableErrorKey>([
+  'password_too_short',
+  'password_breached',
+  'password_reused',
+  'password_too_weak',
+  'validation_failed',
+  'email_verification_required',
+  'otp_expired',
+  'magic_link_expired',
+  'token_expired',
+])
+
+export function isSignInCorrectableErrorKey(key: string): key is SignInCorrectableErrorKey {
+  return CORRECTABLE_ERROR_KEYS.has(key)
+}
+
+// 认证类错误统一收敛为 auth_failed(枚举防护),分类见 classifyApiError 的 credential surface。
+export function apiErrorToKey(error: Pick<XidError, 'code' | 'meta'>): SignInErrorKey {
+  const { code, paramName } = classifyApiError(error, { surface: 'credential' })
   if (code === 'rate_limited') return 'rate_limited'
-  if (code === 'account_locked' || code === 'account_suspended' || code === 'account_banned') {
-    return 'account_locked'
-  }
+  if (code === 'account_locked') return 'account_locked'
   if (code === 'captcha_required' || code === 'captcha_failed') return 'captcha_required'
   if (code === 'service_unavailable' || code === 'server_error') return 'network_error'
+  if (code === 'temporarily_unavailable') return 'network_error'
+  if (code === 'validation_failed' && paramName === 'password') return 'password_too_short'
+  if (isSignInCorrectableErrorKey(code)) return code
   return 'auth_failed'
-}
-
-const DEFAULT_SIGN_IN_RETURN_PATH = '/console'
-
-// 只允许同源相对路径,避免 open redirect。
-export function resolveRedirect(continueUrl: string | null | undefined): string {
-  if (!continueUrl) return DEFAULT_SIGN_IN_RETURN_PATH
-  try {
-    const url = new URL(continueUrl, globalThis.location.origin)
-    if (url.origin === globalThis.location.origin) return url.pathname + url.search + url.hash
-  } catch {}
-  return DEFAULT_SIGN_IN_RETURN_PATH
-}
-
-export function resolveHostedReturn(
-  continueUrl: string | null | undefined,
-  authzRequestId: string | null | undefined,
-  applicationClientId?: string | null,
-): string {
-  if (authzRequestId) {
-    const params = new URLSearchParams({ authz_request_id: authzRequestId })
-    if (applicationClientId) params.set('client_id', applicationClientId)
-    return `/authorize?${params.toString()}`
-  }
-  return resolveRedirect(continueUrl)
 }
 
 export function organizationSignInUrl(

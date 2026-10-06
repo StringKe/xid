@@ -29,6 +29,7 @@
     "smoke:l3:inbound-saml": "vitest run --config vitest.smoke.config.ts tests/smoke/l3-inbound-saml.test.mjs",
     "smoke:l3:social-oauth": "vitest run --config vitest.smoke.config.ts tests/smoke/l3-social-oauth.test.mjs",
     "smoke:l3:device-flow": "vitest run --config vitest.smoke.config.ts tests/smoke/l3-device-flow.test.mjs",
+    "smoke:l3:hosted-authorize": "vitest run --config vitest.smoke.config.ts tests/smoke/l3-hosted-authorize.test.mjs",
     "smoke:l3:inbound-legacy": "vitest run --config vitest.smoke.config.ts tests/smoke/l3-inbound-legacy.test.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote --config wrangler.jsonc",

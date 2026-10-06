@@ -4,10 +4,10 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
-import { Link, useNavigate } from '../../lib/router'
+import { Link } from '../../lib/router'
 import { useMutation } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
-import { safeInternalPath } from '@xid-kit/web-ui/safe-redirect'
+import { useMfaResume } from './use-mfa-resume'
 import { tokens } from '../../styles/tokens.stylex'
 import { page } from '../../styles/product-surface.stylex'
 import { motion, springDefault } from '../../lib/motion'
@@ -211,7 +211,7 @@ function CancelSignOut(): ReactNode {
 function TotpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
-  const navigate = useNavigate()
+  const resume = useMfaResume()
   const search = useSearch({ strict: false }) as MfaSearch
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -232,7 +232,7 @@ function TotpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('totp')
       await refresh()
-      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
+      resume(result.value.redirectTo)
     },
   })
 
@@ -297,7 +297,7 @@ function TotpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
 function BackupCodeChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
-  const navigate = useNavigate()
+  const resume = useMfaResume()
   const search = useSearch({ strict: false }) as MfaSearch
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -316,7 +316,7 @@ function BackupCodeChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('backup_code')
       await refresh()
-      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
+      resume(result.value.redirectTo)
     },
   })
 
@@ -393,7 +393,7 @@ type PasskeyMfaOptions = {
 function PasskeyMfaChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
-  const navigate = useNavigate()
+  const resume = useMfaResume()
   const search = useSearch({ strict: false }) as MfaSearch
   const [error, setError] = useState<string | null>(null)
 
@@ -407,7 +407,7 @@ function PasskeyMfaChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('passkey')
       await refresh()
-      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
+      resume(result.value.redirectTo)
     },
   })
 
@@ -486,7 +486,7 @@ function PasskeyMfaChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
 function SmsOtpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
-  const navigate = useNavigate()
+  const resume = useMfaResume()
   const search = useSearch({ strict: false }) as MfaSearch
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -523,7 +523,7 @@ function SmsOtpChallenge({ isStepUp }: { isStepUp: boolean }): ReactNode {
       }
       trackMfaComplete('sms')
       await refresh()
-      navigate(safeInternalPath(result.value.redirectTo ?? search.redirect_to), { replace: true })
+      resume(result.value.redirectTo)
     },
   })
 

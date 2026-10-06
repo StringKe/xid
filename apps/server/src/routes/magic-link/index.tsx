@@ -67,11 +67,7 @@ export function MagicLinkPage(): ReactNode {
 
   useEffect(() => {
     if (!verification.isSuccess) return
-    const target =
-      verification.data.redirectUrl.startsWith('/') &&
-      !verification.data.redirectUrl.startsWith('//')
-        ? verification.data.redirectUrl
-        : '/console'
+    const target = verification.data.redirectUrl
     const timer = globalThis.setTimeout(() => navigate(target, { replace: true }), 1200)
     return () => globalThis.clearTimeout(timer)
   }, [navigate, verification.data?.redirectUrl, verification.isSuccess])

@@ -7,6 +7,7 @@
 import { base64UrlEncode, sha256Hex, signJwt, verifyJwt } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { JwtClaims } from '@xid-kit/crypto'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -146,6 +147,12 @@ export async function sendMagicLink(
   // Raw invitation tokens belong exclusively to the proof-first invitation claim route.
   // Fail before rate-limit reservations, account lookup, user creation, or token issuance.
   if (options.invitationToken?.trim()) throw new AppError('invalid_request')
+  const flow = createPasswordlessFlowContext({
+    intent: options.intent,
+    continuePath: options.continuePath,
+    applicationClientId: options.applicationClientId,
+    defaultContinuePath: defaultLandingPathFor(tenant),
+  })
 
   // 限流检查(枚举防护:限流后仍返回 200 不泄露邮箱是否存在)
   await reserveRateLimitWindows(c.env, `ml:send:${tenant.tenantId}:${email}`, [
@@ -154,11 +161,6 @@ export async function sendMagicLink(
   ])
 
   const db = createTenantDb(c.env.DB, tenant)
-  const flow = createPasswordlessFlowContext({
-    intent: options.intent,
-    continuePath: options.continuePath,
-    applicationClientId: options.applicationClientId,
-  })
   const skipDefaultMembership =
     options.skipDefaultMembership ??
     shouldSkipDefaultMembership({
@@ -295,7 +297,11 @@ async function verifyMagicJwt(
   if (typeof rawFlowContext !== 'string') rejectMagicLink('flow_context_missing')
   let flow: PasswordlessFlowContext
   try {
-    flow = parsePasswordlessFlowContext(rawFlowContext, 'magic_link_invalid')
+    flow = parsePasswordlessFlowContext(
+      rawFlowContext,
+      'magic_link_invalid',
+      defaultLandingPathFor(tenant),
+    )
   } catch (error) {
     if (error instanceof AppError && error.code === 'magic_link_invalid') {
       throw new AppError('magic_link_invalid', {

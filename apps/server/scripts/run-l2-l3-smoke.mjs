@@ -55,6 +55,7 @@ export const smokeFiles = [
   'tests/smoke/l2-platform.test.mjs',
   'tests/smoke/l3-delivery-otp.test.mjs',
   'tests/smoke/l3-device-flow.test.mjs',
+  'tests/smoke/l3-hosted-authorize.test.mjs',
   'tests/smoke/l3-inbound-legacy.test.mjs',
   'tests/smoke/l3-inbound-saml.test.mjs',
   'tests/smoke/l3-passkey-browser.test.mjs',

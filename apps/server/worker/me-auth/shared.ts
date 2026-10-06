@@ -47,7 +47,7 @@ export async function enforceSendRateLimit(env: Env, scope: string, target: stri
 
 // cookie session 认证:无有效 session 抛 401。已登录端点(sign-out 幂等除外)统一用此守卫。
 // 只认完整 active session:session 中间件按全状态注入 c.get('session'),pending_mfa /
-// pending_mfa_setup 在此视为未认证(防 MFA 绕过,对齐 me/shared.ts resolveActiveSession);
+// pending_mfa_setup 在此视为未认证(防 MFA 绕过,对齐 me/shared.ts requireSession 的默认要求);
 // MFA 挑战类端点不走本守卫,各自 readSession 显式声明 allowedStatuses。
 export async function requireSession(c: Context<XidHonoEnv>): Promise<SessionData> {
   const current = c.get('session')

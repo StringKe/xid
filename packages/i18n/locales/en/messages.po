@@ -10867,6 +10867,10 @@ msgstr "Use a backup code instead"
 msgid "Use a customer-owned hostname for Hosted Auth. XID provisions the hostname and certificate through Cloudflare for SaaS, then activates routing only after both are ready."
 msgstr "Use a customer-owned hostname for Hosted Auth. XID provisions the hostname and certificate through Cloudflare for SaaS, then activates routing only after both are ready."
 
+#: packages/web-ui/src/api-error-message.ts
+msgid "Use a password with 12 to 128 characters."
+msgstr "Use a password with 12 to 128 characters."
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Use a registered passkey with device verification to complete two-factor authentication."
 msgstr "Use a registered passkey with device verification to complete two-factor authentication."
@@ -11724,8 +11728,8 @@ msgid "Your export and deletion requests will appear here."
 msgstr "Your export and deletion requests will appear here."
 
 #: apps/server/src/routes/account/SecurityPage.tsx
-msgid "Your organization requires MFA. Set up an authenticator app below before continuing."
-msgstr "Your organization requires MFA. Set up an authenticator app below before continuing."
+msgid "Your organization requires MFA. Set up an authenticator app or a passkey below before continuing."
+msgstr "Your organization requires MFA. Set up an authenticator app or a passkey below before continuing."
 
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Your password"

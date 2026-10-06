@@ -5,12 +5,15 @@ import { useMutation } from '@tanstack/react-query'
 import type { ApiClient } from '../../lib/api'
 import { apiErrorToKey, type SignInErrorKey } from './shared'
 import { b64urlToBytes, serializeAssertion } from './passkey'
+import type { SignInFlowFields } from './sign-in-flow'
 
 type ChallengeResponse = { challenge: string; sessionId: string; organizationId?: string }
 type VerifyResponse = { redirectUrl?: string }
 type VerifyBody = ReturnType<typeof serializeAssertion> & {
   organizationId?: string
   clientId?: string
+  continue?: string
+  intent?: string
   turnstileToken?: string | null
 }
 
@@ -29,7 +32,7 @@ type PasskeySignInOptions = {
   enabled: boolean
   identifier: string
   organizationId?: string | null
-  applicationClientId?: string | null
+  flowFields: SignInFlowFields
   turnstileToken: string | null
   onTurnstileConsumed: () => void
   onSuccess: (redirectUrl: string | undefined) => Promise<void>
@@ -38,13 +41,13 @@ type PasskeySignInOptions = {
 async function fetchChallenge(
   api: ApiClient,
   identifier: string,
-  organizationId?: string | null,
-  applicationClientId?: string | null,
+  organizationId: string | null | undefined,
+  flowFields: SignInFlowFields,
 ): Promise<ChallengeResponse | null> {
   const result = await api.post<ChallengeResponse>('/auth/passkey/challenge', {
     identifier,
     ...(organizationId ? { organizationId } : {}),
-    ...(applicationClientId ? { clientId: applicationClientId } : {}),
+    ...(flowFields.clientId ? { clientId: flowFields.clientId } : {}),
   })
   return result.ok ? result.value : null
 }
@@ -52,13 +55,15 @@ async function fetchChallenge(
 function assertionBody(
   credential: PublicKeyCredential,
   challenge: ChallengeResponse,
-  applicationClientId: string | null | undefined,
+  flowFields: SignInFlowFields,
   turnstileToken: string | null,
 ): VerifyBody {
   return {
     ...serializeAssertion(credential, challenge.sessionId),
     ...(challenge.organizationId ? { organizationId: challenge.organizationId } : {}),
-    ...(applicationClientId ? { clientId: applicationClientId } : {}),
+    ...(flowFields.clientId ? { clientId: flowFields.clientId } : {}),
+    ...(flowFields.continue ? { continue: flowFields.continue } : {}),
+    ...(flowFields.intent ? { intent: flowFields.intent } : {}),
     ...(turnstileToken ? { turnstileToken } : {}),
   }
 }
@@ -69,7 +74,7 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     enabled,
     identifier,
     organizationId,
-    applicationClientId,
+    flowFields,
     turnstileToken,
     onTurnstileConsumed,
     onSuccess,
@@ -88,7 +93,7 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     mutationFn: (body: VerifyBody) => api.post<VerifyResponse>('/auth/passkey/verify', body),
     onSuccess: async (result) => {
       if (!result.ok) {
-        setError(apiErrorToKey(result.error.code))
+        setError(apiErrorToKey(result.error))
         return
       }
       await onSuccess(result.value.redirectUrl)
@@ -121,12 +126,7 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     const normalizedIdentifier = identifier.trim()
     if (!normalizedIdentifier) return
 
-    const challenge = await fetchChallenge(
-      api,
-      normalizedIdentifier,
-      organizationId,
-      applicationClientId,
-    )
+    const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId, flowFields)
     if (!challenge) return
 
     abortRef.current = new AbortController()
@@ -153,11 +153,11 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
       assertionBody(
         credential as PublicKeyCredential,
         challenge,
-        applicationClientId,
+        flowFields,
         turnstileTokenRef.current,
       ),
     )
-  }, [api, applicationClientId, enabled, identifier, organizationId, verifyMutate])
+  }, [api, flowFields, enabled, identifier, organizationId, verifyMutate])
 
   // 挂载只启动一次(ref 防重入);卸载 abort 独立 effect,避免依赖变化误 abort 在途选择器。
   const startedRef = useRef(false)
@@ -189,12 +189,7 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
         setError('auth_failed')
         return
       }
-      const challenge = await fetchChallenge(
-        api,
-        normalizedIdentifier,
-        organizationId,
-        applicationClientId,
-      )
+      const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId, flowFields)
       if (!challenge) {
         setError('auth_failed')
         return
@@ -218,12 +213,12 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
         assertionBody(
           credential as PublicKeyCredential,
           challenge,
-          applicationClientId,
+          flowFields,
           turnstileTokenRef.current,
         ),
       )
     })()
-  }, [api, applicationClientId, enabled, identifier, organizationId, verifyMutate])
+  }, [api, flowFields, enabled, identifier, organizationId, verifyMutate])
 
   return {
     support,

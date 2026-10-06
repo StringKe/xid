@@ -9,25 +9,45 @@ import { and, asc, desc, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 export { readAllById } from '../lib/db-pagination'
-import { ACTIVE_SESSION_STATUS, readSession } from '../lib/session'
+import {
+  ACTIVE_SESSION_STATUS,
+  PENDING_MFA_SESSION_STATUS,
+  PENDING_MFA_SETUP_SESSION_STATUS,
+  readSession,
+  type ReadSessionStatus,
+} from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 
-// 读取 cookie session(不抛错):GET /v1/me 匿名探活用。
-export async function resolveSession(c: Context<XidHonoEnv>): Promise<SessionData | null> {
-  return c.get('session') ?? (await readSession(c))
+export type PendingSessionStatus =
+  | typeof PENDING_MFA_SESSION_STATUS
+  | typeof PENDING_MFA_SETUP_SESSION_STATUS
+
+// 只有 MFA 挑战与绑定端点可以显式放行 pending 状态;其余 account portal 端点一律视为未认证。
+export type SessionRequirement = {
+  pendingStatuses?: readonly PendingSessionStatus[]
 }
 
-// account portal 默认只接受完整 active session。pending_mfa/pending_mfa_setup 只给 MFA 专用端点显式读取。
-export async function resolveActiveSession(c: Context<XidHonoEnv>): Promise<SessionData | null> {
+// 读取 cookie session(不抛错):GET /v1/me 匿名探活用。
+export async function resolveSession(
+  c: Context<XidHonoEnv>,
+  requirement: SessionRequirement = {},
+): Promise<SessionData | null> {
+  const allowed: readonly ReadSessionStatus[] = [
+    ACTIVE_SESSION_STATUS,
+    ...(requirement.pendingStatuses ?? []),
+  ]
   const current = c.get('session')
-  if (current?.status === ACTIVE_SESSION_STATUS) return current
-  return readSession(c, [ACTIVE_SESSION_STATUS])
+  if (current && allowed.includes(current.status)) return current
+  return readSession(c, allowed)
 }
 
 // cookie session 守卫:无有效 session 抛 401(unauthorized)。子资源端点仍要求登录。
 // 前端 onUnauthorized 仅在已登录态降级;GET /v1/me 匿名探活返回 200 空壳,避免公开页控制台 401 噪声。
-export async function requireSession(c: Context<XidHonoEnv>): Promise<SessionData> {
-  const session = await resolveActiveSession(c)
+export async function requireSession(
+  c: Context<XidHonoEnv>,
+  requirement: SessionRequirement = {},
+): Promise<SessionData> {
+  const session = await resolveSession(c, requirement)
   if (!session) throw new AppError('unauthorized', { httpStatus: 401 })
   return session
 }

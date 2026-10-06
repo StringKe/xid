@@ -11,6 +11,7 @@
 
 import { base64UrlEncode, importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
 import { createTenantDb, resolveTenantContextByApplicationClientId, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -53,7 +54,6 @@ type OidcRpFlowPayload = {
 
 type NewOidcRpFlowPayload = Omit<OidcRpFlowPayload, 'invitationToken'>
 
-const DEFAULT_AUTH_RETURN_PATH = '/console'
 const INVITATION_PATH = '/accept-invitation'
 
 function isInvitationContinuePath(value: string | null | undefined): boolean {
@@ -440,7 +440,9 @@ async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
     const codeChallenge = await computeCodeChallenge(codeVerifier)
 
     const redirectAfterLogin =
-      c.req.query('redirect_uri') ?? c.req.query('continue') ?? DEFAULT_AUTH_RETURN_PATH
+      c.req.query('redirect_uri') ??
+      c.req.query('continue') ??
+      defaultLandingPathFor(c.get('tenant'))
     const applicationClientId = c.req.query('client_id')?.trim() || null
     const applicationContinuation = applicationClientId
       ? resolveApplicationAuthorizeContinuation(redirectAfterLogin, applicationClientId)
@@ -627,7 +629,7 @@ async function finalizeSession(p: FinalizeSessionParams): Promise<Response> {
   const safeLocalRedirect =
     applicationContinuation ??
     normalizeLocalContinuePath(p.redirectAfterLogin) ??
-    DEFAULT_AUTH_RETURN_PATH
+    defaultLandingPathFor(p.c.get('tenant'))
   const mfaGate = await resolvePostAuthMfaGate(p.c, p.c.get('tenant'), {
     userId: p.userId,
     returnPath: safeLocalRedirect,

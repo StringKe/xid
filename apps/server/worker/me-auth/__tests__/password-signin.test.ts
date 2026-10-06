@@ -12,6 +12,7 @@ vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   resolveInstanceLoginCandidates: vi.fn(),
   resolveTenantContextById: vi.fn(),
+  resolveTenantContextByApplicationClientId: vi.fn(),
   schema: {
     userEmails: {
       id: 'id',
@@ -55,6 +56,7 @@ vi.mock('../../lib/mfa-session', async (importOriginal) => {
 import {
   createTenantDb,
   resolveInstanceLoginCandidates,
+  resolveTenantContextByApplicationClientId,
   resolveTenantContextById,
 } from '@xid-kit/db'
 import { hashPassword, passwordReuseTag, verifyPassword } from '../../auth/password'
@@ -209,6 +211,57 @@ describe('POST /auth/password/sign-in', () => {
     expect(db.sessions.insert).toHaveBeenCalledWith(
       expect.objectContaining({ activeOrgId: 'tenant-1' }),
     )
+  })
+
+  it('application sign-in with an /authorize continuation resumes the authorization request', async () => {
+    vi.mocked(verifyPassword).mockResolvedValue(true)
+    vi.mocked(resolveTenantContextByApplicationClientId).mockResolvedValue({
+      ok: true,
+      value: makeTenant() as never,
+    })
+    const db = dbWithUser({
+      emailUserId: 'user-1',
+      user: { id: 'user-1', status: 'active', lockoutUntil: null },
+      passwordHash: '$argon2id$stored',
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'user@example.com',
+      password: 'CorrectHorse12',
+      clientId: 'app-1',
+      continue: '/authorize?authz_request_id=authz-1&client_id=app-1',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      redirectUrl: '/authorize?authz_request_id=authz-1&client_id=app-1',
+    })
+    expect(db.sessions.insert).toHaveBeenCalledOnce()
+  })
+
+  it('application sign-in without a continuation is rejected before verifying the password', async () => {
+    const db = dbWithUser({
+      emailUserId: 'user-1',
+      user: { id: 'user-1', status: 'active', lockoutUntil: null },
+      passwordHash: '$argon2id$stored',
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'user@example.com',
+      password: 'CorrectHorse12',
+      clientId: 'app-1',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_request' })
+    expect(verifyPassword).not.toHaveBeenCalled()
+    expect(db.sessions.insert).not.toHaveBeenCalled()
   })
 
   it('body.rememberMe 显式 true -> session rememberMe=true', async () => {

@@ -41,6 +41,10 @@ vi.mock('../../lib/auth-context', () => ({
   }),
 }))
 
+vi.mock('../../lib/default-landing', () => ({
+  useDefaultLandingPath: () => '/console',
+}))
+
 vi.mock('../../lib/google-analytics-funnel', () => ({
   trackOrganizationSelected: vi.fn(),
 }))
@@ -161,6 +165,27 @@ describe('SelectOrganizationPage', () => {
 
     expect(authState.setActiveOrganization).toHaveBeenCalledWith('org_2')
     expect(routerState.navigate).toHaveBeenCalledWith('/console', { replace: true })
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('resumes the stashed authorization request after choosing an organization', async () => {
+    authState.organizations = [
+      { id: 'org_1', name: 'Acme', slug: 'acme' },
+      { id: 'org_2', name: 'Globex', slug: 'globex' },
+    ]
+    routerState.search = { redirect_to: '/authorize?authz_request_id=authz_1&client_id=app_1' }
+    const { container, root } = await renderPage()
+
+    await act(async () => {
+      buttonWithText(container, 'Acme').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(routerState.navigate).toHaveBeenCalledWith(
+      '/authorize?authz_request_id=authz_1&client_id=app_1',
+      { replace: true },
+    )
 
     await act(async () => root.unmount())
     container.remove()

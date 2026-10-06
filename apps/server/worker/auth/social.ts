@@ -8,6 +8,7 @@ import {
   resolveTenantContextById,
   schema,
 } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -40,7 +41,6 @@ import { OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
 import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import { provisionAccountAtomically } from './account-provisioning'
 
-const DEFAULT_AUTH_RETURN_PATH = '/console'
 const INVITATION_PATH = '/accept-invitation'
 
 function isInvitationContinuePath(value: string | null | undefined): boolean {
@@ -308,8 +308,9 @@ async function handleAuthorize(c: Context<XidHonoEnv>, provider: Provider): Prom
   const codeVerifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(43)))
   const codeChallenge = await computeCodeChallenge(codeVerifier)
 
+  const defaultLandingPath = defaultLandingPathFor(c.get('tenant'))
   const requestedRedirectAfterLogin =
-    c.req.query('redirect_uri') ?? c.req.query('continue') ?? DEFAULT_AUTH_RETURN_PATH
+    c.req.query('redirect_uri') ?? c.req.query('continue') ?? defaultLandingPath
   const applicationClientId = c.req.query('client_id')?.trim() || null
   const returnToOrigin = new URL(c.req.url).origin
   const intent = c.req.query('intent') ?? null
@@ -317,6 +318,7 @@ async function handleAuthorize(c: Context<XidHonoEnv>, provider: Provider): Prom
     intent,
     continuePath: requestedRedirectAfterLogin,
     applicationClientId,
+    defaultContinuePath: defaultLandingPath,
   })
   if (!flowResolution) throw new AppError('invalid_request')
   const skipDefaultMembership = shouldSkipDefaultMembership({
@@ -652,10 +654,12 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
     })
 
     const now = new Date()
+    const defaultLandingPath = defaultLandingPathFor(tenant)
     const flowResolution = resolveHostedAuthFlow({
       intent: flow.intent,
       continuePath: flow.redirectAfterLogin,
       applicationClientId: flow.applicationClientId,
+      defaultContinuePath: defaultLandingPath,
     })
     if (
       !flowResolution ||
@@ -666,7 +670,7 @@ async function handleCallback(c: Context<XidHonoEnv>, provider: Provider): Promi
     }
     const location =
       flowResolution.kind === 'local'
-        ? resolveRedirect(flowResolution.continuePath, config, DEFAULT_AUTH_RETURN_PATH)
+        ? resolveRedirect(flowResolution.continuePath, config, defaultLandingPath)
         : flowResolution.continuePath
     const sessionId = createPersistedId('session')
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath: location })

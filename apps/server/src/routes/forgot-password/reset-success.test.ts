@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { handleResetPasswordSuccess } from './reset-success'
 
 describe('handleResetPasswordSuccess', () => {
-  it('refreshes the session before navigating to console', async () => {
+  it('refreshes the session before navigating to the default landing', async () => {
     const calls: string[] = []
     const refresh = vi.fn<() => Promise<void>>(async () => {
       calls.push('refresh')
@@ -13,11 +13,11 @@ describe('handleResetPasswordSuccess', () => {
       },
     )
 
-    await handleResetPasswordSuccess({ refresh, navigate })
+    await handleResetPasswordSuccess({ refresh, navigate, fallbackPath: '/account' })
 
     expect(refresh).toHaveBeenCalledOnce()
-    expect(navigate).toHaveBeenCalledWith({ to: '/console', replace: true })
-    expect(calls).toEqual(['refresh', 'navigate:/console:true'])
+    expect(navigate).toHaveBeenCalledWith({ to: '/account', replace: true })
+    expect(calls).toEqual(['refresh', 'navigate:/account:true'])
   })
 
   it('uses the server redirect after refresh', async () => {
@@ -30,6 +30,7 @@ describe('handleResetPasswordSuccess', () => {
       refresh,
       navigate,
       redirectUrl: '/mfa?redirect_to=%2Fconsole',
+      fallbackPath: '/account',
     })
 
     expect(refresh).toHaveBeenCalledOnce()

@@ -235,6 +235,63 @@ describe('sendMagicLink', () => {
     )
     expect(emailSend).toHaveBeenCalled()
   })
+
+  function sendWithFlowContext(
+    tenant: TenantVar,
+    options: { applicationClientId?: string; continuePath?: string },
+  ): Hono<XidHonoEnv> {
+    const app = new Hono<XidHonoEnv>()
+    app.onError(testErrorHandler)
+    app.use('*', async (c, next) => {
+      c.set('tenant', tenant)
+      await next()
+    })
+    app.post('/send', async (c) => {
+      await sendMagicLink(c, 'user@example.com', options)
+      return c.json({ ok: true })
+    })
+    return app
+  }
+
+  it('signs the /authorize continuation into the flow for an application sign-in', async () => {
+    const emailSend = vi.fn()
+    const app = sendWithFlowContext(makeTenant() as unknown as TenantVar, {
+      applicationClientId: 'app-1',
+      continuePath: '/authorize?authz_request_id=authz-1&client_id=app-1',
+    })
+
+    const res = await postSend(app, makeEnv({ emailSend }))
+
+    expect(res.status).toBe(200)
+    const signCall = vi.mocked(signJwt).mock.calls[0]?.[0] as {
+      payload: { flow_context: string }
+    }
+    expect(JSON.parse(signCall.payload.flow_context)).toMatchObject({
+      continuePath: '/authorize?authz_request_id=authz-1&client_id=app-1',
+      applicationClientId: 'app-1',
+    })
+    expect(emailSend).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an application sign-in without a continuation before reserving send quota', async () => {
+    const emailSend = vi.fn()
+    const env = makeEnv({ emailSend })
+    const rateLimiterGet = vi.fn()
+    env.RATE_LIMITER = {
+      idFromName: vi.fn(() => ({ toString: () => 'rl-id' }) as DurableObjectId),
+      get: rateLimiterGet,
+    } as unknown as DurableObjectNamespace
+    const app = sendWithFlowContext(makeTenant() as unknown as TenantVar, {
+      applicationClientId: 'app-1',
+    })
+
+    const res = await postSend(app, env)
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_request' })
+    expect(rateLimiterGet).not.toHaveBeenCalled()
+    expect(emailSend).not.toHaveBeenCalled()
+  })
 })
 
 describe('handleMagicLinkVerify', () => {

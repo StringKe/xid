@@ -3,6 +3,7 @@
 import { base64UrlEncode, sha256Hex, signJwt, verifyJwt } from '@xid-kit/crypto'
 import type { JwtClaims } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import { AppError } from '../lib/errors'
 import type { TenantVar } from '../lib/types'
@@ -48,6 +49,7 @@ export async function issueEmailVerification(opts: {
     continuePath: opts.continuePath,
     applicationClientId: opts.applicationClientId,
     hasInvitation: invitationId !== null,
+    defaultContinuePath: defaultLandingPathFor(tenant),
   })
   if (!flow) throw new AppError('invalid_request')
   const hasFlowContext = Boolean(
@@ -169,6 +171,7 @@ export async function verifyEmailVerifyJwt(
     continuePath: typeof rawContinuePath === 'string' ? rawContinuePath : null,
     applicationClientId: typeof rawApplicationClientId === 'string' ? rawApplicationClientId : null,
     hasInvitation: rawInvitationId !== undefined,
+    defaultContinuePath: defaultLandingPathFor(tenant),
   })
   if (
     !flow ||

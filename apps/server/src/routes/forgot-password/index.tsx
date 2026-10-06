@@ -14,6 +14,7 @@ import { useAuth } from '../../lib/auth-context'
 import { PasswordStrength } from '../sign-up/PasswordStrength'
 import { trackPasswordResetRequest } from '../../lib/google-analytics-funnel'
 import { handleResetPasswordSuccess } from './reset-success'
+import { useDefaultLandingPath } from '../../lib/default-landing'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
@@ -186,6 +187,7 @@ function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
+  const defaultLandingPath = useDefaultLandingPath()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [passwordScore, setPasswordScore] = useState<0 | 1 | 2 | 3 | 4>(0)
@@ -222,6 +224,7 @@ function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
         refresh,
         navigate: async (options) => navigate(options.to, { replace: options.replace }),
         redirectUrl: result.value.redirectUrl,
+        fallbackPath: defaultLandingPath,
       })
     },
   })

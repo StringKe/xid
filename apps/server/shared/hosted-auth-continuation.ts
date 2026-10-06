@@ -76,6 +76,7 @@ export function resolveHostedAuthFlow(input: {
   continuePath?: string | null
   applicationClientId?: string | null
   hasInvitation?: boolean
+  defaultContinuePath: string
 }): HostedAuthFlowResolution | null {
   const rawIntent = input.intent?.trim() || null
   if (rawIntent !== null && !isHostedAuthIntent(rawIntent)) return null
@@ -96,10 +97,10 @@ export function resolveHostedAuthFlow(input: {
   }
 
   const continuePath = hasInvitation
-    ? '/console'
+    ? input.defaultContinuePath
     : isProductSignUpIntent(intent)
       ? '/create-organization'
-      : (normalizedContinuePath ?? '/console')
+      : (normalizedContinuePath ?? input.defaultContinuePath)
 
   if (applicationClientId) {
     const applicationContinuation = resolveApplicationAuthorizeContinuation(

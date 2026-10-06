@@ -1,5 +1,6 @@
 import type { Hono } from 'hono'
 import { resolveInstanceLoginCandidates, resolveTenantContextById } from '@xid-kit/db'
+import { defaultLandingPathFor, type DefaultLandingPath } from '@xid-kit/types'
 import { isHostedAuthIntent, isProductSignUpIntent } from '../../shared/hosted-auth-intent'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
@@ -42,7 +43,7 @@ async function withRuntimeCapabilities(input: {
   currentTenant: XidHonoEnv['Variables']['tenant']
   resolvedTenant: XidHonoEnv['Variables']['tenant']
   flow: HostedEntryFlow
-}): Promise<PublicHostedAuthConfig> {
+}): Promise<PublicHostedAuthConfig & { defaultLandingPath: DefaultLandingPath }> {
   const { config, env, requestUrl, currentTenant, resolvedTenant, flow } = input
   const guestAllowed =
     config.resolution.status === 'ready' &&
@@ -65,6 +66,7 @@ async function withRuntimeCapabilities(input: {
     ...config,
     turnstileSiteKey: publicTurnstileSiteKey(env),
     guest,
+    defaultLandingPath: defaultLandingPathFor(currentTenant),
   }
 }
 

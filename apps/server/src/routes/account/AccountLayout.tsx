@@ -9,7 +9,9 @@ import { page } from '../../styles/product-surface.stylex'
 import { Button } from '../../components/ui'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { BrandLogo } from '../../components/BrandLogo'
+import { CONSOLE_EXACT_PATH } from '@xid-kit/types'
 import { useAuth } from '../../lib/auth-context'
+import { useDefaultLandingPath } from '../../lib/default-landing'
 import { useTheme } from '../../lib/theme'
 import { GuestConversionBanner } from './GuestConversionBanner'
 
@@ -290,7 +292,8 @@ const navLinkActive = stylex.props(styles.navLink, styles.navLinkActive).classNa
 export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
   const { t } = useLingui()
   const { brand } = useTheme()
-  const { user, signOut } = useAuth()
+  const { user, signOut, status } = useAuth()
+  const defaultLandingPath = useDefaultLandingPath()
   const appName = brand.appName ?? 'XID'
   const brandMark = brand.logoUrl ? (
     <img src={brand.logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.tenantLogo)} />
@@ -311,13 +314,19 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
           {user ? (
             <>
               <span {...stylex.props(styles.userEmail)}>{user.email}</span>
-              <a href="/console" {...stylex.props(page.textLink)}>
-                <Trans>Back to Console</Trans>
-              </a>
+              {defaultLandingPath === CONSOLE_EXACT_PATH ? (
+                <a href={CONSOLE_EXACT_PATH} {...stylex.props(page.textLink)}>
+                  <Trans>Back to Console</Trans>
+                </a>
+              ) : null}
               <Button variant="ghost" onClick={() => void signOut()} aria-label={t`Sign out`}>
                 <Trans>Sign out</Trans>
               </Button>
             </>
+          ) : status === 'pending_mfa_setup' ? (
+            <Button variant="ghost" onClick={() => void signOut()} aria-label={t`Sign out`}>
+              <Trans>Sign out</Trans>
+            </Button>
           ) : null}
           <LanguageSwitcher />
         </div>

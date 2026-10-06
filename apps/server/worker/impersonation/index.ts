@@ -2,6 +2,7 @@
 // handoff 仅含随机 grant id/secret,目标身份从不进 URL/referrer。
 
 import { base64UrlEncode, sha256Hex } from '@xid-kit/crypto'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -406,7 +407,7 @@ async function handleConsume(c: Context<XidHonoEnv>): Promise<Response> {
 
 async function handleHandoff(c: Context<XidHonoEnv>): Promise<Response> {
   await consumeGrant(c, await readConsumeForm(c))
-  return noStore(c.redirect('/console', 303))
+  return noStore(c.redirect(defaultLandingPathFor(c.get('tenant')), 303))
 }
 
 async function handleEnd(c: Context<XidHonoEnv>): Promise<Response> {

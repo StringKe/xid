@@ -1,7 +1,7 @@
 // 尚未完成 onboarding 的用户自助创建顶级 Tenant，并把用户身份数据与会话原子迁移过去。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { DEFAULT_HOSTED_AUTH_POLICY } from '@xid-kit/types'
+import { DEFAULT_HOSTED_AUTH_POLICY, defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -465,7 +465,12 @@ export async function handleSelfOrganizationCreate(c: Context<XidHonoEnv>): Prom
       slug,
       name,
       role: 'owner',
-      redirectUrl: invitationAcceptContinuePath(orgId, name, 'owner'),
+      redirectUrl: invitationAcceptContinuePath({
+        orgId,
+        orgName: name,
+        role: 'owner',
+        defaultLandingPath: defaultLandingPathFor(c.get('tenant')),
+      }),
     },
     201,
   )

@@ -2,14 +2,16 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import type { AmrValue } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
+import { normalizeLocalContinuePath } from '../../shared/hosted-auth-continuation'
 import { isProductSignUpIntent } from '../../shared/hosted-auth-intent'
 import { smsDeliveryReady } from '../auth/delivery-channels'
 import {
+  ACTIVE_SESSION_STATUS,
   PENDING_MFA_SESSION_STATUS,
   PENDING_MFA_SETUP_SESSION_STATUS,
   type ReadSessionStatus,
 } from './session'
-import type { TenantVar, XidHonoEnv } from './types'
+import type { SessionData, TenantVar, XidHonoEnv } from './types'
 
 export { PENDING_MFA_SESSION_STATUS, PENDING_MFA_SETUP_SESSION_STATUS }
 
@@ -84,39 +86,45 @@ export async function shouldRequireMfaSetup(
   return true
 }
 
-export function sanitizeLocalReturn(value: string | undefined | null): string {
-  if (!value) return '/console'
-  if (!value.startsWith('/') || value.startsWith('//')) return '/console'
-  try {
-    const parsed = new URL(value, 'https://xid.local')
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`
-  } catch {
-    return '/console'
-  }
+export function sanitizeLocalReturn(value: string | undefined | null, fallback: string): string {
+  return normalizeLocalContinuePath(value) ?? fallback
 }
 
 export function postAuthRedirectPath(opts: {
   invitationToken?: string | null
   intent?: string | null
   continueParam?: string | null
+  fallback: string
 }): string {
   const token = opts.invitationToken?.trim()
   if (token) return `/accept-invitation?token=${encodeURIComponent(token)}`
   if (isProductSignUpIntent(opts.intent)) return '/create-organization'
-  return sanitizeLocalReturn(opts.continueParam)
+  return sanitizeLocalReturn(opts.continueParam, opts.fallback)
 }
 
-export function mfaRedirectPath(returnTo: string | undefined | null): string {
-  const params = new URLSearchParams({ redirect_to: sanitizeLocalReturn(returnTo) })
+export function mfaRedirectPath(returnTo: string): string {
+  const params = new URLSearchParams({ redirect_to: returnTo })
   return `/mfa?${params.toString()}`
 }
 
-export function mfaSetupRedirectPath(returnTo: string | undefined | null): string {
-  const params = new URLSearchParams({
-    setup: 'mfa',
-    redirect_to: sanitizeLocalReturn(returnTo),
-  })
+export function mfaSetupRedirectPath(returnTo: string): string {
+  const params = new URLSearchParams({ setup: 'mfa', redirect_to: returnTo })
   return `/account/security?${params.toString()}`
+}
+
+// 强制绑定期间登记因子后,仅在租户 MFA 要求已满足时把 session 升为 active。
+export async function activateSessionAfterMfaSetup(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+  session: SessionData,
+): Promise<void> {
+  if (session.status !== PENDING_MFA_SETUP_SESSION_STATUS) return
+  if (await shouldRequireMfaSetup(c, tenant, session.userId, session.amr)) return
+  const db = createTenantDb(c.env.DB, tenant)
+  await db.sessions.update(
+    { status: ACTIVE_SESSION_STATUS },
+    eq(schema.sessions.id, session.sessionId),
+  )
 }
 
 export type PostAuthMfaGate = {

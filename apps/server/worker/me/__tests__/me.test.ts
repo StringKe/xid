@@ -682,25 +682,29 @@ describe('GET /v1/me', () => {
     expect(body['sessions']).toEqual([])
   })
 
-  it('returns anonymous shell for middleware-injected pending MFA session', async () => {
-    const db = makeFakeD1({ users: [userRow()], user_emails: [emailRow()] })
-    const env = { DB: db } as unknown as Env
-    const app = buildApp({
-      register: registerMeRoute,
-      session: makeSession({ userId: 'u_1', status: 'pending_mfa' }),
-    })
+  it.each(['pending_mfa', 'pending_mfa_setup'] as const)(
+    'returns only the session status for a %s session',
+    async (status) => {
+      const db = makeFakeD1({ users: [userRow()], user_emails: [emailRow()] })
+      const env = { DB: db } as unknown as Env
+      const app = buildApp({
+        register: registerMeRoute,
+        session: makeSession({ userId: 'u_1', status, activeOrgId: 'org_1' }),
+      })
 
-    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+      const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
 
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body['user']).toBeNull()
-    expect(body['activeOrg']).toBeNull()
-    expect(body['organizations']).toEqual([])
-    expect(body['session']).toBeNull()
-    expect(body['activeSessionId']).toBeNull()
-    expect(body['sessions']).toEqual([])
-  })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as Record<string, unknown>
+      expect(body['user']).toBeNull()
+      expect(body['activeOrg']).toBeNull()
+      expect(body['organizations']).toEqual([])
+      expect(body['managerAssignments']).toEqual([])
+      expect(body['session']).toMatchObject({ status, activeOrganizationId: null })
+      expect(body['activeSessionId']).toBeNull()
+      expect(body['sessions']).toEqual([])
+    },
+  )
 
   it('returns 401 when session user has been soft deleted', async () => {
     const db = makeFakeD1({

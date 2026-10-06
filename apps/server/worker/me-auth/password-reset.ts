@@ -6,6 +6,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -284,7 +285,7 @@ export async function handleResetPassword(c: Context<XidHonoEnv>): Promise<Respo
     const now = new Date()
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId: verified.userId,
-      returnPath: '/console',
+      returnPath: defaultLandingPathFor(c.get('tenant')),
     })
     await issueSession(c, {
       sessionId: createPersistedId('session'),

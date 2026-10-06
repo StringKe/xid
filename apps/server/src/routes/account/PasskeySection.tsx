@@ -221,7 +221,11 @@ function PasskeyEmptyState(): ReactNode {
   )
 }
 
-export function PasskeySection(): ReactNode {
+export type PasskeySectionProps = {
+  onRegistered?: () => void | Promise<void>
+}
+
+export function PasskeySection({ onRegistered }: PasskeySectionProps): ReactNode {
   const { t } = useLingui()
   const { data: passkeys, isPending, error } = usePasskeysQuery()
   const registerPasskey = useRegisterPasskey()
@@ -237,7 +241,9 @@ export function PasskeySection(): ReactNode {
     } catch (err) {
       const xidErr = err as { message?: string; longMessage?: string }
       setRegisterError(xidErr.longMessage || xidErr.message || t`Failed to add passkey.`)
+      return
     }
+    await onRegistered?.()
   }
 
   return (

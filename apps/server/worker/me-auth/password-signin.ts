@@ -7,6 +7,7 @@
 // 成功:issueSession 设 cookie;HIBP 异步不阻断(waitUntil)。响应 {} (前端缺 redirectUrl 时回落 continue)。
 
 import { createTenantDb, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -331,7 +332,8 @@ async function createUserWithPassword(opts: {
     return { nextStep: 'verify_email' }
   }
 
-  const returnPath = postAuthRedirectPath({ intent, continueParam })
+  const fallback = defaultLandingPathFor(tenant)
+  const returnPath = postAuthRedirectPath({ intent, continueParam, fallback })
   const now = new Date()
   const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath })
   const sessionId = createPersistedId('session')
@@ -348,7 +350,7 @@ async function createUserWithPassword(opts: {
   if (mfaGate.redirectUrl) {
     return { nextStep: 'complete', redirectUrl: mfaGate.redirectUrl }
   }
-  const redirectUrl = resolvePasswordSignInRedirect({ intent, continueParam })
+  const redirectUrl = resolvePasswordSignInRedirect({ intent, continueParam, fallback })
   return { nextStep: 'complete', ...(redirectUrl ? { redirectUrl } : {}) }
 }
 
@@ -449,7 +451,8 @@ async function convertGuestWithPassword(opts: {
     })
     return { nextStep: 'verify_email' }
   }
-  const returnPath = postAuthRedirectPath({ intent, continueParam })
+  const fallback = defaultLandingPathFor(tenant)
+  const returnPath = postAuthRedirectPath({ intent, continueParam, fallback })
   const now = new Date()
   const mfaGate = await resolvePostAuthMfaGate(c, tenant, { userId, returnPath })
   const sessionId = createPersistedId('session')
@@ -466,17 +469,18 @@ async function convertGuestWithPassword(opts: {
   if (mfaGate.redirectUrl) {
     return { nextStep: 'complete', redirectUrl: mfaGate.redirectUrl }
   }
-  const redirectUrl = resolvePasswordSignInRedirect({ intent, continueParam })
+  const redirectUrl = resolvePasswordSignInRedirect({ intent, continueParam, fallback })
   return { nextStep: 'complete', ...(redirectUrl ? { redirectUrl } : {}) }
 }
 
 function resolvePasswordSignInRedirect(opts: {
   intent?: string | null
   continueParam?: string | null
+  fallback: string
 }): string | undefined {
   const { intent, continueParam } = opts
   if (isProductSignUpIntent(intent)) return '/create-organization'
-  if (continueParam) return sanitizeLocalReturn(continueParam)
+  if (continueParam) return sanitizeLocalReturn(continueParam, opts.fallback)
   return undefined
 }
 
@@ -490,6 +494,7 @@ export async function handlePasswordAuth(
     continuePath: body.continue,
     applicationClientId: body.clientId,
     hasInvitation: Boolean(body.invitationToken?.trim()),
+    defaultContinuePath: defaultLandingPathFor(c.get('tenant')),
   })
   if (!flow) throw new AppError('invalid_request')
   await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
@@ -610,9 +615,11 @@ export async function handlePasswordAuth(
     }
 
     const sessionId = createPersistedId('session')
+    const fallback = defaultLandingPathFor(tenant)
     const returnPath = postAuthRedirectPath({
       intent: flow.intent,
       continueParam: flow.continuePath,
+      fallback,
     })
     const now = new Date()
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
@@ -637,6 +644,7 @@ export async function handlePasswordAuth(
     const redirectUrl = resolvePasswordSignInRedirect({
       intent: flow.intent,
       continueParam: flow.continuePath,
+      fallback,
     })
     return c.json(redirectUrl ? { redirectUrl } : {})
   })

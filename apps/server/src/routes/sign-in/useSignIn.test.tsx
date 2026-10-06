@@ -14,6 +14,7 @@ const passkeyCalls = vi.hoisted(
     enabled: boolean
     organizationId?: string | null
     turnstileToken: string | null
+    flowFields?: Record<string, string>
   }> => [],
 )
 const postCalls = vi.hoisted((): Array<{ path: string; body: unknown }> => [])
@@ -64,11 +65,13 @@ vi.mock('./usePasskeySignIn', () => ({
     enabled: boolean
     organizationId?: string | null
     turnstileToken: string | null
+    flowFields: Record<string, string>
   }) => {
     passkeyCalls.push({
       enabled: options.enabled,
       organizationId: options.organizationId,
       turnstileToken: options.turnstileToken,
+      flowFields: options.flowFields,
     })
     return {
       support: 'no',
@@ -216,7 +219,9 @@ describe('useSignIn passkey policy gate', () => {
       </QueryClientProvider>,
     )
 
-    expect(passkeyCalls).toEqual([{ enabled: false, organizationId: null, turnstileToken: null }])
+    expect(passkeyCalls).toEqual([
+      expect.objectContaining({ enabled: false, organizationId: null, turnstileToken: null }),
+    ])
   })
 
   it('passes selected organization hint into passkey sign-in', () => {
@@ -231,7 +236,11 @@ describe('useSignIn passkey policy gate', () => {
     )
 
     expect(passkeyCalls).toEqual([
-      { enabled: false, organizationId: 'org_selected', turnstileToken: null },
+      expect.objectContaining({
+        enabled: false,
+        organizationId: 'org_selected',
+        turnstileToken: null,
+      }),
     ])
   })
 })
@@ -286,6 +295,73 @@ describe('useSignIn rememberMe', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+})
+
+describe('useSignIn application continuation', () => {
+  it('sends the /authorize continuation with every credential method', async () => {
+    authConfigState.config = null
+    postCalls.length = 0
+    passkeyCalls.length = 0
+    routerState.search = {
+      authz_request_id: 'authz-1',
+      client_id: 'app-1',
+      organization_id: 'tenant-1',
+      intent: 'sign-in',
+    }
+    ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+    const queryClient = new QueryClient()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    let captured: ReturnType<typeof useSignIn> | null = null
+    function Host(): ReactNode {
+      captured = useSignIn()
+      return null
+    }
+    const root = createRoot(container)
+    const expectedFlow = {
+      continue: '/authorize?authz_request_id=authz-1&client_id=app-1',
+      clientId: 'app-1',
+      intent: 'sign-in',
+    }
+
+    try {
+      await act(async () => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <Host />
+          </QueryClientProvider>,
+        )
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured?.[0].turnstileReady).toBe(true))
+      })
+
+      await act(async () => {
+        captured?.[1].submitPassword()
+        captured?.[1].submitMagicLink()
+      })
+      await act(async () => {
+        captured?.[1].setMethod('otp-email')
+      })
+      await act(async () => {
+        captured?.[1].submitOtpRequest()
+        captured?.[1].submitOtpVerify()
+      })
+
+      expect(postCalls.map((call) => call.path)).toEqual([
+        '/auth/password/sign-in',
+        '/auth/magic-link/send',
+        '/auth/otp/email/send',
+        '/auth/otp/email/verify',
+      ])
+      for (const call of postCalls) expect(call.body).toMatchObject(expectedFlow)
+      expect(passkeyCalls.at(-1)?.flowFields).toEqual(expectedFlow)
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+      routerState.search = {}
+    }
   })
 })
 

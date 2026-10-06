@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PUBLIC_AUTH_CONFIG } from './auth-config'
 import {
+  apiErrorToKey,
   enabledSignInMethods,
   getEnabledOtpMethods,
   identifierPrompt,
   initialSignInMethod,
   isOtpMethod,
-  resolveHostedReturn,
   resolveOtpMethod,
   requiredProfileFields,
   shouldShowOtpMethodSwitch,
@@ -14,6 +14,7 @@ import {
   visibleProfileFields,
 } from './shared'
 import type { SignInMethod } from './shared'
+import { buildSignInFlowFields, resolveHostedReturn } from './sign-in-flow'
 import type { PublicHostedAuthConfig } from './auth-config'
 
 function withIdentifierMode(
@@ -252,15 +253,20 @@ describe('Hosted Auth return target helpers', () => {
   }
 
   it('OIDC authorize context 优先回到 server authorize 续跑', () => {
-    expect(resolveHostedReturn('/account', 'authz_123')).toBe(
-      '/authorize?authz_request_id=authz_123',
-    )
+    expect(
+      resolveHostedReturn(
+        { continue: '/account', authz_request_id: 'authz_123', client_id: 'app_1' },
+        '/console',
+      ),
+    ).toBe('/authorize?authz_request_id=authz_123&client_id=app_1')
   })
 
   it('没有 OIDC authorize context 时使用普通 continue', () => {
     withLocationOrigin('https://acme.xid.dev/')
     try {
-      expect(resolveHostedReturn('/console', null)).toBe('/console')
+      expect(resolveHostedReturn({ continue: '/account/security' }, '/console')).toBe(
+        '/account/security',
+      )
     } finally {
       Object.defineProperty(globalThis, 'location', {
         configurable: true,
@@ -269,10 +275,10 @@ describe('Hosted Auth return target helpers', () => {
     }
   })
 
-  it('没有 continue 时默认进入统一 console', () => {
-    withLocationOrigin('https://xid.dev/')
+  it('没有 continue 时进入 host 默认落点', () => {
+    withLocationOrigin('https://auth.customer.example/')
     try {
-      expect(resolveHostedReturn(null, null)).toBe('/console')
+      expect(resolveHostedReturn({}, '/account')).toBe('/account')
     } finally {
       Object.defineProperty(globalThis, 'location', {
         configurable: true,
@@ -281,16 +287,57 @@ describe('Hosted Auth return target helpers', () => {
     }
   })
 
-  it('非法 continue 回落统一 console', () => {
+  it('非法 continue 回落 host 默认落点', () => {
     withLocationOrigin('https://xid.dev/')
     try {
-      expect(resolveHostedReturn('https://evil.example/steal', null)).toBe('/console')
+      expect(resolveHostedReturn({ continue: 'https://evil.example/steal' }, '/console')).toBe(
+        '/console',
+      )
     } finally {
       Object.defineProperty(globalThis, 'location', {
         configurable: true,
         value: originalLocation,
       })
     }
+  })
+
+  it('application flow fields always carry the /authorize continuation', () => {
+    expect(
+      buildSignInFlowFields({
+        authz_request_id: 'authz_123',
+        client_id: 'app_1',
+        intent: 'sign-in',
+      }),
+    ).toEqual({
+      continue: '/authorize?authz_request_id=authz_123&client_id=app_1',
+      intent: 'sign-in',
+      clientId: 'app_1',
+    })
+  })
+
+  it('local flow fields omit continue so the Worker picks the host default landing', () => {
+    withLocationOrigin('https://xid.dev/')
+    try {
+      expect(buildSignInFlowFields({ continue: 'https://evil.example/steal' })).toEqual({})
+    } finally {
+      Object.defineProperty(globalThis, 'location', {
+        configurable: true,
+        value: originalLocation,
+      })
+    }
+  })
+
+  it('keeps the opaque credential error but names correctable sign-up errors', () => {
+    expect(apiErrorToKey({ code: 'invalid_request' })).toBe('auth_failed')
+    expect(apiErrorToKey({ code: 'not_found' })).toBe('auth_failed')
+    expect(apiErrorToKey({ code: 'account_suspended' })).toBe('account_locked')
+    expect(apiErrorToKey({ code: 'password_breached' })).toBe('password_breached')
+    expect(apiErrorToKey({ code: 'validation_failed', meta: { paramName: 'password' } })).toBe(
+      'password_too_short',
+    )
+    expect(apiErrorToKey({ code: 'validation_failed', meta: { paramName: 'email' } })).toBe(
+      'validation_failed',
+    )
   })
 
   it('organizationSignInUrl 保留登录上下文并用 organization_id resolver hint 选择 organization', () => {

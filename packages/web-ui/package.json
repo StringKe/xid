@@ -11,6 +11,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./api": "./src/api.ts",
+    "./api-errors": "./src/api-errors.ts",
+    "./api-error-message": "./src/api-error-message.ts",
     "./brand-assets": "./src/brand-assets.ts",
     "./class-name": "./src/class-name.ts",
     "./display-names": "./src/display-names.tsx",

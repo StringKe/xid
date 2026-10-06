@@ -91,6 +91,21 @@ export const SITE_PREFIX_PATHS = [
 
 export const CONSOLE_EXACT_PATH = '/console'
 export const CONSOLE_PREFIX_PATH = '/console/'
+export const ACCOUNT_EXACT_PATH = '/account'
+
+export function isConsoleRoute(pathname: string): boolean {
+  return pathname === CONSOLE_EXACT_PATH || pathname.startsWith(CONSOLE_PREFIX_PATH)
+}
+
+export type DefaultLandingPath = typeof CONSOLE_EXACT_PATH | typeof ACCOUNT_EXACT_PATH
+
+// Console Worker routes cover the instance domain and its tenant subdomains only; an active
+// custom hostname serves Hosted Auth and the Core account portal, never /console.
+export function defaultLandingPathFor(input: {
+  customHostname?: string | null
+}): DefaultLandingPath {
+  return input.customHostname ? ACCOUNT_EXACT_PATH : CONSOLE_EXACT_PATH
+}
 export const CORE_UI_ASSET_PREFIX = '/_core/'
 export const WELL_KNOWN_LLMS_PATH = '/.well-known/llms.txt'
 

@@ -1,4 +1,5 @@
-import type { HostedAuthMethodPolicy, HostedAuthPolicy } from '@xid-kit/types'
+import { ACCOUNT_EXACT_PATH } from '@xid-kit/types'
+import type { DefaultLandingPath, HostedAuthMethodPolicy, HostedAuthPolicy } from '@xid-kit/types'
 
 export type PublicInstanceLoginMatch = {
   organizationId: string
@@ -48,6 +49,7 @@ export type PublicHostedAuthConfig = {
     enterpriseSso: HostedAuthPolicy['enterpriseSso']
   }
   socialProviders: readonly PublicSocialProvider[]
+  defaultLandingPath: DefaultLandingPath
 }
 
 const METHOD_DISABLED: HostedAuthMethodPolicy = {
@@ -92,6 +94,7 @@ export const DEFAULT_PUBLIC_AUTH_CONFIG: PublicHostedAuthConfig = {
     },
   },
   socialProviders: [],
+  defaultLandingPath: ACCOUNT_EXACT_PATH,
 }
 
 export function methodEnabled(

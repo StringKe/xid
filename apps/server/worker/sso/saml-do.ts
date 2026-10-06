@@ -5,6 +5,7 @@
 // ChallengeStore 提供 create(put)/consume(get+delete),DO 单线程保证一次性(见 challenge-store.ts)。
 
 import { sha256Hex } from '@xid-kit/crypto'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
@@ -145,7 +146,11 @@ export async function consumeAuthnRequestContext(
   const value = await consumeOnce(c.env, `saml:req:${connectionId}:${inResponseTo}`)
   if (value === null) return null
   if (value === '1') {
-    return { tenantId: '', continuePath: '/console', applicationClientId: null }
+    return {
+      tenantId: '',
+      continuePath: defaultLandingPathFor(c.get('tenant')),
+      applicationClientId: null,
+    }
   }
   let parsed: unknown
   try {

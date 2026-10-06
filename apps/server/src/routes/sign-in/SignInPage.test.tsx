@@ -68,13 +68,24 @@ vi.mock('../../lib/router', () => ({
 vi.mock('./shared', () => ({
   getEnabledOtpMethods: () => [],
   identifierPrompt: () => ({ mode: 'email', type: 'email', autoComplete: 'email' }),
+  isSignInCorrectableErrorKey: () => false,
   requiredProfileFields: () => [],
-  resolveHostedReturn: (continueUrl: string | null, authzRequestId: string | null) =>
-    authzRequestId
-      ? `/authorize?authz_request_id=${encodeURIComponent(authzRequestId)}`
-      : (continueUrl ?? '/console'),
   resolveOtpMethod: () => 'otp-email',
   visibleProfileFields: () => [],
+}))
+
+vi.mock('./sign-in-flow', () => ({
+  resolveHostedReturn: (
+    search: { continue?: string; authz_request_id?: string },
+    fallback: string,
+  ) =>
+    search.authz_request_id
+      ? `/authorize?authz_request_id=${encodeURIComponent(search.authz_request_id)}`
+      : (search.continue ?? fallback),
+}))
+
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useApiErrorMessage: () => () => '',
 }))
 
 vi.mock('./SignInGuestButton', () => ({
@@ -107,6 +118,7 @@ vi.mock('./useSignIn', () => ({
         socialProviders: [],
         resolution: { status: 'resolved' },
         guest: signInState.guestCapability ? { capabilityToken: 'guest-capability-token' } : null,
+        defaultLandingPath: '/console',
       },
       enabledMethods: signInState.enabledMethods,
       identifier: '',
@@ -264,8 +276,7 @@ describe('SignInPage authenticated redirect', () => {
   })
 
   it('keeps an explicit invitation continuation ahead of sign-up onboarding', async () => {
-    routerState.search = { intent: 'sign-up' }
-    signInState.tenantSelection.continueParam = '/accept-invitation?token=invite-1'
+    routerState.search = { intent: 'sign-up', continue: '/accept-invitation?token=invite-1' }
 
     await renderPage()
 

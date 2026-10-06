@@ -8,7 +8,6 @@ import {
   loadPrimaryEmail,
   maskFingerprint,
   requireSession,
-  resolveActiveSession,
   resolveSession,
   toIso,
 } from '../shared'
@@ -63,9 +62,23 @@ describe('resolveSession / requireSession', () => {
     await expect(resolveSession(c)).resolves.toBe(session)
   })
 
-  it('resolveActiveSession ignores context pending MFA session', async () => {
+  it('resolveSession ignores a context pending MFA session by default', async () => {
     const c = await makeCtx({ ...makeSession('user_1'), status: 'pending_mfa' }).get()
-    await expect(resolveActiveSession(c)).resolves.toBeNull()
+
+    await expect(resolveSession(c)).resolves.toBeNull()
+  })
+
+  it('requireSession accepts only the explicitly allowed pending status', async () => {
+    const pendingSetup = { ...makeSession('user_1'), status: 'pending_mfa_setup' as const }
+    const c = await makeCtx(pendingSetup).get()
+
+    await expect(requireSession(c, { pendingStatuses: ['pending_mfa_setup'] })).resolves.toBe(
+      pendingSetup,
+    )
+    await expect(requireSession(c, { pendingStatuses: ['pending_mfa'] })).rejects.toMatchObject({
+      code: 'unauthorized',
+      httpStatus: 401,
+    })
   })
 
   it('requireSession throws unauthorized when session missing', async () => {

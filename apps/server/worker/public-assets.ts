@@ -1,5 +1,5 @@
 import type { Context, Hono } from 'hono'
-import { isCoreSpaRoute, resolveWebRouteOwnership } from '@xid-kit/types'
+import { isConsoleRoute, isCoreSpaRoute, resolveWebRouteOwnership } from '@xid-kit/types'
 import type { XidHonoEnv } from './lib/types'
 import { applySpaSecurityHeaders } from './security-headers'
 
@@ -49,7 +49,7 @@ async function serveCoreSpaAsset(c: Context<XidHonoEnv>): Promise<Response> {
   if (url.pathname === '/docs' || url.pathname.startsWith('/docs/')) {
     return movedSurfaceNotFound('site')
   }
-  if (url.pathname === '/console' || url.pathname.startsWith('/console/')) {
+  if (isConsoleRoute(url.pathname)) {
     return movedSurfaceNotFound('console')
   }
 

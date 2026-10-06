@@ -166,17 +166,29 @@ describe('acceptInvitation', () => {
 })
 
 describe('invitationAcceptContinuePath', () => {
+  const consoleHost = { orgId: 'org-1', orgName: 'Acme', defaultLandingPath: '/console' } as const
+
   it('builds console org URL with orgId and orgName for owner and admin', () => {
-    expect(invitationAcceptContinuePath('org-1', 'Acme', 'owner')).toBe(
+    expect(invitationAcceptContinuePath({ ...consoleHost, role: 'owner' })).toBe(
       '/console/org?orgId=org-1&orgName=Acme',
     )
-    expect(invitationAcceptContinuePath('org-1', 'Acme', 'admin')).toBe(
+    expect(invitationAcceptContinuePath({ ...consoleHost, role: 'admin' })).toBe(
       '/console/org?orgId=org-1&orgName=Acme',
     )
   })
 
   it('lands plain members on the account portal instead of the console', () => {
-    expect(invitationAcceptContinuePath('org-1', 'Acme', 'member')).toBe('/account')
+    expect(invitationAcceptContinuePath({ ...consoleHost, role: 'member' })).toBe('/account')
+  })
+
+  it('lands an owner on the account portal when the host does not route the console', () => {
+    expect(
+      invitationAcceptContinuePath({
+        ...consoleHost,
+        role: 'owner',
+        defaultLandingPath: '/account',
+      }),
+    ).toBe('/account')
   })
 })
 

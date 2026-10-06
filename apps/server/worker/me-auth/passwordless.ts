@@ -6,6 +6,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
@@ -246,15 +247,16 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
     })
     return c.json({ ok: true })
   }
-
-  await reserveOtpSendRateLimit(c.env, target, tenant.tenantId)
-
-  const db = createTenantDb(c.env.DB, tenant)
   const flow = createPasswordlessFlowContext({
     intent,
     continuePath: continueParam,
     applicationClientId,
+    defaultContinuePath: defaultLandingPathFor(tenant),
   })
+
+  await reserveOtpSendRateLimit(c.env, target, tenant.tenantId)
+
+  const db = createTenantDb(c.env.DB, tenant)
   const skipDefaultMembership = shouldSkipDefaultMembership({
     redirectAfterLogin: flow.continuePath,
     invitationToken,
@@ -425,7 +427,11 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
 
     const db = createTenantDb(c.env.DB, tenant)
     const tokenRow = await loadVerifiableOtp(db, channel, target)
-    const flow = parsePasswordlessFlowContext(tokenRow.flowContext, 'otp_invalid')
+    const flow = parsePasswordlessFlowContext(
+      tokenRow.flowContext,
+      'otp_invalid',
+      defaultLandingPathFor(tenant),
+    )
     // 比对/消费前拒绝带 invitationId 的旧 OTP flow。
     if (flow.invitationId) throw new AppError('otp_invalid')
 

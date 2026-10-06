@@ -22,6 +22,7 @@ vi.mock('@xid-kit/db', () => ({
   resolveInstanceLoginCandidates: vi.fn(),
   resolveTenantContextById: vi.fn(),
   resolveTenantContextByIssuer: vi.fn(),
+  resolveTenantContextByApplicationClientId: vi.fn(),
   schema: {
     verificationTokens: { tokenHash: 'tokenHash' },
     magicLinkTokens: {
@@ -75,6 +76,7 @@ vi.mock('../../auth/otp', () => ({
 import {
   createTenantDb,
   resolveInstanceLogin,
+  resolveTenantContextByApplicationClientId,
   resolveTenantContextById,
   resolveTenantContextByIssuer,
 } from '@xid-kit/db'
@@ -97,6 +99,14 @@ const LOGIN_FLOW_CONTEXT = JSON.stringify({
   intent: null,
   continuePath: '/console',
   applicationClientId: null,
+  invitationId: null,
+})
+const APPLICATION_CONTINUE = '/authorize?authz_request_id=authz-1&client_id=app-1'
+const APPLICATION_FLOW_CONTEXT = JSON.stringify({
+  version: 1,
+  intent: null,
+  continuePath: APPLICATION_CONTINUE,
+  applicationClientId: 'app-1',
   invitationId: null,
 })
 const PRODUCT_SIGN_UP_FLOW_CONTEXT = JSON.stringify({
@@ -948,6 +958,54 @@ describe('POST /auth/otp/email/send', () => {
     )
   })
 
+  it('application sign-in persists the /authorize continuation with the OTP', async () => {
+    vi.mocked(resolveTenantContextByApplicationClientId).mockResolvedValue({
+      ok: true,
+      value: makeTenant() as never,
+    })
+    vi.mocked(resolveTargetUserId).mockResolvedValue('user-1')
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, makeEnv(), '/auth/otp/email/send', {
+      email: 'user@example.com',
+      clientId: 'app-1',
+      continue: APPLICATION_CONTINUE,
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(persistAndSendOtp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flowContext: expect.objectContaining({
+          continuePath: APPLICATION_CONTINUE,
+          applicationClientId: 'app-1',
+        }),
+      }),
+    )
+  })
+
+  it('application sign-in without a continuation is rejected before reserving send quota', async () => {
+    vi.mocked(resolveTenantContextByApplicationClientId).mockResolvedValue({
+      ok: true,
+      value: makeTenant() as never,
+    })
+    vi.mocked(resolveTargetUserId).mockResolvedValue('user-1')
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, makeEnv(), '/auth/otp/email/send', {
+      email: 'user@example.com',
+      clientId: 'app-1',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_request' })
+    expect(reserveOtpSendRateLimit).not.toHaveBeenCalled()
+    expect(persistAndSendOtp).not.toHaveBeenCalled()
+  })
+
   it('forceSso -> 200 但不发送 Email OTP', async () => {
     const auditSend = vi.fn()
     vi.mocked(resolveTargetUserId).mockResolvedValue('user-1')
@@ -1391,6 +1449,32 @@ describe('POST /auth/otp/email/verify', () => {
       expect.anything(),
       expect.objectContaining({ returnPath: '/create-organization' }),
     )
+  })
+
+  it('application sign-in verify returns the persisted /authorize continuation', async () => {
+    vi.mocked(resolveTenantContextByApplicationClientId).mockResolvedValue({
+      ok: true,
+      value: makeTenant() as never,
+    })
+    vi.mocked(constantTimeEqualStr).mockReturnValue(true)
+    vi.mocked(loadVerifiableOtp).mockResolvedValue({
+      tokenHash: 'th-app',
+      userId: 'user-1',
+      codeHash: 'code-hash',
+      flowContext: APPLICATION_FLOW_CONTEXT,
+    } as never)
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, makeEnv(), '/auth/otp/email/verify', {
+      email: 'user@example.com',
+      code: '123456',
+      clientId: 'app-1',
+      continue: APPLICATION_CONTINUE,
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ redirectUrl: APPLICATION_CONTINUE })
   })
 
   it('forceSso -> invalid_credentials 且不消费 Email OTP 不签发 session', async () => {

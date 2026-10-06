@@ -13,7 +13,6 @@ import {
   emptyProfileValues,
   initialSignInMethod,
   profilePayload,
-  resolveHostedReturn,
   organizationSignInUrl,
   type ProfileFieldKey,
   type ProfileValues,
@@ -32,6 +31,7 @@ import {
   clearPendingAuthCompletion,
   setPendingAuthCompletion,
 } from '../../lib/google-analytics-pending-auth'
+import { buildSignInFlowFields, resolveHostedReturn } from './sign-in-flow'
 import { usePasskeySignIn } from './usePasskeySignIn'
 import type { PasskeySupport } from './usePasskeySignIn'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from './auth-config'
@@ -150,17 +150,28 @@ export function useSignIn(): [SignInState, SignInActions] {
     intent?: string
     invitation_token?: string
   }
-  const continueParam = search.continue ?? search.redirect ?? null
   const redirectParam = search.redirect ?? null
   const authzRequestId = search.authz_request_id ?? null
   const selectedOrganizationId = search.organization_id ?? null
-  const hostedReturn = resolveHostedReturn(continueParam, authzRequestId, search.client_id)
-  const signInFlowExtras = {
-    ...(continueParam ? { continue: continueParam } : {}),
-    ...(search.intent ? { intent: search.intent } : {}),
-    ...(search.client_id ? { clientId: search.client_id } : {}),
-    ...(search.invitation_token ? { invitationToken: search.invitation_token } : {}),
-  }
+  const signInFlowExtras = useMemo(
+    () =>
+      buildSignInFlowFields({
+        authz_request_id: search.authz_request_id,
+        continue: search.continue,
+        redirect: search.redirect,
+        client_id: search.client_id,
+        intent: search.intent,
+        invitation_token: search.invitation_token,
+      }),
+    [
+      search.authz_request_id,
+      search.continue,
+      search.redirect,
+      search.client_id,
+      search.intent,
+      search.invitation_token,
+    ],
+  )
 
   // deny-by-default 首屏 magic-link;passkey 探测只揭示 tab,绝不自动切面板。
   const [method, setMethodState] = useState<SignInMethod>(() =>
@@ -178,6 +189,7 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const authConfigQuery = useQuery(authConfigQueryOptions(search, api))
   const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
+  const hostedReturn = resolveHostedReturn(search, authConfig.defaultLandingPath)
   const turnstileReady =
     !authConfigQuery.isPending && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
   const enabledMethods = useMemo<readonly SignInMethod[]>(() => {
@@ -214,20 +226,15 @@ export function useSignIn(): [SignInState, SignInActions] {
         intent: authFlowIntent === 'sign_up' ? 'sign_up' : 'sign_in',
       })
       await refresh()
-      const target = redirectUrl ?? hostedReturn
-      if (authzRequestId) {
-        globalThis.location.href = target
-        return
-      }
-      navigate(target, { replace: true })
+      navigate(redirectUrl ?? hostedReturn, { replace: true })
     },
-    [authFlowIntent, authzRequestId, hostedReturn, navigate, refresh],
+    [authFlowIntent, hostedReturn, navigate, refresh],
   )
 
   const handleAuthResult = useCallback(
     async (result: SignInResult): Promise<void> => {
       if (!result.ok) {
-        setError(apiErrorToKey(result.error.code))
+        setError(apiErrorToKey(result.error))
         return
       }
       if (result.value.nextStep === 'verify_email') {
@@ -250,7 +257,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     enabled: enabledMethods.includes('passkey') && turnstileReady,
     identifier,
     organizationId: selectedOrganizationId,
-    applicationClientId: search.client_id,
+    flowFields: signInFlowExtras,
     turnstileToken,
     onTurnstileConsumed: resetTurnstile,
     onSuccess: async (redirectUrl) => {
@@ -274,7 +281,7 @@ export function useSignIn(): [SignInState, SignInActions] {
       ),
     onSuccess: async (result: PasswordResult) => {
       if (!result.ok) {
-        setError(apiErrorToKey(result.error.code))
+        setError(apiErrorToKey(result.error))
         return
       }
       if (result.value.nextStep === 'verify_email') {
@@ -301,7 +308,7 @@ export function useSignIn(): [SignInState, SignInActions] {
         setPendingAuthCompletion({ method: 'magic_link', intent: analyticsAuthIntent })
       }
       // 枚举防护:不区分邮箱是否存在,统一"已发送"。
-      setError(result.ok ? 'magic_link_sent' : apiErrorToKey(result.error.code))
+      setError(result.ok ? 'magic_link_sent' : apiErrorToKey(result.error))
     },
     onSettled: resetTurnstile,
   })
@@ -334,7 +341,7 @@ export function useSignIn(): [SignInState, SignInActions] {
     },
     onSuccess: (result) => {
       if (!result.ok) {
-        setError(apiErrorToKey(result.error.code))
+        setError(apiErrorToKey(result.error))
         return
       }
       const channel =
@@ -388,7 +395,7 @@ export function useSignIn(): [SignInState, SignInActions] {
       }),
     onSuccess: (result) => {
       if (!result.ok || !result.value.connectionId || !result.value.protocol) {
-        setError(result.ok ? 'auth_failed' : apiErrorToKey(result.error.code))
+        setError(result.ok ? 'auth_failed' : apiErrorToKey(result.error))
         return
       }
       const path =
@@ -420,7 +427,7 @@ export function useSignIn(): [SignInState, SignInActions] {
       }),
     onSuccess: async (result) => {
       if (!result.ok) {
-        setError(apiErrorToKey(result.error.code))
+        setError(apiErrorToKey(result.error))
         return
       }
       await finishSignIn(result.value.redirectUrl, 'guest')

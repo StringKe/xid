@@ -6,7 +6,6 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { Context } from 'hono'
 import * as v from 'valibot'
 import { countRemainingBackupCodes, generateBackupCodes } from '../auth/backup-codes'
 import { listEligiblePasskeyCredentials } from '../auth/passkey-mfa-eligibility'
@@ -14,20 +13,16 @@ import { PASSKEY_LIMIT } from '../auth/passkey-helpers'
 import { activateTotp, createTotpFactor } from '../auth/mfa'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
-import type { SessionData, XidHonoEnv } from '../lib/types'
+import type { XidHonoEnv } from '../lib/types'
 import { otpCodeSchema, readJsonBody, validateBody } from '../lib/validate'
 import { smsDeliveryReady } from '../auth/delivery-channels'
-import { readAllById, requireSession } from './shared'
-import { readSession } from '../lib/session'
+import { activateSessionAfterMfaSetup } from '../lib/mfa-session'
+import { readAllById, requireSession, type SessionRequirement } from './shared'
 
-// 强制 MFA 绑定流程中 session 处于 pending_mfa_setup,绑定端点必须同时接受 active 与 pending_mfa_setup;
-// 用 active-only requireSession 会让强制绑定用户永远 401,无法完成 setup。
-async function requireSetupCapableSession(c: Context<XidHonoEnv>): Promise<SessionData> {
-  const current = c.get('session')
-  if (current?.status === 'active' || current?.status === 'pending_mfa_setup') return current
-  const session = await readSession(c, ['active', 'pending_mfa_setup'])
-  if (!session) throw new AppError('unauthorized', { httpStatus: 401 })
-  return session
+// 强制绑定(pending_mfa_setup)必须能完成 TOTP 绑定;/mfa 挑战页(pending_mfa)需要读取因子列表。
+const MFA_ENROLLMENT_SESSION: SessionRequirement = { pendingStatuses: ['pending_mfa_setup'] }
+const MFA_FACTOR_LIST_SESSION: SessionRequirement = {
+  pendingStatuses: ['pending_mfa', 'pending_mfa_setup'],
 }
 
 // totp/verify body:code 是 TOTP 6 位数字,先 trim 再按 otpCodeSchema 校验(沿用原手写守卫语义)。
@@ -92,18 +87,9 @@ async function hasStrongMfaFactor(
   return activeTotp !== undefined
 }
 
-async function requireMfaListSession(c: Context<XidHonoEnv>) {
-  const current = c.get('session')
-  if (current) return current
-  const session = await readSession(c, ['active', 'pending_mfa', 'pending_mfa_setup'])
-  if (!session) throw new AppError('unauthorized', { httpStatus: 401 })
-  c.set('session', session)
-  return session
-}
-
 // GET /v1/me/mfa-factors
 app.get('/', async (c) => {
-  const session = await requireMfaListSession(c)
+  const session = await requireSession(c, MFA_FACTOR_LIST_SESSION)
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
 
@@ -189,7 +175,7 @@ app.get('/', async (c) => {
 })
 
 app.post('/totp/setup', async (c) => {
-  const session = await requireSetupCapableSession(c)
+  const session = await requireSession(c, MFA_ENROLLMENT_SESSION)
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
 
@@ -228,7 +214,7 @@ app.post('/totp/setup', async (c) => {
 })
 
 app.post('/totp/verify', async (c) => {
-  const session = await requireSetupCapableSession(c)
+  const session = await requireSession(c, MFA_ENROLLMENT_SESSION)
   const tenant = c.get('tenant')
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
@@ -247,10 +233,7 @@ app.post('/totp/verify', async (c) => {
     throw new AppError(result.error.reason === 'already_active' ? 'already_exists' : 'mfa_invalid')
   }
 
-  if (session.status === 'pending_mfa_setup') {
-    const db = createTenantDb(c.env.DB, tenant)
-    await db.sessions.update({ status: 'active' }, eq(schema.sessions.id, session.sessionId))
-  }
+  await activateSessionAfterMfaSetup(c, tenant, session)
 
   return c.json({ activated: true })
 })

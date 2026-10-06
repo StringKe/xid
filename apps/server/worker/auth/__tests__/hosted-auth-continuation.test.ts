@@ -4,10 +4,16 @@ import { resolveHostedAuthFlow } from '../../../shared/hosted-auth-continuation'
 const APPLICATION_CONTINUE =
   '/authorize?authz_request_id=authz_request_1&client_id=application_client'
 
+type FlowInput = Omit<Parameters<typeof resolveHostedAuthFlow>[0], 'defaultContinuePath'>
+
+function resolveOnConsoleHost(input: FlowInput) {
+  return resolveHostedAuthFlow({ ...input, defaultContinuePath: '/console' })
+}
+
 describe('hosted auth continuation contract', () => {
   it('keeps product sign-up on the server-owned organization creation route', () => {
     expect(
-      resolveHostedAuthFlow({
+      resolveOnConsoleHost({
         intent: 'sign-up',
         continuePath: '/account',
       }),
@@ -21,7 +27,7 @@ describe('hosted auth continuation contract', () => {
 
   it('rejects a client-bound product sign-up', () => {
     expect(
-      resolveHostedAuthFlow({
+      resolveOnConsoleHost({
         intent: 'sign-up',
         continuePath: APPLICATION_CONTINUE,
         applicationClientId: 'application_client',
@@ -31,7 +37,7 @@ describe('hosted auth continuation contract', () => {
 
   it('requires Application sign-up to carry a matching client-bound authorize continuation', () => {
     expect(
-      resolveHostedAuthFlow({
+      resolveOnConsoleHost({
         intent: 'application-sign-up',
         continuePath: APPLICATION_CONTINUE,
         applicationClientId: 'application_client',
@@ -44,11 +50,39 @@ describe('hosted auth continuation contract', () => {
     })
 
     expect(
-      resolveHostedAuthFlow({
+      resolveOnConsoleHost({
         intent: 'application-sign-up',
         continuePath: APPLICATION_CONTINUE,
       }),
     ).toBeNull()
+  })
+
+  it('accepts an application sign-in that carries its /authorize continuation', () => {
+    expect(
+      resolveOnConsoleHost({
+        intent: 'sign-in',
+        continuePath: APPLICATION_CONTINUE,
+        applicationClientId: 'application_client',
+      }),
+    ).toMatchObject({ continuePath: APPLICATION_CONTINUE, kind: 'application' })
+  })
+
+  it('rejects an application sign-in without a continuation instead of deriving one', () => {
+    expect(
+      resolveOnConsoleHost({
+        intent: 'sign-in',
+        applicationClientId: 'application_client',
+      }),
+    ).toBeNull()
+  })
+
+  it('falls back to the host default landing for a local flow', () => {
+    expect(resolveHostedAuthFlow({ defaultContinuePath: '/account' })).toEqual({
+      intent: null,
+      continuePath: '/account',
+      applicationClientId: null,
+      kind: 'local',
+    })
   })
 
   it.each([
@@ -94,7 +128,7 @@ describe('hosted auth continuation contract', () => {
     'rejects an inexact Application continuation: $name',
     ({ continuePath, applicationClientId }) => {
       expect(
-        resolveHostedAuthFlow({
+        resolveOnConsoleHost({
           intent: 'application-sign-up',
           continuePath,
           applicationClientId,
@@ -105,16 +139,16 @@ describe('hosted auth continuation contract', () => {
 
   it('rejects any authorize continuation that is not bound to a client', () => {
     expect(
-      resolveHostedAuthFlow({
+      resolveOnConsoleHost({
         intent: 'sign-in',
         continuePath: '/authorize?authz_request_id=authz_request_1',
       }),
     ).toBeNull()
   })
 
-  it('normalizes invitation continuation to Console and never permits client binding', () => {
+  it('normalizes invitation continuation to the default landing and never permits client binding', () => {
     expect(
-      resolveHostedAuthFlow({
+      resolveOnConsoleHost({
         intent: 'sign-up',
         continuePath: '/accept-invitation?token=raw-secret',
         hasInvitation: true,
@@ -127,7 +161,7 @@ describe('hosted auth continuation contract', () => {
     })
 
     expect(
-      resolveHostedAuthFlow({
+      resolveOnConsoleHost({
         intent: 'sign-up',
         continuePath: APPLICATION_CONTINUE,
         applicationClientId: 'application_client',

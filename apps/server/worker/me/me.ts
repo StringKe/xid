@@ -16,10 +16,15 @@ import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
-import { readBrowserSessions } from '../lib/session'
+import {
+  ACTIVE_SESSION_STATUS,
+  PENDING_MFA_SESSION_STATUS,
+  PENDING_MFA_SETUP_SESSION_STATUS,
+  readBrowserSessions,
+} from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { smsDeliveryReady } from '../auth/delivery-channels'
-import { loadPrimaryEmail, readAllById, resolveActiveSession } from './shared'
+import { loadPrimaryEmail, readAllById, resolveSession } from './shared'
 
 type AuthOrg = BrowserAuthOrganization
 
@@ -343,10 +348,21 @@ const ANONYMOUS_ME: MeResponse = {
   sessions: [],
 }
 
+// pending MFA session 不是已认证:只回 session 状态供 SPA 引导到挑战或绑定页,不回用户、组织和其他 session。
+function pendingMe(session: SessionData): MeResponse {
+  return {
+    ...ANONYMOUS_ME,
+    session: { ...toSessionView(session), activeOrganizationId: null },
+  }
+}
+
 // GET /v1/me
 app.get('/', async (c) => {
-  const session = await resolveActiveSession(c)
+  const session = await resolveSession(c, {
+    pendingStatuses: [PENDING_MFA_SESSION_STATUS, PENDING_MFA_SETUP_SESSION_STATUS],
+  })
   if (!session) return c.json(ANONYMOUS_ME)
+  if (session.status !== ACTIVE_SESSION_STATUS) return c.json(pendingMe(session))
   const db = createTenantDb(c.env.DB, c.get('tenant'))
 
   const userRow = await db.users.findOne(

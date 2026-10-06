@@ -10867,6 +10867,10 @@ msgstr "改用备用码"
 msgid "Use a customer-owned hostname for Hosted Auth. XID provisions the hostname and certificate through Cloudflare for SaaS, then activates routing only after both are ready."
 msgstr "为 Hosted Auth 使用客户自有的主机名。XID 通过 Cloudflare for SaaS 配置主机名和证书，并且仅在两者都准备就绪后激活路由。"
 
+#: packages/web-ui/src/api-error-message.ts
+msgid "Use a password with 12 to 128 characters."
+msgstr "请使用 12 到 128 个字符的密码。"
+
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Use a registered passkey with device verification to complete two-factor authentication."
 msgstr "使用已注册且完成设备验证的通行密钥完成双因素认证。"
@@ -11724,8 +11728,8 @@ msgid "Your export and deletion requests will appear here."
 msgstr "您的导出和删除请求将显示在此处。"
 
 #: apps/server/src/routes/account/SecurityPage.tsx
-msgid "Your organization requires MFA. Set up an authenticator app below before continuing."
-msgstr "你的组织要求启用 MFA。请先在下方的身份验证器应用中完成设置，然后再继续。"
+msgid "Your organization requires MFA. Set up an authenticator app or a passkey below before continuing."
+msgstr "你的组织要求开启多因素认证。请先在下方设置身份验证器应用或通行密钥，然后继续。"
 
 #: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "Your password"

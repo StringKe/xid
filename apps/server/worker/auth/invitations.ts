@@ -3,7 +3,8 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, resolveTenantContextByIdInInstance, schema } from '@xid-kit/db'
-import type { OrganizationMembershipRole } from '@xid-kit/types'
+import { ACCOUNT_EXACT_PATH, CONSOLE_EXACT_PATH } from '@xid-kit/types'
+import type { DefaultLandingPath, OrganizationMembershipRole } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
@@ -368,13 +369,16 @@ export async function acceptInvitationById(opts: {
   return acceptInvitation({ ...opts, invitation })
 }
 
-// 落地分流:owner/admin 持管理视角,落 console 组织页;member 无管理权限,落 account portal。
-export function invitationAcceptContinuePath(
-  orgId: string,
-  orgName: string,
-  role: OrganizationMembershipRole,
-): string {
-  if (role !== 'owner' && role !== 'admin') return '/account'
+// 落地分流:owner/admin 持管理视角,落 console 组织页;member 无管理权限或当前 host 未路由 Console 时落 account portal。
+export function invitationAcceptContinuePath(input: {
+  orgId: string
+  orgName: string
+  role: OrganizationMembershipRole
+  defaultLandingPath: DefaultLandingPath
+}): string {
+  const { orgId, orgName, role } = input
+  if (input.defaultLandingPath !== CONSOLE_EXACT_PATH) return ACCOUNT_EXACT_PATH
+  if (role !== 'owner' && role !== 'admin') return ACCOUNT_EXACT_PATH
   const params = new URLSearchParams({ orgId, orgName })
   return `/console/org?${params.toString()}`
 }

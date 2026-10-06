@@ -7,6 +7,7 @@ import { AuthLayout } from '../../components/layout'
 import { RequireAuth } from '../../components/RequireAuth'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
+import { useDefaultLandingPath } from '../../lib/default-landing'
 import { trackOrganizationSelected } from '../../lib/google-analytics-funnel'
 import { useNavigate } from '../../lib/router'
 import { page } from '../../styles/product-surface.stylex'
@@ -49,11 +50,12 @@ export function SelectOrganizationPage(): ReactNode {
     authz_request_id?: string
     redirect_to?: string
   }
+  const defaultLandingPath = useDefaultLandingPath()
   const redirectTo =
     search.redirect_to ??
     (search.authz_request_id
       ? `/authorize?authz_request_id=${encodeURIComponent(search.authz_request_id)}`
-      : '/console')
+      : defaultLandingPath)
   const { organizations, setActiveOrganization, signOut } = useAuth()
   const navigate = useNavigate()
   const { t } = useLingui()
@@ -70,9 +72,7 @@ export function SelectOrganizationPage(): ReactNode {
       return
     }
     trackOrganizationSelected()
-    const safeRedirect =
-      redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/console'
-    navigate(safeRedirect, { replace: true })
+    navigate(redirectTo, { replace: true })
   }
 
   // 组织切换点,不接 onboarding steps。

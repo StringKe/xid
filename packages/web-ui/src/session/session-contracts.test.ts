@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { authStatusFromMe, type MeResponse } from './contracts'
+import { authStatusFromMe, pendingMfaCompletionPath, type MeResponse } from './contracts'
 
 describe('authStatusFromMe', () => {
   const session = {
@@ -58,5 +58,35 @@ describe('authStatusFromMe', () => {
     expect(() => anonymousShell.user?.id).not.toThrow()
     expect(anonymousShell.user?.id).toBeUndefined()
     expect(authStatusFromMe(anonymousShell)).toBe('unauthenticated')
+  })
+
+  it.each(['pending_mfa', 'pending_mfa_setup'] as const)(
+    'reports a %s session as pending instead of authenticated',
+    (status) => {
+      const pendingShell: MeResponse = {
+        user: null,
+        activeOrg: null,
+        organizations: [],
+        managerAssignments: [],
+        session: { ...session, status },
+        activeSessionId: null,
+        sessions: [],
+      }
+
+      expect(authStatusFromMe(pendingShell)).toBe(status)
+    },
+  )
+})
+
+describe('pendingMfaCompletionPath', () => {
+  it('sends pending_mfa to the challenge and pending_mfa_setup to enrollment', () => {
+    const resume = '/authorize?authz_request_id=x&client_id=c'
+
+    expect(pendingMfaCompletionPath('pending_mfa', resume)).toBe(
+      `/mfa?redirect_to=${encodeURIComponent(resume)}`,
+    )
+    expect(pendingMfaCompletionPath('pending_mfa_setup', resume)).toBe(
+      `/account/security?setup=mfa&redirect_to=${encodeURIComponent(resume)}`,
+    )
   })
 })

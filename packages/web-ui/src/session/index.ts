@@ -5,5 +5,17 @@ export type {
   SessionContextValue,
   SessionProviderProps,
 } from './SessionProvider'
-export { authStatusFromMe, isGuestUser } from './contracts'
-export type { AuthOrg, AuthSession, AuthStatus, AuthUser, MeResponse } from './contracts'
+export {
+  authStatusFromMe,
+  isGuestUser,
+  isPendingMfaStatus,
+  pendingMfaCompletionPath,
+} from './contracts'
+export type {
+  AuthOrg,
+  AuthSession,
+  AuthStatus,
+  AuthUser,
+  MeResponse,
+  PendingMfaAuthStatus,
+} from './contracts'

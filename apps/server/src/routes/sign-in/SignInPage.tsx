@@ -18,17 +18,21 @@ import { useSignIn } from './useSignIn'
 import { useTurnstile } from './useTurnstile'
 import { isProductSignUpIntent, isSignUpIntent } from '../../../shared/hosted-auth-intent'
 import { forgotPasswordHref } from '../forgot-password/navigation'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import type { ApiErrorInput } from '@xid-kit/web-ui/api-errors'
 import {
   getEnabledOtpMethods,
   identifierPrompt,
+  isSignInCorrectableErrorKey,
   requiredProfileFields,
-  resolveHostedReturn,
   resolveOtpMethod,
   visibleProfileFields,
   type IdentifierPrompt,
   type ProfileFieldKey,
+  type SignInCorrectableErrorKey,
   type SignInErrorKey,
 } from './shared'
+import { resolveHostedReturn } from './sign-in-flow'
 
 // 互切 intent 时透传认证动线参数;verified/reauthenticate/select_account 为一次性不带。
 const INTENT_SWITCH_KEYS = [
@@ -43,6 +47,7 @@ const INTENT_SWITCH_KEYS = [
 type SignInSearch = {
   intent?: string
   continue?: string
+  redirect?: string
   client_id?: string
   invitation_token?: string
   organization_id?: string
@@ -65,9 +70,19 @@ function buildIntentSwitchSearch(search: SignInSearch, target: 'sign-in' | 'sign
   return query ? `?${query}` : ''
 }
 
+function correctableError(key: SignInCorrectableErrorKey): ApiErrorInput {
+  return key === 'password_too_short'
+    ? { code: 'validation_failed', meta: { paramName: 'password' } }
+    : { code: key }
+}
+
 // 枚举防护:不区分用户不存在 / 密码错误。
 function useErrorMessage(key: SignInErrorKey | null): string | null {
   const { t } = useLingui()
+  const apiErrorMessage = useApiErrorMessage()
+  if (key !== null && isSignInCorrectableErrorKey(key)) {
+    return apiErrorMessage(correctableError(key), { surface: 'general' })
+  }
   switch (key) {
     case 'auth_failed':
       return t`Sign-in failed. Please check your credentials and try again.`
@@ -266,21 +281,13 @@ function SignInPage(): ReactNode {
     (field) => state.profileValues[field].trim() !== '',
   )
 
-  const signedInReturn = resolveHostedReturn(
-    state.tenantSelection.continueParam ?? state.tenantSelection.redirect,
-    state.tenantSelection.authzRequestId,
-    search.client_id,
-  )
+  const signedInReturn = resolveHostedReturn(search, state.authConfig.defaultLandingPath)
   const isInvitationReturn = signedInReturn.startsWith('/accept-invitation?')
 
   // 授权/邀请续跑原流程;普通 sign-up 进组织 onboarding。
   useEffect(() => {
     if (status !== 'authenticated' || requiresExplicitInteraction) return
-    if (state.tenantSelection.authzRequestId) {
-      globalThis.location.href = signedInReturn
-      return
-    }
-    if (isProductSignUpFlow && !isInvitationReturn) {
+    if (isProductSignUpFlow && !isInvitationReturn && !state.tenantSelection.authzRequestId) {
       navigate('/create-organization', { replace: true })
       return
     }

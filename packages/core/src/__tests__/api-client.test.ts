@@ -141,6 +141,39 @@ describe('XidApiClient', () => {
     })
   })
 
+  it('treats a pending MFA /v1/me session as signed out', async () => {
+    const fetcher = makeFetch({
+      '/v1/me': () => ({
+        status: 200,
+        json: {
+          user: null,
+          activeOrg: null,
+          organizations: [],
+          managerAssignments: [],
+          session: {
+            id: 'sess_pending',
+            status: 'pending_mfa_setup',
+            expiresAt: '2030-01-01T00:00:00.000Z',
+            isImpersonation: false,
+            userId: 'user_1',
+            activeOrganizationId: null,
+            lastActiveAt: '2029-01-01T00:00:00.000Z',
+          },
+          activeSessionId: null,
+          sessions: [],
+        },
+      }),
+    })
+    const api = new XidApiClient({ fetcher })
+
+    const result = await api.loadState()
+
+    expect(result).toEqual({
+      ok: true,
+      value: { activeSessionId: null, sessions: [], user: null },
+    })
+  })
+
   it.each([null, {}, { user: null, session: null }])(
     'throws XidNetworkError for a malformed successful /v1/me response',
     async (json) => {

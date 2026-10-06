@@ -17,6 +17,7 @@ import { RoutePageSeo } from './components/RoutePageSeo'
 
 import { Spinner } from './components/ui'
 import { RequireAuth } from './components/RequireAuth'
+import type { PendingMfaAuthStatus } from './lib/auth-context'
 
 type PageModule = { default: () => ReactNode }
 type PageLoader = () => Promise<PageModule>
@@ -53,14 +54,19 @@ function protectedRoute(id: string, path: string, load: PageLoader) {
   )
 }
 
-function accountRoute(id: string, path: string, load: PageLoader) {
+function accountRoute(
+  id: string,
+  path: string,
+  load: PageLoader,
+  options: { completesPendingMfa?: PendingMfaAuthStatus } = {},
+) {
   return createRoute({ getParentRoute: () => rootRoute, path }).lazy(() =>
     Promise.all([import('./routes/account/AccountLayout'), load()]).then(([layout, m]) => {
       const Page = m.default
       const { AccountLayout } = layout
       return createLazyRoute(id)({
         component: () => (
-          <RequireAuth>
+          <RequireAuth completesPendingMfa={options.completesPendingMfa}>
             <AccountLayout>
               <Page />
             </AccountLayout>
@@ -155,6 +161,7 @@ const accountSecurityRoute = accountRoute(
   '/account/security',
   '/account/security',
   () => import('./routes/account/SecurityPage'),
+  { completesPendingMfa: 'pending_mfa_setup' },
 )
 const accountConnectionsRoute = accountRoute(
   '/account/connections',

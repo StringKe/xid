@@ -4,6 +4,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -255,8 +256,6 @@ export type LegacyConfig = {
   vaultCredentialRef?: string
 }
 
-const DEFAULT_AUTH_RETURN_PATH = '/console'
-
 function readLegacyConfig(connection: LegacyConnection): LegacyConfig {
   const mapping = connection.attributeMapping
   const legacy =
@@ -365,9 +364,10 @@ export async function completeLegacyLogin(input: {
   const { userId } = await jitProvision(c, assertion, { skipDefaultMembership })
 
   const now = new Date()
+  const defaultLandingPath = defaultLandingPathFor(c.get('tenant'))
   const safeLocalRedirect = isLocalPath(input.redirectAfterLogin ?? config.redirectAfterLogin ?? '')
-    ? (input.redirectAfterLogin ?? config.redirectAfterLogin ?? DEFAULT_AUTH_RETURN_PATH)
-    : DEFAULT_AUTH_RETURN_PATH
+    ? (input.redirectAfterLogin ?? config.redirectAfterLogin ?? defaultLandingPath)
+    : defaultLandingPath
   const returnToOrigin = input.returnToOrigin ?? c.get('tenant').issuer.replace(/\/$/, '')
   const mfaGate = await resolvePostAuthMfaGate(c, c.get('tenant'), {
     userId,

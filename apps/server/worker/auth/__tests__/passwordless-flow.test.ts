@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { XidErrorCode } from '@xid-kit/types'
 import { AppError } from '../../lib/errors'
 import {
   createPasswordlessFlowContext,
@@ -6,16 +7,26 @@ import {
   serializePasswordlessFlowContext,
 } from '../passwordless-flow'
 
+const DEFAULT_LANDING = '/console'
+
+type FlowInput = Omit<Parameters<typeof createPasswordlessFlowContext>[0], 'defaultContinuePath'>
+
+function createFlow(input: FlowInput) {
+  return createPasswordlessFlowContext({ ...input, defaultContinuePath: DEFAULT_LANDING })
+}
+
+function parseFlow(value: string, invalidCode: XidErrorCode) {
+  return parsePasswordlessFlowContext(value, invalidCode, DEFAULT_LANDING)
+}
+
 describe('passwordless flow context', () => {
   it('round-trips a normalized local sign-in continuation', () => {
-    const flow = createPasswordlessFlowContext({
+    const flow = createFlow({
       intent: 'sign-in',
       continuePath: '/account?tab=security',
     })
 
-    expect(
-      parsePasswordlessFlowContext(serializePasswordlessFlowContext(flow), 'otp_invalid'),
-    ).toEqual({
+    expect(parseFlow(serializePasswordlessFlowContext(flow), 'otp_invalid')).toEqual({
       version: 1,
       intent: 'sign-in',
       continuePath: '/account?tab=security',
@@ -25,23 +36,21 @@ describe('passwordless flow context', () => {
   })
 
   it('makes product sign-up target server-owned even when the caller supplies another local path', () => {
-    const flow = createPasswordlessFlowContext({
+    const flow = createFlow({
       intent: 'sign-up',
       continuePath: '/console',
     })
 
     expect(flow.continuePath).toBe('/create-organization')
-    expect(
-      parsePasswordlessFlowContext(serializePasswordlessFlowContext(flow), 'otp_invalid'),
-    ).toEqual(flow)
+    expect(parseFlow(serializePasswordlessFlowContext(flow), 'otp_invalid')).toEqual(flow)
   })
 
   it('binds an Application continuation to the matching client id', () => {
     const continuePath = '/authorize?authz_request_id=req_1&client_id=client_1'
     expect(
-      parsePasswordlessFlowContext(
+      parseFlow(
         serializePasswordlessFlowContext(
-          createPasswordlessFlowContext({
+          createFlow({
             intent: 'application-sign-up',
             continuePath,
             applicationClientId: 'client_1',
@@ -52,7 +61,7 @@ describe('passwordless flow context', () => {
     ).toMatchObject({ continuePath, applicationClientId: 'client_1' })
 
     expect(() =>
-      createPasswordlessFlowContext({
+      createFlow({
         intent: 'application-sign-up',
         continuePath,
         applicationClientId: 'client_2',
@@ -60,9 +69,15 @@ describe('passwordless flow context', () => {
     ).toThrowError(expect.objectContaining({ code: 'invalid_request' }) as AppError)
   })
 
+  it('rejects an application sign-in that omits its /authorize continuation', () => {
+    expect(() => createFlow({ intent: 'sign-in', applicationClientId: 'client_1' })).toThrowError(
+      expect.objectContaining({ code: 'invalid_request' }) as AppError,
+    )
+  })
+
   it('rejects Application sign-up without a client before persisting the flow', () => {
     expect(() =>
-      createPasswordlessFlowContext({
+      createFlow({
         intent: 'application-sign-up',
         continuePath: '/authorize?authz_request_id=req_1',
       }),
@@ -72,7 +87,7 @@ describe('passwordless flow context', () => {
   it('stores only an invitation locator and never the raw invitation capability', () => {
     const rawInvitationToken = 'tenant_locator.raw-secret'
     const serialized = serializePasswordlessFlowContext(
-      createPasswordlessFlowContext({
+      createFlow({
         invitationId: 'invitation_1',
         continuePath: `/accept-invitation?token=${rawInvitationToken}`,
       }),
@@ -80,7 +95,7 @@ describe('passwordless flow context', () => {
 
     expect(serialized).toContain('invitation_1')
     expect(serialized).not.toContain(rawInvitationToken)
-    expect(parsePasswordlessFlowContext(serialized, 'otp_invalid').continuePath).toBe('/console')
+    expect(parseFlow(serialized, 'otp_invalid').continuePath).toBe(DEFAULT_LANDING)
   })
 
   it.each([
@@ -102,24 +117,18 @@ describe('passwordless flow context', () => {
       },
     },
   ])('rejects a client-bound $name before creating a challenge', ({ input }) => {
-    expect(() => createPasswordlessFlowContext(input)).toThrowError(
+    expect(() => createFlow(input)).toThrowError(
       expect.objectContaining({ code: 'invalid_request' }) as AppError,
     )
   })
 
   it('fails closed on unknown fields or a rewritten persisted continuation', () => {
-    const flow = createPasswordlessFlowContext({ intent: 'sign-up' })
+    const flow = createFlow({ intent: 'sign-up' })
     expect(() =>
-      parsePasswordlessFlowContext(
-        JSON.stringify({ ...flow, continuePath: '/console' }),
-        'otp_invalid',
-      ),
+      parseFlow(JSON.stringify({ ...flow, continuePath: '/console' }), 'otp_invalid'),
     ).toThrowError(expect.objectContaining({ code: 'otp_invalid' }) as AppError)
     expect(() =>
-      parsePasswordlessFlowContext(
-        JSON.stringify({ ...flow, attackerControlled: true }),
-        'otp_invalid',
-      ),
+      parseFlow(JSON.stringify({ ...flow, attackerControlled: true }), 'otp_invalid'),
     ).toThrowError(expect.objectContaining({ code: 'otp_invalid' }) as AppError)
   })
 })

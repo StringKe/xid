@@ -37,9 +37,9 @@ function toPasskeyView(row: typeof schema.passkeyCredentials.$inferSelect): Pass
 
 const app = new Hono<XidHonoEnv>()
 
-// GET /v1/me/passkeys
+// GET /v1/me/passkeys:强制绑定(pending_mfa_setup)页面也渲染 passkey 注册区块。
 app.get('/', async (c) => {
-  const session = await requireSession(c)
+  const session = await requireSession(c, { pendingStatuses: ['pending_mfa_setup'] })
   const db = createTenantDb(c.env.DB, c.get('tenant'))
   const rows = await db.passkeyCredentials.findMany(
     and(

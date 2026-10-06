@@ -16,7 +16,7 @@ import {
 } from '@xid-kit/saml'
 import type { AttributeMapping } from '@xid-kit/saml'
 import { createTenantDb, resolveTenantContextByApplicationClientId, schema } from '@xid-kit/db'
-import { DEFAULT_SESSION_POLICY } from '@xid-kit/types'
+import { DEFAULT_SESSION_POLICY, defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -72,7 +72,6 @@ const saml = new Hono<XidHonoEnv>()
 
 // RelayState 最大 2KB(超长截断记日志,见第 1 节决策)。
 const RELAY_STATE_MAX = 2048
-const DEFAULT_AUTH_RETURN_PATH = '/console'
 const INVITATION_PATH = '/accept-invitation'
 
 // base64 XML 上限(字符数):schema 层拒超大 SAMLResponse/SAMLRequest,量级对齐 SAML_METADATA_MAX_BYTES。
@@ -146,7 +145,7 @@ export function toAttributeMapping(raw: Record<string, unknown>): AttributeMappi
 // RelayState 白名单:必须与本租户 issuer 同 origin,否则回退默认登录后页(防 open redirect,见 8.8 成功分支)。
 // 导出供单测覆盖 open redirect 阻断。
 export function resolveRelayState(ctx: TenantVar, relayState: string | null): string {
-  const fallback = `${ctx.issuer}${DEFAULT_AUTH_RETURN_PATH}`
+  const fallback = `${ctx.issuer}${defaultLandingPathFor(ctx)}`
   if (!relayState) return fallback
   const trimmed = relayState.slice(0, RELAY_STATE_MAX)
   try {
@@ -250,9 +249,10 @@ async function runAcs(c: Context<XidHonoEnv>, connectionId: string): Promise<Res
   const relayTarget = requestFlow
     ? new URL(requestFlow.continuePath, c.get('tenant').issuer).toString()
     : resolveRelayState(c.get('tenant'), relayState)
+  const defaultLandingPath = defaultLandingPathFor(c.get('tenant'))
   const localRelayTarget = relayTarget.startsWith(c.get('tenant').issuer)
-    ? relayTarget.slice(c.get('tenant').issuer.length) || DEFAULT_AUTH_RETURN_PATH
-    : DEFAULT_AUTH_RETURN_PATH
+    ? relayTarget.slice(c.get('tenant').issuer.length) || defaultLandingPath
+    : defaultLandingPath
   if (!requestFlow && isAuthorizeContinuation(localRelayTarget)) {
     throw new AppError('invalid_request')
   }
@@ -639,7 +639,7 @@ saml.get('/saml/:connection/login', async (c) => {
 
     const connection = await resolveConnection(c, connectionId)
     const rawContinue =
-      c.req.query('relay_state') ?? c.req.query('continue') ?? DEFAULT_AUTH_RETURN_PATH
+      c.req.query('relay_state') ?? c.req.query('continue') ?? defaultLandingPathFor(tenant)
     const applicationClientId = c.req.query('client_id')?.trim() || null
     const applicationContinuation = applicationClientId
       ? resolveApplicationAuthorizeContinuation(rawContinue, applicationClientId)

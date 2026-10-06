@@ -3,7 +3,9 @@
 
 import { base64UrlDecode, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, resolveTenantContextById, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { verifyAuthentication } from '@xid-kit/webauthn'
+import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -54,6 +56,8 @@ function decodeWebAuthnBytes(value: string): Uint8Array {
 const verifyBodySchema = v.object({
   organizationId: v.optional(v.string()),
   clientId: v.optional(v.string()),
+  continue: v.optional(v.nullable(v.string())),
+  intent: v.optional(v.nullable(v.string())),
   turnstileToken: v.optional(v.nullable(v.string())),
   sessionId: v.string(),
   id: v.optional(v.string()),
@@ -190,6 +194,13 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
     code: 'invalid_credentials',
     credentialFields: ['sessionId', 'rawId', 'id', 'type', 'response'],
   })
+  const flow = resolveHostedAuthFlow({
+    intent: body.intent,
+    continuePath: body.continue,
+    applicationClientId: body.clientId,
+    defaultContinuePath: defaultLandingPathFor(c.get('tenant')),
+  })
+  if (!flow) throw new AppError('invalid_request')
   await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
   const tenant = await resolvePasskeyVerifyTenant(c, body.organizationId, body.clientId)
   try {
@@ -230,7 +241,11 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
     })
 
     const now = new Date()
-    const returnPath = postAuthRedirectPath({})
+    const returnPath = postAuthRedirectPath({
+      intent: flow.intent,
+      continueParam: flow.continuePath,
+      fallback: defaultLandingPathFor(tenant),
+    })
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId,
       returnPath,
@@ -247,6 +262,6 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
       userAgent: requestUserAgent(c),
     })
 
-    return c.json(mfaGate.redirectUrl ? { redirectUrl: mfaGate.redirectUrl } : {})
+    return c.json({ redirectUrl: mfaGate.redirectUrl ?? returnPath })
   })
 }

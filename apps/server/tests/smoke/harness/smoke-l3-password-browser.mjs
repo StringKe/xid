@@ -301,7 +301,7 @@ async function hotp(secretBytes, counter) {
   return String(code % 1000000).padStart(6, '0')
 }
 
-function currentTotpCode(secret) {
+export function currentTotpCode(secret) {
   const counter = Math.floor(Date.now() / 1000 / 30)
   return hotp(base32Decode(secret), counter)
 }
@@ -1353,7 +1353,7 @@ class CdpPage {
   }
 }
 
-async function withChrome(fn) {
+export async function withChrome(fn) {
   const port = await freePort()
   const profileDir = await mkdtemp(join(tmpdir(), 'xid-l3-chrome-'))
   const chrome = spawn(

@@ -30,6 +30,10 @@ vi.mock('../../components/LanguageSwitcher', () => ({
   LanguageSwitcher: () => <span>Language</span>,
 }))
 
+vi.mock('../../lib/default-landing', () => ({
+  useDefaultLandingPath: () => '/console',
+}))
+
 vi.mock('../../lib/theme', () => ({
   useTheme: () => ({
     brand: { appName: 'XID', logoUrl: null },

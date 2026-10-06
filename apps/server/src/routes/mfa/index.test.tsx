@@ -83,6 +83,10 @@ vi.mock('../../lib/google-analytics-funnel', () => ({
   trackMfaComplete: vi.fn(),
 }))
 
+vi.mock('../../lib/default-landing', () => ({
+  useDefaultLandingPath: () => '/console',
+}))
+
 vi.mock('../account/queries', () => ({
   useMfaFactorsQuery: () => ({
     data: factorsState.factors,
@@ -228,6 +232,26 @@ describe('MfaPage challenge exits', () => {
     })
 
     expect(routerState.navigate).toHaveBeenCalledWith('/account/security', { replace: true })
+    await unmount(container, root)
+  })
+
+  it('resumes the stashed authorization request after the challenge', async () => {
+    routerState.search = {
+      method: 'totp',
+      redirect_to: '/authorize?authz_request_id=authz_1&client_id=app_1',
+    }
+    factorsState.factors = [{ type: 'totp' }]
+
+    const { container, root } = await renderPage()
+
+    await act(async () => {
+      await mutationState.captured[0]?.onSuccess?.({ ok: true, value: {} })
+    })
+
+    expect(routerState.navigate).toHaveBeenCalledWith(
+      '/authorize?authz_request_id=authz_1&client_id=app_1',
+      { replace: true },
+    )
     await unmount(container, root)
   })
 })

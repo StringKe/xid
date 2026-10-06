@@ -37,6 +37,7 @@ export function createPasswordlessFlowContext(opts: {
   continuePath?: string | null
   applicationClientId?: string | null
   invitationId?: string | null
+  defaultContinuePath: string
 }): PasswordlessFlowContext {
   const invitationId = opts.invitationId?.trim() || null
   if (invitationId !== null && invitationId.length > MAX_INVITATION_ID_LENGTH) {
@@ -47,6 +48,7 @@ export function createPasswordlessFlowContext(opts: {
     continuePath: opts.continuePath,
     applicationClientId: opts.applicationClientId,
     hasInvitation: invitationId !== null,
+    defaultContinuePath: opts.defaultContinuePath,
   })
   if (!resolved) invalid('invalid_request')
 
@@ -66,6 +68,7 @@ export function serializePasswordlessFlowContext(flow: PasswordlessFlowContext):
 export function parsePasswordlessFlowContext(
   value: string | null | undefined,
   invalidCode: XidErrorCode,
+  defaultContinuePath: string,
 ): PasswordlessFlowContext {
   if (!value || value.length > MAX_SERIALIZED_FLOW_LENGTH) return invalid(invalidCode)
   let raw: unknown
@@ -109,6 +112,7 @@ export function parsePasswordlessFlowContext(
     continuePath: record['continuePath'],
     applicationClientId,
     hasInvitation: invitationId !== null,
+    defaultContinuePath,
   })
   if (
     !resolved ||

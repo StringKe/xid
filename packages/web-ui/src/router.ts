@@ -1,5 +1,31 @@
+import {
+  ACCOUNT_EXACT_PATH,
+  CONSOLE_EXACT_PATH,
+  isConsoleRoute,
+  isCoreSpaRoute,
+} from '@xid-kit/types'
+
 export const NAVIGATION_RUNTIMES = ['core', 'console'] as const
 export type NavigationRuntime = (typeof NAVIGATION_RUNTIMES)[number]
+
+type NavigationRuntimeRoutes = {
+  ownsPath: (pathname: string) => boolean
+  fallbackPath: string
+}
+
+// 每个 SPA 只在自己的路由树内做客户端导航;/authorize 等 Worker 端点和另一个 SPA 的路径一律整页请求。
+const NAVIGATION_RUNTIME_ROUTES: Readonly<Record<NavigationRuntime, NavigationRuntimeRoutes>> = {
+  core: { ownsPath: isCoreSpaRoute, fallbackPath: ACCOUNT_EXACT_PATH },
+  console: { ownsPath: isConsoleRoute, fallbackPath: CONSOLE_EXACT_PATH },
+}
+
+export function runtimeOwnsPath(runtime: NavigationRuntime, pathname: string): boolean {
+  return NAVIGATION_RUNTIME_ROUTES[runtime].ownsPath(pathname)
+}
+
+export function navigationFallbackPath(runtime: NavigationRuntime): string {
+  return NAVIGATION_RUNTIME_ROUTES[runtime].fallbackPath
+}
 
 export type NavigateOptions = {
   replace?: boolean
@@ -28,7 +54,7 @@ function hasAsciiControlCharacter(value: string): boolean {
   return false
 }
 
-export function normalizeInternalNavigationTarget(to: string, fallback = '/console'): string {
+export function normalizeInternalNavigationTarget(to: string, fallback: string): string {
   if (to.startsWith('?') || to.startsWith('#')) return to
   if (
     to.startsWith('/') &&
@@ -46,23 +72,13 @@ function targetPathname(to: string, currentPathname: string): string {
   return to.split(/[?#]/, 1)[0] ?? currentPathname
 }
 
-function isConsolePath(pathname: string): boolean {
-  return pathname === '/console' || pathname.startsWith('/console/')
-}
-
-function isSitePath(pathname: string): boolean {
-  return pathname === '/'
-}
-
 export function usesDocumentNavigation(
   runtime: NavigationRuntime,
   to: string,
   currentPathname: string,
 ): boolean {
-  const target = normalizeInternalNavigationTarget(to)
-  const pathname = targetPathname(target, currentPathname)
-  if (runtime === 'console') return !isConsolePath(pathname)
-  return isConsolePath(pathname) || isSitePath(pathname)
+  const target = normalizeInternalNavigationTarget(to, navigationFallbackPath(runtime))
+  return !runtimeOwnsPath(runtime, targetPathname(target, currentPathname))
 }
 
 function browserDocumentNavigation(): DocumentNavigation {
@@ -86,7 +102,7 @@ export function createRouterAdapter(input: {
   return {
     usesDocumentNavigation: shouldUseDocument,
     navigate: (to, options) => {
-      const target = normalizeInternalNavigationTarget(to)
+      const target = normalizeInternalNavigationTarget(to, navigationFallbackPath(input.runtime))
       if (!shouldUseDocument(target)) {
         void input.clientNavigate(target, options)
         return

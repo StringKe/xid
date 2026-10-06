@@ -8,6 +8,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, resolveTenantContextByIdInInstance, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
@@ -1256,11 +1257,12 @@ async function verifyAndConsumeInvitationEmailClaim(opts: {
     })
   }
   const org = await db.organizations.findOne(eq(schema.organizations.id, state.invitation.orgId))
-  const redirectPath = invitationAcceptContinuePath(
-    state.invitation.orgId,
-    org?.name ?? org?.slug ?? state.invitation.orgId,
-    state.invitation.role,
-  )
+  const redirectPath = invitationAcceptContinuePath({
+    orgId: state.invitation.orgId,
+    orgName: org?.name ?? org?.slug ?? state.invitation.orgId,
+    role: state.invitation.role,
+    defaultLandingPath: defaultLandingPathFor(opts.c.get('tenant')),
+  })
   const issued = await issueRecoverableClaimSession({
     c: opts.c,
     tenant,

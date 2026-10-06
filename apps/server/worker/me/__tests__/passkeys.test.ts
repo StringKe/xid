@@ -52,6 +52,25 @@ describe('GET /v1/me/passkeys', () => {
     expect(body[0]).not.toHaveProperty('signCount')
   })
 
+  it('lists passkeys for forced MFA enrollment but not for a pending challenge', async () => {
+    const db = makeFakeD1({ passkey_credentials: [passkeyRow()] })
+    const env = { DB: db } as unknown as Env
+    const setupApp = buildApp({
+      register: registerPasskeysRoutes,
+      session: makeSession({ userId: 'u_1', status: 'pending_mfa_setup' }),
+    })
+    const challengeApp = buildApp({
+      register: registerPasskeysRoutes,
+      session: makeSession({ userId: 'u_1', status: 'pending_mfa' }),
+    })
+
+    const setupRes = await setupApp.request('https://acme.xid.dev/v1/me/passkeys', {}, env)
+    const challengeRes = await challengeApp.request('https://acme.xid.dev/v1/me/passkeys', {}, env)
+
+    expect(setupRes.status).toBe(200)
+    expect(challengeRes.status).toBe(401)
+  })
+
   it('returns 401 when no session cookie present', async () => {
     const db = makeFakeD1({ passkey_credentials: [passkeyRow()] })
     const env = { DB: db } as unknown as Env
