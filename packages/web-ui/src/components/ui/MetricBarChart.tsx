@@ -67,6 +67,7 @@ const styles = stylex.create({
     overflow: 'hidden',
   },
   bar: {
+    display: 'block',
     height: '100%',
   },
 })

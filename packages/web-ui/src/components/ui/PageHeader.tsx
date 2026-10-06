@@ -48,7 +48,8 @@ const styles = stylex.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: '0.5rem',
-    flexShrink: 0,
+    minWidth: 0,
+    maxWidth: '100%',
   },
 })
 
