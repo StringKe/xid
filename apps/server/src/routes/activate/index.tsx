@@ -1,5 +1,7 @@
 // OAuth Device Flow 用户端 activation;登录后走 /auth/device-activation approve/deny。
 // client_id 来自 verification_uri,随每个 API 请求带上,让 Worker 解析到 client 所属租户。
+// 激活 API 用不带 401 回调的 client:当前会话属于其他租户时 401 只表示「换账号」,
+// 不能清掉本页会话状态,否则 RequireAuth 会在登录页与本页之间来回跳转。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useMemo, useState } from 'react'
@@ -12,7 +14,7 @@ import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { AuthLayout } from '../../components/layout'
 import { Alert, Spinner } from '../../components/ui'
 import { signInRedirectTarget } from '../../components/require-auth-redirect'
-import { useAuth } from '../../lib/auth-context'
+import { api } from '../../lib/api'
 import { trackDeviceActivationDecision } from '../../lib/google-analytics-funnel'
 import { queryErrorInput } from '../../lib/query-error'
 import { Link, useLocation } from '../../lib/router'
@@ -52,7 +54,6 @@ function useDeviceErrorMessage(): (error: Pick<XidError, 'code' | 'meta'>) => st
 
 function ActivatePage(): ReactNode {
   const { t } = useLingui()
-  const { api } = useAuth()
   const location = useLocation()
   const deviceErrorMessage = useDeviceErrorMessage()
   const search = useSearch({ strict: false }) as { user_code?: string; client_id?: string }
