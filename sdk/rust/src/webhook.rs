@@ -11,7 +11,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::error::{XidError, XidResult};
@@ -193,7 +193,7 @@ impl WebhookPayload {
 mod tests {
     use super::*;
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use sha2::Sha256;
 
     fn make_signature(secret: &[u8], id: &str, ts: &str, body: &[u8]) -> String {

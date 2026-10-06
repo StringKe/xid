@@ -37,7 +37,7 @@ pub(crate) mod test_key {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     use jsonwebtoken::EncodingKey;
     use p256::{
-        elliptic_curve::{rand_core::OsRng, sec1::ToEncodedPoint},
+        elliptic_curve::{sec1::ToSec1Point, Generate},
         pkcs8::{EncodePrivateKey, LineEnding},
         SecretKey,
     };
@@ -49,9 +49,9 @@ pub(crate) mod test_key {
     }
 
     pub(crate) fn generate_es256_test_key() -> Es256TestKey {
-        let secret_key = SecretKey::random(&mut OsRng);
+        let secret_key = SecretKey::generate_from_rng(&mut rand::rng());
         let private_key = secret_key.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let point = secret_key.public_key().to_encoded_point(false);
+        let point = secret_key.public_key().to_sec1_point(false);
         let x = URL_SAFE_NO_PAD.encode(point.x().unwrap());
         let y = URL_SAFE_NO_PAD.encode(point.y().unwrap());
 

@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rand::RngCore;
+use rand::Rng;
 use sha2::{Digest, Sha256};
 
 /// PKCE S256 参数对
@@ -21,7 +21,7 @@ impl PkceParams {
     pub fn generate() -> Self {
         // 64 字节随机数 -> 86 字符 base64url (无 padding)
         let mut bytes = [0u8; 64];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         let code_verifier = URL_SAFE_NO_PAD.encode(bytes);
 
         // S256: BASE64URL(SHA256(ASCII(code_verifier)))
@@ -41,7 +41,7 @@ impl PkceParams {
 /// 生成 state 参数(32 字节随机数 base64url)
 pub fn generate_state() -> String {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
