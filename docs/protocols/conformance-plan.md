@@ -16,7 +16,7 @@ Evidence levels L0 through L4 are defined in `README.md`. Each section below lis
 
 - OAuth/OIDC protocol package tests: `pnpm --filter @xid-kit/protocol test -- src/__tests__/discovery.test.ts src/__tests__/authorize.test.ts src/__tests__/pkce.test.ts src/__tests__/dpop.test.ts src/__tests__/tokens.test.ts src/__tests__/refresh.test.ts`.
 - Worker OAuth/OIDC focused tests: `pnpm --filter @xid-kit/server exec vitest run worker/oidc/__tests__/discovery.test.ts worker/oidc/__tests__/authorize.test.ts worker/oidc/__tests__/token.test.ts worker/oidc/__tests__/par.test.ts`.
-- SAML focused tests: `pnpm --filter @xid-kit/saml exec vitest run src/__tests__/verify.test.ts` and `pnpm --filter @xid-kit/server exec vitest run worker/sso/__tests__/saml-acs.test.ts worker/sso/__tests__/saml-router.test.ts worker/sso/__tests__/saml-jit.test.ts`.
+- SAML focused tests: `pnpm --filter @xid-kit/saml exec vitest run src/__tests__/verify.test.ts` and `pnpm --filter @xid-kit/server exec vitest run worker/sso/__tests__/saml-acs.test.ts worker/sso/__tests__/saml-router.test.ts worker/sso/__tests__/jit.test.ts`.
 - SCIM focused tests: `pnpm --filter @xid-kit/server exec vitest run worker/scim/__tests__/scim.test.ts`.
 - WebAuthn focused tests: `pnpm --filter @xid-kit/webauthn test` and `pnpm --filter @xid-kit/server exec vitest run worker/auth/__tests__/passkey.test.ts worker/me-auth/__tests__/passkey-signin.test.ts worker/auth/__tests__/mfa.test.ts worker/me-auth/__tests__/mfa-challenge.test.ts worker/me/__tests__/mfa-factors.test.ts`.
 
