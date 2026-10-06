@@ -489,6 +489,22 @@ describe('handleMagicLinkVerify', () => {
     )
   })
 
+  it('浏览器持另一个 guest session -> invalid_credentials,不消费链接、不签发 session', async () => {
+    const db = magicLinkDb()
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    vi.mocked(loadGuestConversionContext).mockResolvedValueOnce({
+      userId: 'guest-1',
+    } as never)
+    const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
+
+    const res = await postVerify(verifyApp(tenant), makeEnv())
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
+    expect(db.magicLinkTokens.update).not.toHaveBeenCalled()
+    expect(issueSession).not.toHaveBeenCalled()
+  })
+
   it('rejects JWT with non-magic_link purpose', async () => {
     vi.mocked(verifyJwt).mockResolvedValue({
       ok: true,

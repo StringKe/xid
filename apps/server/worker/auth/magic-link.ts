@@ -463,6 +463,11 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
     const db = createTenantDb(c.env.DB, tenant)
     // 先查账户状态再消费:不可用账户不消耗链接、不标记邮箱已验证(与 password reset 同序)。
     await assertMagicLinkUserActive(db, signedUserId)
+    // 与 OTP 一致:浏览器持 guest session 时链接只能完成该 guest 的转正,不签入另一个账户而留下 guest 会话。
+    const browserGuest = await loadGuestConversionContext(c, db)
+    if (browserGuest && browserGuest.userId !== signedUserId) {
+      throw new AppError('invalid_credentials')
+    }
     const userId = await consumeMagicToken(db, jti, signedUserId, flow)
     await markPrimaryEmailVerified(db, userId)
     await convertGuestUserById({ c, tenant, db, userId, provisionedBy: 'hosted_passwordless' })

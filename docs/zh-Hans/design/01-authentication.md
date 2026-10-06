@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=7003366d027183deb423e7231c72410f93fe8f2d -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=4d178a1f20a1c3c75923d01dc77099f533209c80 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -173,7 +173,9 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
   reset token。重置成功后,响应中的 `redirectUrl` 回到该续跑位置(例如暂存的 `/authorize`
   请求),不再固定跳到 Console。
 - 在未解析的 Instance 根入口,邮箱匹配多个 Organization 对 `/auth/forgot-password` 不是错误:
-  每个匹配 Organization 各自执行限流、策略检查和重置邮件发送,响应仍是同一个 `200`。
+  每个匹配 Organization 各自执行限流、策略检查和重置邮件发送,响应仍是同一个 `200`。Instance
+  根域上的 session cookie 已选定租户时,该邮箱实际所属的 Organization 同样收到重置邮件(以及重发的
+  验证邮件),Organization A 的 cookie 不会让 Organization B 的账户收不到邮件。
 - reset token 同时携带 `email_hash`(收件 Email 的 SHA-256)。完成重置即证明控制该邮箱:
   如果它仍是用户未验证的主邮箱,重置会把它标为已验证;`hosted_password` 账户首次设密时,
   获得与邮箱验证相同的默认 Membership。
@@ -562,7 +564,7 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
 
 ### 转正(原地 link,sub 不变)
 
-- 路由规则:guest session 有效时,用户完成任意首个凭证仪式(passkey 注册,challenge 已是 reg:{userId}:{tenantId} 形态;设置密码;email OTP 验证;magic link;social 绑定),一律把凭证挂到当前 guest user,不新建 user。租户允许 email OTP 建号时,账户安全页为 guest 提供邮箱验证码表单完成此操作。magic link 可能在另一台设备上打开,因此按 token 绑定的 user 转正:该 user 仍是 guest 时撤销其全部 guest session,只有确认链接的浏览器正持有该 guest 时才解绑 GuestStore。复用 05 章"已登录态添加凭证需认证"的既有 linking 规则,新逻辑只是 me-auth 仪式入口识别 guest session 路由到 link 而非 create。顶层 Tenant onboarding 采集 `pending_email` 不属于凭证仪式;该路径只在新 Tenant 内完成精确目标 Email 验证后转正。
+- 路由规则:guest session 有效时,用户完成任意首个凭证仪式(passkey 注册,challenge 已是 reg:{userId}:{tenantId} 形态;设置密码;email OTP 验证;magic link;social 绑定),一律把凭证挂到当前 guest user,不新建 user。租户允许 email OTP 建号时,账户安全页为 guest 提供邮箱验证码表单完成此操作。magic link 可能在另一台设备上打开,因此按 token 绑定的 user 转正:该 user 仍是 guest 时撤销其全部 guest session,只有确认链接的浏览器正持有该 guest 时才解绑 GuestStore。持有 guest session 的浏览器不能确认绑定到其他用户的 magic link(返回 `invalid_credentials`,链接不被消费),与 email OTP 规则相同。复用 05 章"已登录态添加凭证需认证"的既有 linking 规则,新逻辑只是 me-auth 仪式入口识别 guest session 路由到 link 而非 create。顶层 Tenant onboarding 采集 `pending_email` 不属于凭证仪式;该路径只在新 Tenant 内完成精确目标 Email 验证后转正。
 - pending Email 转正完成:provisioned_by 改写为转正来源,在 SessionDO 和 D1 中吊销全部 guest
   session,清除当前 cookie,并要求用户重新登录。审计事件 guest.converted。其他凭证仪式继续使用
   各自的 credential linking session policy。

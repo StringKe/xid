@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { Alert, Button, Field, Input } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { Link } from '../../lib/router'
@@ -58,6 +59,8 @@ export function ResendVerification(): ReactNode {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
+  const [requestError, setRequestError] = useState<string | null>(null)
+  const apiErrorMessage = useApiErrorMessage()
   const turnstile = useTurnstileGate(needsEmail)
 
   const resendMutation = useMutation({
@@ -67,8 +70,11 @@ export function ResendVerification(): ReactNode {
         needsEmail ? { email, turnstileToken: turnstile.turnstileToken } : undefined,
       ),
     onSuccess: (result) => {
-      // 枚举防护:服务端恒 200;只有限流需要单独提示。
-      if (!result.ok && result.error.code === 'rate_limited') return
+      // 枚举防护:账户是否存在都返回 200;非 200 只会是限流、人机验证或服务端错误,按错误码提示。
+      if (!result.ok) {
+        setRequestError(apiErrorMessage(result.error, { surface: 'general' }))
+        return
+      }
       setSent(true)
     },
     onSettled: turnstile.reset,
@@ -77,6 +83,7 @@ export function ResendVerification(): ReactNode {
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     setEmailError(null)
+    setRequestError(null)
     if (needsEmail && !email.includes('@')) {
       setEmailError(t`Enter a valid email address`)
       return
@@ -92,16 +99,9 @@ export function ResendVerification(): ReactNode {
     )
   }
 
-  const rateLimited =
-    resendMutation.isSuccess &&
-    !resendMutation.data?.ok &&
-    resendMutation.data?.error?.code === 'rate_limited'
-
   return (
     <form onSubmit={handleSubmit} noValidate {...stylex.props(styles.panel)}>
-      {rateLimited ? (
-        <Alert tone="error">{t`Too many requests. Please wait a minute before trying again.`}</Alert>
-      ) : null}
+      {requestError ? <Alert tone="error">{requestError}</Alert> : null}
       {needsEmail ? (
         <>
           <Field label={<Trans>Email address</Trans>} error={emailError ?? undefined} required>

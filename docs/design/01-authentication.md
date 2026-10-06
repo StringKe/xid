@@ -259,7 +259,9 @@ detail goes to the audit log):
   Console path.
 - At the unresolved Instance root an Email that matches several Organizations is not an error for
   `/auth/forgot-password`: each matching Organization runs its own rate limit, policy check, and
-  reset delivery, and the response stays the same `200`.
+  reset delivery, and the response stays the same `200`. When a session cookie at the Instance root
+  already selected a Tenant, the Organizations that the Email resolves to also receive the reset
+  (and the verification resend), so a cookie for Organization A never hides Organization B's account.
 - The reset token also carries `email_hash`, the SHA-256 of the recipient Email. Completing the
   reset proves control of that address: if it is still the user's unverified primary Email, the
   reset marks it verified, and a `hosted_password` account setting its first password receives the
@@ -826,7 +828,9 @@ credential. This section is the design contract. It is implemented in
   Email-code form for this when the tenant allows Email OTP user creation. A magic link may be
   opened on another device, so its verification converts by the user bound in the token: if that
   user is still a guest, every guest session is revoked, and the GuestStore binding is released
-  only when the confirming browser holds that guest. This reuses the chapter 05 rule that adding a credential while
+  only when the confirming browser holds that guest. A browser that holds a guest session cannot
+  confirm a magic link bound to a different user (`invalid_credentials`, link not consumed), the
+  same rule as Email OTP. This reuses the chapter 05 rule that adding a credential while
   signed in requires authentication; the only new logic is that the me-auth ceremony entry points
   recognize a guest session and route to link instead of create. Collecting `pending_email` during
   top-level Tenant onboarding is not a credential ceremony; that path converts only after the
