@@ -24,8 +24,9 @@ import {
   submitImpersonationHandoff,
   type ImpersonationStartResponse,
 } from '../../lib/impersonation-handoff'
-import { useGlobalUsersQuery } from './queries'
-import type { GlobalUser } from './types'
+import { useSearchParams } from '@xid-kit/web-ui/tanstack-router'
+import type { GlobalUser } from '@xid-kit/types'
+import { useGlobalUsersList } from './queries'
 
 const styles = stylex.create({
   searchForm: {
@@ -60,13 +61,14 @@ export default function PlatformUsers(): ReactNode {
   const globalUserStatusLabel = useGlobalUserStatusLabel()
   const [search, setSearch] = useState('')
   const [submitted, setSubmitted] = useState('')
+  const [searchParams] = useSearchParams()
+  const handoffFailed = searchParams.get('impersonation') === 'failed'
   const [pendingUser, setPendingUser] = useState<GlobalUser | null>(null)
   const [targetOrganizationId, setTargetOrganizationId] = useState('')
   const [organizationSelectionError, setOrganizationSelectionError] = useState(false)
   const [startingUserId, setStartingUserId] = useState<string | null>(null)
   const [impersonationError, setImpersonationError] = useState(false)
-  const list = useGlobalUsersQuery(submitted)
-  const { data, isLoading, isError } = list
+  const users = useGlobalUsersList(submitted)
   const columns: ColumnDef<GlobalUser>[] = [
     {
       id: 'email',
@@ -171,11 +173,21 @@ export default function PlatformUsers(): ReactNode {
         </Trans>
       }
     >
-      {isError ? (
+      {users.isError || handoffFailed ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to search users. Please try again.</Trans>
-          </Alert>
+          {handoffFailed ? (
+            <Alert tone="error">
+              <Trans>
+                The impersonation link expired or was already used. Start a new impersonation
+                session from this page.
+              </Trans>
+            </Alert>
+          ) : null}
+          {users.isError ? (
+            <Alert tone="error">
+              <Trans>Failed to search users. Please try again.</Trans>
+            </Alert>
+          ) : null}
         </ConsolePageNotice>
       ) : null}
 
@@ -202,19 +214,19 @@ export default function PlatformUsers(): ReactNode {
         </ConsolePageSection>
       ) : (
         <ConsolePageSection title={<Trans>Users</Trans>}>
-          {data ? (
+          {users.data ? (
             <p {...stylex.props(consoleShell.selectorSummary)}>
-              <Trans>{data.total} users found</Trans>
+              <Trans>{users.data.total} users found</Trans>
             </p>
           ) : null}
           <DataTable
             columns={columns}
-            data={data?.data ?? []}
+            data={users.data?.data ?? []}
             getRowId={(row) => row.id}
-            isLoading={isLoading}
+            isLoading={users.isLoading}
             emptyMessage={<Trans>No users found matching your query.</Trans>}
           />
-          {data ? <Pagination query={list} loadMoreLabel={<Trans>Load more</Trans>} /> : null}
+          <Pagination query={users} loadMoreLabel={<Trans>Load more</Trans>} />
         </ConsolePageSection>
       )}
 
@@ -230,6 +242,11 @@ export default function PlatformUsers(): ReactNode {
           confirmLabel={<Trans>Open read-only session</Trans>}
           confirmVariant="primary"
           isLoading={startingUserId === pendingUser.id}
+          error={
+            impersonationError ? (
+              <Trans>The impersonation session could not be started. Try again.</Trans>
+            ) : undefined
+          }
           onConfirm={() => void startImpersonation()}
           onCancel={() => {
             if (startingUserId) return
@@ -261,11 +278,6 @@ export default function PlatformUsers(): ReactNode {
               ))}
             </Select>
           </Field>
-          {impersonationError ? (
-            <Alert tone="error">
-              <Trans>The impersonation session could not be started. Try again.</Trans>
-            </Alert>
-          ) : null}
         </ConfirmDialog>
       ) : null}
     </ConsolePage>

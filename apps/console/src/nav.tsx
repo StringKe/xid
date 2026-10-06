@@ -190,13 +190,6 @@ export const PLATFORM_NAV: readonly ConsoleNavItem[] = [
     groupLabel: <Trans>Operations</Trans>,
   },
   {
-    to: '/console/platform/flags',
-    label: <Trans>Feature flags</Trans>,
-    icon: 'flag',
-    groupKey: 'operations',
-    groupLabel: <Trans>Operations</Trans>,
-  },
-  {
     to: '/console/platform/status',
     label: <Trans>Status incidents</Trans>,
     icon: 'list-status',

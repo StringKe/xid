@@ -127,7 +127,7 @@ describe('production web route owner contract', () => {
 
     expect(INSTANCE_CONSOLE_ROUTE_CHECKS).toHaveLength(5)
     expect(ORGANIZATION_CONSOLE_ROUTE_CHECKS).toHaveLength(18)
-    expect(PLATFORM_CONSOLE_ROUTE_CHECKS).toHaveLength(13)
+    expect(PLATFORM_CONSOLE_ROUTE_CHECKS).toHaveLength(12)
     expect(new Set(smokePaths).size).toBe(36)
     expect(smokePaths.toSorted()).toEqual(routerPaths.toSorted())
   })

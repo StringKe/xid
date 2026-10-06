@@ -21,16 +21,17 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import type { StatusIncident, XidError } from '@xid-kit/types'
+import { fromLocalDateTime, nowLocalDateTime } from '../../lib/datetime-local'
 import {
   useAppendStatusIncidentUpdate,
   useCreateStatusIncident,
   useDeleteStatusIncident,
-  usePlatformStatusIncidentsQuery,
-  useUpdateStatusIncident,
+  usePlatformStatusIncidentsList,
 } from './queries'
-import type { StatusIncident } from './types'
 
 const styles = stylex.create({
   form: {
@@ -145,25 +146,16 @@ function incidentTone(incident: StatusIncident): 'neutral' | 'success' | 'warnin
 type IncidentItemProps = {
   incident: StatusIncident
   isAppending: boolean
-  isResolving: boolean
   onAppend: (
     incident: StatusIncident,
     status: StatusIncident['status'],
     message: string,
     onSuccess: () => void,
   ) => void
-  onResolve: (incident: StatusIncident) => void
   onDelete: (incident: StatusIncident) => void
 }
 
-function IncidentItem({
-  incident,
-  isAppending,
-  isResolving,
-  onAppend,
-  onResolve,
-  onDelete,
-}: IncidentItemProps): ReactNode {
+function IncidentItem({ incident, isAppending, onAppend, onDelete }: IncidentItemProps): ReactNode {
   const { t } = useLingui()
   const [status, setStatus] = useState<StatusIncident['status']>(incident.status)
   const [message, setMessage] = useState('')
@@ -214,7 +206,15 @@ function IncidentItem({
             <option value="resolved">{t`Resolved`}</option>
           </Select>
         </Field>
-        <Field label={t`Public update`}>
+        <Field
+          label={t`Public update`}
+          hint={
+            <Trans>
+              To resolve the incident, choose Resolved and describe the fix. Every status change is
+              published on the status page timeline.
+            </Trans>
+          }
+        >
           <Textarea
             required
             maxLength={4000}
@@ -226,18 +226,6 @@ function IncidentItem({
           <Button type="submit" isLoading={isAppending}>
             <Trans>Publish update</Trans>
           </Button>
-          {incident.status !== 'resolved' ? (
-            <Button
-              type="button"
-              variant="secondary"
-              isLoading={isResolving}
-              onClick={() => onResolve(incident)}
-              aria-label={t`Resolve incident ${incident.title}`}
-              {...stylex.props(consoleShell.actionButton)}
-            >
-              <Trans>Resolve incident</Trans>
-            </Button>
-          ) : null}
           <Button
             type="button"
             variant="secondary"
@@ -255,35 +243,47 @@ function IncidentItem({
 
 export default function PlatformStatusIncidents(): ReactNode {
   const { t } = useLingui()
-  const query = usePlatformStatusIncidentsQuery()
+  const errorMessage = useApiErrorMessage()
+  const incidents = usePlatformStatusIncidentsList()
+  const incidentRows = incidents.data?.data ?? []
   const create = useCreateStatusIncident()
   const append = useAppendStatusIncidentUpdate()
-  const update = useUpdateStatusIncident()
   const remove = useDeleteStatusIncident()
   const [pendingDelete, setPendingDelete] = useState<StatusIncident | null>(null)
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [impact, setImpact] = useState<StatusIncident['impact']>('minor')
-  const [startedAt, setStartedAt] = useState(new Date().toISOString().slice(0, 16))
+  const [startedAt, setStartedAt] = useState(nowLocalDateTime)
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
+    const startedAtIso = fromLocalDateTime(startedAt)
+    if (!startedAtIso) return
     create.mutate(
       {
         title,
         summary,
         impact,
         status: 'investigating',
-        startedAt: new Date(startedAt).toISOString(),
+        startedAt: startedAtIso,
       },
       {
         onSuccess: () => {
           setTitle('')
           setSummary('')
           setImpact('minor')
+          setStartedAt(nowLocalDateTime())
         },
       },
     )
+  }
+
+  function writeError(error: XidError | null): string | undefined {
+    if (!error) return undefined
+    if (error.code === 'conflict') {
+      return t`Another administrator updated this incident. The list was refreshed; review it and try again.`
+    }
+    return errorMessage(error, { surface: 'general' })
   }
 
   function handleAppend(
@@ -295,17 +295,14 @@ export default function PlatformStatusIncidents(): ReactNode {
     append.mutate({ id: incident.id, status, message }, { onSuccess })
   }
 
-  function handleResolve(incident: StatusIncident): void {
-    update.mutate({
-      id: incident.id,
-      body: { status: 'resolved', resolvedAt: new Date().toISOString() },
-    })
+  function confirmDelete(): void {
+    if (!pendingDelete) return
+    remove.mutate({ id: pendingDelete.id }, { onSuccess: () => setPendingDelete(null) })
   }
 
-  async function confirmDelete(): Promise<void> {
-    if (!pendingDelete) return
-    await remove.mutateAsync({ id: pendingDelete.id })
-    setPendingDelete(null)
+  function openDelete(incident: StatusIncident): void {
+    remove.reset()
+    setPendingDelete(incident)
   }
 
   return (
@@ -317,43 +314,20 @@ export default function PlatformStatusIncidents(): ReactNode {
         </Trans>
       }
     >
-      {query.isError ||
-      create.isError ||
-      create.isSuccess ||
-      append.isError ||
-      update.isError ||
-      remove.isError ? (
+      {incidents.isError || create.error || create.isSuccess || append.error ? (
         <ConsolePageNotice>
-          {query.isError ? (
+          {incidents.isError ? (
             <Alert tone="error">
               <Trans>Failed to load status incidents.</Trans>
             </Alert>
           ) : null}
-          {create.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to open the incident. Try again.</Trans>
-            </Alert>
-          ) : null}
+          {create.error ? <Alert tone="error">{writeError(create.error)}</Alert> : null}
           {create.isSuccess ? (
             <Alert tone="success">
               <Trans>Incident opened.</Trans>
             </Alert>
           ) : null}
-          {append.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to publish the update. Try again.</Trans>
-            </Alert>
-          ) : null}
-          {update.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to resolve the incident. Try again.</Trans>
-            </Alert>
-          ) : null}
-          {remove.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to delete the incident. Try again.</Trans>
-            </Alert>
-          ) : null}
+          {append.error ? <Alert tone="error">{writeError(append.error)}</Alert> : null}
         </ConsolePageNotice>
       ) : null}
 
@@ -408,32 +382,30 @@ export default function PlatformStatusIncidents(): ReactNode {
       </ConsolePageSplitSection>
 
       <ConsolePageSection title={<Trans>Incident ledger</Trans>}>
-        {query.isLoading ? (
+        {incidents.isLoading ? (
           <div {...stylex.props(styles.skeletonStack)}>
             <Skeleton height="8rem" />
             <Skeleton height="8rem" />
             <Skeleton height="8rem" />
           </div>
         ) : null}
-        {!query.isLoading && query.data && query.data.data.length === 0 ? (
+        {!incidents.isLoading && !incidents.isError && incidentRows.length === 0 ? (
           <EmptyState title={<Trans>No incidents have been reported.</Trans>} />
         ) : null}
-        {query.data && query.data.data.length > 0 ? (
+        {incidentRows.length > 0 ? (
           <>
             <div {...stylex.props(styles.list)}>
-              {query.data.data.map((incident) => (
+              {incidentRows.map((incident) => (
                 <IncidentItem
-                  key={incident.id}
+                  key={`${incident.id}:${incident.updatedAt}`}
                   incident={incident}
                   isAppending={append.isPending && append.variables?.id === incident.id}
-                  isResolving={update.isPending && update.variables?.id === incident.id}
                   onAppend={handleAppend}
-                  onResolve={handleResolve}
-                  onDelete={setPendingDelete}
+                  onDelete={openDelete}
                 />
               ))}
             </div>
-            <Pagination query={query} loadMoreLabel={<Trans>Load more</Trans>} />
+            <Pagination query={incidents} loadMoreLabel={<Trans>Load more</Trans>} />
           </>
         ) : null}
       </ConsolePageSection>
@@ -448,7 +420,8 @@ export default function PlatformStatusIncidents(): ReactNode {
           }
           confirmLabel={<Trans>Delete</Trans>}
           isLoading={remove.isPending}
-          onConfirm={() => void confirmDelete()}
+          error={writeError(remove.error)}
+          onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
       ) : null}

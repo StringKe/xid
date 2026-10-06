@@ -72,7 +72,6 @@ const TITLES: Readonly<Record<string, MessageDescriptor>> = {
   },
   '/console/platform/managers': msg`Instance managers | Console | XID`,
   '/console/platform/events': /*i18n*/ { id: 'm_6zdm', message: 'Event stream | Console | XID' },
-  '/console/platform/flags': /*i18n*/ { id: 'u1fW7C', message: 'Feature flags | Console | XID' },
   '/console/platform/billing': /*i18n*/ {
     id: 'pJMmXv',
     message: 'Billing overview | Console | XID',

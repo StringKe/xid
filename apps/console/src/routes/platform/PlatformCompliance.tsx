@@ -20,15 +20,17 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import type { ComplianceDocument } from '@xid-kit/types'
+import { PlatformOrganizationPicker } from '../../components/PlatformOrganizationPicker'
 import {
   useCreateComplianceDocument,
   useDeleteComplianceDocument,
-  usePlatformComplianceDocumentsQuery,
+  usePlatformComplianceDocumentsList,
   useUpdateComplianceDocument,
 } from './queries'
-import type { ComplianceDocument } from './types'
 
 // 机器可读标识/路径示例,翻译会破坏可用性。
 const TECHNICAL_EXAMPLES = {
@@ -168,7 +170,9 @@ function statusLabel(status: ComplianceDocument['status']): ReactNode {
 
 export default function PlatformCompliance(): ReactNode {
   const { t } = useLingui()
-  const query = usePlatformComplianceDocumentsQuery()
+  const errorMessage = useApiErrorMessage()
+  const documents = usePlatformComplianceDocumentsList()
+  const documentRows = documents.data?.data ?? []
   const create = useCreateComplianceDocument()
   const update = useUpdateComplianceDocument()
   const remove = useDeleteComplianceDocument()
@@ -191,10 +195,9 @@ export default function PlatformCompliance(): ReactNode {
     )
   }
 
-  async function confirmDelete(): Promise<void> {
+  function confirmDelete(): void {
     if (!pendingDelete) return
-    await remove.mutateAsync({ id: pendingDelete.id })
-    setPendingDelete(null)
+    remove.mutate({ id: pendingDelete.id }, { onSuccess: () => setPendingDelete(null) })
   }
 
   return (
@@ -207,32 +210,23 @@ export default function PlatformCompliance(): ReactNode {
         </Trans>
       }
     >
-      {query.isError || create.isError || create.isSuccess || update.isError || remove.isError ? (
+      {documents.isError || create.error || create.isSuccess || update.error ? (
         <ConsolePageNotice>
-          {query.isError ? (
+          {documents.isError ? (
             <Alert tone="error">
               <Trans>Failed to load compliance documents.</Trans>
             </Alert>
           ) : null}
-          {create.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to register the compliance document. Try again.</Trans>
-            </Alert>
+          {create.error ? (
+            <Alert tone="error">{errorMessage(create.error, { surface: 'general' })}</Alert>
           ) : null}
           {create.isSuccess ? (
             <Alert tone="success">
               <Trans>Compliance document registered.</Trans>
             </Alert>
           ) : null}
-          {update.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to update the compliance document. Try again.</Trans>
-            </Alert>
-          ) : null}
-          {remove.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to delete the compliance document. Try again.</Trans>
-            </Alert>
+          {update.error ? (
+            <Alert tone="error">{errorMessage(update.error, { surface: 'general' })}</Alert>
           ) : null}
         </ConsolePageNotice>
       ) : null}
@@ -269,13 +263,12 @@ export default function PlatformCompliance(): ReactNode {
               onChange={(event) => setForm({ ...form, title: event.target.value })}
             />
           </Field>
-          <Field label={t`Tenant ID`}>
-            <Input
-              value={form.tenantId}
-              onChange={(event) => setForm({ ...form, tenantId: event.target.value })}
-              placeholder={t`Leave empty for all tenants`}
-            />
-          </Field>
+          <PlatformOrganizationPicker
+            label={t`Tenant`}
+            value={form.tenantId}
+            onChange={(tenantId) => setForm({ ...form, tenantId })}
+            emptyOption={t`All tenants`}
+          />
           <Field label={t`Publication state`}>
             <Select
               value={form.status}
@@ -321,20 +314,20 @@ export default function PlatformCompliance(): ReactNode {
       </ConsolePageSplitSection>
 
       <ConsolePageSection title={<Trans>Evidence ledger</Trans>}>
-        {query.isLoading ? (
+        {documents.isLoading ? (
           <div {...stylex.props(styles.skeletonStack)}>
             <Skeleton height="6rem" />
             <Skeleton height="6rem" />
             <Skeleton height="6rem" />
           </div>
         ) : null}
-        {!query.isLoading && query.data && query.data.data.length === 0 ? (
+        {!documents.isLoading && !documents.isError && documentRows.length === 0 ? (
           <EmptyState title={<Trans>No compliance evidence registered.</Trans>} />
         ) : null}
-        {query.data && query.data.data.length > 0 ? (
+        {documentRows.length > 0 ? (
           <>
             <div {...stylex.props(styles.list)}>
-              {query.data.data.map((document) => (
+              {documentRows.map((document) => (
                 <article key={document.id} {...stylex.props(styles.row)}>
                   <div>
                     <h3 {...stylex.props(styles.rowTitle)}>{document.title}</h3>
@@ -351,7 +344,9 @@ export default function PlatformCompliance(): ReactNode {
                       ) : null}
                     </div>
                     <p {...stylex.props(styles.metadata)}>
-                      {document.tenantId ?? t`All tenants`}
+                      {document.tenantId
+                        ? (document.organizationName ?? document.tenantId)
+                        : t`All tenants`}
                       {document.checksum ? ` · ${document.checksum}` : ''}
                     </p>
                   </div>
@@ -389,7 +384,10 @@ export default function PlatformCompliance(): ReactNode {
                         </Button>
                         <Button
                           variant="secondary"
-                          onClick={() => setPendingDelete(document)}
+                          onClick={() => {
+                            remove.reset()
+                            setPendingDelete(document)
+                          }}
                           aria-label={t`Delete compliance document ${document.title}`}
                           {...stylex.props(consoleShell.actionButton)}
                         >
@@ -401,7 +399,7 @@ export default function PlatformCompliance(): ReactNode {
                 </article>
               ))}
             </div>
-            <Pagination query={query} loadMoreLabel={<Trans>Load more</Trans>} />
+            <Pagination query={documents} loadMoreLabel={<Trans>Load more</Trans>} />
           </>
         ) : null}
       </ConsolePageSection>
@@ -416,7 +414,8 @@ export default function PlatformCompliance(): ReactNode {
           }
           confirmLabel={<Trans>Delete</Trans>}
           isLoading={remove.isPending}
-          onConfirm={() => void confirmDelete()}
+          error={remove.error ? errorMessage(remove.error, { surface: 'general' }) : undefined}
+          onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
       ) : null}

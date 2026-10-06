@@ -70,7 +70,6 @@ export const queryKeys = {
       { tenantId: tenantId ?? null, fromSeq: fromSeq ?? null, toSeq: toSeq ?? null },
     ] as const,
   platformDeadLetters: ['platform', 'dead-letters', 'list'] as const,
-  platformFeatureFlags: ['platform', 'feature-flags'] as const,
   platformSettings: ['platform', 'settings'] as const,
   platformBilling: ['platform', 'billing', 'list'] as const,
   platformStripeBilling: (tenantId: string) => ['platform', 'billing', 'stripe', tenantId] as const,

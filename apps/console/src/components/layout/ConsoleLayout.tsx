@@ -711,18 +711,44 @@ function OrganizationMenu({
 }
 
 // 用户菜单在移动端顶栏(向下)与桌面 rail 底部(向上)各渲染一份;触发器只放头像,邮箱收进菜单头部。
+// 模拟会话拒绝登出与账户页,菜单只保留结束模拟。
 function UserMenu({
   user,
   onSignOut,
+  onEndImpersonation,
   side = 'bottom',
   align = 'end',
 }: {
   user: AuthUser
   onSignOut: () => void
+  onEndImpersonation?: () => void
   side?: 'bottom' | 'top'
   align?: 'start' | 'end'
 }): ReactNode {
   const { t } = useLingui()
+  const items = onEndImpersonation
+    ? [
+        {
+          key: 'end-impersonation',
+          label: <Trans>End impersonation</Trans>,
+          icon: 'sign-out' as const,
+          onSelect: () => void onEndImpersonation(),
+        },
+      ]
+    : [
+        {
+          key: 'account',
+          label: <Trans>Account settings</Trans>,
+          icon: 'user-circle' as const,
+          href: '/account',
+        },
+        {
+          key: 'sign-out',
+          label: <Trans>Sign out</Trans>,
+          icon: 'sign-out' as const,
+          onSelect: () => void onSignOut(),
+        },
+      ]
   return (
     <Dropdown
       ariaLabel={t`Account menu`}
@@ -735,20 +761,7 @@ function UserMenu({
           {firstLetter(user.name ?? user.email)}
         </span>
       }
-      items={[
-        {
-          key: 'account',
-          label: <Trans>Account settings</Trans>,
-          icon: 'user-circle',
-          href: '/account',
-        },
-        {
-          key: 'sign-out',
-          label: <Trans>Sign out</Trans>,
-          icon: 'sign-out',
-          onSelect: () => void onSignOut(),
-        },
-      ]}
+      items={items}
     />
   )
 }
@@ -774,6 +787,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   const [switchingOrganizationId, setSwitchingOrganizationId] = useState<string | null>(null)
   const [organizationSwitchFailed, setOrganizationSwitchFailed] = useState(false)
   const [endingImpersonation, setEndingImpersonation] = useState(false)
+  const [endImpersonationFailed, setEndImpersonationFailed] = useState(false)
   const appName = brand.appName ?? 'XID'
 
   // Managed projects 只在有 manager assignment 时出现,且在 org 与平台侧栏同样可达。
@@ -816,14 +830,23 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   async function endImpersonation(): Promise<void> {
     if (endingImpersonation) return
     setEndingImpersonation(true)
+    setEndImpersonationFailed(false)
     const ended = await api.post<ImpersonationEndResponse>('/auth/impersonation/end')
     if (ended.ok) {
       if (!returnFromImpersonation(ended.value.redirectUrl)) {
         await refresh()
         navigate('/console', { replace: true })
       }
+    } else {
+      setEndImpersonationFailed(true)
     }
     setEndingImpersonation(false)
+  }
+
+  const isImpersonating = session?.isImpersonation === true
+  const userMenuActions = {
+    onSignOut: () => void signOut(),
+    ...(isImpersonating ? { onEndImpersonation: () => void endImpersonation() } : {}),
   }
 
   return (
@@ -849,7 +872,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
           {status === 'loading' ? (
             <Spinner size={16} />
           ) : user ? (
-            <UserMenu user={user} onSignOut={() => void signOut()} />
+            <UserMenu user={user} {...userMenuActions} />
           ) : null}
         </div>
       </header>
@@ -894,12 +917,14 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
                 <Icon name="arrow-up-right" size={12} />
               </span>
             </a>
-            <a href="/account" {...stylex.props(styles.footerLink)}>
-              <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
-                <Icon name="user-circle" size={16} />
-              </span>
-              <Trans>Account</Trans>
-            </a>
+            {isImpersonating ? null : (
+              <a href="/account" {...stylex.props(styles.footerLink)}>
+                <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+                  <Icon name="user-circle" size={16} />
+                </span>
+                <Trans>Account</Trans>
+              </a>
+            )}
             <div {...stylex.props(styles.footerLanguage)}>
               <LanguageSwitcher />
             </div>
@@ -907,7 +932,7 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
               <Spinner size={16} />
             ) : user ? (
               <div {...stylex.props(styles.footerUser)}>
-                <UserMenu user={user} onSignOut={() => void signOut()} side="top" align="start" />
+                <UserMenu user={user} {...userMenuActions} side="top" align="start" />
               </div>
             ) : null}
           </div>
@@ -935,6 +960,11 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
                     disabled.
                   </Trans>
                 </Alert>
+                {endImpersonationFailed ? (
+                  <Alert tone="error">
+                    <Trans>The impersonation session could not be ended. Try again.</Trans>
+                  </Alert>
+                ) : null}
               </div>
               <Button
                 variant="secondary"

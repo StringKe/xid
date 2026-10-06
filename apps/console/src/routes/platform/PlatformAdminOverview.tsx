@@ -9,8 +9,8 @@ import { MetricBarChart } from '@xid-kit/web-ui/ui/MetricBarChart'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useApiQuery } from '@xid-kit/web-ui/queries'
-import { PlatformMetricsBand } from './PlatformOverviewMetrics'
-import type { PlatformStats } from './PlatformOverviewMetrics'
+import type { PlatformStats } from '@xid-kit/types'
+import { PlatformMetricsBand, formatLoginSuccessRate } from './PlatformOverviewMetrics'
 
 const styles = stylex.create({
   chartStack: {
@@ -50,16 +50,18 @@ function ActiveUserRatioChart({ data }: { data: PlatformStats }): ReactNode {
 }
 
 function OperationalRatesChart({ data }: { data: PlatformStats }): ReactNode {
+  const { t } = useLingui()
+  const rate = data.loginSuccessRate
   return (
     <MetricBarChart
       title={<Trans>Operational rates</Trans>}
       maxValue={1}
       items={[
         {
-          label: <Trans>Login success rate</Trans>,
-          value: data.loginSuccessRate,
-          displayValue: `${(data.loginSuccessRate * 100).toFixed(1)}%`,
-          tone: data.loginSuccessRate >= 0.95 ? 'success' : 'danger',
+          label: <Trans>Login success rate (30 days)</Trans>,
+          value: rate ?? 0,
+          displayValue: rate === null ? t`No data` : formatLoginSuccessRate(rate),
+          tone: rate === null ? 'neutral' : rate >= 0.95 ? 'success' : 'danger',
         },
         {
           label: <Trans>Active organizations</Trans>,

@@ -475,4 +475,55 @@ describe('ConsoleLayout', () => {
     await act(async () => root.unmount())
     container.remove()
   })
+
+  it('replaces sign out and account links with end impersonation inside an impersonation session', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    authState.session = {
+      id: 'session_impersonation',
+      status: 'active',
+      expiresAt: '2026-07-28T00:15:00.000Z',
+      isImpersonation: true,
+      userId: 'user_target',
+      activeOrganizationId: 'org_1',
+      lastActiveAt: '2026-07-28T00:00:00.000Z',
+    }
+    authState.apiPost.mockResolvedValue({ ok: false, error: { code: 'server_error' } })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(
+        <ConsoleLayout navItems={[{ to: '/console/org', label: 'Overview', end: true }]}>
+          <span>Content</span>
+        </ConsoleLayout>,
+      )
+    })
+    expect(container.querySelector('a[href="/account"]')).toBeNull()
+    const accountTrigger = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.getAttribute('aria-label') === 'Account menu',
+    )
+    if (!accountTrigger) throw new Error('Account menu trigger was not rendered')
+    await act(async () => {
+      accountTrigger.click()
+    })
+    const menu = container.querySelector('[role="menu"]')
+    if (!menu) throw new Error('Account menu did not open')
+    expect(menu.textContent).not.toContain('Sign out')
+    const endItem = Array.from(menu.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('End impersonation'),
+    )
+    if (!endItem) throw new Error('End impersonation menu item was not rendered')
+
+    await act(async () => {
+      endItem.click()
+    })
+
+    expect(authState.signOut).not.toHaveBeenCalled()
+    expect(authState.apiPost).toHaveBeenCalledWith('/auth/impersonation/end')
+    expect(container.textContent).toContain('could not be ended')
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
 })

@@ -142,16 +142,18 @@ function ActiveUserRatioChart({ data }: { data: OrgStats }): ReactNode {
 }
 
 function SecurityRatesChart({ data }: { data: OrgStats }): ReactNode {
+  const { t } = useLingui()
+  const rate = data.loginSuccessRate
   return (
     <MetricBarChart
       title={<Trans>Security rates</Trans>}
       maxValue={1}
       items={[
         {
-          label: <Trans>Login success rate</Trans>,
-          value: data.loginSuccessRate,
-          displayValue: `${(data.loginSuccessRate * 100).toFixed(1)}%`,
-          tone: data.loginSuccessRate >= 0.95 ? 'success' : 'danger',
+          label: <Trans>Login success rate (30 days)</Trans>,
+          value: rate ?? 0,
+          displayValue: rate === null ? t`No data` : `${(rate * 100).toFixed(1)}%`,
+          tone: rate === null ? 'neutral' : rate >= 0.95 ? 'success' : 'danger',
         },
         {
           label: <Trans>MFA adoption</Trans>,

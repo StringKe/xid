@@ -1,20 +1,9 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ChangeEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { SUPPORTED_LOCALES, type SupportedLocale } from '../locale'
+import { LOCALE_LABELS, SUPPORTED_LOCALES, type SupportedLocale } from '../locale'
 import { useLocale } from '../locale-context'
 import { tokens } from '../styles/tokens.stylex'
-
-const LOCALE_LABELS: Record<SupportedLocale, string> = {
-  en: 'English',
-  'zh-Hans': '简体中文',
-  ja: '日本語',
-  ko: '한국어',
-  fr: 'Français',
-  de: 'Deutsch',
-  es: 'Español',
-  'pt-BR': 'Português',
-}
 
 const styles = stylex.create({
   root: {

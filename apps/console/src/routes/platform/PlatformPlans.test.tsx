@@ -4,7 +4,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import type { OrganizationPlanDetail } from './types'
+import type { OrganizationPlanDetail } from '@xid-kit/types'
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -31,15 +31,18 @@ vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
   }
 })
 
+const searchParams = vi.hoisted(() => ({ value: 'tenantId=org_1' }))
+
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
-  useSearchParams: () => [new URLSearchParams('tenantId=org_1')],
+  useSearchParams: () => [new URLSearchParams(searchParams.value)],
 }))
 
 import PlatformPlans from './PlatformPlans'
 
 const detail: OrganizationPlanDetail = {
   tenantId: 'org_1',
+  organizationName: 'Acme',
   plan: 'starter',
   status: 'trialing',
   source: 'manual',
@@ -55,6 +58,7 @@ const detail: OrganizationPlanDetail = {
 
 describe('PlatformPlans', () => {
   beforeEach(() => {
+    searchParams.value = 'tenantId=org_1'
     mocks.mutate.mockReset()
     mocks.useApiQuery.mockReset()
     mocks.useApiMutation.mockReset()
@@ -113,24 +117,57 @@ describe('PlatformPlans', () => {
     )
 
     await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('submits only the quota that changed so the billing source is preserved', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(<PlatformPlans />)
+    })
+    const emailsLimit = [...container.querySelectorAll('code')]
+      .find((node) => node.textContent === 'emails')
+      ?.parentElement?.querySelector<HTMLInputElement>('input')
+
+    await act(async () => {
+      container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true }))
+    })
+    expect(mocks.mutate).not.toHaveBeenCalled()
+
+    await act(async () => {
+      if (!emailsLimit) return
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setValue?.call(emailsLimit, '5000')
+      emailsLimit.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
       container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true }))
     })
 
     expect(mocks.mutate).toHaveBeenCalledWith({
       tenantId: 'org_1',
-      body: expect.objectContaining({
-        plan: 'starter',
-        status: 'trialing',
-        seatLimit: 50,
-        quotas: expect.arrayContaining([
-          { key: 'api_calls', limit: 1_000_000, enforcement: 'observe' },
-        ]),
-      }),
+      body: { quotas: [{ key: 'emails', limit: 5000, enforcement: 'observe' }] },
     })
-    const submitted = mocks.mutate.mock.calls[0]?.[0]
-    expect(submitted?.body.quotas).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ key: 'seats' })]),
-    )
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('explains a canceled Stripe Checkout return', async () => {
+    searchParams.value = 'tenantId=org_1&checkout=canceled'
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(<PlatformPlans />)
+    })
+
+    expect(container.textContent).toContain('Stripe Checkout was canceled')
 
     await act(async () => {
       root.unmount()

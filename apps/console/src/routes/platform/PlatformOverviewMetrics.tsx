@@ -1,17 +1,15 @@
-import { Trans } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
+import type { PlatformStats } from '@xid-kit/types'
 import { MetricsBand } from '@xid-kit/web-ui/ui'
 
-export type PlatformStats = {
-  organizationCount: number
-  totalUsers: number
-  dau: number
-  mau: number
-  loginSuccessRate: number
-  activeOrgCount: number
+export function formatLoginSuccessRate(rate: number): string {
+  return `${(rate * 100).toFixed(1)}%`
 }
 
 export function PlatformMetricsBand({ data }: { data: PlatformStats }): ReactNode {
+  const { t } = useLingui()
+  const rate = data.loginSuccessRate
   return (
     <MetricsBand
       items={[
@@ -22,10 +20,10 @@ export function PlatformMetricsBand({ data }: { data: PlatformStats }): ReactNod
           size: 'lg',
         },
         {
-          label: <Trans>Login success rate</Trans>,
-          value: `${(data.loginSuccessRate * 100).toFixed(1)}%`,
+          label: <Trans>Login success rate (30 days)</Trans>,
+          value: rate === null ? t`No data` : formatLoginSuccessRate(rate),
           size: 'md',
-          tone: data.loginSuccessRate >= 0.95 ? 'good' : 'bad',
+          ...(rate === null ? {} : { tone: rate >= 0.95 ? ('good' as const) : ('bad' as const) }),
         },
         {
           label: <Trans>Active organizations</Trans>,

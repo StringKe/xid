@@ -3,15 +3,16 @@ import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import type { QueueDeadLetter, QueueDeadLetterReplay } from '@xid-kit/types'
 import { Alert, Badge, Button } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useDeadLettersQuery, useReplayDeadLetter } from './queries'
-import type { QueueDeadLetter } from './types'
+import { useDeadLettersList, useReplayDeadLetter } from './queries'
 
 const styles = stylex.create({
   mono: {
@@ -22,6 +23,11 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
     fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.75rem',
+  },
+  muted: {
+    display: 'block',
+    fontSize: '0.75rem',
+    color: tokens['--xid-muted-foreground'],
   },
   time: {
     whiteSpace: 'nowrap',
@@ -51,12 +57,36 @@ function statusBadge(status: QueueDeadLetter['status']): ReactNode {
   )
 }
 
+function ReplayOutcome({ result }: { result: QueueDeadLetterReplay }): ReactNode {
+  if (result.replayed) {
+    return (
+      <Alert tone="success">
+        <Trans>The message was replayed to its source queue.</Trans>
+      </Alert>
+    )
+  }
+  if (result.status === 'replaying') {
+    return (
+      <Alert tone="info">
+        <Trans>Another replay of this message is still in progress. Check again later.</Trans>
+      </Alert>
+    )
+  }
+  return (
+    <Alert tone="info">
+      <Trans>This message had already been replayed. Nothing was sent again.</Trans>
+    </Alert>
+  )
+}
+
 export default function PlatformDeadLetters(): ReactNode {
   const { t } = useLingui()
-  const list = useDeadLettersQuery()
-  const { data, isLoading, isError } = list
+  const errorMessage = useApiErrorMessage()
+  const deadLetters = useDeadLettersList()
   const replay = useReplayDeadLetter()
+  const resetReplay = replay.reset
   const [pendingReplay, setPendingReplay] = useState<QueueDeadLetter | null>(null)
+  const [lastReplay, setLastReplay] = useState<QueueDeadLetterReplay | null>(null)
   const columns = useMemo<ColumnDef<QueueDeadLetter>[]>(
     () => [
       {
@@ -89,6 +119,49 @@ export default function PlatformDeadLetters(): ReactNode {
         ),
       },
       {
+        id: 'tenant',
+        header: () => <Trans>Tenant</Trans>,
+        cell: ({ row }) =>
+          row.original.tenantId ? (
+            <span {...stylex.props(styles.mono)} title={row.original.tenantId}>
+              {row.original.tenantId}
+            </span>
+          ) : (
+            <span {...stylex.props(styles.muted)}>
+              <Trans>Platform</Trans>
+            </span>
+          ),
+      },
+      {
+        id: 'error',
+        header: () => <Trans>Error</Trans>,
+        cell: ({ row }) => (
+          <div>
+            <span {...stylex.props(styles.mono)} title={row.original.errorCode}>
+              {row.original.errorCode}
+            </span>
+            {row.original.lastReplayErrorCode ? (
+              <span {...stylex.props(styles.muted)}>
+                <Trans>Last replay: {row.original.lastReplayErrorCode}</Trans>
+              </span>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: 'attempts',
+        header: () => <Trans>Attempts</Trans>,
+        cell: ({ row }) => (
+          <div>
+            <span {...stylex.props(styles.time)}>{row.original.attempts}</span>
+            <span {...stylex.props(styles.muted)}>
+              <Trans>Replays: {row.original.replayCount}</Trans>
+            </span>
+          </div>
+        ),
+        meta: { width: '100px' },
+      },
+      {
         id: 'messageId',
         header: () => <Trans>Message ID</Trans>,
         cell: ({ row }) => (
@@ -107,10 +180,13 @@ export default function PlatformDeadLetters(): ReactNode {
         id: 'actions',
         header: () => <Trans>Actions</Trans>,
         cell: ({ row }) =>
-          row.original.status === 'pending' ? (
+          row.original.replayable ? (
             <Button
               variant="secondary"
-              onClick={() => setPendingReplay(row.original)}
+              onClick={() => {
+                resetReplay()
+                setPendingReplay(row.original)
+              }}
               aria-label={t`Replay message to ${row.original.sourceQueue}`}
               {...stylex.props(consoleShell.actionButton)}
             >
@@ -120,8 +196,21 @@ export default function PlatformDeadLetters(): ReactNode {
         meta: { width: '110px' },
       },
     ],
-    [t],
+    [t, resetReplay],
   )
+
+  function confirmReplay(): void {
+    if (!pendingReplay) return
+    replay.mutate(
+      { id: pendingReplay.id },
+      {
+        onSuccess: (result) => {
+          setLastReplay(result)
+          setPendingReplay(null)
+        },
+      },
+    )
+  }
 
   return (
     <ConsolePage
@@ -133,37 +222,26 @@ export default function PlatformDeadLetters(): ReactNode {
         </Trans>
       }
     >
-      {isError || replay.isError || replay.isSuccess ? (
+      {deadLetters.isError || lastReplay ? (
         <ConsolePageNotice>
-          {isError ? (
+          {deadLetters.isError ? (
             <Alert tone="error">
               <Trans>Failed to load dead letters.</Trans>
             </Alert>
           ) : null}
-          {replay.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to replay the dead letter. The message was not acknowledged.</Trans>
-            </Alert>
-          ) : null}
-          {replay.isSuccess ? (
-            <Alert tone="success">
-              <Trans>The dead letter was replayed or had already been replayed.</Trans>
-            </Alert>
-          ) : null}
+          {lastReplay ? <ReplayOutcome result={lastReplay} /> : null}
         </ConsolePageNotice>
       ) : null}
 
       <ConsolePageSection title={<Trans>Dead-letter records</Trans>}>
         <DataTable
           columns={columns}
-          data={data?.data ?? []}
+          data={deadLetters.data?.data ?? []}
           getRowId={(row) => row.id}
-          isLoading={isLoading}
+          isLoading={deadLetters.isLoading}
           emptyMessage={<Trans>No dead letters found.</Trans>}
         />
-        {data ? (
-          <Pagination query={list} loadMoreLabel={<Trans>Load more dead letters</Trans>} />
-        ) : null}
+        <Pagination query={deadLetters} loadMoreLabel={<Trans>Load more dead letters</Trans>} />
       </ConsolePageSection>
 
       {pendingReplay ? (
@@ -178,10 +256,8 @@ export default function PlatformDeadLetters(): ReactNode {
           confirmLabel={<Trans>Replay</Trans>}
           confirmVariant="primary"
           isLoading={replay.isPending}
-          onConfirm={() => {
-            replay.mutate({ id: pendingReplay.id })
-            setPendingReplay(null)
-          }}
+          error={replay.error ? errorMessage(replay.error, { surface: 'general' }) : undefined}
+          onConfirm={confirmReplay}
           onCancel={() => setPendingReplay(null)}
         />
       ) : null}

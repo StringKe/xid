@@ -53,7 +53,6 @@ export const PLATFORM_CONSOLE_ROUTE_CHECKS = [
   { path: '/console/platform/users', expectedText: 'Global user search' },
   { path: '/console/platform/managers', expectedText: 'Instance managers' },
   { path: '/console/platform/events', expectedText: 'Global event stream' },
-  { path: '/console/platform/flags', expectedText: 'Feature flags' },
   { path: '/console/platform/billing', expectedText: 'Billing overview' },
   {
     path: '/console/platform/plans',

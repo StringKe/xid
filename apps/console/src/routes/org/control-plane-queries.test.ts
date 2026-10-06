@@ -30,7 +30,7 @@ import {
   useRolePermissionsQuery,
   useUserGrantsQuery,
 } from './queries'
-import { useInstanceManagerAssignmentsQuery } from '../platform/queries'
+import { useInstanceManagerAssignmentsList } from '../platform/queries'
 
 describe('control-plane Console query contracts', () => {
   beforeEach(() => {
@@ -157,7 +157,7 @@ describe('control-plane Console query contracts', () => {
 
   it('binds a manager list to one exact scope and keeps platform managers separate', () => {
     useManagerAssignmentsQuery('grant', 'project_grant_1')
-    useInstanceManagerAssignmentsQuery()
+    useInstanceManagerAssignmentsList()
 
     expect(listMock).toHaveBeenNthCalledWith(
       1,

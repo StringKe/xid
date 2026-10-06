@@ -249,11 +249,6 @@ const platformRoutes = [
     () => import('./routes/platform/PlatformAuditEvents'),
   ),
   platformRoute(
-    '/console/platform/flags',
-    '/console/platform/flags',
-    () => import('./routes/platform/PlatformFeatureFlags'),
-  ),
-  platformRoute(
     '/console/platform/billing',
     '/console/platform/billing',
     () => import('./routes/platform/PlatformBilling'),
@@ -319,7 +314,6 @@ export const CONSOLE_SPA_ROUTE_PATHS = [
   '/console/platform/users',
   '/console/platform/managers',
   '/console/platform/events',
-  '/console/platform/flags',
   '/console/platform/billing',
   '/console/platform/plans',
   '/console/platform/announcements',

@@ -20,7 +20,7 @@ describe('isolated Console router', () => {
   it('registers the 36 SPA routes and leaves account aliases to the Worker', () => {
     const registeredPaths = Object.keys(router.routesByPath)
 
-    expect(CONSOLE_SPA_ROUTE_PATHS).toHaveLength(36)
+    expect(CONSOLE_SPA_ROUTE_PATHS).toHaveLength(35)
     expect(registeredPaths).toContain('/console/managed-projects')
     expect(registeredPaths).toContain('/console/org/projects')
     expect(registeredPaths).toContain('/console/platform/managers')

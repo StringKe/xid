@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { GlobalUser, InstanceManagerAssignment, XidError } from '@xid-kit/types'
 import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -14,41 +15,53 @@ import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { useAuth } from '@xid-kit/web-ui/session'
-import { statusToneFor } from '@xid-kit/web-ui/enum-labels'
+import { statusToneFor, useGlobalUserStatusLabel } from '@xid-kit/web-ui/enum-labels'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   useCreateInstanceManagerAssignment,
   useDeleteInstanceManagerAssignment,
-  useGlobalUsersQuery,
-  useInstanceManagerAssignmentsQuery,
+  useGlobalUsersList,
+  useInstanceManagerAssignmentsList,
 } from './queries'
-import type { GlobalUser, InstanceManagerAssignment } from './types'
 
-function userStatusLabel(status: GlobalUser['status']): ReactNode {
-  if (status === 'active') return <Trans>Active</Trans>
-  if (status === 'inactive') return <Trans>Inactive</Trans>
-  return <Trans>Banned</Trans>
+function managerLabel(assignment: InstanceManagerAssignment): string {
+  return assignment.email ?? assignment.displayName ?? assignment.userId
 }
 
 export default function PlatformInstanceManagers(): ReactNode {
   const { t } = useLingui()
   const { user } = useAuth()
-  const assignments = useInstanceManagerAssignmentsQuery()
+  const userStatusLabel = useGlobalUserStatusLabel()
+  const errorMessage = useApiErrorMessage()
+  const assignments = useInstanceManagerAssignmentsList()
   const createAssignment = useCreateInstanceManagerAssignment()
   const deleteAssignment = useDeleteInstanceManagerAssignment()
 
   const [userId, setUserId] = useState('')
   const [search, setSearch] = useState('')
   const [submittedSearch, setSubmittedSearch] = useState('')
-  const users = useGlobalUsersQuery(submittedSearch)
+  const users = useGlobalUsersList(submittedSearch)
   const [pendingRevoke, setPendingRevoke] = useState<InstanceManagerAssignment | null>(null)
+
+  function revokeError(error: XidError | null): string | undefined {
+    if (!error) return undefined
+    if (error.code === 'conflict') {
+      return t`At least one instance manager must remain. The list was refreshed.`
+    }
+    return errorMessage(error, { surface: 'general' })
+  }
 
   const assignmentColumns: ColumnDef<InstanceManagerAssignment>[] = [
     {
       id: 'user',
-      header: () => <Trans>User ID</Trans>,
+      header: () => <Trans>User</Trans>,
       cell: ({ row }) => (
         <div>
+          <div>{managerLabel(row.original)}</div>
+          {row.original.email && row.original.displayName ? (
+            <div {...stylex.props(consoleShell.muted)}>{row.original.displayName}</div>
+          ) : null}
           <code {...stylex.props(consoleShell.mono)}>{row.original.userId}</code>
           {row.original.userId === user?.id ? (
             <div {...stylex.props(consoleShell.muted)}>
@@ -59,9 +72,25 @@ export default function PlatformInstanceManagers(): ReactNode {
       ),
     },
     {
-      id: 'tenant',
-      header: () => <Trans>Tenant ID</Trans>,
-      cell: ({ row }) => <code {...stylex.props(consoleShell.mono)}>{row.original.tenantId}</code>,
+      id: 'organization',
+      header: () => <Trans>Organization</Trans>,
+      cell: ({ row }) => (
+        <div>
+          {row.original.organizationName ? <div>{row.original.organizationName}</div> : null}
+          <code {...stylex.props(consoleShell.mono)}>{row.original.tenantId}</code>
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: () => <Trans>Status</Trans>,
+      cell: ({ row }) =>
+        row.original.userStatus ? (
+          <Badge tone={statusToneFor(row.original.userStatus)}>
+            {userStatusLabel(row.original.userStatus)}
+          </Badge>
+        ) : null,
+      meta: { width: '100px' },
     },
     {
       id: 'granted',
@@ -79,8 +108,11 @@ export default function PlatformInstanceManagers(): ReactNode {
           <Button
             variant="danger"
             disabled={isSelf || isLastManager}
-            onClick={() => setPendingRevoke(row.original)}
-            aria-label={t`Revoke instance manager ${row.original.userId}`}
+            onClick={() => {
+              deleteAssignment.reset()
+              setPendingRevoke(row.original)
+            }}
+            aria-label={t`Revoke instance manager ${managerLabel(row.original)}`}
             {...stylex.props(consoleShell.actionButton)}
           >
             <Trans>Revoke</Trans>
@@ -135,16 +167,20 @@ export default function PlatformInstanceManagers(): ReactNode {
     },
   ]
 
-  async function handleGrant(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleGrant(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (!userId.trim() || userId.trim() === user?.id) return
-    await createAssignment.mutateAsync({ user_id: userId.trim() })
-    setUserId('')
+    createAssignment.mutate({ user_id: userId.trim() }, { onSuccess: () => setUserId('') })
   }
 
   function handleSearch(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     setSubmittedSearch(search.trim())
+  }
+
+  function confirmRevoke(): void {
+    if (!pendingRevoke) return
+    deleteAssignment.mutate(pendingRevoke.id, { onSuccess: () => setPendingRevoke(null) })
   }
 
   const isSelfSelection = userId.trim() === user?.id
@@ -161,11 +197,9 @@ export default function PlatformInstanceManagers(): ReactNode {
         </Trans>
       }
     >
-      {createAssignment.error || deleteAssignment.error ? (
+      {createAssignment.error ? (
         <ConsolePageNotice>
-          <Alert tone="error">
-            <Trans>Failed to update instance managers. Try again.</Trans>
-          </Alert>
+          <Alert tone="error">{errorMessage(createAssignment.error, { surface: 'general' })}</Alert>
         </ConsolePageNotice>
       ) : null}
 
@@ -192,12 +226,10 @@ export default function PlatformInstanceManagers(): ReactNode {
               isLoading={assignments.isLoading}
               emptyMessage={<Trans>No instance managers found.</Trans>}
             />
-            {assignments.data ? (
-              <Pagination
-                query={assignments}
-                loadMoreLabel={<Trans>Load more instance managers</Trans>}
-              />
-            ) : null}
+            <Pagination
+              query={assignments}
+              loadMoreLabel={<Trans>Load more instance managers</Trans>}
+            />
           </>
         )}
       </ConsolePageSection>
@@ -233,20 +265,20 @@ export default function PlatformInstanceManagers(): ReactNode {
               <Trans>Failed to search users.</Trans>
             </Alert>
           ) : (
-            <DataTable
-              columns={userColumns}
-              data={users.data?.data ?? []}
-              getRowId={(candidate) => candidate.id}
-              isLoading={users.isLoading}
-              emptyMessage={<Trans>No users found.</Trans>}
-            />
+            <>
+              <DataTable
+                columns={userColumns}
+                data={users.data?.data ?? []}
+                getRowId={(candidate) => candidate.id}
+                isLoading={users.isLoading}
+                emptyMessage={<Trans>No users found.</Trans>}
+              />
+              <Pagination query={users} loadMoreLabel={<Trans>Load more users</Trans>} />
+            </>
           )
         ) : null}
 
-        <form
-          onSubmit={(event) => void handleGrant(event)}
-          {...stylex.props(consoleShell.formActions)}
-        >
+        <form onSubmit={handleGrant} {...stylex.props(consoleShell.formActions)}>
           <div {...stylex.props(consoleShell.toolbarField)}>
             <Field
               label={<Trans>User ID</Trans>}
@@ -276,15 +308,15 @@ export default function PlatformInstanceManagers(): ReactNode {
           title={<Trans>Revoke instance manager?</Trans>}
           description={
             <Trans>
-              User {pendingRevoke.userId} will lose platform-wide management access. The server
-              rejects this operation if it would remove the final instance manager.
+              {managerLabel(pendingRevoke)} ({pendingRevoke.userId}) will lose platform-wide
+              management access. The server rejects this operation if it would remove the final
+              instance manager.
             </Trans>
           }
           confirmLabel={<Trans>Revoke manager</Trans>}
           isLoading={deleteAssignment.isPending}
-          onConfirm={() => {
-            void deleteAssignment.mutateAsync(pendingRevoke.id).then(() => setPendingRevoke(null))
-          }}
+          error={revokeError(deleteAssignment.error)}
+          onConfirm={confirmRevoke}
           onCancel={() => setPendingRevoke(null)}
         />
       ) : null}

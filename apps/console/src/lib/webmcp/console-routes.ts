@@ -195,12 +195,6 @@ export const PLATFORM_CONSOLE_ROUTES: readonly ConsoleRouteEntry[] = [
     description: 'Platform-wide audit event stream.',
   },
   {
-    path: '/console/platform/flags',
-    label: 'Feature flags',
-    scope: 'platform',
-    description: 'Instance feature flag management.',
-  },
-  {
     path: '/console/platform/billing',
     label: 'Billing',
     scope: 'platform',

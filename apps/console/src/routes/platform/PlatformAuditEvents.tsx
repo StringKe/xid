@@ -1,46 +1,18 @@
-import { Trans, useLingui } from '@lingui/react/macro'
-import { useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import { Trans } from '@lingui/react/macro'
+import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
-import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
-import {
-  ConsolePage,
-  ConsolePageNotice,
-  ConsolePageSection,
-  ConsolePageSplitSection,
-} from '@xid-kit/web-ui/ui'
+import type { PlatformAuditEvent } from '@xid-kit/types'
+import { Alert } from '@xid-kit/web-ui/ui'
+import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useAuditChainVerificationQuery, useGlobalAuditEventsQuery } from './queries'
-import type { AuditEvent } from './types'
+import { AuditChainVerifyPanel } from './AuditChainVerifyPanel'
+import { useGlobalAuditEventsList } from './queries'
 
 const styles = stylex.create({
-  verifyForm: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(12rem, 2fr) minmax(7rem, 1fr) minmax(7rem, 1fr) auto',
-    alignItems: 'end',
-    gap: '0.75rem',
-    '@media (max-width: 48rem)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
-  verifyResult: {
-    marginTop: '1rem',
-  },
-  verifySummary: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  verifyStat: {
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.8125rem',
-    fontVariantNumeric: 'tabular-nums',
-  },
   seqText: {
     fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.8125rem',
@@ -95,7 +67,7 @@ const styles = stylex.create({
   },
 })
 
-const columns: ColumnDef<AuditEvent>[] = [
+const columns: ColumnDef<PlatformAuditEvent>[] = [
   {
     id: 'seq',
     header: () => <Trans>Seq</Trans>,
@@ -171,29 +143,7 @@ const columns: ColumnDef<AuditEvent>[] = [
 ]
 
 export default function PlatformAuditEvents(): ReactNode {
-  const { t } = useLingui()
-  const [tenantId, setTenantId] = useState('')
-  const [fromSeq, setFromSeq] = useState('')
-  const [toSeq, setToSeq] = useState('')
-  const [verification, setVerification] = useState<{
-    tenantId: string
-    fromSeq?: number
-    toSeq?: number
-  } | null>(null)
-  const list = useGlobalAuditEventsQuery()
-  const { data, isLoading, isError } = list
-  const verificationQuery = useAuditChainVerificationQuery(verification)
-
-  const onVerify = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault()
-    const normalizedTenantId = tenantId.trim()
-    if (!normalizedTenantId) return
-    setVerification({
-      tenantId: normalizedTenantId,
-      ...(fromSeq ? { fromSeq: Number(fromSeq) } : {}),
-      ...(toSeq ? { toSeq: Number(toSeq) } : {}),
-    })
-  }
+  const events = useGlobalAuditEventsList()
 
   return (
     <ConsolePage
@@ -206,95 +156,25 @@ export default function PlatformAuditEvents(): ReactNode {
         </Trans>
       }
     >
-      {isError || verificationQuery.isError ? (
+      {events.isError ? (
         <ConsolePageNotice>
-          {isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load audit events. Please try again.</Trans>
-            </Alert>
-          ) : null}
-          {verificationQuery.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to verify the audit chain. Please try again.</Trans>
-            </Alert>
-          ) : null}
+          <Alert tone="error">
+            <Trans>Failed to load audit events. Please try again.</Trans>
+          </Alert>
         </ConsolePageNotice>
       ) : null}
 
-      <ConsolePageSplitSection
-        title={<Trans>Verify audit chain</Trans>}
-        description={
-          <Trans>Recompute the hash chain for one tenant over an optional sequence range.</Trans>
-        }
-      >
-        <form
-          aria-label={t`Verify audit chain`}
-          {...stylex.props(styles.verifyForm)}
-          onSubmit={onVerify}
-        >
-          <Field label={t`Tenant ID`} required>
-            <Input
-              value={tenantId}
-              onChange={(event) => setTenantId(event.target.value)}
-              autoComplete="off"
-            />
-          </Field>
-          <Field label={t`From`}>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={fromSeq}
-              onChange={(event) => setFromSeq(event.target.value)}
-            />
-          </Field>
-          <Field label={t`To`}>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={toSeq}
-              onChange={(event) => setToSeq(event.target.value)}
-            />
-          </Field>
-          <Button type="submit" disabled={!tenantId.trim() || verificationQuery.isLoading}>
-            <Trans>Verify</Trans>
-          </Button>
-        </form>
-        {verificationQuery.data ? (
-          <div {...stylex.props(styles.verifyResult)}>
-            <Alert tone={verificationQuery.data.chain_valid ? 'success' : 'error'}>
-              <div {...stylex.props(styles.verifySummary)}>
-                <Badge tone={verificationQuery.data.chain_valid ? 'success' : 'danger'}>
-                  {verificationQuery.data.chain_valid ? (
-                    <Trans>Chain valid</Trans>
-                  ) : (
-                    <Trans>Chain broken</Trans>
-                  )}
-                </Badge>
-                <span {...stylex.props(styles.verifyStat)}>
-                  <Trans>Records checked</Trans>: {verificationQuery.data.record_count}
-                </span>
-                {verificationQuery.data.broken_at_seq != null ? (
-                  <span {...stylex.props(styles.verifyStat)}>
-                    <Trans>Broken at seq</Trans>: {verificationQuery.data.broken_at_seq}
-                  </span>
-                ) : null}
-              </div>
-            </Alert>
-          </div>
-        ) : null}
-      </ConsolePageSplitSection>
+      <AuditChainVerifyPanel />
 
       <ConsolePageSection title={<Trans>Event stream</Trans>}>
         <DataTable
           columns={columns}
-          data={data?.data ?? []}
+          data={events.data?.data ?? []}
           getRowId={(row) => row.id}
-          isLoading={isLoading}
+          isLoading={events.isLoading}
           emptyMessage={<Trans>No audit events found.</Trans>}
         />
-        {data ? <Pagination query={list} loadMoreLabel={<Trans>Load more events</Trans>} /> : null}
+        <Pagination query={events} loadMoreLabel={<Trans>Load more events</Trans>} />
       </ConsolePageSection>
     </ConsolePage>
   )

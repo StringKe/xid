@@ -21,18 +21,18 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
+import type { PlatformAnnouncement } from '@xid-kit/types'
+import { PlatformOrganizationPicker } from '../../components/PlatformOrganizationPicker'
+import { fromLocalDateTime, nowLocalDateTime } from '../../lib/datetime-local'
 import {
   useCreatePlatformAnnouncement,
   useDeletePlatformAnnouncement,
-  usePlatformAnnouncementsQuery,
+  usePlatformAnnouncementsList,
   useUpdatePlatformAnnouncement,
 } from './queries'
-import type { PlatformAnnouncement } from './types'
-
-// 持久化 id 形态,非自然语言文案。
-const TENANT_ID_EXAMPLE = 'org_...'
 
 const styles = stylex.create({
   form: {
@@ -129,7 +129,7 @@ function initialForm(): FormState {
     scopeValue: '',
     severity: 'info',
     status: 'draft',
-    startsAt: new Date().toISOString().slice(0, 16),
+    startsAt: nowLocalDateTime(),
     endsAt: '',
   }
 }
@@ -155,7 +155,9 @@ function severityLabel(severity: PlatformAnnouncement['severity']): ReactNode {
 
 export default function PlatformAnnouncements(): ReactNode {
   const { t } = useLingui()
-  const query = usePlatformAnnouncementsQuery()
+  const errorMessage = useApiErrorMessage()
+  const announcements = usePlatformAnnouncementsList()
+  const announcementRows = announcements.data?.data ?? []
   const create = useCreatePlatformAnnouncement()
   const update = useUpdatePlatformAnnouncement()
   const remove = useDeletePlatformAnnouncement()
@@ -164,6 +166,8 @@ export default function PlatformAnnouncements(): ReactNode {
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
+    const startsAt = fromLocalDateTime(form.startsAt)
+    if (!startsAt) return
     create.mutate(
       {
         title: form.title,
@@ -172,17 +176,16 @@ export default function PlatformAnnouncements(): ReactNode {
         scopeValue: form.scopeType === 'global' ? null : form.scopeValue,
         severity: form.severity,
         status: form.status,
-        startsAt: new Date(form.startsAt).toISOString(),
-        endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        startsAt,
+        endsAt: fromLocalDateTime(form.endsAt),
       },
       { onSuccess: () => setForm(initialForm()) },
     )
   }
 
-  async function confirmDelete(): Promise<void> {
+  function confirmDelete(): void {
     if (!pendingDelete) return
-    await remove.mutateAsync({ id: pendingDelete.id })
-    setPendingDelete(null)
+    remove.mutate({ id: pendingDelete.id }, { onSuccess: () => setPendingDelete(null) })
   }
 
   return (
@@ -194,32 +197,23 @@ export default function PlatformAnnouncements(): ReactNode {
         </Trans>
       }
     >
-      {query.isError || create.isError || create.isSuccess || update.isError || remove.isError ? (
+      {announcements.isError || create.error || create.isSuccess || update.error ? (
         <ConsolePageNotice>
-          {query.isError ? (
+          {announcements.isError ? (
             <Alert tone="error">
               <Trans>Failed to load announcements.</Trans>
             </Alert>
           ) : null}
-          {create.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to create the announcement. Try again.</Trans>
-            </Alert>
+          {create.error ? (
+            <Alert tone="error">{errorMessage(create.error, { surface: 'general' })}</Alert>
           ) : null}
           {create.isSuccess ? (
             <Alert tone="success">
               <Trans>Announcement created.</Trans>
             </Alert>
           ) : null}
-          {update.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to update the announcement. Try again.</Trans>
-            </Alert>
-          ) : null}
-          {remove.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to delete the announcement. Try again.</Trans>
-            </Alert>
+          {update.error ? (
+            <Alert tone="error">{errorMessage(update.error, { surface: 'general' })}</Alert>
           ) : null}
         </ConsolePageNotice>
       ) : null}
@@ -283,29 +277,28 @@ export default function PlatformAnnouncements(): ReactNode {
               <option value="plan">{t`Accounting plan`}</option>
             </Select>
           </Field>
-          {form.scopeType !== 'global' ? (
-            <Field label={form.scopeType === 'tenant' ? t`Tenant ID` : t`Plan`}>
-              {form.scopeType === 'plan' ? (
-                <Select
-                  value={form.scopeValue}
-                  onChange={(event) => setForm({ ...form, scopeValue: event.target.value })}
-                  required
-                >
-                  <option value="">{t`Select a plan`}</option>
-                  <option value="free">{t`Free`}</option>
-                  <option value="starter">{t`Starter`}</option>
-                  <option value="pro">{t`Pro`}</option>
-                  <option value="enterprise">{t`Enterprise`}</option>
-                </Select>
-              ) : (
-                <Input
-                  required
-                  value={form.scopeValue}
-                  onChange={(event) => setForm({ ...form, scopeValue: event.target.value })}
-                  placeholder={TENANT_ID_EXAMPLE}
-                />
-              )}
+          {form.scopeType === 'plan' ? (
+            <Field label={t`Plan`}>
+              <Select
+                value={form.scopeValue}
+                onChange={(event) => setForm({ ...form, scopeValue: event.target.value })}
+                required
+              >
+                <option value="">{t`Select a plan`}</option>
+                <option value="free">{t`Free`}</option>
+                <option value="starter">{t`Starter`}</option>
+                <option value="pro">{t`Pro`}</option>
+                <option value="enterprise">{t`Enterprise`}</option>
+              </Select>
             </Field>
+          ) : null}
+          {form.scopeType === 'tenant' ? (
+            <PlatformOrganizationPicker
+              label={t`Tenant`}
+              required
+              value={form.scopeValue}
+              onChange={(scopeValue) => setForm({ ...form, scopeValue })}
+            />
           ) : null}
           <Field label={t`Starts at`}>
             <Input
@@ -337,7 +330,11 @@ export default function PlatformAnnouncements(): ReactNode {
             </Select>
           </Field>
           <div {...stylex.props(styles.actions)}>
-            <Button type="submit" isLoading={create.isPending}>
+            <Button
+              type="submit"
+              isLoading={create.isPending}
+              disabled={form.scopeType !== 'global' && !form.scopeValue}
+            >
               <Trans>Create announcement</Trans>
             </Button>
           </div>
@@ -345,20 +342,20 @@ export default function PlatformAnnouncements(): ReactNode {
       </ConsolePageSplitSection>
 
       <ConsolePageSection title={<Trans>Announcement ledger</Trans>}>
-        {query.isLoading ? (
+        {announcements.isLoading ? (
           <div {...stylex.props(styles.skeletonStack)}>
             <Skeleton height="6rem" />
             <Skeleton height="6rem" />
             <Skeleton height="6rem" />
           </div>
         ) : null}
-        {!query.isLoading && query.data && query.data.data.length === 0 ? (
+        {!announcements.isLoading && !announcements.isError && announcementRows.length === 0 ? (
           <EmptyState title={<Trans>No announcements found.</Trans>} />
         ) : null}
-        {query.data && query.data.data.length > 0 ? (
+        {announcementRows.length > 0 ? (
           <>
             <div {...stylex.props(styles.list)}>
-              {query.data.data.map((announcement) => (
+              {announcementRows.map((announcement) => (
                 <article key={announcement.id} {...stylex.props(styles.row)}>
                   <div>
                     <h3 {...stylex.props(styles.rowTitle)}>{announcement.title}</h3>
@@ -397,7 +394,10 @@ export default function PlatformAnnouncements(): ReactNode {
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() => setPendingDelete(announcement)}
+                      onClick={() => {
+                        remove.reset()
+                        setPendingDelete(announcement)
+                      }}
                       aria-label={t`Delete announcement ${announcement.title}`}
                       {...stylex.props(consoleShell.actionButton)}
                     >
@@ -407,7 +407,7 @@ export default function PlatformAnnouncements(): ReactNode {
                 </article>
               ))}
             </div>
-            <Pagination query={query} loadMoreLabel={<Trans>Load more</Trans>} />
+            <Pagination query={announcements} loadMoreLabel={<Trans>Load more</Trans>} />
           </>
         ) : null}
       </ConsolePageSection>
@@ -420,7 +420,8 @@ export default function PlatformAnnouncements(): ReactNode {
           }
           confirmLabel={<Trans>Delete</Trans>}
           isLoading={remove.isPending}
-          onConfirm={() => void confirmDelete()}
+          error={remove.error ? errorMessage(remove.error, { surface: 'general' }) : undefined}
+          onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
       ) : null}

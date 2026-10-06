@@ -2,10 +2,13 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import type { PlatformMfaPolicy, PlatformSettings, PlatformSettingsPatch } from '@xid-kit/types'
 import { Alert, Button, Field, Input, Select, Spinner } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice, ConsolePageSplitSection } from '@xid-kit/web-ui/ui'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { LOCALE_LABELS, SUPPORTED_LOCALES, isSupportedLocale } from '@xid-kit/web-ui/locale'
+import type { SupportedLocale } from '@xid-kit/web-ui/locale'
 import { usePlatformSettingsQuery, useUpdatePlatformSettings } from './queries'
-import type { PlatformSettings as PlatformSettingsType } from './types'
 
 const styles = stylex.create({
   form: {
@@ -20,21 +23,27 @@ const styles = stylex.create({
 })
 
 type FormState = {
-  defaultLocale: string
-  dataResidency: string
-  mfaPolicy: PlatformSettingsType['mfaPolicy']
+  defaultLocale: SupportedLocale
+  mfaPolicy: PlatformMfaPolicy
 }
 
-function toFormState(settings: PlatformSettingsType): FormState {
+function toFormState(settings: PlatformSettings): FormState {
   return {
-    defaultLocale: settings.defaultLocale,
-    dataResidency: settings.dataResidency,
+    defaultLocale: isSupportedLocale(settings.defaultLocale) ? settings.defaultLocale : 'en',
     mfaPolicy: settings.mfaPolicy,
+  }
+}
+
+function changedFields(form: FormState, settings: PlatformSettings): PlatformSettingsPatch {
+  return {
+    ...(form.defaultLocale !== settings.defaultLocale ? { defaultLocale: form.defaultLocale } : {}),
+    ...(form.mfaPolicy !== settings.mfaPolicy ? { mfaPolicy: form.mfaPolicy } : {}),
   }
 }
 
 export default function PlatformSettingsPage(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useApiErrorMessage()
   const settingsQuery = usePlatformSettingsQuery()
   const updateMutation = useUpdatePlatformSettings()
   const [form, setForm] = useState<FormState | null>(null)
@@ -44,11 +53,13 @@ export default function PlatformSettingsPage(): ReactNode {
   }, [settingsQuery.data])
 
   const settings = settingsQuery.data
+  const patch = form && settings ? changedFields(form, settings) : {}
+  const hasChanges = Object.keys(patch).length > 0
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
-    if (!form) return
-    updateMutation.mutate(form)
+    if (!hasChanges) return
+    updateMutation.mutate(patch)
   }
 
   return (
@@ -56,17 +67,15 @@ export default function PlatformSettingsPage(): ReactNode {
       title={<Trans>Platform settings</Trans>}
       lead={<Trans>Instance-wide defaults inherited by organizations unless overridden.</Trans>}
     >
-      {settingsQuery.isError || updateMutation.isError || updateMutation.isSuccess ? (
+      {settingsQuery.isError || updateMutation.error || updateMutation.isSuccess ? (
         <ConsolePageNotice>
           {settingsQuery.isError ? (
             <Alert tone="error">
               <Trans>Failed to load platform settings.</Trans>
             </Alert>
           ) : null}
-          {updateMutation.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to save settings. Try again.</Trans>
-            </Alert>
+          {updateMutation.error ? (
+            <Alert tone="error">{errorMessage(updateMutation.error, { surface: 'general' })}</Alert>
           ) : null}
           {updateMutation.isSuccess ? (
             <Alert tone="success">
@@ -82,36 +91,52 @@ export default function PlatformSettingsPage(): ReactNode {
           <Trans>These defaults apply to every organization unless it overrides them.</Trans>
         }
       >
-        {!form ? (
+        {!form || !settings ? (
           <div {...stylex.props(styles.loadingZone)}>
             {settingsQuery.isError ? null : <Spinner size={28} />}
           </div>
         ) : (
           <form {...stylex.props(styles.form)} onSubmit={onSubmit}>
             <Field label={t`Instance`}>
-              <Input value={settings?.name ?? ''} readOnly />
+              <Input value={settings.name} readOnly />
             </Field>
 
-            <Field label={t`Default locale`}>
-              <Input
+            <Field
+              label={t`Fallback language`}
+              hint={
+                <Trans>
+                  Used for API error messages and transactional email when the visitor's browser
+                  language is not supported. The sign-in pages and Console follow the browser
+                  language.
+                </Trans>
+              }
+            >
+              <Select
                 value={form.defaultLocale}
-                onChange={(event) =>
-                  setForm((current) =>
-                    current ? { ...current, defaultLocale: event.target.value } : current,
-                  )
-                }
-              />
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!isSupportedLocale(value)) return
+                  setForm((current) => (current ? { ...current, defaultLocale: value } : current))
+                }}
+              >
+                {SUPPORTED_LOCALES.map((locale) => (
+                  <option key={locale} value={locale}>
+                    {LOCALE_LABELS[locale]}
+                  </option>
+                ))}
+              </Select>
             </Field>
 
-            <Field label={t`Data residency`}>
-              <Input
-                value={form.dataResidency}
-                onChange={(event) =>
-                  setForm((current) =>
-                    current ? { ...current, dataResidency: event.target.value } : current,
-                  )
-                }
-              />
+            <Field
+              label={t`Data residency label`}
+              hint={
+                <Trans>
+                  Recorded at deployment as metadata. It does not move or restrict where data is
+                  stored, so it cannot be changed here.
+                </Trans>
+              }
+            >
+              <Input value={settings.dataResidency} readOnly />
             </Field>
 
             <Field label={t`Platform MFA policy`}>
@@ -120,10 +145,7 @@ export default function PlatformSettingsPage(): ReactNode {
                 onChange={(event) =>
                   setForm((current) =>
                     current
-                      ? {
-                          ...current,
-                          mfaPolicy: event.target.value as PlatformSettingsType['mfaPolicy'],
-                        }
+                      ? { ...current, mfaPolicy: event.target.value as PlatformMfaPolicy }
                       : current,
                   )
                 }
@@ -135,7 +157,7 @@ export default function PlatformSettingsPage(): ReactNode {
             </Field>
 
             <div>
-              <Button type="submit" isLoading={updateMutation.isPending}>
+              <Button type="submit" isLoading={updateMutation.isPending} disabled={!hasChanges}>
                 <Trans>Save changes</Trans>
               </Button>
             </div>

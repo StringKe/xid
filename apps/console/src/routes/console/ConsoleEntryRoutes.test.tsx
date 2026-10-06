@@ -282,7 +282,7 @@ describe('Console entry routes', () => {
     expect(html).toContain('Social providers')
     expect(html).toContain('data-link-to="/console/org/delivery-channels"')
     expect(html).toContain('data-link-to="/console/org/social-providers"')
-    expect(html).not.toContain('data-navigate-to="/console/platform/flags"')
+    expect(html).not.toContain('data-navigate-to="/console/platform/settings"')
   })
 
   it('auto-selects a single organization for instance manager settings without platform redirect', () => {
@@ -293,7 +293,7 @@ describe('Console entry routes', () => {
     const html = renderToStaticMarkup(<ConsoleSettingsEntry />)
 
     expect(html).toContain('Opening organization')
-    expect(html).not.toContain('data-navigate-to="/console/platform/flags"')
+    expect(html).not.toContain('data-navigate-to="/console/platform/settings"')
     expect(html).not.toContain('No organization selected')
   })
 

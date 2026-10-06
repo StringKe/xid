@@ -6,6 +6,18 @@ import { messages as enMessages } from '@xid-kit/i18n/locales/en/messages.mjs'
 export const SUPPORTED_LOCALES = ['en', 'zh-Hans', 'ja', 'ko', 'fr', 'de', 'es', 'pt-BR'] as const
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
 
+// 语言名用各自语言书写,任何界面语言下都能认出自己的语言。
+export const LOCALE_LABELS: Record<SupportedLocale, string> = {
+  en: 'English',
+  'zh-Hans': '简体中文',
+  ja: '日本語',
+  ko: '한국어',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  'pt-BR': 'Português',
+}
+
 const DEFAULT_LOCALE: SupportedLocale = 'en'
 const SUPPORTED = new Set<string>(SUPPORTED_LOCALES)
 const LANGUAGE_FALLBACKS: Record<string, SupportedLocale> = {

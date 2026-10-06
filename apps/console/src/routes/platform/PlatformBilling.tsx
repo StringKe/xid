@@ -2,7 +2,9 @@ import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { BillingOverview } from '@xid-kit/types'
 import { Alert, Badge } from '@xid-kit/web-ui/ui'
+import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
@@ -10,8 +12,7 @@ import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { statusToneFor, useBillingStatusLabel } from '@xid-kit/web-ui/enum-labels'
-import { useBillingOverviewQuery } from './queries'
-import type { BillingOverview } from './types'
+import { useBillingOverviewList } from './queries'
 
 const styles = stylex.create({
   organizationName: {
@@ -31,12 +32,20 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     fontSize: '0.875rem',
   },
+  actionLink: {
+    color: tokens['--xid-primary'],
+    fontWeight: 600,
+    fontSize: '0.75rem',
+    textDecoration: {
+      default: 'none',
+      ':hover': 'underline',
+    },
+  },
 })
 
 export default function PlatformBilling(): ReactNode {
   const billingStatusLabel = useBillingStatusLabel()
-  const list = useBillingOverviewQuery()
-  const { data, isLoading, isError } = list
+  const billing = useBillingOverviewList()
 
   const columns: ColumnDef<BillingOverview>[] = [
     {
@@ -93,6 +102,19 @@ export default function PlatformBilling(): ReactNode {
       ),
       meta: { width: '100px' },
     },
+    {
+      id: 'actions',
+      header: () => <Trans>Actions</Trans>,
+      cell: ({ row }) => (
+        <Link
+          to={`/console/platform/plans?tenantId=${encodeURIComponent(row.original.organizationId)}`}
+          {...stylex.props(styles.actionLink)}
+        >
+          <Trans>Plans and quotas</Trans>
+        </Link>
+      ),
+      meta: { width: '130px' },
+    },
   ]
 
   return (
@@ -101,7 +123,7 @@ export default function PlatformBilling(): ReactNode {
       title={<Trans>Billing overview</Trans>}
       lead={<Trans>Usage, seats, and billing status for every organization.</Trans>}
     >
-      {isError ? (
+      {billing.isError ? (
         <ConsolePageNotice>
           <Alert tone="error">
             <Trans>Failed to load billing overview. Please try again.</Trans>
@@ -115,12 +137,12 @@ export default function PlatformBilling(): ReactNode {
         </h2>
         <DataTable
           columns={columns}
-          data={data?.data ?? []}
+          data={billing.data?.data ?? []}
           getRowId={(row) => row.organizationId}
-          isLoading={isLoading}
+          isLoading={billing.isLoading}
           emptyMessage={<Trans>No billing data available.</Trans>}
         />
-        {data ? <Pagination query={list} loadMoreLabel={<Trans>Load more</Trans>} /> : null}
+        <Pagination query={billing} loadMoreLabel={<Trans>Load more</Trans>} />
       </ConsolePageSection>
     </ConsolePage>
   )

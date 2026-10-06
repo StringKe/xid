@@ -27,7 +27,8 @@ import type {
   OrganizationPlanPatch,
   OrganizationPlanStatus,
   OrganizationQuotaKey,
-} from './types'
+} from '@xid-kit/types'
+import { fromLocalDateTime, toLocalDateTime } from '../../lib/datetime-local'
 
 const EDITABLE_QUOTA_KEYS = [
   'organizations',
@@ -135,13 +136,8 @@ const styles = stylex.create({
   },
 })
 
-function toLocalDateTime(value: string | null): string {
-  if (!value) return ''
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) return ''
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
-}
+const CHECKOUT_POLL_INTERVAL_MS = 3_000
+const CHECKOUT_POLL_WINDOW_MS = 60_000
 
 function toForm(detail: OrganizationPlanDetail): PlanForm {
   const quotas = Object.fromEntries(
@@ -170,6 +166,28 @@ function nullableInteger(value: string): number | null {
   return value.trim() === '' ? null : Number(value)
 }
 
+// 只提交改动过的字段:只调配额时服务端保留计费来源(例如 Stripe)与生效时间。
+function buildPlanPatch(form: PlanForm, detail: OrganizationPlanDetail): OrganizationPlanPatch {
+  const initial = toForm(detail)
+  const patch: OrganizationPlanPatch = {}
+  if (form.plan !== initial.plan) patch.plan = form.plan
+  if (form.status !== initial.status) patch.status = form.status
+  if (form.trialEndsAt !== initial.trialEndsAt)
+    patch.trialEndsAt = fromLocalDateTime(form.trialEndsAt)
+  if (form.seatLimit !== initial.seatLimit) patch.seatLimit = nullableInteger(form.seatLimit)
+  const quotas = EDITABLE_QUOTA_KEYS.filter(
+    (key) =>
+      form.quotas[key].limit !== initial.quotas[key].limit ||
+      form.quotas[key].enforcement !== initial.quotas[key].enforcement,
+  ).map((key) => ({
+    key,
+    limit: nullableInteger(form.quotas[key].limit),
+    enforcement: form.quotas[key].enforcement,
+  }))
+  if (quotas.length > 0) patch.quotas = quotas
+  return patch
+}
+
 function supportsHardEnforcement(key: EditableQuotaKey): boolean {
   return key === 'organizations' || key === 'sso_connections'
 }
@@ -195,7 +213,12 @@ export default function PlatformPlans(): ReactNode {
   const { t } = useLingui()
   const [searchParams] = useSearchParams()
   const tenantId = searchParams.get('tenantId')?.trim() ?? ''
-  const planQuery = useOrganizationPlanQuery(tenantId)
+  const checkout = searchParams.get('checkout')
+  const [pollStartedAt] = useState(() => Date.now())
+  const [isAwaitingStripe, setIsAwaitingStripe] = useState(checkout === 'success')
+  const planQuery = useOrganizationPlanQuery(tenantId, {
+    refetchInterval: isAwaitingStripe ? CHECKOUT_POLL_INTERVAL_MS : false,
+  })
   const stripeConfigQuery = useStripeBillingConfigQuery(tenantId)
   const updatePlan = useUpdateOrganizationPlan()
   const createStripeCheckout = useCreateStripeCheckout()
@@ -206,21 +229,20 @@ export default function PlatformPlans(): ReactNode {
     if (planQuery.data) setForm(toForm(planQuery.data))
   }, [planQuery.data])
 
+  useEffect(() => {
+    if (!isAwaitingStripe) return
+    const remaining = CHECKOUT_POLL_WINDOW_MS - (Date.now() - pollStartedAt)
+    const timer = setTimeout(() => setIsAwaitingStripe(false), Math.max(remaining, 0))
+    return () => clearTimeout(timer)
+  }, [isAwaitingStripe, pollStartedAt])
+
+  const patch = form && planQuery.data ? buildPlanPatch(form, planQuery.data) : {}
+  const hasChanges = Object.keys(patch).length > 0
+
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    if (!form || tenantId === '') return
-    const body: OrganizationPlanPatch = {
-      plan: form.plan,
-      status: form.status,
-      trialEndsAt: form.trialEndsAt === '' ? null : new Date(form.trialEndsAt).toISOString(),
-      seatLimit: nullableInteger(form.seatLimit),
-      quotas: EDITABLE_QUOTA_KEYS.map((key) => ({
-        key,
-        limit: nullableInteger(form.quotas[key].limit),
-        enforcement: form.quotas[key].enforcement,
-      })),
-    }
-    updatePlan.mutate({ tenantId, body })
+    if (!hasChanges || tenantId === '') return
+    updatePlan.mutate({ tenantId, body: patch })
   }
 
   function openStripeCheckout(plan: 'starter' | 'pro' | 'enterprise'): void {
@@ -272,10 +294,28 @@ export default function PlatformPlans(): ReactNode {
             Plans are accounting and support labels. They never disable authentication, token
             issuance, or configured protocols in a self-hosted deployment.
           </Trans>{' '}
+          {planQuery.data ? <strong>{planQuery.data.organizationName}</strong> : null}{' '}
+          <Trans>Organization ID</Trans>:{' '}
           <span {...stylex.props(consoleShell.mono)}>{tenantId}</span>
         </>
       }
     >
+      {checkout === 'success' || checkout === 'canceled' ? (
+        <ConsolePageNotice>
+          {checkout === 'canceled' ? (
+            <Alert tone="info">
+              <Trans>Stripe Checkout was canceled. The plan was not changed.</Trans>
+            </Alert>
+          ) : (
+            <Alert tone="info">
+              <Trans>
+                Payment completed. The plan updates after Stripe confirms the subscription, which
+                can take a minute. Reload this page if it does not change.
+              </Trans>
+            </Alert>
+          )}
+        </ConsolePageNotice>
+      ) : null}
       {planQuery.isError || updatePlan.isError || updatePlan.isSuccess || stripeActionError ? (
         <ConsolePageNotice>
           {planQuery.isError ? (
@@ -455,7 +495,7 @@ export default function PlatformPlans(): ReactNode {
             </div>
 
             <div {...stylex.props(styles.actions)}>
-              <Button type="submit" isLoading={updatePlan.isPending}>
+              <Button type="submit" isLoading={updatePlan.isPending} disabled={!hasChanges}>
                 <Trans>Save changes</Trans>
               </Button>
             </div>

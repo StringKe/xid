@@ -19,8 +19,9 @@ import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { statusToneFor, useOrganizationStatusLabel } from '@xid-kit/web-ui/enum-labels'
-import { usePlatformOrganizationsQuery, useUpdatePlatformOrganizationStatus } from './queries'
-import type { PlatformOrganization } from './types'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import type { PlatformOrganization, XidError } from '@xid-kit/types'
+import { usePlatformOrganizationsList, useUpdatePlatformOrganizationStatus } from './queries'
 
 const PLAN_TONE: Record<PlatformOrganization['plan'], BadgeTone> = {
   free: 'neutral',
@@ -50,6 +51,12 @@ const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font-mono'],
   },
+  organizationId: {
+    fontSize: '0.75rem',
+    color: tokens['--xid-muted-foreground'],
+    fontFamily: tokens['--xid-font-mono'],
+    userSelect: 'all',
+  },
   actionStack: {
     display: 'flex',
     alignItems: 'center',
@@ -74,10 +81,10 @@ type PendingStatusChange = {
 export default function PlatformOrganizations(): ReactNode {
   const { t } = useLingui()
   const organizationStatusLabel = useOrganizationStatusLabel()
+  const errorMessage = useApiErrorMessage()
   const [search, setSearch] = useState('')
   const [submitted, setSubmitted] = useState('')
-  const list = usePlatformOrganizationsQuery(submitted)
-  const { data, isLoading, isError } = list
+  const organizations = usePlatformOrganizationsList(submitted)
   const updateStatus = useUpdatePlatformOrganizationStatus()
   const [pendingStatus, setPendingStatus] = useState<PendingStatusChange | null>(null)
 
@@ -86,13 +93,25 @@ export default function PlatformOrganizations(): ReactNode {
     setSubmitted(search)
   }
 
-  async function confirmStatusChange(): Promise<void> {
+  function openStatusChange(change: PendingStatusChange): void {
+    updateStatus.reset()
+    setPendingStatus(change)
+  }
+
+  function confirmStatusChange(): void {
     if (!pendingStatus) return
-    await updateStatus.mutateAsync({
-      organizationId: pendingStatus.organization.id,
-      status: pendingStatus.status,
-    })
-    setPendingStatus(null)
+    updateStatus.mutate(
+      { organizationId: pendingStatus.organization.id, status: pendingStatus.status },
+      { onSuccess: () => setPendingStatus(null) },
+    )
+  }
+
+  function statusChangeError(error: XidError | null): string | undefined {
+    if (!error) return undefined
+    if (error.code === 'conflict') {
+      return t`This organization's status changed or cannot be changed. The list was refreshed.`
+    }
+    return errorMessage(error, { surface: 'general' })
   }
 
   const columns: ColumnDef<PlatformOrganization>[] = [
@@ -105,6 +124,9 @@ export default function PlatformOrganizations(): ReactNode {
             {organizationDisplayName(row.original)}
           </div>
           <div {...stylex.props(styles.organizationSlug)}>{row.original.slug}</div>
+          <div {...stylex.props(styles.organizationId)} title={t`Organization ID`}>
+            {row.original.id}
+          </div>
         </div>
       ),
     },
@@ -147,10 +169,10 @@ export default function PlatformOrganizations(): ReactNode {
       header: () => <Trans>Actions</Trans>,
       cell: ({ row }) => (
         <div {...stylex.props(styles.actionStack)}>
-          {row.original.status === 'active' ? (
+          {row.original.status === 'active' && row.original.canChangeStatus ? (
             <Button
               variant="danger"
-              onClick={() => setPendingStatus({ organization: row.original, status: 'suspended' })}
+              onClick={() => openStatusChange({ organization: row.original, status: 'suspended' })}
               aria-label={t`Suspend ${row.original.name}`}
               {...stylex.props(consoleShell.actionButton)}
             >
@@ -160,7 +182,7 @@ export default function PlatformOrganizations(): ReactNode {
           {row.original.status === 'suspended' ? (
             <Button
               variant="secondary"
-              onClick={() => setPendingStatus({ organization: row.original, status: 'active' })}
+              onClick={() => openStatusChange({ organization: row.original, status: 'active' })}
               aria-label={t`Reactivate ${row.original.name}`}
               {...stylex.props(consoleShell.actionButton)}
             >
@@ -185,18 +207,11 @@ export default function PlatformOrganizations(): ReactNode {
       title={<Trans>Organizations</Trans>}
       lead={<Trans>Every organization on this instance, with plan and lifecycle status.</Trans>}
     >
-      {isError || updateStatus.isError ? (
+      {organizations.isError ? (
         <ConsolePageNotice>
-          {isError ? (
-            <Alert tone="error">
-              <Trans>Failed to load organizations.</Trans>
-            </Alert>
-          ) : null}
-          {updateStatus.isError ? (
-            <Alert tone="error">
-              <Trans>Failed to update organization status. Try again.</Trans>
-            </Alert>
-          ) : null}
+          <Alert tone="error">
+            <Trans>Failed to load organizations.</Trans>
+          </Alert>
         </ConsolePageNotice>
       ) : null}
 
@@ -218,21 +233,19 @@ export default function PlatformOrganizations(): ReactNode {
       </ConsolePageToolbar>
 
       <ConsolePageSection title={<Trans>Organizations</Trans>}>
-        {data ? (
+        {organizations.data ? (
           <p {...stylex.props(consoleShell.selectorSummary)}>
-            <Trans>{data.total} organizations found</Trans>
+            <Trans>{organizations.data.total} organizations found</Trans>
           </p>
         ) : null}
         <DataTable
           columns={columns}
-          data={data?.data ?? []}
+          data={organizations.data?.data ?? []}
           getRowId={(row) => row.id}
-          isLoading={isLoading}
+          isLoading={organizations.isLoading}
           emptyMessage={<Trans>No organizations found.</Trans>}
         />
-        {data ? (
-          <Pagination query={list} loadMoreLabel={<Trans>Load more organizations</Trans>} />
-        ) : null}
+        <Pagination query={organizations} loadMoreLabel={<Trans>Load more organizations</Trans>} />
       </ConsolePageSection>
 
       {pendingStatus ? (
@@ -266,7 +279,8 @@ export default function PlatformOrganizations(): ReactNode {
           }
           confirmVariant={pendingStatus.status === 'suspended' ? 'danger' : 'primary'}
           isLoading={updateStatus.isPending}
-          onConfirm={() => void confirmStatusChange()}
+          error={statusChangeError(updateStatus.error)}
+          onConfirm={confirmStatusChange}
           onCancel={() => setPendingStatus(null)}
         />
       ) : null}

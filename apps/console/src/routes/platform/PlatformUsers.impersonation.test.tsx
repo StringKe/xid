@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
-import type { GlobalUser } from './types'
+import type { GlobalUser } from '@xid-kit/types'
 import PlatformUsers from './PlatformUsers'
 
 const globalUser: GlobalUser = {
@@ -22,9 +22,23 @@ const globalUser: GlobalUser = {
 
 const mocks = vi.hoisted(() => ({
   apiPost: vi.fn(),
+  fetchNextPage: vi.fn(() => Promise.resolve()),
+  searchParams: 'impersonation=',
   submitHandoff: vi.fn(),
-  useGlobalUsersQuery: vi.fn(),
+  useGlobalUsersList: vi.fn(),
 }))
+
+function usersList(rows: GlobalUser[], hasNextPage = false) {
+  return {
+    data: { data: rows, nextCursor: hasNextPage ? 'user_cursor_2' : null, total: rows.length },
+    isLoading: false,
+    isError: false,
+    error: null,
+    hasNextPage,
+    isFetchingNextPage: false,
+    fetchNextPage: mocks.fetchNextPage,
+  }
+}
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -50,7 +64,11 @@ vi.mock('../../lib/impersonation-handoff', () => ({
 }))
 
 vi.mock('./queries', () => ({
-  useGlobalUsersQuery: mocks.useGlobalUsersQuery,
+  useGlobalUsersList: mocks.useGlobalUsersList,
+}))
+
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
+  useSearchParams: () => [new URLSearchParams(mocks.searchParams)],
 }))
 
 vi.mock('@xid-kit/web-ui/ConfirmDialog', () => ({
@@ -58,6 +76,7 @@ vi.mock('@xid-kit/web-ui/ConfirmDialog', () => ({
     title,
     description,
     children,
+    error,
     confirmLabel,
     isLoading,
     onConfirm,
@@ -66,6 +85,7 @@ vi.mock('@xid-kit/web-ui/ConfirmDialog', () => ({
     title: ReactNode
     description: ReactNode
     children?: ReactNode
+    error?: ReactNode
     confirmLabel: ReactNode
     isLoading?: boolean
     onConfirm: () => void
@@ -75,6 +95,7 @@ vi.mock('@xid-kit/web-ui/ConfirmDialog', () => ({
       <h2>{title}</h2>
       <p>{description}</p>
       {children}
+      {error ? <div>{error}</div> : null}
       <button type="button" disabled={isLoading} onClick={onCancel}>
         Cancel
       </button>
@@ -196,11 +217,8 @@ describe('PlatformUsers impersonation action', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
-    mocks.useGlobalUsersQuery.mockReturnValue({
-      data: { data: [globalUser], nextCursor: null, total: 1 },
-      isLoading: false,
-      isError: false,
-    })
+    mocks.searchParams = ''
+    mocks.useGlobalUsersList.mockReturnValue(usersList([globalUser]))
     mocks.submitHandoff.mockReturnValue(true)
   })
 
@@ -271,15 +289,7 @@ describe('PlatformUsers impersonation action', () => {
   })
 
   it('does not offer impersonation without an active membership organization', async () => {
-    mocks.useGlobalUsersQuery.mockReturnValue({
-      data: {
-        data: [{ ...globalUser, organizations: [] }],
-        nextCursor: null,
-        total: 1,
-      },
-      isLoading: false,
-      isError: false,
-    })
+    mocks.useGlobalUsersList.mockReturnValue(usersList([{ ...globalUser, organizations: [] }]))
     const { container, root } = await renderSearchedUsers()
 
     expect(container.textContent).not.toContain('Impersonate')
@@ -288,26 +298,32 @@ describe('PlatformUsers impersonation action', () => {
     container.remove()
   })
 
-  it('loads the next page of the submitted global user search', async () => {
-    const fetchNextPage = vi.fn(() => Promise.resolve())
-    mocks.useGlobalUsersQuery.mockReturnValue({
-      data: { data: [globalUser], nextCursor: 'user_cursor_2', total: 21 },
-      isLoading: false,
-      isError: false,
-      hasNextPage: true,
-      isFetchingNextPage: false,
-      fetchNextPage,
-    })
+  it('appends the next page of the submitted global user search', async () => {
+    mocks.useGlobalUsersList.mockReturnValue(usersList([globalUser], true))
     const { container, root } = await renderSearchedUsers()
 
-    expect(mocks.useGlobalUsersQuery).toHaveBeenCalledWith('target')
+    expect(mocks.useGlobalUsersList).toHaveBeenLastCalledWith('target')
     const loadMore = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Load more',
     )
     if (!loadMore) throw new Error('Load more button was not rendered')
     await act(async () => loadMore.click())
 
-    expect(fetchNextPage).toHaveBeenCalledOnce()
+    expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1)
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  it('explains an expired impersonation handoff returned from the target host', async () => {
+    mocks.searchParams = 'impersonation=failed'
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () => root.render(<PlatformUsers />))
+
+    expect(container.textContent).toContain('impersonation link expired or was already used')
 
     await act(async () => root.unmount())
     container.remove()

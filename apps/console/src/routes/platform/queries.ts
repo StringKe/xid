@@ -1,11 +1,31 @@
-// 搜索列表 query 为空时 enabled=false,不发空请求。
+// 列表走 useApiInfiniteQuery 累积分页;搜索 query 为空时 enabled=false,不发空请求。
 
 import type {
   UseInfiniteQueryResult,
   UseMutationResult,
   UseQueryResult,
 } from '@tanstack/react-query'
-import type { XidError } from '@xid-kit/types'
+import type {
+  AuditChainVerification,
+  BillingOverview,
+  ComplianceDocument,
+  GlobalUser,
+  InstanceManagerAssignment,
+  OrganizationPlanDetail,
+  OrganizationPlanPatch,
+  PlatformAnnouncement,
+  PlatformAuditEvent,
+  PlatformOrganization,
+  PlatformPage,
+  PlatformSettings,
+  PlatformSettingsPatch,
+  QueueDeadLetter,
+  QueueDeadLetterReplay,
+  StatusIncident,
+  StripeBillingConfig,
+  StripeHostedSession,
+  XidError,
+} from '@xid-kit/types'
 import {
   queryKeyPrefixes,
   queryKeys,
@@ -13,31 +33,11 @@ import {
   useApiMutation,
   useApiQuery,
 } from '@xid-kit/web-ui/queries'
-import type {
-  AuditChainVerification,
-  AuditEvent,
-  BillingOverview,
-  ComplianceDocument,
-  FeatureFlag,
-  GlobalUser,
-  InstanceManagerAssignment,
-  OrganizationPlanDetail,
-  OrganizationPlanPatch,
-  Page,
-  PlatformAnnouncement,
-  PlatformOrganization,
-  PlatformSettings,
-  QueueDeadLetter,
-  QueueDeadLetterReplay,
-  StatusIncident,
-  StripeBillingConfig,
-  StripeHostedSession,
-} from './types'
 
-type ListResult<T> = UseInfiniteQueryResult<Page<T>, XidError>
+export type PlatformList<T> = UseInfiniteQueryResult<PlatformPage<T>, XidError>
 
-export function useInstanceManagerAssignmentsQuery(): ListResult<InstanceManagerAssignment> {
-  return useApiInfiniteQuery<Page<InstanceManagerAssignment>>(
+export function useInstanceManagerAssignmentsList(): PlatformList<InstanceManagerAssignment> {
+  return useApiInfiniteQuery<PlatformPage<InstanceManagerAssignment>>(
     queryKeys.platformManagerAssignments,
     '/v1/platform/manager-assignments',
     { query: { limit: 50 } },
@@ -63,27 +63,24 @@ export function useDeleteInstanceManagerAssignment(): UseMutationResult<unknown,
   )
 }
 
-export function usePlatformOrganizationsQuery(query?: string): ListResult<PlatformOrganization> {
-  return useApiInfiniteQuery<Page<PlatformOrganization>>(
+export function usePlatformOrganizationsList(query: string): PlatformList<PlatformOrganization> {
+  return useApiInfiniteQuery<PlatformPage<PlatformOrganization>>(
     queryKeys.platformOrganizations(query),
     '/v1/platform/organizations',
-    { query: { limit: 20, q: query } },
+    { query: { limit: 20, q: query || undefined } },
   )
 }
 
-export function useGlobalUsersQuery(query: string): ListResult<GlobalUser> {
-  return useApiInfiniteQuery<Page<GlobalUser>>(
+export function useGlobalUsersList(query: string): PlatformList<GlobalUser> {
+  return useApiInfiniteQuery<PlatformPage<GlobalUser>>(
     queryKeys.platformUsers(query),
     '/v1/platform/users',
-    {
-      enabled: Boolean(query),
-      query: { limit: 20, q: query },
-    },
+    { enabled: Boolean(query), query: { limit: 20, q: query } },
   )
 }
 
-export function useGlobalAuditEventsQuery(): ListResult<AuditEvent> {
-  return useApiInfiniteQuery<Page<AuditEvent>>(
+export function useGlobalAuditEventsList(): PlatformList<PlatformAuditEvent> {
+  return useApiInfiniteQuery<PlatformPage<PlatformAuditEvent>>(
     queryKeys.platformAuditEvents,
     '/v1/platform/audit-events',
     { query: { limit: 30 } },
@@ -102,6 +99,8 @@ export function useAuditChainVerificationQuery(
     '/v1/platform/audit/verify',
     {
       enabled: input !== null && input.tenantId.length > 0,
+      staleTime: 0,
+      gcTime: 0,
       query: {
         tenant_id: input?.tenantId,
         from_seq: input?.fromSeq,
@@ -111,8 +110,8 @@ export function useAuditChainVerificationQuery(
   )
 }
 
-export function useDeadLettersQuery(): ListResult<QueueDeadLetter> {
-  return useApiInfiniteQuery<Page<QueueDeadLetter>>(
+export function useDeadLettersList(): PlatformList<QueueDeadLetter> {
+  return useApiInfiniteQuery<PlatformPage<QueueDeadLetter>>(
     queryKeys.platformDeadLetters,
     '/v1/platform/dead-letters',
     { query: { limit: 30 } },
@@ -130,16 +129,12 @@ export function useReplayDeadLetter(): UseMutationResult<
   )
 }
 
-export function useFeatureFlagsQuery(): UseQueryResult<FeatureFlag[], XidError> {
-  return useApiQuery<FeatureFlag[]>(queryKeys.platformFeatureFlags, '/v1/platform/feature-flags')
-}
-
 export function usePlatformSettingsQuery(): UseQueryResult<PlatformSettings, XidError> {
   return useApiQuery<PlatformSettings>(queryKeys.platformSettings, '/v1/platform/settings')
 }
 
-export function useBillingOverviewQuery(): ListResult<BillingOverview> {
-  return useApiInfiniteQuery<Page<BillingOverview>>(
+export function useBillingOverviewList(): PlatformList<BillingOverview> {
+  return useApiInfiniteQuery<PlatformPage<BillingOverview>>(
     queryKeys.platformBilling,
     '/v1/platform/billing',
     { query: { limit: 20 } },
@@ -148,11 +143,15 @@ export function useBillingOverviewQuery(): ListResult<BillingOverview> {
 
 export function useOrganizationPlanQuery(
   tenantId: string,
+  options?: { refetchInterval?: number | false },
 ): UseQueryResult<OrganizationPlanDetail, XidError> {
   return useApiQuery<OrganizationPlanDetail>(
     queryKeys.platformPlan(tenantId),
     `/v1/platform/plans/${encodeURIComponent(tenantId)}`,
-    { enabled: tenantId.length > 0 },
+    {
+      enabled: tenantId.length > 0,
+      ...(options?.refetchInterval ? { refetchInterval: options.refetchInterval } : {}),
+    },
   )
 }
 
@@ -211,35 +210,11 @@ export function useUpdateOrganizationPlan(): UseMutationResult<
 export function useUpdatePlatformSettings(): UseMutationResult<
   PlatformSettings,
   XidError,
-  Partial<
-    Pick<
-      PlatformSettings,
-      'defaultLocale' | 'dataResidency' | 'mfaPolicy' | 'passwordPolicy' | 'sessionPolicy'
-    >
-  >
+  PlatformSettingsPatch
 > {
-  return useApiMutation<
-    PlatformSettings,
-    Partial<
-      Pick<
-        PlatformSettings,
-        'defaultLocale' | 'dataResidency' | 'mfaPolicy' | 'passwordPolicy' | 'sessionPolicy'
-      >
-    >
-  >((api, body) => api.patch<PlatformSettings>('/v1/platform/settings', body), {
-    invalidate: [queryKeys.platformSettings],
-  })
-}
-
-export function useSetFeatureFlagDefault(): UseMutationResult<
-  FeatureFlag,
-  XidError,
-  { key: string; globalDefault: boolean }
-> {
-  return useApiMutation<FeatureFlag, { key: string; globalDefault: boolean }>(
-    (api, { key, globalDefault }) =>
-      api.patch<FeatureFlag>(`/v1/platform/feature-flags/${key}`, { globalDefault }),
-    { invalidate: [queryKeys.platformFeatureFlags] },
+  return useApiMutation<PlatformSettings, PlatformSettingsPatch>(
+    (api, body) => api.patch<PlatformSettings>('/v1/platform/settings', body),
+    { invalidate: [queryKeys.platformSettings] },
   )
 }
 
@@ -258,8 +233,8 @@ export function useUpdatePlatformOrganizationStatus(): UseMutationResult<
   )
 }
 
-export function usePlatformAnnouncementsQuery(): ListResult<PlatformAnnouncement> {
-  return useApiInfiniteQuery<Page<PlatformAnnouncement>>(
+export function usePlatformAnnouncementsList(): PlatformList<PlatformAnnouncement> {
+  return useApiInfiniteQuery<PlatformPage<PlatformAnnouncement>>(
     queryKeys.platformAnnouncements,
     '/v1/platform/announcements',
     { query: { limit: 30 } },
@@ -315,8 +290,8 @@ export function useDeletePlatformAnnouncement(): UseMutationResult<
   )
 }
 
-export function usePlatformStatusIncidentsQuery(): ListResult<StatusIncident> {
-  return useApiInfiniteQuery<Page<StatusIncident>>(
+export function usePlatformStatusIncidentsList(): PlatformList<StatusIncident> {
+  return useApiInfiniteQuery<PlatformPage<StatusIncident>>(
     queryKeys.platformStatusIncidents,
     '/v1/platform/status-incidents',
     { query: { limit: 30 } },
@@ -330,22 +305,6 @@ export function useCreateStatusIncident(): UseMutationResult<
 > {
   return useApiMutation(
     (api, body) => api.post<StatusIncident>('/v1/platform/status-incidents', body),
-    { invalidate: [queryKeyPrefixes.platformStatusIncidents] },
-  )
-}
-
-export function useUpdateStatusIncident(): UseMutationResult<
-  StatusIncident,
-  XidError,
-  {
-    id: string
-    body: Partial<
-      Pick<StatusIncident, 'title' | 'status' | 'impact' | 'summary' | 'startedAt' | 'resolvedAt'>
-    >
-  }
-> {
-  return useApiMutation(
-    (api, { id, body }) => api.patch<StatusIncident>(`/v1/platform/status-incidents/${id}`, body),
     { invalidate: [queryKeyPrefixes.platformStatusIncidents] },
   )
 }
@@ -373,8 +332,8 @@ export function useDeleteStatusIncident(): UseMutationResult<
   )
 }
 
-export function usePlatformComplianceDocumentsQuery(): ListResult<ComplianceDocument> {
-  return useApiInfiniteQuery<Page<ComplianceDocument>>(
+export function usePlatformComplianceDocumentsList(): PlatformList<ComplianceDocument> {
+  return useApiInfiniteQuery<PlatformPage<ComplianceDocument>>(
     queryKeys.platformComplianceDocuments,
     '/v1/platform/compliance-documents',
     { query: { limit: 30 } },

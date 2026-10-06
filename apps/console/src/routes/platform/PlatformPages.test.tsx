@@ -7,34 +7,45 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type {
   AuditChainVerification,
-  AuditEvent,
   BillingOverview,
   ComplianceDocument,
-  FeatureFlag,
   GlobalUser,
   InstanceManagerAssignment,
-  Page,
   PlatformAnnouncement,
+  PlatformAuditEvent,
   PlatformOrganization,
   PlatformSettings,
+  PlatformStats,
   QueueDeadLetter,
   StatusIncident,
-} from './types'
-import type { PlatformStats } from './PlatformOverviewMetrics'
+} from '@xid-kit/types'
 
 type QueryState = {
   data: unknown
   error: Error | null
   isError: boolean
   isLoading: boolean
+  isFetching?: boolean
+  refetch?: () => void
+}
+
+type ListState = {
+  data: { data: unknown[]; nextCursor: string | null; total: number }
+  isLoading: boolean
+  isError: boolean
+  error: null
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
+  fetchNextPage: () => Promise<unknown>
 }
 
 const apiMocks = vi.hoisted(() => ({
+  fetchNextPage: vi.fn(() => Promise.resolve()),
+  lists: new Map<string, ListState>(),
   queries: new Map<string, QueryState>(),
-  fetchNextPage: vi.fn(),
+  useApiInfiniteQuery: vi.fn(),
   useApiMutation: vi.fn(),
   useApiQuery: vi.fn(),
-  useApiInfiniteQuery: vi.fn(),
 }))
 
 vi.mock('@lingui/react/macro', () => ({
@@ -51,11 +62,15 @@ vi.mock('@xid-kit/web-ui/queries', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xid-kit/web-ui/queries')>()
   return {
     ...actual,
+    useApiInfiniteQuery: apiMocks.useApiInfiniteQuery,
     useApiMutation: apiMocks.useApiMutation,
     useApiQuery: apiMocks.useApiQuery,
-    useApiInfiniteQuery: apiMocks.useApiInfiniteQuery,
   }
 })
+
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useApiErrorMessage: () => (error: { code: string }) => `error:${error.code}`,
+}))
 
 vi.mock('@xid-kit/web-ui/enum-labels', () => ({
   statusToneFor: () => 'neutral',
@@ -66,6 +81,7 @@ vi.mock('@xid-kit/web-ui/enum-labels', () => ({
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
+  useSearchParams: () => [new URLSearchParams('')],
 }))
 
 vi.mock('@xid-kit/web-ui/session', () => ({
@@ -86,7 +102,6 @@ import PlatformAuditEvents from './PlatformAuditEvents'
 import PlatformBilling from './PlatformBilling'
 import PlatformCompliance from './PlatformCompliance'
 import PlatformDeadLetters from './PlatformDeadLetters'
-import PlatformFeatureFlags from './PlatformFeatureFlags'
 import PlatformInstanceManagers from './PlatformInstanceManagers'
 import PlatformOrganizations from './PlatformOrganizations'
 import PlatformSettingsPage from './PlatformSettings'
@@ -111,6 +126,15 @@ const organization: PlatformOrganization = {
   userCount: 25,
   orgCount: 3,
   createdAt: '2026-07-27T00:00:00.000Z',
+  canChangeStatus: true,
+}
+
+const defaultOrganization: PlatformOrganization = {
+  ...organization,
+  id: 'org_default',
+  slug: 'default',
+  name: 'Default Organization',
+  canChangeStatus: false,
 }
 
 const globalUser: GlobalUser = {
@@ -126,6 +150,10 @@ const instanceManager: InstanceManagerAssignment = {
   id: 'manager_assignment_1',
   tenantId: organization.id,
   userId: globalUser.id,
+  email: globalUser.email,
+  displayName: globalUser.name,
+  userStatus: 'active',
+  organizationName: organization.name,
   managerRole: 'instance_manager',
   scopeType: 'instance',
   scopeId: null,
@@ -133,13 +161,13 @@ const instanceManager: InstanceManagerAssignment = {
   updatedAt: '2026-07-27T00:00:00.000Z',
 }
 
-const auditEvent: AuditEvent = {
+const auditEvent: PlatformAuditEvent = {
   id: 'audit_1',
   seq: 42,
   organizationId: organization.id,
   organizationName: organization.name,
   orgId: organization.id,
-  eventType: 'login.succeeded',
+  eventType: 'auth.login_succeeded',
   actorId: globalUser.id,
   actorDisplay: globalUser.id,
   actorIp: '192.0.2.1',
@@ -151,6 +179,8 @@ const auditEvent: AuditEvent = {
 const auditVerification: AuditChainVerification = {
   tenant_id: organization.id,
   verified_range: { from: 1, to: 42 },
+  truncated: false,
+  latest_seq: 42,
   chain_valid: true,
   broken_at_seq: null,
   failure_reason: null,
@@ -167,23 +197,16 @@ const deadLetter: QueueDeadLetter = {
   orgId: organization.id,
   eventType: 'user.updated',
   errorCode: 'consumer_retries_exhausted',
-  status: 'pending',
-  attempts: 1,
+  status: 'replaying',
+  replayable: true,
+  attempts: 5,
   sourceEnqueuedAt: '2026-07-27T00:00:00.000Z',
   failedAt: '2026-07-27T00:01:00.000Z',
-  replayRequestedAt: null,
+  replayRequestedAt: '2026-07-27T00:02:00.000Z',
   replayedAt: null,
   replayedBy: null,
-  replayCount: 0,
-  lastReplayErrorCode: null,
-}
-
-const featureFlag: FeatureFlag = {
-  key: 'beta_access',
-  label: 'Beta access',
-  description: 'Enables beta access.',
-  globalDefault: true,
-  organizationOverrides: 2,
+  replayCount: 1,
+  lastReplayErrorCode: 'queue_send_failed',
 }
 
 const announcement: PlatformAnnouncement = {
@@ -219,7 +242,8 @@ const statusIncident: StatusIncident = {
 
 const complianceDocument: ComplianceDocument = {
   id: 'compliance_1',
-  tenantId: null,
+  tenantId: organization.id,
+  organizationName: organization.name,
   documentType: 'dpa',
   title: 'Data processing addendum',
   status: 'available',
@@ -251,10 +275,16 @@ const settings: PlatformSettings = {
   primaryDomain: 'xid.example',
   mode: 'multi-tenant',
   defaultLocale: 'en',
-  dataResidency: 'global',
+  dataResidency: 'us',
   mfaPolicy: 'required',
   passwordPolicy: {},
-  sessionPolicy: {},
+  sessionPolicy: { idleTimeoutMin: 30, absoluteTimeoutDays: 7 },
+  tokenPolicy: {
+    accessTokenTtlSec: 3600,
+    sessionTokenTtlSec: 60,
+    refreshIdleTimeoutDays: 30,
+    refreshAbsoluteTimeoutDays: 7,
+  },
   status: 'active',
 }
 
@@ -264,106 +294,48 @@ function queryState(data: unknown): QueryState {
     error: null,
     isError: false,
     isLoading: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  }
+}
+
+function listState(rows: unknown[], hasNextPage = false): ListState {
+  return {
+    data: { data: rows, nextCursor: hasNextPage ? 'next_cursor' : null, total: rows.length },
+    isLoading: false,
+    isError: false,
+    error: null,
+    hasNextPage,
+    isFetchingNextPage: false,
+    fetchNextPage: apiMocks.fetchNextPage,
   }
 }
 
 describe('platform pages', () => {
   beforeEach(() => {
+    apiMocks.fetchNextPage.mockReset()
+    apiMocks.useApiInfiniteQuery.mockReset()
     apiMocks.useApiMutation.mockReset()
     apiMocks.useApiQuery.mockReset()
-    apiMocks.useApiInfiniteQuery.mockReset()
-    apiMocks.fetchNextPage.mockReset()
     apiMocks.queries.clear()
+    apiMocks.lists.clear()
     apiMocks.queries.set('/v1/platform/stats', queryState(stats))
-    apiMocks.queries.set(
-      '/v1/platform/organizations',
-      queryState({
-        data: [organization],
-        nextCursor: null,
-        total: 1,
-      } satisfies Page<PlatformOrganization>),
-    )
-    apiMocks.queries.set(
-      '/v1/platform/users',
-      queryState({
-        data: [globalUser],
-        nextCursor: null,
-        total: 1,
-      } satisfies Page<GlobalUser>),
-    )
-    apiMocks.queries.set(
-      '/v1/platform/manager-assignments',
-      queryState({
-        data: [instanceManager],
-        nextCursor: null,
-        total: 1,
-      } satisfies Page<InstanceManagerAssignment>),
-    )
-    apiMocks.queries.set(
-      '/v1/platform/audit-events',
-      queryState({
-        data: [auditEvent],
-        nextCursor: null,
-        total: 1,
-      } satisfies Page<AuditEvent>),
-    )
     apiMocks.queries.set('/v1/platform/audit/verify', queryState(auditVerification))
-    apiMocks.queries.set(
-      '/v1/platform/dead-letters',
-      queryState({
-        data: [deadLetter],
-        nextCursor: null,
-        total: 1,
-      } satisfies Page<QueueDeadLetter>),
-    )
-    apiMocks.queries.set('/v1/platform/feature-flags', queryState([featureFlag]))
-    apiMocks.queries.set(
-      '/v1/platform/announcements',
-      queryState({
-        data: [announcement],
-        nextCursor: 'announcement_cursor_2',
-        total: 31,
-      } satisfies Page<PlatformAnnouncement>),
-    )
-    apiMocks.queries.set(
-      '/v1/platform/status-incidents',
-      queryState({
-        data: [statusIncident],
-        nextCursor: 'incident_cursor_2',
-        total: 31,
-      } satisfies Page<StatusIncident>),
-    )
-    apiMocks.queries.set(
-      '/v1/platform/compliance-documents',
-      queryState({
-        data: [complianceDocument],
-        nextCursor: 'compliance_cursor_2',
-        total: 31,
-      } satisfies Page<ComplianceDocument>),
-    )
-    apiMocks.queries.set(
-      '/v1/platform/billing',
-      queryState({
-        data: [billingOverview],
-        nextCursor: null,
-        total: 1,
-      } satisfies Page<BillingOverview>),
-    )
     apiMocks.queries.set('/v1/platform/settings', queryState(settings))
+    apiMocks.lists.set('/v1/platform/organizations', listState([organization, defaultOrganization]))
+    apiMocks.lists.set('/v1/platform/users', listState([globalUser]))
+    apiMocks.lists.set('/v1/platform/manager-assignments', listState([instanceManager]))
+    apiMocks.lists.set('/v1/platform/audit-events', listState([auditEvent]))
+    apiMocks.lists.set('/v1/platform/dead-letters', listState([deadLetter]))
+    apiMocks.lists.set('/v1/platform/announcements', listState([announcement], true))
+    apiMocks.lists.set('/v1/platform/status-incidents', listState([statusIncident], true))
+    apiMocks.lists.set('/v1/platform/compliance-documents', listState([complianceDocument], true))
+    apiMocks.lists.set('/v1/platform/billing', listState([billingOverview]))
     apiMocks.useApiQuery.mockImplementation((_queryKey: readonly unknown[], path: string) =>
       apiMocks.queries.get(path),
     )
-    apiMocks.useApiInfiniteQuery.mockImplementation(
-      (_queryKey: readonly unknown[], path: string) => {
-        const state = apiMocks.queries.get(path)
-        const page = state?.data as { nextCursor?: string | null } | undefined
-        return {
-          ...state,
-          hasNextPage: Boolean(page?.nextCursor),
-          isFetchingNextPage: false,
-          fetchNextPage: apiMocks.fetchNextPage,
-        }
-      },
+    apiMocks.useApiInfiniteQuery.mockImplementation((_queryKey: readonly unknown[], path: string) =>
+      apiMocks.lists.get(path),
     )
     apiMocks.useApiMutation.mockReturnValue({
       error: null,
@@ -371,6 +343,7 @@ describe('platform pages', () => {
       isPending: false,
       isSuccess: false,
       mutate: vi.fn(),
+      reset: vi.fn(),
       variables: undefined,
     })
   })
@@ -385,16 +358,27 @@ describe('platform pages', () => {
     expect(html).toContain('97.5%')
   })
 
-  it('requests and renders organizations with scoped management links', () => {
+  it('shows no data instead of a perfect login success rate when there are no login events', () => {
+    apiMocks.queries.set('/v1/platform/stats', queryState({ ...stats, loginSuccessRate: null }))
+
+    const html = renderToStaticMarkup(<PlatformAdminOverview />)
+
+    expect(html.match(/No data/g)).toHaveLength(2)
+    expect(html).not.toContain('97.5%')
+  })
+
+  it('renders organizations with visible ids and hides suspend for the default organization', () => {
     const html = renderToStaticMarkup(<PlatformOrganizations />)
 
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/organizations',
-      { query: { limit: 20, q: '' } },
+      { query: { limit: 20, q: undefined } },
     )
     expect(html).toContain('Acme Platform')
-    expect(html).toContain('Suspend')
+    expect(html).toContain(organization.id)
+    expect(html).toContain('Suspend Acme Platform')
+    expect(html).not.toContain('Suspend Default Organization')
     expect(html).toContain('href="/console/platform/plans?tenantId=org_1"')
     expect(html).not.toContain('href="/console/org/auth-policy')
   })
@@ -412,7 +396,7 @@ describe('platform pages', () => {
     expect(html).not.toContain(globalUser.email)
   })
 
-  it('renders instance managers and prevents self-revocation', () => {
+  it('renders instance managers by email and prevents self-revocation', () => {
     const html = renderToStaticMarkup(<PlatformInstanceManagers />)
 
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
@@ -421,12 +405,14 @@ describe('platform pages', () => {
       { query: { limit: 50 } },
     )
     expect(html).toContain('Instance managers')
+    expect(html).toContain(globalUser.email)
     expect(html).toContain(globalUser.id)
+    expect(html).toContain(organization.name)
     expect(html).toContain('Current user')
     expect(html).toContain('disabled=""')
   })
 
-  it('requests and renders the global audit event stream', () => {
+  it('renders the global audit event stream with an organization picker for verification', () => {
     const html = renderToStaticMarkup(<PlatformAuditEvents />)
 
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
@@ -437,21 +423,16 @@ describe('platform pages', () => {
     expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
       expect.anything(),
       '/v1/platform/audit/verify',
-      {
-        enabled: false,
-        query: {
-          tenant_id: undefined,
-          from_seq: undefined,
-          to_seq: undefined,
-        },
-      },
+      expect.objectContaining({ enabled: false, staleTime: 0 }),
     )
     expect(html).toContain(auditEvent.eventType)
-    expect(html).toContain(auditEvent.actorId ?? '')
     expect(html).toContain(auditEvent.targetId ?? '')
+    expect(html).toContain('Platform (instance-level events)')
+    expect(html).toContain('Acme Platform (acme)')
+    expect(html).not.toContain('Tenant ID')
   })
 
-  it('requests and renders dead letters as a standalone page', () => {
+  it('offers replay for an expired replaying lease and shows failure details', () => {
     const html = renderToStaticMarkup(<PlatformDeadLetters />)
 
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
@@ -460,21 +441,9 @@ describe('platform pages', () => {
       { query: { limit: 30 } },
     )
     expect(html).toContain(deadLetter.sourceQueue)
-    expect(html).toContain(deadLetter.eventType)
-    expect(html).toContain('Replay')
-  })
-
-  it('requests and renders feature flag defaults', () => {
-    const html = renderToStaticMarkup(<PlatformFeatureFlags />)
-
-    expect(apiMocks.useApiQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      '/v1/platform/feature-flags',
-    )
-    expect(html).toContain(featureFlag.key)
-    expect(html).toContain(featureFlag.label)
-    expect(html).toContain('2 organization overrides')
-    expect(html).toContain('Disable')
+    expect(html).toContain(deadLetter.errorCode)
+    expect(html).toContain('queue_send_failed')
+    expect(html).toContain('Replay message to xid-webhook')
   })
 
   it.each([
@@ -496,7 +465,7 @@ describe('platform pages', () => {
       content: complianceDocument.title,
       component: <PlatformCompliance />,
     },
-  ])('appends the next server page for $name', async ({ component, content, path }) => {
+  ])('appends the next page for $name', async ({ component, content, path }) => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -519,14 +488,36 @@ describe('platform pages', () => {
       loadMore?.click()
     })
 
-    expect(apiMocks.fetchNextPage).toHaveBeenCalledOnce()
+    expect(apiMocks.fetchNextPage).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain(content)
 
     await act(async () => {
       root.unmount()
     })
   })
 
-  it('requests and renders the billing overview', () => {
+  it('defaults new incidents to the local wall-clock time', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(<PlatformStatusIncidents />)
+    })
+
+    const startedAt = container.querySelector<HTMLInputElement>('input[type="datetime-local"]')
+    const now = new Date()
+    const offset = now.getTimezoneOffset() * 60_000
+    const expectedPrefix = new Date(now.getTime() - offset).toISOString().slice(0, 13)
+    expect(startedAt?.value.startsWith(expectedPrefix)).toBe(true)
+    expect(container.textContent).not.toContain('Resolve incident')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('requests and renders the billing overview with plan links', () => {
     const html = renderToStaticMarkup(<PlatformBilling />)
 
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
@@ -538,9 +529,10 @@ describe('platform pages', () => {
     expect(html).toContain('25')
     expect(html).toContain('50')
     expect(html).toContain(billingOverview.status)
+    expect(html).toContain('href="/console/platform/plans?tenantId=org_1"')
   })
 
-  it('requests and renders instance-wide platform settings', async () => {
+  it('edits the fallback language from supported locales and keeps data residency read-only', async () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -551,8 +543,14 @@ describe('platform pages', () => {
 
     expect(apiMocks.useApiQuery).toHaveBeenCalledWith(expect.anything(), '/v1/platform/settings')
     expect(container.textContent).toContain('Platform settings')
-    expect(container.querySelector<HTMLInputElement>('input[readonly]')?.value).toBe(settings.name)
-    expect(container.querySelector<HTMLSelectElement>('select')?.value).toBe(settings.mfaPolicy)
+    const selects = [...container.querySelectorAll<HTMLSelectElement>('select')]
+    expect(selects[0]?.value).toBe('en')
+    expect([...(selects[0]?.options ?? [])].map((option) => option.value)).toContain('zh-Hans')
+    expect(selects[1]?.value).toBe(settings.mfaPolicy)
+    const readonlyValues = [...container.querySelectorAll<HTMLInputElement>('input[readonly]')].map(
+      (input) => input.value,
+    )
+    expect(readonlyValues).toEqual([settings.name, settings.dataResidency])
 
     await act(async () => {
       root.unmount()

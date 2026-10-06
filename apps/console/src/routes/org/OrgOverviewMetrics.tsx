@@ -1,4 +1,4 @@
-import { Trans } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { MetricsBand as MetricsBandShell } from '@xid-kit/web-ui/ui'
@@ -8,7 +8,7 @@ import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 export type OrgStats = {
   dau: number
   mau: number
-  loginSuccessRate: number
+  loginSuccessRate: number | null
   mfaAdoptionRate: number
   activeMemberCount: number
   pendingInvitationCount: number
@@ -47,6 +47,8 @@ const countStyles = stylex.create({
 })
 
 export function MetricsBand({ data }: { data: OrgStats }): ReactNode {
+  const { t } = useLingui()
+  const rate = data.loginSuccessRate
   return (
     <MetricsBandShell
       items={[
@@ -57,10 +59,10 @@ export function MetricsBand({ data }: { data: OrgStats }): ReactNode {
           size: 'lg',
         },
         {
-          label: <Trans>Login success rate</Trans>,
-          value: `${(data.loginSuccessRate * 100).toFixed(1)}%`,
+          label: <Trans>Login success rate (30 days)</Trans>,
+          value: rate === null ? t`No data` : `${(rate * 100).toFixed(1)}%`,
           size: 'md',
-          tone: data.loginSuccessRate >= 0.95 ? 'good' : 'bad',
+          ...(rate === null ? {} : { tone: rate >= 0.95 ? ('good' as const) : ('bad' as const) }),
         },
         {
           label: <Trans>MFA adoption</Trans>,
