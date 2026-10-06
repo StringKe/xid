@@ -5,8 +5,9 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, desc, eq, gt, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
+import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { Context } from 'hono'
 import { sessionDoRevokeAll } from '../lib/session'
 import { readAllById } from '../lib/db-pagination'
@@ -289,15 +290,19 @@ function splitScimFilterLogical(input: string, op: 'and' | 'or'): string[] | nul
   return parts
 }
 
-function scimFilterStringEqual(a: unknown, b: unknown): boolean {
+// RFC 7643 caseExact=true 的属性:id、externalId
+const SCIM_CASE_EXACT_ATTRS = new Set(['id', 'externalid'])
+
+function scimFilterStringEqual(a: unknown, b: unknown, caseExact: boolean): boolean {
   if (typeof a !== 'string' || typeof b !== 'string') return false
-  return a.toLowerCase() === b.toLowerCase()
+  return caseExact ? a === b : a.toLowerCase() === b.toLowerCase()
 }
 
 function scimFilterCompareValues(
   actual: unknown,
   op: ScimCompareOp,
-  expected?: string | boolean | number | null,
+  expected: string | boolean | number | null | undefined,
+  caseExact: boolean,
 ): boolean {
   if (op === 'pr') {
     return actual !== undefined && actual !== null && actual !== ''
@@ -313,9 +318,9 @@ function scimFilterCompareValues(
       if (typeof actual === 'number' || typeof expected === 'number') {
         return Number(actual) === Number(expected)
       }
-      return scimFilterStringEqual(actualStr, expectedStr)
+      return scimFilterStringEqual(actualStr, expectedStr, caseExact)
     case 'ne':
-      return !scimFilterCompareValues(actual, 'eq', expected)
+      return !scimFilterCompareValues(actual, 'eq', expected, caseExact)
     case 'co':
       return actualStr.toLowerCase().includes(expectedStr.toLowerCase())
     case 'sw':
@@ -351,7 +356,9 @@ export function evaluateScimFilter<T>(
         if (expr.op === 'ne' && typeof expr.value === 'string') return !memberIds.has(expr.value)
         return false
       }
-      return scimFilterCompareValues(actual, expr.op, expr.value)
+      const caseExact =
+        expr.path.length === 1 && SCIM_CASE_EXACT_ATTRS.has(expr.path[0]!.toLowerCase())
+      return scimFilterCompareValues(actual, expr.op, expr.value, caseExact)
     }
     case 'and':
       return (
@@ -372,6 +379,7 @@ export function getUserFilterValue(row: DirectoryUserRow, path: string[]): unkno
   const [head, ...rest] = path
   if (!head) return undefined
   const lowerHead = head.toLowerCase()
+  if (lowerHead === 'id' && rest.length === 0) return row.id
   if (lowerHead === 'username') return row.userName
   if (lowerHead === 'externalid') return row.externalId ?? ''
   if (lowerHead === 'active') return row.active
@@ -403,6 +411,7 @@ export function getGroupFilterValue(
   const [head, ...rest] = path
   if (!head) return undefined
   const lowerHead = head.toLowerCase()
+  if (lowerHead === 'id' && rest.length === 0) return row.id
   if (lowerHead === 'displayname') return row.displayName
   if (lowerHead === 'members' && rest[0]?.toLowerCase() === 'value') return memberIds
   if (lowerHead === 'meta') {
@@ -426,58 +435,167 @@ export const SCIM_USER_SORT_ATTRS = new Set([
 export const SCIM_GROUP_SORT_ATTRS = new Set(['displayname', 'meta.created', 'meta.lastmodified'])
 export const SCIM_SCAN_BATCH_SIZE = 100
 
-export function scimUserOrderBy(
-  sortBy: string | null,
-  sortOrder: 'ascending' | 'descending',
-): readonly SQL[] {
-  if (sortBy === 'username') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryUsers.userName), asc(schema.directoryUsers.id)]
-      : [asc(schema.directoryUsers.userName), asc(schema.directoryUsers.id)]
-  }
-  if (sortBy === 'externalid') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryUsers.externalId), asc(schema.directoryUsers.id)]
-      : [asc(schema.directoryUsers.externalId), asc(schema.directoryUsers.id)]
-  }
-  if (sortBy === 'active') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryUsers.active), asc(schema.directoryUsers.id)]
-      : [asc(schema.directoryUsers.active), asc(schema.directoryUsers.id)]
-  }
-  if (sortBy === 'meta.created') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryUsers.createdAt), asc(schema.directoryUsers.id)]
-      : [asc(schema.directoryUsers.createdAt), asc(schema.directoryUsers.id)]
-  }
-  if (sortBy === 'meta.lastmodified') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryUsers.updatedAt), asc(schema.directoryUsers.id)]
-      : [asc(schema.directoryUsers.updatedAt), asc(schema.directoryUsers.id)]
-  }
-  return [asc(schema.directoryUsers.id)]
+type ScimSortColumn = { column: SQLiteColumn; field: string; nullable: boolean }
+
+const SCIM_USER_SORT_COLUMNS: Readonly<Record<string, ScimSortColumn>> = {
+  username: { column: schema.directoryUsers.userName, field: 'userName', nullable: false },
+  externalid: { column: schema.directoryUsers.externalId, field: 'externalId', nullable: true },
+  active: { column: schema.directoryUsers.active, field: 'active', nullable: false },
+  'meta.created': { column: schema.directoryUsers.createdAt, field: 'createdAt', nullable: false },
+  'meta.lastmodified': {
+    column: schema.directoryUsers.updatedAt,
+    field: 'updatedAt',
+    nullable: false,
+  },
 }
 
-export function scimGroupOrderBy(
+const SCIM_GROUP_SORT_COLUMNS: Readonly<Record<string, ScimSortColumn>> = {
+  displayname: {
+    column: schema.directoryGroups.displayName,
+    field: 'displayName',
+    nullable: false,
+  },
+  'meta.created': { column: schema.directoryGroups.createdAt, field: 'createdAt', nullable: false },
+  'meta.lastmodified': {
+    column: schema.directoryGroups.updatedAt,
+    field: 'updatedAt',
+    nullable: false,
+  },
+}
+
+export type ScimListOrder = {
+  idColumn: SQLiteColumn
+  sort: (ScimSortColumn & { descending: boolean }) | null
+}
+
+function scimListOrder(
+  idColumn: SQLiteColumn,
+  columns: Readonly<Record<string, ScimSortColumn>>,
+  sort: { sortBy: string | null; sortOrder: 'ascending' | 'descending' },
+): ScimListOrder {
+  const column = sort.sortBy ? columns[sort.sortBy] : undefined
+  if (!column) return { idColumn, sort: null }
+  return { idColumn, sort: { ...column, descending: sort.sortOrder === 'descending' } }
+}
+
+export function scimUserListOrder(
   sortBy: string | null,
   sortOrder: 'ascending' | 'descending',
-): readonly SQL[] {
-  if (sortBy === 'displayname') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryGroups.displayName), asc(schema.directoryGroups.id)]
-      : [asc(schema.directoryGroups.displayName), asc(schema.directoryGroups.id)]
+): ScimListOrder {
+  return scimListOrder(schema.directoryUsers.id, SCIM_USER_SORT_COLUMNS, { sortBy, sortOrder })
+}
+
+export function scimGroupListOrder(
+  sortBy: string | null,
+  sortOrder: 'ascending' | 'descending',
+): ScimListOrder {
+  return scimListOrder(schema.directoryGroups.id, SCIM_GROUP_SORT_COLUMNS, { sortBy, sortOrder })
+}
+
+export function scimOrderBy(order: ScimListOrder): SQL[] {
+  const tieBreak = asc(order.idColumn)
+  if (!order.sort) return [tieBreak]
+  const { column, descending } = order.sort
+  return [descending ? desc(column) : asc(column), tieBreak]
+}
+
+// SQLite 排序:NULL 在 ASC 最前、DESC 最后
+function scimKeysetAfter(order: ScimListOrder, last: { id: string }): SQL {
+  const afterId = gt(order.idColumn, last.id)
+  const sort = order.sort
+  if (!sort) return afterId
+  const value = (last as Record<string, unknown>)[sort.field]
+  if (value === null || value === undefined) {
+    return sort.descending
+      ? and(isNull(sort.column), afterId)!
+      : or(and(isNull(sort.column), afterId), isNotNull(sort.column))!
   }
-  if (sortBy === 'meta.created') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryGroups.createdAt), asc(schema.directoryGroups.id)]
-      : [asc(schema.directoryGroups.createdAt), asc(schema.directoryGroups.id)]
+  const beyond = sort.descending ? lt(sort.column, value) : gt(sort.column, value)
+  const tie = and(eq(sort.column, value), afterId)
+  const nullsAfter = sort.descending && sort.nullable ? isNull(sort.column) : undefined
+  return or(beyond, tie, nullsAfter)!
+}
+
+// 按排序键做 keyset 分页扫描,每行只读一次,避免 OFFSET 重复跳读
+export async function scanScimList<T extends { id: string }>(
+  order: ScimListOrder,
+  fetchPage: (after: SQL | undefined) => Promise<T[]>,
+  visitPage: (page: T[]) => Promise<void> | void,
+): Promise<void> {
+  let after: SQL | undefined
+  while (true) {
+    const page = await fetchPage(after)
+    if (page.length === 0) return
+    await visitPage(page)
+    if (page.length < SCIM_SCAN_BATCH_SIZE) return
+    after = scimKeysetAfter(order, page[page.length - 1]!)
   }
-  if (sortBy === 'meta.lastmodified') {
-    return sortOrder === 'descending'
-      ? [desc(schema.directoryGroups.updatedAt), asc(schema.directoryGroups.id)]
-      : [asc(schema.directoryGroups.updatedAt), asc(schema.directoryGroups.id)]
+}
+
+// --- SCIM filter 下推:可等价翻译的 eq 条件转成 SQL,命中索引 ---
+
+type ScimFilterColumn = {
+  column: SQLiteColumn
+  match: 'exact' | 'caseInsensitive' | 'boolean'
+}
+
+export const SCIM_USER_FILTER_COLUMNS: Readonly<Record<string, ScimFilterColumn>> = {
+  id: { column: schema.directoryUsers.id, match: 'exact' },
+  username: { column: schema.directoryUsers.userName, match: 'caseInsensitive' },
+  externalid: { column: schema.directoryUsers.externalId, match: 'exact' },
+  active: { column: schema.directoryUsers.active, match: 'boolean' },
+}
+
+export const SCIM_GROUP_FILTER_COLUMNS: Readonly<Record<string, ScimFilterColumn>> = {
+  id: { column: schema.directoryGroups.id, match: 'exact' },
+  displayname: { column: schema.directoryGroups.displayName, match: 'caseInsensitive' },
+}
+
+export type ScimFilterPushdown = { where: SQL | undefined; complete: boolean }
+
+// SQLite lower() 只折叠 ASCII,非 ASCII 值留给 JS 求值以保持与 toLowerCase 一致
+const SCIM_PUSHDOWN_ASCII = /^[\x20-\x7e]*$/
+
+function scimCompareToSql(
+  expr: Extract<ScimFilterExpr, { kind: 'compare' }>,
+  columns: Readonly<Record<string, ScimFilterColumn>>,
+): SQL | undefined {
+  if (expr.op !== 'eq' || expr.path.length !== 1) return undefined
+  const target = columns[expr.path[0]!.toLowerCase()]
+  if (!target) return undefined
+  const value = expr.value
+  if (target.match === 'boolean') {
+    return typeof value === 'boolean' ? eq(target.column, value) : undefined
   }
-  return [asc(schema.directoryGroups.id)]
+  if (typeof value !== 'string' || value === '') return undefined
+  if (target.match === 'exact') return eq(target.column, value)
+  if (!SCIM_PUSHDOWN_ASCII.test(value)) return undefined
+  return sql`lower(${target.column}) = ${value.toLowerCase()}`
+}
+
+export function pushDownScimFilter(
+  expr: ScimFilterExpr,
+  columns: Readonly<Record<string, ScimFilterColumn>>,
+): ScimFilterPushdown {
+  switch (expr.kind) {
+    case 'compare': {
+      const where = scimCompareToSql(expr, columns)
+      return { where, complete: where !== undefined }
+    }
+    case 'and': {
+      const left = pushDownScimFilter(expr.left, columns)
+      const right = pushDownScimFilter(expr.right, columns)
+      return { where: and(left.where, right.where), complete: left.complete && right.complete }
+    }
+    case 'or': {
+      const left = pushDownScimFilter(expr.left, columns)
+      const right = pushDownScimFilter(expr.right, columns)
+      if (!left.complete || !right.complete) return { where: undefined, complete: false }
+      return { where: or(left.where, right.where), complete: true }
+    }
+    case 'not':
+      return { where: undefined, complete: false }
+  }
 }
 
 export type ScimSortResult =

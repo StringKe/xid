@@ -24,8 +24,12 @@ import {
   evaluateScimFilter,
   getUserFilterValue,
   parseScimSort,
-  scimUserOrderBy,
+  pushDownScimFilter,
+  scanScimList,
+  scimOrderBy,
+  scimUserListOrder,
   SCIM_SCAN_BATCH_SIZE,
+  SCIM_USER_FILTER_COLUMNS,
   SCIM_USER_SORT_ATTRS,
   checkScimPrecondition,
   parseScimPagination,
@@ -147,40 +151,39 @@ users.get('/', async (c) => {
   )
   let rows: (typeof schema.directoryUsers.$inferSelect)[]
   let total: number
-  const orderBy = scimUserOrderBy(parsedSort.sortBy, parsedSort.sortOrder)
-  if (!parsedFilter.expr) {
+  const order = scimUserListOrder(parsedSort.sortBy, parsedSort.sortOrder)
+  const orderBy = scimOrderBy(order)
+  const filterExpr = parsedFilter.expr
+  const pushdown = filterExpr
+    ? pushDownScimFilter(filterExpr, SCIM_USER_FILTER_COLUMNS)
+    : { where: undefined, complete: true }
+  const where = and(baseFilter, pushdown.where)
+  if (!filterExpr || pushdown.complete) {
     ;[total, rows] = await Promise.all([
-      db.directoryUsers.count(baseFilter),
-      db.directoryUsers.findMany(baseFilter, {
+      db.directoryUsers.count(where),
+      db.directoryUsers.findMany(where, {
         orderBy,
         limit: count,
         offset: startIndex - 1,
       }),
     ])
   } else {
-    rows = []
-    total = 0
-    let offset = 0
-    while (true) {
-      const page = await db.directoryUsers.findMany(baseFilter, {
-        orderBy,
-        limit: SCIM_SCAN_BATCH_SIZE,
-        offset,
-      })
-      for (const row of page) {
-        if (
-          !evaluateScimFilter(parsedFilter.expr, row, (target, path) =>
-            getUserFilterValue(target, path),
-          )
-        ) {
-          continue
+    const matched: (typeof schema.directoryUsers.$inferSelect)[] = []
+    let matchedTotal = 0
+    await scanScimList(
+      order,
+      (after) =>
+        db.directoryUsers.findMany(and(where, after), { orderBy, limit: SCIM_SCAN_BATCH_SIZE }),
+      (page) => {
+        for (const row of page) {
+          if (!evaluateScimFilter(filterExpr, row, getUserFilterValue)) continue
+          matchedTotal += 1
+          if (matchedTotal >= startIndex && matched.length < count) matched.push(row)
         }
-        total += 1
-        if (total >= startIndex && rows.length < count) rows.push(row)
-      }
-      if (page.length < SCIM_SCAN_BATCH_SIZE) break
-      offset += page.length
-    }
+      },
+    )
+    rows = matched
+    total = matchedTotal
   }
 
   const paged = rows

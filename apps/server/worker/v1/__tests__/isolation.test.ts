@@ -273,9 +273,15 @@ function makeFakeD1(
     }
     if (lower.startsWith('delete')) return []
     const activeParams = opts.skipParams ? params.slice(opts.skipParams) : params
-    const sp = activeParams.filter((v): v is string => typeof v === 'string')
+    const stringParams = activeParams.filter((v): v is string => typeof v === 'string')
+    const occurredAfter = /"occurred_at"\s*>=\s*\?/i.test(sql)
+      ? stringParams.find((value) => /^\d{4}-\d{2}-\d{2}T/.test(value))
+      : undefined
+    const sp = stringParams.filter((value) => value !== occurredAfter)
     if (sp.length === 0) return rows
     return rows.filter((r) => {
+      if (occurredAfter !== undefined && String(r['occurred_at'] ?? '') < occurredAfter)
+        return false
       if (requiresNull(sql, 'revoked_at') && r['revoked_at'] != null) return false
       if (requiresNull(sql, 'deleted_at') && r['deleted_at'] != null) return false
       if (requiresNotNull(sql, 'revoked_at') && r['revoked_at'] == null) return false
@@ -5308,11 +5314,13 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
           tenant_id: 't_1',
           org_id: 'org_1',
           event_type: 'authentication.login_succeeded',
+          occurred_at: new Date().toISOString(),
         },
         {
           tenant_id: 't_1',
           org_id: 'org_1',
           event_type: 'authentication.login_failed',
+          occurred_at: new Date().toISOString(),
         },
       ],
     })
@@ -5338,6 +5346,72 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     expect(body['mfaAdoptionRate']).toBe(0.5)
     expect(body['activeMemberCount']).toBe(2)
     expect(body['pendingInvitationCount']).toBe(1)
+  })
+
+  it('org stats 登录成功率只统计最近 30 天的登录审计', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_1',
+    })
+    const recent = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString()
+    const stale = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString()
+    const db = makeFakeD1({
+      sessions: [session],
+      users: [activeUserRow('user_admin')],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      memberships: [
+        {
+          id: 'mem_admin',
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          user_id: 'user_admin',
+          role: 'admin',
+          status: 'active',
+        },
+      ],
+      audit_events: [
+        {
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          event_type: 'authentication.login_succeeded',
+          occurred_at: recent,
+        },
+        {
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          event_type: 'authentication.login_failed',
+          occurred_at: stale,
+        },
+        {
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          event_type: 'authentication.login_failed',
+          occurred_at: stale,
+        },
+      ],
+    })
+    const env = asUnknown<Env>({
+      DB: db,
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      CACHE: makeFakeKv(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/stats',
+      { headers: { Cookie: `${cookieName}=${token}` } },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body['loginSuccessRate']).toBe(1)
   })
 
   it('admin 可创建 SSO connection', async () => {

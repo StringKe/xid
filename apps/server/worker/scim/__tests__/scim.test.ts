@@ -231,6 +231,7 @@ function makeScimD1(
         const rows = sql.toLowerCase().startsWith('update')
           ? applyUpdate(sql, bound)
           : match(sql, bound)
+        if (/^select\s+count\(\*\)/i.test(sql)) return [[rows.length]]
         return rows.map((r) => rowToRawScim(sql, r))
       },
       all: async () => ({ results: match(sql, bound), success: true, meta: {} }),

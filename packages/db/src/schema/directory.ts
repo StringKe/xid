@@ -67,6 +67,11 @@ export const directoryUsers = sqliteTable(
       t.id,
     ),
     index('directory_users_tenant_dir_idx').on(t.tenantId, t.directoryId),
+    index('directory_users_tenant_dir_username_lower_idx').on(
+      t.tenantId,
+      t.directoryId,
+      sql`lower(${t.userName})`,
+    ),
     index('directory_users_user_idx').on(t.userId),
   ],
 )
@@ -101,6 +106,11 @@ export const directoryGroups = sqliteTable(
       t.id,
     ),
     index('directory_groups_tenant_dir_idx').on(t.tenantId, t.directoryId),
+    index('directory_groups_tenant_dir_name_lower_idx').on(
+      t.tenantId,
+      t.directoryId,
+      sql`lower(${t.displayName})`,
+    ),
   ],
 )
 

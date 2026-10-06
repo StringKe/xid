@@ -23,7 +23,11 @@ import {
   evaluateScimFilter,
   getGroupFilterValue,
   parseScimSort,
-  scimGroupOrderBy,
+  pushDownScimFilter,
+  scanScimList,
+  scimGroupListOrder,
+  scimOrderBy,
+  SCIM_GROUP_FILTER_COLUMNS,
   SCIM_SCAN_BATCH_SIZE,
   addDirectoryUsersToGroup,
   readAllById,
@@ -170,11 +174,17 @@ groups.get('/', async (c) => {
   let rows: (typeof schema.directoryGroups.$inferSelect)[]
   let total: number
   let allMemberRows: DirectoryGroupMemberRow[] = []
-  const orderBy = scimGroupOrderBy(parsedSort.sortBy, parsedSort.sortOrder)
-  if (!parsedFilter.expr) {
+  const order = scimGroupListOrder(parsedSort.sortBy, parsedSort.sortOrder)
+  const orderBy = scimOrderBy(order)
+  const filterExpr = parsedFilter.expr
+  const pushdown = filterExpr
+    ? pushDownScimFilter(filterExpr, SCIM_GROUP_FILTER_COLUMNS)
+    : { where: undefined, complete: true }
+  const where = and(baseFilter, pushdown.where)
+  if (!filterExpr || pushdown.complete) {
     ;[total, rows] = await Promise.all([
-      db.directoryGroups.count(baseFilter),
-      db.directoryGroups.findMany(baseFilter, {
+      db.directoryGroups.count(where),
+      db.directoryGroups.findMany(where, {
         orderBy,
         limit: count,
         offset: startIndex - 1,
@@ -186,39 +196,37 @@ groups.get('/', async (c) => {
       rows.map((row) => row.id),
     )
   } else {
-    rows = []
-    total = 0
-    let offset = 0
-    while (true) {
-      const page = await db.directoryGroups.findMany(baseFilter, {
-        orderBy,
-        limit: SCIM_SCAN_BATCH_SIZE,
-        offset,
-      })
-      if (page.length === 0) break
-      const pageMemberRows = await readGroupMembers(
-        db,
-        tenantId,
-        page.map((row) => row.id),
-      )
-      const pageMembersByGroup = membersByGroup(pageMemberRows)
-      for (const row of page) {
-        if (
-          !evaluateScimFilter(parsedFilter.expr, row, (target, path) =>
-            getGroupFilterValue(target, path, pageMembersByGroup.get(target.id) ?? new Set()),
-          )
-        ) {
-          continue
+    const matched: (typeof schema.directoryGroups.$inferSelect)[] = []
+    let matchedTotal = 0
+    await scanScimList(
+      order,
+      (after) =>
+        db.directoryGroups.findMany(and(where, after), { orderBy, limit: SCIM_SCAN_BATCH_SIZE }),
+      async (page) => {
+        const pageMemberRows = await readGroupMembers(
+          db,
+          tenantId,
+          page.map((row) => row.id),
+        )
+        const pageMembersByGroup = membersByGroup(pageMemberRows)
+        for (const row of page) {
+          if (
+            !evaluateScimFilter(filterExpr, row, (target, path) =>
+              getGroupFilterValue(target, path, pageMembersByGroup.get(target.id) ?? new Set()),
+            )
+          ) {
+            continue
+          }
+          matchedTotal += 1
+          if (matchedTotal >= startIndex && matched.length < count) {
+            matched.push(row)
+            allMemberRows.push(...pageMemberRows.filter((member) => member.groupId === row.id))
+          }
         }
-        total += 1
-        if (total >= startIndex && rows.length < count) {
-          rows.push(row)
-          allMemberRows.push(...pageMemberRows.filter((member) => member.groupId === row.id))
-        }
-      }
-      if (page.length < SCIM_SCAN_BATCH_SIZE) break
-      offset += page.length
-    }
+      },
+    )
+    rows = matched
+    total = matchedTotal
   }
 
   const paged = rows

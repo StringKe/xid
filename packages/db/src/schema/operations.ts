@@ -31,6 +31,7 @@ export const auditEvents = sqliteTable(
     index('audit_events_tenant_occurred_idx').on(t.tenantId, t.occurredAt),
     index('audit_events_tenant_actor_idx').on(t.tenantId, t.actorId),
     index('audit_events_tenant_event_idx').on(t.tenantId, t.eventType),
+    index('audit_events_tenant_event_occurred_idx').on(t.tenantId, t.eventType, t.occurredAt),
     uniqueIndex('audit_events_tenant_source_message_id_unq')
       .on(t.tenantId, t.sourceMessageId)
       .where(sql`${t.sourceMessageId} is not null`),

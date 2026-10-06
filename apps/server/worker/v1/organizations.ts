@@ -25,7 +25,7 @@ import {
   normalizeHostedAuthPolicy,
   normalizeSocialProviders,
 } from '@xid-kit/types'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -352,6 +352,7 @@ type OrgStats = {
 
 const LOGIN_SUCCESS_EVENTS = ['authentication.login_succeeded', 'user.signed_in'] as const
 const LOGIN_FAILURE_EVENTS = ['authentication.login_failed', 'user.sign_in_failed'] as const
+const LOGIN_STATS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 function toIso(value: Date | number | string | null | undefined): string | null {
   if (value === null || value === undefined) return null
@@ -428,7 +429,13 @@ async function buildOrgStats(c: Context<XidHonoEnv>, orgId: string): Promise<Org
     db.forOrg(orgId).invitations.count(eq(schema.invitations.status, 'pending')),
   ])
 
-  const orgAuditFilter = or(eq(schema.auditEvents.orgId, orgId), isNull(schema.auditEvents.orgId))
+  const orgAuditFilter = and(
+    or(eq(schema.auditEvents.orgId, orgId), isNull(schema.auditEvents.orgId)),
+    gte(
+      schema.auditEvents.occurredAt,
+      new Date(now.getTime() - LOGIN_STATS_WINDOW_MS).toISOString(),
+    ),
+  )
   const mfaUserCount = await countActiveMfaUsers(db, memberUserIds)
   const [loginSuccesses, loginFailures] = await Promise.all([
     db.auditEvents.count(

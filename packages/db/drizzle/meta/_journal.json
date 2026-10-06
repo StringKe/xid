@@ -113,6 +113,20 @@
       "when": 1786634940622,
       "tag": "0015_magic_link_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1791302970154,
+      "tag": "0016_audit_events_tenant_event_occurred_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1791303386078,
+      "tag": "0017_scim_lower_name_idx",
+      "breakpoints": true
     }
   ]
 }

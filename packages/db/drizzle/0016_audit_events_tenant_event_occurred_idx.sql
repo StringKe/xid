@@ -1,0 +1,1 @@
+CREATE INDEX `audit_events_tenant_event_occurred_idx` ON `audit_events` (`tenant_id`,`event_type`,`occurred_at`);

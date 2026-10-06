@@ -1,0 +1,2 @@
+CREATE INDEX `directory_groups_tenant_dir_name_lower_idx` ON `directory_groups` (`tenant_id`,`directory_id`,lower("display_name"));--> statement-breakpoint
+CREATE INDEX `directory_users_tenant_dir_username_lower_idx` ON `directory_users` (`tenant_id`,`directory_id`,lower("user_name"));
