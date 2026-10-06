@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=38d51e9e9d15717d7a589a732be00c5cacc6bc9e -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=9b8c1089c481b63ae850c6f12ac5a015711cf771 -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -78,7 +78,7 @@ SubOrg 的语义分界——SubOrg 是租户边界(独立 slug 域、branding、
 
 - 手动邀请(邮件):管理员填邮箱 + 角色,生成邀请 token,24-72h 有效,pending 状态
 - 链接邀请:可复用或一次性链接,限次数和过期
-- 域名自动归属:org 绑定并验证邮箱域名(DNS TXT),匹配域名用户注册时自动加入或提示(enrollment mode: automatic | invite_required)
+- 域名自动归属:org 绑定并验证邮箱域名(DNS TXT),匹配域名用户注册时自动加入或提示(enrollment mode: automatic | invite_required)。实现状态:域名验证和按已验证域名路由登录已实现;自动创建成员关系仍是设计目标,因此 Console 不提供 `automatic` 模式
 - Directory Sync/SCIM:企业 IdP 推送用户和组(见 04 章)
 
 ### 成员状态机
@@ -203,15 +203,15 @@ Session 持有 active_org_id;User 为平台级实体,跨 org 访问通过 Member
 
 - SSO 强制:绑定 SAML/OIDC connection 到 org,匹配域名用户必须走该 org SSO,不允许密码登录
 - MFA 强制:org 级覆盖 instance 默认(required|optional|disabled),方法白名单
-- Organization Domains:DNS TXT 验证,enrollment_mode(automatic|invite_required),已验证域触发 managed 成员标记
-- 组织品牌:per-org logo / primary color / 登录页;authorize 带 organization 参数时自动应用
+- Organization Domains:DNS TXT 验证,enrollment_mode(automatic|invite_required),已验证域触发 managed 成员标记。验证记录是 TXT 名 `_xid.{domain}`、值 `xid-verify={token}`;API 以 `verification_record` 返回二者,与每日验证任务使用同一函数生成
+- 组织品牌:per-org 颜色、圆角、字体以及浅色和深色 logo;请求解析到该组织时(租户子域、自定义域名或显式指定组织)应用到 Hosted UI。未解析的实例根入口始终显示默认品牌
 - 组织 Metadata:public(前端可读) + private(仅 server/admin)
 - 组织会话策略:session idle timeout / absolute timeout per-org 覆盖(`session_idle_timeout_min` / `session_absolute_timeout_days`,null=继承 instance;instance 默认 idle 4320min(3d,边界 5-43200)、absolute 30d(边界 1-365))
 - 组织 token 策略:access token TTL / Hosted session token TTL / refresh idle / refresh absolute per-org 覆盖(`token_policy` JSON,逐字段 null=继承 instance;instance 默认 3600s/60s/30d/7d,边界 60-86400 / 30-300 / 1-365 / 1-90)
 
 ### 设计决策
 
-org_policies 表统一管理所有 per-org 策略覆盖,逐字段回退:未设置的字段(null)回退 instance 默认,已设字段覆盖。策略在 login flow 和 token 生成时实时读 D1(低延迟可接受)。branding 以 JSON 存,login Worker 按 org 动态渲染。
+org_policies 表统一管理所有 per-org 策略覆盖,逐字段回退:未设置的字段(null)回退 instance 默认,已设字段覆盖。策略在 login flow 和 token 生成时实时读 D1(低延迟可接受)。branding 以校验后的 JSON 存于 `organizations.private_metadata.branding`,载入 `TenantContext.policy.branding`,由 `/auth/config` 下发给 Hosted UI。清空字段(写 null)即恢复该字段默认值。浅色 logo 同步到 `organizations.logo_url`,consent 页读取它。
 
 核心实体 OrgPolicy、OrgBranding、OrgMetadata、SsoConnection(见 08 章):策略覆盖、品牌、元数据、连接配置。
 
@@ -225,10 +225,15 @@ org_policies 表统一管理所有 per-org 策略覆盖,逐字段回退:未设�
 
 仅看本 org 用户/成员/角色/审计;管理邀请、角色分配;配置 SSO/MFA/branding;查看本 org Project/App。
 
+授予或移除 `owner` 角色是特权边界:Console 中只有 `owner` 或该 org 的 `org_manager` 可以执行,且最后一名 active owner 永远不能被移除(成员更新是条件更新,失败返回 409)。Console 与 Management API 的成员移除共用同一实现 `DELETE /v1/organizations/:orgId/memberships/:membershipId`。
+
+Applications、API keys、webhooks 与合规文档接受属于整个租户,只有顶层组织的管理员可以管理;子组织的 Console 隐藏这些页面并说明原因。
+
 ### 设计决策
 
 - 所有 D1 查询强制带 org_id 过滤;Instance Manager 走独立管理路径,不复用业务 API
-- 审计日志按 org_id 分区;org admin 只查自己的,Instance Manager 可跨 org
+- 审计日志按 org_id 分区;org admin 只查自己的,Instance Manager 可跨 org。Console 与 Management API 对成员、邀请、域名、品牌、应用、API key、webhook 的变更写入审计事件;租户级资源以顶层组织作为 `org_id` 记录,使其管理员可见。事件类型前缀与时间区间筛选在查询层执行
+- Console 会话无权编辑被自助锁定的设置时,页面只读并说明由平台管理员维护
 - 平台可设 allow_org_self_service:关闭时 org admin(cookie 会话)不能改 SSO 连接、MFA 与登录策略、投递通道、社交登录、出站 SAML 应用、入站 SCIM 目录(创建、轮换 token、删除)和出站 SCIM 目标(创建、更新、删除、同步),需平台介入。branding 与域名仍可自助。`sk_*` API key 与 Instance Manager 不受影响
 
 核心实体 AuditLog(按 org 分区)、OrgQuota(见 08 章)。

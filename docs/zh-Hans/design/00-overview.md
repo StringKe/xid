@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=67902d0ba9752378059009239a4db6331b83da6d -->
+<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=106881ce0c26b3aa12056eea8c25f9b488836605 -->
 
 > Translation of `docs/design/00-overview.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/00-overview.md`](../../design/00-overview.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -72,7 +72,7 @@ i18n      lingui 全套(@lingui/core + @lingui/react + @lingui/cli + macro,ICU,p
 密码学    Web Crypto(crypto.subtle)
 ORM/DB    Drizzle ORM + D1(关系数据)
 强一致    11 个 Durable Objects(WebAuthn 与 TOTP replay / OAuth、PAR、device 与 CIBA state / 会话撤销 / 限流 / 审计序列 / 计量 / guest 去重 / impersonation grant)
-缓存      KV(JWKS / discovery / 品牌 / feature flags / upstream keys 与 trust anchors)
+缓存      KV(JWKS / discovery / feature flags / upstream keys 与 trust anchors)
 对象      R2(Organization logo / email locale packs / 私有 privacy exports / 不可变 compliance evidence)
 异步      8 个业务 Queues(邮件 / SMS / WhatsApp / 审计 / webhook / 计量 / outbound SCIM / privacy)+ 每来源 DLQ 与 quarantine Queues
 定时      Cron Triggers(hourly cleanup;daily signing key、custom hostname、domain、SAML、usage、privacy 与 guest maintenance,以及出站 SCIM 同步)
@@ -290,7 +290,7 @@ SOC 2 Type II(P0,B2B 入场券)-> GDPR DPA(P0)-> ISO 27001(P1)-> OpenID Certifie
 | Worker Routes                   | 更具体的 Site 与 Console 路径覆盖 Core Custom Domain 和 tenant wildcard fallback,不设 front proxy                                        |
 | D1                              | 用户/应用/组/凭证元数据/授权码/refresh token/审计/租户/密钥密文/会话                                                                     |
 | Durable Objects                 | 11 个 bindings,覆盖 WebAuthn/TOTP replay、OAuth/PAR/device/CIBA state、会话撤销、限流、审计序列、计量、guest 去重与 impersonation grants |
-| KV                              | JWKS、discovery、品牌、feature flags、upstream provider keys 与 trust anchors                                                            |
+| KV                              | JWKS、discovery、feature flags、upstream provider keys 与 trust anchors                                                                  |
 | R2                              | Organization logo、email locale packs、私有 privacy exports 与不可变 compliance evidence                                                 |
 | Queues                          | 8 个业务 Queues,覆盖邮件、SMS、WhatsApp、审计、webhook、计量、outbound SCIM 与 privacy,另有每来源 DLQ 与 quarantine Queues               |
 | Cron Triggers                   | hourly cleanup,以及 daily signing key、custom hostname、domain、SAML、usage、privacy、guest maintenance 与出站 SCIM 同步                 |

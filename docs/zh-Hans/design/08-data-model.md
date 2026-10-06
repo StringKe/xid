@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=d4f7acb9086c105bd53527ee2e4bb659ee4375a3 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=25c72da4a18686ebdf00ad1c11df86143a501256 -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -1933,7 +1933,7 @@ provider 的明确拒绝和调用结果不确定均单独持久化;Queue retry �
 索引:`UNIQUE(source_queue, message_id)`、`INDEX(status, failed_at, id)`、
 `INDEX(tenant_id, failed_at, id)`、`INDEX(source_queue, status)`。
 
-> FeatureFlag 存 KV(`flag:{tenant_id}:{flag_name}` / `flag:global:{flag_name}`,见 07 章 1、cloudflare-bindings rule),**不建 D1 表**;OrgBranding 存 KV(`brand:{tenant_id}` / `brand:{tenant_id}:{org_id}`,见 07 章 2)+ R2(logo/CSS),不建 D1 表。08 章实体清单的 OrgMetadata 已并入 organizations.public/private_metadata(11.x 不另起表)。OrganizationQuota 使用独立 `organization_quotas` 表保存运营方配置的资源限制;其中 `seats` row 是权威值,root `organizations.seat_limit` 只是兼容镜像,billing 从 tenant-wide distinct active membership user 计算 seat usage。
+> FeatureFlag 存 KV(`flag:{tenant_id}:{flag_name}` / `flag:global:{flag_name}`,见 07 章 1、cloudflare-bindings rule),**不建 D1 表**;OrgBranding 并入 `organizations.private_metadata.branding`(见 07 章 2),上传的 logo 存 R2,浅色 logo URL 同步到 `organizations.logo_url`,不单独建表。OrgMetadata 同样已并入 organizations.public/private_metadata(11.x 不另起表)。OrganizationQuota 使用独立 `organization_quotas` 表保存运营方配置的资源限制;其中 `seats` row 是权威值,root `organizations.seat_limit` 只是兼容镜像,billing 从 tenant-wide distinct active membership user 计算 seat usage。
 
 ## 18. 字段决策汇总(影响安全/互操作的固化项)
 

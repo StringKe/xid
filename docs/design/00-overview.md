@@ -83,7 +83,7 @@ i18n         Full lingui stack (@lingui/core + @lingui/react + @lingui/cli + mac
 Cryptography Web Crypto (crypto.subtle)
 ORM/DB       Drizzle ORM + D1 (relational data)
 Strong consistency  11 Durable Objects (WebAuthn and TOTP replay / OAuth, PAR, device and CIBA state / session revocation / rate limiting / audit sequence / metering / guest dedupe / impersonation grants)
-Cache        KV (JWKS / discovery / branding / feature flags / upstream keys and trust anchors)
+Cache        KV (JWKS / discovery / feature flags / upstream keys and trust anchors)
 Objects      R2 (organization logos / email locale packs / private privacy exports / immutable compliance evidence)
 Async        8 business Queues (email / SMS / WhatsApp / audit / webhook / metering / outbound SCIM / privacy) plus source-specific DLQ and quarantine Queues
 Scheduled    Cron Triggers (hourly cleanup; daily signing key, custom hostname, domain, SAML, usage, privacy and guest maintenance, plus outbound SCIM sync)
@@ -383,7 +383,7 @@ sub-service-organization evidence, but application-layer controls remain our res
 | Worker Routes                   | More-specific Site and Console path ownership over the Core Custom Domain and tenant wildcard fallback, with no front proxy                                            |
 | D1                              | Users, applications, groups, credential metadata, authorization codes, refresh tokens, audit, tenants, key ciphertext, sessions                                        |
 | Durable Objects                 | 11 bindings for WebAuthn/TOTP replay, OAuth/PAR/device/CIBA state, session revocation, rate limiting, audit sequence, metering, guest dedupe, and impersonation grants |
-| KV                              | JWKS, discovery, branding, feature flags, upstream provider keys, and trust anchors                                                                                    |
+| KV                              | JWKS, discovery, feature flags, upstream provider keys, and trust anchors                                                                                              |
 | R2                              | Organization logos, email locale packs, private privacy exports, and immutable compliance evidence                                                                     |
 | Queues                          | 8 business Queues for email, SMS, WhatsApp, audit, webhook, metering, outbound SCIM, and privacy, plus per-source DLQ and quarantine Queues                            |
 | Cron Triggers                   | Hourly cleanup plus daily signing key, custom hostname, domain, SAML, usage, privacy, guest maintenance, and outbound SCIM sync                                        |

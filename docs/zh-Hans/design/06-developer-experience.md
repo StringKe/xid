@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=5c9c828fc029fe2bdccaab588cd59753abbcedb3 -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=d2a1c3dbfcd6bbfd6dcc817d61376c65b54038df -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -495,6 +495,7 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform bil
 ### 投递
 
 - 自建投递层(Svix 式)或集成 Svix
+- 订阅:`event_types` 为空列表时接收全部事件;否则每一项必须是已发出的事件名、`<object>.*` 或 `*`,其他值返回 422,`meta.paramName` 指向 `event_types`。Console 以已发出事件目录作为选项
 - 重试:指数退避,失败自动重试,死信入 D1
 - 按消息或时间区间手动重放仍是未实现设计目标。Queue 级 dead-letter replay 是
   Instance Manager 运维能力,不是产品级 webhook replay。
@@ -506,7 +507,7 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform bil
 
 ## 9. 其他 DX
 
-- API Key 一等资源,scoped 权限,前端 useAPIKeys 管理,后端 CRUD
+- API Key 一等资源,scoped 权限,前端 useAPIKeys 管理,后端 CRUD。`environment` 取 `live` 或 `test`,只决定 `sk_live_` / `sk_test_` 前缀,两者的权限完全由 scopes 决定。`expires_at` 可选,必须是未来时刻。Console 从资源白名单中选择 scopes,铸造 `*` 前需要显式确认
 - 结构化错误:XidAPIError(code/message/longMessage/meta.paramName),精确映射表单字段
 - 本地开发:dev 实例(pk*test*),localhost 免证书(HTTPS 代理),testing tokens 绕过 bot 检测
 - 文档:Nimbus 为每个组件与 hook 发布独立文档页,包含 props 表、示例、playground 与

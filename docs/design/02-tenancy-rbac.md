@@ -96,7 +96,9 @@ business tree described above.
 - Link invitation: a reusable or single-use link, limited by use count and expiry
 - Automatic domain-based assignment: the org binds and verifies an email domain (DNS TXT), and
   matching users are added automatically or prompted at sign-up (enrollment mode:
-  `automatic` | `invite_required`)
+  `automatic` | `invite_required`). Implementation status: verification and sign-in routing by
+  verified domain are implemented; automatic membership creation is a design target, so the Console
+  does not offer the `automatic` mode
 - Directory Sync / SCIM: the enterprise IdP pushes users and groups (see chapter 04)
 
 ### Membership state machine
@@ -256,9 +258,13 @@ by Membership (see chapter 08).
 - MFA enforcement: the org level overrides the instance default (`required` | `optional` |
   `disabled`), with a method allowlist
 - Organization Domains: DNS TXT verification, `enrollment_mode` (`automatic` | `invite_required`), and
-  verified domains marking members as managed
-- Organization branding: per-org logo, primary color, and sign-in page, applied automatically when
-  the authorize request carries an organization parameter
+  verified domains marking members as managed. The verification record is the TXT name
+  `_xid.{domain}` with the value `xid-verify={token}`; the API returns both as
+  `verification_record` from the same function the daily verification job uses
+- Organization branding: per-org colors, border radius, font family, and light and dark logos,
+  applied to the Hosted UI whenever the request has resolved to that organization (tenant
+  subdomain, custom hostname, or an explicit organization). The unresolved instance root always
+  shows the default brand
 - Organization metadata: public (readable by the frontend) plus private (server and admin only)
 - Organization session policy: per-org override of session idle timeout and absolute timeout
   (`session_idle_timeout_min` / `session_absolute_timeout_days`, where null means inherit from the
@@ -274,7 +280,10 @@ by Membership (see chapter 08).
 The `org_policies` table centralizes every per-org policy override with field-by-field fallback: any
 field left null falls back to the instance default, and any field that is set overrides it. Policies
 are read from D1 in real time during the sign-in flow and token generation (the added latency is
-acceptable). Branding is stored as JSON and rendered per org by the login Worker.
+acceptable). Branding is stored as validated JSON in `organizations.private_metadata.branding`,
+loaded into `TenantContext.policy.branding`, and returned by `/auth/config` for the Hosted UI. Clearing
+a field (writing null) restores the default for that field. The light logo is mirrored to
+`organizations.logo_url`, which the consent page reads.
 
 The core entities are OrgPolicy, OrgBranding, OrgMetadata, and SsoConnection (see chapter 08): policy
 overrides, branding, metadata, and connection configuration.
@@ -292,12 +301,26 @@ behalf.
 See only this org's users, members, roles, and audit records; manage invitations and role
 assignments; configure SSO, MFA, and branding; view this org's Projects and Apps.
 
+Granting or removing the `owner` role is a privilege boundary: only an `owner` or the org's
+`org_manager` may do it from the Console, and the last active owner can never be removed (the
+membership update is conditional and returns 409). Console and Management API member removal share
+one implementation, `DELETE /v1/organizations/:orgId/memberships/:membershipId`.
+
+Applications, API keys, webhooks, and compliance acceptance belong to the whole tenant. Only
+administrators of the top-level organization manage them; a child organization's Console hides
+these pages and explains why.
+
 ### Design decisions
 
 - Every D1 query MUST carry an org_id filter. The Instance Manager uses a separate management path
   and does not reuse the business API
 - Audit logs are partitioned by org_id. An org admin queries only their own; the Instance Manager can
-  query across orgs
+  query across orgs. Console and Management API mutations of members, invitations, domains,
+  branding, applications, API keys, and webhooks write audit events; tenant-wide resources record
+  the top-level organization as `org_id` so its administrators see them. Event type prefix and time
+  range filters run in the query layer
+- When the Console session cannot edit a self-service-locked setting, the page is read-only and
+  states that a platform administrator manages it
 - The platform can set `allow_org_self_service`: when it is off, org admins (cookie session) cannot
   change SSO connections, MFA and sign-in policy, delivery channels, social providers, outbound SAML
   apps, inbound SCIM directories (create, rotate token, delete), or outbound SCIM targets (create,

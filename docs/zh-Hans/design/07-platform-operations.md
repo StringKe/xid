@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=1bff8072ace285b1bb86fa0999f2651bdb2cf8c3 -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=074718bf7857e1844d9ce67cfc88180cd576a129 -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -76,7 +76,7 @@ preview/publish 状态与 per-organization 邮件模板上传仍是设计目标�
 - 邮件模板定制(见第 3 节)
 - 多品牌(per-org):每 org 独立覆盖 logo/color/背景,按 org_id 从 KV 读,fallback 租户全局
 
-设计决策:品牌配置 KV key `brand:{tenant_id}` 和 `brand:{tenant_id}:{org_id}`,登录 Worker 渲染前读 P50<2ms;自定义 CSS 最大 50KB,白名单过滤仅纯 CSS,禁 @import 和 url() 外联;编辑器实时预览(iframe 沙盒),预览与发布分离。
+设计决策:按 org 的品牌(主色、背景色、强调色、圆角、字体、浅色和深色 logo URL)存于 D1 的 `organizations.private_metadata.branding`,经 `TenantContext.policy.branding` 与 `/auth/config` 下发到 Hosted UI,不再单独读 KV。写入时校验,防止注入 CSS:六位十六进制颜色、有上限的 CSS 长度圆角、不含可开启声明的标点的字体名、公网 HTTPS logo URL。背景色只作用于浅色主题。自定义 CSS(最大 50KB,仅纯 CSS,禁 @import 和外链 url())、布局模板、背景图、租户级回退和沙盒预览编辑器仍是设计目标。
 
 ## 3. 通知系统
 

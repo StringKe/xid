@@ -2115,11 +2115,11 @@ Indexes: `UNIQUE(source_queue, message_id)`, `INDEX(status, failed_at, id)`,
 `INDEX(tenant_id, failed_at, id)`, `INDEX(source_queue, status)`.
 
 > FeatureFlag lives in KV (`flag:{tenant_id}:{flag_name}` / `flag:global:{flag_name}`, see chapter 07
-> section 1 and the cloudflare-bindings rule) and **has no D1 table**. OrgBranding lives in KV
-> (`brand:{tenant_id}` / `brand:{tenant_id}:{org_id}`, see chapter 07 section 2) plus R2 (logo and
-> CSS) and has no D1 table. Of the OrgBranding and OrgMetadata entries in this chapter's entity
-> inventory, OrgMetadata has been folded into organizations.public/private_metadata (section 11 does
-> not give it its own table). OrganizationQuota has its own `organization_quotas` table for
+> section 1 and the cloudflare-bindings rule) and **has no D1 table**. OrgBranding is folded into
+> `organizations.private_metadata.branding` (see chapter 07 section 2), with uploaded logos in R2 and
+> the light logo URL mirrored to `organizations.logo_url`; it has no table of its own. OrgMetadata
+> has likewise been folded into organizations.public/private_metadata (section 11 does not give it
+> its own table). OrganizationQuota has its own `organization_quotas` table for
 > operator-configured resource limits. Its `seats` row is authoritative; the root
 > `organizations.seat_limit` is a compatibility mirror, while billing computes seat usage from
 > tenant-wide distinct active membership users.

@@ -96,11 +96,14 @@ templates, preview/publish state, and per-organization email template upload rem
 - Multi-brand (per-org): each org can override the logo, colors, and background independently, read
   from KV by org_id and falling back to the tenant-wide setting
 
-Design decisions: branding configuration uses the KV keys `brand:{tenant_id}` and
-`brand:{tenant_id}:{org_id}`, read by the login Worker before rendering with a P50 under 2 ms. Custom
-CSS is capped at 50 KB and allowlist-filtered to pure CSS only, with `@import` and external `url()`
-references forbidden. The editor offers a live preview (in a sandboxed iframe), and preview and publish
-are separate operations.
+Design decisions: per-org branding (primary, background, and accent colors, border radius, font
+family, light and dark logo URLs) is stored in D1 at `organizations.private_metadata.branding` and
+reaches the Hosted UI through `TenantContext.policy.branding` and `/auth/config`, without a separate
+KV read. Writes are validated so values cannot inject CSS: six-digit hex colors, a bounded CSS length
+for the radius, font names without punctuation that could start a declaration, and public HTTPS logo
+URLs. The background color applies to the light theme only. Custom CSS (capped at 50 KB, pure CSS
+without `@import` or external `url()`), layout templates, background images, tenant-wide fallback,
+and the sandboxed preview editor remain design targets.
 
 ## 3. Notification system
 

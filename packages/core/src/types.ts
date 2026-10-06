@@ -88,7 +88,8 @@ export type XidPage<T> = {
 
 export type CreateApiKeyInput = {
   name: string
-  environment?: 'live' | 'test' | string
+  // 只决定 sk_live_ / sk_test_ 前缀,权限由 scopes 决定。
+  environment?: 'live' | 'test'
   scopes?: readonly string[]
   expiresAt?: string | null
   signal?: AbortSignal
