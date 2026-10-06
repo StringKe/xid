@@ -9069,6 +9069,23 @@ describe('Console 组织页契约:webhook 订阅、API key、品牌、域名、�
     expect(JSON.stringify(actions)).not.toContain('scimToken')
   })
 
+  it('首次保存品牌时保留此前上传的 logo', async () => {
+    const logoUrl = 'https://acme.xid.dev/storage/logos/t_1/org_1/existing'
+    const org = { ...ORG_1, logo_url: logoUrl }
+    const { env, headers } = await apiKeyEnv({ organizations: [org] })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/branding',
+      { method: 'PATCH', headers, body: JSON.stringify({ primaryColor: '#112233' }) },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ primaryColor: '#112233', logoUrl })
+    expect(org['logo_url']).toBe(logoUrl)
+  })
+
   it('域名响应返回与每日校验一致的 TXT 记录名和值', async () => {
     const { env, headers } = await apiKeyEnv()
     const app = buildApp(registerOrganizationsRoutes)

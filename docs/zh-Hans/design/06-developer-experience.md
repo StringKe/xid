@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=d2a1c3dbfcd6bbfd6dcc817d61376c65b54038df -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=2e4e8cbbdaa9b3187a0944bb2664fcb50944e72e -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -507,7 +507,7 @@ lifecycle `POST /auth/impersonation/{handoff,consume,end}`。只读 platform bil
 
 ## 9. 其他 DX
 
-- API Key 一等资源,scoped 权限,前端 useAPIKeys 管理,后端 CRUD。`environment` 取 `live` 或 `test`,只决定 `sk_live_` / `sk_test_` 前缀,两者的权限完全由 scopes 决定。`expires_at` 可选,必须是未来时刻。Console 从资源白名单中选择 scopes,铸造 `*` 前需要显式确认
+- API Key 一等资源,scoped 权限,前端 useAPIKeys 管理,后端 CRUD。`environment` 取 `live` 或 `test`,只决定 `sk_live_` / `sk_test_` 前缀,两者的权限完全由 scopes 决定。`expires_at` 可选,必须是未来时刻。Console 从资源白名单中选择 scopes,只有显式选择完全访问时才铸造 `*`
 - 结构化错误:XidAPIError(code/message/longMessage/meta.paramName),精确映射表单字段
 - 本地开发:dev 实例(pk*test*),localhost 免证书(HTTPS 代理),testing tokens 绕过 bot 检测
 - 文档:Nimbus 为每个组件与 hook 发布独立文档页,包含 props 表、示例、playground 与

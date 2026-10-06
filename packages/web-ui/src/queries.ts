@@ -162,6 +162,14 @@ function nextPageCursor(page: CursorPage<unknown>): string | undefined {
   return page.next_cursor ?? page.nextCursor ?? undefined
 }
 
+// 模块级函数保证 select 引用稳定,合并结果只在页数据变化时重算。
+function mergeCursorPages<P extends CursorPage<unknown>>(
+  data: InfiniteData<P, string | undefined>,
+): P {
+  const last = data.pages[data.pages.length - 1]
+  return { ...last, data: data.pages.flatMap((page) => page.data) } as P
+}
+
 // 「加载更多」把后续页追加到已加载的列表;key 不含游标,mutation 失效后从第一页重新拉取已加载的页。
 export function useApiInfiniteQuery<P extends CursorPage<unknown>>(
   key: QueryKey,
@@ -180,10 +188,7 @@ export function useApiInfiniteQuery<P extends CursorPage<unknown>>(
       ),
     initialPageParam: undefined,
     getNextPageParam: (lastPage) => nextPageCursor(lastPage),
-    select: (data: InfiniteData<P, string | undefined>) => {
-      const last = data.pages[data.pages.length - 1]
-      return { ...last, data: data.pages.flatMap((page) => page.data) } as P
-    },
+    select: mergeCursorPages<P>,
     enabled: config?.enabled,
   })
 }

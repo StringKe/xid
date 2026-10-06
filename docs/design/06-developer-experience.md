@@ -596,7 +596,7 @@ names are maintained in `webhook-event-contract`; the Nimbus public page lists o
   `useAPIKeys` and through backend CRUD. `environment` is `live` or `test` and only selects the
   `sk_live_` / `sk_test_` prefix; both carry exactly the permissions of their scopes. `expires_at` is
   optional and MUST be a future instant. The Console selects scopes from the resource allowlist and
-  asks for explicit confirmation before minting `*`
+  mints `*` only when the full-access option is chosen explicitly
 - Structured errors: XidAPIError (code/message/longMessage/meta.paramName), mapping precisely onto
   form fields
 - Local development: a dev instance with `sk_test_` Management API keys, OAuth `client_id` values

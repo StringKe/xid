@@ -54,13 +54,25 @@ function legacyBrandingKey(tenantId: string, orgId: string): string {
   return `brand:${tenantId}:${orgId}`
 }
 
-// v0.0.8 及更早版本只把品牌写在 CACHE KV;D1 尚无记录时读取旧值,下一次保存迁入 D1。
+// v0.0.8 及更早版本只把品牌写在 CACHE KV、logo 只写在 organizations.logo_url;
+// D1 尚无品牌记录时合并这两处旧值,下一次保存迁入 D1。
 async function readBranding(
   c: Context<XidHonoEnv>,
   org: typeof schema.organizations.$inferSelect,
 ): Promise<OrgBranding> {
   const metadata = privateMetadataOf(org)
   if (metadata['branding'] !== undefined) return normalizeOrgBranding(metadata['branding'])
+  const legacy = await readLegacyKvBranding(c, org)
+  if (legacy.logoUrl === null && org.logoUrl && isBrandLogoUrl(org.logoUrl)) {
+    return { ...legacy, logoUrl: org.logoUrl }
+  }
+  return legacy
+}
+
+async function readLegacyKvBranding(
+  c: Context<XidHonoEnv>,
+  org: typeof schema.organizations.$inferSelect,
+): Promise<OrgBranding> {
   const legacy = await c.env.CACHE.get(legacyBrandingKey(org.tenantId, org.id))
   if (!legacy) return DEFAULT_ORG_BRANDING
   try {
