@@ -257,11 +257,19 @@ verified domain is a precondition for JIT SSO.
 ### Capabilities
 
 - Act as a SCIM 2.0 server accepting pushes from Okta, Azure AD, and Google Workspace
-- Endpoint prefix: `/scim/v2/organizations/{organization_id}/`
+- Endpoint prefix: `/scim/v2/organizations/{organization_id}/`, where `organization_id` is the
+  top-level Organization (tenant) id, also for directories that belong to a child org. The SCIM base
+  URL is `{issuer}/scim/v2/organizations/{tenant_id}`: on the instance root domain the tenant is
+  resolved from that path id, so one base URL works for every tenant in multi-tenant mode; tenant
+  subdomains and custom hostnames keep Host-based resolution. An unknown organization id returns the
+  same 401 as a wrong token
 - Standard endpoints: Users, Groups (GET/POST/PUT/PATCH/DELETE), ServiceProviderConfig, Schemas, and
   ResourceTypes
 - Bearer token authentication: a per-directory token supporting rotation (with a 30-minute grace
   period for the old token)
+- Console: the directory page shows the SCIM base URL and the token with copy actions, the grace
+  deadline of the previous token after a rotation, and deletes a directory. Deleting a directory
+  invalidates its current and previous tokens immediately; users it provisioned keep their accounts
 - User provisioning: create, update, deactivate (`active=false`), reactivate, and delete, applied to
   the bound XID User
 - Group provisioning: create, update, delete, with incremental member PATCH

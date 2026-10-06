@@ -744,6 +744,15 @@ export function useRotateScimToken(
   )
 }
 
+export function useDeleteScimDirectory(
+  orgId: string,
+): UseMutationResult<unknown, XidError, string> {
+  return useApiMutation<unknown, string>(
+    (api, directoryId) => api.del<unknown>(`/v1/organizations/${orgId}/directories/${directoryId}`),
+    { invalidate: [queryKeyPrefixes.orgScimDirectories(orgId)] },
+  )
+}
+
 export function useCreateScimTarget(
   orgId: string,
 ): UseMutationResult<ScimTarget, XidError, CreateScimTargetInput> {

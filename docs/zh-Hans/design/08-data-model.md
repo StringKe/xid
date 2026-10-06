@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=a1ea730d99f3285b59dac08006e9cb32a381e89a -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=e091c2d362d86fb97ef8594d60b0bb376437802a -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -331,7 +331,7 @@ D1 默认外键约束**不强制启用**(SQLite `PRAGMA foreign_keys`);Drizzle m
 | seat_limit              | integer number  | null                                             | null                | root tenant 的 `organization_quotas(seats)` limit 兼容镜像,null=无限             |
 | seat_used               | integer number  | NOT NULL                                         | `0`                 | legacy 兼容 counter;billing 从 memberships 计算 tenant-wide distinct active user |
 | enrollment_mode         | text            | NOT NULL                                         | `'invite_required'` | `automatic`/`invite_required`(域名自动归属,见 02 章 2)                           |
-| allow_org_self_service  | integer boolean | NOT NULL                                         | `1`                 | 关闭时 org admin 不能改 SSO/MFA(见 02 章 6)                                      |
+| allow_org_self_service  | integer boolean | NOT NULL                                         | `1`                 | 关闭时 org admin 不能改 SSO/MFA/登录策略/SCIM(范围见 02 章 6)                    |
 | status                  | text            | NOT NULL                                         | `'active'`          | `active`/`suspended`/`deleted`                                                   |
 | deleted_at              | integer ts_ms   | null                                             | null                | 软删除标记(Instance Manager 删 org)                                              |
 | created_at / updated_at | integer ts_ms   | NOT NULL                                         | 见 9.3              |                                                                                  |

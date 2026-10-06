@@ -289,6 +289,7 @@ export type ScimDirectory = {
   lastSyncAt: string | null
   userCount: number
   groupCount: number
+  scimBaseUrl: string
 }
 
 export type CreateScimDirectoryInput = {
@@ -301,6 +302,8 @@ export type CreatedScimDirectory = ScimDirectory & {
 
 export type RotateScimTokenResult = {
   scimToken: string
+  scimBaseUrl: string
+  scimTokenPrevExpiresAt: string
 }
 
 export type OrgDomain = {

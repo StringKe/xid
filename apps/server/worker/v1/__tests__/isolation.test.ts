@@ -7396,8 +7396,111 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(typeof body['scimToken']).toBe('string')
+    expect(body['scimBaseUrl']).toBe('https://acme.xid.dev/scim/v2/organizations/t_1')
+    expect(typeof body['scimTokenPrevExpiresAt']).toBe('string')
     expect(directory['scim_token_hash_prev']).toBe('old_hash')
     expect(directory['scim_token_hash']).not.toBe('old_hash')
+  })
+
+  async function directoryAdminEnv(directories: Record<string, unknown>[]) {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({ tenantId: 't_1', userId: 'user_admin', activeOrgId: 'org_1' })
+    const db = makeFakeD1({
+      sessions: [session],
+      users: [activeUserRow('user_admin')],
+      organizations: [
+        { id: 'org_1', tenant_id: 't_1', status: 'active' },
+        { id: 'org_2', tenant_id: 't_1', status: 'active' },
+      ],
+      memberships: [
+        {
+          id: 'mem_admin',
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          user_id: 'user_admin',
+          role: 'admin',
+          status: 'active',
+        },
+      ],
+      directories,
+    })
+    const env = asUnknown<Env>({
+      DB: db,
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      CACHE: makeFakeKv(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    return { env, cookie: `${cookieName}=${token}` }
+  }
+
+  it('admin 删除 SCIM directory -> 204,当前与宽限期 token 一并失效', async () => {
+    const directory = {
+      id: 'dir_1',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      provider: 'okta',
+      status: 'active',
+      sync_status: 'idle',
+      scim_token_hash: 'current_hash',
+      scim_token_hash_prev: 'old_hash',
+      scim_token_prev_expires: Date.now() + 60_000,
+    }
+    const { env, cookie } = await directoryAdminEnv([directory])
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/directories/dir_1',
+      { method: 'DELETE', headers: { Cookie: cookie } },
+      env,
+    )
+
+    expect(res.status).toBe(204)
+    expect(directory['status']).toBe('deleted')
+    expect(directory['sync_status']).toBe('disabled')
+    expect(directory['scim_token_hash_prev']).toBeNull()
+  })
+
+  it('org_1 admin 删除 org_2 的 SCIM directory -> 404 且不改动', async () => {
+    const victim = {
+      id: 'dir_victim',
+      tenant_id: 't_1',
+      org_id: 'org_2',
+      provider: 'okta',
+      status: 'active',
+      sync_status: 'idle',
+      scim_token_hash: 'victim_hash',
+      scim_token_hash_prev: null,
+      scim_token_prev_expires: null,
+    }
+    const otherTenant = { ...victim, id: 'dir_other_tenant', tenant_id: 't_2', org_id: 'org_1' }
+    const { env, cookie } = await directoryAdminEnv([victim, otherTenant])
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const crossTenant = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/directories/dir_other_tenant',
+      { method: 'DELETE', headers: { Cookie: cookie } },
+      env,
+    )
+    expect(crossTenant.status).toBe(404)
+    expect(otherTenant['status']).toBe('active')
+
+    const viaOwnOrg = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/directories/dir_victim',
+      { method: 'DELETE', headers: { Cookie: cookie } },
+      env,
+    )
+    const viaVictimOrg = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_2/directories/dir_victim',
+      { method: 'DELETE', headers: { Cookie: cookie } },
+      env,
+    )
+
+    expect(viaOwnOrg.status).toBe(404)
+    expect([403, 404]).toContain(viaVictimOrg.status)
+    expect(victim['status']).toBe('active')
   })
 
   it('admin 可读取 members Page,DELETE 后默认列表过滤 inactive', async () => {
@@ -8321,6 +8424,57 @@ describe('v1 organizations allow_org_self_service 门控', () => {
     expect(res.status).toBe(403)
     const body = (await res.json()) as Record<string, unknown>
     expect(body['code']).toBe('forbidden')
+  })
+
+  it.each([
+    ['POST', '/v1/organizations/org_1/directories', { provider: 'okta' }],
+    ['POST', '/v1/organizations/org_1/directories/dir_1/rotate-token', undefined],
+    ['DELETE', '/v1/organizations/org_1/directories/dir_1', undefined],
+    [
+      'POST',
+      '/v1/organizations/org_1/scim-targets',
+      { provider: 'slack', base_url: 'https://api.slack.com/scim/v2' },
+    ],
+    ['PATCH', '/v1/organizations/org_1/scim-targets/tgt_1', { provider: 'slack' }],
+    ['DELETE', '/v1/organizations/org_1/scim-targets/tgt_1', undefined],
+    ['POST', '/v1/organizations/org_1/scim-targets/tgt_1/sync', undefined],
+  ])('flag=false 时 org admin(cookie)%s %s -> 403', async (method, path, body) => {
+    const { env, cookieName, token } = await adminCookieEnv()
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const res = await app.request(
+      `https://acme.xid.dev${path}`,
+      {
+        method,
+        headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as Record<string, unknown>)['code']).toBe('forbidden')
+  })
+
+  it('flag=false 时 sk 路径仍可创建 SCIM directory -> 201', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({ api_keys: [apiKey], organizations: [LOCKED_ORG], directories: [] }),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/directories',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'okta' }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(201)
   })
 
   it('flag=false 时 sk 路径不受影响 -> 200', async () => {

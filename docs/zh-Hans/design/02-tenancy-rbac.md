@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=dd9542cc5c0d31e07617f430e6ad8da5c89faba6 -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=38d51e9e9d15717d7a589a732be00c5cacc6bc9e -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -229,7 +229,7 @@ org_policies 表统一管理所有 per-org 策略覆盖,逐字段回退:未设�
 
 - 所有 D1 查询强制带 org_id 过滤;Instance Manager 走独立管理路径,不复用业务 API
 - 审计日志按 org_id 分区;org admin 只查自己的,Instance Manager 可跨 org
-- 平台可设 allow_org_self_service:关闭时 org admin 无法改 SSO/MFA 策略,需平台介入
+- 平台可设 allow_org_self_service:关闭时 org admin(cookie 会话)不能改 SSO 连接、MFA 与登录策略、投递通道、社交登录、出站 SAML 应用、入站 SCIM 目录(创建、轮换 token、删除)和出站 SCIM 目标(创建、更新、删除、同步),需平台介入。branding 与域名仍可自助。`sk_*` API key 与 Instance Manager 不受影响
 
 核心实体 AuditLog(按 org 分区)、OrgQuota(见 08 章)。
 

@@ -4,7 +4,6 @@
 // Instance Manager 跨 org 走独立管理路径(此模块为 Org Admin 视角,见 tenant-isolation rule)。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { sha256Hex } from '@xid-kit/crypto'
 import {
   DEFAULT_SAML_CLOCK_SKEW_MS,
   MAX_SAML_CLOCK_SKEW_MS,
@@ -78,7 +77,8 @@ import {
   scimTargetHasToken,
   scimTargetTokenSecretName,
 } from '../scim/target-credentials'
-import { SCIM_TOKEN_ROTATE_GRACE_MS } from '../lib/ttl'
+import { assertOrgSelfServiceEditable, isInstanceManagerUser } from './org-self-service'
+import { registerOrganizationDirectoryRoutes } from './organization-directories'
 import {
   assignmentGateFromBody,
   parseAssignmentGate,
@@ -106,7 +106,6 @@ import {
   decodeCursor,
   requireOrg,
   emitWebhookAsync,
-  type OrgScopedAuth,
 } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -210,10 +209,6 @@ const patchSsoConnectionBodySchema = v.object({
   saml_clock_skew_ms: v.optional(
     v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_SAML_CLOCK_SKEW_MS)),
   ),
-})
-
-const createDirectoryBodySchema = v.object({
-  provider: v.pipe(v.string(), v.minLength(1)),
 })
 
 // assignment_gate 的字段级校验在 assignmentGateFromBody(paramName 契约已固定),schema 只放行键存在性。
@@ -661,36 +656,6 @@ function toDomainResponse(row: typeof schema.organizationDomains.$inferSelect) {
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   }
-}
-
-// instance_manager 分配在平台层(scope=instance),不经租户查询层,raw drizzle 按 userId 直查
-// (同 me.ts isInstanceManager;租户层会注入 tenant_id 漏查他租户分配)。
-async function isInstanceManagerUser(c: Context<XidHonoEnv>, userId: string): Promise<boolean> {
-  const db = drizzle(c.env.DB, { schema })
-  const rows = await db
-    .select({ id: schema.managerAssignments.id })
-    .from(schema.managerAssignments)
-    .where(
-      and(
-        eq(schema.managerAssignments.userId, userId),
-        eq(schema.managerAssignments.managerRole, 'instance_manager'),
-        eq(schema.managerAssignments.scopeType, 'instance'),
-      ),
-    )
-    .limit(1)
-  return rows.length > 0
-}
-
-// 平台关闭 org 自助策略(allow_org_self_service=false)时 org admin 不得改 SSO/MFA/登录策略(见 02 章 6);
-// sk 路径与 instance_manager 不受影响,故仅 org_console 分支检查。
-async function assertOrgSelfServiceEditable(
-  c: Context<XidHonoEnv>,
-  auth: OrgScopedAuth,
-  org: typeof schema.organizations.$inferSelect,
-): Promise<void> {
-  if (auth.kind !== 'org_console' || org.allowOrgSelfService !== false) return
-  if (await isInstanceManagerUser(c, auth.session.userId)) return
-  throw new AppError('forbidden', { httpStatus: 403 })
 }
 
 // 保留字:instance 根域解析(default)与平台功能子域不允许业务 org slug 占用(防子域抢占)。
@@ -1386,88 +1351,6 @@ function toConsoleSsoConnection(row: typeof schema.ssoConnections.$inferSelect) 
   }
 }
 
-function genScimToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32))
-  return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '')
-}
-
-async function toConsoleDirectory(
-  c: Context<XidHonoEnv>,
-  row: typeof schema.directories.$inferSelect,
-) {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const [userCount, groupCount] = await Promise.all([
-    db.directoryUsers.count(
-      and(
-        eq(schema.directoryUsers.directoryId, row.id),
-        ne(schema.directoryUsers.status, 'deleted'),
-        isNull(schema.directoryUsers.deletedAt),
-      ),
-    ),
-    db.directoryGroups.count(
-      and(
-        eq(schema.directoryGroups.directoryId, row.id),
-        ne(schema.directoryGroups.status, 'deleted'),
-        isNull(schema.directoryGroups.deletedAt),
-      ),
-    ),
-  ])
-  return {
-    id: row.id,
-    name: row.provider,
-    provider: row.provider,
-    status: row.status === 'active' ? 'active' : 'inactive',
-    lastSyncAt: toIso(row.lastSyncAt),
-    userCount,
-    groupCount,
-  }
-}
-
-async function toConsoleDirectories(
-  c: Context<XidHonoEnv>,
-  rows: readonly (typeof schema.directories.$inferSelect)[],
-) {
-  if (rows.length === 0) return []
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const userCounts = new Map<string, number>()
-  const groupCounts = new Map<string, number>()
-  for (let start = 0; start < rows.length; start += ORG_LIST_BATCH_SIZE) {
-    const directoryIds = rows.slice(start, start + ORG_LIST_BATCH_SIZE).map((row) => row.id)
-    const [userRows, groupRows] = await Promise.all([
-      db.directoryUsers.countBy(
-        schema.directoryUsers.directoryId,
-        and(
-          inArray(schema.directoryUsers.directoryId, directoryIds),
-          ne(schema.directoryUsers.status, 'deleted'),
-          isNull(schema.directoryUsers.deletedAt),
-        ),
-      ),
-      db.directoryGroups.countBy(
-        schema.directoryGroups.directoryId,
-        and(
-          inArray(schema.directoryGroups.directoryId, directoryIds),
-          ne(schema.directoryGroups.status, 'deleted'),
-          isNull(schema.directoryGroups.deletedAt),
-        ),
-      ),
-    ])
-    for (const [directoryId, count] of userRows) userCounts.set(directoryId, count)
-    for (const [directoryId, count] of groupRows) groupCounts.set(directoryId, count)
-  }
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.provider,
-    provider: row.provider,
-    status: row.status === 'active' ? 'active' : 'inactive',
-    lastSyncAt: toIso(row.lastSyncAt),
-    userCount: userCounts.get(row.id) ?? 0,
-    groupCount: groupCounts.get(row.id) ?? 0,
-  }))
-}
-
 // ---- 列表 ----
 
 // GET /v1/organizations?limit=&cursor=
@@ -1748,72 +1631,7 @@ app.delete('/:id/sso-connections/:connectionId', async (c) => {
   return new Response(null, { status: 204 })
 })
 
-// GET /v1/organizations/:id/directories
-app.get('/:id/directories', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'directories:read')
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const rows = await readAllById((cursor) =>
-    db
-      .forOrg(id)
-      .directories.findMany(
-        cursor
-          ? and(eq(schema.directories.status, 'active'), gt(schema.directories.id, cursor))
-          : eq(schema.directories.status, 'active'),
-        { orderBy: asc(schema.directories.id), limit: ORG_LIST_BATCH_SIZE },
-      ),
-  )
-  return c.json(await toConsoleDirectories(c, rows))
-})
-
-// POST /v1/organizations/:id/directories
-app.post('/:id/directories', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'directories:write')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(createDirectoryBodySchema, json.value)
-  const provider = body.provider
-  const token = genScimToken()
-  const row = await db.directories.insert({
-    id: createPersistedId('directory'),
-    tenantId: tenant.tenantId,
-    orgId: id,
-    provider,
-    scimTokenHash: await sha256Hex(token),
-    status: 'active',
-    syncStatus: 'idle',
-  })
-  return c.json({ ...(await toConsoleDirectory(c, row)), scimToken: token }, 201)
-})
-
-// POST /v1/organizations/:id/directories/:directoryId/rotate-token
-app.post('/:id/directories/:directoryId/rotate-token', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'directories:write')
-  const directoryId = c.req.param('directoryId')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const where = and(
-    eq(schema.directories.id, directoryId),
-    eq(schema.directories.orgId, id),
-    eq(schema.directories.status, 'active'),
-  )
-  const existing = await db.directories.findOne(where)
-  if (!existing) throw new AppError('not_found', { httpStatus: 404 })
-  const token = genScimToken()
-  await db.directories.update(
-    {
-      scimTokenHashPrev: existing.scimTokenHash,
-      scimTokenPrevExpires: new Date(Date.now() + SCIM_TOKEN_ROTATE_GRACE_MS),
-      scimTokenHash: await sha256Hex(token),
-    },
-    where,
-  )
-  return c.json({ scimToken: token })
-})
+registerOrganizationDirectoryRoutes(app)
 
 // GET /v1/organizations/:id/branding
 app.get('/:id/branding', async (c) => {
@@ -2197,7 +2015,8 @@ app.get('/:id/scim-targets', async (c) => {
 // POST /v1/organizations/:id/scim-targets
 app.post('/:id/scim-targets', async (c) => {
   const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -2241,7 +2060,8 @@ app.post('/:id/scim-targets', async (c) => {
 app.patch('/:id/scim-targets/:targetId', async (c) => {
   const id = c.req.param('id')
   const targetId = c.req.param('targetId')
-  await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -2280,7 +2100,8 @@ app.patch('/:id/scim-targets/:targetId', async (c) => {
 app.delete('/:id/scim-targets/:targetId', async (c) => {
   const id = c.req.param('id')
   const targetId = c.req.param('targetId')
-  await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -2305,6 +2126,7 @@ app.post('/:id/scim-targets/:targetId/sync', async (c) => {
   const id = c.req.param('id')
   const targetId = c.req.param('targetId')
   const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
+  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const target = await db.scimTargets.findOne(

@@ -10,9 +10,18 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
+import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { useCreateScimDirectory, useOrgScimDirectoriesQuery, useRotateScimToken } from './queries'
+import type { XidError } from '@xid-kit/types'
+import { CopyableValue } from './CopyableValue'
+import {
+  useCreateScimDirectory,
+  useDeleteScimDirectory,
+  useOrgScimDirectoriesQuery,
+  useRotateScimToken,
+} from './queries'
 import type { ScimDirectory } from './types'
 import { useOrgTarget } from './useOrgTarget'
 
@@ -36,20 +45,20 @@ const styles = stylex.create({
     borderTopStyle: 'solid',
     borderTopColor: tokens['--xid-border'],
   },
-  tokenCode: {
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
-    backgroundColor: tokens['--xid-muted'],
-    paddingBlock: '0.375rem',
-    paddingInline: '0.5rem',
-    borderRadius: tokens['--xid-radius-sm'],
-    wordBreak: 'break-all',
-    color: tokens['--xid-fg'],
+  actions: {
+    display: 'flex',
+    gap: '0.5rem',
+    flexWrap: 'wrap',
   },
   mutedText: {
     color: tokens['--xid-muted-foreground'],
   },
 })
+
+type IssuedToken = {
+  token: string
+  previousTokenExpiresAt: string | null
+}
 
 function ScimStatus({ status }: { status: ScimDirectory['status'] }): ReactNode {
   return <Badge tone={status === 'active' ? 'success' : 'neutral'}>{status}</Badge>
@@ -66,21 +75,44 @@ function LastSync({ lastSyncAt }: { lastSyncAt: string | null }): ReactNode {
   )
 }
 
+function IssuedTokenNotice({ issued }: { issued: IssuedToken }): ReactNode {
+  const expiresAt = issued.previousTokenExpiresAt
+    ? new Date(issued.previousTokenExpiresAt).toLocaleString()
+    : null
+  return (
+    <div {...stylex.props(styles.tokenSection)}>
+      <Alert tone="success">
+        <Trans>SCIM token generated. Store it now; it will not be shown again.</Trans>
+      </Alert>
+      <CopyableValue value={issued.token} />
+      {expiresAt ? (
+        <p {...stylex.props(styles.mutedText)}>
+          <Trans>
+            The previous token keeps working until {expiresAt}. Update your identity provider before
+            then.
+          </Trans>
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 export default function OrgScim(): ReactNode {
   const { t } = useLingui()
+  const errorMessage = useApiErrorMessage()
   const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgScimDirectoriesQuery(orgId)
   const createDirectory = useCreateScimDirectory(orgId)
   const rotateToken = useRotateScimToken(orgId)
+  const deleteDirectory = useDeleteScimDirectory(orgId)
   const [provider, setProvider] = useState('okta')
-  const [scimToken, setScimToken] = useState<string | null>(null)
+  const [issued, setIssued] = useState<IssuedToken | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<ScimDirectory | null>(null)
+  const directories = data ?? []
+  const baseUrl = directories[0]?.scimBaseUrl ?? null
 
   const columns: ColumnDef<ScimDirectory>[] = [
-    {
-      id: 'name',
-      header: () => <Trans>Name</Trans>,
-      cell: ({ row }) => row.original.name,
-    },
+    { id: 'name', header: () => <Trans>Name</Trans>, cell: ({ row }) => row.original.name },
     {
       id: 'provider',
       header: () => <Trans>Provider</Trans>,
@@ -115,27 +147,39 @@ export default function OrgScim(): ReactNode {
       id: 'actions',
       header: () => <Trans>Actions</Trans>,
       cell: ({ row }) => (
-        <Button
-          variant="secondary"
-          isLoading={rotateToken.isPending}
-          onClick={() => void handleRotate(row.original.id)}
-        >
-          <Trans>Rotate token</Trans>
-        </Button>
+        <div {...stylex.props(styles.actions)}>
+          <Button
+            variant="secondary"
+            isLoading={rotateToken.isPending && rotateToken.variables === row.original.id}
+            onClick={() => void handleRotate(row.original.id)}
+          >
+            <Trans>Rotate token</Trans>
+          </Button>
+          <Button variant="danger" onClick={() => setPendingDelete(row.original)}>
+            <Trans>Delete</Trans>
+          </Button>
+        </div>
       ),
-      meta: { width: '140px' },
+      meta: { width: '220px' },
     },
   ]
 
   async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     const result = await createDirectory.mutateAsync({ provider: provider.trim() || 'generic' })
-    setScimToken(result.scimToken)
+    setIssued({ token: result.scimToken, previousTokenExpiresAt: null })
   }
 
   async function handleRotate(directoryId: string): Promise<void> {
     const result = await rotateToken.mutateAsync(directoryId)
-    setScimToken(result.scimToken)
+    setIssued({ token: result.scimToken, previousTokenExpiresAt: result.scimTokenPrevExpiresAt })
+  }
+
+  async function confirmDelete(): Promise<void> {
+    if (!pendingDelete) return
+    await deleteDirectory.mutateAsync(pendingDelete.id)
+    setPendingDelete(null)
+    setIssued(null)
   }
 
   if (!orgId) {
@@ -150,7 +194,8 @@ export default function OrgScim(): ReactNode {
     )
   }
 
-  const actionError = createDirectory.isError || rotateToken.isError
+  const actionError: XidError | null =
+    createDirectory.error ?? rotateToken.error ?? deleteDirectory.error ?? null
 
   return (
     <ConsolePage
@@ -166,9 +211,7 @@ export default function OrgScim(): ReactNode {
       {actionError || isError ? (
         <ConsolePageNotice>
           {actionError ? (
-            <Alert tone="error">
-              <Trans>Failed to save SCIM directory changes. Try again.</Trans>
-            </Alert>
+            <Alert tone="error">{errorMessage(actionError, { surface: 'general' })}</Alert>
           ) : null}
           {isError ? (
             <Alert tone="error">
@@ -181,12 +224,26 @@ export default function OrgScim(): ReactNode {
       <ConsolePageSection title={<Trans>Directories</Trans>}>
         <DataTable
           columns={columns}
-          data={data ?? []}
+          data={directories}
           getRowId={(row) => row.id}
           isLoading={isLoading}
           emptyMessage={<Trans>No SCIM directories configured.</Trans>}
         />
       </ConsolePageSection>
+
+      {baseUrl ? (
+        <ConsolePageSplitSection
+          title={<Trans>SCIM base URL</Trans>}
+          description={
+            <Trans>
+              Enter this URL as the SCIM connector base URL in your identity provider, together with
+              the directory bearer token.
+            </Trans>
+          }
+        >
+          <CopyableValue value={baseUrl} />
+        </ConsolePageSplitSection>
+      ) : null}
 
       <ConsolePageSplitSection
         title={<Trans>Create directory</Trans>}
@@ -215,15 +272,24 @@ export default function OrgScim(): ReactNode {
           </div>
         </form>
 
-        {scimToken ? (
-          <div {...stylex.props(styles.tokenSection)}>
-            <Alert tone="success">
-              <Trans>SCIM token generated. Store it now; it will not be shown again.</Trans>
-            </Alert>
-            <code {...stylex.props(styles.tokenCode)}>{scimToken}</code>
-          </div>
-        ) : null}
+        {issued ? <IssuedTokenNotice issued={issued} /> : null}
       </ConsolePageSplitSection>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={<Trans>Delete SCIM directory?</Trans>}
+          description={
+            <Trans>
+              {pendingDelete.name} stops accepting SCIM requests immediately, including the previous
+              token. Users it already provisioned keep their accounts.
+            </Trans>
+          }
+          confirmLabel={<Trans>Delete</Trans>}
+          isLoading={deleteDirectory.isPending}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+        />
+      ) : null}
     </ConsolePage>
   )
 }

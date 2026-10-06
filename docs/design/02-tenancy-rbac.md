@@ -298,8 +298,11 @@ assignments; configure SSO, MFA, and branding; view this org's Projects and Apps
   and does not reuse the business API
 - Audit logs are partitioned by org_id. An org admin queries only their own; the Instance Manager can
   query across orgs
-- The platform can set `allow_org_self_service`: when it is off, org admins cannot change SSO or MFA
-  policy and the platform must intervene
+- The platform can set `allow_org_self_service`: when it is off, org admins (cookie session) cannot
+  change SSO connections, MFA and sign-in policy, delivery channels, social providers, outbound SAML
+  apps, inbound SCIM directories (create, rotate token, delete), or outbound SCIM targets (create,
+  update, delete, sync), and the platform must intervene. Branding and domains stay self-service.
+  `sk_*` API keys and the Instance Manager are not affected
 
 The core entities are AuditLog (partitioned by org) and OrgQuota (see chapter 08).
 

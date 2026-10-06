@@ -25,6 +25,10 @@ vi.mock('@lingui/core/macro', () => ({
   msg: (strings: TemplateStringsArray) => ({ message: strings[0] }),
 }))
 
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useApiErrorMessage: () => () => 'error',
+}))
+
 vi.mock('@xid-kit/web-ui/session', () => ({
   useAuth: () => ({
     user: {
@@ -170,6 +174,7 @@ vi.mock('./queries', () => ({
     isPending: false,
     mutateAsync: vi.fn<() => Promise<RotateScimTokenResult>>(),
   }),
+  useDeleteScimDirectory: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
   useOrgDomainsQuery: () => ({
     data: [] as OrgDomain[],
     isLoading: false,

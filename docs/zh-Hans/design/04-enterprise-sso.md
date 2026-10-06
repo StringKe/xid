@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=0b17b6953ee066e0f2b54eb45968d48a9b2cb368 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=fd299fcacd9b1a55ccced12ac2269abbb0e0d3b4 -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -178,9 +178,10 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 ### 功能点
 
 - 作为 SCIM 2.0 server 接受 Okta/Azure AD/Google Workspace 推送
-- 端点前缀:`/scim/v2/organizations/{organization_id}/`
+- 端点前缀:`/scim/v2/organizations/{organization_id}/`,`organization_id` 是顶级 Organization(tenant)id,属于子组织的目录也用它。SCIM Base URL 为 `{issuer}/scim/v2/organizations/{tenant_id}`:在实例根域上按该路径 id 解析租户,因此多租户模式下所有租户都用同一形式的地址;租户子域与自定义域名仍按 Host 解析。未知 organization id 返回与错误 token 相同的 401
 - 标准端点:Users、Groups(GET/POST/PUT/PATCH/DELETE)、ServiceProviderConfig、Schemas、ResourceTypes
 - Bearer token 认证:per-directory token,支持 rotate(旧 token 30min 宽限)
+- Console:目录页展示 SCIM Base URL 与 token 并提供复制,轮换后展示旧 token 的宽限截止时间,支持删除目录。删除目录会立即使当前与旧 token 失效;已由它开通的用户保留账号
 - User provisioning:创建/更新/停用(active=false)/恢复/删除,作用于绑定的 XID User
 - Group provisioning:创建/更新/删除,Members 增量 PATCH
 - Webhook:目录事件推送到应用 endpoint

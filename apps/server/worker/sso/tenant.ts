@@ -54,6 +54,18 @@ export async function resolveSamlServiceProviderTenant(
   return result.value.tenant
 }
 
+// SCIM 客户端只配置一个 Base URL,在实例根域按路径中的顶级 Organization id 解析租户;
+// 解析失败返回 null,调用方统一回 401,不区分租户是否存在。
+export async function resolveScimPathTenant(
+  c: Context<XidHonoEnv>,
+  organizationId: string,
+): Promise<TenantVar | null> {
+  const current = c.get('tenant')
+  if (!shouldResolveProtocolPathTenant(c, current)) return current
+  const result = await resolveTenantContextById(c.req.raw, c.env, organizationId)
+  return result.ok ? result.value.tenant : null
+}
+
 export async function withTenant<T>(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,

@@ -9,7 +9,8 @@ import { registerScimUsersRoutes } from './users'
 import { registerScimGroupsRoutes } from './groups'
 import { registerScimBulkRoutes } from './bulk'
 import { registerOutboundScimRoutes } from './outbound'
-import { SCIM_BULK_MAX_OPERATIONS, SCIM_BULK_MAX_PAYLOAD_SIZE } from './shared'
+import { resolveScimPathTenant, withTenant } from '../sso/tenant'
+import { SCIM_BULK_MAX_OPERATIONS, SCIM_BULK_MAX_PAYLOAD_SIZE, scimError } from './shared'
 
 const SCIM_BASE = '/scim/v2/organizations/:organization_id'
 
@@ -158,6 +159,12 @@ export function registerScimRoutes(app: Hono<XidHonoEnv>): void {
       { 'Content-Type': 'application/scim+json' },
     ),
   )
+
+  app.use(`${SCIM_BASE}/*`, async (c, next) => {
+    const tenant = await resolveScimPathTenant(c, c.req.param('organization_id') ?? '')
+    if (!tenant) return scimError(c, 401, 'Unauthorized', { addWwwAuth: true })
+    await withTenant(c, tenant, next)
+  })
 
   // Users、Groups、Bulk 路由(含 organization_id 路径参数)
   registerScimUsersRoutes(app, SCIM_BASE)
