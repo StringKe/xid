@@ -57,7 +57,7 @@ vi.mock('../../lib/google-analytics-funnel', () => ({
   trackEmailVerified: vi.fn(),
 }))
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
   useNavigate: () => routerState.navigate,
 }))

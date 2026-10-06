@@ -11,7 +11,7 @@ import { MfaSection } from './MfaSection'
 import { PasskeySection } from './PasskeySection'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
 import { useDefaultLandingPath } from '../../lib/default-landing'
-import { useNavigate } from '../../lib/router'
+import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 
 export default function SecurityPage(): ReactNode {
   const search = useSearch({ strict: false }) as { setup?: string; redirect_to?: string }

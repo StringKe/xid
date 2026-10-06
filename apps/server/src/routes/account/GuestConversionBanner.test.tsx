@@ -23,7 +23,7 @@ vi.mock('../../lib/auth-context', async (importOriginal) => {
   }
 })
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
     <a href={to} {...rest}>
       {children}

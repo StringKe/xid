@@ -9,7 +9,7 @@ import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { useDefaultLandingPath } from '../../lib/default-landing'
 import { trackOrganizationSelected } from '../../lib/google-analytics-funnel'
-import { useNavigate } from '../../lib/router'
+import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { page } from '../../styles/product-surface.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 

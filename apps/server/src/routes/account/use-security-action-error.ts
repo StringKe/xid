@@ -4,7 +4,7 @@ import { useLingui } from '@lingui/react/macro'
 import type { XidError } from '@xid-kit/types'
 import { apiErrorDescriptor } from '@xid-kit/web-ui/api-error-message'
 import { classifyApiError } from '@xid-kit/web-ui/api-errors'
-import { useNavigate } from '../../lib/router'
+import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 
 function isXidError(error: unknown): error is Pick<XidError, 'code' | 'meta'> {
   return typeof error === 'object' && error !== null && 'code' in error

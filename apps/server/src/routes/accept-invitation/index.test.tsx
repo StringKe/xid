@@ -51,7 +51,7 @@ vi.mock('../../components/layout', () => ({
   ),
 }))
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ children, to, ...props }: { children: ReactNode; to: string }) => (
     <a href={to} {...props}>
       {children}

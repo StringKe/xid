@@ -50,7 +50,7 @@ vi.mock('../../lib/auth-context', () => ({
   useAuth: () => ({ status: authState.status }),
 }))
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: unknown; children: ReactNode }) => (
     <a
       href={

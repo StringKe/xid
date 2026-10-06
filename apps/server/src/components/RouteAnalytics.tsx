@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { useLocation } from '../lib/router'
+import { useLocation } from '@xid-kit/web-ui/tanstack-router'
 import { useLocale } from '../lib/locale-context'
 import { resolveAnalyticsPageGroup, trackPageView } from '../lib/google-analytics'
 

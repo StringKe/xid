@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import * as stylex from '@stylexjs/stylex'
 import { useAuth } from '../../lib/auth-context'
-import { Link } from '../../lib/router'
+import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { mfaMethodSearch, type MfaMethod, type MfaSearch } from './mfa-search'
 import { styles } from './styles'
 

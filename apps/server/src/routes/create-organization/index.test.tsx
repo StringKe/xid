@@ -39,7 +39,7 @@ vi.mock('@tanstack/react-router', () => ({
   createLazyRoute: () => (options: unknown) => options,
 }))
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
   useNavigate: () => routerState.navigate,
 }))

@@ -6,7 +6,7 @@ import { useSearch } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { Result, XidError } from '@xid-kit/types'
 import { useAuth } from '../../lib/auth-context'
-import { useNavigate } from '../../lib/router'
+import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import {
   apiErrorToKey,
   enabledSignInMethods,

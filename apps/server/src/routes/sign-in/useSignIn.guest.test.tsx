@@ -35,7 +35,7 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => routerState.search,
 }))
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   useNavigate: () => routerState.navigate,
 }))
 

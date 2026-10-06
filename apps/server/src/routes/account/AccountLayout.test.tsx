@@ -12,7 +12,7 @@ vi.mock('@lingui/react/macro', () => ({
   useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
 }))
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, className, children }: { to: string; className?: string; children: ReactNode }) => (
     <a href={to} className={className}>
       {children}

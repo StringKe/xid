@@ -1,7 +1,7 @@
 import { useSearch } from '@tanstack/react-router'
 import { normalizeLocalPath } from '@xid-kit/types'
 import { useDefaultLandingPath } from '../../lib/default-landing'
-import { useNavigate } from '../../lib/router'
+import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 
 // MFA 完成后续跑原流程;/authorize 等 Worker 路径由导航适配器走整页跳转。
 export function useMfaResume(): () => void {

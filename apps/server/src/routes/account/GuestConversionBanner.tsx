@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { Alert } from '../../components/ui/Alert'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
-import { Link } from '../../lib/router'
+import { Link } from '@xid-kit/web-ui/tanstack-router'
 
 const DISMISS_KEY = 'xid.guest-banner.dismissed'
 

@@ -35,7 +35,7 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => routerState.search,
 }))
 
-vi.mock('../../lib/router', () => ({
+vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: unknown; children: ReactNode }) => (
     <a href={typeof to === 'string' ? to : `${(to as { pathname?: string }).pathname ?? ''}`}>
       {children}

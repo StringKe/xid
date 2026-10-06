@@ -2,7 +2,7 @@
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
-import { Link, useLocation } from '../../lib/router'
+import { Link, useLocation } from '@xid-kit/web-ui/tanstack-router'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { page } from '../../styles/product-surface.stylex'

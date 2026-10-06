@@ -3,7 +3,7 @@
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Link } from '../../lib/router'
+import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { ACCOUNT_EXACT_PATH } from '@xid-kit/types'
 import { BrandLogo } from '../../components/BrandLogo'

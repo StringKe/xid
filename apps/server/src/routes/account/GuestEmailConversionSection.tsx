@@ -10,7 +10,7 @@ import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import type { XidError } from '@xid-kit/types'
 import { Alert, Button, Field, Input, Section, SectionRow } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
-import { useNavigate } from '../../lib/router'
+import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
 
