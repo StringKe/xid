@@ -16,7 +16,8 @@ import {
   readAllById,
   buildUserScimRepr,
   buildVersion,
-  parsePatchOps,
+  readScimJson,
+  readScimPatchOps,
   applyUserPatch,
   revokeAllUserSessions,
   emitWebhookAsync,
@@ -63,8 +64,9 @@ users.post('/', async (c) => {
     return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
   }
 
-  const rawBody = await c.req.json<Record<string, unknown>>()
-  const parsed = v.safeParse(scimUserWriteSchema, rawBody)
+  const rawBody = await readScimJson(c)
+  if (!rawBody.ok) return rawBody.error
+  const parsed = v.safeParse(scimUserWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'userName is required', 'invalidValue')
   const body = parsed.output
   const userName = body['userName']
@@ -269,13 +271,12 @@ users.put('/:id', async (c) => {
   )
   if (!existing) return scimError(c, 404, 'User not found')
 
-  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt), {
-    requireIfMatch: true,
-  })
+  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
-  const rawBody = await c.req.json<Record<string, unknown>>()
-  const parsed = v.safeParse(scimUserWriteSchema, rawBody)
+  const rawBody = await readScimJson(c)
+  if (!rawBody.ok) return rawBody.error
+  const parsed = v.safeParse(scimUserWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'userName is required', 'invalidValue')
   const body = parsed.output
   const userName = body['userName']
@@ -349,22 +350,12 @@ users.patch('/:id', async (c) => {
   )
   if (!existing) return scimError(c, 404, 'User not found')
 
-  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt), {
-    requireIfMatch: true,
-  })
+  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
-  const body = await c.req.json<Record<string, unknown>>()
-  const schemas = body['schemas']
-  if (
-    !Array.isArray(schemas) ||
-    !schemas.includes('urn:ietf:params:scim:api:messages:2.0:PatchOp')
-  ) {
-    return scimError(c, 400, 'Missing PatchOp schema', 'invalidSyntax')
-  }
-
-  const ops = parsePatchOps(body['Operations'])
-  if (ops === null) return scimError(c, 400, 'Invalid Operations', 'invalidSyntax')
+  const patchOps = await readScimPatchOps(c)
+  if (!patchOps.ok) return patchOps.error
+  const ops = patchOps.value
 
   const wasActive = existing.active
   const staged: Record<string, unknown> = {

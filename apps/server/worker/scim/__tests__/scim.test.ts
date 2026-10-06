@@ -961,9 +961,20 @@ describe('SCIM Users CRUD', () => {
     expect(rb['scimType']).toBe('invalidSyntax')
   })
 
-  it('PATCH /Users/{id} 缺 If-Match -> 428', async () => {
-    const { ctx, token, env } = await makeUserEnv()
-    const { app } = buildScimApp(ctx, env)
+  it('PATCH /Users/{id} without If-Match deactivates the user like Okta and Entra send it', async () => {
+    const { ctx, token, env, user } = await makeUserEnv()
+    const revokeCalls: string[] = []
+    const webhookQueue = { send: vi.fn().mockResolvedValue(undefined) }
+    const testEnv = {
+      ...env,
+      SESSION_REVOCATION: makeFakeDoNs((path) => {
+        revokeCalls.push(path)
+        return new Response('{}', { status: 200 })
+      }),
+      WEBHOOK_QUEUE: webhookQueue,
+    } as unknown as Env
+    const { app } = buildScimApp(ctx, testEnv)
+
     const res = await app.request(
       'https://acme.xid.dev/scim/v2/organizations/t_1/Users/user_scim_1',
       {
@@ -974,15 +985,21 @@ describe('SCIM Users CRUD', () => {
         },
         body: JSON.stringify({
           schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
-          Operations: [{ op: 'replace', path: 'title', value: 'Lead' }],
+          Operations: [{ op: 'replace', path: 'active', value: false }],
         }),
       },
-      env,
+      testEnv,
     )
-    expect(res.status).toBe(428)
+
+    expect(res.status).toBe(200)
+    expect(user['active']).toBe(0)
+    expect(revokeCalls.some((path) => path.includes('revoke-all'))).toBe(true)
+    expect(webhookQueue.send).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'user.deactivated' }),
+    )
   })
 
-  it('PUT /Users/{id} 缺 If-Match -> 428', async () => {
+  it('PUT /Users/{id} without If-Match -> 200', async () => {
     const { ctx, token, env } = await makeUserEnv()
     const { app } = buildScimApp(ctx, env)
     const res = await app.request(
@@ -1000,9 +1017,34 @@ describe('SCIM Users CRUD', () => {
       },
       env,
     )
-    expect(res.status).toBe(428)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body['scimType']).toBeUndefined()
+    expect(res.status).toBe(200)
+  })
+
+  it.each([
+    ['POST', '/Users', '{"userName":'],
+    ['PUT', '/Users/user_scim_1', '{"userName":'],
+    ['PATCH', '/Users/user_scim_1', '{"schemas":'],
+    ['POST', '/Users', 'null'],
+    ['PUT', '/Users/user_scim_1', '[]'],
+    ['PATCH', '/Users/user_scim_1', 'null'],
+  ])('%s %s with body %s -> 400 invalidSyntax', async (method, path, body) => {
+    const { ctx, token, env } = await makeUserEnv()
+    const { app } = buildScimApp(ctx, env)
+
+    const res = await app.request(
+      `https://acme.xid.dev/scim/v2/organizations/t_1${path}`,
+      {
+        method,
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/scim+json' },
+        body,
+      },
+      env,
+    )
+
+    expect(res.status).toBe(400)
+    const rb = (await res.json()) as Record<string, unknown>
+    expect(rb['schemas']).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error'])
+    expect(rb['scimType']).toBe('invalidSyntax')
   })
 
   it('PUT /Users/{id} If-Match 不匹配 -> 412', async () => {
@@ -1581,6 +1623,56 @@ describe('SCIM Groups PATCH unknown member(OneLogin quirk)', () => {
       displayName: 'Engineering',
       members: [{ value: 'user_scim_1' }],
     })
+  })
+
+  it('PATCH /Groups member removal without If-Match -> 200', async () => {
+    const { ctx, token, env } = await makeGroupEnv()
+    const testEnv = {
+      ...env,
+      WEBHOOK_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
+    } as unknown as Env
+    const { app } = buildScimApp(ctx, testEnv)
+
+    const res = await app.request(
+      'https://acme.xid.dev/scim/v2/organizations/t_1/Groups/grp_1',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/scim+json' },
+        body: JSON.stringify({
+          schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+          Operations: [{ op: 'remove', path: 'members', value: [{ value: 'user_scim_1' }] }],
+        }),
+      },
+      testEnv,
+    )
+
+    expect(res.status).toBe(200)
+  })
+
+  it.each([
+    ['POST', '/Groups', '{"displayName":'],
+    ['PUT', '/Groups/grp_1', '{"displayName":'],
+    ['PATCH', '/Groups/grp_1', '{"schemas":'],
+    ['POST', '/Groups', 'null'],
+    ['PUT', '/Groups/grp_1', 'null'],
+    ['PATCH', '/Groups/grp_1', '[]'],
+  ])('%s %s with body %s -> 400 invalidSyntax', async (method, path, body) => {
+    const { ctx, token, env } = await makeGroupEnv()
+    const { app } = buildScimApp(ctx, env)
+
+    const res = await app.request(
+      `https://acme.xid.dev/scim/v2/organizations/t_1${path}`,
+      {
+        method,
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/scim+json' },
+        body,
+      },
+      env,
+    )
+
+    expect(res.status).toBe(400)
+    const rb = (await res.json()) as Record<string, unknown>
+    expect(rb['scimType']).toBe('invalidSyntax')
   })
 
   it('PATCH add members 指向不存在用户 -> 写 pending_members,返回 200', async () => {

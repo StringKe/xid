@@ -12,8 +12,9 @@ import type { Context } from 'hono'
 import { revokeUserCredentials } from '../lib/revoke-user-credentials'
 import { readAllById } from '../lib/db-pagination'
 import type { XidHonoEnv } from '../lib/types'
-import type { TenantContext } from '@xid-kit/types'
+import type { Result, TenantContext } from '@xid-kit/types'
 import type { WebhookQueueMessage } from '@xid-kit/types'
+import * as v from 'valibot'
 import { logWorkerError } from '../lib/safe-log'
 export { readAllById }
 
@@ -49,6 +50,46 @@ export function scimError(
   const headers: Record<string, string> = { 'Content-Type': 'application/scim+json' }
   if (addWwwAuth) headers['WWW-Authenticate'] = 'Bearer'
   return c.json(body, status as 200, headers)
+}
+
+const SCIM_PATCH_OP_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:PatchOp'
+
+const scimPatchBodySchema = v.looseObject({
+  schemas: v.array(v.string()),
+  Operations: v.array(v.unknown()),
+})
+
+export function parseScimJsonObject(raw: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return isRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export async function readScimJson(
+  c: Context<XidHonoEnv>,
+): Promise<Result<Record<string, unknown>, Response>> {
+  const body = parseScimJsonObject(await c.req.text())
+  if (!body) return { ok: false, error: scimError(c, 400, 'Invalid JSON body', 'invalidSyntax') }
+  return { ok: true, value: body }
+}
+
+export async function readScimPatchOps(
+  c: Context<XidHonoEnv>,
+): Promise<Result<PatchOp[], Response>> {
+  const body = await readScimJson(c)
+  if (!body.ok) return body
+  const parsed = v.safeParse(scimPatchBodySchema, body.value)
+  if (!parsed.success || !parsed.output.schemas.includes(SCIM_PATCH_OP_SCHEMA)) {
+    return { ok: false, error: scimError(c, 400, 'Missing PatchOp schema', 'invalidSyntax') }
+  }
+  const ops = parsePatchOps(parsed.output.Operations)
+  if (ops === null) {
+    return { ok: false, error: scimError(c, 400, 'Invalid Operations', 'invalidSyntax') }
+  }
+  return { ok: true, value: ops }
 }
 
 export type ScimGroupPatchContext = {
@@ -680,15 +721,9 @@ export function versionGuardFromRow(updatedAt: Date | null | undefined): Date {
 export function checkScimPrecondition(
   c: Context<XidHonoEnv>,
   currentVersion: string,
-  options: { requireIfMatch?: boolean } = {},
 ): Response | null {
   const ifMatch = c.req.header('If-Match')
-  if (!ifMatch) {
-    if (options.requireIfMatch) {
-      return scimError(c, 428, 'If-Match header required for versioned update')
-    }
-    return null
-  }
+  if (!ifMatch) return null
   if (ifMatch.trim() === '*') return null
   const tags = ifMatch.split(',').map((tag) => tag.trim())
   if (!tags.includes(currentVersion)) {

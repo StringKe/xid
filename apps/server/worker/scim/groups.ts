@@ -15,7 +15,8 @@ import {
   authBearer,
   buildGroupScimRepr,
   buildVersion,
-  parsePatchOps,
+  readScimJson,
+  readScimPatchOps,
   applyGroupPatch,
   applyGroupMemberPatches,
   emitWebhookAsync,
@@ -93,8 +94,9 @@ groups.post('/', async (c) => {
     return scimError(c, 400, projectionResult.error.detail, projectionResult.error.scimType)
   }
 
-  const rawBody = await c.req.json<Record<string, unknown>>()
-  const parsed = v.safeParse(scimGroupWriteSchema, rawBody)
+  const rawBody = await readScimJson(c)
+  if (!rawBody.ok) return rawBody.error
+  const parsed = v.safeParse(scimGroupWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'displayName is required', 'invalidValue')
   const body = parsed.output
   const displayName = body['displayName']
@@ -319,13 +321,12 @@ groups.put('/:id', async (c) => {
   )
   if (!existing) return scimError(c, 404, 'Group not found')
 
-  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt), {
-    requireIfMatch: true,
-  })
+  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
-  const rawBody = await c.req.json<Record<string, unknown>>()
-  const parsed = v.safeParse(scimGroupWriteSchema, rawBody)
+  const rawBody = await readScimJson(c)
+  if (!rawBody.ok) return rawBody.error
+  const parsed = v.safeParse(scimGroupWriteSchema, rawBody.value)
   if (!parsed.success) return scimError(c, 400, 'displayName is required', 'invalidValue')
   const body = parsed.output
   const displayName = body['displayName']
@@ -393,22 +394,12 @@ groups.patch('/:id', async (c) => {
   )
   if (!existing) return scimError(c, 404, 'Group not found')
 
-  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt), {
-    requireIfMatch: true,
-  })
+  const precondition = checkScimPrecondition(c, buildVersion(existing.updatedAt))
   if (precondition) return precondition
 
-  const body = await c.req.json<Record<string, unknown>>()
-  const schemas = body['schemas']
-  if (
-    !Array.isArray(schemas) ||
-    !schemas.includes('urn:ietf:params:scim:api:messages:2.0:PatchOp')
-  ) {
-    return scimError(c, 400, 'Missing PatchOp schema', 'invalidSyntax')
-  }
-
-  const ops = parsePatchOps(body['Operations'])
-  if (ops === null) return scimError(c, 400, 'Invalid Operations', 'invalidSyntax')
+  const patchOps = await readScimPatchOps(c)
+  if (!patchOps.ok) return patchOps.error
+  const ops = patchOps.value
 
   const staged = { displayName: existing.displayName } as Record<string, unknown>
 

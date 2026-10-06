@@ -7,6 +7,7 @@ import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import {
   authBearer,
+  parseScimJsonObject,
   scimError,
   SCIM_BULK_MAX_OPERATIONS,
   SCIM_BULK_MAX_PAYLOAD_SIZE,
@@ -120,13 +121,7 @@ export function registerScimBulkRoutes(app: Hono<XidHonoEnv>, basePath: string):
       return scimError(c, 413, 'Bulk payload exceeds maxPayloadSize', 'tooLarge')
     }
 
-    let parsedJson: unknown
-    try {
-      parsedJson = JSON.parse(rawBody)
-    } catch {
-      return scimError(c, 400, 'Invalid BulkRequest JSON', 'invalidSyntax')
-    }
-    const body = asRecord(parsedJson)
+    const body = parseScimJsonObject(rawBody)
     if (!body) return scimError(c, 400, 'Invalid BulkRequest JSON', 'invalidSyntax')
 
     const schemasResult = v.safeParse(bulkSchemasSchema, body['schemas'])
