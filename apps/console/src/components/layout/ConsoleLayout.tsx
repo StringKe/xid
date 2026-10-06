@@ -23,6 +23,7 @@ import {
 } from '../../lib/impersonation-handoff'
 import { ActiveAnnouncementsBanner } from '../ActiveAnnouncementsBanner'
 import type { ConsoleNavItem } from '../../nav'
+import { MANAGED_PROJECTS_NAV_ITEM } from '../../nav'
 
 export type { ConsoleNavItem } from '../../nav'
 
@@ -771,13 +772,18 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   const location = useLocation()
   const navigate = useNavigate()
   const [switchingOrganizationId, setSwitchingOrganizationId] = useState<string | null>(null)
+  const [organizationSwitchFailed, setOrganizationSwitchFailed] = useState(false)
   const [endingImpersonation, setEndingImpersonation] = useState(false)
   const appName = brand.appName ?? 'XID'
 
-  // 无 manager assignment 时隐藏 Managed projects(页内无内容)。
-  const visibleNavItems = navItems.filter(
-    (item) => item.to !== '/console/managed-projects' || managerAssignments.length > 0,
-  )
+  // Managed projects 只在有 manager assignment 时出现,且在 org 与平台侧栏同样可达。
+  const listsManagedProjects = navItems.some((item) => item.to === MANAGED_PROJECTS_NAV_ITEM.to)
+  const visibleNavItems =
+    managerAssignments.length === 0
+      ? navItems.filter((item) => item.to !== MANAGED_PROJECTS_NAV_ITEM.to)
+      : listsManagedProjects
+        ? navItems
+        : [...navItems, MANAGED_PROJECTS_NAV_ITEM]
   // 只列可管理 org;切到 member 会被守卫踢到 /account。
   const manageableOrganizations = organizations.filter((organization) =>
     isOrgManagerRole(organization.role),
@@ -790,9 +796,13 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
   async function switchOrganization(organizationId: string): Promise<void> {
     if (!organizationId || organizationId === activeOrg?.id) return
     setSwitchingOrganizationId(organizationId)
+    setOrganizationSwitchFailed(false)
     const switched = await setActiveOrganization(organizationId)
     setSwitchingOrganizationId(null)
-    if (!switched) return
+    if (!switched) {
+      setOrganizationSwitchFailed(true)
+      return
+    }
     // org 区切换落到 overview;其他区保留当前路径,避免上下文被硬切。
     if (location.pathname.startsWith('/console/org')) {
       navigate(`/console/org?orgId=${encodeURIComponent(organizationId)}`, { replace: true })
@@ -902,6 +912,15 @@ export function ConsoleLayout({ children, navItems }: ConsoleLayoutProps): React
 
       <main {...stylex.props(styles.content)}>
         <ActiveAnnouncementsBanner enabled={status === 'authenticated'} />
+        {organizationSwitchFailed ? (
+          <section {...stylex.props(styles.verificationBand)}>
+            <Alert tone="error">
+              <Trans>
+                Could not switch organization. Try again or choose another organization.
+              </Trans>
+            </Alert>
+          </section>
+        ) : null}
         {session?.isImpersonation ? (
           <section aria-label={t`Impersonation session`} {...stylex.props(styles.verificationBand)}>
             <div {...stylex.props(styles.verificationNotice)}>

@@ -8,10 +8,12 @@ const authState = vi.hoisted(
     user: AuthUser | null
     activeOrg: AuthOrg | null
     organizations: readonly AuthOrg[]
+    managerAssignments: readonly []
   } => ({
     user: null,
     activeOrg: null,
     organizations: [],
+    managerAssignments: [],
   }),
 )
 
@@ -32,6 +34,7 @@ vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   ),
   Navigate: ({ to }: { to: string }) => <span data-navigate-to={to} />,
   useNavigate: () => vi.fn(),
+  useSearchParams: () => [{ get: () => null }],
 }))
 
 import ConsoleOverview from './ConsoleOverview'

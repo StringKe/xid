@@ -1,9 +1,10 @@
 import { Trans, useLingui } from '@lingui/react/macro'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Link, Navigate, useNavigate } from '@xid-kit/web-ui/tanstack-router'
+import { Link, Navigate, useNavigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
 import {
+  Alert,
   Button,
   ConsolePage,
   ConsolePageSection,
@@ -17,7 +18,7 @@ import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
-import { ORG_NAV } from '../../nav'
+import { MANAGED_PROJECTS_NAV_ITEM, ORG_NAV } from '../../nav'
 import type { ConsoleNavItem } from '../../nav'
 
 const styles = stylex.create({
@@ -110,6 +111,21 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  failure: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    maxWidth: '40rem',
+  },
+  secondaryLink: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: tokens['--xid-primary'],
+  },
+  orgError: {
+    fontSize: '0.75rem',
+    color: tokens['--xid-danger'],
+  },
   orgSlug: {
     fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.6875rem',
@@ -200,12 +216,40 @@ function orgInitial(org: AuthOrg): string {
 type OrganizationSelectionProps = {
   target: EntryTarget
   organizations: readonly AuthOrg[]
+  activeOrgId: string | null
+  notice: OrganizationNotice | null
 }
 
-function OrganizationSelection({ target, organizations }: OrganizationSelectionProps): ReactNode {
+export const ORGANIZATION_UNAVAILABLE_NOTICE = 'organization_unavailable'
+type OrganizationNotice = typeof ORGANIZATION_UNAVAILABLE_NOTICE
+
+function OrganizationSelection({
+  target,
+  organizations,
+  activeOrgId,
+  notice,
+}: OrganizationSelectionProps): ReactNode {
   const { setActiveOrganization } = useAuth()
   const navigate = useNavigate()
   const destination = orgTargetPath(target)
+  const [openingOrgId, setOpeningOrgId] = useState<string | null>(null)
+  const [failedOrgId, setFailedOrgId] = useState<string | null>(null)
+
+  async function openOrganization(org: AuthOrg): Promise<void> {
+    if (org.id === activeOrgId) {
+      navigate(orgSelectionTarget(destination, org), { replace: true })
+      return
+    }
+    setOpeningOrgId(org.id)
+    setFailedOrgId(null)
+    const ok = await setActiveOrganization(org.id)
+    setOpeningOrgId(null)
+    if (!ok) {
+      setFailedOrgId(org.id)
+      return
+    }
+    navigate(orgSelectionTarget(destination, org), { replace: true })
+  }
 
   return (
     <ConsolePage
@@ -213,6 +257,14 @@ function OrganizationSelection({ target, organizations }: OrganizationSelectionP
       lead={<Trans>Choose an organization to continue in the console.</Trans>}
     >
       <ConsolePageSection>
+        {notice === ORGANIZATION_UNAVAILABLE_NOTICE ? (
+          <Alert tone="warning">
+            <Trans>
+              The link points to an organization you cannot manage. Choose one of your organizations
+              instead.
+            </Trans>
+          </Alert>
+        ) : null}
         <ul {...stylex.props(styles.orgList)}>
           {organizations.map((org) => (
             <li key={org.id} {...stylex.props(styles.orgRow)}>
@@ -222,15 +274,23 @@ function OrganizationSelection({ target, organizations }: OrganizationSelectionP
               <span {...stylex.props(styles.orgText)}>
                 <span {...stylex.props(styles.orgName)}>{organizationDisplayName(org)}</span>
                 <span {...stylex.props(styles.orgSlug)}>{org.slug}</span>
+                {org.id === activeOrgId ? (
+                  <span {...stylex.props(styles.orgSlug)}>
+                    <Trans>Current organization</Trans>
+                  </span>
+                ) : null}
+                {failedOrgId === org.id ? (
+                  <span role="alert" {...stylex.props(styles.orgError)}>
+                    <Trans>Could not open this organization. Try again.</Trans>
+                  </span>
+                ) : null}
               </span>
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => {
-                  void setActiveOrganization(org.id).then((ok) => {
-                    if (ok) navigate(orgSelectionTarget(destination, org), { replace: true })
-                  })
-                }}
+                isLoading={openingOrgId === org.id}
+                disabled={openingOrgId !== null}
+                onClick={() => void openOrganization(org)}
               >
                 <Trans>Open</Trans>
               </Button>
@@ -412,20 +472,47 @@ export function ConsoleSettingsEntry(): ReactNode {
   return <ConsoleEntry target="settings" />
 }
 
+// 落点顺序:可管理的 activeOrg -> 其余可管理 org(一个自动打开,多个列出) -> 平台 -> 受托 Project ->
+// /account。member 身份的 activeOrg 不挡住用户在其他 org 的管理权限,与 requireOrgManager 对齐。
 function ConsoleEntry({ target }: { target: EntryTarget }): ReactNode {
-  const { activeOrg, organizations } = useAuth()
-  // member 与仅 member org 均回 /account,与 requireOrgManager 403 对齐。
+  const { activeOrg, organizations, managerAssignments, user } = useAuth()
+  const [searchParams] = useSearchParams()
+  const notice =
+    searchParams.get('notice') === ORGANIZATION_UNAVAILABLE_NOTICE
+      ? ORGANIZATION_UNAVAILABLE_NOTICE
+      : null
   const manageableOrgs = organizations.filter((org) => isOrgManagerRole(org.role))
+  const managedActiveOrg = activeOrg && isOrgManagerRole(activeOrg.role) ? activeOrg : null
   const soleOrg = manageableOrgs.length === 1 ? manageableOrgs[0] : null
-  if (activeOrg && !isOrgManagerRole(activeOrg.role)) return <Navigate to="/account" replace />
-  if (target === 'settings' && activeOrg) return <SettingsOverview />
-  if (activeOrg) return <Navigate to={orgTargetPath(target)} replace />
-  if (organizations.length > 0 && manageableOrgs.length === 0) {
-    return <Navigate to="/account" replace />
+
+  if (target === 'organizations' && manageableOrgs.length > 0 && (managedActiveOrg || notice)) {
+    return (
+      <OrganizationSelection
+        target={target}
+        organizations={manageableOrgs}
+        activeOrgId={managedActiveOrg?.id ?? null}
+        notice={notice}
+      />
+    )
   }
-  if (soleOrg) return <AutoSelectOrganization target={target} org={soleOrg} />
-  if (manageableOrgs.length > 0)
-    return <OrganizationSelection target={target} organizations={manageableOrgs} />
+  if (managedActiveOrg) {
+    if (target === 'settings') return <SettingsOverview />
+    return <Navigate to={orgTargetPath(target)} replace />
+  }
+  if (soleOrg && !notice) return <AutoSelectOrganization target={target} org={soleOrg} />
+  if (manageableOrgs.length > 0) {
+    return (
+      <OrganizationSelection
+        target={target}
+        organizations={manageableOrgs}
+        activeOrgId={null}
+        notice={notice}
+      />
+    )
+  }
+  if (user?.instanceManager) return <Navigate to="/console/platform" replace />
+  if (managerAssignments.length > 0) return <Navigate to={MANAGED_PROJECTS_NAV_ITEM.to} replace />
+  if (organizations.length > 0) return <Navigate to="/account" replace />
   return <EmptyOrganizationState />
 }
 
@@ -434,19 +521,50 @@ function AutoSelectOrganization({ target, org }: { target: EntryTarget; org: Aut
   const navigate = useNavigate()
   const { t } = useLingui()
   const destination = orgTargetPath(target)
+  const [attempt, setAttempt] = useState(0)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
+    let active = true
+    setFailed(false)
     void setActiveOrganization(org.id).then((ok) => {
-      if (ok) navigate(orgSelectionTarget(destination, org), { replace: true })
+      if (!active) return
+      if (ok) {
+        navigate(orgSelectionTarget(destination, org), { replace: true })
+        return
+      }
+      setFailed(true)
     })
-  }, [destination, navigate, org, setActiveOrganization])
+    return () => {
+      active = false
+    }
+  }, [attempt, destination, navigate, org, setActiveOrganization])
 
   return (
     <ConsolePage title={<Trans>Open organization</Trans>}>
       <ConsolePageSection>
-        <div {...stylex.props(consoleShell.controls)}>
-          <Spinner label={t`Opening organization`} />
-        </div>
+        {failed ? (
+          <div {...stylex.props(styles.failure)}>
+            <Alert tone="error">
+              <Trans>
+                Could not open {organizationDisplayName(org)}. Your access may have changed, or the
+                connection failed.
+              </Trans>
+            </Alert>
+            <div {...stylex.props(consoleShell.controls)}>
+              <Button type="button" onClick={() => setAttempt((value) => value + 1)}>
+                <Trans>Try again</Trans>
+              </Button>
+              <a href="/account" {...stylex.props(styles.secondaryLink)}>
+                <Trans>Go to account</Trans>
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div {...stylex.props(consoleShell.controls)}>
+            <Spinner label={t`Opening organization`} />
+          </div>
+        )}
       </ConsolePageSection>
     </ConsolePage>
   )

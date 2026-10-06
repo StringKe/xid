@@ -18,6 +18,7 @@ const authState = vi.hoisted(
     user: AuthUser
     activeOrg: AuthOrg
     organizations: readonly AuthOrg[]
+    managerAssignments: readonly { id: string }[]
     session: AuthSession | null
     apiPost: ReturnType<typeof vi.fn>
     refresh: ReturnType<typeof vi.fn>
@@ -43,6 +44,7 @@ const authState = vi.hoisted(
       permissions: [],
     },
     organizations: [],
+    managerAssignments: [],
     session: null,
     apiPost: vi.fn(),
     refresh: vi.fn(),
@@ -80,7 +82,7 @@ vi.mock('@xid-kit/web-ui/session', () => ({
     user: authState.user,
     activeOrg: authState.activeOrg,
     organizations: authState.organizations,
-    managerAssignments: [],
+    managerAssignments: authState.managerAssignments,
     session: authState.session,
     api: { post: authState.apiPost },
     refresh: authState.refresh,
@@ -189,6 +191,7 @@ describe('ConsoleLayout', () => {
       provisioned_by: null,
     }
     authState.organizations = [authState.activeOrg]
+    authState.managerAssignments = []
     authState.session = null
     authState.apiPost.mockReset()
     authState.refresh.mockReset()
@@ -250,6 +253,33 @@ describe('ConsoleLayout', () => {
     expect(html).toContain('aria-label="Switch organization"')
     expect(html).toContain('Default organization')
     expect(html).not.toContain('Platform management')
+  })
+
+  it('keeps managed projects reachable from the organization navigation', () => {
+    authState.managerAssignments = [{ id: 'ma_1' }]
+
+    const html = renderToStaticMarkup(
+      <ConsoleLayout navItems={[{ to: '/console/org', label: 'Overview', end: true }]}>
+        <span>Content</span>
+      </ConsoleLayout>,
+    )
+
+    expect(html).toContain('href="/console/managed-projects"')
+  })
+
+  it('hides managed projects without manager assignments', () => {
+    const html = renderToStaticMarkup(
+      <ConsoleLayout
+        navItems={[
+          { to: '/console', label: 'Overview', end: true },
+          { to: '/console/managed-projects', label: 'Managed projects' },
+        ]}
+      >
+        <span>Content</span>
+      </ConsoleLayout>,
+    )
+
+    expect(html).not.toContain('href="/console/managed-projects"')
   })
 
   it('renders the platform menu for instance managers', () => {

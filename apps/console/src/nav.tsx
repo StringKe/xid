@@ -15,9 +15,16 @@ export type ConsoleNavItem = {
   groupLabel?: ReactNode
 }
 
+// 受托 Project 不属于任何 org 视角,ConsoleLayout 在有 manager assignment 时把它补进每个侧栏。
+export const MANAGED_PROJECTS_NAV_ITEM: ConsoleNavItem = {
+  to: '/console/managed-projects',
+  label: <Trans>Managed projects</Trans>,
+  icon: 'folder',
+}
+
 export const CONSOLE_NAV: readonly ConsoleNavItem[] = [
   { to: '/console', label: <Trans>Overview</Trans>, icon: 'gauge', end: true },
-  { to: '/console/managed-projects', label: <Trans>Managed projects</Trans>, icon: 'folder' },
+  MANAGED_PROJECTS_NAV_ITEM,
   { to: '/console/users', label: <Trans>Users</Trans>, icon: 'users' },
   { to: '/console/organizations', label: <Trans>Organizations</Trans>, icon: 'building' },
   { to: '/console/settings', label: <Trans>Settings</Trans>, icon: 'gear' },

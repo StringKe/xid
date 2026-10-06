@@ -2,16 +2,21 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { AuthOrg, AuthUser } from '@xid-kit/web-ui/session'
+import type { BrowserManagerAssignment } from '@xid-kit/types'
 
 const authState = vi.hoisted(
   (): {
     user: AuthUser | null
     activeOrg: AuthOrg | null
     organizations: readonly AuthOrg[]
+    managerAssignments: readonly BrowserManagerAssignment[]
+    notice: string | null
   } => ({
     user: null,
     activeOrg: null,
     organizations: [],
+    managerAssignments: [],
+    notice: null,
   }),
 )
 
@@ -28,16 +33,21 @@ vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   ),
   Navigate: ({ to }: { to: string }) => <span data-navigate-to={to} />,
   useNavigate: () => vi.fn(),
+  useSearchParams: () => [{ get: (key: string) => (key === 'notice' ? authState.notice : null) }],
 }))
 
 vi.mock('@xid-kit/web-ui/ui', () => ({
+  Alert: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
   Button: ({
     children,
     variant: _variant,
+    isLoading: _isLoading,
     ...props
   }: {
     children: ReactNode
     variant?: string
+    isLoading?: boolean
+    disabled?: boolean
     onClick?: () => void
     type?: 'button'
   }) => <button {...props}>{children}</button>,
@@ -131,6 +141,8 @@ describe('Console entry routes', () => {
     authState.user = null
     authState.activeOrg = null
     authState.organizations = []
+    authState.managerAssignments = []
+    authState.notice = null
   })
 
   it('sends instance managers with an active organization to organization routes', () => {
@@ -141,8 +153,68 @@ describe('Console entry routes', () => {
     expect(renderToStaticMarkup(<ConsoleUsersEntry />)).toContain(
       'data-navigate-to="/console/org/members"',
     )
-    expect(renderToStaticMarkup(<ConsoleOrganizationsEntry />)).toContain(
-      'data-navigate-to="/console/org"',
+  })
+
+  it('lists organizations with the current one marked even when one is active', () => {
+    authState.user = user
+    authState.activeOrg = org
+    authState.organizations = [org]
+
+    const html = renderToStaticMarkup(<ConsoleOrganizationsEntry />)
+
+    expect(html).toContain('Select organization')
+    expect(html).toContain('Current organization')
+    expect(html).not.toContain('data-navigate-to')
+  })
+
+  it('explains an organization link the user cannot manage', () => {
+    authState.user = user
+    authState.activeOrg = org
+    authState.organizations = [org]
+    authState.notice = 'organization_unavailable'
+
+    const html = renderToStaticMarkup(<ConsoleOrganizationsEntry />)
+
+    expect(html).toContain('The link points to an organization you cannot manage.')
+  })
+
+  it('opens a manageable organization for users whose active organization is member-only', () => {
+    const adminOrg: AuthOrg = { ...org, id: 'org_admin', slug: 'admin', role: 'admin' }
+    authState.user = user
+    authState.activeOrg = { ...org, role: 'member' }
+    authState.organizations = [{ ...org, role: 'member' }, adminOrg]
+
+    const html = renderToStaticMarkup(<ConsoleHomeEntry />)
+
+    expect(html).toContain('Opening organization')
+    expect(html).not.toContain('data-navigate-to="/account"')
+  })
+
+  it('sends project managers without manageable organizations to managed projects', () => {
+    authState.user = user
+    authState.activeOrg = { ...org, role: 'member' }
+    authState.organizations = [{ ...org, role: 'member' }]
+    authState.managerAssignments = [
+      {
+        id: 'ma_1',
+        managerRole: 'project_manager',
+        scopeType: 'project',
+        scopeId: 'proj_1',
+        scopeStatus: 'active',
+      },
+    ]
+
+    expect(renderToStaticMarkup(<ConsoleHomeEntry />)).toContain(
+      'data-navigate-to="/console/managed-projects"',
+    )
+  })
+
+  it('sends instance managers without manageable organizations to platform management', () => {
+    authState.user = { ...user, instanceManager: true }
+    authState.organizations = []
+
+    expect(renderToStaticMarkup(<ConsoleHomeEntry />)).toContain(
+      'data-navigate-to="/console/platform"',
     )
   })
 
@@ -161,9 +233,6 @@ describe('Console entry routes', () => {
 
     expect(renderToStaticMarkup(<ConsoleUsersEntry />)).toContain(
       'data-navigate-to="/console/org/members"',
-    )
-    expect(renderToStaticMarkup(<ConsoleOrganizationsEntry />)).toContain(
-      'data-navigate-to="/console/org"',
     )
   })
 

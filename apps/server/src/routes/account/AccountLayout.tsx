@@ -9,7 +9,8 @@ import { page } from '../../styles/product-surface.stylex'
 import { Button } from '../../components/ui'
 import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { BrandLogo } from '../../components/BrandLogo'
-import { CONSOLE_EXACT_PATH } from '@xid-kit/types'
+import { ACCOUNT_EXACT_PATH, CONSOLE_EXACT_PATH } from '@xid-kit/types'
+import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { useAuth } from '../../lib/auth-context'
 import { useDefaultLandingPath } from '../../lib/default-landing'
 import { useTheme } from '../../lib/theme'
@@ -31,6 +32,10 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/account/sessions', label: <Trans>Active sessions</Trans> },
   { to: '/account/devices', label: <Trans>Trusted devices</Trans> },
 ]
+
+const SWITCH_ORGANIZATION_PATH = `/select-organization?${new URLSearchParams({
+  redirect_to: ACCOUNT_EXACT_PATH,
+}).toString()}`
 
 const RAIL_WIDTH_DESKTOP = '13.5rem'
 const TOPBAR_HEIGHT = '3rem'
@@ -292,8 +297,14 @@ const navLinkActive = stylex.props(styles.navLink, styles.navLinkActive).classNa
 export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
   const { t } = useLingui()
   const { brand } = useTheme()
-  const { user, signOut, status } = useAuth()
+  const { user, organizations, managerAssignments, signOut, status } = useAuth()
   const defaultLandingPath = useDefaultLandingPath()
+  // Console 只对确有管理入口的用户显示,纯成员进去会被送回 /account。
+  const hasConsoleAccess =
+    user?.instanceManager === true ||
+    managerAssignments.length > 0 ||
+    organizations.some((organization) => isOrgManagerRole(organization.role))
+  const showConsoleLink = defaultLandingPath === CONSOLE_EXACT_PATH && hasConsoleAccess
   const appName = brand.appName ?? 'XID'
   const brandMark = brand.logoUrl ? (
     <img src={brand.logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.tenantLogo)} />
@@ -314,7 +325,12 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
           {user ? (
             <>
               <span {...stylex.props(styles.userEmail)}>{user.email}</span>
-              {defaultLandingPath === CONSOLE_EXACT_PATH ? (
+              {organizations.length > 1 ? (
+                <Link to={SWITCH_ORGANIZATION_PATH} {...stylex.props(page.textLink)}>
+                  <Trans>Switch organization</Trans>
+                </Link>
+              ) : null}
+              {showConsoleLink ? (
                 <a href={CONSOLE_EXACT_PATH} {...stylex.props(page.textLink)}>
                   <Trans>Back to Console</Trans>
                 </a>
