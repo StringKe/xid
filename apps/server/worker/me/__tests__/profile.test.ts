@@ -184,6 +184,54 @@ describe('PATCH /v1/me/profile', () => {
     expect((body['meta'] as Record<string, unknown>)['paramName']).toBe('firstName')
   })
 
+  it.each([
+    ['displayName', 'x'.repeat(101)],
+    ['timezone', 'Mars/Olympus_Mons'],
+    ['locale', 'tlh'],
+  ])('rejects an invalid %s with 422 + paramName', async (field, value) => {
+    const db = makeFakeD1({ users: [userRow()], user_emails: [emailRow()] })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({
+      register: registerProfileRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/profile',
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as Record<string, unknown>
+    expect((body['meta'] as Record<string, unknown>)['paramName']).toBe(field)
+  })
+
+  it('accepts an IANA timezone and a supported locale', async () => {
+    const db = makeFakeD1({ users: [userRow()], user_emails: [emailRow()] })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({
+      register: registerProfileRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/profile',
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timezone: 'Asia/Shanghai', locale: 'zh-Hans' }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+  })
+
   it('returns 401 when no session cookie present', async () => {
     const db = makeFakeD1({ users: [userRow()], user_emails: [emailRow()] })
     const env = { DB: db } as unknown as Env

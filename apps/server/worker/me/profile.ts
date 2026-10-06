@@ -10,7 +10,8 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
-import { readJsonBody, validateBody } from '../lib/validate'
+import { SUPPORTED_LOCALES } from '../lib/locale'
+import { ianaTimeZoneSchema, profileNameSchema, readJsonBody, validateBody } from '../lib/validate'
 import { loadPrimaryEmail, requireSession } from './shared'
 
 type UserProfile = {
@@ -47,11 +48,11 @@ async function toUserProfile(
 // PATCH body:全可选,前端始终发全字段、空串转 null。仅取这五字段,忽略其它(不接受 metadata/username/external_id)。
 // 形状失败带 meta.paramName=字段名,供前端精确映射(见 error-handling rule)。
 const updateProfileBodySchema = v.object({
-  firstName: v.optional(v.nullable(v.string())),
-  lastName: v.optional(v.nullable(v.string())),
-  displayName: v.optional(v.nullable(v.string())),
-  locale: v.optional(v.nullable(v.string())),
-  timezone: v.optional(v.nullable(v.string())),
+  firstName: v.optional(v.nullable(profileNameSchema)),
+  lastName: v.optional(v.nullable(profileNameSchema)),
+  displayName: v.optional(v.nullable(profileNameSchema)),
+  locale: v.optional(v.nullable(v.picklist(SUPPORTED_LOCALES))),
+  timezone: v.optional(v.nullable(ianaTimeZoneSchema)),
 })
 type UpdateProfileBody = v.InferOutput<typeof updateProfileBodySchema>
 

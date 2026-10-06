@@ -5,7 +5,10 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { account, consoleShell, page } from '../../styles/product-surface.stylex'
 import { Alert, Button, Input, Section, SectionRow, Spinner } from '../../components/ui'
-import { SUPPORTED_LOCALES } from '../../lib/locale'
+import type { XidError } from '@xid-kit/types'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { isSupportedLocale } from '../../lib/locale'
+import { useLocale } from '../../lib/locale-context'
 import { useProfileQuery, useUpdateProfile } from './queries'
 import type { UserProfile } from './types'
 import { PrivacySection } from './PrivacySection'
@@ -200,6 +203,8 @@ type ProfileFormProps = {
 function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
   const { t } = useLingui()
   const updateProfile = useUpdateProfile()
+  const uiLocale = useLocale()
+  const apiErrorMessage = useApiErrorMessage()
 
   const [firstName, setFirstName] = useState(initialData.firstName ?? '')
   const [lastName, setLastName] = useState(initialData.lastName ?? '')
@@ -223,9 +228,11 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
         timezone: timezone.trim() || null,
       })
       setSuccessMsg(t`Profile updated successfully.`)
+      if (isSupportedLocale(locale) && locale !== uiLocale.locale) {
+        await uiLocale.setLocale(locale)
+      }
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setErrorMsg(xidErr.longMessage || xidErr.message || t`Failed to update profile.`)
+      setErrorMsg(apiErrorMessage(err as XidError, { surface: 'general' }))
     }
   }
 
@@ -310,7 +317,12 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
               <SectionRow
                 variant="control"
                 label={<Trans>Locale</Trans>}
-                hint={<Trans>Choose the profile language preference.</Trans>}
+                hint={
+                  <Trans>
+                    Sets the language of this account portal and the locale shared with apps you
+                    sign in to.
+                  </Trans>
+                }
               >
                 <select
                   value={locale}
@@ -354,8 +366,7 @@ function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
 }
 
 function normalizeProfileLocale(locale: string | null): string {
-  if (!locale) return ''
-  return SUPPORTED_LOCALES.includes(locale as (typeof SUPPORTED_LOCALES)[number]) ? locale : ''
+  return locale && isSupportedLocale(locale) ? locale : ''
 }
 
 type AvatarSectionProps = {

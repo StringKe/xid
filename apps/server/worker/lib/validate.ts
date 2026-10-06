@@ -83,6 +83,27 @@ export const slugSchema = v.pipe(v.string(), v.regex(/^[a-z0-9][a-z0-9-]{0,62}$/
 // redirect_uri / webhook 端点不允许明文 http。
 export const httpsUrlSchema = v.pipe(v.string(), v.url(), v.startsWith('https://'))
 
+// 用户档案字段:名称类上限与 Management API 一致;timezone 必须是运行时认可的 IANA 时区,
+// 否则 userinfo 的 zoneinfo claim 会带出非法值。
+export const PROFILE_NAME_MAX_LENGTH = 100
+export const profileNameSchema = v.pipe(v.string(), v.maxLength(PROFILE_NAME_MAX_LENGTH))
+export const bcp47LocaleSchema = v.pipe(
+  v.string(),
+  v.maxLength(35),
+  v.regex(/^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/),
+)
+
+function isIanaTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export const ianaTimeZoneSchema = v.pipe(v.string(), v.maxLength(64), v.check(isIanaTimeZone))
+
 // ---- SSRF 防护:出网 URL 统一校验(webhook 投递 / IdP metadata / social provider 端点 / logout_uri 共用)----
 
 // 保留 IPv4 段(闭区间,网络字节序整数):0.0.0.0/8、10/8、127/8、169.254/16(云 metadata)、172.16/12、192.168/16。

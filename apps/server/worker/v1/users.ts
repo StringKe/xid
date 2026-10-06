@@ -12,7 +12,15 @@ import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
-import { readJsonBody, validateBody, validateQuery } from '../lib/validate'
+import {
+  bcp47LocaleSchema,
+  ianaTimeZoneSchema,
+  PROFILE_NAME_MAX_LENGTH,
+  profileNameSchema,
+  readJsonBody,
+  validateBody,
+  validateQuery,
+} from '../lib/validate'
 import { requireApiKey, parsePagination, paginate, idAfterCursor, emitWebhookAsync } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -21,28 +29,31 @@ const EXPORT_BATCH_SIZE = 100
 // 形状校验只管字段类型/必填性;唯一性等业务校验留在 handler(见 error-handling rule)。
 const metadataSchema = v.record(v.string(), v.unknown())
 
+const usernameSchema = v.pipe(v.string(), v.maxLength(PROFILE_NAME_MAX_LENGTH))
+const externalIdSchema = v.pipe(v.string(), v.maxLength(255))
+
 const createUserBodySchema = v.object({
-  username: v.optional(v.string()),
-  external_id: v.optional(v.string()),
-  first_name: v.optional(v.string()),
-  last_name: v.optional(v.string()),
-  display_name: v.optional(v.string()),
+  username: v.optional(usernameSchema),
+  external_id: v.optional(externalIdSchema),
+  first_name: v.optional(profileNameSchema),
+  last_name: v.optional(profileNameSchema),
+  display_name: v.optional(profileNameSchema),
   public_metadata: v.optional(metadataSchema),
   private_metadata: v.optional(metadataSchema),
   unsafe_metadata: v.optional(metadataSchema),
 })
 
 const patchUserBodySchema = v.object({
-  first_name: v.optional(v.string()),
-  last_name: v.optional(v.string()),
-  display_name: v.optional(v.string()),
-  username: v.optional(v.string()),
-  external_id: v.optional(v.string()),
+  first_name: v.optional(profileNameSchema),
+  last_name: v.optional(profileNameSchema),
+  display_name: v.optional(profileNameSchema),
+  username: v.optional(usernameSchema),
+  external_id: v.optional(externalIdSchema),
   public_metadata: v.optional(metadataSchema),
   private_metadata: v.optional(metadataSchema),
   unsafe_metadata: v.optional(metadataSchema),
-  locale: v.optional(v.string()),
-  timezone: v.optional(v.string()),
+  locale: v.optional(bcp47LocaleSchema),
+  timezone: v.optional(ianaTimeZoneSchema),
 })
 
 const bulkMetadataBodySchema = v.object({
