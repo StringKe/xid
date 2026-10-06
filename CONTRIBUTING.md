@@ -283,13 +283,13 @@ repository-level gates under `tests/`.
 
 Quality gates (not optional for merge):
 
-| Tool | Role | How it runs |
-| ---- | ---- | ----------- |
-| Oxlint + Oxfmt | Lint and format (warnings treated as CI failures where configured as errors) | `pnpm run check` / `pnpm run lint` |
-| TypeScript `tsc --noEmit` | Strict typecheck | `pnpm run typecheck` via turbo in `pnpm run check` |
-| CodeQL | Static analysis for common vulnerability classes | `.github/workflows/codeql.yml` on PR, push to `main`, weekly cron |
-| `pnpm audit` | Production dependency advisories | `pnpm run security:dependencies` |
-| Secret scan script | Repo secret leak check | `pnpm run security:secret-scan` |
+| Tool                      | Role                                                                         | How it runs                                                       |
+| ------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Oxlint + Oxfmt            | Lint and format (warnings treated as CI failures where configured as errors) | `pnpm run check` / `pnpm run lint`                                |
+| TypeScript `tsc --noEmit` | Strict typecheck                                                             | `pnpm run typecheck` via turbo in `pnpm run check`                |
+| CodeQL                    | Static analysis for common vulnerability classes                             | `.github/workflows/codeql.yml` on PR, push to `main`, weekly cron |
+| `pnpm audit`              | Production dependency advisories                                             | `pnpm run security:dependencies`                                  |
+| Secret scan script        | Repo secret leak check                                                       | `pnpm run security:secret-scan`                                   |
 
 Do not disable lint or type rules to hide a defect. Fix the root cause or, for a true false positive,
 narrow the exception with a documented reason next to the config change.

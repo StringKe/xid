@@ -42,7 +42,7 @@
   "dependencies": {
     "@lingui/core": "catalog:",
     "@lingui/react": "catalog:",
-    "@stylexjs/stylex": "catalog:",
+    "@stylexjs/stylex": "^0.19.1",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-table": "catalog:",
@@ -52,12 +52,12 @@
     "motion": "catalog:"
   },
   "devDependencies": {
-    "@stylexjs/unplugin": "catalog:",
+    "@stylexjs/unplugin": "^0.19.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "typescript": "catalog:",
+    "typescript": "^6.0.3",
     "vitest": "catalog:"
   },
   "peerDependencies": {

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/README.md source-commit=5d55b0c source-blob=c9d3cbf6aa2902877ab4179ae482c13ee9c70ecb -->
+<!-- xid-translation source=docs/README.md source-commit=5d55b0c source-blob=7de3a71164c737ef3aac29496f3eee1158f78db8 -->
 
 > Translation of `docs/README.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/README.md`](../README.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。

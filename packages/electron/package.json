@@ -65,9 +65,9 @@
     "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "electron": "^43.3.0",
-    "typescript": "catalog:",
+    "@types/node": "^26.6.4",
+    "electron": "^44.5.1",
+    "typescript": "^6.0.3",
     "vitest": "catalog:"
   },
   "peerDependencies": {

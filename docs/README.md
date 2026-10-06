@@ -81,12 +81,12 @@ Downstream SaaS (sign in to them with XID):
 
 ## I maintain the open source project (governance and badges)
 
-| Goal                                              | Document                                                     |
-| ------------------------------------------------- | ------------------------------------------------------------ |
-| OpenSSF Best Practices Passing form answers       | [openssf-best-practices.md](./openssf-best-practices.md)     |
-| Vulnerability process and crypto summary          | [SECURITY.md](../SECURITY.md)                                |
-| Contribution and testing policy                   | [CONTRIBUTING.md](../CONTRIBUTING.md)                        |
-| Community support channels                        | [SUPPORT.md](../SUPPORT.md)                                  |
+| Goal                                        | Document                                                 |
+| ------------------------------------------- | -------------------------------------------------------- |
+| OpenSSF Best Practices Passing form answers | [openssf-best-practices.md](./openssf-best-practices.md) |
+| Vulnerability process and crypto summary    | [SECURITY.md](../SECURITY.md)                            |
+| Contribution and testing policy             | [CONTRIBUTING.md](../CONTRIBUTING.md)                    |
+| Community support channels                  | [SUPPORT.md](../SUPPORT.md)                              |
 
 Before deploying, read at least the Secrets section of [deployment.md](./deployment.md): losing `KEK` or `PEPPER` is unrecoverable.
 

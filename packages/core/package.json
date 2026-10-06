@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
-    "typescript": "catalog:",
+    "typescript": "^6.0.3",
     "vitest": "catalog:"
   }
 }

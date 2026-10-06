@@ -406,7 +406,9 @@ async function verifyMagicLinkFromEmail(url, preSmokeContext, session) {
     )
     const before = await page.browserMe()
     if (before.status !== 401) {
-      throw new Error(`magic link navigation authenticated before confirmation http=${before.status}`)
+      throw new Error(
+        `magic link navigation authenticated before confirmation http=${before.status}`,
+      )
     }
     await page.clickVisibleButton('Continue to sign in')
     await page.waitFor(

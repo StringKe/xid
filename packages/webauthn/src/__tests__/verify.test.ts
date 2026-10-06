@@ -332,9 +332,7 @@ describe('verifyRegistration', () => {
             new Uint8Array(
               (await crypto.subtle.exportKey(
                 'raw',
-                (
-                  await generateAssertionKeyPair()
-                ).publicKey,
+                (await generateAssertionKeyPair()).publicKey,
               )) as ArrayBuffer,
             ),
           )

@@ -29,6 +29,6 @@
     "@xid-kit/types": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "catalog:"
+    "@types/node": "^26.6.4"
   }
 }

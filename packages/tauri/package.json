@@ -49,7 +49,7 @@
     "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
-    "typescript": "catalog:",
+    "typescript": "^6.0.3",
     "vitest": "catalog:"
   }
 }

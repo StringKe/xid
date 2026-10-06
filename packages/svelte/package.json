@@ -54,10 +54,10 @@
     "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
-    "@sveltejs/kit": "^2.70.2",
+    "@sveltejs/kit": "^2.70.3",
     "@xid-kit/backend": "workspace:^",
-    "svelte": "^5.56.8",
-    "typescript": "catalog:",
+    "svelte": "^5.57.2",
+    "typescript": "^6.0.3",
     "vitest": "catalog:"
   },
   "peerDependencies": {

@@ -739,16 +739,16 @@ user/purpose 下已消费或已过期的 row。
 
 ### 12.3b magic_link_tokens(并行有效的 magic-link ledger,只存哈希)
 
-| 字段         | 类型          | 约束                                       | 默认   | 说明                                                                                     |
-| ------------ | ------------- | ------------------------------------------ | ------ | ---------------------------------------------------------------------------------------- |
-| id           | text          | PK                                         | nanoid |                                                                                          |
-| tenant_id    | text          | NOT NULL, FK -> organizations.id           | --     |                                                                                          |
-| user_id      | text          | NOT NULL, FK -> users.id ON DELETE cascade | --     |                                                                                          |
-| token_hash   | text          | NOT NULL, UNIQUE                           | --     | `SHA-256(jti)`;明文 signed JWT 不进入 D1                                                |
-| flow_context | text json     | NOT NULL                                   | --     | 精确序列化的 `PasswordlessFlowContext`,消费前与 signed JWT 比对                         |
-| consumed_at  | integer ts_ms | null                                       | null   | 单次有效;条件消费成功后写入                                                              |
-| expires_at   | integer ts_ms | NOT NULL                                   | --     | 15 分钟有效期                                                                            |
-| created_at   | integer ts_ms | NOT NULL                                   | 见 9.3 |                                                                                          |
+| 字段         | 类型          | 约束                                       | 默认   | 说明                                                            |
+| ------------ | ------------- | ------------------------------------------ | ------ | --------------------------------------------------------------- |
+| id           | text          | PK                                         | nanoid |                                                                 |
+| tenant_id    | text          | NOT NULL, FK -> organizations.id           | --     |                                                                 |
+| user_id      | text          | NOT NULL, FK -> users.id ON DELETE cascade | --     |                                                                 |
+| token_hash   | text          | NOT NULL, UNIQUE                           | --     | `SHA-256(jti)`;明文 signed JWT 不进入 D1                        |
+| flow_context | text json     | NOT NULL                                   | --     | 精确序列化的 `PasswordlessFlowContext`,消费前与 signed JWT 比对 |
+| consumed_at  | integer ts_ms | null                                       | null   | 单次有效;条件消费成功后写入                                     |
+| expires_at   | integer ts_ms | NOT NULL                                   | --     | 15 分钟有效期                                                   |
+| created_at   | integer ts_ms | NOT NULL                                   | 见 9.3 |                                                                 |
 
 索引:`UNIQUE(token_hash)`、`INDEX(tenant_id, user_id, expires_at)`。有意不设置 active-row 唯一约束:
 每个未消费 row 都在自身过期前有效。签发时只允许 hard-delete 同一 user 下已消费或已过期的 row。

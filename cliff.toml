@@ -21,8 +21,8 @@ body = """
 {% endif -%}
 
 {% for group, commits in commits | group_by(attribute="group") %}
-    ### {{ group | striptags | trim }}\n
-    {%- for commit in commits %}
+    ### {{ group | striptags | trim }}
+    {% for commit in commits %}
         - {% if commit.scope %}**{{ commit.scope }}:** {% endif -%}
           {{ commit.message | upper_first | trim }} \
           ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/StringKe/xid/commit/{{ commit.id }}))\
@@ -72,6 +72,4 @@ commit_parsers = [
   { message = '^chore', group = '<!-- 91 -->Maintenance' },
   { message = '^style', group = '<!-- 91 -->Maintenance' },
 ]
-link_parsers = [
-  { pattern = '#(\d+)', href = 'https://github.com/StringKe/xid/pull/$1' },
-]
+link_parsers = [{ pattern = '#(\d+)', href = 'https://github.com/StringKe/xid/pull/$1' }]

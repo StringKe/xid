@@ -11,40 +11,48 @@ Run `pnpm changelog --tag vX.Y.Z` to prepare a release; do not edit it by hand.
 ## [0.0.6] - 2026-08-14
 
 ### Testing
+
 - **production:** Harden authenticated browser coverage (#76) ([574c0f4](https://github.com/StringKe/xid/commit/574c0f43aa0678a0b1bdec8d74e4269db3de5c45))
 - **production:** Align smoke with Turnstile gates ([fd7abfa](https://github.com/StringKe/xid/commit/fd7abfa68c10ea1aa5f309ef244fd81565927b10))
 
 ## [0.0.5] - 2026-08-14
 
 ### Fixed
+
 - **auth:** Harden one-time link recovery (#73) ([b1c15ac](https://github.com/StringKe/xid/commit/b1c15acd1ad10192d7a49dcca166268fc423a2ff))
 
 ## [0.0.4] - 2026-08-14
 
 ### Fixed
+
 - **auth:** Gate protected actions on Turnstile (#71) ([8b31c7d](https://github.com/StringKe/xid/commit/8b31c7d7d7676b9f52902269d74072bb292ef9c8))
 
 ## [0.0.3] - 2026-08-13
 
 ### Security
+
 - **security:** Close remaining scan alerts (#69) ([901b76e](https://github.com/StringKe/xid/commit/901b76eff30f26a46215ed8bce523273c5d4add4))
 
 ## [0.0.2] - 2026-08-13
 
 ### Security
+
 - **deps:** Remove vulnerable extract-zip chain (#67) ([ba444fa](https://github.com/StringKe/xid/commit/ba444fa91ffb63eea679a6448b1ad871fc97001b))
 
 ### Fixed
+
 - **auth:** Preserve password recovery tenant context (#66) ([cb969ce](https://github.com/StringKe/xid/commit/cb969ce3d9751a2584c4eca2e2bf69e4849d261c))
 - **auth:** Render action-link failures in hosted UI (#64) ([b7b0796](https://github.com/StringKe/xid/commit/b7b0796f6b717943ebd62b085bd6d99ff159ab45))
 - **auth:** Make one-time links scanner-safe (#63) ([a44359c](https://github.com/StringKe/xid/commit/a44359c98a8febc2201876adc846bfd222769690))
 
 ### Testing
+
 - **site:** Constrain internal URL fuzz inputs (#65) ([f56ff7a](https://github.com/StringKe/xid/commit/f56ff7a0caf3d5fd65cd06f2d6901f10f3103e7a))
 
 ## [0.0.1] - 2026-08-12
 
 ### Security
+
 - **python:** Bump cryptography to 50.x for PKCS#7 oracle fix ([ac58bbb](https://github.com/StringKe/xid/commit/ac58bbb2b002f444f5437808a6586504d8c07750))
 - **deps:** Batch security and dependency upgrades ([0cc782c](https://github.com/StringKe/xid/commit/0cc782c062716e440d1424b74a15395a3d6edec3))
 - **deps:** Resolve all dependabot and audit security alerts ([9b2543f](https://github.com/StringKe/xid/commit/9b2543f29d21645e6911990fc7d94c35b7addf28))
@@ -54,6 +62,7 @@ Run `pnpm changelog --tag vX.Y.Z` to prepare a release; do not edit it by hand.
 - **security:** Remediate repository security alerts ([31e1d1a](https://github.com/StringKe/xid/commit/31e1d1afbc76cc7c1e7b282a67a2ba88d468f899))
 
 ### Added
+
 - **site:** Launch localized product landing ([1faa63f](https://github.com/StringKe/xid/commit/1faa63f0e3c8eb5fffcc0c2daa8736534662d7a4))
 - **server:** Manage access requests and policy via v1 ([43f508f](https://github.com/StringKe/xid/commit/43f508f60bf6d23bea8c4f6972ae230429170e58))
 - **server:** Access request self-service and approval APIs ([a9c1ac1](https://github.com/StringKe/xid/commit/a9c1ac176c54cfb7270115c0612807a666f9e64f))
@@ -72,6 +81,7 @@ Run `pnpm changelog --tag vX.Y.Z` to prepare a release; do not edit it by hand.
 - Initial public release ([7c80167](https://github.com/StringKe/xid/commit/7c801679ee46862c450de34bf10dcb0169ba558a))
 
 ### Fixed
+
 - **ci:** Format after comment purge and refresh translation markers ([760eb5a](https://github.com/StringKe/xid/commit/760eb5ab498a04424dff0ba8e67ff7fe7759b130))
 - **ci:** Align smoke with site landing routes ([a23a31a](https://github.com/StringKe/xid/commit/a23a31a40554d9ca836d199aead4aaea49a765f1))
 - **hosted-auth:** Restyle the guest conversion banner as a shell band ([bc1c5fe](https://github.com/StringKe/xid/commit/bc1c5fef497fd60294f0379554818b999c82e535))
@@ -84,9 +94,11 @@ Run `pnpm changelog --tag vX.Y.Z` to prepare a release; do not edit it by hand.
 - **web:** 修复远端构建与安全检查 ([32ac45c](https://github.com/StringKe/xid/commit/32ac45c9631f669e825974dfee560d26596bbba3))
 
 ### Changed
+
 - **web:** 将官网统一为 Nimbus 并隔离 Console ([9b0b37b](https://github.com/StringKe/xid/commit/9b0b37b723083817c35422e9a0af48dbde0a2d8d))
 
 ### Documentation
+
 - **readme:** Correct project status for live L4 evidence (#61) ([0b722d6](https://github.com/StringKe/xid/commit/0b722d6d4c3bb85fe74db35b19a12632376f6b3e))
 - **security:** Complete OpenSSF Best Practices Passing evidence (#58) ([df3f696](https://github.com/StringKe/xid/commit/df3f6960b2151906e64cff312d428673fc9b86f1))
 - **readme:** Sync capabilities and launch badges (#42) ([7c48bb5](https://github.com/StringKe/xid/commit/7c48bb5ccb6c6e8d92eb85da4dbe581b55efebfd))
@@ -101,15 +113,18 @@ Run `pnpm changelog --tag vX.Y.Z` to prepare a release; do not edit it by hand.
 - **security:** 完成安全修复证据收尾 ([00a0014](https://github.com/StringKe/xid/commit/00a00148e8559861f9b6ab1c620d07754f8a8fec))
 
 ### Testing
+
 - **server:** Access request end-to-end flow ([0aa39cd](https://github.com/StringKe/xid/commit/0aa39cd77b6a1011f2684cc4bfdfe41eb7c4521c))
 - **server:** Org unit isolation and guard coverage ([22f3d49](https://github.com/StringKe/xid/commit/22f3d493bbba6056624eb959b35449680dfae0bb))
 - **smoke:** Align console copy assertions with the shared page skeleton ([98cc53e](https://github.com/StringKe/xid/commit/98cc53ea3d205fb39c261f0d2875a71136953575))
 - **crypto:** Allow CI budget for property test ([9c4b3c3](https://github.com/StringKe/xid/commit/9c4b3c3fb364c3ee259cdae390f485ffe31a898d))
 
 ### Build
+
 - **codeql:** Path-gate native language analysis on pull requests (#60) ([e42180f](https://github.com/StringKe/xid/commit/e42180f7f02cae244fbda3ce43033dbe541fcc10))
 
 ### Dependencies
+
 - **deps:** Bump the gradle group in /sdk/android with 15 updates ([f177981](https://github.com/StringKe/xid/commit/f1779818d277c2aff1825a69f01f5dd380b35b93))
 - **deps:** Bump the nuget group with 4 updates ([286bdb4](https://github.com/StringKe/xid/commit/286bdb47ccd4d71cccc786e88d2dd80a5aabbac4))
 - **deps:** Bump the pub group in /sdk/flutter with 3 updates ([c0608ae](https://github.com/StringKe/xid/commit/c0608ae8fb062c906c7e93a013efad710ca379ba))
@@ -118,6 +133,7 @@ Run `pnpm changelog --tag vX.Y.Z` to prepare a release; do not edit it by hand.
 - **deps:** Bump github.com/golang-jwt/jwt/v5 ([cc8c570](https://github.com/StringKe/xid/commit/cc8c570191301c2ab5d148a4f6b57543d514b736))
 
 ### Maintenance
+
 - **gitignore:** Drop redundant patterns and clarify local AI ignore ([1706cd9](https://github.com/StringKe/xid/commit/1706cd9987ea804f0d85266ed4b8f110c40d14b6))
 - **comments:** Purge residual and compress verbose source comments ([532148b](https://github.com/StringKe/xid/commit/532148b64ae77ee5570921a19de28d4d813dda8b))
 - **db:** Format 0014 snapshot per vp check ([97a4029](https://github.com/StringKe/xid/commit/97a4029f5a4a6b1941a6f18078535e48000f5eab))

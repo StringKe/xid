@@ -26,15 +26,15 @@
   "dependencies": {
     "@xid-kit/crypto": "workspace:*",
     "@xid-kit/types": "workspace:*",
-    "@xmldom/xmldom": "catalog:",
+    "@xmldom/xmldom": "^0.9.12",
     "asn1js": "catalog:",
     "pkijs": "catalog:",
     "xml-core": "^1.2.6",
-    "xmldsigjs": "catalog:",
+    "xmldsigjs": "^2.8.8",
     "xpath": "^0.0.34"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
+    "@types/node": "^26.6.4",
     "vitest": "catalog:"
   }
 }

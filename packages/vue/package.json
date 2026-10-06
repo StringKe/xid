@@ -50,9 +50,9 @@
     "@xid-kit/types": "workspace:^"
   },
   "devDependencies": {
-    "typescript": "catalog:",
+    "typescript": "^6.0.3",
     "vitest": "catalog:",
-    "vue": "catalog:"
+    "vue": "^3.5.43"
   },
   "peerDependencies": {
     "vue": "^3.4.0"

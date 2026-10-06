@@ -334,14 +334,14 @@ guides exist in English only, because a stale translation of a support matrix is
 
 ## Contributing, security, and license
 
-| Topic | Where |
-| ----- | ----- |
-| How to contribute (PR flow, DCO, testing policy, coding standards) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Bug reports, feature requests, questions | [`SUPPORT.md`](SUPPORT.md) · [Issues](https://github.com/StringKe/xid/issues) · [Discussions](https://github.com/StringKe/xid/discussions) |
-| Vulnerability reports (private only) | [`SECURITY.md`](SECURITY.md) |
-| Code of conduct | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
-| OpenSSF Best Practices (Passing) checklist and form answers | [`docs/openssf-best-practices.md`](docs/openssf-best-practices.md) |
-| License | [`LICENSE`](LICENSE) (MIT) |
+| Topic                                                              | Where                                                                                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| How to contribute (PR flow, DCO, testing policy, coding standards) | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                                                       |
+| Bug reports, feature requests, questions                           | [`SUPPORT.md`](SUPPORT.md) · [Issues](https://github.com/StringKe/xid/issues) · [Discussions](https://github.com/StringKe/xid/discussions) |
+| Vulnerability reports (private only)                               | [`SECURITY.md`](SECURITY.md)                                                                                                               |
+| Code of conduct                                                    | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)                                                                                                 |
+| OpenSSF Best Practices (Passing) checklist and form answers        | [`docs/openssf-best-practices.md`](docs/openssf-best-practices.md)                                                                         |
+| License                                                            | [`LICENSE`](LICENSE) (MIT)                                                                                                                 |
 
 Do not open a public issue for a vulnerability. Reporting channels, scope, fix timelines, and the
 cryptography summary are in [`SECURITY.md`](SECURITY.md).

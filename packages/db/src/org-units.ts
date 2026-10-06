@@ -323,18 +323,16 @@ export async function listSubtreeMembers(
     )
     .bind(scope.ctx.tenantId, scope.orgId, `${unit.path}*`)
     .all<SubtreeMemberRawRow>()
-  const rows = result.results.map(
-    (row): OrgUnitMemberRow => ({
-      id: row.id,
-      tenantId: row.tenant_id,
-      orgId: row.org_id,
-      unitId: row.unit_id,
-      userId: row.user_id,
-      isPrimary: row.is_primary === 1,
-      createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at),
-    }),
-  )
+  const rows = result.results.map((row): OrgUnitMemberRow => ({
+    id: row.id,
+    tenantId: row.tenant_id,
+    orgId: row.org_id,
+    unitId: row.unit_id,
+    userId: row.user_id,
+    isPrimary: row.is_primary === 1,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  }))
   return { ok: true, value: rows }
 }
 
