@@ -10,6 +10,7 @@ import { useAuth } from '../../lib/auth-context'
 import { useDefaultLandingPath } from '../../lib/default-landing'
 import { trackOrganizationSelected } from '../../lib/google-analytics-funnel'
 import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
+import { normalizeLocalPath } from '@xid-kit/types'
 import { page } from '../../styles/product-surface.stylex'
 import { tokens } from '../../styles/tokens.stylex'
 
@@ -52,7 +53,7 @@ export function SelectOrganizationPage(): ReactNode {
   }
   const defaultLandingPath = useDefaultLandingPath()
   const redirectTo =
-    search.redirect_to ??
+    normalizeLocalPath(search.redirect_to) ??
     (search.authz_request_id
       ? `/authorize?authz_request_id=${encodeURIComponent(search.authz_request_id)}`
       : defaultLandingPath)
