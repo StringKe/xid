@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=ab34eea4bf6451d6d20f1bb1d641081ebf848f73 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=a58c0672fe970744277b64c46f203eff3bf75b4d -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -150,9 +150,9 @@ discovery 加持久化 mapping。新 mapping 只保证 schema 上线后的 run;�
 - 属性同步:每次登录用最新断言中非空的值覆写 first_name/last_name/custom_attributes;缺失的属性不清空已存值
 - 角色映射:IdP groups/attributes -> org_role(connection 级配置)
 - 冲突处理:idp_id 精确匹配 > email 关联 > 新建
-- email 关联规则(`apps/server/worker/sso/account-link.ts`,SAML、OIDC、legacy JIT 与入站 SCIM 共用):本地 Email 必须已验证,然后满足以下任一条件即关联现有 User:
-  - Email 域名是 connection 所属 Organization 已验证且有效的 `organization_domains` 行(通配行覆盖子域)。Organization 为该域下所有地址担保,因此不要求成员关系。SAML 没有 `email_verified`,依赖这一条
-  - IdP 声明 `email_verified: true`(OIDC),且该 User 已是 connection 所属 Organization 的 active 成员。入站 SCIM 是受信目录,视为已验证
+- email 关联规则(`apps/server/worker/sso/account-link.ts`,SAML、OIDC、legacy JIT 与入站 SCIM 共用):本地 Email 必须已验证,IdP Email 必须可信。IdP 声明 `email_verified: true`(OIDC;入站 SCIM 是受信目录,视为已声明),或 Email 域名是 connection 所属 Organization 已验证且有效的 `organization_domains` 行(通配行覆盖子域;SAML 没有 `email_verified`,依赖域名)时,IdP Email 可信。可信 Email 再满足以下任一条件即关联现有 User:
+  - 该 User 已是 connection 所属 Organization 的 active 成员
+  - IdP 声明 `email_verified: true` 且 Email 域名已在该 Organization 验证。Organization 为该域下所有地址担保,因此不要求成员关系
 - Email 已存在但不满足规则时返回 `invalid_credentials`;JIT 不登录、不关联,也不为该 Email 新建第二个账号,因为 `UNIQUE (tenant_id, email)` 只允许一个所有者
 - 新建 User 的 Email 只在 IdP Email 可信时记为已验证:IdP 声明 `email_verified: true`,或域名已在该 Organization 验证
 - 同一 `(connection, idp_id)` 的已撤销 identity 改绑到匹配的 User,不插入重复行(见 01 章身份行)

@@ -1,7 +1,7 @@
 // SSO JIT 与入站 SCIM 共用的邮箱关联规则(04 章 4、6)。
-// 外部 IdP 可以声明任意邮箱。本地邮箱必须已验证,且满足其一才允许关联:邮箱域已在目标 org 验证
-// (该域下的邮箱由 org 担保),或 IdP 明确声明邮箱已验证且命中用户已是目标 org 的 active 成员。
-// 其余命中一律视为冲突,既不登录也不新建(UNIQUE(tenant_id, email) 不允许第二个账号)。
+// 外部 IdP 可以声明任意邮箱。本地邮箱必须已验证,且 IdP 邮箱可信(IdP 声明已验证或邮箱域已在目标
+// org 验证),再满足其一才允许关联:命中用户已是目标 org 的 active 成员,或 IdP 声明已验证且邮箱域
+// 已在目标 org 验证。其余命中一律视为冲突,既不登录也不新建(UNIQUE(tenant_id, email) 不允许第二个账号)。
 
 import type { createTenantDb } from '@xid-kit/db'
 import { schema } from '@xid-kit/db'
@@ -70,10 +70,10 @@ export async function findLinkableUserByEmail(
   const row = await db.userEmails.findOne(eq(schema.userEmails.email, email))
   if (!row) return { kind: 'none' }
   if (!row.verified || row.verificationStatus !== 'verified') return { kind: 'conflict' }
-  if (input.emailVerified && (await isActiveOrgMember(db, input.orgId, row.userId))) {
-    return { kind: 'linkable', userId: row.userId }
-  }
-  if (await isVerifiedOrgEmailDomain(db, input.orgId, email)) {
+  const isMember = await isActiveOrgMember(db, input.orgId, row.userId)
+  if (input.emailVerified && isMember) return { kind: 'linkable', userId: row.userId }
+  const isDomainVerified = await isVerifiedOrgEmailDomain(db, input.orgId, email)
+  if (isDomainVerified && (isMember || input.emailVerified)) {
     return { kind: 'linkable', userId: row.userId }
   }
   return { kind: 'conflict' }

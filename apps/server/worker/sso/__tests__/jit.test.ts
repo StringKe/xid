@@ -238,6 +238,29 @@ describe('jitProvision -- 分支 A/B', () => {
     expect(mockProvisionAccountAtomically).not.toHaveBeenCalled()
   })
 
+  it('分支 B 失败:非成员且 IdP 未声明 email_verified,仅邮箱域已验证 -> invalid_credentials', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
+    mockUserIdentitiesFindOne.mockResolvedValue(undefined)
+    mockUserEmailsFindOne.mockResolvedValue({
+      id: 'email-1',
+      userId: 'user-domain-match',
+      verified: true,
+      verificationStatus: 'verified',
+    })
+    mockMembershipsFindOne.mockResolvedValue(undefined)
+    mockOrganizationDomainsFindMany.mockResolvedValue([
+      { domain: 'corp.example.com', isWildcard: false },
+    ])
+
+    await expect(
+      jitProvision(makeContext(), makeAssertion({ emailVerified: false })),
+    ).rejects.toSatisfy((err: unknown) => isAppError(err) && err.code === 'invalid_credentials')
+
+    expect(mockProvisionAccountAtomically).not.toHaveBeenCalled()
+    expect(mockUserIdentitiesInsert).not.toHaveBeenCalled()
+    expect(mockMembershipsInsert).not.toHaveBeenCalled()
+  })
+
   it('分支 B:IdP 未声明 email_verified 但 email 域是本 org 已验证域名 -> 关联已有成员', async () => {
     mockSsoConnectionsFindOne.mockResolvedValue(makeConnection())
     mockUserIdentitiesFindOne.mockResolvedValue(undefined)

@@ -232,13 +232,15 @@ Capabilities still missing:
 - Role mapping: IdP groups or attributes map to an org_role (configured per connection)
 - Conflict handling: exact idp_id match > email association > create new
 - Email association rule (`apps/server/worker/sso/account-link.ts`, shared by SAML, OIDC, and
-  legacy JIT and by inbound SCIM): the local Email MUST be verified, and then one of two conditions
-  links the existing User:
-  - the Email domain is a verified, active `organization_domains` row of the connection's
-    Organization (wildcard rows cover subdomains); the Organization vouches for every address in
-    that domain, so membership is not required. SAML has no `email_verified` and relies on this
-  - the IdP asserts `email_verified: true` (OIDC) and the User is already an active member of the
-    connection's Organization. Inbound SCIM is a trusted directory and counts as verified
+  legacy JIT and by inbound SCIM): the local Email MUST be verified and the IdP Email MUST be
+  trusted. The IdP Email is trusted when the IdP asserts `email_verified: true` (OIDC; inbound SCIM
+  is a trusted directory and counts as asserted) or the Email domain is a verified, active
+  `organization_domains` row of the connection's Organization (wildcard rows cover subdomains;
+  SAML has no `email_verified` and relies on the domain). A trusted Email then links the existing
+  User when one of two conditions holds:
+  - the User is already an active member of the connection's Organization
+  - the IdP asserts `email_verified: true` and the Email domain is verified for that Organization;
+    the Organization vouches for every address in that domain, so membership is not required
 - An existing Email that fails the rule is rejected with `invalid_credentials`; JIT never logs in,
   links, or creates a second account for that Email, because `UNIQUE (tenant_id, email)` allows only
   one owner
