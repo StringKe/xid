@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=2e375332de317ae4fe418cdd4162bf9a56ae9b8e -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=39be702f3ecee42bba747044a513b7fa8b8b8f3a -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -126,7 +126,8 @@ Cloudflare Email Service(2025,Email Sending)能从 Worker 发 transactional 邮�
 - 错误信息本地化,API 错误 message 带 locale
 - locale 管理:Instance Manager 可经 `/v1/platform/settings` 设置一个 instance
   `defaultLocale`,取值限于 8 种已支持语言。Core 在 tenant 解析后应用它:`?locale=` 与
-  `Accept-Language` 都没有命中已支持语言时,Worker API 错误文案与事务邮件回退到这个语言。
+  `Accept-Language` 都没有命中已支持语言时,Worker API 错误文案与携带请求 locale 的邮件(当前只有
+  一次性验证码邮件)回退到这个语言。密码重置、magic link、邀请与邮箱验证邮件不携带 locale,使用 `en`。
   Hosted UI 和 Console 在浏览器端检测语言,不读取该值。per-tenant enabled/disabled locale set
   仍是设计目标
 - 全局 email language-pack JSON 可以存 R2,当前按需加载。预加载热门 5 个 pack 和

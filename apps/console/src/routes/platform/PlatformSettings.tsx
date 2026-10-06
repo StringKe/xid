@@ -105,9 +105,9 @@ export default function PlatformSettingsPage(): ReactNode {
               label={t`Fallback language`}
               hint={
                 <Trans>
-                  Used for API error messages and transactional email when the visitor's browser
-                  language is not supported. The sign-in pages and Console follow the browser
-                  language.
+                  Used for API error messages and one-time sign-in code email when the visitor's
+                  browser language is not supported. The sign-in pages, Console and other email do
+                  not use it.
                 </Trans>
               }
             >

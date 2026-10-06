@@ -169,9 +169,10 @@ password reset, and organization invitation) go through this channel.
 - Error messages are localized, and API error messages carry a locale
 - Locale management: an Instance Manager can set one instance `defaultLocale`, restricted to the 8
   supported locales, through `/v1/platform/settings`. Core applies it after tenant resolution as the
-  fallback language for Worker API errors and transactional email when neither `?locale=` nor
-  `Accept-Language` names a supported locale. Hosted UI and Console detect the language in the
-  browser and do not read this value. Per-tenant enabled/disabled locale sets remain a design target
+  fallback language for Worker API errors and for email that carries the request locale (currently
+  only one-time code email) when neither `?locale=` nor `Accept-Language` names a supported locale.
+  Password reset, magic link, invitation and email verification messages do not carry a locale and
+  use `en`. Hosted UI and Console detect the language in the browser and do not read this value. Per-tenant enabled/disabled locale sets remain a design target
 - Global email language-pack JSON can live in R2 and is loaded on demand. Preloading the top 5 packs
   and tenant-specific language-pack management remain design targets
 
