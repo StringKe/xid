@@ -9028,6 +9028,47 @@ describe('Console 组织页契约:webhook 订阅、API key、品牌、域名、�
     expect(crossTenant.status).toBe(404)
   })
 
+  it('删除 SSO 连接与轮换 SCIM token 写入组织审计', async () => {
+    const { env, headers, auditSend } = await apiKeyEnv({
+      sso_connections: [
+        { id: 'sso_1', tenant_id: 't_1', org_id: 'org_1', protocol: 'saml', status: 'active' },
+      ],
+      directories: [
+        {
+          id: 'dir_1',
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          provider: 'okta',
+          scim_token_hash: 'old_hash',
+          status: 'active',
+        },
+      ],
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const deleted = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/sso-connections/sso_1',
+      { method: 'DELETE', headers },
+      env,
+    )
+    const rotated = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/directories/dir_1/rotate-token',
+      { method: 'POST', headers },
+      env,
+    )
+
+    expect(deleted.status).toBe(204)
+    expect(rotated.status).toBe(200)
+    const actions = auditSend.mock.calls.map((call) => (call as unknown[])[0])
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'sso_connection.deleted', orgId: 'org_1' }),
+        expect.objectContaining({ action: 'directory.scim_token_rotated', orgId: 'org_1' }),
+      ]),
+    )
+    expect(JSON.stringify(actions)).not.toContain('scimToken')
+  })
+
   it('域名响应返回与每日校验一致的 TXT 记录名和值', async () => {
     const { env, headers } = await apiKeyEnv()
     const app = buildApp(registerOrganizationsRoutes)

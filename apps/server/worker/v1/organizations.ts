@@ -99,6 +99,7 @@ import { registerOrgDomainsRoutes } from './org-domains'
 import { registerOrgMembersRoutes } from './org-members'
 import {
   ORG_LIST_BATCH_SIZE,
+  auditOrgMutation,
   readAllById,
   toIso,
   toOrganizationResponse,
@@ -111,6 +112,7 @@ import {
   idAfterCursor,
   requireOrg,
   emitWebhookAsync,
+  type OrgScopedAuth,
 } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -1012,6 +1014,19 @@ function toConsoleSsoConnection(
   }
 }
 
+function auditOrgPolicy(
+  c: Context<XidHonoEnv>,
+  auth: OrgScopedAuth,
+  input: { orgId: string; action: string },
+): void {
+  auditOrgMutation(c, auth, {
+    action: input.action,
+    orgId: input.orgId,
+    targetType: 'organization',
+    targetId: input.orgId,
+  })
+}
+
 // ---- 列表 ----
 
 // GET /v1/organizations?limit=&cursor=
@@ -1139,6 +1154,13 @@ app.post('/:id/sso-connections', async (c) => {
           orgId: id,
           ...patch,
         })
+  auditOrgMutation(c, auth, {
+    action: 'sso_connection.created',
+    orgId: id,
+    targetType: 'sso_connection',
+    targetId: row!.id,
+    details: { protocol: row!.protocol },
+  })
   return c.json(toConsoleSsoConnection(c.get('tenant'), row!), 201)
 })
 
@@ -1185,6 +1207,13 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
   const updated = await orgDb.ssoConnections.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
+  auditOrgMutation(c, auth, {
+    action: 'sso_connection.updated',
+    orgId: id,
+    targetType: 'sso_connection',
+    targetId: row.id,
+    details: { fields: Object.keys(patch) },
+  })
   return c.json(toConsoleSsoConnection(c.get('tenant'), row))
 })
 
@@ -1203,6 +1232,12 @@ app.delete('/:id/sso-connections/:connectionId', async (c) => {
   const existing = await orgDb.ssoConnections.findOne(where)
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
   await orgDb.ssoConnections.update({ status: 'deleted' }, where)
+  auditOrgMutation(c, auth, {
+    action: 'sso_connection.deleted',
+    orgId: id,
+    targetType: 'sso_connection',
+    targetId: existing.id,
+  })
   return new Response(null, { status: 204 })
 })
 
@@ -1251,6 +1286,7 @@ app.patch('/:id/auth-policy', async (c) => {
     event: 'organization.auth_policy.updated',
     payload: { orgId: id },
   })
+  auditOrgPolicy(c, auth, { orgId: id, action: 'organization.auth_policy.updated' })
   return c.json(toConsoleAuthPolicy(updated[0]!, c.env, policy))
 })
 
@@ -1292,6 +1328,7 @@ app.patch('/:id/delivery-channels', async (c) => {
     event: 'organization.delivery_channels.updated',
     payload: { orgId: id },
   })
+  auditOrgPolicy(c, auth, { orgId: id, action: 'organization.delivery_channels.updated' })
   return c.json(toConsoleDeliveryChannels(updated[0]!, c.env))
 })
 
@@ -1333,6 +1370,7 @@ app.patch('/:id/social-providers', async (c) => {
     event: 'organization.social_providers.updated',
     payload: { orgId: id },
   })
+  auditOrgPolicy(c, auth, { orgId: id, action: 'organization.social_providers.updated' })
   return c.json(toConsoleSocialProviders(updated[0]!, c.env))
 })
 
@@ -1466,6 +1504,12 @@ app.post('/:id/outbound-saml-apps', async (c) => {
     event: 'organization.outbound_saml_app.created',
     payload: { orgId: id, appId: row.id, preset: presetKey ?? null },
   })
+  auditOrgMutation(c, auth, {
+    action: 'outbound_saml_app.created',
+    orgId: id,
+    targetType: 'outbound_saml_app',
+    targetId: row.id,
+  })
   return c.json(toConsoleOutboundSamlApp(c.get('tenant'), row), 201)
 })
 
@@ -1522,6 +1566,13 @@ app.patch('/:id/outbound-saml-apps/:appId', async (c) => {
   const updated = await db.samlServiceProviders.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
+  auditOrgMutation(c, auth, {
+    action: 'outbound_saml_app.updated',
+    orgId: id,
+    targetType: 'outbound_saml_app',
+    targetId: row.id,
+    details: { fields: Object.keys(patch) },
+  })
   return c.json(toConsoleOutboundSamlApp(c.get('tenant'), row))
 })
 
@@ -1545,6 +1596,12 @@ app.delete('/:id/outbound-saml-apps/:appId', async (c) => {
     tenantId: tenant.tenantId,
     event: 'organization.outbound_saml_app.deleted',
     payload: { orgId: id, appId },
+  })
+  auditOrgMutation(c, auth, {
+    action: 'outbound_saml_app.deleted',
+    orgId: id,
+    targetType: 'outbound_saml_app',
+    targetId: appId,
   })
   return new Response(null, { status: 204 })
 })

@@ -24,6 +24,7 @@ import {
   withAssignmentGate,
 } from '../sso/assignment-gate'
 import { assertOrgSelfServiceEditable } from './org-self-service'
+import { auditOrgMutation } from './org-shared'
 import { emitWebhookAsync, requireApiKeyOrOrgManager, requireOrg } from './shared'
 import type { OrgScopedAuth } from './shared'
 
@@ -106,7 +107,7 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
 
   app.post('/:id/scim-targets', async (c) => {
     const id = c.req.param('id')
-    await requireEditableTargetManager(c, id)
+    const auth = await requireEditableTargetManager(c, id)
     const tenant = c.get('tenant')
     const body = await readTargetBody(c)
     const provider = body.provider?.trim() ?? ''
@@ -130,12 +131,19 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
       event: 'organization.scim_target.created',
       payload: { orgId: id, targetId: row.id, provider },
     })
+    auditOrgMutation(c, auth, {
+      action: 'scim_target.created',
+      orgId: id,
+      targetType: 'scim_target',
+      targetId: row.id,
+      details: { provider },
+    })
     return c.json(toConsoleScimTarget(row), 201)
   })
 
   app.patch('/:id/scim-targets/:targetId', async (c) => {
     const id = c.req.param('id')
-    await requireEditableTargetManager(c, id)
+    const auth = await requireEditableTargetManager(c, id)
     const db = createTenantDb(c.env.DB, c.get('tenant'))
     const body = await readTargetBody(c)
     const where = targetWhere(c, id)
@@ -155,13 +163,21 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
     const updated = await db.scimTargets.update(patch, where)
     const row = updated[0]
     if (!row) throw new AppError('not_found', { httpStatus: 404 })
+    auditOrgMutation(c, auth, {
+      action: 'scim_target.updated',
+      orgId: id,
+      targetType: 'scim_target',
+      targetId: existing.id,
+      details: { fields: Object.keys(patch) },
+    })
     return c.json(toConsoleScimTarget(row))
   })
 
   app.delete('/:id/scim-targets/:targetId', async (c) => {
     const id = c.req.param('id')
-    await requireEditableTargetManager(c, id)
+    const auth = await requireEditableTargetManager(c, id)
     const tenant = c.get('tenant')
+    const targetId = c.req.param('targetId')
     const updated = await createTenantDb(c.env.DB, tenant).scimTargets.update(
       { status: 'deleted', tokenIv: null, tokenCiphertext: null, tokenTag: null },
       targetWhere(c, id),
@@ -170,7 +186,13 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
     emitWebhookAsync(c, {
       tenantId: tenant.tenantId,
       event: 'organization.scim_target.deleted',
-      payload: { orgId: id, targetId: c.req.param('targetId') },
+      payload: { orgId: id, targetId },
+    })
+    auditOrgMutation(c, auth, {
+      action: 'scim_target.deleted',
+      orgId: id,
+      targetType: 'scim_target',
+      targetId,
     })
     return new Response(null, { status: 204 })
   })

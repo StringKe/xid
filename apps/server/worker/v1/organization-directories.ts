@@ -16,7 +16,8 @@ import {
   scimBaseUrl,
 } from '../scim/directory-admin'
 import { assertOrgSelfServiceEditable } from './org-self-service'
-import { requireApiKeyOrOrgManager, requireOrg } from './shared'
+import { auditOrgMutation } from './org-shared'
+import { requireApiKeyOrOrgManager, requireOrg, type OrgScopedAuth } from './shared'
 
 const COUNT_BATCH_SIZE = 100
 
@@ -67,9 +68,13 @@ async function toConsoleDirectories(c: Context<XidHonoEnv>, rows: readonly Direc
   }))
 }
 
-async function requireEditableDirectoryManager(c: Context<XidHonoEnv>, orgId: string) {
+async function requireEditableDirectoryManager(
+  c: Context<XidHonoEnv>,
+  orgId: string,
+): Promise<OrgScopedAuth> {
   const auth = await requireApiKeyOrOrgManager(c, orgId, 'directories:write')
   await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, orgId))
+  return auth
 }
 
 function orgDirectoryWhere(orgId: string, directoryId: string) {
@@ -93,7 +98,7 @@ export function registerOrganizationDirectoryRoutes(app: Hono<XidHonoEnv>): void
 
   app.post('/:id/directories', async (c) => {
     const id = c.req.param('id')
-    await requireEditableDirectoryManager(c, id)
+    const auth = await requireEditableDirectoryManager(c, id)
     const tenant = c.get('tenant')
     const json = await readJsonBody(c)
     if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
@@ -103,19 +108,33 @@ export function registerOrganizationDirectoryRoutes(app: Hono<XidHonoEnv>): void
       orgId: id,
       provider: body.provider ?? 'generic',
     })
+    auditOrgMutation(c, auth, {
+      action: 'directory.created',
+      orgId: id,
+      targetType: 'directory',
+      targetId: row.id,
+      details: { provider: row.provider },
+    })
     const [directory] = await toConsoleDirectories(c, [row])
     return c.json({ ...directory, scimToken: token }, 201)
   })
 
   app.post('/:id/directories/:directoryId/rotate-token', async (c) => {
     const id = c.req.param('id')
-    await requireEditableDirectoryManager(c, id)
+    const auth = await requireEditableDirectoryManager(c, id)
     const tenant = c.get('tenant')
+    const directoryId = c.req.param('directoryId')
     const rotated = await rotateDirectoryToken(
       createTenantDb(c.env.DB, tenant),
-      orgDirectoryWhere(id, c.req.param('directoryId')),
+      orgDirectoryWhere(id, directoryId),
     )
     if (!rotated) throw new AppError('not_found', { httpStatus: 404 })
+    auditOrgMutation(c, auth, {
+      action: 'directory.scim_token_rotated',
+      orgId: id,
+      targetType: 'directory',
+      targetId: directoryId,
+    })
     return c.json({
       scimToken: rotated.token,
       scimBaseUrl: scimBaseUrl(tenant),
@@ -125,12 +144,19 @@ export function registerOrganizationDirectoryRoutes(app: Hono<XidHonoEnv>): void
 
   app.delete('/:id/directories/:directoryId', async (c) => {
     const id = c.req.param('id')
-    await requireEditableDirectoryManager(c, id)
+    const auth = await requireEditableDirectoryManager(c, id)
+    const directoryId = c.req.param('directoryId')
     const deleted = await deleteDirectory(
       createTenantDb(c.env.DB, c.get('tenant')),
-      orgDirectoryWhere(id, c.req.param('directoryId')),
+      orgDirectoryWhere(id, directoryId),
     )
     if (!deleted) throw new AppError('not_found', { httpStatus: 404 })
+    auditOrgMutation(c, auth, {
+      action: 'directory.deleted',
+      orgId: id,
+      targetType: 'directory',
+      targetId: directoryId,
+    })
     return new Response(null, { status: 204 })
   })
 }
