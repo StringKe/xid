@@ -10,8 +10,10 @@ import { tokens } from '../../styles/tokens.stylex'
 import { page } from '../../styles/product-surface.stylex'
 import { Alert, Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useAuth } from '../../lib/auth-context'
-import { Link } from '../../lib/router'
+import { queryErrorInput } from '../../lib/query-error'
+import { Link, useNavigate } from '../../lib/router'
 import { trackConsentDecision } from '../../lib/google-analytics-funnel'
 import { styles as signInStyles } from '../sign-in/styles'
 import { ClientHeader } from './ClientHeader'
@@ -22,13 +24,12 @@ export type ConsentParams = {
   clientId: string
   clientName: string
   clientLogoUrl: string | null
-  scopes: readonly { name: string; description: string }[]
+  scopes: readonly { name: string }[]
   authorizationDetails: readonly {
     type: 'resource_access'
     locations: readonly string[]
     actions: readonly string[]
   }[]
-  // first-party 通常静默;prompt=consent 仍强制显示。
   firstParty: boolean
 }
 
@@ -51,6 +52,8 @@ const styles = stylex.create({
 function ConsentPage(): ReactNode {
   const { t } = useLingui()
   const { api } = useAuth()
+  const navigate = useNavigate()
+  const apiErrorMessage = useApiErrorMessage()
   const search = useSearch({ strict: false }) as {
     prompt_id?: string
     authz_request_id?: string
@@ -78,7 +81,7 @@ function ConsentPage(): ReactNode {
     onSuccess: (result, approved) => {
       if (result.ok) {
         trackConsentDecision(approved)
-        globalThis.location.href = result.value.redirectUrl
+        void navigate(result.value.redirectUrl)
       }
     },
   })
@@ -103,23 +106,13 @@ function ConsentPage(): ReactNode {
       <ConsentContent
         isPending={paramsQuery.isPending}
         isError={paramsQuery.isError}
-        errorMessage={
-          paramsQuery.error &&
-          typeof paramsQuery.error === 'object' &&
-          'longMessage' in paramsQuery.error
-            ? ((paramsQuery.error as { longMessage?: string; message?: string }).longMessage ??
-              (paramsQuery.error as { message?: string }).message ??
-              t`Authorization failed.`)
-            : t`Authorization failed.`
-        }
+        errorMessage={apiErrorMessage(queryErrorInput(paramsQuery.error), { surface: 'general' })}
         params={paramsQuery.data ?? null}
         isSubmitting={consentMutation.isPending}
         isDone={consentMutation.isSuccess && consentMutation.data?.ok === true}
         submitError={
-          consentMutation.isSuccess && !consentMutation.data?.ok
-            ? (consentMutation.data?.error?.longMessage ??
-              consentMutation.data?.error?.message ??
-              null)
+          consentMutation.isSuccess && consentMutation.data?.ok === false
+            ? apiErrorMessage(consentMutation.data.error, { surface: 'general' })
             : null
         }
         titleId={titleId}

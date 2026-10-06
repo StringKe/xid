@@ -1,8 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import { sha256Hex } from '@xid-kit/crypto'
+import type { SessionData } from '../../lib/types'
 import { registerAuthorizeRoutes } from '../authorize'
+import { REQUEST_URI_PREFIX } from '../par'
+import { storeStashedAuthorizeRecord } from '../pending-params'
 import { registerTokenRoutes } from '../token'
-import { buildTestTenant, makeApp, makeEnv, makeFakeD1 } from './helpers'
+import {
+  buildTestTenant,
+  makeApp,
+  makeEnv,
+  makeFakeD1,
+  makeFakeDoNs,
+  makeStatefulFakeDoNs,
+} from './helpers'
+
+function activeSession(): SessionData {
+  return {
+    sessionId: 's_1',
+    userId: 'u_1',
+    status: 'active',
+    activeOrgId: null,
+    authenticatedAt: new Date(Date.now() - 1000),
+    expiresAt: new Date(Date.now() + 3600_000),
+    rememberMe: false,
+    isImpersonation: false,
+    impersonatorUserId: null,
+    acr: null,
+    amr: null,
+    aal: null,
+  }
+}
 
 function clientRow(over: Record<string, unknown> = {}) {
   return {
@@ -74,6 +101,87 @@ describe('FAPI profile gate', () => {
     expect(res.headers.get('content-type')).toContain('text/html')
     const html = await res.text()
     expect(html).toContain('S256')
+  })
+
+  it('resumes a PAR-backed FAPI request after sign-in and issues a code', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const parParams = {
+      response_type: 'code',
+      client_id: 'fapi_client',
+      redirect_uri: 'https://rp.example/cb',
+      scope: 'openid',
+      state: 'st_fapi',
+      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      code_challenge_method: 'S256',
+    }
+    let parConsumed = false
+    const { ns } = makeStatefulFakeDoNs()
+    const env = makeEnv({
+      KEK: kekB64,
+      DB: makeFakeD1({ applications: [clientRow({ first_party: 1 })] }),
+      OAUTH_STATE: ns,
+      PAR_STORE: makeFakeDoNs((path) => {
+        if (path !== '/consume' || parConsumed) return new Response('{}', { status: 404 })
+        parConsumed = true
+        return Response.json({ params: parParams })
+      }),
+    })
+    const anonymous = makeApp(ctx, registerAuthorizeRoutes)
+    const first = await anonymous.request(
+      `https://acme.xid.dev/authorize?client_id=fapi_client&request_uri=${encodeURIComponent(`${REQUEST_URI_PREFIX}abc`)}`,
+      {},
+      env,
+    )
+    expect(first.status).toBe(302)
+    const authzRequestId = new URL(first.headers.get('location') ?? '').searchParams.get(
+      'authz_request_id',
+    )
+
+    const signedIn = makeApp(ctx, registerAuthorizeRoutes, activeSession())
+    const res = await signedIn.request(
+      `https://acme.xid.dev/authorize?authz_request_id=${authzRequestId}&client_id=fapi_client`,
+      {},
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    const location = new URL(res.headers.get('location') ?? '')
+    expect(location.origin + location.pathname).toBe('https://rp.example/cb')
+    expect(location.searchParams.get('code')).toMatch(/^ac_/)
+    expect(location.searchParams.get('state')).toBe('st_fapi')
+  })
+
+  it('still rejects a resumed FAPI request that did not arrive through PAR', async () => {
+    const { ctx } = await buildTestTenant()
+    const { ns } = makeStatefulFakeDoNs()
+    const env = makeEnv({
+      DB: makeFakeD1({ applications: [clientRow({ first_party: 1 })] }),
+      OAUTH_STATE: ns,
+    })
+    await storeStashedAuthorizeRecord(env, 't_1', 'authz_direct', {
+      params: {
+        response_type: 'code',
+        client_id: 'fapi_client',
+        redirect_uri: 'https://rp.example/cb',
+        scope: 'openid',
+        code_challenge: 'challenge',
+        code_challenge_method: 'S256',
+      },
+      createdAt: Date.now(),
+      interactionStartedAt: null,
+      viaPar: false,
+      consentDecision: null,
+    })
+    const app = makeApp(ctx, registerAuthorizeRoutes, activeSession())
+
+    const res = await app.request(
+      'https://acme.xid.dev/authorize?authz_request_id=authz_direct',
+      {},
+      env,
+    )
+
+    expect(res.status).toBe(400)
+    expect(await res.text()).toContain('PAR')
   })
 
   it('rejects /token without DPoP or mTLS sender constraint for FAPI clients', async () => {

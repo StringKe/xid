@@ -179,8 +179,7 @@ describe('evaluateAuthorize session + prompt branches', () => {
       consent: granted,
       now: NOW,
     })
-    expect(d.kind).toBe('need_login')
-    if (d.kind === 'need_login') expect(d.selectAccount).toBe(false)
+    expect(d).toEqual({ kind: 'need_login', selectAccount: false, freshAuthentication: false })
   })
 
   it('login_required redirect when prompt=none and no session', () => {
@@ -203,10 +202,10 @@ describe('evaluateAuthorize session + prompt branches', () => {
       consent: granted,
       now: NOW,
     })
-    expect(d.kind).toBe('need_login')
+    expect(d).toEqual({ kind: 'need_login', selectAccount: false, freshAuthentication: true })
   })
 
-  it('need_login when max_age exceeded', () => {
+  it('need_login with freshAuthentication when max_age exceeded', () => {
     const d = evaluateAuthorize({
       req: req({ maxAge: 1 }),
       client: publicClient(),
@@ -214,7 +213,18 @@ describe('evaluateAuthorize session + prompt branches', () => {
       consent: granted,
       now: NOW,
     })
-    expect(d.kind).toBe('need_login')
+    expect(d).toEqual({ kind: 'need_login', selectAccount: false, freshAuthentication: true })
+  })
+
+  it('max_age within the window emits code without reauthentication', () => {
+    const d = evaluateAuthorize({
+      req: req({ maxAge: 600 }),
+      client: publicClient(),
+      session: { authenticated: true, authTime: NOW - 100 },
+      consent: granted,
+      now: NOW,
+    })
+    expect(d.kind).toBe('emit_code')
   })
 
   it('need_login with selectAccount on prompt=select_account', () => {

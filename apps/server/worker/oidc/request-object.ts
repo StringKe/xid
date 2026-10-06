@@ -26,7 +26,14 @@ const REQUEST_OBJECT_FIELDS = [
   'resource',
   'authorization_details',
   'xid_intent',
+  'max_age',
+  'login_hint',
+  'id_token_hint',
+  'ui_locales',
+  'claims_locales',
 ] as const
+
+const MAX_AGE_PATTERN = /^\d+$/
 
 type RawParams = Record<string, string>
 
@@ -101,6 +108,21 @@ function checkClaims(
   return null
 }
 
+// OIDC Core 6.1:max_age 是整数,claims 是 JSON object;统一转成 /authorize query 的字符串形态。
+function requestObjectValue(field: string, value: unknown): string | null {
+  if (field === 'authorization_details') return Array.isArray(value) ? JSON.stringify(value) : null
+  if (field === 'max_age') {
+    if (typeof value === 'number') {
+      return Number.isSafeInteger(value) && value >= 0 ? String(value) : null
+    }
+    return typeof value === 'string' && MAX_AGE_PATTERN.test(value) ? String(Number(value)) : null
+  }
+  if (field === 'claims' && value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    return JSON.stringify(value)
+  }
+  return typeof value === 'string' ? value : null
+}
+
 function mergeRequestObjectParams(
   outer: RawParams,
   payload: RequestObjectPayload,
@@ -110,15 +132,9 @@ function mergeRequestObjectParams(
   for (const field of REQUEST_OBJECT_FIELDS) {
     const value = payload[field]
     if (value === undefined) continue
-    if (field === 'authorization_details') {
-      if (!Array.isArray(value)) {
-        return fail('request object authorization_details must be an array')
-      }
-      merged[field] = JSON.stringify(value)
-      continue
-    }
-    if (typeof value !== 'string') return fail(`request object ${field} must be a string`)
-    merged[field] = value
+    const normalized = requestObjectValue(field, value)
+    if (normalized === null) return fail(`request object ${field} has an invalid type`)
+    merged[field] = normalized
   }
   if (outer['client_id'] !== clientId) return fail('request object client_id mismatch')
   if (merged['client_id'] !== clientId) return fail('request object client_id mismatch')

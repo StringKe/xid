@@ -108,22 +108,6 @@ async function upsertSessionBinding(input: {
   expiresAt: Date
 }): Promise<void> {
   const tenantId = input.c.get('tenant').tenantId
-  if (typeof input.c.env.DB.prepare !== 'function') {
-    const db = createTenantDb(input.c.env.DB, input.c.get('tenant'))
-    await db.samlSessionBindings.insert({
-      id: crypto.randomUUID(),
-      tenantId,
-      direction: input.direction,
-      scopeId: input.scopeId,
-      sessionIndex: input.sessionIndex,
-      userId: input.binding.userId,
-      sessionId: input.binding.sessionId,
-      nameId: input.nameId,
-      nameIdFormat: input.nameIdFormat,
-      expiresAt: input.expiresAt,
-    })
-    return
-  }
   const now = Date.now()
   await input.c.env.DB.prepare(
     `INSERT INTO saml_session_bindings (

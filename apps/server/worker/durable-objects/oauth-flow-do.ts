@@ -18,7 +18,23 @@ type OAuthFlowRecord = {
   interactionStartedAt?: number
   // 暂存的 /authorize 请求参数(未登录时挂起,登录后恢复,见 06 章 authorize 状态机)
   pendingParams?: AuthorizePendingParams
+  viaPar?: true
+  consentDecision?: ConsentDecisionRecord
   expiresAt: number // ms since epoch
+}
+
+type ConsentDecisionRecord = {
+  decision: 'approved' | 'denied'
+  userId: string
+  sessionId: string
+}
+
+function readConsentDecision(value: unknown): ConsentDecisionRecord | null {
+  if (!value || typeof value !== 'object') return null
+  const { decision, userId, sessionId } = value as Record<string, unknown>
+  if (decision !== 'approved' && decision !== 'denied') return null
+  if (typeof userId !== 'string' || typeof sessionId !== 'string') return null
+  return { decision, userId, sessionId }
 }
 
 // /authorize 暂存参数(login_hint_id 场景)
@@ -72,6 +88,8 @@ function buildRecord(input: Record<string, unknown>, expiresAt: number): OAuthFl
     returnToOrigin,
     createdAt,
     interactionStartedAt,
+    viaPar,
+    consentDecision,
   } = input
   const record: OAuthFlowRecord = { state: state as string, expiresAt }
   if (typeof nonce === 'string' && nonce.length > 0) record.nonce = nonce
@@ -97,6 +115,9 @@ function buildRecord(input: Record<string, unknown>, expiresAt: number): OAuthFl
   if (typeof interactionStartedAt === 'number' && Number.isFinite(interactionStartedAt)) {
     record.interactionStartedAt = interactionStartedAt
   }
+  if (viaPar === true) record.viaPar = true
+  const decision = readConsentDecision(consentDecision)
+  if (decision) record.consentDecision = decision
   if (pendingParams !== undefined && typeof pendingParams === 'object' && pendingParams !== null) {
     record.pendingParams = pendingParams as AuthorizePendingParams
   }

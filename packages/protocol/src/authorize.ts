@@ -48,7 +48,8 @@ export type ConsentState = {
 export type LocalError = { kind: 'local_error'; error: XidError }
 // client/redirect 可信后,协议错误可带 error 回 RP。
 export type RedirectError = { kind: 'redirect_error'; error: XidError; state?: string }
-export type NeedLogin = { kind: 'need_login'; selectAccount: boolean }
+// freshAuthentication:prompt=login 或会话超过 max_age,现有会话不能满足,必须重新认证。
+export type NeedLogin = { kind: 'need_login'; selectAccount: boolean; freshAuthentication: boolean }
 export type NeedConsent = { kind: 'need_consent' }
 export type EmitCode = { kind: 'emit_code'; scope: string; nonce?: string; state?: string }
 
@@ -178,15 +179,15 @@ function resolveSession(
 ): NeedLogin | RedirectError | null {
   const maxAgeStale =
     req.maxAge !== undefined && session.authTime !== null && now - session.authTime > req.maxAge
-  const mustReauth = !session.authenticated || prompt.has('login') || maxAgeStale
-  if (mustReauth) {
+  const freshAuthentication = prompt.has('login') || maxAgeStale
+  if (!session.authenticated || freshAuthentication) {
     if (prompt.has('none')) {
       return redirectError('login_required', 'no active session for prompt=none', req.state)
     }
-    return { kind: 'need_login', selectAccount: false }
+    return { kind: 'need_login', selectAccount: false, freshAuthentication }
   }
   if (prompt.has('select_account')) {
-    return { kind: 'need_login', selectAccount: true }
+    return { kind: 'need_login', selectAccount: true, freshAuthentication: false }
   }
   return null
 }

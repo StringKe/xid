@@ -729,8 +729,16 @@ async function completeConsentFlow(cookie, authzLocation) {
   if (typeof consentJson.redirectUrl !== 'string') {
     throw new Error(`consent missing redirectUrl: ${consent.text}`)
   }
-  printResult('PASS', 'consent approve', `redirect=${consentJson.redirectUrl.slice(0, 48)}`)
-  return consentJson.redirectUrl
+  if (!consentJson.redirectUrl.startsWith('/authorize?')) {
+    throw new Error(`consent redirectUrl must resume /authorize: ${consentJson.redirectUrl}`)
+  }
+  printResult('PASS', 'consent approve', `resume=${consentJson.redirectUrl.slice(0, 48)}`)
+  const resumed = await fetchText(consentJson.redirectUrl, { cookie })
+  const rpLocation = resumed.res.headers.get('location')
+  if (resumed.res.status !== 302 || !rpLocation) {
+    throw new Error(`consent resume failed http=${resumed.res.status} body=${resumed.text}`)
+  }
+  return rpLocation
 }
 
 async function runDcrClientCredentials() {

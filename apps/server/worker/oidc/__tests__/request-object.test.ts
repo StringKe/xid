@@ -121,6 +121,79 @@ describe('resolveRequestObject', () => {
     }
   })
 
+  it('keeps numeric max_age, login_hint and object claims from the request object', async () => {
+    const { ctx } = await buildTestTenant()
+    const { privateKey, jwk } = await makeClientKeyPair()
+    const env = makeEnv({ OAUTH_STATE: makeOauthStateNs() })
+    const now = Math.floor(Date.now() / 1000)
+    const claims = { id_token: { acr: { essential: true } } }
+    const request = await signJwt(
+      {
+        header: { alg: 'ES256', kid: 'ckid' },
+        payload: {
+          iss: CLIENT_ID,
+          aud: ctx.issuer,
+          exp: now + 120,
+          nbf: now - 1,
+          iat: now,
+          jti: 'jar-jti-hints',
+          client_id: CLIENT_ID,
+          max_age: 0,
+          login_hint: 'user@example.test',
+          claims,
+        },
+      },
+      privateKey,
+    )
+
+    const result = await resolveRequestObject({
+      c: asContext(ctx, env),
+      params: { client_id: CLIENT_ID, request, max_age: '9999' },
+      client: makeClient({ jwks: { keys: [jwk] } }),
+      now,
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.params['max_age']).toBe('0')
+      expect(result.params['login_hint']).toBe('user@example.test')
+      expect(JSON.parse(result.params['claims'] ?? '')).toEqual(claims)
+    }
+  })
+
+  it('rejects a request object max_age that is not a non-negative integer', async () => {
+    const { ctx } = await buildTestTenant()
+    const { privateKey, jwk } = await makeClientKeyPair()
+    const env = makeEnv({ OAUTH_STATE: makeOauthStateNs() })
+    const now = Math.floor(Date.now() / 1000)
+    const request = await signJwt(
+      {
+        header: { alg: 'ES256', kid: 'ckid' },
+        payload: {
+          iss: CLIENT_ID,
+          aud: ctx.issuer,
+          exp: now + 120,
+          nbf: now - 1,
+          iat: now,
+          jti: 'jar-jti-bad-max-age',
+          client_id: CLIENT_ID,
+          max_age: -5,
+        },
+      },
+      privateKey,
+    )
+
+    const result = await resolveRequestObject({
+      c: asContext(ctx, env),
+      params: { client_id: CLIENT_ID, request },
+      client: makeClient({ jwks: { keys: [jwk] } }),
+      now,
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('invalid_request_object')
+  })
+
   it('rejects request object when client has no registered JWKS', async () => {
     const { ctx } = await buildTestTenant()
     const { privateKey } = await makeClientKeyPair()

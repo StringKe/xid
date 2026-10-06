@@ -48,13 +48,6 @@ const TENANT = {
   policy: {},
 }
 
-function makeContext() {
-  return {
-    env: { DB: {} },
-    get: (key: string) => (key === 'tenant' ? TENANT : undefined),
-  } as unknown as Parameters<typeof storeInboundSamlSessionIndex>[0]['c']
-}
-
 function makeAtomicConsumeContext(results: ConsumedSamlSessionBinding[]) {
   const all = vi.fn().mockResolvedValue({ results })
   const bind = vi.fn(() => ({ all }))
@@ -77,8 +70,16 @@ describe('storeInboundSamlSessionIndex', () => {
   it('persists session-length TTL to D1 without ChallengeStore cap', async () => {
     const ttlMs = 30 * 24 * 60 * 60 * 1000
     const before = Date.now()
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 } })
+    const bind = vi.fn(() => ({ run }))
+    const prepare = vi.fn(() => ({ bind }))
+    const c = {
+      env: { DB: { prepare } },
+      get: (key: string) => (key === 'tenant' ? TENANT : undefined),
+    } as unknown as Parameters<typeof storeInboundSamlSessionIndex>[0]['c']
+
     await storeInboundSamlSessionIndex({
-      c: makeContext(),
+      c,
       connectionId: 'conn_1',
       sessionIndex: '_session_abc',
       nameId: 'user@example.com',
@@ -87,11 +88,16 @@ describe('storeInboundSamlSessionIndex', () => {
       ttlMs,
     })
 
-    expect(insertMock).toHaveBeenCalledOnce()
-    const row = insertMock.mock.calls[0]?.[0] as { expiresAt: Date; sessionIndex: string }
-    expect(row.sessionIndex).toBe('_session_abc')
-    expect(row.expiresAt.getTime() - before).toBeGreaterThanOrEqual(ttlMs - 1000)
-    expect(row.expiresAt.getTime() - before).toBeLessThanOrEqual(ttlMs + 5000)
+    expect(run).toHaveBeenCalledOnce()
+    expect(String(prepare.mock.calls[0]?.[0])).toContain(
+      'ON CONFLICT(tenant_id, direction, scope_id, session_index)',
+    )
+    const params = bind.mock.calls[0] as unknown[]
+    expect(params[1]).toBe('tenant_1')
+    expect(params[4]).toBe('_session_abc')
+    const expiresAt = params[9] as number
+    expect(expiresAt - before).toBeGreaterThanOrEqual(ttlMs - 1000)
+    expect(expiresAt - before).toBeLessThanOrEqual(ttlMs + 5000)
   })
 })
 

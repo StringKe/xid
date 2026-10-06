@@ -578,6 +578,20 @@ Both the sign-in callback (after `/sign-in` completes) and the consent callback 
 submitted) return to `/authorize` carrying `authz_request_id` to resume the remaining steps, rather
 than re-parsing the query string.
 
+- **Fresh authentication**: when `prompt=login` forces re-authentication or the session is older
+  than `max_age`, the staged request records when the interaction started and `/sign-in` receives
+  `reauthenticate=1`. Resuming requires a session authenticated after that moment; otherwise the
+  browser goes back to `/sign-in`. Once satisfied, `prompt=login`, `prompt=select_account` and
+  `max_age` are removed from the resumed request, so `max_age=0` cannot loop. `auth_time` is always
+  written to the code and ID token.
+- **Consent decision**: the consent page only records the decision on the staged request, bound to
+  the deciding user and session id, and returns `/authorize?authz_request_id=<AID>`. On approval the
+  consent is persisted first. `/authorize` then re-runs organization selection, RBAC and acr checks
+  and issues the code through the single code issuance path, so organization and ProjectGrant
+  context, step-up acr, `auth_time`, hybrid `id_token`, `form_post`, JARM and the code lifetime are
+  identical with and without consent. A denial returns `error=access_denied` through the same
+  response_mode handling. A decision recorded by another session is ignored.
+
 ### 10.3 PAR request_uri substitution flow (RFC 9126)
 
 1. `POST /par` first: validate client authentication, store every authorization parameter in a Durable
@@ -593,6 +607,9 @@ than re-parsing the query string.
    - Take the parameters, **delete the Durable Object record (consume it)**, and resume from 10.2.
 3. When the tenant policy sets `require_par=true` (FAPI 2.0), an `/authorize` request without a
    request_uri returns `error=invalid_request` (as a redirect).
+4. The staged request (10.4) records that it arrived through PAR. A FAPI request that is resumed after
+   sign-in, MFA, organization selection or consent therefore still satisfies the PAR requirement even
+   though the consumed request_uri is no longer present.
 
 ### 10.4 Authorization code storage and format
 
@@ -617,10 +634,14 @@ than re-parsing the query string.
 - A third-party client: look up the D1 `Consent` record by
   `(user_id, client_id, granted_scope_set)`. If the requested scope is a subset of the granted set,
   pass silently; any new scope requires interaction.
-- `prompt=consent` requires interaction unconditionally, even when consent is already persisted.
+- For a third-party client, `prompt=consent` requires interaction even when consent is already
+  persisted. A first-party client still authorizes silently.
+- A request carrying `authorization_details` always requires interaction; the details are not part of
+  the persisted consent.
 - `prompt=none` combined with a need for interaction returns `error=consent_required`.
-- After consent is submitted, write or update the `Consent` record (with the union of scopes) and
-  resume code generation.
+- After consent is approved, write or update the `Consent` record (with the union of scopes) through
+  a tenant-bound UPSERT, record the decision on the staged request and resume at `/authorize`
+  (10.2).
 
 ### 10.6 response_mode return paths (RFC 6749 + OAuth Response Mode)
 

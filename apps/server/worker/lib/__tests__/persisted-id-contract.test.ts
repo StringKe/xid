@@ -43,8 +43,8 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
   'me-auth/passwordless-users.ts': { count: 6, reason: 'user email and phone row ids' },
   'me/password.ts': { count: 1, reason: 'password history row id' },
   'oauth/revoke.ts': { count: 1, reason: 'access-token revocation row id' },
+  'oidc/authorize-interaction.ts': { count: 1, reason: 'authorization request handle' },
   'oidc/authorize-respond.ts': { count: 1, reason: 'JARM jti' },
-  'oidc/authorize.ts': { count: 1, reason: 'authorization request handle' },
   'oidc/check-session.ts': { count: 1, reason: 'session-management salt' },
   'oidc/end-session.ts': { count: 1, reason: 'logout token jti' },
   'oidc/token-issue.ts': {
@@ -70,8 +70,8 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
   'scim/users.ts': { count: 1, reason: 'directory group member id' },
   'sso/jit.ts': { count: 1, reason: 'user email row id' },
   'sso/saml-session-bindings.ts': {
-    count: 2,
-    reason: 'SAML session binding and logout request ids',
+    count: 1,
+    reason: 'SAML session binding id',
   },
   'sso/wsfed.ts': { count: 1, reason: 'WS-Fed state' },
   'v1/organizations.ts': {
@@ -97,7 +97,7 @@ const REQUIRED_ENTITY_SOURCE_USAGE: Record<string, Record<string, number>> = {
   'auth/social-linking.ts': { userIdentity: 1, membership: 1, user: 1 },
   'lib/user-identity.ts': { userIdentity: 1 },
   'crons/daily.ts': { signingKey: 1 },
-  'me-auth/consent.ts': { userConsent: 2 },
+  'me-auth/consent.ts': { userConsent: 1 },
   'me-auth/guest.ts': { session: 1, user: 1 },
   'me-auth/invitation-claim.ts': { membership: 1, session: 1, user: 1 },
   'me-auth/organization-self.ts': { organization: 1, membership: 1 },

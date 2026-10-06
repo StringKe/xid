@@ -1,13 +1,23 @@
-// OAuthFlowDO 暂存 authorize 参数非破坏读取(consume + re-store,与 consent-params 一致)。
+// OAuthFlowDO 暂存的 /authorize 续跑记录:登录、MFA、选组织、consent 之后由 /authorize 续跑。
+// viaPar / consentDecision 只由服务端写入,不进入 params,避免与用户可控的 query 混淆。
 
 import { AppError } from '../lib/errors'
 import { OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
 
 export type StashedAuthorizeParams = Record<string, string>
+
+export type ConsentDecision = {
+  decision: 'approved' | 'denied'
+  userId: string
+  sessionId: string
+}
+
 export type StashedAuthorizeRecord = {
   params: StashedAuthorizeParams
   createdAt: number | null
   interactionStartedAt: number | null
+  viaPar: boolean
+  consentDecision: ConsentDecision | null
 }
 
 function flowStub(env: Env, tenantId: string, authzRequestId: string): DurableObjectStub {
@@ -30,25 +40,63 @@ function parsePendingParams(value: unknown): StashedAuthorizeParams {
   return params as StashedAuthorizeParams
 }
 
-function parseConsumedPendingBody(value: unknown): StashedAuthorizeRecord {
-  const body = asObject(value)
-  const record = asObject(body['record'])
-  const createdAt = record['createdAt']
-  const interactionStartedAt = record['interactionStartedAt']
-  if (createdAt !== undefined && (typeof createdAt !== 'number' || !Number.isFinite(createdAt))) {
-    throw new AppError('server_error')
-  }
+function parseOptionalTimestamp(value: unknown): number | null {
+  if (value === undefined) return null
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new AppError('server_error')
+  return value
+}
+
+function parseConsentDecision(value: unknown): ConsentDecision | null {
+  if (value === undefined) return null
+  const record = asObject(value)
+  const decision = record['decision']
+  const userId = record['userId']
+  const sessionId = record['sessionId']
   if (
-    interactionStartedAt !== undefined &&
-    (typeof interactionStartedAt !== 'number' || !Number.isFinite(interactionStartedAt))
+    (decision !== 'approved' && decision !== 'denied') ||
+    typeof userId !== 'string' ||
+    typeof sessionId !== 'string'
   ) {
     throw new AppError('server_error')
   }
+  return { decision, userId, sessionId }
+}
+
+function parseConsumedPendingBody(value: unknown): StashedAuthorizeRecord {
+  const record = asObject(asObject(value)['record'])
+  const viaPar = record['viaPar']
+  if (viaPar !== undefined && typeof viaPar !== 'boolean') throw new AppError('server_error')
   return {
     params: parsePendingParams(record['pendingParams']),
-    createdAt: typeof createdAt === 'number' ? createdAt : null,
-    interactionStartedAt: typeof interactionStartedAt === 'number' ? interactionStartedAt : null,
+    createdAt: parseOptionalTimestamp(record['createdAt']),
+    interactionStartedAt: parseOptionalTimestamp(record['interactionStartedAt']),
+    viaPar: viaPar === true,
+    consentDecision: parseConsentDecision(record['consentDecision']),
   }
+}
+
+// 返回 false 表示 DO 未确认写入;调用方决定渲染错误页还是抛 server_error。
+export async function storeStashedAuthorizeRecord(
+  env: Env,
+  tenantId: string,
+  authzRequestId: string,
+  record: StashedAuthorizeRecord,
+): Promise<boolean> {
+  const res = await flowStub(env, tenantId, authzRequestId).fetch('https://oauth-flow-do/store', {
+    method: 'POST',
+    body: JSON.stringify({
+      state: authzRequestId,
+      pendingParams: record.params,
+      createdAt: record.createdAt ?? Date.now(),
+      ...(record.interactionStartedAt === null
+        ? {}
+        : { interactionStartedAt: record.interactionStartedAt }),
+      ...(record.viaPar ? { viaPar: true } : {}),
+      ...(record.consentDecision === null ? {} : { consentDecision: record.consentDecision }),
+      ttlMs: OAUTH_FLOW_STATE_TTL_MS,
+    }),
+  })
+  return res.status === 201
 }
 
 // 只有 404(不存在)/ 410(过期)是"暂存请求确实没了"的正常结论,可返回 null 让调用方按失效处理;
@@ -73,58 +121,26 @@ export async function consumeStashedAuthorizeRecord(
   return parseConsumedPendingBody(body)
 }
 
-export async function consumeStashedAuthorizeParams(
-  env: Env,
-  tenantId: string,
-  authzRequestId: string,
-): Promise<StashedAuthorizeParams | null> {
-  const record = await consumeStashedAuthorizeRecord(env, tenantId, authzRequestId)
-  return record?.params ?? null
-}
-
 export async function restoreStashedAuthorizeRecord(
   env: Env,
   tenantId: string,
   authzRequestId: string,
   record: StashedAuthorizeRecord,
 ): Promise<void> {
-  const res = await flowStub(env, tenantId, authzRequestId).fetch('https://oauth-flow-do/store', {
-    method: 'POST',
-    body: JSON.stringify({
-      state: authzRequestId,
-      pendingParams: record.params,
-      createdAt: record.createdAt ?? Date.now(),
-      ...(record.interactionStartedAt === null
-        ? {}
-        : { interactionStartedAt: record.interactionStartedAt }),
-      ttlMs: OAUTH_FLOW_STATE_TTL_MS,
-    }),
-  })
-  if (res.status !== 201) throw new AppError('server_error')
+  if (!(await storeStashedAuthorizeRecord(env, tenantId, authzRequestId, record))) {
+    throw new AppError('server_error')
+  }
 }
 
-export async function restoreStashedAuthorizeParams(
+export async function peekStashedAuthorizeRecord(
   env: Env,
   tenantId: string,
   authzRequestId: string,
-  params: StashedAuthorizeParams,
-): Promise<void> {
-  await restoreStashedAuthorizeRecord(env, tenantId, authzRequestId, {
-    params,
-    createdAt: Date.now(),
-    interactionStartedAt: null,
-  })
-}
-
-export async function peekStashedAuthorizeParams(
-  env: Env,
-  tenantId: string,
-  authzRequestId: string,
-): Promise<StashedAuthorizeParams | null> {
+): Promise<StashedAuthorizeRecord | null> {
   const record = await consumeStashedAuthorizeRecord(env, tenantId, authzRequestId)
   if (!record) return null
   await restoreStashedAuthorizeRecord(env, tenantId, authzRequestId, record)
-  return record.params
+  return record
 }
 
 export function parseAuthzRequestId(redirectTo?: string): string | null {

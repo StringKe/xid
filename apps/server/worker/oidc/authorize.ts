@@ -1,5 +1,6 @@
 // /authorize 端点(03 章 10):执行 protocol evaluateAuthorize 状态机,wire session/consent/PAR。
 // 无 session -> 暂存参数到 OAuthFlowDO + 302 /sign-in;有 session -> consent 检查 -> 生成 code 写 D1。
+// consent 页只记录决定并回到这里续跑,code 只由 emitCode 签发。
 // 铁律:client/redirect_uri 精确匹配;PKCE 绑定;tenant 从 c.get('tenant'),consent 走租户查询层。
 
 import {
@@ -12,21 +13,26 @@ import {
 } from '@xid-kit/protocol'
 import type { AuthorizeRequest, ClientRegistration } from '@xid-kit/protocol'
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Result, XidError } from '@xid-kit/types'
 import type { Context, Hono } from 'hono'
 import * as v from 'valibot'
 import type { SessionData, XidHonoEnv } from '../lib/types'
-import { renderProtocolErrorPage } from '../lib/error-page'
 import { clientRequiresBba, clientRequiresFapi } from './client-policy'
-import { findClient, isGrantEffective, loadActiveSigner, resolveAccessTtlSec } from './shared'
+import { findClient, loadActiveSigner, resolveAccessTtlSec } from './shared'
 import type { ClientRow } from './shared'
-import { resolveResponseMode, respondToRp, signAuthorizationResponseJwt } from './authorize-respond'
+import {
+  isJwtResponseMode,
+  resolveResponseMode,
+  respondToRp,
+  signAuthorizationResponseJwt,
+} from './authorize-respond'
 import { resolvePar } from './par'
 import {
   consumeStashedAuthorizeRecord,
-  peekStashedAuthorizeParams,
+  peekStashedAuthorizeRecord,
   restoreStashedAuthorizeRecord,
+  type ConsentDecision,
   type StashedAuthorizeRecord,
 } from './pending-params'
 import { resolveRequestObject } from './request-object'
@@ -44,11 +50,23 @@ import {
 } from '../lib/auth-context'
 import { clearStepUpCookie, readStepUpAuthContext } from '../lib/step-up'
 import { ACTIVE_SESSION_STATUS, PENDING_MFA_SETUP_SESSION_STATUS } from '../lib/session'
-import { AUTH_CODE_TTL_SEC, OAUTH_FLOW_STATE_TTL_MS } from '../lib/ttl'
+import { AUTH_CODE_TTL_SEC } from '../lib/ttl'
 import { requestsAcr } from './requested-acr'
-import { APPLICATION_SIGN_UP_INTENT } from '../../shared/hosted-auth-intent'
+import {
+  localErrorPage,
+  promptValues,
+  redirectToStashedSignIn,
+  stashAndRedirect,
+  stripSatisfiedFreshAuthentication,
+  withoutPrompts,
+  type RawParams,
+} from './authorize-interaction'
+import {
+  listActiveOrgIds,
+  resolveAuthorizeRbacContext,
+  type AuthorizeRbacContext,
+} from './authorize-org-context'
 
-const ACTIVE_ORG_LOOKUP_BATCH_SIZE = 100
 const SUPPORTED_RESPONSE_TYPES = ['code', 'code id_token'] as const
 const SUPPORTED_RESPONSE_MODES = [
   'query',
@@ -57,23 +75,33 @@ const SUPPORTED_RESPONSE_MODES = [
   'query.jwt',
   'fragment.jwt',
 ] as const
+const CONSENT_DENIED_DESCRIPTION = 'The user denied the authorization request.'
 
 // 白名单收口到 picklist(收窄出 literal union);拒绝路径的错误码仍由
 // localErrorPage / evaluateAuthorize 决定,schema 只做支持性判断。
 const responseTypeSchema = v.picklist(SUPPORTED_RESPONSE_TYPES)
 const responseModeSchema = v.picklist(SUPPORTED_RESPONSE_MODES)
 
-type RawParams = Record<string, string>
-
-type AuthorizeRbacContext = {
-  activeOrgId: string | null
-  projectGrantId: string | null
-}
-
 type ResolvedAuthorizationDetails = {
   details: readonly AuthorizationDetails[]
   resources: readonly string[]
   scopes: readonly string[]
+}
+
+// viaPar:本请求经 PAR 到达(续跑时取暂存记录,不能从参数推断,因为 request_uri 已被替换)。
+// consentDecision:当前会话在 consent 页做出的决定,只由 POST /auth/consent 写入暂存记录。
+type AuthorizeFlow = {
+  viaPar: boolean
+  consentDecision: ConsentDecision['decision'] | null
+}
+
+type AuthorizeInput = {
+  req: AuthorizeRequest
+  client: ClientRow
+  effective: RawParams
+  session: SessionData | null
+  authorizationDetails: ResolvedAuthorizationDetails
+  flow: AuthorizeFlow
 }
 
 function responseModeSupported(params: RawParams): boolean {
@@ -147,245 +175,30 @@ async function checkConsent(
     .every((s) => granted.has(s))
 }
 
-function authzFail(
-  code: XidError['code'],
-  message: string,
-  httpStatus = 400,
-): Result<never, XidError> {
-  return { ok: false, error: { code, message, httpStatus } }
-}
-
-async function loadActiveOrg(
-  c: Context<XidHonoEnv>,
-  session: SessionData,
-): Promise<Result<{ id: string; slug: string } | null, XidError>> {
-  if (!session.activeOrgId) return { ok: true, value: null }
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const org = await db.organizations.findOne(
-    and(
-      eq(schema.organizations.id, session.activeOrgId),
-      eq(schema.organizations.status, 'active'),
-    ),
-  )
-  if (!org) return authzFail('access_denied', 'active organization revoked or not found', 403)
-  const membership = await db.memberships.findOne(
-    and(
-      eq(schema.memberships.userId, session.userId),
-      eq(schema.memberships.orgId, org.id),
-      eq(schema.memberships.status, 'active'),
-    ),
-  )
-  if (!membership)
-    return authzFail('access_denied', 'active organization revoked or not found', 403)
-  return { ok: true, value: { id: org.id, slug: org.slug } }
-}
-
-async function resolveAuthorizeRbacContext(
-  c: Context<XidHonoEnv>,
-  input: { client: ClientRow; session: SessionData },
-): Promise<Result<AuthorizeRbacContext, XidError>> {
-  const active = await loadActiveOrg(c, input.session)
-  if (!active.ok) return active
-  if (!active.value) {
-    if (input.client.requireOrgContext) {
-      return authzFail('access_denied', 'organization context required', 403)
-    }
-    // 纵深防御:active org 可被用户自助清空,无 org 上下文不得绕过 project access policy 门;
-    // 无有效同 org user_grant 可能的 org-less 会话对非 open project 一律拒绝(与下方同 org
-    // 分支同错误前缀)。仅 client 绑定 project 才查,open / 无 projectId 短路,B2C 公开
-    // client 热路径不新增查询。
-    if (input.client.projectId) {
-      const db = createTenantDb(c.env.DB, c.get('tenant'))
-      const project = await db.projects.findOne(
-        and(eq(schema.projects.id, input.client.projectId), eq(schema.projects.status, 'active')),
-      )
-      if (!project) return authzFail('unauthorized_client', 'application project not found')
-      if (project.accessPolicy === 'restricted') {
-        return authzFail('access_denied', 'project_access_restricted: no effective grant', 403)
-      }
-      if (project.accessPolicy === 'approval_required') {
-        return authzFail('access_denied', 'access_request_required: no effective grant', 403)
-      }
-    }
-    return { ok: true, value: { activeOrgId: null, projectGrantId: null } }
-  }
-  if (!input.client.projectId) {
-    return { ok: true, value: { activeOrgId: active.value.id, projectGrantId: null } }
-  }
-
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const project = await db.projects.findOne(
-    and(eq(schema.projects.id, input.client.projectId), eq(schema.projects.status, 'active')),
-  )
-  if (!project) return authzFail('unauthorized_client', 'application project not found')
-  if (project.orgId === active.value.id) {
-    // access_policy 分流(design-access-request 第 2 节):open 放行(= 现状);其余要求有效
-    // 同 org user_grant(granted_via_grant_id 为空、未 revoked、未过 expires_at)。
-    // 机器可读码放 error_description 前缀(OAuth 仅 error/error_description 两字段可回传)。
-    const policy = project.accessPolicy
-    if (policy === 'restricted' || policy === 'approval_required') {
-      // expires_at 谓词与 isGrantEffective 双重判定:多行(不同 role / 复活后新旧行)时
-      // findOne 只命中有效行,不会任意取到过期行误拒有效用户。
-      const userGrant = await db.userGrants.findOne(
-        and(
-          eq(schema.userGrants.userId, input.session.userId),
-          eq(schema.userGrants.projectId, project.id),
-          isNull(schema.userGrants.grantedViaGrantId),
-          isNull(schema.userGrants.revokedAt),
-          or(isNull(schema.userGrants.expiresAt), gt(schema.userGrants.expiresAt, new Date())),
-        ),
-      )
-      if (!userGrant || !isGrantEffective(userGrant, Date.now())) {
-        return policy === 'restricted'
-          ? authzFail('access_denied', 'project_access_restricted: no effective grant', 403)
-          : authzFail('access_denied', 'access_request_required: no effective grant', 403)
-      }
-    }
-    return { ok: true, value: { activeOrgId: active.value.id, projectGrantId: null } }
-  }
-
-  const grant = await db.projectGrants.findOne(
-    and(
-      eq(schema.projectGrants.grantedProjectId, project.id),
-      eq(schema.projectGrants.grantedToOrgId, active.value.id),
-      eq(schema.projectGrants.status, 'active'),
-    ),
-  )
-  if (!grant) return authzFail('access_denied', 'project grant revoked or not found', 403)
-  const userGrant = await db.userGrants.findOne(
-    and(
-      eq(schema.userGrants.userId, input.session.userId),
-      eq(schema.userGrants.projectId, project.id),
-      eq(schema.userGrants.grantedViaGrantId, grant.id),
-      isNull(schema.userGrants.revokedAt),
-    ),
-  )
-  if (!userGrant) return authzFail('access_denied', 'user not authorized via grant', 403)
-  return { ok: true, value: { activeOrgId: active.value.id, projectGrantId: grant.id } }
-}
-
-// 本地错误页(client_id/redirect_uri 不可信,不可重定向,10.2/10.7):
-// 渲染品牌化 HTML 而不是 JSON(浏览器直接打开的页面必须是可读页面)。
-function localErrorPage(
-  c: Context<XidHonoEnv>,
-  error: string,
-  description: string,
-  httpStatus = 400,
-): Promise<Response> {
-  return renderProtocolErrorPage(c, { status: httpStatus, error, description })
-}
-
-// 暂存原始 authorize 参数到 OAuthFlowDO(key=authz_request_id),302 到 /sign-in 或 /consent。
-// stepUp 仅 /mfa 路径有效:true=acr step-up(不升级 session);pending_mfa 续跑必须传 false,
-// 否则 MFA 验证只发 step-up token、session 仍 pending,回 /authorize 会再次重定向形成循环。
-async function stashAndRedirect(
+// consent 页本次批准覆盖暂存请求的 scope 与 authorization_details;否则按持久化授权判断,
+// authorization_details 不持久化,未经本次批准一律需要 consent。
+async function consentAlreadyGranted(
   c: Context<XidHonoEnv>,
   input: {
-    params: RawParams
-    path: '/sign-in' | '/consent' | '/mfa' | '/select-organization' | '/account/security'
-    selectAccount: boolean
-    stepUp?: boolean
+    session: SessionData | null
+    req: AuthorizeRequest
+    authorizationDetails: ResolvedAuthorizationDetails
+    flow: AuthorizeFlow
   },
-): Promise<Response> {
-  const ctx = c.get('tenant')
-  const authzRequestId = crypto.randomUUID()
-  const createdAt = Date.now()
-  const interactionStartedAt =
-    input.path === '/sign-in' && requiresFreshAuthentication(input.params) ? createdAt : null
-  const ns = c.env.OAUTH_STATE
-  const stub = ns.get(ns.idFromName(`authz:${ctx.tenantId}:${authzRequestId}`))
-  const storeRes = await stub.fetch('https://oauth-flow-do/store', {
-    method: 'POST',
-    body: JSON.stringify({
-      state: authzRequestId,
-      pendingParams: input.params,
-      createdAt,
-      ...(interactionStartedAt === null ? {} : { interactionStartedAt }),
-      ttlMs: OAUTH_FLOW_STATE_TTL_MS,
-    }),
-  })
-  // 暂存失败仍跳登录页,用户认证完回 /authorize 时读不到参数,只会撞上"请求已过期";
-  // 更糟的是 stash 的参数携带 PKCE / acr 要求,静默丢弃等于降级。此处必须拒绝。
-  if (storeRes.status !== 201) {
-    return localErrorPage(c, 'server_error', 'authorization request storage unavailable', 500)
-  }
-  const url = new URL(`${ctx.issuer}${input.path}`)
-  url.searchParams.set('authz_request_id', authzRequestId)
-  url.searchParams.set('organization_id', ctx.tenantId)
-  const clientId = input.params['client_id']
-  if (clientId) url.searchParams.set('client_id', clientId)
-  if (input.path === '/sign-in') {
-    const hostedIntent = hostedIntentForAuthorize(input.params)
-    if (hostedIntent) url.searchParams.set('intent', hostedIntent)
-    if (interactionStartedAt !== null) url.searchParams.set('reauthenticate', '1')
-  }
-  if (
-    input.path === '/mfa' ||
-    input.path === '/select-organization' ||
-    input.path === '/account/security'
-  ) {
-    url.searchParams.set(
-      'redirect_to',
-      authorizeResumePath(authzRequestId, input.params['client_id']),
-    )
-  }
-  if (input.path === '/account/security') {
-    url.searchParams.set('setup', 'mfa')
-  }
-  if (input.path === '/mfa') {
-    if (input.stepUp) url.searchParams.set('step_up', '1')
-    const method = input.params['method']
-    if (method) url.searchParams.set('method', method)
-  }
-  if (input.selectAccount) url.searchParams.set('select_account', '1')
-  const loginHint = input.params['login_hint']
-  if (loginHint) url.searchParams.set('login_hint', loginHint)
-  return c.redirect(url.toString(), 302)
+): Promise<boolean> {
+  if (!input.session) return false
+  if (input.flow.consentDecision === 'approved') return true
+  if (input.authorizationDetails.details.length > 0) return false
+  return checkConsent(c, input.session.userId, input.req.clientId, input.req.scope)
 }
 
 function promptIncludesNone(req: AuthorizeRequest): boolean {
   return req.prompt?.split(' ').filter(Boolean).includes('none') ?? false
 }
 
-function promptValues(params: RawParams): string[] {
-  return params['prompt']?.split(' ').filter(Boolean) ?? []
-}
-
-function hostedIntentForAuthorize(
-  params: RawParams,
-): 'sign-in' | typeof APPLICATION_SIGN_UP_INTENT {
-  return params['xid_intent'] === 'sign-up' ? APPLICATION_SIGN_UP_INTENT : 'sign-in'
-}
-
 function validXidIntent(params: RawParams): boolean {
   const intent = params['xid_intent']
   return intent === undefined || intent === 'sign-up'
-}
-
-function requiresFreshAuthentication(params: RawParams): boolean {
-  const prompts = promptValues(params)
-  return (
-    params['xid_intent'] === 'sign-up' ||
-    prompts.includes('login') ||
-    prompts.includes('select_account')
-  )
-}
-
-function stripSatisfiedFreshAuthentication(params: RawParams): RawParams {
-  const next = { ...params }
-  delete next['xid_intent']
-  const prompts = promptValues(next).filter(
-    (value) => value !== 'login' && value !== 'select_account',
-  )
-  if (prompts.length > 0) next['prompt'] = prompts.join(' ')
-  else delete next['prompt']
-  return next
-}
-
-function authorizeResumePath(authzRequestId: string, clientId: string | undefined): string {
-  const params = new URLSearchParams({ authz_request_id: authzRequestId })
-  if (clientId) params.set('client_id', clientId)
-  return `/authorize?${params.toString()}`
 }
 
 function requestedAal2(req: AuthorizeRequest): boolean {
@@ -398,7 +211,7 @@ function requestedAal3(req: AuthorizeRequest): boolean {
 
 async function resolveAcrContext(
   c: Context<XidHonoEnv>,
-  input: { req: AuthorizeRequest; effective: RawParams; session: SessionData },
+  input: { req: AuthorizeRequest; effective: RawParams; session: SessionData; flow: AuthorizeFlow },
 ): Promise<
   { authTime: number; acr: string | null; amr: SessionData['amr']; clearStepUp: boolean } | Response
 > {
@@ -415,48 +228,19 @@ async function resolveAcrContext(
   if (stepUpContext) return { ...stepUpContext, clearStepUp: true }
   if (promptIncludesNone(input.req)) {
     return emitRedirectError(c, {
-      redirectUri: input.req.redirectUri,
-      responseType: input.req.responseType,
+      req: input.req,
       responseMode: input.effective['response_mode'],
-      clientId: input.req.clientId,
       error: 'interaction_required',
       description: 'additional authentication required for requested acr',
-      state: input.req.state,
     })
   }
   return stashAndRedirect(c, {
     params: input.effective,
     path: '/mfa',
+    viaPar: input.flow.viaPar,
     selectAccount: false,
     stepUp: true,
   })
-}
-
-async function consumeStashedAuthorize(
-  c: Context<XidHonoEnv>,
-  authzRequestId: string,
-): Promise<StashedAuthorizeRecord | null> {
-  const ctx = c.get('tenant')
-  return consumeStashedAuthorizeRecord(c.env, ctx.tenantId, authzRequestId)
-}
-
-function redirectToStashedSignIn(
-  c: Context<XidHonoEnv>,
-  authzRequestId: string,
-  params: RawParams,
-): Response {
-  const ctx = c.get('tenant')
-  const url = new URL(`${ctx.issuer}/sign-in`)
-  url.searchParams.set('authz_request_id', authzRequestId)
-  url.searchParams.set('organization_id', ctx.tenantId)
-  const clientId = params['client_id']
-  if (clientId) url.searchParams.set('client_id', clientId)
-  url.searchParams.set('intent', hostedIntentForAuthorize(params))
-  if (requiresFreshAuthentication(params)) url.searchParams.set('reauthenticate', '1')
-  if (promptValues(params).includes('select_account')) url.searchParams.set('select_account', '1')
-  const loginHint = params['login_hint']
-  if (loginHint) url.searchParams.set('login_hint', loginHint)
-  return c.redirect(url.toString(), 302)
 }
 
 // emit_code:生成 ac_ code,写 D1 AuthorizationCode(一次性,60s),按 response_mode 回跳。
@@ -516,7 +300,7 @@ async function emitCode(
     })
   }
   if (input.req.state !== undefined) out['state'] = input.req.state
-  if (mode === 'query.jwt' || mode === 'fragment.jwt') {
+  if (isJwtResponseMode(mode)) {
     const signer = await loadActiveSigner(ctx, c.env.KEK)
     const response = await signAuthorizationResponseJwt({
       ctx,
@@ -598,77 +382,90 @@ function boundResources(params: RawParams, detailResources: readonly string[]): 
 async function emitRedirectError(
   c: Context<XidHonoEnv>,
   input: {
-    redirectUri: string
-    responseType: string
+    req: AuthorizeRequest
     responseMode?: string
-    clientId: string
     error: string
     description: string
     state?: string
   },
 ): Promise<Response> {
   const ctx = c.get('tenant')
-  const mode = resolveResponseMode(input.responseMode, input.responseType)
+  const mode = resolveResponseMode(input.responseMode, input.req.responseType)
   const out: RawParams = {
     error: input.error,
     error_description: input.description,
     iss: ctx.issuer,
   }
-  if (input.state !== undefined) out['state'] = input.state
-  if (mode === 'query.jwt' || mode === 'fragment.jwt') {
+  const state = 'state' in input ? input.state : input.req.state
+  if (state !== undefined) out['state'] = state
+  if (isJwtResponseMode(mode)) {
     const signer = await loadActiveSigner(ctx, c.env.KEK)
     const response = await signAuthorizationResponseJwt({
       ctx,
       signer,
-      clientId: input.clientId,
+      clientId: input.req.clientId,
       params: out,
       now: Math.floor(Date.now() / 1000),
     })
-    return respondToRp(c, { redirectUri: input.redirectUri, mode, params: { response } })
+    return respondToRp(c, { redirectUri: input.req.redirectUri, mode, params: { response } })
   }
-  return respondToRp(c, { redirectUri: input.redirectUri, mode, params: out })
+  return respondToRp(c, { redirectUri: input.req.redirectUri, mode, params: out })
+}
+
+// FAPI / BBA profile 前置检查;不通过时返回本地错误页。
+function checkClientProfile(
+  c: Context<XidHonoEnv>,
+  input: { client: ClientRow; effective: RawParams; viaPar: boolean },
+): Promise<Response> | null {
+  const { client, effective } = input
+  const challenge = effective['code_challenge']
+  const nonS256 =
+    effective['code_challenge_method'] !== undefined &&
+    effective['code_challenge_method'] !== 'S256'
+  if (clientRequiresFapi(client)) {
+    if (!challenge) {
+      return localErrorPage(c, 'invalid_request', 'FAPI client requires PKCE code_challenge')
+    }
+    if (nonS256) return localErrorPage(c, 'invalid_request', 'FAPI client requires PKCE S256')
+    if (!input.viaPar) {
+      return localErrorPage(c, 'invalid_request', 'FAPI client requires PAR request_uri')
+    }
+  }
+  if (clientRequiresBba(client)) {
+    if (client.clientType !== 'public') {
+      return localErrorPage(c, 'invalid_request', 'BBA profile requires a public client')
+    }
+    if (!challenge) {
+      return localErrorPage(c, 'invalid_request', 'BBA client requires PKCE code_challenge')
+    }
+    if (nonS256) return localErrorPage(c, 'invalid_request', 'BBA client requires PKCE S256')
+  }
+  return null
 }
 
 // 主 handler:PAR 替换 -> 查 client -> evaluateAuthorize -> 按 directive 分发。
-async function runAuthorize(c: Context<XidHonoEnv>, params: RawParams): Promise<Response> {
+async function runAuthorize(
+  c: Context<XidHonoEnv>,
+  params: RawParams,
+  options: AuthorizeFlow,
+): Promise<Response> {
   const parResult = await resolvePar(c, params)
   if (!parResult.ok) {
     return localErrorPage(c, parResult.error, parResult.description, parResult.status)
+  }
+  const flow: AuthorizeFlow = {
+    ...options,
+    viaPar: options.viaPar || params['request_uri'] !== undefined,
   }
   const effective = parResult.params
   if (!responseModeSupported(effective)) {
     return localErrorPage(c, 'invalid_request', 'response_mode is not supported')
   }
 
-  const req = toAuthorizeRequest(effective)
-  const client = await findClient(c, req.clientId)
+  const client = await findClient(c, toAuthorizeRequest(effective).clientId)
   if (!client) return localErrorPage(c, 'invalid_request', 'unknown client_id')
-  if (clientRequiresFapi(client) && !effective['code_challenge']) {
-    return localErrorPage(c, 'invalid_request', 'FAPI client requires PKCE code_challenge')
-  }
-  if (
-    clientRequiresFapi(client) &&
-    effective['code_challenge_method'] &&
-    effective['code_challenge_method'] !== 'S256'
-  ) {
-    return localErrorPage(c, 'invalid_request', 'FAPI client requires PKCE S256')
-  }
-  if (clientRequiresFapi(client) && !params['request_uri']) {
-    return localErrorPage(c, 'invalid_request', 'FAPI client requires PAR request_uri')
-  }
-  if (clientRequiresBba(client) && client.clientType !== 'public') {
-    return localErrorPage(c, 'invalid_request', 'BBA profile requires a public client')
-  }
-  if (clientRequiresBba(client) && !effective['code_challenge']) {
-    return localErrorPage(c, 'invalid_request', 'BBA client requires PKCE code_challenge')
-  }
-  if (
-    clientRequiresBba(client) &&
-    effective['code_challenge_method'] &&
-    effective['code_challenge_method'] !== 'S256'
-  ) {
-    return localErrorPage(c, 'invalid_request', 'BBA client requires PKCE S256')
-  }
+  const profileError = checkClientProfile(c, { client, effective, viaPar: flow.viaPar })
+  if (profileError) return profileError
   const requestObject = await resolveRequestObject({
     c,
     params: effective,
@@ -699,13 +496,26 @@ async function runAuthorize(c: Context<XidHonoEnv>, params: RawParams): Promise<
   )
   resolvedReq.scope = requestedScope
   resolved['scope'] = requestedScope
-  const registration = toClientRegistration(client)
+  return evaluateWithSession(c, {
+    req: resolvedReq,
+    client,
+    effective: resolved,
+    session: c.get('session'),
+    authorizationDetails: authorizationDetails.value,
+    flow,
+  })
+}
 
-  const session = c.get('session')
-  if (session?.status === ACTIVE_SESSION_STATUS && resolved['xid_intent'] === 'sign-up') {
+async function evaluateWithSession(
+  c: Context<XidHonoEnv>,
+  input: AuthorizeInput,
+): Promise<Response> {
+  const { req, effective, session, flow } = input
+  if (session?.status === ACTIVE_SESSION_STATUS && effective['xid_intent'] === 'sign-up') {
     return stashAndRedirect(c, {
-      params: resolved,
+      params: effective,
       path: '/sign-in',
+      viaPar: flow.viaPar,
       selectAccount: false,
     })
   }
@@ -713,42 +523,73 @@ async function runAuthorize(c: Context<XidHonoEnv>, params: RawParams): Promise<
   // 双重强制,否则持密码不过第二因子即可走完授权码流程。先 stash 续跑参数,重定向完成
   // MFA 挑战/绑定(session 升 active)后回 /authorize 续跑。prompt=none 不可弹交互,
   // 不拦截,按未认证走 login_required 回跳。
-  if (session && session.status !== ACTIVE_SESSION_STATUS && !promptIncludesNone(resolvedReq)) {
+  if (session && session.status !== ACTIVE_SESSION_STATUS && !promptIncludesNone(req)) {
     return stashAndRedirect(c, {
-      params: resolved,
+      params: effective,
       path: session.status === PENDING_MFA_SETUP_SESSION_STATUS ? '/account/security' : '/mfa',
+      viaPar: flow.viaPar,
       selectAccount: false,
       stepUp: false,
     })
   }
-  const sessionState = {
-    authenticated: session !== null && session.status === ACTIVE_SESSION_STATUS,
-    authTime: session ? Math.floor(session.authenticatedAt.getTime() / 1000) : null,
-  }
-  const consentGranted = session
-    ? authorizationDetails.value.details.length === 0 &&
-      (await checkConsent(c, session.userId, resolvedReq.clientId, resolvedReq.scope))
-    : false
-
   const directive = evaluateAuthorize({
-    req: resolvedReq,
-    client: registration,
-    session: sessionState,
-    consent: { scopeAlreadyGranted: consentGranted },
+    req,
+    client: toClientRegistration(input.client),
+    session: {
+      authenticated: session !== null && session.status === ACTIVE_SESSION_STATUS,
+      authTime: session ? Math.floor(session.authenticatedAt.getTime() / 1000) : null,
+    },
+    consent: { scopeAlreadyGranted: await consentAlreadyGranted(c, input) },
     now: Math.floor(Date.now() / 1000),
   })
-
-  return dispatchDirective(c, {
-    directive,
-    req: resolvedReq,
-    client,
-    effective: resolved,
-    session,
-    authorizationDetails: authorizationDetails.value,
-  })
+  return dispatchDirective(c, { ...input, directive })
 }
 
-// 主 handler:恢复登录前暂存的 authorize 请求,或按当前 query 直接运行。
+// 续跑 consent 决定只对做出决定的同一会话有效;会话换了按未决定处理。
+function consentDecisionFor(
+  record: StashedAuthorizeRecord,
+  session: SessionData,
+): AuthorizeFlow['consentDecision'] {
+  const decision = record.consentDecision
+  if (!decision) return null
+  if (decision.userId !== session.userId || decision.sessionId !== session.sessionId) return null
+  return decision.decision
+}
+
+async function resumeAuthorize(
+  c: Context<XidHonoEnv>,
+  input: { authzRequestId: string; queryClientId: string | null },
+): Promise<Response> {
+  const tenantId = c.get('tenant').tenantId
+  const session = c.get('session')
+  if (!session) {
+    const pending = await peekStashedAuthorizeRecord(c.env, tenantId, input.authzRequestId)
+    if (!pending) {
+      return localErrorPage(c, 'invalid_request', 'authorization request expired or not found')
+    }
+    return redirectToStashedSignIn(c, input.authzRequestId, pending)
+  }
+  const record = await consumeStashedAuthorizeRecord(c.env, tenantId, input.authzRequestId)
+  if (!record) {
+    return localErrorPage(c, 'invalid_request', 'authorization request expired or not found')
+  }
+  if (input.queryClientId && record.params['client_id'] !== input.queryClientId) {
+    return localErrorPage(c, 'invalid_request', 'authorization request client mismatch')
+  }
+  let pending = record.params
+  if (record.interactionStartedAt !== null) {
+    if (session.authenticatedAt.getTime() < record.interactionStartedAt) {
+      await restoreStashedAuthorizeRecord(c.env, tenantId, input.authzRequestId, record)
+      return redirectToStashedSignIn(c, input.authzRequestId, record)
+    }
+    pending = stripSatisfiedFreshAuthentication(pending)
+  }
+  const consentDecision = consentDecisionFor(record, session)
+  if (consentDecision === 'approved') pending = withoutPrompts(pending, ['consent'])
+  return runAuthorize(c, pending, { viaPar: record.viaPar, consentDecision })
+}
+
+// 主 handler:恢复交互前暂存的 authorize 请求,或按当前 query 直接运行。
 async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
   const url = new URL(c.req.url)
   const authzRequestIds = url.searchParams.getAll('authz_request_id')
@@ -758,35 +599,7 @@ async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
   }
   const authzRequestId = authzRequestIds[0] ?? null
   if (authzRequestId) {
-    const session = c.get('session')
-    if (!session) {
-      const pending = await peekStashedAuthorizeParams(
-        c.env,
-        c.get('tenant').tenantId,
-        authzRequestId,
-      )
-      if (!pending) {
-        return localErrorPage(c, 'invalid_request', 'authorization request expired or not found')
-      }
-      return redirectToStashedSignIn(c, authzRequestId, pending)
-    }
-    const record = await consumeStashedAuthorize(c, authzRequestId)
-    if (!record) {
-      return localErrorPage(c, 'invalid_request', 'authorization request expired or not found')
-    }
-    const queryClientId = clientIds[0] ?? null
-    if (queryClientId && record.params['client_id'] !== queryClientId) {
-      return localErrorPage(c, 'invalid_request', 'authorization request client mismatch')
-    }
-    let pending = record.params
-    if (record.interactionStartedAt !== null && requiresFreshAuthentication(pending)) {
-      if (session.authenticatedAt.getTime() < record.interactionStartedAt) {
-        await restoreStashedAuthorizeRecord(c.env, c.get('tenant').tenantId, authzRequestId, record)
-        return redirectToStashedSignIn(c, authzRequestId, pending)
-      }
-      pending = stripSatisfiedFreshAuthentication(pending)
-    }
-    return runAuthorize(c, pending)
+    return resumeAuthorize(c, { authzRequestId, queryClientId: clientIds[0] ?? null })
   }
 
   const seen = new Set<string>()
@@ -797,36 +610,26 @@ async function handleAuthorize(c: Context<XidHonoEnv>): Promise<Response> {
     seen.add(key)
   }
   const params = Object.fromEntries(url.searchParams) as RawParams
-  return runAuthorize(c, params)
+  return runAuthorize(c, params, { viaPar: false, consentDecision: null })
 }
 
 // directive 分发(local_error 渲染本地;其余按 10.2 处理)。
 function dispatchDirective(
   c: Context<XidHonoEnv>,
-  input: {
-    directive: ReturnType<typeof evaluateAuthorize>
-    req: AuthorizeRequest
-    client: ClientRow
-    effective: RawParams
-    session: SessionData | null
-    authorizationDetails: ResolvedAuthorizationDetails
-  },
+  input: AuthorizeInput & { directive: ReturnType<typeof evaluateAuthorize> },
 ): Response | Promise<Response> {
-  const { directive, req, client, effective, session, authorizationDetails } = input
+  const { directive, req, effective, flow } = input
   if (
     requestedAal3(req) &&
     directive.kind !== 'local_error' &&
     directive.kind !== 'redirect_error'
   ) {
     return emitRedirectError(c, {
-      redirectUri: req.redirectUri,
-      responseType: req.responseType,
+      req,
       responseMode: effective['response_mode'],
-      clientId: req.clientId,
       error: 'interaction_required',
       description:
         'requested acr urn:xid:aal3 is not supported; maximum supported assurance is urn:xid:aal2',
-      state: req.state,
     })
   }
   switch (directive.kind) {
@@ -834,10 +637,8 @@ function dispatchDirective(
       return localErrorPage(c, directive.error.code, directive.error.message)
     case 'redirect_error':
       return emitRedirectError(c, {
-        redirectUri: req.redirectUri,
-        responseType: req.responseType,
+        req,
         responseMode: effective['response_mode'],
-        clientId: req.clientId,
         error: directive.error.code,
         description: directive.error.message,
         state: directive.state,
@@ -846,12 +647,23 @@ function dispatchDirective(
       return stashAndRedirect(c, {
         params: effective,
         path: '/sign-in',
+        viaPar: flow.viaPar,
         selectAccount: directive.selectAccount,
+        freshAuthentication: directive.freshAuthentication,
       })
     case 'need_consent':
-      return redirectOrConsent(c, { req, client, effective, session, authorizationDetails })
     case 'emit_code':
-      return redirectOrEmitCode(c, { req, client, effective, session, authorizationDetails })
+      if (flow.consentDecision === 'denied') {
+        return emitRedirectError(c, {
+          req,
+          responseMode: effective['response_mode'],
+          error: 'access_denied',
+          description: CONSENT_DENIED_DESCRIPTION,
+        })
+      }
+      return directive.kind === 'need_consent'
+        ? redirectOrConsent(c, input)
+        : redirectOrEmitCode(c, input)
   }
 }
 
@@ -859,55 +671,9 @@ function scopeRequiresOrganization(scope: string): boolean {
   return hasScope(scope, 'organization')
 }
 
-async function listActiveOrgIds(c: Context<XidHonoEnv>, userId: string): Promise<string[]> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const membershipFilter = and(
-    eq(schema.memberships.userId, userId),
-    eq(schema.memberships.status, 'active'),
-  )
-  const activeOrgIds: string[] = []
-  let cursor: string | null = null
-
-  while (activeOrgIds.length < 2) {
-    const rows = await db.memberships.findMany(
-      cursor ? and(membershipFilter, gt(schema.memberships.id, cursor)) : membershipFilter,
-      { orderBy: asc(schema.memberships.id), limit: ACTIVE_ORG_LOOKUP_BATCH_SIZE },
-    )
-    if (rows.length === 0) break
-
-    const orgIds = [...new Set(rows.map((row) => row.orgId))]
-    const organizations = await db.organizations.findMany(
-      and(
-        inArray(schema.organizations.id, orgIds),
-        eq(schema.organizations.status, 'active'),
-        isNull(schema.organizations.deletedAt),
-      ),
-      { limit: orgIds.length },
-    )
-    const activeIds = new Set(organizations.map((organization) => organization.id))
-    for (const row of rows) {
-      if (!activeIds.has(row.orgId) || activeOrgIds.includes(row.orgId)) continue
-      activeOrgIds.push(row.orgId)
-      if (activeOrgIds.length === 2) break
-    }
-
-    if (rows.length < ACTIVE_ORG_LOOKUP_BATCH_SIZE) break
-    const last = rows[rows.length - 1]
-    if (!last || last.id === cursor) break
-    cursor = last.id
-  }
-
-  return activeOrgIds
-}
-
 async function maybeRedirectToOrgSelection(
   c: Context<XidHonoEnv>,
-  input: {
-    req: AuthorizeRequest
-    client: ClientRow
-    effective: RawParams
-    session: SessionData
-  },
+  input: AuthorizeInput & { session: SessionData },
 ): Promise<Response | null> {
   if (input.session.activeOrgId) return null
   const needsOrgContext =
@@ -930,109 +696,82 @@ async function maybeRedirectToOrgSelection(
   return stashAndRedirect(c, {
     params: input.effective,
     path: '/select-organization',
+    viaPar: input.flow.viaPar,
     selectAccount: false,
   })
 }
 
 async function resolveRedirectableRbac(
   c: Context<XidHonoEnv>,
-  input: {
-    req: AuthorizeRequest
-    client: ClientRow
-    effective: RawParams
-    session: SessionData | null
-  },
+  input: AuthorizeInput & { session: SessionData },
 ): Promise<AuthorizeRbacContext | Response> {
-  if (!input.session) {
-    return localErrorPage(c, 'server_error', 'session lost before authorization completion')
-  }
   const rbac = await resolveAuthorizeRbacContext(c, {
     client: input.client,
     session: input.session,
   })
   if (rbac.ok) return rbac.value
   return emitRedirectError(c, {
-    redirectUri: input.req.redirectUri,
-    responseType: input.req.responseType,
+    req: input.req,
     responseMode: input.effective['response_mode'],
-    clientId: input.req.clientId,
     error: rbac.error.code,
     description: rbac.error.message,
-    state: input.req.state,
   })
 }
 
-async function redirectOrConsent(
+// 选组织、RBAC、acr 在 consent 前后两次执行:consent 前保证不会对注定失败的请求弹 consent,
+// 续跑后由 emitCode 前再执行一次,取当时的会话与授权状态。
+async function prepareAuthorizedSession(
   c: Context<XidHonoEnv>,
-  input: {
-    req: AuthorizeRequest
-    client: ClientRow
-    effective: RawParams
-    session: SessionData | null
-    authorizationDetails: ResolvedAuthorizationDetails
-  },
-): Promise<Response> {
+  input: AuthorizeInput,
+): Promise<
+  | Response
+  | {
+      session: SessionData
+      rbac: AuthorizeRbacContext
+      acr: Exclude<Awaited<ReturnType<typeof resolveAcrContext>>, Response>
+    }
+> {
   if (!input.session) {
-    return localErrorPage(c, 'server_error', 'session lost before consent completion')
+    return localErrorPage(c, 'server_error', 'session lost before authorization completion')
   }
-  const orgSelection = await maybeRedirectToOrgSelection(c, {
-    req: input.req,
-    client: input.client,
-    effective: input.effective,
-    session: input.session,
-  })
+  const withSession = { ...input, session: input.session }
+  const orgSelection = await maybeRedirectToOrgSelection(c, withSession)
   if (orgSelection) return orgSelection
-  const rbac = await resolveRedirectableRbac(c, input)
+  const rbac = await resolveRedirectableRbac(c, withSession)
   if (rbac instanceof Response) return rbac
-  const acrContext = await resolveAcrContext(c, {
-    req: input.req,
-    effective: input.effective,
-    session: input.session,
+  const acr = await resolveAcrContext(c, withSession)
+  if (acr instanceof Response) return acr
+  return { session: withSession.session, rbac, acr }
+}
+
+async function redirectOrConsent(c: Context<XidHonoEnv>, input: AuthorizeInput): Promise<Response> {
+  const prepared = await prepareAuthorizedSession(c, input)
+  if (prepared instanceof Response) return prepared
+  return stashAndRedirect(c, {
+    params: input.effective,
+    path: '/consent',
+    viaPar: input.flow.viaPar,
+    selectAccount: false,
   })
-  if (acrContext instanceof Response) return acrContext
-  return stashAndRedirect(c, { params: input.effective, path: '/consent', selectAccount: false })
 }
 
 async function redirectOrEmitCode(
   c: Context<XidHonoEnv>,
-  input: {
-    req: AuthorizeRequest
-    client: ClientRow
-    effective: RawParams
-    session: SessionData | null
-    authorizationDetails: ResolvedAuthorizationDetails
-  },
+  input: AuthorizeInput,
 ): Promise<Response> {
-  if (!input.session) {
-    return localErrorPage(c, 'server_error', 'session lost before code emission')
-  }
-  const orgSelection = await maybeRedirectToOrgSelection(c, {
+  const prepared = await prepareAuthorizedSession(c, input)
+  if (prepared instanceof Response) return prepared
+  if (prepared.acr.clearStepUp) clearStepUpCookie(c)
+  return emitCode(c, {
     req: input.req,
     client: input.client,
-    effective: input.effective,
-    session: input.session,
-  })
-  if (orgSelection) return orgSelection
-  const rbac = await resolveRedirectableRbac(c, input)
-  if (rbac instanceof Response) return rbac
-  const acrContext = await resolveAcrContext(c, {
-    req: input.req,
-    effective: input.effective,
-    session: input.session,
-  })
-  if (acrContext instanceof Response) return acrContext
-  if (acrContext.clearStepUp) clearStepUpCookie(c)
-  const response = await emitCode(c, {
-    req: input.req,
-    client: input.client,
-    userId: input.session.userId,
-    sessionId: input.session.sessionId,
-    session: acrContext,
+    userId: prepared.session.userId,
+    sessionId: prepared.session.sessionId,
+    session: prepared.acr,
     params: input.effective,
-    rbac,
+    rbac: prepared.rbac,
     authorizationDetails: input.authorizationDetails,
   })
-  return response
 }
 
 // 注册 /authorize 路由(wire 阶段统一挂载)。

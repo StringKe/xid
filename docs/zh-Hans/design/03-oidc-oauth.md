@@ -376,6 +376,9 @@ token type URI 取值(本实现支持):
 
 登录回调(`/sign-in` 完成后)与 consent 回调(`/consent` 提交后)均带 `authz_request_id` 回到 `/authorize` 续跑后续步骤,而非重新解析 query。
 
+- **重新认证**:`prompt=login` 要求重认证,或会话超过 `max_age` 时,暂存请求记录交互开始时间,`/sign-in` 收到 `reauthenticate=1`。续跑要求会话在该时间之后完成认证,否则回到 `/sign-in`。满足后从续跑请求中去掉 `prompt=login`、`prompt=select_account` 和 `max_age`,因此 `max_age=0` 不会循环。`auth_time` 始终写入 code 与 ID token。
+- **consent 决定**:consent 页只在暂存请求上记录决定,并绑定做决定的用户和 session id,然后返回 `/authorize?authz_request_id=<AID>`。批准时先持久化 consent。`/authorize` 随后重新执行选组织、RBAC 和 acr 检查,经唯一的 code 签发路径签发 code,所以组织与 ProjectGrant 上下文、step-up acr、`auth_time`、hybrid `id_token`、`form_post`、JARM 和 code 有效期在有无 consent 时一致。拒绝时按同一 response_mode 处理返回 `error=access_denied`。其他 session 记录的决定会被忽略。
+
 ### 10.3 PAR request_uri 替换流程(RFC9126)
 
 1. 前置 `POST /par`:校验 client 认证 -> 把全部 authorization 参数存 DO,生成 `request_uri = urn:ietf:params:oauth:request_uri:<opaque>`,返回 `{ request_uri, expires_in: 60 }`,**一次性、60s 有效**。
@@ -385,6 +388,7 @@ token type URI 取值(本实现支持):
    - 校验 DO 内 client_id == query client_id,不等 -> 错误页。
    - 取出参数、**删除 DO 记录(消费)**,后续按 10.2 续跑。
 3. 租户策略 `require_par=true`(FAPI 2.0)时,`/authorize` 不带 request_uri -> `error=invalid_request`(redirect)。
+4. 暂存请求(10.4)记录本请求经由 PAR 到达。FAPI 请求在登录、MFA、选组织或 consent 之后续跑时,即使已消费的 request_uri 不再出现,仍满足 PAR 要求。
 
 ### 10.4 authorization code 存储与格式
 
@@ -399,9 +403,10 @@ token type URI 取值(本实现支持):
 
 - first-party client(`first_party=true`)-> 跳过 consent,静默授权。
 - 第三方 client:按 `(user_id, client_id, granted_scope_set)` 查 D1 `Consent`;请求 scope ⊆ 已授权集 -> 静默;有新增 scope -> 需交互。
-- `prompt=consent` -> 无条件需交互(即使已持久化)。
+- 第三方 client 带 `prompt=consent` -> 需交互(即使已持久化)。first-party client 仍静默授权。
+- 带 `authorization_details` 的请求始终需交互;授权细节不属于持久化的 consent。
 - `prompt=none` 且需交互 -> `error=consent_required`。
-- consent 提交后写/更新 `Consent` 记录(并集 scope),再续跑生成 code。
+- consent 批准后经绑定 tenant 的 UPSERT 写/更新 `Consent` 记录(并集 scope),在暂存请求上记录决定,再回到 `/authorize` 续跑(10.2)。
 
 ### 10.6 response_mode 回跳(RFC6749 + OAuth Response Mode)
 

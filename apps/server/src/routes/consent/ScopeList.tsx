@@ -6,14 +6,14 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import type { ConsentParams } from './index'
 
-// worker 只给英文回退;标准 scope 在此本地化,自定义 scope 回退 server description。
+// 与 discovery 公布的标准 scope 一致;自定义 scope 只显示 scope 名。
 const SCOPE_DESCRIPTION_LABELS: Record<string, MessageDescriptor> = {
   openid: msg`Verify your identity`,
   profile: msg`Access your basic profile information`,
   email: msg`Access your email address`,
-  address: msg`Access your physical address`,
   phone: msg`Access your phone number`,
   offline_access: msg`Maintain access while you are offline`,
+  organization: msg`Access your organization membership`,
 }
 
 const styles = stylex.create({
@@ -65,11 +65,11 @@ const styles = stylex.create({
 })
 
 type ScopeListProps = {
-  scopes: readonly { name: string; description: string }[]
+  scopes: ConsentParams['scopes']
 }
 
 type ScopeItemProps = {
-  scope: { name: string; description: string }
+  scope: ConsentParams['scopes'][number]
 }
 
 function ScopeItem({ scope }: ScopeItemProps): ReactNode {
@@ -78,9 +78,9 @@ function ScopeItem({ scope }: ScopeItemProps): ReactNode {
   return (
     <li {...stylex.props(styles.rowItem)}>
       <span {...stylex.props(styles.rowItemText)}>
-        {descriptor ? i18n._(descriptor) : scope.description}
+        {descriptor ? i18n._(descriptor) : scope.name}
       </span>
-      <span {...stylex.props(styles.rowItemMeta)}>{scope.name}</span>
+      {descriptor ? <span {...stylex.props(styles.rowItemMeta)}>{scope.name}</span> : null}
     </li>
   )
 }
