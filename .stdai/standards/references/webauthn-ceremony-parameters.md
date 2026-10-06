@@ -45,6 +45,6 @@ Supported COSE algorithms are ES256 (`-7`), EdDSA (`-8`), and RS256; ES256 signa
 
 ## Passkeys as MFA
 
-- A passkey can be the primary credential (AMR `phr`) or a second factor, linked through an `mfa_factors` row of type `passkey` that references `passkey_credential_id`.
-- Passkey MFA that meets UV plus a single-device, non-backed-up authenticator (optionally plus verified enterprise attestation) yields `urn:xid:aal3`; syncable passkeys stay at `urn:xid:aal2` (`qualifiesForAal3` in `apps/server/worker/lib/auth-context.ts`).
-- Password users are prompted with progressive enrollment to upgrade to a passkey.
+- A passkey can be the primary credential (AMR `phr`) or a second factor. Every active passkey credential is a second factor after a non-passkey sign-in; credentials are not mirrored into `mfa_factors`, and legacy `factor_type = 'passkey'` rows are not read. A passkey sign-in already reaches AAL2 and is never challenged for a passkey second factor. Eligibility lives in `apps/server/worker/auth/passkey-mfa-eligibility.ts`.
+- XID does not claim AAL3: an issued `urn:xid:aal3` is normalized to `urn:xid:aal2` (`normalizeIssuedAcr` in `apps/server/worker/lib/auth-context.ts`).
+- Progressive enrollment (prompting password users to add a passkey after sign-in) is not implemented; users add passkeys from the account security page.
