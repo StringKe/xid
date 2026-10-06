@@ -124,7 +124,7 @@ export function registerHostedAuthConfigRoutes(app: Hono<XidHonoEnv>): void {
     }
     if (
       loginHint &&
-      isInstanceEntryContext(currentTenant) &&
+      currentTenant.resolution?.unresolvedRoot &&
       !rootSelfServiceSignUp &&
       !invitationToken &&
       !applicationClientId

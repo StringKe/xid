@@ -17,12 +17,7 @@ import { allowSendRateLimit, requestIp, verifyTurnstile } from './shared'
 import { assertEmailAllowed, assertMethodAllowed } from '../auth/hosted-policy'
 import { auditPolicyDeniedError } from '../auth/hosted-audit'
 import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
-import {
-  isInstanceEntryContext,
-  loginHintCandidates,
-  resolveEntryTenant,
-  withTenant,
-} from './instance-login'
+import { loginHintCandidates, resolveEntryTenant, withTenant } from './instance-login'
 import { startInvitationEmailClaim } from './invitation-claim'
 import {
   auditIdentifier,
@@ -224,7 +219,7 @@ async function handlePasswordAuth(
     return c.json({ nextStep: 'verify_email' })
   }
   const entryTenant = c.get('tenant')
-  const entryIdentifier = isInstanceEntryContext(entryTenant)
+  const entryIdentifier = entryTenant.resolution?.unresolvedRoot
     ? loginHintCandidates(rawIdentifier)
     : parseIdentifier(entryTenant, rawIdentifier)
   const tenant = await resolveEntryTenant(c, entryIdentifier, body.organizationId, {

@@ -196,6 +196,19 @@ describe('resolveEntryTenant', () => {
     expect(tenants.map((tenant) => tenant.tenantId)).toEqual(['tenant_a', 'tenant_b'])
   })
 
+  it('session-derived root context keeps the cookie tenant for identifier-only requests', async () => {
+    const cookieTenant = {
+      ...resolvedTenant('tenant_cookie'),
+      resolution: { kind: 'tenant', primaryDomain: 'xid.dev', sessionDerivedRoot: true },
+    }
+    const c = await makeCtx(cookieTenant as never)
+
+    const result = await resolveEntryTenant(c, { kind: 'email', value: 'user@other.com' })
+
+    expect(result).toBe(cookieTenant)
+    expect(resolveInstanceLogin).not.toHaveBeenCalled()
+  })
+
   it('session-derived root context still honors an explicit organization selection', async () => {
     const cookieTenant = {
       ...resolvedTenant('tenant_cookie'),

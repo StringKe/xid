@@ -129,6 +129,8 @@ async function resolveEntry(
     if (!selected.ok) throw new AppError('cross_tenant_access_denied')
     return { kind: 'tenant', tenant: selected.value.tenant }
   }
+  // cookie 推出的租户只让位于显式组织选择;identifier 不改选租户,guest 转正等仪式留在当前租户。
+  if (!current.resolution?.unresolvedRoot) return { kind: 'tenant', tenant: current }
   const result = isLoginIdentifierArray(identifier)
     ? await resolveInstanceLoginCandidates(c.req.raw, c.env, identifier)
     : await resolveInstanceLogin(c.req.raw, c.env, identifier)
