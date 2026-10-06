@@ -183,8 +183,34 @@ describe('DELETE /v1/me/social-connections/:id', () => {
       env,
     )
 
-    expect(res.status).toBe(422)
-    expect(((await res.json()) as Record<string, unknown>)['code']).toBe('unprocessable_entity')
+    expect(res.status).toBe(409)
+    expect(((await res.json()) as Record<string, unknown>)['code']).toBe('sign_in_method_required')
+    expect(row['revoked_at']).toBeUndefined()
+  })
+
+  it('requires step-up before disconnecting when the user has a strong factor', async () => {
+    const row = identityRow()
+    const db = makeFakeD1({
+      user_identities: [row],
+      passwords: [passwordRow()],
+      mfa_factors: [
+        { id: 'mf_1', tenant_id: 't_1', user_id: 'u_1', factor_type: 'totp', status: 'active' },
+      ],
+    })
+    const env = { DB: db, PEPPER: 'cGVwcGVy' } as unknown as Env
+    const app = buildApp({
+      register: registerSocialConnectionsRoutes,
+      session: makeSession({ userId: 'u_1', authenticatedAt: new Date(Date.now() - 3_600_000) }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/social-connections/id_1',
+      { method: 'DELETE' },
+      env,
+    )
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('step_up_required')
     expect(row['revoked_at']).toBeUndefined()
   })
 

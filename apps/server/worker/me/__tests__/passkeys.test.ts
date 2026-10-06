@@ -213,6 +213,28 @@ describe('PATCH / DELETE /v1/me/passkeys/:id', () => {
     expect(row['revoked_at']).toBeUndefined()
   })
 
+  it('does not count a disconnected social identity as a remaining sign-in method', async () => {
+    const row = passkeyRow()
+    const db = makeFakeD1({
+      passkey_credentials: [row],
+      user_identities: [
+        { id: 'id_1', tenant_id: 't_1', user_id: 'u_1', identity_type: 'oauth', revoked_at: now },
+      ],
+    })
+    const session = makeSession({ userId: 'u_1' })
+    const app = buildApp({ register: registerPasskeysRoutes, session })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/passkeys/pk_1',
+      { method: 'DELETE', headers: { Cookie: await stepUpCookieFor(session) } },
+      { DB: db, PEPPER: TEST_PEPPER } as unknown as Env,
+    )
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'sign_in_method_required' })
+    expect(row['revoked_at']).toBeUndefined()
+  })
+
   it('does not rename another user passkey', async () => {
     const row = passkeyRow({ id: 'pk_2', user_id: 'u_2' })
     const db = makeFakeD1({ passkey_credentials: [row] })

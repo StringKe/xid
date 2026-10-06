@@ -16,8 +16,7 @@ import { requireStepUp } from '../lib/step-up'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
 import { requireSession, toIso } from './shared'
-
-type TenantDb = ReturnType<typeof createTenantDb>
+import { hasOtherSignInMethod } from './sign-in-methods'
 
 // PATCH body:deviceName 可清空(null/空串);长度上限与注册时一致。
 const renamePasskeyBodySchema = v.object({
@@ -42,34 +41,6 @@ function toPasskeyView(row: typeof schema.passkeyCredentials.$inferSelect): Pass
     lastUsedAt: toIso(row.lastUsedAt),
     transports: row.transports,
   }
-}
-
-// 删除后必须还剩一种登录方式:其他 passkey、密码、已验证邮箱或手机、已关联的社交/企业身份。
-async function hasOtherSignInMethod(
-  db: TenantDb,
-  input: { userId: string; passkeyRowId: string },
-): Promise<boolean> {
-  const { userId, passkeyRowId } = input
-  const [passkeys, passwords, emails, phones, identities] = await Promise.all([
-    db.passkeyCredentials
-      .findMany(
-        and(
-          eq(schema.passkeyCredentials.userId, userId),
-          isNull(schema.passkeyCredentials.revokedAt),
-        ),
-        { limit: PASSKEY_LIMIT },
-      )
-      .then((rows) => rows.filter((row) => row.id !== passkeyRowId).length),
-    db.passwords.count(eq(schema.passwords.userId, userId)),
-    db.userEmails.count(
-      and(eq(schema.userEmails.userId, userId), eq(schema.userEmails.verified, true)),
-    ),
-    db.userPhones.count(
-      and(eq(schema.userPhones.userId, userId), eq(schema.userPhones.verified, true)),
-    ),
-    db.userIdentities.count(eq(schema.userIdentities.userId, userId)),
-  ])
-  return passkeys + passwords + emails + phones + identities > 0
 }
 
 const app = new Hono<XidHonoEnv>()
@@ -123,7 +94,8 @@ app.delete('/:id', async (c) => {
   const existing = await db.passkeyCredentials.findOne(where)
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
   await requireStepUp(c, tenant, session)
-  if (!(await hasOtherSignInMethod(db, { userId: session.userId, passkeyRowId: existing.id }))) {
+  const removed = { kind: 'passkey', id: existing.id } as const
+  if (!(await hasOtherSignInMethod(c, { userId: session.userId, removed }))) {
     throw new AppError('sign_in_method_required')
   }
   await assertStrongFactorRemovable(db, { tenant, userId: session.userId })

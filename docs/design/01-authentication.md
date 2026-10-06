@@ -703,9 +703,9 @@ short lifetimes.
   `TOTP_REPLAY_TTL_MS=90s`
 - Step-up issues a short-lived token (5 minutes) carrying `acr: step-up`, bound to the user and
   session. `/authorize` uses it to satisfy `acr_values=aal2`. The account API requires it, or an AAL2
-  sign-in completed within the same 5 minutes, before removing an MFA factor or passkey, regenerating
-  backup codes, or adding TOTP, SMS, or a passkey while the user already has a strong factor (TOTP or
-  passkey). Users without any strong factor have nothing to re-verify with and are not blocked. The
+  sign-in completed within the same 5 minutes, before removing an MFA factor or passkey,
+  disconnecting a social identity, regenerating backup codes, or adding TOTP, SMS, or a passkey while
+  the user already has a strong factor (TOTP or passkey). Users without any strong factor have nothing to re-verify with and are not blocked. The
   account page sends a `step_up_required` response to `/mfa?step_up=1` and returns afterwards
 - Removing the last strong factor is refused with `mfa_required` when the tenant requires MFA. When
   it is allowed, the SMS factor and remaining backup codes are retired with it
@@ -713,6 +713,8 @@ short lifetimes.
   restricted until enrollment completes
 - Backup codes are stored as HMAC-SHA256 hashes, shown once, and regenerating a batch invalidates the
   previous batch
+- Deleting a passkey or disconnecting a social identity is refused with `sign_in_method_required`
+  when no password, other passkey, other identity, or tenant-allowed Email or phone sign-in would remain
 
 ### Data model
 

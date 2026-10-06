@@ -9,6 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { trackSocialDisconnected } from '../../lib/google-analytics-funnel'
 import { useDisconnectSocial, useSocialConnectionsQuery } from './queries'
 import type { SocialConnection } from './hooks'
+import { useSecurityActionError } from './use-security-action-error'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 
@@ -155,6 +156,7 @@ function ConnectionItem({ connection, disconnectMutate }: ConnectionItemProps): 
   const [showConfirm, setShowConfirm] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const securityError = useSecurityActionError()
 
   const label = providerLabel(connection.provider)
 
@@ -165,11 +167,11 @@ function ConnectionItem({ connection, disconnectMutate }: ConnectionItemProps): 
       trackSocialDisconnected(connection.provider)
       setShowConfirm(false)
     } catch (err) {
-      const xidErr = err as { code?: string }
+      const xidErr = err as { code?: string } | null
       setError(
-        xidErr.code === 'unprocessable_entity'
+        xidErr?.code === 'sign_in_method_required'
           ? t`This is your only way to sign in. Add a password or passkey before disconnecting it.`
-          : t`Failed to disconnect account.`,
+          : securityError(err, t`Failed to disconnect account.`),
       )
       setShowConfirm(false)
     } finally {

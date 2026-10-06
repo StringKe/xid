@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=7e291134eddde289fd114b2a3bbac07f245eeb89 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=3c8f12f2d5148f9796cbbd4ea9d191472d4a06e1 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -437,10 +437,12 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - TOTP 防重放:在每个 factor 的 Durable Object 中原子 claim 已用 code,并按命中的 counter
   计算 TTL,覆盖 `+-1` 时钟容忍下该 counter 的完整可接受生命周期,
   上限为 `TOTP_REPLAY_TTL_MS=90s`,重复拒绝
-- step-up:颁发含 `acr: step-up` 的短期 token(5min),绑定用户与会话。`/authorize` 用它满足 `acr_values=aal2`。账户 API 在删除 MFA 因子或 passkey、重新生成备份码,以及用户已有强因子(TOTP 或 passkey)时新增 TOTP、SMS 或 passkey 之前,要求有效 step-up 或 5 分钟内完成的 AAL2 登录。没有任何强因子的用户无从重新验证,不会被拦截。账户页收到 `step_up_required` 时跳转 `/mfa?step_up=1`,完成后返回
+- step-up:颁发含 `acr: step-up` 的短期 token(5min),绑定用户与会话。`/authorize` 用它满足 `acr_values=aal2`。账户 API 在删除 MFA 因子或 passkey、断开社交身份、重新生成备份码,以及用户已有强因子(TOTP 或 passkey)时新增 TOTP、SMS 或 passkey 之前,要求有效 step-up 或 5 分钟内完成的 AAL2 登录。没有任何强因子的用户无从重新验证,不会被拦截。账户页收到 `step_up_required` 时跳转 `/mfa?step_up=1`,完成后返回
 - 租户要求 MFA 时,删除最后一个强因子返回 `mfa_required`;允许删除时,SMS 因子与剩余备份码一并停用
 - 强制 MFA 开启后新用户进入 pending_mfa_setup,完成绑定前 access token scope 受限
 - backup codes HMAC-SHA256 哈希存储,展示一次,重新生成作废旧批次
+- 删除 passkey 或断开社交身份后若不再有密码、其他 passkey、其他身份或租户允许的 Email/手机登录,
+  以 `sign_in_method_required` 拒绝
 
 ### 数据模型
 
