@@ -432,6 +432,43 @@ describe('platform pages', () => {
     expect(html).not.toContain('Tenant ID')
   })
 
+  it('reports a broken chain when the range predecessor is missing and no row was read', () => {
+    apiMocks.queries.set(
+      '/v1/platform/audit/verify',
+      queryState({
+        ...auditVerification,
+        verified_range: { from: 10, to: 42 },
+        chain_valid: false,
+        broken_at_seq: 10,
+        failure_reason: 'audit_seq_gap',
+        record_count: 0,
+      }),
+    )
+
+    const html = renderToStaticMarkup(<PlatformAuditEvents />)
+
+    expect(html).toContain('Chain broken')
+    expect(html).toContain('A sequence number is missing from the chain.')
+    expect(html).not.toContain('This tenant has no audit records yet')
+  })
+
+  it('shows a neutral notice instead of a valid chain for a tenant without audit records', () => {
+    apiMocks.queries.set(
+      '/v1/platform/audit/verify',
+      queryState({
+        ...auditVerification,
+        verified_range: { from: 1, to: 0 },
+        latest_seq: 0,
+        record_count: 0,
+      }),
+    )
+
+    const html = renderToStaticMarkup(<PlatformAuditEvents />)
+
+    expect(html).toContain('This tenant has no audit records yet')
+    expect(html).not.toContain('Chain valid')
+  })
+
   it('offers replay for an expired replaying lease and shows failure details', () => {
     const html = renderToStaticMarkup(<PlatformDeadLetters />)
 

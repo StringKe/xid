@@ -69,7 +69,7 @@ function VerificationResult({
   result: AuditChainVerification
   onVerifyNext: (fromSeq: number) => void
 }): ReactNode {
-  if (result.record_count === 0) {
+  if (result.latest_seq === 0) {
     return (
       <Alert tone="info">
         <Trans>This tenant has no audit records yet. There is nothing to verify.</Trans>
