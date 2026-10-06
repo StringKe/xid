@@ -17,7 +17,7 @@ export type ButtonVariant = (typeof BUTTON_VARIANTS)[number]
 export const BUTTON_SIZES = ['md', 'lg'] as const
 export type ButtonSize = (typeof BUTTON_SIZES)[number]
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'hidden'> & {
   variant?: ButtonVariant
   size?: ButtonSize
   isLoading?: boolean

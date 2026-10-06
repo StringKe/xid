@@ -98,7 +98,7 @@ export function DataTable<T extends DataTableRow>({
       {...stylex.props(styles.frame, isScroll && styles.scroll)}
       role={isScroll && caption ? 'region' : undefined}
       aria-label={isScroll ? caption : undefined}
-      tabIndex={isScroll ? 0 : undefined}
+      tabIndex={isScroll && caption ? 0 : undefined}
     >
       <table {...stylex.props(styles.table)} aria-busy={isLoading || undefined}>
         {caption ? <caption {...stylex.props(styles.caption)}>{caption}</caption> : null}
