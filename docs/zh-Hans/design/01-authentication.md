@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=e3a5ce3b2ccbb795b74cc9450f7c608152e36e1f -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=7003366d027183deb423e7231c72410f93fe8f2d -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -167,6 +167,31 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
   `organization_id` 和 locale。请求通过正常 Tenant resolver 使用该 Organization hint;
   如果丢失,枚举抗性的请求会静默落到 Instance default Tenant,导致有效的 Organization-local
   账户收不到邮件。
+- 密码找回在两个方向上同样保留 Hosted Auth 续跑参数(`client_id`、`authz_request_id`、
+  `continue`、`intent`、`login_hint`)。`POST /auth/forgot-password` 用与登录相同的 flow
+  resolver 校验这些参数,并把校验后的 `intent`、`continue_path`、`client_id` 写入签名的
+  reset token。重置成功后,响应中的 `redirectUrl` 回到该续跑位置(例如暂存的 `/authorize`
+  请求),不再固定跳到 Console。
+- 在未解析的 Instance 根入口,邮箱匹配多个 Organization 对 `/auth/forgot-password` 不是错误:
+  每个匹配 Organization 各自执行限流、策略检查和重置邮件发送,响应仍是同一个 `200`。
+- reset token 同时携带 `email_hash`(收件 Email 的 SHA-256)。完成重置即证明控制该邮箱:
+  如果它仍是用户未验证的主邮箱,重置会把它标为已验证;`hosted_password` 账户首次设密时,
+  获得与邮箱验证相同的默认 Membership。
+- 重置成功后,在签发新 session 之前撤销该用户的全部既有凭据:SessionDO 条目、状态为
+  `active`、`pending_mfa`、`pending_mfa_setup` 的 D1 sessions、通过 denylist 撤销未过期的
+  access token,以及全部 refresh-token family。修改密码执行相同撤销,但保留当前 session。
+- 设置新密码(重置、首次设密、修改)按同一顺序校验:长度 12-128(`validation_failed`)、
+  HIBP(`password_breached`)、最近历史(`password_reused`)。每种失败都带密码字段的
+  `meta.paramName`。
+- `POST /v1/me/password` 的旧密码校验按用户和 IP 限流,使用独立于登录的 scope;旧密码匹配后
+  重置账户维度计数。每个凭证校验端点在校验成功后都重置自己的账户计数与退避档。
+- 要求邮箱验证的密码注册不保存提交的密码。邮箱证明后进入首次设密表单
+  (`/reset-password?setup=1`),并保留签名的注册续跑上下文。对这类账户(仍为
+  `hosted_password`、没有密码行、主邮箱未验证)再次提交注册或登录,会重新发送验证邮件,
+  在消耗同样的 Argon2id 计算后返回与新注册相同的 `verify_email` 步骤。
+- 无 session 的 `POST /auth/resend-verification` 接受 `{ email, organizationId?,
+turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱、已验证邮箱和非 active
+  账户都返回同一个 `200`;只有 active 用户未验证的主邮箱会收到邮件,并受单收件人发送限流约束。
 - pepper 存 Secrets 不入 DB,轮换保留旧版本号兼容验证
 
 ### 数据模型
@@ -268,8 +293,11 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 - Email magic link:单次有效,15min,可选"相同设备+浏览器"校验
 - Email OTP:6 位,10min,最多 5 次错误后作废
-- WhatsApp OTP:6 位,5min,国家白名单(默认 US/CA,租户可扩展),phone OTP 首选通道
-- SMS OTP:6 位,5min,国家白名单(默认 US/CA,租户可扩展),phone OTP 兜底通道
+- WhatsApp OTP:6 位,5min,国家白名单 `+1`(US/CA),phone OTP 首选通道
+- SMS OTP:6 位,5min,国家白名单 `+1`(US/CA),phone OTP 兜底通道。未实现租户级白名单。
+- 所有手机号(OTP target、phone identifier、profile phone、login hint)在租户解析、限流、
+  查库和建号之前统一规范化为 E.164:去掉空格、横杠、点和括号。无法规范化的输入按该端点的
+  不透明凭证错误拒绝。
 - 请求限流:同一邮箱/手机每分钟最多 1 次,每小时最多 5 次
 
 ### 设计决策
@@ -291,6 +319,11 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
   Email verification 和 password reset 使用相同的并行有效规则;OTP 则有意只保留每个 user/channel
   最新签发的 code。
 - OTP 存 SHA-256 哈希,验证成功后立即标为 consumed
+- OTP send 和 verify 通过同一个函数解析租户,使用相同的渠道、identifier、Organization hint、
+  intent 和 application client,验证码总在签发它的租户内校验
+- magic link 校验在消费 token 之前确认绑定用户仍为 active。停用、锁定或已删除的账户返回
+  `account_locked`,链接不被消费,邮箱也不被标为已验证。Hosted UI 只把限流、服务端暂时故障和
+  网络错误当作可重试,其余拒绝都是终态,只提供回到登录的出口。
 - 发送 OTP 或 magic link 时冻结一个版本化 `PasswordlessFlowContext`:经过校验的 `intent`、
   normalized local `continuePath` 和 application client id。
   序列化 context 与 verification row 一起持久化;magic link 还把完全相同的序列化值放入签名
@@ -445,7 +478,7 @@ UTF-8 解码后 `JSON.parse`,按以下顺序校验,任一失败即拒绝并返�
 
 ### 枚举防护取舍与 action-link 确认
 
-1. **instance login resolver 的组织解析**:多租户托管下,输入邮箱后需要解析用户所属 org(instance login resolver / `/auth/config` 的 login_hint、密码登录的 ambiguous 分支),这会向匿名请求者透露"该邮箱是否注册了单 org/多 org"。这是 resolver 的产品本质(ZITADEL 同型),接受此面;缓解:账户级 10 次/15min + IP 级 50 次/min 限流。
+1. **instance login resolver 的组织解析**:多租户托管下,输入邮箱后需要解析用户所属 org(instance login resolver / `/auth/config` 的 login_hint、密码登录的 ambiguous 分支),这会向匿名请求者透露"该邮箱是否注册了单 org/多 org"。这是 resolver 的产品本质(ZITADEL 同型),接受此面;缓解:账户级 10 次/15min + IP 级 50 次/min 限流。identifier 匹配多个 Organization 的凭证请求返回 `organization_selection_required`(HTTP 409);Hosted UI 把输入的 identifier 写回 `login_hint`,由 `/auth/config` 渲染 Organization 选择。Instance 根域上的 session cookie 只在一次性 token 的租户 hint 或显式 `organization_id` 指向同一 Instance 的其他租户之前决定租户。
 2. **action link 需要浏览器显式确认**:`GET`、Email security scanner、prefetcher 或 unfurler
    均不得消费 magic-link 或 Email-verification 凭据。magic-link 邮件使用 URL fragment 和确认页,
    旧 query-string `GET` 只跳转到该页;Email verification 在现有 `POST` 前显示确认动作;
@@ -529,13 +562,13 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
 
 ### 转正(原地 link,sub 不变)
 
-- 路由规则:guest session 有效时,用户完成任意首个凭证仪式(passkey 注册,challenge 已是 reg:{userId}:{tenantId} 形态;设置密码;email OTP 验证;social 绑定),一律把凭证挂到当前 guest user,不新建 user。复用 05 章"已登录态添加凭证需认证"的既有 linking 规则,新逻辑只是 me-auth 仪式入口识别 guest session 路由到 link 而非 create。顶层 Tenant onboarding 采集 `pending_email` 不属于凭证仪式;该路径只在新 Tenant 内完成精确目标 Email 验证后转正。
+- 路由规则:guest session 有效时,用户完成任意首个凭证仪式(passkey 注册,challenge 已是 reg:{userId}:{tenantId} 形态;设置密码;email OTP 验证;magic link;social 绑定),一律把凭证挂到当前 guest user,不新建 user。租户允许 email OTP 建号时,账户安全页为 guest 提供邮箱验证码表单完成此操作。magic link 可能在另一台设备上打开,因此按 token 绑定的 user 转正:该 user 仍是 guest 时撤销其全部 guest session,只有确认链接的浏览器正持有该 guest 时才解绑 GuestStore。复用 05 章"已登录态添加凭证需认证"的既有 linking 规则,新逻辑只是 me-auth 仪式入口识别 guest session 路由到 link 而非 create。顶层 Tenant onboarding 采集 `pending_email` 不属于凭证仪式;该路径只在新 Tenant 内完成精确目标 Email 验证后转正。
 - pending Email 转正完成:provisioned_by 改写为转正来源,在 SessionDO 和 D1 中吊销全部 guest
   session,清除当前 cookie,并要求用户重新登录。审计事件 guest.converted。其他凭证仪式继续使用
   各自的 credential linking session policy。
 - onboarding 路径不查找或合并其他 Tenant 的账户。其他 Tenant 内的 verified Email 合法且独立。新 Tenant 创建时不存在第二个 user,所以同 Tenant Email 占用不是正常 onboarding 分支。
 - 语义边界:guest 不可恢复(登出即丢失)、单设备、无 MFA;照抄 Firebase 的两条警告:匿名 token 不是 app attestation;持续提示用户转正。
-- MFA enrollment 不是转正仪式:TOTP 永远不是登录凭证,仅 enroll TOTP 的 guest 仍没有可恢复身份,保持 guest 身份(含 30 天 GC 窗口)直到完成上述四个仪式之一。
+- MFA enrollment 不是转正仪式:TOTP 永远不是登录凭证,仅 enroll TOTP 的 guest 仍没有可恢复身份,保持 guest 身份(含 30 天 GC 窗口)直到完成上述五个仪式之一。
 - guest session TTL、GuestStore 绑定 TTL 与 __Host-xid.anon cookie Max-Age 均取自租户 session policy(absoluteTimeoutDays),不使用模块级常量。
 
 ### SDK 一键转正(passkey)

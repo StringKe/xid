@@ -251,6 +251,39 @@ detail goes to the audit log):
   `organization_id` and locale in both directions. The request sends that Organization hint through
   the normal Tenant resolver; dropping it would silently run the enumeration-resistant request
   against the Instance default Tenant and leave a valid Organization-local account without mail.
+- Password recovery also preserves the Hosted Auth continuation (`client_id`, `authz_request_id`,
+  `continue`, `intent`, `login_hint`) in both directions. `POST /auth/forgot-password` validates it
+  with the same flow resolver as sign-in and writes the validated `intent`, `continue_path`, and
+  `client_id` into the signed reset token. After a successful reset the response `redirectUrl`
+  returns to that continuation (for example the stashed `/authorize` request), never to a fixed
+  Console path.
+- At the unresolved Instance root an Email that matches several Organizations is not an error for
+  `/auth/forgot-password`: each matching Organization runs its own rate limit, policy check, and
+  reset delivery, and the response stays the same `200`.
+- The reset token also carries `email_hash`, the SHA-256 of the recipient Email. Completing the
+  reset proves control of that address: if it is still the user's unverified primary Email, the
+  reset marks it verified, and a `hosted_password` account setting its first password receives the
+  same default Membership that Email verification grants.
+- A successful reset revokes every existing credential of the user before the new session is
+  issued: SessionDO entries, D1 sessions in `active`, `pending_mfa`, or `pending_mfa_setup`,
+  outstanding access tokens through the denylist, and every refresh-token family. A password change
+  performs the same revocation but keeps the current session.
+- Setting a new password (reset, first password, or change) applies one gate in order: length
+  12-128 (`validation_failed`), HIBP (`password_breached`), recent history (`password_reused`).
+  Every failure carries `meta.paramName` for the password field.
+- The current-password check on `POST /v1/me/password` is rate limited per user and IP under its
+  own scope, separate from sign-in, and the account counter resets once the current password
+  matches. Every credential verify endpoint resets its account counter and backoff tier after a
+  successful verification.
+- Password sign-up with required Email verification does not store the submitted password. The
+  verified Email proof continues to a first-password form (`/reset-password?setup=1`) that keeps the
+  signed sign-up continuation. Re-submitting sign-up or sign-in for such an account (still
+  `hosted_password`, no password row, unverified primary Email) sends a new verification Email and
+  returns the same `verify_email` step as a new sign-up, after burning the same Argon2id work.
+- `POST /auth/resend-verification` without a session accepts `{ email, organizationId?,
+turnstileToken }` and has the forgot-password shape: malformed input, unknown Email, verified
+  Email, and inactive accounts all return the same `200`; only an active user's unverified primary
+  Email receives mail, under the per-recipient send limit.
 - The pepper lives in Workers Secrets and never enters the database; rotation keeps the old version
   number so existing hashes still verify
 
@@ -428,10 +461,14 @@ binding cannot be unlinked.
 
 - Email magic link: single use, 15 minutes, with optional "same device and browser" checking
 - Email OTP: 6 digits, 10 minutes, invalidated after at most 5 wrong attempts
-- WhatsApp OTP: 6 digits, 5 minutes, country allowlist (US/CA by default, extensible per tenant); the
-  preferred phone OTP channel
-- SMS OTP: 6 digits, 5 minutes, country allowlist (US/CA by default, extensible per tenant); the
-  fallback phone OTP channel
+- WhatsApp OTP: 6 digits, 5 minutes, country allowlist `+1` (US/CA); the preferred phone OTP
+  channel
+- SMS OTP: 6 digits, 5 minutes, country allowlist `+1` (US/CA); the fallback phone OTP channel.
+  A per-tenant allowlist is not implemented.
+- Every phone number (OTP target, phone identifier, profile phone, login hint) is normalized to
+  E.164 by removing spaces, dashes, dots, and parentheses before Tenant resolution, rate limiting,
+  lookup, and account creation. Input that cannot be normalized is rejected with the opaque
+  credential error of that endpoint.
 - Request rate limiting: at most 1 per minute and 5 per hour per email address or phone number
 
 ### Design decisions
@@ -457,6 +494,13 @@ binding cannot be unlinked.
   rule applies to Email verification and password-reset links; OTP deliberately keeps only the most
   recently issued code per user and channel.
 - OTPs are stored as SHA-256 hashes and marked consumed immediately after successful verification
+- OTP send and verify resolve the Tenant through one shared function with the same channel,
+  identifier, Organization hint, intent, and application client, so a code is always verified in the
+  Tenant that issued it
+- Magic-link verification checks that the bound user is active before consuming the token. A
+  suspended, locked, or deleted account returns `account_locked` and leaves the link unconsumed and
+  the Email unverified. The Hosted UI treats every rejection other than rate limiting, transient
+  server errors, and network failures as terminal and offers only the way back to sign-in.
 - Sending an OTP or magic link freezes a versioned `PasswordlessFlowContext`: the validated
   `intent`, normalized local `continuePath`, and application client id. The serialized context is
   persisted with the verification row; a magic link also carries the identical serialized value
@@ -649,7 +693,12 @@ counter. KV remains a read-heavy cache and is never the source of truth for rate
    `login_hint` on `/auth/config`, and the ambiguous branch of password sign-in). This reveals to an
    anonymous requester whether that email is registered with one org or several. This is inherent to
    what a resolver does (ZITADEL has the same property), so the exposure is accepted. Mitigation: the
-   account-level limit of 10 per 15 minutes and the IP-level limit of 50 per minute.
+   account-level limit of 10 per 15 minutes and the IP-level limit of 50 per minute. A credential
+   request whose identifier matches several Organizations returns `organization_selection_required`
+   (HTTP 409); the Hosted UI writes the typed identifier back as `login_hint`, and `/auth/config`
+   renders the Organization chooser. A session cookie at the Instance root selects a Tenant only
+   until a one-time token's Tenant hint or an explicit `organization_id` names another Tenant of the
+   same Instance.
 2. **Action links require an explicit browser confirmation**: a `GET`, Email-security scanner,
    prefetcher, or unfurler MUST NOT consume a magic-link or Email-verification credential. Magic-link
    Email uses a URL fragment and a confirmation page, while the legacy query-string `GET` only
@@ -772,8 +821,12 @@ credential. This section is the design contract. It is implemented in
 
 - Routing rule: while the guest session is valid, completing any first credential ceremony --
   passkey registration (the challenge is already in the `reg:{userId}:{tenantId}` shape), setting a
-  password, email OTP verification, or a social bind -- attaches the credential to the current guest
-  user and never creates a new user. This reuses the chapter 05 rule that adding a credential while
+  password, email OTP verification, a magic link, or a social bind -- attaches the credential to the
+  current guest user and never creates a new user. The account security page offers guests an
+  Email-code form for this when the tenant allows Email OTP user creation. A magic link may be
+  opened on another device, so its verification converts by the user bound in the token: if that
+  user is still a guest, every guest session is revoked, and the GuestStore binding is released
+  only when the confirming browser holds that guest. This reuses the chapter 05 rule that adding a credential while
   signed in requires authentication; the only new logic is that the me-auth ceremony entry points
   recognize a guest session and route to link instead of create. Collecting `pending_email` during
   top-level Tenant onboarding is not a credential ceremony; that path converts only after the
@@ -790,7 +843,7 @@ credential. This section is the design contract. It is implemented in
   the product should keep prompting the user to convert.
 - MFA enrollment is not a conversion ceremony. TOTP is never a sign-in credential, so a guest who
   only enrolls TOTP still has no recoverable identity: they remain a guest (including the 30-day GC
-  window) until they complete one of the four ceremonies above.
+  window) until they complete one of the five ceremonies above.
 - The guest session TTL, the GuestStore binding TTL, and the `__Host-xid.anon` cookie Max-Age all
   derive from the tenant session policy (`absoluteTimeoutDays`), never from a module-level constant.
 
