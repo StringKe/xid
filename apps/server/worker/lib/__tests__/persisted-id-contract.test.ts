@@ -31,12 +31,13 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
     count: 3,
     reason: 'user email row id and claim consumption/finalization fencing tokens',
   },
+  'me-auth/password-reset-token.ts': { count: 1, reason: 'password reset token row id' },
   'me-auth/password-reset.ts': {
-    count: 3,
-    reason: 'password reset token, password history, and password row ids',
+    count: 2,
+    reason: 'password history and password row ids',
   },
-  'me-auth/password-signin.ts': {
-    count: 6,
+  'me-auth/password-signup.ts': {
+    count: 5,
     reason: 'user email, phone, and password row ids',
   },
   'me-auth/passwordless-users.ts': { count: 6, reason: 'user email and phone row ids' },
@@ -101,7 +102,8 @@ const REQUIRED_ENTITY_SOURCE_USAGE: Record<string, Record<string, number>> = {
   'me-auth/organization-self.ts': { organization: 1, membership: 1 },
   'me-auth/passkey-signin.ts': { session: 1 },
   'me-auth/password-reset.ts': { session: 1 },
-  'me-auth/password-signin.ts': { user: 1, session: 3 },
+  'me-auth/password-flow.ts': { session: 1 },
+  'me-auth/password-signup.ts': { user: 1, membership: 1 },
   'me-auth/passwordless-users.ts': { membership: 1, user: 2 },
   'me-auth/passwordless.ts': { session: 1 },
   'me/mfa-factors.ts': { mfaFactor: 1 },
