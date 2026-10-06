@@ -396,7 +396,12 @@ app.get('/', async (c) => {
   const orgIds = [...new Set([...membershipOrgIds, ...orgManagerOrgIds])]
   const [organizationRows, projects] = await Promise.all([
     readPagedByIdChunks(orgIds, (batch, cursor, limit) => {
-      const filter = inArray(schema.organizations.id, batch)
+      // 与 POST /v1/sessions/active-organization 同口径:停用或删除的 org 不可切换,也不列出。
+      const filter = and(
+        inArray(schema.organizations.id, batch),
+        eq(schema.organizations.status, 'active'),
+        isNull(schema.organizations.deletedAt),
+      )
       return db.organizations.findMany(
         cursor ? and(filter, gt(schema.organizations.id, cursor)) : filter,
         { orderBy: asc(schema.organizations.id), limit },

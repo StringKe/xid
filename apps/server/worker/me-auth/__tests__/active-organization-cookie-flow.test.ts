@@ -195,4 +195,82 @@ describe('POST /v1/sessions/active-organization cookie flow', () => {
     expect((body['activeOrg'] as Record<string, unknown>)['id']).toBe('org_1')
     expect(sessionDoNames).toContain('session:u_1')
   })
+
+  it('lets an org_manager without membership open the organization it manages', async () => {
+    const { cookie, row } = await sessionFixture()
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [row],
+        users: [userRow()],
+        user_emails: [emailRow()],
+        memberships: [],
+        organizations: [organizationRow()],
+        manager_assignments: [orgManagerRow(TENANT.tenantId)],
+        mfa_factors: [],
+        passkey_credentials: [],
+        projects: [],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+    const app = buildApp()
+
+    const update = await switchOrganization(app, env, cookie)
+    const me = await app.request(
+      'https://acme.xid.dev/v1/me',
+      { method: 'GET', headers: { Cookie: cookie } },
+      env,
+    )
+
+    expect(update.status).toBe(200)
+    const body = (await me.json()) as Record<string, unknown>
+    expect(body['activeOrg']).toMatchObject({ id: 'org_1', role: 'admin' })
+  })
+
+  it('ignores an org_manager assignment recorded under another tenant', async () => {
+    const { cookie, row } = await sessionFixture()
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [row],
+        users: [userRow()],
+        user_emails: [emailRow()],
+        memberships: [],
+        organizations: [organizationRow()],
+        manager_assignments: [orgManagerRow('t_other')],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+    const app = buildApp()
+
+    const update = await switchOrganization(app, env, cookie)
+
+    expect(update.status).toBe(404)
+    expect(((await update.json()) as Record<string, unknown>)['code']).toBe('not_found')
+  })
 })
+
+function orgManagerRow(tenantId: string): Record<string, unknown> {
+  return {
+    id: 'ma_1',
+    tenant_id: tenantId,
+    user_id: 'u_1',
+    manager_role: 'org_manager',
+    scope_type: 'org',
+    scope_id: 'org_1',
+    created_at: now,
+    updated_at: now,
+  }
+}
+
+function switchOrganization(app: Hono<XidHonoEnv>, env: Env, cookie: string): Promise<Response> {
+  return Promise.resolve(
+    app.request(
+      'https://acme.xid.dev/v1/sessions/active-organization',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+        body: JSON.stringify({ organizationId: 'org_1' }),
+      },
+      env,
+    ),
+  )
+}

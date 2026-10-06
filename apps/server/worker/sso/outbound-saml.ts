@@ -25,6 +25,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
+import { findOrganizationAccessGrant } from '../lib/organization-access'
 import { revokeSession, sessionDoRevoke } from '../lib/session'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { isLoopbackHttpUrl, isPublicHttpsUrl } from '../lib/validate'
@@ -172,14 +173,11 @@ async function readAuthenticatedUser(
   )
   if (!user) throw new AppError('invalid_credentials', { httpStatus: 401 })
   if (session.activeOrgId) {
-    const membership = await db.memberships.findOne(
-      and(
-        eq(schema.memberships.userId, session.userId),
-        eq(schema.memberships.orgId, session.activeOrgId),
-        eq(schema.memberships.status, 'active'),
-      ),
-    )
-    if (!membership) throw new AppError('access_denied', { httpStatus: 403 })
+    const grant = await findOrganizationAccessGrant(db, {
+      userId: session.userId,
+      orgId: session.activeOrgId,
+    })
+    if (!grant) throw new AppError('access_denied', { httpStatus: 403 })
   }
   return user
 }

@@ -12,6 +12,7 @@ import type { SessionData, XidHonoEnv } from '../lib/types'
 import type { RateLimitPolicy } from '../durable-objects/rate-limit-store'
 import { AppError } from '../lib/errors'
 import { requireVerifiedManagementMutation } from '../lib/management-access'
+import { findOrganizationAccessGrant } from '../lib/organization-access'
 import { checkRateLimitStore } from '../lib/rate-limit'
 import { readSession } from '../lib/session'
 import { logWorkerError } from '../lib/safe-log'
@@ -238,32 +239,14 @@ export async function requireOrgManager(
 
   await requireOrg(c, orgId)
 
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const membership = await db.memberships.findOne(
-    and(
-      eq(schema.memberships.userId, session.userId),
-      eq(schema.memberships.orgId, orgId),
-      eq(schema.memberships.status, 'active'),
-    ),
-  )
-  let role: OrgManagerRole | undefined
-  if (membership && (membership.role === 'admin' || membership.role === 'owner')) {
-    role = membership.role
-  }
-
-  if (!role) {
-    const orgManager = await db.managerAssignments.findOne(
-      and(
-        eq(schema.managerAssignments.userId, session.userId),
-        eq(schema.managerAssignments.managerRole, 'org_manager'),
-        eq(schema.managerAssignments.scopeType, 'org'),
-        eq(schema.managerAssignments.scopeId, orgId),
-      ),
-    )
-    if (orgManager) role = 'org_manager'
-  }
-
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const grant = await findOrganizationAccessGrant(db, { userId: session.userId, orgId })
+  const role: OrgManagerRole | null =
+    grant?.membershipRole === 'owner' || grant?.membershipRole === 'admin'
+      ? grant.membershipRole
+      : grant?.isOrgManager
+        ? 'org_manager'
+        : null
   if (!role) throw new AppError('forbidden', { httpStatus: 403 })
   await requireVerifiedManagementMutation(c, session)
   return { session, role }

@@ -1,10 +1,11 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { ActiveOrganizationResponse } from '@xid-kit/types'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
+import { resolveOrganizationAccess } from '../lib/organization-access'
 import { readJsonBody, validateBody } from '../lib/validate'
 import { requireSession } from './shared'
 
@@ -25,29 +26,14 @@ function validationError(): AppError {
   })
 }
 
-async function assertActiveOrganizationMembership(
+async function assertActiveOrganizationAccess(
   c: Context<XidHonoEnv>,
   userId: string,
   organizationId: string,
 ): Promise<void> {
   const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const membership = await db.memberships.findOne(
-    and(
-      eq(schema.memberships.userId, userId),
-      eq(schema.memberships.orgId, organizationId),
-      eq(schema.memberships.status, 'active'),
-    ),
-  )
-  if (!membership) throw new AppError('not_found', { httpStatus: 404 })
-
-  const organization = await db.organizations.findOne(
-    and(
-      eq(schema.organizations.id, organizationId),
-      eq(schema.organizations.status, 'active'),
-      isNull(schema.organizations.deletedAt),
-    ),
-  )
-  if (!organization) throw new AppError('not_found', { httpStatus: 404 })
+  const access = await resolveOrganizationAccess(db, { userId, orgId: organizationId })
+  if (!access) throw new AppError('not_found', { httpStatus: 404 })
 }
 
 export async function handleActiveOrganization(c: Context<XidHonoEnv>): Promise<Response> {
@@ -62,7 +48,7 @@ export async function handleActiveOrganization(c: Context<XidHonoEnv>): Promise<
   const organizationId = body.organizationId
 
   if (organizationId) {
-    await assertActiveOrganizationMembership(c, session.userId, organizationId)
+    await assertActiveOrganizationAccess(c, session.userId, organizationId)
   }
 
   const db = createTenantDb(c.env.DB, c.get('tenant'))

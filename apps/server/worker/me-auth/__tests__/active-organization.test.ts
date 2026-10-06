@@ -8,6 +8,12 @@ vi.mock('@xid-kit/db', () => ({
   schema: {
     memberships: { userId: 'userId', orgId: 'orgId', status: 'status' },
     organizations: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
+    managerAssignments: {
+      userId: 'userId',
+      managerRole: 'managerRole',
+      scopeType: 'scopeType',
+      scopeId: 'scopeId',
+    },
     sessions: { id: 'id', userId: 'userId', status: 'status' },
   },
 }))
@@ -26,6 +32,7 @@ import { execCtx, makeApp, makeEnv, makeSession } from './helpers'
 function makeDb(options: {
   membership?: Record<string, unknown> | null
   organization?: Record<string, unknown> | null
+  orgManagerAssignment?: Record<string, unknown> | null
   update?: ReturnType<typeof vi.fn>
 }) {
   return {
@@ -34,6 +41,9 @@ function makeDb(options: {
     },
     organizations: {
       findOne: vi.fn().mockResolvedValue(options.organization ?? null),
+    },
+    managerAssignments: {
+      findOne: vi.fn().mockResolvedValue(options.orgManagerAssignment ?? null),
     },
     sessions: {
       update: options.update ?? vi.fn().mockResolvedValue([]),
@@ -92,13 +102,44 @@ describe('POST /v1/sessions/active-organization', () => {
     )
   })
 
-  it('rejects organization without active membership', async () => {
+  it('rejects organization without active membership or org_manager assignment', async () => {
     const db = makeDb({ membership: null, organization: { id: 'org-1' } })
 
     const res = await post({ organizationId: 'org-1' }, db)
 
     expect(res.status).toBe(404)
     expect(((await res.json()) as Record<string, unknown>)['code']).toBe('not_found')
+    expect(db.sessions.update).not.toHaveBeenCalled()
+  })
+
+  it('sets active organization for an org_manager without membership', async () => {
+    const update = vi.fn().mockResolvedValue([])
+    const db = makeDb({
+      membership: null,
+      organization: { id: 'org-1', status: 'active', deletedAt: null },
+      orgManagerAssignment: { id: 'ma-1', managerRole: 'org_manager', scopeId: 'org-1' },
+      update,
+    })
+
+    const res = await post({ organizationId: 'org-1' }, db)
+
+    expect(res.status).toBe(200)
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ activeOrgId: 'org-1' }),
+      expect.anything(),
+    )
+  })
+
+  it('rejects a deleted organization even for its org_manager', async () => {
+    const db = makeDb({
+      membership: null,
+      organization: null,
+      orgManagerAssignment: { id: 'ma-1', managerRole: 'org_manager', scopeId: 'org-1' },
+    })
+
+    const res = await post({ organizationId: 'org-1' }, db)
+
+    expect(res.status).toBe(404)
     expect(db.sessions.update).not.toHaveBeenCalled()
   })
 

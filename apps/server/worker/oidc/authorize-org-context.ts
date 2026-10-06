@@ -4,6 +4,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import type { Result, XidError } from '@xid-kit/types'
 import type { Context } from 'hono'
+import { findOrganizationAccessGrant } from '../lib/organization-access'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import { isGrantEffective } from './shared'
 import type { ClientRow } from './shared'
@@ -36,15 +37,10 @@ async function loadActiveOrg(
     ),
   )
   if (!org) return authzFail('access_denied', 'active organization revoked or not found', 403)
-  const membership = await db.memberships.findOne(
-    and(
-      eq(schema.memberships.userId, session.userId),
-      eq(schema.memberships.orgId, org.id),
-      eq(schema.memberships.status, 'active'),
-    ),
-  )
-  if (!membership)
-    return authzFail('access_denied', 'active organization revoked or not found', 403)
+  const grant = await findOrganizationAccessGrant(db, { userId: session.userId, orgId: org.id })
+  if (!grant) return authzFail('access_denied', 'active organization revoked or not found', 403)
+  // 无 Membership 的 org_manager 只管理该 org、不是其成员:token 不带 org 上下文。
+  if (!grant.isMember) return { ok: true, value: null }
   return { ok: true, value: { id: org.id, slug: org.slug } }
 }
 

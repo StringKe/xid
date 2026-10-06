@@ -558,6 +558,72 @@ describe('/authorize', () => {
     expect(insert?.params).toContain(null)
   })
 
+  it('无 membership 的 org_manager active org -> 签发 code 且不带 org 上下文', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env, capture } = setup(
+      {
+        applications: [appRow()],
+        organizations: [
+          {
+            id: 'org_b',
+            tenant_id: 't_1',
+            slug: 'org-b',
+            status: 'active',
+            deleted_at: null,
+            public_metadata: '{}',
+          },
+        ],
+        manager_assignments: [
+          {
+            id: 'ma_1',
+            tenant_id: 't_1',
+            user_id: 'u_1',
+            manager_role: 'org_manager',
+            scope_type: 'org',
+            scope_id: 'org_b',
+          },
+        ],
+      },
+      ctx,
+      activeOrgSession(),
+    )
+
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+
+    expect(res.status).toBe(302)
+    const location = new URL(res.headers.get('location') ?? '')
+    expect(location.searchParams.get('code')).toMatch(/^ac_/)
+    const insert = capture.inserts.find((i) => i.table === 'authorization_codes')
+    expect(insert?.params).not.toContain('org_b')
+  })
+
+  it('active org 既无 membership 也无 org_manager -> access_denied', async () => {
+    const { ctx } = await buildTestTenant()
+    const { app, env } = setup(
+      {
+        applications: [appRow()],
+        organizations: [
+          {
+            id: 'org_b',
+            tenant_id: 't_1',
+            slug: 'org-b',
+            status: 'active',
+            deleted_at: null,
+            public_metadata: '{}',
+          },
+        ],
+      },
+      ctx,
+      activeOrgSession(),
+    )
+
+    const res = await app.request(authorizeUrl(PKCE_PARAMS), {}, env)
+
+    expect(res.status).toBe(302)
+    const location = new URL(res.headers.get('location') ?? '')
+    expect(location.searchParams.get('error')).toBe('access_denied')
+  })
+
   it('多 org 无 activeOrg + require_org_context -> 302 /select-organization', async () => {
     const { ctx } = await buildTestTenant()
     const { app, env, stored } = setup(
