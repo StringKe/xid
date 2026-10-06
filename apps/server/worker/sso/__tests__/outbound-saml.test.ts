@@ -92,8 +92,10 @@ vi.mock('@xid-kit/crypto', async (importOriginal) => {
   }
 })
 
+const realCrypto = globalThis.crypto
 vi.stubGlobal('crypto', {
   ...globalThis.crypto,
+  randomUUID: () => realCrypto.randomUUID(),
   subtle: {
     ...globalThis.crypto.subtle,
     importKey: vi.fn().mockResolvedValue({} as CryptoKey),
@@ -214,6 +216,45 @@ function makeApp(session?: SessionData) {
   })
   registerOutboundSamlRoutes(app)
   return app
+}
+
+function activeSession(): SessionData {
+  return {
+    sessionId: 'sess_1',
+    userId: 'user_1',
+    status: 'active',
+    activeOrgId: null,
+    authenticatedAt: new Date(),
+    lastActiveAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    rememberMe: true,
+    isImpersonation: false,
+    impersonatorUserId: null,
+    acr: null,
+    amr: null,
+    aal: null,
+  }
+}
+
+// OAUTH_STATE fake:store 记录、consume 一次性取出。
+function continuationStore(): DurableObjectNamespace {
+  const records = new Map<string, unknown>()
+  return {
+    idFromName: (name: string) => name,
+    get: () => ({
+      fetch: async (url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { state: string }
+        if (new URL(url).pathname === '/store') {
+          records.set(body.state, body)
+          return new Response(null, { status: 201 })
+        }
+        const record = records.get(body.state)
+        if (!record) return new Response('{}', { status: 404 })
+        records.delete(body.state)
+        return Response.json({ record })
+      },
+    }),
+  } as unknown as DurableObjectNamespace
 }
 
 function makeContext(session: SessionData) {
@@ -384,23 +425,71 @@ describe('outbound SAML SLO', () => {
     expect(ttlArg).toBeGreaterThan(24 * 60 * 60 * 1000)
   })
 
-  it('preserves a Redirect AuthnRequest across the sign-in redirect', async () => {
-    const query = new URLSearchParams({
-      SAMLRequest: 'encoded-request',
-      RelayState: 'relay-state',
-    })
-    const res = await makeApp().request(
-      `https://acme.xid.dev/sso/outbound/saml/sp_1/sso?${query}`,
-      {},
-      ENV,
+  it('keeps a POST-binding AuthnRequest across sign-in and answers it after resume', async () => {
+    userFindOne.mockResolvedValue({ id: 'user_1', status: 'active', primaryEmailId: 'email_1' })
+    emailFindOne.mockResolvedValue({ email: 'user@example.com' })
+    decodeSamlBindingPayloadMock.mockResolvedValue({ ok: true, value: '<samlp:AuthnRequest/>' })
+    signSamlResponseMock.mockResolvedValue({ ok: true, value: { samlResponse: btoa('<R/>') } })
+    const env = { ...ENV, OAUTH_STATE: continuationStore() } as Env
+
+    const first = await makeApp().request(
+      'https://acme.xid.dev/sso/outbound/saml/sp_1/sso',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          SAMLRequest: 'posted-request',
+          RelayState: 'relay-state',
+        }).toString(),
+      },
+      env,
     )
 
-    expect(res.status).toBe(302)
-    const location = new URL(res.headers.get('location') ?? '')
-    expect(location.pathname).toBe('/sign-in')
-    expect(location.searchParams.get('continue')).toBe(
-      `/sso/outbound/saml/sp_1/sso?${query.toString()}`,
+    expect(first.status).toBe(302)
+    const signIn = new URL(first.headers.get('location') ?? '')
+    expect(signIn.pathname).toBe('/sign-in')
+    expect(signIn.searchParams.get('organization_id')).toBe('tenant_1')
+    const resume = signIn.searchParams.get('continue') ?? ''
+    expect(resume).toMatch(/^\/sso\/outbound\/saml\/sp_1\/sso\?saml_request=/)
+    expect(decodeSamlBindingPayloadMock).toHaveBeenCalledWith('posted-request', 'post')
+
+    const resumed = await makeApp(activeSession()).request(`https://acme.xid.dev${resume}`, {}, env)
+
+    expect(resumed.status).toBe(200)
+    expect(signSamlResponseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ inResponseTo: '_authn_req_1' }),
+      expect.anything(),
     )
+    expect(await resumed.text()).toContain('value="relay-state"')
+  })
+
+  it('sends a pending MFA session to /mfa with the SSO resume path', async () => {
+    const env = { ...ENV, OAUTH_STATE: continuationStore() } as Env
+
+    const res = await makeApp({ ...activeSession(), status: 'pending_mfa' }).request(
+      'https://acme.xid.dev/sso/outbound/saml/sp_1/sso?RelayState=relay-state',
+      {},
+      env,
+    )
+
+    const location = new URL(res.headers.get('location') ?? '')
+    expect(location.pathname).toBe('/mfa')
+    expect(location.searchParams.get('redirect_to')).toMatch(
+      /^\/sso\/outbound\/saml\/sp_1\/sso\?saml_request=/,
+    )
+  })
+
+  it('rejects an unknown or already used SSO resume handle', async () => {
+    const env = { ...ENV, OAUTH_STATE: continuationStore() } as Env
+
+    const res = await makeApp(activeSession()).request(
+      'https://acme.xid.dev/sso/outbound/saml/sp_1/sso?saml_request=missing',
+      {},
+      env,
+    )
+
+    expect(res.status).toBe(400)
+    expect(signSamlResponseMock).not.toHaveBeenCalled()
   })
 
   it('validates a Redirect AuthnRequest and binds the signed response to its ID', async () => {

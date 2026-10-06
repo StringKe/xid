@@ -47,6 +47,14 @@ import {
 } from './assignment-gate'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import { readUniqueSamlFormField, readUniqueSamlQueryParameter } from './saml-binding-input'
+import {
+  consumeOutboundSsoRequest,
+  OUTBOUND_SSO_RESUME_PARAM,
+  outboundSsoInteractionRedirect,
+  outboundSsoResumePath,
+  stashOutboundSsoRequest,
+  type OutboundSsoRequest,
+} from './outbound-sso-continuation'
 import type { SamlQueryParameter } from './saml-binding-input'
 import {
   resolveOutboundSamlSessionByNameId,
@@ -214,13 +222,6 @@ function userAttributes(
   if (lastName) out[readMappingString(mapping, 'lastName', 'lastName')] = lastName
   if (displayName) out[readMappingString(mapping, 'displayName', 'displayName')] = displayName
   return out
-}
-
-function loginRedirect(c: Context<XidHonoEnv>): Response {
-  const url = new URL(`${c.get('tenant').issuer}/sign-in`)
-  const requestUrl = new URL(c.req.url)
-  url.searchParams.set('continue', `${requestUrl.pathname}${requestUrl.search}`)
-  return c.redirect(url.toString(), 302)
 }
 
 function postBindingForm(input: {
@@ -873,26 +874,40 @@ outbound.get('/saml/:appId/metadata', async (c) => {
   })
 })
 
+async function readVerifiedOutboundSsoRequest(
+  c: Context<XidHonoEnv>,
+  input: { appId: string; sp: SamlServiceProvider },
+): Promise<OutboundSsoRequest> {
+  const message = await readOutboundSsoMessage(c)
+  if (!message.requestXml) return { inResponseTo: undefined, relayState: message.relayState }
+  const verified = await verifySamlAuthnRequest(message.requestXml, {
+    expectedIssuer: input.sp.spEntityId,
+    expectedDestination: idpSsoUrl(c, input.appId),
+    expectedAcsUrl: input.sp.acsUrl,
+    spCertificatesB64: input.sp.spCertificates,
+    requireSignature: OUTBOUND_AUTHN_REQUEST_SIGNATURE_REQUIRED,
+    ...(message.redirectSignature ? { redirectSignature: message.redirectSignature } : {}),
+  })
+  if (!verified.ok) throwOutboundAuthnRequestError(verified.error.code)
+  return { inResponseTo: verified.value.requestId, relayState: message.relayState }
+}
+
 async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
   const session = c.get('session')
-  if (!session || session.status !== 'active') return loginRedirect(c)
-
   const appId = requiredParam(c, 'appId')
   const sp = await resolveSp(c, appId)
-  const message = await readOutboundSsoMessage(c)
-  let inResponseTo: string | undefined
-  if (message.requestXml) {
-    const verified = await verifySamlAuthnRequest(message.requestXml, {
-      expectedIssuer: sp.spEntityId,
-      expectedDestination: idpSsoUrl(c, appId),
-      expectedAcsUrl: sp.acsUrl,
-      spCertificatesB64: sp.spCertificates,
-      requireSignature: OUTBOUND_AUTHN_REQUEST_SIGNATURE_REQUIRED,
-      ...(message.redirectSignature ? { redirectSignature: message.redirectSignature } : {}),
+  const resumeId = c.req.method === 'GET' ? c.req.query(OUTBOUND_SSO_RESUME_PARAM) : undefined
+  const request = resumeId
+    ? await consumeOutboundSsoRequest(c, { appId, id: resumeId })
+    : await readVerifiedOutboundSsoRequest(c, { appId, sp })
+  if (!session || session.status !== 'active') {
+    const id = await stashOutboundSsoRequest(c, { appId, request })
+    return outboundSsoInteractionRedirect(c, {
+      session,
+      returnTo: outboundSsoResumePath(appId, id),
     })
-    if (!verified.ok) throwOutboundAuthnRequestError(verified.error.code)
-    inResponseTo = verified.value.requestId
   }
+  const { inResponseTo, relayState } = request
   const cert = await loadSigningCert(c, sp)
   const key = await importSamlSigningKey(cert, c.env.KEK)
   const user = await readAuthenticatedUser(c, session)
@@ -942,7 +957,7 @@ async function handleSso(c: Context<XidHonoEnv>): Promise<Response> {
     destination: sp.acsUrl,
     samlMessage: signed.value.samlResponse,
     fieldName: 'SAMLResponse',
-    relayState: message.relayState,
+    relayState,
   })
   return c.html(html, 200)
 }

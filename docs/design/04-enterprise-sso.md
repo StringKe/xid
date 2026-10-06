@@ -103,6 +103,10 @@ Capabilities already shipped in the SAML IdP baseline:
   matching against the registered SP. Metadata currently advertises
   `WantAuthnRequestsSigned=false`; unsigned requests are therefore accepted, while any embedded
   XMLDSig or Redirect `Signature`/`SigAlg` that is present must verify against the SP certificates.
+  When the browser has no active session, the request is verified first and its `InResponseTo` and
+  RelayState are staged in the OAuth flow Durable Object; the user is sent to `/sign-in` (or to
+  `/mfa` or MFA setup for a pending MFA session) with a `saml_request` resume handle, so HTTP-POST
+  and HTTP-Redirect requests both survive sign-in. The handle is single use.
 - Assertion issuance: signs the Response and the Assertion, and sets Issuer, Subject, NameID,
   AudienceRestriction, Recipient, Destination, NotOnOrAfter, email, and name.
 - Verification: package-level XML signature tests, Worker route L2, and a fake SaaS SP at L3 are all

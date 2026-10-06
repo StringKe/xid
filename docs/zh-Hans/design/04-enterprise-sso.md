@@ -73,6 +73,9 @@ SAML IdP baseline 已落地的能力:
   grammar,再对注册 SP 的 Issuer、Destination、HTTP-POST binding 和 ACS 做精确匹配。Metadata
   当前广告 `WantAuthnRequestsSigned=false`,因此允许 unsigned 请求;一旦携带 embedded XMLDSig
   或 Redirect `Signature`/`SigAlg`,就必须用 SP certificate 验签。
+  浏览器没有 active session 时,先验证请求,再把 `InResponseTo` 和 RelayState 暂存到 OAuth flow
+  Durable Object,用户带 `saml_request` 续跑句柄去 `/sign-in`(pending MFA 会话去 `/mfa` 或 MFA
+  绑定页),所以 HTTP-POST 与 HTTP-Redirect 请求都能跨过登录保留。续跑句柄只能使用一次。
 - Assertion 签发:签名 Response 和 Assertion,设置 Issuer、Subject、NameID、AudienceRestriction、Recipient、Destination、NotOnOrAfter、email、name。
 - 验证:package-level XML 签名测试、Worker route L2、fake SaaS SP L3 已覆盖。真实 Slack/GitHub/Microsoft/Atlassian/Salesforce/Zoom admin L4 仍缺。
 - Preset 与 assignment UI:Console 已提供 Slack、GitHub Enterprise Cloud、Microsoft custom

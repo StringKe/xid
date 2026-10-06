@@ -69,6 +69,7 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
   'scim/shared.ts': { count: 2, reason: 'directory group member and pending member ids' },
   'scim/users.ts': { count: 1, reason: 'directory group member id' },
   'sso/jit.ts': { count: 1, reason: 'user email row id' },
+  'sso/outbound-sso-continuation.ts': { count: 1, reason: 'outbound SAML SSO resume handle' },
   'sso/saml-session-bindings.ts': {
     count: 1,
     reason: 'SAML session binding id',
