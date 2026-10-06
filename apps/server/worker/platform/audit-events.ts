@@ -1,10 +1,11 @@
-// GET /v1/platform/audit-events:汇聚所有 organization 审计事件(契约 Page<AuditEvent>,nextCursor + total)。
+// GET /v1/platform/audit-events:汇聚所有 organization 审计事件(契约 PlatformPage<PlatformAuditEvent>,nextCursor + total)。
 // 跨 org 审计走独立管理路径(requireInstanceManager + managementDb,见 shared.ts、tenant-isolation rule)。
 // audit_events append-only(seq + prev_hash 链,occurred_at ISO TEXT,见 cloudflare-bindings 审计链)。
 // 按最近优先排序:occurred_at DESC, id DESC(稳定 tie-break);cursor 编码 "occurredAt|id" 复合游标。
 // organizationName 取 org.name(LEFT JOIN,nullable:平台级事件无对应 org)。
 
 import { schema } from '@xid-kit/db'
+import type { PlatformAuditEvent } from '@xid-kit/types'
 import { and, count, desc, eq, lt, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -20,21 +21,6 @@ import {
 } from './shared'
 
 const app = new Hono<XidHonoEnv>()
-
-type AuditEvent = {
-  id: string
-  seq: number
-  organizationId: string
-  organizationName: string | null
-  orgId: string | null
-  eventType: string
-  actorId: string | null
-  actorDisplay: string | null
-  actorIp: string | null
-  targetType: string | null
-  targetId: string | null
-  occurredAt: string
-}
 
 const CURSOR_SEP = '|'
 
@@ -103,7 +89,7 @@ app.get('/', async (c) => {
   const nextCursor =
     hasMore && last !== undefined ? encodeAuditCursor(last.occurredAt, last.id) : null
 
-  const data: AuditEvent[] = pageRows.map((row) => ({
+  const data: PlatformAuditEvent[] = pageRows.map((row) => ({
     id: row.id,
     seq: row.seq,
     organizationId: row.tenantId,

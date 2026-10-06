@@ -1,4 +1,5 @@
 import { schema } from '@xid-kit/db'
+import type { StatusIncident, StatusIncidentStatus, StatusIncidentUpdate } from '@xid-kit/types'
 import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -34,13 +35,12 @@ const createIncidentSchema = v.object({
   startedAt: timestampSchema,
 })
 
-const patchIncidentSchema = v.object({
+// 状态只经 POST /:id/updates 流转,保证每次状态变化(包括解决)都在公开时间线留下说明。
+const patchIncidentSchema = v.strictObject({
   title: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(160))),
-  status: v.optional(v.picklist(INCIDENT_STATUSES)),
   impact: v.optional(v.picklist(INCIDENT_IMPACTS)),
   summary: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4_000))),
   startedAt: v.optional(timestampSchema),
-  resolvedAt: v.optional(v.nullable(timestampSchema)),
 })
 
 const createUpdateSchema = v.object({
@@ -59,48 +59,29 @@ function parseTimestamp(value: string, paramName: string): Date {
   return date
 }
 
-export function resolveIncidentResolvedAt(
-  existing: Pick<IncidentRow, 'status' | 'resolvedAt'>,
-  status: (typeof INCIDENT_STATUSES)[number],
-  input: string | null | undefined,
-  now: Date,
-): Date | null {
-  if (status !== 'resolved') {
-    if (input) {
-      throw new AppError('validation_failed', {
-        httpStatus: 422,
-        meta: { paramName: 'resolvedAt' },
-      })
-    }
-    return null
-  }
-  if (input === null) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      meta: { paramName: 'resolvedAt' },
-    })
-  }
-  if (input !== undefined) return parseTimestamp(input, 'resolvedAt')
-  return existing.status === 'resolved' ? (existing.resolvedAt ?? now) : now
+// updated_at 门控未命中:行还在说明被并发修改(409),行已删除才是 404。
+async function throwIncidentWriteRejected(env: Env, id: string): Promise<never> {
+  if (await findIncident(env, id)) throw new AppError('conflict', { httpStatus: 409 })
+  throw new AppError('not_found', { httpStatus: 404 })
 }
 
-function mapIncidentUpdate(row: IncidentUpdateRow) {
+function mapIncidentUpdate(row: IncidentUpdateRow): StatusIncidentUpdate {
   return {
     id: row.id,
     incidentId: row.incidentId,
-    status: row.status,
+    status: row.status as StatusIncidentStatus,
     message: row.message,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
   }
 }
 
-function mapIncident(row: IncidentRow, updates: readonly IncidentUpdateRow[] = []) {
+function mapIncident(row: IncidentRow, updates: readonly IncidentUpdateRow[] = []): StatusIncident {
   return {
     id: row.id,
     title: row.title,
-    status: row.status,
-    impact: row.impact,
+    status: row.status as StatusIncidentStatus,
+    impact: row.impact as StatusIncident['impact'],
     summary: row.summary,
     startedAt: row.startedAt.toISOString(),
     resolvedAt: row.resolvedAt?.toISOString() ?? null,
@@ -278,31 +259,22 @@ app.patch('/:id', async (c) => {
     throw new AppError('validation_failed', { httpStatus: 422 })
   }
   const now = new Date()
-  const status = patch.status ?? existing.status
   const startedAt =
     patch.startedAt === undefined
       ? existing.startedAt
       : parseTimestamp(patch.startedAt, 'startedAt')
-  const resolvedAt = resolveIncidentResolvedAt(
-    existing,
-    status as (typeof INCIDENT_STATUSES)[number],
-    patch.resolvedAt,
-    now,
-  )
-  if (resolvedAt && resolvedAt < startedAt) {
+  if (existing.resolvedAt && existing.resolvedAt < startedAt) {
     throw new AppError('validation_failed', {
       httpStatus: 422,
-      meta: { paramName: 'resolvedAt' },
+      meta: { paramName: 'startedAt' },
     })
   }
   const updated: IncidentRow = {
     ...existing,
     title: patch.title ?? existing.title,
-    status,
     impact: patch.impact ?? existing.impact,
     summary: patch.summary ?? existing.summary,
     startedAt,
-    resolvedAt,
     updatedBy: session.userId,
     updatedAt: now,
   }
@@ -349,7 +321,7 @@ app.patch('/:id', async (c) => {
     ),
   ])
   if (auditResult?.meta.changes !== 1 || mutation?.meta.changes !== 1) {
-    throw new AppError('not_found', { httpStatus: 404 })
+    await throwIncidentWriteRejected(c.env, existing.id)
   }
   await enqueuePersistedPlatformAudit(c.env, audit)
   return c.json(await responseIncident(c.env, updated))
@@ -429,7 +401,7 @@ app.post('/:id/updates', async (c) => {
     insertResult?.meta.changes !== 1 ||
     updateResult?.meta.changes !== 1
   ) {
-    throw new AppError('not_found', { httpStatus: 404 })
+    await throwIncidentWriteRejected(c.env, existing.id)
   }
   await enqueuePersistedPlatformAudit(c.env, audit)
   return c.json(
@@ -482,7 +454,7 @@ app.delete('/:id', async (c) => {
     ).bind(existing.id, existing.updatedAt.getTime(), ...audit.mutationGate.bindings),
   ])
   if (auditResult?.meta.changes !== 1 || mutation?.meta.changes !== 1) {
-    throw new AppError('not_found', { httpStatus: 404 })
+    await throwIncidentWriteRejected(c.env, existing.id)
   }
   await enqueuePersistedPlatformAudit(c.env, audit)
   return c.json({ deleted: true as const })

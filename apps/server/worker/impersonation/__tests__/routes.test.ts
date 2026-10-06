@@ -418,6 +418,34 @@ describe('platform impersonation routes', () => {
     expect(response.headers.get('referrer-policy')).toBe('no-referrer')
   })
 
+  it('sends a replayed form handoff back to the issuer platform users page without the reason', async () => {
+    const app = makeApp()
+    const env = makeEnv()
+    const { handoff } = await start(app, env)
+    const submit = () =>
+      app.request(
+        handoff.action,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(handoff.fields),
+        },
+        env,
+        execCtx,
+      )
+    await submit()
+
+    const replayed = await submit()
+
+    expect(replayed.status).toBe(303)
+    const location = new URL(replayed.headers.get('location') ?? '')
+    expect(`${location.origin}${location.pathname}`).toBe(
+      `${new URL(TARGET_TENANT.issuer).origin}/console/platform/users`,
+    )
+    expect(location.search).toBe('?impersonation=failed')
+    expect(replayed.headers.get('cache-control')).toContain('no-store')
+  })
+
   it('fails closed when target state becomes inactive after grant creation', async () => {
     const app = makeApp()
     const env = makeEnv()

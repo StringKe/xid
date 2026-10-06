@@ -290,6 +290,40 @@ function appFor(session: SessionData) {
 }
 
 describe('platform ManagerAssignment control plane', () => {
+  it('lists instance managers with their primary email, name and organization', async () => {
+    const session = asUnknown<SessionData>({ userId: 'user_current' })
+    const store: Store = {
+      users: [
+        {
+          ...activeUser('user_current', 't_1'),
+          display_name: 'Current Admin',
+          email: 'admin@example.com',
+        },
+      ],
+      organizations: [{ id: 't_1', tenant_id: 't_1', name: 'Tenant One' }],
+      manager_assignments: [manager('mgr_current', 'user_current')],
+    }
+    const env = asUnknown<Env>({ DB: makeD1(store), AUDIT_QUEUE: { send: vi.fn() } })
+
+    const listed = await appFor(session).request(
+      'https://xid.dev/v1/platform/manager-assignments',
+      undefined,
+      env,
+    )
+
+    expect(listed.status).toBe(200)
+    expect(((await listed.json()) as { data: unknown[] }).data).toEqual([
+      expect.objectContaining({
+        id: 'mgr_current',
+        userId: 'user_current',
+        email: 'admin@example.com',
+        displayName: 'Current Admin',
+        userStatus: 'active',
+        organizationName: 'Tenant One',
+      }),
+    ])
+  })
+
   it('provisions and revokes instance_manager only on the isolated platform path', async () => {
     const session = asUnknown<SessionData>({ userId: 'user_current' })
     const store: Store = {

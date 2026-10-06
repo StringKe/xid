@@ -1,4 +1,5 @@
 // error 中间件单元测试:AppError/XidError/未知错误映射 + 不泄露内部细节。
+import { AUTH_LOGIN_FAILED_EVENT } from '@xid-kit/types'
 import { Hono } from 'hono'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AppError } from '../../lib/errors'
@@ -160,6 +161,60 @@ describe('errorHandler', () => {
       status: 400,
     })
     expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain('raw-secret')
+  })
+
+  it('records one opaque login failure audit per credential rejection without identifiers', async () => {
+    const send = vi.fn(async () => undefined)
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('i18n', { _: (descriptor: { id: string }) => `localized:${descriptor.id}` } as never)
+      c.set('tenant', { tenantId: 'tenant_1' } as never)
+      await next()
+    })
+    app.onError(errorHandler)
+    app.post('/auth/password', () => {
+      throw new AppError('invalid_credentials')
+    })
+
+    const res = await app.request(
+      '/auth/password?identifier=alice%40example.com',
+      { method: 'POST' },
+      { AUDIT_QUEUE: { send } } as never,
+    )
+
+    expect(res.status).toBe(401)
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    expect(send).toHaveBeenCalledWith({
+      tenantId: 'tenant_1',
+      action: AUTH_LOGIN_FAILED_EVENT,
+      ts: expect.any(Number),
+      payload: { path: '/auth/password' },
+    })
+    expect(JSON.stringify(send.mock.calls)).not.toContain('alice')
+  })
+
+  it('keeps the credential error response when the login failure audit cannot be queued', async () => {
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', async (c, next) => {
+      c.set('i18n', { _: (descriptor: { id: string }) => `localized:${descriptor.id}` } as never)
+      c.set('tenant', { tenantId: 'tenant_1' } as never)
+      await next()
+    })
+    app.onError(errorHandler)
+    app.post('/auth/password', () => {
+      throw new AppError('invalid_credentials')
+    })
+
+    const res = await app.request('/auth/password', { method: 'POST' }, {
+      AUDIT_QUEUE: {
+        send: async () => {
+          throw new Error('queue unavailable')
+        },
+      },
+    } as never)
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
   })
 
   it('keeps an error response available when request i18n is absent', async () => {

@@ -7,7 +7,6 @@ import {
 import { dpaAcceptanceAuditId } from '../../compliance'
 import { isPersistedId } from '../../lib/persisted-id'
 import { overallStatus } from '../../public-status'
-import { resolveIncidentResolvedAt } from '../status-incidents'
 
 function hex(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
@@ -37,37 +36,6 @@ describe('platform operations public boundaries', () => {
     expect(overallStatus(['minor'])).toBe('degraded')
     expect(overallStatus(['minor', 'major'])).toBe('partial_outage')
     expect(overallStatus(['major', 'critical'])).toBe('major_outage')
-  })
-
-  it('keeps resolved_at consistent with the incident state', () => {
-    const now = new Date('2026-07-28T12:00:00.000Z')
-    const resolvedAt = new Date('2026-07-28T11:00:00.000Z')
-
-    expect(
-      resolveIncidentResolvedAt(
-        { status: 'investigating', resolvedAt: null },
-        'resolved',
-        undefined,
-        now,
-      ),
-    ).toEqual(now)
-    expect(
-      resolveIncidentResolvedAt({ status: 'resolved', resolvedAt }, 'resolved', undefined, now),
-    ).toEqual(resolvedAt)
-    expect(
-      resolveIncidentResolvedAt({ status: 'resolved', resolvedAt }, 'monitoring', undefined, now),
-    ).toBeNull()
-    expect(() =>
-      resolveIncidentResolvedAt({ status: 'resolved', resolvedAt }, 'resolved', null, now),
-    ).toThrow()
-    expect(() =>
-      resolveIncidentResolvedAt(
-        { status: 'investigating', resolvedAt: null },
-        'monitoring',
-        now.toISOString(),
-        now,
-      ),
-    ).toThrow()
   })
 
   it('derives one stable audit id for concurrent DPA acceptance retries', async () => {

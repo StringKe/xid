@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import { setupI18n } from '@lingui/core'
-import { i18nMiddleware } from '../i18n'
+import { applyTenantDefaultLocale, i18nMiddleware } from '../i18n'
 import type { XidHonoEnv } from '../../lib/types'
 
 type CatalogMod = {
@@ -134,6 +134,31 @@ describe('请求私有 Worker i18n', () => {
     expect(enBody.locale).toBe('en')
     expect(zhBody.message).not.toBe(enBody.message)
     expect(enBody.message).toContain('password')
+  })
+
+  it('falls back to the instance default locale only when the request language is unsupported', async () => {
+    const app = new Hono<XidHonoEnv>()
+    app.use('*', i18nMiddleware)
+    app.use('*', async (c, next) => {
+      c.set('tenant', { defaultLocale: 'ja' } as never)
+      await applyTenantDefaultLocale(c)
+      await next()
+    })
+    app.get('/locale', (c) => c.json({ locale: c.get('locale') }))
+
+    const unsupported = await app.request('https://xid.test/locale', {
+      headers: { 'accept-language': 'it-IT' },
+    })
+    const supported = await app.request('https://xid.test/locale', {
+      headers: { 'accept-language': 'fr-FR' },
+    })
+    const explicit = await app.request('https://xid.test/locale?locale=de', {
+      headers: { 'accept-language': 'it-IT' },
+    })
+
+    expect(await unsupported.json()).toEqual({ locale: 'ja' })
+    expect(await supported.json()).toEqual({ locale: 'fr' })
+    expect(await explicit.json()).toEqual({ locale: 'de' })
   })
 
   it('does not cross-contaminate error languages for interleaved requests', async () => {

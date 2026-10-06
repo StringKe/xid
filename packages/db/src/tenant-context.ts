@@ -253,6 +253,7 @@ async function buildContext(
     ...(options.hostedAuthOrigin === undefined
       ? {}
       : { hostedAuthOrigin: options.hostedAuthOrigin }),
+    defaultLocale: instance.defaultLocale,
     signingKeys: buildSigningKeySet(signingRows),
     policy: buildPolicy(instance, org, policy),
   }

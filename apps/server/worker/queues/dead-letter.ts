@@ -433,6 +433,18 @@ export async function recoverStaleDeadLetterReplays(
   return recovered.meta.changes ?? 0
 }
 
+// pending 可重放;replaying 只有在租约过期(或从未记录领取时间)后才可被手动重放回收。
+export function isDeadLetterReplayable(
+  row: { status: string; replayRequestedAt: number | null },
+  now: number,
+): boolean {
+  if (row.status === 'pending') return true
+  if (row.status !== 'replaying') return false
+  return (
+    row.replayRequestedAt === null || row.replayRequestedAt <= now - DEAD_LETTER_REPLAY_LEASE_MS
+  )
+}
+
 export async function replayDeadLetter(
   env: Env,
   id: string,
@@ -445,10 +457,7 @@ export async function replayDeadLetter(
 
   const claimedAt = Date.now()
   const staleBefore = claimedAt - DEAD_LETTER_REPLAY_LEASE_MS
-  const staleClaim =
-    current.status === 'replaying' &&
-    (current.replayRequestedAt === null || current.replayRequestedAt <= staleBefore)
-  if (current.status !== 'pending' && !staleClaim) return replayResult(current)
+  if (!isDeadLetterReplayable(current, claimedAt)) return replayResult(current)
   const claimed = await env.DB.prepare(
     `UPDATE queue_dead_letters
      SET status = 'replaying', replay_requested_at = ?, replayed_by = ?,

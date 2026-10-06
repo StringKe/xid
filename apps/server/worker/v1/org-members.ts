@@ -2,9 +2,10 @@
 // 成员写操作统一走 memberships.ts(owner 保护与条件更新只有一份实现)。
 
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, asc, eq, gt, gte, inArray, isNull, or } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import { loginOutcomeFilters, loginSuccessRate } from '../lib/login-audit'
 import type { XidHonoEnv } from '../lib/types'
 import { paginationQuerySchema, validateQuery } from '../lib/validate'
 import { ORG_LIST_BATCH_SIZE, readAllByIds, toIso } from './org-shared'
@@ -12,14 +13,11 @@ import { MAX_PAGE_SIZE, idAfterCursor, paginate, requireApiKeyOrOrgManager } fro
 
 const app = new Hono<XidHonoEnv>()
 const ORG_STATS_MEMBER_BATCH_SIZE = 100
-const LOGIN_SUCCESS_EVENTS = ['authentication.login_succeeded', 'user.signed_in'] as const
-const LOGIN_FAILURE_EVENTS = ['authentication.login_failed', 'user.sign_in_failed'] as const
-const LOGIN_STATS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 type OrgStats = {
   dau: number
   mau: number
-  loginSuccessRate: number
+  loginSuccessRate: number | null
   mfaAdoptionRate: number
   activeMemberCount: number
   pendingInvitationCount: number
@@ -82,28 +80,21 @@ async function buildOrgStats(c: Context<XidHonoEnv>, orgId: string): Promise<Org
     db.forOrg(orgId).invitations.count(eq(schema.invitations.status, 'pending')),
   ])
 
+  const login = loginOutcomeFilters(now)
   const orgAuditFilter = and(
     or(eq(schema.auditEvents.orgId, orgId), isNull(schema.auditEvents.orgId)),
-    gte(
-      schema.auditEvents.occurredAt,
-      new Date(now.getTime() - LOGIN_STATS_WINDOW_MS).toISOString(),
-    ),
+    login.window,
   )
   const mfaUserCount = await countActiveMfaUsers(db, memberUserIds)
   const [loginSuccesses, loginFailures] = await Promise.all([
-    db.auditEvents.count(
-      and(orgAuditFilter, inArray(schema.auditEvents.eventType, [...LOGIN_SUCCESS_EVENTS])),
-    ),
-    db.auditEvents.count(
-      and(orgAuditFilter, inArray(schema.auditEvents.eventType, [...LOGIN_FAILURE_EVENTS])),
-    ),
+    db.auditEvents.count(and(orgAuditFilter, login.succeeded)),
+    db.auditEvents.count(and(orgAuditFilter, login.failed)),
   ])
-  const totalLogins = loginSuccesses + loginFailures
 
   return {
     dau: Number(usageDay?.dau ?? 0),
     mau: Number(usageMonth?.mau ?? 0),
-    loginSuccessRate: ratio(loginSuccesses, totalLogins, 1),
+    loginSuccessRate: loginSuccessRate(loginSuccesses, loginFailures),
     mfaAdoptionRate: ratio(mfaUserCount, memberUserIds.length, 0),
     activeMemberCount: memberUserIds.length,
     pendingInvitationCount,

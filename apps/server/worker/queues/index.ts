@@ -34,6 +34,7 @@ export {
   DEAD_LETTER_SOURCES,
   deadLetterMetadata,
   handleDeadLetterBatch,
+  isDeadLetterReplayable,
   replayDeadLetter,
 } from './dead-letter'
 

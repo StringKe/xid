@@ -8,7 +8,9 @@ import { describe, it, expect } from 'vitest'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { sha256Hex } from '@xid-kit/crypto'
+import { AUTH_LOGIN_FAILED_EVENT, AUTH_LOGIN_SUCCEEDED_EVENT } from '@xid-kit/types'
 import type { TenantContext } from '@xid-kit/types'
+import { AUDIT_VERIFY_MAX_SPAN } from '../audit-verify'
 import type { XidHonoEnv } from '../../lib/types'
 import { rtCookieName } from '../../lib/cookies'
 import { isAppError } from '../../lib/errors'
@@ -42,6 +44,8 @@ type TableSet = {
   organization_plans?: Rows
   organization_quotas?: Rows
   platform_audit_outbox?: Rows
+  status_incidents?: Rows
+  status_incident_updates?: Rows
 }
 
 function tableNameForSql(sql: string): keyof TableSet | 'unknown' {
@@ -64,6 +68,8 @@ function tableNameForSql(sql: string): keyof TableSet | 'unknown' {
       'organization_plans',
       'organization_quotas',
       'platform_audit_outbox',
+      'status_incidents',
+      'status_incident_updates',
     ].includes(mutationTarget)
   ) {
     return mutationTarget as keyof TableSet
@@ -86,6 +92,8 @@ function tableNameForSql(sql: string): keyof TableSet | 'unknown' {
   if (from === 'organization_plans') return 'organization_plans'
   if (from === 'organization_quotas') return 'organization_quotas'
   if (from === 'platform_audit_outbox') return 'platform_audit_outbox'
+  if (from === 'status_incidents') return 'status_incidents'
+  if (from === 'status_incident_updates') return 'status_incident_updates'
   // 顺序敏感:更具体的表名先判,避免 'users' 命中 'user_emails'。
   if (l.includes('memberships')) return 'memberships'
   if (l.includes('manager_assignments')) return 'manager_assignments'
@@ -151,6 +159,9 @@ function filterNoParamPredicates(sql: string, table: keyof TableSet | 'unknown',
 function rowMatchesParam(row: Record<string, unknown>, sql: string, param: string): boolean {
   const l = sql.toLowerCase()
   if (param === 'deleted' && l.includes('"users"."status" <>')) return true
+  if (l.includes('"audit_events"."occurred_at" >=') && /^\d{4}-\d{2}-\d{2}T/u.test(param)) {
+    return String(row['occurred_at'] ?? '') >= param
+  }
   if (param.startsWith('%') && param.endsWith('%')) {
     const needle = param.slice(1, -1).toLowerCase()
     return Object.values(row).some((value) =>
@@ -406,6 +417,18 @@ function managerAssignmentRow(userId: string): Record<string, unknown> {
   }
 }
 
+function adminOrganizationRow(): Record<string, unknown> {
+  return {
+    id: 'org_admin',
+    tenant_id: 'org_admin',
+    parent_org_id: null,
+    status: 'active',
+    slug: 'admin',
+    name: 'Admin',
+    created_at: Date.now(),
+  }
+}
+
 function activeUserRow(userId: string, tenantId = 'org_admin'): Record<string, unknown> {
   return {
     id: userId,
@@ -519,7 +542,6 @@ const GET_ENDPOINTS = [
   '/v1/platform/audit-events',
   '/v1/platform/audit/verify?tenant_id=org_admin',
   '/v1/platform/billing',
-  '/v1/platform/feature-flags',
   '/v1/platform/settings',
   '/v1/platform/dead-letters',
   '/v1/platform/plans/org_admin',
@@ -674,19 +696,51 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const res = await doRequest(app, env, '/v1/platform/stats', cookie)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    for (const key of [
-      'organizationCount',
-      'totalUsers',
-      'dau',
-      'mau',
-      'loginSuccessRate',
-      'activeOrgCount',
-    ]) {
+    for (const key of ['organizationCount', 'totalUsers', 'dau', 'mau', 'activeOrgCount']) {
       expect(body[key]).toBeTypeOf('number')
     }
-    // 无登录审计事件 -> loginSuccessRate 默认 1。
-    expect(body['loginSuccessRate']).toBe(1)
+    expect(body['loginSuccessRate']).toBeNull()
     expect(body['totalUsers']).toBe(1)
+  })
+
+  it('GET /v1/platform/stats 按登录审计事件计算成功率,活跃组织只计顶层组织', async () => {
+    const now = Date.now()
+    const occurredAt = new Date(now).toISOString()
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [
+        {
+          id: 'org_admin',
+          tenant_id: 'org_admin',
+          parent_org_id: null,
+          status: 'active',
+          slug: 'admin',
+          name: 'Admin',
+          created_at: now,
+        },
+        {
+          id: 'org_child',
+          tenant_id: 'org_admin',
+          parent_org_id: 'org_admin',
+          status: 'active',
+          slug: 'child',
+          name: 'Child',
+          created_at: now,
+        },
+      ],
+      audit_events: [
+        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_SUCCEEDED_EVENT, occurred_at: occurredAt },
+        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_SUCCEEDED_EVENT, occurred_at: occurredAt },
+        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_SUCCEEDED_EVENT, occurred_at: occurredAt },
+        { tenant_id: 'org_admin', event_type: AUTH_LOGIN_FAILED_EVENT, occurred_at: occurredAt },
+      ],
+    })
+
+    const res = await doRequest(buildApp(), env, '/v1/platform/stats', cookie)
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body['loginSuccessRate']).toBe(0.75)
+    expect(body['activeOrgCount']).toBe(body['organizationCount'])
   })
 
   it('GET /v1/platform/organizations -> 200 + Page<OrganizationItem>(nextCursor + total)', async () => {
@@ -845,7 +899,7 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
   })
 
   it('GET /v1/platform/audit/verify -> 200 + empty valid chain contract', async () => {
-    const { env, cookie } = await instanceManagerEnv({})
+    const { env, cookie } = await instanceManagerEnv({ organizations: [adminOrganizationRow()] })
     const res = await doRequest(
       buildApp(),
       env,
@@ -857,6 +911,8 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     expect(await res.json()).toMatchObject({
       tenant_id: 'org_admin',
       verified_range: { from: 1, to: 0 },
+      truncated: false,
+      latest_seq: 0,
       chain_valid: true,
       broken_at_seq: null,
       failure_reason: null,
@@ -864,8 +920,53 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     })
   })
 
-  it('GET /v1/platform/audit/verify rejects an explicit non-empty range for an empty chain', async () => {
+  it('GET /v1/platform/audit/verify 对不存在的租户 ID 返回 404,不报告链完整', async () => {
+    const { env, cookie } = await instanceManagerEnv({ organizations: [adminOrganizationRow()] })
+
+    const res = await doRequest(
+      buildApp(),
+      env,
+      '/v1/platform/audit/verify?tenant_id=org_typo',
+      cookie,
+    )
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ code: 'not_found' })
+  })
+
+  it('GET /v1/platform/audit/verify 接受 platform 级审计链', async () => {
     const { env, cookie } = await instanceManagerEnv({})
+
+    const res = await doRequest(
+      buildApp(),
+      env,
+      '/v1/platform/audit/verify?tenant_id=platform',
+      cookie,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ tenant_id: 'platform', record_count: 0 })
+  })
+
+  it('GET /v1/platform/audit/verify 拒绝超过单次上限的显式区间', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [adminOrganizationRow()],
+      audit_events: [{ tenant_id: 'org_admin', seq: AUDIT_VERIFY_MAX_SPAN + 1 }],
+    })
+
+    const res = await doRequest(
+      buildApp(),
+      env,
+      `/v1/platform/audit/verify?tenant_id=org_admin&from_seq=1&to_seq=${AUDIT_VERIFY_MAX_SPAN + 1}`,
+      cookie,
+    )
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({ code: 'validation_failed' })
+  })
+
+  it('GET /v1/platform/audit/verify rejects an explicit non-empty range for an empty chain', async () => {
+    const { env, cookie } = await instanceManagerEnv({ organizations: [adminOrganizationRow()] })
     const res = await doRequest(
       buildApp(),
       env,
@@ -1015,6 +1116,43 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
       seatLimit: null,
       quotas: [{ key: 'seats', limit: null, enforcement: 'block_creation' }],
     })
+  })
+
+  it('PATCH /v1/platform/plans/:tenantId 只改配额时保留 Stripe 来源与生效时间', async () => {
+    const effectiveAt = Date.now() - 86_400_000
+    const planRow: Record<string, unknown> = {
+      tenant_id: 'org_admin',
+      plan: 'pro',
+      status: 'active',
+      source: 'stripe',
+      trial_ends_at: null,
+      effective_at: effectiveAt,
+      updated_by: null,
+      created_at: effectiveAt,
+      updated_at: effectiveAt,
+    }
+    const tables: TableSet = {
+      organizations: [adminOrganizationRow()],
+      organization_plans: [planRow],
+      organization_quotas: [],
+      platform_audit_outbox: [],
+    }
+    const { env, cookie } = await instanceManagerEnv(tables)
+
+    const response = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/plans/org_admin',
+      body: { quotas: [{ key: 'emails', limit: 5_000, enforcement: 'observe' }] },
+      cookie,
+    })
+
+    expect(response.status).toBe(200)
+    expect(planRow).toMatchObject({ plan: 'pro', source: 'stripe', effective_at: effectiveAt })
+    expect(tables.organization_quotas).toEqual([
+      expect.objectContaining({ quota_key: 'emails', limit: 5_000 }),
+    ])
+    expect(await response.json()).toMatchObject({ organizationName: 'Admin', source: 'stripe' })
   })
 
   it('PATCH /v1/platform/plans/:tenantId atomically persists plan, seat, quota and audit outbox', async () => {
@@ -1201,38 +1339,6 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     expect(response.status).toBe(422)
   })
 
-  it('GET /v1/platform/feature-flags -> 200 + FeatureFlag[](裸数组)', async () => {
-    const { env, cookie } = await instanceManagerEnv({})
-    const app = buildApp()
-    const res = await doRequest(app, env, '/v1/platform/feature-flags', cookie)
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as unknown[]
-    expect(Array.isArray(body)).toBe(true)
-    expect(body.length).toBeGreaterThan(0)
-    const first = body[0] as Record<string, unknown>
-    for (const key of ['key', 'label', 'description', 'globalDefault', 'organizationOverrides']) {
-      expect(key in first).toBe(true)
-    }
-  })
-
-  it('PATCH /v1/platform/feature-flags/:key -> 200 + updates globalDefault in KV', async () => {
-    const { env, cookie } = await instanceManagerEnv({})
-    const app = buildApp()
-
-    const res = await doPatch({
-      app,
-      env,
-      path: '/v1/platform/feature-flags/passkey_autofill',
-      body: { globalDefault: true },
-      cookie,
-    })
-
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>
-    expect(body).toMatchObject({ key: 'passkey_autofill', globalDefault: true })
-    expect(await env.CACHE.get('flag:global:passkey_autofill')).toBe('1')
-  })
-
   it('PATCH /v1/platform/organizations/:organizationId -> 200 + updates top-level organization status', async () => {
     const row = {
       id: 'org_acme',
@@ -1291,6 +1397,84 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     const body = (await res.json()) as Record<string, unknown>
     expect(body['code']).toBe('conflict')
     expect(row['status']).toBe('active')
+  })
+
+  it('GET /v1/platform/organizations marks the default organization as not suspendable', async () => {
+    const { env, cookie } = await instanceManagerEnv({
+      organizations: [
+        { ...adminOrganizationRow(), slug: 'default' },
+        { ...adminOrganizationRow(), id: 'org_acme', tenant_id: 'org_acme', slug: 'acme' },
+      ],
+    })
+
+    const res = await doRequest(buildApp(), env, '/v1/platform/organizations', cookie)
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { data: Record<string, unknown>[] }
+    expect(body.data.find((org) => org['slug'] === 'default')?.['canChangeStatus']).toBe(false)
+    expect(body.data.find((org) => org['slug'] === 'acme')?.['canChangeStatus']).toBe(true)
+  })
+
+  function incidentRow(): Record<string, unknown> {
+    const now = Date.now()
+    return {
+      id: 'incident_1',
+      title: 'Delayed webhooks',
+      status: 'monitoring',
+      impact: 'minor',
+      summary: 'Webhook latency is recovering.',
+      started_at: now - 60_000,
+      resolved_at: null,
+      created_by: 'user_mgr',
+      updated_by: 'user_mgr',
+      created_at: now - 60_000,
+      updated_at: now - 60_000,
+    }
+  }
+
+  it('PATCH /v1/platform/status-incidents/:id rejects status changes outside the public timeline', async () => {
+    const incident = incidentRow()
+    const { env, cookie } = await instanceManagerEnv({ status_incidents: [incident] })
+
+    const res = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/status-incidents/incident_1',
+      body: { status: 'resolved' },
+      cookie,
+    })
+
+    expect(res.status).toBe(422)
+    expect(incident['status']).toBe('monitoring')
+  })
+
+  it('POST /v1/platform/status-incidents/:id/updates reports a concurrent edit as conflict', async () => {
+    const { env, cookie } = await instanceManagerEnv({ status_incidents: [incidentRow()] })
+    env.DB.batch = async <T>() =>
+      [
+        { meta: { changes: 0 } },
+        { meta: { changes: 0 } },
+        { meta: { changes: 0 } },
+      ] as never as D1Result<T>[]
+
+    const res = await Promise.resolve(
+      buildApp().request(
+        'https://xid.dev/v1/platform/status-incidents/incident_1/updates',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: `${cookie.name}=${cookie.value}`,
+          },
+          body: JSON.stringify({ status: 'resolved', message: 'Webhooks are back to normal.' }),
+        },
+        env,
+        execCtx,
+      ),
+    )
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'conflict' })
   })
 
   it('GET /v1/platform/settings -> 200 + instance defaults', async () => {
@@ -1354,6 +1538,61 @@ describe('platform-console happy path:instance_manager 放行 + 契约响应形�
     expect(body).toMatchObject({ mfaPolicy: 'required', defaultLocale: 'zh-Hans' })
     expect(instanceRow['mfa_policy']).toBe('required')
     expect(instanceRow['default_locale']).toBe('zh-Hans')
+  })
+
+  it('PATCH /v1/platform/settings 与审计 outbox 同批提交', async () => {
+    const instanceRow = makeSettingsInstanceRow()
+    const outbox: Rows = []
+    const { env, cookie } = await instanceManagerEnv({
+      instances: [instanceRow],
+      platform_audit_outbox: outbox,
+    })
+
+    const res = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/settings',
+      body: { defaultLocale: 'ja' },
+      cookie,
+    })
+
+    expect(res.status).toBe(200)
+    expect(instanceRow['default_locale']).toBe('ja')
+    expect(outbox).toEqual([
+      expect.objectContaining({ tenant_id: 'platform', action: 'platform.settings_changed' }),
+    ])
+  })
+
+  it('PATCH /v1/platform/settings 拒绝不受支持的默认语言', async () => {
+    const instanceRow = makeSettingsInstanceRow()
+    const { env, cookie } = await instanceManagerEnv({ instances: [instanceRow] })
+
+    const res = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/settings',
+      body: { defaultLocale: 'chinese' },
+      cookie,
+    })
+
+    expect(res.status).toBe(422)
+    expect(instanceRow['default_locale']).toBe('en')
+  })
+
+  it('PATCH /v1/platform/settings 不接受 data residency 修改', async () => {
+    const instanceRow = makeSettingsInstanceRow()
+    const { env, cookie } = await instanceManagerEnv({ instances: [instanceRow] })
+
+    const res = await doPatch({
+      app: buildApp(),
+      env,
+      path: '/v1/platform/settings',
+      body: { dataResidency: 'eu' },
+      cookie,
+    })
+
+    expect(res.status).toBe(422)
+    expect(instanceRow['data_residency']).toBe('us')
   })
 
   function makeSettingsInstanceRow(extra: Record<string, unknown> = {}): Record<string, unknown> {

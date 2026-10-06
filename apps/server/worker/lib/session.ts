@@ -527,6 +527,22 @@ export async function issueSession(
   return { session: toSessionData(row), refreshToken }
 }
 
+// issueSession 对 pending_mfa / pending_mfa_setup 会话不记登录;MFA 完成、会话转为 active 时补记一次。
+export function recordSessionActivated(c: Context<XidHonoEnv>, session: SessionData): void {
+  if (session.status === ACTIVE_SESSION_STATUS) return
+  waitUntilBestEffort(
+    c,
+    recordAuthenticatedSession({
+      env: c.env,
+      tenant: c.get('tenant'),
+      userId: session.userId,
+      status: ACTIVE_SESSION_STATUS,
+      timestamp: Date.now(),
+      isImpersonation: session.isImpersonation,
+    }),
+  )
+}
+
 // 校验单个 session:cookie opaque token -> SHA-256 -> D1 查 status/过期 -> SessionDO is-active。
 // 任一不通过返回 null(枚举防护:不区分缺失/无效/已撤销)。
 export async function readSessionById(

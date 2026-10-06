@@ -1,10 +1,12 @@
 // GET /v1/platform/audit/verify:按 tenant + seq 范围重算 append-only 审计链。
 // 只允许 Instance Manager;跨租户读取必须走独立 managementDb 路径。
 // D1 每批最多读 1000 行,避免把完整租户审计历史一次性载入 Worker 内存。
+// 单次请求最多重算 AUDIT_VERIFY_MAX_SPAN 条,防止同步请求触达 CPU 与子请求上限;省略 to_seq 时截断并返回 truncated。
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { schema } from '@xid-kit/db'
-import { and, desc, eq, gt, lte } from 'drizzle-orm'
+import type { AuditChainFailureReason, AuditChainVerification } from '@xid-kit/types'
+import { and, desc, eq, gt, isNull, lte } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
@@ -17,6 +19,8 @@ const app = new Hono<XidHonoEnv>()
 
 const GENESIS_HASH = '0'.repeat(64)
 const VERIFY_BATCH_SIZE = 1000
+export const AUDIT_VERIFY_MAX_SPAN = 50 * VERIFY_BATCH_SIZE
+const PLATFORM_AUDIT_TENANT_ID = 'platform'
 
 const positiveSeqSchema = v.pipe(
   v.string(),
@@ -33,11 +37,6 @@ const verifyQuerySchema = v.object({
   to_seq: v.optional(positiveSeqSchema),
 })
 
-export type AuditChainFailureReason =
-  | 'audit_chain_broken'
-  | 'audit_seq_gap'
-  | 'audit_genesis_missing'
-
 export type AuditChainVerificationState = {
   nextSeq: number
   expectedPrevHash: string
@@ -45,16 +44,6 @@ export type AuditChainVerificationState = {
   chainValid: boolean
   brokenAtSeq: number | null
   failureReason: AuditChainFailureReason | null
-}
-
-export type AuditChainVerificationResponse = {
-  tenant_id: string
-  verified_range: { from: number; to: number }
-  chain_valid: boolean
-  broken_at_seq: number | null
-  failure_reason: AuditChainFailureReason | null
-  record_count: number
-  computed_at: string
 }
 
 type VerifiableAuditRow = {
@@ -150,15 +139,36 @@ function finishAuditVerification(state: AuditChainVerificationState, toSeq: numb
   }
 }
 
-function responseFor(
+// 无审计行时区分「租户存在但尚无事件」与「ID 输错」,后者不能显示为链完整。
+async function assertAuditTenantExists(
+  db: ReturnType<typeof managementDb>,
   tenantId: string,
-  fromSeq: number,
-  toSeq: number,
+): Promise<void> {
+  if (tenantId === PLATFORM_AUDIT_TENANT_ID) return
+  const rows = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations)
+    .where(and(eq(schema.organizations.id, tenantId), isNull(schema.organizations.parentOrgId)))
+    .limit(1)
+  if (rows.length === 0) throw new AppError('not_found', { httpStatus: 404 })
+}
+
+type VerifiedRange = {
+  tenantId: string
+  fromSeq: number
+  toSeq: number
+  latestSeq: number
+}
+
+function responseFor(
+  range: VerifiedRange,
   state: AuditChainVerificationState,
-): AuditChainVerificationResponse {
+): AuditChainVerification {
   return {
-    tenant_id: tenantId,
-    verified_range: { from: fromSeq, to: toSeq },
+    tenant_id: range.tenantId,
+    verified_range: { from: range.fromSeq, to: range.toSeq },
+    truncated: range.toSeq < range.latestSeq,
+    latest_seq: range.latestSeq,
     chain_valid: state.chainValid,
     broken_at_seq: state.brokenAtSeq,
     failure_reason: state.failureReason,
@@ -184,6 +194,7 @@ app.get('/', async (c) => {
     .limit(1)
   const latestSeq = latestRows[0]?.seq
   if (latestSeq === undefined) {
+    await assertAuditTenantExists(db, query.tenant_id)
     const fromSeq = query.from_seq ?? 1
     if (fromSeq !== 1 || query.to_seq !== undefined) {
       throw new AppError('validation_failed', {
@@ -192,17 +203,23 @@ app.get('/', async (c) => {
       })
     }
     const emptyState = createAuditVerificationState(1, GENESIS_HASH)
-    return c.json(responseFor(query.tenant_id, 1, 0, emptyState))
+    return c.json(
+      responseFor({ tenantId: query.tenant_id, fromSeq: 1, toSeq: 0, latestSeq: 0 }, emptyState),
+    )
   }
 
   const fromSeq = query.from_seq ?? 1
-  const toSeq = query.to_seq ?? latestSeq
+  const toSeq = query.to_seq ?? Math.min(latestSeq, fromSeq + AUDIT_VERIFY_MAX_SPAN - 1)
   if (fromSeq > toSeq || toSeq > latestSeq) {
     throw new AppError('validation_failed', {
       httpStatus: 422,
       meta: { paramName: fromSeq > toSeq ? 'from_seq' : 'to_seq' },
     })
   }
+  if (toSeq - fromSeq + 1 > AUDIT_VERIFY_MAX_SPAN) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'to_seq' } })
+  }
+  const range: VerifiedRange = { tenantId: query.tenant_id, fromSeq, toSeq, latestSeq }
 
   let expectedPrevHash = GENESIS_HASH
   if (fromSeq > 1) {
@@ -220,7 +237,7 @@ app.get('/', async (c) => {
     if (!predecessor) {
       const missingPredecessor = createAuditVerificationState(fromSeq, GENESIS_HASH)
       failAuditVerification(missingPredecessor, fromSeq, 'audit_seq_gap')
-      return c.json(responseFor(query.tenant_id, fromSeq, toSeq, missingPredecessor))
+      return c.json(responseFor(range, missingPredecessor))
     }
     expectedPrevHash = predecessor.hash
   }
@@ -262,7 +279,7 @@ app.get('/', async (c) => {
   }
 
   finishAuditVerification(state, toSeq)
-  return c.json(responseFor(query.tenant_id, fromSeq, toSeq, state))
+  return c.json(responseFor(range, state))
 })
 
 export function registerPlatformAuditVerifyRoutes(honoApp: Hono<XidHonoEnv>): void {

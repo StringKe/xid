@@ -5,6 +5,7 @@
 // email 取 primary user_emails;name 取 display_name 回退 first+last;organizations 取 active Membership。
 
 import { schema } from '@xid-kit/db'
+import type { GlobalUser, GlobalUserOrganization } from '@xid-kit/types'
 import { and, count, eq, gt, inArray, isNull, like, ne, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -19,44 +20,9 @@ import {
   parsePlatformPagination,
   requireInstanceManager,
 } from './shared'
+import { displayNameOf, toGlobalUserStatus } from './user-display'
 
 const app = new Hono<XidHonoEnv>()
-
-const USER_STATUSES = ['active', 'inactive', 'banned'] as const
-type UserStatus = (typeof USER_STATUSES)[number]
-
-type GlobalUserOrganization = {
-  id: string
-  slug: string
-  name: string
-}
-
-type GlobalUser = {
-  id: string
-  email: string
-  name: string | null
-  organizations: GlobalUserOrganization[]
-  status: UserStatus
-  createdAt: string
-}
-
-// users.status(active/banned/deleted/inactive/...) -> 公开契约(active|inactive|banned)。
-// banned 显式;active 显式;其余(deleted/pending/...)模糊归 inactive,不泄露内部状态名。
-function toUserStatus(status: string): UserStatus {
-  if (status === 'banned') return 'banned'
-  if (status === 'active') return 'active'
-  return 'inactive'
-}
-
-function displayNameOf(row: {
-  displayName: string | null
-  firstName: string | null
-  lastName: string | null
-}): string | null {
-  if (row.displayName) return row.displayName
-  const joined = [row.firstName, row.lastName].filter(Boolean).join(' ').trim()
-  return joined.length > 0 ? joined : null
-}
 
 // 搜索谓词:email(primary user_emails)或 name(display/first/last)模糊;+ cursor。
 function buildWhere(q: string, cursor: string | null): SQL {
@@ -190,7 +156,7 @@ app.get('/', async (c) => {
     email: row.email ?? '',
     name: displayNameOf(row),
     organizations: organizationsByUserId.get(row.id) ?? [],
-    status: toUserStatus(row.status),
+    status: toGlobalUserStatus(row.status),
     createdAt: row.createdAt.toISOString(),
   }))
 

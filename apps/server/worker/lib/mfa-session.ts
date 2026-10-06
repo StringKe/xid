@@ -17,6 +17,7 @@ import {
   PENDING_MFA_SESSION_STATUS,
   PENDING_MFA_SETUP_SESSION_STATUS,
   readSession,
+  recordSessionActivated,
   type ReadSessionStatus,
 } from './session'
 import type { SessionData, TenantVar, XidHonoEnv } from './types'
@@ -116,6 +117,7 @@ export async function completeMfaOnSession(
     },
     eq(schema.sessions.id, session.sessionId),
   )
+  recordSessionActivated(c, session)
 }
 
 // 强制绑定期间登记因子后,仅在租户 MFA 要求已满足时把 session 升为 active;绑定时的验证即一次第二因子。

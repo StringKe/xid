@@ -409,7 +409,7 @@ describe('POST /auth/guest', () => {
       expect.anything(),
     )
     // 落败不算铸造成功:不发 guest.created。
-    expect(auditSend).not.toHaveBeenCalled()
+    expect(auditSend).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'guest.created' }))
     expect(db.sessions.insert).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-winner' }),
     )

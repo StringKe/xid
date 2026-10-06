@@ -10,6 +10,7 @@ import {
   isResourceQuotaConstraintError,
   isSeatLimitConstraintError,
 } from '../lib/errors'
+import { recordLoginFailure } from '../lib/login-audit'
 import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
 
@@ -106,6 +107,7 @@ export const errorHandler: ErrorHandler<XidHonoEnv> = (err, c) => {
   }
   if (isAppError(normalized) || isXidErrorShape(normalized)) {
     logOneTimeLinkRejection(c, normalized)
+    recordLoginFailure(c, normalized.code)
   }
   const mapped = isAppError(normalized)
     ? bodyFromAppError(c, normalized)

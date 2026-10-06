@@ -1,4 +1,17 @@
 import { schema } from '@xid-kit/db'
+import {
+  ORGANIZATION_PLANS,
+  ORGANIZATION_PLAN_STATUSES,
+  ORGANIZATION_QUOTA_ENFORCEMENTS,
+  ORGANIZATION_QUOTA_KEYS,
+} from '@xid-kit/types'
+import type {
+  OrganizationPlanDetail,
+  OrganizationPlanName,
+  OrganizationPlanStatus,
+  OrganizationQuota,
+  OrganizationQuotaKey,
+} from '@xid-kit/types'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
@@ -10,10 +23,8 @@ import { managementDb, requireInstanceManager } from './shared'
 
 const app = new Hono<XidHonoEnv>()
 
-export const ORGANIZATION_PLANS = ['free', 'starter', 'pro', 'enterprise'] as const
-export type OrganizationPlan = (typeof ORGANIZATION_PLANS)[number]
 export const PLAN_DEFAULTS: Record<
-  OrganizationPlan,
+  OrganizationPlanName,
   { seatLimit: number | null; apiCalls: number | null; supportLabel: string }
 > = {
   free: { seatLimit: 10, apiCalls: 100_000, supportLabel: 'community' },
@@ -21,18 +32,11 @@ export const PLAN_DEFAULTS: Record<
   pro: { seatLimit: 250, apiCalls: 10_000_000, supportLabel: 'priority' },
   enterprise: { seatLimit: null, apiCalls: null, supportLabel: 'contracted' },
 }
-const PLAN_STATUSES = ['active', 'trialing', 'past_due', 'canceled'] as const
-type PlanStatus = (typeof PLAN_STATUSES)[number]
-const QUOTA_KEYS = [
-  'seats',
-  'organizations',
-  'sso_connections',
-  'api_calls',
-  'emails',
-  'mau',
-] as const
-export type QuotaKey = (typeof QUOTA_KEYS)[number]
-const QUOTA_ENFORCEMENT = ['observe', 'block_creation'] as const
+const PLAN_STATUSES = ORGANIZATION_PLAN_STATUSES
+type PlanStatus = OrganizationPlanStatus
+const QUOTA_KEYS = ORGANIZATION_QUOTA_KEYS
+type QuotaKey = OrganizationQuotaKey
+const QUOTA_ENFORCEMENT = ORGANIZATION_QUOTA_ENFORCEMENTS
 const OBSERVATIONAL_QUOTA_KEYS = ['api_calls', 'emails', 'mau'] as const
 
 const quotaPatchSchema = v.object({
@@ -49,13 +53,9 @@ const patchPlanSchema = v.object({
   quotas: v.optional(v.array(quotaPatchSchema)),
 })
 
-export type PlanQuota = {
-  key: QuotaKey
-  limit: number | null
-  enforcement: (typeof QUOTA_ENFORCEMENT)[number]
-}
+type PlanQuota = OrganizationQuota
 
-export function planDefaultQuotas(plan: OrganizationPlan): PlanQuota[] {
+export function planDefaultQuotas(plan: OrganizationPlanName): PlanQuota[] {
   return [
     {
       key: 'seats',
@@ -110,21 +110,9 @@ export function buildSeatLimitMirrorStatement(
   ).bind(input.seatLimit, input.now, input.tenantId, input.tenantId)
 }
 
-type OrganizationPlanDetail = {
-  tenantId: string
-  plan: OrganizationPlan
-  status: PlanStatus
-  source: string
-  supportLabel: string
-  trialEndsAt: string | null
-  effectiveAt: string
-  seatLimit: number | null
-  quotas: PlanQuota[]
-}
-
-function asPlan(value: string | null | undefined): OrganizationPlan {
-  return ORGANIZATION_PLANS.includes(value as OrganizationPlan)
-    ? (value as OrganizationPlan)
+function asPlan(value: string | null | undefined): OrganizationPlanName {
+  return ORGANIZATION_PLANS.includes(value as OrganizationPlanName)
+    ? (value as OrganizationPlanName)
     : 'free'
 }
 
@@ -175,7 +163,7 @@ function normalizeRequestedQuotas(quotas: readonly PlanQuota[]): PlanQuota[] {
 export async function loadOrganizationPlanMap(
   env: Env,
   tenantIds: readonly string[],
-): Promise<Map<string, OrganizationPlan>> {
+): Promise<Map<string, OrganizationPlanName>> {
   if (tenantIds.length === 0) return new Map()
   const rows = await managementDb(env)
     .select({
@@ -190,7 +178,7 @@ export async function loadOrganizationPlanMap(
 export async function loadOrganizationPlanAccountingMap(
   env: Env,
   tenantIds: readonly string[],
-): Promise<Map<string, { plan: OrganizationPlan; status: PlanStatus }>> {
+): Promise<Map<string, { plan: OrganizationPlanName; status: PlanStatus }>> {
   if (tenantIds.length === 0) return new Map()
   const rows = await managementDb(env)
     .select({
@@ -267,6 +255,7 @@ async function readPlanDetail(env: Env, tenantId: string): Promise<OrganizationP
   })
   return {
     tenantId,
+    organizationName: organization.name,
     plan: planName,
     status: asPlanStatus(plan?.status),
     source: plan?.source ?? 'manual',
@@ -328,35 +317,30 @@ app.patch('/:tenantId', async (c) => {
   if (seatLimit !== undefined) {
     quotas.push({ key: 'seats', limit: seatLimit, enforcement: 'block_creation' })
   }
-  const statements: D1PreparedStatement[] = [
-    c.env.DB.prepare(
-      `INSERT INTO organization_plans (
-         tenant_id, plan, status, source, trial_ends_at, effective_at,
-         updated_by, created_at, updated_at
-       ) VALUES (?, ?, ?, 'manual', ?, ?, ?, ?, ?)
-       ON CONFLICT (tenant_id) DO UPDATE SET
-         plan = excluded.plan,
-         status = excluded.status,
-         source = 'manual',
-         trial_ends_at = excluded.trial_ends_at,
-         effective_at = excluded.effective_at,
-         updated_by = excluded.updated_by,
-         updated_at = excluded.updated_at`,
-    ).bind(
-      tenantId,
-      nextPlan,
-      nextStatus,
-      trialEndsAt === undefined
-        ? current.trialEndsAt === null
-          ? null
-          : new Date(current.trialEndsAt).getTime()
-        : (trialEndsAt?.getTime() ?? null),
-      now,
-      session.userId,
-      now,
-      now,
-    ),
-  ]
+  const currentTrialMs =
+    current.trialEndsAt === null ? null : new Date(current.trialEndsAt).getTime()
+  const nextTrialMs = trialEndsAt === undefined ? currentTrialMs : (trialEndsAt?.getTime() ?? null)
+  // 只调配额时保留计费来源与生效时间(例如 Stripe 回调设定的计划)。
+  const planChanged =
+    nextPlan !== current.plan || nextStatus !== current.status || nextTrialMs !== currentTrialMs
+  const statements: D1PreparedStatement[] = planChanged
+    ? [
+        c.env.DB.prepare(
+          `INSERT INTO organization_plans (
+             tenant_id, plan, status, source, trial_ends_at, effective_at,
+             updated_by, created_at, updated_at
+           ) VALUES (?, ?, ?, 'manual', ?, ?, ?, ?, ?)
+           ON CONFLICT (tenant_id) DO UPDATE SET
+             plan = excluded.plan,
+             status = excluded.status,
+             source = 'manual',
+             trial_ends_at = excluded.trial_ends_at,
+             effective_at = excluded.effective_at,
+             updated_by = excluded.updated_by,
+             updated_at = excluded.updated_at`,
+        ).bind(tenantId, nextPlan, nextStatus, nextTrialMs, now, session.userId, now, now),
+      ]
+    : []
   if (seatLimit !== undefined) {
     statements.push(
       buildSeatLimitMirrorStatement(c.env, {
@@ -388,6 +372,7 @@ app.patch('/:tenantId', async (c) => {
         fromPlan: current.plan,
         toPlan: nextPlan,
         status: nextStatus,
+        planChanged,
         seatLimitChanged: seatLimit !== undefined,
         quotaKeys: quotas.map((quota) => quota.key),
       },

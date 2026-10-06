@@ -1,5 +1,6 @@
 import { schema } from '@xid-kit/db'
-import { and, count, desc, eq, isNull, lt, or } from 'drizzle-orm'
+import type { ComplianceDocument } from '@xid-kit/types'
+import { and, count, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
@@ -66,13 +67,38 @@ export function prepareComplianceDocumentDelete(env: Env, documentId: string): D
   ).bind(documentId)
 }
 
-function mapComplianceDocument(row: ComplianceDocumentRow) {
+async function loadOrganizationNames(
+  env: Env,
+  rows: readonly ComplianceDocumentRow[],
+): Promise<Map<string, string>> {
+  const tenantIds = [...new Set(rows.flatMap((row) => (row.tenantId ? [row.tenantId] : [])))]
+  if (tenantIds.length === 0) return new Map()
+  const organizations = await managementDb(env)
+    .select({ id: schema.organizations.id, name: schema.organizations.name })
+    .from(schema.organizations)
+    .where(inArray(schema.organizations.id, tenantIds))
+  return new Map(organizations.map((organization) => [organization.id, organization.name]))
+}
+
+async function complianceDocumentResponses(
+  env: Env,
+  rows: readonly ComplianceDocumentRow[],
+): Promise<ComplianceDocument[]> {
+  const names = await loadOrganizationNames(env, rows)
+  return rows.map((row) => mapComplianceDocument(row, names))
+}
+
+function mapComplianceDocument(
+  row: ComplianceDocumentRow,
+  organizationNames: Map<string, string>,
+): ComplianceDocument {
   return {
     id: row.id,
     tenantId: row.tenantId ?? null,
+    organizationName: row.tenantId ? (organizationNames.get(row.tenantId) ?? null) : null,
     documentType: row.documentType,
     title: row.title,
-    status: row.status,
+    status: row.status as ComplianceDocument['status'],
     storageKey: row.storageKey ?? null,
     checksum: row.checksum ?? null,
     version: row.version,
@@ -189,7 +215,7 @@ app.get('/', async (c) => {
   const pageRows = hasMore ? rows.slice(0, limit) : rows
   const last = pageRows.at(-1)
   return c.json({
-    data: pageRows.map(mapComplianceDocument),
+    data: await complianceDocumentResponses(c.env, pageRows),
     nextCursor: hasMore && last ? encodeDocumentCursor(last) : null,
     total: totalRow?.value ?? 0,
   })
@@ -263,7 +289,8 @@ app.post('/', async (c) => {
     audit.statement,
   ])
   await enqueuePersistedPlatformAudit(c.env, audit)
-  return c.json(mapComplianceDocument(row), 201)
+  const [created] = await complianceDocumentResponses(c.env, [row])
+  return c.json(created, 201)
 })
 
 app.patch('/:id', async (c) => {
@@ -357,7 +384,8 @@ app.patch('/:id', async (c) => {
     throw new AppError('conflict', { httpStatus: 409 })
   }
   await enqueuePersistedPlatformAudit(c.env, audit)
-  return c.json(mapComplianceDocument(updated))
+  const [response] = await complianceDocumentResponses(c.env, [updated])
+  return c.json(response)
 })
 
 app.delete('/:id', async (c) => {

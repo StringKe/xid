@@ -1,4 +1,4 @@
-// GET /v1/platform/organizations:跨所有顶层 organization 列表(契约 Page<OrganizationItem>,nextCursor + total)。
+// GET /v1/platform/organizations:跨所有顶层 organization 列表(契约 PlatformPage<PlatformOrganization>,nextCursor + total)。
 // 顶层 organization(parent_org_id IS NULL,tenant_id = 自身 id)。userCount/orgCount 按 tenant_id 聚合。
 // 跨租户走独立管理路径(requireInstanceManager + managementDb,见 shared.ts、tenant-isolation rule)。
 // q 按 name 或 slug 模糊搜(空 q 前端不发该 param);limit 默认 20(前端固定 20)。
@@ -19,7 +19,12 @@ import {
   parsePlatformPagination,
   requireInstanceManager,
 } from './shared'
-import { loadOrganizationPlanMap, type OrganizationPlan } from './plans'
+import type {
+  OrganizationPlanName,
+  PlatformOrganization,
+  PlatformOrganizationStatus,
+} from '@xid-kit/types'
+import { loadOrganizationPlanMap } from './plans'
 import {
   enqueuePersistedPlatformAudit,
   prepareConditionalPlatformAuditOutboxInsert,
@@ -27,31 +32,23 @@ import {
 
 const app = new Hono<XidHonoEnv>()
 
-const ORGANIZATION_STATUSES = ['active', 'suspended', 'deleted'] as const
-type OrganizationStatus = (typeof ORGANIZATION_STATUSES)[number]
+const ORGANIZATION_STATUSES = [
+  'active',
+  'suspended',
+  'deleted',
+] as const satisfies readonly PlatformOrganizationStatus[]
 const DEFAULT_ORGANIZATION_SLUG = 'default'
 
 const patchOrganizationBodySchema = v.object({
   status: v.picklist(ORGANIZATION_STATUSES),
 })
 
-type OrganizationItem = {
-  id: string
-  slug: string
-  name: string
-  plan: OrganizationPlan
-  status: OrganizationStatus
-  userCount: number
-  orgCount: number
-  createdAt: string
-}
-
 function toOrganizationItem(
   row: typeof schema.organizations.$inferSelect,
-  plan: OrganizationPlan,
+  plan: OrganizationPlanName,
   users: Map<string, number>,
   orgs: Map<string, number>,
-): OrganizationItem {
+): PlatformOrganization {
   return {
     id: row.id,
     slug: row.slug,
@@ -61,11 +58,12 @@ function toOrganizationItem(
     userCount: users.get(row.id) ?? 0,
     orgCount: orgs.get(row.id) ?? 0,
     createdAt: row.createdAt.toISOString(),
+    canChangeStatus: row.slug !== DEFAULT_ORGANIZATION_SLUG,
   }
 }
 
-// org 行 status -> 契约 OrganizationStatus(未知值模糊回退 active,不泄露内部状态名)。
-function toOrganizationStatus(status: string): OrganizationStatus {
+// org 行 status -> 契约 PlatformOrganizationStatus(未知值模糊回退 active,不泄露内部状态名)。
+function toOrganizationStatus(status: string): PlatformOrganizationStatus {
   if (status === 'suspended') return 'suspended'
   if (status === 'deleted') return 'deleted'
   return 'active'
@@ -73,7 +71,7 @@ function toOrganizationStatus(status: string): OrganizationStatus {
 
 function assertMutableOrganizationStatus(
   row: typeof schema.organizations.$inferSelect,
-  status: OrganizationStatus,
+  status: PlatformOrganizationStatus,
 ): void {
   if (row.slug === DEFAULT_ORGANIZATION_SLUG && status !== 'active') {
     throw new AppError('conflict', {
@@ -160,7 +158,7 @@ app.get('/', async (c) => {
     c.env,
     pageRows.map((row) => row.id),
   )
-  const data: OrganizationItem[] = pageRows.map((row) =>
+  const data: PlatformOrganization[] = pageRows.map((row) =>
     toOrganizationItem(row, plans.get(row.id) ?? 'free', users, orgs),
   )
 

@@ -13,7 +13,9 @@ import {
   prepareConditionalPlatformAuditOutboxInsert,
   preparePlatformAuditOutboxInsert,
 } from './audit-outbox'
-import { loadOrganizationPlanMap, ORGANIZATION_PLANS } from './plans'
+import { ORGANIZATION_PLANS } from '@xid-kit/types'
+import type { PlatformAnnouncement } from '@xid-kit/types'
+import { loadOrganizationPlanMap } from './plans'
 import {
   decodeCursor,
   encodeCursor,
@@ -52,15 +54,15 @@ function toIso(value: Date | null): string | null {
   return value?.toISOString() ?? null
 }
 
-function mapAnnouncement(row: AnnouncementRow) {
+function mapAnnouncement(row: AnnouncementRow): PlatformAnnouncement {
   return {
     id: row.id,
-    scopeType: row.scopeType,
+    scopeType: row.scopeType as PlatformAnnouncement['scopeType'],
     scopeValue: row.scopeValue ?? null,
     title: row.title,
     body: row.body,
-    severity: row.severity,
-    status: row.status,
+    severity: row.severity as PlatformAnnouncement['severity'],
+    status: row.status as PlatformAnnouncement['status'],
     startsAt: row.startsAt.toISOString(),
     endsAt: toIso(row.endsAt),
     createdBy: row.createdBy,

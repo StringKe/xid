@@ -5,6 +5,7 @@
 // status:seatLimit 非空且 seatUsed > seatLimit -> exceeded;否则 ok(overdue 需账务状态源,首版无 -> 不臆造,归 ok)。
 
 import { schema } from '@xid-kit/db'
+import type { BillingOverview, BillingOverviewStatus } from '@xid-kit/types'
 import { and, count, countDistinct, eq, gt, inArray, isNull } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -20,25 +21,11 @@ import { loadOrganizationPlanAccountingMap, loadOrganizationSeatLimitMap } from 
 
 const app = new Hono<XidHonoEnv>()
 
-const BILLING_STATUSES = ['ok', 'overdue', 'exceeded'] as const
-type BillingStatus = (typeof BILLING_STATUSES)[number]
-
-type BillingOverview = {
-  organizationId: string
-  organizationName: string
-  plan: string
-  mau: number
-  dau: number
-  seatUsed: number
-  seatLimit: number | null
-  status: BillingStatus
-}
-
 function billingStatus(
   seatUsed: number,
   seatLimit: number | null,
   planStatus: string,
-): BillingStatus {
+): BillingOverviewStatus {
   if (planStatus === 'past_due') return 'overdue'
   if (seatLimit !== null && seatUsed > seatLimit) return 'exceeded'
   return 'ok'

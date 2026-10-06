@@ -1,10 +1,11 @@
 import { schema } from '@xid-kit/db'
+import type { QueueDeadLetter } from '@xid-kit/types'
 import { and, count, desc, eq, lt, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
-import { replayDeadLetter } from '../queues'
+import { isDeadLetterReplayable, replayDeadLetter } from '../queues'
 import {
   enqueuePersistedPlatformAudit,
   prepareConditionalPlatformAuditOutboxInsert,
@@ -23,7 +24,7 @@ const CURSOR_SEPARATOR = '|'
 
 type DeadLetterRow = typeof schema.queueDeadLetters.$inferSelect
 
-function mapDeadLetter(row: DeadLetterRow) {
+function mapDeadLetter(row: DeadLetterRow, now: number): QueueDeadLetter {
   return {
     id: row.id,
     sourceQueue: row.sourceQueue,
@@ -33,7 +34,11 @@ function mapDeadLetter(row: DeadLetterRow) {
     orgId: row.orgId ?? null,
     eventType: row.eventType,
     errorCode: row.errorCode,
-    status: row.status,
+    status: row.status as QueueDeadLetter['status'],
+    replayable: isDeadLetterReplayable(
+      { status: row.status, replayRequestedAt: row.replayRequestedAt?.getTime() ?? null },
+      now,
+    ),
     attempts: row.attempts,
     sourceEnqueuedAt: row.sourceEnqueuedAt.toISOString(),
     failedAt: row.failedAt.toISOString(),
@@ -99,7 +104,7 @@ app.get('/', async (c) => {
   const pageRows = hasMore ? rows.slice(0, limit) : rows
   const last = pageRows[pageRows.length - 1]
   return c.json({
-    data: pageRows.map(mapDeadLetter),
+    data: pageRows.map((row) => mapDeadLetter(row, Date.now())),
     nextCursor: hasMore && last ? encodeDeadLetterCursor(last) : null,
     total: totalRow?.value ?? 0,
   })
@@ -109,7 +114,7 @@ app.get('/:id', async (c) => {
   await requireInstanceManager(c)
   const row = await findDeadLetter(c.env, c.req.param('id'))
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  return c.json(mapDeadLetter(row))
+  return c.json(mapDeadLetter(row, Date.now()))
 })
 
 app.post('/:id/replay', async (c) => {

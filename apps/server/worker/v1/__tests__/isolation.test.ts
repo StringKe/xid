@@ -10,6 +10,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { base64UrlDecode, envelopeDecrypt, sha256Hex } from '@xid-kit/crypto'
 import { generateSelfSignedSamlCertificate } from '@xid-kit/saml'
+import { AUTH_LOGIN_FAILED_EVENT, AUTH_LOGIN_SUCCEEDED_EVENT } from '@xid-kit/types'
 import type { OrganizationMembershipRole, TenantContext } from '@xid-kit/types'
 import type { XidHonoEnv } from '../../lib/types'
 import { registerApplications } from '../applications'
@@ -5521,13 +5522,13 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
         {
           tenant_id: 't_1',
           org_id: 'org_1',
-          event_type: 'authentication.login_succeeded',
+          event_type: AUTH_LOGIN_SUCCEEDED_EVENT,
           occurred_at: new Date().toISOString(),
         },
         {
           tenant_id: 't_1',
           org_id: 'org_1',
-          event_type: 'authentication.login_failed',
+          event_type: AUTH_LOGIN_FAILED_EVENT,
           occurred_at: new Date().toISOString(),
         },
       ],
@@ -5586,19 +5587,19 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
         {
           tenant_id: 't_1',
           org_id: 'org_1',
-          event_type: 'authentication.login_succeeded',
+          event_type: AUTH_LOGIN_SUCCEEDED_EVENT,
           occurred_at: recent,
         },
         {
           tenant_id: 't_1',
           org_id: 'org_1',
-          event_type: 'authentication.login_failed',
+          event_type: AUTH_LOGIN_FAILED_EVENT,
           occurred_at: stale,
         },
         {
           tenant_id: 't_1',
           org_id: 'org_1',
-          event_type: 'authentication.login_failed',
+          event_type: AUTH_LOGIN_FAILED_EVENT,
           occurred_at: stale,
         },
       ],

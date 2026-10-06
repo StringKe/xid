@@ -2,7 +2,7 @@
 
 import { setupI18n } from '@lingui/core'
 import type { I18n } from '@lingui/core'
-import type { MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from 'hono'
 import { resolveLocale } from '../lib/locale'
 import type { WorkerLocale } from '../lib/locale'
 import type { XidHonoEnv } from '../lib/types'
@@ -49,8 +49,8 @@ export async function createRequestI18n(locale: WorkerLocale): Promise<I18n> {
 }
 
 // 激活本请求 locale:解析优先级 -> 确保 catalog -> i18n.activate -> 注入 c.set('locale')。
-// 此中间件在 session 之前运行,只用 ?locale= 与 Accept-Language;user.locale / 租户默认
-// 由已登录上下文的后续逻辑用 resolveLocale 叠加(TenantPolicy 暂无 locale 字段,不臆造)。
+// 此中间件在 tenant 之前运行,只用 ?locale= 与 Accept-Language;实例默认语言由
+// applyTenantDefaultLocale 在 tenant 解析后叠加,user.locale 由已登录上下文的后续逻辑叠加。
 export const i18nMiddleware: MiddlewareHandler<XidHonoEnv> = async (c, next) => {
   const locale = resolveLocale({
     queryLocale: c.req.query('locale'),
@@ -59,4 +59,17 @@ export const i18nMiddleware: MiddlewareHandler<XidHonoEnv> = async (c, next) => 
   c.set('i18n', await createRequestI18n(locale))
   c.set('locale', locale)
   await next()
+}
+
+export async function applyTenantDefaultLocale(c: Context<XidHonoEnv>): Promise<void> {
+  const tenantDefault = c.get('tenant')?.defaultLocale
+  if (!tenantDefault) return
+  const locale = resolveLocale({
+    queryLocale: c.req.query('locale'),
+    acceptLanguage: c.req.header('accept-language'),
+    tenantDefault,
+  })
+  if (locale === c.get('locale')) return
+  c.set('i18n', await createRequestI18n(locale))
+  c.set('locale', locale)
 }

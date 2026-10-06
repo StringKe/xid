@@ -1,6 +1,7 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import type { TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
+import { sendLoginSucceededAudit } from './login-audit'
 import type { ReadSessionStatus } from './session'
 import { logWorkerError } from './safe-log'
 
@@ -64,6 +65,14 @@ export async function recordAuthenticatedSession(input: AuthAnalyticsInput): Pro
         })
       }
     }
+  }
+
+  try {
+    await sendLoginSucceededAudit(input)
+  } catch (error) {
+    logWorkerError('auth_analytics.login_audit.enqueue_failed', error, {
+      component: 'auth-analytics',
+    })
   }
 
   try {

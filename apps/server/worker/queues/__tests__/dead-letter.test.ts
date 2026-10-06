@@ -4,6 +4,7 @@ import {
   DEAD_LETTER_SOURCES,
   deadLetterMetadata,
   handleDeadLetterBatch,
+  isDeadLetterReplayable,
   recoverStaleDeadLetterReplays,
   replayDeadLetter,
 } from '../dead-letter'
@@ -522,5 +523,19 @@ describe('dead-letter source mapping and encrypted persistence', () => {
     expect(rows.get(row.id)?.status).toBe('replayed')
     expect(rows.get(row.id)?.replayCount).toBe(1)
     expect(audits.size).toBe(1)
+  })
+})
+
+describe('isDeadLetterReplayable', () => {
+  const now = 10 * DEAD_LETTER_REPLAY_LEASE_MS
+
+  it.each([
+    { status: 'pending', replayRequestedAt: null, expected: true },
+    { status: 'replaying', replayRequestedAt: null, expected: true },
+    { status: 'replaying', replayRequestedAt: now - DEAD_LETTER_REPLAY_LEASE_MS, expected: true },
+    { status: 'replaying', replayRequestedAt: now - 1, expected: false },
+    { status: 'replayed', replayRequestedAt: null, expected: false },
+  ])('$status with claim $replayRequestedAt -> $expected', ({ expected, ...row }) => {
+    expect(isDeadLetterReplayable(row, now)).toBe(expected)
   })
 })

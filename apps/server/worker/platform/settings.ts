@@ -2,26 +2,29 @@
 // cookie-session + instance_manager 门控;跨租户独立管理路径(raw drizzle)。
 
 import { schema } from '@xid-kit/db'
-import type { SessionPolicy, TokenPolicy } from '@xid-kit/types'
+import type { PlatformMfaPolicy, PlatformSettings } from '@xid-kit/types'
 import {
   SESSION_POLICY_BOUNDS,
   TOKEN_POLICY_BOUNDS,
   normalizeSessionPolicy,
   normalizeTokenPolicy,
 } from '@xid-kit/types'
-import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
+import { SUPPORTED_LOCALES } from '../lib/locale'
 import { readJsonBody, validateBody } from '../lib/validate'
-import { recordPlatformAudit } from './audit-outbox'
+import { enqueuePersistedPlatformAudit, preparePlatformAuditOutboxInsert } from './audit-outbox'
 import { managementDb, requireInstanceManager } from './shared'
 
 const app = new Hono<XidHonoEnv>()
 
-const MFA_POLICIES = ['required', 'optional', 'disabled'] as const
-type MfaPolicy = (typeof MFA_POLICIES)[number]
+const MFA_POLICIES = [
+  'required',
+  'optional',
+  'disabled',
+] as const satisfies readonly PlatformMfaPolicy[]
 
 // 数值字段须落在 BOUNDS 内(与 @xid-kit/types normalize clamp 同一组边界)。
 function optionalBoundedField(bounds: { readonly min: number; readonly max: number }) {
@@ -43,28 +46,24 @@ const tokenPolicyPatchSchema = v.object({
 })
 
 // 字段顺序即 paramName 优先级(与原手写守卫的检查顺序一致)。
+// data_residency 只是部署元数据,不改变数据存放位置,因此只读不可改。
 const patchSettingsBodySchema = v.object({
-  defaultLocale: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
-  dataResidency: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
+  defaultLocale: v.optional(v.picklist(SUPPORTED_LOCALES)),
   mfaPolicy: v.optional(v.picklist(MFA_POLICIES)),
   passwordPolicy: v.optional(v.record(v.string(), v.unknown())),
   sessionPolicy: v.optional(sessionPolicyPatchSchema),
   tokenPolicy: v.optional(tokenPolicyPatchSchema),
 })
 
-type PlatformSettings = {
-  id: string
-  name: string
-  primaryDomain: string
-  mode: string
-  defaultLocale: string
-  dataResidency: string
-  mfaPolicy: MfaPolicy
-  passwordPolicy: Record<string, unknown>
-  sessionPolicy: SessionPolicy
-  tokenPolicy: TokenPolicy
-  status: string
-}
+const SETTINGS_COLUMNS = {
+  defaultLocale: 'default_locale',
+  mfaPolicy: 'mfa_policy',
+  passwordPolicy: 'password_policy',
+  sessionPolicy: 'session_policy',
+  tokenPolicy: 'token_policy',
+} as const satisfies Record<string, string>
+
+type SettingsUpdate = Partial<Record<keyof typeof SETTINGS_COLUMNS, string>>
 
 function mapInstance(row: typeof schema.instances.$inferSelect): PlatformSettings {
   return {
@@ -74,7 +73,7 @@ function mapInstance(row: typeof schema.instances.$inferSelect): PlatformSetting
     mode: row.mode,
     defaultLocale: row.defaultLocale,
     dataResidency: row.dataResidency,
-    mfaPolicy: row.mfaPolicy as MfaPolicy,
+    mfaPolicy: row.mfaPolicy as PlatformMfaPolicy,
     passwordPolicy: row.passwordPolicy,
     sessionPolicy: normalizeSessionPolicy(row.sessionPolicy),
     tokenPolicy: normalizeTokenPolicy(row.tokenPolicy),
@@ -141,40 +140,50 @@ app.patch('/', async (c) => {
   const body = validateBody(patchSettingsBodySchema, json.value)
 
   const current = await loadInstance(c.env)
-  const updates: Partial<typeof schema.instances.$inferInsert> = {}
+  const updates: SettingsUpdate = {}
   if (body.defaultLocale !== undefined) updates.defaultLocale = body.defaultLocale
-  if (body.dataResidency !== undefined) updates.dataResidency = body.dataResidency
   if (body.mfaPolicy !== undefined) updates.mfaPolicy = body.mfaPolicy
-  if (body.passwordPolicy !== undefined) updates.passwordPolicy = body.passwordPolicy
+  if (body.passwordPolicy !== undefined) {
+    updates.passwordPolicy = JSON.stringify(body.passwordPolicy)
+  }
   if (body.sessionPolicy !== undefined) {
-    updates.sessionPolicy = mergeSessionPolicyPatch(body.sessionPolicy, current.sessionPolicy)
+    updates.sessionPolicy = JSON.stringify(
+      mergeSessionPolicyPatch(body.sessionPolicy, current.sessionPolicy),
+    )
   }
   if (body.tokenPolicy !== undefined) {
-    updates.tokenPolicy = mergeTokenPolicyPatch(body.tokenPolicy, current.tokenPolicy)
+    updates.tokenPolicy = JSON.stringify(
+      mergeTokenPolicyPatch(body.tokenPolicy, current.tokenPolicy),
+    )
   }
-  if (Object.keys(updates).length === 0) {
+  const fields = Object.keys(updates) as (keyof typeof SETTINGS_COLUMNS)[]
+  if (fields.length === 0) {
     throw new AppError('validation_failed', { httpStatus: 422 })
   }
 
-  const db = managementDb(c.env)
-  const [row] = await db
-    .update(schema.instances)
-    .set({ ...updates, updatedAt: new Date() })
-    .where(eq(schema.instances.id, current.id))
-    .returning()
-  if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  await recordPlatformAudit(c.env, {
-    tenantId: 'platform',
-    action: 'platform.settings_changed',
-    actorId: session.userId,
-    payload: {
-      targetType: 'instance',
-      targetId: row.id,
-      fields: Object.keys(body),
+  const now = Date.now()
+  const audit = preparePlatformAuditOutboxInsert(
+    c.env,
+    {
+      tenantId: 'platform',
+      action: 'platform.settings_changed',
+      actorId: session.userId,
+      payload: { targetType: 'instance', targetId: current.id, fields },
     },
-  })
+    now,
+  )
+  const assignments = fields.map((field) => `${SETTINGS_COLUMNS[field]} = ?`).join(', ')
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE instances SET ${assignments}, updated_at = ? WHERE id = ?`).bind(
+      ...fields.map((field) => updates[field]),
+      now,
+      current.id,
+    ),
+    audit.statement,
+  ])
+  await enqueuePersistedPlatformAudit(c.env, audit)
 
-  return c.json(mapInstance(row))
+  return c.json(mapInstance(await loadInstance(c.env)))
 })
 
 export function registerPlatformSettingsRoutes(honoApp: Hono<XidHonoEnv>): void {

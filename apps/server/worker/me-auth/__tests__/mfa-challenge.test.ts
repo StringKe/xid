@@ -41,6 +41,7 @@ vi.mock('../../auth/otp', () => ({
 
 vi.mock('../../lib/session', () => ({
   readSession: vi.fn(),
+  recordSessionActivated: vi.fn(),
   ACTIVE_SESSION_STATUS: 'active',
   PENDING_MFA_SESSION_STATUS: 'pending_mfa',
   PENDING_MFA_SETUP_SESSION_STATUS: 'pending_mfa_setup',
@@ -55,7 +56,7 @@ import {
   persistAndSendOtp,
   recordOtpFailure,
 } from '../../auth/otp'
-import { readSession } from '../../lib/session'
+import { readSession, recordSessionActivated } from '../../lib/session'
 import type { TenantVar } from '../../lib/types'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
@@ -203,6 +204,10 @@ describe('POST /auth/mfa/verify', () => {
       amr: ['pwd', 'otp', 'mfa'],
       aal: 2,
     })
+    expect(recordSessionActivated).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ sessionId: makeSession().sessionId }),
+    )
   })
 
   it('pending MFA session 先反解 organization tenant 再验证 TOTP', async () => {

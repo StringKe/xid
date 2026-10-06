@@ -10,6 +10,7 @@ import type { MiddlewareHandler } from 'hono'
 import { readRefreshTokenCookiesInPriorityOrder } from '../lib/cookies'
 import { sessionCandidateFromRow } from '../lib/session'
 import type { XidHonoEnv } from '../lib/types'
+import { applyTenantDefaultLocale } from './i18n'
 
 // 模糊 404:不区分"主机无对应租户"/"租户被暂停",统一最小响应体。
 function notFound(): Response {
@@ -99,7 +100,14 @@ async function protocolClientHint(request: Request): Promise<ProtocolClientHint>
 }
 
 // 解析 TenantContext 并注入。失败短路返回 404,不进入后续 handler。
-export const tenantMiddleware: MiddlewareHandler<XidHonoEnv> = async (c, next) => {
+// 解析成功后按实例默认语言补齐请求 locale(仅在 ?locale 与 Accept-Language 都未命中时生效)。
+export const tenantMiddleware: MiddlewareHandler<XidHonoEnv> = (c, next) =>
+  injectTenant(c, async () => {
+    await applyTenantDefaultLocale(c)
+    await next()
+  })
+
+const injectTenant: MiddlewareHandler<XidHonoEnv> = async (c, next) => {
   const clientHint = await protocolClientHint(c.req.raw)
   if (clientHint.kind === 'valid') {
     const protocolTenant = await resolveTenantContextByApplicationClientId(

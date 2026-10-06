@@ -1,7 +1,8 @@
 // Instance Manager 配给与租户 Management API 隔离:仅 requireInstanceManager 后门控 raw DB,不接受 API key。
 
 import { schema } from '@xid-kit/db'
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
+import type { GlobalUserStatus, InstanceManagerAssignment } from '@xid-kit/types'
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { isUniqueConstraintError } from '../lib/d1-errors'
@@ -20,6 +21,7 @@ import {
   parsePlatformPagination,
   requireInstanceManager,
 } from './shared'
+import { displayNameOf, toGlobalUserStatus } from './user-display'
 
 const app = new Hono<XidHonoEnv>()
 
@@ -27,17 +29,85 @@ const createBodySchema = v.object({
   user_id: v.pipe(v.string(), v.minLength(1)),
 })
 
-function toResponse(row: typeof schema.managerAssignments.$inferSelect) {
+type ManagerIdentity = {
+  email: string | null
+  displayName: string | null
+  userStatus: GlobalUserStatus | null
+  organizationName: string | null
+}
+
+const UNKNOWN_IDENTITY: ManagerIdentity = {
+  email: null,
+  displayName: null,
+  userStatus: null,
+  organizationName: null,
+}
+
+function toResponse(
+  row: typeof schema.managerAssignments.$inferSelect,
+  identity: ManagerIdentity,
+): InstanceManagerAssignment {
   return {
     id: row.id,
     tenantId: row.tenantId,
     userId: row.userId,
-    managerRole: row.managerRole,
-    scopeType: row.scopeType,
-    scopeId: row.scopeId,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    ...identity,
+    managerRole: 'instance_manager',
+    scopeType: 'instance',
+    scopeId: null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   }
+}
+
+// 撤销前须让管理员认出对象:按当前页 user/tenant 批量取主邮箱、显示名与组织名。
+async function loadManagerIdentities(
+  db: ReturnType<typeof managementDb>,
+  rows: readonly (typeof schema.managerAssignments.$inferSelect)[],
+): Promise<Map<string, ManagerIdentity>> {
+  if (rows.length === 0) return new Map()
+  const userIds = rows.map((row) => row.userId)
+  const tenantIds = [...new Set(rows.map((row) => row.tenantId))]
+  const [users, organizations] = await Promise.all([
+    db
+      .select({
+        id: schema.users.id,
+        tenantId: schema.users.tenantId,
+        displayName: schema.users.displayName,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        status: schema.users.status,
+        email: schema.userEmails.email,
+      })
+      .from(schema.users)
+      .leftJoin(
+        schema.userEmails,
+        and(eq(schema.userEmails.userId, schema.users.id), eq(schema.userEmails.isPrimary, true)),
+      )
+      .where(inArray(schema.users.id, userIds)),
+    db
+      .select({ id: schema.organizations.id, name: schema.organizations.name })
+      .from(schema.organizations)
+      .where(inArray(schema.organizations.id, tenantIds)),
+  ])
+  const organizationNames = new Map(organizations.map((org) => [org.id, org.name]))
+  const identities = new Map<string, ManagerIdentity>()
+  for (const user of users) {
+    identities.set(`${user.tenantId}:${user.id}`, {
+      email: user.email ?? null,
+      displayName: displayNameOf(user),
+      userStatus: toGlobalUserStatus(user.status),
+      organizationName: organizationNames.get(user.tenantId) ?? null,
+    })
+  }
+  return identities
+}
+
+function identityOf(
+  identities: Map<string, ManagerIdentity>,
+  row: typeof schema.managerAssignments.$inferSelect,
+): ManagerIdentity {
+  return identities.get(`${row.tenantId}:${row.userId}`) ?? UNKNOWN_IDENTITY
 }
 
 const instanceManagerFilter = and(
@@ -67,8 +137,9 @@ app.get('/', async (c) => {
   ])
   const hasMore = rows.length > limit
   const dataRows = hasMore ? rows.slice(0, limit) : rows
+  const identities = await loadManagerIdentities(db, dataRows)
   return c.json({
-    data: dataRows.map(toResponse),
+    data: dataRows.map((row) => toResponse(row, identityOf(identities, row))),
     nextCursor: hasMore ? encodeCursor(dataRows.at(-1)!.id) : null,
     total: countRows[0]?.value ?? 0,
   })
@@ -172,7 +243,8 @@ app.post('/', async (c) => {
   }
   if (!assignmentCreated) throw new AppError('already_exists', { httpStatus: 409 })
   await enqueuePersistedPlatformAudit(c.env, audit)
-  return c.json(toResponse(row), 201)
+  const identities = await loadManagerIdentities(db, [row])
+  return c.json(toResponse(row, identityOf(identities, row)), 201)
 })
 
 app.delete('/:id', async (c) => {

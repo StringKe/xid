@@ -11,7 +11,7 @@ import {
   IMPERSONATION_GRANT_TTL_MS,
   type ConsumedImpersonationGrant,
 } from '../durable-objects/impersonation-grant-do'
-import { AppError } from '../lib/errors'
+import { AppError, isAppError } from '../lib/errors'
 import { createPersistedId, isPersistedId } from '../lib/persisted-id'
 import { readSession, revokeSession, issueSession } from '../lib/session'
 import { logWorkerError } from '../lib/safe-log'
@@ -405,8 +405,18 @@ async function handleConsume(c: Context<XidHonoEnv>): Promise<Response> {
   )
 }
 
+const HANDOFF_REJECTED_CODES = new Set(['unauthorized', 'validation_failed'])
+
+// 顶层表单导航失败时不能停在 JSON 错误页:回到签发方的平台用户页并只给出固定的失败标记,不回显原因。
 async function handleHandoff(c: Context<XidHonoEnv>): Promise<Response> {
-  await consumeGrant(c, await readConsumeForm(c))
+  try {
+    await consumeGrant(c, await readConsumeForm(c))
+  } catch (error) {
+    if (!isAppError(error) || !HANDOFF_REJECTED_CODES.has(error.code)) throw error
+    const failed = new URL('/console/platform/users', c.get('tenant').issuer)
+    failed.searchParams.set('impersonation', 'failed')
+    return noStore(c.redirect(failed.toString(), 303))
+  }
   return noStore(c.redirect(defaultLandingPathFor(c.get('tenant')), 303))
 }
 
