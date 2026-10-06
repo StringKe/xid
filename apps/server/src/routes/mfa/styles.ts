@@ -22,11 +22,11 @@ export const styles = stylex.create({
     color: tokens['--xid-muted-foreground'],
   },
   switchLink: {
-    color: tokens['--xid-primary'],
+    color: tokens['--xid-accent'],
     textDecorationLine: 'underline',
     textDecorationColor: {
-      default: `color-mix(in oklch, ${tokens['--xid-primary']} 35%, transparent)`,
-      ':hover': tokens['--xid-primary'],
+      default: `color-mix(in oklch, ${tokens['--xid-accent']} 35%, transparent)`,
+      ':hover': tokens['--xid-accent'],
     },
     textUnderlineOffset: '0.1875rem',
     transitionProperty: {
@@ -87,7 +87,7 @@ export const styles = stylex.create({
       outlineStyle: 'solid',
       outlineWidth: '2px',
       outlineOffset: '2px',
-      outlineColor: tokens['--xid-primary'],
+      outlineColor: tokens['--xid-accent'],
     },
   },
   otpInputWrap: {
@@ -107,14 +107,14 @@ export const styles = stylex.create({
       default: 1,
       ':disabled': 0.55,
     },
-    color: tokens['--xid-primary'],
+    color: tokens['--xid-accent'],
     padding: 0,
     fontFamily: tokens['--xid-font'],
     fontSize: '0.8125rem',
     textDecorationLine: 'underline',
     textDecorationColor: {
-      default: `color-mix(in oklch, ${tokens['--xid-primary']} 35%, transparent)`,
-      ':hover': tokens['--xid-primary'],
+      default: `color-mix(in oklch, ${tokens['--xid-accent']} 35%, transparent)`,
+      ':hover': tokens['--xid-accent'],
     },
     textUnderlineOffset: '0.1875rem',
     transitionProperty: {

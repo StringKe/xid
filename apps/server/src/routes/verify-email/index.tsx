@@ -139,7 +139,7 @@ function VerifyEmailPage(): ReactNode {
         ) : null}
 
         {ready && token !== null && verification.isIdle ? (
-          <Button type="button" fullWidth onClick={() => verification.mutate()}>
+          <Button type="button" variant="accent" fullWidth onClick={() => verification.mutate()}>
             <Trans>Confirm email address</Trans>
           </Button>
         ) : null}

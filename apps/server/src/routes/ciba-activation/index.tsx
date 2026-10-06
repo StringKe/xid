@@ -137,6 +137,7 @@ function CibaActivationPage(): ReactNode {
             </p>
             <div {...stylex.props(styles.actions)}>
               <Button
+                variant="accent"
                 fullWidth
                 disabled={activationMutation.isPending}
                 onClick={() => void activationMutation.mutate(true)}

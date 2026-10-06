@@ -172,11 +172,11 @@ export const styles = stylex.create({
   },
   textLink: {
     fontSize: '0.8125rem',
-    color: tokens['--xid-primary'],
+    color: tokens['--xid-accent'],
     textDecorationLine: 'underline',
     textDecorationColor: {
-      default: `color-mix(in oklch, ${tokens['--xid-primary']} 35%, transparent)`,
-      ':hover': tokens['--xid-primary'],
+      default: `color-mix(in oklch, ${tokens['--xid-accent']} 35%, transparent)`,
+      ':hover': tokens['--xid-accent'],
     },
     textUnderlineOffset: '0.1875rem',
     transitionProperty: {
@@ -201,7 +201,7 @@ export const styles = stylex.create({
     textAlign: 'center',
   },
   footerLink: {
-    color: tokens['--xid-primary'],
+    color: tokens['--xid-accent'],
     textDecorationLine: 'underline',
     textUnderlineOffset: '0.1875rem',
   },
@@ -227,7 +227,7 @@ export const styles = stylex.create({
     backgroundColor: 'transparent',
     borderWidth: 0,
     borderStyle: 'none',
-    color: tokens['--xid-primary'],
+    color: tokens['--xid-accent'],
     cursor: {
       default: 'pointer',
       ':disabled': 'not-allowed',
@@ -240,8 +240,8 @@ export const styles = stylex.create({
     padding: 0,
     textDecorationLine: 'underline',
     textDecorationColor: {
-      default: `color-mix(in oklch, ${tokens['--xid-primary']} 35%, transparent)`,
-      ':hover': tokens['--xid-primary'],
+      default: `color-mix(in oklch, ${tokens['--xid-accent']} 35%, transparent)`,
+      ':hover': tokens['--xid-accent'],
     },
     textUnderlineOffset: '0.1875rem',
     transitionProperty: {

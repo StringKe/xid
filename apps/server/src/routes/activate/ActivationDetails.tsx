@@ -154,7 +154,7 @@ export function ActivationDetails({
       ) : null}
 
       <div {...stylex.props(styles.actions)}>
-        <Button variant="primary" fullWidth isLoading={isSubmitting} onClick={onApprove}>
+        <Button variant="accent" fullWidth isLoading={isSubmitting} onClick={onApprove}>
           <Trans>Allow device</Trans>
         </Button>
         <Button variant="ghost" fullWidth disabled={isSubmitting} onClick={onDeny}>

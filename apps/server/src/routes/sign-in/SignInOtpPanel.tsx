@@ -138,6 +138,7 @@ export function SignInOtpPanel({
             />
           ))}
           <Button
+            variant="accent"
             fullWidth
             isLoading={isLoading}
             disabled={!identifier.trim() || !profileComplete || !isTurnstileReady}
@@ -178,6 +179,7 @@ export function SignInOtpPanel({
             </Field>
           </div>
           <Button
+            variant="accent"
             fullWidth
             isLoading={isLoading}
             disabled={otpCode.length < 6}

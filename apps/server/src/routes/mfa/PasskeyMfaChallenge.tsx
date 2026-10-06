@@ -90,6 +90,7 @@ export function PasskeyMfaChallenge({ isStepUp, methods }: ChallengeProps): Reac
       />
       {verify.error ? <Alert tone="error">{verify.error}</Alert> : null}
       <Button
+        variant="accent"
         fullWidth
         isLoading={isRequesting || verify.isPending}
         onClick={() => void handleVerify()}

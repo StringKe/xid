@@ -106,7 +106,7 @@ export function MagicLinkPage(): ReactNode {
         ) : null}
 
         {confirmReady ? (
-          <Button type="button" fullWidth onClick={() => verification.mutate()}>
+          <Button type="button" variant="accent" fullWidth onClick={() => verification.mutate()}>
             <Trans>Continue to sign in</Trans>
           </Button>
         ) : null}

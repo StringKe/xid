@@ -67,6 +67,7 @@ export function TotpChallenge({ isStepUp, methods }: ChallengeProps): ReactNode 
 
         <Button
           type="submit"
+          variant="accent"
           fullWidth
           isLoading={verify.isPending}
           disabled={code.trim().length < 6}
@@ -128,6 +129,7 @@ export function BackupCodeChallenge({ isStepUp, methods }: ChallengeProps): Reac
 
         <Button
           type="submit"
+          variant="accent"
           fullWidth
           isLoading={verify.isPending}
           disabled={code.trim().length < 8}
@@ -190,7 +192,12 @@ export function SmsOtpChallenge({ isStepUp, methods }: ChallengeProps): ReactNod
       {verify.error ? <Alert tone="error">{verify.error}</Alert> : null}
 
       {!smsSent ? (
-        <Button fullWidth isLoading={isSending} onClick={() => void sendSmsMutation.mutate()}>
+        <Button
+          variant="accent"
+          fullWidth
+          isLoading={isSending}
+          onClick={() => void sendSmsMutation.mutate()}
+        >
           <Trans>Send code via SMS</Trans>
         </Button>
       ) : (
@@ -214,6 +221,7 @@ export function SmsOtpChallenge({ isStepUp, methods }: ChallengeProps): ReactNod
           </div>
           <Button
             type="submit"
+            variant="accent"
             fullWidth
             isLoading={verify.isPending}
             disabled={code.trim().length < 6}

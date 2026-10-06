@@ -412,6 +412,7 @@ export function AcceptInvitationPage(): ReactNode {
             ) : (
               <Button
                 type="button"
+                variant="accent"
                 fullWidth
                 isLoading={claimVerifyPending}
                 onClick={() => void handleClaimVerify()}
@@ -533,7 +534,7 @@ export function AcceptInvitationPage(): ReactNode {
                 {acceptError ? <Alert tone="error">{acceptError}</Alert> : null}
                 <Button
                   type="button"
-                  variant={signedInAsInvitee ? 'primary' : 'secondary'}
+                  variant={signedInAsInvitee ? 'accent' : 'secondary'}
                   fullWidth
                   isLoading={acceptPending}
                   onClick={() => void handleAcceptAsSignedInUser()}
@@ -547,6 +548,7 @@ export function AcceptInvitationPage(): ReactNode {
                 {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
                 <Button
                   type="button"
+                  variant="accent"
                   fullWidth
                   isLoading={claimStartPending}
                   disabled={claimStartDisabled}

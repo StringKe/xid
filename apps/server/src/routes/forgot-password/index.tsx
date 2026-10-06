@@ -57,11 +57,11 @@ const styles = stylex.create({
   },
   textLink: {
     fontSize: '0.8125rem',
-    color: tokens['--xid-primary'],
+    color: tokens['--xid-accent'],
     textDecorationLine: 'underline',
     textDecorationColor: {
-      default: `color-mix(in oklch, ${tokens['--xid-primary']} 35%, transparent)`,
-      ':hover': tokens['--xid-primary'],
+      default: `color-mix(in oklch, ${tokens['--xid-accent']} 35%, transparent)`,
+      ':hover': tokens['--xid-accent'],
     },
     textUnderlineOffset: '0.1875rem',
     transitionProperty: {
@@ -182,7 +182,13 @@ function RequestStep({ search, onDone }: RequestStepProps): ReactNode {
         </Field>
 
         <div ref={containerRef} {...stylex.props(styles.turnstile)} />
-        <Button type="submit" fullWidth isLoading={isSubmitting} disabled={!turnstileReady}>
+        <Button
+          type="submit"
+          variant="accent"
+          fullWidth
+          isLoading={isSubmitting}
+          disabled={!turnstileReady}
+        >
           <Trans>Send reset link</Trans>
         </Button>
       </div>
@@ -305,7 +311,7 @@ function ResetStep({ token, clearToken, isAccountSetup }: ResetStepProps): React
           />
         </Field>
 
-        <Button type="submit" fullWidth isLoading={isSubmitting}>
+        <Button type="submit" variant="accent" fullWidth isLoading={isSubmitting}>
           <Trans>Set new password</Trans>
         </Button>
       </div>

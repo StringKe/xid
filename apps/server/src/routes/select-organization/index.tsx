@@ -101,7 +101,12 @@ export function SelectOrganizationPage(): ReactNode {
             <Trans>You do not belong to any organizations yet.</Trans>
           </Alert>
           {user?.canCreateOrganization ? (
-            <Button type="button" fullWidth onClick={() => navigate('/create-organization')}>
+            <Button
+              type="button"
+              variant="accent"
+              fullWidth
+              onClick={() => navigate('/create-organization')}
+            >
               <Trans>Create organization</Trans>
             </Button>
           ) : (

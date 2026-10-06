@@ -40,6 +40,7 @@ export function EnterpriseSsoPanel({ state, actions }: PanelProps): ReactNode {
       </Field>
       <Button
         type="submit"
+        variant="accent"
         fullWidth
         isLoading={state.isLoading}
         disabled={!state.identifier.trim() || !state.turnstileReady}
@@ -92,6 +93,7 @@ export function PasskeyPanel(
         {state.conditionalUiRunning ? <Trans>Waiting for passkey selection...</Trans> : null}
       </p>
       <Button
+        variant="accent"
         fullWidth
         isLoading={state.isLoading}
         disabled={!state.turnstileReady}
@@ -140,6 +142,7 @@ export function MagicLinkPanel(
       />
       <Button
         type="submit"
+        variant="accent"
         fullWidth
         isLoading={state.isLoading}
         disabled={
@@ -168,6 +171,7 @@ export function OrganizationChooser({
         <Button
           key={match.organizationId}
           type="button"
+          variant="accent"
           fullWidth
           onClick={() => onSelect(match.organizationId)}
         >

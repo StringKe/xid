@@ -35,7 +35,7 @@ export function ConsentActions({ isSubmitting, onAllow, onDeny }: ConsentActions
 
   return (
     <div {...stylex.props(styles.actions)}>
-      <Button ref={allowRef} variant="primary" fullWidth isLoading={isSubmitting} onClick={onAllow}>
+      <Button ref={allowRef} variant="accent" fullWidth isLoading={isSubmitting} onClick={onAllow}>
         <Trans>Allow access</Trans>
       </Button>
 

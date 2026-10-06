@@ -222,7 +222,11 @@ export function CreateOrganizationPage(): ReactNode {
           />
         </Field>
         {errors.form ? <Alert tone="error">{errors.form}</Alert> : null}
-        <Button type="submit" disabled={loading || email.trim() === '' || name.trim() === ''}>
+        <Button
+          type="submit"
+          variant="accent"
+          disabled={loading || email.trim() === '' || name.trim() === ''}
+        >
           {loading ? <Trans>Creating…</Trans> : <Trans>Create organization</Trans>}
         </Button>
       </form>

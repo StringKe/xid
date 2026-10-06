@@ -118,6 +118,7 @@ export function SignInPasswordPanel(props: SignInPasswordPanelProps): ReactNode 
       </div>
       <Button
         type="submit"
+        variant="accent"
         fullWidth
         isLoading={state.isLoading}
         disabled={
