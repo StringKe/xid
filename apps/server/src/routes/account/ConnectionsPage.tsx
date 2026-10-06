@@ -140,7 +140,7 @@ function ConnectionsEmpty(): ReactNode {
   return (
     <EmptyState
       title={<Trans>No social accounts connected</Trans>}
-      description={<Trans>Link an account to enable social sign-in.</Trans>}
+      description={<Trans>Accounts you use to sign in with a social provider appear here.</Trans>}
     />
   )
 }
@@ -165,8 +165,12 @@ function ConnectionItem({ connection, disconnectMutate }: ConnectionItemProps): 
       trackSocialDisconnected(connection.provider)
       setShowConfirm(false)
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setError(xidErr.longMessage || xidErr.message || t`Failed to disconnect account.`)
+      const xidErr = err as { code?: string }
+      setError(
+        xidErr.code === 'unprocessable_entity'
+          ? t`This is your only way to sign in. Add a password or passkey before disconnecting it.`
+          : t`Failed to disconnect account.`,
+      )
       setShowConfirm(false)
     } finally {
       setIsDisconnecting(false)
@@ -204,8 +208,8 @@ function ConnectionItem({ connection, disconnectMutate }: ConnectionItemProps): 
           title={<Trans>Disconnect {label}?</Trans>}
           description={
             <Trans>
-              This will remove the link between your account and {label}. You will no longer be able
-              to sign in with {label} unless you reconnect it.
+              This removes the link between your account and {label}. Signing in with the same{' '}
+              {label} account again can link it back to your account.
             </Trans>
           }
           confirmLabel={<Trans>Disconnect</Trans>}

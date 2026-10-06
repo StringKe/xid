@@ -107,6 +107,14 @@ function useErrorMessage(key: SignInErrorKey | null): string | null {
       return t`Passkeys are not supported in this browser. Please use another sign-in method.`
     case 'identifier_required':
       return t`Enter the email, username, or phone number for your account first.`
+    case 'sso_not_available':
+      return t`This email domain does not use enterprise SSO. Please use another sign-in method.`
+    case 'cancelled':
+      return t`Sign-in was cancelled. Choose a sign-in method to try again.`
+    case 'session_expired':
+      return t`Your sign-in attempt expired. Please start again.`
+    case 'sign_in_failed':
+      return t`We couldn't sign you in with that account. Please try again or use another sign-in method.`
     default:
       return null
   }
@@ -138,6 +146,10 @@ function SignInPage(): ReactNode {
   )
   const errorMessage = useErrorMessage(state.error)
   const successMessage = useSuccessMessage(state.error)
+  const signedInReturn = resolveHostedReturn(search, state.authConfig.defaultLandingPath)
+  const isInvitationReturn = signedInReturn.startsWith('/accept-invitation?')
+  // 邀请只走 Email claim:社交与企业 SSO 不接受邀请 capability(01 章 3)。
+  const excludesFederatedEntry = isInvitationFlow || isInvitationReturn
   // 纵深:即使上游误传 passkey,sign-up 也不得暴露登录 ceremony。
   const enabledMethods = isSignUpFlow
     ? state.enabledMethods.filter((method) => method !== 'passkey')
@@ -145,7 +157,10 @@ function SignInPage(): ReactNode {
   const enabledOtpMethods = getEnabledOtpMethods(enabledMethods)
   const currentOtpMethod = resolveOtpMethod(state.method, enabledMethods)
   const isOtp = enabledOtpMethods.includes(currentOtpMethod) && state.method === currentOtpMethod
-  const hasSocial = !state.authConfig.forceSso && state.authConfig.socialProviders.length > 0
+  const hasSocial =
+    !excludesFederatedEntry &&
+    !state.authConfig.forceSso &&
+    state.authConfig.socialProviders.length > 0
   const showSeparator = hasSocial && enabledMethods.length > 0
   const prompt = identifierPrompt(state.authConfig)
   const identifierPlaceholder = useIdentifierPlaceholder(prompt)
@@ -171,9 +186,6 @@ function SignInPage(): ReactNode {
     (field) => state.profileValues[field].trim() !== '',
   )
   const formProps = { profileFields, requiredFields, requiredProfileComplete }
-
-  const signedInReturn = resolveHostedReturn(search, state.authConfig.defaultLandingPath)
-  const isInvitationReturn = signedInReturn.startsWith('/accept-invitation?')
 
   // 授权/邀请续跑原流程;普通 sign-up 进组织 onboarding。
   useEffect(() => {

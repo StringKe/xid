@@ -135,22 +135,6 @@ describe('social OAuth authorize URL', () => {
     expect(url.searchParams.has('intent')).toBe(false)
   })
 
-  it('preserves the invitation capability through social sign-in', () => {
-    const url = buildSocialAuthorizeUrl({
-      origin: 'https://xid.dev',
-      provider: 'github',
-      hostedReturn: '/accept-invitation?token=tenant-bound-token',
-      intent: null,
-      identifier: 'invitee@example.com',
-      organizationId: undefined,
-      invitationToken: 'tenant-bound-token',
-      turnstileToken: null,
-    })
-
-    expect(url.searchParams.get('continue')).toBe('/accept-invitation?token=tenant-bound-token')
-    expect(url.searchParams.get('invitation_token')).toBe('tenant-bound-token')
-  })
-
   it('passes the single-use Turnstile token to social authorization', () => {
     const url = buildSocialAuthorizeUrl({
       origin: 'https://xid.dev',
@@ -300,6 +284,93 @@ describe('useSignIn rememberMe', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+})
+
+describe('useSignIn federated entry', () => {
+  async function renderSignIn(search: Record<string, string | undefined>) {
+    authConfigState.config = {
+      ...DEFAULT_PUBLIC_AUTH_CONFIG,
+      methods: {
+        ...DEFAULT_PUBLIC_AUTH_CONFIG.methods,
+        enterpriseSso: {
+          ...DEFAULT_PUBLIC_AUTH_CONFIG.methods.enterpriseSso,
+          enabled: true,
+          allowLogin: true,
+          domainDiscovery: true,
+        },
+      },
+    }
+    postCalls.length = 0
+    routerState.search = search
+    ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+    const queryClient = new QueryClient()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const captured: { value: ReturnType<typeof useSignIn> | null } = { value: null }
+    function Host(): ReactNode {
+      captured.value = useSignIn()
+      return null
+    }
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Host />
+        </QueryClientProvider>,
+      )
+    })
+    await act(async () => {
+      await vi.waitFor(() => expect(captured.value?.[0].authConfig).toBe(authConfigState.config))
+    })
+    const cleanup = async (): Promise<void> => {
+      await act(async () => root.unmount())
+      container.remove()
+      routerState.search = {}
+      authConfigState.config = null
+    }
+    return { captured, cleanup }
+  }
+
+  it('keeps enterprise SSO and social entries out of an invitation flow', async () => {
+    const { captured, cleanup } = await renderSignIn({
+      continue: '/accept-invitation?token=tenant-bound-token',
+    })
+    try {
+      expect(captured.value?.[0].enabledMethods).not.toContain('enterprise-sso')
+
+      await act(async () => {
+        captured.value?.[1].submitEnterpriseSso()
+      })
+
+      expect(postCalls.map((call) => call.path)).not.toContain('/sso/hrd')
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it('offers enterprise SSO outside an invitation flow', async () => {
+    const { captured, cleanup } = await renderSignIn({})
+    try {
+      expect(captured.value?.[0].enabledMethods).toContain('enterprise-sso')
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it('shows only allowlisted federated callback errors from the URL', async () => {
+    const accepted = await renderSignIn({ error: 'cancelled' })
+    try {
+      expect(accepted.captured.value?.[0].error).toBe('cancelled')
+    } finally {
+      await accepted.cleanup()
+    }
+    const ignored = await renderSignIn({ error: 'invalid_credentials' })
+    try {
+      expect(ignored.captured.value?.[0].error).toBeNull()
+    } finally {
+      await ignored.cleanup()
+    }
   })
 })
 

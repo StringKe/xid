@@ -197,7 +197,24 @@ export type SignInErrorKey =
   | 'verify_email_sent'
   | 'passkey_unavailable'
   | 'identifier_required'
+  | 'sso_not_available'
+  | FederatedSignInErrorKey
   | SignInCorrectableErrorKey
+
+// 社交 / 企业 SSO 回调失败时 Worker 302 回 /sign-in?error=<key>;只接受这组白名单不透明码。
+export type FederatedSignInErrorKey = 'cancelled' | 'sign_in_failed' | 'session_expired'
+
+const FEDERATED_ERROR_KEYS: ReadonlySet<string> = new Set<FederatedSignInErrorKey>([
+  'cancelled',
+  'sign_in_failed',
+  'session_expired',
+])
+
+export function federatedSignInErrorKey(value: string | undefined): FederatedSignInErrorKey | null {
+  return value !== undefined && FEDERATED_ERROR_KEYS.has(value)
+    ? (value as FederatedSignInErrorKey)
+    : null
+}
 
 // 只可能来自「创建账号」分支或与账户无关的可纠正错误,按错误码给出具体文案。
 export type SignInCorrectableErrorKey =

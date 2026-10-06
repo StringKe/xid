@@ -11,6 +11,7 @@ import {
   apiErrorToKey,
   enabledSignInMethods,
   emptyProfileValues,
+  federatedSignInErrorKey,
   initialSignInMethod,
   isOtpMethod,
   profilePayload,
@@ -79,7 +80,6 @@ export function buildSocialAuthorizeUrl(input: {
   applicationClientId?: string | null
   identifier: string
   organizationId?: string
-  invitationToken?: string | null
   turnstileToken: string | null
 }): URL {
   const url = new URL(`/auth/${input.provider}/authorize`, input.origin)
@@ -91,7 +91,6 @@ export function buildSocialAuthorizeUrl(input: {
   if (input.applicationClientId) url.searchParams.set('client_id', input.applicationClientId)
   if (input.identifier.trim()) url.searchParams.set('login_hint', input.identifier.trim())
   if (input.organizationId) url.searchParams.set('organization_id', input.organizationId)
-  if (input.invitationToken) url.searchParams.set('invitation_token', input.invitationToken)
   if (input.turnstileToken) url.searchParams.set('turnstile', input.turnstileToken)
   return url
 }
@@ -159,6 +158,7 @@ type SignInSearch = {
   client_id?: string
   intent?: string
   invitation_token?: string
+  error?: string
 }
 
 export function useSignIn(): [SignInState, SignInActions] {
@@ -200,7 +200,9 @@ export function useSignIn(): [SignInState, SignInActions] {
   const [otpCode, setOtpCode] = useState('')
   const [otpStep, setOtpStep] = useState<'input' | 'sent'>('input')
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
-  const [error, setError] = useState<SignInErrorKey | null>(null)
+  const [error, setError] = useState<SignInErrorKey | null>(() =>
+    federatedSignInErrorKey(search.error),
+  )
   const resetTurnstile = useCallback((): void => setTurnstileToken(null), [])
 
   const authConfigQuery = useQuery(authConfigQueryOptions(search, api))
@@ -208,12 +210,18 @@ export function useSignIn(): [SignInState, SignInActions] {
   const hostedReturn = resolveHostedReturn(search, authConfig.defaultLandingPath)
   const turnstileReady =
     !authConfigQuery.isPending && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
+  // 邀请只走 Email claim:企业 SSO 不接受邀请 capability(01 章 3)。
+  const excludesFederatedEntry =
+    Boolean(search.invitation_token) || hostedReturn.startsWith('/accept-invitation?')
   const enabledMethods = useMemo<readonly SignInMethod[]>(() => {
-    return enabledSignInMethodsForIntent(
+    const methods = enabledSignInMethodsForIntent(
       authConfig,
       search.invitation_token ? 'sign-up' : search.intent,
     )
-  }, [authConfig, search.intent, search.invitation_token])
+    return excludesFederatedEntry
+      ? methods.filter((method) => method !== 'enterprise-sso')
+      : methods
+  }, [authConfig, excludesFederatedEntry, search.intent, search.invitation_token])
 
   useEffect(() => {
     if (!enabledMethods.includes(method)) setMethodState(enabledMethods[0] ?? 'enterprise-sso')
@@ -357,7 +365,6 @@ export function useSignIn(): [SignInState, SignInActions] {
       api.post<HrdResult>('/sso/hrd', {
         email: identifier,
         ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-        ...(search.invitation_token ? { invitationToken: search.invitation_token } : {}),
         ...(search.intent ? { intent: search.intent } : {}),
         ...(search.client_id ? { clientId: search.client_id } : {}),
         turnstileToken,
@@ -368,7 +375,7 @@ export function useSignIn(): [SignInState, SignInActions] {
         return
       }
       if (!result.value.connectionId || !result.value.protocol) {
-        setError('auth_failed')
+        setError('sso_not_available')
         return
       }
       const path =
@@ -379,9 +386,6 @@ export function useSignIn(): [SignInState, SignInActions] {
       setPendingAuthCompletion({ method: 'enterprise_sso', intent: analyticsAuthIntent })
       const url = new URL(path, globalThis.location.origin)
       url.searchParams.set('continue', hostedReturn)
-      if (search.invitation_token) {
-        url.searchParams.set('invitation_token', search.invitation_token)
-      }
       if (search.intent) url.searchParams.set('intent', search.intent)
       if (search.client_id) url.searchParams.set('client_id', search.client_id)
       if (result.value.organizationId) {
@@ -413,7 +417,7 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const handleSocial = useCallback(
     (provider: string): void => {
-      if (!turnstileReady) return
+      if (!turnstileReady || excludesFederatedEntry) return
       trackEvent('social_login_start', { provider })
       setPendingAuthCompletion({ method: 'social', intent: analyticsAuthIntent })
       const url = buildSocialAuthorizeUrl({
@@ -428,19 +432,18 @@ export function useSignIn(): [SignInState, SignInActions] {
         applicationClientId: search.client_id,
         identifier,
         organizationId: search.organization_id,
-        invitationToken: search.invitation_token ?? null,
         turnstileToken,
       })
       globalThis.location.href = url.toString()
     },
     [
       analyticsAuthIntent,
+      excludesFederatedEntry,
       hostedReturn,
       identifier,
       search.intent,
       search.organization_id,
       search.client_id,
-      search.invitation_token,
       turnstileToken,
       turnstileReady,
     ],
@@ -545,7 +548,9 @@ export function useSignIn(): [SignInState, SignInActions] {
     submitMagicLink: whenTurnstileReady(() => magicLinkMutation.mutate()),
     submitOtpRequest: whenTurnstileReady(() => otpRequestMutation.mutate()),
     submitOtpVerify: () => otpVerifyMutation.mutate(),
-    submitEnterpriseSso: whenTurnstileReady(() => enterpriseSsoMutation.mutate()),
+    submitEnterpriseSso: whenTurnstileReady(() => {
+      if (!excludesFederatedEntry) enterpriseSsoMutation.mutate()
+    }),
     submitGuest: () => {
       if (authConfig.guest && turnstileReady) {
         guestMutation.mutate(authConfig.guest.capabilityToken)
