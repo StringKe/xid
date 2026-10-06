@@ -76,6 +76,13 @@ function targetWhere(c: Context<XidHonoEnv>, orgId: string) {
   )
 }
 
+// token 以 bearer 发往 base_url,换到别的 origin 必须重新提交,否则改 URL 即可把已存 token 送给新主机。
+function movesTokenToNewOrigin(existing: ScimTargetRecord, nextBaseUrl: string): boolean {
+  return (
+    scimTargetHasToken(existing) && new URL(existing.baseUrl).origin !== new URL(nextBaseUrl).origin
+  )
+}
+
 async function readTargetBody(c: Context<XidHonoEnv>) {
   const json = await readJsonBody(c)
   if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
@@ -137,6 +144,9 @@ export function registerOrganizationScimTargetRoutes(app: Hono<XidHonoEnv>): voi
     const patch: Partial<typeof schema.scimTargets.$inferInsert> = {}
     if (body.provider?.trim()) patch.provider = body.provider.trim()
     if (body.base_url?.trim()) patch.baseUrl = normalizeScimTargetBaseUrl(body.base_url.trim())
+    if (patch.baseUrl && !body.token && movesTokenToNewOrigin(existing, patch.baseUrl)) {
+      throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'token' } })
+    }
     if (body.token) Object.assign(patch, await encryptScimTargetToken(c.env, body.token))
     const gate = assignmentGateFromBody(body)
     if (gate) {

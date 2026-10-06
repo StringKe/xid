@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=042374b73cd4524a4f6cee97ef4de997bd077e9c -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=ab34eea4bf6451d6d20f1bb1d641081ebf848f73 -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -111,7 +111,7 @@ SAML IdP baseline 已落地的能力:
 Outbound SCIM client baseline 已落地的能力:
 
 - Target 注册:每个下游 SaaS 独立记录 public HTTPS SCIM base URL、加密的 bearer token、attribute mapping、group mapping、assignment gate。
-- Token 存储:org 管理员或 `sk_*` key 在创建或更新时通过只写字段 `token` 提交 SaaS SCIM bearer token。token 以 Workers Secrets 中的 KEK 信封加密(AES-256-GCM,与 webhook 签名 secret 相同的 `iv`/`ciphertext`/`tag` 布局)后存入 `scim_targets`;响应只返回 `hasToken`,明文只在 queue consumer 内解密。没有 token 的 target 不能同步(`422`,`paramName = token`)。日志和审计必须 redaction。
+- Token 存储:org 管理员或 `sk_*` key 在创建或更新时通过只写字段 `token` 提交 SaaS SCIM bearer token。token 以 Workers Secrets 中的 KEK 信封加密(AES-256-GCM,与 webhook 签名 secret 相同的 `iv`/`ciphertext`/`tag` 布局)后存入 `scim_targets`;响应只返回 `hasToken`,明文只在 queue consumer 内解密。没有 token 的 target 不能同步(`422`,`paramName = token`)。token 以 bearer 发往 base URL,所以把 base URL 改到另一个 origin 的更新必须重新提交 `token`,否则返回 `422`,`paramName = token`。日志和审计必须 redaction。
 - Sync endpoints:`/scim/outbound/:targetId/sync` 与
   `/v1/organizations/:orgId/scim-targets/:targetId/sync` 只负责鉴权并入队一个
   `ScimSyncQueueMessage`,返回 `202` 和稳定 `runId`;请求链路不调用下游 SaaS。

@@ -170,7 +170,9 @@ Capabilities already shipped in the outbound SCIM client baseline:
   `token` field on create or update. It is envelope-encrypted under the Workers Secrets KEK
   (AES-256-GCM, the same `iv`/`ciphertext`/`tag` layout as webhook signing secrets) and stored in
   `scim_targets`; responses only report `hasToken`, and the plaintext is decrypted only inside the
-  queue consumer. A target without a token cannot be synced (`422`, `paramName = token`). Logs and
+  queue consumer. A target without a token cannot be synced (`422`, `paramName = token`). Because
+  the token is sent as a bearer to the base URL, an update that moves the base URL to a different
+  origin MUST resubmit `token` (`422`, `paramName = token` otherwise). Logs and
   audit records MUST redact the token.
 - Sync endpoints: `/scim/outbound/:targetId/sync` and
   `/v1/organizations/:orgId/scim-targets/:targetId/sync` authorize the caller, enqueue one

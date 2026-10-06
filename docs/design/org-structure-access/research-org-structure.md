@@ -31,7 +31,7 @@
 - `manager_assignments` 是**控制面**权限：四级 `instance_manager | org_manager | project_manager | project_grant_manager`，scope 到 instance/org/project/grant，驱动 `/v1` Management API 授权（`apps/server/worker/v1/shared.ts:230` `requireOrgManager`）。
 - 用户进 org 的唯一通道是 `memberships`（`UNIQUE(org_id, user_id)`，role `owner|admin|member`）。
 - 现状完全没有 org 内部的部门/团队结构，也没有业务汇报线（谁是谁的上级）概念。
-- 已有 SCIM inbound Groups（`directory_groups` 带 `mapped_role`），Group 语义是「映射到 org role」，不是部门树。
+- 已有 SCIM inbound Groups（`directory_groups`），只保存组和组成员，不映射 org role，也不是部门树。
 
 ## 3. 推荐模型（结论）
 

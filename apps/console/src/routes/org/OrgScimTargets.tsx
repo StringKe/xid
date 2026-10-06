@@ -226,7 +226,7 @@ function useTargetErrorMessage(): (error: XidError) => string {
   const errorMessage = useApiErrorMessage()
   return (error) =>
     error.code === 'validation_failed' && error.meta?.paramName === 'token'
-      ? t`Add the downstream API token before syncing.`
+      ? t`Enter the downstream API token. Sync needs it, and changing the base URL host requires it again.`
       : errorMessage(error, { surface: 'general' })
 }
 

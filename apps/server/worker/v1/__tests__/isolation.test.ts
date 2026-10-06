@@ -3062,6 +3062,65 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
     expect(unsafeUrl.status).toBe(422)
   })
 
+  it('requires the token again when PATCH moves the base URL to another origin', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({ tenantId: 't_1', userId: 'user_admin', activeOrgId: 'org_a' })
+    const target = {
+      id: 'target_a',
+      tenant_id: 't_1',
+      org_id: 'org_a',
+      provider: 'slack',
+      base_url: 'https://example.com/scim/v2',
+      token_iv: 'iv_a',
+      token_ciphertext: 'ciphertext_a',
+      token_tag: 'tag_a',
+      user_filter: '{}',
+      status: 'active',
+    }
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [ORG_A],
+        memberships: [
+          {
+            id: 'mem_a',
+            tenant_id: 't_1',
+            org_id: 'org_a',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        scim_targets: [target],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const patchBaseUrl = (baseUrl: string) =>
+      app.request(
+        'https://acme.xid.dev/v1/organizations/org_a/scim-targets/target_a',
+        {
+          method: 'PATCH',
+          headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: baseUrl }),
+        },
+        env,
+      )
+
+    const otherOrigin = await patchBaseUrl('https://collector.example.net/scim/v2')
+    expect(otherOrigin.status).toBe(422)
+    expect(((await otherOrigin.json()) as { code: string }).code).toBe('validation_failed')
+    expect(target.base_url).toBe('https://example.com/scim/v2')
+
+    const sameOrigin = await patchBaseUrl('https://example.com/scim/v2/tenant')
+    expect(sameOrigin.status).toBe(200)
+    expect(target.base_url).toBe('https://example.com/scim/v2/tenant')
+  })
+
   it('session 非成员 -> 403', async () => {
     const {
       token,
