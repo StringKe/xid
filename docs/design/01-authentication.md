@@ -327,8 +327,9 @@ Box, Notion, HubSpot, LINE, TikTok, Coinbase, and others.
 - Custom OAuth provider (standard OAuth 2.0 code + PKCE)
 - Custom OIDC provider (auto-configured through Discovery)
 - Field mapping (map non-standard claims onto XID fields)
-- Account linking: automatic merge (matching verified email) plus manual linking plus unlink
-  restrictions (at least one authentication method must remain)
+- Account linking: automatic merge (matching verified email) plus unlink restrictions (at least one
+  authentication method must remain). Linking an additional provider from a signed-in account is
+  not implemented; the account page lists and disconnects existing connections only
 - Scopes: minimal by default (profile plus email), requested incrementally as needed
 
 ### Design decisions
@@ -388,8 +389,11 @@ ignored and a mismatched value is rejected by the management API.
 
 #### Callback handling (GET /auth/{provider}/callback)
 
-1. If the provider returns an `error` parameter (for example `access_denied`), do not proceed with
-   sign-in; render a user-cancelled page and do not treat it as an enumeration signal.
+1. If the provider returns an `error` parameter, do not proceed with sign-in. Consume the `state`
+   once when present, then redirect to the same-origin `/sign-in?error=cancelled` for
+   `access_denied` or `/sign-in?error=sign_in_failed` for any other upstream error. The redirect
+   carries only the local `continue`, `client_id`, and `intent` recovered from the consumed flow; the
+   upstream error text is never echoed and is not an enumeration signal.
 2. Read `state` and look it up in OAuthFlowDO. Missing, expired, or already consumed means reject
    (`state_invalid`) and write an audit entry. On a hit, delete it immediately (single use). Verify
    that the `tenant_id` stored in the Durable Object matches the TenantContext resolved from the
@@ -410,8 +414,24 @@ ignored and a mismatched value is rejected by the management API.
    email_verified.
 7. Enter the account linking decision tree (below).
 8. A social callback never consumes an invitation or creates its Membership. An unauthenticated
-   invitation holder first completes the dedicated Email claim below. Any later social connection
-   runs under the resulting authenticated user and the normal account-linking rules.
+   invitation holder first completes the dedicated Email claim below. While the Hosted UI is in an
+   invitation flow (`invitation_token`, or a return to `/accept-invitation`), `/auth/config` returns
+   no social providers and disables enterprise SSO, `/sso/hrd` returns `connectionId: null`, and the
+   sign-in page shows neither entry.
+9. After the session is issued, redirect to the normalized local `continue` stored in the flow (for
+   example `/account/security` or `/activate?user_code=...`), through the MFA gate when required.
+   There is no per-provider redirect allowlist: `continue` is already restricted to same-origin
+   local paths or an exact `/authorize` continuation at initiation.
+
+#### Browser-facing errors
+
+`/auth/{provider}/authorize`, `/auth/{provider}/callback`, `/sso/oidc/*`, and `/sso/saml/*/login`
+are top-level browser navigations. When the request is a navigation (`Sec-Fetch-Mode: navigate` or
+an `Accept` header containing `text/html`), an expected failure redirects to `/sign-in?error=<code>`
+with exactly one of `cancelled`, `sign_in_failed`, or `session_expired` (missing or expired state).
+`invalid_credentials`, policy denials, and rejected merges all collapse into `sign_in_failed`.
+Programmatic callers keep the `XidAPIError` JSON contract. The SAML ACS keeps its HTML protocol
+error page because the IdP posts it to the ACS URL.
 
 #### Account linking decision tree
 
@@ -427,15 +447,25 @@ first match:
   create a SocialConnection for that user bound to this provider and sign in. Audit as
   `connection.linked`.
 - Branch C (email unverified but the user exists): A did not match, `email_verified == false`, and a
-  lookup by email found an existing user. **Do not merge automatically** (account hijack defense).
-  Route to the "link manually while signed in, or verify the email first" flow, and do not sign the
-  user in to that account.
+  lookup by email found an existing user. **Do not merge automatically** (account hijack defense)
+  and do not sign the user in to that account; the callback fails with the opaque
+  `invalid_credentials`.
 - Branch D (brand new): none of A, B, or C applied. Create a new user (email as the contact method,
   with `email_verified` passed through from the provider) plus a SocialConnection binding, and sign
   in. Audit as `user.created` plus `connection.linked`.
 
-Constraint: unlinking MUST leave at least one usable sign-in method (see Capabilities); the last
-binding cannot be unlinked.
+Identity rows: `(tenant_id, provider, provider_user_id)` is unique including revoked rows.
+Disconnecting a connection, or guest garbage collection, sets `revoked_at`; branch A ignores revoked
+rows. When B, D, or guest conversion chooses a user for an external account that has a revoked row,
+that row is rebound to the chosen user, `revoked_at` is cleared, tokens and profile are replaced, and
+`connection.linked` is audited. New-account provisioning performs the same rebind inside its D1
+batch; a conflict with an active row aborts the whole batch.
+
+Constraint: unlinking MUST leave at least one usable sign-in method. `DELETE
+/v1/me/social-connections/:id` succeeds only when the user still has another active identity, a
+password, an active passkey, or a verified email while the tenant enables magic link, email OTP, or
+password sign-in. Otherwise it returns `unprocessable_entity` (422). A successful disconnect is
+audited as `connection.unlinked`. Step-up for this deletion is not implemented.
 
 #### Provider token encryption key derivation
 
@@ -473,6 +503,24 @@ binding cannot be unlinked.
   `primary == true && verified == true`; `email_verified` comes from that entry's `verified` field.
   With no verified primary email, `email_verified` is false and the flow goes to branch C or D.
 - The scope MUST include `read:user` (for the profile) and `user:email` (for the addresses).
+- When the `github` provider configures `userInfoEndpoint` (GitHub Enterprise Server
+  `https://{host}/api/v3/user`), that URL replaces `https://api.github.com/user` and `/emails` is
+  appended to it.
+
+#### Provider profile sources
+
+- OIDC providers verify the `id_token` against the configured `jwksUri`. A JWKS key without `alg`
+  is accepted only when its `kid` is present and `use` is absent or `sig`; RSA keys are treated as
+  RS256 and P-256 EC keys as ES256. The token header `alg` must still equal the key `alg`.
+- Microsoft multi-tenant sign-in stores the issuer template
+  `https://login.microsoftonline.com/{tenantid}/v2.0`. After signature verification the `tid` claim
+  (a GUID) replaces `{tenantid}` and the result must equal `iss` exactly.
+- A custom provider without an `id_token` reads its `userInfoEndpoint` with the access token. `sub`
+  is required, and the email counts as verified only when `email_verified` is the boolean `true`.
+- The management API rejects an enabled provider other than `github` unless it has both `issuer`
+  and `jwksUri`, or a `userInfoEndpoint`. It also rejects any endpoint or issuer containing `{`,
+  except the Microsoft `{tenantid}` template. The GitHub EMU template ships with an empty issuer that
+  the administrator must fill with the tenant issuer.
 
 ## 4. Passwordless (magic link / OTP)
 

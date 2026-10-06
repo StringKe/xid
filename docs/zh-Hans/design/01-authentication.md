@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=871a956e2d8f5af6112d78f010adc903e926ed3a -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=ddedc126c95a0e86b4c7222901f1ab6da14625f9 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -217,7 +217,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - 自定义 OAuth provider(标准 OAuth 2.0 code + PKCE)
 - 自定义 OIDC provider(Discovery 自动配置)
 - 字段映射(非标准 claim 映射到 XID 字段)
-- Account linking:自动合并(已验证 email 相同)+ 手动关联 + 解绑限制(至少留一种认证方式)
+- Account linking:自动合并(已验证 email 相同)+ 解绑限制(至少留一种认证方式)。已登录账号再关联新 provider 未实现,账户页只列出和断开已有连接
 - Scopes:默认最小(profile + email),按需申请
 
 ### 设计决策
@@ -252,14 +252,19 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 
 #### 回调处理(GET /auth/{provider}/callback)
 
-1. provider 返回 `error` 参数(如 `access_denied`)-> 不走登录,渲染用户取消页,不当作枚举信号。
+1. provider 返回 `error` 参数 -> 不走登录。有 `state` 时一次性消费,然后重定向到同源 `/sign-in?error=cancelled`(`access_denied`)或 `/sign-in?error=sign_in_failed`(其他上游错误)。重定向只带从已消费 flow 恢复的本地 `continue`、`client_id`、`intent`;上游 error 原文不回显,也不当作枚举信号。
 2. 取 `state`,在 OAuthFlowDO 查找:不存在/已过期/已消费 -> 拒绝(`state_invalid`),记审计。命中后立即删除(一次性消费)。校验 DO 中 `tenant_id` 与当前 Host 解析的 TenantContext 一致,不一致拒绝(防跨租户 state 重放)。
 3. **code exchange**:POST `token_endpoint`,body `grant_type=authorization_code`、`code`、`redirect_uri`(与发起时精确一致)、`client_id`、`client_secret`(confidential provider)或 `code_verifier`(PKCE)。`Content-Type: application/x-www-form-urlencoded`。失败(非 2xx 或返回 OAuth error)-> 拒绝,记审计。
 4. 解析 token 响应得 `access_token` / `refresh_token`(可选)/ `id_token`(OIDC)/ `expires_in`。
 5. OIDC provider:验证 `id_token` 签名(用 provider JWKS,缓存于 KV)、`iss` == provider issuer、`aud` == client_id、`exp` 未过、`nonce` == DO 中存的 nonce。提取 `sub`(= idp_user_id)、`email`、`email_verified`、`name` 等。
 6. non-OIDC provider(无 id_token,如 GitHub):见下"GitHub fallback",用 access_token 调 provider userinfo/REST API 取 idp_user_id 与 email、email_verified。
 7. 进入 account linking 判断树(见下)。
-8. Social callback 不核销 invitation,也不创建其 Membership。未认证 invitation holder 必须先完成下文的专用 Email claim;之后的 social connection 只能在所得已认证 user 下按正常 account-linking 规则执行。
+8. Social callback 不核销 invitation,也不创建其 Membership。未认证 invitation holder 必须先完成下文的专用 Email claim。Hosted UI 处于邀请流程(带 `invitation_token`,或回跳目标是 `/accept-invitation`)时,`/auth/config` 不返回 social provider 并关闭企业 SSO,`/sso/hrd` 返回 `connectionId: null`,登录页两种入口都不显示。
+9. 签发 session 后重定向到 flow 中保存的归一化本地 `continue`(如 `/account/security`、`/activate?user_code=...`),需要时先经过 MFA gate。不设 per-provider 回跳白名单:发起时 `continue` 已限定为同源本地路径或精确的 `/authorize` 续跑。
+
+#### 浏览器侧错误
+
+`/auth/{provider}/authorize`、`/auth/{provider}/callback`、`/sso/oidc/*`、`/sso/saml/*/login` 是浏览器顶层导航。请求是导航(`Sec-Fetch-Mode: navigate`,或 `Accept` 含 `text/html`)时,预期失败重定向到 `/sign-in?error=<code>`,code 只取 `cancelled`、`sign_in_failed`、`session_expired`(state 缺失或过期)之一。`invalid_credentials`、策略拒绝与合并拒绝统一为 `sign_in_failed`。程序化调用方保持 `XidAPIError` JSON 契约。SAML ACS 由 IdP POST 到 ACS URL,保持 HTML 协议错误页。
 
 #### account linking 判断树
 
@@ -267,10 +272,12 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 
 - 分支 A(SocialConnection 已存在):租户内查 `(provider, provider_user_id=idp_user_id)`,命中 -> 取其 user,**直接登录**,刷新加密存储的 access/refresh token,更新 last_login。这是已绑定老用户路径,不看 email。
 - 分支 B(已验证 email 命中现有 user):A 未命中,且 `email_verified == true`,在租户内按 `(tenant_id, email)` 查到已存在 user -> **自动合并**,为该 user 新建 SocialConnection 绑定本 provider,登录。记审计 `connection.linked`。
-- 分支 C(email 未验证但 user 存在):A 未命中,`email_verified == false` 且按 email 查到现有 user -> **不自动合并**(防社工劫持),走"需要在已登录态手动关联或验证 email 后关联"流程,不直接登录到该 user。
+- 分支 C(email 未验证但 user 存在):A 未命中,`email_verified == false` 且按 email 查到现有 user -> **不自动合并**(防社工劫持),也不登录到该 user;回调以不透明的 `invalid_credentials` 失败。
 - 分支 D(全新):A、B、C 均不满足 -> 新建 user(email 作为联系方式,`email_verified` 透传 provider 值)+ SocialConnection 绑定,登录。记审计 `user.created` + `connection.linked`。
 
-约束:解绑时至少保留一种可登录认证方式(见功能点),最后一个绑定不可解绑。
+身份行:`(tenant_id, provider, provider_user_id)` 唯一,包含已撤销行。断开连接或 guest 垃圾回收只写 `revoked_at`;分支 A 不命中已撤销行。B、D 或 guest 转正为某个外部账号选定 user 而该账号存在已撤销行时,把该行改绑到选定 user,清空 `revoked_at`,替换 token 与 profile,并记审计 `connection.linked`。新账号预置在同一个 D1 batch 内做相同改绑;与 active 行冲突时整个 batch 回滚。
+
+约束:解绑时至少保留一种可登录方式。`DELETE /v1/me/social-connections/:id` 只在用户还有其他 active identity、密码、active passkey,或有已验证 email 且租户开启 magic link、email OTP 或密码登录时成功,否则返回 `unprocessable_entity`(422)。断开成功记审计 `connection.unlinked`。该删除的 step-up 未实现。
 
 #### provider token 加密 key 派生
 
@@ -291,6 +298,14 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - idp_user_id:调 `GET https://api.github.com/user`(header `Authorization: Bearer {access_token}`,`Accept: application/vnd.github+json`),取 `id`(数值,转字符串作 provider_user_id)。
 - email:`/user` 的 `email` 可能为 null(用户设私密)。为 null 时 fallback `GET https://api.github.com/user/emails`,选 `primary == true && verified == true` 的邮箱;`email_verified` 取该条 `verified`。无 verified primary email -> email_verified=false,走分支 C/D。
 - scope 须含 `read:user`(取 profile)与 `user:email`(取邮箱)。
+- `github` provider 配置了 `userInfoEndpoint`(GitHub Enterprise Server 的 `https://{host}/api/v3/user`)时,用它替代 `https://api.github.com/user`,并在其后拼 `/emails`。
+
+#### Provider profile 来源
+
+- OIDC provider 用配置的 `jwksUri` 验 `id_token`。JWKS key 不带 `alg` 时,只有 `kid` 存在且 `use` 缺省或为 `sig` 才接受;RSA key 按 RS256,P-256 EC key 按 ES256。token header 的 `alg` 仍必须等于 key 的 `alg`。
+- Microsoft 多租户登录保存 issuer 模板 `https://login.microsoftonline.com/{tenantid}/v2.0`。验签后用 `tid` claim(GUID)替换 `{tenantid}`,结果必须与 `iss` 精确相等。
+- 没有 `id_token` 的自定义 provider 用 access token 读取 `userInfoEndpoint`。`sub` 必填,只有 `email_verified` 为布尔 `true` 时 email 才算已验证。
+- management API 拒绝保存既无 `issuer` + `jwksUri`、又无 `userInfoEndpoint` 的启用 provider(`github` 除外),也拒绝含 `{` 的端点或 issuer,Microsoft 的 `{tenantid}` 模板除外。GitHub EMU 模板的 issuer 为空,管理员必须填入自己租户的 issuer。
 
 ## 4. Passwordless(Magic Link / OTP)
 

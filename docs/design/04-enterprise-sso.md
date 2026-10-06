@@ -30,6 +30,16 @@ sign in with their own company IdP (Okta, Azure AD, Google Workspace), and XID a
 - The primary key is the idp_id (SAML NameID or OIDC sub). Matching on email alone is forbidden,
   because an email change would orphan the account
 - RelayState is capped at 2 KB; anything longer is truncated and logged
+- OIDC RP connections accept a write-only `oidc_client_secret` on both `/v1/connections` and
+  `/v1/organizations/:orgId/sso-connections`. It is KEK-envelope-encrypted into
+  `oidc_client_secret_ciphertext`; reads return only `oidc_client_secret_configured`. Omitting the
+  field keeps the stored secret, `null` clears it. The code exchange always sends the PKCE
+  `code_verifier`; with a secret it uses `client_secret_basic` (form-urlencoded per RFC 6749 2.3.1)
+  unless discovery lists `client_secret_post` without `client_secret_basic`. Without a secret the
+  connection is a PKCE public client
+- SP-initiated `/sso/oidc/*` and `/sso/saml/*/login` are browser navigations: expected failures and
+  an IdP `access_denied` redirect to the Hosted UI `/sign-in?error=<code>` (see chapter 01,
+  "Browser-facing errors"). The ACS keeps its HTML protocol error page
 - The IdP metadata URL is polled and refreshed every 24 hours, and a certificate change fires an alert
   webhook
 - Every configured IdP SSO, SLO, metadata, and OIDC discovery URL MUST be public HTTPS. The management
@@ -189,13 +199,26 @@ Capabilities still missing:
 
 ## 4. JIT provisioning
 
-- The first SSO sign-in creates the User automatically
-- Attribute sync: every sign-in overwrites first_name, last_name, and custom_attributes from the
-  latest SSOProfile
+- SAML, OIDC, and legacy protocols share one implementation, `jitProvision` in
+  `apps/server/worker/sso/jit.ts`
+- The first SSO sign-in creates the User automatically. The User, primary Email, identity, and
+  managed Membership are written in one D1 batch, so a failure leaves no orphan rows
+- Attribute sync: every sign-in overwrites first_name, last_name, and custom_attributes with the
+  non-null values of the latest assertion; a missing attribute does not clear the stored value
 - Role mapping: IdP groups or attributes map to an org_role (configured per connection)
 - Conflict handling: exact idp_id match > email association > create new
+- Email association links an existing User only when all three hold: the local Email is verified,
+  the IdP Email is trusted, and the User is already an active member of the connection's
+  Organization. The IdP Email is trusted when the IdP asserts `email_verified: true` (OIDC) or the
+  Email domain is a verified, active `organization_domains` row of that Organization (SAML has no
+  `email_verified`, so it relies on the domain). An existing Email that fails any condition is
+  rejected with `invalid_credentials` and never falls through to user creation
+- A new User's Email is stored as verified only when the IdP Email is trusted by the same rule
+- A revoked identity for the same `(connection, idp_id)` is rebound to the matched User instead of
+  inserting a duplicate row (see chapter 01, identity rows)
 - JIT can be toggled per connection (some enterprises require SCIM-only control and forbid automatic
-  JIT account creation)
+  JIT account creation); a disabled connection with no existing User returns `provisioning_disabled`
+  (403)
 
 Users created by JIT are tagged `provisioned_by: jit_sso`. Constraint: JIT only handles onboarding and
 attribute updates; it cannot deprovision, so it MUST be paired with SCIM.
@@ -208,6 +231,10 @@ attribute updates; it cannot deprovision, so it MUST be paired with SCIM.
 - After the user enters an email on the sign-in page: look up the domain -> find the active connection
   -> redirect to the IdP
 - Multiple domains per org; unverified domains do not trigger SSO routing
+- When no connection matches, `/sso/hrd` returns `connectionId: null` and the Hosted UI tells the
+  user that the Email domain does not use enterprise SSO and to choose another sign-in method
+- During an invitation flow `/sso/hrd` returns `connectionId: null` without discovery; invitations
+  are accepted only through the Email claim (chapter 01)
 
 Data model: the core entity is OrganizationDomain (see chapter 08), which carries the domain
 verification status and method.

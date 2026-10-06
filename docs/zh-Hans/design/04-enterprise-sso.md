@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=8a7e519afb6a6e6fc54f2cf6bd7ad0f36c436ac8 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=4148fa2ec80b498bfb482efc64b379aa5fceedbf -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -24,6 +24,8 @@
 - 每个 org 独立一条 SSO connection,connection 与 org 1:1,不跨租户复用
 - 主键用 idp_id(SAML NameID / OIDC sub),禁止仅靠 email 匹配(防 email 变更孤立账户)
 - RelayState 最大 2KB,超长截断记日志
+- OIDC RP connection 在 `/v1/connections` 与 `/v1/organizations/:orgId/sso-connections` 都接受只写字段 `oidc_client_secret`。它经 KEK 信封加密存入 `oidc_client_secret_ciphertext`,读接口只返回 `oidc_client_secret_configured`。省略该字段保留原值,`null` 清除。换码始终发送 PKCE `code_verifier`;配置了 secret 时使用 `client_secret_basic`(按 RFC 6749 2.3.1 先 form-urlencode),仅当 discovery 列出 `client_secret_post` 而未列出 `client_secret_basic` 时改用 post。未配置 secret 时按 PKCE public client 换码
+- SP-initiated 的 `/sso/oidc/*` 与 `/sso/saml/*/login` 是浏览器导航:预期失败与 IdP 的 `access_denied` 重定向到 Hosted UI `/sign-in?error=<code>`(见 01 章"浏览器侧错误")。ACS 保持 HTML 协议错误页
 - IdP metadata URL 每 24h 后台轮询刷新,证书变更触发告警 webhook
 - 所有 IdP SSO、SLO、metadata、OIDC discovery URL 必须是 public HTTPS。management 写入路径先校验,
   SAML/OIDC runtime 再校验已存记录,旧数据或直接导入不能绕过边界。metadata fetch 禁止
@@ -139,11 +141,15 @@ discovery 加持久化 mapping。新 mapping 只保证 schema 上线后的 run;�
 
 ## 4. JIT Provisioning
 
-- 首次 SSO 登录自动建 User
-- 属性同步:每次登录用最新 SSOProfile 覆写 first_name/last_name/custom_attributes
+- SAML、OIDC 与 legacy 协议共用一个实现:`apps/server/worker/sso/jit.ts` 的 `jitProvision`
+- 首次 SSO 登录自动建 User。User、主 Email、identity 与托管 Membership 在一个 D1 batch 内写入,失败不留孤儿行
+- 属性同步:每次登录用最新断言中非空的值覆写 first_name/last_name/custom_attributes;缺失的属性不清空已存值
 - 角色映射:IdP groups/attributes -> org_role(connection 级配置)
 - 冲突处理:idp_id 精确匹配 > email 关联 > 新建
-- JIT 可按 connection 开关(部分企业要求仅 SCIM 管控,禁 JIT 自动建号)
+- email 关联只在三项同时成立时关联现有 User:本地 Email 已验证、IdP Email 可信、该 User 已是 connection 所属 Organization 的 active 成员。IdP 声明 `email_verified: true`(OIDC),或 Email 域名是该 Organization 已验证且有效的 `organization_domains` 行(SAML 没有 `email_verified`,依赖域名)时,IdP Email 可信。Email 已存在但任一条件不满足时返回 `invalid_credentials`,绝不进入新建分支
+- 新建 User 的 Email 按同一规则判定是否记为已验证
+- 同一 `(connection, idp_id)` 的已撤销 identity 改绑到匹配的 User,不插入重复行(见 01 章身份行)
+- JIT 可按 connection 开关(部分企业要求仅 SCIM 管控,禁 JIT 自动建号);关闭且无现有 User 时返回 `provisioning_disabled`(403)
 
 JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上线/属性更新,无法 deprovisioning(必须配合 SCIM)。
 
@@ -154,6 +160,8 @@ JIT 新建用户打 `provisioned_by: jit_sso` 标记。约束:JIT 仅处理上�
 - 一个 domain 只能被一个 org 认领,支持 wildcard 子域
 - 登录页输入 email 后:查域名 -> 找 active connection -> 重定向 IdP
 - 多 domain per org;未验证域名不触发 SSO 路由
+- 没有匹配的 connection 时 `/sso/hrd` 返回 `connectionId: null`,Hosted UI 提示该邮箱域名未启用企业 SSO,请改用其他登录方式
+- 邀请流程中 `/sso/hrd` 不做发现,直接返回 `connectionId: null`;邀请只能通过 Email claim 接受(01 章)
 
 数据模型:核心实体 OrganizationDomain(见 08 章),含域名验证状态与方式。
 
