@@ -13,13 +13,13 @@ import { AppError } from '../../lib/errors'
 import { createTenantBoundInvitationToken } from '../../lib/invitation-token'
 import { readSessionForTenant } from '../../lib/session'
 import { handleInvitationAccept, handleInvitationPreview } from '../invitation-accept'
-import { resolveClaimTargetTenant } from '../invitation-claim-state'
+import { requireActiveClaimOrganization, resolveClaimTargetTenant } from '../invitation-claim-state'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
 
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   schema: {
-    users: { id: 'id', status: 'status' },
+    users: { id: 'id', status: 'status', deletedAt: 'deletedAt' },
     userEmails: { userId: 'userId', email: 'email' },
     sessions: { id: 'id', userId: 'userId' },
     organizations: { id: 'id' },
@@ -40,6 +40,7 @@ vi.mock('../../lib/session', () => ({
 
 vi.mock('../invitation-claim-state', () => ({
   emitInvitationClaimAudit: vi.fn(),
+  requireActiveClaimOrganization: vi.fn(),
   resolveClaimTargetTenant: vi.fn(),
 }))
 
@@ -248,12 +249,15 @@ describe('POST /auth/invitation/accept', () => {
     })
     vi.mocked(invitationAcceptContinuePath).mockReturnValue('/account')
     vi.mocked(resolveClaimTargetTenant).mockResolvedValue(makeTenant() as never)
+    vi.mocked(requireActiveClaimOrganization).mockResolvedValue({
+      id: 'org-1',
+      name: 'Acme',
+    } as never)
     sessionsUpdate.mockResolvedValue([{ id: 'sess-1' }])
     vi.mocked(createTenantDb).mockReturnValue({
       users: { findOne: vi.fn().mockResolvedValue({ id: 'user-1', primaryEmailId: 'em-1' }) },
       userEmails: { findOne: userEmailsFindOne },
       sessions: { update: sessionsUpdate },
-      organizations: { findOne: vi.fn().mockResolvedValue({ id: 'org-1', name: 'Acme' }) },
     } as unknown as ReturnType<typeof createTenantDb>)
   })
 
@@ -317,6 +321,16 @@ describe('POST /auth/invitation/accept', () => {
     expect(res.status).toBe(400)
     expect(await res.json()).toMatchObject({ code: 'invitation_invalid' })
     expect(readSessionForTenant).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invitation into a suspended or deleted organization', async () => {
+    vi.mocked(requireActiveClaimOrganization).mockRejectedValue(new AppError('invitation_invalid'))
+
+    const res = await accept({ token: 'invite-token' })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invitation_invalid' })
+    expect(acceptInvitation).not.toHaveBeenCalled()
   })
 
   it('passes no verified email when the account has not verified the invited address', async () => {

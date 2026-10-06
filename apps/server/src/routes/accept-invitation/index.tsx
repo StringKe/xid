@@ -363,8 +363,9 @@ export function AcceptInvitationPage(): ReactNode {
     data?.email !== null &&
     data?.email !== undefined &&
     user.email.trim().toLowerCase() === data.email.trim().toLowerCase()
+  // 普通登录后回到本页由现有账号接受;invitation_token 会把登录页切到邮件认领(新账号)流程。
   const signInToAcceptPath = `/sign-in?${new URLSearchParams({
-    invitation_token: rawToken ?? '',
+    continue: `/accept-invitation?${new URLSearchParams({ token: rawToken ?? '' }).toString()}`,
   }).toString()}`
   const turnstileRequired = authConfig.turnstileSiteKey !== null
   const waitingForAuthConfig = authConfigEnabled && authConfigQuery.isPending

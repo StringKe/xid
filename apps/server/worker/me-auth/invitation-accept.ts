@@ -2,7 +2,7 @@
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { defaultLandingPathFor } from '@xid-kit/types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
@@ -18,7 +18,11 @@ import {
 } from '../auth/invitations'
 import { readJsonBody, validateBody, validateQuery } from '../lib/validate'
 import { assertEmailAllowed } from '../auth/hosted-policy'
-import { emitInvitationClaimAudit, resolveClaimTargetTenant } from './invitation-claim-state'
+import {
+  emitInvitationClaimAudit,
+  requireActiveClaimOrganization,
+  resolveClaimTargetTenant,
+} from './invitation-claim-state'
 
 const previewQuerySchema = v.object({
   token: v.optional(v.string()),
@@ -89,11 +93,18 @@ export async function handleInvitationAccept(c: Context<XidHonoEnv>): Promise<Re
   const db = createTenantDb(c.env.DB, tenant)
   const [invitation, user] = await Promise.all([
     findInvitationByRawToken(db, body.token),
-    db.users.findOne(and(eq(schema.users.id, session.userId), eq(schema.users.status, 'active'))),
+    db.users.findOne(
+      and(
+        eq(schema.users.id, session.userId),
+        eq(schema.users.status, 'active'),
+        isNull(schema.users.deletedAt),
+      ),
+    ),
   ])
   if (!invitation) throw new AppError('invitation_invalid')
   if (!user) throw new AppError('unauthorized', { httpStatus: 401 })
   assertEmailAllowed(await resolveClaimTargetTenant(c, tenant, invitation.orgId), invitation.email)
+  const org = await requireActiveClaimOrganization(db, invitation.orgId)
 
   const accepted = await acceptInvitation({
     db,
@@ -115,11 +126,10 @@ export async function handleInvitationAccept(c: Context<XidHonoEnv>): Promise<Re
     userId: user.id,
   })
 
-  const org = await db.organizations.findOne(eq(schema.organizations.id, accepted.orgId))
   return c.json({
     redirectUrl: invitationAcceptContinuePath({
       orgId: accepted.orgId,
-      orgName: org?.name ?? org?.slug ?? accepted.orgId,
+      orgName: org.name ?? org.slug,
       role: accepted.role,
       defaultLandingPath: defaultLandingPathFor(c.get('tenant')),
     }),

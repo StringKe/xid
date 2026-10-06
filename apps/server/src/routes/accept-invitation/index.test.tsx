@@ -570,7 +570,9 @@ describe('AcceptInvitationPage proof-first flow', () => {
       candidate.textContent?.includes('Sign in to accept'),
     )
 
-    expect(signIn?.getAttribute('href')).toBe('/sign-in?invitation_token=raw-invitation-token')
+    expect(signIn?.getAttribute('href')).toBe(
+      `/sign-in?continue=${encodeURIComponent('/accept-invitation?token=raw-invitation-token')}`,
+    )
 
     await disposePage(page)
   })
