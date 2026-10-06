@@ -110,7 +110,6 @@ export type SocialProviderPolicy = {
   issuer?: string
   jwksUri?: string
   externalIdClaim?: string
-  redirectUris?: readonly string[]
   enabled: boolean
   allowLogin: boolean
   allowUserCreation: boolean
@@ -414,7 +413,6 @@ export function normalizeSocialProviderPolicy(raw: unknown): SocialProviderPolic
   ) {
     return undefined
   }
-  const redirectUris = stringArray(raw['redirectUris'])
   return {
     authorizationEndpoint: raw['authorizationEndpoint'],
     tokenEndpoint: raw['tokenEndpoint'],
@@ -426,7 +424,6 @@ export function normalizeSocialProviderPolicy(raw: unknown): SocialProviderPolic
     issuer: optionalString(raw['issuer']),
     jwksUri: optionalString(raw['jwksUri']),
     externalIdClaim: optionalString(raw['externalIdClaim']),
-    redirectUris,
     enabled: booleanOr(raw['enabled'], true),
     allowLogin: booleanOr(raw['allowLogin'], true),
     allowUserCreation: booleanOr(raw['allowUserCreation'], false),

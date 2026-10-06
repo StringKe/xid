@@ -65,15 +65,18 @@ vi.mock('../social-providers', async (importOriginal) => {
       refreshToken: null,
       idToken: 'id-token',
     }),
-    resolveProfile: vi.fn().mockResolvedValue({
-      idpUserId: 'github-123',
-      email: 'new@example.com',
-      emailVerified: true,
-      name: 'New User',
-      profileRaw: {},
-    }),
   }
 })
+
+vi.mock('../social-profile', () => ({
+  resolveProfile: vi.fn().mockResolvedValue({
+    idpUserId: 'github-123',
+    email: 'new@example.com',
+    emailVerified: true,
+    name: 'New User',
+    profileRaw: {},
+  }),
+}))
 
 import {
   createTenantDb,
@@ -84,7 +87,8 @@ import { Hono } from 'hono'
 import type { ErrorHandler } from 'hono'
 import type { TenantVar, XidHonoEnv } from '../../lib/types'
 import { isAppError } from '../../lib/errors'
-import { exchangeCode, resolveProfile } from '../social-providers'
+import { exchangeCode } from '../social-providers'
+import { resolveProfile } from '../social-profile'
 import { provisionAccountAtomically } from '../account-provisioning'
 import { requirePendingInvitationByToken, resolveInvitationTenant } from '../invitations'
 
@@ -185,7 +189,6 @@ function makeGithubPolicy(overrides: Record<string, unknown> = {}): Record<strin
     clientSecretRef: 'GITHUB_CLIENT_SECRET',
     scopes: ['read:user', 'user:email'],
     usesPkce: true,
-    redirectUris: ['/account'],
     enabled: true,
     allowLogin: true,
     allowUserCreation: true,
@@ -406,8 +409,8 @@ describe('GET /auth/google/callback -- state 防重放', () => {
     expect(exchangeCode).not.toHaveBeenCalled()
   })
 
-  it('provider error param 重定向到取消页', async () => {
-    const env = makeEnv(async () => new Response(null, { status: 201 }))
+  it('provider 取消且 state 未知 -> 回同源登录页并带 cancelled', async () => {
+    const env = makeEnv(async () => new Response(null, { status: 404 }))
     vi.mocked(createTenantDb).mockReturnValue({} as unknown as ReturnType<typeof createTenantDb>)
 
     const app = await makeApp()
@@ -416,8 +419,60 @@ describe('GET /auth/google/callback -- state 防重放', () => {
       { method: 'GET' },
       env,
     )
+
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toContain('cancelled')
+    expect(res.headers.get('location')).toBe('/sign-in?error=cancelled')
+  })
+
+  it('provider 取消时一次性消费 state 并恢复原 continue,不回显上游 error 原文', async () => {
+    const consumed: string[] = []
+    const env = makeEnv(async (req) => {
+      const url = new URL(req.url)
+      if (url.pathname === '/consume') {
+        consumed.push(url.pathname)
+        return Response.json({
+          record: {
+            tenantId: 'tenant-1',
+            provider: 'google',
+            codeVerifier: 'cv',
+            nonce: 'nonce',
+            redirectAfterLogin: '/account/security',
+            returnToOrigin: 'https://test.xid.dev',
+            createdAt: Date.now(),
+          },
+        })
+      }
+      return new Response(null, { status: 201 })
+    })
+
+    const app = await makeApp()
+    const res = await app.request(
+      '/auth/google/callback?error=temporarily_unavailable&state=st',
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(
+      '/sign-in?error=sign_in_failed&continue=%2Faccount%2Fsecurity',
+    )
+    expect(consumed).toHaveLength(1)
+  })
+
+  it('浏览器导航到过期 state 的回调 -> 回登录页 session_expired 而不是 JSON', async () => {
+    vi.mocked(exchangeCode).mockClear()
+    const env = makeEnv(async () => new Response(null, { status: 410 }))
+
+    const app = await makeApp()
+    const res = await app.request(
+      '/auth/google/callback?code=authcode&state=expired-state',
+      { method: 'GET', headers: { 'sec-fetch-mode': 'navigate' } },
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('/sign-in?error=session_expired')
+    expect(exchangeCode).not.toHaveBeenCalled()
   })
 
   it('跨租户 state 拒绝(state tenant_id != 当前 tenant)', async () => {
@@ -534,7 +589,6 @@ describe('GET /auth/:provider/authorize', () => {
               clientSecretRef: 'GITHUB_CLIENT_SECRET',
               scopes: ['read:user', 'user:email'],
               usesPkce: true,
-              redirectUris: ['/account'],
               enabled: true,
               allowLogin: true,
               allowUserCreation: false,
@@ -595,7 +649,6 @@ describe('GET /auth/:provider/authorize', () => {
               usesPkce: true,
               issuer: 'https://appleid.apple.com',
               jwksUri: 'https://appleid.apple.com/auth/keys',
-              redirectUris: ['/account'],
               enabled: true,
               allowLogin: true,
               allowUserCreation: true,
@@ -656,7 +709,6 @@ describe('GET /auth/:provider/authorize', () => {
               usesPkce: true,
               issuer: 'https://login.microsoftonline.com/consumers/v2.0',
               jwksUri: 'https://login.microsoftonline.com/consumers/discovery/v2.0/keys',
-              redirectUris: ['/account'],
               enabled: true,
               allowLogin: true,
               allowUserCreation: true,
@@ -740,7 +792,7 @@ describe('GET /auth/:provider/authorize', () => {
         ...makeTenant(),
         policy: {
           socialProviders: {
-            github: makeGithubPolicy({ redirectUris: ['/console'] }),
+            github: makeGithubPolicy(),
           },
         },
       } as unknown as TenantVar)
@@ -1044,7 +1096,7 @@ describe('GET /auth/:provider/authorize', () => {
         },
       }
       vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-      const app = await makeGithubPolicyApp({ provider: { redirectUris: ['/account'] } })
+      const app = await makeGithubPolicyApp({})
 
       const res = await app.request(
         `${returnToOrigin}/auth/github/callback?code=authcode&state=valid-state`,
@@ -1108,7 +1160,7 @@ describe('GET /auth/:provider/authorize', () => {
       },
     }
     vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
-    const app = await makeGithubPolicyApp({ provider: { redirectUris: ['/account'] } })
+    const app = await makeGithubPolicyApp({})
 
     const res = await app.request(
       'https://test.xid.dev/auth/github/callback?code=authcode&state=valid-state',
@@ -1341,7 +1393,6 @@ describe('GET /auth/:provider/authorize', () => {
               clientSecretRef: 'GITHUB_CLIENT_SECRET',
               scopes: ['read:user', 'user:email'],
               usesPkce: true,
-              redirectUris: ['/account'],
               enabled: true,
               allowLogin: true,
               allowUserCreation: true,
@@ -1413,7 +1464,6 @@ describe('GET /auth/:provider/authorize', () => {
               clientSecretRef: 'GITHUB_CLIENT_SECRET',
               scopes: ['read:user', 'user:email'],
               usesPkce: true,
-              redirectUris: ['/account'],
               enabled: true,
               allowLogin: true,
               allowUserCreation: true,
@@ -1484,7 +1534,6 @@ describe('GET /auth/:provider/authorize', () => {
               clientSecretRef: 'GITHUB_CLIENT_SECRET',
               scopes: ['read:user', 'user:email'],
               usesPkce: true,
-              redirectUris: ['/account'],
               enabled: false,
               allowLogin: true,
               allowUserCreation: true,
@@ -1566,7 +1615,6 @@ describe('GET /auth/:provider/authorize', () => {
               clientSecretRef: 'GITHUB_CLIENT_SECRET',
               scopes: ['read:user', 'user:email'],
               usesPkce: true,
-              redirectUris: ['/account'],
               enabled: true,
               allowLogin: true,
               allowUserCreation: false,
@@ -1972,7 +2020,8 @@ describe('GET /auth/:provider/authorize', () => {
           email: 'new@example.com',
           verified: true,
         }),
-        socialIdentity: expect.objectContaining({
+        externalIdentity: expect.objectContaining({
+          identityType: 'oauth',
           provider: 'github',
           providerUserId: 'github-123',
         }),
@@ -2006,30 +2055,132 @@ describe('POST /auth/apple/callback -- Apple form_post', () => {
   })
 })
 
-describe('resolveRedirect -- open redirect 阻断(Fix 4)', () => {
-  it('未注册的 redirect 回退到默认(阻断 open redirect)', async () => {
-    const { resolveRedirect } = await import('../social')
-    const out = resolveRedirect('https://evil.example/steal', { redirectUris: [] }, 'https://app/')
-    expect(out).toBe('https://app/')
-  })
+function existingIdentityCallbackDb(identity: Record<string, unknown>) {
+  return {
+    userIdentities: {
+      findOne: vi.fn().mockResolvedValue(identity),
+      update: vi.fn().mockResolvedValue([identity]),
+      insert: vi.fn().mockResolvedValue(identity),
+    },
+    userEmails: { findOne: vi.fn().mockResolvedValue(undefined) },
+    users: {
+      update: vi.fn().mockResolvedValue([]),
+      findOne: vi.fn().mockResolvedValue({ id: 'user-1', status: 'active', deletedAt: null }),
+    },
+    memberships: { findMany: vi.fn().mockResolvedValue([]) },
+    organizations: {
+      findOne: vi.fn().mockResolvedValue(undefined),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    sessions: {
+      insert: vi.fn().mockImplementation((row: Record<string, unknown>) =>
+        Promise.resolve({
+          ...row,
+          activeOrgId: row['activeOrgId'] ?? null,
+          isImpersonation: false,
+          impersonatorUserId: null,
+        }),
+      ),
+    },
+  }
+}
 
-  it('注册白名单内精确匹配则放行', async () => {
-    const { resolveRedirect } = await import('../social')
-    const out = resolveRedirect(
-      'https://app/dashboard',
-      { redirectUris: ['https://app/dashboard'] },
-      'https://app/',
-    )
-    expect(out).toBe('https://app/dashboard')
+function continueCallbackEnv(redirectAfterLogin: string): Env {
+  return makeEnv(async (req) => {
+    if (new URL(req.url).pathname === '/consume') {
+      return Response.json({
+        record: {
+          tenantId: 'tenant-1',
+          provider: 'github',
+          codeVerifier: 'cv',
+          nonce: 'nonce',
+          redirectAfterLogin,
+          returnToOrigin: 'https://test.xid.dev',
+          createdAt: Date.now(),
+        },
+      })
+    }
+    return new Response(null, { status: 201 })
   })
+}
 
-  it('前缀相同但非精确匹配仍回退(防 open redirect 绕过)', async () => {
-    const { resolveRedirect } = await import('../social')
-    const out = resolveRedirect(
-      'https://app.evil.example/',
-      { redirectUris: ['https://app/'] },
-      'https://app/',
+describe('social callback continue', () => {
+  it.each(['/account/security', '/activate?user_code=ABCD-EFGH'])(
+    '回调后回到发起时的本地 continue %s,不依赖 provider 白名单',
+    async (continuePath) => {
+      vi.mocked(createTenantDb).mockReturnValue(
+        existingIdentityCallbackDb({
+          id: 'identity-1',
+          userId: 'user-1',
+          revokedAt: null,
+        }) as unknown as ReturnType<typeof createTenantDb>,
+      )
+      const app = await makeGithubPolicyApp({})
+
+      const res = await app.request(
+        '/auth/github/callback?code=authcode&state=valid-state',
+        { method: 'GET' },
+        continueCallbackEnv(continuePath),
+      )
+
+      expect(res.status).toBe(302)
+      expect(res.headers.get('location')).toBe(`https://test.xid.dev${continuePath}`)
+    },
+  )
+
+  it('authorize 阶段拒绝非本地 continue,不保存 state', async () => {
+    const stored: string[] = []
+    const env = makeEnv(async (req) => {
+      stored.push(new URL(req.url).pathname)
+      return new Response(null, { status: 201 })
+    })
+    const app = await makeGithubPolicyApp({})
+
+    const res = await app.request(
+      '/auth/github/authorize?continue=https%3A%2F%2Fevil.example%2Fsteal',
+      { method: 'GET' },
+      env,
     )
-    expect(out).toBe('https://app/')
+
+    expect(res.status).toBe(400)
+    expect(stored).toEqual([])
+  })
+})
+
+describe('social identity revival', () => {
+  it('断开过的社交账号以已验证 email 再次登录时复活原行而不是再 INSERT', async () => {
+    const revoked = { id: 'identity-old', userId: 'user-old', revokedAt: new Date(1) }
+    const db = existingIdentityCallbackDb(revoked)
+    db.userIdentities.findOne = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(revoked)
+    db.userEmails.findOne = vi.fn().mockResolvedValue({
+      id: 'email-1',
+      userId: 'user-1',
+      verified: true,
+      verificationStatus: 'verified',
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db as unknown as ReturnType<typeof createTenantDb>)
+    const auditSend = vi.fn()
+    const env = continueCallbackEnv('/account')
+    ;(env as unknown as { AUDIT_QUEUE: { send: typeof auditSend } }).AUDIT_QUEUE.send = auditSend
+    const app = await makeGithubPolicyApp({})
+
+    const res = await app.request(
+      '/auth/github/callback?code=authcode&state=valid-state',
+      { method: 'GET' },
+      env,
+    )
+
+    expect(res.status).toBe(302)
+    expect(db.userIdentities.insert).not.toHaveBeenCalled()
+    expect(db.userIdentities.update).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', revokedAt: null, identityType: 'oauth' }),
+      expect.anything(),
+    )
+    expect(auditSend).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'connection.linked', actorId: 'user-1' }),
+    )
   })
 })

@@ -1,21 +1,21 @@
-// jit.ts:JIT Provisioning -- 首次 SSO 登录自动建 User,后续同步属性/角色。
-// 冲突处理顺序:idp_id 精确匹配 > email 关联 > 新建(见 04 章 3)。
-// JIT 可按 connection 开关(jit_enabled);关闭时若 idp_id 无对应 User -> 403 provisioning_disabled。
-// 铁律:
-//   - 所有 D1 查询走租户查询层(自动注入 tenant_id)。
-//   - tenant_id 从 TenantContext 取,不信任 body。
-//   - 主键用 idp_id 不靠 email 匹配(防 email 变更孤立账户)。
-//   - 新建用户打 provisionedBy='jit_sso' 标记(见 04 章 3)。
+// jit.ts:SAML / OIDC / legacy 企业 SSO 共用的唯一 JIT Provisioning 实现(04 章 4)。
+// 顺序:idp_id 精确匹配 > email 关联 > 新建。主键用 idp_id,不靠 email 匹配(防 email 变更孤立账户)。
+// email 关联只在本地 email 已验证、IdP email 可信、命中 user 已是 connection.orgId 成员时成立;
+// 命中 email 但不满足条件一律 invalid_credentials,绝不进入新建分支(防跨 org 接管)。
 
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, isNull } from 'drizzle-orm'
+import { isOrganizationMembershipRole } from '@xid-kit/types'
+import type { OrganizationMembershipRole } from '@xid-kit/types'
+import type { Context } from 'hono'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
-import type { Context } from 'hono'
+import { bindUserIdentity } from '../lib/user-identity'
+import { provisionAccountAtomically } from '../auth/account-provisioning'
 import { enforceEnterpriseSsoPolicy } from './enterprise-policy'
-import { isOrganizationMembershipRole } from '@xid-kit/types'
-import type { OrganizationMembershipRole } from '@xid-kit/types'
+
+type Db = ReturnType<typeof createTenantDb>
 
 // SSO 认证成功后的标准化断言(SAML NameID 或 OIDC sub + 属性映射结果)。
 export type SsoAssertion = {
@@ -24,25 +24,36 @@ export type SsoAssertion = {
   connectionId: string
   orgId: string
   email: string | null
+  // IdP 明确声明 email 已验证(OIDC email_verified === true)。
   emailVerified: boolean
   firstName: string | null
   lastName: string | null
   // IdP groups/attributes,用于角色映射
   groups: string[]
   customAttributes: Record<string, unknown>
+  identityType?: 'sso' | 'saml'
+  profileRaw?: Record<string, unknown>
 }
 
-// JIT 结果:返回 userId + 是否新建。
 export type JitResult = {
   userId: string
   provisioned: boolean
 }
 
-// 从 connection.roleMapping 按 groups 解析 org_role。
-// roleMapping 格式:{ "Engineering": "admin", "Developers": "member" }
-// 取第一个命中的 group 对应的 role,未命中回退 'member'。
+type SsoConnection = typeof schema.ssoConnections.$inferSelect
+
+type JitContext = {
+  c: Context<XidHonoEnv>
+  db: Db
+  tenantId: string
+  orgId: string
+  assertion: SsoAssertion
+  orgRole: OrganizationMembershipRole
+}
+
+// roleMapping 格式:{ "Engineering": "admin" };取第一个命中的 group,未命中回退 member。
 function resolveOrgRole(
-  groups: string[],
+  groups: readonly string[],
   roleMapping: Record<string, unknown>,
 ): OrganizationMembershipRole {
   for (const group of groups) {
@@ -52,103 +63,58 @@ function resolveOrgRole(
   return 'member'
 }
 
-// 属性同步:每次 SSO 登录用最新 assertion 覆写 first_name/last_name/custom_attributes。
-async function syncAttributes(
-  db: ReturnType<typeof createTenantDb>,
-  userId: string,
-  assertion: SsoAssertion,
-): Promise<void> {
-  const updates: Partial<typeof schema.users.$inferInsert> = {
-    lastLoginAt: new Date(),
-  }
+function emailDomainOf(email: string): string | null {
+  const at = email.lastIndexOf('@')
+  return at < 0 ? null : email.slice(at + 1).toLowerCase()
+}
+
+// IdP 断言的 email 可信:IdP 显式声明已验证,或 email 域是本 org 已验证且有效的域名
+// (与 HRD 同一信号,04 章 5)。默认不信任。
+async function isIdpEmailTrusted(ctx: JitContext, email: string): Promise<boolean> {
+  if (ctx.assertion.emailVerified) return true
+  const domain = emailDomainOf(email)
+  if (!domain) return false
+  const rows = await ctx.db
+    .forOrg(ctx.orgId)
+    .organizationDomains.findMany(
+      and(
+        eq(schema.organizationDomains.verificationStatus, 'verified'),
+        eq(schema.organizationDomains.status, 'active'),
+        isNull(schema.organizationDomains.deletedAt),
+      ),
+    )
+  return rows.some(
+    (row) => row.domain === domain || (row.isWildcard && domain.endsWith(`.${row.domain}`)),
+  )
+}
+
+// 每次登录用最新断言覆写非空属性;null 不清空已有值。
+async function syncAttributes(ctx: JitContext, userId: string): Promise<void> {
+  const { assertion } = ctx
+  const updates: Partial<typeof schema.users.$inferInsert> = { lastLoginAt: new Date() }
   if (assertion.firstName !== null) updates.firstName = assertion.firstName
   if (assertion.lastName !== null) updates.lastName = assertion.lastName
   if (Object.keys(assertion.customAttributes).length > 0) {
     updates.customAttributes = assertion.customAttributes
   }
-  await db.users.update(updates, eq(schema.users.id, userId))
+  await ctx.db.users.update(updates, eq(schema.users.id, userId))
 }
 
-// 确保 user_identities 中有对应 identity 行(idp_id + connectionId)。
-async function upsertSsoIdentity(
-  db: ReturnType<typeof createTenantDb>,
-  userId: string,
-  tenantId: string,
-  assertion: SsoAssertion,
-): Promise<void> {
-  const existing = await db.userIdentities.findOne(
-    and(
-      eq(schema.userIdentities.provider, assertion.connectionId),
-      eq(schema.userIdentities.providerUserId, assertion.idpId),
-      isNull(schema.userIdentities.revokedAt),
-    ),
-  )
-  if (existing) {
-    await db.userIdentities.update(
-      { lastUsedAt: new Date() },
-      eq(schema.userIdentities.id, existing.id),
-    )
-    return
-  }
-  await db.userIdentities.insert({
-    id: createPersistedId('userIdentity'),
-    tenantId,
-    userId,
-    identityType: 'sso',
-    provider: assertion.connectionId,
-    providerUserId: assertion.idpId,
-    lastUsedAt: new Date(),
-  })
-}
-
-// 若有 email 则插入并更新 primaryEmailId(抽出减少 provisionNewUser 行数)。
-async function insertEmailIfPresent(
-  db: ReturnType<typeof createTenantDb>,
-  tenantId: string,
-  userId: string,
-  assertion: SsoAssertion,
-): Promise<void> {
-  if (!assertion.email) return
-  const emailId = crypto.randomUUID()
-  await db.userEmails.insert({
-    id: emailId,
-    tenantId,
-    userId,
-    email: assertion.email,
-    verified: assertion.emailVerified,
-    verificationStatus: assertion.emailVerified ? 'verified' : 'unverified',
-    isPrimary: true,
-    ...(assertion.emailVerified ? { verifiedAt: new Date() } : {}),
-  })
-  await db.users.update({ primaryEmailId: emailId }, eq(schema.users.id, userId))
-}
-
-// upsertMembership 参数包(绕过 max-params=4 限制,将 5 个参数聚合为对象)。
-type MembershipParams = {
-  db: ReturnType<typeof createTenantDb>
-  tenantId: string
-  userId: string
-  orgId: string
-  role: OrganizationMembershipRole
-}
-
-// 确保 membership 存在并同步 role。
-async function upsertMembership(p: MembershipParams): Promise<void> {
-  const { db, tenantId, userId, orgId, role } = p
-  const orgDb = db.forOrg(orgId)
+async function upsertMembership(ctx: JitContext, userId: string): Promise<void> {
+  const orgDb = ctx.db.forOrg(ctx.orgId)
   const existing = await orgDb.memberships.findOne(eq(schema.memberships.userId, userId))
   if (existing) {
-    if (existing.role !== role) {
-      await orgDb.memberships.update({ role }, eq(schema.memberships.id, existing.id))
+    if (existing.role !== ctx.orgRole) {
+      await orgDb.memberships.update({ role: ctx.orgRole }, eq(schema.memberships.id, existing.id))
     }
     return
   }
   await orgDb.memberships.insert({
     id: createPersistedId('membership'),
-    tenantId,
-    orgId,
+    tenantId: ctx.tenantId,
+    orgId: ctx.orgId,
     userId,
-    role,
+    role: ctx.orgRole,
     membershipType: 'member',
     status: 'active',
     isManaged: true,
@@ -156,54 +122,91 @@ async function upsertMembership(p: MembershipParams): Promise<void> {
   })
 }
 
-// 已存在用户同步参数包(绕过 max-params=4)。orgId 取自 connection(权威),非 assertion。
-type SyncParams = {
-  db: ReturnType<typeof createTenantDb>
-  tenantId: string
-  orgId: string
-  userId: string
-  assertion: SsoAssertion
-  orgRole: OrganizationMembershipRole
-}
-
-// 已存在用户的属性同步 + identity + membership(分支 A/B 共用)。
-async function syncExistingUser(p: SyncParams): Promise<JitResult> {
-  const { db, tenantId, orgId, userId, assertion, orgRole } = p
-  await syncAttributes(db, userId, assertion)
-  await upsertSsoIdentity(db, userId, tenantId, assertion)
-  await upsertMembership({ db, tenantId, userId, orgId, role: orgRole })
+async function syncExistingUser(ctx: JitContext, userId: string): Promise<JitResult> {
+  const { assertion } = ctx
+  await syncAttributes(ctx, userId)
+  await bindUserIdentity({
+    db: ctx.db,
+    tenantId: ctx.tenantId,
+    userId,
+    identity: {
+      identityType: assertion.identityType ?? 'sso',
+      provider: assertion.connectionId,
+      providerUserId: assertion.idpId,
+      ...(assertion.profileRaw ? { fields: { profileRaw: assertion.profileRaw } } : {}),
+    },
+  })
+  await upsertMembership(ctx, userId)
   return { userId, provisioned: false }
 }
 
-// 新建用户参数包(绕过 max-params=4)。orgId 取自 connection(权威),非 assertion。
-type ProvisionParams = {
-  c: Context<XidHonoEnv>
-  db: ReturnType<typeof createTenantDb>
-  tenantId: string
-  orgId: string
-  assertion: SsoAssertion
-  orgRole: OrganizationMembershipRole
-  skipDefaultMembership?: boolean
+async function isActiveOrgMember(ctx: JitContext, userId: string): Promise<boolean> {
+  const membership = await ctx.db
+    .forOrg(ctx.orgId)
+    .memberships.findOne(
+      and(eq(schema.memberships.userId, userId), eq(schema.memberships.status, 'active')),
+    )
+  return membership !== undefined
 }
 
-// 分支 D:新建用户 + 邮箱 + identity + membership。
-async function provisionNewUser(p: ProvisionParams): Promise<JitResult> {
-  const { c, db, tenantId, orgId, assertion, orgRole, skipDefaultMembership = false } = p
+// 分支 B:email 命中现有 user。返回 null 表示 email 未被占用,可进入新建分支。
+async function linkByEmail(ctx: JitContext, email: string): Promise<JitResult | null> {
+  const emailRow = await ctx.db.userEmails.findOne(eq(schema.userEmails.email, email))
+  if (!emailRow) return null
+  const linkable =
+    emailRow.verified &&
+    emailRow.verificationStatus === 'verified' &&
+    (await isIdpEmailTrusted(ctx, email)) &&
+    (await isActiveOrgMember(ctx, emailRow.userId))
+  if (!linkable) throw new AppError('invalid_credentials')
+  await enforceEnterpriseSsoPolicy({ c: ctx.c, action: 'login', email })
+  return syncExistingUser(ctx, emailRow.userId)
+}
+
+// 分支 D:users / user_emails / user_identities / membership 一次 D1 batch 写入,失败不留孤儿行。
+async function provisionNewUser(
+  ctx: JitContext,
+  options: { skipDefaultMembership: boolean },
+): Promise<JitResult> {
+  const { c, tenantId, orgId, assertion } = ctx
   const userId = createPersistedId('user')
-  await db.users.insert({
-    id: userId,
+  const email = assertion.email
+  const emailVerified = email ? await isIdpEmailTrusted(ctx, email) : false
+  const emailId = email ? crypto.randomUUID() : null
+  const now = new Date()
+  await provisionAccountAtomically({
+    d1: c.env.DB,
     tenantId,
-    firstName: assertion.firstName,
-    lastName: assertion.lastName,
-    displayName: [assertion.firstName, assertion.lastName].filter(Boolean).join(' ') || null,
-    status: 'active',
-    provisionedBy: 'jit_sso',
+    user: {
+      id: userId,
+      primaryEmailId: emailId,
+      firstName: assertion.firstName,
+      lastName: assertion.lastName,
+      displayName: [assertion.firstName, assertion.lastName].filter(Boolean).join(' ') || null,
+      provisionedBy: 'jit_sso',
+    },
+    primaryEmail:
+      email && emailId
+        ? {
+            id: emailId,
+            email,
+            verified: emailVerified,
+            verificationStatus: emailVerified ? 'verified' : 'unverified',
+            verifiedAt: emailVerified ? now : null,
+          }
+        : null,
+    externalIdentity: {
+      id: createPersistedId('userIdentity'),
+      identityType: assertion.identityType ?? 'sso',
+      provider: assertion.connectionId,
+      providerUserId: assertion.idpId,
+      profileRaw: assertion.profileRaw ?? null,
+      lastUsedAt: now,
+    },
+    managedMembership: options.skipDefaultMembership
+      ? null
+      : { id: createPersistedId('membership'), orgId, role: ctx.orgRole },
   })
-  await insertEmailIfPresent(db, tenantId, userId, assertion)
-  await upsertSsoIdentity(db, userId, tenantId, assertion)
-  if (!skipDefaultMembership) {
-    await upsertMembership({ db, tenantId, userId, orgId, role: orgRole })
-  }
   await c.env.AUDIT_QUEUE.send({
     tenantId,
     orgId,
@@ -219,6 +222,20 @@ async function provisionNewUser(p: ProvisionParams): Promise<JitResult> {
   return { userId, provisioned: true }
 }
 
+async function loadConnection(db: Db, assertion: SsoAssertion): Promise<SsoConnection> {
+  const connection = await db.ssoConnections.findOne(
+    eq(schema.ssoConnections.id, assertion.connectionId),
+  )
+  if (!connection) throw new AppError('connection_not_found')
+  // connection.orgId 是权威来源:assertion.orgId 由调用方构造不可信,不一致即拒绝(02 章 6)。
+  if (assertion.orgId !== connection.orgId) {
+    throw new AppError('invalid_credentials', {
+      longMessage: 'assertion orgId does not match connection orgId',
+    })
+  }
+  return connection
+}
+
 // JIT Provisioning 主入口。
 export async function jitProvision(
   c: Context<XidHonoEnv>,
@@ -226,29 +243,18 @@ export async function jitProvision(
   options?: { skipDefaultMembership?: boolean },
 ): Promise<JitResult> {
   const tenant = c.get('tenant')
-  const { tenantId } = tenant
   const db = createTenantDb(c.env.DB, tenant)
-
-  const connection = await db.ssoConnections.findOne(
-    eq(schema.ssoConnections.id, assertion.connectionId),
-  )
-  if (!connection) throw new AppError('connection_not_found')
-
-  // connection.orgId 是权威来源:assertion.orgId 由 RP 控制不可信,与 connection 不一致即拒绝
-  // (防跨 org 越权写 membership/audit,见 02 章 6 数据隔离)。
-  if (assertion.orgId !== connection.orgId) {
-    throw new AppError('invalid_credentials', {
-      longMessage: 'assertion orgId does not match connection orgId',
-    })
+  const connection = await loadConnection(db, assertion)
+  const ctx: JitContext = {
+    c,
+    db,
+    tenantId: tenant.tenantId,
+    orgId: connection.orgId,
+    assertion,
+    orgRole: resolveOrgRole(assertion.groups, connection.roleMapping as Record<string, unknown>),
   }
-  const orgId = connection.orgId
 
-  const orgRole = resolveOrgRole(
-    assertion.groups,
-    connection.roleMapping as Record<string, unknown>,
-  )
-
-  // 分支 A:idp_id 精确匹配。
+  // 分支 A:idp_id 精确匹配(已撤销的绑定不在此命中)。
   const existingIdentity = await db.userIdentities.findOne(
     and(
       eq(schema.userIdentities.provider, assertion.connectionId),
@@ -258,31 +264,12 @@ export async function jitProvision(
   )
   if (existingIdentity) {
     await enforceEnterpriseSsoPolicy({ c, action: 'login', email: assertion.email })
-    return syncExistingUser({
-      db,
-      tenantId,
-      orgId,
-      userId: existingIdentity.userId,
-      assertion,
-      orgRole,
-    })
+    return syncExistingUser(ctx, existingIdentity.userId)
   }
 
-  // 分支 B:email 关联(已验证)。
   if (assertion.email) {
-    const emailRow = await db.userEmails.findOne(eq(schema.userEmails.email, assertion.email))
-    if (
-      emailRow &&
-      assertion.emailVerified &&
-      emailRow.verified &&
-      emailRow.verificationStatus === 'verified'
-    ) {
-      await enforceEnterpriseSsoPolicy({ c, action: 'login', email: assertion.email })
-      return syncExistingUser({ db, tenantId, orgId, userId: emailRow.userId, assertion, orgRole })
-    }
-    if (emailRow) {
-      throw new AppError('invalid_credentials')
-    }
+    const linked = await linkByEmail(ctx, assertion.email)
+    if (linked) return linked
   }
 
   // 分支 C:JIT 关闭。
@@ -290,13 +277,5 @@ export async function jitProvision(
 
   // 分支 D:新建。
   await enforceEnterpriseSsoPolicy({ c, action: 'user_creation', email: assertion.email })
-  return provisionNewUser({
-    c,
-    db,
-    tenantId,
-    orgId,
-    assertion,
-    orgRole,
-    skipDefaultMembership: options?.skipDefaultMembership ?? false,
-  })
+  return provisionNewUser(ctx, { skipDefaultMembership: options?.skipDefaultMembership ?? false })
 }

@@ -1,6 +1,6 @@
 // SAML 2.0 SP 路由:ACS(验签->JIT->session)/ metadata / AuthnRequest 发起(SP-initiated)。
 // 见 docs/design/04-enterprise-sso.md 第 1、3、8 节。验签/解密/语义校验全走 @xid-kit/saml(xmldsigjs,不自研)。
-// 错误码映射见 saml-errors.ts(8.8);DO 一次性消费见 saml-do.ts;JIT 见 saml-jit.ts;connection 解析见 saml-connection.ts。
+// 错误码映射见 saml-errors.ts(8.8);DO 一次性消费见 saml-do.ts;JIT 见 jit.ts;connection 解析见 saml-connection.ts。
 // export 注册函数,不直接改 worker/index.ts(wire 阶段统一挂)。
 
 import {
@@ -41,7 +41,10 @@ import {
 import type { SamlConnection } from './saml-connection'
 import { shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
 import { readUniqueSamlFormField, readUniqueSamlQueryParameter } from './saml-binding-input'
-import { provisionUser } from './saml-jit'
+import { jitProvision } from './jit'
+import type { SsoAssertion } from './jit'
+import type { SamlAttributes, SamlSubject } from '@xid-kit/types'
+import { requestHasRawInvitationInput, withSignInErrorRedirect } from '../lib/federated-flow'
 import {
   consumeAuthnRequestContext,
   isAssertionReplay,
@@ -63,6 +66,7 @@ import { resolveSsoConnectionTenant, withTenant } from './tenant'
 import { enforceEnterpriseSsoPolicy } from './enterprise-policy'
 import {
   isAuthorizeContinuation,
+  isInvitationContinuation,
   normalizeLocalContinuePath,
   resolveApplicationAuthorizeContinuation,
 } from '../../shared/hosted-auth-continuation'
@@ -72,30 +76,29 @@ const saml = new Hono<XidHonoEnv>()
 
 // RelayState 最大 2KB(超长截断记日志,见第 1 节决策)。
 const RELAY_STATE_MAX = 2048
-const INVITATION_PATH = '/accept-invitation'
 
 // base64 XML 上限(字符数):schema 层拒超大 SAMLResponse/SAMLRequest,量级对齐 SAML_METADATA_MAX_BYTES。
 const SAML_XML_BASE64_MAX_LENGTH = 256 * 1024
 
-function isInvitationContinuePath(value: string | null | undefined): boolean {
-  if (!value) return false
-  try {
-    const parsed = new URL(value, 'https://xid.invalid')
-    return parsed.pathname === INVITATION_PATH || parsed.pathname === `${INVITATION_PATH}/`
-  } catch {
-    return false
+// SAML 断言 -> 统一 JIT 输入。SAML 无 email_verified 语义:email 可信度由 jit 按本 org 已验证域名判定。
+function samlAssertionToSso(
+  connection: SamlConnection,
+  subject: SamlSubject,
+  attributes: SamlAttributes,
+): SsoAssertion {
+  return {
+    idpId: subject.nameId,
+    connectionId: connection.id,
+    orgId: connection.orgId,
+    email: attributes.email ?? null,
+    emailVerified: false,
+    firstName: attributes.firstName ?? null,
+    lastName: attributes.lastName ?? null,
+    groups: [...(attributes.groups ?? [])],
+    customAttributes: {},
+    identityType: 'saml',
+    profileRaw: { nameId: subject.nameId, ...attributes.custom },
   }
-}
-
-function requestHasRawInvitationInput(
-  c: Context<XidHonoEnv>,
-  continuationParameters: readonly string[],
-): boolean {
-  const query = new URL(c.req.url).searchParams
-  if (query.has('invitation_token') || query.has('invitationToken')) return true
-  return continuationParameters.some((name) =>
-    query.getAll(name).some((value) => isInvitationContinuePath(value)),
-  )
 }
 
 // HTTP-POST binding 的 ACS/SLO 表单:SAMLResponse/SAMLRequest 必填,RelayState 可选。
@@ -202,7 +205,7 @@ async function checkInResponseTo(
   if (!inResponseTo) return null
   const flow = await consumeAuthnRequestContext(c, connectionId, inResponseTo)
   if (!flow) throw new AppError('recipient_mismatch', { httpStatus: 403 })
-  if (isInvitationContinuePath(flow.continuePath)) {
+  if (isInvitationContinuation(flow.continuePath)) {
     throw new AppError('invalid_request')
   }
   const tenant = c.get('tenant')
@@ -235,7 +238,7 @@ async function runAcs(c: Context<XidHonoEnv>, connectionId: string): Promise<Res
   const connection = await resolveConnection(c, connectionId)
   await enforceEnterpriseSsoPolicy({ c, action: 'login', email: null })
   const { samlResponse, relayState } = await readAcsForm(c)
-  if (isInvitationContinuePath(relayState)) {
+  if (isInvitationContinuation(relayState)) {
     throw new AppError('invalid_request')
   }
 
@@ -259,13 +262,11 @@ async function runAcs(c: Context<XidHonoEnv>, connectionId: string): Promise<Res
   const skipDefaultMembership = shouldSkipDefaultMembership({
     redirectAfterLogin: localRelayTarget,
   })
-  const userId = await provisionUser({
+  const { userId } = await jitProvision(
     c,
-    connection,
-    subject: assertion.subject,
-    attributes: assertion.attributes,
-    skipDefaultMembership,
-  })
+    samlAssertionToSso(connection, assertion.subject, assertion.attributes),
+    { skipDefaultMembership },
+  )
 
   const now = new Date()
   const mfaGate = await resolvePostAuthMfaGate(c, c.get('tenant'), {
@@ -628,11 +629,25 @@ saml.get('/saml/:connection/slo', handleInboundSlo)
 saml.post('/saml/:connection/slo', handleInboundSlo)
 
 // GET /sso/saml/:connection/login -- SP-initiated AuthnRequest 发起(302 到 IdP SSO URL)。
-saml.get('/saml/:connection/login', async (c) => {
+// 浏览器顶层导航:预期失败回 /sign-in?error=<不透明码>。
+saml.get('/saml/:connection/login', async (c) =>
+  withSignInErrorRedirect(c, {
+    operation: 'saml_login',
+    context: () => ({
+      continuePath: c.req.query('relay_state') ?? c.req.query('continue') ?? null,
+      applicationClientId: c.req.query('client_id')?.trim() || null,
+      intent: c.req.query('intent') ?? null,
+    }),
+    run: () => startSamlLogin(c),
+  }),
+)
+
+async function startSamlLogin(c: Context<XidHonoEnv>): Promise<Response> {
   if (requestHasRawInvitationInput(c, ['relay_state', 'RelayState', 'redirect_uri', 'continue'])) {
     throw new AppError('invalid_request')
   }
   const connectionId = c.req.param('connection')
+  if (!connectionId) throw new AppError('connection_not_found')
   const tenant = await resolveSsoConnectionTenant(c, connectionId)
   return withTenant(c, tenant, async () => {
     await enforceEnterpriseSsoPolicy({ c, action: 'login', email: null })
@@ -669,7 +684,7 @@ saml.get('/saml/:connection/login', async (c) => {
       applicationClientId,
     })
   })
-})
+}
 
 // 注册 SAML SP 路由(wire 阶段统一挂载;前缀 /sso)。
 export function registerSamlRoutes(app: Hono<XidHonoEnv>): void {

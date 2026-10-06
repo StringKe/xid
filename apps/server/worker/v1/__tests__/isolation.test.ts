@@ -1474,6 +1474,48 @@ describe('v1 connections:SSO URL 校验与内部 attribute_mapping 剔除', () =
     expect(mapping).toEqual({ email: 'mail' })
     expect(JSON.stringify(mapping)).not.toContain('_swaVault')
   })
+
+  it('GET:OIDC client_secret 只暴露是否已配置,跨租户读取 404', async () => {
+    const { token, row: apiKey } = await makeApiKeyRow('t_1')
+    const ciphertext = new Uint8Array([1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 42, 42, 42])
+    const own = {
+      id: 'conn_1',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      protocol: 'oidc',
+      oidc_client_id: 'client-1',
+      oidc_client_secret_ciphertext: ciphertext,
+      attribute_mapping: {},
+      role_mapping: {},
+      status: 'active',
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }
+    const victim = { ...own, id: 'conn_victim', tenant_id: 't_other', org_id: 'org_victim' }
+    const db = makeFakeD1({ api_keys: [apiKey], sso_connections: [own, victim] })
+    const env = asUnknown<Env>({ DB: db })
+    const app = buildApp(registerConnections)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/connections/conn_1',
+      { method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+    const cross = await app.request(
+      'https://acme.xid.dev/v1/connections/conn_victim',
+      { method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body['oidc_client_secret_configured']).toBe(true)
+    expect(Object.keys(body).filter((key) => key.startsWith('oidc_client_secret'))).toEqual([
+      'oidc_client_secret_configured',
+    ])
+    expect(JSON.stringify(body)).not.toContain('ciphertext')
+    expect(cross.status).toBe(404)
+  })
 })
 
 describe('v1 connections 软删除', () => {
@@ -7144,11 +7186,11 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
         body: JSON.stringify({
           socialProviders: {
             google: {
+              enabled: false,
               clientSecretRef: '',
               userInfoEndpoint: '',
               issuer: '',
               jwksUri: '',
-              redirectUris: [],
               scopes: [],
               allowedEmailDomains: [],
               blockedEmailDomains: [],
@@ -7168,14 +7210,85 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
       hasClientSecret: true,
       credentialsReady: false,
       scopes: [],
-      redirectUris: [],
       allowedEmailDomains: [],
       blockedEmailDomains: [],
     })
+    expect(body.socialProviders.google?.['redirectUris']).toBeUndefined()
     expect(body.socialProviders.google?.['userInfoEndpoint']).toBeUndefined()
     expect(body.socialProviders.google?.['issuer']).toBeUndefined()
     expect(body.socialProviders.google?.['jwksUri']).toBeUndefined()
     expect(body.socialProviders.google?.['clientSecretRef']).toBe('GOOGLE_CLIENT_SECRET')
+
+    const rejected = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/social-providers',
+      {
+        method: 'PATCH',
+        headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ socialProviders: { google: { enabled: true } } }),
+      },
+      env,
+    )
+    expect(rejected.status).toBe(422)
+    expect(await rejected.json()).toMatchObject({ code: 'validation_failed' })
+  })
+
+  it('social provider 保存拒绝会被精确匹配的 issuer 占位串', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({ tenantId: 't_1', userId: 'user_admin', activeOrgId: 'org_1' })
+    const db = makeFakeD1({
+      sessions: [session],
+      users: [activeUserRow('user_admin')],
+      organizations: [
+        { id: 'org_1', tenant_id: 't_1', status: 'active', private_metadata: { hostedAuth: {} } },
+      ],
+      memberships: [
+        {
+          id: 'mem_admin',
+          tenant_id: 't_1',
+          org_id: 'org_1',
+          user_id: 'user_admin',
+          role: 'admin',
+          status: 'active',
+        },
+      ],
+    })
+    const env = asUnknown<Env>({
+      DB: db,
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      CACHE: makeFakeKv(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/social-providers',
+      {
+        method: 'PATCH',
+        headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          socialProviders: {
+            github_emu: {
+              authorizationEndpoint:
+                'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+              tokenEndpoint: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+              clientId: 'emu-client',
+              issuer: 'https://login.microsoftonline.com/{tenant-id}/v2.0',
+              jwksUri: 'https://login.microsoftonline.com/organizations/discovery/v2.0/keys',
+              scopes: ['openid'],
+              usesPkce: true,
+              enabled: true,
+            },
+          },
+        }),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({ code: 'validation_failed' })
   })
 
   it('admin 可轮换 SCIM directory token', async () => {

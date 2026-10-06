@@ -147,7 +147,9 @@ function makeD1(): SqliteD1 {
       refresh_token_ciphertext BLOB,
       scopes TEXT,
       profile_raw TEXT,
+      token_expires_at INTEGER,
       last_used_at INTEGER,
+      revoked_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       UNIQUE (tenant_id, provider, provider_user_id)
@@ -238,8 +240,9 @@ function socialInput(d1: SqliteD1): AccountProvisioningInput {
       verificationStatus: 'verified',
       verifiedAt: new Date(900),
     },
-    socialIdentity: {
+    externalIdentity: {
       id: 'idn_AAAAAAAAAAAAAAAAAAAAA',
+      identityType: 'oauth',
       provider: 'github',
       providerUserId: 'github-123',
       accessTokenCiphertext: new Uint8Array([1, 2, 3]),
@@ -321,6 +324,70 @@ describe('provisionAccountAtomically', () => {
     expect(tableCount(d1, 'users')).toBe(1)
     expect(tableCount(d1, 'user_identities')).toBe(1)
     expect(tableCount(d1, 'memberships')).toBe(0)
+  })
+
+  it('rebinds a revoked external identity to the new account instead of failing on uniqueness', async () => {
+    const d1 = makeD1()
+    d1.database
+      .prepare(
+        `INSERT INTO user_identities (
+           id, tenant_id, user_id, identity_type, provider, provider_user_id,
+           revoked_at, created_at, updated_at
+         ) VALUES ('idn_OLD', 'tenant-a', 'user_OLD', 'oauth', 'github', 'github-123', 5, 1, 1)`,
+      )
+      .run()
+
+    await provisionAccountAtomically(socialInput(d1))
+
+    const row = d1.database
+      .prepare(`SELECT id, user_id, revoked_at FROM user_identities`)
+      .get() as { id: string; user_id: string; revoked_at: number | null }
+    expect(tableCount(d1, 'user_identities')).toBe(1)
+    expect(row).toEqual({ id: 'idn_OLD', user_id: 'user_BBBBBBBBBBBBBBBBBBBBB', revoked_at: null })
+  })
+
+  it('rolls back the whole account when an active identity already owns the external account', async () => {
+    const d1 = makeD1()
+    d1.database
+      .prepare(
+        `INSERT INTO user_identities (
+           id, tenant_id, user_id, identity_type, provider, provider_user_id,
+           created_at, updated_at
+         ) VALUES ('idn_ACTIVE', 'tenant-a', 'user_OTHER', 'oauth', 'github', 'github-123', 1, 1)`,
+      )
+      .run()
+
+    await expect(provisionAccountAtomically(socialInput(d1))).rejects.toMatchObject({
+      code: 'server_error',
+    })
+
+    expect(tableCount(d1, 'users')).toBe(0)
+    expect(tableCount(d1, 'user_emails')).toBe(0)
+    const owner = d1.database.prepare(`SELECT user_id FROM user_identities`).get() as {
+      user_id: string
+    }
+    expect(owner.user_id).toBe('user_OTHER')
+  })
+
+  it('writes a managed SSO membership with the mapped role', async () => {
+    const d1 = makeD1()
+    const input = socialInput(d1)
+    input.externalIdentity = {
+      id: 'idn_SSO',
+      identityType: 'saml',
+      provider: 'conn-1',
+      providerUserId: 'name-id-1',
+      profileRaw: { nameId: 'name-id-1' },
+      lastUsedAt: new Date(1_000),
+    }
+    input.managedMembership = { id: 'mem_SSO', orgId: 'org-child', role: 'admin' }
+
+    await provisionAccountAtomically(input)
+
+    const membership = d1.database
+      .prepare(`SELECT org_id, role, is_managed FROM memberships`)
+      .get() as { org_id: string; role: string; is_managed: number }
+    expect(membership).toEqual({ org_id: 'org-child', role: 'admin', is_managed: 1 })
   })
 
   it('does not attach account artifacts to the same user id in another tenant', async () => {

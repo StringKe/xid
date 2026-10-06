@@ -1,15 +1,11 @@
-// social-providers.ts:Social OAuth 的 provider 集成层(从 social.ts 抽出以控制文件行数)。
-// 职责:provider 配置、OIDC id_token 验签(provider JWKS,KV 缓存)、GitHub non-OIDC profile、
-//   PKCE code_challenge、provider token 信封加密、code exchange、profile 解析。
-// 不含路由与 account linking 逻辑(那些留在 social.ts)。见 01 章 3。
+// social-providers.ts:Social OAuth 的 provider 集成层。
+// 职责:provider 配置与保存期校验、Workers Secret 引用、端点 SSRF 校验、provider token 信封加密、
+//   code exchange。profile 解析见 social-profile.ts,路由见 social.ts,account linking 见 social-linking.ts。
 
-import { base64UrlEncode, envelopeEncrypt, importJwkForVerify, verifyJwt } from '@xid-kit/crypto'
-import type { PublicJwk, VerifyKeySet } from '@xid-kit/crypto'
+import { envelopeEncrypt } from '@xid-kit/crypto'
 import type { SocialProviderPolicy, TenantContext } from '@xid-kit/types'
 import { AppError } from '../lib/errors'
-import { SOCIAL_JWKS_CACHE_TTL_SEC } from '../lib/ttl'
 import { isPublicHttpsUrl } from '../lib/validate'
-import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import { HostedAuthPolicyError } from './hosted-policy'
 
 // provider 标识:内置 google/github/microsoft/apple,亦支持自定义 provider key(任意字符串)。
@@ -24,8 +20,7 @@ export type ProviderProfile = {
   profileRaw: Record<string, unknown>
 }
 
-// provider 配置:token endpoint、client_id、client_secret 等。
-// 真实实现从 TenantContext 或 KV provider config 取;此处定义接口为扩展点。
+// provider 配置:token endpoint、client_id、client_secret 等,来自 TenantContext 的 socialProviders 策略。
 export type ProviderConfig = {
   authorizationEndpoint: string
   tokenEndpoint: string
@@ -38,9 +33,16 @@ export type ProviderConfig = {
   issuer?: string
   jwksUri?: string
   externalIdClaim?: string
-  // 本 client 注册的 redirectAfterLogin 白名单(精确匹配,防 open redirect)。
-  redirectUris?: string[]
 }
+
+export type TokenResponse = {
+  accessToken: string
+  refreshToken: string | null
+  idToken: string | null
+}
+
+// Entra 多租户 issuer 模板:iss 随登录用户所在 Entra 租户变化,验签后用 tid 代入再精确比较。
+export const MICROSOFT_TENANT_ISSUER_PLACEHOLDER = '{tenantid}'
 
 export const GITHUB_EMU_ISSUER_BOUNDARIES = ['https://token.actions.githubusercontent.com'] as const
 
@@ -52,9 +54,10 @@ export const BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS = {
   github_emu: 'GITHUB_EMU_CLIENT_SECRET',
 } as const
 
+export const SOCIAL_PROVIDER_TIMEOUT_MS = 5_000
+
 const CUSTOM_SOCIAL_SECRET_BINDING = /^SOCIAL_[A-Z0-9_]+_CLIENT_SECRET$/
 const PROVIDER_KEY = /^[a-z0-9_-]+$/
-const SOCIAL_PROVIDER_TIMEOUT_MS = 5_000
 
 function operatorSocialProviderBindings(env: Env): Readonly<Record<string, string>> {
   const raw = env.SOCIAL_PROVIDER_SECRET_BINDINGS
@@ -107,14 +110,6 @@ export function assertPublicProviderEndpoints(
   }
 }
 
-// JWKS 拉取单点校验:fetchProviderVerifyKeys 只拿到 jwksUri 字符串,单独挡一次(同 assertPublicProviderEndpoints 语义)。
-function assertPublicJwksUri(jwksUri: string, allowNonPublic = false): void {
-  if (allowNonPublic) return
-  if (!isPublicHttpsUrl(jwksUri)) {
-    throw new HostedAuthPolicyError('provider_not_configured', 'invalid_request')
-  }
-}
-
 export function resolveGithubEmuAllowedIssuers(config: ProviderConfig): string[] {
   const allowed = new Set<string>([...GITHUB_EMU_ISSUER_BOUNDARIES])
   if (config.issuer) allowed.add(config.issuer)
@@ -126,21 +121,6 @@ export function isGithubEmuIssuer(issuer: string, config?: ProviderConfig): bool
   return GITHUB_EMU_ISSUER_BOUNDARIES.includes(
     issuer as (typeof GITHUB_EMU_ISSUER_BOUNDARIES)[number],
   )
-}
-
-export type TokenResponse = {
-  accessToken: string
-  refreshToken: string | null
-  idToken: string | null
-}
-
-// JWKS 响应中的 key(provider 侧,含 kid/alg/kty)。
-type ProviderJwk = JsonWebKey & { kid?: string; alg?: string; kty?: string }
-
-// SHA-256(codeVerifier) -> base64url(PKCE S256,01 章 3)。
-export async function computeCodeChallenge(codeVerifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier))
-  return base64UrlEncode(new Uint8Array(digest))
 }
 
 // 从 env.KEK(base64)解码 KEK 字节。
@@ -167,56 +147,6 @@ export async function encryptToken(env: Env, token: string): Promise<Uint8Array>
   return out
 }
 
-// 拉 provider JWKS 并构建 VerifyKeySet(KV 缓存 TTL 1h,见 cloudflare-bindings rule)。
-async function fetchProviderVerifyKeys(env: Env, jwksUri: string): Promise<VerifyKeySet> {
-  assertPublicJwksUri(jwksUri, isDevOrTestEnvironment(env))
-  const cacheKey = `provider_jwks:${jwksUri}`
-  let raw = await env.CACHE.get(cacheKey)
-  if (!raw) {
-    const res = await fetch(jwksUri, { signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS) })
-    if (!res.ok) throw new AppError('invalid_credentials')
-    raw = await res.text()
-    await env.CACHE.put(cacheKey, raw, { expirationTtl: SOCIAL_JWKS_CACHE_TTL_SEC })
-  }
-  const jwks = JSON.parse(raw) as { keys: ProviderJwk[] }
-  const keys = await Promise.all(
-    jwks.keys
-      .filter((k) => k.kid && (k.alg === 'ES256' || k.alg === 'RS256' || k.alg === 'PS256'))
-      .map(async (k) => {
-        const alg = k.alg as 'ES256' | 'RS256' | 'PS256'
-        const jwk: PublicJwk = { ...k, kid: k.kid as string, use: 'sig', alg }
-        return { kid: k.kid as string, alg, publicKey: await importJwkForVerify(jwk) }
-      }),
-  )
-  return { keys }
-}
-
-// 验 OIDC id_token:签名(provider JWKS)+ iss + aud(=client_id)+ exp + nonce。失败抛 invalid_credentials。
-async function verifyOidcIdToken(opts: {
-  env: Env
-  idToken: string
-  config: ProviderConfig
-  expectedNonce: string
-}): Promise<Record<string, unknown>> {
-  const { env, idToken, config, expectedNonce } = opts
-  if (!config.issuer || !config.jwksUri) throw new AppError('invalid_credentials')
-  const verifyKeys = await fetchProviderVerifyKeys(env, config.jwksUri)
-  const verified = await verifyJwt(idToken, verifyKeys, {
-    expectedIssuer: config.issuer,
-    expectedAudience: config.clientId,
-  })
-  if (!verified.ok) throw new AppError('invalid_credentials')
-  const claims = verified.value.payload as Record<string, unknown>
-  // nonce 防重放:必须与发起时存入 DO 的 nonce 一致。
-  if (claims['nonce'] !== expectedNonce) throw new AppError('invalid_credentials')
-  return claims
-}
-
-function readClaimString(claims: Record<string, unknown>, key: string): string | null {
-  const value = claims[key]
-  return typeof value === 'string' && value.length > 0 ? value : null
-}
-
 function providerConfigFromPolicy(
   env: Env,
   provider: string,
@@ -230,15 +160,48 @@ function providerConfigFromPolicy(
     authorizationEndpoint: policy.authorizationEndpoint,
     tokenEndpoint: policy.tokenEndpoint,
     clientId: policy.clientId,
-    clientSecret: typeof secretValue === 'string' ? secretValue : undefined,
+    clientSecret: secretValue,
     userInfoEndpoint: policy.userInfoEndpoint,
     scopes: [...policy.scopes],
     usesPkce: policy.usesPkce,
     issuer: policy.issuer,
     jwksUri: policy.jwksUri,
     externalIdClaim: policy.externalIdClaim,
-    redirectUris: policy.redirectUris ? [...policy.redirectUris] : undefined,
   }
+}
+
+export type SocialProviderConfigField =
+  | 'authorizationEndpoint'
+  | 'tokenEndpoint'
+  | 'userInfoEndpoint'
+  | 'issuer'
+  | 'jwksUri'
+
+// 保存期校验:一个启用的 provider 必须有可用的 profile 来源(GitHub REST、id_token 验签或 userinfo),
+// 且不得保存会被精确匹配的占位串;唯一允许的占位是 Microsoft issuer 的 {tenantid}。
+export function socialProviderConfigIssue(
+  provider: string,
+  policy: SocialProviderPolicy,
+): SocialProviderConfigField | null {
+  const fields: readonly SocialProviderConfigField[] = [
+    'authorizationEndpoint',
+    'tokenEndpoint',
+    'userInfoEndpoint',
+    'jwksUri',
+  ]
+  for (const field of fields) {
+    if (policy[field]?.includes('{')) return field
+  }
+  const issuer = policy.issuer ?? ''
+  const issuerWithoutTemplate =
+    provider === 'microsoft' ? issuer.replace(MICROSOFT_TENANT_ISSUER_PLACEHOLDER, '') : issuer
+  if (issuerWithoutTemplate.includes('{')) return 'issuer'
+  if (!policy.enabled || provider === 'github') return null
+  const hasIssuer = issuer !== ''
+  const hasJwks = (policy.jwksUri ?? '') !== ''
+  if (hasIssuer !== hasJwks) return hasIssuer ? 'jwksUri' : 'issuer'
+  if (!hasIssuer && (policy.userInfoEndpoint ?? '') === '') return 'issuer'
+  return null
 }
 
 export function hasProviderSecret(
@@ -260,102 +223,6 @@ export function getProviderConfig(
 ): ProviderConfig | null {
   const policy = tenant.policy.socialProviders?.[provider]
   return policy ? providerConfigFromPolicy(env, provider, policy) : null
-}
-
-type GitHubEmail = {
-  email: string
-  primary: true
-  verified: true
-}
-
-function primaryVerifiedGitHubEmail(value: unknown): GitHubEmail | null {
-  if (!Array.isArray(value)) throw new AppError('internal_error')
-  for (const candidate of value) {
-    if (
-      candidate &&
-      typeof candidate === 'object' &&
-      (candidate as Record<string, unknown>)['primary'] === true &&
-      (candidate as Record<string, unknown>)['verified'] === true
-    ) {
-      const email = (candidate as Record<string, unknown>)['email']
-      if (typeof email === 'string' && email.trim().length > 0) {
-        return { email: email.trim(), primary: true, verified: true }
-      }
-    }
-  }
-  return null
-}
-
-// GitHub non-OIDC:/user 提供 profile，/user/emails 是 Email 验证状态的唯一可信来源。
-async function fetchGitHubProfile(accessToken: string): Promise<ProviderProfile> {
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'xid-server',
-  }
-  const userRes = await fetch('https://api.github.com/user', {
-    headers,
-    signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS),
-  })
-  if (!userRes.ok) throw new AppError('internal_error')
-  const user = (await userRes.json()) as Record<string, unknown>
-  const idpUserId = String(user['id'])
-
-  const emailsRes = await fetch('https://api.github.com/user/emails', {
-    headers,
-    signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS),
-  })
-  if (!emailsRes.ok) throw new AppError('internal_error')
-  const primaryEmail = primaryVerifiedGitHubEmail(await emailsRes.json())
-
-  return {
-    idpUserId,
-    email: primaryEmail?.email ?? null,
-    emailVerified: primaryEmail !== null,
-    name: (user['name'] as string | null) ?? null,
-    profileRaw: user,
-  }
-}
-
-// 标准 OIDC id_token claims 提取(Google/Microsoft/Apple)。
-function extractOidcProfile(
-  claims: Record<string, unknown>,
-  externalIdClaim?: string,
-): ProviderProfile {
-  const emailVerifiedRaw = claims['email_verified']
-  const emailVerified =
-    emailVerifiedRaw === true || emailVerifiedRaw === 'true' || emailVerifiedRaw === 1
-  const externalIdKey = externalIdClaim ?? 'external_id'
-  const externalId = readClaimString(claims, externalIdKey) ?? readClaimString(claims, 'sub')
-
-  return {
-    idpUserId: String(claims['sub']),
-    email: (claims['email'] as string | null) ?? null,
-    emailVerified,
-    name: (claims['name'] as string | null) ?? null,
-    externalId,
-    profileRaw: claims,
-  }
-}
-
-async function verifyGithubEmuIdToken(opts: {
-  env: Env
-  idToken: string
-  config: ProviderConfig
-  expectedNonce: string
-}): Promise<Record<string, unknown>> {
-  const { env, idToken, config, expectedNonce } = opts
-  if (!config.jwksUri) throw new AppError('invalid_credentials')
-  const verifyKeys = await fetchProviderVerifyKeys(env, config.jwksUri)
-  const verified = await verifyJwt(idToken, verifyKeys, {
-    expectedAudience: config.clientId,
-  })
-  if (!verified.ok) throw new AppError('invalid_credentials')
-  const claims = verified.value.payload as Record<string, unknown>
-  if (claims['nonce'] !== expectedNonce) throw new AppError('invalid_credentials')
-  const issuer = typeof claims['iss'] === 'string' ? claims['iss'] : ''
-  if (!isGithubEmuIssuer(issuer, config)) throw new AppError('invalid_credentials')
-  return claims
 }
 
 // code exchange(01 章 3 step 3):POST token_endpoint,返回 access/refresh/id token。
@@ -395,34 +262,4 @@ export async function exchangeCode(opts: {
     refreshToken: (data['refresh_token'] as string | undefined) ?? null,
     idToken: (data['id_token'] as string | undefined) ?? null,
   }
-}
-
-// 取 provider profile:GitHub 走 userinfo(non-OIDC);OIDC 走验签后的 id_token claims。
-export async function resolveProfile(opts: {
-  env: Env
-  provider: Provider
-  config: ProviderConfig
-  tokens: TokenResponse
-  nonce: string
-}): Promise<ProviderProfile> {
-  const { env, provider, config, tokens, nonce } = opts
-  if (provider === 'github') return fetchGitHubProfile(tokens.accessToken)
-  if (tokens.idToken) {
-    const claims =
-      provider === 'github_emu'
-        ? await verifyGithubEmuIdToken({
-            env,
-            idToken: tokens.idToken,
-            config,
-            expectedNonce: nonce,
-          })
-        : await verifyOidcIdToken({
-            env,
-            idToken: tokens.idToken,
-            config,
-            expectedNonce: nonce,
-          })
-    return extractOidcProfile(claims, config.externalIdClaim)
-  }
-  throw new AppError('invalid_credentials')
 }

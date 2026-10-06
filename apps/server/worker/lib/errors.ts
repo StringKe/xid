@@ -58,6 +58,8 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   cross_tenant_access_denied: 404,
   seat_limit_exceeded: 403,
   resource_quota_exceeded: 403,
+  // 企业 SSO(04 章 8.8)
+  provisioning_disabled: 403,
   // Project 访问申请 / 审批(见 design-access-request 3.1/3.2)
   project_not_found: 404,
   grant_already_exists: 409,

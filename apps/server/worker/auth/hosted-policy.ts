@@ -137,7 +137,8 @@ export function hasSocialProviderCredentials(
     (typeof policy.issuer === 'string' &&
       policy.issuer !== '' &&
       typeof policy.jwksUri === 'string' &&
-      policy.jwksUri !== '')
+      policy.jwksUri !== '') ||
+    (typeof policy.userInfoEndpoint === 'string' && policy.userInfoEndpoint !== '')
   return (
     policy.enabled &&
     policy.clientId !== '' &&

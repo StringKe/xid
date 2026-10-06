@@ -823,7 +823,6 @@ async function prepareLocalSocialProvider(fixture, oidcIssuer) {
       usesPkce: true,
       issuer: oidcIssuer,
       jwksUri: `${oidcIssuer}/jwks`,
-      redirectUris: ['/console', '/account'],
       enabled: true,
       allowLogin: true,
       allowUserCreation: true,

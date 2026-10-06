@@ -40,6 +40,18 @@ function permitsRootGuestOnboarding(flow: HostedEntryFlow): boolean {
   )
 }
 
+// 邀请只走 Email claim;社交与企业 SSO 入口不接受邀请 capability,邀请流程中不展示(01 章 3)。
+function withoutFederatedEntry(config: PublicHostedAuthConfig): PublicHostedAuthConfig {
+  return {
+    ...config,
+    methods: {
+      ...config.methods,
+      enterpriseSso: { ...config.methods.enterpriseSso, enabled: false, allowLogin: false },
+    },
+    socialProviders: [],
+  }
+}
+
 async function withRuntimeCapabilities(input: {
   config: PublicHostedAuthConfig
   env: Env
@@ -67,7 +79,7 @@ async function withRuntimeCapabilities(input: {
       }
     : null
   return {
-    ...config,
+    ...(flow.invitationToken === null ? config : withoutFederatedEntry(config)),
     turnstileSiteKey: publicTurnstileSiteKey(env),
     guest,
     defaultLandingPath: defaultLandingPathFor(currentTenant),

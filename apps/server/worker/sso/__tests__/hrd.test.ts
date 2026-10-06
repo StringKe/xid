@@ -415,6 +415,34 @@ describe('POST /sso/hrd', () => {
     })
   })
 
+  it('邀请 capability 不进入企业 SSO:返回 connectionId null 且不解析租户或查域名', async () => {
+    vi.mocked(resolveInstanceLogin).mockClear()
+    mockFindOne.mockClear()
+    const app = new Hono<XidHonoEnv>()
+    app.onError(testErrorHandler)
+    app.use('*', async (c, next) => {
+      c.set('tenant', makeTenant() as unknown as TenantVar)
+      c.set('session', null)
+      await next()
+    })
+    registerHrdRoutes(app)
+
+    const res = await app.request(
+      'https://xid.dev/sso/hrd',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'user@corp.example.com', invitationToken: 'raw-token' }),
+      },
+      { DB: {}, AUDIT_QUEUE: { send: vi.fn() } } as unknown as Env,
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ connectionId: null })
+    expect(resolveInstanceLogin).not.toHaveBeenCalled()
+    expect(mockFindOne).not.toHaveBeenCalled()
+  })
+
   it('root 入口带 organizationId 时按选中 organization 做 HRD', async () => {
     const auditSend = vi.fn()
     const resolvedTenant = makeTenant()

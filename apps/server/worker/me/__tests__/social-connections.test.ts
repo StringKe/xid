@@ -91,11 +91,43 @@ describe('GET /v1/me/social-connections', () => {
   })
 })
 
+function passwordRow(): Record<string, unknown> {
+  return {
+    id: 'pw_1',
+    tenant_id: 't_1',
+    user_id: 'u_1',
+    hash: 'hash',
+    algo: 'argon2id',
+    pepper_version: 1,
+    breached: 0,
+    created_at: now,
+    updated_at: now,
+  }
+}
+
+function verifiedEmailRow(): Record<string, unknown> {
+  return {
+    id: 'email_1',
+    tenant_id: 't_1',
+    user_id: 'u_1',
+    email: 'ada@example.com',
+    verified: 1,
+    verification_status: 'verified',
+    is_primary: 1,
+    created_at: now,
+    updated_at: now,
+  }
+}
+
 describe('DELETE /v1/me/social-connections/:id', () => {
-  it('revokes current user social connection', async () => {
+  it('revokes the connection when a password remains and audits connection.unlinked', async () => {
     const row = identityRow()
-    const db = makeFakeD1({ user_identities: [row] })
-    const env = { DB: db } as unknown as Env
+    const db = makeFakeD1({ user_identities: [row], passwords: [passwordRow()] })
+    const sent: Record<string, unknown>[] = []
+    const env = {
+      DB: db,
+      AUDIT_QUEUE: { send: async (message: Record<string, unknown>) => sent.push(message) },
+    } as unknown as Env
     const app = buildApp({
       register: registerSocialConnectionsRoutes,
       session: makeSession({ userId: 'u_1' }),
@@ -109,6 +141,51 @@ describe('DELETE /v1/me/social-connections/:id', () => {
 
     expect(res.status).toBe(204)
     expect(row['revoked_at']).toBeTypeOf('number')
+    expect(sent).toEqual([
+      expect.objectContaining({
+        action: 'connection.unlinked',
+        actorId: 'u_1',
+        payload: { provider: 'google', idpUserId: 'g-12345' },
+      }),
+    ])
+  })
+
+  it('revokes the connection when a verified email can still sign in by email', async () => {
+    const row = identityRow()
+    const db = makeFakeD1({ user_identities: [row], user_emails: [verifiedEmailRow()] })
+    const env = { DB: db, AUDIT_QUEUE: { send: async () => undefined } } as unknown as Env
+    const app = buildApp({
+      register: registerSocialConnectionsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/social-connections/id_1',
+      { method: 'DELETE' },
+      env,
+    )
+
+    expect(res.status).toBe(204)
+  })
+
+  it('refuses to remove the only sign-in method', async () => {
+    const row = identityRow()
+    const db = makeFakeD1({ user_identities: [row] })
+    const env = { DB: db, AUDIT_QUEUE: { send: async () => undefined } } as unknown as Env
+    const app = buildApp({
+      register: registerSocialConnectionsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/social-connections/id_1',
+      { method: 'DELETE' },
+      env,
+    )
+
+    expect(res.status).toBe(422)
+    expect(((await res.json()) as Record<string, unknown>)['code']).toBe('unprocessable_entity')
+    expect(row['revoked_at']).toBeUndefined()
   })
 
   it('does not revoke another user social connection', async () => {

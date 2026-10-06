@@ -66,13 +66,7 @@ export async function resolveHrd(
     return null
   }
 
-  const db = createTenantDb(env.DB, {
-    tenantId: tenant.tenantId,
-    issuer: '',
-    rpId: '',
-    signingKeys: { activeKid: '', defaultAlg: 'ES256', keys: [] },
-    policy: {},
-  })
+  const db = createTenantDb(env.DB, tenant)
 
   // 先精确匹配,再 wildcard 匹配(父域)。
   const exactDomain = await db.organizationDomains.findOne(
@@ -197,8 +191,9 @@ async function handleHrd(c: Context<XidHonoEnv>): Promise<Response> {
 
   const { email, organizationId, clientId, invitationToken, intent, turnstileToken } = parsed.output
   await verifyTurnstile(turnstileToken, c.env, requestIp(c))
+  // 企业 SSO 不接受邀请 capability:邀请只走 Email claim(01 章 3)。
+  if (invitationToken) return c.json({ connectionId: null })
   const tenant = await resolveEntryTenant(c, { kind: 'email', value: email }, organizationId, {
-    invitationToken,
     intent,
     applicationClientId: clientId,
   })

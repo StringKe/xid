@@ -58,6 +58,17 @@ export function resolveApplicationAuthorizeContinuation(
   return normalized
 }
 
+// 拒绝判定:相对路径与任意 origin 的绝对 URL 都识别,避免邀请 capability 从 RelayState 等入口绕过。
+export function isInvitationContinuation(value: string | null | undefined): boolean {
+  if (!value) return false
+  try {
+    const pathname = new URL(value, LOCAL_ORIGIN).pathname
+    return pathname === '/accept-invitation' || pathname === '/accept-invitation/'
+  } catch {
+    return false
+  }
+}
+
 export function isAuthorizeContinuation(value: string | null | undefined): boolean {
   const normalized = normalizeLocalContinuePath(value)
   if (!normalized) return false

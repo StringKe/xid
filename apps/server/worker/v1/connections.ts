@@ -18,6 +18,11 @@ import {
   prepareLegacyAttributeMapping,
   trustedProxySecretConfigured,
 } from '../sso/legacy-shared'
+import {
+  oidcClientSecretConfigured,
+  oidcClientSecretInputSchema,
+  oidcClientSecretPatch,
+} from '../sso/oidc-client-secret'
 import { idAfterCursor, requireApiKey, paginate, parsePagination, requireOrg } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -36,6 +41,7 @@ const createConnectionBodySchema = v.object({
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
+  oidc_client_secret: oidcClientSecretInputSchema,
   oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   attribute_mapping: v.optional(attributeMappingSchema),
   role_mapping: v.optional(v.record(v.string(), v.picklist(ORGANIZATION_MEMBERSHIP_ROLES))),
@@ -54,6 +60,7 @@ const patchConnectionBodySchema = v.object({
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
+  oidc_client_secret: oidcClientSecretInputSchema,
   oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   attribute_mapping: v.optional(attributeMappingSchema),
   role_mapping: v.optional(v.record(v.string(), v.picklist(ORGANIZATION_MEMBERSHIP_ROLES))),
@@ -86,6 +93,7 @@ function toResponse(row: typeof schema.ssoConnections.$inferSelect) {
     idp_certificates: row.idpCertificates,
     oidc_client_id: row.oidcClientId,
     oidc_discovery_url: row.oidcDiscoveryUrl,
+    oidc_client_secret_configured: oidcClientSecretConfigured(row),
     want_authn_response_signed: row.wantAuthnResponseSigned,
     want_assertions_signed: row.wantAssertionsSigned,
     saml_clock_skew_ms: row.samlClockSkewMs,
@@ -149,6 +157,8 @@ app.post('/', async (c) => {
         idpCertificates: body.idp_certificates ?? [],
         oidcClientId: body.oidc_client_id,
         oidcDiscoveryUrl: body.oidc_discovery_url,
+        oidcClientSecretCiphertext: null,
+        ...(await oidcClientSecretPatch(c.env, body.oidc_client_secret)),
         attributeMapping,
         roleMapping: body.role_mapping ?? {},
         jitEnabled: body.jit_enabled !== false,
@@ -176,6 +186,7 @@ app.post('/', async (c) => {
     idpCertificates: body.idp_certificates ?? [],
     oidcClientId: body.oidc_client_id,
     oidcDiscoveryUrl: body.oidc_discovery_url,
+    ...(await oidcClientSecretPatch(c.env, body.oidc_client_secret)),
     attributeMapping,
     roleMapping: body.role_mapping ?? {},
     jitEnabled: body.jit_enabled !== false,
@@ -226,6 +237,7 @@ app.patch('/:id', async (c) => {
   if (body.idp_certificates !== undefined) patch.idpCertificates = body.idp_certificates
   if (body.oidc_client_id !== undefined) patch.oidcClientId = body.oidc_client_id
   if (body.oidc_discovery_url !== undefined) patch.oidcDiscoveryUrl = body.oidc_discovery_url
+  Object.assign(patch, await oidcClientSecretPatch(c.env, body.oidc_client_secret))
   if (body.attribute_mapping !== undefined) {
     patch.attributeMapping = await prepareLegacyAttributeMapping(
       existing.protocol,

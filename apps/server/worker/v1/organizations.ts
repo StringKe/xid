@@ -52,7 +52,16 @@ import {
   whatsappDeliverySecretRefs,
 } from '../auth/delivery-channels'
 import { hasSocialProviderCredentials } from '../auth/hosted-policy'
-import { hasProviderSecret, socialProviderSecretBinding } from '../auth/social-providers'
+import {
+  hasProviderSecret,
+  socialProviderConfigIssue,
+  socialProviderSecretBinding,
+} from '../auth/social-providers'
+import {
+  oidcClientSecretConfigured,
+  oidcClientSecretInputSchema,
+  oidcClientSecretPatch,
+} from '../sso/oidc-client-secret'
 import { isDevOrTestEnvironment } from '../test-harness/dev-gate'
 import {
   buildOrganizationQuotaUpsertStatement,
@@ -172,6 +181,7 @@ const createSsoConnectionBodySchema = v.object({
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
+  oidc_client_secret: oidcClientSecretInputSchema,
   oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   jit_enabled: v.optional(v.boolean()),
   attribute_mapping: v.optional(metadataRecordSchema),
@@ -190,6 +200,7 @@ const patchSsoConnectionBodySchema = v.object({
   idp_metadata_url: v.optional(publicHttpsUrlSchema),
   idp_certificates: v.optional(v.array(v.string())),
   oidc_client_id: v.optional(v.string()),
+  oidc_client_secret: oidcClientSecretInputSchema,
   oidc_discovery_url: v.optional(publicHttpsUrlSchema),
   jit_enabled: v.optional(v.boolean()),
   attribute_mapping: v.optional(metadataRecordSchema),
@@ -908,7 +919,7 @@ function toConsoleSocialProviders(
             usesPkce: policy.usesPkce,
             issuer: policy.issuer,
             jwksUri: policy.jwksUri,
-            redirectUris: policy.redirectUris,
+            externalIdClaim: policy.externalIdClaim,
             enabled: policy.enabled,
             allowLogin: policy.allowLogin,
             allowUserCreation: policy.allowUserCreation,
@@ -967,10 +978,10 @@ function readSocialProviderPatch(
     usesPkce: typeof raw['usesPkce'] === 'boolean' ? raw['usesPkce'] : (existing?.usesPkce ?? true),
     issuer: readOptionalStringField(raw, ['issuer'], existing?.issuer),
     jwksUri: readOptionalStringField(raw, ['jwksUri', 'jwks_uri'], existing?.jwksUri),
-    redirectUris: readStringArrayField(
+    externalIdClaim: readOptionalStringField(
       raw,
-      ['redirectUris', 'redirect_uris'],
-      existing?.redirectUris,
+      ['externalIdClaim', 'external_id_claim'],
+      existing?.externalIdClaim,
     ),
     enabled: typeof raw['enabled'] === 'boolean' ? raw['enabled'] : (existing?.enabled ?? false),
     allowLogin:
@@ -995,6 +1006,10 @@ function readSocialProviderPatch(
       existing?.blockedEmailDomains,
       true,
     ),
+  }
+  const issue = socialProviderConfigIssue(provider, next)
+  if (issue) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: issue } })
   }
   return next
 }
@@ -1359,6 +1374,7 @@ function toConsoleSsoConnection(row: typeof schema.ssoConnections.$inferSelect) 
     idp_certificates: row.idpCertificates,
     oidc_client_id: row.oidcClientId,
     oidc_discovery_url: row.oidcDiscoveryUrl,
+    oidc_client_secret_configured: oidcClientSecretConfigured(row),
     want_authn_response_signed: row.wantAuthnResponseSigned,
     want_assertions_signed: row.wantAssertionsSigned,
     saml_clock_skew_ms: row.samlClockSkewMs,
@@ -1641,6 +1657,8 @@ app.post('/:id/sso-connections', async (c) => {
     idpCertificates: body.idp_certificates ?? [],
     oidcClientId: body.oidc_client_id,
     oidcDiscoveryUrl,
+    oidcClientSecretCiphertext: null,
+    ...(await oidcClientSecretPatch(c.env, body.oidc_client_secret)),
     attributeMapping,
     roleMapping,
     jitEnabled: body.jit_enabled ?? legacyPreset?.jitEnabled ?? preset?.jitEnabled ?? true,
@@ -1693,6 +1711,7 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
   if (body.idp_certificates !== undefined) patch.idpCertificates = body.idp_certificates
   if (body.oidc_client_id !== undefined) patch.oidcClientId = body.oidc_client_id
   if (body.oidc_discovery_url !== undefined) patch.oidcDiscoveryUrl = body.oidc_discovery_url
+  Object.assign(patch, await oidcClientSecretPatch(c.env, body.oidc_client_secret))
   if (body.attribute_mapping !== undefined) {
     assertHeaderConnectionConfig(existing.protocol, body.attribute_mapping)
     patch.attributeMapping = body.attribute_mapping

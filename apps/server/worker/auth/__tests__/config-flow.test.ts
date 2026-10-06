@@ -31,6 +31,8 @@ vi.mock('../hosted-policy', () => ({
       forceSso: hostedAuth?.forceSso ?? false,
       allowUserCreation: hostedAuth?.allowUserCreation ?? true,
       allowExistingUserLogin: hostedAuth?.allowExistingUserLogin ?? true,
+      methods: { enterpriseSso: { enabled: true, allowLogin: true } },
+      socialProviders: [{ provider: 'google' }],
       guest: null,
     }
   }),
@@ -213,7 +215,12 @@ describe('GET /auth/config flow resolution', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ tenantId: 'tenant-invite', guest: null })
+    expect(await res.json()).toMatchObject({
+      tenantId: 'tenant-invite',
+      guest: null,
+      socialProviders: [],
+      methods: { enterpriseSso: { enabled: false, allowLogin: false } },
+    })
     expect(resolveTenantContextById).not.toHaveBeenCalled()
     expect(resolveInstanceLoginCandidates).not.toHaveBeenCalled()
     expect(resolveEntryTenant).toHaveBeenCalledWith(
@@ -226,6 +233,17 @@ describe('GET /auth/config flow resolution', () => {
         applicationClientId: null,
       },
     )
+  })
+
+  it('keeps social and enterprise SSO entries outside an invitation flow', async () => {
+    const app = appWithTenant(tenant('tenant-a'))
+
+    const res = await app.request('https://xid.dev/auth/config', {}, {} as Env)
+
+    expect(await res.json()).toMatchObject({
+      socialProviders: [{ provider: 'google' }],
+      methods: { enterpriseSso: { enabled: true } },
+    })
   })
 
   it.each([

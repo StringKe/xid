@@ -3,6 +3,8 @@
 // 认证:cookie session;租户隔离:createTenantDb。token 密文(access/refresh)绝不外泄。
 
 import { createTenantDb, schema } from '@xid-kit/db'
+import { DEFAULT_HOSTED_AUTH_POLICY } from '@xid-kit/types'
+import type { HostedAuthPolicy } from '@xid-kit/types'
 import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { AppError } from '../lib/errors'
@@ -53,9 +55,48 @@ app.get('/', async (c) => {
   return c.json(rows.map(toSocialConnection))
 })
 
+type TenantDb = ReturnType<typeof createTenantDb>
+
+// 有已验证邮箱且租户开放任一邮箱登录/重置方式时,用户仍能凭邮箱回到账号。
+function emailRecoveryOpen(policy: HostedAuthPolicy): boolean {
+  return [policy.magicLink, policy.emailOtp, policy.password].some(
+    (method) => method.enabled && method.allowLogin,
+  )
+}
+
+// 断开前确认至少还剩一种登录方式,避免社交建号的用户把自己锁在账号外。
+async function hasOtherSignInMethod(
+  db: TenantDb,
+  input: { userId: string; policy: HostedAuthPolicy },
+): Promise<boolean> {
+  const { userId, policy } = input
+  const [activeIdentities, passwords, passkeys, verifiedEmails] = await Promise.all([
+    db.userIdentities.count(
+      and(eq(schema.userIdentities.userId, userId), isNull(schema.userIdentities.revokedAt)),
+    ),
+    db.passwords.count(eq(schema.passwords.userId, userId)),
+    db.passkeyCredentials.count(
+      and(
+        eq(schema.passkeyCredentials.userId, userId),
+        isNull(schema.passkeyCredentials.revokedAt),
+      ),
+    ),
+    db.userEmails.count(
+      and(eq(schema.userEmails.userId, userId), eq(schema.userEmails.verified, true)),
+    ),
+  ])
+  return (
+    activeIdentities > 1 ||
+    passwords > 0 ||
+    passkeys > 0 ||
+    (verifiedEmails > 0 && emailRecoveryOpen(policy))
+  )
+}
+
 app.delete('/:id', async (c) => {
   const session = await requireSession(c)
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const tenant = c.get('tenant')
+  const db = createTenantDb(c.env.DB, tenant)
   const id = c.req.param('id')
   const where = and(
     eq(schema.userIdentities.id, id),
@@ -65,7 +106,21 @@ app.delete('/:id', async (c) => {
   )
   const existing = await db.userIdentities.findOne(where)
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+  const remaining = await hasOtherSignInMethod(db, {
+    userId: session.userId,
+    policy: tenant.policy.hostedAuth ?? DEFAULT_HOSTED_AUTH_POLICY,
+  })
+  if (!remaining) {
+    throw new AppError('unprocessable_entity', { longMessage: 'last_sign_in_method' })
+  }
   await db.userIdentities.update({ revokedAt: new Date() }, where)
+  await c.env.AUDIT_QUEUE.send({
+    tenantId: tenant.tenantId,
+    action: 'connection.unlinked',
+    actorId: session.userId,
+    ts: Date.now(),
+    payload: { provider: existing.provider, idpUserId: existing.providerUserId },
+  })
   return new Response(null, { status: 204 })
 })
 

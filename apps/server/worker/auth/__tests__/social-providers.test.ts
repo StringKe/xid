@@ -9,9 +9,11 @@ import {
   exchangeCode,
   GITHUB_EMU_ISSUER_BOUNDARIES,
   isGithubEmuIssuer,
-  resolveProfile,
+  socialProviderConfigIssue,
   socialProviderSecretBinding,
 } from '../social-providers'
+import { resolveProfile } from '../social-profile'
+import type { SocialProviderPolicy } from '@xid-kit/types'
 import { isHostedAuthPolicyError } from '../hosted-policy'
 
 function makeKv(): KVNamespace {
@@ -55,17 +57,21 @@ async function setupProviderJwt(input: {
   audience: string
   nonce: string
   claims?: Record<string, unknown>
+  alg?: 'ES256' | 'RS256'
 }) {
+  const alg = input.alg ?? 'ES256'
   const { material, signingKey } = await generateTenantSigningKey({
     kid: 'provider-kid',
     kekRaw: crypto.getRandomValues(new Uint8Array(32)),
     kekVersion: 1,
-    alg: 'ES256',
+    alg,
   })
   const publicKey = await crypto.subtle.importKey(
     'jwk',
     material.publicKeyJwk,
-    { name: 'ECDSA', namedCurve: 'P-256' },
+    alg === 'ES256'
+      ? { name: 'ECDSA', namedCurve: 'P-256' }
+      : { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     true,
     ['verify'],
   )
@@ -73,7 +79,7 @@ async function setupProviderJwt(input: {
   const now = Math.floor(Date.now() / 1000)
   const idToken = await signJwt(
     {
-      header: { alg: 'ES256', kid: material.kid },
+      header: { alg, kid: material.kid },
       payload: {
         iss: input.issuer,
         aud: input.audience,
@@ -102,7 +108,6 @@ function makeConfig(input: { issuer: string; jwksUri: string; clientId: string }
     usesPkce: true,
     issuer: input.issuer,
     jwksUri: input.jwksUri,
-    redirectUris: ['/account'],
   }
 }
 
@@ -436,6 +441,174 @@ describe('resolveProfile OIDC providers', () => {
     expect(fetch).toHaveBeenCalledWith(jwksUri, { signal: expect.any(AbortSignal) })
 
     vi.unstubAllGlobals()
+  })
+})
+
+describe('Microsoft Entra 多租户 id_token', () => {
+  const TEMPLATE = 'https://login.microsoftonline.com/{tenantid}/v2.0'
+  const JWKS_URI = 'https://login.microsoftonline.com/common/discovery/v2.0/keys'
+  const TID = '9188040d-6c67-4c5b-b112-36a304b66dad'
+
+  async function resolveMicrosoft(input: { iss: string; tid: unknown }) {
+    const clientId = 'microsoft-client'
+    const nonce = 'microsoft-nonce'
+    const { idToken, jwks } = await setupProviderJwt({
+      issuer: input.iss,
+      audience: clientId,
+      nonce,
+      alg: 'RS256',
+      claims: { tid: input.tid },
+    })
+    const keysWithoutAlg = jwks.keys.map(({ alg: _alg, use: _use, ...key }) => key)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ keys: keysWithoutAlg })),
+    )
+    try {
+      return await resolveProfile({
+        env: { CACHE: makeKv() } as unknown as Env,
+        provider: 'microsoft',
+        config: makeConfig({ issuer: TEMPLATE, jwksUri: JWKS_URI, clientId }),
+        tokens: { accessToken: 'access-token', refreshToken: null, idToken },
+        nonce,
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+
+  it('JWKS key 不带 alg 时按 kty 推断 RS256,并用 tid 代入 issuer 模板后精确校验', async () => {
+    const profile = await resolveMicrosoft({
+      iss: `https://login.microsoftonline.com/${TID}/v2.0`,
+      tid: TID,
+    })
+
+    expect(profile.idpUserId).toBe('provider-user-1')
+  })
+
+  it('iss 与 tid 代入后的 issuer 不一致 -> invalid_credentials', async () => {
+    await expect(
+      resolveMicrosoft({
+        iss: 'https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0',
+        tid: TID,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('tid 不是 Entra 租户 GUID -> invalid_credentials', async () => {
+    await expect(
+      resolveMicrosoft({ iss: 'https://login.microsoftonline.com/evil/v2.0', tid: 'evil' }),
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+})
+
+describe('非 OIDC 自定义 provider userinfo', () => {
+  it('无 id_token 时读取 userinfo,只有 email_verified === true 才算已验证', async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ sub: 'custom-1', email: 'u@example.com', email_verified: 'true' }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const profile = await resolveProfile({
+      env: {} as Env,
+      provider: 'acme',
+      config: {
+        ...makeGitHubConfig(),
+        userInfoEndpoint: 'https://id.acme.example/userinfo',
+      },
+      tokens: { accessToken: 'at', refreshToken: null, idToken: null },
+      nonce: 'unused',
+    })
+
+    expect(profile).toMatchObject({
+      idpUserId: 'custom-1',
+      email: 'u@example.com',
+      emailVerified: false,
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://id.acme.example/userinfo',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it('userinfo 缺 sub -> invalid_credentials', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ email: 'u@example.com' })),
+    )
+
+    await expect(
+      resolveProfile({
+        env: {} as Env,
+        provider: 'acme',
+        config: { ...makeGitHubConfig(), userInfoEndpoint: 'https://id.acme.example/userinfo' },
+        tokens: { accessToken: 'at', refreshToken: null, idToken: null },
+        nonce: 'unused',
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('socialProviderConfigIssue', () => {
+  function policy(overrides: Record<string, unknown> = {}): SocialProviderPolicy {
+    return {
+      authorizationEndpoint: 'https://idp.example/authorize',
+      tokenEndpoint: 'https://idp.example/token',
+      clientId: 'client',
+      scopes: ['openid'],
+      usesPkce: true,
+      enabled: true,
+      allowLogin: true,
+      allowUserCreation: false,
+      requireVerifiedEmail: true,
+      allowedEmailDomains: [],
+      blockedEmailDomains: [],
+      ...overrides,
+    } as SocialProviderPolicy
+  }
+
+  it('启用的 OIDC provider 缺 issuer 或 JWKS 且无 userinfo 时拒绝保存', () => {
+    expect(socialProviderConfigIssue('acme', policy())).toBe('issuer')
+    expect(socialProviderConfigIssue('acme', policy({ issuer: 'https://idp.example' }))).toBe(
+      'jwksUri',
+    )
+  })
+
+  it('接受完整 OIDC 配置、userinfo 配置、GitHub 与未启用的模板', () => {
+    expect(
+      socialProviderConfigIssue(
+        'acme',
+        policy({ issuer: 'https://idp.example', jwksUri: 'https://idp.example/keys' }),
+      ),
+    ).toBeNull()
+    expect(
+      socialProviderConfigIssue('acme', policy({ userInfoEndpoint: 'https://idp.example/me' })),
+    ).toBeNull()
+    expect(socialProviderConfigIssue('github', policy())).toBeNull()
+    expect(socialProviderConfigIssue('acme', policy({ enabled: false }))).toBeNull()
+  })
+
+  it('只允许 Microsoft issuer 保留 {tenantid} 占位,其余占位一律拒绝', () => {
+    const entra = {
+      issuer: 'https://login.microsoftonline.com/{tenantid}/v2.0',
+      jwksUri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
+    }
+    expect(socialProviderConfigIssue('microsoft', policy(entra))).toBeNull()
+    expect(socialProviderConfigIssue('github_emu', policy(entra))).toBe('issuer')
+    expect(
+      socialProviderConfigIssue(
+        'microsoft',
+        policy({ ...entra, issuer: 'https://login.microsoftonline.com/{tenant-id}/v2.0' }),
+      ),
+    ).toBe('issuer')
+    expect(
+      socialProviderConfigIssue(
+        'acme',
+        policy({ ...entra, issuer: 'https://idp.example', jwksUri: 'https://idp/{x}/keys' }),
+      ),
+    ).toBe('jwksUri')
   })
 })
 

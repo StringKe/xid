@@ -89,7 +89,7 @@ vi.mock('../saml-connection', () => ({
   acsUrl: () => 'https://acme.xid.dev/sso/saml/conn_1/acs',
   sloUrl: () => 'https://acme.xid.dev/sso/saml/conn_1/slo',
 }))
-vi.mock('../saml-jit', () => ({ provisionUser: (...a: unknown[]) => provisionUserMock(...a) }))
+vi.mock('../jit', () => ({ jitProvision: (...a: unknown[]) => provisionUserMock(...a) }))
 vi.mock('../saml-do', () => ({
   storeAuthnRequestId: vi.fn(),
   consumeAuthnRequestContext: (...a: unknown[]) => consumeAuthnRequestIdMock(...a),
@@ -297,7 +297,7 @@ describe('ACS /sso/saml/:connection/acs', () => {
     loadSpDecryptKeyMock.mockResolvedValue(undefined)
     verifyMock.mockResolvedValue({ ok: true, value: ASSERTION })
     isAssertionReplayMock.mockResolvedValue(false)
-    provisionUserMock.mockResolvedValue('user_xid_1')
+    provisionUserMock.mockResolvedValue({ userId: 'user_xid_1', provisioned: false })
     issueSessionMock.mockResolvedValue(undefined)
     storeInboundSamlSessionIndexMock.mockResolvedValue(undefined)
   })
@@ -435,10 +435,14 @@ describe('ACS /sso/saml/:connection/acs', () => {
       'conn_1',
     )
     expect(provisionUserMock).toHaveBeenCalledWith(
+      expect.objectContaining({}),
       expect.objectContaining({
-        c: expect.objectContaining({}),
-        connection: CONNECTION,
+        connectionId: CONNECTION.id,
+        orgId: CONNECTION.orgId,
+        identityType: 'saml',
+        emailVerified: false,
       }),
+      { skipDefaultMembership: false },
     )
     expect(issueSessionMock).toHaveBeenCalledOnce()
   })
@@ -1056,13 +1060,13 @@ describe('ACS error branches', () => {
     loadSpDecryptKeyMock.mockResolvedValue(undefined)
     verifyMock.mockResolvedValue({ ok: true, value: ASSERTION })
     isAssertionReplayMock.mockResolvedValue(false)
-    provisionUserMock.mockResolvedValue('user_xid_1')
+    provisionUserMock.mockResolvedValue({ userId: 'user_xid_1', provisioned: false })
     issueSessionMock.mockResolvedValue(undefined)
     storeInboundSamlSessionIndexMock.mockResolvedValue(undefined)
   })
 
   it('JIT 关闭且用户不存在 -> 403 provisioning_disabled', async () => {
-    provisionUserMock.mockRejectedValue(new AppError('provisioning_disabled', { httpStatus: 403 }))
+    provisionUserMock.mockRejectedValue(new AppError('provisioning_disabled'))
     const res = await makeApp().request(acsRequest(), {}, ENV)
     expect(res.status).toBe(403)
     await expectErrorPage(res, 'provisioning_disabled')

@@ -55,6 +55,7 @@ import type { ErrorHandler } from 'hono'
 import type { XidHonoEnv } from '../../lib/types'
 import { isAppError } from '../../lib/errors'
 import { registerOidcRpRoutes } from '../oidc-rp'
+import { encryptOidcClientSecret } from '../oidc-client-secret'
 import { jitProvision } from '../jit'
 import { verifyJwt } from '@xid-kit/crypto'
 import { issueSession } from '../../lib/session'
@@ -752,5 +753,129 @@ describe('OIDC RP -- callback nonce 校验', () => {
     )
     expect(((await res.json()) as Record<string, unknown>)['code']).toBe('signature_invalid')
     gFetch.mockRestore()
+  })
+})
+
+describe('OIDC RP -- 机密客户端 client_secret', () => {
+  const KEK = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)))
+
+  beforeEach(() => vi.clearAllMocks())
+
+  function validIdToken(): void {
+    vi.mocked(verifyJwt).mockResolvedValue({
+      ok: true,
+      value: {
+        header: { alg: 'RS256', kid: 'k1' },
+        payload: { sub: 'idp-user-1', nonce: 'nonce-123', iss: 'https://idp.example.com' },
+      },
+    })
+  }
+
+  async function runCallback(input: {
+    secret: string | null
+    authMethods?: readonly string[]
+  }): Promise<{ status: number; tokenInit: RequestInit | undefined }> {
+    const { store, ns } = makeDoStore()
+    seedState(store, 'state-secret')
+    const ciphertext = input.secret
+      ? await encryptOidcClientSecret({ KEK } as unknown as Env, input.secret)
+      : null
+    mockSsoConnectionsFindOne.mockResolvedValue(
+      makeConnection({ oidcClientSecretCiphertext: ciphertext }),
+    )
+    let tokenInit: RequestInit | undefined
+    const gFetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      const u = url.toString()
+      if (u.includes('openid-configuration')) {
+        return Response.json({
+          authorization_endpoint: 'https://idp.example.com/authorize',
+          token_endpoint: 'https://idp.example.com/token',
+          jwks_uri: 'https://idp.example.com/jwks',
+          issuer: 'https://idp.example.com',
+          ...(input.authMethods
+            ? { token_endpoint_auth_methods_supported: input.authMethods }
+            : {}),
+        })
+      }
+      if (u.includes('/jwks')) {
+        return Response.json({ keys: [{ kty: 'RSA', kid: 'k1', n: 'x', e: 'AQAB' }] })
+      }
+      tokenInit = init
+      return Response.json({ id_token: 'tok.pay.sig', access_token: 'at', token_type: 'Bearer' })
+    })
+    validIdToken()
+    const env = { ...makeBaseEnv(ns), KEK } as unknown as Env
+    const res = await baseApp.request(
+      '/sso/oidc/conn-1/callback?code=auth-code&state=state-secret',
+      {},
+      env,
+    )
+    gFetch.mockRestore()
+    return { status: res.status, tokenInit }
+  }
+
+  it('配置了 secret 且 IdP 支持 basic(或未声明)时用 RFC 6749 编码的 Basic 认证,并保留 PKCE', async () => {
+    const { status, tokenInit } = await runCallback({ secret: 's3cr:et +' })
+
+    expect(status).toBe(302)
+    const headers = tokenInit?.headers as Record<string, string>
+    expect(headers['Authorization']).toBe(`Basic ${btoa('client-abc:s3cr%3Aet+%2B')}`)
+    const body = new URLSearchParams(String(tokenInit?.body))
+    expect(body.get('client_secret')).toBeNull()
+    expect(body.get('code_verifier')).toBe('verifier-xyz')
+  })
+
+  it('IdP 只支持 client_secret_post 时把 secret 放进表单', async () => {
+    const { status, tokenInit } = await runCallback({
+      secret: 'post-secret',
+      authMethods: ['client_secret_post'],
+    })
+
+    expect(status).toBe(302)
+    expect(((tokenInit?.headers ?? {}) as Record<string, string>)['Authorization']).toBeUndefined()
+    const body = new URLSearchParams(String(tokenInit?.body))
+    expect(body.get('client_secret')).toBe('post-secret')
+  })
+
+  it('未配置 secret 时按 PKCE public client 换码', async () => {
+    const { status, tokenInit } = await runCallback({ secret: null })
+
+    expect(status).toBe(302)
+    expect(((tokenInit?.headers ?? {}) as Record<string, string>)['Authorization']).toBeUndefined()
+    expect(new URLSearchParams(String(tokenInit?.body)).get('client_secret')).toBeNull()
+  })
+})
+
+describe('OIDC RP -- 浏览器错误回登录页', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('IdP 返回 access_denied -> 消费 state 后回 /sign-in?error=cancelled 并带原 continue', async () => {
+    const { store, ns } = makeDoStore()
+    seedState(store, 'state-cancel', { redirectAfterLogin: '/account/security' })
+
+    const res = await baseApp.request(
+      '/sso/oidc/conn-1/callback?error=access_denied&error_description=User%20cancelled&state=state-cancel',
+      {},
+      makeBaseEnv(ns),
+    )
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(
+      '/sign-in?error=cancelled&continue=%2Faccount%2Fsecurity',
+    )
+    expect(store.has('state-cancel')).toBe(false)
+  })
+
+  it('浏览器导航遇到未知 connection -> 回登录页 sign_in_failed 而不是 JSON', async () => {
+    mockSsoConnectionsFindOne.mockResolvedValue(undefined)
+
+    const res = await baseApp.request(
+      '/sso/oidc/conn-1/authorize?continue=%2Faccount',
+      { headers: { accept: 'text/html,application/xhtml+xml' } },
+      makeBaseEnv(),
+    )
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('/sign-in?error=sign_in_failed&continue=%2Faccount')
   })
 })

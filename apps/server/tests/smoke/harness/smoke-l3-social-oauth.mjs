@@ -43,7 +43,6 @@ async function enableFakeSocialProviders(fixture) {
       jwksUri: `${issuer}/test/fake-social/${provider}/jwks`,
       scopes: ['openid', 'email', 'profile'],
       usesPkce: true,
-      redirectUris: ['/console', '/account'],
       allowedEmailDomains: [],
       blockedEmailDomains: [],
     }
