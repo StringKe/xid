@@ -15,6 +15,9 @@ describe('normalizeLocalPath', () => {
     '\\\\evil.example',
     '/\t/evil.example',
     '/account\n',
+    '/.//evil.example/steal',
+    '/a/..//evil.example',
+    '/%2e//evil.example',
     'account',
     '',
   ])('rejects %j', (value) => {

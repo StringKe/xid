@@ -27,6 +27,8 @@ export function normalizeLocalPath(value: string | null | undefined): string | n
   try {
     const parsed = new URL(value, LOCAL_PATH_ORIGIN)
     if (parsed.origin !== LOCAL_PATH_ORIGIN) return null
+    // Dot-segment removal can turn `/.//host` into `//host`, which a browser treats as protocol-relative.
+    if (parsed.pathname.startsWith('//')) return null
     return `${parsed.pathname}${parsed.search}${parsed.hash}`
   } catch {
     return null
