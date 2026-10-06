@@ -517,6 +517,9 @@ audited as `connection.unlinked`. Step-up for this deletion is not implemented.
   (a GUID) replaces `{tenantid}` and the result must equal `iss` exactly.
 - A custom provider without an `id_token` reads its `userInfoEndpoint` with the access token. `sub`
   is required, and the email counts as verified only when `email_verified` is the boolean `true`.
+  A provider configured with `issuer` or `jwksUri` (and `github_emu`) is an OIDC provider: a token
+  response without `id_token` is rejected and never falls back to userinfo, so the nonce binding
+  cannot be skipped.
 - The management API rejects an enabled provider other than `github` unless it has both `issuer`
   and `jwksUri`, or a `userInfoEndpoint`. It also rejects any endpoint or issuer containing `{`,
   except the Microsoft `{tenantid}` template. The GitHub EMU template ships with an empty issuer that

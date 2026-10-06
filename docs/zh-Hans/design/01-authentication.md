@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=ddedc126c95a0e86b4c7222901f1ab6da14625f9 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=7cc95f634d0f707cb0c0de0e3b07c29feacf8716 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -304,7 +304,7 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 
 - OIDC provider 用配置的 `jwksUri` 验 `id_token`。JWKS key 不带 `alg` 时,只有 `kid` 存在且 `use` 缺省或为 `sig` 才接受;RSA key 按 RS256,P-256 EC key 按 ES256。token header 的 `alg` 仍必须等于 key 的 `alg`。
 - Microsoft 多租户登录保存 issuer 模板 `https://login.microsoftonline.com/{tenantid}/v2.0`。验签后用 `tid` claim(GUID)替换 `{tenantid}`,结果必须与 `iss` 精确相等。
-- 没有 `id_token` 的自定义 provider 用 access token 读取 `userInfoEndpoint`。`sub` 必填,只有 `email_verified` 为布尔 `true` 时 email 才算已验证。
+- 没有 `id_token` 的自定义 provider 用 access token 读取 `userInfoEndpoint`。`sub` 必填,只有 `email_verified` 为布尔 `true` 时 email 才算已验证。配置了 `issuer` 或 `jwksUri` 的 provider(以及 `github_emu`)是 OIDC provider:token 响应缺 `id_token` 时直接拒绝,不降级到 userinfo,nonce 绑定不能被跳过。
 - management API 拒绝保存既无 `issuer` + `jwksUri`、又无 `userInfoEndpoint` 的启用 provider(`github` 除外),也拒绝含 `{` 的端点或 issuer,Microsoft 的 `{tenantid}` 模板除外。GitHub EMU 模板的 issuer 为空,管理员必须填入自己租户的 issuer。
 
 ## 4. Passwordless(Magic Link / OTP)

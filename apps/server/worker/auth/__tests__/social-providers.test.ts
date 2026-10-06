@@ -549,6 +549,31 @@ describe('非 OIDC 自定义 provider userinfo', () => {
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     vi.unstubAllGlobals()
   })
+
+  it('配置了 issuer 与 JWKS 的 OIDC provider 缺 id_token 时拒绝,不降级到 userinfo', async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ sub: 'custom-1', email: 'u@example.com', email_verified: true }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      resolveProfile({
+        env: {} as Env,
+        provider: 'acme',
+        config: {
+          ...makeGitHubConfig(),
+          issuer: 'https://id.acme.example',
+          jwksUri: 'https://id.acme.example/jwks',
+          userInfoEndpoint: 'https://id.acme.example/userinfo',
+        },
+        tokens: { accessToken: 'at', refreshToken: null, idToken: null },
+        nonce: 'expected-nonce',
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
 })
 
 describe('socialProviderConfigIssue', () => {

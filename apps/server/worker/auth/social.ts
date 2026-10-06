@@ -304,11 +304,16 @@ async function readCallbackParams(c: Context<XidHonoEnv>): Promise<CallbackParam
 // 上游 error 字符串只决定 cancelled / sign_in_failed,原文不回显。
 async function handleProviderError(
   c: Context<XidHonoEnv>,
-  params: CallbackParams,
+  input: { provider: Provider; params: CallbackParams },
 ): Promise<Response> {
+  const { provider, params } = input
   const flow = params.state ? await consumeOAuthFlow(c.env, params.state) : null
   const error = params.error === 'access_denied' ? 'cancelled' : 'sign_in_failed'
-  return redirectToSignInWithError(c, error, flowReturnContext(flow))
+  return redirectToSignInWithError(
+    c,
+    error,
+    flowReturnContext(flow?.provider === provider ? flow : null),
+  )
 }
 
 async function exchangeAndResolveProfile(input: {
@@ -356,7 +361,7 @@ async function handleCallback(
   onFlow: (flow: OAuthFlowPayload) => void,
 ): Promise<Response> {
   const params = await readCallbackParams(c)
-  if (params.error) return handleProviderError(c, params)
+  if (params.error) return handleProviderError(c, { provider, params })
   const { code, state } = params
   if (!state || !code) throw new AppError('invalid_request', { longMessage: STATE_INVALID })
 

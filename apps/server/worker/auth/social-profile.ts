@@ -238,7 +238,8 @@ async function fetchUserInfoProfile(
   }
 }
 
-// 取 provider profile:GitHub 走 REST profile;有 id_token 走验签后的 claims;否则走 userinfo。
+// 取 provider profile:GitHub 走 REST profile;OIDC provider 必须返回 id_token 并验签;
+// 只有未配置 issuer / JWKS 的非 OIDC provider 走 userinfo,避免 OIDC 配置被降级跳过 nonce 绑定。
 export async function resolveProfile(opts: {
   env: Env
   provider: Provider
@@ -248,7 +249,12 @@ export async function resolveProfile(opts: {
 }): Promise<ProviderProfile> {
   const { env, provider, config, tokens, nonce } = opts
   if (provider === 'github') return fetchGitHubProfile(tokens.accessToken, config)
-  if (!tokens.idToken) return fetchUserInfoProfile(tokens.accessToken, config)
+  if (!tokens.idToken) {
+    if (config.issuer || config.jwksUri || provider === 'github_emu') {
+      throw new AppError('invalid_credentials')
+    }
+    return fetchUserInfoProfile(tokens.accessToken, config)
+  }
   const claims = await verifyOidcIdToken({
     env,
     provider,
