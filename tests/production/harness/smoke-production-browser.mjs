@@ -129,8 +129,8 @@ async function hotp(secretBytes, counter) {
   return String(code % 1000000).padStart(6, '0')
 }
 
-function currentTotpCode(secret) {
-  const counter = Math.floor(Date.now() / 1000 / 30)
+function currentTotpCode(secret, stepOffset = 0) {
+  const counter = Math.floor(Date.now() / 1000 / 30) + stepOffset
   return hotp(base32Decode(secret), counter)
 }
 
@@ -854,6 +854,14 @@ class CdpPage {
     return result.authenticatorId
   }
 
+  // 虚拟认证器开启 automaticPresenceSimulation 后会立即应答 Conditional UI,页面在点击前就完成登录;
+  // 关闭它才能覆盖显式「Sign in with passkey」按钮路径。
+  async disableConditionalMediation() {
+    await this.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `if (window.PublicKeyCredential) Object.defineProperty(window.PublicKeyCredential, 'isConditionalMediationAvailable', { value: async () => false, configurable: true })`,
+    })
+  }
+
   async webauthnCredentials(authenticatorId) {
     const result = await this.send('WebAuthn.getCredentials', { authenticatorId })
     return result.credentials ?? []
@@ -1023,8 +1031,9 @@ function assertNoConsoleErrors(page, name) {
       const entry = event.params?.entry ?? {}
       const text = String(entry.text ?? '')
       const url = String(entry.url ?? '')
+      // /v1/me 是未登录探测;backup-codes 的 401 是 step_up_required,页面据此跳到 /mfa 重新验证。
       const unauthenticatedSessionProbe =
-        url === `${baseUrl}/v1/me` &&
+        (url === `${baseUrl}/v1/me` || url === `${baseUrl}/v1/me/mfa-factors/backup-codes`) &&
         text.includes('Failed to load resource') &&
         text.includes('status of 401')
       const transientManifestLoad =
@@ -1843,7 +1852,8 @@ async function waitForAccountSecurityMfaUi(page, allowReload = true) {
 }
 
 async function setupTotpSelfService(page, organizationId, userId) {
-  const backupGateCopy = 'Add an authenticator app before generating backup codes.'
+  const backupGateCopy =
+    'Add an authenticator app or a passkey before generating backup codes or using text message codes.'
   await cleanupMfaSelfService(organizationId, userId)
   await waitForAccountSecurityMfaUi(page)
   await page.waitFor(
@@ -1872,12 +1882,14 @@ async function setupTotpSelfService(page, organizationId, userId) {
   await page.clickVisibleButton('Add authenticator app')
   await page.waitFor(
     () =>
-      document.body.innerText.includes('Add this key to your authenticator app') &&
+      document.body.innerText.includes('Scan this QR code with your authenticator app') &&
       document.querySelector('code')?.textContent?.trim().length > 0,
     15_000,
     'production totp setup panel',
   )
-  const secret = await page.evaluate(`document.querySelector('code')?.textContent?.trim() || ''`)
+  const secret = await page.evaluate(
+    `document.querySelector('code')?.textContent?.replace(/\\s+/g, '') || ''`,
+  )
   const code = await currentTotpCode(secret)
   await page.setVisibleInputValue(
     'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
@@ -1914,7 +1926,31 @@ async function setupTotpSelfService(page, organizationId, userId) {
 }
 
 async function checkMfaSelfServiceFlow(page, organizationId, userId) {
-  await setupTotpSelfService(page, organizationId, userId)
+  const { secret } = await setupTotpSelfService(page, organizationId, userId)
+  await page.clickVisibleButton('Generate backup codes')
+  await page.waitFor(
+    () =>
+      location.pathname === '/mfa' &&
+      new URLSearchParams(location.search).get('step_up') === '1' &&
+      document.querySelector('input[autocomplete="one-time-code"]') !== null,
+    15_000,
+    'production backup codes step-up challenge',
+  )
+  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口。
+  await page.setVisibleInputValue(
+    'input[autocomplete="one-time-code"]',
+    await currentTotpCode(secret, 1),
+  )
+  await page.submitVisibleFormContaining('One-time code')
+  await page.waitFor(
+    () =>
+      location.pathname === '/account/security' &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Generate backup codes',
+      ),
+    15_000,
+    'production return to account security after step-up',
+  )
   await page.clickVisibleButton('Generate backup codes')
   await page.waitFor(
     () =>
@@ -2033,8 +2069,9 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
   try {
     await page.waitFor(
       () =>
-        document.body.innerText.includes('This device') ||
-        document.body.innerText.includes('pmDHTY'),
+        Array.from(document.querySelectorAll('button')).some((item) =>
+          String(item.getAttribute('aria-label') || '').startsWith('Rename '),
+        ) || document.body.innerText.includes('pmDHTY'),
       15_000,
       'registered passkey visible',
     )
@@ -2066,6 +2103,7 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
   printResult('PASS', 'browser passkey registration', `credential=${registeredRows[0].id}`)
 
   await page.clearSessionCookies()
+  await page.disableConditionalMediation()
   await page.navigate(
     `/sign-in?organization_id=${encodeURIComponent(organizationId)}&continue=${encodeURIComponent('/console')}&locale=en`,
   )

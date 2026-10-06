@@ -98,8 +98,8 @@ async function hotp(secretBytes, counter) {
   return String(code % 1000000).padStart(6, '0')
 }
 
-function currentTotpCode(secret) {
-  const counter = Math.floor(Date.now() / 1000 / 30)
+function currentTotpCode(secret, stepOffset = 0) {
+  const counter = Math.floor(Date.now() / 1000 / 30) + stepOffset
   return hotp(base32Decode(secret), counter)
 }
 
@@ -497,9 +497,40 @@ async function verifyMfaSelfService(cookie, fixture) {
   }
   printResult('PASS', 'mfa factors list active totp without secret', `http=${factors.res.status}`)
 
-  const backup = await fetchText('/v1/me/mfa-factors/backup-codes', {
+  const withoutStepUp = await fetchText('/v1/me/mfa-factors/backup-codes', {
     method: 'POST',
     cookie,
+  })
+  if (
+    withoutStepUp.res.status !== 401 ||
+    parseJson(withoutStepUp.text, 'backup codes without step-up').code !== 'step_up_required'
+  ) {
+    throw new Error(
+      `backup codes without step-up should fail http=${withoutStepUp.res.status} body=${withoutStepUp.text}`,
+    )
+  }
+  printResult('PASS', 'mfa backup codes require step-up', `http=${withoutStepUp.res.status}`)
+
+  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口。
+  const stepUp = await fetchText('/auth/mfa/verify', {
+    method: 'POST',
+    cookie,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      method: 'totp',
+      code: await currentTotpCode(setupBody.secret, 1),
+      stepUp: true,
+    }),
+  })
+  const stepUpCookie = collectSetCookie(stepUp.res)
+  if (stepUp.res.status !== 200 || !stepUpCookie.includes('__Host-xid.acr=')) {
+    throw new Error(`totp step-up failed http=${stepUp.res.status} body=${stepUp.text}`)
+  }
+  printResult('PASS', 'mfa totp step-up issues acr cookie', `http=${stepUp.res.status}`)
+
+  const backup = await fetchText('/v1/me/mfa-factors/backup-codes', {
+    method: 'POST',
+    cookie: `${cookie}; ${stepUpCookie}`,
   })
   if (backup.res.status !== 200) {
     throw new Error(`backup codes failed http=${backup.res.status} body=${backup.text}`)

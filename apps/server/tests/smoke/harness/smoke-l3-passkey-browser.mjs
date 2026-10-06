@@ -478,6 +478,14 @@ class CdpPage {
     return result.authenticatorId
   }
 
+  // 虚拟认证器开启 automaticPresenceSimulation 后会立即应答 Conditional UI,页面在点击前就完成登录;
+  // 关闭它才能覆盖显式「Sign in with passkey」按钮路径。
+  async disableConditionalMediation() {
+    await this.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `if (window.PublicKeyCredential) Object.defineProperty(window.PublicKeyCredential, 'isConditionalMediationAvailable', { value: async () => false, configurable: true })`,
+    })
+  }
+
   async webauthnCredentials(authenticatorId) {
     const result = await this.send('WebAuthn.getCredentials', { authenticatorId })
     return result.credentials ?? []
@@ -714,7 +722,10 @@ async function verifyPasskeyRegistration(page, fixture) {
   await page.clickVisibleButton('Add passkey')
   try {
     await page.waitFor(
-      () => document.body.innerText.includes('This device'),
+      () =>
+        Array.from(document.querySelectorAll('button')).some((item) =>
+          String(item.getAttribute('aria-label') || '').startsWith('Rename '),
+        ),
       15_000,
       'registered passkey visible',
     )
@@ -745,6 +756,7 @@ async function verifyPasskeyRegistration(page, fixture) {
 
 async function verifyPasskeySignIn(page) {
   await page.clearSessionCookies()
+  await page.disableConditionalMediation()
   await page.navigate('/sign-in?locale=en&continue=/console')
   await page.installFetchLog()
   await page.waitFor(

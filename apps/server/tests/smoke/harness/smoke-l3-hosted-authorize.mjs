@@ -472,12 +472,16 @@ async function verifyBrowserForcedMfaSetup(page, fixture) {
   await page.clickVisibleButton('Add authenticator app')
   await page.waitFor(
     () =>
-      document.body.innerText.toLowerCase().includes('add this key to your authenticator app') &&
+      document.body.innerText
+        .toLowerCase()
+        .includes('scan this qr code with your authenticator app') &&
       document.querySelector('code')?.textContent?.trim().length > 0,
     15_000,
     'forced mfa totp setup panel',
   )
-  const secret = await page.evaluate(`document.querySelector('code')?.textContent?.trim() || ''`)
+  const secret = await page.evaluate(
+    `document.querySelector('code')?.textContent?.replace(/\\s+/g, '') || ''`,
+  )
   await page.setVisibleInputValue(
     'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
     await currentTotpCode(secret),

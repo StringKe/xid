@@ -301,8 +301,8 @@ async function hotp(secretBytes, counter) {
   return String(code % 1000000).padStart(6, '0')
 }
 
-export function currentTotpCode(secret) {
-  const counter = Math.floor(Date.now() / 1000 / 30)
+export function currentTotpCode(secret, stepOffset = 0) {
+  const counter = Math.floor(Date.now() / 1000 / 30) + stepOffset
   return hotp(base32Decode(secret), counter)
 }
 
@@ -1422,11 +1422,12 @@ function assertNoConsoleErrors(page, name) {
       const level = event.params?.entry?.level
       const text = String(event.params?.entry?.text ?? '')
       const url = String(event.params?.entry?.url ?? '')
-      const unauthenticatedMeProbe =
-        url === `${baseUrl}/v1/me` &&
+      // /v1/me 是未登录探测;backup-codes 的 401 是 step_up_required,页面据此跳到 /mfa 重新验证。
+      const expectedUnauthorized =
+        (url === `${baseUrl}/v1/me` || url === `${baseUrl}/v1/me/mfa-factors/backup-codes`) &&
         text.includes('Failed to load resource') &&
         text.includes('status of 401')
-      return level === 'error' && !unauthenticatedMeProbe
+      return level === 'error' && !expectedUnauthorized
     }
     return false
   })
@@ -1647,7 +1648,7 @@ async function verifyBrowserMfaSelfService(page, fixture) {
       document.body.innerText.toLowerCase().includes('add authenticator app') &&
       document.body.innerText
         .toLowerCase()
-        .includes('add an authenticator app before generating backup codes.') &&
+        .includes('add an authenticator app or a passkey before generating backup codes') &&
       !Array.from(document.querySelectorAll('button')).some(
         (item) => String(item.textContent || '').trim() === 'Generate backup codes',
       ),
@@ -1662,7 +1663,9 @@ async function verifyBrowserMfaSelfService(page, fixture) {
     ),
   }))()`)
   if (
-    !initial.text.toLowerCase().includes('add an authenticator app before generating backup codes.')
+    !initial.text
+      .toLowerCase()
+      .includes('add an authenticator app or a passkey before generating backup codes')
   ) {
     throw new Error('mfa self-service missing strong-factor backup gate copy')
   }
@@ -1674,12 +1677,16 @@ async function verifyBrowserMfaSelfService(page, fixture) {
   await page.clickVisibleButton('Add authenticator app')
   await page.waitFor(
     () =>
-      document.body.innerText.toLowerCase().includes('add this key to your authenticator app') &&
+      document.body.innerText
+        .toLowerCase()
+        .includes('scan this qr code with your authenticator app') &&
       document.querySelector('code')?.textContent?.trim().length > 0,
     15_000,
     'totp setup panel',
   )
-  const secret = await page.evaluate(`document.querySelector('code')?.textContent?.trim() || ''`)
+  const secret = await page.evaluate(
+    `document.querySelector('code')?.textContent?.replace(/\\s+/g, '') || ''`,
+  )
   const code = await currentTotpCode(secret)
   await page.setVisibleInputValue(
     'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
@@ -1703,6 +1710,32 @@ async function verifyBrowserMfaSelfService(page, fixture) {
   const meBody = parseJson(me.body, '/v1/me after mfa')
   if (meBody.user?.hasMfa !== true) throw new Error(`/v1/me hasMfa false after TOTP: ${me.body}`)
   printResult('PASS', 'browser mfa me hasMfa', 'true')
+
+  await page.clickVisibleButton('Generate backup codes')
+  await page.waitFor(
+    () =>
+      location.pathname === '/mfa' &&
+      new URLSearchParams(location.search).get('step_up') === '1' &&
+      document.querySelector('input[autocomplete="one-time-code"]') !== null,
+    15_000,
+    'backup codes step-up challenge',
+  )
+  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口。
+  await page.setVisibleInputValue(
+    'input[autocomplete="one-time-code"]',
+    await currentTotpCode(secret, 1),
+  )
+  await page.submitVisibleFormContaining('One-time code')
+  await page.waitFor(
+    () =>
+      location.pathname === '/account/security' &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Generate backup codes',
+      ),
+    15_000,
+    'return to account security after step-up',
+  )
+  printResult('PASS', 'browser backup codes step-up returns to account security')
 
   await page.clickVisibleButton('Generate backup codes')
   await page.waitFor(
