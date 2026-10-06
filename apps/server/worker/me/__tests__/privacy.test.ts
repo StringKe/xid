@@ -273,7 +273,7 @@ describe('account privacy request API', () => {
     )
 
     expect(response.status).toBe(409)
-    expect(await response.json()).toMatchObject({ code: 'conflict' })
+    expect(await response.json()).toMatchObject({ code: 'account_deletion_blocked' })
     expect(requests).toHaveLength(0)
     expect(queueSend).not.toHaveBeenCalled()
   })

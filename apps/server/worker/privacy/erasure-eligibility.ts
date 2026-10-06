@@ -104,8 +104,8 @@ export async function requirePrivacyErasureEligibility(
 ): Promise<void> {
   const eligibility = await readPrivacyErasureEligibility(env, tenantId, userId)
   if (eligibility.blocksOwnerErasure || eligibility.blocksInstanceManagerErasure) {
-    // 自助端点不区分阻塞原因,避免泄露平台角色。
-    throw new AppError('conflict', { httpStatus: 409 })
+    // 自助端点不区分阻塞原因,避免泄露平台角色;专用码让用户知道需先转交所有权或管理员角色。
+    throw new AppError('account_deletion_blocked')
   }
 }
 

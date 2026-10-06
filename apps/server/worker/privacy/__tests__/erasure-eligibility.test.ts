@@ -166,7 +166,7 @@ describe('privacy erasure role eligibility', () => {
       blocksInstanceManagerErasure: false,
     })
     await expect(requirePrivacyErasureEligibility(env, 't_1', 'user_target')).rejects.toMatchObject(
-      { code: 'conflict', httpStatus: 409 },
+      { code: 'account_deletion_blocked', httpStatus: 409 },
     )
 
     addUser(d1, 'user_other_tenant', 't_2')

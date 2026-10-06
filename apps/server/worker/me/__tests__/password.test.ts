@@ -298,6 +298,30 @@ describe('POST /v1/me/password', () => {
     expect(((await res.json()) as Record<string, unknown>)['code']).toBe('rate_limited')
   })
 
+  it('fails closed with server_error when the rate limiter is unavailable', async () => {
+    const db = makeFakeD1({ passwords: [passwordRow()], password_history: [], sessions: [] })
+    const app = buildApp({
+      register: registerPasswordRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+    const env = {
+      ...makeEnv(db),
+      RATE_LIMITER: asUnknown<DurableObjectNamespace>({
+        idFromName: (n: string) => n,
+        get: () => ({ fetch: async () => new Response('down', { status: 503 }) }),
+      }),
+    } as unknown as Env
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/password',
+      changePasswordRequest({ currentPassword: CURRENT_PW, newPassword: NEW_PW }),
+      env,
+    )
+
+    expect(res.status).toBe(500)
+    expect(((await res.json()) as Record<string, unknown>)['code']).toBe('server_error')
+  })
+
   it('resets the change-password counter only after the current password matches', async () => {
     const actions: string[] = []
     const db = makeFakeD1({ passwords: [passwordRow()], password_history: [], sessions: [] })

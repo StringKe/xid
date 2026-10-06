@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=f14f3ec1449c42a816929eea5c965e7c3f307de3 -->
+<!-- xid-translation source=docs/design/05-users-sessions.md source-commit=5d55b0c source-blob=f42aad23bc24b64d8c050529b79eeefc302eeb2c -->
 
 > Translation of `docs/design/05-users-sessions.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/05-users-sessions.md`](../../design/05-users-sessions.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -154,8 +154,9 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
   storage reference。
 - 被遗忘权:Account UI 要求二次确认,API 仅接受带精确 `confirmation: "DELETE"` 的删除请求。
   请求进入 30 天内可取消的 pending 状态。如果 erasure 会删除任一 Organization 唯一的
-  active owner 或同一 Instance scope 最后一个 active `instance_manager`,schedule 以 opaque
-  conflict 拒绝。非 null `scope_id` 只匹配相同值;现有 global Instance Manager contract 使用
+  active owner 或同一 Instance scope 最后一个 active `instance_manager`,schedule 以
+  `account_deletion_blocked`(409)拒绝。该错误码不区分两种原因,只提示先转交所有权或增加
+  另一位管理员。非 null `scope_id` 只匹配相同值;现有 global Instance Manager contract 使用
   null,因此只与另一个 null scope 匹配。
   daily Cron 投递到期或 stale work,privacy consumer 在 grace period 后重复相同校验。D1
   erasure batch 第一条 statement 是 atomic eligibility guard,因此并发 role change 会回滚

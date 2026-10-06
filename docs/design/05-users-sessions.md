@@ -207,9 +207,10 @@ collision is not a normal branch for a freshly created Tenant.
   available for 48 hours, then daily Cron deletes the object and clears its storage reference.
 - Right to be forgotten: the Account UI requires a second confirmation, and the API accepts deletion
   only with the exact `confirmation: "DELETE"` contract. The request then remains pending for a
-  30-day, cancelable grace period. Scheduling is rejected with an opaque conflict if erasure would
-  remove an Organization's sole active owner or the last active `instance_manager` in the same
-  Instance scope. A non-null `scope_id` matches only the same value; the existing global Instance
+  30-day, cancelable grace period. Scheduling is rejected with `account_deletion_blocked` (409) if
+  erasure would remove an Organization's sole active owner or the last active `instance_manager` in
+  the same Instance scope. The code does not say which of the two applies; it only asks the user to
+  transfer ownership or add another administrator first. A non-null `scope_id` matches only the same value; the existing global Instance
   Manager contract uses null, which matches only another null scope.
   Daily Cron enqueues due or stale work, and the privacy consumer rechecks the same invariant after
   the grace period. The first statement in the D1 erasure batch is an atomic eligibility guard, so
