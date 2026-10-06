@@ -1,5 +1,5 @@
 // /end_session 端点测试:有 id_token_hint(本 issuer 签发,aud=client)-> 校验后按
-// post_logout_redirect_uri 精确匹配回跳(带 state);未注册的 redirect -> 不回跳返回 logged_out。
+// post_logout_redirect_uri 精确匹配回跳(带 state);未注册的 redirect -> 不回跳,渲染已登出页。
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { Hono } from 'hono'
