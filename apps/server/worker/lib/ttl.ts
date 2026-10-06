@@ -70,3 +70,5 @@ export const GUEST_GC_INACTIVE_DAYS = 30
 export const GUEST_DAILY_MINT_LIMIT = 500
 // access_request pending 惰性过期窗口 14 天(design-access-request 1.3:读取时翻转,不引入 cron)。
 export const ACCESS_REQUEST_TTL_MS = 14 * 24 * 60 * 60 * 1000
+// AuditSeqDO 待提交行自最后一次提交尝试起超过该窗口仍未落库，视为前序消息已离开重试路径，转入审计死信并释放 seq。
+export const AUDIT_PENDING_STALE_MS = 15 * 60 * 1000

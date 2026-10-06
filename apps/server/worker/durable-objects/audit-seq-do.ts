@@ -6,6 +6,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { DurableObject } from 'cloudflare:workers'
+import { AUDIT_PENDING_STALE_MS } from '../lib/ttl'
 import { buildAuditInput, type AuditAppendInput, type AuditRow } from '../queues/audit'
 
 const GENESIS_HASH = '0'.repeat(64)
@@ -18,6 +19,7 @@ type PersistedAuditEvent = Pick<AuditRow, 'seq' | 'id' | 'hash'>
 type PendingAuditEvent = {
   sourceMessageId: string
   row: AuditRow
+  attemptedAt?: number
 }
 
 type AppendResult = { status: 'appended' | 'blocked' | 'terminal' }
@@ -26,6 +28,15 @@ type TerminalInput = {
   sourceMessageId: string
   messageId: string
   tenantId: string
+  attempts: number
+  body: unknown
+}
+
+type DeadLetterInput = {
+  messageId: string
+  sourceMessageId: string
+  tenantId: string
+  reason: 'max_attempts' | 'pending_expired'
   attempts: number
   body: unknown
 }
@@ -63,11 +74,14 @@ export class AuditSeqDO extends DurableObject<Env> {
     if (await this.hasTerminalEvent(input.fields.tenantId, input.sourceMessageId)) {
       return { status: 'terminal' }
     }
-    if (this.pending !== undefined && this.pending.sourceMessageId !== input.sourceMessageId) {
+    if (await this.isBlockedByPending(input.fields.tenantId, input.sourceMessageId)) {
       return { status: 'blocked' }
     }
 
-    const pending = this.pending ?? (await this.createPending(input))
+    const pending =
+      this.pending === undefined
+        ? await this.createPending(input)
+        : await this.markAttempted(this.pending)
     await this.insertAndConfirm(pending)
     await this.commitPersisted({ seq: pending.row.seq, id: pending.row.id, hash: pending.row.hash })
     return { status: 'appended' }
@@ -84,28 +98,73 @@ export class AuditSeqDO extends DurableObject<Env> {
       await this.discardPending(input.sourceMessageId)
       return { status: 'terminal' }
     }
-    if (this.pending !== undefined && this.pending.sourceMessageId !== input.sourceMessageId) {
+    if (await this.isBlockedByPending(input.tenantId, input.sourceMessageId)) {
       return { status: 'blocked' }
     }
 
+    await this.recordDeadLetter({ ...input, reason: 'max_attempts' })
+    await this.discardPending(input.sourceMessageId)
+    return { status: 'terminal' }
+  }
+
+  // 前序消息可能已进入 Queue DLQ 而不再重试；先确认它是否已落库或已终态，
+  // 超过最后尝试窗口仍未落库则转入审计死信，释放同一 seq 给后序，链不产生空洞。
+  private async isBlockedByPending(tenantId: string, sourceMessageId: string): Promise<boolean> {
+    const pending = this.pending
+    if (pending === undefined || pending.sourceMessageId === sourceMessageId) return false
+
+    const persisted = await this.findPersistedEvent(tenantId, pending.sourceMessageId)
+    if (persisted !== undefined) {
+      await this.commitPersisted(persisted)
+      return false
+    }
+    if (await this.hasTerminalEvent(tenantId, pending.sourceMessageId)) {
+      await this.discardPending(pending.sourceMessageId)
+      return false
+    }
+    if (pending.attemptedAt === undefined) {
+      await this.markAttempted(pending)
+      return true
+    }
+    if (Date.now() - pending.attemptedAt < AUDIT_PENDING_STALE_MS) return true
+
+    await this.recordDeadLetter({
+      messageId: `audit-pending:${tenantId}:${pending.sourceMessageId}`,
+      sourceMessageId: pending.sourceMessageId,
+      tenantId,
+      reason: 'pending_expired',
+      attempts: 0,
+      body: pending.row,
+    })
+    await this.discardPending(pending.sourceMessageId)
+    return false
+  }
+
+  private async recordDeadLetter(input: DeadLetterInput): Promise<void> {
     await this.env.DB.prepare(
       `INSERT OR IGNORE INTO audit_dead_letters
         (id, message_id, source_message_id, tenant_id, reason, attempts, body, failed_at, created_at)
-       VALUES (?, ?, ?, ?, 'max_attempts', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         crypto.randomUUID(),
         input.messageId,
         input.sourceMessageId,
         input.tenantId,
+        input.reason,
         input.attempts,
         JSON.stringify(input.body),
         new Date().toISOString(),
         Date.now(),
       )
       .run()
-    await this.discardPending(input.sourceMessageId)
-    return { status: 'terminal' }
+  }
+
+  private async markAttempted(pending: PendingAuditEvent): Promise<PendingAuditEvent> {
+    const attempted: PendingAuditEvent = { ...pending, attemptedAt: Date.now() }
+    await this.ctx.storage.put(PENDING_STORAGE_KEY, attempted)
+    this.pending = attempted
+    return attempted
   }
 
   private async createPending(input: AuditAppendInput): Promise<PendingAuditEvent> {
@@ -119,6 +178,7 @@ export class AuditSeqDO extends DurableObject<Env> {
     const pending: PendingAuditEvent = {
       sourceMessageId: input.sourceMessageId,
       row: { ...base, hash: await sha256Hex(buildAuditInput(base)) },
+      attemptedAt: Date.now(),
     }
     await this.ctx.storage.put(PENDING_STORAGE_KEY, pending)
     this.pending = pending

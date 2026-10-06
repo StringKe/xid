@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=2b0943beb7dee06cee997a8ee9a334f6c10600b8 -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=1bff8072ace285b1bb86fa0999f2651bdb2cf8c3 -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -267,7 +267,7 @@ async append(input: AuditAppendInput) {
 
 #### 5.1.4 Queue 与 Consumer 顺序保证
 
-`xid-audit` Queue Consumer 配置 `max_concurrency: 1` 和 5 次 retry:
+`xid-audit` Queue Consumer 配置 `max_concurrency: 1`、5 次 retry 和 60s retry delay:
 
 ```jsonc
 // wrangler.jsonc
@@ -279,6 +279,7 @@ async append(input: AuditAppendInput) {
         "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_retries": 5,
+        "retry_delay": 60,
         "dead_letter_queue": "xid-audit-dlq",
         "max_concurrency": 1,
       },
@@ -291,7 +292,11 @@ Consumer 顺序遍历 `batch.messages`,把每条 message 委托给对应 tenant 
 不按 tenant 分组,也不预分配 seq range。即使 Queue retry 拆分或重排原始 batch,
 `AuditSeqDO` 仍是 per-tenant serialization 和 commit boundary。Malformed message 持久化到
 `audit_dead_letters`;retryable failure 最多经过 5 次 retry boundary,之后由
-`terminalize()` 持久化 terminal failure,不会让审计链越过未确认 event。
+`terminalize()` 持久化 terminal failure,不会让审计链越过未确认 event。Retry 按指数退避,
+单次间隔短于 15 分钟的 stale pending 窗口,总跨度长于该窗口。后序 message 遇到其他 source 的
+pending event 时,`AuditSeqDO` 先检查 D1 是否已写入,已写入就补提交;已有 terminal dead letter
+就释放;否则在最后一次尝试超过 15 分钟后以 `pending_expired` 写入 `audit_dead_letters` 并释放。
+被释放的 seq 由后序复用,审计链不产生空洞,单条卡住的 message 也不会无限期阻塞整个 tenant。
 
 ```typescript
 // 当前 Consumer 的简化版本

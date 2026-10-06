@@ -8,6 +8,8 @@ import { completePlatformAuditOutbox } from '../platform/audit-outbox'
 import { redactAuditPayload } from './audit-redaction'
 
 const MAX_ATTEMPTS = 5
+const RETRY_BASE_SECONDS = 60
+const RETRY_MAX_EXPONENT = 3
 const PROMOTED_META_KEYS = ['actorIp', 'targetType', 'targetId'] as const
 
 export type AuditFields = {
@@ -113,6 +115,16 @@ function sourceMessageId(message: Message<AuditQueueMessage>): string {
   return typeof source === 'string' && source.length > 0 ? source : message.id
 }
 
+// 单次退避需短于 AUDIT_PENDING_STALE_MS，仍在重试的前序才不会被判过期；
+// 退避总跨度需长于该窗口，后序消息才能在重试耗尽前等到 DO 释放过期前序。
+function retryDelaySeconds(attempts: number): number {
+  return RETRY_BASE_SECONDS * 2 ** Math.min(Math.max(attempts, 0), RETRY_MAX_EXPONENT)
+}
+
+function retryLater(message: Message<AuditQueueMessage>): void {
+  message.retry({ delaySeconds: retryDelaySeconds(message.attempts) })
+}
+
 function getSeqStub(env: Env, tenantId: string): AuditSeqStub {
   const id = env.AUDIT_SEQ.idFromName(`audit-seq:${tenantId}`)
   return env.AUDIT_SEQ.get(id) as unknown as DurableObjectStub & AuditSeqStub
@@ -169,7 +181,7 @@ async function handleMessage(env: Env, message: Message<AuditQueueMessage>): Pro
       await recordPermanentDeadLetter(env, message, sourceId)
       message.ack()
     } catch {
-      message.retry()
+      retryLater(message)
     }
     return
   }
@@ -178,14 +190,14 @@ async function handleMessage(env: Env, message: Message<AuditQueueMessage>): Pro
   try {
     const result = await stub.append({ sourceMessageId: sourceId, fields: toFields(message.body) })
     if (result.status === 'blocked') {
-      message.retry()
+      retryLater(message)
       return
     }
     await completePlatformAuditOutbox(env, sourceId)
     message.ack()
   } catch {
     if (message.attempts + 1 <= MAX_ATTEMPTS) {
-      message.retry()
+      retryLater(message)
       return
     }
     try {
@@ -197,13 +209,13 @@ async function handleMessage(env: Env, message: Message<AuditQueueMessage>): Pro
         body: message.body,
       })
       if (result.status === 'blocked') {
-        message.retry()
+        retryLater(message)
         return
       }
       await completePlatformAuditOutbox(env, sourceId)
       message.ack()
     } catch {
-      message.retry()
+      retryLater(message)
     }
   }
 }

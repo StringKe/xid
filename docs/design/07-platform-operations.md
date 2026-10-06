@@ -320,7 +320,7 @@ async append(input: AuditAppendInput) {
 
 #### 5.1.4 Queue and consumer ordering guarantee
 
-The `xid-audit` Queue consumer is configured with `max_concurrency: 1` and 5 retries:
+The `xid-audit` Queue consumer is configured with `max_concurrency: 1`, 5 retries and a 60s retry delay:
 
 ```jsonc
 // wrangler.jsonc
@@ -332,6 +332,7 @@ The `xid-audit` Queue consumer is configured with `max_concurrency: 1` and 5 ret
         "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_retries": 5,
+        "retry_delay": 60,
         "dead_letter_queue": "xid-audit-dlq",
         "max_concurrency": 1,
       },
@@ -345,7 +346,13 @@ The consumer iterates `batch.messages` sequentially and delegates each message t
 per-tenant serialization and commit boundary even when Queue retries split or reorder an original
 batch. A malformed message is persisted to `audit_dead_letters`. A retryable failure is retried up
 to the five-retry boundary; after that, `terminalize()` persists the terminal failure without
-advancing the audit chain past an unconfirmed event.
+advancing the audit chain past an unconfirmed event. Retries back off exponentially with every
+single delay shorter than the 15-minute stale-pending window and the total span longer than it.
+When a later message finds another source's pending event, `AuditSeqDO` first commits it if D1
+already holds it, releases it if it already has a terminal dead letter, and otherwise releases it
+into `audit_dead_letters` as `pending_expired` once its last attempt is older than 15 minutes. The
+released seq is reused, so the chain stays gap-free and one stuck message cannot block a tenant
+indefinitely.
 
 ```typescript
 // simplified current consumer

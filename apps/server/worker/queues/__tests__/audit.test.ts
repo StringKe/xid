@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AuditQueueMessage } from '@xid-kit/types'
 import { sha256Hex } from '@xid-kit/crypto'
+import { AUDIT_PENDING_STALE_MS } from '../../lib/ttl'
 import {
   buildAuditInput,
   canonicalizeMeta,
@@ -191,5 +192,49 @@ describe('handleAuditBatch source identity', () => {
     await handleAuditBatch({ messages: [message] } as MessageBatch<AuditQueueMessage>, env)
     expect(terminalize).not.toHaveBeenCalled()
     expect(message.retry).toHaveBeenCalledOnce()
+  })
+})
+
+describe('handleAuditBatch retry backoff', () => {
+  it('前序阻塞时按投递次数指数退避，而不是立即重投', async () => {
+    const env = makeEnv(async () => ({ status: 'blocked' }))
+    const messages = [0, 1, 2, 3].map((attempts) => makeMessage(`B${attempts}`, {}, attempts))
+
+    await handleAuditBatch({ messages } as unknown as MessageBatch<AuditQueueMessage>, env)
+
+    expect(messages.map((message) => message.retry.mock.calls[0]?.[0])).toEqual([
+      { delaySeconds: 60 },
+      { delaySeconds: 120 },
+      { delaySeconds: 240 },
+      { delaySeconds: 480 },
+    ])
+  })
+
+  it('单次退避短于 DO 前序过期窗口，5 次重试总跨度长于该窗口', async () => {
+    const env = makeEnv(async () => ({ status: 'blocked' }))
+    const messages = [1, 2, 3, 4, 5].map((attempts) => makeMessage(`B${attempts}`, {}, attempts))
+
+    await handleAuditBatch({ messages } as unknown as MessageBatch<AuditQueueMessage>, env)
+
+    const delays = messages.map(
+      (message) => (message.retry.mock.calls[0]![0] as { delaySeconds: number }).delaySeconds,
+    )
+    expect(Math.max(...delays) * 1000).toBeLessThan(AUDIT_PENDING_STALE_MS)
+    expect(delays.reduce((sum, delay) => sum + delay, 0) * 1000).toBeGreaterThan(
+      AUDIT_PENDING_STALE_MS,
+    )
+  })
+
+  it('DO 暂时失败时同样带退避重试', async () => {
+    const env = makeEnv(() => Promise.reject(new Error('d1 unavailable')))
+    const message = makeMessage('A', {}, 1)
+
+    await handleAuditBatch(
+      { messages: [message] } as unknown as MessageBatch<AuditQueueMessage>,
+      env,
+    )
+
+    expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 120 })
+    expect(message.ack).not.toHaveBeenCalled()
   })
 })

@@ -107,6 +107,7 @@
         "max_batch_timeout": 5,
         "max_concurrency": 1,
         "max_retries": 5,
+        "retry_delay": 60,
         "dead_letter_queue": "xid-audit-dlq",
       },
       {

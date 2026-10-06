@@ -25,6 +25,13 @@ describe('queue dead-letter configuration', () => {
     expect(wrangler).toContain(`"dead_letter_queue": "${deadLetterQueue}-persistence-failures"`)
   })
 
+  it('xid-audit consumer backs off retries instead of redelivering immediately', () => {
+    const start = wrangler.indexOf('"queue": "xid-audit",')
+    const block = wrangler.slice(start, wrangler.indexOf('}', start))
+
+    expect(block).toMatch(/"retry_delay": [1-9]\d*/)
+  })
+
   it('does not retain the ambiguous shared xid-dlq', () => {
     expect(wrangler).not.toContain('"xid-dlq"')
   })
