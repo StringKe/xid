@@ -97,6 +97,43 @@ describe('resolveTokenTenant', () => {
     )
   })
 
+  it('root session cookie for tenant A does not pin a token issued for tenant B', async () => {
+    const cookieTenant = {
+      ...resolvedTenant('tenant_a'),
+      resolution: { kind: 'tenant', primaryDomain: 'xid.dev', sessionDerivedRoot: true },
+    } as TenantVar
+    const target = resolvedTenant('tenant_b')
+    resolveTenantContextByIssuer.mockResolvedValue({ ok: true, value: { tenant: target } })
+    const c = await makeContext(cookieTenant).getCtx()
+
+    const result = await resolveTokenTenant(
+      c,
+      fakeJwt({ iss: 'https://xid.dev', tenant_id: 'tenant_b' }),
+      'invalid_token',
+    )
+
+    expect(result.tenantId).toBe('tenant_b')
+  })
+
+  it('root session cookie keeps its tenant for a token of the same tenant or without hint', async () => {
+    const cookieTenant = {
+      ...resolvedTenant('tenant_a'),
+      resolution: { kind: 'tenant', primaryDomain: 'xid.dev', sessionDerivedRoot: true },
+    } as TenantVar
+    const c = await makeContext(cookieTenant).getCtx()
+
+    const same = await resolveTokenTenant(
+      c,
+      fakeJwt({ iss: 'https://xid.dev', tenant_id: 'tenant_a' }),
+      'invalid_token',
+    )
+    const unhinted = await resolveTokenTenant(c, 'not-a-jwt', 'invalid_token')
+
+    expect(same).toBe(cookieTenant)
+    expect(unhinted).toBe(cookieTenant)
+    expect(resolveTenantContextByIssuer).not.toHaveBeenCalled()
+  })
+
   it('throws invalid_token when issuer resolution fails', async () => {
     resolveTenantContextByIssuer.mockResolvedValue({
       ok: false,

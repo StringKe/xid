@@ -22,7 +22,7 @@ import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { readJsonBody } from '../lib/validate'
 import { PASSKEY_AUTH_CONTEXT } from '../lib/auth-context'
-import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
+import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import {
   CHALLENGE_TTL_MS,
   PASSKEY_LIMIT,
@@ -324,6 +324,14 @@ passkey.post('/login/verify', async (c) => {
     credentialIdBase64,
     response: body.response,
   })
+  if (credentialIdBase64) {
+    await resetVerifyAccountRateLimit({
+      env: c.env,
+      tenantId: tenant.tenantId,
+      scope: 'passkey',
+      account: credentialIdBase64,
+    })
+  }
 
   const now = new Date()
   // sessionExpiryDays 是调用方显式覆盖(可短于策略默认,用于短期会话);未传时走 policy.session.absoluteTimeoutDays。

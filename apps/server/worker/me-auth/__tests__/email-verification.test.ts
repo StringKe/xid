@@ -44,8 +44,8 @@ vi.mock('../../lib/mfa-session', () => ({
   resolvePostAuthMfaGate: vi.fn().mockResolvedValue({}),
 }))
 
-vi.mock('../password-reset', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../password-reset')>()
+vi.mock('../password-reset-token', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../password-reset-token')>()
   return {
     ...actual,
     issuePasswordResetToken: vi.fn().mockResolvedValue({
@@ -63,7 +63,7 @@ import {
 } from '../email-verify-token'
 import { readSession, sessionDoRevokeAll } from '../../lib/session'
 import { AppError } from '../../lib/errors'
-import { issuePasswordResetToken } from '../password-reset'
+import { issuePasswordResetToken } from '../password-reset-token'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
 
@@ -230,7 +230,9 @@ describe('POST /auth/verify-email', () => {
       userId: 'user-1',
       emailHash,
       intent: null,
-    })
+      continuePath: '/account',
+      applicationClientId: null,
+    } as never)
     mockVerificationDb({
       email: 'owner@example.com',
       provisionedBy: 'hosted_password',
@@ -258,13 +260,15 @@ describe('POST /auth/verify-email', () => {
     expect(issuePasswordResetToken).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
+        email: 'owner@example.com',
         tenant: expect.objectContaining({ tenantId: 'tenant-1' }),
+        flow: { intent: null, continuePath: '/account', applicationClientId: null },
       }),
     )
     expect(await res.json()).toEqual({
       ok: true,
       email: 'owner@example.com',
-      redirectUrl: '/reset-password#token=setup.token.sig',
+      redirectUrl: '/reset-password?setup=1#token=setup.token.sig',
     })
   })
 
@@ -406,11 +410,102 @@ describe('POST /auth/verify-email', () => {
 describe('POST /auth/resend-verification', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('无 session 时静默 200', async () => {
+  it('无 session 且无 body 时静默 200', async () => {
     vi.mocked(readSession).mockResolvedValue(null)
     const app = makeApp(registerSessionAuthRoutes, { session: null })
     const res = await post(app, makeEnv(), '/auth/resend-verification')
     expect(res.status).toBe(200)
+    expect(issueEmailVerification).not.toHaveBeenCalled()
+  })
+
+  function pendingSignUpDb(options: { verified?: boolean; status?: string } = {}) {
+    return {
+      users: {
+        findOne: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          status: options.status ?? 'active',
+          deletedAt: null,
+          primaryEmailId: 'email-1',
+          pendingEmail: null,
+        }),
+      },
+      userEmails: {
+        findOne: vi.fn().mockResolvedValue({
+          id: 'email-1',
+          userId: 'user-1',
+          email: 'owner@example.com',
+          verified: options.verified ?? false,
+        }),
+      },
+    } as unknown as ReturnType<typeof createTenantDb>
+  }
+
+  it('无 session 按邮箱重发:未验证主邮箱的 active 用户收到新验证邮件', async () => {
+    vi.mocked(readSession).mockResolvedValue(null)
+    vi.mocked(createTenantDb).mockReturnValue(pendingSignUpDb())
+    const app = makeApp(registerSessionAuthRoutes, { session: null })
+
+    const res = await post(app, makeEnv(), '/auth/resend-verification', {
+      email: ' Owner@Example.com ',
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    expect(issueEmailVerification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', email: 'owner@example.com' }),
+    )
+  })
+
+  it('无 session 按邮箱重发:未知邮箱、已验证邮箱、停用用户都返回同一 200 且不发信', async () => {
+    vi.mocked(readSession).mockResolvedValue(null)
+    const app = makeApp(registerSessionAuthRoutes, { session: null })
+    const unknownDb = {
+      users: { findOne: vi.fn() },
+      userEmails: { findOne: vi.fn().mockResolvedValue(undefined) },
+    } as unknown as ReturnType<typeof createTenantDb>
+
+    const responses = []
+    for (const db of [
+      unknownDb,
+      pendingSignUpDb({ verified: true }),
+      pendingSignUpDb({ status: 'suspended' }),
+    ]) {
+      vi.mocked(createTenantDb).mockReturnValue(db)
+      const res = await post(app, makeEnv(), '/auth/resend-verification', {
+        email: 'owner@example.com',
+      })
+      responses.push({ status: res.status, body: await res.json() })
+    }
+
+    expect(responses).toEqual(Array(3).fill({ status: 200, body: { ok: true } }))
+    expect(issueEmailVerification).not.toHaveBeenCalled()
+  })
+
+  it('无 session 按邮箱重发:发送超限 -> rate_limited,不发信', async () => {
+    vi.mocked(readSession).mockResolvedValue(null)
+    vi.mocked(createTenantDb).mockReturnValue(pendingSignUpDb())
+    const app = makeApp(registerSessionAuthRoutes, { session: null })
+
+    const res = await post(app, makeEnv({ rateLimitAllowed: false }), '/auth/resend-verification', {
+      email: 'owner@example.com',
+    })
+
+    expect(res.status).toBe(429)
+    expect(issueEmailVerification).not.toHaveBeenCalled()
+  })
+
+  it('无 session 按邮箱重发:配置 Turnstile 时缺 token -> captcha_required', async () => {
+    vi.mocked(readSession).mockResolvedValue(null)
+    const app = makeApp(registerSessionAuthRoutes, { session: null })
+    const env = {
+      ...makeEnv(),
+      TURNSTILE_SITE_KEY: 'site-key',
+      TURNSTILE_SECRET: 'secret',
+    } as unknown as Env
+
+    const res = await post(app, env, '/auth/resend-verification', { email: 'owner@example.com' })
+
+    expect(((await res.json()) as { code: string }).code).toBe('captcha_required')
     expect(issueEmailVerification).not.toHaveBeenCalled()
   })
 

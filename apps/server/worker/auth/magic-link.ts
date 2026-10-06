@@ -25,15 +25,18 @@ import { auditPolicyDeniedError } from './hosted-audit'
 import { normalizeProfileFields } from './profile-fields'
 import type { ProfileFieldInput } from './profile-fields'
 import {
+  attachPasswordlessEmail,
   createPasswordlessEmailUser,
   markPrimaryEmailVerified,
   shouldSkipDefaultMembership,
 } from '../me-auth/passwordless-users'
+import { convertGuestUserById, loadGuestConversionContext } from '../me-auth/guest-conversion'
 import { resolveTokenTenant } from '../me-auth/token-tenant'
 import { recordAuthTokenIssued } from './token-audit'
 import { resolvePostAuthMfaGate } from '../lib/mfa-session'
 import { reserveRateLimitWindows } from '../lib/rate-limit'
 import { MAGIC_LINK_TTL_MS } from '../lib/ttl'
+import { enqueueTransactionalEmail } from '../lib/transactional-email'
 import { SEND_PER_HOUR_POLICY } from '../me-auth/shared'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import {
@@ -201,15 +204,27 @@ export async function sendMagicLink(
     try {
       assertMethodAllowed(tenant, 'magicLink', 'user_creation')
       assertEmailAllowed(tenant, email)
-      const profile = normalizeProfileFields(tenant, profileInput, { email })
-      userId = await createPasswordlessEmailUser({
-        db,
-        tenantId: tenant.tenantId,
-        d1: c.env.DB,
-        email,
-        profile,
-        skipDefaultMembership,
-      })
+      // guest 转正:持有效 guest session 时不建号,目标 email 挂为 guest user 的未验证主邮箱。
+      const guest = await loadGuestConversionContext(c, db)
+      if (guest) {
+        await attachPasswordlessEmail({
+          db,
+          tenantId: tenant.tenantId,
+          userId: guest.userId,
+          email,
+        })
+        userId = guest.userId
+      } else {
+        const profile = normalizeProfileFields(tenant, profileInput, { email })
+        userId = await createPasswordlessEmailUser({
+          db,
+          tenantId: tenant.tenantId,
+          d1: c.env.DB,
+          email,
+          profile,
+          skipDefaultMembership,
+        })
+      }
       action = 'user_creation'
     } catch (error) {
       await auditPolicyDeniedError(c, error, {
@@ -259,9 +274,10 @@ export async function sendMagicLink(
   })
 
   // 异步发邮件(不阻塞主链路,见 cloudflare-bindings rule)。
-  await c.env.EMAIL_QUEUE.send({
+  await enqueueTransactionalEmail(c.env, {
     type: 'magic_link',
     recipient: email,
+    locale: c.get('locale'),
     payload: {
       tenantId: tenant.tenantId,
       userId,
@@ -368,6 +384,18 @@ async function consumeMagicToken(
   return tokenRow.userId
 }
 
+// locked / suspended / 已删除统一 account_locked(anti-abuse rule)。
+async function assertMagicLinkUserActive(
+  db: ReturnType<typeof createTenantDb>,
+  userId: string,
+): Promise<void> {
+  const user = await db.users.findOne(
+    and(eq(schema.users.id, userId), isNull(schema.users.deletedAt)),
+  )
+  const locked = user?.lockoutUntil ? user.lockoutUntil.getTime() > Date.now() : false
+  if (!user || user.status !== 'active' || locked) throw new AppError('account_locked')
+}
+
 const magicLinkVerifyQuerySchema = v.object({ token: v.pipe(v.string(), v.minLength(1)) })
 const magicLinkVerifyBodySchema = v.object({ token: v.pipe(v.string(), v.minLength(1)) })
 
@@ -433,8 +461,11 @@ export async function handleMagicLinkVerify(c: Context<XidHonoEnv>): Promise<Res
     }
 
     const db = createTenantDb(c.env.DB, tenant)
+    // 先查账户状态再消费:不可用账户不消耗链接、不标记邮箱已验证(与 password reset 同序)。
+    await assertMagicLinkUserActive(db, signedUserId)
     const userId = await consumeMagicToken(db, jti, signedUserId, flow)
     await markPrimaryEmailVerified(db, userId)
+    await convertGuestUserById({ c, tenant, db, userId, provisionedBy: 'hosted_passwordless' })
 
     const now = new Date()
     const sessionId = createPersistedId('session')

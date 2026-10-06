@@ -8,7 +8,8 @@ import { handlePasswordSignIn } from './password-signin'
 import { handleSignOut } from './signout'
 import { handlePasskeyChallenge, handlePasskeyVerify } from './passkey-signin'
 import { handleForgotPassword, handleResetPassword } from './password-reset'
-import { handleResendVerification, handleVerifyEmail } from './email-verification'
+import { handleVerifyEmail } from './email-verification'
+import { handleResendVerification } from './resend-verification'
 import {
   handleMagicLinkSend,
   handleMagicLinkVerify,

@@ -1,6 +1,6 @@
 // guest 转正(Firebase 式"原地转正")统一钩子:guest session 有效时,首个凭证仪式把凭证
 // 挂到当前 guest user 而不是新建 user(见 docs/design/01-authentication.md guest 模式)。
-// 四个切入点(passwordless OTP / password / passkey register / social 分支 D)共用两件套:
+// 切入点(passwordless OTP / magic link / password / passkey register / social 分支 D)共用:
 //   loadGuestConversionContext:判定当前请求是否持 live guest session。跨租户隔离由租户查询层
 //     保证 -- A 租户 guest 的 user/session 行在 B 租户 scoped db 下查不到,自然落回原有路径。
 //   markGuestConverted:凭证挂上后调用 -- provisionedBy 改写 + 吊销旧 guest session(防 session
@@ -18,6 +18,7 @@ import { ACTIVE_SESSION_STATUS, readSession, revokeSession } from '../lib/sessio
 import { readAnonKey } from '../auth/passkey-helpers'
 import { loadLiveGuestUser, unbindGuestAnonKey } from './guest'
 import { logWorkerError } from '../lib/safe-log'
+import { revokeUserCredentials } from '../lib/revoke-user-credentials'
 
 export type GuestConversionContext = {
   session: SessionData
@@ -56,6 +57,28 @@ function emitGuestConvertedAudit(c: Context<XidHonoEnv>, tenantId: string, userI
       }),
     )
   }
+}
+
+// 链接类仪式(magic link)可能在另一台设备上完成:按 token 绑定的 userId 判定是否仍是 guest,
+// 撤销该 guest 的全部会话;只有当前浏览器正持有这个 guest 时才解绑 GuestStore。
+export async function convertGuestUserById(opts: {
+  c: Context<XidHonoEnv>
+  tenant: TenantVar
+  db: ReturnType<typeof createTenantDb>
+  userId: string
+  provisionedBy: string
+}): Promise<boolean> {
+  const { c, tenant, db, userId } = opts
+  if (!(await loadLiveGuestUser(db, userId))) return false
+  const browserGuest = await loadGuestConversionContext(c, db)
+  await db.users.update({ provisionedBy: opts.provisionedBy }, eq(schema.users.id, userId))
+  await revokeUserCredentials(c.env, tenant, userId)
+  emitGuestConvertedAudit(c, tenant.tenantId, userId)
+  const anonKey = readAnonKey(c)
+  if (anonKey && browserGuest?.userId === userId) {
+    await unbindGuestAnonKey(c.env, tenant.tenantId, anonKey)
+  }
+  return true
 }
 
 // 转正主钩子。provisionedBy 取各仪式建号时的既有取值(social 建号不写 provisionedBy,故传 null)。

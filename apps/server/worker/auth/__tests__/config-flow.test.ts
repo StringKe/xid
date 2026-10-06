@@ -13,6 +13,8 @@ vi.mock('@xid-kit/db', () => ({
 }))
 
 vi.mock('../../me-auth/instance-login', () => ({
+  isInstanceEntryContext: (tenant: TenantVar) =>
+    tenant.resolution?.unresolvedRoot === true || tenant.resolution?.sessionDerivedRoot === true,
   loginHintCandidates: (loginHint: string) => [
     { kind: 'email', value: loginHint.trim().toLowerCase() },
   ],

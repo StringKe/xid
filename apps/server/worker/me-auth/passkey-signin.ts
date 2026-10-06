@@ -16,7 +16,7 @@ import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { PASSKEY_AUTH_CONTEXT } from '../lib/auth-context'
 import { postAuthRedirectPath, resolvePostAuthMfaGate } from '../lib/mfa-session'
-import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
+import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { firstIssuePath, readJsonBody, validateCredentialBody } from '../lib/validate'
 import {
   buildStoredCredential,
@@ -27,7 +27,12 @@ import {
 import { requestIp, requestUserAgent, verifyTurnstile } from './shared'
 import { assertMethodAllowed, assertTenantResolvedForWebAuthn } from '../auth/hosted-policy'
 import { auditPolicyDeniedError } from '../auth/hosted-audit'
-import { loginHintCandidates, resolveEntryTenant, withTenant } from './instance-login'
+import {
+  isInstanceEntryContext,
+  loginHintCandidates,
+  resolveEntryTenant,
+  withTenant,
+} from './instance-login'
 
 // challenge DO key:per 匿名 ceremony,用前端原样回传的 sessionId(不透明 handle)。
 function challengeKey(sessionId: string, tenantId: string): string {
@@ -79,7 +84,7 @@ const challengeBodySchema = v.object({
 
 async function resolvePasskeyChallengeTenant(c: Context<XidHonoEnv>): Promise<TenantVar> {
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
+  if (!isInstanceEntryContext(current)) return current
   // challenge 阶段不触达凭证存在性,body 仅用于 tenant 解析:坏 JSON 按 {} 处理,
   // 形状失败走 validation_failed(此处 422 不泄露任何账户信息)。
   const json = await readJsonBody(c)
@@ -116,7 +121,7 @@ async function resolvePasskeyVerifyTenant(
     return resolveEntryTenant(c, [], organizationId, { applicationClientId })
   }
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
+  if (!isInstanceEntryContext(current)) return current
   if (!organizationId) return current
   const result = await resolveTenantContextById(c.req.raw, c.env, organizationId)
   if (!result.ok) throw new AppError('cross_tenant_access_denied')
@@ -239,6 +244,14 @@ export async function handlePasskeyVerify(c: Context<XidHonoEnv>): Promise<Respo
       credentialIdBase64,
       response: assertionResponse,
     })
+    if (credentialIdBase64) {
+      await resetVerifyAccountRateLimit({
+        env: c.env,
+        tenantId: tenant.tenantId,
+        scope: 'passkey',
+        account: credentialIdBase64,
+      })
+    }
 
     const now = new Date()
     const returnPath = postAuthRedirectPath({

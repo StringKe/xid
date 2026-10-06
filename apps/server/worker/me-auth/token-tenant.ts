@@ -1,4 +1,5 @@
 // 一次性认证 token 的 org hint 解析。payload 只用于选择 TenantContext,真正授权仍依赖 JWT 验签和 DB 消费。
+// 根域上 session cookie 推出的租户不固定 token 租户:多组织用户持 A 的 cookie 打开 B 的链接仍按 B 处理。
 
 import { base64UrlDecodeToString } from '@xid-kit/crypto'
 import { resolveTenantContextByIssuer } from '@xid-kit/db'
@@ -35,8 +36,10 @@ export async function resolveTokenTenant(
   invalidCode: XidErrorCode,
 ): Promise<TenantVar> {
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
+  const sessionDerivedRoot = current.resolution?.sessionDerivedRoot === true
+  if (!current.resolution?.unresolvedRoot && !sessionDerivedRoot) return current
   const hint = tokenTenantHint(rawToken)
+  if (sessionDerivedRoot && (!hint.issuer || hint.tenantId === current.tenantId)) return current
   if (!hint.issuer) {
     throw new AppError(invalidCode, { logReason: 'token_tenant_hint_missing' })
   }

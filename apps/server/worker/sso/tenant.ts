@@ -36,7 +36,8 @@ export async function resolveSsoFlowTenant(
   tenantId: string,
 ): Promise<TenantVar> {
   const current = c.get('tenant')
-  if (!current.resolution?.unresolvedRoot) return current
+  const isEntry = current.resolution?.unresolvedRoot || current.resolution?.sessionDerivedRoot
+  if (!isEntry || current.tenantId === tenantId) return current
   const result = await resolveTenantContextById(c.req.raw, c.env, tenantId)
   if (!result.ok) throw new AppError('cross_tenant_access_denied')
   return result.value.tenant

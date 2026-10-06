@@ -2,7 +2,12 @@
 import { Hono } from 'hono'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { TenantVar, XidHonoEnv } from '../../lib/types'
-import { loginHintCandidates, resolveEntryTenant, withTenant } from '../instance-login'
+import {
+  loginHintCandidates,
+  resolveEntryTenant,
+  resolveEntryTenants,
+  withTenant,
+} from '../instance-login'
 
 const resolveInstanceLogin = vi.hoisted(() => vi.fn())
 const resolveInstanceLoginCandidates = vi.hoisted(() => vi.fn())
@@ -69,6 +74,12 @@ describe('loginHintCandidates', () => {
 
   it('classifies E.164 phone hints', () => {
     expect(loginHintCandidates('+14155552671')).toEqual([{ kind: 'phone', value: '+14155552671' }])
+  })
+
+  it('normalizes formatted phone hints to the same E.164 value', () => {
+    expect(loginHintCandidates('+1 (415) 555-2671')).toEqual([
+      { kind: 'phone', value: '+14155552671' },
+    ])
   })
 
   it('returns username and external_id candidates for other identifiers', () => {
@@ -154,16 +165,55 @@ describe('resolveEntryTenant', () => {
     ).rejects.toMatchObject({ code: 'cross_tenant_access_denied' })
   })
 
-  it('throws invalid_request when instance login is ambiguous', async () => {
+  it('throws organization_selection_required without English copy when instance login is ambiguous', async () => {
     const current = unresolvedTenant()
     resolveInstanceLogin.mockResolvedValue({
       ok: true,
-      value: { status: 'ambiguous', candidates: [] },
+      value: { status: 'ambiguous', matches: [] },
     })
     const c = await makeCtx(current)
-    await expect(
-      resolveEntryTenant(c, { kind: 'email', value: 'user@shared.com' }),
-    ).rejects.toMatchObject({ code: 'invalid_request' })
+    const failure = resolveEntryTenant(c, { kind: 'email', value: 'user@shared.com' })
+    await expect(failure).rejects.toMatchObject({ code: 'organization_selection_required' })
+    await expect(failure).rejects.not.toHaveProperty('longMessage', expect.any(String))
+  })
+
+  it('resolveEntryTenants returns every matching organization for always-200 send endpoints', async () => {
+    resolveInstanceLogin.mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'ambiguous',
+        matches: [{ tenantId: 'tenant_a' }, { tenantId: 'tenant_b' }],
+      },
+    })
+    resolveTenantContextById.mockImplementation(async (_req: Request, _env: Env, id: string) => ({
+      ok: true,
+      value: { tenant: resolvedTenant(id) },
+    }))
+    const c = await makeCtx(unresolvedTenant())
+
+    const tenants = await resolveEntryTenants(c, { kind: 'email', value: 'user@shared.com' })
+
+    expect(tenants.map((tenant) => tenant.tenantId)).toEqual(['tenant_a', 'tenant_b'])
+  })
+
+  it('session-derived root context still honors an explicit organization selection', async () => {
+    const cookieTenant = {
+      ...resolvedTenant('tenant_cookie'),
+      resolution: { kind: 'tenant', primaryDomain: 'xid.dev', sessionDerivedRoot: true },
+    }
+    resolveTenantContextById.mockResolvedValue({
+      ok: true,
+      value: { tenant: resolvedTenant('tenant_selected') },
+    })
+    const c = await makeCtx(cookieTenant as never)
+
+    const result = await resolveEntryTenant(
+      c,
+      { kind: 'email', value: 'user@acme.com' },
+      'tenant_selected',
+    )
+
+    expect(result.tenantId).toBe('tenant_selected')
   })
 
   it('returns resolved tenant from instance login on success', async () => {

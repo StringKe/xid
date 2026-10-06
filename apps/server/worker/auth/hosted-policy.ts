@@ -36,14 +36,17 @@ export type HostedAuthPolicyDenialReason =
 
 export class HostedAuthPolicyError extends AppError {
   readonly policyReason: HostedAuthPolicyDenialReason
+  readonly field?: string
 
   constructor(
     reason: HostedAuthPolicyDenialReason,
     code: 'invalid_credentials' | 'invalid_request' = 'invalid_credentials',
+    options: { field?: string } = {},
   ) {
     super(code)
     this.name = 'HostedAuthPolicyError'
     this.policyReason = reason
+    if (options.field) this.field = options.field
   }
 }
 

@@ -38,6 +38,8 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   mfa_setup_required: 403,
   step_up_required: 401,
   email_verification_required: 403,
+  password_breached: 422,
+  password_reused: 422,
   rate_limited: 429,
   captcha_required: 401,
   captcha_failed: 401,
@@ -59,6 +61,7 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   grant_already_exists: 409,
   request_already_decided: 409,
   no_available_approver: 409,
+  organization_selection_required: 409,
   // 会话
   session_not_found: 404,
   session_revoked: 401,

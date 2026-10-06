@@ -439,9 +439,8 @@ describe('guest 转正 -- password', () => {
   it('guest session + sign-up -> proof 前只挂 Email,不写 password 或默认 Membership', async () => {
     const db = makeDb({
       users: {
-        // 第一次:resolveUserByIdentifier 的 externalId 兜底查 -> 无此人;
-        // 之后:guest 判定 + issueSession 的 active user 查 -> live guest。
-        findOne: vi.fn().mockResolvedValueOnce(undefined).mockResolvedValue(GUEST_ROW),
+        // email identifier 无 user_emails 行时不查 users;guest 判定查到 live guest。
+        findOne: vi.fn().mockResolvedValue(GUEST_ROW),
         insert: vi.fn().mockResolvedValue({ id: 'user-new' }),
         update: vi.fn().mockResolvedValue([]),
       },

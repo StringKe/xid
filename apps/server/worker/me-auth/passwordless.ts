@@ -6,7 +6,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb } from '@xid-kit/db'
-import { defaultLandingPathFor } from '@xid-kit/types'
+import { defaultLandingPathFor, normalizePhoneNumber } from '@xid-kit/types'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
@@ -14,7 +14,7 @@ import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { issueSession } from '../lib/session'
 import { EMAIL_OTP_AUTH_CONTEXT, SMS_OTP_AUTH_CONTEXT } from '../lib/auth-context'
-import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
+import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { otpCodeSchema, readJsonBody, validateCredentialBody } from '../lib/validate'
 import {
   handleMagicLinkVerify,
@@ -152,6 +152,37 @@ function hasPasswordlessCapability(
     (method !== 'smsOtp' || passwordlessCapability(c, tenant, method))
 }
 
+// send 与 verify 共用:两端必须解析到同一租户,否则验证码写在 A、校验去 B 查。
+async function resolveOtpTenant(
+  c: Context<XidHonoEnv>,
+  input: {
+    channel: OtpChannel
+    target: string
+    organizationId?: string | null
+    intent?: string | null
+    applicationClientId?: string | null
+  },
+): Promise<XidHonoEnv['Variables']['tenant']> {
+  const identifier =
+    input.channel === 'email'
+      ? ({ kind: 'email', value: input.target } as const)
+      : ({ kind: 'phone', value: input.target } as const)
+  return resolveEntryTenant(c, identifier, input.organizationId, {
+    intent: input.intent,
+    applicationClientId: input.applicationClientId,
+  })
+}
+
+// 手机号统一为 E.164 后再进入租户解析、限流、查库和建号;无法规范化的输入按凭证形状失败处理。
+function phoneTarget(
+  raw: string | undefined,
+  invalidCode: 'invalid_request' | 'otp_invalid',
+): string {
+  const phone = normalizePhoneNumber(raw ?? '')
+  if (!phone) throw new AppError(invalidCode)
+  return phone
+}
+
 async function startInvitationClaimOpaque(
   c: Context<XidHonoEnv>,
   rawInvitationToken: string,
@@ -219,20 +250,15 @@ async function sendOtp(input: OtpSendInput): Promise<Response> {
     await startInvitationClaimOpaque(c, invitationToken)
     return c.json({ ok: true })
   }
-  const tenant =
-    channel === 'email'
-      ? await resolveEntryTenant(
-          c,
-          { kind: 'email', value: target.toLowerCase() },
-          organizationId,
-          { intent, applicationClientId },
-        )
-      : await resolveEntryTenant(c, { kind: 'phone', value: target }, organizationId, {
-          intent,
-          applicationClientId,
-        })
+  const tenant = await resolveOtpTenant(c, {
+    channel,
+    target,
+    organizationId,
+    intent,
+    applicationClientId,
+  })
   if (channel !== 'email' && !validatePhoneOtpTarget(target)) {
-    throw new AppError('invalid_request', { longMessage: 'Phone number not in allowed region' })
+    throw new AppError('invalid_request')
   }
   try {
     const method = methodForChannel(channel)
@@ -384,19 +410,15 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
     input
   // Invitation ownership can only be proved by the dedicated Email claim ceremony.
   if (invitationToken?.trim()) throw new AppError('otp_invalid')
-  const tenant =
-    channel === 'email'
-      ? await resolveEntryTenant(
-          c,
-          { kind: 'email', value: target.toLowerCase() },
-          organizationId,
-          { intent, applicationClientId },
-        )
-      : await resolveEntryTenant(c, { kind: 'phone', value: target }, organizationId, {
-          applicationClientId,
-        })
   // code 格式已由 otpVerifyBodySchema 保证(形状失败在入口已抛 otp_invalid),此处只兜空值。
   if (!target || !code) throw new AppError('otp_invalid')
+  const tenant = await resolveOtpTenant(c, {
+    channel,
+    target,
+    organizationId,
+    intent,
+    applicationClientId,
+  })
 
   return withTenant(c, tenant, async () => {
     try {
@@ -448,6 +470,12 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
     if (guest && tokenRow.userId !== guest.userId) throw new AppError('invalid_credentials')
 
     if (!(await consumeVerifiableOtp(db, tokenRow))) throw new AppError('otp_invalid')
+    await resetVerifyAccountRateLimit({
+      env: c.env,
+      tenantId: tenant.tenantId,
+      scope: 'otp',
+      account: target,
+    })
     if (channel === 'email') {
       await markPrimaryEmailVerified(db, tokenRow.userId)
     } else {
@@ -484,126 +512,64 @@ async function verifyOtp(input: OtpVerifyInput): Promise<Response> {
   })
 }
 
-export async function handleOtpEmailSend(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('invalid_request')
-  const body = validateCredentialBody(otpSendBodySchema, json.value, {
-    code: 'invalid_request',
-    credentialFields: ['email'],
-  })
-  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
-  return sendOtp({
-    c,
-    channel: 'email',
-    target: (body.email ?? '').trim().toLowerCase(),
-    profileInput: body,
-    organizationId: body.organizationId,
-    applicationClientId: body.clientId,
-    invitationToken: body.invitationToken,
-    intent: body.intent,
-    continue: body.continue,
-  })
+// email/phone/code 都是凭证字段:形状失败与错码同一不透明响应(枚举防护)。
+function otpTarget(
+  channel: OtpChannel,
+  body: { email?: string; phone?: string },
+  invalidCode: 'invalid_request' | 'otp_invalid',
+): string {
+  if (channel === 'email') return (body.email ?? '').trim().toLowerCase()
+  return phoneTarget(body.phone, invalidCode)
 }
 
-export async function handleOtpSmsSend(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('invalid_request')
-  const body = validateCredentialBody(otpSendBodySchema, json.value, {
-    code: 'invalid_request',
-    credentialFields: ['phone'],
-  })
-  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
-  return sendOtp({
-    c,
-    channel: 'sms',
-    target: (body.phone ?? '').trim(),
-    profileInput: body,
-    organizationId: body.organizationId,
-    applicationClientId: body.clientId,
-    invitationToken: body.invitationToken,
-    intent: body.intent,
-    continue: body.continue,
-  })
+function otpSendHandler(channel: OtpChannel): (c: Context<XidHonoEnv>) => Promise<Response> {
+  return async (c) => {
+    const json = await readJsonBody(c)
+    if (!json.ok) throw new AppError('invalid_request')
+    const body = validateCredentialBody(otpSendBodySchema, json.value, {
+      code: 'invalid_request',
+      credentialFields: [identifierTypeForChannel(channel)],
+    })
+    await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
+    return sendOtp({
+      c,
+      channel,
+      target: otpTarget(channel, body, 'invalid_request'),
+      profileInput: body,
+      organizationId: body.organizationId,
+      applicationClientId: body.clientId,
+      invitationToken: body.invitationToken,
+      intent: body.intent,
+      continue: body.continue,
+    })
+  }
 }
 
-export async function handleOtpWhatsappSend(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('invalid_request')
-  const body = validateCredentialBody(otpSendBodySchema, json.value, {
-    code: 'invalid_request',
-    credentialFields: ['phone'],
-  })
-  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
-  return sendOtp({
-    c,
-    channel: 'whatsapp',
-    target: (body.phone ?? '').trim(),
-    profileInput: body,
-    organizationId: body.organizationId,
-    applicationClientId: body.clientId,
-    invitationToken: body.invitationToken,
-    intent: body.intent,
-    continue: body.continue,
-  })
+function otpVerifyHandler(channel: OtpChannel): (c: Context<XidHonoEnv>) => Promise<Response> {
+  return async (c) => {
+    const json = await readJsonBody(c)
+    if (!json.ok) throw new AppError('otp_invalid')
+    const body = validateCredentialBody(otpVerifyBodySchema, json.value, {
+      code: 'otp_invalid',
+      credentialFields: [identifierTypeForChannel(channel), 'code'],
+    })
+    return verifyOtp({
+      c,
+      channel,
+      target: otpTarget(channel, body, 'otp_invalid'),
+      code: body.code ?? '',
+      organizationId: body.organizationId,
+      applicationClientId: body.clientId,
+      invitationToken: body.invitationToken,
+      intent: body.intent,
+      continue: body.continue,
+    })
+  }
 }
 
-export async function handleOtpEmailVerify(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('otp_invalid')
-  // email/code 都是凭证:形状失败与错码同 otp_invalid(枚举防护)。
-  const body = validateCredentialBody(otpVerifyBodySchema, json.value, {
-    code: 'otp_invalid',
-    credentialFields: ['email', 'code'],
-  })
-  return verifyOtp({
-    c,
-    channel: 'email',
-    target: (body.email ?? '').trim().toLowerCase(),
-    code: body.code ?? '',
-    organizationId: body.organizationId,
-    applicationClientId: body.clientId,
-    invitationToken: body.invitationToken,
-    intent: body.intent,
-    continue: body.continue,
-  })
-}
-
-export async function handleOtpSmsVerify(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('otp_invalid')
-  const body = validateCredentialBody(otpVerifyBodySchema, json.value, {
-    code: 'otp_invalid',
-    credentialFields: ['phone', 'code'],
-  })
-  return verifyOtp({
-    c,
-    channel: 'sms',
-    target: (body.phone ?? '').trim(),
-    code: body.code ?? '',
-    organizationId: body.organizationId,
-    applicationClientId: body.clientId,
-    invitationToken: body.invitationToken,
-    intent: body.intent,
-    continue: body.continue,
-  })
-}
-
-export async function handleOtpWhatsappVerify(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('otp_invalid')
-  const body = validateCredentialBody(otpVerifyBodySchema, json.value, {
-    code: 'otp_invalid',
-    credentialFields: ['phone', 'code'],
-  })
-  return verifyOtp({
-    c,
-    channel: 'whatsapp',
-    target: (body.phone ?? '').trim(),
-    code: body.code ?? '',
-    organizationId: body.organizationId,
-    applicationClientId: body.clientId,
-    invitationToken: body.invitationToken,
-    intent: body.intent,
-    continue: body.continue,
-  })
-}
+export const handleOtpEmailSend = otpSendHandler('email')
+export const handleOtpSmsSend = otpSendHandler('sms')
+export const handleOtpWhatsappSend = otpSendHandler('whatsapp')
+export const handleOtpEmailVerify = otpVerifyHandler('email')
+export const handleOtpSmsVerify = otpVerifyHandler('sms')
+export const handleOtpWhatsappVerify = otpVerifyHandler('whatsapp')

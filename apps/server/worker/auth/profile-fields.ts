@@ -5,7 +5,7 @@ import type {
   ProfileFieldMode,
   TenantContext,
 } from '@xid-kit/types'
-import { normalizeHostedAuthProfileFields } from '@xid-kit/types'
+import { normalizeHostedAuthProfileFields, normalizePhoneNumber } from '@xid-kit/types'
 import { HostedAuthPolicyError } from './hosted-policy'
 
 export type ProfileFieldInput = {
@@ -52,6 +52,12 @@ function clean(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null
 }
 
+function normalizedFieldValue(field: HostedAuthProfileField, value: string): string | null {
+  if (field === 'email' || field === 'username') return value.toLowerCase()
+  if (field === 'phone') return normalizePhoneNumber(value)
+  return value
+}
+
 function valueFor(
   fields: HostedAuthProfileFields,
   field: HostedAuthProfileField,
@@ -59,12 +65,11 @@ function valueFor(
   identity: ProfileFieldInput,
 ): string | null {
   const identityValue = clean(identity[field])
-  if (identityValue)
-    return field === 'email' || field === 'username' ? identityValue.toLowerCase() : identityValue
+  if (identityValue) return normalizedFieldValue(field, identityValue)
   if (fields[field] === 'hidden') return null
   const inputValue = clean(input[field])
   if (!inputValue) return null
-  return field === 'email' || field === 'username' ? inputValue.toLowerCase() : inputValue
+  return normalizedFieldValue(field, inputValue)
 }
 
 function displayName(input: ProfileFieldInput, fields: HostedAuthProfileFields): string | null {
@@ -115,8 +120,11 @@ export function normalizeProfileFields(
     if (field === 'givenName') return normalized.firstName === null
     return normalized.lastName === null
   })
-  if (missing.length > 0) {
-    throw new HostedAuthPolicyError('profile_field_required')
+  const [firstMissing] = missing
+  if (firstMissing) {
+    throw new HostedAuthPolicyError('profile_field_required', 'invalid_credentials', {
+      field: firstMissing,
+    })
   }
   const incomplete = PROFILE_KEYS.some((field) => {
     if (fields[field] === 'hidden') return false

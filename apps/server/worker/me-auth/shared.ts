@@ -36,13 +36,18 @@ export async function checkRateLimit(
   return result.allowed
 }
 
-// 发送类双窗限流(1/min + 5/hour per 接收方),超限抛 rate_limited。
+// 发送类双窗限流(1/min + 5/hour per 接收方)。超限返回 false,由调用方决定抛错还是静默不发。
+export async function allowSendRateLimit(
+  env: Env,
+  scope: string,
+  target: string,
+): Promise<boolean> {
+  if (!(await checkRateLimit(env, `${scope}:min:${target}`, POLICIES.OTP_SEND))) return false
+  return checkRateLimit(env, `${scope}:hour:${target}`, SEND_PER_HOUR_POLICY)
+}
+
 export async function enforceSendRateLimit(env: Env, scope: string, target: string): Promise<void> {
-  const minKey = `${scope}:min:${target}`
-  const hourKey = `${scope}:hour:${target}`
-  if (!(await checkRateLimit(env, minKey, POLICIES.OTP_SEND))) throw new AppError('rate_limited')
-  if (!(await checkRateLimit(env, hourKey, SEND_PER_HOUR_POLICY)))
-    throw new AppError('rate_limited')
+  if (!(await allowSendRateLimit(env, scope, target))) throw new AppError('rate_limited')
 }
 
 // cookie session 认证:无有效 session 抛 401。已登录端点(sign-out 幂等除外)统一用此守卫。

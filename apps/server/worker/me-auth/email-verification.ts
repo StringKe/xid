@@ -8,7 +8,8 @@ import {
   schema,
   USER_PROVISIONED_BY_ANONYMOUS,
 } from '@xid-kit/db'
-import { and, eq } from 'drizzle-orm'
+import { defaultLandingPathFor } from '@xid-kit/types'
+import { eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { readAnonKey } from '../auth/passkey-helpers'
@@ -17,24 +18,22 @@ import { clearRefreshTokenCookie } from '../lib/cookies'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { readSession, sessionDoRevokeAll } from '../lib/session'
-import type { XidHonoEnv } from '../lib/types'
+import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import {
-  issueEmailVerification,
   loadEmailVerifyToken,
   verifyEmailVerifyJwt,
+  type VerifiedEmailToken,
 } from './email-verify-token'
 import { unbindGuestAnonKey } from './guest'
 import { withTenant } from './instance-login'
-import { enforceSendRateLimit } from './shared'
 import { resolveTokenTenant } from './token-tenant'
-import { issuePasswordResetToken } from './password-reset'
+import { issuePasswordResetToken, type ResetFlow } from './password-reset-token'
 import { shouldSkipDefaultMembership } from './passwordless-users'
+import { loadPrimaryEmailRow } from './resend-verification'
 
 const PURPOSE = 'email_verification'
 const verifyBodySchema = v.object({ token: v.pipe(v.string(), v.minLength(1)) })
-
-type EmailRow = typeof schema.userEmails.$inferSelect
 
 type VerificationTarget =
   | { kind: 'primary'; email: string; emailId: string }
@@ -65,26 +64,16 @@ function verifiedEmailSignInPath(input: {
   return `/sign-in${params.size > 0 ? `?${params.toString()}` : ''}`
 }
 
-function d1Changes(result: D1Result<unknown> | undefined): number {
-  return result?.meta.changes ?? 0
+function verifiedFlow(tenant: TenantVar, verified: VerifiedEmailToken): ResetFlow {
+  return {
+    intent: verified.intent,
+    continuePath: verified.continuePath ?? defaultLandingPathFor(tenant),
+    applicationClientId: verified.applicationClientId,
+  }
 }
 
-async function loadPrimaryEmailRow(
-  db: ReturnType<typeof createTenantDb>,
-  userId: string,
-  primaryEmailId: string | null,
-): Promise<EmailRow | null> {
-  if (primaryEmailId) {
-    const row = await db.userEmails.findOne(
-      and(eq(schema.userEmails.id, primaryEmailId), eq(schema.userEmails.userId, userId)),
-    )
-    if (row) return row
-  }
-  return (
-    (await db.userEmails.findOne(
-      and(eq(schema.userEmails.userId, userId), eq(schema.userEmails.isPrimary, true)),
-    )) ?? null
-  )
+function d1Changes(result: D1Result<unknown> | undefined): number {
+  return result?.meta.changes ?? 0
 }
 
 async function resolveVerificationTarget(
@@ -379,16 +368,19 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
     if (hostedPasswordProof) {
       const password = await db.passwords.findOne(eq(schema.passwords.userId, user.id))
       if (!password) {
+        // 注册时不保存密码:邮箱证明后用首次设密 token 续跑,flow 上下文随 token 签名带到设密完成。
         const setup = await issuePasswordResetToken({
           env: c.env,
           tenant,
           db,
           userId: user.id,
+          email: target.email,
+          flow: verifiedFlow(tenant, verified),
         })
         return c.json({
           ok: true,
           email: target.email,
-          redirectUrl: `/reset-password#${new URLSearchParams({ token: setup.token }).toString()}`,
+          redirectUrl: `/reset-password?setup=1#${new URLSearchParams({ token: setup.token }).toString()}`,
         })
       }
     }
@@ -401,31 +393,4 @@ export async function handleVerifyEmail(c: Context<XidHonoEnv>): Promise<Respons
     // email 随响应下发:token 持有者已证明邮箱所有权,前端用它做 sign-in 预填(login_hint)。
     return c.json({ ok: true, email: target.email, ...(redirectUrl ? { redirectUrl } : {}) })
   })
-}
-
-export async function handleResendVerification(c: Context<XidHonoEnv>): Promise<Response> {
-  const tenant = c.get('tenant')
-  const session = c.get('session') ?? (await readSession(c))
-  if (!session) return c.json({ ok: true })
-
-  const db = createTenantDb(c.env.DB, tenant)
-  const user = await db.users.findOne(eq(schema.users.id, session.userId))
-  if (!user || user.status !== 'active' || user.deletedAt !== null) return c.json({ ok: true })
-
-  const primary = await loadPrimaryEmailRow(db, user.id, user.primaryEmailId)
-  const targetEmail = primary
-    ? primary.verified
-      ? null
-      : primary.email.trim().toLowerCase()
-    : (user.pendingEmail?.trim().toLowerCase() ?? null)
-  if (!targetEmail) return c.json({ ok: true })
-
-  await enforceSendRateLimit(c.env, `emailverify:${tenant.tenantId}`, targetEmail)
-  await issueEmailVerification({
-    env: c.env,
-    tenant,
-    userId: session.userId,
-    email: targetEmail,
-  })
-  return c.json({ ok: true })
 }

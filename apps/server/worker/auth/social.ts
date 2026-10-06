@@ -33,7 +33,12 @@ import {
 import type { Provider, ProviderProfile, TokenResponse } from './social-providers'
 import { assertSocialProviderAllowed } from './hosted-policy'
 import { auditPolicyDeniedError } from './hosted-audit'
-import { loginHintCandidates, resolveEntryTenant, withTenant } from '../me-auth/instance-login'
+import {
+  isInstanceEntryContext,
+  loginHintCandidates,
+  resolveEntryTenant,
+  withTenant,
+} from '../me-auth/instance-login'
 import { requestIp, verifyTurnstile } from '../me-auth/shared'
 import { shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
 import { loadGuestConversionContext, markGuestConverted } from '../me-auth/guest-conversion'
@@ -235,7 +240,7 @@ async function socialAuthorizeTenant(c: Context<XidHonoEnv>): Promise<TenantVar>
   const loginHint = c.req.query('login_hint')?.trim()
   const intent = c.req.query('intent') ?? null
   const applicationClientId = c.req.query('client_id') ?? null
-  if (!current.resolution?.unresolvedRoot && !applicationClientId?.trim()) {
+  if (!isInstanceEntryContext(current) && !applicationClientId?.trim()) {
     return current
   }
   if (!loginHint && !organizationId && !intent && !applicationClientId) {

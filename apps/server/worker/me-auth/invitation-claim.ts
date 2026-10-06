@@ -40,6 +40,7 @@ import {
 } from '../lib/session'
 import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
+import { enqueueTransactionalEmail } from '../lib/transactional-email'
 import { enforceSendRateLimit, requestIp, requestUserAgent, verifyTurnstile } from './shared'
 import { resolveTokenTenant } from './token-tenant'
 import { signInvitationEmailClaim, verifyInvitationEmailClaimJwt } from './invitation-claim-token'
@@ -131,6 +132,7 @@ async function persistAndSendInvitationEmailClaim(opts: {
   env: Env
   tenant: TenantVar
   invitation: InvitationRow
+  locale: string
 }): Promise<void> {
   const { env, tenant, invitation } = opts
   const email = normalizedInvitationEmail(invitation)
@@ -179,9 +181,10 @@ async function persistAndSendInvitationEmailClaim(opts: {
     .run()
   if (Number(rotated.meta.changes ?? 0) !== 1) throw new AppError('invitation_invalid')
 
-  await env.EMAIL_QUEUE.send({
+  await enqueueTransactionalEmail(env, {
     type: 'verify_email',
     recipient: email,
+    locale: opts.locale,
     payload: {
       tenantId: tenant.tenantId,
       invitationId: invitation.id,
@@ -224,7 +227,12 @@ export async function startInvitationEmailClaim(opts: {
     throw error
   }
   await enforceSendRateLimit(opts.c.env, 'invitation-claim-recipient', await sha256Hex(email))
-  await persistAndSendInvitationEmailClaim({ env: opts.c.env, tenant, invitation })
+  await persistAndSendInvitationEmailClaim({
+    env: opts.c.env,
+    tenant,
+    invitation,
+    locale: opts.c.get('locale'),
+  })
   return true
 }
 

@@ -9,7 +9,7 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 
 import type { SQL } from 'drizzle-orm'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { Context } from 'hono'
-import { sessionDoRevokeAll } from '../lib/session'
+import { revokeUserCredentials } from '../lib/revoke-user-credentials'
 import { readAllById } from '../lib/db-pagination'
 import type { XidHonoEnv } from '../lib/types'
 import type { TenantContext } from '@xid-kit/types'
@@ -1249,24 +1249,13 @@ async function removeMembersByRef(
   }
 }
 
-// 9.1.2 deprovisioning:同步撤销该用户全部 session(per-user SessionDO)
+// 9.1.2 deprovisioning:同步撤销该用户全部 session 与 OAuth 凭据。
 export async function revokeAllUserSessions(
   env: Env,
   tenant: TenantContext,
   userId: string,
 ): Promise<void> {
-  // 1. SessionDO 清空 active session set(统一走 sessionDoStub,命中签发时的同一实例,见会话存储)
-  await sessionDoRevokeAll(env, userId)
-  // 2. 异步落 D1 sessions status=revoked(DO 已是真相源,D1 只需最终一致)
-  try {
-    const db = createTenantDb(env.DB, tenant)
-    await db.sessions.update(
-      { status: 'revoked' },
-      and(eq(schema.sessions.userId, userId), eq(schema.sessions.tenantId, tenant.tenantId)),
-    )
-  } catch {
-    // D1 落库失败不影响 DO 已完成的撤销
-  }
+  await revokeUserCredentials(env, tenant, userId)
 }
 
 // 异步投递 webhook(不阻塞 SCIM 响应,经 Queues,见 cloudflare-bindings rule)

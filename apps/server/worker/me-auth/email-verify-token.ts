@@ -11,6 +11,7 @@ import { buildVerifyKeySet, loadActiveSigner } from '../oidc/shared'
 import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
 import { recordAuthTokenIssued } from '../auth/token-audit'
 import { EMAIL_VERIFY_TTL_MS } from '../lib/ttl'
+import { enqueueTransactionalEmail } from '../lib/transactional-email'
 import { isHostedAuthIntent, type HostedAuthIntent } from '../../shared/hosted-auth-intent'
 import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 
@@ -33,6 +34,7 @@ export async function issueEmailVerification(opts: {
   tenant: TenantVar
   userId: string
   email: string
+  locale: string
   intent?: HostedAuthIntent
   continuePath?: string | null
   applicationClientId?: string | null
@@ -106,9 +108,10 @@ export async function issueEmailVerification(opts: {
     kid: signer.kid,
   })
 
-  await env.EMAIL_QUEUE.send({
+  await enqueueTransactionalEmail(env, {
     type: 'verify_email',
     recipient: normalizedEmail,
+    locale: opts.locale,
     payload: {
       tenantId: tenant.tenantId,
       userId,

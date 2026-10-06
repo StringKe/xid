@@ -10,7 +10,11 @@ import {
   type PublicHostedAuthConfig,
 } from './hosted-policy'
 import { smsDeliveryReady, whatsappDeliveryReady } from './delivery-channels'
-import { loginHintCandidates, resolveEntryTenant } from '../me-auth/instance-login'
+import {
+  isInstanceEntryContext,
+  loginHintCandidates,
+  resolveEntryTenant,
+} from '../me-auth/instance-login'
 import { hasProviderSecret } from './social-providers'
 import { publicTurnstileSiteKey } from '../me-auth/shared'
 import {
@@ -93,7 +97,7 @@ export function registerHostedAuthConfigRoutes(app: Hono<XidHonoEnv>): void {
     const rootSelfServiceSignUp = isProductSignUpIntent(intent) && !invitationToken
     if (
       organizationId &&
-      currentTenant.resolution?.unresolvedRoot &&
+      isInstanceEntryContext(currentTenant) &&
       !rootSelfServiceSignUp &&
       !invitationToken &&
       !applicationClientId
@@ -120,7 +124,7 @@ export function registerHostedAuthConfigRoutes(app: Hono<XidHonoEnv>): void {
     }
     if (
       loginHint &&
-      currentTenant.resolution?.unresolvedRoot &&
+      isInstanceEntryContext(currentTenant) &&
       !rootSelfServiceSignUp &&
       !invitationToken &&
       !applicationClientId

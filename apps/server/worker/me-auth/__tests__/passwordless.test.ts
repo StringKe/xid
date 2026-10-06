@@ -17,6 +17,7 @@ vi.mock('@xid-kit/crypto', async (importOriginal) => {
 })
 
 vi.mock('@xid-kit/db', () => ({
+  USER_PROVISIONED_BY_ANONYMOUS: 'anonymous',
   createTenantDb: vi.fn(),
   resolveInstanceLogin: vi.fn(),
   resolveInstanceLoginCandidates: vi.fn(),
@@ -1177,6 +1178,69 @@ describe('POST /auth/otp/sms/send', () => {
     expect(persistAndSendOtp).toHaveBeenCalledWith(
       expect.objectContaining({ channel: 'sms', target: '+15551234567' }),
     )
+  })
+
+  it('同一号码换书写方式 -> 规范化为同一 E.164 target,共用限流 key 与账户查找', async () => {
+    vi.mocked(resolveTargetUserId).mockResolvedValue('user-1')
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
+    const app = makeApp(registerSessionAuthRoutes, {
+      tenant: tenantWithPhoneModeAndDelivery('smsOtp') as never,
+    })
+
+    const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/otp/sms/send', {
+      phone: '+1 (555) 123-4567',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(reserveOtpSendRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      '+15551234567',
+      'tenant-1',
+    )
+    expect(resolveTargetUserId).toHaveBeenCalledWith(expect.anything(), 'sms', '+15551234567')
+  })
+
+  it('根入口 intent=sign-up 的 SMS verify 与 send 解析到同一入口租户,不按号码改选组织', async () => {
+    const rootTenant = {
+      ...tenantWithPhoneModeAndDelivery('smsOtp'),
+      tenantId: 'tenant-entry',
+      resolution: { kind: 'instance_entry', primaryDomain: 'xid.dev', unresolvedRoot: true },
+    }
+    vi.mocked(loadVerifiableOtp).mockResolvedValue({
+      tokenHash: 'otp-row',
+      userId: 'user-1',
+      codeHash: 'hash',
+      flowContext: LOGIN_FLOW_CONTEXT,
+      attemptCount: 0,
+    } as never)
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
+    const app = makeApp(registerSessionAuthRoutes, { tenant: rootTenant as never })
+
+    const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/otp/sms/verify', {
+      phone: '+15551234567',
+      code: '123456',
+      intent: 'sign-up',
+    })
+
+    expect(res.status).toBe(200)
+    expect(resolveInstanceLogin).not.toHaveBeenCalled()
+    expect(createTenantDb).toHaveBeenCalledWith(expect.anything(), rootTenant)
+  })
+
+  it('无法规范化为 E.164 的号码 -> invalid_request,不触达限流', async () => {
+    vi.mocked(createTenantDb).mockReturnValue(sessionDb())
+    const app = makeApp(registerSessionAuthRoutes, {
+      tenant: tenantWithPhoneModeAndDelivery('smsOtp') as never,
+    })
+
+    const res = await post(app, makeEnv({ smsProvider: 'twilio' }), '/auth/otp/sms/send', {
+      phone: '555-1234',
+      turnstileToken: null,
+    })
+
+    expect(((await res.json()) as { code: string }).code).toBe('invalid_request')
+    expect(reserveOtpSendRateLimit).not.toHaveBeenCalled()
   })
 
   it('新手机号且要求 profile email -> 创建 phone 用户时写 primary email', async () => {

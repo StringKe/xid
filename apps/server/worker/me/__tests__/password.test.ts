@@ -27,7 +27,7 @@ vi.mock('../../auth/password', async (importOriginal) => {
   }
 })
 
-import { hashPassword } from '../../auth/password'
+import { hashPassword, passwordReuseTag } from '../../auth/password'
 import { registerPasswordRoutes } from '../password'
 import { asUnknown, buildApp, makeFakeD1, makeFakeSessionNs, makeSession } from './harness'
 
@@ -55,6 +55,13 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+// HIBP range 响应按 SHA-1 后 35 位匹配。
+async function breachedSuffix(password: string): Promise<{ sha1Suffix: string }> {
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(password))
+  const hex = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+  return { sha1Suffix: hex.toUpperCase().slice(5) }
+}
+
 function passwordRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'pw_1',
@@ -71,8 +78,37 @@ function passwordRow(overrides: Record<string, unknown> = {}): Record<string, un
   }
 }
 
-function makeEnv(db: D1Database, names: string[] = []): Env {
-  return { DB: db, PEPPER, SESSION_REVOCATION: makeFakeSessionNs(names) } as unknown as Env
+function makeRateLimiter(allowed: boolean, actions: string[] = []): DurableObjectNamespace {
+  const stub = {
+    fetch: async (url: string) => {
+      actions.push(new URL(url).pathname)
+      return new Response(JSON.stringify({ allowed, retryAfter: 0, count: 1 }), { status: 200 })
+    },
+  }
+  return asUnknown<DurableObjectNamespace>({
+    idFromName: (n: string) => n,
+    get: () => stub,
+  })
+}
+
+function makeEnv(
+  db: D1Database,
+  options: { names?: string[]; rateLimitAllowed?: boolean; rateLimitActions?: string[] } = {},
+): Env {
+  return {
+    DB: db,
+    PEPPER,
+    SESSION_REVOCATION: makeFakeSessionNs(options.names ?? []),
+    RATE_LIMITER: makeRateLimiter(options.rateLimitAllowed ?? true, options.rateLimitActions),
+  } as unknown as Env
+}
+
+function changePasswordRequest(body: Record<string, unknown>): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }
 }
 
 describe('POST /v1/me/password', () => {
@@ -194,6 +230,98 @@ describe('POST /v1/me/password', () => {
     expect(res.status).toBe(401)
     expect(((await res.json()) as Record<string, unknown>)['code']).toBe('invalid_credentials')
   }, 30000)
+
+  it('rejects a breached new password with password_breached + paramName newPassword', async () => {
+    const { sha1Suffix } = await breachedSuffix(NEW_PW)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, text: async () => `${sha1Suffix}:42\n` }),
+    )
+    const db = makeFakeD1({ passwords: [passwordRow()], password_history: [], sessions: [] })
+    const app = buildApp({
+      register: registerPasswordRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/password',
+      changePasswordRequest({ currentPassword: CURRENT_PW, newPassword: NEW_PW }),
+      makeEnv(db),
+    )
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({
+      code: 'password_breached',
+      meta: { paramName: 'newPassword' },
+    })
+  }, 30000)
+
+  it('rejects reusing the current password with password_reused + paramName newPassword', async () => {
+    const reuseTag = await passwordReuseTag(CURRENT_PW, PEPPER)
+    const db = makeFakeD1({
+      passwords: [passwordRow({ reuse_tag: reuseTag })],
+      password_history: [],
+      sessions: [],
+    })
+    const app = buildApp({
+      register: registerPasswordRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/password',
+      changePasswordRequest({ currentPassword: CURRENT_PW, newPassword: CURRENT_PW }),
+      makeEnv(db),
+    )
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({
+      code: 'password_reused',
+      meta: { paramName: 'newPassword' },
+    })
+  }, 30000)
+
+  it('rate limits current-password attempts before verifying the password', async () => {
+    const db = makeFakeD1({ passwords: [passwordRow()], password_history: [], sessions: [] })
+    const app = buildApp({
+      register: registerPasswordRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/password',
+      changePasswordRequest({ currentPassword: 'wrong-password-value', newPassword: NEW_PW }),
+      makeEnv(db, { rateLimitAllowed: false }),
+    )
+
+    expect(res.status).toBe(429)
+    expect(((await res.json()) as Record<string, unknown>)['code']).toBe('rate_limited')
+  })
+
+  it('resets the change-password counter only after the current password matches', async () => {
+    const actions: string[] = []
+    const db = makeFakeD1({ passwords: [passwordRow()], password_history: [], sessions: [] })
+    const app = buildApp({
+      register: registerPasswordRoutes,
+      session: makeSession({ userId: 'u_1', sessionId: 's_current' }),
+    })
+    const env = makeEnv(db, { rateLimitActions: actions })
+
+    await app.request(
+      'https://acme.xid.dev/v1/me/password',
+      changePasswordRequest({ currentPassword: 'wrong-password-value', newPassword: NEW_PW }),
+      env,
+    )
+    expect(actions).not.toContain('/reset')
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/password',
+      changePasswordRequest({ currentPassword: CURRENT_PW, newPassword: NEW_PW }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    expect(actions).toContain('/reset')
+  }, 30000)
 })
 
 // POST /v1/me/password/setup-link:session 认证的设密链接签发(passwordless 用户)。
@@ -226,17 +354,6 @@ describe('POST /v1/me/password/setup-link', () => {
       updated_at: now,
       ...overrides,
     }
-  }
-
-  function makeRateLimiter(allowed: boolean): DurableObjectNamespace {
-    const stub = {
-      fetch: async () =>
-        new Response(JSON.stringify({ allowed, retryAfter: 0, count: 1 }), { status: 200 }),
-    }
-    return asUnknown<DurableObjectNamespace>({
-      idFromName: (n: string) => n,
-      get: () => stub,
-    })
   }
 
   function makeSetupEnv(db: D1Database, options: { rateLimitAllowed?: boolean } = {}) {

@@ -10,7 +10,13 @@ import { handleMagicLinkVerify, handleMagicLinkVerifyRedirect, sendMagicLink } f
 import { execCtx, makeEnv, makeTenant, testErrorHandler } from '../../me-auth/__tests__/helpers'
 import { resolveTokenTenant } from '../../me-auth/token-tenant'
 import { loadActiveSigner } from '../../oidc/shared'
-import { createPasswordlessEmailUser } from '../../me-auth/passwordless-users'
+import {
+  attachPasswordlessEmail,
+  createPasswordlessEmailUser,
+  markPrimaryEmailVerified,
+} from '../../me-auth/passwordless-users'
+import { convertGuestUserById, loadGuestConversionContext } from '../../me-auth/guest-conversion'
+import { issueSession } from '../../lib/session'
 
 const LOGIN_FLOW_CONTEXT = JSON.stringify({
   version: 1,
@@ -39,7 +45,13 @@ vi.mock('../../oidc/shared', () => ({
   loadActiveSigner: vi.fn().mockResolvedValue({ kid: 'k1', alg: 'ES256', privateKey: {} }),
 }))
 
+vi.mock('../../me-auth/guest-conversion', () => ({
+  loadGuestConversionContext: vi.fn().mockResolvedValue(null),
+  convertGuestUserById: vi.fn().mockResolvedValue(false),
+}))
+
 vi.mock('../../me-auth/passwordless-users', () => ({
+  attachPasswordlessEmail: vi.fn().mockResolvedValue(undefined),
   createPasswordlessEmailUser: vi.fn().mockResolvedValue('user-new'),
   markPrimaryEmailVerified: vi.fn().mockResolvedValue(undefined),
   shouldSkipDefaultMembership: vi.fn().mockReturnValue(false),
@@ -74,7 +86,15 @@ function magicLinkDb(overrides: Record<string, unknown> = {}) {
     },
     verificationTokens: { hardDelete, insert, findOne: vi.fn(), update: vi.fn() },
     magicLinkTokens: { hardDelete, insert, findOne: vi.fn(), update: vi.fn() },
-    users: { findOne: vi.fn().mockResolvedValue({ id: 'user-existing', primaryEmailId: null }) },
+    users: {
+      findOne: vi.fn().mockResolvedValue({
+        id: 'user-existing',
+        primaryEmailId: null,
+        status: 'active',
+        deletedAt: null,
+        lockoutUntil: null,
+      }),
+    },
     sessions: { update: vi.fn().mockResolvedValue([]) },
     organizations: { findOne: vi.fn() },
     memberships: { findMany: vi.fn().mockResolvedValue([]) },
@@ -234,6 +254,33 @@ describe('sendMagicLink', () => {
       expect.objectContaining({ email: 'user@example.com', tenantId: 'tenant-1' }),
     )
     expect(emailSend).toHaveBeenCalled()
+  })
+
+  it('持有效 guest session 时不建号,email 挂到当前 guest user', async () => {
+    vi.mocked(createTenantDb).mockReturnValue(
+      magicLinkDb({ userEmails: { findOne: vi.fn().mockResolvedValue(null) } }),
+    )
+    vi.mocked(loadGuestConversionContext).mockResolvedValueOnce({
+      session: {} as never,
+      userId: 'guest-1',
+    })
+    const tenant = makeTenant() as unknown as TenantVar
+    tenant.policy.hostedAuth.magicLink = {
+      enabled: true,
+      allowLogin: true,
+      allowUserCreation: true,
+    }
+    const emailSend = vi.fn()
+
+    await postSend(sendContext(tenant), makeEnv({ emailSend }))
+
+    expect(createPasswordlessEmailUser).not.toHaveBeenCalled()
+    expect(attachPasswordlessEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'guest-1', email: 'user@example.com' }),
+    )
+    expect(emailSend).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: expect.objectContaining({ userId: 'guest-1' }) }),
+    )
   })
 
   function sendWithFlowContext(
@@ -413,6 +460,33 @@ describe('handleMagicLinkVerify', () => {
     const res = await postVerify(app, makeEnv(), '?continue=//evil.test/phish')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ redirectUrl: '/console' })
+  })
+
+  it('账户不可用 -> account_locked,不消费链接、不标记邮箱已验证、不签发 session', async () => {
+    const suspendedDb = magicLinkDb({
+      users: {
+        findOne: vi.fn().mockResolvedValue({ id: 'user-1', status: 'suspended', deletedAt: null }),
+      },
+    })
+    vi.mocked(createTenantDb).mockReturnValue(suspendedDb)
+    const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
+    const res = await postVerify(verifyApp(tenant), makeEnv())
+
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as { code: string }).code).toBe('account_locked')
+    expect(suspendedDb.magicLinkTokens.update).not.toHaveBeenCalled()
+    expect(markPrimaryEmailVerified).not.toHaveBeenCalled()
+    expect(issueSession).not.toHaveBeenCalled()
+  })
+
+  it('token 绑定的是 guest user -> 验证成功后按 userId 转正', async () => {
+    const tenant = makeTenant('tenant-1', 'https://tenant-1.xid.dev') as unknown as TenantVar
+    const res = await postVerify(verifyApp(tenant), makeEnv())
+
+    expect(res.status).toBe(200)
+    expect(convertGuestUserById).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', provisionedBy: 'hosted_passwordless' }),
+    )
   })
 
   it('rejects JWT with non-magic_link purpose', async () => {

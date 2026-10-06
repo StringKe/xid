@@ -28,7 +28,7 @@ import {
 } from '../lib/auth-context'
 import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
 import { readSession } from '../lib/session'
-import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
+import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 import { requestIp } from './shared'
 
@@ -150,6 +150,12 @@ export async function handlePasskeyMfaVerify(c: Context<XidHonoEnv>): Promise<Re
     storedCredential: stored,
   })
   if (!result.ok || !cred) throw new AppError('invalid_credentials')
+  await resetVerifyAccountRateLimit({
+    env: c.env,
+    tenantId: tenant.tenantId,
+    scope: 'passkey',
+    account: credentialIdBase64,
+  })
 
   await persistSignCount({
     env: c.env,

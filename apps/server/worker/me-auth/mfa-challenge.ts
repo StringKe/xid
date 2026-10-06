@@ -26,7 +26,7 @@ import {
   recordOtpFailure,
 } from '../auth/otp'
 import { smsDeliveryReady } from '../auth/delivery-channels'
-import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
+import { enforceVerifyRateLimit, resetVerifyAccountRateLimit } from '../lib/verify-rate-limit'
 import { enforceSendRateLimit, requestIp } from './shared'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
 
@@ -188,6 +188,12 @@ export async function handleMfaVerify(c: Context<XidHonoEnv>): Promise<Response>
   })
 
   await dispatchVerify(c, tenant, { session, method, code })
+  await resetVerifyAccountRateLimit({
+    env: c.env,
+    tenantId: tenant.tenantId,
+    scope: 'mfa',
+    account: session.userId,
+  })
 
   if (body.stepUp === true) {
     // step-up:独立颁发 acr:step-up token(5min),经 __Host-xid.acr cookie 投递,不复用 session token。

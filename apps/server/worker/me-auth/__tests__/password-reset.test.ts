@@ -87,6 +87,44 @@ function unsignedResetTokenPayload(payload: Record<string, unknown>): string {
   return `header.${body}.signature`
 }
 
+function validReset(
+  context: Partial<{
+    intent: string | null
+    continuePath: string | null
+    clientId: string | null
+    emailHash: string | null
+  }> = {},
+) {
+  return {
+    ok: true as const,
+    userId: 'user-1',
+    jti: 'jti-1',
+    context: { intent: null, continuePath: null, clientId: null, emailHash: null, ...context },
+  }
+}
+
+// revokeUserCredentials 走单个 D1 batch:记录 SQL,断言凭据撤销覆盖 sessions / denylist / refresh family。
+function makeRecordingDb() {
+  const statements: { sql: string; binds: unknown[] }[] = []
+  const batch = vi.fn().mockResolvedValue([])
+  const db = {
+    prepare: (sql: string) => ({
+      bind: (...binds: unknown[]) => {
+        statements.push({ sql, binds })
+        return { sql, binds }
+      },
+    }),
+    batch,
+  } as unknown as D1Database
+  return { db, statements, batch }
+}
+
+function resetEnv(options: Parameters<typeof makeEnv>[0] = {}) {
+  const recording = makeRecordingDb()
+  const env = { ...makeEnv(options), DB: recording.db } as Env
+  return { env, ...recording }
+}
+
 describe('POST /auth/forgot-password', () => {
   beforeEach(() => vi.clearAllMocks())
 
@@ -148,10 +186,11 @@ describe('POST /auth/forgot-password', () => {
     expect(createResetToken).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({ kid: 'k1' }),
-      {
+      expect.objectContaining({
         issuer: 'https://tenant-1.xid.dev',
         tenantId: 'tenant-1',
-      },
+        context: expect.objectContaining({ emailHash: 'hash-of-token' }),
+      }),
     )
     expect(auditSend).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -208,10 +247,7 @@ describe('POST /auth/forgot-password', () => {
     expect(createResetToken).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({ kid: 'k1' }),
-      {
-        issuer: 'https://xid.dev',
-        tenantId: 'default',
-      },
+      expect.objectContaining({ issuer: 'https://xid.dev', tenantId: 'default' }),
     )
     expect(emailSend).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -264,10 +300,7 @@ describe('POST /auth/forgot-password', () => {
     expect(createResetToken).toHaveBeenCalledWith(
       'admin-user',
       expect.objectContaining({ kid: 'k1' }),
-      {
-        issuer: 'https://xid.dev',
-        tenantId: 'default',
-      },
+      expect.objectContaining({ issuer: 'https://xid.dev', tenantId: 'default' }),
     )
     expect(auditSend).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -335,10 +368,7 @@ describe('POST /auth/forgot-password', () => {
     expect(createResetToken).toHaveBeenCalledWith(
       'selected-user',
       expect.objectContaining({ kid: 'k1' }),
-      {
-        issuer: 'https://xid.dev',
-        tenantId: 'org-selected',
-      },
+      expect.objectContaining({ issuer: 'https://xid.dev', tenantId: 'org-selected' }),
     )
     expect(auditSend).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -436,6 +466,92 @@ describe('POST /auth/forgot-password', () => {
       }),
     )
   })
+
+  it('root 入口邮箱匹配多个组织 -> 每个组织各自签发重置链接,仍返回 200', async () => {
+    const emailSend = vi.fn()
+    const tenantA = { ...makeTenant('tenant-a', 'https://xid.dev'), issuer: 'https://xid.dev' }
+    const tenantB = { ...makeTenant('tenant-b', 'https://xid.dev'), issuer: 'https://xid.dev' }
+    vi.mocked(resolveInstanceLogin).mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'ambiguous',
+        matchedBy: 'email',
+        matches: [
+          { tenantId: 'tenant-a', slug: 'a', name: 'A', issuer: 'https://xid.dev' },
+          { tenantId: 'tenant-b', slug: 'b', name: 'B', issuer: 'https://xid.dev' },
+        ],
+      },
+    } as never)
+    vi.mocked(resolveTenantContextById).mockImplementation(
+      async (_req, _env, id) =>
+        ({
+          ok: true,
+          value: { status: 'resolved', tenant: id === 'tenant-a' ? tenantA : tenantB },
+        }) as never,
+    )
+    vi.mocked(createTenantDb).mockImplementation(
+      (_d1, tenant) =>
+        ({
+          userEmails: {
+            findOne: vi.fn().mockResolvedValue({ userId: `user-of-${tenant.tenantId}` }),
+          },
+          passwordResetTokens: {
+            hardDelete: vi.fn().mockResolvedValue(undefined),
+            insert: vi.fn().mockResolvedValue({ id: 't-1' }),
+          },
+        }) as unknown as ReturnType<typeof createTenantDb>,
+    )
+    const app = makeApp(registerSessionAuthRoutes, {
+      tenant: {
+        ...makeTenant('root', 'https://xid.dev'),
+        resolution: { kind: 'instance_entry', unresolvedRoot: true },
+      } as never,
+    })
+
+    const res = await post(app, makeEnv({ emailSend }), 'https://xid.dev/auth/forgot-password', {
+      email: 'multi@example.com',
+    })
+
+    expect(res.status).toBe(200)
+    expect(createResetToken).toHaveBeenCalledTimes(2)
+    expect(emailSend).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: expect.objectContaining({ tenantId: 'tenant-a' }) }),
+    )
+    expect(emailSend).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: expect.objectContaining({ tenantId: 'tenant-b' }) }),
+    )
+  })
+
+  it('应用续跑上下文写进重置 token,非法 continue 返回 invalid_request', async () => {
+    vi.mocked(createTenantDb).mockReturnValue({
+      userEmails: { findOne: vi.fn().mockResolvedValue({ userId: 'user-1' }) },
+      passwordResetTokens: {
+        hardDelete: vi.fn().mockResolvedValue(undefined),
+        insert: vi.fn().mockResolvedValue({ id: 't-1' }),
+      },
+    } as unknown as ReturnType<typeof createTenantDb>)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, makeEnv(), '/auth/forgot-password', {
+      email: 'user@example.com',
+      continue: '/account',
+      intent: 'sign-in',
+    })
+    const rejected = await post(app, makeEnv(), '/auth/forgot-password', {
+      email: 'user@example.com',
+      continue: '//evil.example',
+    })
+
+    expect(res.status).toBe(200)
+    expect(createResetToken).toHaveBeenCalledWith(
+      'user-1',
+      expect.anything(),
+      expect.objectContaining({
+        context: expect.objectContaining({ continuePath: '/account', intent: 'sign-in' }),
+      }),
+    )
+    expect(rejected.status).toBe(400)
+  })
 })
 
 function resetDb(tokenRow: { userId: string; consumedAt: Date | null; expiresAt: Date } | null) {
@@ -509,7 +625,7 @@ describe('POST /auth/reset-password', () => {
   })
 
   it('HIBP 命中 -> password_breached', async () => {
-    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset())
     vi.mocked(checkHibpBreached).mockResolvedValue(true)
     vi.mocked(createTenantDb).mockReturnValue(
       resetDb({ userId: 'user-1', consumedAt: null, expiresAt: new Date(Date.now() + 900000) }),
@@ -522,21 +638,130 @@ describe('POST /auth/reset-password', () => {
     expect(((await res.json()) as { code: string }).code).toBe('password_breached')
   })
 
-  it('happy -> 200 + 签发 session', async () => {
-    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+  it('happy -> 200 + 撤销旧 session 与 refresh family 后签发新 session', async () => {
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset())
+    const db = resetDb({
+      userId: 'user-1',
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 900000),
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const { env, statements, batch } = resetEnv()
+    const app = makeApp(registerSessionAuthRoutes)
+    const res = await post(app, env, '/auth/reset-password', {
+      token: 'valid.token',
+      password: 'NewStrongPass1',
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, redirectUrl: '/console' })
+    expect(batch).toHaveBeenCalledOnce()
+    const sql = statements.map((statement) => statement.sql).join('\n')
+    expect(sql).toContain('UPDATE sessions')
+    expect(sql).toContain("'pending_mfa', 'pending_mfa_setup'")
+    expect(sql).toContain('INSERT OR IGNORE INTO access_token_revocations')
+    expect(sql).toContain('family_revoked_at = ?')
+    for (const statement of statements) {
+      expect(statement.binds).toContain('tenant-1')
+      expect(statement.binds).toContain('user-1')
+    }
+    expect(batch.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(db.sessions.insert).mock.invocationCallOrder[0] ?? 0,
+    )
+  })
+
+  it('token 携带 application 续跑上下文 -> redirectUrl 回到暂存的 /authorize', async () => {
+    vi.mocked(verifyResetToken).mockResolvedValue(
+      validReset({
+        clientId: 'app-1',
+        continuePath: '/authorize?authz_request_id=authz-1&client_id=app-1',
+      }),
+    )
     vi.mocked(createTenantDb).mockReturnValue(
       resetDb({ userId: 'user-1', consumedAt: null, expiresAt: new Date(Date.now() + 900000) }),
     )
     const app = makeApp(registerSessionAuthRoutes)
-    const res = await post(app, makeEnv(), '/auth/reset-password', {
+    const res = await post(app, resetEnv().env, '/auth/reset-password', {
       token: 'valid.token',
       password: 'NewStrongPass1',
     })
+
     expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      ok: true,
+      redirectUrl: '/authorize?authz_request_id=authz-1&client_id=app-1',
+    })
+  })
+
+  it('token 续跑上下文被篡改为外部地址 -> token_invalid,不消费 token', async () => {
+    vi.mocked(verifyResetToken).mockResolvedValue(
+      validReset({ continuePath: 'https://evil.example/' }),
+    )
+    const db = resetDb({
+      userId: 'user-1',
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 900000),
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+    const res = await post(app, resetEnv().env, '/auth/reset-password', {
+      token: 'valid.token',
+      password: 'NewStrongPass1',
+    })
+
+    expect(((await res.json()) as { code: string }).code).toBe('token_invalid')
+    expect(db.passwordResetTokens.update).not.toHaveBeenCalled()
+  })
+
+  it('重置链接送达的主邮箱未验证 -> 标为已验证,hosted_password 首次设密补默认 membership', async () => {
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset({ emailHash: 'hash-of-token' }))
+    const db = resetDb({
+      userId: 'user-1',
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 900000),
+    })
+    vi.mocked(db.passwords.findOne).mockResolvedValue(undefined)
+    vi.mocked(db.users.findOne).mockResolvedValue({
+      id: 'user-1',
+      status: 'active',
+      deletedAt: null,
+      primaryEmailId: 'email-1',
+      provisionedBy: 'hosted_password',
+    } as never)
+    const emailUpdate = vi.fn().mockResolvedValue([{ id: 'email-1' }])
+    const membershipInsert = vi.fn().mockResolvedValue([])
+    Object.assign(db, {
+      userEmails: {
+        findOne: vi.fn().mockResolvedValue({
+          id: 'email-1',
+          email: 'user@example.com',
+          verified: false,
+          verificationStatus: 'unverified',
+        }),
+        update: emailUpdate,
+      },
+      memberships: { ...db.memberships, insertManyIgnore: membershipInsert },
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await post(app, resetEnv().env, '/auth/reset-password', {
+      token: 'valid.token',
+      password: 'NewStrongPass1',
+    })
+
+    expect(res.status).toBe(200)
+    expect(emailUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ verified: true, verificationStatus: 'verified' }),
+      expect.anything(),
+    )
+    expect(membershipInsert).toHaveBeenCalledWith([
+      expect.objectContaining({ tenantId: 'tenant-1', orgId: 'tenant-1', userId: 'user-1' }),
+    ])
   })
 
   it('Email proof continuation 为无密码用户设置首个密码并签发 session', async () => {
-    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset())
     const db = resetDb({
       userId: 'user-1',
       consumedAt: null,
@@ -546,7 +771,7 @@ describe('POST /auth/reset-password', () => {
     vi.mocked(createTenantDb).mockReturnValue(db)
     const app = makeApp(registerSessionAuthRoutes)
 
-    const res = await post(app, makeEnv(), '/auth/reset-password', {
+    const res = await post(app, resetEnv().env, '/auth/reset-password', {
       token: 'proof-issued.token',
       password: 'NewStrongPass1',
     })
@@ -571,7 +796,7 @@ describe('POST /auth/reset-password', () => {
 
   it('forceSso valid token -> invalid_credentials 且不消费 token 不改密码不签发 session', async () => {
     const auditSend = vi.fn()
-    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset())
     const db = resetDb({
       userId: 'user-1',
       consumedAt: null,
@@ -613,7 +838,7 @@ describe('POST /auth/reset-password', () => {
       ok: true,
       value: { status: 'resolved', tenant: resolvedTenant },
     } as never)
-    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset())
     vi.mocked(createTenantDb).mockReturnValue(
       resetDb({ userId: 'user-1', consumedAt: null, expiresAt: new Date(Date.now() + 900000) }),
     )
@@ -623,7 +848,7 @@ describe('POST /auth/reset-password', () => {
       resolution: { kind: 'instance_entry', primaryDomain: 'xid.dev', unresolvedRoot: true },
     }
     const app = makeApp(registerSessionAuthRoutes, { tenant: rootTenant as never })
-    const env = makeEnv()
+    const { env } = resetEnv()
     const token = unsignedResetTokenPayload({
       iss: 'https://xid.dev',
       sub: 'user-1',
@@ -648,7 +873,7 @@ describe('POST /auth/reset-password', () => {
   })
 
   it('deleted user valid token -> invalid_credentials 且不消费 token 不改密码', async () => {
-    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset())
     const db = resetDb({
       userId: 'user-1',
       consumedAt: null,
@@ -670,7 +895,7 @@ describe('POST /auth/reset-password', () => {
   })
 
   it('token DB 无记录(跨租户/重放)-> token_invalid', async () => {
-    vi.mocked(verifyResetToken).mockResolvedValue({ ok: true, userId: 'user-1', jti: 'jti-1' })
+    vi.mocked(verifyResetToken).mockResolvedValue(validReset())
     // B 上下文 findOne 返回 undefined(查不到 A 的 reset token)。
     vi.mocked(createTenantDb).mockReturnValue(resetDb(null))
     const tenant = makeTenant('tenant-B')

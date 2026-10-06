@@ -2,7 +2,7 @@
 // OTP 存 HMAC-SHA256 哈希(verificationTokens.codeHash),验证后以 consumedAt CAS 标记消费。
 // 限流:同一邮箱/手机 1/min + 5/hour(RateLimitStore DO,anti-abuse rule)。
 // 最多 5 次错误后 token 作废(01 章 4:Email OTP 5 次错误后作废)。
-// Phone OTP 国家白名单默认 US/CA,租户可扩展(01 章 4)。
+// Phone OTP target 由调用方规范化为 E.164,国家白名单固定为 +1(US/CA),没有租户级配置(01 章 4)。
 // 枚举防护:邮箱/手机不存在与已发送统一 200 模糊响应。
 
 import { randomString, sha256Hex } from '@xid-kit/crypto'
@@ -16,6 +16,7 @@ import { POLICIES } from '../durable-objects/rate-limit-store'
 import type { RateLimitPolicy } from '../durable-objects/rate-limit-store'
 import { smsOtpQueuePayload, whatsappOtpQueuePayload } from './delivery-channels'
 import { OTP_EMAIL_TTL_MS, OTP_MAX_ATTEMPTS, OTP_PHONE_TTL_MS } from '../lib/ttl'
+import { enqueueTransactionalEmail } from '../lib/transactional-email'
 import type { PasswordlessFlowContext } from './passwordless-flow'
 import { serializePasswordlessFlowContext } from './passwordless-flow'
 
@@ -111,9 +112,10 @@ export async function persistAndSendOtp(opts: {
     },
   })
   if (channel === 'email') {
-    await c.env.EMAIL_QUEUE.send({
+    await enqueueTransactionalEmail(c.env, {
       type: 'otp',
       recipient: target,
+      locale: c.get('locale'),
       payload: { tenantId, userId, code, expiresInMin: ttlMs / 60000 },
     })
   } else if (channel === 'whatsapp') {

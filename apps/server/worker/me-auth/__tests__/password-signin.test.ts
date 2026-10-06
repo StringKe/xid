@@ -237,6 +237,7 @@ describe('POST /auth/password/sign-in', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
+      nextStep: 'complete',
       redirectUrl: '/authorize?authz_request_id=authz-1&client_id=app-1',
     })
     expect(db.sessions.insert).toHaveBeenCalledOnce()
@@ -912,5 +913,164 @@ describe('POST /auth/password/sign-in', () => {
     })
     expect(res.status).toBe(401)
     expect(((await res.json()) as { code: string }).code).toBe('invalid_credentials')
+  })
+
+  it('注册待验证账户(无密码行、主邮箱未验证)再次提交 -> 重发验证邮件,响应与新注册相同', async () => {
+    vi.mocked(verifyPassword).mockResolvedValue(false)
+    const db = dbWithUser({
+      emailUserId: 'user-1',
+      emailVerified: false,
+      user: {
+        id: 'user-1',
+        status: 'active',
+        lockoutUntil: null,
+        primaryEmailId: 'email-1',
+        provisionedBy: 'hosted_password',
+      } as never,
+      passwordHash: null,
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'user@example.com',
+      password: 'StrongPass123',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ nextStep: 'verify_email' })
+    expect(issueEmailVerification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', email: 'user@example.com' }),
+    )
+    expect(verifyPassword).toHaveBeenCalledOnce()
+    expect(db.sessions.insert).not.toHaveBeenCalled()
+  })
+
+  it('非注册来源且无密码行的账户 -> invalid_credentials,不重发验证邮件', async () => {
+    vi.mocked(verifyPassword).mockResolvedValue(false)
+    const db = dbWithUser({
+      emailUserId: 'user-1',
+      emailVerified: false,
+      user: {
+        id: 'user-1',
+        status: 'active',
+        lockoutUntil: null,
+        primaryEmailId: 'email-1',
+        provisionedBy: 'hosted_passwordless',
+      } as never,
+      passwordHash: null,
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'user@example.com',
+      password: 'StrongPass123',
+      turnstileToken: null,
+    })
+
+    expect(res.status).toBe(401)
+    expect(issueEmailVerification).not.toHaveBeenCalled()
+  })
+
+  it('密码正确 -> reset 账户维度限流计数;密码错误不 reset', async () => {
+    const actions: string[] = []
+    const env = makeEnv()
+    env.RATE_LIMITER = {
+      idFromName: () => ({ toString: () => 'rl-id' }) as DurableObjectId,
+      get: () =>
+        ({
+          fetch: async (url: string) => {
+            actions.push(new URL(url).pathname)
+            return Response.json({ allowed: true, retryAfter: 0, count: 1 })
+          },
+        }) as unknown as DurableObjectStub,
+    } as unknown as DurableObjectNamespace
+    const db = dbWithUser({
+      emailUserId: 'user-1',
+      user: { id: 'user-1', status: 'active', lockoutUntil: null },
+      passwordHash: '$argon2id$stored',
+    })
+    vi.mocked(createTenantDb).mockReturnValue(db)
+    const app = makeApp(registerSessionAuthRoutes)
+
+    vi.mocked(verifyPassword).mockResolvedValue(false)
+    await request(app, env, { identifier: 'user@example.com', password: 'WrongPassword1' })
+    expect(actions).not.toContain('/reset')
+
+    vi.mocked(verifyPassword).mockResolvedValue(true)
+    const res = await request(app, env, {
+      identifier: 'user@example.com',
+      password: 'Right12345678',
+    })
+    expect(res.status).toBe(200)
+    expect(actions).toContain('/reset')
+  })
+
+  it('缺 required profile 字段 -> validation_failed 带缺失字段 paramName', async () => {
+    vi.mocked(createTenantDb).mockReturnValue(dbWithUser({ emailUserId: null, user: null }))
+    const tenant = makeTenantWithUsernamePasswordCreation()
+    const app = makeApp(registerSessionAuthRoutes, { tenant: tenant as never })
+
+    const res = await request(app, makeEnv(), { identifier: 'alice', password: 'StrongPass123' })
+
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({
+      code: 'validation_failed',
+      meta: { paramName: 'email' },
+    })
+  })
+
+  it('root 入口 identifier 匹配多个组织 -> organization_selection_required', async () => {
+    const rootTenant = {
+      ...makeTenant(),
+      tenantId: 'tenant-entry',
+      resolution: { kind: 'instance_entry', primaryDomain: 'xid.dev', unresolvedRoot: true },
+    }
+    vi.mocked(resolveInstanceLoginCandidates).mockResolvedValue({
+      ok: true,
+      value: { status: 'ambiguous', matches: [], matchedBy: 'email' },
+    } as never)
+    const app = makeApp(registerSessionAuthRoutes, { tenant: rootTenant as never })
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'multi@example.com',
+      password: 'StrongPass123',
+    })
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'organization_selection_required' })
+    expect(verifyPassword).not.toHaveBeenCalled()
+  })
+
+  it('根域由 session cookie 推出租户 A 时,显式 organizationId=B 仍按 B 登录', async () => {
+    const tenantB = { ...makeTenant('tenant-B') }
+    const cookieTenant = {
+      ...makeTenant('tenant-A'),
+      resolution: { kind: 'tenant', primaryDomain: 'xid.dev', sessionDerivedRoot: true },
+    }
+    vi.mocked(resolveTenantContextById).mockResolvedValue({
+      ok: true,
+      value: { status: 'resolved', tenant: tenantB },
+    } as never)
+    vi.mocked(verifyPassword).mockResolvedValue(true)
+    vi.mocked(createTenantDb).mockReturnValue(
+      dbWithUser({
+        emailUserId: 'user-b',
+        user: { id: 'user-b', status: 'active', lockoutUntil: null },
+        passwordHash: '$argon2id$stored',
+      }),
+    )
+    const app = makeApp(registerSessionAuthRoutes, { tenant: cookieTenant as never })
+
+    const res = await request(app, makeEnv(), {
+      identifier: 'user@example.com',
+      password: 'CorrectHorse12',
+      organizationId: 'tenant-B',
+    })
+
+    expect(res.status).toBe(200)
+    expect(createTenantDb).toHaveBeenCalledWith(expect.anything(), tenantB)
   })
 })

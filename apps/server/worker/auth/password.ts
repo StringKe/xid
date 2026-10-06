@@ -280,6 +280,52 @@ export type ResetTokenPayload = {
   iss: string
   purpose: 'password_reset'
   tenant_id: string
+  intent?: string
+  continue_path?: string
+  client_id?: string
+  email_hash?: string
+}
+
+// 签名保护的续跑上下文与收件邮箱绑定;取值由调用方校验(intent/continue 走 resolveHostedAuthFlow)。
+export type ResetTokenContext = {
+  intent: string | null
+  continuePath: string | null
+  clientId: string | null
+  emailHash: string | null
+}
+
+const RESET_CONTEXT_CLAIMS = {
+  intent: 'intent',
+  continuePath: 'continue_path',
+  clientId: 'client_id',
+  emailHash: 'email_hash',
+} as const satisfies Record<keyof ResetTokenContext, keyof ResetTokenPayload>
+
+function resetContextClaims(
+  context: Partial<ResetTokenContext> | undefined,
+): Partial<ResetTokenPayload> {
+  const claims: Partial<ResetTokenPayload> = {}
+  for (const [key, claim] of Object.entries(RESET_CONTEXT_CLAIMS)) {
+    const value = context?.[key as keyof ResetTokenContext]
+    if (value) claims[claim] = value
+  }
+  return claims
+}
+
+function readResetContext(payload: Record<string, unknown>): ResetTokenContext | null {
+  const context: ResetTokenContext = {
+    intent: null,
+    continuePath: null,
+    clientId: null,
+    emailHash: null,
+  }
+  for (const [key, claim] of Object.entries(RESET_CONTEXT_CLAIMS)) {
+    const value = payload[claim]
+    if (value === undefined) continue
+    if (typeof value !== 'string' || value === '') return null
+    context[key as keyof ResetTokenContext] = value
+  }
+  return context
 }
 
 export type CreateResetTokenResult = {
@@ -298,7 +344,7 @@ export type ResetTokenSigner = {
 export async function createResetToken(
   userId: string,
   signer: ResetTokenSigner,
-  opts: { issuer: string; tenantId: string },
+  opts: { issuer: string; tenantId: string; context?: Partial<ResetTokenContext> },
 ): Promise<CreateResetTokenResult> {
   const jti = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
   const iat = Math.floor(Date.now() / 1000)
@@ -311,6 +357,7 @@ export async function createResetToken(
     exp,
     purpose: 'password_reset',
     tenant_id: opts.tenantId,
+    ...resetContextClaims(opts.context),
   }
   const token = await signJwt(
     { header: { alg: signer.alg, kid: signer.kid }, payload },
@@ -321,7 +368,7 @@ export async function createResetToken(
 }
 
 export type VerifyResetTokenResult =
-  | { ok: true; userId: string; jti: string }
+  | { ok: true; userId: string; jti: string; context: ResetTokenContext }
   | { ok: false; reason: 'invalid' | 'expired' }
 
 export async function verifyResetToken(
@@ -343,5 +390,7 @@ export async function verifyResetToken(
   ) {
     return { ok: false, reason: 'invalid' }
   }
-  return { ok: true, userId: sub, jti }
+  const context = readResetContext(verified.value.payload)
+  if (!context) return { ok: false, reason: 'invalid' }
+  return { ok: true, userId: sub, jti, context }
 }

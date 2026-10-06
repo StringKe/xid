@@ -1,114 +1,61 @@
-// POST /auth/forgot-password + /auth/reset-password(前端 forgot-password/index.tsx)。
-// forgot-password:createResetToken(tenant active signing key JWT,15min,DB 只存 tokenHash=sha256(token))+ 限流 + 发邮件。
-//   枚举防护(铁律):email 不存在静默返回 200,不泄露存在性;仅限流抛 rate_limited。
-// reset-password:verifyResetToken(过期->token_expired/无效->token_invalid)+ 长度/HIBP/历史复用校验 +
-//   token 一次性消费(consumedAt,按 tokenHash=sha256(token))+ 重哈希写 passwords + 旧密码入历史 + 自动登录。
+// POST /auth/forgot-password + /auth/reset-password。
+// forgot-password:恒 200(邮箱不存在、形状错误、多组织都不泄露);identifier 匹配多个组织时逐个发信,
+//   重置链接自带租户 hint。续跑上下文(client_id / continue / intent)写进 token 签名 claim。
+// reset-password:验签 -> 长度/HIBP/历史 -> 用户仍 active -> 一次性消费 -> 写密码 -> 证明过的主邮箱标为已验证
+//   -> 撤销该用户全部 session 与 OAuth 凭据 -> 签发新 session,按续跑上下文返回 redirectUrl。
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { defaultLandingPathFor } from '@xid-kit/types'
-import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
+import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { assertActiveSessionUser, issueSession } from '../lib/session'
+import { revokeUserCredentials } from '../lib/revoke-user-credentials'
 import { PASSWORD_AUTH_CONTEXT } from '../lib/auth-context'
 import { firstIssuePath, readJsonBody, validateCredentialBody } from '../lib/validate'
-import {
-  checkHibpBreached,
-  createResetToken,
-  hashPassword,
-  isPasswordReused,
-  passwordReuseTag,
-  validatePasswordLength,
-  verifyResetToken,
-} from '../auth/password'
+import { hashPassword, passwordReuseTag, verifyResetToken } from '../auth/password'
+import type { ResetTokenContext } from '../auth/password'
+import { assertAcceptableNewPassword } from '../auth/new-password'
 import { enforceSendRateLimit, requestIp, requestUserAgent, verifyTurnstile } from './shared'
-import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
 import { resolveTokenTenant } from './token-tenant'
-import { resolveEntryTenant, withTenant } from './instance-login'
-import { recordAuthTokenIssued } from '../auth/token-audit'
-import { buildVerifyKeySet, loadActiveSigner } from '../oidc/shared'
+import { resolveEntryTenants, withTenant } from './instance-login'
+import { buildVerifyKeySet } from '../oidc/shared'
 import { assertMethodAllowed, assertEmailAllowed } from '../auth/hosted-policy'
 import { auditPolicyDeniedError } from '../auth/hosted-audit'
-import { resolvePostAuthMfaGate } from '../lib/mfa-session'
+import { postAuthRedirectPath, resolvePostAuthMfaGate } from '../lib/mfa-session'
+import { shouldSkipDefaultMembership } from './passwordless-users'
+import { sendPasswordResetEmail, type ResetFlow } from './password-reset-token'
 
+const nullableString = v.optional(v.nullable(v.string()))
 const forgotBodySchema = v.object({
   email: v.optional(v.string()),
-  organizationId: v.optional(v.nullable(v.string())),
-  turnstileToken: v.optional(v.nullable(v.string())),
+  organizationId: nullableString,
+  clientId: nullableString,
+  intent: nullableString,
+  continue: nullableString,
+  turnstileToken: nullableString,
 })
 const resetBodySchema = v.object({
   token: v.optional(v.string()),
   password: v.optional(v.string()),
 })
+const NON_CREDENTIAL_FORGOT_FIELDS = new Set(['organizationId', 'clientId', 'intent', 'continue'])
 
-const RESET_PURPOSE = 'password_reset'
+type Db = ReturnType<typeof createTenantDb>
 
-export async function issuePasswordResetToken(opts: {
-  env: Env
-  tenant: TenantVar
-  db: ReturnType<typeof createTenantDb>
-  userId: string
-}): Promise<{ token: string; expiresAt: Date }> {
-  const { env, tenant, db, userId } = opts
-  const signer = await loadActiveSigner(tenant, env.KEK)
-  const { token, tokenHash, expiresAt } = await createResetToken(userId, signer, {
-    issuer: tenant.issuer,
-    tenantId: tenant.tenantId,
-  })
-  await db.passwordResetTokens.hardDelete(
-    and(
-      eq(schema.passwordResetTokens.userId, userId),
-      eq(schema.passwordResetTokens.purpose, RESET_PURPOSE),
-      or(
-        isNotNull(schema.passwordResetTokens.consumedAt),
-        lte(schema.passwordResetTokens.expiresAt, new Date()),
-      ),
-    ),
-  )
-  await db.passwordResetTokens.insert({
-    id: crypto.randomUUID(),
-    tenantId: tenant.tenantId,
-    userId,
-    tokenHash,
-    purpose: RESET_PURPOSE,
-    expiresAt,
-  })
-  await recordAuthTokenIssued({
-    env,
-    tenant,
-    purpose: RESET_PURPOSE,
-    userId,
-    kid: signer.kid,
-  })
-  return { token, expiresAt }
-}
-
-export async function handleForgotPassword(c: Context<XidHonoEnv>): Promise<Response> {
-  const json = await readJsonBody(c)
-  // 坏 JSON 与"邮箱不存在"同响应 200(枚举防护)。
-  if (!json.ok) return c.json({ ok: true })
-  const parsed = v.safeParse(forgotBodySchema, json.value)
-  if (!parsed.success) {
-    const paramName = firstIssuePath(parsed.issues)
-    // email 形状失败同样静默 200:不区分"形状错误"与"邮箱不存在";organizationId 非凭证字段,422 精确映射。
-    if (paramName.split('.')[0] !== 'organizationId') return c.json({ ok: true })
-    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName } })
-  }
-  const body = parsed.output
-  const email = (body.email ?? '').trim().toLowerCase()
-  if (!email) return c.json({ ok: true })
-  // 密码重置请求是 Turnstile 介入点(01 章 7 防刷);secret 未配置时跳过(dev/test 友好)。
-  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
-  const tenant = await resolveEntryTenant(c, { kind: 'email', value: email }, body.organizationId)
-
+async function sendResetForTenant(
+  c: Context<XidHonoEnv>,
+  tenant: TenantVar,
+  input: { email: string; flow: ResetFlow },
+): Promise<void> {
+  const { email, flow } = input
   // 限流:1/min + 5/hour per 邮箱(超限抛 rate_limited,前端唯一区分的错误)。
   await enforceSendRateLimit(c.env, `pwreset:${tenant.tenantId}`, email)
-
-  const db = createTenantDb(c.env.DB, tenant)
   try {
     assertMethodAllowed(tenant, 'password', 'login')
     assertEmailAllowed(tenant, email)
@@ -119,47 +66,66 @@ export async function handleForgotPassword(c: Context<XidHonoEnv>): Promise<Resp
       action: 'login',
       identifier: { type: 'email', value: email },
     })
-    return c.json({ ok: true })
+    return
   }
-
-  // 枚举防护:email 不存在静默返回 200。
+  const db = createTenantDb(c.env.DB, tenant)
   const emailRow = await db.userEmails.findOne(eq(schema.userEmails.email, email))
-  if (!emailRow) return c.json({ ok: true })
-
-  const { token } = await issuePasswordResetToken({
+  if (!emailRow) return
+  await sendPasswordResetEmail({
     env: c.env,
     tenant,
     db,
     userId: emailRow.userId,
+    email,
+    locale: c.get('locale'),
+    flow,
   })
+}
 
-  await c.env.EMAIL_QUEUE.send({
-    type: 'password_reset',
-    recipient: email,
-    payload: {
-      tenantId: tenant.tenantId,
-      userId: emailRow.userId,
-      token,
-      link: `${hostedAuthOriginForTenant(tenant)}/reset-password#${new URLSearchParams({ token }).toString()}`,
-      expires: 15,
-      expiresInMin: 15,
+export async function handleForgotPassword(c: Context<XidHonoEnv>): Promise<Response> {
+  const json = await readJsonBody(c)
+  // 坏 JSON 与"邮箱不存在"同响应 200(枚举防护)。
+  if (!json.ok) return c.json({ ok: true })
+  const parsed = v.safeParse(forgotBodySchema, json.value)
+  if (!parsed.success) {
+    const paramName = firstIssuePath(parsed.issues)
+    // email 形状失败同样静默 200;非凭证字段 422 精确映射。
+    if (!NON_CREDENTIAL_FORGOT_FIELDS.has(paramName.split('.')[0] ?? ''))
+      return c.json({ ok: true })
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName } })
+  }
+  const body = parsed.output
+  const email = (body.email ?? '').trim().toLowerCase()
+  if (!email) return c.json({ ok: true })
+  const flow = resolveHostedAuthFlow({
+    intent: body.intent,
+    continuePath: body.continue,
+    applicationClientId: body.clientId,
+    defaultContinuePath: defaultLandingPathFor(c.get('tenant')),
+  })
+  if (!flow) throw new AppError('invalid_request')
+  await verifyTurnstile(body.turnstileToken, c.env, requestIp(c))
+  const tenants = await resolveEntryTenants(
+    c,
+    { kind: 'email', value: email },
+    body.organizationId,
+    {
+      applicationClientId: flow.applicationClientId,
     },
-  })
-
+  )
+  for (const tenant of tenants) {
+    await withTenant(c, tenant, () => sendResetForTenant(c, tenant, { email, flow }))
+  }
   return c.json({ ok: true })
 }
 
-// token 一次性消费:按 tokenHash=sha256(token) 查行 + 状态校验 + 标记 consumed。返回绑定 userId。
-async function consumeResetToken(
-  db: ReturnType<typeof createTenantDb>,
-  token: string,
-  expectedUserId: string,
-): Promise<void> {
+// token 一次性消费:按 tokenHash=sha256(token) 查行 + 状态校验 + 标记 consumed。
+async function consumeResetToken(db: Db, token: string, expectedUserId: string): Promise<void> {
   const tokenHash = await sha256Hex(token)
   const row = await db.passwordResetTokens.findOne(
     eq(schema.passwordResetTokens.tokenHash, tokenHash),
   )
-  // HMAC 有效但 DB 无记录 / 已消费 / 过期 / userId 不符 -> 无效(防重放)。
+  // 签名有效但 DB 无记录 / 已消费 / userId 不符 -> 无效(防重放)。
   if (!row || row.consumedAt !== null || row.userId !== expectedUserId) {
     throw new AppError('token_invalid')
   }
@@ -176,45 +142,103 @@ async function consumeResetToken(
   if (consumed && consumed.length === 0 && row.id) throw new AppError('token_invalid')
 }
 
-// 写新密码:旧 hash 入历史 + 更新 passwords 行(无行则插入)。
+// 写新密码:旧 hash 入历史 + 更新 passwords 行(无行则插入)。返回此前是否已有密码。
 async function persistNewPassword(opts: {
-  db: ReturnType<typeof createTenantDb>
+  db: Db
   tenant: TenantVar
   userId: string
-  newHash: { hash: string; algo: 'argon2id'; pepperVersion: number }
-  reuseTag: string
-}): Promise<void> {
-  const { db, tenant, userId, newHash, reuseTag } = opts
+  password: string
+  pepper: string
+}): Promise<boolean> {
+  const { db, tenant, userId } = opts
+  const reuseTag = await passwordReuseTag(opts.password, opts.pepper)
+  const newHash = await hashPassword(opts.password, opts.pepper)
   const current = await db.passwords.findOne(eq(schema.passwords.userId, userId))
-  if (current) {
-    await db.passwordHistory.insert({
+  if (!current) {
+    await db.passwords.insert({
       id: crypto.randomUUID(),
       tenantId: tenant.tenantId,
       userId,
-      hash: current.hash,
-      reuseTag: current.reuseTag,
+      hash: newHash.hash,
+      algo: 'argon2id',
+      pepperVersion: newHash.pepperVersion,
+      reuseTag,
     })
-    await db.passwords.update(
-      {
-        hash: newHash.hash,
-        algo: 'argon2id',
-        pepperVersion: newHash.pepperVersion,
-        reuseTag,
-        breached: false,
-      },
-      eq(schema.passwords.userId, userId),
-    )
-    return
+    return false
   }
-  await db.passwords.insert({
+  await db.passwordHistory.insert({
     id: crypto.randomUUID(),
     tenantId: tenant.tenantId,
     userId,
-    hash: newHash.hash,
-    algo: 'argon2id',
-    pepperVersion: newHash.pepperVersion,
-    reuseTag,
+    hash: current.hash,
+    reuseTag: current.reuseTag,
   })
+  await db.passwords.update(
+    {
+      hash: newHash.hash,
+      algo: 'argon2id',
+      pepperVersion: newHash.pepperVersion,
+      reuseTag,
+      breached: false,
+    },
+    eq(schema.passwords.userId, userId),
+  )
+  return true
+}
+
+// 重置链接送达即证明邮箱控制权:主邮箱仍未验证时标为已验证;hosted_password 首次设密时补默认 membership,
+// 与邮箱验证仪式的结果一致,避免下次登录再被要求验证。
+async function applyEmailProof(opts: {
+  db: Db
+  tenant: TenantVar
+  userId: string
+  emailHash: string | null
+  hadPassword: boolean
+  flow: ResetFlow
+}): Promise<void> {
+  const { db, tenant, userId } = opts
+  if (!opts.emailHash) return
+  const user = await db.users.findOne(eq(schema.users.id, userId))
+  if (!user?.primaryEmailId) return
+  const primary = await db.userEmails.findOne(
+    and(eq(schema.userEmails.id, user.primaryEmailId), eq(schema.userEmails.userId, userId)),
+  )
+  if (!primary || (await sha256Hex(primary.email.trim().toLowerCase())) !== opts.emailHash) return
+  if (!primary.verified || primary.verificationStatus !== 'verified') {
+    await db.userEmails.update(
+      { verified: true, verificationStatus: 'verified', verifiedAt: new Date() },
+      and(eq(schema.userEmails.id, primary.id), eq(schema.userEmails.userId, userId)),
+    )
+  }
+  const skipDefaultMembership = shouldSkipDefaultMembership({
+    redirectAfterLogin: opts.flow.continuePath,
+    intent: opts.flow.intent,
+  })
+  if (user.provisionedBy !== 'hosted_password' || opts.hadPassword || skipDefaultMembership) return
+  await db.memberships.insertManyIgnore([
+    {
+      id: createPersistedId('membership'),
+      tenantId: tenant.tenantId,
+      orgId: tenant.tenantId,
+      userId,
+      role: 'member',
+      membershipType: 'member',
+      status: 'active',
+      isManaged: false,
+      joinedAt: new Date(),
+    },
+  ])
+}
+
+function resetFlowFrom(tenant: TenantVar, context: ResetTokenContext): ResetFlow {
+  const flow = resolveHostedAuthFlow({
+    intent: context.intent,
+    continuePath: context.continuePath,
+    applicationClientId: context.clientId,
+    defaultContinuePath: defaultLandingPathFor(tenant),
+  })
+  if (!flow) throw new AppError('token_invalid')
+  return flow
 }
 
 export async function handleResetPassword(c: Context<XidHonoEnv>): Promise<Response> {
@@ -231,75 +255,70 @@ export async function handleResetPassword(c: Context<XidHonoEnv>): Promise<Respo
   const tenant = await resolveTokenTenant(c, token, 'token_invalid')
 
   return withTenant(c, tenant, async () => {
-    // 1. JWT 验签(过期/无效映射 token_*)。
-    const verifyKeys = await buildVerifyKeySet(tenant)
-    const verified = await verifyResetToken(token, verifyKeys, {
+    const verified = await verifyResetToken(token, await buildVerifyKeySet(tenant), {
       expectedIssuer: tenant.issuer,
       expectedTenantId: tenant.tenantId,
     })
     if (!verified.ok) {
       throw new AppError(verified.reason === 'expired' ? 'token_expired' : 'token_invalid')
     }
+    const flow = resetFlowFrom(tenant, verified.context)
 
     try {
       assertMethodAllowed(tenant, 'password', 'login')
     } catch (error) {
-      throw await auditPolicyDeniedError(c, error, {
-        tenant,
-        method: 'password',
-        action: 'login',
-      })
+      throw await auditPolicyDeniedError(c, error, { tenant, method: 'password', action: 'login' })
     }
 
-    // 2. 新密码长度 + HIBP(命中 password_breached)。
-    const lengthCheck = validatePasswordLength(password)
-    if (!lengthCheck.ok) {
-      throw new AppError('validation_failed', { meta: { paramName: 'password' } })
-    }
-    if (await checkHibpBreached(password)) throw new AppError('password_breached')
-
-    // 3. 历史复用拒绝(最近 5 条)。
-    const reused = await isPasswordReused({
+    await assertAcceptableNewPassword({
       ctx: tenant,
       d1: c.env.DB,
       userId: verified.userId,
-      newPassword: password,
+      password,
       pepperRaw: c.env.PEPPER,
+      paramName: 'password',
     })
-    if (reused) throw new AppError('password_reused', { meta: { paramName: 'password' } })
 
     const db = createTenantDb(c.env.DB, tenant)
-
-    // 4. 用户仍必须是 active non-deleted。不能先消费 token 或改密码,再由自动登录失败兜底。
+    // 用户仍必须是 active non-deleted。不能先消费 token 或改密码,再由自动登录失败兜底。
     await assertActiveSessionUser(db, verified.userId)
-
-    // 5. token 一次性消费(DB 侧二次校验防重放)。
     await consumeResetToken(db, token, verified.userId)
+    const hadPassword = await persistNewPassword({
+      db,
+      tenant,
+      userId: verified.userId,
+      password,
+      pepper: c.env.PEPPER,
+    })
+    await applyEmailProof({
+      db,
+      tenant,
+      userId: verified.userId,
+      emailHash: verified.context.emailHash,
+      hadPassword,
+      flow,
+    })
+    // 重置意味着旧凭据可能已泄露:先撤销全部旧 session 与 refresh family,再签发本次 session。
+    await revokeUserCredentials(c.env, tenant, verified.userId)
 
-    // 6. 写新密码 + 旧密码入历史。
-    const reuseTag = await passwordReuseTag(password, c.env.PEPPER)
-    const newHash = await hashPassword(password, c.env.PEPPER)
-    await persistNewPassword({ db, tenant, userId: verified.userId, newHash, reuseTag })
-
-    // 7. 自动登录(前端 reset 成功后 refresh())。
-    const now = new Date()
+    const returnPath = postAuthRedirectPath({
+      intent: flow.intent,
+      continueParam: flow.continuePath,
+      fallback: defaultLandingPathFor(tenant),
+    })
     const mfaGate = await resolvePostAuthMfaGate(c, tenant, {
       userId: verified.userId,
-      returnPath: defaultLandingPathFor(c.get('tenant')),
+      returnPath,
     })
     await issueSession(c, {
       sessionId: createPersistedId('session'),
       userId: verified.userId,
       ...(mfaGate.sessionStatus ? { status: mfaGate.sessionStatus } : {}),
       authContext: PASSWORD_AUTH_CONTEXT,
-      authenticatedAt: now,
+      authenticatedAt: new Date(),
       ip: requestIp(c),
       userAgent: requestUserAgent(c),
     })
-
-    return c.json({
-      ok: true,
-      ...(mfaGate.redirectUrl ? { redirectUrl: mfaGate.redirectUrl } : {}),
-    })
+    return c.json({ ok: true, redirectUrl: mfaGate.redirectUrl ?? returnPath })
   })
 }
