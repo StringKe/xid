@@ -123,7 +123,11 @@ remain in Core.
 The root path `/` belongs to Site only on the apex. On tenant subdomains and custom hostnames Core
 serves it and lands the user on the account portal, which sends a signed-out visitor to sign-in. An
 active custom hostname carries Hosted Auth and the account portal but no Console route, so Core
-redirects a `/console` request there to `/account` instead of answering with an empty 404.
+redirects a `/console` request there to `/account` instead of answering with an empty 404. A
+self-hosted instance whose primary domain is not covered by the ownership rules reaches Core for
+`/console` on its instance and tenant hosts; once the host resolves to a TenantContext, Core
+delegates that GET or HEAD request through `CONSOLE_WORKER`. An unresolved host still gets the
+fail-closed 404.
 
 The private `@xid-kit/web-ui` package contains the UI primitives, theme, locale, session, API client,
 query helpers, and router adapter shared by Hosted UI and Console. The protocol, WebAuthn, crypto,

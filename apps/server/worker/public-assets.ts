@@ -51,11 +51,16 @@ function movedSurfaceNotFound(owner: 'site' | 'console'): Response {
   })
 }
 
-// 自定义域名只承载 Hosted Auth 与账户门户(defaultLandingPathFor):/console 改落 /account,不给空白 404。
-async function servesAccountInsteadOfConsole(c: Context<XidHonoEnv>): Promise<boolean> {
-  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return false
+// 落到 Core 的 /console 只来自归属规则未覆盖的主机:自定义域名只承载 Hosted Auth 与账户门户,改落
+// /account;实例主域名不是 xid.dev 的自托管部署(及其租户子域)交给 Console Worker;无法解析的主机仍 404。
+async function serveUnroutedConsole(c: Context<XidHonoEnv>): Promise<Response> {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return movedSurfaceNotFound('console')
   const tenant = await resolveTenantContext(c.req.raw, c.env)
-  return tenant.ok && defaultLandingPathFor(tenant.value) === ACCOUNT_EXACT_PATH
+  if (!tenant.ok) return movedSurfaceNotFound('console')
+  if (defaultLandingPathFor(tenant.value) === ACCOUNT_EXACT_PATH) {
+    return c.redirect(ACCOUNT_EXACT_PATH, 302)
+  }
+  return delegateFrontendRequest(c, 'console')
 }
 
 async function serveCoreSpaAsset(c: Context<XidHonoEnv>): Promise<Response> {
@@ -63,10 +68,7 @@ async function serveCoreSpaAsset(c: Context<XidHonoEnv>): Promise<Response> {
   if (url.pathname === '/docs' || url.pathname.startsWith('/docs/')) {
     return movedSurfaceNotFound('site')
   }
-  if (isConsoleRoute(url.pathname)) {
-    if (await servesAccountInsteadOfConsole(c)) return c.redirect(ACCOUNT_EXACT_PATH, 302)
-    return movedSurfaceNotFound('console')
-  }
+  if (isConsoleRoute(url.pathname)) return serveUnroutedConsole(c)
 
   const decision = resolveWebRouteOwnership(url)
   if (decision.owner === 'site' || decision.owner === 'console') {

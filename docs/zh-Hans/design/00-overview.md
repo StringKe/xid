@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=3e32437fc76c248114921016c14fe099f0cd71a6 -->
+<!-- xid-translation source=docs/design/00-overview.md source-commit=5d55b0c source-blob=f4ba4606d3cad6b9d78f8c920531234ddb915b2b -->
 
 > Translation of `docs/design/00-overview.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/00-overview.md`](../../design/00-overview.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -108,7 +108,9 @@ Custom Domain。Core 使用同一份 ownership contract 判定,只通过单向 `
 
 根路径 `/` 只在 apex 上归 Site。tenant 子域与 custom hostname 上由 Core 承载,落到账户门户,
 未登录访客再被送往登录页。active custom hostname 承载 Hosted Auth 与账户门户,不路由 Console,
-因此 Core 把那里的 `/console` 请求重定向到 `/account`,不返回空白 404。
+因此 Core 把那里的 `/console` 请求重定向到 `/account`,不返回空白 404。主域名未被归属规则
+覆盖的自托管实例,其实例与租户主机上的 `/console` 会落到 Core;主机能解析出 TenantContext 时,
+Core 通过 `CONSOLE_WORKER` 委派该 GET 或 HEAD 请求。无法解析的主机仍按 fail closed 返回 404。
 
 私有 `@xid-kit/web-ui` package 包含 Hosted UI 与 Console 共用的 UI primitives、theme、locale、
 session、API client、query helpers 与 router adapter。protocol、WebAuthn、crypto、SAML、database
