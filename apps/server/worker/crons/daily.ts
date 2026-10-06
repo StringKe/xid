@@ -7,6 +7,7 @@ import { parseIdpMetadataXml } from '@xid-kit/saml'
 import type { SigningAlg } from '@xid-kit/types'
 import { decodeKek } from '../oidc/shared'
 import { createPersistedId } from '../lib/persisted-id'
+import { domainVerificationRecord } from '../lib/domain-verification'
 import { sessionDoRevokeAll } from '../lib/session'
 import { GUEST_GC_INACTIVE_DAYS } from '../lib/ttl'
 import { isPublicHttpsUrl } from '../lib/validate'
@@ -54,7 +55,6 @@ const SAML_METADATA_MAX_BYTES = 1024 * 1024
 const SAML_METADATA_FETCH_TIMEOUT_MS = 10_000
 const DNS_TXT_FETCH_TIMEOUT_MS = 5_000
 const METERING_EVICT_PAGE_SIZE = 50
-const VERIFY_TXT_PREFIX = 'xid-verify='
 const KEK_VERSION = 1
 
 // 上月 "YYYY-MM"(UTC)。
@@ -81,16 +81,7 @@ function normalizeDnsTxt(value: string): string {
   return value.replace(/^"|"$/g, '').replace(/\\"/g, '"').trim()
 }
 
-function expectedTxt(token: string): string {
-  return `${VERIFY_TXT_PREFIX}${token}`
-}
-
-function dnsTxtName(domain: string): string {
-  return `_xid.${domain.replace(/^\*\./, '')}`
-}
-
-async function fetchDnsTxtRecords(domain: string): Promise<string[]> {
-  const name = dnsTxtName(domain)
+async function fetchDnsTxtRecords(name: string): Promise<string[]> {
   const url = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=TXT`
   const response = await fetch(url, {
     headers: { accept: 'application/dns-json' },
@@ -102,9 +93,9 @@ async function fetchDnsTxtRecords(domain: string): Promise<string[]> {
 }
 
 export async function verifyDomainDnsTxt(domain: string, token: string): Promise<boolean> {
-  const records = await fetchDnsTxtRecords(domain)
-  const expected = expectedTxt(token)
-  return records.some((record) => record === expected)
+  const record = domainVerificationRecord(domain, token)
+  const records = await fetchDnsTxtRecords(record.name)
+  return records.some((value) => value === record.value)
 }
 
 // JWKS 密钥轮换检查:到达 retire_after 的旧公钥下线;active 密钥临近过期则发布 next key。

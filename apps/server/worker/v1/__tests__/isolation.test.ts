@@ -408,6 +408,9 @@ function makeFakeKv(): KVNamespace {
     put: async (key: string, value: string) => {
       store.set(key, value)
     },
+    delete: async (key: string) => {
+      store.delete(key)
+    },
   })
 }
 
@@ -7645,7 +7648,10 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
       CACHE: makeFakeKv(),
       WEBHOOK_QUEUE: makeFakeQueue(),
     })
-    const app = buildApp(registerOrganizationsRoutes)
+    const app = buildApp((parent) => {
+      registerOrganizationsRoutes(parent)
+      registerMembershipsRoutes(parent)
+    })
 
     const list = await app.request(
       'https://acme.xid.dev/v1/organizations/org_1/members',
@@ -7655,15 +7661,17 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     expect(list.status).toBe(200)
     const before = (await list.json()) as {
       data: Record<string, unknown>[]
-      nextCursor: string | null
+      next_cursor: string | null
+      has_more: boolean
       total: number
     }
     expect(before.data.map((row) => row['id']).sort()).toEqual(['mem_admin', 'mem_target'])
-    expect(before.nextCursor).toBeNull()
+    expect(before.next_cursor).toBeNull()
+    expect(before.has_more).toBe(false)
     expect(before.total).toBe(2)
 
     const del = await app.request(
-      'https://acme.xid.dev/v1/organizations/org_1/members/mem_target',
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_target',
       { method: 'DELETE', headers: { Cookie: `${cookieName}=${token}` } },
       env,
     )
@@ -7678,6 +7686,76 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     const after = (await afterList.json()) as { data: Record<string, unknown>[]; total: number }
     expect(after.data.map((row) => row['id'])).toEqual(['mem_admin'])
     expect(after.total).toBe(1)
+  })
+
+  async function ownerRemovalFixture(callerRole: 'admin' | 'owner') {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_caller',
+      activeOrgId: 'org_1',
+    })
+    const membership = (id: string, userId: string, role: string) => ({
+      id,
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      user_id: userId,
+      role,
+      status: 'active',
+      joined_at: Date.now(),
+      created_at: Date.now(),
+    })
+    const user = (id: string) => ({ id, tenant_id: 't_1', status: 'active', deleted_at: null })
+    const owner = membership('mem_owner', 'user_owner', 'owner')
+    const caller = membership('mem_caller', 'user_caller', callerRole)
+    const db = makeFakeD1({
+      sessions: [session],
+      organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+      memberships: [owner, caller],
+      users: [user('user_owner'), user('user_caller')],
+    })
+    const env = asUnknown<Env>({
+      DB: db,
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    return { token, cookieName, owner, caller, env, app: buildApp(registerMembershipsRoutes) }
+  }
+
+  it('admin 不能移除 owner,返回 403 且 owner 保持 active', async () => {
+    const { token, cookieName, owner, env, app } = await ownerRemovalFixture('admin')
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_owner',
+      { method: 'DELETE', headers: { Cookie: `${cookieName}=${token}` } },
+      env,
+    )
+
+    expect(res.status).toBe(403)
+    expect(owner['status']).toBe('active')
+  })
+
+  it('owner 可移除另一名 owner,但移除最后一名 owner 返回 409', async () => {
+    const { token, cookieName, owner, caller, env, app } = await ownerRemovalFixture('owner')
+
+    const first = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_owner',
+      { method: 'DELETE', headers: { Cookie: `${cookieName}=${token}` } },
+      env,
+    )
+    const last = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/memberships/mem_caller',
+      { method: 'DELETE', headers: { Cookie: `${cookieName}=${token}` } },
+      env,
+    )
+
+    expect(first.status).toBe(204)
+    expect(owner['status']).toBe('inactive')
+    expect(last.status).toBe(409)
+    expect(caller['status']).toBe('active')
   })
 })
 
@@ -8352,6 +8430,7 @@ describe('v1 organizations logo 上传', () => {
     const stored = new Map<string, { contentType?: string }>()
     const env = asUnknown<Env>({
       DB: db,
+      CACHE: makeFakeKv(),
       WEBHOOK_QUEUE: makeFakeQueue(),
       STORAGE: {
         put: async (
@@ -8380,6 +8459,9 @@ describe('v1 organizations logo 上传', () => {
     )
     expect(body.organization.logo_url).toBe(body.logo_url)
     expect(org['logo_url']).toBe(body.logo_url)
+    expect(JSON.parse(String(org['private_metadata']))).toMatchObject({
+      branding: { logoUrl: body.logo_url },
+    })
 
     const entries = [...stored.entries()]
     expect(entries).toHaveLength(1)
@@ -8827,5 +8909,211 @@ describe('v1 memberships 响应白名单(内部字段不外泄)', () => {
     expect(body['orgId']).toBe('org_1')
     expect(body['userId']).toBe('user_1')
     expect(body['role']).toBe('admin')
+  })
+})
+
+describe('Console 组织页契约:webhook 订阅、API key、品牌、域名、审计筛选与写审计', () => {
+  const ORG_1 = { id: 'org_1', tenant_id: 't_1', status: 'active', private_metadata: {} }
+
+  async function apiKeyEnv(tables: Record<string, Record<string, unknown>[]> = {}) {
+    const { token, row } = await makeApiKeyRow('t_1')
+    const auditSend = vi.fn(async () => undefined)
+    const webhookSend = vi.fn(async () => undefined)
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({ api_keys: [row], organizations: [ORG_1], ...tables }),
+      KEK: testKek(),
+      CACHE: makeFakeKv(),
+      AUDIT_QUEUE: { send: auditSend },
+      WEBHOOK_QUEUE: { send: webhookSend },
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    return { env, headers, auditSend, webhookSend }
+  }
+
+  it('webhook 拒绝未发出的事件名,空订阅可以创建并写审计', async () => {
+    const { env, headers, auditSend } = await apiKeyEnv()
+    const app = buildApp(registerWebhooks)
+    const post = (eventTypes: string[]) =>
+      app.request(
+        'https://acme.xid.dev/v1/webhooks',
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ url: 'https://hooks.example.com/x', event_types: eventTypes }),
+        },
+        env,
+      )
+
+    const invalid = await post(['session.revoked'])
+    const allEvents = await post([])
+
+    expect(invalid.status).toBe(422)
+    expect(allEvents.status).toBe(201)
+    expect(auditSend).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'webhook.created', orgId: 't_1', actorId: 'ak_1' }),
+    )
+  })
+
+  it.each([
+    ['environment 非法', { name: 'ci', environment: 'sandbox' }],
+    ['expires_at 无效', { name: 'ci', expires_at: 'not-a-date' }],
+    ['expires_at 已过期', { name: 'ci', expires_at: '2000-01-01T00:00:00Z' }],
+  ])('API key 创建 %s 返回 422', async (_label, payload) => {
+    const { env, headers } = await apiKeyEnv()
+    const app = buildApp(registerApiKeys)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/api-keys',
+      { method: 'POST', headers, body: JSON.stringify(payload) },
+      env,
+    )
+
+    expect(res.status).toBe(422)
+  })
+
+  it('DELETE 撤销邀请与 POST revoke 一样发出 organizationInvitation.revoked', async () => {
+    const invitation = {
+      id: 'inv_1',
+      tenant_id: 't_1',
+      org_id: 'org_1',
+      email: 'user@example.com',
+      role: 'member',
+      token_hash: 'hash',
+      status: 'pending',
+      expires_at: Date.now() + 3_600_000,
+    }
+    const { env, headers, webhookSend, auditSend } = await apiKeyEnv({ invitations: [invitation] })
+    const app = buildApp(registerInvitationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/invitations/inv_1',
+      { method: 'DELETE', headers },
+      env,
+    )
+
+    expect(res.status).toBe(204)
+    expect(webhookSend).toHaveBeenCalledWith({
+      tenantId: 't_1',
+      event: 'organizationInvitation.revoked',
+      payload: { orgId: 'org_1', invitationId: 'inv_1' },
+    })
+    expect(auditSend).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'invitation.revoked', orgId: 'org_1' }),
+    )
+  })
+
+  it('branding PATCH:null 清除字段,非法颜色返回 422,他租户 org 返回 404', async () => {
+    const org = { ...ORG_1 }
+    const { env, headers } = await apiKeyEnv({
+      organizations: [org, { id: 'org_x', tenant_id: 't_other', status: 'active' }],
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const patch = (orgId: string, payload: Record<string, unknown>) =>
+      app.request(
+        `https://acme.xid.dev/v1/organizations/${orgId}/branding`,
+        { method: 'PATCH', headers, body: JSON.stringify(payload) },
+        env,
+      )
+
+    const set = await patch('org_1', { primaryColor: '#112233', accentColor: '#445566' })
+    const cleared = await patch('org_1', { primaryColor: null })
+    const invalid = await patch('org_1', { accentColor: 'red;}' })
+    const crossTenant = await patch('org_x', { primaryColor: '#000000' })
+
+    expect(set.status).toBe(200)
+    expect(cleared.status).toBe(200)
+    expect(await cleared.json()).toMatchObject({ primaryColor: null, accentColor: '#445566' })
+    expect(invalid.status).toBe(422)
+    expect(crossTenant.status).toBe(404)
+  })
+
+  it('域名响应返回与每日校验一致的 TXT 记录名和值', async () => {
+    const { env, headers } = await apiKeyEnv()
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/domains',
+      { method: 'POST', headers, body: JSON.stringify({ domain: 'Example.COM' }) },
+      env,
+    )
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as {
+      domain: string
+      verification_token: string
+      verification_record: { type: string; name: string; value: string }
+    }
+    expect(body.domain).toBe('example.com')
+    expect(body.verification_record).toEqual({
+      type: 'TXT',
+      name: '_xid.example.com',
+      value: `xid-verify=${body.verification_token}`,
+    })
+  })
+
+  // 区间筛选依赖真实 SQLite 比较语义,audit_events 查询转交 node:sqlite 执行。
+  function withSqliteAuditEvents(fake: D1Database, sqlite: DatabaseSync): D1Database {
+    const statement = (sql: string) => {
+      const stmt = sqlite.prepare(sql)
+      const bound = (params: unknown[]) => {
+        const values = params as (string | number | null)[]
+        return {
+          all: async () => ({ results: stmt.all(...values), success: true, meta: {} }),
+          raw: async () => stmt.all(...values).map((row) => Object.values(row)),
+          first: async () => stmt.get(...values) ?? null,
+          run: async () => ({ success: true, meta: { changes: stmt.run(...values).changes } }),
+        }
+      }
+      return { ...bound([]), bind: (...params: unknown[]) => bound(params) }
+    }
+    return asUnknown<D1Database>({
+      ...fake,
+      prepare: (sql: string) =>
+        /from "audit_events"/i.test(sql) ? statement(sql) : fake.prepare(sql),
+      batch: fake.batch.bind(fake),
+    })
+  }
+
+  it('审计筛选在服务端执行,非法时间参数返回 422', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`
+      CREATE TABLE audit_events (
+        seq INTEGER NOT NULL, id TEXT NOT NULL, source_message_id TEXT, tenant_id TEXT NOT NULL,
+        org_id TEXT, event_type TEXT NOT NULL, actor_id TEXT, actor_ip TEXT, target_type TEXT,
+        target_id TEXT, meta TEXT NOT NULL DEFAULT '{}', occurred_at TEXT NOT NULL,
+        prev_hash TEXT NOT NULL, hash TEXT NOT NULL
+      );
+      INSERT INTO audit_events (seq, id, tenant_id, org_id, event_type, occurred_at, prev_hash, hash)
+      VALUES
+        (1, 'ae_key_old', 't_1', 'org_1', 'api_key.created', '2024-01-01T00:00:00.000Z', '', ''),
+        (2, 'ae_key_new', 't_1', 'org_1', 'api_key.revoked', '2024-02-01T00:00:00.000Z', '', ''),
+        (3, 'ae_login', 't_1', 'org_1', 'user.signed_in', '2024-02-02T00:00:00.000Z', '', ''),
+        (4, 'ae_other_tenant', 't_other', 'org_1', 'api_key.revoked', '2024-02-01T00:00:00.000Z', '', '');
+    `)
+    const { env, headers } = await apiKeyEnv()
+    env.DB = withSqliteAuditEvents(env.DB, sqlite)
+    const app = buildApp(registerOrganizationsRoutes)
+    const get = (query: string) =>
+      app.request(
+        `https://acme.xid.dev/v1/organizations/org_1/audit-events?${query}`,
+        { headers },
+        env,
+      )
+
+    try {
+      const filtered = await get(
+        'event_type=api_key.&occurred_from=2024-01-15T00:00:00Z&occurred_to=2024-03-01T00:00:00Z',
+      )
+      const invalid = await get('occurred_from=yesterday')
+
+      expect(filtered.status).toBe(200)
+      const body = (await filtered.json()) as { data: { id: string }[]; total: number }
+      expect(body.data.map((row) => row.id)).toEqual(['ae_key_new'])
+      expect(body.total).toBe(1)
+      expect(invalid.status).toBe(422)
+    } finally {
+      sqlite.close()
+    }
   })
 })

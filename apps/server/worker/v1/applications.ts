@@ -9,6 +9,7 @@ import { normalizePublicJwks, STANDARD_OIDC_SCOPES } from '@xid-kit/protocol'
 import { TOKEN_POLICY_BOUNDS } from '@xid-kit/types'
 import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
@@ -21,10 +22,13 @@ import {
   validateRedirectUris,
 } from '../lib/validate'
 import {
+  auditActorId,
+  emitManagementAuditAsync,
   idAfterCursor,
   requireApiKeyOrTopLevelOrgManager,
   paginate,
   parsePagination,
+  type OrgScopedAuth,
 } from './shared'
 import {
   VALID_AUTH_METHODS,
@@ -198,6 +202,22 @@ function normalizeJwks(value: Record<string, unknown> | undefined): Record<strin
   return normalized.value
 }
 
+// application 是租户级资源,审计 orgId 记顶层组织,顶层组织管理员的审计页可见。
+function auditApplication(
+  c: Context<XidHonoEnv>,
+  auth: OrgScopedAuth,
+  input: { action: string; row: typeof schema.applications.$inferSelect },
+): void {
+  emitManagementAuditAsync(c, {
+    action: input.action,
+    actorId: auditActorId(auth),
+    orgId: c.get('tenant').tenantId,
+    targetType: 'application',
+    targetId: input.row.id,
+    details: { clientId: input.row.clientId },
+  })
+}
+
 // 应用行转对外响应(不返回 clientSecretHash)。
 function toResponse(row: typeof schema.applications.$inferSelect) {
   const mtlsConfig = (row.customClaimsConfig ?? {}) as Record<string, unknown>
@@ -242,7 +262,7 @@ app.get('/', async (c) => {
 
 // POST /v1/applications
 app.post('/', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -318,6 +338,7 @@ app.post('/', async (c) => {
     },
     status: 'active',
   })
+  auditApplication(c, auth, { action: 'application.created', row })
 
   return c.json(
     {
@@ -342,7 +363,7 @@ app.get('/:id', async (c) => {
 
 // PATCH /v1/applications/:id
 app.patch('/:id', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -429,12 +450,13 @@ app.patch('/:id', async (c) => {
   const updated = await db.applications.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  auditApplication(c, auth, { action: 'application.updated', row })
   return c.json(toResponse(row))
 })
 
 // DELETE /v1/applications/:id
 app.delete('/:id', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -444,12 +466,13 @@ app.delete('/:id', async (c) => {
   const existing = await db.applications.findOne(where)
   if (!existing) throw new AppError('not_found')
   await db.applications.update({ status: 'deleted', updatedAt: new Date() }, where)
+  auditApplication(c, auth, { action: 'application.deleted', row: existing })
   return new Response(null, { status: 204 })
 })
 
 // POST /v1/applications/:id/restore
 app.post('/:id/restore', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -463,12 +486,13 @@ app.post('/:id/restore', async (c) => {
   const updated = await db.applications.update({ status: 'active', updatedAt: new Date() }, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  auditApplication(c, auth, { action: 'application.restored', row })
   return c.json(toResponse(row))
 })
 
 // POST /v1/applications/:id/rotate-secret
 app.post('/:id/rotate-secret', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'applications:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -488,6 +512,7 @@ app.post('/:id/rotate-secret', async (c) => {
   const newSecret = genClientSecret()
   const newHash = await sha256Hex(newSecret)
   await db.applications.update({ clientSecretHash: newHash }, where)
+  auditApplication(c, auth, { action: 'application.secret_rotated', row: existing })
   return c.json({ client_secret: newSecret })
 })
 

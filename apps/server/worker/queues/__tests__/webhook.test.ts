@@ -169,6 +169,48 @@ describe('markDead:用投递时的订阅快照,不重新拉取', () => {
   })
 })
 
+describe('findSubscriptions:订阅事件匹配', () => {
+  async function envWithRows(eventTypes: readonly string[]) {
+    const kekBytes = new Uint8Array(32).fill(7)
+    const blob = await envelopeEncrypt(new Uint8Array(32).fill(1), kekBytes, 1)
+    const row = (id: string, types: string) => ({
+      id,
+      url: `https://hooks.example.com/${id}`,
+      event_types: types,
+      signing_secret_iv: base64UrlEncode(blob.iv),
+      signing_secret_ciphertext: base64UrlEncode(blob.ciphertext),
+      signing_secret_tag: base64UrlEncode(blob.tag),
+    })
+    const rows = [row('wh_listed', JSON.stringify(eventTypes)), row('wh_corrupt', 'not-json')]
+    return {
+      DB: {
+        prepare: () => ({ bind: () => ({ all: () => Promise.resolve({ results: rows }) }) }),
+      },
+      KEK: btoa(String.fromCharCode(...kekBytes)),
+    } as unknown as Env
+  }
+
+  it('空订阅接收全部事件,无法解析的行被跳过', async () => {
+    const { findSubscriptions } = await import('../webhook')
+    const env = await envWithRows([])
+
+    const subs = await findSubscriptions(env, 't1', 'user.created')
+
+    expect(subs.map((sub) => sub.id)).toEqual(['wh_listed'])
+  })
+
+  it('非空订阅只接收匹配的事件', async () => {
+    const { findSubscriptions } = await import('../webhook')
+    const env = await envWithRows(['organization.*'])
+
+    const matched = await findSubscriptions(env, 't1', 'organization.auth_policy.updated')
+    const skipped = await findSubscriptions(env, 't1', 'user.created')
+
+    expect(matched.map((sub) => sub.id)).toEqual(['wh_listed'])
+    expect(skipped).toEqual([])
+  })
+})
+
 describe('deliver:SSRF 防御深度', () => {
   const headers = {
     'svix-id': 'msg_1',

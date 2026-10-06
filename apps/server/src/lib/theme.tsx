@@ -2,6 +2,8 @@ export {
   DEFAULT_BRAND,
   THEME_MODES,
   ThemeProvider,
+  brandFromOrgBranding,
+  brandLogoUrl,
   brandToCssVars,
   useTheme,
 } from '@xid-kit/web-ui/theme'

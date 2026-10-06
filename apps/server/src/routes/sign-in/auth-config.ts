@@ -1,5 +1,10 @@
 import { ACCOUNT_EXACT_PATH } from '@xid-kit/types'
-import type { DefaultLandingPath, HostedAuthMethodPolicy, HostedAuthPolicy } from '@xid-kit/types'
+import type {
+  DefaultLandingPath,
+  HostedAuthMethodPolicy,
+  HostedAuthPolicy,
+  OrgBranding,
+} from '@xid-kit/types'
 
 export type PublicInstanceLoginMatch = {
   organizationId: string
@@ -54,6 +59,7 @@ export type PublicHostedAuthConfig = {
     reregistrationRequired: boolean
   }
   defaultLandingPath: DefaultLandingPath
+  branding: OrgBranding | null
 }
 
 const METHOD_DISABLED: HostedAuthMethodPolicy = {
@@ -100,6 +106,7 @@ export const DEFAULT_PUBLIC_AUTH_CONFIG: PublicHostedAuthConfig = {
   socialProviders: [],
   passkeyEntry: { identifierRequired: false, reregistrationRequired: false },
   defaultLandingPath: ACCOUNT_EXACT_PATH,
+  branding: null,
 }
 
 export function methodEnabled(

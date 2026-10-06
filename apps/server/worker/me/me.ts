@@ -442,6 +442,8 @@ app.get('/', async (c) => {
         name: organization.name,
         role,
         permissions: permissionsByOrg.get(organization.id) ?? [],
+        parentOrgId: organization.parentOrgId,
+        allowOrgSelfService: organization.allowOrgSelfService,
       },
     ]
   })
@@ -456,6 +458,8 @@ app.get('/', async (c) => {
       name: organization.name,
       role: 'admin',
       permissions: permissionsByOrg.get(organization.id) ?? [],
+      parentOrgId: organization.parentOrgId,
+      allowOrgSelfService: organization.allowOrgSelfService,
     })
   }
   const activeOrg = session.activeOrgId

@@ -7,7 +7,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { and, eq, gt } from 'drizzle-orm'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { Context } from 'hono'
-import type { OrganizationAdminRole } from '@xid-kit/types'
+import { API_KEY_SCOPE_RESOURCES, type OrganizationAdminRole } from '@xid-kit/types'
 import type { SessionData, XidHonoEnv } from '../lib/types'
 import type { RateLimitPolicy } from '../durable-objects/rate-limit-store'
 import { AppError } from '../lib/errors'
@@ -90,31 +90,7 @@ function apiKeyAllows(scopes: string[], requiredScopes: string[]): boolean {
 }
 
 // scope 词法白名单:只允许 v1 实际使用的资源名,防乱码 scope 入库(入库后 apiKeyAllows 永不命中等于废 key)。
-const API_KEY_SCOPE_RESOURCES = new Set([
-  'access-requests',
-  'api_keys',
-  'applications',
-  'audit_events',
-  'branding',
-  'connections',
-  'custom_hostnames',
-  'directories',
-  'invitations',
-  'memberships',
-  'organization_domains',
-  'organizations',
-  'org-units',
-  'permissions',
-  'projects',
-  'project_grants',
-  'role_permissions',
-  'roles',
-  'sessions',
-  'manager_assignments',
-  'user_grants',
-  'users',
-  'webhooks',
-])
+const API_KEY_SCOPE_RESOURCE_SET: ReadonlySet<string> = new Set(API_KEY_SCOPE_RESOURCES)
 const API_KEY_SCOPE_ACTIONS = new Set(['read', 'write', '*'])
 
 export function isApiKeyScopeLexical(scope: string): boolean {
@@ -125,7 +101,7 @@ export function isApiKeyScopeLexical(scope: string): boolean {
   return (
     resource !== undefined &&
     action !== undefined &&
-    API_KEY_SCOPE_RESOURCES.has(resource) &&
+    API_KEY_SCOPE_RESOURCE_SET.has(resource) &&
     API_KEY_SCOPE_ACTIONS.has(action)
   )
 }
@@ -192,6 +168,14 @@ export type OrgManagerRole = OrganizationAdminRole | 'org_manager'
 export type OrgScopedAuth =
   | { kind: 'api_key'; apiKeyId: string; scopes: string[] }
   | { kind: 'org_console'; session: SessionData; role: OrgManagerRole }
+
+export function auditActorId(auth: OrgScopedAuth): string {
+  return auth.kind === 'org_console' ? auth.session.userId : auth.apiKeyId
+}
+
+export function canManageOwners(auth: OrgScopedAuth): boolean {
+  return auth.kind === 'org_console' && (auth.role === 'owner' || auth.role === 'org_manager')
+}
 
 // Org console 与 Management API 共享同一 org 级资源路径:
 // - Bearer sk_* 走 Management API key 认证。

@@ -4,6 +4,7 @@
 
 import { sha256Hex } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
+import { API_KEY_ENVIRONMENTS, type ApiKeyEnvironment } from '@xid-kit/types'
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import { Hono, type Context } from 'hono'
 import * as v from 'valibot'
@@ -12,6 +13,8 @@ import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
 import {
+  auditActorId,
+  emitManagementAuditAsync,
   idAfterCursor,
   requireApiKeyOrTopLevelOrgManager,
   isApiKeyScopeLexical,
@@ -23,16 +26,21 @@ import {
 
 const app = new Hono<XidHonoEnv>()
 
-// 形状校验只管字段类型/必填性;expires_at 的日期解析容错留在 handler(无效日期静默忽略)。
+// environment 只决定前缀,live 与 test key 权限相同,权限由 scopes 决定。
 const createApiKeyBodySchema = v.object({
-  name: v.pipe(v.string(), v.minLength(1)),
-  environment: v.optional(v.string()),
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+  environment: v.optional(v.picklist(API_KEY_ENVIRONMENTS)),
   scopes: v.optional(v.array(v.string())),
-  expires_at: v.optional(v.string()),
+  expires_at: v.optional(
+    v.pipe(
+      v.string(),
+      v.check((value) => !Number.isNaN(Date.parse(value))),
+    ),
+  ),
 })
 
 // 生成 sk_live_/sk_test_ key(格式:sk_live_<32字符随机字母数字>)。
-function genKey(env: string): string {
+function genKey(env: ApiKeyEnvironment): string {
   const prefix = env === 'test' ? 'sk_test_' : 'sk_live_'
   const bytes = crypto.getRandomValues(new Uint8Array(24))
   const suffix = Array.from(bytes)
@@ -63,6 +71,21 @@ async function requireApiKeyManager(
   scope: 'api_keys:read' | 'api_keys:write',
 ): Promise<OrgScopedAuth> {
   return requireApiKeyOrTopLevelOrgManager(c, scope)
+}
+
+function auditApiKey(
+  c: Context<XidHonoEnv>,
+  auth: OrgScopedAuth,
+  input: { action: string; keyId: string; details?: Record<string, unknown> },
+): void {
+  emitManagementAuditAsync(c, {
+    action: input.action,
+    actorId: auditActorId(auth),
+    orgId: c.get('tenant').tenantId,
+    targetType: 'api_key',
+    targetId: input.keyId,
+    ...(input.details ? { details: input.details } : {}),
+  })
 }
 
 // 铸 key 防提权:
@@ -113,10 +136,9 @@ app.post('/', async (c) => {
   const keyHash = await sha256Hex(key)
   const keyPrefix = key.slice(0, 16)
 
-  let expiresAt: Date | undefined
-  if (body.expires_at !== undefined) {
-    const parsed = new Date(body.expires_at)
-    if (!isNaN(parsed.getTime())) expiresAt = parsed
+  const expiresAt = body.expires_at === undefined ? undefined : new Date(body.expires_at)
+  if (expiresAt !== undefined && expiresAt.getTime() <= Date.now()) {
+    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'expires_at' } })
   }
 
   const row = await db.apiKeys.insert({
@@ -128,6 +150,11 @@ app.post('/', async (c) => {
     environment,
     scopes,
     expiresAt,
+  })
+  auditApiKey(c, auth, {
+    action: 'api_key.created',
+    keyId: row.id,
+    details: { environment, scopes, expiresAt: expiresAt?.toISOString() ?? null },
   })
 
   return c.json({ ...toResponse(row), key }, 201)
@@ -147,7 +174,7 @@ app.get('/:id', async (c) => {
 
 // DELETE /v1/api-keys/:id - 吊销(设 revoked_at,不物理删除)
 app.delete('/:id', async (c) => {
-  await requireApiKeyManager(c, 'api_keys:write')
+  const auth = await requireApiKeyManager(c, 'api_keys:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = eq(schema.apiKeys.id, c.req.param('id'))
@@ -158,6 +185,7 @@ app.delete('/:id', async (c) => {
   const updated = await db.apiKeys.update({ revokedAt: new Date() }, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  auditApiKey(c, auth, { action: 'api_key.revoked', keyId: row.id })
   return c.json(toResponse(row))
 })
 

@@ -81,10 +81,9 @@ const ALLOWED_NON_ENTITY_UUIDS: Record<string, AllowedUuidUse> = {
     reason: 'SAML session binding id',
   },
   'sso/wsfed.ts': { count: 1, reason: 'WS-Fed state' },
-  'v1/organizations.ts': {
-    count: 4,
-    reason: 'org policy, organization-domain verification tokens, and R2 suffix',
-  },
+  'v1/org-branding.ts': { count: 1, reason: 'R2 logo object suffix' },
+  'v1/org-domains.ts': { count: 2, reason: 'organization-domain verification tokens' },
+  'v1/organizations.ts': { count: 1, reason: 'org policy' },
 }
 
 const REQUIRED_ENTITY_SOURCE_USAGE: Record<string, Record<string, number>> = {
@@ -147,8 +146,8 @@ const REQUIRED_ENTITY_SOURCE_USAGE: Record<string, Record<string, number>> = {
     ssoConnection: 1,
     organization: 1,
     samlServiceProvider: 1,
-    organizationDomain: 1,
   },
+  'v1/org-domains.ts': { organizationDomain: 1 },
   'v1/permissions.ts': { permission: 1 },
   'v1/project-grants.ts': { projectGrant: 1 },
   'v1/projects.ts': { project: 1 },

@@ -1,6 +1,6 @@
 import type { Hono } from 'hono'
 import { resolveInstanceLoginCandidates, resolveTenantContextById } from '@xid-kit/db'
-import { defaultLandingPathFor, type DefaultLandingPath } from '@xid-kit/types'
+import { defaultLandingPathFor, type DefaultLandingPath, type OrgBranding } from '@xid-kit/types'
 import { isHostedAuthIntent, isProductSignUpIntent } from '../../shared/hosted-auth-intent'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
@@ -59,7 +59,9 @@ async function withRuntimeCapabilities(input: {
   currentTenant: XidHonoEnv['Variables']['tenant']
   resolvedTenant: XidHonoEnv['Variables']['tenant']
   flow: HostedEntryFlow
-}): Promise<PublicHostedAuthConfig & { defaultLandingPath: DefaultLandingPath }> {
+}): Promise<
+  PublicHostedAuthConfig & { defaultLandingPath: DefaultLandingPath; branding: OrgBranding | null }
+> {
   const { config, env, requestUrl, currentTenant, resolvedTenant, flow } = input
   const guestAllowed =
     config.resolution.status === 'ready' &&
@@ -83,7 +85,15 @@ async function withRuntimeCapabilities(input: {
     turnstileSiteKey: publicTurnstileSiteKey(env),
     guest,
     defaultLandingPath: defaultLandingPathFor(currentTenant),
+    branding: brandingFor(resolvedTenant),
   }
+}
+
+// 实例根入口尚未确定组织,只展示默认品牌,不能把任意组织的品牌放到根入口。
+function brandingFor(tenant: XidHonoEnv['Variables']['tenant']): OrgBranding | null {
+  const resolution = tenant.resolution
+  if (resolution?.kind === 'instance_entry' || resolution?.unresolvedRoot) return null
+  return tenant.policy?.branding ?? null
 }
 
 export function registerHostedAuthConfigRoutes(app: Hono<XidHonoEnv>): void {

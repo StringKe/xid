@@ -1,7 +1,7 @@
 // Webhook 投递:svix 风格 HMAC-SHA256(5min 窗);signing secret 信封加密存 D1。
 // 失败退避至死信;markDead 复用投递时订阅快照,不重新拉取。
 
-import type { WebhookQueueMessage } from '@xid-kit/types'
+import { webhookSubscriptionMatches, type WebhookQueueMessage } from '@xid-kit/types'
 import {
   hmacSha256Base64,
   envelopeDecrypt,
@@ -68,7 +68,7 @@ function decodeKek(kekB64: string): Uint8Array {
 // 查询某租户订阅了该事件的 active webhook,解密信封加密的签名 secret。
 // signing_secret_iv / signing_secret_ciphertext / signing_secret_tag 三 blob base64url 编码。
 // 旧行(三 blob 为 null)视为不可投递,跳过(日志警告),避免用哈希错误签名。
-async function findSubscriptions(
+export async function findSubscriptions(
   env: Env,
   tenantId: string,
   event: string,
@@ -92,7 +92,7 @@ async function findSubscriptions(
   const subs: WebhookSubscription[] = []
   for (const row of result.results) {
     const types = parseEventTypes(row.event_types)
-    if (!matchesEvent(types, event)) {
+    if (types === null || !webhookSubscriptionMatches(types, event)) {
       continue
     }
     if (
@@ -120,19 +120,14 @@ async function findSubscriptions(
   return subs
 }
 
-function parseEventTypes(raw: string): string[] {
+// 无法解析的行返回 null 并跳过投递;空数组是合法的「订阅全部事件」。
+function parseEventTypes(raw: string): string[] | null {
   try {
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : null
   } catch {
-    return []
+    return null
   }
-}
-
-// 事件匹配:精确匹配或通配 `<object>.*` 或全局 `*`。
-function matchesEvent(types: string[], event: string): boolean {
-  const object = event.split('.')[0] ?? ''
-  return types.some((t) => t === '*' || t === event || t === `${object}.*`)
 }
 
 // 导出供单测覆盖 SSRF 守卫与 redirect 行为(与 resolveRedirect 同例)。

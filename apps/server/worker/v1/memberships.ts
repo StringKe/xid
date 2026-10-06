@@ -6,6 +6,7 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
@@ -19,6 +20,10 @@ import {
   idAfterCursor,
   requireOrg,
   emitWebhookAsync,
+  emitManagementAuditAsync,
+  requireApiKeyOrOrgManager,
+  auditActorId,
+  canManageOwners,
 } from './shared'
 import { ORGANIZATION_MEMBERSHIP_ROLES, type OrganizationMembershipRole } from '@xid-kit/types'
 
@@ -116,6 +121,20 @@ function toResponse(row: typeof schema.memberships.$inferSelect) {
   }
 }
 
+function auditMembership(
+  c: Context<XidHonoEnv>,
+  input: { action: string; actorId: string; row: typeof schema.memberships.$inferSelect },
+): void {
+  emitManagementAuditAsync(c, {
+    action: input.action,
+    actorId: input.actorId,
+    orgId: input.row.orgId,
+    targetType: 'membership',
+    targetId: input.row.id,
+    details: { userId: input.row.userId, role: input.row.role },
+  })
+}
+
 // 形状校验只管字段类型/必填;user 存在性、唯一约束等业务校验留在 handler(见 error-handling rule)。
 const membershipRoleSchema = v.picklist(ORGANIZATION_MEMBERSHIP_ROLES)
 
@@ -169,7 +188,7 @@ app.get('/:orgId/memberships/:membershipId', async (c) => {
 
 // POST /v1/organizations/:orgId/memberships -- 添加成员
 app.post('/:orgId/memberships', async (c) => {
-  await requireApiKey(c, 'memberships:write')
+  const key = await requireApiKey(c, 'memberships:write')
   const orgId = c.req.param('orgId')
   await requireOrg(c, orgId)
 
@@ -215,6 +234,7 @@ app.post('/:orgId/memberships', async (c) => {
       event: 'organizationMembership.created',
       payload: { orgId, userId: body.user_id },
     })
+    auditMembership(c, { action: 'membership.created', actorId: key.id, row })
     return c.json(toResponse(row), 201)
   }
   if (existing) throw new AppError('already_exists', { httpStatus: 409 })
@@ -232,12 +252,13 @@ app.post('/:orgId/memberships', async (c) => {
     event: 'organizationMembership.created',
     payload: { orgId, userId: body.user_id },
   })
+  auditMembership(c, { action: 'membership.created', actorId: key.id, row: membership })
   return c.json(toResponse(membership), 201)
 })
 
 // PATCH /v1/organizations/:orgId/memberships/:membershipId -- 更新角色
 app.patch('/:orgId/memberships/:membershipId', async (c) => {
-  await requireApiKey(c, 'memberships:write')
+  const key = await requireApiKey(c, 'memberships:write')
   const orgId = c.req.param('orgId')
   await requireOrg(c, orgId)
 
@@ -278,14 +299,14 @@ app.patch('/:orgId/memberships/:membershipId', async (c) => {
     payload: { orgId, membershipId },
   })
   scheduleOrgScimTargetSyncs(c, orgId)
+  auditMembership(c, { action: 'membership.updated', actorId: key.id, row })
   return c.json(toResponse(row))
 })
 
-// DELETE /v1/organizations/:orgId/memberships/:membershipId -- 移除成员
+// DELETE /v1/organizations/:orgId/memberships/:membershipId -- 移除成员(Management API 与 Console 共用)
 app.delete('/:orgId/memberships/:membershipId', async (c) => {
-  await requireApiKey(c, 'memberships:write')
   const orgId = c.req.param('orgId')
-  await requireOrg(c, orgId)
+  const auth = await requireApiKeyOrOrgManager(c, orgId, 'memberships:write')
 
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
@@ -296,6 +317,10 @@ app.delete('/:orgId/memberships/:membershipId', async (c) => {
     and(eq(schema.memberships.id, membershipId), eq(schema.memberships.status, 'active')),
   )
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+  // 移除 owner 与授予 owner 同属特权边界,Console 侧只有 owner / org_manager 可以执行。
+  if (existing.role === 'owner' && auth.kind === 'org_console' && !canManageOwners(auth)) {
+    throw new AppError('forbidden', { httpStatus: 403 })
+  }
 
   const changed = await mutateMembership(c.env, {
     tenantId: tenant.tenantId,
@@ -312,12 +337,13 @@ app.delete('/:orgId/memberships/:membershipId', async (c) => {
     payload: { orgId, membershipId, userId: existing.userId },
   })
   scheduleOrgScimTargetSyncs(c, orgId)
+  auditMembership(c, { action: 'membership.removed', actorId: auditActorId(auth), row: existing })
   return new Response(null, { status: 204 })
 })
 
 // POST /v1/organizations/:orgId/memberships/:membershipId/restore -- 恢复成员关系
 app.post('/:orgId/memberships/:membershipId/restore', async (c) => {
-  await requireApiKey(c, 'memberships:write')
+  const key = await requireApiKey(c, 'memberships:write')
   const orgId = c.req.param('orgId')
   await requireOrg(c, orgId)
 
@@ -359,6 +385,7 @@ app.post('/:orgId/memberships/:membershipId/restore', async (c) => {
     payload: { orgId, membershipId, userId: existing.userId },
   })
   scheduleOrgScimTargetSyncs(c, orgId)
+  auditMembership(c, { action: 'membership.restored', actorId: key.id, row })
   return c.json(toResponse(row))
 })
 

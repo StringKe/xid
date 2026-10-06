@@ -5,31 +5,58 @@
 import { envelopeEncrypt, base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq } from 'drizzle-orm'
+import { isWebhookSubscription, WEBHOOK_EVENT_TYPES } from '@xid-kit/types'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { XidHonoEnv } from '../lib/types'
 import { publicHttpsUrlSchema, readJsonBody, validateBody } from '../lib/validate'
 import {
+  auditActorId,
+  emitManagementAuditAsync,
   idAfterCursor,
   requireApiKeyOrTopLevelOrgManager,
   paginate,
   parsePagination,
+  type OrgScopedAuth,
 } from './shared'
 
 const app = new Hono<XidHonoEnv>()
 
+// webhook 是租户级资源,审计 orgId 记顶层组织,顶层组织管理员的审计页可见。
+function auditWebhook(
+  c: Context<XidHonoEnv>,
+  auth: OrgScopedAuth,
+  input: { action: string; webhookId: string; details?: Record<string, unknown> },
+): void {
+  emitManagementAuditAsync(c, {
+    action: input.action,
+    actorId: auditActorId(auth),
+    orgId: c.get('tenant').tenantId,
+    targetType: 'webhook',
+    targetId: input.webhookId,
+    ...(input.details ? { details: input.details } : {}),
+  })
+}
+
 // webhook 端点是 worker 出网投递目标,必须 https + 公网(SSRF 防护,见 validate.ts publicHttpsUrlSchema)。
 // create 与 PATCH 必须同一标准:PATCH 放宽为裸 string 即可写入 http/内网 IP 让投递打内网。
+// 空数组表示订阅全部事件;每一项必须是已发出的事件名、`<object>.*` 或 `*`。
+const eventTypesSchema = v.pipe(
+  v.array(v.pipe(v.string(), v.check(isWebhookSubscription))),
+  v.maxLength(WEBHOOK_EVENT_TYPES.length + 1),
+)
+
 const createWebhookBodySchema = v.object({
   url: publicHttpsUrlSchema,
-  event_types: v.optional(v.array(v.string())),
+  event_types: v.optional(eventTypesSchema),
 })
 
 const patchWebhookBodySchema = v.object({
   url: v.optional(publicHttpsUrlSchema),
-  event_types: v.optional(v.array(v.string())),
+  event_types: v.optional(eventTypesSchema),
   status: v.optional(v.string()),
 })
 
@@ -103,7 +130,7 @@ app.get('/', async (c) => {
 
 // POST /v1/webhooks
 app.post('/', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -132,6 +159,11 @@ app.post('/', async (c) => {
     signingSecretTag: encrypted.signingSecretTag,
     status: 'active',
   })
+  auditWebhook(c, auth, {
+    action: 'webhook.created',
+    webhookId: row.id,
+    details: { url, eventTypes },
+  })
 
   return c.json({ ...toResponse(row), signing_secret: secret.publicValue }, 201)
 })
@@ -150,7 +182,7 @@ app.get('/:id', async (c) => {
 
 // PATCH /v1/webhooks/:id
 app.patch('/:id', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const json = await readJsonBody(c)
@@ -168,24 +200,30 @@ app.patch('/:id', async (c) => {
   const updated = await db.webhooks.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  auditWebhook(c, auth, {
+    action: 'webhook.updated',
+    webhookId: row.id,
+    details: { url: row.url, eventTypes: row.eventTypes, status: row.status },
+  })
   return c.json(toResponse(row))
 })
 
 // DELETE /v1/webhooks/:id
 app.delete('/:id', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(eq(schema.webhooks.id, c.req.param('id')), eq(schema.webhooks.status, 'active'))
   const existing = await db.webhooks.findOne(where)
   if (!existing) throw new AppError('not_found')
   await db.webhooks.update({ status: 'deleted' }, where)
+  auditWebhook(c, auth, { action: 'webhook.deleted', webhookId: existing.id })
   return new Response(null, { status: 204 })
 })
 
 // POST /v1/webhooks/:id/restore
 app.post('/:id/restore', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(
@@ -197,12 +235,13 @@ app.post('/:id/restore', async (c) => {
   const updated = await db.webhooks.update({ status: 'active' }, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found')
+  auditWebhook(c, auth, { action: 'webhook.restored', webhookId: row.id })
   return c.json(toResponse(row))
 })
 
 // POST /v1/webhooks/:id/rotate-secret
 app.post('/:id/rotate-secret', async (c) => {
-  await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
+  const auth = await requireApiKeyOrTopLevelOrgManager(c, 'webhooks:write')
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const where = and(eq(schema.webhooks.id, c.req.param('id')), eq(schema.webhooks.status, 'active'))
@@ -226,6 +265,7 @@ app.post('/:id/rotate-secret', async (c) => {
     },
     where,
   )
+  auditWebhook(c, auth, { action: 'webhook.secret_rotated', webhookId: existing.id })
 
   return c.json({ signing_secret: newSecret.publicValue })
 })

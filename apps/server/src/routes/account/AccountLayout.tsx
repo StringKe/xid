@@ -13,7 +13,7 @@ import { ACCOUNT_EXACT_PATH, CONSOLE_EXACT_PATH } from '@xid-kit/types'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { useAuth } from '../../lib/auth-context'
 import { useDefaultLandingPath } from '../../lib/default-landing'
-import { useTheme } from '../../lib/theme'
+import { brandLogoUrl, useTheme } from '../../lib/theme'
 import { GuestConversionBanner } from './GuestConversionBanner'
 
 export type AccountLayoutProps = {
@@ -295,7 +295,7 @@ const navLinkActive = stylex.props(styles.navLink, styles.navLinkActive).classNa
 
 export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
+  const { brand, scheme } = useTheme()
   const { user, organizations, managerAssignments, signOut, status } = useAuth()
   const defaultLandingPath = useDefaultLandingPath()
   // Console 只对确有管理入口的用户显示,纯成员进去会被送回 /account。
@@ -305,8 +305,9 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
     organizations.some((organization) => isOrgManagerRole(organization.role))
   const showConsoleLink = defaultLandingPath === CONSOLE_EXACT_PATH && hasConsoleAccess
   const appName = brand.appName ?? 'XID'
-  const brandMark = brand.logoUrl ? (
-    <img src={brand.logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.tenantLogo)} />
+  const logoUrl = brandLogoUrl(brand, scheme)
+  const brandMark = logoUrl ? (
+    <img src={logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.tenantLogo)} />
   ) : (
     <BrandLogo variant="mark" height={18} />
   )

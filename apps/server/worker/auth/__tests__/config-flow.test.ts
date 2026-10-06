@@ -134,6 +134,36 @@ describe('GET /auth/config flow resolution', () => {
     createGuestEntryCapability.mockResolvedValue('guest-capability-token')
   })
 
+  const BRANDING = {
+    primaryColor: '#112233',
+    backgroundColor: null,
+    accentColor: null,
+    borderRadius: null,
+    fontFamily: null,
+    logoUrl: 'https://cdn.example.com/logo.svg',
+    logoDarkUrl: null,
+  }
+
+  it('returns the resolved organization branding on a tenant host', async () => {
+    const current = tenant('org_brand')
+    current.policy.branding = BRANDING
+    const app = appWithTenant(current)
+
+    const res = await app.request('https://org-brand.xid.dev/auth/config', {}, {} as Env)
+
+    expect(await res.json()).toMatchObject({ branding: BRANDING })
+  })
+
+  it('never shows organization branding on the unresolved instance root', async () => {
+    const root = tenant('default', true)
+    root.policy.branding = BRANDING
+    const app = appWithTenant(root)
+
+    const res = await app.request('https://xid.dev/auth/config', {}, {} as Env)
+
+    expect(await res.json()).toMatchObject({ branding: null })
+  })
+
   it.each([
     ['plain root entry', 'https://xid.dev/auth/config'],
     ['explicit sign-up', 'https://xid.dev/auth/config?intent=sign-up'],

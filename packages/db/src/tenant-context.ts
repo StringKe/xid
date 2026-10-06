@@ -12,6 +12,8 @@ import type {
   TenantPolicy,
 } from '@xid-kit/types'
 import {
+  hasCustomBranding,
+  normalizeOrgBranding,
   normalizeDeliveryChannelsPolicy,
   normalizeHostedAuthPolicy,
   normalizePhoneNumber,
@@ -165,6 +167,8 @@ export function buildPolicy(
   if (socialProviders) result.socialProviders = socialProviders
   const deliveryChannels = normalizeDeliveryChannelsPolicy(metadata['deliveryChannels'])
   if (deliveryChannels) result.deliveryChannels = deliveryChannels
+  const branding = normalizeOrgBranding(metadata['branding'])
+  if (hasCustomBranding(branding)) result.branding = branding
   return result
 }
 

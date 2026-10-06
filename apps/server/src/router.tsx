@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-router'
 import * as stylex from '@stylexjs/stylex'
 import { AuthAnalytics } from './components/AuthAnalytics'
+import { HostedBranding } from './components/HostedBranding'
 import { RouteAnalytics } from './components/RouteAnalytics'
 
 import { RoutePageSeo } from './components/RoutePageSeo'
@@ -87,6 +88,7 @@ const rootRoute = createRootRoute({
       <RoutePageSeo />
       <RouteAnalytics />
       <AuthAnalytics />
+      <HostedBranding />
       <Outlet />
     </>
   ),

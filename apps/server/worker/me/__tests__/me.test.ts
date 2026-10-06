@@ -531,6 +531,8 @@ describe('GET /v1/me', () => {
         name: 'Acme',
         role: 'member',
         permissions: ['users.read'],
+        parentOrgId: null,
+        allowOrgSelfService: true,
       },
     ])
     expect(body['activeOrg']).toEqual((body['organizations'] as unknown[])[0])
@@ -760,7 +762,15 @@ describe('GET /v1/me', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body['organizations']).toEqual([
-      { id: 'org_1', slug: 'acme', name: 'Acme', role: 'admin', permissions: [] },
+      {
+        id: 'org_1',
+        slug: 'acme',
+        name: 'Acme',
+        role: 'admin',
+        permissions: [],
+        parentOrgId: null,
+        allowOrgSelfService: true,
+      },
     ])
   })
 
@@ -783,7 +793,15 @@ describe('GET /v1/me', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body['organizations']).toEqual([
-      { id: 'org_1', slug: 'acme', name: 'Acme', role: 'admin', permissions: [] },
+      {
+        id: 'org_1',
+        slug: 'acme',
+        name: 'Acme',
+        role: 'admin',
+        permissions: [],
+        parentOrgId: null,
+        allowOrgSelfService: true,
+      },
     ])
   })
 
@@ -811,7 +829,15 @@ describe('GET /v1/me', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body['organizations']).toEqual([
-      { id: 'org_1', slug: 'acme', name: 'Acme', role: 'member', permissions: [] },
+      {
+        id: 'org_1',
+        slug: 'acme',
+        name: 'Acme',
+        role: 'member',
+        permissions: [],
+        parentOrgId: null,
+        allowOrgSelfService: true,
+      },
     ])
   })
 })

@@ -390,6 +390,9 @@ export function createConsoleWebMcpTools(
           },
           limit: { type: 'number', description: 'Page size (max 100).' },
           cursor: { type: 'string', description: 'Pagination cursor from a previous response.' },
+          eventType: { type: 'string', description: 'Event type prefix, such as api_key.' },
+          occurredFrom: { type: 'string', description: 'Inclusive ISO 8601 start time.' },
+          occurredTo: { type: 'string', description: 'Exclusive ISO 8601 end time.' },
         },
       },
       annotations: { readOnlyHint: true },
@@ -401,9 +404,17 @@ export function createConsoleWebMcpTools(
           })
 
         const limit = typeof input.limit === 'number' ? Math.min(input.limit, 100) : 20
-        const cursor = readStringProperty(input, 'cursor')
         const query = new URLSearchParams({ limit: String(limit) })
-        if (cursor) query.set('cursor', cursor)
+        const params = [
+          ['cursor', 'cursor'],
+          ['eventType', 'event_type'],
+          ['occurredFrom', 'occurred_from'],
+          ['occurredTo', 'occurred_to'],
+        ] as const
+        for (const [property, param] of params) {
+          const value = readStringProperty(input, property)
+          if (value) query.set(param, value)
+        }
         return apiGet(api, `/v1/organizations/${orgId}/audit-events?${query.toString()}`)
       },
     },

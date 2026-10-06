@@ -8,6 +8,7 @@ import { createTenantDb, schema } from '@xid-kit/db'
 import { ORGANIZATION_MEMBERSHIP_ROLES } from '@xid-kit/types'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
@@ -21,9 +22,11 @@ import {
   idAfterCursor,
   requireOrg,
   requireApiKeyOrOrgManager,
-  encodeCursor,
   checkInvitationRateLimit,
   emitWebhookAsync,
+  emitManagementAuditAsync,
+  auditActorId,
+  canManageOwners,
 } from './shared'
 import { INVITATION_TTL_DAYS } from '../lib/ttl'
 import { createTenantBoundInvitationToken, INVITATION_TOKEN_VERSION } from '../lib/invitation-token'
@@ -54,10 +57,6 @@ const bulkInvitationsBodySchema = v.object({
   ),
 })
 
-function toIso(value: Date | null | undefined): string | null {
-  return value ? value.toISOString() : null
-}
-
 type InvitationInternalField =
   | 'tokenHash'
   | 'tokenVersion'
@@ -75,28 +74,6 @@ type InvitationInternalField =
   | 'displacedEmailId'
 
 type SafeInvitation = Omit<typeof schema.invitations.$inferSelect, InvitationInternalField>
-
-function toConsoleInvitation(row: SafeInvitation) {
-  return {
-    id: row.id,
-    email: row.email,
-    role: row.role,
-    status: row.status,
-    expiresAt: toIso(row.expiresAt) ?? '',
-    createdAt: toIso(row.createdAt) ?? '',
-  }
-}
-
-function consolePage<T>(rows: T[], getId: (row: T) => string, limit: number, total: number) {
-  const hasMore = rows.length > limit
-  const data = hasMore ? rows.slice(0, limit) : rows
-  const last = data[data.length - 1]
-  return {
-    data,
-    nextCursor: hasMore && last !== undefined ? encodeCursor(getId(last)) : null,
-    total,
-  }
-}
 
 type PreparedInvitation = {
   invitation: typeof schema.invitations.$inferSelect
@@ -267,7 +244,7 @@ async function prepareInvitation(
 // GET /v1/organizations/:orgId/invitations?limit=&cursor=&status=
 app.get('/:orgId/invitations', async (c) => {
   const orgId = c.req.param('orgId')
-  const auth = await requireApiKeyOrOrgManager(c, orgId, 'invitations:read')
+  await requireApiKeyOrOrgManager(c, orgId, 'invitations:read')
 
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
@@ -281,18 +258,14 @@ app.get('/:orgId/invitations', async (c) => {
       ? inArray(schema.invitations.status, ['pending', 'claim_verified'])
       : eq(schema.invitations.status, status)
   const where = afterCond ? and(statusCond, afterCond) : statusCond
-  const rows = await orgDb.invitations.findMany(where, {
-    orderBy: asc(schema.invitations.id),
-    limit: limit + 1,
-  })
-  // 不暴露 tokenHash(安全)
-  const limited = rows.map(safeInvitation)
-  if (auth.kind === 'org_console') {
-    const total = await orgDb.invitations.count(statusCond)
-    const data = limited.map(toConsoleInvitation)
-    return c.json(consolePage(data, (r) => r.id, limit, total))
-  }
-  return c.json(paginate(limited, (r) => r.id, limit))
+  const [rows, total] = await Promise.all([
+    orgDb.invitations.findMany(where, {
+      orderBy: asc(schema.invitations.id),
+      limit: limit + 1,
+    }),
+    orgDb.invitations.count(statusCond),
+  ])
+  return c.json({ ...paginate(rows.map(safeInvitation), (r) => r.id, limit), total })
 })
 
 // ---- 单个 ----
@@ -334,10 +307,7 @@ app.post('/:orgId/invitations', async (c) => {
 
   // Owner assignment is a privilege boundary, not a transport scope. Only an authenticated owner
   // or org_manager principal may create it; an API key cannot carry the issuer's original role.
-  if (
-    body.role === 'owner' &&
-    (auth.kind !== 'org_console' || (auth.role !== 'owner' && auth.role !== 'org_manager'))
-  ) {
+  if (body.role === 'owner' && !canManageOwners(auth)) {
     throw new AppError('forbidden', { httpStatus: 403 })
   }
 
@@ -369,8 +339,15 @@ app.post('/:orgId/invitations', async (c) => {
     event: 'organizationInvitation.created',
     payload: { orgId, invitationId: prepared.invitation.id, email: prepared.invitation.email },
   })
-  if (auth.kind === 'org_console')
-    return c.json(toConsoleInvitation(safeInvitation(prepared.invitation)), 201)
+  emitManagementAuditAsync(c, {
+    action: 'invitation.created',
+    actorId: auditActorId(auth),
+    orgId,
+    targetType: 'invitation',
+    targetId: prepared.invitation.id,
+    details: { role: prepared.invitation.role },
+  })
+  if (auth.kind === 'org_console') return c.json(safeInvitation(prepared.invitation), 201)
   return c.json({ ...safeInvitation(prepared.invitation), token: prepared.token }, 201)
 })
 
@@ -378,7 +355,7 @@ app.post('/:orgId/invitations', async (c) => {
 
 // POST /v1/organizations/:orgId/invitations/bulk
 app.post('/:orgId/invitations/bulk', async (c) => {
-  await requireApiKey(c, 'invitations:write')
+  const key = await requireApiKey(c, 'invitations:write')
   const orgId = c.req.param('orgId')
   await requireOrg(c, orgId)
 
@@ -440,6 +417,14 @@ app.post('/:orgId/invitations/bulk', async (c) => {
         email: item.invitation.email,
       },
     })
+    emitManagementAuditAsync(c, {
+      action: 'invitation.created',
+      actorId: key.id,
+      orgId,
+      targetType: 'invitation',
+      targetId: item.invitation.id,
+      details: { role: item.invitation.role },
+    })
   }
   const results = prepared.map((item) => ({
     ...safeInvitation(item.invitation),
@@ -471,25 +456,42 @@ async function markInvitationRevoked(
   throw new AppError('conflict', { httpStatus: 409 })
 }
 
-// POST /v1/organizations/:orgId/invitations/:invitationId/revoke
-app.post('/:orgId/invitations/:invitationId/revoke', async (c) => {
-  await requireApiKey(c, 'invitations:write')
-  const orgId = c.req.param('orgId')
-  await requireOrg(c, orgId)
-
+// 两个撤销入口共用:状态变更、webhook、审计、会话清理顺序一致。
+async function revokeInvitation(
+  c: Context<XidHonoEnv>,
+  input: { orgId: string; invitationId: string; actorId: string },
+): Promise<typeof schema.invitations.$inferSelect> {
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
-  const invitationId = c.req.param('invitationId')
-
-  const revoked = await markInvitationRevoked(db, orgId, invitationId)
+  const revoked = await markInvitationRevoked(db, input.orgId, input.invitationId)
   emitWebhookAsync(c, {
     tenantId: tenant.tenantId,
     event: 'organizationInvitation.revoked',
-    payload: { orgId, invitationId },
+    payload: { orgId: input.orgId, invitationId: input.invitationId },
+  })
+  emitManagementAuditAsync(c, {
+    action: 'invitation.revoked',
+    actorId: input.actorId,
+    orgId: input.orgId,
+    targetType: 'invitation',
+    targetId: input.invitationId,
   })
   if (revoked.emailClaimUserId && revoked.emailClaimSessionId) {
     await revokeSessionByIdentity(c, revoked.emailClaimUserId, revoked.emailClaimSessionId)
   }
+  return revoked
+}
+
+// POST /v1/organizations/:orgId/invitations/:invitationId/revoke
+app.post('/:orgId/invitations/:invitationId/revoke', async (c) => {
+  const key = await requireApiKey(c, 'invitations:write')
+  const orgId = c.req.param('orgId')
+  await requireOrg(c, orgId)
+  const revoked = await revokeInvitation(c, {
+    orgId,
+    invitationId: c.req.param('invitationId'),
+    actorId: key.id,
+  })
   return c.json(safeInvitation(revoked))
 })
 
@@ -498,16 +500,12 @@ app.post('/:orgId/invitations/:invitationId/revoke', async (c) => {
 // DELETE /v1/organizations/:orgId/invitations/:invitationId
 app.delete('/:orgId/invitations/:invitationId', async (c) => {
   const orgId = c.req.param('orgId')
-  await requireApiKeyOrOrgManager(c, orgId, 'invitations:write')
-
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const invitationId = c.req.param('invitationId')
-
-  const revoked = await markInvitationRevoked(db, orgId, invitationId)
-  if (revoked.emailClaimUserId && revoked.emailClaimSessionId) {
-    await revokeSessionByIdentity(c, revoked.emailClaimUserId, revoked.emailClaimSessionId)
-  }
+  const auth = await requireApiKeyOrOrgManager(c, orgId, 'invitations:write')
+  await revokeInvitation(c, {
+    orgId,
+    invitationId: c.req.param('invitationId'),
+    actorId: auditActorId(auth),
+  })
   return new Response(null, { status: 204 })
 })
 

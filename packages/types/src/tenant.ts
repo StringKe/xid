@@ -1,5 +1,6 @@
 // TenantContext 与租户策略覆盖。issuer/签名密钥/rpId/配置一律从此取，禁止内核全局单例。
 
+import type { OrgBranding } from './branding'
 import type { SigningAlg, SigningKeyMaterial } from './signing'
 
 // MFA 三层继承（platform/tenant/org），null 回退上层
@@ -147,6 +148,7 @@ export type TenantPolicy = {
   socialProviders?: Readonly<Record<string, SocialProviderPolicy>>
   deliveryChannels?: DeliveryChannelsPolicy
   oidcProfiles?: OidcProfilePolicy
+  branding?: OrgBranding
 }
 
 const DEFAULT_METHOD_DISABLED: HostedAuthMethodPolicy = {

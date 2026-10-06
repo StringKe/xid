@@ -25,7 +25,7 @@ import {
   normalizeHostedAuthPolicy,
   normalizeSocialProviders,
 } from '@xid-kit/types'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, asc, eq, gt } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -33,7 +33,6 @@ import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
-import { auditActorDisplay } from '../lib/audit-actor'
 import {
   isPublicHttpsUrl,
   paginationQuerySchema,
@@ -72,10 +71,9 @@ import {
   assertInboundSsoProtocol,
   isInboundSsoProtocol,
 } from '../sso/legacy-shared'
-import { assertOrgSelfServiceEditable, isInstanceManagerUser } from './org-self-service'
+import { assertOrgSelfServiceEditable } from './org-self-service'
 import { registerOrganizationDirectoryRoutes } from './organization-directories'
 import { registerOrganizationScimTargetRoutes } from './organization-scim-targets'
-import { scheduleOrgScimTargetSyncs } from '../scim/outbound'
 import { outboundSamlIdpEndpoints } from '../sso/outbound-saml'
 import { acsUrl, sloUrl, spEntityId } from '../sso/saml-connection'
 import {
@@ -95,21 +93,27 @@ import {
   type OutboundSaasPresetKey,
 } from '../sso/provider-presets'
 import { resolveOrProvisionOutboundSamlSigningCertificate } from '../sso/signing-certificate'
+import { registerOrgAuditRoutes } from './org-audit'
+import { registerOrgBrandingRoutes } from './org-branding'
+import { registerOrgDomainsRoutes } from './org-domains'
+import { registerOrgMembersRoutes } from './org-members'
+import {
+  ORG_LIST_BATCH_SIZE,
+  readAllById,
+  toIso,
+  toOrganizationResponse,
+} from './org-shared'
 import {
   requireApiKey,
   requireApiKeyOrOrgManager,
   MAX_PAGE_SIZE,
   paginate,
   idAfterCursor,
-  encodeCursor,
-  decodeCursor,
   requireOrg,
   emitWebhookAsync,
 } from './shared'
 
 const app = new Hono<XidHonoEnv>()
-const ORG_STATS_MEMBER_BATCH_SIZE = 100
-const ORG_LIST_BATCH_SIZE = 100
 
 function assertOptionalPublicHttpsUrl(value: string | null | undefined, paramName: string): void {
   if (value === null || value === undefined || isPublicHttpsUrl(value)) return
@@ -148,22 +152,6 @@ const patchOrgBodySchema = v.object({
   enrollment_mode: v.optional(enrollmentModeSchema),
   seat_limit: v.optional(v.nullable(seatLimitSchema)),
   allow_org_self_service: v.optional(v.boolean()),
-})
-
-const createDomainBodySchema = v.object({
-  domain: v.pipe(v.string(), v.minLength(1)),
-  enrollment_mode: v.optional(enrollmentModeSchema),
-})
-
-// branding 走 KV 存储的 ConsoleBranding 七字段;null 与缺省同义(回退当前值)。
-const brandingPatchBodySchema = v.object({
-  primaryColor: v.optional(v.nullable(v.string())),
-  backgroundColor: v.optional(v.nullable(v.string())),
-  accentColor: v.optional(v.nullable(v.string())),
-  borderRadius: v.optional(v.nullable(v.string())),
-  fontFamily: v.optional(v.nullable(v.string())),
-  logoUrl: v.optional(v.nullable(v.string())),
-  logoDarkUrl: v.optional(v.nullable(v.string())),
 })
 
 // auth-policy / delivery-channels / social-providers 的 PATCH body 只要求"是对象":
@@ -245,22 +233,6 @@ const patchOutboundSamlAppBodySchema = v.object({
   assignmentGate: assignmentGateFieldSchema,
 })
 
-type ConsolePage<T> = {
-  data: T[]
-  nextCursor: string | null
-  total: number
-}
-
-type ConsoleBranding = {
-  primaryColor: string | null
-  backgroundColor: string | null
-  accentColor: string | null
-  borderRadius: string | null
-  fontFamily: string | null
-  logoUrl: string | null
-  logoDarkUrl: string | null
-}
-
 type ConsoleSocialProviderPolicy = SocialProviderPolicy & {
   hasClientSecret: boolean
   credentialsReady: boolean
@@ -324,191 +296,6 @@ type ConsoleSocialProviders = {
 type ResolvedDeliveryChannelsPolicy = {
   whatsapp: DeliveryChannelProviderPolicy
   sms: DeliveryChannelProviderPolicy
-}
-
-const DEFAULT_BRANDING: ConsoleBranding = {
-  primaryColor: null,
-  backgroundColor: null,
-  accentColor: null,
-  borderRadius: null,
-  fontFamily: null,
-  logoUrl: null,
-  logoDarkUrl: null,
-}
-
-type OrgStats = {
-  dau: number
-  mau: number
-  loginSuccessRate: number
-  mfaAdoptionRate: number
-  activeMemberCount: number
-  pendingInvitationCount: number
-}
-
-const LOGIN_SUCCESS_EVENTS = ['authentication.login_succeeded', 'user.signed_in'] as const
-const LOGIN_FAILURE_EVENTS = ['authentication.login_failed', 'user.sign_in_failed'] as const
-const LOGIN_STATS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
-
-function toIso(value: Date | number | string | null | undefined): string | null {
-  if (value === null || value === undefined) return null
-  if (value instanceof Date) return value.toISOString()
-  return new Date(value).toISOString()
-}
-
-function utcDay(now: Date): string {
-  return now.toISOString().slice(0, 10)
-}
-
-function utcYearMonth(now: Date): string {
-  return now.toISOString().slice(0, 7)
-}
-
-function ratio(numerator: number, denominator: number, fallback: number): number {
-  return denominator === 0 ? fallback : numerator / denominator
-}
-
-function consolePage<T>(
-  rows: T[],
-  getId: (row: T) => string,
-  limit: number,
-  total = rows.length,
-): ConsolePage<T> {
-  const hasMore = rows.length > limit
-  const data = hasMore ? rows.slice(0, limit) : rows
-  const last = data[data.length - 1]
-  return {
-    data,
-    nextCursor: hasMore && last !== undefined ? encodeCursor(getId(last)) : null,
-    total,
-  }
-}
-
-async function readAllById<T extends { id: string }>(
-  readPage: (cursor: string | null) => Promise<T[]>,
-): Promise<T[]> {
-  const rows: T[] = []
-  let cursor: string | null = null
-  while (true) {
-    const page = await readPage(cursor)
-    if (page.length === 0) break
-    rows.push(...page)
-    cursor = page[page.length - 1]?.id ?? null
-    if (page.length < ORG_LIST_BATCH_SIZE) break
-  }
-  return rows
-}
-
-async function readAllByIds<T extends { id: string }>(
-  ids: readonly string[],
-  readPage: (ids: readonly string[], cursor: string | null) => Promise<T[]>,
-): Promise<T[]> {
-  const rows: T[] = []
-  for (let offset = 0; offset < ids.length; offset += ORG_LIST_BATCH_SIZE) {
-    rows.push(
-      ...(await readAllById((cursor) =>
-        readPage(ids.slice(offset, offset + ORG_LIST_BATCH_SIZE), cursor),
-      )),
-    )
-  }
-  return rows
-}
-
-async function buildOrgStats(c: Context<XidHonoEnv>, orgId: string): Promise<OrgStats> {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const now = new Date()
-
-  const [usageDay, usageMonth, memberUserIds, pendingInvitationCount] = await Promise.all([
-    db.usageDaily.findOne(eq(schema.usageDaily.day, utcDay(now))),
-    db.usageMonthly.findOne(eq(schema.usageMonthly.yearMonth, utcYearMonth(now))),
-    listActiveMemberUserIds(db, orgId),
-    db.forOrg(orgId).invitations.count(eq(schema.invitations.status, 'pending')),
-  ])
-
-  const orgAuditFilter = and(
-    or(eq(schema.auditEvents.orgId, orgId), isNull(schema.auditEvents.orgId)),
-    gte(
-      schema.auditEvents.occurredAt,
-      new Date(now.getTime() - LOGIN_STATS_WINDOW_MS).toISOString(),
-    ),
-  )
-  const mfaUserCount = await countActiveMfaUsers(db, memberUserIds)
-  const [loginSuccesses, loginFailures] = await Promise.all([
-    db.auditEvents.count(
-      and(orgAuditFilter, inArray(schema.auditEvents.eventType, [...LOGIN_SUCCESS_EVENTS])),
-    ),
-    db.auditEvents.count(
-      and(orgAuditFilter, inArray(schema.auditEvents.eventType, [...LOGIN_FAILURE_EVENTS])),
-    ),
-  ])
-  const totalLogins = loginSuccesses + loginFailures
-
-  return {
-    dau: Number(usageDay?.dau ?? 0),
-    mau: Number(usageMonth?.mau ?? 0),
-    loginSuccessRate: ratio(loginSuccesses, totalLogins, 1),
-    mfaAdoptionRate: ratio(mfaUserCount, memberUserIds.length, 0),
-    activeMemberCount: memberUserIds.length,
-    pendingInvitationCount,
-  }
-}
-
-async function listActiveMemberUserIds(
-  db: ReturnType<typeof createTenantDb>,
-  orgId: string,
-): Promise<string[]> {
-  const orgDb = db.forOrg(orgId)
-  const userIds: string[] = []
-  let cursor: string | null = null
-  while (true) {
-    const after = cursor ? gt(schema.memberships.id, cursor) : undefined
-    const rows = await orgDb.memberships.findMany(
-      after
-        ? and(eq(schema.memberships.status, 'active'), after)
-        : eq(schema.memberships.status, 'active'),
-      { orderBy: asc(schema.memberships.id), limit: ORG_STATS_MEMBER_BATCH_SIZE },
-    )
-    if (rows.length === 0) break
-    userIds.push(...rows.map((row) => row.userId))
-    cursor = rows[rows.length - 1]?.id ?? null
-    if (rows.length < ORG_STATS_MEMBER_BATCH_SIZE) break
-  }
-  return [...new Set(userIds)]
-}
-
-async function countActiveMfaUsers(
-  db: ReturnType<typeof createTenantDb>,
-  userIds: readonly string[],
-): Promise<number> {
-  let count = 0
-  for (let offset = 0; offset < userIds.length; offset += ORG_STATS_MEMBER_BATCH_SIZE) {
-    const batch = userIds.slice(offset, offset + ORG_STATS_MEMBER_BATCH_SIZE)
-    count += await db.mfaFactors.countDistinct(
-      schema.mfaFactors.userId,
-      and(eq(schema.mfaFactors.status, 'active'), inArray(schema.mfaFactors.userId, batch)),
-    )
-  }
-  return count
-}
-
-function toConsoleDomain(row: typeof schema.organizationDomains.$inferSelect) {
-  return {
-    id: row.id,
-    domain: row.domain,
-    verified: row.verificationStatus === 'verified',
-    enrollmentMode: row.enrollmentMode,
-    verificationToken: row.verificationToken,
-    verifiedAt: toIso(row.verifiedAt),
-  }
-}
-
-function readBranding(raw: string | null): ConsoleBranding {
-  if (!raw) return DEFAULT_BRANDING
-  try {
-    const value = JSON.parse(raw) as Partial<ConsoleBranding>
-    return { ...DEFAULT_BRANDING, ...value }
-  } catch {
-    return DEFAULT_BRANDING
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -577,25 +364,7 @@ function readPrivateMetadata(
   return isRecord(org.privateMetadata) ? org.privateMetadata : {}
 }
 
-// org 行转对外响应(白名单):private_metadata 含策略与 secret ref,不直接下发,
-// console 需要的策略字段走 auth-policy / delivery-channels / social-providers 显式端点。
-function toResponse(row: typeof schema.organizations.$inferSelect) {
-  return {
-    id: row.id,
-    parent_org_id: row.parentOrgId,
-    slug: row.slug,
-    name: row.name,
-    logo_url: row.logoUrl,
-    public_metadata: row.publicMetadata,
-    enrollment_mode: row.enrollmentMode,
-    seat_limit: row.seatLimit,
-    seat_used: row.seatUsed,
-    allow_org_self_service: row.allowOrgSelfService,
-    status: row.status,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-  }
-}
+const toResponse = toOrganizationResponse
 
 async function requireTopLevelParentOrganization(
   c: Context<XidHonoEnv>,
@@ -629,24 +398,6 @@ async function requireRestorableChildParent(
   await requireTopLevelParentOrganization(c, organization.parentOrgId)
 }
 
-// 域名行 sk 路径响应:verificationToken 属设计保留(域名验证流程要向用户展示),
-// 收窄 tenant_id / verification_method / deleted_at 等内部列。
-function toDomainResponse(row: typeof schema.organizationDomains.$inferSelect) {
-  return {
-    id: row.id,
-    org_id: row.orgId,
-    domain: row.domain,
-    verification_token: row.verificationToken,
-    verification_status: row.verificationStatus,
-    is_wildcard: row.isWildcard,
-    enrollment_mode: row.enrollmentMode,
-    verified_at: row.verifiedAt,
-    status: row.status,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-  }
-}
-
 // 保留字:instance 根域解析(default)与平台功能子域不允许业务 org slug 占用(防子域抢占)。
 const RESERVED_ORG_SLUGS = new Set(['default', 'www', 'api', 'admin', 'app', 'auth', 'console'])
 
@@ -675,14 +426,6 @@ async function findOrgByInstanceSlug(
     )
     .limit(1)
   return rows[0]
-}
-
-// D1 唯一约束冲突识别:drizzle 会把原始错误包成 DrizzleQueryError(message 只有 Failed query),
-// 真实的 UNIQUE constraint 消息在 cause 链上,故沿 cause 递归匹配。
-function isUniqueConstraintError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  if (/unique constraint/iu.test(error.message)) return true
-  return error.cause !== undefined && isUniqueConstraintError(error.cause)
 }
 
 function deliveryProviderRows(
@@ -1210,106 +953,6 @@ function mergeSocialProviders(
   return socialProviders
 }
 
-function brandingKey(tenantId: string, orgId: string): string {
-  return `brand:${tenantId}:${orgId}`
-}
-
-async function toConsoleMembers(
-  c: Context<XidHonoEnv>,
-  rows: readonly (typeof schema.memberships.$inferSelect)[],
-) {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  if (rows.length === 0) return []
-  const userIds = [...new Set(rows.map((row) => row.userId))]
-  const [users, emails] = await Promise.all([
-    readAllByIds(userIds, (batch, cursor) =>
-      db.users.findMany(
-        and(inArray(schema.users.id, batch), ...(cursor ? [gt(schema.users.id, cursor)] : [])),
-        { orderBy: asc(schema.users.id), limit: ORG_LIST_BATCH_SIZE },
-      ),
-    ),
-    readAllByIds(userIds, (batch, cursor) =>
-      db.userEmails.findMany(
-        and(
-          inArray(schema.userEmails.userId, batch),
-          ...(cursor ? [gt(schema.userEmails.id, cursor)] : []),
-        ),
-        { orderBy: asc(schema.userEmails.id), limit: ORG_LIST_BATCH_SIZE },
-      ),
-    ),
-  ])
-  const userById = new Map(users.map((user) => [user.id, user]))
-  const emailsByUser = new Map<string, (typeof schema.userEmails.$inferSelect)[]>()
-  for (const email of emails) {
-    emailsByUser.set(email.userId, [...(emailsByUser.get(email.userId) ?? []), email])
-  }
-  return rows.map((row) => {
-    const user = userById.get(row.userId)
-    const candidates = emailsByUser.get(row.userId) ?? []
-    const email =
-      candidates.find((candidate) => candidate.id === user?.primaryEmailId) ??
-      candidates.find((candidate) => candidate.isPrimary) ??
-      candidates[0]
-    const parts = [user?.firstName, user?.lastName].filter((part): part is string => Boolean(part))
-    return {
-      id: row.id,
-      userId: row.userId,
-      email: email?.email ?? '',
-      name: user?.displayName ?? (parts.length > 0 ? parts.join(' ') : null),
-      role: row.role,
-      status: row.status,
-      joinedAt: toIso(row.joinedAt) ?? toIso(row.createdAt) ?? '',
-    }
-  })
-}
-
-async function toConsoleRoles(
-  c: Context<XidHonoEnv>,
-  rows: readonly (typeof schema.roles.$inferSelect)[],
-) {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
-  if (rows.length === 0) return []
-  const links = await readAllByIds(
-    rows.map((row) => row.id),
-    (batch, cursor) =>
-      db.rolePermissions.findMany(
-        and(
-          inArray(schema.rolePermissions.roleId, batch),
-          ...(cursor ? [gt(schema.rolePermissions.id, cursor)] : []),
-        ),
-        { orderBy: asc(schema.rolePermissions.id), limit: ORG_LIST_BATCH_SIZE },
-      ),
-  )
-  const permissionIds = [...new Set(links.map((link) => link.permissionId))]
-  const permissions =
-    permissionIds.length === 0
-      ? []
-      : await readAllByIds(permissionIds, (batch, cursor) =>
-          db.permissions.findMany(
-            and(
-              inArray(schema.permissions.id, batch),
-              eq(schema.permissions.status, 'active'),
-              ...(cursor ? [gt(schema.permissions.id, cursor)] : []),
-            ),
-            { orderBy: asc(schema.permissions.id), limit: ORG_LIST_BATCH_SIZE },
-          ),
-        )
-  const permissionKeys = new Map(permissions.map((permission) => [permission.id, permission.key]))
-  const permissionsByRole = new Map<string, string[]>()
-  for (const link of links) {
-    const key = permissionKeys.get(link.permissionId)
-    if (key)
-      permissionsByRole.set(link.roleId, [...(permissionsByRole.get(link.roleId) ?? []), key])
-  }
-  return rows.map((row) => ({
-    id: row.id,
-    key: row.key,
-    displayName: row.displayName,
-    group: row.group,
-    permissions: permissionsByRole.get(row.id) ?? [],
-  }))
-}
-
 // IdP 侧要填写的本端地址。OIDC callback 跟随用户发起登录的 origin(oidc-rp.ts),
 // 因此列出实例 issuer、租户主机和 Hosted Auth origin,管理员需要全部登记到 IdP。
 function ssoServiceProviderEndpoints(
@@ -1392,98 +1035,11 @@ app.get('/', async (c) => {
 
 // ---- 单个 ----
 
-// GET /v1/organizations/:id/stats
-app.get('/:id/stats', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'organizations:read')
-  return c.json(await buildOrgStats(c, id))
-})
-
 // GET /v1/organizations/:id
 app.get('/:id', async (c) => {
   await requireApiKey(c, 'organizations:read')
   const org = await requireOrg(c, c.req.param('id'))
   return c.json(toResponse(org))
-})
-
-// GET /v1/organizations/:id/members
-app.get('/:id/members', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'memberships:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const orgDb = db.forOrg(id)
-  const query = validateQuery(paginationQuerySchema, c.req.query())
-  const limit = query.limit ?? MAX_PAGE_SIZE
-  const cursor = query.cursor ?? null
-  const active = eq(schema.memberships.status, 'active')
-  const afterCond = idAfterCursor(schema.memberships.id, cursor)
-  const where = afterCond ? and(active, afterCond) : active
-  const [total, rows] = await Promise.all([
-    orgDb.memberships.count(active),
-    orgDb.memberships.findMany(where, {
-      orderBy: asc(schema.memberships.id),
-      limit: limit + 1,
-    }),
-  ])
-  const data = await toConsoleMembers(c, rows)
-  return c.json(consolePage(data, (row) => row.id, limit, total))
-})
-
-// DELETE /v1/organizations/:id/members/:memberId
-app.delete('/:id/members/:memberId', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'memberships:write')
-  const memberId = c.req.param('memberId')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const orgDb = db.forOrg(id)
-  const where = and(eq(schema.memberships.id, memberId), eq(schema.memberships.status, 'active'))
-  const existing = await orgDb.memberships.findOne(where)
-  if (!existing) throw new AppError('not_found', { httpStatus: 404 })
-  await orgDb.memberships.update({ status: 'inactive' }, where)
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'organizationMembership.deleted',
-    payload: { orgId: id, membershipId: memberId, userId: existing.userId },
-  })
-  scheduleOrgScimTargetSyncs(c, id)
-  return new Response(null, { status: 204 })
-})
-
-// GET /v1/organizations/:id/roles
-app.get('/:id/roles', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'roles:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const projects = await readAllById((cursor) =>
-    db
-      .forOrg(id)
-      .projects.findMany(
-        cursor
-          ? and(
-              eq(schema.projects.orgId, id),
-              eq(schema.projects.status, 'active'),
-              gt(schema.projects.id, cursor),
-            )
-          : and(eq(schema.projects.orgId, id), eq(schema.projects.status, 'active')),
-        { orderBy: asc(schema.projects.id), limit: ORG_LIST_BATCH_SIZE },
-      ),
-  )
-  const projectIds = projects.map((p) => p.id)
-  if (projectIds.length === 0) return c.json([])
-  const rows = await readAllByIds(projectIds, (batch, cursor) =>
-    db.roles.findMany(
-      and(
-        inArray(schema.roles.projectId, batch),
-        eq(schema.roles.status, 'active'),
-        ...(cursor ? [gt(schema.roles.id, cursor)] : []),
-      ),
-      { orderBy: asc(schema.roles.id), limit: ORG_LIST_BATCH_SIZE },
-    ),
-  )
-  return c.json(await toConsoleRoles(c, rows))
 })
 
 // GET /v1/organizations/:id/sso-connections
@@ -1651,15 +1207,6 @@ app.delete('/:id/sso-connections/:connectionId', async (c) => {
 })
 
 registerOrganizationDirectoryRoutes(app)
-
-// GET /v1/organizations/:id/branding
-app.get('/:id/branding', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'branding:read')
-  const tenant = c.get('tenant')
-  const raw = await c.env.CACHE.get(brandingKey(tenant.tenantId, id))
-  return c.json(readBranding(raw))
-})
 
 // GET /v1/organizations/:id/auth-policy
 app.get('/:id/auth-policy', async (c) => {
@@ -2004,28 +1551,6 @@ app.delete('/:id/outbound-saml-apps/:appId', async (c) => {
 
 registerOrganizationScimTargetRoutes(app)
 
-// PATCH /v1/organizations/:id/branding
-app.patch('/:id/branding', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'branding:write')
-  const tenant = c.get('tenant')
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(brandingPatchBodySchema, json.value)
-  const current = readBranding(await c.env.CACHE.get(brandingKey(tenant.tenantId, id)))
-  const next: ConsoleBranding = {
-    primaryColor: body.primaryColor ?? current.primaryColor,
-    backgroundColor: body.backgroundColor ?? current.backgroundColor,
-    accentColor: body.accentColor ?? current.accentColor,
-    borderRadius: body.borderRadius ?? current.borderRadius,
-    fontFamily: body.fontFamily ?? current.fontFamily,
-    logoUrl: body.logoUrl ?? current.logoUrl,
-    logoDarkUrl: body.logoDarkUrl ?? current.logoDarkUrl,
-  }
-  await c.env.CACHE.put(brandingKey(tenant.tenantId, id), JSON.stringify(next))
-  return c.json(next)
-})
-
 // ---- 创建 ----
 
 // POST /v1/organizations
@@ -2216,239 +1741,11 @@ app.post('/:id/restore', async (c) => {
   return c.json(toResponse(row))
 })
 
-// ---- logo 上传 ----
-
-// PUT /v1/organizations/:id/logo  -- multipart/form-data, field: file
-app.put('/:id/logo', async (c) => {
-  await requireApiKey(c, 'organizations:write')
-  const id = c.req.param('id')
-  await requireOrg(c, id)
-
-  const tenant = c.get('tenant')
-  const formData = await c.req.formData()
-  const file = formData.get('file')
-  if (!(file instanceof File)) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      longMessage: 'file field required.',
-    })
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      longMessage: 'Logo must be <= 5 MB.',
-    })
-  }
-
-  const key = `logos/${tenant.tenantId}/${id}/${crypto.randomUUID()}`
-  const buf = await file.arrayBuffer()
-  await c.env.STORAGE.put(key, buf, { httpMetadata: { contentType: file.type } })
-  // logo 经 worker 自 serve(GET /storage/logos/*);issuer 随单租户/多租户/自定义域名解析。
-  const logoUrl = `${tenant.issuer}/storage/${key}`
-
-  const db = createTenantDb(c.env.DB, tenant)
-  const updated = await db.organizations.update({ logoUrl }, eq(schema.organizations.id, id))
-  return c.json({ logo_url: logoUrl, organization: toResponse(updated[0]!) })
-})
-
-// ---- 域名管理 ----
-
-// GET /v1/organizations/:id/domains
-app.get('/:id/domains', async (c) => {
-  const id = c.req.param('id')
-  const auth = await requireApiKeyOrOrgManager(c, id, 'organization_domains:read')
-
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const orgDb = db.forOrg(id)
-  const domains = await readAllById((cursor) =>
-    orgDb.organizationDomains.findMany(
-      cursor
-        ? and(
-            eq(schema.organizationDomains.status, 'active'),
-            gt(schema.organizationDomains.id, cursor),
-          )
-        : eq(schema.organizationDomains.status, 'active'),
-      { orderBy: asc(schema.organizationDomains.id), limit: ORG_LIST_BATCH_SIZE },
-    ),
-  )
-  if (auth.kind === 'org_console') return c.json(domains.map(toConsoleDomain))
-  return c.json({ data: domains.map(toDomainResponse) })
-})
-
-// POST /v1/organizations/:id/domains
-app.post('/:id/domains', async (c) => {
-  const id = c.req.param('id')
-  const auth = await requireApiKeyOrOrgManager(c, id, 'organization_domains:write')
-
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(createDomainBodySchema, json.value)
-
-  // 全局唯一(UNIQUE(domain),见 schema/rbac.ts organizationDomains)
-  const existing = await db.organizationDomains.findOne(
-    eq(schema.organizationDomains.domain, body.domain),
-  )
-  if (existing?.status === 'deleted' && existing.orgId === id) {
-    const updated = await db.organizationDomains.update(
-      {
-        enrollmentMode: body.enrollment_mode ?? 'invite_required',
-        verificationStatus: 'pending',
-        verificationToken: crypto.randomUUID(),
-        status: 'active',
-        deletedAt: null,
-      },
-      eq(schema.organizationDomains.id, existing.id),
-    )
-    const row = updated[0]!
-    if (auth.kind === 'org_console') return c.json(toConsoleDomain(row), 201)
-    return c.json(toDomainResponse(row), 201)
-  }
-  if (existing)
-    throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'domain' } })
-
-  const token = crypto.randomUUID()
-  let domain: typeof schema.organizationDomains.$inferSelect
-  try {
-    domain = await db.organizationDomains.insert({
-      id: createPersistedId('organizationDomain'),
-      tenantId: tenant.tenantId,
-      orgId: id,
-      domain: body.domain,
-      verificationToken: token,
-      enrollmentMode: body.enrollment_mode ?? 'invite_required',
-      verificationStatus: 'pending',
-    })
-  } catch (error) {
-    // 全局 UNIQUE(domain) 但预检只查本租户:他租户已注册时撞约束,映射 409 模糊文案
-    // (不指明持有者,枚举防护),不外溢 500。
-    if (isUniqueConstraintError(error)) {
-      throw new AppError('already_exists', { httpStatus: 409, meta: { paramName: 'domain' } })
-    }
-    throw error
-  }
-  if (auth.kind === 'org_console') return c.json(toConsoleDomain(domain), 201)
-  return c.json(toDomainResponse(domain), 201)
-})
-
-// DELETE /v1/organizations/:id/domains/:domainId
-app.delete('/:id/domains/:domainId', async (c) => {
-  await requireApiKey(c, 'organization_domains:write')
-  const id = c.req.param('id')
-  await requireOrg(c, id)
-
-  const domainId = c.req.param('domainId')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-
-  const row = await db.organizationDomains.findOne(
-    and(
-      eq(schema.organizationDomains.id, domainId),
-      eq(schema.organizationDomains.status, 'active'),
-    ),
-  )
-  if (!row || row.orgId !== id) throw new AppError('not_found', { httpStatus: 404 })
-
-  await db.organizationDomains.update(
-    { status: 'deleted', deletedAt: new Date() },
-    and(
-      eq(schema.organizationDomains.id, domainId),
-      eq(schema.organizationDomains.status, 'active'),
-    ),
-  )
-  return new Response(null, { status: 204 })
-})
-
-// org audit 复合游标解码(occurredAt|id);格式损坏走 422(枚举防护,不泄露细节)。
-function decodeOrgAuditCursor(cursor: string): { occurredAt: string; id: string } {
-  const raw = decodeCursor(cursor)
-  const sep = raw.indexOf('|')
-  if (sep === -1) throw new AppError('validation_failed', { httpStatus: 422 })
-  return { occurredAt: raw.slice(0, sep), id: raw.slice(sep + 1) }
-}
-
-// GET /v1/organizations/:id/audit-events  org 级审计(只读)。
-// 双认证:org owner/admin/org_manager(cookie)或 sk_ key(audit_events:read)。
-// 过滤:sk(Management API 信任域)与 instance_manager 可见本 org 事件 + 租户级事件(orgId=null,登录类);
-// org admin 仅见本 org 事件,不放开 orgId=null(登录类事件含全租户用户登录 IP/时间,放开即跨 org 泄露)。
-// 排序 occurred_at DESC, id DESC;复合游标 "occurredAt|id"。查询层按索引分页,不把全量审计记录加载到内存。
-app.get('/:id/audit-events', async (c) => {
-  const id = c.req.param('id')
-  const auth = await requireApiKeyOrOrgManager(c, id, 'audit_events:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const query = validateQuery(paginationQuerySchema, c.req.query())
-  const limit = query.limit ?? MAX_PAGE_SIZE
-  const cursor = query.cursor ?? null
-
-  const after = cursor ? decodeOrgAuditCursor(cursor) : null
-  const includeTenantWide =
-    auth.kind === 'api_key' || (await isInstanceManagerUser(c, auth.session.userId))
-  const orgFilter = includeTenantWide
-    ? or(eq(schema.auditEvents.orgId, id), isNull(schema.auditEvents.orgId))
-    : eq(schema.auditEvents.orgId, id)
-  const filters = [orgFilter]
-  if (after) {
-    filters.push(
-      or(
-        lt(schema.auditEvents.occurredAt, after.occurredAt),
-        and(
-          eq(schema.auditEvents.occurredAt, after.occurredAt),
-          lt(schema.auditEvents.id, after.id),
-        ),
-      ),
-    )
-  }
-  const [rows, total] = await Promise.all([
-    db.auditEvents.findMany(and(...filters), {
-      orderBy: [desc(schema.auditEvents.occurredAt), desc(schema.auditEvents.id)],
-      limit: limit + 1,
-    }),
-    db.auditEvents.count(filters[0]),
-  ])
-  const hasMore = rows.length > limit
-  const pageRows = hasMore ? rows.slice(0, limit) : rows
-  const last = pageRows[pageRows.length - 1]
-  const nextCursor =
-    hasMore && last !== undefined ? encodeCursor(`${last.occurredAt}|${last.id}`) : null
-
-  const actorIds = [
-    ...new Set(
-      pageRows
-        .map((row) => row.actorId)
-        .filter((actorId): actorId is string => actorId !== null && actorId !== 'system'),
-    ),
-  ]
-  const actorRows =
-    actorIds.length === 0
-      ? []
-      : await db.users.findMany(inArray(schema.users.id, actorIds), { limit: actorIds.length })
-  const actors = new Map(actorRows.map((row) => [row.id, row.erasedAt] as const))
-
-  const data = pageRows.map((row) => ({
-    id: row.id,
-    seq: row.seq,
-    organizationId: row.tenantId,
-    organizationName: null,
-    orgId: row.orgId ?? null,
-    eventType: row.eventType,
-    actorId: row.actorId ?? null,
-    actorDisplay: auditActorDisplay(row.actorId ?? null, {
-      found: row.actorId === 'system' || actors.has(row.actorId ?? ''),
-      erasedAt: actors.get(row.actorId ?? '') ?? null,
-    }),
-    actorIp: row.actorIp ?? null,
-    targetType: row.targetType ?? null,
-    targetId: row.targetId ?? null,
-    occurredAt: row.occurredAt,
-  }))
-
-  return c.json({ data, nextCursor, total })
-})
-
+// /v1/organizations 家族统一在此注册,子模块按资源拆分。
 export function registerOrganizationsRoutes(honoApp: Hono<XidHonoEnv>): void {
   honoApp.route('/v1/organizations', app)
+  registerOrgMembersRoutes(honoApp)
+  registerOrgDomainsRoutes(honoApp)
+  registerOrgBrandingRoutes(honoApp)
+  registerOrgAuditRoutes(honoApp)
 }

@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { darkTheme } from './styles/tokens.stylex'
 import { BRAND_LOGO_TRANSPARENT } from './brand-assets'
+import { hasCustomBranding, type OrgBranding } from '@xid-kit/types'
 
 export const THEME_MODES = ['system', 'light', 'dark'] as const
 export type ThemeMode = (typeof THEME_MODES)[number]
@@ -30,6 +31,7 @@ export type BrandConfig = {
   radius: string
   fontFamily: string
   logoUrl?: string
+  logoDarkUrl?: string
   appName?: string
 }
 
@@ -68,6 +70,49 @@ export const DEFAULT_BRAND: BrandConfig = {
     '"Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   logoUrl: BRAND_LOGO_TRANSPARENT,
   appName: 'XID',
+}
+
+const DARK_TEXT = 'oklch(0.16 0.02 280)'
+const LIGHT_TEXT = 'oklch(0.985 0.004 280)'
+
+function readableForeground(hex: string): string {
+  const channels = [1, 3, 5].map((start) => {
+    const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  })
+  const [r = 0, g = 0, b = 0] = channels
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? DARK_TEXT : LIGHT_TEXT
+}
+
+// 组织品牌只覆盖设置过的字段;背景色只作用于浅色主题,深色主题保持默认背景以保证对比度。
+export function brandFromOrgBranding(branding: OrgBranding | null | undefined): BrandConfig {
+  if (!branding || !hasCustomBranding(branding)) return DEFAULT_BRAND
+  const primary = branding.primaryColor
+    ? {
+        primary: branding.primaryColor,
+        primaryForeground: readableForeground(branding.primaryColor),
+      }
+    : {}
+  const accent = branding.accentColor ? { accent: branding.accentColor } : {}
+  const background = branding.backgroundColor
+    ? {
+        background: branding.backgroundColor,
+        foreground: readableForeground(branding.backgroundColor),
+      }
+    : {}
+  return {
+    light: { ...DEFAULT_LIGHT, ...primary, ...accent, ...background },
+    dark: { ...DEFAULT_DARK, ...primary, ...accent },
+    radius: branding.borderRadius ?? DEFAULT_BRAND.radius,
+    fontFamily: branding.fontFamily ?? DEFAULT_BRAND.fontFamily,
+    logoUrl: branding.logoUrl ?? DEFAULT_BRAND.logoUrl,
+    logoDarkUrl: branding.logoDarkUrl ?? branding.logoUrl ?? DEFAULT_BRAND.logoUrl,
+    appName: DEFAULT_BRAND.appName,
+  }
+}
+
+export function brandLogoUrl(brand: BrandConfig, scheme: ResolvedScheme): string | undefined {
+  return scheme === 'dark' ? (brand.logoDarkUrl ?? brand.logoUrl) : brand.logoUrl
 }
 
 function paletteToVars(brand: BrandConfig, scheme: ResolvedScheme): Record<string, string> {

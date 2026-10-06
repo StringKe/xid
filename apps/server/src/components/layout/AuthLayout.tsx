@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Stepper } from '@xid-kit/web-ui/ui/Stepper'
 import { tokens } from '../../styles/tokens.stylex'
-import { useTheme } from '../../lib/theme'
+import { brandLogoUrl, useTheme } from '../../lib/theme'
 import { LanguageSwitcher } from '../LanguageSwitcher'
 
 export type AuthLayoutProps = {
@@ -175,11 +175,12 @@ const styles = stylex.create({
 })
 
 export function AuthLayout({ children, footer, steps }: AuthLayoutProps): ReactNode {
-  const { brand } = useTheme()
+  const { brand, scheme } = useTheme()
   const { t } = useLingui()
   const appName = brand.appName ?? 'XID'
-  const logo = brand.logoUrl ? (
-    <img src={brand.logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.logo)} />
+  const logoUrl = brandLogoUrl(brand, scheme)
+  const logo = logoUrl ? (
+    <img src={logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.logo)} />
   ) : (
     <span {...stylex.props(styles.wordmark)}>{appName}</span>
   )
