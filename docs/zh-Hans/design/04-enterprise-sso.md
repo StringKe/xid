@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=9a84a55773464a764b79d94410a5b2cb21e4b46b -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=2b5fddb56fbf026789e96ac089fb00ad3cde4568 -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -18,6 +18,7 @@
 - IdP metadata 导入:URL 自动拉取(定期刷新)+ XML 上传,解析 entityID/SSO URL/SLO URL/证书
 - 属性映射:标准字段(email/firstName/lastName/idp_id)自动 + 自定义字段管理员配置
 - 证书管理:SP 私钥对 AuthnRequest 签名(可选);验证 IdP assertion 签名(必须);证书轮换期新旧并存;EncryptedAssertion 解密
+- Console 端点:SAML connection 展示基于实例 issuer 的绝对 SP entity ID、ACS URL、SP metadata URL 与 SLO URL。OIDC connection 为用户可发起登录的每个 origin(实例 issuer、租户主机、Hosted Auth origin)各展示一个 callback URL,因为 callback 跟随登录发起的 origin,管理员需要全部登记到 IdP。出站 SAML 应用页(第 2 节)展示绝对的 IdP entity ID、metadata、SSO 与 SLO URL;模板给出的下游 OIDC redirect URI 是只读参考文字,不会保存
 
 ### 设计决策
 

@@ -3151,8 +3151,13 @@ describe('v1 org outbound-saml-apps 归属与跨租户隔离', () => {
       env,
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { id: string }[]
-    expect(body.map((row) => row.id)).toEqual(['app_a'])
+    const body = (await res.json()) as Record<string, unknown>[]
+    expect(body.map((row) => row['id'])).toEqual(['app_a'])
+    expect(body[0]).toMatchObject({
+      idpEntityId: 'https://acme.xid.dev/sso/outbound/saml/app_a',
+      idpMetadataUrl: 'https://acme.xid.dev/sso/outbound/saml/app_a/metadata',
+      idpSsoUrl: 'https://acme.xid.dev/sso/outbound/saml/app_a/sso',
+    })
   })
 
   it('POST creates an addressable outbound SAML app with the public sp_ id contract', async () => {
@@ -5553,8 +5558,12 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     )
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body).toMatchObject({
       idp_slo_url: 'https://idp.example.com/slo',
+      sp_entity_id: `https://acme.xid.dev/saml/${String(body['id'])}`,
+      acs_url: `https://acme.xid.dev/sso/saml/${String(body['id'])}/acs`,
+      sp_metadata_url: `https://acme.xid.dev/sso/saml/${String(body['id'])}/metadata`,
     })
   })
 

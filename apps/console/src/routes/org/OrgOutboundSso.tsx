@@ -21,6 +21,7 @@ import {
   useUpdateOutboundSamlApp,
 } from './queries'
 import type { AssignmentGate, CreateOutboundSamlAppInput, OutboundSamlApp } from './types'
+import { EndpointList } from './EndpointList'
 import { useOrgTarget } from './useOrgTarget'
 
 const styles = stylex.create({
@@ -38,12 +39,10 @@ const columns: ColumnDef<OutboundSamlApp>[] = [
   },
   { id: 'acs', header: () => <Trans>ACS URL</Trans>, cell: ({ row }) => row.original.acsUrl },
   {
-    id: 'paths',
-    header: () => <Trans>Endpoints</Trans>,
+    id: 'metadata',
+    header: () => <Trans>IdP metadata URL</Trans>,
     cell: ({ row }) => (
-      <span {...stylex.props(consoleShell.mono)}>
-        {row.original.metadataPath} · {row.original.ssoPath}
-      </span>
+      <span {...stylex.props(consoleShell.mono)}>{row.original.idpMetadataUrl}</span>
     ),
   },
 ]
@@ -55,7 +54,6 @@ type AppForm = {
   sloUrl: string
   sloBinding: 'redirect' | 'post'
   spCertificates: string
-  oidcRedirectUri: string
 }
 
 const EMPTY_FORM: AppForm = {
@@ -65,7 +63,43 @@ const EMPTY_FORM: AppForm = {
   sloUrl: '',
   sloBinding: 'redirect',
   spCertificates: '',
-  oidcRedirectUri: '',
+}
+
+function OidcRedirectHint({ presetKey }: { presetKey: string }): ReactNode {
+  const { t } = useLingui()
+  const redirectUri = presetForKey(presetKey)?.oidcRedirectPlaceholder
+  if (!redirectUri) return null
+  return (
+    <EndpointList
+      entries={[
+        {
+          label: t`OIDC redirect URI for the downstream app`,
+          values: [redirectUri],
+          hint: (
+            <Trans>
+              Reference value from the template. Replace the placeholders and register it in the
+              downstream SaaS OIDC app; XID does not store it. OIDC client registration uses the
+              OAuth application catalog.
+            </Trans>
+          ),
+        },
+      ]}
+    />
+  )
+}
+
+function IdpEndpoints({ app }: { app: OutboundSamlApp }): ReactNode {
+  const { t } = useLingui()
+  return (
+    <EndpointList
+      entries={[
+        { label: t`IdP entity ID`, values: [app.idpEntityId] },
+        { label: t`IdP metadata URL`, values: [app.idpMetadataUrl] },
+        { label: t`IdP SSO URL`, values: [app.idpSsoUrl] },
+        { label: t`IdP SLO URL`, values: [app.idpSloUrl] },
+      ]}
+    />
+  )
 }
 
 function presetForKey(key: string) {
@@ -125,7 +159,6 @@ export default function OrgOutboundSso(): ReactNode {
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [pendingDelete, setPendingDelete] = useState(false)
   const selected = data?.find((app) => app.id === selectedId) ?? null
-  const createPreset = presetForKey(createForm.preset)
 
   useEffect(() => {
     if (!selected && data && data.length > 0) setSelectedId(data[0]!.id)
@@ -133,7 +166,6 @@ export default function OrgOutboundSso(): ReactNode {
 
   useEffect(() => {
     if (selected) {
-      const preset = presetForKey(selected.provider)
       setEditForm({
         preset: selected.provider,
         spEntityId: selected.spEntityId,
@@ -141,7 +173,6 @@ export default function OrgOutboundSso(): ReactNode {
         sloUrl: selected.sloUrl ?? '',
         sloBinding: selected.sloBinding,
         spCertificates: selected.spCertificates.join('\n\n'),
-        oidcRedirectUri: preset?.oidcRedirectPlaceholder ?? '',
       })
       setEditGateMode(selected.assignmentGate.mode)
       setEditAllowedRoles(selected.assignmentGate.allowed_roles.join(', '))
@@ -159,7 +190,6 @@ export default function OrgOutboundSso(): ReactNode {
       sloUrl: '',
       sloBinding: 'redirect',
       spCertificates: '',
-      oidcRedirectUri: preset.oidcRedirectPlaceholder ?? '',
     })
   }
 
@@ -252,7 +282,7 @@ export default function OrgOutboundSso(): ReactNode {
       lead={
         <Trans>
           Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets
-          also show the downstream OIDC redirect URI placeholder for manual SaaS admin setup.
+          also show a reference OIDC redirect URI for manual SaaS admin setup.
         </Trans>
       }
     >
@@ -361,24 +391,7 @@ export default function OrgOutboundSso(): ReactNode {
               placeholder={t`MIIC...`}
             />
           </Field>
-          {createPreset?.oidcRedirectPlaceholder ? (
-            <Field
-              label={t`OIDC redirect URI (downstream admin)`}
-              hint={
-                <Trans>
-                  Configure this redirect URI in the downstream SaaS OIDC app. XID stores SAML
-                  fields only; OIDC client registration uses the generic OAuth app catalog.
-                </Trans>
-              }
-            >
-              <Input
-                value={createForm.oidcRedirectUri}
-                onChange={(event) =>
-                  setCreateForm((prev) => ({ ...prev, oidcRedirectUri: event.target.value }))
-                }
-              />
-            </Field>
-          ) : null}
+          <OidcRedirectHint presetKey={createForm.preset} />
           <Field label={t`Assignment mode`}>
             <Select
               value={createGateMode}
@@ -418,7 +431,11 @@ export default function OrgOutboundSso(): ReactNode {
         <ConsolePageSplitSection
           title={<Trans>Edit app</Trans>}
           meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selected.provider}</p>}
+          description={
+            <Trans>Enter these XID identity provider values in the downstream SaaS admin.</Trans>
+          }
         >
+          <IdpEndpoints app={selected} />
           <form
             onSubmit={(event) => void handleUpdate(event)}
             noValidate
@@ -475,16 +492,7 @@ export default function OrgOutboundSso(): ReactNode {
                 placeholder={t`MIIC...`}
               />
             </Field>
-            {editForm.oidcRedirectUri ? (
-              <Field label={t`OIDC redirect URI (downstream admin)`}>
-                <Input
-                  value={editForm.oidcRedirectUri}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, oidcRedirectUri: event.target.value }))
-                  }
-                />
-              </Field>
-            ) : null}
+            <OidcRedirectHint presetKey={selected.provider} />
             <Field
               label={t`Assignment mode`}
               hint={

@@ -192,6 +192,11 @@ export type SsoConnection = {
   role_mapping: Record<string, unknown>
   jit_enabled: boolean
   status: 'active' | 'inactive' | 'error'
+  sp_entity_id?: string
+  acs_url?: string
+  sp_metadata_url?: string
+  slo_url?: string
+  oidc_callback_urls?: string[]
   createdAt: string
 }
 
@@ -234,8 +239,10 @@ export type OutboundSamlApp = {
   attributeMapping: Record<string, unknown>
   assignmentGate: AssignmentGate
   nameIdFormat: string
-  metadataPath: string
-  ssoPath: string
+  idpEntityId: string
+  idpMetadataUrl: string
+  idpSsoUrl: string
+  idpSloUrl: string
   createdAt: string
 }
 

@@ -22,6 +22,12 @@ sign in with their own company IdP (Okta, Azure AD, Google Workspace), and XID a
 - Certificate management: an SP private key signs the AuthnRequest (optional); the IdP assertion
   signature MUST be verified; old and new certificates coexist during rotation; EncryptedAssertion is
   decrypted
+- Console endpoints: a SAML connection shows the absolute SP entity ID, ACS URL, SP metadata URL,
+  and SLO URL derived from the instance issuer. An OIDC connection shows one callback URL per origin
+  a user can start sign-in from (instance issuer, tenant host, Hosted Auth origin), because the
+  callback follows the sign-in origin; the admin registers all of them at the IdP. The outbound SAML
+  app page (section 2) shows the absolute IdP entity ID, metadata, SSO, and SLO URLs; a preset's
+  downstream OIDC redirect URI is read-only reference text and is not stored
 
 ### Design decisions
 

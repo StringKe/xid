@@ -14,6 +14,7 @@ import type {
   DeliveryChannelProviderPolicy,
   HostedAuthPolicy,
   SocialProviderPolicy,
+  TenantContext,
 } from '@xid-kit/types'
 import {
   DEFAULT_HOSTED_AUTH_POLICY,
@@ -75,6 +76,8 @@ import { assertOrgSelfServiceEditable, isInstanceManagerUser } from './org-self-
 import { registerOrganizationDirectoryRoutes } from './organization-directories'
 import { registerOrganizationScimTargetRoutes } from './organization-scim-targets'
 import { scheduleOrgScimTargetSyncs } from '../scim/outbound'
+import { outboundSamlIdpEndpoints } from '../sso/outbound-saml'
+import { acsUrl, sloUrl, spEntityId } from '../sso/saml-connection'
 import {
   assignmentGateFromBody,
   parseAssignmentGate,
@@ -1307,7 +1310,35 @@ async function toConsoleRoles(
   }))
 }
 
-function toConsoleSsoConnection(row: typeof schema.ssoConnections.$inferSelect) {
+// IdP 侧要填写的本端地址。OIDC callback 跟随用户发起登录的 origin(oidc-rp.ts),
+// 因此列出实例 issuer、租户主机和 Hosted Auth origin,管理员需要全部登记到 IdP。
+function ssoServiceProviderEndpoints(
+  tenant: TenantContext,
+  row: typeof schema.ssoConnections.$inferSelect,
+) {
+  if (row.protocol === 'saml') {
+    return {
+      sp_entity_id: spEntityId(tenant, row.id),
+      acs_url: acsUrl(tenant, row.id),
+      sp_metadata_url: `${tenant.issuer}/sso/saml/${row.id}/metadata`,
+      slo_url: sloUrl(tenant, row.id),
+    }
+  }
+  if (row.protocol !== 'oidc') return {}
+  const origins = new Set([
+    new URL(tenant.issuer).origin,
+    `https://${tenant.rpId}`,
+    ...(tenant.hostedAuthOrigin ? [new URL(tenant.hostedAuthOrigin).origin] : []),
+  ])
+  return {
+    oidc_callback_urls: [...origins].map((origin) => `${origin}/sso/oidc/${row.id}/callback`),
+  }
+}
+
+function toConsoleSsoConnection(
+  tenant: TenantContext,
+  row: typeof schema.ssoConnections.$inferSelect,
+) {
   // attributeMapping 里 `_` 前缀键(_swaVault / _swaVaultEnvelope)存 SWA vault 信封加密的凭证材料,
   // 与 v1/connections.ts stripInternalAttributeMapping 同一约定:响应一律剔除,写路径不受影响。
   const attributeMapping = Object.fromEntries(
@@ -1333,6 +1364,7 @@ function toConsoleSsoConnection(row: typeof schema.ssoConnections.$inferSelect) 
     role_mapping: row.roleMapping,
     jit_enabled: row.jitEnabled,
     status: row.status === 'active' ? 'active' : 'inactive',
+    ...ssoServiceProviderEndpoints(tenant, row),
     createdAt: toIso(row.createdAt) ?? '',
   }
 }
@@ -1469,7 +1501,7 @@ app.get('/:id/sso-connections', async (c) => {
         { orderBy: asc(schema.ssoConnections.id), limit: ORG_LIST_BATCH_SIZE },
       ),
   )
-  return c.json(rows.map(toConsoleSsoConnection))
+  return c.json(rows.map((row) => toConsoleSsoConnection(c.get('tenant'), row)))
 })
 
 // POST /v1/organizations/:id/sso-connections
@@ -1551,7 +1583,7 @@ app.post('/:id/sso-connections', async (c) => {
           orgId: id,
           ...patch,
         })
-  return c.json(toConsoleSsoConnection(row!), 201)
+  return c.json(toConsoleSsoConnection(c.get('tenant'), row!), 201)
 })
 
 // PATCH /v1/organizations/:id/sso-connections/:connectionId
@@ -1597,7 +1629,7 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
   const updated = await orgDb.ssoConnections.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  return c.json(toConsoleSsoConnection(row))
+  return c.json(toConsoleSsoConnection(c.get('tenant'), row))
 })
 
 // DELETE /v1/organizations/:id/sso-connections/:connectionId
@@ -1781,9 +1813,13 @@ function assertOutboundSloConfiguration(
   }
 }
 
-function toConsoleOutboundSamlApp(row: typeof schema.samlServiceProviders.$inferSelect) {
+function toConsoleOutboundSamlApp(
+  tenant: TenantContext,
+  row: typeof schema.samlServiceProviders.$inferSelect,
+) {
   const mapping = row.attributeMapping as Record<string, unknown>
   const gate = parseAssignmentGate(mapping)
+  const idp = outboundSamlIdpEndpoints(tenant.issuer, row.id)
   return {
     id: row.id,
     provider: presetKeyFromAttributeMapping(mapping) ?? 'custom',
@@ -1796,8 +1832,10 @@ function toConsoleOutboundSamlApp(row: typeof schema.samlServiceProviders.$infer
     attributeMapping: mapping,
     assignmentGate: serializeAssignmentGate(gate),
     nameIdFormat: row.nameIdFormat,
-    metadataPath: `/sso/outbound/saml/${row.id}/metadata`,
-    ssoPath: `/sso/outbound/saml/${row.id}/sso`,
+    idpEntityId: idp.entityId,
+    idpMetadataUrl: idp.metadataUrl,
+    idpSsoUrl: idp.ssoUrl,
+    idpSloUrl: idp.sloUrl,
     createdAt: toIso(row.createdAt) ?? '',
   }
 }
@@ -1816,7 +1854,7 @@ app.get('/:id/outbound-saml-apps', async (c) => {
       { orderBy: asc(schema.samlServiceProviders.id), limit: ORG_LIST_BATCH_SIZE },
     ),
   )
-  return c.json(rows.map(toConsoleOutboundSamlApp))
+  return c.json(rows.map((row) => toConsoleOutboundSamlApp(c.get('tenant'), row)))
 })
 
 // POST /v1/organizations/:id/outbound-saml-apps
@@ -1881,7 +1919,7 @@ app.post('/:id/outbound-saml-apps', async (c) => {
     event: 'organization.outbound_saml_app.created',
     payload: { orgId: id, appId: row.id, preset: presetKey ?? null },
   })
-  return c.json(toConsoleOutboundSamlApp(row), 201)
+  return c.json(toConsoleOutboundSamlApp(c.get('tenant'), row), 201)
 })
 
 // PATCH /v1/organizations/:id/outbound-saml-apps/:appId
@@ -1937,7 +1975,7 @@ app.patch('/:id/outbound-saml-apps/:appId', async (c) => {
   const updated = await db.samlServiceProviders.update(patch, where)
   const row = updated[0]
   if (!row) throw new AppError('not_found', { httpStatus: 404 })
-  return c.json(toConsoleOutboundSamlApp(row))
+  return c.json(toConsoleOutboundSamlApp(c.get('tenant'), row))
 })
 
 // DELETE /v1/organizations/:id/outbound-saml-apps/:appId

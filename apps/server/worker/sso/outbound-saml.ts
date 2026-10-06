@@ -88,16 +88,34 @@ function readRelayState(value: string | undefined): string | null {
   return value
 }
 
+export type OutboundSamlIdpEndpoints = {
+  entityId: string
+  metadataUrl: string
+  ssoUrl: string
+  sloUrl: string
+}
+
+// SaaS 管理员要填写的 IdP 端点,全部基于实例 issuer。
+export function outboundSamlIdpEndpoints(issuer: string, appId: string): OutboundSamlIdpEndpoints {
+  const entityId = `${issuer}/sso/outbound/saml/${encodeURIComponent(appId)}`
+  return {
+    entityId,
+    metadataUrl: `${entityId}/metadata`,
+    ssoUrl: `${entityId}/sso`,
+    sloUrl: `${entityId}/slo`,
+  }
+}
+
 function idpEntityId(c: Context<XidHonoEnv>, appId: string): string {
-  return `${c.get('tenant').issuer}/sso/outbound/saml/${encodeURIComponent(appId)}`
+  return outboundSamlIdpEndpoints(c.get('tenant').issuer, appId).entityId
 }
 
 function idpSsoUrl(c: Context<XidHonoEnv>, appId: string): string {
-  return `${c.get('tenant').issuer}/sso/outbound/saml/${encodeURIComponent(appId)}/sso`
+  return outboundSamlIdpEndpoints(c.get('tenant').issuer, appId).ssoUrl
 }
 
 function idpSloUrl(c: Context<XidHonoEnv>, appId: string): string {
-  return `${c.get('tenant').issuer}/sso/outbound/saml/${encodeURIComponent(appId)}/slo`
+  return outboundSamlIdpEndpoints(c.get('tenant').issuer, appId).sloUrl
 }
 
 async function resolveSp(c: Context<XidHonoEnv>, appId: string): Promise<SamlServiceProvider> {

@@ -22,6 +22,7 @@ import {
   useUpdateSsoConnection,
 } from './queries'
 import type { CreateSsoConnectionInput, SsoConnection, UpdateSsoConnectionInput } from './types'
+import { SsoConnectionEndpoints } from './SsoConnectionEndpoints'
 import { useOrgTarget } from './useOrgTarget'
 
 const STATUS_TONE: Record<SsoConnection['status'], BadgeTone> = {
@@ -449,7 +450,11 @@ export default function OrgSso(): ReactNode {
         <ConsolePageSplitSection
           title={<Trans>Edit connection</Trans>}
           meta={<p {...stylex.props(consoleShell.selectorSummary)}>{selectedConnection.name}</p>}
+          description={
+            <Trans>Enter these XID service provider values in your identity provider.</Trans>
+          }
         >
+          <SsoConnectionEndpoints connection={selectedConnection} />
           <form onSubmit={(event) => void handleUpdate(event)} noValidate>
             <div {...stylex.props(styles.formGrid)}>
               <ConnectionFields
