@@ -16,7 +16,13 @@ vi.mock('../../auth/delivery-channels', () => ({
   smsDeliveryReady: vi.fn(() => true),
 }))
 
+vi.mock('../session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../session')>()),
+  recordSessionActivated: vi.fn(),
+}))
+
 import { createTenantDb } from '@xid-kit/db'
+import { recordSessionActivated } from '../session'
 import {
   activateSessionAfterMfaSetup,
   mfaSetupRedirectPath,
@@ -214,6 +220,10 @@ describe('activateSessionAfterMfaSetup', () => {
       }),
       expect.anything(),
     )
+    expect(recordSessionActivated).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ sessionId: 'sess_1', status: 'pending_mfa_setup' }),
+    )
   })
 
   it('leaves an already active session untouched', async () => {
@@ -236,6 +246,7 @@ describe('activateSessionAfterMfaSetup', () => {
     })
 
     expect(sessionUpdate).not.toHaveBeenCalled()
+    expect(recordSessionActivated).not.toHaveBeenCalled()
   })
 })
 
