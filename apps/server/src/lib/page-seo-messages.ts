@@ -19,4 +19,3 @@ export const seoAccountProfileTitle = msg`Profile | Account | XID`
 export const seoAccountSecurityTitle = msg`Security | Account | XID`
 export const seoAccountConnectionsTitle = msg`Connections | Account | XID`
 export const seoAccountSessionsTitle = msg`Sessions | Account | XID`
-export const seoAccountDevicesTitle = msg`Trusted devices | Account | XID`

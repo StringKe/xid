@@ -5,7 +5,7 @@ import * as stylex from '@stylexjs/stylex'
 import { renderSVG } from 'uqr'
 import { tokens } from '../../styles/tokens.stylex'
 import { Button, Field, Input } from '../../components/ui'
-import type { BackupCodesResponse, TotpSetupResponse } from './hooks'
+import type { BackupCodesResponse, TotpSetupResponse } from './types'
 
 const styles = stylex.create({
   panel: {

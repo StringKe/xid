@@ -1,5 +1,5 @@
 // GET /v1/me/sessions + POST /v1/me/sessions/revoke-all:account portal 会话自助管理。
-// GET 列当前用户 status='active' 且未过期会话(camelCase,account/hooks.ts ActiveSession 契约)。
+// GET 列当前用户 status='active' 且未过期会话(camelCase,account/types.ts ActiveSession 契约)。
 // revoke-all 撤销「除当前会话外」的所有会话(前端 "Sign out all other sessions";与 Management API 全撤不同)。
 // 认证:cookie session;租户隔离:createTenantDb;撤销走 per-user SessionDO(强一致)再落 D1。
 // refresh_token_hash 绝不外泄(对照 v1/sessions.ts safeSession,但转 camelCase + 脱敏指纹)。

@@ -1,4 +1,4 @@
-// GET /v1/me/trusted-devices:当前用户信任设备(account/hooks.ts TrustedDevice 契约,camelCase)。
+// GET /v1/me/trusted-devices:当前用户信任设备(camelCase)。
 // 映射 trusted_devices:id/deviceName/fingerprint(脱敏)/trustedAt/lastSeenAt。仅列 revoked_at IS NULL 且未过期。
 // 认证:cookie session;租户隔离:createTenantDb。device_token_hash / fingerprint 明文绝不外泄(见 anti-abuse rule)。
 

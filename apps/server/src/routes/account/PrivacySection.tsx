@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex'
 import { Alert, Button, EmptyState, Section, SectionRow, Skeleton } from '../../components/ui'
 import { tokens } from '../../styles/tokens.stylex'
 import { ConfirmDialog } from './ConfirmDialog'
-import type { PrivacyRequest } from './hooks'
+import type { PrivacyRequest } from './types'
 import {
   useCancelPrivacyRequest,
   useCreatePrivacyRequest,

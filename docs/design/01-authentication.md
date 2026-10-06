@@ -752,6 +752,10 @@ authentication. Administrator-triggered resets are audited and the account owner
   is decisive
 - Users can view and revoke trusted devices in their security settings
 
+Device token issuance and verification are not implemented yet, so no device can skip MFA today.
+Until they ship, the account portal has no trusted-devices page; `GET` and `DELETE
+/v1/me/trusted-devices` remain as API surface over the existing table.
+
 Data model: the core entity is TrustedDevice (see chapter 08), which records the device fingerprint
 and validity window.
 

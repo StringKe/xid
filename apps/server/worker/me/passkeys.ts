@@ -1,4 +1,4 @@
-// GET /v1/me/passkeys:当前用户 passkey 列表(account/hooks.ts PasskeyCredential 契约,camelCase)。
+// GET /v1/me/passkeys:当前用户 passkey 列表(account/types.ts PasskeyCredential 契约,camelCase)。
 // 认证:cookie session;租户隔离:createTenantDb。
 // 安全:public_key/aaguid/sign_count/cose_alg 绝不外泄(私钥永不入库,公钥也不回前端,见 webauthn rule)。
 

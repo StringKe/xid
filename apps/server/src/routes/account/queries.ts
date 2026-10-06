@@ -1,4 +1,4 @@
-// account portal /v1/me/* 数据层;实体类型契约仍从 ./hooks 导出。
+// account portal /v1/me/* 数据层;实体类型契约见 ./types。
 
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 import type { XidError } from '@xid-kit/types'
@@ -13,10 +13,9 @@ import type {
   SmsFactorOption,
   SocialConnection,
   TotpSetupResponse,
-  TrustedDevice,
   UpdateProfilePayload,
   UserProfile,
-} from './hooks'
+} from './types'
 
 export function useProfileQuery(): UseQueryResult<UserProfile, XidError> {
   return useApiQuery<UserProfile>(queryKeys.meProfile, '/v1/me/profile')
@@ -169,17 +168,6 @@ export function useRevokeAllSessions(): UseMutationResult<unknown, XidError, voi
   return useApiMutation<unknown, void>((api) => api.post<unknown>('/v1/me/sessions/revoke-all'), {
     invalidate: [queryKeys.meSessions],
   })
-}
-
-export function useTrustedDevicesQuery(): UseQueryResult<TrustedDevice[], XidError> {
-  return useApiQuery<TrustedDevice[]>(queryKeys.meTrustedDevices, '/v1/me/trusted-devices')
-}
-
-export function useRevokeTrustedDevice(): UseMutationResult<unknown, XidError, string> {
-  return useApiMutation<unknown, string>(
-    (api, id) => api.del<unknown>(`/v1/me/trusted-devices/${id}`),
-    { invalidate: [queryKeys.meTrustedDevices] },
-  )
 }
 
 export function usePrivacyRequestsQuery(): UseQueryResult<PrivacyRequest[], XidError> {

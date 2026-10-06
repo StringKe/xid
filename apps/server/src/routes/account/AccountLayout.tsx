@@ -30,7 +30,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/account/security', label: <Trans>Security</Trans> },
   { to: '/account/connections', label: <Trans>Connected accounts</Trans> },
   { to: '/account/sessions', label: <Trans>Active sessions</Trans> },
-  { to: '/account/devices', label: <Trans>Trusted devices</Trans> },
 ]
 
 const SWITCH_ORGANIZATION_PATH = `/select-organization?${new URLSearchParams({

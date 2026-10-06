@@ -8,7 +8,7 @@ import { Alert, Button, EmptyState, Section, SectionRow, Skeleton } from '../../
 import { ConfirmDialog } from './ConfirmDialog'
 import { trackSocialDisconnected } from '../../lib/google-analytics-funnel'
 import { useDisconnectSocial, useSocialConnectionsQuery } from './queries'
-import type { SocialConnection } from './hooks'
+import type { SocialConnection } from './types'
 import { useSecurityActionError } from './use-security-action-error'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'

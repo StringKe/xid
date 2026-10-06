@@ -4,7 +4,6 @@ import { buildPublicCanonicalUrl } from './google-analytics'
 import {
   seoAcceptInvitationTitle,
   seoAccountConnectionsTitle,
-  seoAccountDevicesTitle,
   seoAccountProfileTitle,
   seoAccountSecurityTitle,
   seoAccountSessionsTitle,
@@ -59,7 +58,6 @@ export function resolvePageSeo(pathname: string): PageSeoConfig {
     ['/account/security', { title: seoAccountSecurityTitle, indexable: false }],
     ['/account/connections', { title: seoAccountConnectionsTitle, indexable: false }],
     ['/account/sessions', { title: seoAccountSessionsTitle, indexable: false }],
-    ['/account/devices', { title: seoAccountDevicesTitle, indexable: false }],
   ]
 
   for (const [path, config] of privateRoutes) {

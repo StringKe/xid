@@ -21,7 +21,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { detectDeviceParts } from './device-label'
 import { usePasskeyReregistrationNotice } from './passkey-reregistration'
 import { usePasskeysQuery, useRegisterPasskey, useRemovePasskey, useRenamePasskey } from './queries'
-import type { PasskeyCredential } from './hooks'
+import type { PasskeyCredential } from './types'
 import { useSecurityActionError } from './use-security-action-error'
 
 const styles = stylex.create({

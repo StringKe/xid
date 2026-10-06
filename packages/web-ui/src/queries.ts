@@ -20,7 +20,6 @@ export const queryKeys = {
   mePasskeys: ['me', 'passkeys'] as const,
   meSocialConnections: ['me', 'social-connections'] as const,
   meSessions: ['me', 'sessions'] as const,
-  meTrustedDevices: ['me', 'trusted-devices'] as const,
   mePrivacyRequests: ['me', 'privacy-requests'] as const,
   users: (query?: string) => ['users', { query: query ?? null }] as const,
   user: (userId: string) => ['users', userId] as const,

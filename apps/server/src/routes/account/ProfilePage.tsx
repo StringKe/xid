@@ -7,7 +7,7 @@ import { account, consoleShell, page } from '../../styles/product-surface.stylex
 import { Alert, Button, Input, Section, SectionRow, Spinner } from '../../components/ui'
 import { SUPPORTED_LOCALES } from '../../lib/locale'
 import { useProfileQuery, useUpdateProfile } from './queries'
-import type { UserProfile } from './hooks'
+import type { UserProfile } from './types'
 import { PrivacySection } from './PrivacySection'
 
 const LOCALE_OPTIONS = [

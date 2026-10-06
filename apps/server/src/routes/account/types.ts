@@ -1,4 +1,4 @@
-// account portal /v1/me/* 实体类型契约;数据读写见 ./queries。
+// /v1/me/* account portal 响应契约(camelCase);数据读取统一走 ./queries 的 react-query hook。
 
 export type UserProfile = {
   id: string
@@ -88,14 +88,6 @@ export type ActiveSession = {
   lastActiveAt: string
   expiresAt: string
   isCurrent: boolean
-}
-
-export type TrustedDevice = {
-  id: string
-  deviceName: string | null
-  fingerprint: string
-  trustedAt: string
-  lastSeenAt: string
 }
 
 export type PrivacyRequest = {

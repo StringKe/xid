@@ -24,4 +24,3 @@ export const seoAccountProfileTitle = seoDescriptor('Y7fB1U', `Profile | Account
 export const seoAccountSecurityTitle = seoDescriptor('9J1wG-', `Security | Account | XID`)
 export const seoAccountConnectionsTitle = seoDescriptor('G5t79H', `Connections | Account | XID`)
 export const seoAccountSessionsTitle = seoDescriptor('sMvepx', `Sessions | Account | XID`)
-export const seoAccountDevicesTitle = seoDescriptor('VDEOYV', `Trusted devices | Account | XID`)

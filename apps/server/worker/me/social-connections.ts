@@ -1,4 +1,4 @@
-// GET /v1/me/social-connections:当前用户社交登录绑定(account/hooks.ts SocialConnection 契约,camelCase)。
+// GET /v1/me/social-connections:当前用户社交登录绑定(account/types.ts SocialConnection 契约,camelCase)。
 // 映射 user_identities(identity_type='oauth'):id/provider/providerAccountId/email/connectedAt。
 // 认证:cookie session;租户隔离:createTenantDb。token 密文(access/refresh)绝不外泄。
 

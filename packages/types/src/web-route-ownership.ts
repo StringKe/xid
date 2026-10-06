@@ -127,7 +127,6 @@ export const CORE_SPA_ROUTE_PATHS = [
   '/account/security',
   '/account/connections',
   '/account/sessions',
-  '/account/devices',
 ] as const
 
 const CORE_SPA_ROUTE_PATH_SET = new Set<string>(CORE_SPA_ROUTE_PATHS)

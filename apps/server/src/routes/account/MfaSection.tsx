@@ -14,7 +14,7 @@ import {
   useStartTotpSetup,
   useVerifyTotpSetup,
 } from './queries'
-import type { BackupCodesResponse, MfaFactor, TotpSetupResponse } from './hooks'
+import type { BackupCodesResponse, MfaFactor, TotpSetupResponse } from './types'
 import { trackMfaFactorEnrolled } from '../../lib/google-analytics-funnel'
 import { BackupCodesPanel, TotpSetupPanel } from './MfaSectionPanels'
 import { useSecurityActionError } from './use-security-action-error'

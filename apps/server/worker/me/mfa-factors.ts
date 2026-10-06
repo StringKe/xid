@@ -1,4 +1,4 @@
-// GET /v1/me/mfa-factors:当前用户 MFA 因子(account/hooks.ts MfaFactor 判别 union,camelCase)。
+// GET /v1/me/mfa-factors:当前用户 MFA 因子(account/types.ts MfaFactor 判别 union,camelCase)。
 // totp -> { type:'totp' };backup_codes 批次 -> { type:'backup_codes', remaining };
 // sms -> 显式登记的 SMS 因子;passkey -> 可用于第二因子或 step-up 的凭证。仅列当前真实可用因子。
 // 登录挑战(pending_mfa)不列一次认证已用过的方法类别,与门控、挑战端点同一判定。

@@ -175,11 +175,6 @@ const accountSessionsRoute = accountRoute(
   '/account/sessions',
   () => import('./routes/account/SessionsPage'),
 )
-const accountDevicesRoute = accountRoute(
-  '/account/devices',
-  '/account/devices',
-  () => import('./routes/account/DevicesPage'),
-)
 
 // 租户子域与自定义域名的 / 由 Core 承载:落账户门户,未登录由 RequireAuth 送去 /sign-in。
 const indexRoute = createRoute({
@@ -217,7 +212,6 @@ const routeTree = rootRoute.addChildren([
   accountSecurityRoute,
   accountConnectionsRoute,
   accountSessionsRoute,
-  accountDevicesRoute,
   notFoundRoute,
 ])
 

@@ -16,7 +16,7 @@ import {
 } from '../../components/ui'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useRevokeAllSessions, useRevokeSession, useSessionsQuery } from './queries'
-import type { ActiveSession } from './hooks'
+import type { ActiveSession } from './types'
 
 const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
 

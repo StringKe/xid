@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=3c8f12f2d5148f9796cbbd4ea9d191472d4a06e1 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=281a50e1d67a8b0606e6d410ea8c16e190c224ec -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -472,6 +472,9 @@ turnstileToken }`,形状与 forgot-password 相同:格式错误、未知邮箱�
 - 校验通过可跳过或降级 MFA(可配置)
 - 设备指纹:UA + IP 段 + Accept-Language + TLS fingerprint,不依赖单一信号
 - 用户可在安全设置查看并撤销信任设备
+
+设备 token 的签发与校验尚未实现,目前没有任何设备能跳过 MFA。上线前账户门户不提供信任设备页面;
+`GET` 与 `DELETE /v1/me/trusted-devices` 作为现有表上的 API 保留。
 
 数据模型:核心实体 TrustedDevice(见 08 章),记录设备指纹与有效期。
 

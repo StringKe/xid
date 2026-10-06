@@ -1,4 +1,4 @@
-// GET / PATCH /v1/me/profile:account portal 用户档案(account/hooks.ts UserProfile 契约,camelCase)。
+// GET / PATCH /v1/me/profile:account portal 用户档案(account/types.ts UserProfile 契约,camelCase)。
 // 认证:cookie session(requireSession);租户隔离:createTenantDb。
 // email 只读(前端 disabled),PATCH 仅接受 firstName/lastName/displayName/locale/timezone 五字段。
 // 见 docs/design/05-users-sessions.md、tenant-isolation rule。
