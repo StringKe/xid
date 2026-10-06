@@ -108,15 +108,20 @@ async function resolveClient(
     tokenEndpoint: `${ctx.issuer}/token`,
     now,
   })
+  // client 已解析时才知道 CORS 白名单;认证失败也要让浏览器 SPA 读到 invalid_client。
   if (!auth.ok) {
     const extra =
       auth.error.meta?.paramName === 'Basic' ? { 'www-authenticate': 'Basic' } : undefined
-    return oauthError(c, {
-      status: auth.error.httpStatus,
-      error: auth.error.code,
-      description: auth.error.message,
-      ...(extra ? { extraHeaders: extra } : {}),
-    })
+    return applyTokenCors(
+      c,
+      client,
+      oauthError(c, {
+        status: auth.error.httpStatus,
+        error: auth.error.code,
+        description: auth.error.message,
+        ...(extra ? { extraHeaders: extra } : {}),
+      }),
+    )
   }
   return { client, clientId: auth.clientId }
 }

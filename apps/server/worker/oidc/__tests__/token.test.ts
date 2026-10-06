@@ -1584,6 +1584,46 @@ describe('/token prelude', () => {
     expect(res.headers.get('access-control-allow-headers')).toBe('content-type,dpop')
   })
 
+  it('已解析的 public client 认证失败 -> 401 invalid_client 且带 CORS 头', async () => {
+    const { ctx, kekB64 } = await buildTestTenant()
+    const { app, env } = await setup(
+      {
+        applications: [
+          await appRow({
+            client_type: 'public',
+            token_endpoint_auth_method: 'none',
+            client_secret_hash: null,
+            allowed_grant_types: JSON.stringify(['authorization_code']),
+          }),
+        ],
+      },
+      ctx,
+      kekB64,
+    )
+
+    const res = await app.request(
+      'https://acme.xid.dev/token',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://rp.example',
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: 'cli_app',
+          client_secret: 'unexpected',
+          code: 'ac_x',
+        }).toString(),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as Record<string, string>)['error']).toBe('invalid_client')
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://rp.example')
+  })
+
   it('Content-Type 非 form-urlencoded -> invalid_request', async () => {
     const { ctx, kekB64 } = await buildTestTenant()
     const { app, env } = await setup({ applications: [await appRow()] }, ctx, kekB64)
