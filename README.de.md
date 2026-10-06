@@ -103,7 +103,7 @@ Konfiguration statt per Build-Flag.
 - Signierte Webhooks unterstützen verschlüsselte Secrets, Rotation, Retry, idempotente Message IDs
   und Dead-Letter-Snapshots. Self-Service-Privacy-Flows bieten private R2-Exporte und verzögertes,
   abbrechbares Erasure mit Schutz des einzigen Organization Owners und letzten Instance Managers.
-- Feature Flags, Branding, Nutzungsmessung, Ankündigungen, Compliance-Artefakte und die Hosted UI in
+- Branding, Nutzungsmessung, Ankündigungen, Compliance-Artefakte und die Hosted UI in
   8 Sprachen (en, zh-Hans, ja, ko, fr, de, es, pt-BR) werden aus derselben Codebasis verwaltet.
 
 ## Schnellstart

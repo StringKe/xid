@@ -103,7 +103,7 @@ multi-tenant, según la configuración y no según un flag de build.
   snapshots dead-letter. Los flujos self-service de privacidad ofrecen exportaciones R2 privadas y
   erasure diferido cancelable, protegiendo al único owner de Organization y al último instance
   manager.
-- Feature flags, branding, medición de uso, anuncios, compliance artifacts y Hosted UI en 8 idiomas
+- Branding, medición de uso, anuncios, compliance artifacts y Hosted UI en 8 idiomas
   (en, zh-Hans, ja, ko, fr, de, es, pt-BR) se gestionan desde la misma base de código.
 
 ## Inicio rápido

@@ -160,7 +160,6 @@ User -> Session -> Token
 | Webhook / WebhookDelivery | Subscriptions and delivery records (retries and dead letters) |
 | ApiKey                    | API keys (scoped, hashed storage)                             |
 | PlatformAdmin             | Platform administrator (platform-level)                       |
-| FeatureFlag               | Rollout switches (stored in KV, not a relational table)       |
 | OrganizationPlan / Quota  | Optional accounting labels and resource-creation limits       |
 | StripeCheckoutReservation | Durable guard against duplicate hosted subscription Checkout  |
 | PlatformAnnouncement      | Scheduled, explicitly targeted operator announcements         |
@@ -229,7 +228,7 @@ timestamp defaults to `null`.
 > tenant_id semantics: an XID "tenant" is a top-level Organization (see the hierarchy in chapter 02,
 > Instance -> Organization). On most business tables `tenant_id` points at the top-level org's id, and
 > org-level entities carry an additional `org_id` (a sub-org or the active org). Platform-level tables
-> (Instance, PlatformAdmin, FeatureFlag in KV) have no tenant_id and use a separate management path
+> (Instance, PlatformAdmin) have no tenant_id and use a separate management path
 > (see the tenant-isolation rule).
 
 ### 9.4 Foreign key ON DELETE policy
@@ -2114,8 +2113,8 @@ can access tenant-owned rows through `createTenantDb`.
 Indexes: `UNIQUE(source_queue, message_id)`, `INDEX(status, failed_at, id)`,
 `INDEX(tenant_id, failed_at, id)`, `INDEX(source_queue, status)`.
 
-> FeatureFlag lives in KV (`flag:{tenant_id}:{flag_name}` / `flag:global:{flag_name}`, see chapter 07
-> section 1 and the cloudflare-bindings rule) and **has no D1 table**. OrgBranding is folded into
+> There is no FeatureFlag entity: capabilities are switched by tenant policy and Organization columns
+> (see chapter 07 section 1). OrgBranding is folded into
 > `organizations.private_metadata.branding` (see chapter 07 section 2), with uploaded logos in R2 and
 > the light logo URL mirrored to `organizations.logo_url`; it has no table of its own. OrgMetadata
 > has likewise been folded into organizations.public/private_metadata (section 11 does not give it

@@ -106,7 +106,7 @@ par un flag de build.
   et snapshots dead-letter. Les flux de confidentialité self-service fournissent exports R2 privés
   et erasure différé annulable, avec protection du seul owner d'Organization et du dernier instance
   manager.
-- Feature flags, branding, metering, annonces, compliance artifacts et Hosted UI en 8 langues
+- Branding, metering, annonces, compliance artifacts et Hosted UI en 8 langues
   (en, zh-Hans, ja, ko, fr, de, es, pt-BR) sont gérés depuis la même base de code.
 
 ## Démarrage rapide

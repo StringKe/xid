@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=25c72da4a18686ebdf00ad1c11df86143a501256 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=ed5497f32c0958ab2dada8c7089deb7c63c90788 -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -151,7 +151,6 @@ User -> Session -> Token
 | Webhook / WebhookDelivery | 订阅与投递记录(重试/死信)                              |
 | ApiKey                    | API 密钥(scoped,哈希存储)                              |
 | PlatformAdmin             | 平台管理员(平台级)                                     |
-| FeatureFlag               | 灰度开关(存 KV,非关系表)                               |
 | OrganizationPlan / Quota  | 可选计费标签与资源创建配额                             |
 | StripeCheckoutReservation | 防止 hosted subscription Checkout 重复计费的持久 guard |
 | PlatformAnnouncement      | 定时、显式定向的运营公告                               |
@@ -206,7 +205,7 @@ User -> Session -> Token
 | created_at | integer ts_ms | NOT NULL                                              | `$defaultFn(() => new Date())`       | 创建时间                                                                   |
 | updated_at | integer ts_ms | NOT NULL                                              | 同上 + `$onUpdate(() => new Date())` | 更新时间                                                                   |
 
-> tenant_id 语义:XID 的"租户"=顶层 Organization(见 02 章层级,Instance -> Organization)。多数业务表 `tenant_id` 指向顶层 org 的 id;org 级细分实体再带 `org_id`(子 org / active org)。平台级表(Instance/PlatformAdmin/FeatureFlag(KV))不带 tenant_id,走独立管理路径(见 tenant-isolation rule)。
+> tenant_id 语义:XID 的"租户"=顶层 Organization(见 02 章层级,Instance -> Organization)。多数业务表 `tenant_id` 指向顶层 org 的 id;org 级细分实体再带 `org_id`(子 org / active org)。平台级表(Instance/PlatformAdmin)不带 tenant_id,走独立管理路径(见 tenant-isolation rule)。
 
 ### 9.4 外键 ON DELETE 策略总则
 
@@ -1933,7 +1932,7 @@ provider 的明确拒绝和调用结果不确定均单独持久化;Queue retry �
 索引:`UNIQUE(source_queue, message_id)`、`INDEX(status, failed_at, id)`、
 `INDEX(tenant_id, failed_at, id)`、`INDEX(source_queue, status)`。
 
-> FeatureFlag 存 KV(`flag:{tenant_id}:{flag_name}` / `flag:global:{flag_name}`,见 07 章 1、cloudflare-bindings rule),**不建 D1 表**;OrgBranding 并入 `organizations.private_metadata.branding`(见 07 章 2),上传的 logo 存 R2,浅色 logo URL 同步到 `organizations.logo_url`,不单独建表。OrgMetadata 同样已并入 organizations.public/private_metadata(11.x 不另起表)。OrganizationQuota 使用独立 `organization_quotas` 表保存运营方配置的资源限制;其中 `seats` row 是权威值,root `organizations.seat_limit` 只是兼容镜像,billing 从 tenant-wide distinct active membership user 计算 seat usage。
+> 不存在 FeatureFlag 实体:能力开关由 tenant policy 与 Organization 列控制(见 07 章 1)。OrgBranding 并入 `organizations.private_metadata.branding`(见 07 章 2),上传的 logo 存 R2,浅色 logo URL 同步到 `organizations.logo_url`,不单独建表。OrgMetadata 同样已并入 organizations.public/private_metadata(11.x 不另起表)。OrganizationQuota 使用独立 `organization_quotas` 表保存运营方配置的资源限制;其中 `seats` row 是权威值,root `organizations.seat_limit` 只是兼容镜像,billing 从 tenant-wide distinct active membership user 计算 seat usage。
 
 ## 18. 字段决策汇总(影响安全/互操作的固化项)
 

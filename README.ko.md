@@ -95,7 +95,7 @@ Durable Object가 직렬화하며, JWKS는 KV에 캐시되어 Relying Party가 �
 - Signed webhook은 encrypted secret, rotation, retry, idempotent message ID, dead-letter snapshot을
   지원합니다. Self-service privacy flow는 private R2 export와 취소 가능한 delayed erasure를 제공하며
   유일한 Organization owner와 마지막 instance manager를 보호합니다.
-- Feature flag, branding, usage metering, announcement, compliance artifact와 8개 로케일
+- Branding, usage metering, announcement, compliance artifact와 8개 로케일
   (en, zh-Hans, ja, ko, fr, de, es, pt-BR)의 Hosted UI를 동일 codebase에서 관리합니다.
 
 ## 빠른 시작

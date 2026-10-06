@@ -95,7 +95,7 @@ Durable Object が直列化し、JWKS は KV にキャッシュされるので r
 - Signed webhook は encrypted secret、rotation、retry、idempotent message ID、dead-letter snapshot を
   サポートする。Self-service privacy flow は private R2 export と取消可能な delayed erasure を提供し、
   sole Organization owner と last instance manager を保護する。
-- Feature flag、branding、usage metering、announcement、compliance artifact、8 ロケール
+- Branding、usage metering、announcement、compliance artifact、8 ロケール
   (en, zh-Hans, ja, ko, fr, de, es, pt-BR) の Hosted UI を同じ codebase から管理する。
 
 ## クイックスタート

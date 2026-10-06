@@ -102,7 +102,7 @@ por configuração e não por flag de build.
 - Webhooks assinados suportam secrets criptografados, rotação, retry, message IDs idempotentes e
   snapshots dead-letter. Fluxos self-service de privacidade oferecem exports R2 privados e erasure
   adiado e cancelável, protegendo o único owner da Organization e o último instance manager.
-- Feature flags, branding, medição de uso, anúncios, compliance artifacts e Hosted UI em 8 idiomas
+- Branding, medição de uso, anúncios, compliance artifacts e Hosted UI em 8 idiomas
   (en, zh-Hans, ja, ko, fr, de, es, pt-BR) são gerenciados pela mesma base de código.
 
 ## Início rápido

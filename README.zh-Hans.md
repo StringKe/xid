@@ -85,7 +85,7 @@ WebAuthn RP ID 和策略全部从单一 `TenantContext` 解析,因此同一份�
 - 签名 webhook 支持加密 secret、rotation、retry、幂等 message ID 和 dead-letter snapshot。自助隐私
   流程提供 private R2 export 与可取消的延迟 erasure,并保护唯一 Organization owner 和最后一个
   instance manager。
-- Feature flag、branding、用量计量、公告、compliance artifact,以及 8 种语言的 Hosted UI
+- Branding、用量计量、公告、compliance artifact,以及 8 种语言的 Hosted UI
   (en、zh-Hans、ja、ko、fr、de、es、pt-BR)均由同一份代码管理。
 
 ## 快速上手

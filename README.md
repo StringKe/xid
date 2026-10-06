@@ -98,7 +98,7 @@ single-tenant deployment or a multi-tenant instance, by configuration rather tha
 - Signed webhooks support encrypted secrets, rotation, retry, idempotent message IDs, and dead-letter
   snapshots. Self-service privacy flows provide private R2 exports and cancelable delayed erasure
   with sole-owner and last-instance-manager protections.
-- Feature flags, branding, usage metering, announcements, compliance artifacts, and Hosted UI in 8
+- Branding, usage metering, announcements, compliance artifacts, and Hosted UI in 8
   locales (en, zh-Hans, ja, ko, fr, de, es, pt-BR) are managed from the same codebase.
 
 ## Quickstart

@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=074718bf7857e1844d9ce67cfc88180cd576a129 -->
+<!-- xid-translation source=docs/design/07-platform-operations.md source-commit=working-tree source-blob=2163f760d944e478c12edd15e601c42a7eca0a57 -->
 
 > Translation of `docs/design/07-platform-operations.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/07-platform-operations.md`](../../design/07-platform-operations.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -9,21 +9,26 @@
 
 ### 平台运营 Admin(跨租户)
 
-- 租户全局列表:已实现按 name/slug 搜索的 cursor pagination 和单租户 status 变更;
-  plan/status/创建时间过滤与批量冻结/解冻/删除仍是设计目标
+- 租户全局列表:已实现按 name/slug 搜索的 cursor pagination 和单租户 status 变更。每行显示
+  Organization ID;默认 Organization 不提供冻结操作,因为 Core 会拒绝。平台列表点「加载更多」
+  时把下一页追加到已加载的行之后,不替换已加载内容。plan/status/创建时间过滤与批量冻结/解冻/
+  删除仍是设计目标
 - 通过任一 active Organization Membership impersonate active user(记平台审计)
 - 全局用户搜索(跨租户,GDPR 访问控制)
 - 全局事件流:已实现汇聚所有租户审计的 cursor pagination;tenant/event_type/user 过滤仍是
   设计目标
-- 系统公告 Banner:全局发布,或按显式 tenant、accounting plan label 定向
-- 全局 Feature Flags:已实现 catalog 和 KV-backed global default,变更无需重部署。写入显式
-  tenant override 与 deployment cohort 灰度仍是设计目标。plan label 绝不作为认证 feature
-  gate
+- 系统公告 Banner:全局发布,或按显式 tenant、accounting plan label 定向。tenant 目标通过
+  Organization 选择器选择,开始时间默认取操作者本地时间
+- 全局 Feature Flags 未实现。Passkey autofill、magic link、社交登录、SCIM 和 Organization
+  自助管理分别由 tenant policy、delivery channels、social provider 配置、directories 与
+  `organizations.allow_org_self_service` 控制,不存在并行的 KV flag 开关。plan label 绝不作为
+  认证 feature gate
 - 资源配额管理:查看/手动调整单租户 quota
 - 实例默认策略(`/v1/platform/settings`):sessionPolicy 全字段(idleTimeoutMin 默认 4320min,边界 5-43200;absoluteTimeoutDays 默认 30d,边界 1-365;rememberMeDefault)+ tokenPolicy 全字段(accessTokenTtlSec 默认 3600s,边界 60-86400;sessionTokenTtlSec 默认 60s,边界 30-300;refreshIdleTimeoutDays 默认 30d,边界 1-365;refreshAbsoluteTimeoutDays 默认 7d,边界 1-90),org 侧经 `/v1/organizations/:id/auth-policy` 逐字段覆盖(null=继承)
 - 计费总览:所有租户当月 DAU/MAU、欠费/超额、Stripe 直达
 - plan 计费管理:变更 billing label、试用期、默认 quota 与 support label,不生成 license,也不
-  解锁认证能力
+  解锁认证能力。只调整 quota 时保留 plan 的计费来源与生效时间,由 Stripe 管理的 plan 仍记为
+  Stripe 来源
 - 全局告警规则是设计目标。当前没有 alert-rule API 或 PagerDuty/Slack delivery path;线上
   notification destination 属于部署状态,验证前保持 `UNKNOWN`
 - 状态页管理:发布/更新 incident
@@ -38,10 +43,10 @@ SPA、admin API、admin tenant 或 admin RBAC。`/platform-admin/*` 不作为兼
 Organization host 有效、2min 内可消费一次的 opaque handoff;handoff 通过 POST body 提交并在
 目标 host 换取 15min HttpOnly impersonation cookie。它不是 bearer token:该 cookie 只允许
 以 `GET`、`HEAD`、`OPTIONS` 读取 `/v1/*`,以及显式结束 impersonation;protocol、auth、SSO、
-session-token exchange 和所有 mutation path 均拒绝它。已实现的 Feature Flag API 读写 global default key
-`flag:global:{flag_name}`,并报告既有 `flag:{tenant_id}:{flag_name}` key 的数量。仓库当前
-没有这些 tenant override key 的 writer,也没有 deployment cohort model。这两种灰度模式
-仍是设计目标,且不得根据 plan label 推导认证行为。
+session-token exchange 和所有 mutation path 均拒绝它,登出也被拒绝,因此 Console 在模拟会话中
+把登出和账户入口替换为「结束模拟」。handoff grant 过期、被重放或格式错误时,目标 host 对顶层
+表单 POST 返回 `303`,跳到签发方的 `/console/platform/users?impersonation=failed`;Console
+说明该链接已失效,响应不回显失败原因。
 
 ### 租户 Admin(单租户自管理)
 
@@ -120,11 +125,14 @@ Cloudflare Email Service(2025,Email Sending)能从 Worker 发 transactional 邮�
 - 邮件模板按语言分版本,按 user.locale 选
 - 错误信息本地化,API 错误 message 带 locale
 - locale 管理:Instance Manager 可经 `/v1/platform/settings` 设置一个 instance
-  `defaultLocale`;per-tenant enabled/disabled locale set 仍是设计目标
+  `defaultLocale`,取值限于 8 种已支持语言。Core 在 tenant 解析后应用它:`?locale=` 与
+  `Accept-Language` 都没有命中已支持语言时,Worker API 错误文案与事务邮件回退到这个语言。
+  Hosted UI 和 Console 在浏览器端检测语言,不读取该值。per-tenant enabled/disabled locale set
+  仍是设计目标
 - 全局 email language-pack JSON 可以存 R2,当前按需加载。预加载热门 5 个 pack 和
   tenant-specific language-pack 管理仍是设计目标
 
-设计决策:locale 检测优先级 `?locale=` -> user.locale -> Accept-Language -> 租户默认 -> en;缺失 fallback en 不显示 key 名;租户上传自定义语言包覆盖(per-tenant R2 path)实现白标术语替换未开始(R2 语言包为全局路径,无上传端点)。
+设计决策:locale 检测优先级 `?locale=` -> user.locale -> Accept-Language -> 实例默认 -> en;缺失 fallback en 不显示 key 名;租户上传自定义语言包覆盖(per-tenant R2 path)实现白标术语替换未开始(R2 语言包为全局路径,无上传端点)。
 
 ## 5. 审计日志
 
@@ -311,14 +319,21 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 
 按域分组,字符串格式为 `<domain>.<action>`:
 
-- 认证:auth.login_success / auth.login_failure / auth.logout / auth.mfa_challenge / auth.mfa_success / auth.mfa_failure / auth.passkey_register / auth.passkey_authenticate / auth.token_issued / auth.token_revoked / auth.session_revoked
+- 认证:auth.login_succeeded / auth.login_failed / auth.logout / auth.mfa_challenge / auth.mfa_success / auth.mfa_failure / auth.passkey_register / auth.passkey_authenticate / auth.token_issued / auth.token_revoked / auth.session_revoked
 - 用户:user.created / user.updated / user.deleted / user.erasure_completed / user.email_verified / user.password_changed / user.mfa_enrolled / user.mfa_removed / user.impersonated
 - 组织:org.created / org.updated / org.deleted / org.member_added / org.member_removed / org.role_assigned / org.role_removed / org.invitation_sent / org.invitation_accepted
 - 应用:app.created / app.updated / app.deleted / app.secret_rotated
 - SSO:sso.connection_created / sso.connection_updated / sso.connection_deleted / sso.login_success / sso.login_failure / sso.directory_sync_started / sso.directory_sync_completed
 - 安全:security.brute_force_blocked / security.impossible_travel / security.new_device / security.account_locked / security.account_unlocked
-- 平台管理:platform.tenant_suspended / platform.tenant_activated / platform.tenant_deleted / platform.impersonate_start / platform.impersonate_end / platform.plan_changed / platform.flag_changed
+- 平台管理:platform.tenant_suspended / platform.tenant_activated / platform.tenant_deleted / platform.impersonate_start / platform.impersonate_end / platform.plan_changed / platform.settings_changed
 - 计费:billing.subscription_created / billing.subscription_updated / billing.payment_failed / billing.quota_exceeded
+
+已实现的登录结果事件:会话变为 `active` 时(签发时,或 pending MFA 会话完成 MFA 时)写一次
+`auth.login_succeeded`,模拟会话不计入。认证请求以 `invalid_credentials`、`account_locked`、
+`account_suspended` 或 `account_banned` 结束时写一次 `auth.login_failed`。失败事件只带请求路径,
+不带标识符和失败原因,账号不存在与凭据错误写出同一条记录。两类事件都经 `AUDIT_QUEUE` 异步
+发送,不在响应路径上等待。平台与 Organization 概览按这两类事件计算近 30 天登录成功率,没有
+样本时显示「无数据」,不显示 100%。
 
 #### 5.1.6 链条验证端点
 
@@ -326,11 +341,11 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 
 请求参数:
 
-| 参数      | 类型    | 说明              |
-| --------- | ------- | ----------------- |
-| tenant_id | string  | 必填              |
-| from_seq  | integer | 起始 seq,默认 1   |
-| to_seq    | integer | 结束 seq,默认最新 |
+| 参数      | 类型    | 说明                                                    |
+| --------- | ------- | ------------------------------------------------------- |
+| tenant_id | string  | 必填。顶层 Organization ID 或 `platform`,其他值返回 404 |
+| from_seq  | integer | 起始 seq,默认 1                                         |
+| to_seq    | integer | 结束 seq,默认最新 seq,且最多覆盖 from_seq 之后 50000 条 |
 
 响应(200):
 
@@ -338,6 +353,8 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 {
   "tenant_id": "t_xxx",
   "verified_range": { "from": 1, "to": 50000 },
+  "truncated": true, // 默认区间在 latest_seq 之前截止
+  "latest_seq": 72000,
   "chain_valid": true,
   "broken_at_seq": null, // chain_valid=false 时给出第一个断点 seq
   "failure_reason": null, // audit_chain_broken | audit_seq_gap | audit_genesis_missing
@@ -347,9 +364,12 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 ```
 
 已实现的运营路径每批最多从 D1 读取 1000 行,逐条重算 hash、检查 `prev_hash`,并同步返回
-diagnostic。时间复杂度 O(n),运营人员应使用 `from_seq` / `to_seq` 做有界调查。范围从 seq 1
-之后开始时以已存 predecessor hash 为锚点,因此完整完整性验证必须从 seq 1 开始。异步
-Queue/KV verification job 尚未实现。
+diagnostic。单次请求最多重算 50000 条,避免超出 Worker CPU 与 D1 子请求上限:省略 `to_seq`
+时在该上限处截止并返回 `truncated`,显式传入更大的区间返回 `422`,`paramName=to_seq`。Console
+对大链分段校验,并给出下一段的起始 seq。范围从 seq 1 之后开始时以已存 predecessor hash 为
+锚点,因此完整完整性验证必须从 seq 1 开始。已存在但尚无审计记录的租户返回
+`record_count: 0`,Console 显示「暂无记录」,不显示链完整。异步 Queue/KV verification job
+尚未实现。
 
 失败诊断通过 200 response 的 `failure_reason` 与 `broken_at_seq` 返回:
 
@@ -376,7 +396,9 @@ AES-256-GCM envelope boundary 加密,只在 replay 内解密。持久化失败�
 后续手动请求也可以直接 reclaim,Worker 崩溃不会让记录永久停在 `replaying`。崩溃可能发生在
 Queue 已接受消息但 D1 completion 尚未写入之后,因此恢复语义是有意的 at-least-once,每个
 source consumer 仍需保留自己的 idempotency boundary。已经完成的 `replayed` 记录不会再次
-发送。Console 要求显式确认,Core 排队写入
+发送。列表返回 `replayable`,判定规则与 replay claim 相同,因此 Console 对 lease 已过期的
+`replaying` 记录也提供 replay,并显示每条记录的错误码、尝试次数、replay 次数和租户。
+Console 要求显式确认,Core 排队写入
 `platform.queue_dead_letter.replayed` 审计事件。列表和详情永不返回 ciphertext。
 
 ## 6. 可观测性
@@ -541,7 +563,8 @@ active tenant 并顺序处理。对特定生产 tenant 数量的完成时间与�
 - SOC2/GDPR 证据:已实现 audit chain 提供篡改证据,不提供 database-level immutability。
   部署 access control、MFA enforcement state、storage encryption evidence 与 TLS posture
   必须从 active Cloudflare account 收集,验证前保持 `UNKNOWN`
-- 数据驻留:当前 settings API 只保存 `dataResidency` metadata string,不会选择 Durable
+- 数据驻留:当前 settings API 只读返回部署时记录的 `dataResidency` metadata string,API 与
+  Console 都不能修改。它不会选择 Durable
   Object jurisdiction、路由到 regional D1 binding 或按 `billing_country` 推导 placement。
   EU-only Durable Objects、独立部署的 EU D1 与自动分配仍是设计目标;任何线上 residency
   声明在部署 topology 验证前保持 `UNKNOWN`
@@ -560,7 +583,8 @@ active tenant 并顺序处理。对特定生产 tenant 数量的完成时间与�
   cryptographically sign source PDF
 - 状态页:Nimbus Site Worker 提供公开 `/status` shell,Core 通过 `/v1/public/status` 提供
   公开 incident history 和按 severity 推导的 overall state;incident 编辑和带时间戳 update
-  仍是 unified Console 中需认证的平台操作
+  仍是 unified Console 中需认证的平台操作。每次状态变化(包括解决)都以时间线 update 发布,
+  metadata PATCH 不能修改状态。并发编辑通过 `updated_at` 检测,返回 `409 conflict`
 - 备份 DR:仓库 recovery guidance 使用 D1 Time Travel 作为 platform-side safety net;
   其线上可用性和 retention 取决于 Cloudflare account,验证前保持 `UNKNOWN`。当前没有每周
   R2 cold export 的应用路径。90 天 cold-retention policy、RTO 4h、RPO 1h 与季度 DR drill

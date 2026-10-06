@@ -7,7 +7,10 @@
 ### Platform operations admin (cross-tenant)
 
 - Global tenant list: cursor-paginated search by name or slug and one-at-a-time status changes are
-  implemented. Plan/status/creation-time filters and bulk suspend/resume/delete remain design targets
+  implemented. Each row shows the Organization ID, and the default Organization offers no suspend
+  action because Core rejects it. Platform lists append the next page on "Load more" instead of
+  replacing the loaded rows. Plan/status/creation-time filters and bulk suspend/resume/delete remain
+  design targets
 - Impersonate any active user through one of their active Organization Memberships (recorded in the
   platform audit log)
 - Global user search (cross-tenant, with GDPR access controls)
@@ -15,10 +18,13 @@
   Tenant/event_type/user filters remain design targets
 - Queue dead-letter operations: redacted metadata for every business Queue, encrypted replay, and an
   auditable operator action inside the global event page
-- System announcement banner: targeted globally, by explicit tenant, or by accounting plan label
-- Global feature flags: the catalog and KV-backed global defaults are implemented without a
-  redeployment. Writing explicit tenant overrides and deployment-cohort rollouts remains a design
-  target. A plan label is never an authentication feature gate
+- System announcement banner: targeted globally, by explicit tenant, or by accounting plan label.
+  The tenant target is chosen with an Organization picker, and the start time defaults to the
+  operator's local wall-clock time
+- Global feature flags are not implemented. Passkey autofill, magic link, social sign-in, SCIM, and
+  Organization self-service are controlled by tenant policy, delivery channels, social provider
+  configuration, directories, and `organizations.allow_org_self_service`; there is no parallel
+  KV flag switch. A plan label is never an authentication feature gate
 - Resource quota management: view and manually adjust a single tenant's quota
 - Instance default policy (`/v1/platform/settings`): every sessionPolicy field (idleTimeoutMin,
   default 4320 minutes, bounds 5-43200; absoluteTimeoutDays, default 30 days, bounds 1-365;
@@ -29,7 +35,8 @@
 - Billing overview: current-month DAU/MAU for every tenant, overdue and overage status, and a direct
   link to Stripe
 - Plan accounting: change a billing label, trial dates, default quotas, and support label. It never
-  generates a license or unlocks an authentication capability
+  generates a license or unlocks an authentication capability. A quota-only change keeps the plan's
+  billing source and effective time, so a Stripe-managed plan stays attributed to Stripe
 - Global alert rules are a design target. There is no current alert-rule API or PagerDuty/Slack
   delivery path; live notification destinations remain deployment state and are `UNKNOWN` until
   verified
@@ -47,12 +54,11 @@ Impersonation start returns a two-minute, consume-once opaque handoff for the ex
 Organization host. The handoff is submitted in a POST body and exchanged there for a 15-minute
 HttpOnly impersonation cookie. This is not a bearer token: the cookie can only read `/v1/*` with
 `GET`, `HEAD`, or `OPTIONS`, plus explicitly end impersonation. Protocol, auth, SSO, session-token
-exchange, and every mutation path reject it. The implemented feature-flag API reads and writes the
-global default key
-`flag:global:{flag_name}` and reports the count of any existing
-`flag:{tenant_id}:{flag_name}` keys. The repository does not currently expose a writer for those
-tenant override keys or a deployment-cohort model. Those rollout modes remain design targets and
-MUST NOT derive authentication behavior from a plan label.
+exchange, and every mutation path reject it, including sign-out, so the Console replaces its sign-out
+and account entries with "End impersonation" during the session. When the handoff grant is expired,
+replayed, or malformed, the target host answers the top-level form POST with a `303` to the issuer's
+`/console/platform/users?impersonation=failed`; the Console explains that the link is no longer
+valid, and the response never echoes the failure reason.
 
 ### Tenant admin (single-tenant self-management)
 
@@ -161,13 +167,16 @@ password reset, and organization invitation) go through this channel.
   matching hreflang, sitemap, Pagefind, Markdown, and LLM output
 - Email templates are versioned by language and selected by `user.locale`
 - Error messages are localized, and API error messages carry a locale
-- Locale management: an Instance Manager can set one instance `defaultLocale` through
-  `/v1/platform/settings`. Per-tenant enabled/disabled locale sets remain a design target
+- Locale management: an Instance Manager can set one instance `defaultLocale`, restricted to the 8
+  supported locales, through `/v1/platform/settings`. Core applies it after tenant resolution as the
+  fallback language for Worker API errors and transactional email when neither `?locale=` nor
+  `Accept-Language` names a supported locale. Hosted UI and Console detect the language in the
+  browser and do not read this value. Per-tenant enabled/disabled locale sets remain a design target
 - Global email language-pack JSON can live in R2 and is loaded on demand. Preloading the top 5 packs
   and tenant-specific language-pack management remain design targets
 
 Design decisions: the locale detection priority is `?locale=` -> `user.locale` -> `Accept-Language` ->
-the tenant default -> `en`; a missing string falls back to `en` and never displays the key name.
+the instance default -> `en`; a missing string falls back to `en` and never displays the key name.
 Tenant-uploaded custom language packs that override terminology for white-labeling (a per-tenant R2
 path) have not started -- the R2 language packs are at a global path and there is no upload endpoint.
 
@@ -370,7 +379,7 @@ async function handleAuditBatch(batch: MessageBatch<AuditQueueMsg>, env: Env) {
 
 Grouped by domain, with the string format `<domain>.<action>`:
 
-- Authentication: auth.login_success / auth.login_failure / auth.logout / auth.mfa_challenge /
+- Authentication: auth.login_succeeded / auth.login_failed / auth.logout / auth.mfa_challenge /
   auth.mfa_success / auth.mfa_failure / auth.passkey_register / auth.passkey_authenticate /
   auth.token_issued / auth.token_revoked / auth.session_revoked
 - User: user.created / user.updated / user.deleted / user.erasure_completed / user.email_verified /
@@ -384,9 +393,18 @@ Grouped by domain, with the string format `<domain>.<action>`:
   security.account_locked / security.account_unlocked
 - Platform management: platform.tenant_suspended / platform.tenant_activated /
   platform.tenant_deleted / platform.impersonate_start / platform.impersonate_end /
-  platform.plan_changed / platform.flag_changed
+  platform.plan_changed / platform.settings_changed
 - Billing: billing.subscription_created / billing.subscription_updated / billing.payment_failed /
   billing.quota_exceeded
+
+Implemented login outcome events: `auth.login_succeeded` is queued once when a session becomes
+`active`, either at issuance or when a pending MFA session completes MFA; impersonation sessions are
+excluded. `auth.login_failed` is queued when an authentication request ends with
+`invalid_credentials`, `account_locked`, `account_suspended`, or `account_banned`. The failure event
+carries only the request path, never the identifier or the reason, so a missing account and a wrong
+credential produce the same record. Both are sent through `AUDIT_QUEUE` off the response path. The
+platform and Organization overviews compute a 30-day login success rate from these two events and
+report no data, not 100%, when there are no samples.
 
 #### 5.1.6 Chain verification endpoint
 
@@ -394,11 +412,11 @@ Grouped by domain, with the string format `<domain>.<action>`:
 
 Request parameters:
 
-| Parameter | Type    | Notes                          |
-| --------- | ------- | ------------------------------ |
-| tenant_id | string  | Required                       |
-| from_seq  | integer | Starting seq, default 1        |
-| to_seq    | integer | Ending seq, default the latest |
+| Parameter | Type    | Notes                                                                     |
+| --------- | ------- | ------------------------------------------------------------------------- |
+| tenant_id | string  | Required. A top-level Organization ID or `platform`; otherwise 404        |
+| from_seq  | integer | Starting seq, default 1                                                   |
+| to_seq    | integer | Ending seq, default the latest seq capped at 50000 records after from_seq |
 
 Response (200):
 
@@ -406,6 +424,8 @@ Response (200):
 {
   "tenant_id": "t_xxx",
   "verified_range": { "from": 1, "to": 50000 },
+  "truncated": true, // the default range stopped before latest_seq
+  "latest_seq": 72000,
   "chain_valid": true,
   "broken_at_seq": null, // the first break point seq when chain_valid=false
   "failure_reason": null, // audit_chain_broken | audit_seq_gap | audit_genesis_missing
@@ -415,10 +435,14 @@ Response (200):
 ```
 
 The implemented operator path reads D1 in batches of at most 1000 rows, recomputes every selected
-hash, checks `prev_hash`, and returns the diagnostic synchronously. Its time complexity is O(n), so
-operators should use `from_seq` / `to_seq` for bounded investigations. A range starting after seq 1
-is anchored to the stored predecessor hash; a full integrity verification therefore starts at seq 1.
-An asynchronous Queue/KV verification job is not implemented.
+hash, checks `prev_hash`, and returns the diagnostic synchronously. One request recomputes at most
+50000 records so it stays within Worker CPU and D1 subrequest limits: an omitted `to_seq` stops at
+that cap and reports `truncated`, and an explicit wider range returns `422` with `paramName=to_seq`.
+The Console verifies large chains segment by segment and offers the next starting seq. A range
+starting after seq 1 is anchored to the stored predecessor hash; a full integrity verification
+therefore starts at seq 1. A known tenant with no audit records returns `record_count: 0`, which the
+Console shows as "no records" rather than a valid chain. An asynchronous Queue/KV verification job
+is not implemented.
 
 Failure diagnostics are returned in the 200 response through `failure_reason` and
 `broken_at_seq`:
@@ -447,7 +471,10 @@ concurrent replay; the hourly cron releases an expired lease, and a later manual
 reclaim it directly. This prevents a Worker crash from leaving a record in `replaying` forever.
 Because the crash can happen after Queue acceptance but before the D1 completion write, recovery is
 intentionally at-least-once and every source consumer keeps its own idempotency boundary. A
-completed `replayed` record is never sent again. The Console requires an explicit confirmation and
+completed `replayed` record is never sent again. The list returns `replayable`, computed by the same
+rule the replay claim uses, so the Console also offers replay for a `replaying` record whose lease
+has expired, and shows the error code, attempts, replay count, and tenant of every record. The
+Console requires an explicit confirmation and
 the Core queues a `platform.queue_dead_letter.replayed` audit event. Ciphertext is never returned by
 list or detail responses.
 
@@ -636,7 +663,8 @@ for a particular production tenant count remain deployment evidence and are `UNK
   immutability. Deployment access controls, MFA enforcement state, storage encryption evidence, and
   TLS posture must be collected from the active Cloudflare account and remain `UNKNOWN` until
   verified
-- Data residency: the current settings API stores a `dataResidency` metadata string only. It does not
+- Data residency: the current settings API returns a read-only `dataResidency` metadata string that
+  is recorded at deployment and cannot be changed through the API or Console. It does not
   select a Durable Object jurisdiction, route to a regional D1 binding, or derive placement from
   `billing_country`. EU-only Durable Objects, a separately deployed EU D1, and automatic assignment
   remain design targets; any live residency claim is `UNKNOWN` until its deployment topology is
@@ -656,7 +684,9 @@ for a particular production tenant count remain deployment evidence and are `UNK
   evidence. XID does not generate or cryptographically sign the source PDF
 - Status page: the Nimbus Site Worker serves the public `/status` shell, and Core serves public
   incident history plus a severity-derived overall state at `/v1/public/status`. Incident authoring
-  and timestamped updates remain authenticated platform operations in the unified Console
+  and timestamped updates remain authenticated platform operations in the unified Console. Every
+  state change, including resolution, is published as a timeline update; the metadata PATCH cannot
+  change the state. Concurrent edits are detected through `updated_at` and return `409 conflict`
 - Backup and DR: repository recovery guidance uses D1 Time Travel as the platform-side safety net.
   Its live availability and retention depend on the Cloudflare account and remain `UNKNOWN` until
   verified. No application path performs weekly R2 cold exports. A 90-day cold-retention policy, RTO
