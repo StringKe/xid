@@ -13,6 +13,7 @@ import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { emailSchema, readJsonBody, validateBody } from '../lib/validate'
 import { hostedAuthOriginForTenant } from '../lib/hosted-origin'
+import { resolveLocale } from '../lib/locale'
 import {
   requireApiKey,
   parsePagination,
@@ -166,6 +167,16 @@ async function assertInvitationTargetAvailable(
   }
 }
 
+// 邀请邮件用收件人的语言:本租户已有账户取 users.locale,没有账户回落默认语言;不用邀请人的请求语言。
+async function invitationRecipientLocale(
+  db: ReturnType<typeof createTenantDb>,
+  email: string,
+): Promise<string> {
+  const emailRow = await db.userEmails.findOne(eq(schema.userEmails.email, email))
+  const user = emailRow ? await db.users.findOne(eq(schema.users.id, emailRow.userId)) : undefined
+  return resolveLocale({ userLocale: user?.locale ?? null })
+}
+
 async function prepareInvitation(
   env: Env,
   input: {
@@ -177,6 +188,7 @@ async function prepareInvitation(
     invitedByUserId: string | null
     expiresInDays: number
     authOrigin: string
+    locale: string
   },
 ): Promise<PreparedInvitation> {
   const now = Date.now()
@@ -229,6 +241,7 @@ async function prepareInvitation(
       role: input.role,
       link: acceptLink,
       expiresInDays: input.expiresInDays,
+      locale: input.locale,
     },
   }
   const invitationStatement = env.DB.prepare(
@@ -355,6 +368,7 @@ app.post('/:orgId/invitations', async (c) => {
     invitedByUserId,
     expiresInDays: body.expires_in_days ?? INVITATION_TTL_DAYS,
     authOrigin: hostedAuthOriginForTenant(tenant),
+    locale: await invitationRecipientLocale(db, normalizedEmail),
   })
   try {
     await c.env.DB.batch(prepared.statements)
@@ -406,7 +420,7 @@ app.post('/:orgId/invitations/bulk', async (c) => {
   )
 
   const prepared = await Promise.all(
-    body.invitations.map((item, index) =>
+    body.invitations.map(async (item, index) =>
       prepareInvitation(c.env, {
         tenantId: tenant.tenantId,
         orgId,
@@ -416,6 +430,7 @@ app.post('/:orgId/invitations/bulk', async (c) => {
         invitedByUserId: null,
         expiresInDays: INVITATION_TTL_DAYS,
         authOrigin,
+        locale: await invitationRecipientLocale(db, normalizedEmails[index]!),
       }),
     ),
   )

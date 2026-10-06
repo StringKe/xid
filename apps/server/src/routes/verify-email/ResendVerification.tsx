@@ -54,7 +54,7 @@ function useTurnstileGate(enabled: boolean) {
 export function ResendVerification(): ReactNode {
   const { t } = useLingui()
   const { api, status } = useAuth()
-  const needsEmail = status === 'unauthenticated'
+  const needsEmail = status !== 'authenticated'
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -81,7 +81,7 @@ export function ResendVerification(): ReactNode {
       setEmailError(t`Enter a valid email address`)
       return
     }
-    if (turnstile.ready) resendMutation.mutate()
+    if (status !== 'loading' && turnstile.ready) resendMutation.mutate()
   }
 
   if (sent) {
@@ -122,7 +122,7 @@ export function ResendVerification(): ReactNode {
           type="submit"
           variant="secondary"
           isLoading={resendMutation.isPending}
-          disabled={!turnstile.ready}
+          disabled={status === 'loading' || !turnstile.ready}
         >
           <Trans>Resend verification email</Trans>
         </Button>
