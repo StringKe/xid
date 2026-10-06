@@ -83,6 +83,10 @@ vi.mock('../../lib/google-analytics-funnel', () => ({
   trackMfaComplete: vi.fn(),
 }))
 
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  apiErrorDescriptor: (classification: { code: string }) => ({ id: classification.code }),
+}))
+
 vi.mock('../../lib/default-landing', () => ({
   useDefaultLandingPath: () => '/console',
 }))
@@ -190,20 +194,49 @@ describe('MfaPage challenge exits', () => {
     await unmount(container, root)
   })
 
-  it('falls back to /console for an external redirect target', async () => {
-    routerState.search = { method: 'totp' }
+  it('falls back to /console for an external redirect_to param', async () => {
+    routerState.search = { method: 'totp', redirect_to: 'https://evil.example.com/phish' }
     factorsState.factors = [{ type: 'totp' }]
 
     const { container, root } = await renderPage()
 
     await act(async () => {
-      await mutationState.captured[0]?.onSuccess?.({
-        ok: true,
-        value: { redirectTo: 'https://evil.example.com/phish' },
-      })
+      await mutationState.captured[0]?.onSuccess?.({ ok: true, value: {} })
     })
 
     expect(routerState.navigate).toHaveBeenCalledWith('/console', { replace: true })
+    await unmount(container, root)
+  })
+
+  it('offers no method switch when the user only has one method', async () => {
+    routerState.search = { method: 'totp' }
+    factorsState.factors = [{ type: 'totp' }]
+
+    const { container, root, text } = await renderPage()
+
+    expect(text).not.toContain('Try another method')
+    expect(text).not.toContain('backup code')
+    await unmount(container, root)
+  })
+
+  it('links back to the method selector when the user has several methods', async () => {
+    routerState.search = { method: 'passkey', step_up: '1' }
+    factorsState.factors = [{ type: 'passkey' }, { type: 'totp' }]
+
+    const { container, root, text } = await renderPage()
+
+    expect(text).toContain('Try another method')
+    expect(text).not.toContain('Use authenticator app instead')
+    await unmount(container, root)
+  })
+
+  it('lets the user sign out when no verification method is available', async () => {
+    factorsState.factors = []
+
+    const { container, root, text } = await renderPage()
+
+    expect(text).toContain('No verification method is available')
+    expect(text).toContain('Cancel and sign out')
     await unmount(container, root)
   })
 

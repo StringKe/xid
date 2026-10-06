@@ -271,10 +271,15 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const passkey = usePasskeySignIn({
     api,
-    enabled: enabledMethods.includes('passkey') && turnstileReady,
+    enabled: enabledMethods.includes('passkey') && !authConfigQuery.isPending,
+    identifierRequired:
+      authConfig.passkeyEntry.identifierRequired &&
+      !selectedOrganizationId &&
+      !signInFlowExtras.clientId,
     identifier,
     organizationId: selectedOrganizationId,
     flowFields: signInFlowExtras,
+    turnstileRequired: authConfig.turnstileSiteKey !== null,
     turnstileToken,
     onTurnstileConsumed: resetTurnstile,
     onOrganizationSelectionRequired: () =>

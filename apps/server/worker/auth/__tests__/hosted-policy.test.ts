@@ -319,6 +319,31 @@ describe('publicHostedAuthConfig', () => {
     expect(config.socialProviders).toHaveLength(0)
     expect(config.forceSso).toBe(true)
   })
+
+  it('announces passkey re-registration only on a migrated custom hostname', () => {
+    const custom = publicHostedAuthConfig(
+      makeTenant({}, { customHostname: 'auth.customer.test', requiresPasskeyReregistration: true }),
+    )
+    const subdomain = publicHostedAuthConfig(
+      makeTenant({}, { requiresPasskeyReregistration: true }),
+    )
+
+    expect(custom.passkeyEntry.reregistrationRequired).toBe(true)
+    expect(subdomain.passkeyEntry.reregistrationRequired).toBe(false)
+  })
+
+  it('requires an identifier for passkey sign-in only at the unresolved instance entry', () => {
+    const root = publicHostedAuthConfig(
+      makeTenant(
+        {},
+        { resolution: { kind: 'instance_entry', primaryDomain: 'xid.dev', unresolvedRoot: true } },
+      ),
+    )
+    const tenantHost = publicHostedAuthConfig(makeTenant())
+
+    expect(root.passkeyEntry.identifierRequired).toBe(true)
+    expect(tenantHost.passkeyEntry.identifierRequired).toBe(false)
+  })
 })
 
 describe('ambiguousHostedAuthConfig', () => {

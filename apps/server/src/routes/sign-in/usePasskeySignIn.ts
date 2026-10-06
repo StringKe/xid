@@ -1,4 +1,5 @@
-// Conditional UI + 降级按钮;四验证在 server。support='pending' 时保持骨架防 CLS。
+// Passkey 登录:Conditional UI 与显式按钮两条路径,四验证在 server。
+// tab 可见性只取决于浏览器是否支持 WebAuthn;Turnstile 只拦截提交,不拆除 passkey 入口。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
@@ -30,9 +31,12 @@ export type PasskeySignIn = {
 type PasskeySignInOptions = {
   api: ApiClient
   enabled: boolean
+  // 根入口尚未定位到组织时,challenge 需要先用标识符解析 RPID。
+  identifierRequired: boolean
   identifier: string
   organizationId?: string | null
   flowFields: SignInFlowFields
+  turnstileRequired: boolean
   turnstileToken: string | null
   onTurnstileConsumed: () => void
   onOrganizationSelectionRequired: () => void
@@ -41,16 +45,48 @@ type PasskeySignInOptions = {
 
 type ChallengeOutcome = ChallengeResponse | 'organization_selection_required' | null
 
+// 服务端 challenge 有效期 7 分钟,提前换新以免用户久等后选择的凭据对应已过期的 challenge。
+const CONDITIONAL_REFRESH_MS = 5 * 60 * 1000
+const IDENTIFIER_DEBOUNCE_MS = 500
+
+function browserSupportsWebAuthn(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    'PublicKeyCredential' in window &&
+    typeof navigator !== 'undefined' &&
+    'credentials' in navigator
+  )
+}
+
+async function conditionalMediationAvailable(): Promise<boolean> {
+  const probe = (
+    PublicKeyCredential as { isConditionalMediationAvailable?: () => Promise<boolean> }
+  ).isConditionalMediationAvailable
+  if (!probe) return false
+  try {
+    return await probe()
+  } catch {
+    return false
+  }
+}
+
+function useDebouncedValue(value: string, delayMs: number): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}
+
 async function fetchChallenge(
   api: ApiClient,
-  identifier: string,
-  organizationId: string | null | undefined,
-  flowFields: SignInFlowFields,
+  input: { identifier: string; organizationId?: string | null; clientId?: string },
 ): Promise<ChallengeOutcome> {
   const result = await api.post<ChallengeResponse>('/auth/passkey/challenge', {
-    identifier,
-    ...(organizationId ? { organizationId } : {}),
-    ...(flowFields.clientId ? { clientId: flowFields.clientId } : {}),
+    ...(input.identifier ? { identifier: input.identifier } : {}),
+    ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+    ...(input.clientId ? { clientId: input.clientId } : {}),
   })
   if (result.ok) return result.value
   return result.error.code === 'organization_selection_required' ? result.error.code : null
@@ -59,9 +95,9 @@ async function fetchChallenge(
 function assertionBody(
   credential: PublicKeyCredential,
   challenge: ChallengeResponse,
-  flowFields: SignInFlowFields,
-  turnstileToken: string | null,
+  extras: { flowFields: SignInFlowFields; turnstileToken: string | null },
 ): VerifyBody {
+  const { flowFields, turnstileToken } = extras
   return {
     ...serializeAssertion(credential, challenge.sessionId),
     ...(challenge.organizationId ? { organizationId: challenge.organizationId } : {}),
@@ -72,163 +108,160 @@ function assertionBody(
   }
 }
 
+function requestOptions(challenge: ChallengeResponse): PublicKeyCredentialRequestOptions {
+  return {
+    challenge: b64urlToBytes(challenge.challenge),
+    userVerification: 'required',
+    allowCredentials: [],
+  }
+}
+
 export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
-  const {
-    api,
-    enabled,
-    identifier,
-    organizationId,
-    flowFields,
-    turnstileToken,
-    onTurnstileConsumed,
-    onSuccess,
-  } = options
-  const onOrganizationSelectionRequiredRef = useRef(options.onOrganizationSelectionRequired)
-  onOrganizationSelectionRequiredRef.current = options.onOrganizationSelectionRequired
+  const { api, enabled, identifierRequired, organizationId, turnstileRequired } = options
   const [support, setSupport] = useState<PasskeySupport>('pending')
+  const [conditionalAvailable, setConditionalAvailable] = useState(false)
   const [conditionalRunning, setConditionalRunning] = useState(false)
+  const [generation, setGeneration] = useState(0)
   const [error, setError] = useState<SignInErrorKey | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  // Conditional UI 跨 render 等待选择,提交须读最新单次 Turnstile token。
-  const turnstileTokenRef = useRef(turnstileToken)
-  turnstileTokenRef.current = turnstileToken
-  const onTurnstileConsumedRef = useRef(onTurnstileConsumed)
-  onTurnstileConsumedRef.current = onTurnstileConsumed
+  // Conditional UI 跨 render 等待选择,提交时读取最新的单次 Turnstile token 与流程参数。
+  const latest = useRef(options)
+  latest.current = options
+
+  const identifier = useDebouncedValue(options.identifier.trim(), IDENTIFIER_DEBOUNCE_MS)
+  const clientId = options.flowFields.clientId
+  const turnstileReady = !turnstileRequired || options.turnstileToken !== null
+  const restart = useCallback(() => setGeneration((value) => value + 1), [])
 
   const verifyMutation = useMutation({
     mutationFn: (body: VerifyBody) => api.post<VerifyResponse>('/auth/passkey/verify', body),
     onSuccess: async (result) => {
       if (!result.ok) {
         setError(apiErrorToKey(result.error))
+        restart()
         return
       }
-      await onSuccess(result.value.redirectUrl)
+      await latest.current.onSuccess(result.value.redirectUrl)
     },
-    onSettled: () => onTurnstileConsumedRef.current(),
+    onError: () => {
+      setError('network_error')
+      restart()
+    },
+    onSettled: () => latest.current.onTurnstileConsumed(),
   })
-
-  // 用稳定的 mutate 引用;整对象进 deps 会使 Conditional UI effect 死循环打 challenge。
   const { mutate: verifyMutate } = verifyMutation
 
-  const startConditional = useCallback(async (): Promise<void> => {
-    if (!enabled) {
-      setSupport('no')
-      return
-    }
-    if (!('credentials' in navigator) || !('PublicKeyCredential' in window)) {
-      setSupport('no')
-      return
-    }
-    const available = await (
-      PublicKeyCredential as { isConditionalMediationAvailable?: () => Promise<boolean> }
-    ).isConditionalMediationAvailable?.()
-    if (!available) {
-      setSupport('no')
-      return
-    }
-    // 探测只更新 support 揭示 tab,绝不自动切 active panel(防 CLS)。
-    setSupport('yes')
+  const submitAssertion = useCallback(
+    (credential: PublicKeyCredential, challenge: ChallengeResponse): void => {
+      const { turnstileToken, flowFields } = latest.current
+      if (turnstileRequired && !turnstileToken) {
+        setError('captcha_required')
+        restart()
+        return
+      }
+      verifyMutate(assertionBody(credential, challenge, { flowFields, turnstileToken }))
+    },
+    [restart, turnstileRequired, verifyMutate],
+  )
 
-    const normalizedIdentifier = identifier.trim()
-    if (!normalizedIdentifier) return
-
-    const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId, flowFields)
-    if (!challenge || challenge === 'organization_selection_required') return
-
-    abortRef.current = new AbortController()
-    setConditionalRunning(true)
-    let credential: Credential | null
-    try {
-      credential = await navigator.credentials.get({
-        signal: abortRef.current.signal,
-        mediation: 'conditional',
-        publicKey: {
-          challenge: b64urlToBytes(challenge.challenge),
-          userVerification: 'required',
-          allowCredentials: [],
-        },
-      } as CredentialRequestOptions)
-    } catch {
-      // Conditional UI 静默失败不污染表单错误;显式错误只走按钮路径。
-      setConditionalRunning(false)
-      return
-    }
-    setConditionalRunning(false)
-    if (!credential) return
-    verifyMutate(
-      assertionBody(
-        credential as PublicKeyCredential,
-        challenge,
-        flowFields,
-        turnstileTokenRef.current,
-      ),
-    )
-  }, [api, flowFields, enabled, identifier, organizationId, verifyMutate])
-
-  // 挂载只启动一次(ref 防重入);卸载 abort 独立 effect,避免依赖变化误 abort 在途选择器。
-  const startedRef = useRef(false)
   useEffect(() => {
-    if (!enabled) {
+    if (!browserSupportsWebAuthn()) {
       setSupport('no')
       return
     }
-    if (startedRef.current) return
-    startedRef.current = true
-    void startConditional()
-  }, [enabled, startConditional])
-  useEffect(() => () => abortRef.current?.abort(), [])
+    setSupport('yes')
+    void conditionalMediationAvailable().then(setConditionalAvailable)
+  }, [])
+
+  const identifierReady = !identifierRequired || identifier.length > 0
+  const canRunConditional = enabled && conditionalAvailable && identifierReady && turnstileReady
+
+  useEffect(() => {
+    if (!canRunConditional) return
+    const controller = new AbortController()
+    abortRef.current = controller
+    const refreshTimer = setTimeout(() => {
+      controller.abort()
+      restart()
+    }, CONDITIONAL_REFRESH_MS)
+
+    void (async () => {
+      const challenge = await fetchChallenge(api, { identifier, organizationId, clientId })
+      if (!challenge || challenge === 'organization_selection_required') return
+      if (controller.signal.aborted) return
+      setConditionalRunning(true)
+      let credential: Credential | null = null
+      try {
+        credential = await navigator.credentials.get({
+          signal: controller.signal,
+          mediation: 'conditional',
+          publicKey: requestOptions(challenge),
+        } as CredentialRequestOptions)
+      } catch {
+        // 被取消或中止时不污染表单错误,也不立即重启,避免浏览器连续拒绝时反复请求 challenge。
+      } finally {
+        setConditionalRunning(false)
+      }
+      clearTimeout(refreshTimer)
+      if (controller.signal.aborted || !credential) return
+      submitAssertion(credential as PublicKeyCredential, challenge)
+    })()
+
+    return () => {
+      clearTimeout(refreshTimer)
+      controller.abort()
+    }
+  }, [
+    api,
+    canRunConditional,
+    clientId,
+    generation,
+    identifier,
+    organizationId,
+    restart,
+    submitAssertion,
+  ])
 
   const triggerButton = useCallback((): void => {
-    if (!enabled) {
+    if (!enabled || !browserSupportsWebAuthn()) {
       setError('passkey_unavailable')
       return
     }
-    if (!('credentials' in navigator)) {
-      setError('passkey_unavailable')
+    const currentIdentifier = latest.current.identifier.trim()
+    if (identifierRequired && !currentIdentifier) {
+      setError('identifier_required')
       return
     }
     abortRef.current?.abort()
     setError(null)
     void (async () => {
-      const normalizedIdentifier = identifier.trim()
-      if (!normalizedIdentifier) {
-        setError('auth_failed')
-        return
-      }
-      const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId, flowFields)
+      const challenge = await fetchChallenge(api, {
+        identifier: currentIdentifier,
+        organizationId,
+        clientId,
+      })
       if (challenge === 'organization_selection_required') {
-        onOrganizationSelectionRequiredRef.current()
+        latest.current.onOrganizationSelectionRequired()
         return
       }
       if (!challenge) {
         setError('auth_failed')
+        restart()
         return
       }
-      let credential: Credential | null
+      let credential: Credential | null = null
       try {
         credential = await navigator.credentials.get({
           mediation: 'optional',
-          publicKey: {
-            challenge: b64urlToBytes(challenge.challenge),
-            userVerification: 'required',
-            allowCredentials: [],
-          },
+          publicKey: requestOptions(challenge),
         } as CredentialRequestOptions)
       } catch {
-        setError('auth_failed')
-        return
+        // 用户取消或超时(NotAllowedError)只回到可重试状态,不当作认证失败。
       }
-      if (!credential) return
-      verifyMutate(
-        assertionBody(
-          credential as PublicKeyCredential,
-          challenge,
-          flowFields,
-          turnstileTokenRef.current,
-        ),
-      )
+      if (credential) submitAssertion(credential as PublicKeyCredential, challenge)
+      else restart()
     })()
-  }, [api, flowFields, enabled, identifier, organizationId, verifyMutate])
+  }, [api, clientId, enabled, identifierRequired, organizationId, restart, submitAssertion])
 
   return {
     support,

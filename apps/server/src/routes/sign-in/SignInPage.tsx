@@ -105,6 +105,8 @@ function useErrorMessage(key: SignInErrorKey | null): string | null {
       return t`Unable to connect. Please check your connection and try again.`
     case 'passkey_unavailable':
       return t`Passkeys are not supported in this browser. Please use another sign-in method.`
+    case 'identifier_required':
+      return t`Enter the email, username, or phone number for your account first.`
     default:
       return null
   }
@@ -148,6 +150,9 @@ function SignInPage(): ReactNode {
   const prompt = identifierPrompt(state.authConfig)
   const identifierPlaceholder = useIdentifierPlaceholder(prompt)
   const identifierAriaLabel = useIdentifierAriaLabel(prompt)
+  const passkeyOffered = !isSignUpFlow && enabledMethods.includes('passkey')
+  const passkeyAutoComplete = `${prompt.autoComplete} webauthn`
+  const passkeyReregistration = state.authConfig.passkeyEntry.reregistrationRequired
   const ambiguousResolution =
     state.authConfig.resolution.status === 'ambiguous' ? state.authConfig.resolution : null
   const configuredProfileFields = visibleProfileFields(state.authConfig, state.method)
@@ -235,6 +240,7 @@ function SignInPage(): ReactNode {
           <SignInTabs
             method={state.method}
             passkeySupport={state.passkeySupport}
+            passkeyLast={passkeyReregistration}
             enabledMethods={enabledMethods}
             isSignUpFlow={isSignUpFlow}
             onSelect={actions.setMethod}
@@ -262,7 +268,7 @@ function SignInPage(): ReactNode {
               </SignInPanel>
             ) : null}
 
-            {!isSignUpFlow && enabledMethods.includes('passkey') ? (
+            {passkeyOffered ? (
               <SignInPanel active={state.method === 'passkey'}>
                 <PasskeyPanel
                   state={state}
@@ -270,6 +276,8 @@ function SignInPage(): ReactNode {
                   prompt={prompt}
                   identifierPlaceholder={identifierPlaceholder}
                   identifierAriaLabel={identifierAriaLabel}
+                  identifierAutoComplete={passkeyAutoComplete}
+                  reregistrationRequired={passkeyReregistration}
                 />
               </SignInPanel>
             ) : null}
@@ -281,6 +289,9 @@ function SignInPage(): ReactNode {
                   actions={actions}
                   prompt={prompt}
                   identifierPlaceholder={identifierPlaceholder}
+                  identifierAutoComplete={
+                    passkeyOffered ? passkeyAutoComplete : prompt.autoComplete
+                  }
                   isSignUpFlow={isSignUpFlow}
                   forgotPasswordHref={forgotPasswordHref({
                     ...search,

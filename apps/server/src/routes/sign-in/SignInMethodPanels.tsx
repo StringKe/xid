@@ -55,16 +55,26 @@ export function PasskeyPanel(
     prompt: IdentifierPrompt
     identifierPlaceholder: string
     identifierAriaLabel: string
+    identifierAutoComplete: string
+    reregistrationRequired: boolean
   },
 ): ReactNode {
   const { state, actions, prompt } = props
   const { t } = useLingui()
   return (
     <>
+      {props.reregistrationRequired ? (
+        <Alert tone="info">
+          <Trans>
+            Passkeys created on a different address do not work here. Sign in another way, then add
+            a passkey for this address from your account security page.
+          </Trans>
+        </Alert>
+      ) : null}
       <Field label={<IdentifierLabel prompt={prompt} />}>
         <Input
           type={prompt.type}
-          autoComplete={`${prompt.autoComplete} webauthn`}
+          autoComplete={props.identifierAutoComplete}
           placeholder={props.identifierPlaceholder}
           value={state.identifier}
           onChange={(e) => actions.setIdentifier(e.target.value)}

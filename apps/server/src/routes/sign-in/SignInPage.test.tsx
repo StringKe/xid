@@ -118,6 +118,7 @@ vi.mock('./useSignIn', () => ({
         socialProviders: [],
         resolution: { status: 'resolved' },
         guest: signInState.guestCapability ? { capabilityToken: 'guest-capability-token' } : null,
+        passkeyEntry: { identifierRequired: false, reregistrationRequired: false },
         defaultLandingPath: '/console',
       },
       enabledMethods: signInState.enabledMethods,

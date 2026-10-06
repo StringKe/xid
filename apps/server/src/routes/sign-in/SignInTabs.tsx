@@ -26,6 +26,8 @@ const TABS: readonly TabDef[] = [
 export type SignInTabsProps = {
   method: SignInMethod
   passkeySupport: PasskeySupport
+  // 自定义域名上旧 passkey 不可用时,把其他登录方式排在前面。
+  passkeyLast: boolean
   enabledMethods: readonly SignInMethod[]
   isSignUpFlow: boolean
   onSelect: (method: SignInMethod) => void
@@ -34,6 +36,7 @@ export type SignInTabsProps = {
 export function SignInTabs({
   method,
   passkeySupport,
+  passkeyLast,
   enabledMethods,
   isSignUpFlow,
   onSelect,
@@ -44,7 +47,10 @@ export function SignInTabs({
     enabledMethods.includes('otp-email') ||
     enabledMethods.includes('otp-whatsapp') ||
     enabledMethods.includes('otp-sms')
-  const tabs = TABS.filter(
+  const ordered = passkeyLast
+    ? [...TABS.filter((tab) => tab.id !== 'passkey'), ...TABS.filter((tab) => tab.id === 'passkey')]
+    : TABS
+  const tabs = ordered.filter(
     (tab) =>
       (!isSignUpFlow || tab.id !== 'passkey') &&
       (enabledMethods.includes(tab.id) || (tab.id === 'otp-email' && hasOtp)),

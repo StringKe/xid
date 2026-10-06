@@ -457,7 +457,8 @@ describe('useSignIn Turnstile action gate', () => {
       })
 
       expect(captured?.[0].turnstileReady).toBe(false)
-      expect(passkeyCalls.at(-1)?.enabled).toBe(false)
+      // passkey 入口不随 Turnstile 状态拆除,hook 内部只拦截提交。
+      expect(passkeyCalls.at(-1)).toMatchObject({ enabled: true, turnstileToken: null })
 
       await act(async () => {
         captured?.[1].submitMagicLink()
@@ -472,7 +473,10 @@ describe('useSignIn Turnstile action gate', () => {
         captured?.[1].setTurnstileToken('turnstile-token-1')
       })
       expect(captured?.[0].turnstileReady).toBe(true)
-      expect(passkeyCalls.at(-1)?.enabled).toBe(true)
+      expect(passkeyCalls.at(-1)).toMatchObject({
+        enabled: true,
+        turnstileToken: 'turnstile-token-1',
+      })
 
       await act(async () => {
         captured?.[1].submitMagicLink()

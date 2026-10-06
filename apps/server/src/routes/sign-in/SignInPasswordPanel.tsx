@@ -21,6 +21,8 @@ export type SignInPasswordPanelProps = {
   actions: SignInActions
   prompt: IdentifierPrompt
   identifierPlaceholder: string
+  // 浏览器只在带 webauthn 的输入框上弹出 passkey 建议,提供 passkey 时密码面板也要带上。
+  identifierAutoComplete: string
   isSignUpFlow: boolean
   profileFields: readonly ProfileFieldKey[]
   requiredFields: readonly ProfileFieldKey[]
@@ -65,7 +67,7 @@ export function SignInPasswordPanel(props: SignInPasswordPanelProps): ReactNode 
       <Field label={<IdentifierLabel prompt={prompt} />} required>
         <Input
           type={prompt.type}
-          autoComplete={prompt.autoComplete}
+          autoComplete={props.identifierAutoComplete}
           placeholder={props.identifierPlaceholder}
           value={state.identifier}
           onChange={(e) => actions.setIdentifier(e.target.value)}

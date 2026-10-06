@@ -196,6 +196,7 @@ export type SignInErrorKey =
   | 'otp_sent'
   | 'verify_email_sent'
   | 'passkey_unavailable'
+  | 'identifier_required'
   | SignInCorrectableErrorKey
 
 // 只可能来自「创建账号」分支或与账户无关的可纠正错误,按错误码给出具体文案。
