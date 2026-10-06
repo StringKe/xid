@@ -21,6 +21,7 @@ import {
   validateBody,
   validateQuery,
 } from '../lib/validate'
+import { scheduleUserScimTargetSyncs } from '../scim/outbound'
 import { requireApiKey, parsePagination, paginate, idAfterCursor, emitWebhookAsync } from './shared'
 
 const app = new Hono<XidHonoEnv>()
@@ -339,6 +340,7 @@ app.delete('/:id', async (c) => {
     event: 'user.deleted',
     payload: { userId: id },
   })
+  scheduleUserScimTargetSyncs(c, id)
   return new Response(null, { status: 204 })
 })
 
@@ -383,6 +385,7 @@ app.post('/:id/restore', async (c) => {
     event: 'user.restored',
     payload: { userId: id },
   })
+  scheduleUserScimTargetSyncs(c, id)
   return c.json(toResponse(row))
 })
 
@@ -407,6 +410,7 @@ app.post('/:id/ban', async (c) => {
     event: 'user.banned',
     payload: { userId: id },
   })
+  scheduleUserScimTargetSyncs(c, id)
   return c.json(toResponse(row))
 })
 
@@ -429,6 +433,7 @@ app.post('/:id/unban', async (c) => {
     event: 'user.unbanned',
     payload: { userId: id },
   })
+  scheduleUserScimTargetSyncs(c, id)
   return c.json(toResponse(row))
 })
 

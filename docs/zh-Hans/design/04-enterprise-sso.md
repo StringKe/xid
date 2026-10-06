@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=2b5fddb56fbf026789e96ac089fb00ad3cde4568 -->
+<!-- xid-translation source=docs/design/04-enterprise-sso.md source-commit=working-tree source-blob=042374b73cd4524a4f6cee97ef4de997bd077e9c -->
 
 > Translation of the current `docs/design/04-enterprise-sso.md`. The English version is authoritative.
 > 本文是 [`docs/design/04-enterprise-sso.md`](../../design/04-enterprise-sso.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -115,7 +115,7 @@ Outbound SCIM client baseline 已落地的能力:
 - Sync endpoints:`/scim/outbound/:targetId/sync` 与
   `/v1/organizations/:orgId/scim-targets/:targetId/sync` 只负责鉴权并入队一个
   `ScimSyncQueueMessage`,返回 `202` 和稳定 `runId`;请求链路不调用下游 SaaS。
-- 自动运行:通过 membership API 移除或停用 Organization Membership,以及入站 SCIM 停用、恢复或删除用户时,经 `waitUntil` 在请求链路之外为受影响 org 的每个已配置 token 的 active target 入队一轮同步。daily cron 为每个已配置 token 的 active target 入队一轮,兜底其他成员与账号变化。consumer 串行且幂等,重复运行是安全的。
+- 自动运行:通过 membership API 移除、停用或恢复 Organization Membership,通过 `/v1/users` 删除、恢复、封禁或解封用户,以及入站 SCIM 停用、恢复或删除用户时,经 `waitUntil` 在请求链路之外为受影响 org 的每个已配置 token 的 active target 入队一轮同步。daily cron 为每个已配置 token 的 active target 入队一轮,兜底其他成员与账号变化。consumer 串行且幂等,重复运行是安全的。
 - 运行可见性:consumer 在 target 上记录 `last_run_status`(`succeeded` / `retrying` / `failed`)、`last_run_error`(原因码,可带下游 HTTP 状态,不含响应体或 token)和 `last_run_at`;Console 在最近一次成功同步旁展示这些信息。
 - 稳定 resource mapping:`scim_target_resources` 把本地 User 或 role-derived Group 绑定到下游
   SCIM `id`。consumer 优先用 mapping;mapping 缺失或失效时先按确定性 `externalId` discovery,

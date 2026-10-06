@@ -176,8 +176,9 @@ Capabilities already shipped in the outbound SCIM client baseline:
   `/v1/organizations/:orgId/scim-targets/:targetId/sync` authorize the caller, enqueue one
   `ScimSyncQueueMessage`, and return `202` with the stable `runId`; downstream HTTP never runs in the
   request path.
-- Automatic runs: removing or deactivating an Organization Membership through the membership APIs,
-  and inbound SCIM deactivation, reactivation, or deletion of a user, enqueue a run for every
+- Automatic runs: removing, deactivating, or restoring an Organization Membership through the
+  membership APIs, deleting, restoring, banning, or unbanning a user through `/v1/users`, and inbound
+  SCIM deactivation, reactivation, or deletion of a user, enqueue a run for every
   token-configured active target of the affected orgs, off the request path through `waitUntil`.
   The daily cron enqueues one run per token-configured active target as the fallback for every
   other membership or account change. Duplicate runs are safe because the consumer is serialized and
