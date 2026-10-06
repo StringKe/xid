@@ -147,7 +147,7 @@ function ActivatePage(): ReactNode {
 
         {queryError?.code === 'unauthorized' ? (
           <Link
-            to={signInRedirectTarget(location.pathname, location.search, location.hash)}
+            to={`${signInRedirectTarget(location.pathname, location.search, location.hash)}&select_account=1`}
             {...stylex.props(signInStyles.textLink)}
           >
             <Trans>Sign in</Trans>
