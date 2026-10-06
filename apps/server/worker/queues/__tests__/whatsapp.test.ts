@@ -319,6 +319,29 @@ describe('handleWhatsappBatch', () => {
     expect(dbRun).not.toHaveBeenCalled()
   })
 
+  it('provider 请求带超时信号,超时后 retry 不 ack', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+    vi.stubGlobal('fetch', fetchMock)
+    const env = makeEnv({
+      WHATSAPP_PROVIDER: 'meta',
+      WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
+      WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
+    })
+    const message = makeMessage({
+      type: 'otp',
+      recipient: '+15551234567',
+      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5 },
+    })
+
+    await handleWhatsappBatch(makeBatch(message), env)
+
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+    expect(message.retry).toHaveBeenCalledOnce()
+    expect(message.ack).not.toHaveBeenCalled()
+  })
+
   it('死信落库失败时 retry,不 ack', async () => {
     const env = makeEnv({
       DB: {

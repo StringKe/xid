@@ -171,6 +171,29 @@ describe('GitHub non-OIDC Email proof', () => {
     vi.unstubAllGlobals()
   })
 
+  it('bounds every GitHub profile request with a timeout signal', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, _init?: RequestInit) =>
+      String(input) === 'https://api.github.com/user'
+        ? Response.json({ id: 42, name: 'GitHub User' })
+        : Response.json([{ email: 'primary@example.com', primary: true, verified: true }]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await resolveProfile({
+      env: {} as Env,
+      provider: 'github',
+      config: makeGitHubConfig(),
+      tokens: { accessToken: 'github-access-token', refreshToken: null, idToken: null },
+      nonce: 'unused-for-github',
+    })
+
+    expect(fetchMock.mock.calls).toHaveLength(2)
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+    }
+    vi.unstubAllGlobals()
+  })
+
   it('does not use a public profile Email or a non-primary verified address', async () => {
     vi.stubGlobal(
       'fetch',
@@ -369,7 +392,7 @@ describe('resolveProfile OIDC providers', () => {
       name: 'Apple User',
     })
     expect(profile.profileRaw['nonce']).toBe(nonce)
-    expect(fetch).toHaveBeenCalledWith(jwksUri)
+    expect(fetch).toHaveBeenCalledWith(jwksUri, { signal: expect.any(AbortSignal) })
 
     vi.unstubAllGlobals()
   })
@@ -410,7 +433,7 @@ describe('resolveProfile OIDC providers', () => {
       name: 'Microsoft User',
     })
     expect(profile.profileRaw['iss']).toBe(issuer)
-    expect(fetch).toHaveBeenCalledWith(jwksUri)
+    expect(fetch).toHaveBeenCalledWith(jwksUri, { signal: expect.any(AbortSignal) })
 
     vi.unstubAllGlobals()
   })

@@ -4,6 +4,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { dispatchScheduled, CRON_HOURLY, CRON_DAILY } from '../index'
 import {
   cleanupOldMonthlyUsage,
+  evictStaleMeteringMonth,
   getPrevYearMonth,
   hardDeleteOldMonthlyUsage,
   pollDomainVerification,
@@ -48,6 +49,7 @@ class FakeD1 {
       tenants?: Row[]
       domains?: Row[]
       connections?: Row[]
+      monthlyUsage?: Row[]
     } = {},
   ) {}
 
@@ -71,6 +73,17 @@ class FakeD1 {
       const cursor = typeof args[0] === 'string' && args.length > 1 ? args[0] : null
       const rows = (this.data.connections ?? []).filter(
         (row) => cursor === null || String(row['id']) > cursor,
+      )
+      return Promise.resolve({ results: rows.slice(0, limit) as T[] })
+    }
+    if (normalized.includes('from usage_monthly')) {
+      const limit = Number(args[args.length - 1] ?? 50)
+      const cursor = args.length > 2 ? String(args[1]) : null
+      const rows = (this.data.monthlyUsage ?? []).filter(
+        (row) =>
+          row['year_month'] === args[0] &&
+          Number(row['mau']) > 0 &&
+          (cursor === null || String(row['tenant_id']) > cursor),
       )
       return Promise.resolve({ results: rows.slice(0, limit) as T[] })
     }
@@ -176,7 +189,7 @@ describe('verifyDomainDnsTxt', () => {
     await expect(verifyDomainDnsTxt('example.com', 'tok_1')).resolves.toBe(true)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://cloudflare-dns.com/dns-query?name=_xid.example.com&type=TXT',
-      { headers: { accept: 'application/dns-json' } },
+      { headers: { accept: 'application/dns-json' }, signal: expect.any(AbortSignal) },
     )
   })
 })
@@ -345,6 +358,42 @@ describe('usage maintenance', () => {
     expect(upserts[0]?.args[1]).toBe('2026-06')
     expect(metering.evicted).toHaveLength(0)
     expect(db.runs.some((run) => run.sql.includes('DELETE FROM usage_monthly'))).toBe(false)
+  })
+
+  it('evictStaleMeteringMonth 每日分页清理两个月前仍有用量的 DO 月份,含非 active 租户', async () => {
+    const monthlyUsage = [
+      ...Array.from({ length: 51 }, (_, i) => ({
+        tenant_id: `org_${String(i + 1).padStart(2, '0')}`,
+        year_month: '2026-04',
+        mau: 1,
+      })),
+      { tenant_id: 'org_zero', year_month: '2026-04', mau: 0 },
+      { tenant_id: 'org_prev', year_month: '2026-05', mau: 5 },
+    ]
+    const db = new FakeD1({ monthlyUsage })
+    const metering = makeMetering({})
+    const env = { DB: db, METERING: metering.namespace } as unknown as Env
+
+    await evictStaleMeteringMonth(env, new Date(Date.UTC(2026, 5, 15)))
+
+    expect(metering.evicted).toHaveLength(51)
+    expect(metering.evicted).toContain('org_01:2026-04')
+    expect(metering.evicted).toContain('org_51:2026-04')
+    expect(metering.evicted).not.toContain('org_zero:2026-04')
+    expect(metering.evicted.some((entry) => entry.endsWith(':2026-05'))).toBe(false)
+  })
+
+  it('runMonthlyUsageMaintenance 非月初也补清月初未完成的过期 DO 月份', async () => {
+    const db = new FakeD1({
+      tenants: [{ tenant_id: 'org_01' }],
+      monthlyUsage: [{ tenant_id: 'org_suspended', year_month: '2026-04', mau: 3 }],
+    })
+    const metering = makeMetering({ org_01: 2 })
+    const env = { DB: db, METERING: metering.namespace } as unknown as Env
+
+    await runMonthlyUsageMaintenance(env, new Date(Date.UTC(2026, 5, 15)))
+
+    expect(metering.evicted).toEqual(['org_suspended:2026-04'])
   })
 })
 

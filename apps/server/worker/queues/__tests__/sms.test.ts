@@ -401,6 +401,30 @@ describe('handleSmsBatch', () => {
     expect(dbRun).not.toHaveBeenCalled()
   })
 
+  it('provider 请求带超时信号,超时后 retry 不 ack', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+    vi.stubGlobal('fetch', fetchMock)
+    const env = makeEnv({
+      SMS_PROVIDER: 'twilio',
+      TWILIO_ACCOUNT_SID: 'AC123',
+      TWILIO_AUTH_TOKEN: 'token',
+      SMS_FROM: '+15550000000',
+    })
+    const message = makeMessage({
+      type: 'otp',
+      recipient: '+15551234567',
+      payload: { tenantId: 'tenant-1', code: '123456', expiresInMin: 5 },
+    })
+
+    await handleSmsBatch(makeBatch(message), env)
+
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+    expect(message.retry).toHaveBeenCalledOnce()
+    expect(message.ack).not.toHaveBeenCalled()
+  })
+
   it('死信落库失败时 retry,不 ack', async () => {
     const env = makeEnv({
       DB: {

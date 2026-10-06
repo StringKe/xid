@@ -17,6 +17,7 @@ const BACKOFF_BASE_SECONDS = 2
 const BACKOFF_START_EXP = 2
 const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01'
 const META_API_VERSION_DEFAULT = 'v25.0'
+const WHATSAPP_PROVIDER_TIMEOUT_MS = 10_000
 
 export type WhatsappSendInput = {
   to: string
@@ -79,6 +80,7 @@ export class TwilioWhatsappProvider implements WhatsappProvider {
           'content-type': 'application/x-www-form-urlencoded',
         },
         body,
+        signal: AbortSignal.timeout(WHATSAPP_PROVIDER_TIMEOUT_MS),
       },
     )
     if (!res.ok) throw providerHttpFailure('twilio_whatsapp', res.status)
@@ -118,6 +120,7 @@ export class MetaWhatsappProvider implements WhatsappProvider {
           type: 'text',
           text: { preview_url: false, body: input.text },
         }),
+        signal: AbortSignal.timeout(WHATSAPP_PROVIDER_TIMEOUT_MS),
       },
     )
     if (!res.ok) throw providerHttpFailure('meta_whatsapp', res.status)

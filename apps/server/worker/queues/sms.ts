@@ -21,6 +21,7 @@ const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01'
 const VONAGE_API_URL = 'https://rest.nexmo.com/sms/json'
 const INFOBIP_SMS_PATH = '/sms/3/messages'
 const MESSAGEBIRD_API_URL = 'https://rest.messagebird.com/messages'
+const SMS_PROVIDER_TIMEOUT_MS = 10_000
 
 export type SmsSendInput = {
   to: string
@@ -79,6 +80,7 @@ export class TwilioSmsProvider implements SmsProvider {
           'content-type': 'application/x-www-form-urlencoded',
         },
         body,
+        signal: AbortSignal.timeout(SMS_PROVIDER_TIMEOUT_MS),
       },
     )
     if (!res.ok) throw providerHttpFailure('twilio', res.status)
@@ -108,6 +110,7 @@ export class VonageSmsProvider implements SmsProvider {
         from: input.from || this.from,
         text: input.text,
       }),
+      signal: AbortSignal.timeout(SMS_PROVIDER_TIMEOUT_MS),
     })
     if (!res.ok) throw providerHttpFailure('vonage', res.status)
     const body = (await res.json().catch(() => ({}))) as {
@@ -148,6 +151,7 @@ export class InfobipSmsProvider implements SmsProvider {
           },
         ],
       }),
+      signal: AbortSignal.timeout(SMS_PROVIDER_TIMEOUT_MS),
     })
     if (!res.ok) throw providerHttpFailure('infobip', res.status)
   }
@@ -176,6 +180,7 @@ export class MessageBirdSmsProvider implements SmsProvider {
         recipients: input.to,
         body: input.text,
       }),
+      signal: AbortSignal.timeout(SMS_PROVIDER_TIMEOUT_MS),
     })
     if (!res.ok) throw providerHttpFailure('messagebird', res.status)
   }

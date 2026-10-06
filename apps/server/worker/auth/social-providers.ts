@@ -54,6 +54,7 @@ export const BUILT_IN_SOCIAL_PROVIDER_SECRET_BINDINGS = {
 
 const CUSTOM_SOCIAL_SECRET_BINDING = /^SOCIAL_[A-Z0-9_]+_CLIENT_SECRET$/
 const PROVIDER_KEY = /^[a-z0-9_-]+$/
+const SOCIAL_PROVIDER_TIMEOUT_MS = 5_000
 
 function operatorSocialProviderBindings(env: Env): Readonly<Record<string, string>> {
   const raw = env.SOCIAL_PROVIDER_SECRET_BINDINGS
@@ -172,7 +173,7 @@ async function fetchProviderVerifyKeys(env: Env, jwksUri: string): Promise<Verif
   const cacheKey = `provider_jwks:${jwksUri}`
   let raw = await env.CACHE.get(cacheKey)
   if (!raw) {
-    const res = await fetch(jwksUri)
+    const res = await fetch(jwksUri, { signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS) })
     if (!res.ok) throw new AppError('invalid_credentials')
     raw = await res.text()
     await env.CACHE.put(cacheKey, raw, { expirationTtl: SOCIAL_JWKS_CACHE_TTL_SEC })
@@ -292,12 +293,18 @@ async function fetchGitHubProfile(accessToken: string): Promise<ProviderProfile>
     Accept: 'application/vnd.github+json',
     'User-Agent': 'xid-server',
   }
-  const userRes = await fetch('https://api.github.com/user', { headers })
+  const userRes = await fetch('https://api.github.com/user', {
+    headers,
+    signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS),
+  })
   if (!userRes.ok) throw new AppError('internal_error')
   const user = (await userRes.json()) as Record<string, unknown>
   const idpUserId = String(user['id'])
 
-  const emailsRes = await fetch('https://api.github.com/user/emails', { headers })
+  const emailsRes = await fetch('https://api.github.com/user/emails', {
+    headers,
+    signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS),
+  })
   if (!emailsRes.ok) throw new AppError('internal_error')
   const primaryEmail = primaryVerifiedGitHubEmail(await emailsRes.json())
 
@@ -379,6 +386,7 @@ export async function exchangeCode(opts: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: tokenParams,
+    signal: AbortSignal.timeout(SOCIAL_PROVIDER_TIMEOUT_MS),
   })
   if (!tokenRes.ok) throw new AppError('invalid_grant')
   const data = (await tokenRes.json()) as Record<string, unknown>

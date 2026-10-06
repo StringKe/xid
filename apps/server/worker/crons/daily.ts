@@ -51,6 +51,8 @@ const DOMAIN_PAGE_SIZE = 50
 const SAML_METADATA_PAGE_SIZE = 50
 const SAML_METADATA_MAX_BYTES = 1024 * 1024
 const SAML_METADATA_FETCH_TIMEOUT_MS = 10_000
+const DNS_TXT_FETCH_TIMEOUT_MS = 5_000
+const METERING_EVICT_PAGE_SIZE = 50
 const VERIFY_TXT_PREFIX = 'xid-verify='
 const KEK_VERSION = 1
 
@@ -91,6 +93,7 @@ async function fetchDnsTxtRecords(domain: string): Promise<string[]> {
   const url = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=TXT`
   const response = await fetch(url, {
     headers: { accept: 'application/dns-json' },
+    signal: AbortSignal.timeout(DNS_TXT_FETCH_TIMEOUT_MS),
   })
   if (!response.ok) return []
   const body = (await response.json()) as { Answer?: Array<{ data?: string }> }
@@ -217,7 +220,18 @@ export async function pollDomainVerification(env: Env): Promise<void> {
     .all<DomainRow>()
   const now = Date.now()
   for (const row of rows.results) {
-    if (await verifyDomainDnsTxt(row.domain, row.verification_token)) {
+    let verified: boolean
+    try {
+      verified = await verifyDomainDnsTxt(row.domain, row.verification_token)
+    } catch (error) {
+      logWorkerError('cron.daily.domain_dns_lookup_failed', error, {
+        component: 'daily-cron',
+        operation: 'domain_verification',
+        outcome: 'skipped_domain',
+      })
+      continue
+    }
+    if (verified) {
       await env.DB.prepare(
         `UPDATE organization_domains
            SET verification_status = 'verified', verified_at = ?, updated_at = ?
@@ -401,13 +415,47 @@ export async function reportMonthlyMau(env: Env, now: Date = new Date()): Promis
   const yearMonth = getPrevYearMonth(now)
   const archivedAt = now.toISOString()
   await eachActiveTenant(env, async (tenantId) => {
-    const stub = env.METERING.get(
-      env.METERING.idFromName(`metering:${tenantId}`),
-    ) as unknown as DurableObjectStub & MeteringCountStub
+    const stub = meteringStub(env, tenantId)
     const mau = await stub.getMau(tenantId, yearMonth)
     await upsertUsageMonthly(env, { tenantId, yearMonth, mau, archivedAt })
     await stub.evictMonth(yearMonth)
   })
+}
+
+function meteringStub(env: Env, tenantId: string): DurableObjectStub & MeteringCountStub {
+  return env.METERING.get(
+    env.METERING.idFromName(`metering:${tenantId}`),
+  ) as unknown as DurableObjectStub & MeteringCountStub
+}
+
+// 月初归档失败或租户已非 active 时,上月 DO 计数不会被 reportMonthlyMau 清掉。
+// 每日按 usage_monthly 有用量的租户补清两个月前的月份,不依赖单次月初运行成功。
+export async function evictStaleMeteringMonth(env: Env, now: Date = new Date()): Promise<void> {
+  const staleYearMonth = getPrevYearMonth(
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)),
+  )
+  let cursor: string | null = null
+  while (true) {
+    const where: string = cursor === null ? '' : 'AND tenant_id > ?'
+    const params: unknown[] =
+      cursor === null
+        ? [staleYearMonth, METERING_EVICT_PAGE_SIZE]
+        : [staleYearMonth, cursor, METERING_EVICT_PAGE_SIZE]
+    const rows: D1Result<{ tenant_id: string }> = await env.DB.prepare(
+      `SELECT tenant_id FROM usage_monthly
+         WHERE year_month = ? AND mau > 0 ${where}
+         ORDER BY tenant_id
+         LIMIT ?`,
+    )
+      .bind(...params)
+      .all<{ tenant_id: string }>()
+    if (rows.results.length === 0) return
+    for (const { tenant_id } of rows.results) {
+      await meteringStub(env, tenant_id).evictMonth(staleYearMonth)
+    }
+    cursor = rows.results[rows.results.length - 1]?.tenant_id ?? null
+    if (rows.results.length < METERING_EVICT_PAGE_SIZE) return
+  }
 }
 
 // 当月快照:platform billing/stats 读取 usage_monthly 当月行,每日补齐 active tenant 当前 MAU。
@@ -415,10 +463,7 @@ export async function snapshotCurrentMonthMau(env: Env, now: Date = new Date()):
   const yearMonth = now.toISOString().slice(0, 7)
   const archivedAt = now.toISOString()
   await eachActiveTenant(env, async (tenantId) => {
-    const stub = env.METERING.get(
-      env.METERING.idFromName(`metering:${tenantId}`),
-    ) as unknown as DurableObjectStub & MeteringCountStub
-    const mau = await stub.getMau(tenantId, yearMonth)
+    const mau = await meteringStub(env, tenantId).getMau(tenantId, yearMonth)
     await upsertUsageMonthly(env, { tenantId, yearMonth, mau, archivedAt })
   })
 }
@@ -437,6 +482,7 @@ export async function hardDeleteOldMonthlyUsage(env: Env, cutoffYearMonth: strin
 export async function runMonthlyUsageMaintenance(env: Env, now: Date = new Date()): Promise<void> {
   await snapshotCurrentMonthMau(env, now)
   await reportMonthlyMau(env, now)
+  await evictStaleMeteringMonth(env, now)
   if (shouldArchivePrevMonth(now)) {
     await cleanupOldMonthlyUsage(env, now)
   }

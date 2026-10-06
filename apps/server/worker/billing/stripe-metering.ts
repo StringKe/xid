@@ -1,6 +1,7 @@
 import type { StripeMeteringQueueMessage } from '@xid-kit/types'
 import { createStripeMeterEvent, stripeMeterEventName } from './stripe-client'
 import { AppError } from '../lib/errors'
+import { logWorkerError, logWorkerWarning } from '../lib/safe-log'
 
 const METER_KEY = 'mau'
 export const STRIPE_METER_PAGE_SIZE = 100
@@ -216,14 +217,21 @@ async function markMeterProviderAccepted(
   throw new Error('stripe_meter_provider_acceptance_persist_failed')
 }
 
-async function requireMeterRetryInsideProviderWindow(
+// 超出 Stripe 去重窗口且未确认受理时不能重发;billing_meter_reports.reconciliation_required_at
+// 保留给运维人工对账,后续日批跳过该游标,避免每天重复失败并产生新的死信。
+async function meterRetryAllowed(
   env: Env,
   input: { tenantId: string; period: string; pending: PendingMeterEvent; now: number },
-): Promise<void> {
+): Promise<boolean> {
   if (input.pending.reconciliationRequiredAt !== null) {
-    throw new Error('stripe_meter_reconciliation_required')
+    logWorkerWarning('billing.stripe_meter.reconciliation_pending', {
+      component: 'stripe-metering',
+      operation: 'report_mau',
+      outcome: 'skipped',
+    })
+    return false
   }
-  if (input.now - input.pending.reservedAt < STRIPE_METER_PROVIDER_DEDUP_WINDOW_MS) return
+  if (input.now - input.pending.reservedAt < STRIPE_METER_PROVIDER_DEDUP_WINDOW_MS) return true
 
   await env.DB.prepare(
     `UPDATE billing_meter_reports
@@ -234,8 +242,13 @@ async function requireMeterRetryInsideProviderWindow(
     .bind(input.now, input.now, input.tenantId, METER_KEY, input.period, input.pending.identifier)
     .run()
   const cursor = await loadCursor(env, input.tenantId, input.period)
-  if (cursor?.providerAcceptedAt !== null && cursor?.providerAcceptedAt !== undefined) return
-  throw new Error('stripe_meter_reconciliation_required')
+  if (cursor?.providerAcceptedAt !== null && cursor?.providerAcceptedAt !== undefined) return true
+  logWorkerError('billing.stripe_meter.reconciliation_required', undefined, {
+    component: 'stripe-metering',
+    operation: 'report_mau',
+    outcome: 'skipped',
+  })
+  return false
 }
 
 async function finalizeMeterDelta(
@@ -299,12 +312,13 @@ async function reportTarget(
     now: now.getTime(),
   })
   if (!pending) return
-  await requireMeterRetryInsideProviderWindow(env, {
+  const retryAllowed = await meterRetryAllowed(env, {
     tenantId: target.tenantId,
     period,
     pending,
     now: now.getTime(),
   })
+  if (!retryAllowed) return
   if (pending.providerAcceptedAt === null) {
     await createStripeMeterEvent(env, {
       eventName: pending.eventName,

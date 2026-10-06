@@ -109,6 +109,18 @@ describe('checkHibpBreached', () => {
     expect(result).toBe(false)
   })
 
+  it('HIBP 请求带超时信号,超时 fail-open -> breached=false', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await checkHibpBreached('password')
+
+    expect(result).toBe(false)
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('HIBP 网络失败 fail-open -> breached=false', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')))
     const result = await checkHibpBreached('password')

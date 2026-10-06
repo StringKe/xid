@@ -147,6 +147,43 @@ describe('pollDomainVerification', () => {
     await pollDomainVerification({ DB: db } as unknown as Env)
     expect(db.domains[0]?.verification_status).toBe('verified')
   })
+
+  it('bounds each DNS lookup and keeps polling remaining domains after a timeout', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const fetchMock = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+      if (String(url).includes('_xid.slow.com')) {
+        throw new DOMException('The operation timed out.', 'TimeoutError')
+      }
+      return Response.json({ Answer: [{ data: '"xid-verify=fast_token"' }] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const db = new DomainPollD1()
+    db.domains.push(
+      {
+        id: 'dom_slow',
+        domain: 'slow.com',
+        verification_token: 'slow_token',
+        verification_status: 'pending',
+        status: 'active',
+      },
+      {
+        id: 'dom_fast',
+        domain: 'fast.com',
+        verification_token: 'fast_token',
+        verification_status: 'pending',
+        status: 'active',
+      },
+    )
+
+    await pollDomainVerification({ DB: db } as unknown as Env)
+
+    expect(fetchMock.mock.calls.every(([, init]) => init?.signal instanceof AbortSignal)).toBe(true)
+    expect(db.domains.map((row) => row.verification_status)).toEqual(['pending', 'verified'])
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'cron.daily.domain_dns_lookup_failed' }),
+    )
+    consoleError.mockRestore()
+  })
 })
 
 describe('pollCertificateStatus', () => {

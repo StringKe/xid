@@ -29,6 +29,7 @@ const MIN_LENGTH = 12
 const MAX_LENGTH = 128
 const HISTORY_COUNT = 5
 const PASSWORD_REUSE_TAG_PREFIX = 'pwd-reuse:v1:'
+const HIBP_TIMEOUT_MS = 5_000
 
 // ---- 内部辅助 ----
 
@@ -230,6 +231,7 @@ export async function checkHibpBreached(password: string): Promise<boolean> {
   try {
     const resp = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
       headers: { 'Add-Padding': 'true' },
+      signal: AbortSignal.timeout(HIBP_TIMEOUT_MS),
     })
     if (!resp.ok) return false
     const text = await resp.text()

@@ -179,6 +179,7 @@ function makeEnv(d1: SqliteD1): Env {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('Stripe webhook persistence', () => {
@@ -662,7 +663,7 @@ describe('Stripe MAU meter cursor', () => {
     d1.close()
   })
 
-  it('fails closed outside the provider dedup window when acceptance could not be persisted', async () => {
+  it('marks reconciliation outside the provider dedup window without resending or throwing', async () => {
     const d1 = new SqliteD1()
     applyMigrations(d1.database)
     seedTenant(d1.database)
@@ -693,6 +694,8 @@ describe('Stripe MAU meter cursor', () => {
       requestedAt: firstAttempt.getTime(),
     } as const
 
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
     d1.failNext(/SET provider_accepted_at/u)
     await expect(handleStripeMeteringQueueMessage(env, message, firstAttempt)).rejects.toThrow(
       'injected_d1_failure',
@@ -703,9 +706,12 @@ describe('Stripe MAU meter cursor', () => {
         message,
         new Date(firstAttempt.getTime() + 24 * 60 * 60 * 1000),
       ),
-    ).rejects.toThrow('stripe_meter_reconciliation_required')
+    ).resolves.toBeUndefined()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'billing.stripe_meter.reconciliation_required' }),
+    )
     expect(
       d1.database
         .prepare(
@@ -716,6 +722,74 @@ describe('Stripe MAU meter cursor', () => {
     ).toMatchObject({
       provider_accepted_at: null,
       reconciliation_required_at: firstAttempt.getTime() + 24 * 60 * 60 * 1000,
+    })
+    d1.close()
+  })
+
+  it('skips a cursor awaiting reconciliation on later daily runs without provider I/O', async () => {
+    const d1 = new SqliteD1()
+    applyMigrations(d1.database)
+    seedTenant(d1.database)
+    d1.database
+      .prepare(
+        `INSERT INTO organization_plans (
+           tenant_id, plan, status, source, external_customer_id,
+           effective_at, created_at, updated_at
+         ) VALUES ('org_1', 'pro', 'active', 'stripe', 'cus_1', 1000, 1000, 1000)`,
+      )
+      .run()
+    d1.database
+      .prepare(
+        `INSERT INTO usage_monthly (tenant_id, year_month, mau, archived_at)
+         VALUES ('org_1', '2026-07', 9, '2026-07-28T00:00:00.000Z')`,
+      )
+      .run()
+    const reconciliationAt = new Date('2026-07-27T12:00:00.000Z').getTime()
+    d1.database
+      .prepare(
+        `INSERT INTO billing_meter_reports (
+           tenant_id, meter_key, period, reported_value,
+           pending_identifier, pending_value, pending_target, pending_customer_id,
+           pending_event_name, pending_timestamp, pending_reserved_at,
+           provider_accepted_at, reconciliation_required_at, created_at, updated_at
+         ) VALUES ('org_1', 'mau', '2026-07', 0, 'xid_mau_pending', 7, 7, 'cus_1',
+           'xid_mau', 1000, 1000, NULL, ?, 1000, ?)`,
+      )
+      .run(reconciliationAt, reconciliationAt)
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const env = makeEnv(d1)
+    const now = new Date('2026-07-29T12:00:00.000Z')
+
+    await expect(
+      handleStripeMeteringQueueMessage(
+        env,
+        {
+          type: 'stripe_mau_report',
+          tenantId: 'org_1',
+          period: '2026-07',
+          requestedAt: now.getTime(),
+        },
+        now,
+      ),
+    ).resolves.toBeUndefined()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(consoleWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'billing.stripe_meter.reconciliation_pending' }),
+    )
+    expect(
+      d1.database
+        .prepare(
+          `SELECT reported_value, pending_identifier, reconciliation_required_at
+           FROM billing_meter_reports WHERE tenant_id = 'org_1'`,
+        )
+        .get(),
+    ).toEqual({
+      reported_value: 0,
+      pending_identifier: 'xid_mau_pending',
+      reconciliation_required_at: reconciliationAt,
     })
     d1.close()
   })
