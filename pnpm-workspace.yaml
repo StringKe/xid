@@ -56,12 +56,11 @@ overrides:
   '@esbuild-kit/core-utils>esbuild': 0.25.12
   '@expo/xcpretty>js-yaml': 4.3.2
   '@hono/node-server': 2.0.10
-  '@modelcontextprotocol/sdk': 1.30.0
   '@stylexjs/stylex': ^0.19.0
   '@stylexjs/unplugin': ^0.19.0
   '@sveltejs/kit>cookie': 0.7.2
   '@testing-library/react': ^16.3.0
-  '@textlint/linter-formatter>js-yaml': 3.15.2
+  '@textlint/linter-formatter>js-yaml': 4.3.2
   '@types/node': ^26.1.2
   '@xmldom/xmldom': ^0.9.12
   'astro-icon>@iconify/tools': 5.0.12
@@ -71,14 +70,18 @@ overrides:
   hono: ^4.13.13
   ip-address: ^10.7.3
   jsdom: ^30.0.1
+  'mermaid>katex': ^0.19.0
   'minimatch@<10.2.5': 10.2.5
   'next>postcss': 8.5.23
-  'next>sharp': 0.35.5
   'nitropack>archiver': 8.0.0
   postcss: 8.5.23
   qs: ^6.16.0
   'rc-config-loader>js-yaml': 4.3.2
   rxjs: ^7.8.1
+  seroval: ^1.6.8
+  seroval-plugins: ^1.6.8
+  sharp: ^0.35.5
+  simple-git: ^4.0.2
   smol-toml: ^1.9.0
   solid-js: ^1.9.7
   svgo: ^4.1.0
