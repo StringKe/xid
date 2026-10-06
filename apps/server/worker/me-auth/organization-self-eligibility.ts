@@ -1,4 +1,4 @@
-// 自助创建组织的唯一资格判定:POST /auth/organizations 前置检查与 /v1/me 的 canCreateOrganization 共用,
+// 自助创建组织的唯一资格判定:POST /v1/organizations/self 前置检查与 /v1/me 的 canCreateOrganization 共用,
 // 避免入口显示与提交结果不一致。最终原子性仍由迁移 batch 的条件 UPDATE 保证。
 
 import { createTenantDb, schema } from '@xid-kit/db'
