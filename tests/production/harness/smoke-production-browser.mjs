@@ -678,7 +678,7 @@ class CdpPage {
           rect.height > 0;
       };
       const node = Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
-        .find((item) => isVisible(item) && !item.disabled && normalize(item.textContent) === label);
+        .find((item) => isVisible(item) && !item.disabled && item.getAttribute('aria-disabled') !== 'true' && normalize(item.textContent) === label);
       if (!node) return false;
       node.click();
       return true;
@@ -702,7 +702,7 @@ class CdpPage {
       const form = Array.from(document.querySelectorAll(formSelector)).find(isVisible);
       if (!form) return false;
       const button = Array.from(form.querySelectorAll('button, [role="button"]'))
-        .find((node) => isVisible(node) && !node.disabled);
+        .find((node) => isVisible(node) && !node.disabled && node.getAttribute('aria-disabled') !== 'true');
       if (!button) return false;
       button.click();
       return true;
@@ -728,7 +728,7 @@ class CdpPage {
         const form = Array.from(document.querySelectorAll(formSelector)).find(isVisible);
         if (!form) return false;
         return Array.from(form.querySelectorAll('button[type="submit"], button:not([type])'))
-          .some((node) => isVisible(node) && !node.disabled);
+          .some((node) => isVisible(node) && !node.disabled && node.getAttribute('aria-disabled') !== 'true');
       })()`)
       if (ready === true) return
       await delay(250)
@@ -751,7 +751,7 @@ class CdpPage {
           rect.height > 0;
       };
       return Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
-        .some((item) => isVisible(item) && !item.disabled && normalize(item.textContent) === label);
+        .some((item) => isVisible(item) && !item.disabled && item.getAttribute('aria-disabled') !== 'true' && normalize(item.textContent) === label);
     })()`)
   }
 

@@ -1226,7 +1226,7 @@ class CdpPage {
           rect.height > 0;
       };
       const node = Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
-        .find((item) => isVisible(item) && !item.disabled && normalize(item.textContent) === label);
+        .find((item) => isVisible(item) && !item.disabled && item.getAttribute('aria-disabled') !== 'true' && normalize(item.textContent) === label);
       if (!node) return false;
       node.click();
       return true;
