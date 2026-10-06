@@ -262,6 +262,38 @@ describe('MagicLinkPage explicit confirmation', () => {
     container.remove()
   })
 
+  it('treats account or policy rejection as terminal: no retry, only the way back to sign in', async () => {
+    authState.post.mockResolvedValue({
+      ok: false,
+      error: { code: 'account_locked', message: 'locked', httpStatus: 403 },
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <MagicLinkPage />
+        </QueryClientProvider>,
+      )
+    })
+    const confirm = container.querySelector('button')
+    if (!confirm) throw new Error('confirmation button missing')
+    await act(async () => confirm.click())
+    await flush()
+
+    expect(globalThis.sessionStorage.getItem('xid.magic-link.token')).toBeNull()
+    expect(container.textContent).toContain('This sign-in link cannot be used for this account.')
+    expect(container.querySelectorAll('button')).toHaveLength(0)
+    expect(container.textContent).toContain('Back to sign in')
+
+    await act(async () => root.unmount())
+    queryClient.clear()
+    container.remove()
+  })
+
   it('retains the credential and offers retry for a transient failure', async () => {
     authState.post.mockResolvedValue({
       ok: false,

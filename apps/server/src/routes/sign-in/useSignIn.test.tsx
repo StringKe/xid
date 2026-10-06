@@ -25,6 +25,7 @@ const routerState = vi.hoisted(() => ({
   search: {} as Record<string, string | undefined>,
   navigate: vi.fn(),
 }))
+const postErrorState = vi.hoisted(() => ({ code: 'unauthorized' as string }))
 
 function failure<T>(): Result<T> {
   return {
@@ -50,7 +51,11 @@ vi.mock('../../lib/auth-context', () => ({
           : failure<T>(),
       post: async <T,>(path: string, body?: unknown) => {
         postCalls.push({ path, body })
-        return failure<T>()
+        if (postErrorState.code === 'unauthorized') return failure<T>()
+        return {
+          ok: false,
+          error: { code: postErrorState.code, message: '', httpStatus: 409 },
+        } as Result<T>
       },
       patch: async <T,>() => failure<T>(),
       del: async <T,>() => failure<T>(),
@@ -360,6 +365,56 @@ describe('useSignIn application continuation', () => {
     } finally {
       await act(async () => root.unmount())
       container.remove()
+      routerState.search = {}
+    }
+  })
+})
+
+describe('useSignIn multi-organization identifier', () => {
+  it('re-resolves the typed identifier through login_hint instead of showing a credential error', async () => {
+    authConfigState.config = null
+    postCalls.length = 0
+    postErrorState.code = 'organization_selection_required'
+    routerState.navigate.mockClear()
+    routerState.search = { continue: '/account', organization_id: 'stale-org' }
+    ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+    const queryClient = new QueryClient()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    let captured: ReturnType<typeof useSignIn> | null = null
+    function Host(): ReactNode {
+      captured = useSignIn()
+      return null
+    }
+    const root = createRoot(container)
+
+    try {
+      await act(async () => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <Host />
+          </QueryClientProvider>,
+        )
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured?.[0].turnstileReady).toBe(true))
+      })
+      await act(async () => {
+        captured?.[1].setIdentifier(' multi@example.com ')
+      })
+      await act(async () => {
+        captured?.[1].submitPassword()
+      })
+
+      expect(routerState.navigate).toHaveBeenCalledWith(
+        '/sign-in?continue=%2Faccount&login_hint=multi%40example.com',
+        { replace: true },
+      )
+      expect(captured?.[0].error).toBeNull()
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+      postErrorState.code = 'unauthorized'
       routerState.search = {}
     }
   })

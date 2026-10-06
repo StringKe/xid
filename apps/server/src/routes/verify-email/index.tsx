@@ -1,10 +1,10 @@
 // 邮箱验证确认页;GET/页面加载永不消费 token,仅显式按钮触发 POST。
 
-import { Trans, useLingui } from '@lingui/react/macro'
-import { useEffect, useState } from 'react'
+import { Trans } from '@lingui/react/macro'
+import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
-import { Link, useNavigate } from '../../lib/router'
+import { useNavigate } from '../../lib/router'
 import { useMutation } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
@@ -12,9 +12,9 @@ import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
 import { useAuth } from '../../lib/auth-context'
 import { trackEmailVerified } from '../../lib/google-analytics-funnel'
-import { styles as signInStyles } from '../sign-in/styles'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
 import { classifyOneTimeLinkError, type OneTimeLinkErrorKind } from '../../lib/one-time-link-error'
+import { ResendVerification } from './ResendVerification'
 
 type VerifyEmailResult = { ok: true; email?: string; redirectUrl?: string }
 
@@ -22,6 +22,10 @@ const VERIFY_EMAIL_TERMINAL_CODES = {
   expired: 'token_expired',
   invalid: 'token_invalid',
 } as const
+
+function continuesToPasswordSetup(redirectUrl: string | undefined): boolean {
+  return redirectUrl?.startsWith('/reset-password') ?? false
+}
 
 // 回 sign-in 附 verified=1 + login_hint,供成功 Alert 与预填。
 function withVerifiedHint(target: string, email: string | undefined): string {
@@ -52,17 +56,6 @@ const styles = stylex.create({
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: tokens['--xid-muted-foreground'],
-  },
-  resendPanel: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  resendActions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-    alignItems: 'flex-start',
   },
 })
 
@@ -141,7 +134,7 @@ function VerifyEmailPage(): ReactNode {
             <Alert tone="error">
               <Trans>No verification token found. Please use the link from your email.</Trans>
             </Alert>
-            <ResendLink />
+            <ResendVerification />
           </>
         ) : null}
 
@@ -162,7 +155,11 @@ function VerifyEmailPage(): ReactNode {
 
         {verification.isSuccess ? (
           <Alert tone="success">
-            <Trans>Your email has been verified. Redirecting you to sign in...</Trans>
+            {continuesToPasswordSetup(verification.data.redirectUrl) ? (
+              <Trans>Your email has been verified. Next, set your password.</Trans>
+            ) : (
+              <Trans>Your email has been verified. Redirecting you to sign in...</Trans>
+            )}
           </Alert>
         ) : null}
 
@@ -171,16 +168,16 @@ function VerifyEmailPage(): ReactNode {
             <Alert tone="error">
               <Trans>This verification link has expired. Please request a new one.</Trans>
             </Alert>
-            <ResendLink />
+            <ResendVerification />
           </>
         ) : null}
 
-        {errorKind === 'invalid' ? (
+        {errorKind === 'invalid' || errorKind === 'unavailable' ? (
           <>
             <Alert tone="error">
               <Trans>This verification link is invalid or has already been used.</Trans>
             </Alert>
-            <ResendLink />
+            <ResendVerification />
           </>
         ) : null}
 
@@ -201,59 +198,6 @@ function VerifyEmailPage(): ReactNode {
         ) : null}
       </div>
     </AuthLayout>
-  )
-}
-
-function ResendLink(): ReactNode {
-  const { t } = useLingui()
-  const { api } = useAuth()
-  const [sent, setSent] = useState(false)
-
-  const resendMutation = useMutation({
-    mutationFn: () => api.post('/auth/resend-verification'),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        if (result.error.code !== 'rate_limited') {
-          setSent(true)
-          return
-        }
-        // rate_limited 不设 sent,走 isError 展示。
-        return
-      }
-      setSent(true)
-    },
-  })
-
-  if (sent) {
-    return (
-      <Alert tone="success">
-        <Trans>A new verification email has been sent if your account exists.</Trans>
-      </Alert>
-    )
-  }
-
-  return (
-    <div {...stylex.props(styles.resendPanel)}>
-      {resendMutation.isSuccess &&
-      !resendMutation.data?.ok &&
-      resendMutation.data?.error?.code === 'rate_limited' ? (
-        <Alert tone="error">
-          {t`Too many requests. Please wait a minute before trying again.`}
-        </Alert>
-      ) : null}
-      <div {...stylex.props(styles.resendActions)}>
-        <Button
-          variant="secondary"
-          isLoading={resendMutation.isPending}
-          onClick={() => void resendMutation.mutate()}
-        >
-          <Trans>Resend verification email</Trans>
-        </Button>
-        <Link to="/sign-in" {...stylex.props(signInStyles.textLink)}>
-          <Trans>Back to sign in</Trans>
-        </Link>
-      </div>
-    </div>
   )
 }
 

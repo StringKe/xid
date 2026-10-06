@@ -82,6 +82,7 @@ vi.mock('../../lib/auth-context', () => ({
 }))
 
 vi.mock('../sign-up/PasswordStrength', () => ({
+  scorePassword: () => 0,
   PasswordStrength: () => null,
 }))
 
@@ -99,6 +100,10 @@ vi.mock('../sign-in/auth-config', () => ({
 
 vi.mock('../sign-in/useTurnstile', () => ({
   useTurnstile: () => ({ containerRef: { current: null } }),
+}))
+
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useApiErrorMessage: () => (error: { code: string }) => `api-error:${error.code}`,
 }))
 
 import { Route } from './index'
@@ -231,6 +236,55 @@ describe('ForgotPasswordPage navigation links', () => {
     expect(container.innerHTML).toContain(
       'href="/forgot-password?organization_id=org-1&amp;locale=en"',
     )
+    await unmount(container, root)
+  })
+
+  it('keeps application continuation when returning to sign in', async () => {
+    routerState.search = {
+      client_id: 'app-1',
+      authz_request_id: 'authz-1',
+      login_hint: 'user@example.com',
+    }
+
+    const { container, root, html } = await renderPage()
+
+    expect(html).toContain(
+      'href="/sign-in?client_id=app-1&amp;authz_request_id=authz-1&amp;login_hint=user%40example.com"',
+    )
+    await unmount(container, root)
+  })
+
+  it('shows Security verification failed only for captcha errors', async () => {
+    const { container, root } = await renderPage()
+
+    await act(async () => {
+      await mutationState.captured[0]?.onSuccess?.({
+        ok: false,
+        error: { code: 'server_error', message: 'boom' },
+      })
+    })
+    expect(container.textContent).toContain('api-error:server_error')
+    expect(container.textContent).not.toContain('Security verification failed')
+
+    await act(async () => {
+      await mutationState.captured[0]?.onSuccess?.({
+        ok: false,
+        error: { code: 'captcha_failed', message: 'captcha' },
+      })
+    })
+    expect(container.textContent).toContain('Security verification failed')
+    await unmount(container, root)
+  })
+
+  it('titles the first password after email proof as account setup', async () => {
+    routerState.search = { token: 'setup-token', setup: '1' }
+    routerState.pathname = '/reset-password'
+    globalThis.history.replaceState({}, '', '/reset-password?setup=1&token=setup-token')
+
+    const { container, root, text } = await renderPage()
+
+    expect(text).toContain('Set your password')
+    expect(text).not.toContain('Choose a new password')
     await unmount(container, root)
   })
 

@@ -1,4 +1,4 @@
-// zxcvbn score 可视化;强度色用语义 token,不写裸色值。
+// 本地启发式强度(0-4)可视化;仅作提示,强制门槛是服务端长度/HIBP/历史校验。强度色用语义 token。
 
 import { useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
@@ -6,8 +6,21 @@ import * as stylex from '@stylexjs/stylex'
 import { Trans } from '@lingui/react/macro'
 import { tokens } from '../../styles/tokens.stylex'
 
+export type PasswordScore = 0 | 1 | 2 | 3 | 4
+
 export type PasswordStrengthProps = {
-  score: 0 | 1 | 2 | 3 | 4
+  score: PasswordScore
+}
+
+export function scorePassword(password: string): PasswordScore {
+  if (!password) return 0
+  let score = 0
+  if (password.length >= 12) score++
+  if (password.length >= 16) score++
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++
+  if (/\d/.test(password)) score++
+  if (/[^A-Za-z0-9]/.test(password)) score++
+  return Math.min(4, score) as PasswordScore
 }
 
 const styles = stylex.create({

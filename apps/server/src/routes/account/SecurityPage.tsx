@@ -6,15 +6,16 @@ import { Alert } from '../../components/ui'
 import * as stylex from '@stylexjs/stylex'
 import { account, consoleShell } from '../../styles/product-surface.stylex'
 import { ChangePasswordSection } from './ChangePasswordSection'
+import { GuestEmailConversionSection } from './GuestEmailConversionSection'
 import { MfaSection } from './MfaSection'
 import { PasskeySection } from './PasskeySection'
-import { useAuth } from '../../lib/auth-context'
+import { isGuestUser, useAuth } from '../../lib/auth-context'
 import { useDefaultLandingPath } from '../../lib/default-landing'
 import { useNavigate } from '../../lib/router'
 
 export default function SecurityPage(): ReactNode {
   const search = useSearch({ strict: false }) as { setup?: string; redirect_to?: string }
-  const { refresh, status } = useAuth()
+  const { refresh, status, user } = useAuth()
   const navigate = useNavigate()
   const defaultLandingPath = useDefaultLandingPath()
   // pending_mfa_setup 只能完成绑定:不挂载只认 active 会话的区块。
@@ -42,6 +43,12 @@ export default function SecurityPage(): ReactNode {
           </Alert>
         ) : null}
       </div>
+
+      {isGuestUser(user) && !isForcedSetup ? (
+        <div {...stylex.props(consoleShell.section)}>
+          <GuestEmailConversionSection />
+        </div>
+      ) : null}
 
       {isForcedSetup ? null : (
         <div {...stylex.props(consoleShell.section)}>

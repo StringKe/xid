@@ -62,6 +62,10 @@ vi.mock('../../lib/router', () => ({
   useNavigate: () => routerState.navigate,
 }))
 
+vi.mock('./ResendVerification', () => ({
+  ResendVerification: () => <div>Resend verification email</div>,
+}))
+
 import { Route } from './index'
 
 const VerifyEmailPage = (Route as unknown as { component: () => ReactNode }).component
@@ -125,6 +129,46 @@ describe('VerifyEmailPage explicit confirmation', () => {
       '/sign-in?intent=sign-up&verified=1&login_hint=owner%40example.com',
       { replace: true },
     )
+
+    await act(async () => root.unmount())
+    queryClient.clear()
+    container.remove()
+  })
+
+  it('says the next step is setting a password when verification continues to password setup', async () => {
+    authState.post.mockResolvedValue({
+      ok: true,
+      value: {
+        ok: true,
+        email: 'owner@example.com',
+        redirectUrl: '/reset-password?setup=1#token=setup-token',
+      },
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <VerifyEmailPage />
+        </QueryClientProvider>,
+      )
+    })
+    const button = container.querySelector('button')
+    if (!button) throw new Error('confirmation button missing')
+    await act(async () => button.click())
+    await flush()
+
+    expect(container.textContent).toContain(
+      'Your email has been verified. Next, set your password.',
+    )
+    expect(container.textContent).not.toContain('Redirecting you to sign in')
+    await act(async () => vi.advanceTimersByTime(2000))
+    expect(routerState.navigate).toHaveBeenCalledWith('/reset-password?setup=1#token=setup-token', {
+      replace: true,
+    })
 
     await act(async () => root.unmount())
     queryClient.clear()

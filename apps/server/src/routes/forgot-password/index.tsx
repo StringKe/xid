@@ -8,37 +8,34 @@ import { Link, useLocation, useNavigate } from '../../lib/router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { Alert, Button, Field, Input, PageHeader, Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
 import { useAuth } from '../../lib/auth-context'
-import { PasswordStrength } from '../sign-up/PasswordStrength'
+import { PasswordStrength, scorePassword, type PasswordScore } from '../sign-up/PasswordStrength'
 import { trackPasswordResetRequest } from '../../lib/google-analytics-funnel'
 import { handleResetPasswordSuccess } from './reset-success'
 import { useDefaultLandingPath } from '../../lib/default-landing'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
+import { buildSignInFlowFields } from '../sign-in/sign-in-flow'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
-import { forgotPasswordHref, passwordRecoverySignInHref } from './navigation'
+import {
+  forgotPasswordHref,
+  passwordRecoverySignInHref,
+  type PasswordRecoverySearch,
+} from './navigation'
 
 type RequestStepProps = {
-  organizationId?: string | null
+  search: PasswordRecoverySearch
   onDone: () => void
 }
 
 type ResetStepProps = {
   token: string
   clearToken: () => void
-}
-
-function scorePassword(password: string): 0 | 1 | 2 | 3 | 4 {
-  if (!password) return 0
-  let score = 0
-  if (password.length >= 12) score++
-  if (password.length >= 16) score++
-  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++
-  if (/\d/.test(password)) score++
-  if (/[^A-Za-z0-9]/.test(password)) score++
-  return Math.min(4, score) as 0 | 1 | 2 | 3 | 4
+  // 注册后经邮箱证明首次设密:同一表单,标题说明是完成注册而不是找回密码。
+  isAccountSetup: boolean
 }
 
 const styles = stylex.create({
@@ -90,10 +87,12 @@ const styles = stylex.create({
   },
 })
 
-function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
+function RequestStep({ search, onDone }: RequestStepProps): ReactNode {
   const { t } = useLingui()
   const { api } = useAuth()
-  const [email, setEmail] = useState('')
+  const apiErrorMessage = useApiErrorMessage()
+  const organizationId = search.organization_id ?? null
+  const [email, setEmail] = useState(search.login_hint?.includes('@') ? search.login_hint : '')
   const [emailError, setEmailError] = useState<string | null>(null)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
@@ -118,19 +117,27 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
     !authConfigQuery.isPending && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
 
   const requestMutation = useMutation({
-    mutationFn: (emailValue: string) =>
-      api.post('/auth/forgot-password', {
+    mutationFn: (emailValue: string) => {
+      const { continue: continuePath, intent, clientId } = buildSignInFlowFields(search)
+      return api.post('/auth/forgot-password', {
         email: emailValue,
         ...(organizationId ? { organizationId } : {}),
+        ...(continuePath ? { continue: continuePath } : {}),
+        ...(intent ? { intent } : {}),
+        ...(clientId ? { clientId } : {}),
         turnstileToken,
-      }),
+      })
+    },
     onSuccess: (result) => {
       if (!result.ok) {
-        if (result.error.code === 'rate_limited') {
+        const { code } = result.error
+        if (code === 'rate_limited') {
           setGlobalError(t`Too many requests. Please wait a minute before trying again.`)
-          return
+        } else if (code === 'captcha_required' || code === 'captcha_failed') {
+          setGlobalError(t`Security verification failed. Please refresh and try again.`)
+        } else {
+          setGlobalError(apiErrorMessage(result.error, { surface: 'general' }))
         }
-        setGlobalError(t`Security verification failed. Please refresh and try again.`)
         return
       }
       trackPasswordResetRequest()
@@ -183,14 +190,14 @@ function RequestStep({ organizationId, onDone }: RequestStepProps): ReactNode {
   )
 }
 
-function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
+function ResetStep({ token, clearToken, isAccountSetup }: ResetStepProps): ReactNode {
   const { t } = useLingui()
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
   const defaultLandingPath = useDefaultLandingPath()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [passwordScore, setPasswordScore] = useState<0 | 1 | 2 | 3 | 4>(0)
+  const [passwordScore, setPasswordScore] = useState<PasswordScore>(0)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [globalError, setGlobalError] = useState<string | null>(null)
@@ -256,10 +263,19 @@ function ResetStep({ token, clearToken }: ResetStepProps): ReactNode {
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} noValidate {...stylex.props(styles.stack)}>
-      <PageHeader
-        title={<Trans>Choose a new password</Trans>}
-        lead={<Trans>Enter a strong password to secure your account.</Trans>}
-      />
+      {isAccountSetup ? (
+        <PageHeader
+          title={<Trans>Set your password</Trans>}
+          lead={
+            <Trans>Your email is verified. Set a password to finish creating your account.</Trans>
+          }
+        />
+      ) : (
+        <PageHeader
+          title={<Trans>Choose a new password</Trans>}
+          lead={<Trans>Enter a strong password to secure your account.</Trans>}
+        />
+      )}
 
       {globalError ? <Alert tone="error">{globalError}</Alert> : null}
 
@@ -312,19 +328,10 @@ function RequestDoneView(): ReactNode {
   )
 }
 
-function BackToSignIn({
-  organizationId,
-  locale,
-}: {
-  organizationId?: string | null
-  locale?: string | null
-}): ReactNode {
+function BackToSignIn({ search }: { search: PasswordRecoverySearch }): ReactNode {
   return (
     <p {...stylex.props(styles.footerText)}>
-      <Link
-        to={passwordRecoverySignInHref({ organizationId, locale })}
-        {...stylex.props(styles.textLink)}
-      >
+      <Link to={passwordRecoverySignInHref(search)} {...stylex.props(styles.textLink)}>
         <Trans>Back to sign in</Trans>
       </Link>
     </p>
@@ -333,10 +340,9 @@ function BackToSignIn({
 
 function ForgotPasswordPage(): ReactNode {
   // 挂两条路径,strict:false 不绑单一 route id。
-  const search = useSearch({ strict: false }) as {
+  const search = useSearch({ strict: false }) as PasswordRecoverySearch & {
     token?: string
-    organization_id?: string
-    locale?: string
+    setup?: string
   }
   const { pathname } = useLocation()
   const isResetRoute = pathname === '/reset-password'
@@ -344,10 +350,8 @@ function ForgotPasswordPage(): ReactNode {
     storageKey: 'xid.password-reset.token',
     legacyQueryToken: isResetRoute ? (search.token ?? null) : null,
   })
-  const organizationId = search.organization_id ?? null
-  const locale = search.locale ?? null
-  const backToSignIn = <BackToSignIn organizationId={organizationId} locale={locale} />
-  const requestNewLinkHref = forgotPasswordHref({ organizationId, locale })
+  const backToSignIn = <BackToSignIn search={search} />
+  const requestNewLinkHref = forgotPasswordHref(search)
   const [requestDone, setRequestDone] = useState(false)
 
   if (isResetRoute && !ready) {
@@ -388,9 +392,13 @@ function ForgotPasswordPage(): ReactNode {
   return (
     <AuthLayout footer={backToSignIn}>
       {isResetRoute ? (
-        <ResetStep token={token as string} clearToken={clearToken} />
+        <ResetStep
+          token={token as string}
+          clearToken={clearToken}
+          isAccountSetup={String(search.setup) === '1'}
+        />
       ) : (
-        <RequestStep organizationId={organizationId} onDone={() => setRequestDone(true)} />
+        <RequestStep search={search} onDone={() => setRequestDone(true)} />
       )}
     </AuthLayout>
   )

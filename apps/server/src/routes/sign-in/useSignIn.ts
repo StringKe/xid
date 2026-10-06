@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import type { Result } from '@xid-kit/types'
+import type { Result, XidError } from '@xid-kit/types'
 import { useAuth } from '../../lib/auth-context'
 import { useNavigate } from '../../lib/router'
 import {
@@ -12,6 +12,7 @@ import {
   enabledSignInMethods,
   emptyProfileValues,
   initialSignInMethod,
+  isOtpMethod,
   profilePayload,
   organizationSignInUrl,
   type ProfileFieldKey,
@@ -32,6 +33,12 @@ import {
   setPendingAuthCompletion,
 } from '../../lib/google-analytics-pending-auth'
 import { buildSignInFlowFields, resolveHostedReturn } from './sign-in-flow'
+import {
+  buildFlowPayload,
+  organizationSelectionPath,
+  otpEndpoint,
+  otpTarget,
+} from './sign-in-requests'
 import { usePasskeySignIn } from './usePasskeySignIn'
 import type { PasskeySupport } from './usePasskeySignIn'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from './auth-config'
@@ -45,16 +52,23 @@ import {
 export type { SignInMethod, SignInErrorKey } from './shared'
 export { buildAuthConfigPath } from './auth-config-query'
 
-type SignInResult = Result<{
-  redirectUrl?: string
-  nextStep?: 'verify_email' | 'complete'
-}>
-type PasswordResult = Result<{ redirectUrl?: string; nextStep?: 'verify_email' | 'complete' }>
+type AuthResponse = { redirectUrl?: string; nextStep?: 'verify_email' | 'complete' }
+type AuthResult = Result<AuthResponse>
 type HrdResult = {
   organizationId?: string
   connectionId: string | null
   orgId?: string
   protocol?: 'saml' | 'oidc'
+}
+
+const AUTH_METHOD_BY_SIGN_IN_METHOD: Readonly<Record<SignInMethod, AuthMethod>> = {
+  'magic-link': 'magic_link',
+  'otp-email': 'otp_email',
+  'otp-whatsapp': 'otp_whatsapp',
+  'otp-sms': 'otp_sms',
+  'enterprise-sso': 'enterprise_sso',
+  passkey: 'passkey',
+  password: 'password',
 }
 
 export function buildSocialAuthorizeUrl(input: {
@@ -136,20 +150,22 @@ export type SignInActions = {
   selectOrganizationContext: (organizationId: string) => void
 }
 
+type SignInSearch = {
+  authz_request_id?: string
+  continue?: string
+  login_hint?: string
+  redirect?: string
+  organization_id?: string
+  client_id?: string
+  intent?: string
+  invitation_token?: string
+}
+
 export function useSignIn(): [SignInState, SignInActions] {
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
   // strict:false:兼容工厂挂载,不绑单一 route id。
-  const search = useSearch({ strict: false }) as {
-    authz_request_id?: string
-    continue?: string
-    login_hint?: string
-    redirect?: string
-    organization_id?: string
-    client_id?: string
-    intent?: string
-    invitation_token?: string
-  }
+  const search = useSearch({ strict: false }) as SignInSearch
   const redirectParam = search.redirect ?? null
   const authzRequestId = search.authz_request_id ?? null
   const selectedOrganizationId = search.organization_id ?? null
@@ -203,53 +219,54 @@ export function useSignIn(): [SignInState, SignInActions] {
     if (!enabledMethods.includes(method)) setMethodState(enabledMethods[0] ?? 'enterprise-sso')
   }, [enabledMethods, method])
 
-  const authFlowIntent =
+  const analyticsAuthIntent =
     search.invitation_token || isSignUpIntent(search.intent) ? 'sign_up' : 'sign_in'
-  const analyticsAuthIntent = authFlowIntent === 'sign_up' ? 'sign_up' : 'sign_in'
+  const flowPayload = useCallback(
+    (options: { withTurnstile: boolean }) =>
+      buildFlowPayload({
+        organizationId: selectedOrganizationId,
+        flowFields: signInFlowExtras,
+        ...(options.withTurnstile ? { turnstileToken } : {}),
+      }),
+    [selectedOrganizationId, signInFlowExtras, turnstileToken],
+  )
 
-  function signInMethodToAuthMethod(signInMethod: SignInMethod): AuthMethod {
-    if (signInMethod === 'magic-link') return 'magic_link'
-    if (signInMethod === 'otp-email') return 'otp_email'
-    if (signInMethod === 'otp-whatsapp') return 'otp_whatsapp'
-    if (signInMethod === 'otp-sms') return 'otp_sms'
-    if (signInMethod === 'enterprise-sso') return 'enterprise_sso'
-    if (signInMethod === 'passkey') return 'passkey'
-    if (signInMethod === 'password') return 'password'
-    return 'unknown'
-  }
+  // 多组织 identifier 由 Worker 返回 organization_selection_required:改走组织选择,不显示凭证错误。
+  const showApiError = useCallback(
+    (apiError: Pick<XidError, 'code' | 'meta'>): void => {
+      if (apiError.code === 'organization_selection_required' && identifier.trim()) {
+        setError(null)
+        navigate(organizationSelectionPath(search, identifier), { replace: true })
+        return
+      }
+      setError(apiErrorToKey(apiError))
+    },
+    [identifier, navigate, search],
+  )
 
   const finishSignIn = useCallback(
-    async (redirectUrl: string | undefined, method: AuthMethod): Promise<void> => {
+    async (redirectUrl: string | undefined, authMethod: AuthMethod): Promise<void> => {
       clearPendingAuthCompletion()
-      trackAuthSuccess({
-        method,
-        intent: authFlowIntent === 'sign_up' ? 'sign_up' : 'sign_in',
-      })
+      trackAuthSuccess({ method: authMethod, intent: analyticsAuthIntent })
       await refresh()
       navigate(redirectUrl ?? hostedReturn, { replace: true })
     },
-    [authFlowIntent, hostedReturn, navigate, refresh],
+    [analyticsAuthIntent, hostedReturn, navigate, refresh],
   )
 
   const handleAuthResult = useCallback(
-    async (result: SignInResult): Promise<void> => {
+    async (result: AuthResult, authMethod: AuthMethod): Promise<void> => {
       if (!result.ok) {
-        setError(apiErrorToKey(result.error))
+        showApiError(result.error)
         return
       }
       if (result.value.nextStep === 'verify_email') {
         setError('verify_email_sent')
         return
       }
-      const otpMethod: AuthMethod =
-        method === 'otp-email'
-          ? 'otp_email'
-          : method === 'otp-whatsapp'
-            ? 'otp_whatsapp'
-            : 'otp_sms'
-      await finishSignIn(result.value.redirectUrl, otpMethod)
+      await finishSignIn(result.value.redirectUrl, authMethod)
     },
-    [finishSignIn, method],
+    [finishSignIn, showApiError],
   )
 
   const passkey = usePasskeySignIn({
@@ -260,6 +277,8 @@ export function useSignIn(): [SignInState, SignInActions] {
     flowFields: signInFlowExtras,
     turnstileToken,
     onTurnstileConsumed: resetTurnstile,
+    onOrganizationSelectionRequired: () =>
+      navigate(organizationSelectionPath(search, identifier), { replace: true }),
     onSuccess: async (redirectUrl) => {
       await finishSignIn(redirectUrl, 'passkey')
     },
@@ -267,29 +286,14 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const passwordMutation = useMutation({
     mutationFn: () =>
-      api.post<{ redirectUrl?: string; nextStep?: 'verify_email' | 'complete' }>(
-        '/auth/password/sign-in',
-        {
-          identifier,
-          ...profilePayload(profileValues),
-          password,
-          rememberMe,
-          ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-          ...signInFlowExtras,
-          turnstileToken,
-        },
-      ),
-    onSuccess: async (result: PasswordResult) => {
-      if (!result.ok) {
-        setError(apiErrorToKey(result.error))
-        return
-      }
-      if (result.value.nextStep === 'verify_email') {
-        setError('verify_email_sent')
-        return
-      }
-      await finishSignIn(result.value.redirectUrl, 'password')
-    },
+      api.post<AuthResponse>('/auth/password/sign-in', {
+        identifier,
+        ...profilePayload(profileValues),
+        password,
+        rememberMe,
+        ...flowPayload({ withTurnstile: true }),
+      }),
+    onSuccess: (result) => handleAuthResult(result, 'password'),
     onSettled: resetTurnstile,
   })
 
@@ -298,55 +302,35 @@ export function useSignIn(): [SignInState, SignInActions] {
       api.post('/auth/magic-link/send', {
         email: identifier,
         ...profilePayload(profileValues),
-        ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-        ...signInFlowExtras,
-        turnstileToken,
+        ...flowPayload({ withTurnstile: true }),
       }),
     onSuccess: (result) => {
-      if (result.ok) {
-        trackMagicLinkSent(analyticsAuthIntent)
-        setPendingAuthCompletion({ method: 'magic_link', intent: analyticsAuthIntent })
+      if (!result.ok) {
+        showApiError(result.error)
+        return
       }
+      trackMagicLinkSent(analyticsAuthIntent)
+      setPendingAuthCompletion({ method: 'magic_link', intent: analyticsAuthIntent })
       // 枚举防护:不区分邮箱是否存在,统一"已发送"。
-      setError(result.ok ? 'magic_link_sent' : apiErrorToKey(result.error))
+      setError('magic_link_sent')
     },
     onSettled: resetTurnstile,
   })
 
+  const otpMethod = isOtpMethod(method) ? method : 'otp-email'
   const otpRequestMutation = useMutation({
-    mutationFn: () => {
-      const endpoint =
-        method === 'otp-email'
-          ? '/auth/otp/email/send'
-          : method === 'otp-whatsapp'
-            ? '/auth/otp/whatsapp/send'
-            : '/auth/otp/sms/send'
-      const body =
-        method === 'otp-email'
-          ? {
-              email: identifier,
-              ...profilePayload(profileValues),
-              ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-              ...signInFlowExtras,
-              turnstileToken,
-            }
-          : {
-              phone: identifier,
-              ...profilePayload(profileValues),
-              ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-              ...signInFlowExtras,
-              turnstileToken,
-            }
-      return api.post(endpoint, body)
-    },
+    mutationFn: () =>
+      api.post(otpEndpoint(otpMethod, 'send'), {
+        [otpTarget(otpMethod).field]: identifier,
+        ...profilePayload(profileValues),
+        ...flowPayload({ withTurnstile: true }),
+      }),
     onSuccess: (result) => {
       if (!result.ok) {
-        setError(apiErrorToKey(result.error))
+        showApiError(result.error)
         return
       }
-      const channel =
-        method === 'otp-email' ? 'email' : method === 'otp-whatsapp' ? 'whatsapp' : 'sms'
-      trackOtpSent(channel, analyticsAuthIntent)
+      trackOtpSent(otpTarget(otpMethod).channel, analyticsAuthIntent)
       setOtpStep('sent')
       setError('otp_sent')
     },
@@ -354,33 +338,13 @@ export function useSignIn(): [SignInState, SignInActions] {
   })
 
   const otpVerifyMutation = useMutation({
-    mutationFn: () => {
-      const endpoint =
-        method === 'otp-email'
-          ? '/auth/otp/email/verify'
-          : method === 'otp-whatsapp'
-            ? '/auth/otp/whatsapp/verify'
-            : '/auth/otp/sms/verify'
-      const body =
-        method === 'otp-email'
-          ? {
-              email: identifier,
-              code: otpCode,
-              ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-              ...signInFlowExtras,
-            }
-          : {
-              phone: identifier,
-              code: otpCode,
-              ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-              ...signInFlowExtras,
-            }
-      return api.post<{ redirectUrl?: string; nextStep?: 'verify_email' | 'complete' }>(
-        endpoint,
-        body,
-      )
-    },
-    onSuccess: handleAuthResult,
+    mutationFn: () =>
+      api.post<AuthResponse>(otpEndpoint(otpMethod, 'verify'), {
+        [otpTarget(otpMethod).field]: identifier,
+        code: otpCode,
+        ...flowPayload({ withTurnstile: false }),
+      }),
+    onSuccess: (result) => handleAuthResult(result, AUTH_METHOD_BY_SIGN_IN_METHOD[otpMethod]),
   })
 
   const enterpriseSsoMutation = useMutation({
@@ -394,8 +358,12 @@ export function useSignIn(): [SignInState, SignInActions] {
         turnstileToken,
       }),
     onSuccess: (result) => {
-      if (!result.ok || !result.value.connectionId || !result.value.protocol) {
-        setError(result.ok ? 'auth_failed' : apiErrorToKey(result.error))
+      if (!result.ok) {
+        showApiError(result.error)
+        return
+      }
+      if (!result.value.connectionId || !result.value.protocol) {
+        setError('auth_failed')
         return
       }
       const path =
@@ -462,9 +430,9 @@ export function useSignIn(): [SignInState, SignInActions] {
     },
     [
       analyticsAuthIntent,
-      authFlowIntent,
       hostedReturn,
       identifier,
+      search.intent,
       search.organization_id,
       search.client_id,
       search.invitation_token,
@@ -502,7 +470,7 @@ export function useSignIn(): [SignInState, SignInActions] {
   )
 
   const setMethod = useCallback((next: SignInMethod): void => {
-    trackAuthMethodSelected(signInMethodToAuthMethod(next))
+    trackAuthMethodSelected(AUTH_METHOD_BY_SIGN_IN_METHOD[next])
     setMethodState(next)
     setError(null)
     setOtpStep('input')
@@ -554,6 +522,12 @@ export function useSignIn(): [SignInState, SignInActions] {
     },
   }
 
+  const whenTurnstileReady =
+    (action: () => void): (() => void) =>
+    () => {
+      if (turnstileReady) action()
+    }
+
   const actions: SignInActions = {
     setMethod,
     setIdentifier,
@@ -562,27 +536,17 @@ export function useSignIn(): [SignInState, SignInActions] {
     setRememberMe,
     setOtpCode: (value) => setOtpCode(value.replace(/\D/g, '')),
     setTurnstileToken,
-    submitPassword: () => {
-      if (turnstileReady) passwordMutation.mutate()
-    },
-    submitMagicLink: () => {
-      if (turnstileReady) magicLinkMutation.mutate()
-    },
-    submitOtpRequest: () => {
-      if (turnstileReady) otpRequestMutation.mutate()
-    },
+    submitPassword: whenTurnstileReady(() => passwordMutation.mutate()),
+    submitMagicLink: whenTurnstileReady(() => magicLinkMutation.mutate()),
+    submitOtpRequest: whenTurnstileReady(() => otpRequestMutation.mutate()),
     submitOtpVerify: () => otpVerifyMutation.mutate(),
-    submitEnterpriseSso: () => {
-      if (turnstileReady) enterpriseSsoMutation.mutate()
-    },
+    submitEnterpriseSso: whenTurnstileReady(() => enterpriseSsoMutation.mutate()),
     submitGuest: () => {
       if (authConfig.guest && turnstileReady) {
         guestMutation.mutate(authConfig.guest.capabilityToken)
       }
     },
-    triggerPasskeyButton: () => {
-      if (turnstileReady) passkey.triggerButton()
-    },
+    triggerPasskeyButton: whenTurnstileReady(() => passkey.triggerButton()),
     handleSocial,
     selectOrganizationContext,
   }

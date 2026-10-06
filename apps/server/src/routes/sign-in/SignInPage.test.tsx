@@ -310,7 +310,8 @@ describe('SignInPage authenticated redirect', () => {
     const switchHref = /href="(\/sign-in\?[^"]*)"/.exec(rendered.html)?.[1]
     expect(switchHref).toBeDefined()
     const decoded = (switchHref ?? '').replaceAll('&amp;', '&')
-    expect(decoded).toContain('intent=sign-up')
+    expect(decoded).toContain('intent=application-sign-up')
+    expect(decoded).not.toContain('intent=sign-up')
     expect(decoded).toContain('continue=%2Fconsole')
     expect(decoded).toContain('client_id=client-1')
     expect(decoded).toContain('organization_id=org-1')
@@ -319,6 +320,18 @@ describe('SignInPage authenticated redirect', () => {
     expect(decoded).not.toContain('verified=')
     expect(decoded).not.toContain('reauthenticate=')
     expect(decoded).not.toContain('select_account=')
+  })
+
+  it('links product sign-in to product sign-up when no application client is present', async () => {
+    authState.status = 'unauthenticated'
+    routerState.search = { continue: '/console', organization_id: 'org-1' }
+
+    const rendered = await renderPage()
+
+    const switchHref = /href="(\/sign-in\?[^"]*)"/.exec(rendered.html)?.[1]
+    const decoded = (switchHref ?? '').replaceAll('&amp;', '&')
+    expect(decoded).toContain('intent=sign-up')
+    expect(decoded).not.toContain('client_id=')
   })
 
   it('links sign-up back to sign-in without an intent param', async () => {

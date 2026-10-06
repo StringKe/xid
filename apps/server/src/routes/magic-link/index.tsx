@@ -138,6 +138,15 @@ export function MagicLinkPage(): ReactNode {
           </Alert>
         ) : null}
 
+        {errorKind === 'unavailable' ? (
+          <Alert tone="error">
+            <Trans>
+              This sign-in link cannot be used for this account. Return to sign in to choose another
+              way to continue.
+            </Trans>
+          </Alert>
+        ) : null}
+
         {errorKind === 'retryable' ? (
           <>
             <Alert tone="error">

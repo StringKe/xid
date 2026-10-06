@@ -35,21 +35,25 @@ type PasskeySignInOptions = {
   flowFields: SignInFlowFields
   turnstileToken: string | null
   onTurnstileConsumed: () => void
+  onOrganizationSelectionRequired: () => void
   onSuccess: (redirectUrl: string | undefined) => Promise<void>
 }
+
+type ChallengeOutcome = ChallengeResponse | 'organization_selection_required' | null
 
 async function fetchChallenge(
   api: ApiClient,
   identifier: string,
   organizationId: string | null | undefined,
   flowFields: SignInFlowFields,
-): Promise<ChallengeResponse | null> {
+): Promise<ChallengeOutcome> {
   const result = await api.post<ChallengeResponse>('/auth/passkey/challenge', {
     identifier,
     ...(organizationId ? { organizationId } : {}),
     ...(flowFields.clientId ? { clientId: flowFields.clientId } : {}),
   })
-  return result.ok ? result.value : null
+  if (result.ok) return result.value
+  return result.error.code === 'organization_selection_required' ? result.error.code : null
 }
 
 function assertionBody(
@@ -79,6 +83,8 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     onTurnstileConsumed,
     onSuccess,
   } = options
+  const onOrganizationSelectionRequiredRef = useRef(options.onOrganizationSelectionRequired)
+  onOrganizationSelectionRequiredRef.current = options.onOrganizationSelectionRequired
   const [support, setSupport] = useState<PasskeySupport>('pending')
   const [conditionalRunning, setConditionalRunning] = useState(false)
   const [error, setError] = useState<SignInErrorKey | null>(null)
@@ -127,7 +133,7 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
     if (!normalizedIdentifier) return
 
     const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId, flowFields)
-    if (!challenge) return
+    if (!challenge || challenge === 'organization_selection_required') return
 
     abortRef.current = new AbortController()
     setConditionalRunning(true)
@@ -190,6 +196,10 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
         return
       }
       const challenge = await fetchChallenge(api, normalizedIdentifier, organizationId, flowFields)
+      if (challenge === 'organization_selection_required') {
+        onOrganizationSelectionRequiredRef.current()
+        return
+      }
       if (!challenge) {
         setError('auth_failed')
         return
