@@ -489,6 +489,8 @@ export type TenantContext = {
     sessionDerivedRoot?: boolean
   }
   hostedAuthOrigin?: string
+  // 实例默认语言(instances.default_locale):请求语言都不受支持时的回退。
+  defaultLocale?: string
   signingKeys: ActiveSigningKeySet
   policy: TenantPolicy
 }
