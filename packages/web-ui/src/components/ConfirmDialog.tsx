@@ -7,13 +7,15 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { motion, springSnappy } from '../motion'
 import { tokens } from '../styles/tokens.stylex'
-import { Button } from './ui'
+import { Alert, Button } from './ui'
 
 export type ConfirmDialogProps = {
   title: ReactNode
   description: ReactNode
   // 交互控件放 children,勿塞进 description 的 <p>(aria-describedby 段落不应含控件)。
   children?: ReactNode
+  // 模态遮罩会盖住页面级提示,确认失败的原因必须在框内展示。
+  error?: ReactNode
   confirmLabel?: ReactNode
   confirmVariant?: 'danger' | 'primary'
   isLoading?: boolean
@@ -51,6 +53,9 @@ const styles = stylex.create({
     gap: '0.75rem',
     justifyContent: 'flex-end',
   },
+  error: {
+    marginBottom: '1rem',
+  },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -67,6 +72,7 @@ export function ConfirmDialog({
   title,
   description,
   children,
+  error,
   confirmLabel,
   confirmVariant = 'danger',
   isLoading = false,
@@ -121,6 +127,12 @@ export function ConfirmDialog({
       </p>
 
       {children ? <div {...stylex.props(styles.form)}>{children}</div> : null}
+
+      {error ? (
+        <div {...stylex.props(styles.error)}>
+          <Alert tone="error">{error}</Alert>
+        </div>
+      ) : null}
 
       <div {...stylex.props(styles.actions)}>
         <Button
