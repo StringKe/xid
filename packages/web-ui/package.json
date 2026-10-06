@@ -14,6 +14,8 @@
     "./api-errors": "./src/api-errors.ts",
     "./api-error-message": "./src/api-error-message.ts",
     "./brand-assets": "./src/brand-assets.ts",
+    "./brand-color": "./src/brand-color.ts",
+    "./foundation.css": "./src/styles/foundation.css",
     "./class-name": "./src/class-name.ts",
     "./display-names": "./src/display-names.tsx",
     "./enum-labels": "./src/enum-labels.tsx",
@@ -34,6 +36,7 @@
     "./LanguageSwitcher": "./src/components/LanguageSwitcher.tsx",
     "./RequireAuth": "./src/components/RequireAuth.tsx",
     "./styles/tokens.stylex": "./src/styles/tokens.stylex.ts",
+    "./styles/scale.stylex": "./src/styles/scale.stylex.ts",
     "./styles/product-surface.stylex": "./src/styles/product-surface.stylex.ts"
   },
   "scripts": {
@@ -43,6 +46,9 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@fontsource-variable/geist": "catalog:",
+    "@fontsource-variable/geist-mono": "catalog:",
     "@lingui/core": "catalog:",
     "@lingui/react": "catalog:",
     "@stylexjs/stylex": "catalog:",

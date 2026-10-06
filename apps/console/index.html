@@ -9,16 +9,16 @@
     />
     <meta name="color-scheme" content="light dark" />
     <meta name="robots" content="noindex,nofollow" />
-    <meta name="theme-color" content="#111318" />
+    <meta name="theme-color" content="#181818" />
     <title>XID</title>
     <style>
       html {
         color-scheme: light;
-        background-color: var(--xid-bg, #fafafc);
+        background-color: var(--xid-bg, #ffffff);
       }
       html[data-theme='dark'] {
         color-scheme: dark;
-        background-color: var(--xid-bg, #111318);
+        background-color: var(--xid-bg, #181818);
       }
     </style>
     <script>
@@ -26,7 +26,7 @@
         var dark = window.matchMedia('(prefers-color-scheme: dark)').matches
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
         var meta = document.querySelector('meta[name="theme-color"]')
-        if (meta) meta.setAttribute('content', dark ? '#111318' : '#fafafc')
+        if (meta) meta.setAttribute('content', dark ? '#181818' : '#ffffff')
       })()
     </script>
     <script>

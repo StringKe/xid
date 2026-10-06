@@ -1,0 +1,323 @@
+/* 字体、CJK 覆盖与 Base UI 弹层进出场。StyleX 不处理 [data-starting-style] 属性选择器,这里是唯一出口。 */
+
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+:root:lang(ja) {
+  --xid-font:
+    'Geist Variable', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Noto Sans JP',
+    'Noto Sans CJK JP', system-ui, sans-serif;
+}
+
+:root:lang(ko) {
+  --xid-font:
+    'Geist Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Noto Sans CJK KR',
+    system-ui, sans-serif;
+}
+
+/* 中日韩不靠字距表现层级,字距表全部归零。 */
+:root:lang(zh),
+:root:lang(ja),
+:root:lang(ko) {
+  --xid-tracking-display: 0em;
+  --xid-tracking-heading: 0em;
+  --xid-tracking-title: 0em;
+  --xid-tracking-small: 0em;
+}
+
+@media (max-width: 47.99rem) {
+  .xid-hidden-narrow {
+    display: none;
+  }
+}
+
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .xid-hidden-regular {
+    display: none;
+  }
+}
+
+@media (min-width: 64rem) and (max-width: 89.99rem) {
+  .xid-hidden-sidebar {
+    display: none;
+  }
+}
+
+@media (min-width: 90rem) {
+  .xid-hidden-wide {
+    display: none;
+  }
+}
+
+.xid-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: var(--xid-scrim);
+  transition: opacity 180ms ease-out;
+}
+
+.xid-dialog-backdrop[data-starting-style],
+.xid-dialog-backdrop[data-ending-style] {
+  opacity: 0;
+}
+
+.xid-dialog-viewport {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.xid-dialog-popup {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-width: 100%;
+  outline: none;
+  transition:
+    opacity 180ms ease-out,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.xid-dialog-popup[data-starting-style],
+.xid-dialog-popup[data-ending-style] {
+  opacity: 0;
+}
+
+@media (max-width: 47.99rem) {
+  .xid-dialog-narrow-center {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .xid-dialog-narrow-center > .xid-dialog-popup {
+    width: min(var(--xid-dialog-width), 100%);
+    max-height: calc(100svh - 2rem);
+    border-radius: var(--xid-radius-lg);
+  }
+
+  .xid-dialog-narrow-center > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-narrow-center > .xid-dialog-popup[data-ending-style] {
+    transform: scale(0.97);
+  }
+
+  .xid-dialog-narrow-sheet {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .xid-dialog-narrow-sheet > .xid-dialog-popup {
+    width: 100%;
+    max-height: calc(100svh - 2rem);
+    border-radius: var(--xid-radius-lg) var(--xid-radius-lg) 0 0;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .xid-dialog-narrow-sheet > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-narrow-sheet > .xid-dialog-popup[data-ending-style] {
+    opacity: 0.9999;
+    transform: translateY(100%);
+  }
+
+  .xid-dialog-narrow-fullscreen {
+    padding: 0;
+  }
+
+  .xid-dialog-narrow-fullscreen > .xid-dialog-popup {
+    width: 100%;
+    height: 100svh;
+    border-radius: 0;
+    box-shadow: none;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .xid-dialog-narrow-fullscreen > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-narrow-fullscreen > .xid-dialog-popup[data-ending-style] {
+    opacity: 0.9999;
+    transform: translateY(100%);
+  }
+
+  .xid-dialog-narrow-side {
+    padding: 0;
+    justify-content: flex-end;
+  }
+
+  .xid-dialog-narrow-side.xid-dialog-side-start {
+    justify-content: flex-start;
+  }
+
+  .xid-dialog-narrow-side > .xid-dialog-popup {
+    width: min(20rem, 90vw);
+    height: 100svh;
+    border-radius: 0;
+  }
+
+  .xid-dialog-narrow-side > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-narrow-side > .xid-dialog-popup[data-ending-style] {
+    opacity: 0.9999;
+    transform: translateX(100%);
+  }
+
+  .xid-dialog-narrow-side.xid-dialog-side-start > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-narrow-side.xid-dialog-side-start > .xid-dialog-popup[data-ending-style] {
+    transform: translateX(-100%);
+  }
+}
+
+@media (min-width: 48rem) {
+  .xid-dialog-regular-center,
+  .xid-dialog-regular-sheet,
+  .xid-dialog-regular-fullscreen {
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .xid-dialog-regular-center > .xid-dialog-popup,
+  .xid-dialog-regular-sheet > .xid-dialog-popup,
+  .xid-dialog-regular-fullscreen > .xid-dialog-popup {
+    width: min(var(--xid-dialog-width), 100%);
+    max-height: calc(100svh - 4rem);
+    border-radius: var(--xid-radius-lg);
+  }
+
+  .xid-dialog-regular-center > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-regular-center > .xid-dialog-popup[data-ending-style],
+  .xid-dialog-regular-sheet > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-regular-sheet > .xid-dialog-popup[data-ending-style],
+  .xid-dialog-regular-fullscreen > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-regular-fullscreen > .xid-dialog-popup[data-ending-style] {
+    transform: scale(0.97);
+  }
+
+  .xid-dialog-regular-side {
+    padding: 0;
+    justify-content: flex-end;
+  }
+
+  .xid-dialog-regular-side.xid-dialog-side-start {
+    justify-content: flex-start;
+  }
+
+  .xid-dialog-regular-side > .xid-dialog-popup {
+    width: min(var(--xid-dialog-width), 90vw);
+    height: 100svh;
+    border-radius: 0;
+  }
+
+  .xid-dialog-regular-side > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-regular-side > .xid-dialog-popup[data-ending-style] {
+    opacity: 0.9999;
+    transform: translateX(100%);
+  }
+
+  .xid-dialog-regular-side.xid-dialog-side-start > .xid-dialog-popup[data-starting-style],
+  .xid-dialog-regular-side.xid-dialog-side-start > .xid-dialog-popup[data-ending-style] {
+    transform: translateX(-100%);
+  }
+}
+
+@media (min-width: 48rem) {
+  .xid-command-viewport {
+    align-items: flex-start;
+    justify-content: center;
+    padding: 12vh 2rem 2rem;
+  }
+
+  .xid-command-viewport > .xid-dialog-popup {
+    width: min(40rem, 100%);
+    border-radius: var(--xid-radius-lg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xid-dialog-popup {
+    transition: opacity 120ms linear;
+  }
+
+  .xid-dialog-popup[data-starting-style],
+  .xid-dialog-popup[data-ending-style] {
+    opacity: 0 !important;
+    transform: none !important;
+  }
+}
+
+.xid-motion-pop {
+  transform-origin: var(--transform-origin, center);
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.xid-motion-pop[data-starting-style],
+.xid-motion-pop[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+.xid-motion-fade {
+  transition: opacity 160ms ease-out;
+}
+
+.xid-motion-fade[data-starting-style],
+.xid-motion-fade[data-ending-style] {
+  opacity: 0;
+}
+
+.xid-motion-sheet {
+  transition:
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.xid-motion-sheet[data-starting-style],
+.xid-motion-sheet[data-ending-style] {
+  opacity: 0.9999;
+  transform: translateY(100%);
+}
+
+.xid-motion-side-end[data-starting-style],
+.xid-motion-side-end[data-ending-style] {
+  transform: translateX(100%);
+}
+
+.xid-motion-side-start[data-starting-style],
+.xid-motion-side-start[data-ending-style] {
+  transform: translateX(-100%);
+}
+
+.xid-motion-toast {
+  transition:
+    opacity 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.xid-motion-toast[data-starting-style],
+.xid-motion-toast[data-ending-style] {
+  opacity: 0;
+  transform: translateY(0.5rem);
+}
+
+.xid-motion-toast[data-limited] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xid-motion-pop,
+  .xid-motion-sheet,
+  .xid-motion-toast {
+    transition: opacity 120ms linear;
+  }
+
+  .xid-motion-pop[data-starting-style],
+  .xid-motion-pop[data-ending-style],
+  .xid-motion-sheet[data-starting-style],
+  .xid-motion-sheet[data-ending-style],
+  .xid-motion-toast[data-starting-style],
+  .xid-motion-toast[data-ending-style] {
+    opacity: 0;
+    transform: none;
+  }
+}

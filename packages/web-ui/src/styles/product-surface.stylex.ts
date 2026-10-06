@@ -1,6 +1,7 @@
 // Hosted UI / account / console 共享布局;page.title/lead 与 PageHeader 同口径供直排标题对齐。
 
 import * as stylex from '@stylexjs/stylex'
+import { leading, text, weight } from './scale.stylex'
 import { tokens } from './tokens.stylex'
 
 export const page = stylex.create({
@@ -12,18 +13,18 @@ export const page = stylex.create({
   },
   title: {
     margin: 0,
-    fontSize: '1.375rem',
-    fontWeight: 650,
-    lineHeight: 1.1,
-    letterSpacing: '-0.022em',
+    fontSize: text.xl,
+    fontWeight: weight.display,
+    lineHeight: leading.xl,
+    letterSpacing: tokens['--xid-tracking-heading'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
     textWrap: 'balance',
   },
   lead: {
     margin: 0,
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
+    fontSize: text.base,
+    lineHeight: leading.body,
     color: tokens['--xid-muted-foreground'],
     fontFamily: tokens['--xid-font'],
     textWrap: 'pretty',
@@ -33,20 +34,20 @@ export const page = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
-  // 与 DataTable 表头 / 指标带 label 同 mono 签名。
   sectionLabel: {
     margin: 0,
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
+    fontFamily: tokens['--xid-font'],
+    fontSize: text.xs,
+    lineHeight: leading.xs,
+    fontWeight: weight.medium,
+    letterSpacing: tokens['--xid-tracking-small'],
     color: tokens['--xid-muted-foreground'],
   },
   sectionTitle: {
     margin: 0,
-    fontSize: '0.9375rem',
-    fontWeight: 600,
+    fontSize: text.md,
+    lineHeight: '1.375rem',
+    fontWeight: weight.display,
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
   },
@@ -97,12 +98,12 @@ export const page = stylex.create({
   },
   // 全产品面唯一行内文本链接定义。
   textLink: {
-    fontSize: '0.8125rem',
-    color: tokens['--xid-primary'],
+    fontSize: text.sm,
+    color: tokens['--xid-accent'],
     textDecorationLine: 'underline',
     textDecorationColor: {
-      default: `color-mix(in oklch, ${tokens['--xid-primary']} 35%, transparent)`,
-      ':hover': tokens['--xid-primary'],
+      default: `color-mix(in srgb, ${tokens['--xid-accent']} 40%, transparent)`,
+      ':hover': tokens['--xid-accent'],
     },
     textUnderlineOffset: '0.1875rem',
     transitionProperty: {
@@ -133,11 +134,14 @@ export const page = stylex.create({
     gap: '0.75rem',
   },
   monoLabel: {
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    letterSpacing: '0.06em',
+    fontFamily: tokens['--xid-font'],
+    fontSize: text.xs,
+    fontWeight: weight.medium,
+    letterSpacing: tokens['--xid-tracking-small'],
     color: tokens['--xid-muted-foreground'],
+  },
+  tabularNums: {
+    fontVariantNumeric: 'tabular-nums',
   },
 })
 
@@ -171,10 +175,10 @@ export const consoleShell = stylex.create({
   },
   displayTitle: {
     margin: 0,
-    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.75rem)',
-    fontWeight: 620,
-    lineHeight: 1.05,
-    letterSpacing: '-0.03em',
+    fontSize: 'clamp(1.75rem, 1.05rem + 1.5vw, 2.5rem)',
+    fontWeight: weight.display,
+    lineHeight: 1.1,
+    letterSpacing: tokens['--xid-tracking-heading'],
     color: tokens['--xid-fg'],
     textWrap: 'balance',
   },
@@ -363,9 +367,9 @@ export const consoleShell = stylex.create({
   selectorSummary: {
     margin: 0,
     color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.75rem',
-    letterSpacing: '0.04em',
+    fontFamily: tokens['--xid-font'],
+    fontSize: text.xs,
+    letterSpacing: tokens['--xid-tracking-small'],
   },
   split: {
     display: 'grid',

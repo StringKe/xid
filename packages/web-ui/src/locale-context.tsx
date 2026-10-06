@@ -1,12 +1,14 @@
+import { DirectionProvider } from '@base-ui/react/direction-provider'
 import { I18nProvider } from '@lingui/react'
 import { i18n } from '@xid-kit/i18n'
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   detectLocale,
   getEnglishCatalog,
   loadCatalog,
   persistLocale,
+  textDirection,
   type SupportedLocale,
 } from './locale'
 
@@ -75,7 +77,6 @@ export function LocaleProvider({ children, initialLocale }: LocaleProviderProps)
       i18n.activate(localeValue)
       persistLocale(localeValue)
       setLocaleState(localeValue)
-      globalThis.document?.documentElement.setAttribute('lang', localeValue)
     } catch (error) {
       console.error('Locale catalog failed to load', { locale: localeValue, error })
       setFailedLocale(localeValue)
@@ -88,12 +89,22 @@ export function LocaleProvider({ children, initialLocale }: LocaleProviderProps)
     () => ({ locale, isChanging, failedLocale, setLocale }),
     [locale, isChanging, failedLocale],
   )
+  const direction = textDirection(locale)
+
+  useEffect(() => {
+    const root = globalThis.document?.documentElement
+    if (!root) return
+    root.setAttribute('lang', locale)
+    root.setAttribute('dir', direction)
+  }, [locale, direction])
 
   return (
     <LocaleContext value={value}>
-      <I18nProvider i18n={i18n} key={locale}>
-        {children}
-      </I18nProvider>
+      <DirectionProvider direction={direction}>
+        <I18nProvider i18n={i18n} key={locale}>
+          {children}
+        </I18nProvider>
+      </DirectionProvider>
     </LocaleContext>
   )
 }

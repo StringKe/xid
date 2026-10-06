@@ -3,37 +3,33 @@ import { DEFAULT_BRAND, brandToCssVars } from '../theme'
 import type { BrandConfig } from '../theme'
 
 describe('brandToCssVars', () => {
-  it('light scheme 用 light palette', () => {
-    const vars = brandToCssVars(DEFAULT_BRAND, 'light')
-
-    expect(vars['--xid-primary']).toBe(DEFAULT_BRAND.light.primary)
-    expect(vars['--xid-bg']).toBe(DEFAULT_BRAND.light.background)
+  it('默认品牌不产生 inline 覆盖,交给 tokens 与 darkTheme', () => {
+    expect(brandToCssVars(DEFAULT_BRAND, 'light')).toEqual({})
+    expect(brandToCssVars(DEFAULT_BRAND, 'dark')).toEqual({})
   })
 
-  it('dark scheme 用 dark palette', () => {
-    const vars = brandToCssVars(DEFAULT_BRAND, 'dark')
-
-    expect(vars['--xid-primary']).toBe(DEFAULT_BRAND.dark.primary)
-    expect(vars['--xid-bg']).toBe(DEFAULT_BRAND.dark.background)
-  })
-
-  it('radius / font 来自 brand 顶层尺度,不随 scheme 变', () => {
-    const vars = brandToCssVars(DEFAULT_BRAND, 'dark')
-
-    expect(vars['--xid-radius']).toBe(DEFAULT_BRAND.radius)
-    expect(vars['--xid-font']).toBe(DEFAULT_BRAND.fontFamily)
-  })
-
-  it('自定义品牌覆盖默认色(per-tenant/org 白标)', () => {
-    const custom: BrandConfig = {
-      ...DEFAULT_BRAND,
-      light: { ...DEFAULT_BRAND.light, primary: '#ff0000' },
-      radius: '1rem',
-    }
+  it('租户强调色只覆盖 accent 家族与圆角', () => {
+    const custom: BrandConfig = { ...DEFAULT_BRAND, accent: '#0b6bcb', radius: '1rem' }
 
     const vars = brandToCssVars(custom, 'light')
 
-    expect(vars['--xid-primary']).toBe('#ff0000')
+    expect(Object.keys(vars).sort()).toEqual([
+      '--xid-accent',
+      '--xid-accent-foreground',
+      '--xid-accent-strong',
+      '--xid-accent-wash',
+      '--xid-info',
+      '--xid-info-bg',
+      '--xid-info-foreground',
+      '--xid-radius',
+    ])
     expect(vars['--xid-radius']).toBe('1rem')
+    expect(vars['--xid-primary']).toBeUndefined()
+  })
+
+  it('非法颜色不覆盖 accent', () => {
+    const vars = brandToCssVars({ ...DEFAULT_BRAND, accent: 'not-a-color' }, 'dark')
+
+    expect(vars['--xid-accent']).toBeUndefined()
   })
 })

@@ -1,110 +1,49 @@
 // light/dark + 运行时品牌覆盖:darkTheme class 必须挂 documentElement(body 背景、portal、
-// top-layer dialog 在 React 树外,挂内层会停在 light 基线);品牌色用 inline --xid-* 覆盖。
+// top-layer dialog 在 React 树外,挂内层会停在 light 基线);品牌只 inline 覆盖 accent 家族与圆角。
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { darkTheme } from './styles/tokens.stylex'
 import { BRAND_LOGO_TRANSPARENT } from './brand-assets'
+import { deriveAccentPalette, type ColorScheme } from './brand-color'
 import { hasCustomBranding, type OrgBranding } from '@xid-kit/types'
 
 export const THEME_MODES = ['system', 'light', 'dark'] as const
 export type ThemeMode = (typeof THEME_MODES)[number]
-type ResolvedScheme = 'light' | 'dark'
-
-export type BrandPalette = {
-  primary: string
-  primaryForeground: string
-  background: string
-  foreground: string
-  muted: string
-  mutedForeground: string
-  accent: string
-  border: string
-  danger: string
-  dangerForeground: string
-}
+type ResolvedScheme = ColorScheme
 
 export type BrandConfig = {
-  light: BrandPalette
-  dark: BrandPalette
-  radius: string
-  fontFamily: string
+  accent: string | null
+  radius: string | null
   logoUrl?: string
   logoDarkUrl?: string
   appName?: string
 }
 
-const DEFAULT_LIGHT: BrandPalette = {
-  primary: 'oklch(0.43 0.2 278)',
-  primaryForeground: 'oklch(0.985 0.004 280)',
-  background: 'oklch(0.985 0.004 282)',
-  foreground: 'oklch(0.27 0.022 280)',
-  muted: 'oklch(0.955 0.007 282)',
-  mutedForeground: 'oklch(0.44 0.018 281)',
-  accent: 'oklch(0.52 0.19 277)',
-  border: 'oklch(0.9 0.008 282)',
-  danger: 'oklch(0.55 0.2 25)',
-  dangerForeground: 'oklch(0.985 0.004 280)',
-}
-
-const DEFAULT_DARK: BrandPalette = {
-  primary: 'oklch(0.62 0.14 278)',
-  primaryForeground: 'oklch(0.16 0.02 280)',
-  background: 'oklch(0.18 0.022 280)',
-  foreground: 'oklch(0.93 0.01 280)',
-  muted: 'oklch(0.26 0.027 280)',
-  mutedForeground: 'oklch(0.7 0.018 282)',
-  accent: 'oklch(0.72 0.12 278)',
-  border: 'oklch(0.32 0.028 280)',
-  danger: 'oklch(0.68 0.17 25)',
-  dangerForeground: 'oklch(0.16 0.02 280)',
-}
-
 export const DEFAULT_BRAND: BrandConfig = {
-  light: DEFAULT_LIGHT,
-  dark: DEFAULT_DARK,
-  radius: '0.5rem',
-  // 与 tokens.stylex.ts 的 --xid-font 保持同值。
-  fontFamily:
-    '"Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  accent: null,
+  radius: null,
   logoUrl: BRAND_LOGO_TRANSPARENT,
   appName: 'XID',
 }
 
-const DARK_TEXT = 'oklch(0.16 0.02 280)'
-const LIGHT_TEXT = 'oklch(0.985 0.004 280)'
+export const BRAND_CSS_VARS = [
+  '--xid-accent',
+  '--xid-accent-strong',
+  '--xid-accent-wash',
+  '--xid-accent-foreground',
+  '--xid-info',
+  '--xid-info-bg',
+  '--xid-info-foreground',
+  '--xid-radius',
+] as const
 
-function readableForeground(hex: string): string {
-  const channels = [1, 3, 5].map((start) => {
-    const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-  })
-  const [r = 0, g = 0, b = 0] = channels
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? DARK_TEXT : LIGHT_TEXT
-}
-
-// 组织品牌只覆盖设置过的字段;背景色只作用于浅色主题,深色主题保持默认背景以保证对比度。
 export function brandFromOrgBranding(branding: OrgBranding | null | undefined): BrandConfig {
   if (!branding || !hasCustomBranding(branding)) return DEFAULT_BRAND
-  const primary = branding.primaryColor
-    ? {
-        primary: branding.primaryColor,
-        primaryForeground: readableForeground(branding.primaryColor),
-      }
-    : {}
-  const accent = branding.accentColor ? { accent: branding.accentColor } : {}
-  const background = branding.backgroundColor
-    ? {
-        background: branding.backgroundColor,
-        foreground: readableForeground(branding.backgroundColor),
-      }
-    : {}
   return {
-    light: { ...DEFAULT_LIGHT, ...primary, ...accent, ...background },
-    dark: { ...DEFAULT_DARK, ...primary, ...accent },
-    radius: branding.borderRadius ?? DEFAULT_BRAND.radius,
-    fontFamily: branding.fontFamily ?? DEFAULT_BRAND.fontFamily,
+    accent: branding.primaryColor ?? branding.accentColor ?? null,
+    radius: branding.borderRadius ?? null,
     logoUrl: branding.logoUrl ?? DEFAULT_BRAND.logoUrl,
     logoDarkUrl: branding.logoDarkUrl ?? branding.logoUrl ?? DEFAULT_BRAND.logoUrl,
     appName: DEFAULT_BRAND.appName,
@@ -115,27 +54,20 @@ export function brandLogoUrl(brand: BrandConfig, scheme: ResolvedScheme): string
   return scheme === 'dark' ? (brand.logoDarkUrl ?? brand.logoUrl) : brand.logoUrl
 }
 
-function paletteToVars(brand: BrandConfig, scheme: ResolvedScheme): Record<string, string> {
-  const palette = scheme === 'dark' ? brand.dark : brand.light
-  return {
-    '--xid-primary': palette.primary,
-    '--xid-primary-foreground': palette.primaryForeground,
-    '--xid-bg': palette.background,
-    '--xid-fg': palette.foreground,
-    '--xid-muted': palette.muted,
-    '--xid-muted-foreground': palette.mutedForeground,
-    '--xid-accent': palette.accent,
-    '--xid-border': palette.border,
-    '--xid-danger': palette.danger,
-    '--xid-danger-foreground': palette.dangerForeground,
-    '--xid-radius': brand.radius,
-    '--xid-font': brand.fontFamily,
+export function brandToCssVars(brand: BrandConfig, scheme: ResolvedScheme): Record<string, string> {
+  const vars: Record<string, string> = {}
+  const palette = brand.accent ? deriveAccentPalette(brand.accent, scheme) : null
+  if (palette) {
+    vars['--xid-accent'] = palette.accent
+    vars['--xid-accent-strong'] = palette.accentStrong
+    vars['--xid-accent-wash'] = palette.accentWash
+    vars['--xid-accent-foreground'] = palette.accentForeground
+    vars['--xid-info'] = palette.accent
+    vars['--xid-info-bg'] = palette.accentWash
+    vars['--xid-info-foreground'] = palette.accentForeground
   }
-}
-
-// 默认 brand 不做 inline override,让 StyleX tokens/darkTheme 自然生效。
-function isDefaultBrand(brand: BrandConfig): boolean {
-  return brand === DEFAULT_BRAND
+  if (brand.radius) vars['--xid-radius'] = brand.radius
+  return vars
 }
 
 function prefersDark(): boolean {
@@ -145,7 +77,7 @@ function prefersDark(): boolean {
 const DARK_THEME_CLASSES = (stylex.props(darkTheme).className ?? '').split(' ').filter(Boolean)
 
 // 与 tokens --xid-bg 对应;index.html 首帧兜底用同值。
-const THEME_COLOR = { light: '#fafafc', dark: '#111318' } as const
+const THEME_COLOR = { light: '#ffffff', dark: '#181818' } as const
 
 function resolveScheme(mode: ThemeMode, systemDark: boolean): ResolvedScheme {
   if (mode === 'light') return 'light'
@@ -178,7 +110,6 @@ export function ThemeProvider({
   const [mode, setMode] = useState<ThemeMode>(initialMode)
   const [systemDark, setSystemDark] = useState<boolean>(prefersDark)
 
-  // 监听始终挂着以保持 systemDark 准确(仅 mode=system 时影响渲染)。
   useEffect(() => {
     const media = globalThis.matchMedia?.('(prefers-color-scheme: dark)')
     if (!media) return
@@ -189,9 +120,7 @@ export function ThemeProvider({
 
   const scheme = resolveScheme(mode, systemDark)
   const isDark = scheme === 'dark'
-  const useDefaultBrand = isDefaultBrand(brand)
 
-  // documentElement 上:darkTheme class + color-scheme + theme-color;自定义品牌再 inline 覆盖。
   useEffect(() => {
     const doc = globalThis.document
     if (!doc) return
@@ -201,14 +130,13 @@ export function ThemeProvider({
     for (const cls of DARK_THEME_CLASSES) root.classList.toggle(cls, isDark)
     doc.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[scheme])
 
-    const names = Object.keys(paletteToVars(DEFAULT_BRAND, scheme))
-    if (useDefaultBrand) {
-      for (const name of names) root.style.removeProperty(name)
-      return
+    const vars = brandToCssVars(brand, scheme)
+    for (const name of BRAND_CSS_VARS) {
+      const value = vars[name]
+      if (value) root.style.setProperty(name, value)
+      else root.style.removeProperty(name)
     }
-    const vars = paletteToVars(brand, scheme)
-    for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value)
-  }, [brand, scheme, isDark, useDefaultBrand])
+  }, [brand, scheme, isDark])
 
   const value = useMemo<ThemeContextValue>(
     () => ({ brand, mode, scheme, setMode, setBrand }),
@@ -222,8 +150,4 @@ export function useTheme(): ThemeContextValue {
   const context = useContext(ThemeContext)
   if (!context) throw new Error('useTheme must be used within ThemeProvider')
   return context
-}
-
-export function brandToCssVars(brand: BrandConfig, scheme: ResolvedScheme): Record<string, string> {
-  return paletteToVars(brand, scheme)
 }

@@ -26,6 +26,15 @@ const LANGUAGE_FALLBACKS: Record<string, SupportedLocale> = {
 }
 const LOCALE_STORAGE_KEY = 'xid.locale'
 
+export type TextDirection = 'ltr' | 'rtl'
+
+const RTL_LANGUAGES = new Set(['ar', 'fa', 'he', 'ps', 'sd', 'ug', 'ur', 'yi'])
+
+export function textDirection(tag: string): TextDirection {
+  const language = tag.split('-')[0]?.toLowerCase() ?? ''
+  return RTL_LANGUAGES.has(language) ? 'rtl' : 'ltr'
+}
+
 export function isSupportedLocale(tag: string): tag is SupportedLocale {
   return SUPPORTED.has(tag)
 }

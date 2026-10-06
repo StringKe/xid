@@ -1,79 +1,101 @@
-// 显式 --xid-* 键保证 CSS 变量名稳定,运行时品牌 inline override 可命中。
-// 核心色可品牌覆盖;语义色/尺度不进品牌覆盖。层次:bg < sidebar < muted,surface 浮于 bg 上。
+// 显式 --xid-* 键保证 CSS 变量名稳定,运行时品牌 inline override 与 :lang() 覆盖可命中。
+// 品牌只覆盖 accent 家族与圆角;其余色值固定,深色值逐项过 WCAG(文字 4.5:1,控件 3:1)。
 
 import * as stylex from '@stylexjs/stylex'
 
+const SANS =
+  '"Geist Variable", "PingFang SC", "Hiragino Sans", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, "Segoe UI", sans-serif'
+const MONO = '"Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace'
+
 export const tokens = stylex.defineVars({
-  '--xid-primary': 'oklch(0.43 0.2 278)',
-  '--xid-primary-foreground': 'oklch(0.985 0.004 280)',
-  '--xid-bg': 'oklch(0.985 0.004 282)',
-  '--xid-fg': 'oklch(0.27 0.022 280)',
-  '--xid-muted': 'oklch(0.955 0.007 282)',
-  '--xid-muted-foreground': 'oklch(0.44 0.018 281)',
-  '--xid-accent': 'oklch(0.52 0.19 277)',
-  '--xid-border': 'oklch(0.9 0.008 282)',
-  '--xid-border-strong': 'oklch(0.83 0.012 282)',
-  '--xid-surface': 'oklch(0.998 0.002 280)',
-  '--xid-sidebar': 'oklch(0.975 0.005 282)',
+  '--xid-primary': '#161616',
+  '--xid-primary-foreground': '#ffffff',
+  '--xid-bg': '#ffffff',
+  '--xid-surface': '#ffffff',
+  '--xid-sidebar': '#f6f6f6',
+  '--xid-muted': '#eeeeee',
+  '--xid-fg': '#161616',
+  '--xid-muted-foreground': '#5c5c5c',
+  '--xid-faint-foreground': '#6b6b6b',
+  '--xid-border': '#e6e6e6',
+  '--xid-border-strong': '#8c8c8c',
 
-  '--xid-danger': 'oklch(0.55 0.2 25)',
-  '--xid-danger-foreground': 'oklch(0.985 0.004 280)',
-  '--xid-danger-bg': 'oklch(0.955 0.035 25)',
-  '--xid-warning': 'oklch(0.72 0.14 75)',
-  '--xid-warning-foreground': 'oklch(0.27 0.04 75)',
-  '--xid-warning-bg': 'oklch(0.955 0.05 85)',
-  '--xid-success': 'oklch(0.52 0.14 145)',
-  '--xid-success-foreground': 'oklch(0.985 0.004 280)',
-  '--xid-success-bg': 'oklch(0.955 0.04 145)',
-  '--xid-info': 'oklch(0.52 0.16 250)',
-  '--xid-info-foreground': 'oklch(0.985 0.004 280)',
-  '--xid-info-bg': 'oklch(0.955 0.04 250)',
+  '--xid-accent': '#2e5fa3',
+  '--xid-accent-strong': '#244c84',
+  '--xid-accent-wash': '#eaf0f8',
+  '--xid-accent-foreground': '#ffffff',
 
-  '--xid-radius-sm': '0.3125rem',
-  '--xid-radius': '0.5rem',
-  '--xid-radius-lg': '0.875rem',
+  '--xid-danger': '#b42318',
+  '--xid-danger-foreground': '#ffffff',
+  '--xid-danger-bg': '#fdeeec',
+  '--xid-warning': '#9a5b00',
+  '--xid-warning-foreground': '#ffffff',
+  '--xid-warning-bg': '#fdf3e3',
+  '--xid-success': '#1e7a46',
+  '--xid-success-foreground': '#ffffff',
+  '--xid-success-bg': '#eaf6ef',
+  '--xid-info': '#2e5fa3',
+  '--xid-info-foreground': '#ffffff',
+  '--xid-info-bg': '#eaf0f8',
+
+  '--xid-code': '#141414',
+  '--xid-code-foreground': '#e6e6e6',
+  '--xid-scrim': 'rgb(0 0 0 / 0.4)',
+
+  '--xid-radius-sm': '0.25rem',
+  '--xid-radius': '0.375rem',
+  '--xid-radius-lg': '0.625rem',
   '--xid-radius-full': '999px',
 
-  '--xid-shadow-sm':
-    '0 1px 2px oklch(0.27 0.022 280 / 0.05), 0 1px 1px oklch(0.27 0.022 280 / 0.04)',
-  '--xid-shadow-md':
-    '0 2px 4px oklch(0.27 0.022 280 / 0.05), 0 6px 16px oklch(0.27 0.022 280 / 0.08)',
-  '--xid-shadow-lg':
-    '0 4px 8px oklch(0.27 0.022 280 / 0.06), 0 16px 40px oklch(0.27 0.022 280 / 0.12)',
+  '--xid-shadow-sm': '0 1px 2px rgb(0 0 0 / 0.06)',
+  '--xid-shadow-md': '0 8px 24px rgb(0 0 0 / 0.08)',
+  '--xid-shadow-lg': '0 16px 40px rgb(0 0 0 / 0.16)',
 
-  '--xid-font':
-    '"Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-  '--xid-font-mono':
-    'ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace',
+  '--xid-font': SANS,
+  '--xid-font-mono': MONO,
+
+  '--xid-tracking-display': '-0.025em',
+  '--xid-tracking-heading': '-0.015em',
+  '--xid-tracking-title': '-0.01em',
+  '--xid-tracking-small': '0.01em',
 })
 
 export const darkTheme = stylex.createTheme(tokens, {
-  '--xid-primary': 'oklch(0.62 0.14 278)',
-  '--xid-primary-foreground': 'oklch(0.16 0.02 280)',
-  '--xid-bg': 'oklch(0.18 0.022 280)',
-  '--xid-fg': 'oklch(0.93 0.01 280)',
-  '--xid-muted': 'oklch(0.26 0.027 280)',
-  '--xid-muted-foreground': 'oklch(0.7 0.018 282)',
-  '--xid-accent': 'oklch(0.72 0.12 278)',
-  '--xid-border': 'oklch(0.32 0.028 280)',
-  '--xid-border-strong': 'oklch(0.42 0.03 280)',
-  '--xid-surface': 'oklch(0.225 0.024 280)',
-  '--xid-sidebar': 'oklch(0.2 0.023 280)',
+  '--xid-primary': '#ededed',
+  '--xid-primary-foreground': '#141414',
+  '--xid-bg': '#181818',
+  '--xid-surface': '#181818',
+  '--xid-sidebar': '#111111',
+  '--xid-muted': '#262626',
+  '--xid-fg': '#ededed',
+  '--xid-muted-foreground': '#a8a8a8',
+  '--xid-faint-foreground': '#8c8c8c',
+  '--xid-border': '#2a2a2a',
+  '--xid-border-strong': '#6e6e6e',
 
-  '--xid-danger': 'oklch(0.68 0.17 25)',
-  '--xid-danger-foreground': 'oklch(0.16 0.02 280)',
-  '--xid-danger-bg': 'oklch(0.32 0.07 25)',
-  '--xid-warning': 'oklch(0.78 0.12 85)',
-  '--xid-warning-foreground': 'oklch(0.2 0.03 85)',
-  '--xid-warning-bg': 'oklch(0.34 0.06 85)',
-  '--xid-success': 'oklch(0.72 0.12 145)',
-  '--xid-success-foreground': 'oklch(0.16 0.02 280)',
-  '--xid-success-bg': 'oklch(0.3 0.06 145)',
-  '--xid-info': 'oklch(0.7 0.12 250)',
-  '--xid-info-foreground': 'oklch(0.16 0.02 280)',
-  '--xid-info-bg': 'oklch(0.3 0.07 250)',
+  '--xid-accent': '#7fa6dd',
+  '--xid-accent-strong': '#a3c0e8',
+  '--xid-accent-wash': '#18233a',
+  '--xid-accent-foreground': '#141414',
 
-  '--xid-shadow-sm': '0 1px 2px oklch(0 0 0 / 0.3), 0 1px 1px oklch(0 0 0 / 0.2)',
-  '--xid-shadow-md': '0 2px 4px oklch(0 0 0 / 0.3), 0 6px 16px oklch(0 0 0 / 0.4)',
-  '--xid-shadow-lg': '0 4px 8px oklch(0 0 0 / 0.35), 0 16px 40px oklch(0 0 0 / 0.5)',
+  '--xid-danger': '#f07a6e',
+  '--xid-danger-foreground': '#141414',
+  '--xid-danger-bg': '#361a17',
+  '--xid-warning': '#e2a64f',
+  '--xid-warning-foreground': '#141414',
+  '--xid-warning-bg': '#2e2210',
+  '--xid-success': '#5fc48a',
+  '--xid-success-foreground': '#141414',
+  '--xid-success-bg': '#15281d',
+  '--xid-info': '#7fa6dd',
+  '--xid-info-foreground': '#141414',
+  '--xid-info-bg': '#18233a',
+
+  '--xid-code': '#0c0c0c',
+  '--xid-code-foreground': '#e6e6e6',
+  '--xid-scrim': 'rgb(0 0 0 / 0.6)',
+
+  '--xid-shadow-sm': '0 1px 2px rgb(0 0 0 / 0.4)',
+  '--xid-shadow-md': '0 8px 24px rgb(0 0 0 / 0.45)',
+  '--xid-shadow-lg': '0 16px 40px rgb(0 0 0 / 0.55)',
 })

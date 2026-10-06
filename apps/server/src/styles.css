@@ -30,10 +30,6 @@ body {
   font-family: var(--xid-font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Inter:开口数字 + 精修 a/g(设计系统基线)。 */
-  font-feature-settings:
-    'cv05' 1,
-    'ss01' 1;
 }
 
 /* 键盘可达:仅键盘聚焦显示轮廓,鼠标点击不显示(focus-visible)。 */

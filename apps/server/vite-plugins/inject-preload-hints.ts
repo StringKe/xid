@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
 
-const LATIN_FONT_PREFIX = 'inter-latin-wght-normal'
+const LATIN_FONT_PREFIX = 'geist-latin-wght-normal'
 const ENTRY_SCRIPT_PREFIX = 'index-'
 const CORE_ASSET_PATH = '/_core/'
 

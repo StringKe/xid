@@ -7,9 +7,4 @@ export {
   brandToCssVars,
   useTheme,
 } from '@xid-kit/web-ui/theme'
-export type {
-  BrandConfig,
-  BrandPalette,
-  ThemeMode,
-  ThemeProviderProps,
-} from '@xid-kit/web-ui/theme'
+export type { BrandConfig, ThemeMode, ThemeProviderProps } from '@xid-kit/web-ui/theme'
