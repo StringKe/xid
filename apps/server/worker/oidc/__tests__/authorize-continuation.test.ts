@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { exportPublicJwk, signJwt } from '@xid-kit/crypto'
 import type { TenantContext } from '@xid-kit/types'
 import type { Hono } from 'hono'
+import { issueStepUpToken } from '../../auth/mfa'
 import { handleConsent } from '../../me-auth/consent'
 import type { SessionData, XidHonoEnv } from '../../lib/types'
 import { registerAuthorizeRoutes } from '../authorize'
@@ -18,6 +19,7 @@ import {
 } from './helpers'
 
 const CLIENT_ID = 'cli_third'
+const PEPPER_RAW = 'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OA'
 const AUTHENTICATED_AT = new Date(Date.now() - 120_000)
 
 function thirdPartyApp(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -98,7 +100,12 @@ async function harness(tables: TableSet): Promise<Harness & { ctx: TenantContext
   const { ctx, kekB64 } = await buildTestTenant()
   const capture: D1Capture = { inserts: [], updates: [] }
   const { ns } = makeStatefulFakeDoNs()
-  const env = makeEnv({ DB: makeFakeD1(tables, capture), OAUTH_STATE: ns, KEK: kekB64 })
+  const env = makeEnv({
+    DB: makeFakeD1(tables, capture),
+    OAUTH_STATE: ns,
+    KEK: kekB64,
+    PEPPER: PEPPER_RAW,
+  })
   return {
     ctx,
     env,
@@ -198,6 +205,84 @@ describe('/authorize consent continuation', () => {
     const html = await res.text()
     expect(html).toContain('name="error" value="access_denied"')
     expect(h.capture.inserts.some((insert) => insert.table === 'authorization_codes')).toBe(false)
+  })
+
+  it('带 authorization_details 的请求批准后续跑签发 code,不再回到 consent 页', async () => {
+    const h = await harness({
+      applications: [thirdPartyApp({ allowed_scopes: JSON.stringify(['openid', 'read']) })],
+      resource_servers: [
+        {
+          id: 'rs_1',
+          tenant_id: 't_1',
+          name: 'API',
+          audience: 'https://api.example/v1',
+          scopes: JSON.stringify(['read']),
+          access_token_format: 'jwt',
+          signing_alg: 'ES256',
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        },
+      ],
+    })
+    const details = [
+      { type: 'resource_access', locations: ['https://api.example/v1'], actions: ['read'] },
+    ]
+
+    const res = await consentRoundTrip(
+      h,
+      { ...PARAMS, scope: 'openid', authorization_details: JSON.stringify(details) },
+      true,
+    )
+
+    expect(new URL(res.headers.get('location') ?? '').searchParams.get('code')).toMatch(/^ac_/)
+    const code = h.capture.inserts.find((insert) => insert.table === 'authorization_codes')
+    expect(code?.params).toContain(JSON.stringify(details))
+  })
+
+  it('step-up 后经 consent 签发的 code 带 aal2 并清除 step-up cookie', async () => {
+    const h = await harness({ applications: [thirdPartyApp()] })
+    const aal1 = session({ acr: 'urn:xid:aal1', amr: ['pwd'], aal: 1 })
+    const { token } = await issueStepUpToken({
+      userId: 'u_1',
+      sessionId: 's_1',
+      method: 'totp',
+      pepperRaw: PEPPER_RAW,
+    })
+    const init = { headers: { Cookie: `__Host-xid.acr=${token}` } }
+    const app = h.appFor(aal1)
+    const first = await app.request(
+      authorizeUrl({ ...PARAMS, acr_values: 'urn:xid:aal2' }),
+      init,
+      h.env,
+    )
+    expect(new URL(first.headers.get('location') ?? '').pathname).toBe('/consent')
+    const redirectUrl = await decide(h, promptIdFrom(first), true)
+
+    const res = await app.request(`https://acme.xid.dev${redirectUrl}`, init, h.env)
+
+    expect(new URL(res.headers.get('location') ?? '').searchParams.get('code')).toMatch(/^ac_/)
+    const code = h.capture.inserts.find((insert) => insert.table === 'authorization_codes')
+    expect(code?.params).toContain('urn:xid:aal2')
+    expect(res.headers.get('set-cookie')).toContain('Max-Age=0')
+  })
+
+  it('经 consent 签发的 code 带当前会话的组织上下文', async () => {
+    const h = await harness({
+      applications: [thirdPartyApp()],
+      organizations: [{ id: 'org_a', tenant_id: 't_1', slug: 'acme', status: 'active' }],
+      memberships: [
+        { id: 'm_1', tenant_id: 't_1', org_id: 'org_a', user_id: 'u_1', status: 'active' },
+      ],
+    })
+    const app = h.appFor(session({ activeOrgId: 'org_a' }))
+    const first = await app.request(authorizeUrl(PARAMS), {}, h.env)
+    const redirectUrl = await decide(h, promptIdFrom(first), true)
+
+    const res = await app.request(`https://acme.xid.dev${redirectUrl}`, {}, h.env)
+
+    expect(new URL(res.headers.get('location') ?? '').searchParams.get('code')).toMatch(/^ac_/)
+    const code = h.capture.inserts.find((insert) => insert.table === 'authorization_codes')
+    expect(code?.params).toContain('org_a')
   })
 
   it('consent 决定只对同一会话有效:换会话续跑重新要求 consent', async () => {
