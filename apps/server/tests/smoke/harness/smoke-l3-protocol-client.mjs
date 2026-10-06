@@ -30,7 +30,6 @@ const scimToken = 'scim_l3_protocol_token'
 const scimDirectoryId = 'dir_l3_protocol'
 const outboundSamlAppId = 'saml_sp_l3_protocol'
 const outboundScimTargetId = 'scim_target_l3_protocol'
-const outboundScimTokenSecretName = 'SCIM_TARGET_TOKEN_scim_target_l3_protocol'
 const outboundDeactivatedUserId = 'user_l3_scim_deactivated'
 
 const ARGON2_MEMORY_KB = 65536
@@ -569,8 +568,12 @@ async function prepareFixture() {
   }
 }
 
-async function configureFakeSaasTargets(fixture, fakeSaas) {
+async function configureFakeSaasTargets(fixture, fakeSaas, vars) {
   const now = Date.now()
+  const scimToken = await envelopeEncrypt(
+    new TextEncoder().encode(vars.SCIM_TARGET_TOKEN),
+    b64ToBytes(vars.KEK),
+  )
   const oidcRedirectUri = `${fakeSaas.baseUrl}/oidc/callback`
   fixture.redirectUri = oidcRedirectUri
   await d1(
@@ -582,7 +585,7 @@ async function configureFakeSaasTargets(fixture, fakeSaas) {
     'configure fake SAML ACS',
   )
   await d1(
-    `INSERT INTO scim_targets (id, tenant_id, org_id, provider, base_url, token_secret_ref, user_filter, status, last_sync_at, created_at, updated_at) VALUES (${sqlString(outboundScimTargetId)}, ${sqlString(fixture.tenantId)}, ${sqlString(fixture.tenantId)}, 'fake-saas', ${sqlString(`${fakeSaas.baseUrl}/scim/v2`)}, ${sqlString(outboundScimTokenSecretName)}, '{}', 'active', NULL, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET tenant_id = excluded.tenant_id, org_id = excluded.org_id, provider = excluded.provider, base_url = excluded.base_url, token_secret_ref = excluded.token_secret_ref, user_filter = '{}', status = 'active', updated_at = excluded.updated_at;`,
+    `INSERT INTO scim_targets (id, tenant_id, org_id, provider, base_url, token_iv, token_ciphertext, token_tag, user_filter, status, last_sync_at, created_at, updated_at) VALUES (${sqlString(outboundScimTargetId)}, ${sqlString(fixture.tenantId)}, ${sqlString(fixture.tenantId)}, 'fake-saas', ${sqlString(`${fakeSaas.baseUrl}/scim/v2`)}, ${sqlString(base64UrlEncode(scimToken.iv))}, ${sqlString(base64UrlEncode(scimToken.ciphertext))}, ${sqlString(base64UrlEncode(scimToken.tag))}, '{}', 'active', NULL, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET tenant_id = excluded.tenant_id, org_id = excluded.org_id, provider = excluded.provider, base_url = excluded.base_url, token_iv = excluded.token_iv, token_ciphertext = excluded.token_ciphertext, token_tag = excluded.token_tag, user_filter = '{}', status = 'active', updated_at = excluded.updated_at;`,
     'configure fake SCIM target',
   )
   await d1(
@@ -1190,7 +1193,7 @@ export async function runL3ProtocolClientSmoke() {
     fixture = await prepareFixture()
     const vars = parseDevVars()
     fakeSaas = await startFakeSaasServer(vars.SCIM_TARGET_TOKEN)
-    await configureFakeSaasTargets(fixture, fakeSaas)
+    await configureFakeSaasTargets(fixture, fakeSaas, vars)
     await runDcrClientCredentials()
     const cookie = await login()
     await runOAuthClient(cookie, fixture, fakeSaas)

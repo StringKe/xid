@@ -24,7 +24,7 @@ import {
   normalizeHostedAuthPolicy,
   normalizeSocialProviders,
 } from '@xid-kit/types'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, or } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -71,14 +71,10 @@ import {
   assertInboundSsoProtocol,
   isInboundSsoProtocol,
 } from '../sso/legacy-shared'
-import { enqueueScimTargetSync } from '../scim/outbound'
-import {
-  normalizeScimTargetBaseUrl,
-  scimTargetHasToken,
-  scimTargetTokenSecretName,
-} from '../scim/target-credentials'
 import { assertOrgSelfServiceEditable, isInstanceManagerUser } from './org-self-service'
 import { registerOrganizationDirectoryRoutes } from './organization-directories'
+import { registerOrganizationScimTargetRoutes } from './organization-scim-targets'
+import { scheduleOrgScimTargetSyncs } from '../scim/outbound'
 import {
   assignmentGateFromBody,
   parseAssignmentGate,
@@ -242,16 +238,6 @@ const patchOutboundSamlAppBodySchema = v.object({
   name_id_format: v.optional(v.string()),
   idp_signing_cert_id: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
   attribute_mapping: v.optional(metadataRecordSchema),
-  assignment_gate: assignmentGateFieldSchema,
-  assignmentGate: assignmentGateFieldSchema,
-})
-
-// scim-targets 的三必填项缺失统一报 paramName 'base_url'(既有契约),故 schema 只做类型层,
-// 必填守卫留在 handler。
-const scimTargetBodySchema = v.object({
-  provider: v.optional(v.string()),
-  base_url: v.optional(v.string()),
-  token_secret_ref: v.optional(v.string()),
   assignment_gate: assignmentGateFieldSchema,
   assignmentGate: assignmentGateFieldSchema,
 })
@@ -1429,6 +1415,7 @@ app.delete('/:id/members/:memberId', async (c) => {
     event: 'organizationMembership.deleted',
     payload: { orgId: id, membershipId: memberId, userId: existing.userId },
   })
+  scheduleOrgScimTargetSyncs(c, id)
   return new Response(null, { status: 204 })
 })
 
@@ -1977,170 +1964,7 @@ app.delete('/:id/outbound-saml-apps/:appId', async (c) => {
   return new Response(null, { status: 204 })
 })
 
-function toConsoleScimTarget(row: typeof schema.scimTargets.$inferSelect, env: Env) {
-  const filter = row.userFilter as Record<string, unknown>
-  return {
-    id: row.id,
-    provider: row.provider,
-    baseUrl: row.baseUrl,
-    requiredTokenSecretName: scimTargetTokenSecretName(row.id),
-    hasTokenSecret: scimTargetHasToken(env, row.id),
-    assignmentGate: serializeAssignmentGate(parseAssignmentGate(filter)),
-    status: row.status,
-    lastSyncAt: row.lastSyncAt ? toIso(row.lastSyncAt) : null,
-    syncPath: `/scim/outbound/${row.id}/sync`,
-    createdAt: toIso(row.createdAt) ?? '',
-  }
-}
-
-// GET /v1/organizations/:id/scim-targets
-app.get('/:id/scim-targets', async (c) => {
-  const id = c.req.param('id')
-  await requireApiKeyOrOrgManager(c, id, 'connections:read')
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const rows = await readAllById((cursor) =>
-    db.scimTargets.findMany(
-      and(
-        eq(schema.scimTargets.orgId, id),
-        ne(schema.scimTargets.status, 'deleted'),
-        ...(cursor ? [gt(schema.scimTargets.id, cursor)] : []),
-      ),
-      { orderBy: asc(schema.scimTargets.id), limit: ORG_LIST_BATCH_SIZE },
-    ),
-  )
-  return c.json(rows.map((row) => toConsoleScimTarget(row, c.env)))
-})
-
-// POST /v1/organizations/:id/scim-targets
-app.post('/:id/scim-targets', async (c) => {
-  const id = c.req.param('id')
-  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
-  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(scimTargetBodySchema, json.value)
-  const provider = body.provider?.trim() ?? ''
-  const rawBaseUrl = body.base_url?.trim() ?? ''
-  if (!provider || !rawBaseUrl) {
-    throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'base_url' } })
-  }
-  // 拒绝客户端自选 token_secret_ref;服务端派生 SCIM_TARGET_TOKEN_<target id>。
-  if (body.token_secret_ref !== undefined) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      meta: { paramName: 'token_secret_ref' },
-    })
-  }
-  const baseUrl = normalizeScimTargetBaseUrl(rawBaseUrl)
-  const targetId = createPersistedId('scimTarget')
-  const tokenSecretRef = scimTargetTokenSecretName(targetId)
-  const gate = assignmentGateFromBody(body) ?? parseAssignmentGate({})
-  const row = await db.scimTargets.insert({
-    id: targetId,
-    tenantId: tenant.tenantId,
-    orgId: id,
-    provider,
-    baseUrl,
-    tokenSecretRef,
-    userFilter: withAssignmentGate({}, gate),
-    status: 'active',
-  })
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'organization.scim_target.created',
-    payload: { orgId: id, targetId: row.id, provider },
-  })
-  return c.json(toConsoleScimTarget(row, c.env), 201)
-})
-
-// PATCH /v1/organizations/:id/scim-targets/:targetId
-app.patch('/:id/scim-targets/:targetId', async (c) => {
-  const id = c.req.param('id')
-  const targetId = c.req.param('targetId')
-  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
-  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const json = await readJsonBody(c)
-  if (!json.ok) throw new AppError('validation_failed', { httpStatus: 422 })
-  const body = validateBody(scimTargetBodySchema, json.value)
-  const where = and(
-    eq(schema.scimTargets.id, targetId),
-    eq(schema.scimTargets.tenantId, tenant.tenantId),
-    eq(schema.scimTargets.orgId, id),
-    ne(schema.scimTargets.status, 'deleted'),
-  )
-  const existing = await db.scimTargets.findOne(where)
-  if (!existing) throw new AppError('not_found', { httpStatus: 404 })
-  const patch: Partial<typeof schema.scimTargets.$inferInsert> = {}
-  if (body.provider !== undefined && body.provider.trim()) patch.provider = body.provider.trim()
-  if (body.base_url !== undefined && body.base_url.trim()) {
-    patch.baseUrl = normalizeScimTargetBaseUrl(body.base_url.trim())
-  }
-  if (body.token_secret_ref !== undefined) {
-    throw new AppError('validation_failed', {
-      httpStatus: 422,
-      meta: { paramName: 'token_secret_ref' },
-    })
-  }
-  // 安全更新时把任意旧引用归一到派生 secret 名。
-  patch.tokenSecretRef = scimTargetTokenSecretName(existing.id)
-  const gate = assignmentGateFromBody(body)
-  if (gate) {
-    patch.userFilter = withAssignmentGate(existing.userFilter as Record<string, unknown>, gate)
-  }
-  const updated = await db.scimTargets.update(patch, where)
-  return c.json(toConsoleScimTarget(updated[0]!, c.env))
-})
-
-// DELETE /v1/organizations/:id/scim-targets/:targetId
-app.delete('/:id/scim-targets/:targetId', async (c) => {
-  const id = c.req.param('id')
-  const targetId = c.req.param('targetId')
-  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
-  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const where = and(
-    eq(schema.scimTargets.id, targetId),
-    eq(schema.scimTargets.tenantId, tenant.tenantId),
-    eq(schema.scimTargets.orgId, id),
-    ne(schema.scimTargets.status, 'deleted'),
-  )
-  const existing = await db.scimTargets.findOne(where)
-  if (!existing) throw new AppError('not_found', { httpStatus: 404 })
-  await db.scimTargets.update({ status: 'deleted' }, where)
-  emitWebhookAsync(c, {
-    tenantId: tenant.tenantId,
-    event: 'organization.scim_target.deleted',
-    payload: { orgId: id, targetId },
-  })
-  return new Response(null, { status: 204 })
-})
-
-// POST /v1/organizations/:id/scim-targets/:targetId/sync
-app.post('/:id/scim-targets/:targetId/sync', async (c) => {
-  const id = c.req.param('id')
-  const targetId = c.req.param('targetId')
-  const auth = await requireApiKeyOrOrgManager(c, id, 'connections:write')
-  await assertOrgSelfServiceEditable(c, auth, await requireOrg(c, id))
-  const tenant = c.get('tenant')
-  const db = createTenantDb(c.env.DB, tenant)
-  const target = await db.scimTargets.findOne(
-    and(
-      eq(schema.scimTargets.id, targetId),
-      eq(schema.scimTargets.tenantId, tenant.tenantId),
-      eq(schema.scimTargets.orgId, id),
-      eq(schema.scimTargets.status, 'active'),
-    ),
-  )
-  if (!target) throw new AppError('not_found', { httpStatus: 404 })
-  const actorId = auth.kind === 'org_console' ? auth.session.userId : auth.apiKeyId
-  return c.json(await enqueueScimTargetSync(c, target, actorId), 202)
-})
+registerOrganizationScimTargetRoutes(app)
 
 // PATCH /v1/organizations/:id/branding
 app.patch('/:id/branding', async (c) => {

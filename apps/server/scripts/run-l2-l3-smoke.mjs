@@ -14,7 +14,6 @@ const workerEntryPath = join(appDir, 'worker', 'index.ts')
 const consoleDistPath = join(repoRoot, 'apps', 'console', 'dist', 'console')
 const ENTRY_SMOKE_QUEUE_NAMES = new Set(['xid-scim-sync'])
 const AUXILIARY_SMOKE_QUEUE_NAMES = new Set(['xid-sms', 'xid-whatsapp'])
-const L3_SCIM_TARGET_TOKEN_BINDING = 'SCIM_TARGET_TOKEN_scim_target_l3_protocol'
 const L3_SOCIAL_PROVIDER_SECRET_BINDING = 'SOCIAL_LOCALOIDC_CLIENT_SECRET'
 const L3_BUILT_IN_SOCIAL_SECRET_BINDINGS = [
   'GOOGLE_CLIENT_SECRET',
@@ -90,7 +89,7 @@ export function createSmokeDevVars(secrets, samlKey) {
   const builtInSocialSecrets = L3_BUILT_IN_SOCIAL_SECRET_BINDINGS.map(
     (binding) => `${binding}=${secrets.SOCIAL_CLIENT_SECRET}`,
   ).join('\n')
-  return `KEK=${secrets.KEK}\nPEPPER=${secrets.PEPPER}\n${L3_SCIM_TARGET_TOKEN_BINDING}=${secrets.SCIM_TARGET_TOKEN}\nSOCIAL_PROVIDER_SECRET_BINDINGS={"localoidc":"${L3_SOCIAL_PROVIDER_SECRET_BINDING}"}\n${L3_SOCIAL_PROVIDER_SECRET_BINDING}=${secrets.SOCIAL_CLIENT_SECRET}\n${builtInSocialSecrets}\nXID_L3_SAML_IDP_KEY_PKCS8_B64=${samlKey}\n`
+  return `KEK=${secrets.KEK}\nPEPPER=${secrets.PEPPER}\nSOCIAL_PROVIDER_SECRET_BINDINGS={"localoidc":"${L3_SOCIAL_PROVIDER_SECRET_BINDING}"}\n${L3_SOCIAL_PROVIDER_SECRET_BINDING}=${secrets.SOCIAL_CLIENT_SECRET}\n${builtInSocialSecrets}\nXID_L3_SAML_IDP_KEY_PKCS8_B64=${samlKey}\n`
 }
 
 export function shouldKeepSmokeState(value = process.env.XID_SMOKE_KEEP_STATE) {

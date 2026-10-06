@@ -8,7 +8,12 @@ import type { Context } from 'hono'
 import type { OrganizationMembershipRole, TenantContext } from '@xid-kit/types'
 import type { SessionData, XidHonoEnv } from '../../lib/types'
 import { isAppError } from '../../lib/errors'
-import { executeScimTargetSync, registerOutboundScimRoutes } from '../outbound'
+import {
+  enqueueOrgScimTargetSyncs,
+  executeScimTargetSync,
+  registerOutboundScimRoutes,
+} from '../outbound'
+import { encryptScimTargetToken } from '../target-credentials'
 
 const TENANT: TenantContext = {
   tenantId: 't_1',
@@ -132,16 +137,31 @@ function buildApp(session: SessionData | null): Hono<XidHonoEnv> {
   return app
 }
 
-function targetRow(
-  options: { tokenSecretRef?: string; userFilter?: string } = {},
-): Record<string, unknown> {
+const TEST_KEK = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+const ENCRYPTED_TOKEN_FIELDS = {
+  ...(await encryptScimTargetToken({ KEK: TEST_KEK } as unknown as Env, 'secret')),
+  lastRunStatus: null,
+  lastRunError: null,
+  lastRunAt: null,
+}
+
+type TargetRowOptions = {
+  tokenIv?: string | null
+  tokenCiphertext?: string | null
+  tokenTag?: string | null
+  userFilter?: string
+}
+
+function targetRow(options: TargetRowOptions = {}): Record<string, unknown> {
   return {
     id: 'st_1',
     tenant_id: 't_1',
     org_id: 'org_1',
     provider: 'okta',
     base_url: 'https://downstream.example.com/scim',
-    token_secret_ref: options.tokenSecretRef ?? 'MISSING_SCIM_SECRET',
+    token_iv: options.tokenIv ?? null,
+    token_ciphertext: options.tokenCiphertext ?? null,
+    token_tag: options.tokenTag ?? null,
     user_filter: options.userFilter ?? '{}',
     status: 'active',
   }
@@ -315,7 +335,7 @@ describe('outbound SCIM sync 门控', () => {
         ],
         scim_targets: [
           targetRow({
-            tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+            ...ENCRYPTED_TOKEN_FIELDS,
             userFilter,
           }),
         ],
@@ -333,7 +353,7 @@ describe('outbound SCIM sync 门控', () => {
         ],
         manager_assignments: [],
       },
-      { SCIM_TARGET_TOKEN_st_1: 'secret' },
+      { KEK: TEST_KEK },
     )
 
     const result = await executeScimTargetSync({
@@ -345,7 +365,7 @@ describe('outbound SCIM sync 门控', () => {
         orgId: 'org_1',
         provider: 'okta',
         baseUrl: 'https://downstream.example.com/scim',
-        tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+        ...ENCRYPTED_TOKEN_FIELDS,
         userFilter: JSON.parse(userFilter) as Record<string, unknown>,
         status: 'active',
         lastSyncAt: null,
@@ -373,13 +393,13 @@ describe('outbound SCIM sync 门控', () => {
     const env = makeEnv(
       {
         ...verifiedUserTables(),
-        scim_targets: [targetRow({ tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1' })],
+        scim_targets: [targetRow(ENCRYPTED_TOKEN_FIELDS)],
         organizations: [orgRow()],
         memberships: [membershipRow('admin')],
         manager_assignments: [],
       },
       {
-        SCIM_TARGET_TOKEN_st_1: 'secret',
+        KEK: TEST_KEK,
         SCIM_QUEUE: { send: queueSend },
         AUDIT_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
       },
@@ -468,7 +488,7 @@ describe('outbound SCIM sync 门控', () => {
           },
         ],
       },
-      { SCIM_TARGET_TOKEN_st_1: 'secret' },
+      { KEK: TEST_KEK },
     )
 
     const result = await executeScimTargetSync({
@@ -480,7 +500,7 @@ describe('outbound SCIM sync 门控', () => {
         orgId: 'org_1',
         provider: 'okta',
         baseUrl: 'https://downstream.example.com/scim',
-        tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+        ...ENCRYPTED_TOKEN_FIELDS,
         userFilter: {},
         status: 'active',
         lastSyncAt: null,
@@ -544,7 +564,7 @@ describe('outbound SCIM sync 门控', () => {
         memberships: [membershipRow('admin')],
         scim_target_resources: [],
       },
-      { SCIM_TARGET_TOKEN_st_1: 'secret' },
+      { KEK: TEST_KEK },
     )
     const target = {
       id: 'st_1',
@@ -552,7 +572,7 @@ describe('outbound SCIM sync 门控', () => {
       orgId: 'org_1',
       provider: 'okta',
       baseUrl: 'https://downstream.example.com/scim',
-      tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+      ...ENCRYPTED_TOKEN_FIELDS,
       userFilter: {},
       status: 'active',
       lastSyncAt: null,
@@ -640,7 +660,7 @@ describe('outbound SCIM sync 门控', () => {
         memberships: [membershipRow('admin')],
         scim_target_resources: [],
       },
-      { SCIM_TARGET_TOKEN_st_1: 'secret' },
+      { KEK: TEST_KEK },
       runLog,
     )
 
@@ -653,7 +673,7 @@ describe('outbound SCIM sync 门控', () => {
         orgId: 'org_1',
         provider: 'okta',
         baseUrl: 'https://downstream.example.com/scim',
-        tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+        ...ENCRYPTED_TOKEN_FIELDS,
         userFilter: {},
         status: 'active',
         lastSyncAt: null,
@@ -745,7 +765,7 @@ describe('outbound SCIM sync 门控', () => {
           memberships: [membershipRow('admin')],
           scim_target_resources: [],
         },
-        { SCIM_TARGET_TOKEN_st_1: 'secret' },
+        { KEK: TEST_KEK },
         runLog,
       )
 
@@ -759,7 +779,7 @@ describe('outbound SCIM sync 门控', () => {
             orgId: 'org_1',
             provider: 'okta',
             baseUrl: 'https://downstream.example.com/scim',
-            tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+            ...ENCRYPTED_TOKEN_FIELDS,
             userFilter: {},
             status: 'active',
             lastSyncAt: null,
@@ -809,7 +829,7 @@ describe('outbound SCIM sync 门控', () => {
           },
         ],
       },
-      { SCIM_TARGET_TOKEN_st_1: 'secret' },
+      { KEK: TEST_KEK },
     )
 
     await expect(
@@ -822,7 +842,7 @@ describe('outbound SCIM sync 门控', () => {
           orgId: 'org_1',
           provider: 'okta',
           baseUrl: 'https://downstream.example.com/scim',
-          tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+          ...ENCRYPTED_TOKEN_FIELDS,
           userFilter: {},
           status: 'active',
           lastSyncAt: null,
@@ -880,7 +900,7 @@ describe('outbound SCIM sync 门控', () => {
           },
         ],
       },
-      { SCIM_TARGET_TOKEN_st_1: 'secret' },
+      { KEK: TEST_KEK },
       runLog,
     )
 
@@ -893,7 +913,7 @@ describe('outbound SCIM sync 门控', () => {
         orgId: 'org_1',
         provider: 'okta',
         baseUrl: 'https://downstream.example.com/scim',
-        tokenSecretRef: 'SCIM_TARGET_TOKEN_st_1',
+        ...ENCRYPTED_TOKEN_FIELDS,
         userFilter: {},
         status: 'active',
         lastSyncAt: null,
@@ -919,5 +939,43 @@ describe('outbound SCIM sync 门控', () => {
       'map_user_stale',
       'map_group_stale',
     ])
+  })
+})
+
+describe('outbound SCIM automatic sync after membership changes', () => {
+  function tokenColumns(): Record<string, unknown> {
+    return {
+      token_iv: ENCRYPTED_TOKEN_FIELDS.tokenIv,
+      token_ciphertext: ENCRYPTED_TOKEN_FIELDS.tokenCiphertext,
+      token_tag: ENCRYPTED_TOKEN_FIELDS.tokenTag,
+    }
+  }
+
+  it('enqueues only the changed org targets that have a token, never another tenant or org', async () => {
+    const send = vi.fn().mockResolvedValue(undefined)
+    const env = makeEnv(
+      {
+        scim_targets: [
+          { ...targetRow(), id: 'st_ready', ...tokenColumns() },
+          { ...targetRow(), id: 'st_no_token' },
+          { ...targetRow(), id: 'st_other_org', org_id: 'org_2', ...tokenColumns() },
+          { ...targetRow(), id: 'st_other_tenant', tenant_id: 't_2', ...tokenColumns() },
+        ],
+      },
+      { SCIM_QUEUE: { send } },
+    )
+
+    const count = await enqueueOrgScimTargetSyncs({ env, tenant: TENANT, orgId: 'org_1' })
+
+    expect(count).toBe(1)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 't_1',
+        orgId: 'org_1',
+        targetId: 'st_ready',
+        issuer: 'https://acme.xid.dev',
+      }),
+    )
   })
 })

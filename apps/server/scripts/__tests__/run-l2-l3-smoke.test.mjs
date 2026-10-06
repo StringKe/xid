@@ -67,7 +67,7 @@ describe('run-l2-l3 smoke lifecycle', () => {
     )
 
     expect(devVars).toBe(
-      'KEK=kek-value\nPEPPER=v1:pepper-value\nSCIM_TARGET_TOKEN_scim_target_l3_protocol=scim-token-value\nSOCIAL_PROVIDER_SECRET_BINDINGS={"localoidc":"SOCIAL_LOCALOIDC_CLIENT_SECRET"}\nSOCIAL_LOCALOIDC_CLIENT_SECRET=social-secret-value\nGOOGLE_CLIENT_SECRET=social-secret-value\nGITHUB_EMU_CLIENT_SECRET=social-secret-value\nMICROSOFT_CLIENT_SECRET=social-secret-value\nAPPLE_CLIENT_SECRET=social-secret-value\nXID_L3_SAML_IDP_KEY_PKCS8_B64=temporary-saml-key\n',
+      'KEK=kek-value\nPEPPER=v1:pepper-value\nSOCIAL_PROVIDER_SECRET_BINDINGS={"localoidc":"SOCIAL_LOCALOIDC_CLIENT_SECRET"}\nSOCIAL_LOCALOIDC_CLIENT_SECRET=social-secret-value\nGOOGLE_CLIENT_SECRET=social-secret-value\nGITHUB_EMU_CLIENT_SECRET=social-secret-value\nMICROSOFT_CLIENT_SECRET=social-secret-value\nAPPLE_CLIENT_SECRET=social-secret-value\nXID_L3_SAML_IDP_KEY_PKCS8_B64=temporary-saml-key\n',
     )
   })
 

@@ -397,7 +397,6 @@ Optional Workers Secrets:
 | `CLOUDFLARE_FOR_SAAS_API_TOKEN` | Zone-scoped Cloudflare for SaaS Custom Hostnames create/read/delete token                 |
 | `STRIPE_SECRET_KEY`             | Optional managed-service Checkout, Billing Portal, and meter-event API credential         |
 | `STRIPE_WEBHOOK_SECRET`         | Optional Stripe webhook HMAC secret for plan reconciliation                               |
-| `SCIM_TARGET_TOKEN_<id>`        | One downstream bearer token for the matching outbound SCIM target                         |
 | `GOOGLE_CLIENT_SECRET`          | Google Social OAuth client secret                                                         |
 | `GITHUB_CLIENT_SECRET`          | GitHub Social OAuth client secret                                                         |
 | `MICROSOFT_CLIENT_SECRET`       | Microsoft Social OAuth client secret                                                      |
@@ -483,20 +482,13 @@ Repository tests prove the local signature, ordering, deduplication, and retry c
 Stripe product, price, customer, webhook delivery, Checkout, Portal, and meter-event run remain L4
 `UNKNOWN` until the operator supplies those external resources and records live evidence.
 
-### Outbound SCIM target secrets
+### Outbound SCIM target tokens
 
-Create the target first with `provider` and a public HTTPS `base_url`. The response and Console show
-`requiredTokenSecretName`, for example `SCIM_TARGET_TOKEN_550e8400_e29b_41d4_a716_446655440000`.
-Write the downstream bearer token only to that exact Workers Secret:
-
-```bash
-pnpm --dir apps/server exec wrangler secret put SCIM_TARGET_TOKEN_550e8400_e29b_41d4_a716_446655440000
-```
-
-The API deliberately rejects `token_secret_ref`. Tenant-controlled data cannot select `KEK`,
-`PEPPER`, provider secrets, or any other Worker binding. Refresh the target list and require
-`hasTokenSecret=true` before starting a sync. The secret must be configured separately in every
-deployment environment.
+Outbound SCIM targets need no Workers Secret per target. An org admin enters the downstream bearer
+token in the Console, or an integration sends it as the write-only `token` field when creating or
+updating the target. Core encrypts it under `KEK` and stores only the ciphertext in D1; responses
+report `hasToken`, and sync is refused until it is `true`. Rotating `KEK` therefore requires the
+tokens to be entered again.
 
 ### Turnstile readiness
 

@@ -1,26 +1,44 @@
 import { describe, expect, it } from 'vitest'
+import { isAppError } from '../../lib/errors'
 import {
+  encryptScimTargetToken,
   normalizeScimTargetBaseUrl,
   requireScimTargetToken,
   scimTargetHasToken,
-  scimTargetTokenSecretName,
 } from '../target-credentials'
 
+function testEnv(): Env {
+  const kek = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+  return { KEK: kek } as unknown as Env
+}
+
 describe('outbound SCIM target credentials', () => {
-  it('derives one reserved secret name from the server-generated target id', () => {
-    expect(scimTargetTokenSecretName('target-a_1')).toBe('SCIM_TARGET_TOKEN_target_a_1')
+  it('stores only an envelope-encrypted token and decrypts it with the same KEK', async () => {
+    const env = testEnv()
+
+    const columns = await encryptScimTargetToken(env, 'downstream-token')
+
+    expect(JSON.stringify(columns)).not.toContain('downstream-token')
+    expect(scimTargetHasToken(columns)).toBe(true)
+    expect(await requireScimTargetToken(env, columns)).toBe('downstream-token')
   })
 
-  it('never resolves a tenant-selected account-level binding', () => {
-    const env = {
-      KEK: 'account-kek',
-      PEPPER: 'account-pepper',
-      SCIM_TARGET_TOKEN_target_1: 'downstream-token',
-    } as unknown as Env
+  it('rejects decryption under a different KEK', async () => {
+    const columns = await encryptScimTargetToken(testEnv(), 'downstream-token')
 
-    expect(requireScimTargetToken(env, 'target-1')).toBe('downstream-token')
-    expect(scimTargetHasToken(env, 'target-1')).toBe(true)
-    expect(() => requireScimTargetToken(env, 'KEK/../../')).toThrowError()
+    await expect(requireScimTargetToken(testEnv(), columns)).rejects.toThrowError()
+  })
+
+  it('reports a missing token as validation_failed on the token field', async () => {
+    const columns = { tokenIv: null, tokenCiphertext: null, tokenTag: null }
+
+    expect(scimTargetHasToken(columns)).toBe(false)
+    await expect(requireScimTargetToken(testEnv(), columns)).rejects.toSatisfy(
+      (error: unknown) =>
+        isAppError(error) &&
+        error.code === 'validation_failed' &&
+        error.meta?.paramName === 'token',
+    )
   })
 
   it.each([

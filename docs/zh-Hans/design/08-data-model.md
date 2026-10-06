@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=e091c2d362d86fb97ef8594d60b0bb376437802a -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=d4f7acb9086c105bd53527ee2e4bb659ee4375a3 -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -1386,18 +1386,21 @@ directory_pending_members(unknown member 幂等占位,OneLogin quirk,见 04 章 
 
 ### 16.11 scim_targets(出站 SCIM target,XID 作 SCIM client 向下游 SaaS 推送用户和组,见 04 章 3)
 
-| 字段                    | 类型          | 约束                                               | 默认         | 说明                                                                                                            |
-| ----------------------- | ------------- | -------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
-| id                      | text          | PK                                                 | `st_`+nanoid |                                                                                                                 |
-| tenant_id               | text          | NOT NULL, FK -> organizations.id                   | --           |                                                                                                                 |
-| org_id                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --           |                                                                                                                 |
-| provider                | text          | NOT NULL                                           | --           | 下游 SaaS 标识(见 04 章 3)                                                                                      |
-| base_url                | text          | NOT NULL                                           | --           | 下游 SCIM endpoint base URL                                                                                     |
-| token_secret_ref        | text          | NOT NULL                                           | --           | 服务端派生的 `SCIM_TARGET_TOKEN_<normalized id>` 引用。API 拒绝调用方指定值,bearer token 只存在 Workers Secrets |
-| user_filter             | text json     | NOT NULL                                           | `{}`         | 推送范围过滤(哪些用户/组出站)                                                                                   |
-| status                  | text          | NOT NULL                                           | `'active'`   | `active`(出站同步仅读 active 行)                                                                                |
-| last_sync_at            | integer ts_ms | null                                               | null         |                                                                                                                 |
-| created_at / updated_at | integer ts_ms | NOT NULL                                           | 见 9.3       |                                                                                                                 |
+| 字段                                    | 类型          | 约束                                               | 默认         | 说明                                                                                                     |
+| --------------------------------------- | ------------- | -------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
+| id                                      | text          | PK                                                 | `st_`+nanoid |                                                                                                          |
+| tenant_id                               | text          | NOT NULL, FK -> organizations.id                   | --           |                                                                                                          |
+| org_id                                  | text          | NOT NULL, FK -> organizations.id ON DELETE cascade | --           |                                                                                                          |
+| provider                                | text          | NOT NULL                                           | --           | 下游 SaaS 标识(见 04 章 3)                                                                               |
+| base_url                                | text          | NOT NULL                                           | --           | 下游 SCIM endpoint base URL                                                                              |
+| token_iv / token_ciphertext / token_tag | text          | null                                               | null         | 下游 bearer token,以 KEK 做 AES-256-GCM 信封加密,各段 base64url。API 只写不回显;三列皆空表示未配置 token |
+| user_filter                             | text json     | NOT NULL                                           | `{}`         | 推送范围过滤(哪些用户/组出站)                                                                            |
+| status                                  | text          | NOT NULL                                           | `'active'`   | `active`(出站同步仅读 active 行);删除时置 `deleted` 并清空 token 列                                      |
+| last_sync_at                            | integer ts_ms | null                                               | null         | 最近一次成功运行                                                                                         |
+| last_run_status                         | text          | null                                               | null         | `succeeded` / `retrying` / `failed`,由 queue consumer 写入                                               |
+| last_run_error                          | text          | null                                               | null         | 原因码,可带下游 HTTP 状态(`downstream_http:401`);不含响应体或 token                                      |
+| last_run_at                             | integer ts_ms | null                                               | null         | 最近一次运行状态的记录时间                                                                               |
+| created_at / updated_at                 | integer ts_ms | NOT NULL                                           | 见 9.3       |                                                                                                          |
 
 索引:`INDEX(tenant_id, org_id)`、`INDEX(tenant_id, status)`。
 

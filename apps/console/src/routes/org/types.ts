@@ -254,15 +254,19 @@ export type CreateOutboundSamlAppInput = {
 
 export type UpdateOutboundSamlAppInput = Partial<CreateOutboundSamlAppInput>
 
+export type ScimTargetRunStatus = 'succeeded' | 'retrying' | 'failed'
+
 export type ScimTarget = {
   id: string
   provider: string
   baseUrl: string
-  requiredTokenSecretName: string
-  hasTokenSecret: boolean
+  hasToken: boolean
   assignmentGate: AssignmentGate
   status: string
   lastSyncAt: string | null
+  lastRunStatus: ScimTargetRunStatus | null
+  lastRunError: string | null
+  lastRunAt: string | null
   syncPath: string
   createdAt: string
 }
@@ -270,6 +274,7 @@ export type ScimTarget = {
 export type CreateScimTargetInput = {
   provider: string
   base_url: string
+  token?: string
   assignment_gate?: AssignmentGate
 }
 

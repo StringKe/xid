@@ -17,6 +17,7 @@ import {
 import { logWorkerError } from '../lib/safe-log'
 import { maintainCustomHostnames } from './custom-hostnames'
 import { enqueueDuePrivacyRequests, expirePrivacyExports } from './privacy'
+import { enqueueScheduledScimTargetSyncs } from './scim-targets'
 import { reportStripeMauUsage } from '../billing/stripe-metering'
 
 // MeteringDO RPC stub(取最终 MAU 数值)。
@@ -891,6 +892,13 @@ export async function runDaily(env: Env): Promise<void> {
   await runDailyPhase('saml_metadata', () => pollSamlIdpMetadata(env), failures)
   await runDailyPhase('usage_maintenance', () => runMonthlyUsageMaintenance(env), failures)
   await runDailyPhase('guest_gc', () => gcInactiveGuests(env), failures)
+  await runDailyPhase(
+    'outbound_scim_sync',
+    async () => {
+      await enqueueScheduledScimTargetSyncs(env)
+    },
+    failures,
+  )
   await runDailyPhase(
     'privacy_maintenance',
     async () => {

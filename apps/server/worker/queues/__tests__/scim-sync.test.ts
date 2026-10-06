@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ScimSyncQueueMessage, TenantContext } from '@xid-kit/types'
+import { encryptScimTargetToken } from '../../scim/target-credentials'
 import { handleScimSyncBatch } from '../scim-sync'
 
 const resolveTenantContextByIssuer = vi.hoisted(() => vi.fn())
@@ -28,14 +29,24 @@ function projectionColumns(sql: string): string[] {
   return [...head.matchAll(/"([a-z_]+)"/g)].map((match) => match[1] ?? '')
 }
 
-function makeD1(): D1Database {
+const TEST_KEK = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+const ENCRYPTED_TOKEN = await encryptScimTargetToken({ KEK: TEST_KEK } as unknown as Env, 'secret')
+
+type RunStateWrite = { sql: string; params: unknown[] }
+
+function makeD1(
+  options: { withToken?: boolean; runStateWrites?: RunStateWrite[] } = {},
+): D1Database {
+  const token = options.withToken === false ? null : ENCRYPTED_TOKEN
   const target = {
     id: 'st_1',
     tenant_id: 't_1',
     org_id: 'org_1',
     provider: 'okta',
     base_url: 'https://downstream.example.com/scim',
-    token_secret_ref: 'SCIM_TARGET_TOKEN_st_1',
+    token_iv: token?.tokenIv ?? null,
+    token_ciphertext: token?.tokenCiphertext ?? null,
+    token_tag: token?.tokenTag ?? null,
     user_filter: '{}',
     status: 'active',
     last_sync_at: null,
@@ -76,10 +87,17 @@ function makeD1(): D1Database {
     return []
   }
   const prepare = (sql: string): unknown => {
+    let bound: unknown[] = []
     const stmt = {
-      bind: (..._params: unknown[]) => stmt,
+      bind: (...params: unknown[]) => {
+        bound = params
+        return stmt
+      },
       all: async () => ({ results: rows(sql), success: true, meta: {} }),
-      run: async () => ({ results: [], success: true, meta: {} }),
+      run: async () => {
+        if (sql.includes('last_run_status')) options.runStateWrites?.push({ sql, params: bound })
+        return { results: [], success: true, meta: {} }
+      },
       first: async () => rows(sql)[0] ?? null,
       raw: async () =>
         rows(sql).map((row) => projectionColumns(sql).map((column) => row[column] ?? null)),
@@ -136,7 +154,7 @@ describe('Outbound SCIM Queue consumer', () => {
     const auditSend = vi.fn().mockResolvedValue(undefined)
     const env = asUnknown<Env>({
       DB: makeD1(),
-      SCIM_TARGET_TOKEN_st_1: 'secret',
+      KEK: TEST_KEK,
       AUDIT_QUEUE: { send: auditSend },
     })
     const body: ScimSyncQueueMessage = {
@@ -189,7 +207,7 @@ describe('Outbound SCIM Queue consumer', () => {
     )
     const env = asUnknown<Env>({
       DB: makeD1(),
-      SCIM_TARGET_TOKEN_st_1: 'secret',
+      KEK: TEST_KEK,
       AUDIT_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
     })
     const message = makeMessage({
@@ -211,7 +229,7 @@ describe('Outbound SCIM Queue consumer', () => {
     const auditSend = vi.fn().mockResolvedValue(undefined)
     const env = asUnknown<Env>({
       DB: makeD1(),
-      SCIM_TARGET_TOKEN_st_1: 'secret',
+      KEK: TEST_KEK,
       AUDIT_QUEUE: { send: auditSend },
     })
     const body: ScimSyncQueueMessage = {
@@ -245,5 +263,55 @@ describe('Outbound SCIM Queue consumer', () => {
         payload: expect.objectContaining({ attempt: 6, terminal: true }),
       }),
     )
+  })
+
+  it('records a retrying run state with only the reason code and downstream status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('leaked body', { status: 503 })))
+    const runStateWrites: RunStateWrite[] = []
+    const env = asUnknown<Env>({
+      DB: makeD1({ runStateWrites }),
+      KEK: TEST_KEK,
+      AUDIT_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
+    })
+    const message = makeMessage({
+      tenantId: 't_1',
+      orgId: 'org_1',
+      targetId: 'st_1',
+      issuer: 'https://acme.xid.dev',
+      runId: 'run_state_retry',
+      requestedAt: Date.now(),
+    })
+
+    await handleScimSyncBatch(makeBatch(message), env)
+
+    expect(runStateWrites).toHaveLength(1)
+    expect(runStateWrites[0]?.params.slice(0, 2)).toEqual(['retrying', 'downstream_http:503'])
+    expect(runStateWrites[0]?.params.slice(-3)).toEqual(['t_1', 'org_1', 'st_1'])
+    expect(JSON.stringify(runStateWrites)).not.toContain('leaked body')
+  })
+
+  it('a target without a token fails terminally as token_missing and is acked', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const runStateWrites: RunStateWrite[] = []
+    const env = asUnknown<Env>({
+      DB: makeD1({ withToken: false, runStateWrites }),
+      KEK: TEST_KEK,
+      AUDIT_QUEUE: { send: vi.fn().mockResolvedValue(undefined) },
+    })
+    const message = makeMessage({
+      tenantId: 't_1',
+      orgId: 'org_1',
+      targetId: 'st_1',
+      issuer: 'https://acme.xid.dev',
+      runId: 'run_state_missing_token',
+      requestedAt: Date.now(),
+    })
+
+    await handleScimSyncBatch(makeBatch(message), env)
+
+    expect(message.ack).toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(runStateWrites[0]?.params.slice(0, 2)).toEqual(['failed', 'token_missing'])
   })
 })

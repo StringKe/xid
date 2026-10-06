@@ -152,13 +152,19 @@ export const scimTargets = sqliteTable(
     orgId: text('org_id').notNull(),
     provider: text('provider').notNull(),
     baseUrl: text('base_url').notNull(),
-    tokenSecretRef: text('token_secret_ref').notNull(),
+    // 下游 bearer token 以 KEK 信封加密(AES-256-GCM),iv/ciphertext/tag 各为 base64url。
+    tokenIv: text('token_iv'),
+    tokenCiphertext: text('token_ciphertext'),
+    tokenTag: text('token_tag'),
     userFilter: text('user_filter', { mode: 'json' })
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
     status: text('status').notNull().default('active'),
     lastSyncAt: tsMs('last_sync_at'),
+    lastRunStatus: text('last_run_status').$type<'succeeded' | 'retrying' | 'failed'>(),
+    lastRunError: text('last_run_error'),
+    lastRunAt: tsMs('last_run_at'),
     ...timestamps(),
   },
   (t) => [

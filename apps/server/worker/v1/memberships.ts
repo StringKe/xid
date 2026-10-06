@@ -11,6 +11,7 @@ import type { XidHonoEnv } from '../lib/types'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { readJsonBody, validateBody } from '../lib/validate'
+import { scheduleOrgScimTargetSyncs } from '../scim/outbound'
 import {
   requireApiKey,
   parsePagination,
@@ -276,6 +277,7 @@ app.patch('/:orgId/memberships/:membershipId', async (c) => {
     event: 'organizationMembership.updated',
     payload: { orgId, membershipId },
   })
+  scheduleOrgScimTargetSyncs(c, orgId)
   return c.json(toResponse(row))
 })
 
@@ -309,6 +311,7 @@ app.delete('/:orgId/memberships/:membershipId', async (c) => {
     event: 'organizationMembership.deleted',
     payload: { orgId, membershipId, userId: existing.userId },
   })
+  scheduleOrgScimTargetSyncs(c, orgId)
   return new Response(null, { status: 204 })
 })
 
@@ -355,6 +358,7 @@ app.post('/:orgId/memberships/:membershipId/restore', async (c) => {
     event: 'organizationMembership.restored',
     payload: { orgId, membershipId, userId: existing.userId },
   })
+  scheduleOrgScimTargetSyncs(c, orgId)
   return c.json(toResponse(row))
 })
 

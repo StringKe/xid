@@ -86,7 +86,7 @@ Strong consistency  11 Durable Objects (WebAuthn and TOTP replay / OAuth, PAR, d
 Cache        KV (JWKS / discovery / branding / feature flags / upstream keys and trust anchors)
 Objects      R2 (organization logos / email locale packs / private privacy exports / immutable compliance evidence)
 Async        8 business Queues (email / SMS / WhatsApp / audit / webhook / metering / outbound SCIM / privacy) plus source-specific DLQ and quarantine Queues
-Scheduled    Cron Triggers (hourly cleanup; daily signing key, custom hostname, domain, SAML, usage, privacy and guest maintenance)
+Scheduled    Cron Triggers (hourly cleanup; daily signing key, custom hostname, domain, SAML, usage, privacy and guest maintenance, plus outbound SCIM sync)
 Secrets      Workers Secrets (KEK / pepper / provider credentials) + envelope encryption stored in D1
 Human check  Turnstile
 Edge         WAF + Rate Limiting
@@ -386,7 +386,7 @@ sub-service-organization evidence, but application-layer controls remain our res
 | KV                              | JWKS, discovery, branding, feature flags, upstream provider keys, and trust anchors                                                                                    |
 | R2                              | Organization logos, email locale packs, private privacy exports, and immutable compliance evidence                                                                     |
 | Queues                          | 8 business Queues for email, SMS, WhatsApp, audit, webhook, metering, outbound SCIM, and privacy, plus per-source DLQ and quarantine Queues                            |
-| Cron Triggers                   | Hourly cleanup plus daily signing key, custom hostname, domain, SAML, usage, privacy, and guest maintenance                                                            |
+| Cron Triggers                   | Hourly cleanup plus daily signing key, custom hostname, domain, SAML, usage, privacy, guest maintenance, and outbound SCIM sync                                        |
 | Workers Secrets                 | KEK master key, provider credentials                                                                                                                                   |
 | Turnstile / WAF / Rate Limiting | Abuse prevention                                                                                                                                                       |
 | Analytics Engine                | Live metrics (sign-in success rate, MFA adoption, active users)                                                                                                        |

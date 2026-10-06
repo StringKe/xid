@@ -15,8 +15,15 @@ import { AppError } from '../lib/errors'
 import { readAllById } from '../lib/db-pagination'
 import { filterMembershipsByAssignmentGate, parseAssignmentGate } from '../sso/assignment-gate'
 import type { SessionData, XidHonoEnv } from '../lib/types'
-import { requireOrgManager } from '../v1/shared'
-import { normalizeScimTargetBaseUrl, requireScimTargetToken } from './target-credentials'
+import { assertOrgSelfServiceEditable } from '../v1/org-self-service'
+import { runScimBackgroundTask } from './shared'
+import { requireOrg, requireOrgManager } from '../v1/shared'
+import {
+  assertScimTargetHasToken,
+  normalizeScimTargetBaseUrl,
+  requireScimTargetToken,
+  scimTargetHasToken,
+} from './target-credentials'
 
 type ScimTarget = typeof schema.scimTargets.$inferSelect
 type UserRow = typeof schema.users.$inferSelect
@@ -697,7 +704,7 @@ export async function executeScimTargetSync({
 }: ExecuteScimTargetSyncInput): Promise<SyncSummary> {
   const db = createTenantDb(env.DB, tenant)
   const gate = parseAssignmentGate(target.userFilter as Record<string, unknown>)
-  const token = requireScimTargetToken(env, target.id)
+  const token = await requireScimTargetToken(env, target)
   const memberships = await membershipsForOrg(env, tenant, target.orgId)
   const filteredMemberships = await filterMembershipsByAssignmentGate(db, {
     orgId: target.orgId,
@@ -746,33 +753,82 @@ export async function executeScimTargetSync({
   }
 }
 
-export async function enqueueScimTargetSync(
-  c: Context<XidHonoEnv>,
+function scimSyncMessage(
+  tenant: TenantContext,
   target: ScimTarget,
-  actorId?: string,
-): Promise<{ runId: string; targetId: string; status: 'queued' }> {
-  requireScimTargetToken(c.env, target.id)
-  const tenant = c.get('tenant')
-  const runId = crypto.randomUUID()
-  const requestedAt = Date.now()
-  const message: ScimSyncQueueMessage = {
+  actorId: string | undefined,
+): ScimSyncQueueMessage {
+  return {
     tenantId: tenant.tenantId,
     orgId: target.orgId,
     targetId: target.id,
     issuer: tenant.issuer,
     actorId,
-    runId,
-    requestedAt,
+    runId: crypto.randomUUID(),
+    requestedAt: Date.now(),
   }
+}
+
+export async function enqueueScimTargetSync(
+  c: Context<XidHonoEnv>,
+  target: ScimTarget,
+  actorId?: string,
+): Promise<{ runId: string; targetId: string; status: 'queued' }> {
+  assertScimTargetHasToken(target)
+  const message = scimSyncMessage(c.get('tenant'), target, actorId)
   await c.env.SCIM_QUEUE.send(message)
-  return { runId, targetId: target.id, status: 'queued' }
+  return { runId: message.runId, targetId: target.id, status: 'queued' }
+}
+
+export type OrgScimSyncRequest = {
+  env: Env
+  tenant: TenantContext
+  orgId: string
+}
+
+// 成员关系或账号状态变化后入队该 org 全部可同步 target,让下游停用及时生效。
+// consumer 串行且幂等,重复 run 只多一次调用;daily cron 再兜底一次。
+export async function enqueueOrgScimTargetSyncs(request: OrgScimSyncRequest): Promise<number> {
+  const targets = await createTenantDb(request.env.DB, request.tenant)
+    .forOrg(request.orgId)
+    .scimTargets.findMany(eq(schema.scimTargets.status, 'active'))
+  const ready = targets.filter(scimTargetHasToken)
+  for (const target of ready) {
+    await request.env.SCIM_QUEUE.send(scimSyncMessage(request.tenant, target, undefined))
+  }
+  return ready.length
+}
+
+export function scheduleOrgScimTargetSyncs(c: Context<XidHonoEnv>, orgId: string): void {
+  const task = enqueueOrgScimTargetSyncs({ env: c.env, tenant: c.get('tenant'), orgId })
+  runScimBackgroundTask(c, task, 'outbound_scim.auto_enqueue_failed')
+}
+
+// 账号状态是租户级的,该用户所在的每个 org 的 target 都要重新同步。
+export function scheduleUserScimTargetSyncs(c: Context<XidHonoEnv>, userId: string): void {
+  const env = c.env
+  const tenant = c.get('tenant')
+  const task = (async () => {
+    const memberships = await createTenantDb(env.DB, tenant).memberships.findMany(
+      eq(schema.memberships.userId, userId),
+    )
+    for (const orgId of new Set(memberships.map((membership) => membership.orgId))) {
+      await enqueueOrgScimTargetSyncs({ env, tenant, orgId })
+    }
+  })()
+  runScimBackgroundTask(c, task, 'outbound_scim.auto_enqueue_failed')
 }
 
 outbound.post('/:targetId/sync', async (c) => {
   // 触发入队必须是 org admin/owner 或 org_manager,普通 member 只读不放行。
   const session = requireSession(c)
   const target = await resolveTarget(c, requiredParam(c, 'targetId'))
-  await requireOrgManager(c, target.orgId)
+  const manager = await requireOrgManager(c, target.orgId)
+  await assertOrgSelfServiceEditable(
+    c,
+    { kind: 'org_console', ...manager },
+    await requireOrg(c, target.orgId),
+  )
   return c.json(await enqueueScimTargetSync(c, target, session.userId), 202)
 })
 

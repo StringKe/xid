@@ -157,17 +157,28 @@ provisioning L4 MUST NOT be reused as outbound SCIM target L4.
 
 Capabilities already shipped in the outbound SCIM client baseline:
 
-- Target registration: each downstream SaaS gets its own record of the SCIM base URL, server-derived
-  token secret reference, attribute mapping, group mapping, and assignment gate. The base URL MUST
-  be public HTTPS.
-- Token storage: the SaaS SCIM bearer token is held only in the target-specific Workers Secret
-  `SCIM_TARGET_TOKEN_<normalized target id>`. The API returns that required name after target
-  creation, rejects a caller-supplied `token_secret_ref`, and never lets tenant data select an
-  arbitrary Worker binding. Logs and audit records MUST redact the token.
+- Target registration: each downstream SaaS gets its own record of the SCIM base URL, encrypted
+  bearer token, attribute mapping, group mapping, and assignment gate. The base URL MUST be public
+  HTTPS.
+- Token storage: an org admin or an `sk_*` key submits the SaaS SCIM bearer token as the write-only
+  `token` field on create or update. It is envelope-encrypted under the Workers Secrets KEK
+  (AES-256-GCM, the same `iv`/`ciphertext`/`tag` layout as webhook signing secrets) and stored in
+  `scim_targets`; responses only report `hasToken`, and the plaintext is decrypted only inside the
+  queue consumer. A target without a token cannot be synced (`422`, `paramName = token`). Logs and
+  audit records MUST redact the token.
 - Sync endpoints: `/scim/outbound/:targetId/sync` and
   `/v1/organizations/:orgId/scim-targets/:targetId/sync` authorize the caller, enqueue one
   `ScimSyncQueueMessage`, and return `202` with the stable `runId`; downstream HTTP never runs in the
   request path.
+- Automatic runs: removing or deactivating an Organization Membership through the membership APIs,
+  and inbound SCIM deactivation, reactivation, or deletion of a user, enqueue a run for every
+  token-configured active target of the affected orgs, off the request path through `waitUntil`.
+  The daily cron enqueues one run per token-configured active target as the fallback for every
+  other membership or account change. Duplicate runs are safe because the consumer is serialized and
+  idempotent.
+- Run visibility: the consumer records `last_run_status` (`succeeded` / `retrying` / `failed`),
+  `last_run_error` (a reason code with an optional downstream HTTP status, never a response body or
+  token), and `last_run_at` on the target; the Console shows them next to the last successful sync.
 - Stable resource mapping: `scim_target_resources` binds each local User or role-derived Group to the
   downstream SCIM `id`. A retry first uses that mapping; when it is absent or stale, the consumer
   discovers by the deterministic `externalId` before creating anything. `POST` is therefore only the

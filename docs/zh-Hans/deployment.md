@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=e3d5b74483b1ed10d97dbf603756a0ee1d01da4e -->
+<!-- xid-translation source=docs/deployment.md source-commit=5d55b0c source-blob=9884a9372831c229085736508f5540e5af79eabf -->
 
 > Translation of `docs/deployment.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/deployment.md`](../deployment.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -384,7 +384,6 @@ Cron triggers:
 | `CLOUDFLARE_FOR_SAAS_API_TOKEN` | zone-scoped Cloudflare for SaaS Custom Hostnames create/read/delete token |
 | `STRIPE_SECRET_KEY`             | 可选托管服务的 Checkout、Billing Portal 与 meter-event API 凭证           |
 | `STRIPE_WEBHOOK_SECRET`         | 可选 Stripe webhook HMAC secret,用于 plan 对账                            |
-| `SCIM_TARGET_TOKEN_<id>`        | 对应 outbound SCIM target 的单个下游 bearer token                         |
 | `GOOGLE_CLIENT_SECRET`          | Google Social OAuth client secret                                         |
 | `GITHUB_CLIENT_SECRET`          | GitHub Social OAuth client secret                                         |
 | `MICROSOFT_CLIENT_SECRET`       | Microsoft Social OAuth client secret                                      |
@@ -467,20 +466,11 @@ meter identifier、customer、value、event name 和 timestamp 写入 D1,因此 
 product、price、customer、webhook delivery、Checkout、Portal 与 meter-event 运行在运营方
 提供外部资源并记录 live evidence 前保持 L4 `UNKNOWN`。
 
-### Outbound SCIM target secrets
+### Outbound SCIM target tokens
 
-先用 `provider` 和 public HTTPS `base_url` 创建 target。响应与 Console 会显示
-`requiredTokenSecretName`,例如
-`SCIM_TARGET_TOKEN_550e8400_e29b_41d4_a716_446655440000`。只把下游 bearer token 写入这个
-精确名称的 Workers Secret:
-
-```bash
-pnpm --dir apps/server exec wrangler secret put SCIM_TARGET_TOKEN_550e8400_e29b_41d4_a716_446655440000
-```
-
-API 会明确拒绝 `token_secret_ref`;tenant 控制的数据不能选择 `KEK`、`PEPPER`、provider
-secret 或其他 Worker binding。开始同步前刷新 target 列表并确认 `hasTokenSecret=true`。
-每个部署环境都必须单独配置该 secret。
+出站 SCIM target 不需要按 target 配置 Workers Secret。org 管理员在 Console 填写下游 bearer
+token,或由集成在创建、更新 target 时通过只写字段 `token` 提交。Core 用 `KEK` 加密后只把密文存入
+D1;响应返回 `hasToken`,为 `true` 之前拒绝同步。因此轮换 `KEK` 后需要重新填写这些 token。
 
 ### Turnstile 就绪判定
 

@@ -1293,29 +1293,27 @@ export async function revokeAllUserSessions(
   await revokeUserCredentials(env, tenant, userId)
 }
 
-function sendInBackground(
+export function runScimBackgroundTask(
   c: Context<XidHonoEnv> | Env,
   task: Promise<unknown>,
-  queue: 'webhook' | 'audit',
+  failureEvent: string,
 ): void {
   const executionCtx = readExecutionContext(c)
   if (executionCtx !== undefined) {
     executionCtx.waitUntil(task)
     return
   }
-  void task.catch((error: unknown) =>
-    logWorkerError(`scim.${queue}_queue.send_failed`, error, { component: 'scim', queue }),
-  )
+  void task.catch((error: unknown) => logWorkerError(failureEvent, error, { component: 'scim' }))
 }
 
 // 异步投递 webhook(不阻塞 SCIM 响应,经 Queues,见 cloudflare-bindings rule)
 export function emitWebhookAsync(c: Context<XidHonoEnv> | Env, msg: WebhookQueueMessage): void {
   const env = 'env' in c ? c.env : c
-  sendInBackground(c, env.WEBHOOK_QUEUE.send(msg), 'webhook')
+  runScimBackgroundTask(c, env.WEBHOOK_QUEUE.send(msg), 'scim.webhook_queue.send_failed')
 }
 
 export function emitAuditAsync(c: Context<XidHonoEnv>, msg: AuditQueueMessage): void {
-  sendInBackground(c, c.env.AUDIT_QUEUE.send(msg), 'audit')
+  runScimBackgroundTask(c, c.env.AUDIT_QUEUE.send(msg), 'scim.audit_queue.send_failed')
 }
 
 function readExecutionContext(c: Context<XidHonoEnv> | Env) {

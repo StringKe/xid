@@ -6,6 +6,7 @@ import type { TenantContext } from '@xid-kit/types'
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
+import { scheduleUserScimTargetSyncs } from './outbound'
 import { emitAuditAsync, revokeAllUserSessions } from './shared'
 import { ensureDirectoryMembership, suspendDirectoryMembership } from './user-provisioning'
 
@@ -59,6 +60,7 @@ export async function deactivateDirectoryAccount(
       input.userId,
     )
   }
+  scheduleUserScimTargetSyncs(c, input.userId)
   emitAuditAsync(c, {
     tenantId: input.tenant.tenantId,
     orgId: input.orgId,
@@ -82,6 +84,7 @@ export async function reactivateDirectoryAccount(
     { db, tenantId: target.tenant.tenantId, orgId: target.orgId },
     target.userId,
   )
+  scheduleUserScimTargetSyncs(c, target.userId)
   emitAuditAsync(c, {
     tenantId: target.tenant.tenantId,
     orgId: target.orgId,

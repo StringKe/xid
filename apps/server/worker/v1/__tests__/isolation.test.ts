@@ -2908,7 +2908,9 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
             org_id: 'org_a',
             provider: 'slack',
             base_url: 'https://example.com/scim/v2',
-            token_secret_ref: 'SCIM_TOKEN',
+            token_iv: 'iv_a',
+            token_ciphertext: 'ciphertext_a',
+            token_tag: 'tag_a',
             user_filter: '{}',
             status: 'active',
           },
@@ -2918,14 +2920,12 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
             org_id: 'org_b',
             provider: 'slack',
             base_url: 'https://other.example.com/scim/v2',
-            token_secret_ref: 'SCIM_TOKEN',
             user_filter: '{}',
             status: 'active',
           },
         ],
       }),
       SESSION_REVOCATION: makeFakeSessionNs([]),
-      SCIM_TARGET_TOKEN_target_a: 'secret',
     })
     const app = buildApp(registerOrganizationsRoutes)
     const res = await app.request(
@@ -2934,16 +2934,10 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
       env,
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as {
-      id: string
-      requiredTokenSecretName: string
-      hasTokenSecret: boolean
-    }[]
-    expect(body.map((row) => row.id)).toEqual(['target_a'])
-    expect(body[0]).toMatchObject({
-      requiredTokenSecretName: 'SCIM_TARGET_TOKEN_target_a',
-      hasTokenSecret: true,
-    })
+    const body = (await res.json()) as Record<string, unknown>[]
+    expect(body.map((row) => row['id'])).toEqual(['target_a'])
+    expect(body[0]).toMatchObject({ hasToken: true, lastRunStatus: null })
+    expect(JSON.stringify(body)).not.toContain('ciphertext_a')
   })
 
   it('POST creates an addressable SCIM target with the public st_ id contract', async () => {
@@ -2975,6 +2969,7 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
       }),
       SESSION_REVOCATION: makeFakeSessionNs([]),
       WEBHOOK_QUEUE: makeFakeQueue(),
+      KEK: btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))),
     })
     const app = buildApp(registerOrganizationsRoutes)
     const response = await app.request(
@@ -2988,17 +2983,20 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
         body: JSON.stringify({
           provider: 'custom',
           base_url: 'https://scim.example.test/v2',
+          token: 'downstream-bearer-token',
         }),
       },
       env,
     )
 
     expect(response.status).toBe(201)
-    const body = (await response.json()) as { id: string }
+    const text = await response.text()
+    const body = JSON.parse(text) as { id: string }
     expect(body.id).toMatch(/^st_[A-Za-z0-9]{21}$/u)
+    expect(text).not.toContain('downstream-bearer-token')
   })
 
-  it('rejects a tenant-selected Worker secret reference and an unsafe base URL', async () => {
+  it('rejects an empty downstream token and an unsafe base URL', async () => {
     const {
       token,
       cookieName,
@@ -3026,10 +3024,9 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
         scim_targets: [],
       }),
       SESSION_REVOCATION: makeFakeSessionNs([]),
-      KEK: 'must-never-be-selectable',
     })
     const app = buildApp(registerOrganizationsRoutes)
-    const secretRef = await app.request(
+    const emptyToken = await app.request(
       'https://acme.xid.dev/v1/organizations/org_a/scim-targets',
       {
         method: 'POST',
@@ -3040,12 +3037,12 @@ describe('v1 org scim-targets 归属与跨租户隔离', () => {
         body: JSON.stringify({
           provider: 'custom',
           base_url: 'https://scim.example.test/v2',
-          token_secret_ref: 'KEK',
+          token: '   ',
         }),
       },
       env,
     )
-    expect(secretRef.status).toBe(422)
+    expect(emptyToken.status).toBe(422)
 
     const unsafeUrl = await app.request(
       'https://acme.xid.dev/v1/organizations/org_a/scim-targets',

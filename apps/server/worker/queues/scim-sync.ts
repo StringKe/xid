@@ -41,9 +41,38 @@ function safeFailure(error: unknown): {
     }
   }
   if (isAppError(error) && error.code === 'validation_failed') {
-    return { reason: 'target_configuration_invalid', retryable: false }
+    const reason =
+      error.meta?.paramName === 'token' ? 'token_missing' : 'target_configuration_invalid'
+    return { reason, retryable: false }
   }
   return { reason: 'sync_internal_failure', retryable: true }
+}
+
+type RunState = {
+  status: 'succeeded' | 'retrying' | 'failed'
+  error: string | null
+}
+
+// Console 读取的运行状态只存安全的原因码(可带下游 HTTP 状态),不存响应体或 token。
+async function recordRunState(
+  env: Env,
+  body: ScimSyncQueueMessage,
+  state: RunState,
+): Promise<void> {
+  const now = Date.now()
+  await env.DB.prepare(
+    `UPDATE scim_targets
+       SET last_run_status = ?, last_run_error = ?, last_run_at = ?, updated_at = ?
+       WHERE tenant_id = ? AND org_id = ? AND id = ?`,
+  )
+    .bind(state.status, state.error, now, now, body.tenantId, body.orgId, body.targetId)
+    .run()
+}
+
+function failureCode(failure: ReturnType<typeof safeFailure>): string {
+  return failure.statusCode === undefined
+    ? failure.reason
+    : `${failure.reason}:${failure.statusCode}`
 }
 
 async function resolveQueueTenant(env: Env, message: ScimSyncQueueMessage): Promise<TenantContext> {
@@ -124,6 +153,7 @@ async function processMessage(message: Message<ScimSyncQueueMessage>, env: Env):
         deactivations: summary.deactivations,
       }),
     )
+    await recordRunState(env, body, { status: 'succeeded', error: null })
     message.ack()
   } catch (error) {
     const failure = safeFailure(error)
@@ -143,6 +173,7 @@ async function processMessage(message: Message<ScimSyncQueueMessage>, env: Env):
           terminal: true,
         }),
       )
+      await recordRunState(env, body, { status: 'failed', error: failureCode(failure) })
       message.ack()
       return
     }
@@ -163,6 +194,10 @@ async function processMessage(message: Message<ScimSyncQueueMessage>, env: Env):
         },
       ),
     )
+    await recordRunState(env, body, {
+      status: terminalAttempt ? 'failed' : 'retrying',
+      error: failureCode(failure),
+    })
     message.retry({ delaySeconds })
   }
 }
