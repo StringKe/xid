@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=c3f68af09f74ab6bd87b4c616cee410a5143847b -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=cc0378882426d2a2dc0805e7ed8157894dd5e31c -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -296,16 +296,17 @@ SPA 登录成功后，读取当前 `authz_request_id`，跳转到：
 
 Worker /authorize 端点收到 `authz_request_id` 参数时，从 OAuthFlowDO 中恢复原始 OIDC 请求参数（一次性 consume，恢复即删 DO 记录），验证 session cookie，继续执行正常的 authorization code 颁发流程（PKCE 验证、consent 检查、颁发 code、302 到 redirect_uri）。
 
-`prompt=login` 的 interaction start time 与 pending request 一起保存。只有新 session 的
-`authenticated_at` 不早于该时间时才允许恢复,随后 Core 在重新求值前移除已经满足的 `login`
-prompt。这样既不静默绕过 prompt,也不会形成 `/authorize` -> `/sign-in` 无限循环。
+`prompt=login`、`prompt=select_account`、应用注册，以及 session 超过 `max_age` 时，interaction
+start time 与 pending request 一起保存。只有新 session 的 `authenticated_at` 不早于该时间时才允许恢复,
+随后 Core 在重新求值前移除已经满足的 `login` / `select_account` prompt 和 `max_age`。这样既不静默绕过
+prompt,也不会形成 `/authorize` -> `/sign-in` 无限循环。
 
 **关键约束**
 
 - OAuthFlowDO 中的授权请求一次性 consume：`/authorize` 续跑恢复后立即删除，防止重放。
 - TTL 10 分钟：超时后 `/authorize?authz_request_id=xxx` 因 DO 记录不存在按 `invalid_request` 处理，提示用户重新发起登录。
 - 用户取消登录：SPA 跳转到 `redirect_uri?error=access_denied&state=<original_state>`（state 从恢复的授权请求中读取），不重定向到 /authorize，避免循环跳转。
-- Consent 页面同样是 SPA 路由：/authorize 在 session 有效但 consent 缺失时，以相同 302 机制跳转到 `/consent?authz_request_id=<uuid>`；consent 页调 `GET /auth/consent-params?prompt_id=<uuid>`（`prompt_id` == `authz_request_id`）拉取 client 展示数据与本地化 scope 列表。`/mfa` 与 `/select-organization` 走同一 302 机制。
+- Consent 页面同样是 SPA 路由：/authorize 在 session 有效但 consent 缺失时，以相同 302 机制跳转到 `/consent?authz_request_id=<uuid>`；consent 页调 `GET /auth/consent-params?prompt_id=<uuid>`（`prompt_id` == `authz_request_id`）拉取 client 展示数据与请求的 scope 名，标准 scope 由页面本地化。用户的决定提交到 `POST /auth/consent`，它把决定记录在 pending request 上并返回 `/authorize?authz_request_id=<uuid>` 续跑地址，code 由 `/authorize` 自己签发。`/mfa` 与 `/select-organization` 走同一 302 机制。
 
 **完整流程时序**
 

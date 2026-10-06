@@ -353,10 +353,11 @@ original OIDC request parameters from OAuthFlowDO (single-use consumption: the D
 is deleted on restore), verifies the session cookie, and continues with the normal authorization code
 issuance flow (PKCE validation, consent check, code issuance, 302 to redirect_uri).
 
-For `prompt=login`, the interaction start time is retained with the pending request. Resume is allowed
-only when the new session's `authenticated_at` is at or after that time; Core then removes the
-already-satisfied `login` prompt before reevaluation. This prevents both silent prompt bypass and an
-infinite `/authorize` -> `/sign-in` loop.
+For `prompt=login`, `prompt=select_account`, application sign-up, and a session older than
+`max_age`, the interaction start time is retained with the pending request. Resume is allowed only
+when the new session's `authenticated_at` is at or after that time; Core then removes the
+already-satisfied `login` / `select_account` prompt and `max_age` before reevaluation. This prevents
+both silent prompt bypass and an infinite `/authorize` -> `/sign-in` loop.
 
 **Key constraints**
 
@@ -370,8 +371,10 @@ infinite `/authorize` -> `/sign-in` loop.
 - The consent page is also an SPA route: when `/authorize` has a valid session but no consent, it uses
   the same 302 mechanism to redirect to `/consent?authz_request_id=<uuid>`. The consent page calls
   `GET /auth/consent-params?prompt_id=<uuid>` (where `prompt_id` equals `authz_request_id`) to fetch
-  the client display data and the localized scope list. `/mfa` and `/select-organization` use the same
-  302 mechanism.
+  the client display data and the requested scope names; the page localizes standard scopes. The
+  decision goes to `POST /auth/consent`, which records it on the pending request and returns the
+  `/authorize?authz_request_id=<uuid>` resume URL, so the code is issued by `/authorize` itself.
+  `/mfa` and `/select-organization` use the same 302 mechanism.
 
 **Complete flow sequence**
 
