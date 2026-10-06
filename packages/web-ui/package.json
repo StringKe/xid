@@ -32,6 +32,8 @@
     "./ui/*": "./src/components/ui/*.tsx",
     "./BrandLogo": "./src/components/BrandLogo.tsx",
     "./ConfirmDialog": "./src/components/ConfirmDialog.tsx",
+    "./LanguageSwitcher": "./src/components/LanguageSwitcher.tsx",
+    "./RequireAuth": "./src/components/RequireAuth.tsx",
     "./styles/tokens.stylex": "./src/styles/tokens.stylex.ts",
     "./styles/product-surface.stylex": "./src/styles/product-surface.stylex.ts"
   },

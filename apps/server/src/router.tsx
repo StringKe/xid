@@ -16,7 +16,7 @@ import { RouteAnalytics } from './components/RouteAnalytics'
 import { RoutePageSeo } from './components/RoutePageSeo'
 
 import { Spinner } from './components/ui'
-import { RequireAuth } from './components/RequireAuth'
+import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
 import type { PendingMfaAuthStatus } from './lib/auth-context'
 
 type PageModule = { default: () => ReactNode }

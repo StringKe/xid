@@ -13,6 +13,7 @@ import {
 type LocaleContextValue = {
   locale: SupportedLocale
   isChanging: boolean
+  failedLocale: SupportedLocale | null
   setLocale: (locale: SupportedLocale) => Promise<void>
 }
 
@@ -37,20 +38,37 @@ export function activateEnglishLocale(): SupportedLocale {
   return 'en'
 }
 
+// 非英文 catalog 是带 hash 的动态 chunk,发布窗口或网络中断时可能加载失败:回退英文保证挂载,
+// 不改写已保存的语言偏好,下次加载仍按用户选择重试。
 export async function loadInitialLocale(): Promise<SupportedLocale> {
   const locale = detectLocale()
-  const messages = await loadCatalog(locale)
-  activateCatalog(locale, messages)
-  return locale
+  try {
+    activateCatalog(locale, await loadCatalog(locale))
+    return locale
+  } catch (error) {
+    console.error('Locale catalog failed to load; falling back to English', { locale, error })
+    return activateEnglishLocale()
+  }
+}
+
+// Core 与 Console 入口共用:英文同步挂载,其他语言先激活 catalog 再挂载,避免首帧英文闪烁。
+export function startWithLocale(mount: (locale: SupportedLocale) => void): void {
+  if (detectLocale() === 'en') {
+    mount(activateEnglishLocale())
+    return
+  }
+  void loadInitialLocale().then(mount)
 }
 
 export function LocaleProvider({ children, initialLocale }: LocaleProviderProps): ReactNode {
   const [locale, setLocaleState] = useState<SupportedLocale>(initialLocale)
   const [isChanging, setIsChanging] = useState(false)
+  const [failedLocale, setFailedLocale] = useState<SupportedLocale | null>(null)
 
   async function setLocale(localeValue: SupportedLocale): Promise<void> {
     if (localeValue === locale) return
     setIsChanging(true)
+    setFailedLocale(null)
     try {
       const messages = await loadCatalog(localeValue)
       i18n.load(localeValue, messages)
@@ -58,14 +76,17 @@ export function LocaleProvider({ children, initialLocale }: LocaleProviderProps)
       persistLocale(localeValue)
       setLocaleState(localeValue)
       globalThis.document?.documentElement.setAttribute('lang', localeValue)
+    } catch (error) {
+      console.error('Locale catalog failed to load', { locale: localeValue, error })
+      setFailedLocale(localeValue)
     } finally {
       setIsChanging(false)
     }
   }
 
   const value = useMemo<LocaleContextValue>(
-    () => ({ locale, isChanging, setLocale }),
-    [locale, isChanging],
+    () => ({ locale, isChanging, failedLocale, setLocale }),
+    [locale, isChanging, failedLocale],
   )
 
   return (

@@ -8,8 +8,10 @@ export type {
 export {
   authStatusFromMe,
   isGuestUser,
+  isConfirmedSignedOut,
   isPendingMfaStatus,
   pendingMfaCompletionPath,
+  signInRedirectTarget,
 } from './contracts'
 export type {
   AuthOrg,

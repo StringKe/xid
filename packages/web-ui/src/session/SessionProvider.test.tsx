@@ -111,6 +111,112 @@ function makeApiClient() {
   return { client, get: getCalls, post: postCalls }
 }
 
+type MeResult = Awaited<ReturnType<ApiClient['get']>>
+
+function scriptedClient(results: MeResult[]): ApiClient {
+  const base = makeApiClient().client
+  let index = 0
+  return {
+    ...base,
+    get: async <T,>() => {
+      const next = results[Math.min(index, results.length - 1)]
+      index += 1
+      return next as Awaited<ReturnType<ApiClient['get']>> & { value: T }
+    },
+  } as ApiClient
+}
+
+const transientFailure = (httpStatus: number): MeResult => ({
+  ok: false,
+  error: {
+    code: httpStatus === 0 ? 'service_unavailable' : 'server_error',
+    message: '',
+    httpStatus,
+  },
+})
+
+async function mountWithStatus(input: {
+  client: ApiClient
+  initialSession?: MeResponse | null
+}): Promise<{ status: () => string; refresh: () => Promise<void>; unmount: () => Promise<void> }> {
+  const queryClient = new QueryClient()
+  const holder: { status: string; refresh: (() => Promise<void>) | null } = {
+    status: '',
+    refresh: null,
+  }
+  function Capture(): ReactNode {
+    const session = useSession()
+    holder.status = session.status
+    holder.refresh = session.refresh
+    return null
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  await act(async () => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider
+          client={input.client}
+          initialSession={input.initialSession}
+          loadOnMount={input.initialSession === undefined}
+        >
+          <Capture />
+        </SessionProvider>
+      </QueryClientProvider>,
+    )
+  })
+  return {
+    status: () => holder.status,
+    refresh: async () => {
+      await act(async () => {
+        await holder.refresh?.()
+      })
+    },
+    unmount: async () => act(async () => root.unmount()),
+  }
+}
+
+describe('SessionProvider transient /v1/me failures', () => {
+  it.each([0, 500, 503])('keeps a signed-in session when refresh fails with %i', async (status) => {
+    const mounted = await mountWithStatus({
+      client: scriptedClient([transientFailure(status)]),
+      initialSession: makeMeResponse('org_1'),
+    })
+
+    await mounted.refresh()
+
+    expect(mounted.status()).toBe('authenticated')
+    await mounted.unmount()
+  })
+
+  it('signs out when /v1/me answers 401', async () => {
+    const mounted = await mountWithStatus({
+      client: scriptedClient([
+        { ok: false, error: { code: 'unauthorized', message: '', httpStatus: 401 } },
+      ]),
+      initialSession: makeMeResponse('org_1'),
+    })
+
+    await mounted.refresh()
+
+    expect(mounted.status()).toBe('unauthenticated')
+    await mounted.unmount()
+  })
+
+  it('reports an error instead of signing out when the first probe fails', async () => {
+    const mounted = await mountWithStatus({
+      client: scriptedClient([transientFailure(500), { ok: true, value: makeMeResponse(null) }]),
+    })
+
+    expect(mounted.status()).toBe('error')
+
+    await mounted.refresh()
+
+    expect(mounted.status()).toBe('authenticated')
+    await mounted.unmount()
+  })
+})
+
 describe('SessionProvider session state', () => {
   beforeEach(() => {
     executeBrowserSamlLogoutMock.mockReset()

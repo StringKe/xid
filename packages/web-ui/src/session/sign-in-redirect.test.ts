@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { signInRedirectTarget } from './require-auth-redirect'
+import { signInRedirectTarget } from './contracts'
 
 describe('signInRedirectTarget', () => {
   it('keeps the original protected target as continue', () => {

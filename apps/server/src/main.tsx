@@ -4,12 +4,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
-import { detectLocale, type SupportedLocale } from '@xid-kit/web-ui/locale'
-import {
-  LocaleProvider,
-  activateEnglishLocale,
-  loadInitialLocale,
-} from '@xid-kit/web-ui/locale-context'
+import type { SupportedLocale } from '@xid-kit/web-ui/locale'
+import { LocaleProvider, startWithLocale } from '@xid-kit/web-ui/locale-context'
 import { AppMotionConfig } from '@xid-kit/web-ui/motion'
 import { queryClient } from '@xid-kit/web-ui/query'
 import { NavigationRuntimeProvider } from '@xid-kit/web-ui/tanstack-router'
@@ -50,9 +46,4 @@ function mountApp(locale: SupportedLocale): void {
   )
 }
 
-const detectedLocale = detectLocale()
-if (detectedLocale === 'en') {
-  mountApp(activateEnglishLocale())
-} else {
-  void loadInitialLocale().then(mountApp)
-}
+startWithLocale(mountApp)

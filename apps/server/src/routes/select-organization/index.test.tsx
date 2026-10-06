@@ -58,7 +58,7 @@ vi.mock('../../components/layout', () => ({
   ),
 }))
 
-vi.mock('../../components/RequireAuth', () => ({
+vi.mock('@xid-kit/web-ui/RequireAuth', () => ({
   RequireAuth: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 

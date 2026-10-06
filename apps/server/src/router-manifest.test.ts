@@ -4,7 +4,7 @@ import { CORE_SPA_ROUTE_PATHS } from '@xid-kit/types'
 vi.mock('./components/AuthAnalytics', () => ({ AuthAnalytics: () => null }))
 vi.mock('./components/RouteAnalytics', () => ({ RouteAnalytics: () => null }))
 vi.mock('./components/RoutePageSeo', () => ({ RoutePageSeo: () => null }))
-vi.mock('./components/RequireAuth', () => ({
+vi.mock('@xid-kit/web-ui/RequireAuth', () => ({
   RequireAuth: ({ children }: { children: unknown }) => children,
 }))
 vi.mock('./components/ui', () => ({ Spinner: () => null }))

@@ -11,6 +11,7 @@ import type { SignOutResponse } from '@xid-kit/core'
 import { EmailVerificationPanel } from './EmailVerificationPanel'
 import {
   authStatusFromMe,
+  isConfirmedSignedOut,
   type AuthOrg,
   type AuthSession,
   type AuthStatus,
@@ -19,6 +20,9 @@ import {
 } from './contracts'
 
 const ME_QUERY_KEY = ['me'] as const
+const VISIBLE_REFRESH_MIN_INTERVAL_MS = 2_000
+
+type SessionProbe = { kind: 'resolved'; me: MeResponse | null } | { kind: 'transient' }
 
 export type SessionCallbacks = {
   onUnauthorized?: () => void
@@ -59,6 +63,7 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   const { children, client, callbacks, initialSession, loadOnMount = true, deferLoadMs = 0 } = props
   const queryClient = useQueryClient()
   const [meState, setMeState] = useState<MeResponse | null | undefined>(() => initialSession)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [emailVerificationOpen, setEmailVerificationOpen] = useState(false)
   const statusRef = useRef<AuthStatus>('loading')
   const callbacksRef = useRef(callbacks)
@@ -92,16 +97,29 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
     [client, handleApiError, handleUnauthorized],
   )
 
-  const fetchSession = useCallback(async (): Promise<MeResponse | null> => {
+  // 只有 401 或匿名响应才算已登出;离线、5xx、限流保留上一次会话,首次失败进入 'error'。
+  const fetchSession = useCallback(async (): Promise<SessionProbe> => {
     const result = await apiClient.get<MeResponse>('/v1/me')
-    return result.ok ? result.value : null
+    if (result.ok) return { kind: 'resolved', me: result.value }
+    if (isConfirmedSignedOut(result.error)) return { kind: 'resolved', me: null }
+    return { kind: 'transient' }
   }, [apiClient])
 
-  const loadSession = useCallback(async (): Promise<MeResponse | null> => {
-    const nextMe = await fetchSession()
-    applySession(nextMe)
-    return nextMe
-  }, [applySession, fetchSession])
+  const applyProbe = useCallback(
+    (probe: SessionProbe): void => {
+      if (probe.kind === 'resolved') {
+        setLoadFailed(false)
+        applySession(probe.me)
+        return
+      }
+      setLoadFailed(true)
+    },
+    [applySession],
+  )
+
+  const loadSession = useCallback(async (): Promise<void> => {
+    applyProbe(await fetchSession())
+  }, [applyProbe, fetchSession])
 
   useEffect(() => {
     if (!loadOnMount) return
@@ -109,9 +127,9 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
     let active = true
     let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined
     const probe = (): void => {
-      void fetchSession().then((nextMe) => {
+      void fetchSession().then((result) => {
         if (!active) return
-        applySession(nextMe)
+        applyProbe(result)
       })
     }
     const schedule = (): void => {
@@ -133,11 +151,17 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       globalThis.removeEventListener?.('load', schedule)
       if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId)
     }
-  }, [applySession, deferLoadMs, fetchSession, loadOnMount])
+  }, [applyProbe, deferLoadMs, fetchSession, loadOnMount])
 
+  // focus 与 visibilitychange 在切回标签页时成对触发,合并为一次并限制最小间隔。
+  const lastVisibleRefreshRef = useRef(0)
   useEffect(() => {
     function handleVisibleRefresh(): void {
-      if (document.visibilityState === 'visible') void loadSession()
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastVisibleRefreshRef.current < VISIBLE_REFRESH_MIN_INTERVAL_MS) return
+      lastVisibleRefreshRef.current = now
+      void loadSession()
     }
 
     window.addEventListener('focus', handleVisibleRefresh)
@@ -151,7 +175,7 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   }, [loadSession])
 
   const me = meState ?? null
-  const status = authStatusFromMe(meState)
+  const status = authStatusFromMe(meState, { loadFailed })
   statusRef.current = status
 
   useEffect(() => {
@@ -196,8 +220,9 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   const signOut = useCallback(async (): Promise<void> => {
     const result = await apiClient.post<SignOutResponse>('/auth/sign-out')
     if (!result.ok) return
+    // 先落到已登出,随后的 /v1/me 即使失败也不会把用户留在已登录状态;另一个浏览器会话仍会被刷新出来。
+    applySession(null)
     if (result.value.samlLogout) {
-      applySession(null)
       await callbacksRef.current?.onSignOut?.()
       if (executeBrowserSamlLogout(result.value.samlLogout)) return
       await loadSession()

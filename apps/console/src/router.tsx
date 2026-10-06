@@ -13,7 +13,7 @@ import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { ConsoleWebMcpTools } from './components/ConsoleWebMcpTools'
 import { ConsoleLayout } from './components/layout/ConsoleLayout'
 import { CONSOLE_NAV, ORG_NAV, PLATFORM_NAV } from './nav'
-import { RequireAuth } from './components/RequireAuth'
+import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
 import { RouteMetadata } from './components/RouteMetadata'
 import {
   ConsoleOrganizationsEntry,
