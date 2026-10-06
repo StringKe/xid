@@ -37,8 +37,8 @@ vi.mock('../../v1/shared', () => ({
 import { createTenantDb } from '@xid-kit/db'
 import {
   acceptInvitation,
-  acceptInvitationByToken,
   assertInvitationEmailMatches,
+  findInvitationByRawToken,
   invitationAcceptContinuePath,
   loadInvitationPreview,
   resolveInvitationTenant,
@@ -206,23 +206,14 @@ describe('tenant isolation', () => {
     expect(invitationsFindOne).toHaveBeenCalled()
   })
 
-  it('accept rejects token not visible in current tenant context', async () => {
+  it('token lookup only sees invitations in the scoped tenant database', async () => {
     invitationsFindOne.mockResolvedValue(null)
     const db = makeDb()
-    await expect(
-      acceptInvitationByToken({
-        db: db as never,
-        env: {} as Env,
-        tenantId: 'tenant-a',
-        rawToken: 'cross-tenant-token',
-        userId: 'user-1',
-        userEmail: {
-          email: 'user@example.com',
-          verified: true,
-          verificationStatus: 'verified',
-        },
-      }),
-    ).rejects.toMatchObject({ code: 'invitation_invalid' })
+
+    const invitation = await findInvitationByRawToken(db as never, 'cross-tenant-token')
+
+    expect(invitation).toBeNull()
+    expect(invitationsFindOne).toHaveBeenCalledOnce()
   })
 
   it('prioritizes the bound locator over a signed-in tenant, then requires a scoped tokenHash match', async () => {

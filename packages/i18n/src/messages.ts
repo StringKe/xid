@@ -59,6 +59,8 @@ export const errorMessages: ErrorMessages = {
   invitation_expired: msg`This invitation has expired. Ask your organization admin to send a new one.`,
   invitation_email_mismatch: msg`Sign in with the email address that received this invitation.`,
   invitation_already_accepted: msg`This invitation has already been accepted.`,
+  invitation_sign_in_required: msg`An account already uses this email address. Sign in to that account to accept the invitation.`,
+  account_deletion_blocked: msg`You are the only owner or administrator of an organization or of this instance. Transfer ownership or add another administrator before deleting your account.`,
 
   tenant_not_found: msg`The requested organization context could not be found.`,
   tenant_suspended: msg`This organization context has been suspended.`,

@@ -869,11 +869,13 @@ credential. This section is the design contract. It is implemented in
   precedence over this rule because invitation acceptance is an existing-Tenant membership flow.
 - Invitation preview and claim use the same token-first Tenant resolver even when the browser has an
   active cookie for another Tenant. The token locator is only an untrusted same-Instance routing
-  hint; the complete token hash must match through the selected Tenant's scoped database. Every
-  holder, including a signed-in user, must complete the one-time Email claim described above. Raw
-  `/auth/invitation/accept` is disabled, the capability alone never selects or creates a User, and
-  Membership creation plus invitation consumption are atomically bound only to the new proof-first
-  claim.
+  hint; the complete token hash must match through the selected Tenant's scoped database. A holder
+  without an account completes the one-time Email claim described above. When the invited Email is
+  already verified on an existing account, the claim refuses to create a second User and the holder
+  signs in to that account instead; `POST /auth/invitation/accept` then accepts for the session User
+  only when one of its verified Emails equals the invitation Email. The capability alone never
+  selects or creates a User, and Membership creation plus invitation consumption are atomic in both
+  paths.
 - Pre-`xid_inv_v1` tokens cannot be routed from the Instance apex without a forbidden cross-Tenant
   hash lookup. Migration 0006 marks their pending rows revoked and requires resend, while
   `token_version = locator_v1` identifies every new capability. A concrete Tenant may still inspect

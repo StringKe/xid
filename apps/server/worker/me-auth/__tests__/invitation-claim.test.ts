@@ -74,6 +74,7 @@ type BoundStatement = {
   sql: string
   params: unknown[]
   run: ReturnType<typeof vi.fn>
+  first: ReturnType<typeof vi.fn>
 }
 
 function tenantContext() {
@@ -118,7 +119,7 @@ function invitation(overrides: Partial<InvitationRow> = {}): InvitationRow {
   }
 }
 
-function recordingD1() {
+function recordingD1(options: { establishedAccount?: boolean } = {}) {
   const statements: BoundStatement[] = []
   const prepare = vi.fn((sql: string) => ({
     bind(...params: unknown[]) {
@@ -126,6 +127,7 @@ function recordingD1() {
         sql,
         params,
         run: vi.fn().mockResolvedValue({ success: true, meta: { changes: 1 } }),
+        first: vi.fn().mockResolvedValue({ established: options.establishedAccount ? 1 : 0 }),
       }
       statements.push(statement)
       return statement
@@ -424,6 +426,76 @@ describe('invitation Email claim proof-first contract', () => {
     expect(d1.batch).not.toHaveBeenCalled()
     expect(auditSend).not.toHaveBeenCalled()
     expect(emitWebhookAsync).not.toHaveBeenCalled()
+  })
+
+  it('asks an existing verified account to sign in instead of splitting it into a new user', async () => {
+    const tenant = tenantContext()
+    const jti = 'claim-jti'
+    const emailHash = await sha256Hex('invitee@example.com')
+    const row = invitation({
+      emailClaimTokenHash: await sha256Hex(jti),
+      emailClaimEmailHash: emailHash,
+      emailClaimExpiresAt: new Date(Date.now() + 900_000),
+    })
+    const d1 = recordingD1({ establishedAccount: true })
+    const env = { ...makeEnv(), DB: d1.db }
+
+    vi.mocked(resolveTokenTenant).mockResolvedValue(tenant as never)
+    vi.mocked(verifyInvitationEmailClaimJwt).mockResolvedValue({
+      invitationId: row.id,
+      jti,
+      emailHash,
+    })
+    vi.mocked(createTenantDb).mockReturnValue({
+      invitations: { findOne: vi.fn().mockResolvedValue(row) },
+    } as unknown as ReturnType<typeof createTenantDb>)
+
+    const app = makeApp(registerClaimRoutes, { tenant: tenant as never })
+    const response = await post(app, env, '/auth/invitation/claim/verify', {
+      token: 'signed-email-claim',
+      recoveryKey: 'existing-account-recovery-key-long-enough',
+    })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: 'invitation_sign_in_required' })
+    expect(d1.statements[0]?.params).toEqual(['tenant-1', row.email])
+    expect(d1.batch).not.toHaveBeenCalled()
+    expect(issueSession).not.toHaveBeenCalled()
+  })
+
+  it('guards the staging write against displacing an established account', async () => {
+    const tenant = tenantContext()
+    const jti = 'claim-jti'
+    const emailHash = await sha256Hex('invitee@example.com')
+    const row = invitation({
+      emailClaimTokenHash: await sha256Hex(jti),
+      emailClaimEmailHash: emailHash,
+      emailClaimExpiresAt: new Date(Date.now() + 900_000),
+    })
+    const d1 = recordingD1()
+    const env = { ...makeEnv(), DB: d1.db }
+
+    vi.mocked(resolveTokenTenant).mockResolvedValue(tenant as never)
+    vi.mocked(verifyInvitationEmailClaimJwt).mockResolvedValue({
+      invitationId: row.id,
+      jti,
+      emailHash,
+    })
+    vi.mocked(createTenantDb).mockReturnValue({
+      invitations: { findOne: vi.fn().mockResolvedValue(row) },
+    } as unknown as ReturnType<typeof createTenantDb>)
+
+    const app = makeApp(registerClaimRoutes, { tenant: tenant as never })
+    await post(app, env, '/auth/invitation/claim/verify', {
+      token: 'signed-email-claim',
+      recoveryKey: 'fresh-account-recovery-key-long-enough',
+    })
+
+    expect(d1.batch).toHaveBeenCalledOnce()
+    const stage = d1.statements.find((statement) => statement.sql.includes('UPDATE invitations'))
+    expect(stage?.sql).toContain('AND NOT EXISTS')
+    expect(stage?.sql).toContain('established_email')
+    expect(stage?.params.slice(-2)).toEqual(['tenant-1', row.email])
   })
 
   it('checks target policy before staging a pending proof', async () => {

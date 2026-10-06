@@ -646,6 +646,12 @@ the User's exact verified primary Email, `ownership_proof = invitation_email_cla
 still be active, unmerged, and `provisioned_by = invitation_email_claim`. Changing or detaching the
 Email does not transfer these fields to another row.
 
+A verified Email owned by any other undeleted, unmerged User is an established account. The claim
+never displaces it: after the Email proof it answers `invitation_sign_in_required`, and the owner
+signs in to that account and accepts through `POST /auth/invitation/accept`. That route requires a
+cookie session in the invitation Tenant and a verified `user_emails` row of the session User equal
+to the invitation Email, so one person never ends up split across two Users.
+
 ### 11.3 user_phones (multi-valued phone, see chapter 05 section 1)
 
 | Field                   | Type            | Constraints                                | Default        | Notes                                           |
@@ -1084,8 +1090,10 @@ newest `(tenant_id, org_id, email)` invitation, revoking older duplicates before
 partial unique index. This makes the index deployable on an existing database instead of assuming
 that historical rows were already deduplicated.
 
-The proof stage may reuse only the exact `user_emails`/User tuple described in section 11.2.
-Otherwise an exact Email collision is handled inside the same conditional D1 batch as claim
+The proof stage may reuse only the exact `user_emails`/User tuple described in section 11.2, and it
+refuses an established account (a verified Email of another User, see section 11.2) both before the
+batch and inside the staging `UPDATE` predicate. Otherwise an unverified exact Email collision is
+handled inside the same conditional D1 batch as claim
 consumption and clean User/verified Email provenance creation: invalidate the displaced User's
 outstanding Email-bound verification, passwordless, and password-reset artifacts, clear a matching
 `users.primary_email_id` or `users.pending_email`, delete only the conflicting `user_emails` row,

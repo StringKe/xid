@@ -105,7 +105,7 @@ async function requireActiveClaimOrganization(
   return org
 }
 
-async function resolveClaimTargetTenant(
+export async function resolveClaimTargetTenant(
   c: Context<XidHonoEnv>,
   sourceTenant: TenantVar,
   orgId: string,
@@ -300,6 +300,30 @@ function claimWinnerGuardBindings(state: ClaimState, tenantId: string): unknown[
   ]
 }
 
+// 已验证邮箱的现有账号(非认领建出的账号)不可被认领挤占:接受邀请须登录该账号,
+// 否则同一人会被拆成两个身份。挤占只保留给未验证、可能被抢注的邮箱。
+const ESTABLISHED_ACCOUNT_SQL = `EXISTS (
+    SELECT 1
+      FROM user_emails AS established_email
+      JOIN users AS established_user ON established_user.id = established_email.user_id
+     WHERE established_email.tenant_id = ?
+       AND established_email.email = ?
+       AND established_email.verified = 1
+       AND established_email.verification_status = 'verified'
+       AND established_user.tenant_id = established_email.tenant_id
+       AND established_user.deleted_at IS NULL
+       AND established_user.merged_into_user_id IS NULL
+       AND (established_user.provisioned_by IS NULL
+            OR established_user.provisioned_by != '${CLAIM_USER_ORIGIN}')
+  )`
+
+async function hasEstablishedAccount(env: Env, tenant: TenantVar, email: string): Promise<boolean> {
+  const row = await env.DB.prepare(`SELECT ${ESTABLISHED_ACCOUNT_SQL} AS established`)
+    .bind(tenant.tenantId, email)
+    .first<{ established: number }>()
+  return Number(row?.established ?? 0) === 1
+}
+
 async function stageClaimProof(opts: {
   env: Env
   tenant: TenantVar
@@ -383,7 +407,8 @@ async function stageClaimProof(opts: {
              AND id = ?
              AND status = 'active'
              AND deleted_at IS NULL
-        )`,
+        )
+        AND NOT ${ESTABLISHED_ACCOUNT_SQL}`,
   ).bind(
     tenant.tenantId,
     email,
@@ -404,6 +429,8 @@ async function stageClaimProof(opts: {
     nowMs,
     tenant.tenantId,
     invitation.orgId,
+    tenant.tenantId,
+    email,
   )
 
   const provisional: ClaimState = {
@@ -747,6 +774,10 @@ async function consumeOrRecoverClaimProof(opts: {
   const email = normalizedInvitationEmail(opts.invitation)
   if (!constantTimeEqualStr(await sha256Hex(email), opts.emailHash)) {
     throw new AppError('token_invalid')
+  }
+  // 邮箱归属已证明,此时告知「该邮箱已有账号」只面向邮箱本人。
+  if (await hasEstablishedAccount(opts.env, opts.tenant, email)) {
+    throw new AppError('invitation_sign_in_required')
   }
 
   const staged = await stageClaimProof(opts)

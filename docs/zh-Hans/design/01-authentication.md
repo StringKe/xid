@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=7cc95f634d0f707cb0c0de0e3b07c29feacf8716 -->
+<!-- xid-translation source=docs/design/01-authentication.md source-commit=working-tree source-blob=7e291134eddde289fd114b2a3bbac07f245eeb89 -->
 
 > Translation of `docs/design/01-authentication.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/01-authentication.md`](../../design/01-authentication.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -550,9 +550,11 @@ Firebase 式匿名登录:首次访问者在选择任何凭证之前就能获得�
   的 membership 流程。
 - invitation preview 和 claim 始终使用同一套 token-first Tenant resolver,即使浏览器当前持有
   另一个 Tenant 的有效 cookie。token locator 只是受当前 Instance 边界约束的不可信路由 hint;
-  只有完整 token hash 能通过目标 Tenant scoped database 匹配时才成立。所有 holder,包括已登录
-  user,都必须完成上文的一次性 Email claim。raw `/auth/invitation/accept` 被禁用,原始 capability
-  本身绝不选择或创建 User,Membership 创建与 invitation 核销只原子绑定新的 proof-first claim。
+  只有完整 token hash 能通过目标 Tenant scoped database 匹配时才成立。没有账号的 holder 完成
+  上文的一次性 Email claim。被邀请 Email 已在现有账号上验证时,claim 拒绝另建 User,holder 改为
+  登录该账号;此后 `POST /auth/invitation/accept` 只在 session User 的某个已验证 Email 与
+  invitation Email 一致时接受。原始 capability 本身绝不选择或创建 User,两条路径中 Membership
+  创建与 invitation 核销都是原子的。
 - `xid_inv_v1` 之前的 token 如果不执行被禁止的跨 Tenant hash lookup,就无法从 Instance apex
   恢复路由。migration 0006 把对应 pending 行标为 revoked 并要求 resend,所有新 capability 通过
   `token_version = locator_v1` 标识。已解析到 concrete Tenant 的请求仍可在自己的 scoped database

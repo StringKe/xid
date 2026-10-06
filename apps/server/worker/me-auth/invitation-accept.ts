@@ -1,14 +1,32 @@
-// 组织邀请兼容入口:raw token 仅预览，旧接受端点始终 fail closed。
+// 组织邀请:raw token 预览;已登录且已验证邮箱与邀请一致的现有账号直接接受,不经邮件认领另建账号。
 
-import { createTenantDb } from '@xid-kit/db'
+import { createTenantDb, schema } from '@xid-kit/db'
+import { defaultLandingPathFor } from '@xid-kit/types'
+import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
-import type { SessionData, XidHonoEnv } from '../lib/types'
-import { loadInvitationPreview, resolveInvitationTenant } from '../auth/invitations'
-import { validateQuery } from '../lib/validate'
+import { logWorkerError } from '../lib/safe-log'
+import { readSessionForTenant } from '../lib/session'
+import type { XidHonoEnv } from '../lib/types'
+import {
+  acceptInvitation,
+  findInvitationByRawToken,
+  invitationAcceptContinuePath,
+  loadInvitationPreview,
+  resolveInvitationTenant,
+  type VerifiedInvitationEmail,
+} from '../auth/invitations'
+import { readJsonBody, validateBody, validateQuery } from '../lib/validate'
+import { assertEmailAllowed } from '../auth/hosted-policy'
+import { resolveClaimTargetTenant } from './invitation-claim'
+
 const previewQuerySchema = v.object({
   token: v.optional(v.string()),
+})
+
+const acceptBodySchema = v.object({
+  token: v.pipe(v.string(), v.minLength(1), v.maxLength(4096)),
 })
 
 function invalidPreview(): {
@@ -41,15 +59,97 @@ export async function handleInvitationPreview(c: Context<XidHonoEnv>): Promise<R
   return c.json(preview)
 }
 
-export async function handleInvitationAccept(_c: Context<XidHonoEnv>): Promise<Response> {
-  // raw token/旧会话续接无法证明 Email 归属;接受统一走一次性 invitation Email claim。
-  throw new AppError('invitation_invalid')
+function emitInvitationAcceptedAudit(
+  c: Context<XidHonoEnv>,
+  input: { tenantId: string; invitationId: string; orgId: string; userId: string },
+): void {
+  const task = c.env.AUDIT_QUEUE.send({
+    tenantId: input.tenantId,
+    action: 'invitation.accepted',
+    actorId: input.userId,
+    ts: Date.now(),
+    payload: {
+      invitationId: input.invitationId,
+      orgId: input.orgId,
+      targetType: 'invitation',
+      targetId: input.invitationId,
+    },
+  })
+  try {
+    c.executionCtx.waitUntil(task)
+  } catch {
+    void task.catch((error: unknown) =>
+      logWorkerError('invitation_accept.audit_queue.send_failed', error, {
+        component: 'invitation-accept',
+        queue: 'audit',
+      }),
+    )
+  }
 }
 
-export async function applyInvitationAfterSession(
-  _c: Context<XidHonoEnv>,
-  _session: SessionData,
-  _rawToken: string,
-): Promise<string | null> {
-  return null
+// 账号任一已验证邮箱与邀请邮箱一致即可接受;认领流程对同样的已验证邮箱拒绝另建账号,两边口径一致。
+async function loadVerifiedInvitationEmail(
+  db: ReturnType<typeof createTenantDb>,
+  userId: string,
+  invitationEmail: string,
+): Promise<VerifiedInvitationEmail | null> {
+  const row = await db.userEmails.findOne(
+    and(
+      eq(schema.userEmails.userId, userId),
+      eq(schema.userEmails.email, invitationEmail.trim().toLowerCase()),
+    ),
+  )
+  if (!row || row.verified !== true || row.verificationStatus !== 'verified') return null
+  return { email: row.email, verified: true, verificationStatus: 'verified' }
+}
+
+// POST /auth/invitation/accept { token }
+export async function handleInvitationAccept(c: Context<XidHonoEnv>): Promise<Response> {
+  const json = await readJsonBody(c)
+  if (!json.ok) throw new AppError('invitation_invalid')
+  const body = validateBody(acceptBodySchema, json.value)
+  const tenant = await resolveInvitationTenant(c, body.token)
+  if (!tenant) throw new AppError('invitation_invalid')
+
+  const session = await readSessionForTenant(c, tenant)
+  if (!session) throw new AppError('unauthorized', { httpStatus: 401 })
+  if (session.isImpersonation) throw new AppError('forbidden', { httpStatus: 403 })
+
+  const db = createTenantDb(c.env.DB, tenant)
+  const [invitation, user] = await Promise.all([
+    findInvitationByRawToken(db, body.token),
+    db.users.findOne(and(eq(schema.users.id, session.userId), eq(schema.users.status, 'active'))),
+  ])
+  if (!invitation) throw new AppError('invitation_invalid')
+  if (!user) throw new AppError('unauthorized', { httpStatus: 401 })
+  assertEmailAllowed(await resolveClaimTargetTenant(c, tenant, invitation.orgId), invitation.email)
+
+  const accepted = await acceptInvitation({
+    db,
+    env: c.env,
+    tenantId: tenant.tenantId,
+    invitation,
+    userId: user.id,
+    userEmail: await loadVerifiedInvitationEmail(db, user.id, invitation.email),
+  })
+  await db.sessions.update(
+    { activeOrgId: accepted.orgId },
+    and(eq(schema.sessions.id, session.sessionId), eq(schema.sessions.userId, user.id)),
+  )
+  emitInvitationAcceptedAudit(c, {
+    tenantId: tenant.tenantId,
+    invitationId: invitation.id,
+    orgId: accepted.orgId,
+    userId: user.id,
+  })
+
+  const org = await db.organizations.findOne(eq(schema.organizations.id, accepted.orgId))
+  return c.json({
+    redirectUrl: invitationAcceptContinuePath({
+      orgId: accepted.orgId,
+      orgName: org?.name ?? org?.slug ?? accepted.orgId,
+      role: accepted.role,
+      defaultLandingPath: defaultLandingPathFor(c.get('tenant')),
+    }),
+  })
 }

@@ -1,19 +1,49 @@
-// Legacy invitation surface contract: raw-token preview remains readable, while every direct
-// acceptance or continuation path fails closed in favor of the proof-first Email claim.
+// Invitation surface contract: raw-token preview stays readable; a signed-in account whose verified
+// primary email matches accepts directly instead of an Email claim creating a second identity.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTenantDb } from '@xid-kit/db'
-import { loadInvitationPreview, resolveInvitationTenant } from '../../auth/invitations'
+import {
+  acceptInvitation,
+  findInvitationByRawToken,
+  invitationAcceptContinuePath,
+  loadInvitationPreview,
+  resolveInvitationTenant,
+} from '../../auth/invitations'
+import { AppError } from '../../lib/errors'
 import { createTenantBoundInvitationToken } from '../../lib/invitation-token'
+import { readSessionForTenant } from '../../lib/session'
 import { handleInvitationAccept, handleInvitationPreview } from '../invitation-accept'
-import { execCtx, makeApp, makeEnv, makeTenant } from './helpers'
+import { resolveClaimTargetTenant } from '../invitation-claim'
+import { execCtx, makeApp, makeEnv, makeSession, makeTenant } from './helpers'
 
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
+  schema: {
+    users: { id: 'id', status: 'status' },
+    userEmails: { userId: 'userId', email: 'email' },
+    sessions: { id: 'id', userId: 'userId' },
+    organizations: { id: 'id' },
+  },
 }))
 
 vi.mock('../../auth/invitations', () => ({
+  acceptInvitation: vi.fn(),
+  findInvitationByRawToken: vi.fn(),
+  invitationAcceptContinuePath: vi.fn(),
   loadInvitationPreview: vi.fn(),
   resolveInvitationTenant: vi.fn(),
+}))
+
+vi.mock('../../lib/session', () => ({
+  readSessionForTenant: vi.fn(),
+}))
+
+vi.mock('../invitation-claim', () => ({
+  resolveClaimTargetTenant: vi.fn(),
+}))
+
+vi.mock('../../auth/hosted-policy', () => ({
+  assertEmailAllowed: vi.fn(),
 }))
 
 function registerLegacyInvitationRoutes(
@@ -196,31 +226,126 @@ describe('handleInvitationPreview', () => {
 })
 
 describe('POST /auth/invitation/accept', () => {
+  const invitation = { id: 'inv-1', orgId: 'org-1', email: 'ada@example.com', role: 'member' }
+  const sessionsUpdate = vi.fn()
+  const userEmailsFindOne = vi.fn()
+
   beforeEach(() => {
     vi.clearAllMocks()
+    userEmailsFindOne.mockResolvedValue({
+      email: 'ada@example.com',
+      verified: true,
+      verificationStatus: 'verified',
+    })
+    vi.mocked(resolveInvitationTenant).mockResolvedValue(makeTenant() as never)
+    vi.mocked(readSessionForTenant).mockResolvedValue(makeSession() as never)
+    vi.mocked(findInvitationByRawToken).mockResolvedValue(invitation as never)
+    vi.mocked(acceptInvitation).mockResolvedValue({
+      orgId: 'org-1',
+      membershipId: 'mem-1',
+      role: 'member',
+    })
+    vi.mocked(invitationAcceptContinuePath).mockReturnValue('/account')
+    vi.mocked(resolveClaimTargetTenant).mockResolvedValue(makeTenant() as never)
+    sessionsUpdate.mockResolvedValue([{ id: 'sess-1' }])
+    vi.mocked(createTenantDb).mockReturnValue({
+      users: { findOne: vi.fn().mockResolvedValue({ id: 'user-1', primaryEmailId: 'em-1' }) },
+      userEmails: { findOne: userEmailsFindOne },
+      sessions: { update: sessionsUpdate },
+      organizations: { findOne: vi.fn().mockResolvedValue({ id: 'org-1', name: 'Acme' }) },
+    } as unknown as ReturnType<typeof createTenantDb>)
   })
 
-  it.each([
-    ['raw token', { token: 'invite-token' }],
-    ['legacy continuation', { continuationToken: 'signed-continuation' }],
-    ['missing credential', {}],
-  ])('fails closed for %s without reading session or mutating tenant data', async (_name, body) => {
+  function accept(body: unknown): Promise<Response> {
     const app = makeApp(registerLegacyInvitationRoutes)
-    const res = await app.request(
-      'https://xid.dev/auth/invitation/accept',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-      makeEnv(),
-      execCtx,
+    return Promise.resolve(
+      app.request(
+        'https://xid.dev/auth/invitation/accept',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        makeEnv(),
+        execCtx,
+      ),
     )
+  }
+
+  it('adds the signed-in account to the organization and activates it', async () => {
+    const res = await accept({ token: 'invite-token' })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ redirectUrl: '/account' })
+    expect(acceptInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        invitation,
+        userEmail: expect.objectContaining({ email: 'ada@example.com', verified: true }),
+      }),
+    )
+    expect(sessionsUpdate).toHaveBeenCalledWith({ activeOrgId: 'org-1' }, expect.anything())
+  })
+
+  it('requires a signed-in session in the invitation tenant', async () => {
+    vi.mocked(readSessionForTenant).mockResolvedValue(null)
+
+    const res = await accept({ token: 'invite-token' })
+
+    expect(res.status).toBe(401)
+    expect(acceptInvitation).not.toHaveBeenCalled()
+  })
+
+  it('rejects an impersonation session', async () => {
+    vi.mocked(readSessionForTenant).mockResolvedValue({
+      ...makeSession(),
+      isImpersonation: true,
+    } as never)
+
+    const res = await accept({ token: 'invite-token' })
+
+    expect(res.status).toBe(403)
+    expect(acceptInvitation).not.toHaveBeenCalled()
+  })
+
+  it('returns an opaque invalid result for a token outside every reachable tenant', async () => {
+    vi.mocked(resolveInvitationTenant).mockResolvedValue(null)
+
+    const res = await accept({ token: 'cross-tenant-token' })
 
     expect(res.status).toBe(400)
     expect(await res.json()).toMatchObject({ code: 'invitation_invalid' })
+    expect(readSessionForTenant).not.toHaveBeenCalled()
+  })
+
+  it('passes no verified email when the account has not verified the invited address', async () => {
+    userEmailsFindOne.mockResolvedValue({
+      email: 'ada@example.com',
+      verified: false,
+      verificationStatus: 'pending',
+    })
+
+    await accept({ token: 'invite-token' })
+
+    expect(acceptInvitation).toHaveBeenCalledWith(expect.objectContaining({ userEmail: null }))
+  })
+
+  it('surfaces the email mismatch from the shared acceptance check', async () => {
+    vi.mocked(acceptInvitation).mockRejectedValue(
+      new AppError('invitation_email_mismatch', { httpStatus: 403 }),
+    )
+
+    const res = await accept({ token: 'invite-token' })
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toMatchObject({ code: 'invitation_email_mismatch' })
+    expect(sessionsUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects a body without a token', async () => {
+    const res = await accept({ continuationToken: 'signed-continuation' })
+
+    expect(res.status).toBe(422)
     expect(resolveInvitationTenant).not.toHaveBeenCalled()
-    expect(createTenantDb).not.toHaveBeenCalled()
-    expect(loadInvitationPreview).not.toHaveBeenCalled()
   })
 })

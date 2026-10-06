@@ -128,42 +128,29 @@ async function assertInvitationTargetAvailable(
       meta: { paramName: 'email' },
     })
   }
-  if (
-    emailRow?.verified === true &&
-    emailRow.verificationStatus === 'verified' &&
-    emailRow.isPrimary === true &&
-    emailRow.ownershipProof === 'invitation_email_claim_v1' &&
-    emailRow.ownershipProofCeremonyId
-  ) {
-    const [user, proofInvitation, membership] = await Promise.all([
-      db.users.findOne(eq(schema.users.id, emailRow.userId)),
-      db.invitations.findOne(eq(schema.invitations.id, emailRow.ownershipProofCeremonyId)),
-      db
-        .forOrg(orgId)
-        .memberships.findOne(
-          and(
-            eq(schema.memberships.userId, emailRow.userId),
-            eq(schema.memberships.status, 'active'),
-          ),
+  // 已验证邮箱所属账号已是该 org 的 active 成员:邀请没有意义,接受时也只会落到同一账号。
+  if (emailRow?.verified !== true || emailRow.verificationStatus !== 'verified') return
+  const [user, membership] = await Promise.all([
+    db.users.findOne(eq(schema.users.id, emailRow.userId)),
+    db
+      .forOrg(orgId)
+      .memberships.findOne(
+        and(
+          eq(schema.memberships.userId, emailRow.userId),
+          eq(schema.memberships.status, 'active'),
         ),
-    ])
-    if (
-      membership &&
-      user?.status === 'active' &&
-      user.deletedAt === null &&
-      user.mergedIntoUserId === null &&
-      user.primaryEmailId === emailRow.id &&
-      user.provisionedBy === 'invitation_email_claim' &&
-      proofInvitation?.status === 'accepted' &&
-      proofInvitation.emailClaimUserId === user.id &&
-      proofInvitation.acceptedByUserId === user.id &&
-      proofInvitation.email === normalizedEmail
-    ) {
-      throw new AppError('already_exists', {
-        httpStatus: 409,
-        meta: { paramName: 'email' },
-      })
-    }
+      ),
+  ])
+  if (
+    membership &&
+    user?.status === 'active' &&
+    user.deletedAt === null &&
+    user.mergedIntoUserId === null
+  ) {
+    throw new AppError('already_exists', {
+      httpStatus: 409,
+      meta: { paramName: 'email' },
+    })
   }
 }
 

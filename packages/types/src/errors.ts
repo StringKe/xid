@@ -57,6 +57,8 @@ export const AUTH_ERROR_CODES = [
   'invitation_expired',
   'invitation_email_mismatch',
   'invitation_already_accepted',
+  'invitation_sign_in_required',
+  'account_deletion_blocked',
 ] as const
 
 export const TENANCY_ERROR_CODES = [

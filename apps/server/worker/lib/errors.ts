@@ -49,6 +49,8 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   invitation_expired: 400,
   invitation_email_mismatch: 403,
   invitation_already_accepted: 409,
+  invitation_sign_in_required: 409,
+  account_deletion_blocked: 409,
   // 租户 / RBAC
   tenant_not_found: 404,
   tenant_suspended: 403,

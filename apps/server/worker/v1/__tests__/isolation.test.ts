@@ -5126,6 +5126,57 @@ describe('v1 invitations cookie 路径 role 防自提', () => {
     expect(await res.json()).not.toHaveProperty('tokenVersion')
   })
 
+  it('邀请已是该 org active 成员的已验证邮箱(密码注册账号) -> 409 already_exists', async () => {
+    const { token, cookieName, env } = await setupConsoleInvitation('admin')
+    const memberEnv = asUnknown<Env>({
+      ...env,
+      DB: makeFakeD1({
+        sessions: [
+          (await makeSessionRow({ tenantId: 't_1', userId: 'user_caller', activeOrgId: 'org_1' }))
+            .row,
+        ],
+        users: [activeUserRow('user_caller'), { ...activeUserRow('user_existing') }],
+        user_emails: [
+          {
+            id: 'em_existing',
+            tenant_id: 't_1',
+            user_id: 'user_existing',
+            email: 'new@example.com',
+            verified: 1,
+            verification_status: 'verified',
+            is_primary: 1,
+          },
+        ],
+        organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+        memberships: [
+          {
+            id: 'mem_caller',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            user_id: 'user_caller',
+            role: 'admin',
+            status: 'active',
+          },
+          {
+            id: 'mem_existing',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            user_id: 'user_existing',
+            role: 'member',
+            status: 'active',
+          },
+        ],
+        manager_assignments: [],
+      }),
+    })
+    const app = buildApp(registerInvitationsRoutes)
+
+    const res = await postInvitation(app, memberEnv, { cookieName, token }, 'member')
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: 'already_exists' })
+  })
+
   it('invitations:write API key 不能绕过主体角色创建 owner invitation', async () => {
     const { token, row: apiKey } = await makeApiKeyRow('t_1', ['invitations:write'])
     const env = asUnknown<Env>({

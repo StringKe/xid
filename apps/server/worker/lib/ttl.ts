@@ -47,8 +47,6 @@ export const EMAIL_VERIFY_TTL_MS = 15 * 60 * 1000
 export const INVITATION_TTL_DAYS = 7
 // invitation Email proof:短期、一次性，仅证明当次 invitation 的精确目标 Email。
 export const INVITATION_EMAIL_CLAIM_TTL_MS = 15 * 60 * 1000
-// 完成 primary authentication 后跨 MFA challenge/setup 传递 invitation 的短期 session-bound capability。
-export const INVITATION_AUTH_CONTINUATION_TTL_MS = 60 * 60 * 1000
 // TOTP 步长(RFC 6238)
 export const TOTP_STEP_SEC = 30
 // TOTP 防重放 DO claim TTL 上限:30s step 与 +-1 容忍下,一个 counter 最长可接受 90s。

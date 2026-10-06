@@ -16,7 +16,7 @@ const authState = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   signOut: vi.fn(async () => undefined),
-  user: null as { id: string; email: string } | null,
+  user: null as { id: string; email: string; emailVerified?: boolean } | null,
 }))
 
 const turnstileState = vi.hoisted(() => ({
@@ -89,6 +89,10 @@ vi.mock('../../lib/auth-context', () => ({
     signOut: authState.signOut,
     user: authState.user,
   }),
+}))
+
+vi.mock('@xid-kit/web-ui/api-error-message', () => ({
+  useApiErrorMessage: () => (error: { code: string }) => `error:${error.code}`,
 }))
 
 vi.mock('../../lib/google-analytics-funnel', () => ({
@@ -509,6 +513,86 @@ describe('AcceptInvitationPage proof-first flow', () => {
     })
 
     expect(authState.signOut).toHaveBeenCalledOnce()
+
+    await disposePage(page)
+  })
+
+  it('accepts directly for a signed-in account whose verified email matches the invitation', async () => {
+    authState.user = { id: 'user_1', email: 'Invitee@example.com', emailVerified: true }
+    routerState.search = { token: 'raw-invitation-token' }
+    const assign = vi.spyOn(invitationNavigation, 'assign').mockImplementation(() => undefined)
+    authState.get.mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'pending',
+        email: 'invitee@example.com',
+        orgId: null,
+        orgName: 'Acme',
+        role: 'member',
+        expiresAt: '2026-08-01T00:00:00.000Z',
+      },
+    })
+    authState.post.mockResolvedValue({ ok: true, value: { redirectUrl: '/account' } })
+
+    const page = await renderPage()
+    expect(page.container.textContent).not.toContain('Email me a secure link')
+    await act(async () => {
+      buttonWithText(page.container, 'Accept with this account').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      )
+    })
+    await flushQueries()
+
+    expect(authState.post).toHaveBeenCalledWith('/auth/invitation/accept', {
+      token: 'raw-invitation-token',
+    })
+    expect(assign).toHaveBeenCalledWith('/account')
+
+    await disposePage(page)
+  })
+
+  it('offers signing in to an existing account before sending a claim email', async () => {
+    routerState.search = { token: 'raw-invitation-token' }
+    authState.get.mockResolvedValue({
+      ok: true,
+      value: {
+        status: 'pending',
+        email: 'invitee@example.com',
+        orgId: null,
+        orgName: 'Acme',
+        role: 'member',
+        expiresAt: '2026-08-01T00:00:00.000Z',
+      },
+    })
+
+    const page = await renderPage()
+    const signIn = [...page.container.querySelectorAll('a')].find((candidate) =>
+      candidate.textContent?.includes('Sign in to accept'),
+    )
+
+    expect(signIn?.getAttribute('href')).toBe('/sign-in?invitation_token=raw-invitation-token')
+
+    await disposePage(page)
+  })
+
+  it('sends an existing account owner to sign in after the email proof', async () => {
+    globalThis.history.replaceState({}, '', '/accept-invitation#claim_token=signed-email-claim')
+    authState.post.mockResolvedValue({
+      ok: false,
+      error: { code: 'invitation_sign_in_required', message: '', httpStatus: 409 },
+    })
+
+    const page = await renderPage()
+    await act(async () => {
+      buttonWithText(page.container, 'Confirm and join').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      )
+    })
+    await flushQueries()
+
+    expect(page.container.textContent).toContain('error:invitation_sign_in_required')
+    expect(page.container.querySelector('a[href="/sign-in"]')).not.toBeNull()
+    expect(page.container.textContent).not.toContain('Confirm and join')
 
     await disposePage(page)
   })

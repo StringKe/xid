@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=9de278f2512f56d33e0d653943522ddf1e7fcbf5 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=c0f89dba0f0625b6349df9338775923262a82a7e -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -593,6 +593,11 @@ exact verified primary Email,`ownership_proof = invitation_email_claim_v1` 且
 unmerged 且 `provisioned_by = invitation_email_claim`。变更或解除 Email 时不得把这些字段转移到
 其他 row。
 
+属于其他未删除、未 merge User 的已验证 Email 是 established account。claim 绝不挤占它:Email
+证明之后返回 `invitation_sign_in_required`,owner 登录该账号后通过 `POST /auth/invitation/accept`
+接受。该路由要求 invitation Tenant 内的 cookie session,且 session User 有一条与 invitation Email
+一致的已验证 `user_emails` row,因此同一个人不会被拆成两个 User。
+
 ### 11.3 user_phones(多值手机,见 05 章 1)
 
 | 字段                    | 类型            | 约束                                       | 默认           | 说明                                        |
@@ -1003,7 +1008,9 @@ Migration 0011 会先 normalize 所有历史 pending row 的 Email,再按
 `(tenant_id, org_id, email)` 确定性保留最新 invitation 并 revoke 较旧 duplicate,最后才创建
 partial unique index。该顺序允许 existing database 安全部署,不假设历史 row 已经去重。
 
-proof stage 只能复用 11.2 所述 exact `user_emails`/User tuple。否则 exact Email collision 必须与
+proof stage 只能复用 11.2 所述 exact `user_emails`/User tuple,并在 batch 之前以及 staging
+`UPDATE` 谓词中都拒绝 established account(另一个 User 的已验证 Email,见 11.2)。否则未验证的
+exact Email collision 必须与
 claim 核销及 clean User/verified Email provenance 创建放在同一个条件化 D1 batch 中处理:使
 displaced User 未完成的 Email-bound verification、passwordless 和 password-reset artifact
 失效,清空 matching `users.primary_email_id` 或 `users.pending_email`,只删除冲突的

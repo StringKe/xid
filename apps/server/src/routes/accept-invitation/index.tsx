@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
+import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useAuth } from '../../lib/auth-context'
 import { trackInvitationAccepted } from '../../lib/google-analytics-funnel'
 import { Link } from '../../lib/router'
@@ -216,6 +217,10 @@ export function AcceptInvitationPage(): ReactNode {
   const [claimStartError, setClaimStartError] = useState<string | null>(null)
   const [claimVerifyPending, setClaimVerifyPending] = useState(false)
   const [claimVerifyError, setClaimVerifyError] = useState<string | null>(null)
+  const [claimNeedsSignIn, setClaimNeedsSignIn] = useState(false)
+  const [acceptPending, setAcceptPending] = useState(false)
+  const [acceptError, setAcceptError] = useState<string | null>(null)
+  const apiErrorMessage = useApiErrorMessage()
   const recoveryRef = useRef<ClaimRecovery | null>(null)
 
   useLayoutEffect(() => {
@@ -290,10 +295,27 @@ export function AcceptInvitationPage(): ReactNode {
     setClaimStartComplete(true)
   }
 
+  async function handleAcceptAsSignedInUser(): Promise<void> {
+    if (!rawToken || acceptPending) return
+    setAcceptPending(true)
+    setAcceptError(null)
+    const result = await api.post<{ redirectUrl: string }>('/auth/invitation/accept', {
+      token: rawToken,
+    })
+    setAcceptPending(false)
+    if (!result.ok) {
+      setAcceptError(apiErrorMessage(result.error, { surface: 'general' }))
+      return
+    }
+    trackInvitationAccepted()
+    invitationNavigation.assign(result.value.redirectUrl)
+  }
+
   async function handleClaimVerify(): Promise<void> {
     if (!claimToken || claimVerifyPending) return
     setClaimVerifyPending(true)
     setClaimVerifyError(null)
+    setClaimNeedsSignIn(false)
     const recovery = await getOrCreateRecovery(claimToken, recoveryRef.current)
     recoveryRef.current = recovery
     const result = await api.post<{ redirectUrl: string }>('/auth/invitation/claim/verify', {
@@ -302,6 +324,11 @@ export function AcceptInvitationPage(): ReactNode {
     })
     setClaimVerifyPending(false)
     if (!result.ok) {
+      if (result.error.code === 'invitation_sign_in_required') {
+        setClaimNeedsSignIn(true)
+        setClaimVerifyError(apiErrorMessage(result.error, { surface: 'general' }))
+        return
+      }
       setClaimVerifyError(
         t`This email link is invalid or expired. Open the latest invitation email and try again.`,
       )
@@ -330,6 +357,15 @@ export function AcceptInvitationPage(): ReactNode {
                 : 'preview'
 
   const data = preview.data
+  const signedInAsInvitee =
+    user !== null &&
+    user.emailVerified &&
+    data?.email !== null &&
+    data?.email !== undefined &&
+    user.email.trim().toLowerCase() === data.email.trim().toLowerCase()
+  const signInToAcceptPath = `/sign-in?${new URLSearchParams({
+    invitation_token: rawToken ?? '',
+  }).toString()}`
   const turnstileRequired = authConfig.turnstileSiteKey !== null
   const waitingForAuthConfig = authConfigEnabled && authConfigQuery.isPending
   const claimStartDisabled =
@@ -360,14 +396,28 @@ export function AcceptInvitationPage(): ReactNode {
               }
             />
             {claimVerifyError ? <Alert tone="error">{claimVerifyError}</Alert> : null}
-            <Button
-              type="button"
-              fullWidth
-              isLoading={claimVerifyPending}
-              onClick={() => void handleClaimVerify()}
-            >
-              <Trans>Confirm and join</Trans>
-            </Button>
+            {claimNeedsSignIn ? (
+              <>
+                <p {...stylex.props(styles.meta)}>
+                  <Trans>
+                    After signing in, open the original invitation link again to join with that
+                    account.
+                  </Trans>
+                </p>
+                <Link to="/sign-in" {...stylex.props(page.textLink)}>
+                  <Trans>Sign in</Trans>
+                </Link>
+              </>
+            ) : (
+              <Button
+                type="button"
+                fullWidth
+                isLoading={claimVerifyPending}
+                onClick={() => void handleClaimVerify()}
+              >
+                <Trans>Confirm and join</Trans>
+              </Button>
+            )}
           </>
         )
       case 'missing-token':
@@ -443,10 +493,14 @@ export function AcceptInvitationPage(): ReactNode {
                 )
               }
               lead={
-                <Trans>
-                  We will verify {data?.email} before creating your account and adding you to this
-                  organization.
-                </Trans>
+                signedInAsInvitee ? (
+                  <Trans>Join this organization with the account you are signed in to.</Trans>
+                ) : (
+                  <Trans>
+                    We will email a secure link to {data?.email}. If you already have an account
+                    with this email, sign in to it instead so the invitation joins that account.
+                  </Trans>
+                )
               }
             />
             <div {...stylex.props(styles.details)}>
@@ -473,16 +527,39 @@ export function AcceptInvitationPage(): ReactNode {
                 </button>
               </div>
             ) : null}
-            {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
-            <Button
-              type="button"
-              fullWidth
-              isLoading={claimStartPending}
-              disabled={claimStartDisabled}
-              onClick={() => void handleClaimStart()}
-            >
-              <Trans>Email me a secure link</Trans>
-            </Button>
+            {user?.emailVerified ? (
+              <>
+                {acceptError ? <Alert tone="error">{acceptError}</Alert> : null}
+                <Button
+                  type="button"
+                  variant={signedInAsInvitee ? 'primary' : 'secondary'}
+                  fullWidth
+                  isLoading={acceptPending}
+                  onClick={() => void handleAcceptAsSignedInUser()}
+                >
+                  <Trans>Accept with this account</Trans>
+                </Button>
+              </>
+            ) : null}
+            {signedInAsInvitee ? null : (
+              <>
+                {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
+                <Button
+                  type="button"
+                  fullWidth
+                  isLoading={claimStartPending}
+                  disabled={claimStartDisabled}
+                  onClick={() => void handleClaimStart()}
+                >
+                  <Trans>Email me a secure link</Trans>
+                </Button>
+                {user ? null : (
+                  <Link to={signInToAcceptPath} {...stylex.props(page.textLink)}>
+                    <Trans>Already have an account? Sign in to accept</Trans>
+                  </Link>
+                )}
+              </>
+            )}
           </>
         )
       default:

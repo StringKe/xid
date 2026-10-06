@@ -1,4 +1,4 @@
-// 组织邀请:token 查找、预览、接受(写 membership + 更新 invitation 状态)。
+// 组织邀请:token 查找、预览;已登录现有账号的接受(写 membership + 更新 invitation 状态)。
 // token 只存 SHA-256 哈希(见 password-auth rule / v1/invitations.ts)。
 
 import { sha256Hex } from '@xid-kit/crypto'
@@ -43,14 +43,6 @@ export async function findInvitationByRawToken(
   return row ?? null
 }
 
-export async function findInvitationById(
-  db: ReturnType<typeof createTenantDb>,
-  invitationId: string,
-): Promise<typeof schema.invitations.$inferSelect | null> {
-  const row = await db.invitations.findOne(eq(schema.invitations.id, invitationId))
-  return row ?? null
-}
-
 // instance 根路由两步:locator 只选候选租户,完整 tokenHash 在租户 scoped DB 校验;无全局查找。
 export async function resolveInvitationTenant(
   c: Context<XidHonoEnv>,
@@ -92,14 +84,6 @@ export async function loadInvitationPreview(
   rawToken: string,
 ): Promise<InvitationPreview> {
   const invitation = await findInvitationByRawToken(db, rawToken)
-  return loadInvitationPreviewForRow(db, invitation)
-}
-
-export async function loadInvitationPreviewById(
-  db: ReturnType<typeof createTenantDb>,
-  invitationId: string,
-): Promise<InvitationPreview> {
-  const invitation = await findInvitationById(db, invitationId)
   return loadInvitationPreviewForRow(db, invitation)
 }
 
@@ -154,19 +138,6 @@ async function loadInvitationPreviewForRow(
   }
 }
 
-export async function loadPrimaryEmailForUserId(
-  db: ReturnType<typeof createTenantDb>,
-  userId: string,
-  primaryEmailId: string | null,
-): Promise<VerifiedInvitationEmail | null> {
-  if (!primaryEmailId) return null
-  const row = await db.userEmails.findOne(
-    and(eq(schema.userEmails.id, primaryEmailId), eq(schema.userEmails.userId, userId)),
-  )
-  if (!row || row.verified !== true || row.verificationStatus !== 'verified') return null
-  return { email: row.email, verified: true, verificationStatus: 'verified' }
-}
-
 export async function assertInvitationEmailMatches(
   invitation: typeof schema.invitations.$inferSelect,
   userEmail: VerifiedInvitationEmail | null,
@@ -177,7 +148,7 @@ export async function assertInvitationEmailMatches(
   assertInvitationTargetEmailMatches(invitation, userEmail.email)
 }
 
-export function assertInvitationTargetEmailMatches(
+function assertInvitationTargetEmailMatches(
   invitation: typeof schema.invitations.$inferSelect,
   email: string,
 ): void {
@@ -343,32 +314,6 @@ export async function acceptInvitation(opts: {
   return { orgId: invitation.orgId, membershipId: membership.id, role: invitation.role }
 }
 
-export async function acceptInvitationByToken(opts: {
-  db: ReturnType<typeof createTenantDb>
-  env: Env
-  tenantId: string
-  rawToken: string
-  userId: string
-  userEmail: VerifiedInvitationEmail | null
-}): Promise<AcceptInvitationResult> {
-  const invitation = await findInvitationByRawToken(opts.db, opts.rawToken)
-  if (!invitation) throw new AppError('invitation_invalid')
-  return acceptInvitation({ ...opts, invitation })
-}
-
-export async function acceptInvitationById(opts: {
-  db: ReturnType<typeof createTenantDb>
-  env: Env
-  tenantId: string
-  invitationId: string
-  userId: string
-  userEmail: VerifiedInvitationEmail | null
-}): Promise<AcceptInvitationResult> {
-  const invitation = await findInvitationById(opts.db, opts.invitationId)
-  if (!invitation) throw new AppError('invitation_invalid')
-  return acceptInvitation({ ...opts, invitation })
-}
-
 // 落地分流:owner/admin 持管理视角,落 console 组织页;member 无管理权限或当前 host 未路由 Console 时落 account portal。
 export function invitationAcceptContinuePath(input: {
   orgId: string
@@ -400,32 +345,5 @@ function requirePendingInvitation(
   if (invitation.expiresAt.getTime() <= Date.now()) {
     throw new AppError('invitation_expired')
   }
-  return invitation
-}
-
-export async function requirePendingInvitationById(
-  db: ReturnType<typeof createTenantDb>,
-  invitationId: string,
-): Promise<typeof schema.invitations.$inferSelect> {
-  return requirePendingInvitation(await findInvitationById(db, invitationId))
-}
-
-export async function requirePendingInvitationForEmail(
-  db: ReturnType<typeof createTenantDb>,
-  rawToken: string,
-  email: string,
-): Promise<typeof schema.invitations.$inferSelect> {
-  const invitation = await requirePendingInvitationByToken(db, rawToken)
-  assertInvitationTargetEmailMatches(invitation, email)
-  return invitation
-}
-
-export async function requirePendingInvitationByIdForEmail(
-  db: ReturnType<typeof createTenantDb>,
-  invitationId: string,
-  email: string,
-): Promise<typeof schema.invitations.$inferSelect> {
-  const invitation = await requirePendingInvitationById(db, invitationId)
-  assertInvitationTargetEmailMatches(invitation, email)
   return invitation
 }
