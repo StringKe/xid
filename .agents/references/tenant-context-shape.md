@@ -37,7 +37,8 @@ Exact shape (`packages/types/src/tenant.ts`, `type TenantContext`):
   changes `issuer`.
 - `requiresPasskeyReregistration` -- optional migration flag surfaced for a custom hostname because
   moving the RPID to a separate eTLD+1 makes existing passkeys unavailable there.
-- `resolution` -- optional `{ kind: 'tenant' | 'instance_entry', primaryDomain?, unresolvedRoot? }`. Tells handlers whether the request already has a concrete tenant or is still at the instance entry.
+- `resolution` -- optional `{ kind: 'tenant' | 'instance_entry', primaryDomain?, unresolvedRoot?, sessionDerivedRoot? }`. Tells handlers whether the request already has a concrete tenant or is still at the instance entry. `sessionDerivedRoot` marks a root-domain tenant restored from a session cookie; a one-time token or an explicit `organization_id` may still select another tenant of the same instance.
+- `defaultLocale` -- optional instance default locale (`instances.default_locale`), the last fallback when no requested locale is supported.
 - `hostedAuthOrigin` -- optional origin the Hosted UI is served from. Read through `hostedAuthOriginForTenant` (`apps/server/worker/lib/hosted-origin.ts`), which falls back to the request origin and then to `issuer`. This is what magic link / OTP / reset / invitation links are built against.
 - `signingKeys` -- `ActiveSigningKeySet` (`activeKid`, `defaultAlg`, `keys`), assembled from `instance_signing_keys` rows with status `active` / `next` / `retiring`. Private keys stay ciphertext here; decryption belongs to `@xid-kit/crypto` (see signing-keys rule).
 - `policy` -- `TenantPolicy`: `mfaEnforcement`, `mfaAllowedMethods`, `password`, `session`, `token`, `login`, `hostedAuth`, `socialProviders`, `deliveryChannels`, `oidcProfiles`. Built by `buildPolicy` from instance defaults overridden by `org_policies` (see `docs/design/02-tenancy-rbac.md` section 5).

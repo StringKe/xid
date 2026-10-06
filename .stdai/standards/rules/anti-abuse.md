@@ -44,5 +44,6 @@ tuning any limit.
   empty result, and credential-field validation failures map to the opaque credential error.
 
 Reviewed and accepted: the instance login resolver reveals whether an email maps to one org or
-several, and a magic link GET establishes a session directly. Do not "fix" either without a design
-change.
+several. Do not "fix" it without a design change. A magic link GET never establishes a session: it
+only redirects to the Hosted UI confirmation page, which consumes the token with a POST, so mail
+scanners cannot burn the link.

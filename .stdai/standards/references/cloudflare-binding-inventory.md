@@ -27,7 +27,7 @@ judgment calls about which service to pick for a given job stay in the `cloudfla
 | Console Worker      | `apps/console`, `ASSETS` only                                                                                          | Static management SPA and narrow redirects; same-host API calls continue to Core                                        |
 | D1                  | `DB` (`xid-db`)                                                                                                        | Users, applications, credential metadata, authorization codes, refresh tokens, audit, tenants, key ciphertext, sessions |
 | Durable Objects     | 11 bindings (see table below)                                                                                          | Strong consistency, replay protection, serialized writes                                                                |
-| KV                  | `CACHE`                                                                                                                | JWKS / discovery / branding config / feature flags                                                                      |
+| KV                  | `CACHE`                                                                                                                | JWKS / discovery / branding config                                                                                      |
 | R2                  | `STORAGE`                                                                                                              | Org logos, email locale packs, private privacy exports, and immutable compliance evidence                               |
 | Queues              | 8 producers + 8 source-specific dead letter queues + 8 persistence-failure quarantine queues                           | Email, SMS, WhatsApp, audit persistence, webhook delivery, metering, outbound SCIM, privacy export and erasure          |
 | Email Sending       | `EMAIL` (`send_email`)                                                                                                 | Cloudflare Email Service outbound transactional mail; sends to arbitrary external addresses                             |
@@ -81,7 +81,7 @@ The first eight classes are registered in migration `v1`; `GuestStore` is regist
 | `EMAIL_QUEUE`    | `xid-email`     | batch 100, timeout 5s, max_retries 5, DLQ `xid-email-dlq`                          |
 | `WHATSAPP_QUEUE` | `xid-whatsapp`  | batch 100, timeout 5s, max_retries 5, DLQ `xid-whatsapp-dlq`                       |
 | `SMS_QUEUE`      | `xid-sms`       | batch 100, timeout 5s, max_retries 5, DLQ `xid-sms-dlq`                            |
-| `AUDIT_QUEUE`    | `xid-audit`     | batch 100, timeout 5s, **max_concurrency 1**, max_retries 5, DLQ `xid-audit-dlq`   |
+| `AUDIT_QUEUE`    | `xid-audit`     | batch 100, timeout 5s, **max_concurrency 1**, max_retries 5, retry delay 60s, DLQ `xid-audit-dlq` |
 | `WEBHOOK_QUEUE`  | `xid-webhook`   | batch 50, timeout 5s, max_retries 5, DLQ `xid-webhook-dlq`                         |
 | `METERING_QUEUE` | `xid-metering`  | batch 100, timeout 5s, max_retries 5, DLQ `xid-metering-dlq`                       |
 | `SCIM_QUEUE`     | `xid-scim-sync` | batch 1, timeout 1s, **max_concurrency 1**, max_retries 5, DLQ `xid-scim-sync-dlq` |

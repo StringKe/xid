@@ -22,9 +22,8 @@ version below is the full original text of that list.
   limiting, audit sequence, metering. Short-lived strongly consistent data MUST NOT go into D1
   relational tables.
 - **Read-heavy caching -> KV**: JWKS (`jwks:{issuer}:{active_kid}`, TTL 3600s), discovery and
-  protected-resource metadata (TTL 3600s), branding (`brand:{tenant_id}:{org_id}`), feature flags
-  (`flag:{tenant_id}:{flag_name}` for per-org overrides, `flag:global:{flag_name}` for the global
-  default), upstream social provider JWKS (`provider_jwks:{jwks_uri}`, TTL 3600s), federation trust
+  protected-resource metadata (TTL 3600s), branding (`brand:{tenant_id}:{org_id}`), upstream social
+  provider JWKS (`provider_jwks:{jwks_uri}`, TTL 3600s), federation trust
   anchors (TTL 86400s). TTL constants live in `apps/server/worker/lib/ttl.ts` -- add new ones there,
   never as inline literals.
 - **Async work off the critical path -> Queues**: email, SMS, WhatsApp, audit persistence, webhooks,
