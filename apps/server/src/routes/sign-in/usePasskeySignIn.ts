@@ -128,7 +128,9 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
   const latest = useRef(options)
   latest.current = options
 
-  const identifier = useDebouncedValue(options.identifier.trim(), IDENTIFIER_DEBOUNCE_MS)
+  // 已定位组织时标识符不参与 challenge,输入变化不能打断浏览器的 passkey 建议。
+  const debouncedIdentifier = useDebouncedValue(options.identifier.trim(), IDENTIFIER_DEBOUNCE_MS)
+  const identifier = identifierRequired ? debouncedIdentifier : ''
   const clientId = options.flowFields.clientId
   const turnstileReady = !turnstileRequired || options.turnstileToken !== null
   const restart = useCallback(() => setGeneration((value) => value + 1), [])

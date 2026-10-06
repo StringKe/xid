@@ -139,6 +139,19 @@ describe('usePasskeySignIn', () => {
     expect(latest?.error).toBeNull()
   })
 
+  it('keeps the conditional request running while the user types on a tenant host', async () => {
+    installWebAuthn({ conditional: true })
+    await render({})
+
+    await render({ identifier: 'user@example.test' })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600))
+    })
+
+    expect(credentialsGet).toHaveBeenCalledTimes(1)
+    expect(postCalls).toHaveLength(1)
+  })
+
   it('asks for an identifier on the instance entry before requesting a challenge', async () => {
     installWebAuthn({ conditional: true })
     await render({ identifierRequired: true })
