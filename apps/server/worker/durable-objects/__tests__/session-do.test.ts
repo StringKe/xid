@@ -2,8 +2,14 @@
 // 验证:addSession/revokeSession/revokeAll/listActive/isActive 语义
 // 以及 DO 串行保证(sequential calls on same instance share state)
 
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { SessionDO } from '../session-do'
+
+const HOUR_MS = 3600_000
+
+function future(): number {
+  return Date.now() + HOUR_MS
+}
 
 // 最小 DurableObjectStorage mock
 function makeMockStorage(): DurableObjectStorage {
@@ -45,14 +51,14 @@ function makeDO(): SessionDO {
 describe('SessionDO: addSession', () => {
   it('adds a session and isActive returns true', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
+    await do_.addSession('sess-001', future())
     expect(await do_.isActive('sess-001')).toBe(true)
   })
 
   it('adding same session twice is idempotent (set semantics)', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
-    await do_.addSession('sess-001')
+    await do_.addSession('sess-001', future())
+    await do_.addSession('sess-001', future())
     const list = await do_.listActive()
     expect(list).toHaveLength(1)
   })
@@ -62,7 +68,7 @@ describe('SessionDO: addSession', () => {
     const generation = await do_.currentGeneration()
     await do_.revokeAll()
 
-    const result = await do_.addSession('sess-stale', generation)
+    const result = await do_.addSession('sess-stale', future(), generation)
 
     expect(result).toEqual({ ok: true, value: { accepted: false } })
     expect(await do_.isActive('sess-stale')).toBe(false)
@@ -70,9 +76,9 @@ describe('SessionDO: addSession', () => {
 
   it('multiple sessions are tracked independently', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
-    await do_.addSession('sess-002')
-    await do_.addSession('sess-003')
+    await do_.addSession('sess-001', future())
+    await do_.addSession('sess-002', future())
+    await do_.addSession('sess-003', future())
 
     expect(await do_.isActive('sess-001')).toBe(true)
     expect(await do_.isActive('sess-002')).toBe(true)
@@ -86,14 +92,14 @@ describe('SessionDO: addSession', () => {
 describe('SessionDO: revokeSession', () => {
   it('revoked session is no longer active', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
+    await do_.addSession('sess-001', future())
     await do_.revokeSession('sess-001')
     expect(await do_.isActive('sess-001')).toBe(false)
   })
 
   it('revokeSession returns revoked=true when session existed', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
+    await do_.addSession('sess-001', future())
     const result = await do_.revokeSession('sess-001')
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -112,8 +118,8 @@ describe('SessionDO: revokeSession', () => {
 
   it('revoking one session does not affect others', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
-    await do_.addSession('sess-002')
+    await do_.addSession('sess-001', future())
+    await do_.addSession('sess-002', future())
     await do_.revokeSession('sess-001')
 
     expect(await do_.isActive('sess-001')).toBe(false)
@@ -124,9 +130,9 @@ describe('SessionDO: revokeSession', () => {
 describe('SessionDO: revokeAll', () => {
   it('revokeAll clears all sessions', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
-    await do_.addSession('sess-002')
-    await do_.addSession('sess-003')
+    await do_.addSession('sess-001', future())
+    await do_.addSession('sess-002', future())
+    await do_.addSession('sess-003', future())
 
     const result = await do_.revokeAll()
     expect(result.ok).toBe(true)
@@ -152,7 +158,7 @@ describe('SessionDO: revokeAll', () => {
     const before = await do_.currentGeneration()
     await do_.revokeAll()
 
-    const result = await do_.addSession('sess-new', await do_.currentGeneration())
+    const result = await do_.addSession('sess-new', future(), await do_.currentGeneration())
 
     expect(await do_.currentGeneration()).toBe(before + 1)
     expect(result).toEqual({ ok: true, value: { accepted: true } })
@@ -161,8 +167,8 @@ describe('SessionDO: revokeAll', () => {
 
   it('isActive returns false for all sessions after revokeAll', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
-    await do_.addSession('sess-002')
+    await do_.addSession('sess-001', future())
+    await do_.addSession('sess-002', future())
     await do_.revokeAll()
 
     expect(await do_.isActive('sess-001')).toBe(false)
@@ -179,8 +185,8 @@ describe('SessionDO: listActive', () => {
 
   it('returns all active session ids', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-a')
-    await do_.addSession('sess-b')
+    await do_.addSession('sess-a', future())
+    await do_.addSession('sess-b', future())
     const list = await do_.listActive()
     expect(list.sort()).toEqual(['sess-a', 'sess-b'].sort())
   })
@@ -189,9 +195,9 @@ describe('SessionDO: listActive', () => {
 describe('SessionDO: revokeAllExcept', () => {
   it('keeps the current session and increments the generation', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-current')
-    await do_.addSession('sess-other-1')
-    await do_.addSession('sess-other-2')
+    await do_.addSession('sess-current', future())
+    await do_.addSession('sess-other-1', future())
+    await do_.addSession('sess-other-2', future())
 
     const before = await do_.currentGeneration()
     const result = await do_.revokeAllExcept('sess-current')
@@ -212,7 +218,7 @@ describe('SessionDO: isActive (quasi-realtime)', () => {
 
   it('reflects revocation immediately in same instance', async () => {
     const do_ = makeDO()
-    await do_.addSession('sess-001')
+    await do_.addSession('sess-001', future())
     expect(await do_.isActive('sess-001')).toBe(true)
 
     await do_.revokeSession('sess-001')
@@ -227,9 +233,9 @@ describe('SessionDO: serial operation guarantee (same DO instance)', () => {
   it('sequential awaited ops produce consistent state', async () => {
     const do_ = makeDO()
 
-    await do_.addSession('s1')
-    await do_.addSession('s2')
-    await do_.addSession('s3')
+    await do_.addSession('s1', future())
+    await do_.addSession('s2', future())
+    await do_.addSession('s3', future())
 
     const list = await do_.listActive()
     expect(list).toHaveLength(3)
@@ -237,10 +243,10 @@ describe('SessionDO: serial operation guarantee (same DO instance)', () => {
 
   it('add then revoke sequence is consistent', async () => {
     const do_ = makeDO()
-    await do_.addSession('s1')
-    await do_.addSession('s2')
+    await do_.addSession('s1', future())
+    await do_.addSession('s2', future())
     await do_.revokeSession('s1')
-    await do_.addSession('s3')
+    await do_.addSession('s3', future())
 
     const list = await do_.listActive()
     expect(list.sort()).toEqual(['s2', 's3'].sort())
@@ -255,12 +261,69 @@ describe('SessionDO: persistence across storage reads', () => {
     const state1 = { storage } as unknown as DurableObjectState
     const do1 = new SessionDO(state1)
 
-    await do1.addSession('sess-persistent')
+    await do1.addSession('sess-persistent', future())
 
     // 新实例复用相同 storage
     const state2 = { storage } as unknown as DurableObjectState
     const do2 = new SessionDO(state2)
 
     expect(await do2.isActive('sess-persistent')).toBe(true)
+  })
+})
+
+describe('SessionDO: expiry pruning', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('treats a session past its expiresAt as inactive', async () => {
+    vi.useFakeTimers({ now: 1_000_000 })
+    const do_ = makeDO()
+    await do_.addSession('sess-short', Date.now() + HOUR_MS)
+
+    vi.setSystemTime(Date.now() + HOUR_MS + 1)
+
+    expect(await do_.isActive('sess-short')).toBe(false)
+    expect(await do_.listActive()).toEqual([])
+  })
+
+  it('drops expired entries from storage on the next add', async () => {
+    vi.useFakeTimers({ now: 1_000_000 })
+    const storage = makeMockStorage()
+    const do_ = new SessionDO({ storage } as unknown as DurableObjectState)
+    await do_.addSession('sess-old-1', Date.now() + HOUR_MS)
+    await do_.addSession('sess-old-2', Date.now() + HOUR_MS)
+    vi.setSystemTime(Date.now() + 2 * HOUR_MS)
+
+    await do_.addSession('sess-new', Date.now() + HOUR_MS)
+
+    expect(await storage.get('sessions')).toEqual({ 'sess-new': Date.now() + HOUR_MS })
+  })
+
+  it('keeps a legacy array entry active and stores it with a bounded expiry', async () => {
+    vi.useFakeTimers({ now: 1_000_000 })
+    const storage = makeMockStorage()
+    await storage.put('sessions', ['sess-legacy'])
+    const do_ = new SessionDO({ storage } as unknown as DurableObjectState)
+
+    await do_.addSession('sess-new', Date.now() + HOUR_MS)
+
+    expect(await do_.isActive('sess-legacy')).toBe(true)
+    const stored = (await storage.get('sessions')) as Record<string, number>
+    expect(stored['sess-legacy']).toBe(Date.now() + 365 * 24 * HOUR_MS)
+  })
+
+  it('rejects an add request without a numeric expiresAt', async () => {
+    const do_ = makeDO()
+
+    const response = await do_.fetch(
+      new Request('https://session-do/add', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId: 'sess-no-expiry', expectedGeneration: 0 }),
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(await do_.isActive('sess-no-expiry')).toBe(false)
   })
 })

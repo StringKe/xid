@@ -3,12 +3,17 @@
 // JWT 60s 窗口内仍可生效(见 cloudflare-bindings rule 会话存储方案)。
 // 见 docs/design/05-users-sessions.md 第 8 节。
 
+import { SESSION_POLICY_BOUNDS } from '@xid-kit/types'
 import type { Result } from '@xid-kit/types'
 
 const SESSIONS_KEY = 'sessions'
 const GENERATION_KEY = 'generation'
+const DAY_MS = 24 * 60 * 60 * 1000
+// 旧格式 string[] 没有过期时间:按策略允许的最长绝对时长保留,之后随写入剪除。
+const LEGACY_SESSION_RETENTION_MS = SESSION_POLICY_BOUNDS.absoluteTimeoutDays.max * DAY_MS
 
-type SessionSet = Set<string>
+// sessionId -> 绝对过期时间(ms)。自然过期/idle 过期不会回调 DO,写入时剪除过期条目防止集合无界增长。
+type SessionSet = Map<string, number>
 
 export class SessionDO {
   private readonly state: DurableObjectState
@@ -26,11 +31,15 @@ export class SessionDO {
     const action = url.pathname.replace(/^\//, '')
 
     if (action === 'add') {
-      const { sessionId, expectedGeneration } = (await request.json()) as {
+      const { sessionId, expiresAt, expectedGeneration } = (await request.json()) as {
         sessionId: string
+        expiresAt?: unknown
         expectedGeneration?: number
       }
-      const result = await this.addSession(sessionId, expectedGeneration)
+      if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
+        return new Response('Bad Request', { status: 400 })
+      }
+      const result = await this.addSession(sessionId, expiresAt, expectedGeneration)
       return Response.json(result)
     }
 
@@ -74,13 +83,14 @@ export class SessionDO {
   // addSession 只接受 revoke-all 前读取到的 generation，避免旧签发重新激活会话。
   async addSession(
     sessionId: string,
+    expiresAt: number,
     expectedGeneration?: number,
   ): Promise<Result<{ accepted: boolean }>> {
     const set = await this.loadSessions()
     if (expectedGeneration !== undefined && expectedGeneration !== this.generation) {
       return { ok: true, value: { accepted: false } }
     }
-    set.add(sessionId)
+    set.set(sessionId, expiresAt)
     await this.persist(set)
     return { ok: true, value: { accepted: true } }
   }
@@ -106,7 +116,7 @@ export class SessionDO {
   async revokeAllExcept(sessionId: string): Promise<Result<{ count: number }>> {
     const set = await this.loadSessions()
     let count = 0
-    for (const activeSessionId of set) {
+    for (const activeSessionId of set.keys()) {
       if (activeSessionId === sessionId) continue
       set.delete(activeSessionId)
       count += 1
@@ -123,13 +133,17 @@ export class SessionDO {
 
   async listActive(): Promise<string[]> {
     const set = await this.loadSessions()
+    const nowMs = Date.now()
     return Array.from(set)
+      .filter(([, expiresAt]) => expiresAt > nowMs)
+      .map(([sessionId]) => sessionId)
   }
 
   // isActive: 准实时检查(DO 内存 + storage,无网络往返)
   async isActive(sessionId: string): Promise<boolean> {
     const set = await this.loadSessions()
-    return set.has(sessionId)
+    const expiresAt = set.get(sessionId)
+    return expiresAt !== undefined && expiresAt > Date.now()
   }
 
   private async loadSessions(): Promise<SessionSet> {
@@ -137,18 +151,31 @@ export class SessionDO {
       return this.sessions
     }
 
-    const stored = await this.state.storage.get<string[]>(SESSIONS_KEY)
-    this.sessions = new Set(stored ?? [])
+    const stored = await this.state.storage.get<string[] | Record<string, number>>(SESSIONS_KEY)
+    this.sessions = toSessionSet(stored)
     this.generation = (await this.state.storage.get<number>(GENERATION_KEY)) ?? 0
     this.initialized = true
     return this.sessions
   }
 
   private async persist(set: SessionSet): Promise<void> {
+    const nowMs = Date.now()
+    for (const [sessionId, expiresAt] of set) {
+      if (expiresAt <= nowMs) set.delete(sessionId)
+    }
     this.sessions = set
     await Promise.all([
-      this.state.storage.put(SESSIONS_KEY, Array.from(set)),
+      this.state.storage.put(SESSIONS_KEY, Object.fromEntries(set)),
       this.state.storage.put(GENERATION_KEY, this.generation ?? 0),
     ])
   }
+}
+
+function toSessionSet(stored: string[] | Record<string, number> | undefined): SessionSet {
+  if (!stored) return new Map()
+  if (Array.isArray(stored)) {
+    const legacyExpiresAt = Date.now() + LEGACY_SESSION_RETENTION_MS
+    return new Map(stored.map((sessionId) => [sessionId, legacyExpiresAt]))
+  }
+  return new Map(Object.entries(stored))
 }

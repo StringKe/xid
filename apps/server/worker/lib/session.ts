@@ -224,13 +224,16 @@ async function doSessionGeneration(env: Env, userId: string): Promise<number> {
 async function doAddSession(
   env: Env,
   userId: string,
-  sessionId: string,
-  expectedGeneration: number,
+  entry: { sessionId: string; expiresAt: Date; expectedGeneration: number },
 ): Promise<boolean> {
   let lastError: unknown
   for (let attempt = 1; attempt <= SESSION_DO_REQUEST_MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await fetchSessionDo(env, userId, 'add', { sessionId, expectedGeneration })
+      const response = await fetchSessionDo(env, userId, 'add', {
+        sessionId: entry.sessionId,
+        expiresAt: entry.expiresAt.getTime(),
+        expectedGeneration: entry.expectedGeneration,
+      })
       assertSessionDoOk(response)
       return parseAddAccepted(await parseSessionDoBody(response))
     } catch (error) {
@@ -494,7 +497,11 @@ export async function issueSession(
     buildSessionInsert({ ...input, activeOrgId, expiresAt }, ctx.tenantId, refreshTokenHash),
   )
 
-  const accepted = await doAddSession(env, input.userId, input.sessionId, expectedGeneration)
+  const accepted = await doAddSession(env, input.userId, {
+    sessionId: input.sessionId,
+    expiresAt,
+    expectedGeneration,
+  })
   if (!accepted) {
     await db.sessions.update({ status: 'revoked' }, eq(schema.sessions.id, input.sessionId))
     throw new AppError('session_revoked')

@@ -409,7 +409,10 @@ describe('issueSession', () => {
     // SessionDO add 被调用,sessionId 正确。
     expect(calls).toEqual([
       { action: 'generation', body: undefined },
-      { action: 'add', body: { sessionId: 's_1', expectedGeneration: 0 } },
+      {
+        action: 'add',
+        body: { sessionId: 's_1', expiresAt: expiresAt.getTime(), expectedGeneration: 0 },
+      },
     ])
 
     expect(result.session.sessionId).toBe('s_1')
@@ -465,8 +468,14 @@ describe('issueSession', () => {
 
     expect(calls).toEqual([
       { action: 'generation', body: undefined },
-      { action: 'add', body: { sessionId: 's_retry', expectedGeneration: 0 } },
-      { action: 'add', body: { sessionId: 's_retry', expectedGeneration: 0 } },
+      {
+        action: 'add',
+        body: { sessionId: 's_retry', expiresAt: expiresAt.getTime(), expectedGeneration: 0 },
+      },
+      {
+        action: 'add',
+        body: { sessionId: 's_retry', expiresAt: expiresAt.getTime(), expectedGeneration: 0 },
+      },
     ])
     expect(setCookie ?? '').toContain('__Host-xid.rt.s_retry=')
     expect(result.session.sessionId).toBe('s_retry')
@@ -517,7 +526,14 @@ describe('issueSession', () => {
     expect(calls).toEqual([
       { action: 'generation', body: undefined },
       { action: 'generation', body: undefined },
-      { action: 'add', body: { sessionId: 's_generation_retry', expectedGeneration: 0 } },
+      {
+        action: 'add',
+        body: {
+          sessionId: 's_generation_retry',
+          expiresAt: expiresAt.getTime(),
+          expectedGeneration: 0,
+        },
+      },
     ])
     expect(setCookie ?? '').toContain('__Host-xid.rt.s_genera=')
     expect(result.session.sessionId).toBe('s_generation_retry')
@@ -586,12 +602,14 @@ describe('issueSession', () => {
       }),
     )
 
+    const expiresAt = new Date(Date.now() + 3600_000)
+
     const outcome = await runWithContext(env, undefined, (c) =>
       issueSession(c, {
         sessionId: 's_fenced',
         userId: 'u_1',
         authenticatedAt: new Date(),
-        expiresAt: new Date(Date.now() + 3600_000),
+        expiresAt,
       }),
     )
 
@@ -600,7 +618,10 @@ describe('issueSession', () => {
     expect(table[0]?.status).toBe('revoked')
     expect(calls).toEqual([
       { action: 'generation', body: undefined },
-      { action: 'add', body: { sessionId: 's_fenced', expectedGeneration: 0 } },
+      {
+        action: 'add',
+        body: { sessionId: 's_fenced', expiresAt: expiresAt.getTime(), expectedGeneration: 0 },
+      },
     ])
   })
 
