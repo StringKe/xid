@@ -10,6 +10,7 @@ import type {
   MfaFactor,
   PasskeyCredential,
   PrivacyRequest,
+  SmsFactorOption,
   SocialConnection,
   TotpSetupResponse,
   TrustedDevice,
@@ -37,6 +38,18 @@ export function useRemoveMfaFactor(): UseMutationResult<unknown, XidError, strin
     (api, id) => api.del<unknown>(`/v1/me/mfa-factors/${id}`),
     { invalidate: [queryKeys.meMfaFactors, queryKeys.me] },
   )
+}
+
+const SMS_FACTOR_OPTION_KEY = [...queryKeys.meMfaFactors, 'sms'] as const
+
+export function useSmsFactorOptionQuery(): UseQueryResult<SmsFactorOption, XidError> {
+  return useApiQuery<SmsFactorOption>(SMS_FACTOR_OPTION_KEY, '/v1/me/mfa-factors/sms')
+}
+
+export function useEnrollSmsFactor(): UseMutationResult<unknown, XidError, void> {
+  return useApiMutation<unknown, void>((api) => api.post<unknown>('/v1/me/mfa-factors/sms'), {
+    invalidate: [queryKeys.meMfaFactors, queryKeys.me],
+  })
 }
 
 export function useStartTotpSetup(): UseMutationResult<TotpSetupResponse, XidError, void> {

@@ -1,6 +1,8 @@
-import { Trans } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
+import { useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { renderSVG } from 'uqr'
 import { tokens } from '../../styles/tokens.stylex'
 import { Button, Field, Input } from '../../components/ui'
 import type { BackupCodesResponse, TotpSetupResponse } from './hooks'
@@ -34,6 +36,21 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     overflowWrap: 'anywhere',
     maxWidth: '28rem',
+  },
+  // 扫码需要白底黑码,深色主题下同样保持白底。
+  qrCode: {
+    display: 'block',
+    width: '11rem',
+    height: '11rem',
+    padding: '0.5rem',
+    borderRadius: tokens['--xid-radius'],
+    backgroundColor: '#ffffff',
+  },
+  secretRow: {
+    display: 'flex',
+    gap: '0.5rem',
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
   fieldWrapper: {
     display: 'flex',
@@ -84,6 +101,33 @@ export type TotpSetupPanelProps = {
   onCancel: () => void
 }
 
+// 二维码只在浏览器本地生成,密钥不经过任何第三方服务。
+function qrCodeDataUrl(otpauthUri: string): string {
+  const svg = renderSVG(otpauthUri, { pixelSize: 4, whiteColor: '#ffffff', blackColor: '#000000' })
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function groupSecret(secret: string): string {
+  return secret.match(/.{1,4}/gu)?.join(' ') ?? secret
+}
+
+function CopySecretButton({ secret }: { secret: string }): ReactNode {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(secret)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+  return (
+    <Button variant="ghost" onClick={() => void handleCopy()}>
+      {copied ? <Trans>Copied</Trans> : <Trans>Copy key</Trans>}
+    </Button>
+  )
+}
+
 export function TotpSetupPanel({
   setup,
   code,
@@ -93,14 +137,29 @@ export function TotpSetupPanel({
   onSubmit,
   onCancel,
 }: TotpSetupPanelProps): ReactNode {
+  const { t } = useLingui()
+  const qrCode = useMemo(() => qrCodeDataUrl(setup.otpauthUri), [setup.otpauthUri])
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.panel)}>
       <p {...stylex.props(styles.panelText)}>
-        <Trans>Add this key to your authenticator app, then enter the 6-digit code.</Trans>
+        <Trans>Scan this QR code with your authenticator app, then enter the 6-digit code.</Trans>
       </p>
-      <code {...stylex.props(styles.secretBox)}>{setup.secret}</code>
+      <img
+        src={qrCode}
+        alt={t`QR code for adding this account to an authenticator app`}
+        width={176}
+        height={176}
+        {...stylex.props(styles.qrCode)}
+      />
+      <p {...stylex.props(styles.panelText)}>
+        <Trans>Can't scan the code? Enter this key manually instead.</Trans>
+      </p>
+      <div {...stylex.props(styles.secretRow)}>
+        <code {...stylex.props(styles.secretBox)}>{groupSecret(setup.secret)}</code>
+        <CopySecretButton secret={setup.secret} />
+      </div>
       <a href={setup.otpauthUri}>
-        <Trans>Open authenticator URI</Trans>
+        <Trans>Open in authenticator app</Trans>
       </a>
       <div {...stylex.props(styles.fieldWrapper)}>
         <Field label={<Trans>Authenticator code</Trans>} required error={error ?? undefined}>

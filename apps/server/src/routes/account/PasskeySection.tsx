@@ -13,10 +13,16 @@ import {
   SectionRow,
   Skeleton,
 } from '../../components/ui'
+import { useQuery } from '@tanstack/react-query'
+import { useAuth } from '../../lib/auth-context'
 import { trackPasskeyRegistered } from '../../lib/google-analytics-funnel'
+import { authConfigQueryOptions } from '../sign-in/auth-config-query'
 import { ConfirmDialog } from './ConfirmDialog'
+import { detectDeviceParts } from './device-label'
+import { usePasskeyReregistrationNotice } from './passkey-reregistration'
 import { usePasskeysQuery, useRegisterPasskey, useRemovePasskey, useRenamePasskey } from './queries'
 import type { PasskeyCredential } from './hooks'
+import { useSecurityActionError } from './use-security-action-error'
 
 const styles = stylex.create({
   sectionActions: {
@@ -93,6 +99,8 @@ function PasskeyItem({ passkey, renameMutate, removeMutate }: PasskeyItemProps):
   const [isRemoving, setIsRemoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const securityError = useSecurityActionError()
+
   const handleRename = async (event: FormEvent): Promise<void> => {
     event.preventDefault()
     setIsSaving(true)
@@ -101,8 +109,7 @@ function PasskeyItem({ passkey, renameMutate, removeMutate }: PasskeyItemProps):
       setIsEditing(false)
       setError(null)
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setError(xidErr.longMessage || xidErr.message || t`Failed to rename passkey.`)
+      setError(securityError(err, t`Failed to rename passkey.`))
     } finally {
       setIsSaving(false)
     }
@@ -114,8 +121,7 @@ function PasskeyItem({ passkey, renameMutate, removeMutate }: PasskeyItemProps):
       await removeMutate(passkey.id)
       setShowConfirm(false)
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setError(xidErr.longMessage || xidErr.message || t`Failed to remove passkey.`)
+      setError(securityError(err, t`Failed to remove passkey.`))
       setShowConfirm(false)
     } finally {
       setIsRemoving(false)
@@ -225,29 +231,75 @@ export type PasskeySectionProps = {
   onRegistered?: () => void | Promise<void>
 }
 
+function useDefaultDeviceName(): string {
+  const { t } = useLingui()
+  const parts = detectDeviceParts()
+  if (!parts) return t`This device`
+  const { browser, platform } = parts
+  return t`${browser} on ${platform}`
+}
+
+// 浏览器取消或超时(NotAllowedError)静默;已在本设备注册过时给出具体提示。
+function registrationErrorMessage(
+  err: unknown,
+  messages: { duplicate: string; fallback: string },
+): string | null | undefined {
+  if (!(err instanceof DOMException)) return undefined
+  if (err.name === 'NotAllowedError' || err.name === 'AbortError') return null
+  if (err.name === 'InvalidStateError') return messages.duplicate
+  return messages.fallback
+}
+
 export function PasskeySection({ onRegistered }: PasskeySectionProps): ReactNode {
   const { t } = useLingui()
+  const { api } = useAuth()
   const { data: passkeys, isPending, error } = usePasskeysQuery()
+  const authConfig = useQuery(authConfigQueryOptions({}, api))
   const registerPasskey = useRegisterPasskey()
   const renamePasskey = useRenamePasskey()
   const removePasskey = useRemovePasskey()
+  const securityError = useSecurityActionError()
+  const defaultDeviceName = useDefaultDeviceName()
+  const reregistration = usePasskeyReregistrationNotice(
+    authConfig.data?.passkeyEntry.reregistrationRequired ?? false,
+  )
   const [registerError, setRegisterError] = useState<string | null>(null)
 
   const handleRegister = async (): Promise<void> => {
     setRegisterError(null)
     try {
-      await registerPasskey.mutateAsync({ deviceName: t`This device` })
-      trackPasskeyRegistered('account')
+      await registerPasskey.mutateAsync({ deviceName: defaultDeviceName })
+      trackPasskeyRegistered()
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setRegisterError(xidErr.longMessage || xidErr.message || t`Failed to add passkey.`)
+      const fallback = t`Failed to add passkey.`
+      const browserMessage = registrationErrorMessage(err, {
+        duplicate: t`This device already has a passkey for your account.`,
+        fallback,
+      })
+      setRegisterError(browserMessage === undefined ? securityError(err, fallback) : browserMessage)
       return
     }
+    reregistration.dismiss()
     await onRegistered?.()
   }
 
   return (
     <Section label={<Trans>Passkeys</Trans>}>
+      {reregistration.visible ? (
+        <Alert tone="info">
+          <Trans>
+            Passkeys created on a different address do not work here. Add a passkey for this address
+            to keep signing in with a passkey.
+          </Trans>{' '}
+          <Button
+            variant="ghost"
+            onClick={reregistration.dismiss}
+            {...stylex.props(styles.smallAction)}
+          >
+            <Trans>Dismiss</Trans>
+          </Button>
+        </Alert>
+      ) : null}
       <div {...stylex.props(styles.sectionActions)}>
         <Button
           variant="secondary"

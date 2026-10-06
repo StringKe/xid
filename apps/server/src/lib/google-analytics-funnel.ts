@@ -48,8 +48,9 @@ export function trackPasswordResetComplete(): void {
   trackEvent('password_reset_complete')
 }
 
-export function trackPasskeyRegistered(context: 'account' | 'hosted_auth'): void {
-  trackEvent('passkey_registered', { context })
+// 目前只有账户安全页注册 passkey;登录后的渐进式注册尚未实现。
+export function trackPasskeyRegistered(): void {
+  trackEvent('passkey_registered', { context: 'account' })
 }
 
 export function trackLogout(): void {
@@ -98,7 +99,7 @@ export function trackPasswordChanged(): void {
   trackEvent('password_changed')
 }
 
-export type MfaEnrollType = 'totp' | 'backup_codes'
+export type MfaEnrollType = 'totp' | 'backup_codes' | 'sms'
 
 export function trackMfaFactorEnrolled(type: MfaEnrollType): void {
   trackEvent('mfa_factor_enrolled', { factor_type: type })

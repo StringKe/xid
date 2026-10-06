@@ -6,15 +6,18 @@ import { tokens } from '../../styles/tokens.stylex'
 import { Alert, Button, EmptyState, Section, SectionRow, Skeleton } from '../../components/ui'
 import { ConfirmDialog } from './ConfirmDialog'
 import {
+  useEnrollSmsFactor,
   useGenerateBackupCodes,
   useMfaFactorsQuery,
   useRemoveMfaFactor,
+  useSmsFactorOptionQuery,
   useStartTotpSetup,
   useVerifyTotpSetup,
 } from './queries'
 import type { BackupCodesResponse, MfaFactor, TotpSetupResponse } from './hooks'
 import { trackMfaFactorEnrolled } from '../../lib/google-analytics-funnel'
 import { BackupCodesPanel, TotpSetupPanel } from './MfaSectionPanels'
+import { useSecurityActionError } from './use-security-action-error'
 
 const styles = stylex.create({
   sectionActions: {
@@ -73,6 +76,7 @@ type MfaFactorItemProps = {
 
 function MfaFactorItem({ factor, removeMfaMutate }: MfaFactorItemProps): ReactNode {
   const { t } = useLingui()
+  const securityError = useSecurityActionError()
   const [showConfirm, setShowConfirm] = useState(false)
   const [isRemoving, setIsRemoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,8 +87,7 @@ function MfaFactorItem({ factor, removeMfaMutate }: MfaFactorItemProps): ReactNo
       await removeMfaMutate(factor.id)
       setShowConfirm(false)
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setError(xidErr.longMessage || xidErr.message || t`Failed to remove factor.`)
+      setError(securityError(err, t`Failed to remove factor.`))
       setShowConfirm(false)
     } finally {
       setIsRemoving(false)
@@ -99,7 +102,8 @@ function MfaFactorItem({ factor, removeMfaMutate }: MfaFactorItemProps): ReactNo
         : factor.type === 'passkey'
           ? (factor.deviceName ?? t`Passkey`)
           : t`Backup codes (${factor.remaining} remaining)`
-  const canRemove = factor.type !== 'sms' && factor.type !== 'passkey'
+  // passkey 在 Passkeys 区块里管理。
+  const canRemove = factor.type !== 'passkey'
 
   return (
     <li>
@@ -120,8 +124,7 @@ function MfaFactorItem({ factor, removeMfaMutate }: MfaFactorItemProps): ReactNo
         }
       >
         <p {...stylex.props(styles.itemMeta)}>
-          {factor.type === 'sms' ? <Trans>Verified phone</Trans> : <Trans>Added</Trans>}{' '}
-          {new Date(factor.createdAt).toLocaleDateString()}
+          <Trans>Added</Trans> {new Date(factor.createdAt).toLocaleDateString()}
         </p>
         {error ? <p {...stylex.props(styles.itemError)}>{error}</p> : null}
       </SectionRow>
@@ -160,20 +163,26 @@ export function MfaSection({
   onTotpActivated?: () => void | Promise<void>
 }): ReactNode {
   const { t } = useLingui()
+  const securityError = useSecurityActionError()
   const { data: factors, isPending, error } = useMfaFactorsQuery()
+  const smsOption = useSmsFactorOptionQuery()
   const removeMfa = useRemoveMfaFactor()
   const startTotp = useStartTotpSetup()
   const verifyTotp = useVerifyTotpSetup()
   const generateBackupCodes = useGenerateBackupCodes()
+  const enrollSms = useEnrollSmsFactor()
   const [totpSetup, setTotpSetup] = useState<TotpSetupResponse | null>(null)
   const [totpCode, setTotpCode] = useState('')
   const [totpError, setTotpError] = useState<string | null>(null)
   const [totpSuccess, setTotpSuccess] = useState<string | null>(null)
   const [backupCodes, setBackupCodes] = useState<BackupCodesResponse | null>(null)
   const [backupError, setBackupError] = useState<string | null>(null)
+  const [smsError, setSmsError] = useState<string | null>(null)
 
   const hasTotp = factors?.some((factor) => factor.type === 'totp') ?? false
-  const canGenerateBackupCodes = hasTotp
+  const canGenerateBackupCodes =
+    factors?.some((factor) => factor.type === 'totp' || factor.type === 'passkey') ?? false
+  const smsPhoneLast4 = smsOption.data?.enrollable ? smsOption.data.phoneLast4 : null
 
   const handleStartTotp = async (): Promise<void> => {
     setTotpError(null)
@@ -183,8 +192,17 @@ export function MfaSection({
       setTotpSetup(setup)
       setTotpCode('')
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setTotpError(xidErr.longMessage || xidErr.message || t`Failed to start authenticator setup.`)
+      setTotpError(securityError(err, t`Failed to start authenticator setup.`))
+    }
+  }
+
+  const handleEnrollSms = async (): Promise<void> => {
+    setSmsError(null)
+    try {
+      await enrollSms.mutateAsync()
+      trackMfaFactorEnrolled('sms')
+    } catch (err) {
+      setSmsError(securityError(err, t`Failed to turn on text message codes.`))
     }
   }
 
@@ -201,8 +219,7 @@ export function MfaSection({
       setTotpSuccess(t`Authenticator app added.`)
       await onTotpActivated?.()
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setTotpError(xidErr.longMessage || xidErr.message || t`Failed to verify authenticator code.`)
+      setTotpError(securityError(err, t`Failed to verify authenticator code.`))
     }
   }
 
@@ -212,8 +229,7 @@ export function MfaSection({
       setBackupCodes(await generateBackupCodes.mutateAsync())
       trackMfaFactorEnrolled('backup_codes')
     } catch (err) {
-      const xidErr = err as { message?: string; longMessage?: string }
-      setBackupError(xidErr.longMessage || xidErr.message || t`Failed to generate backup codes.`)
+      setBackupError(securityError(err, t`Failed to generate backup codes.`))
     }
   }
 
@@ -238,12 +254,31 @@ export function MfaSection({
             <Trans>Generate backup codes</Trans>
           </Button>
         ) : null}
+        {smsPhoneLast4 ? (
+          <Button
+            variant="secondary"
+            onClick={() => void handleEnrollSms()}
+            isLoading={enrollSms.isPending}
+          >
+            <Trans>Also accept text message codes</Trans>
+          </Button>
+        ) : null}
         {!canGenerateBackupCodes && !isPending ? (
           <p {...stylex.props(styles.inlineNote)}>
-            <Trans>Add an authenticator app before generating backup codes.</Trans>
+            <Trans>
+              Add an authenticator app or a passkey before generating backup codes or using text
+              message codes.
+            </Trans>
+          </p>
+        ) : null}
+        {smsPhoneLast4 ? (
+          <p {...stylex.props(styles.inlineNote)}>
+            <Trans>Codes will be sent to the phone number ending in {smsPhoneLast4}.</Trans>
           </p>
         ) : null}
       </div>
+
+      {smsError ? <Alert tone="error">{smsError}</Alert> : null}
 
       {totpSetup ? (
         <TotpSetupPanel

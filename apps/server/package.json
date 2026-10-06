@@ -58,6 +58,7 @@
     "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "uqr": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {
