@@ -2574,6 +2574,57 @@ describe('v1 api keys 铸 key 防提权(scope 白名单 + sk 子集校验)', () 
 
     expect(res.status).toBe(201)
   })
+
+  it('cookie 顶层 org owner 铸的窄 scope key 访问 scope 外资源 -> 403 insufficient_permission', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({ tenantId: 't_1', userId: 'user_owner' })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_owner')],
+        organizations: [{ id: 't_1', tenant_id: 't_1', status: 'active' }],
+        memberships: [
+          {
+            id: 'mem_owner',
+            tenant_id: 't_1',
+            org_id: 't_1',
+            user_id: 'user_owner',
+            role: 'owner',
+            status: 'active',
+          },
+        ],
+        manager_assignments: [],
+        api_keys: [],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+    })
+    const app = buildApp(registerApiKeys)
+    const created = await app.request(
+      'https://acme.xid.dev/v1/api-keys',
+      {
+        method: 'POST',
+        headers: { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'ci', environment: 'test', scopes: ['users:read'] }),
+      },
+      env,
+    )
+    const { key, scopes } = (await created.json()) as { key: string; scopes: string[] }
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/api-keys',
+      { headers: { Authorization: `Bearer ${key}` } },
+      env,
+    )
+
+    expect(created.status).toBe(201)
+    expect(scopes).toEqual(['users:read'])
+    expect(key.startsWith('sk_test_')).toBe(true)
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as { code: string }).code).toBe('insufficient_permission')
+  })
 })
 
 // 租户级资源(applications/webhooks/api-keys)的 cookie 双认证:

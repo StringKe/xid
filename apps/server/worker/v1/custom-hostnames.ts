@@ -18,12 +18,13 @@ import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { readJsonBody, validateBody } from '../lib/validate'
 import type { XidHonoEnv } from '../lib/types'
+import { isUniqueConstraintError } from './org-shared'
 import {
+  auditActorId,
   idAfterCursor,
   paginate,
   parsePagination,
   requireApiKeyOrOrgManager,
-  type OrgScopedAuth,
 } from './shared'
 
 const createBodySchema = v.object({
@@ -65,12 +66,6 @@ function mapCloudflareError(error: unknown, paramName?: string): AppError {
     })
   }
   return new AppError('service_unavailable', { httpStatus: 503, cause: error })
-}
-
-function isUniqueConstraintError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  if (/unique constraint/iu.test(error.message)) return true
-  return error.cause !== undefined && isUniqueConstraintError(error.cause)
 }
 
 function toIso(value: Date | null): string | null {
@@ -122,10 +117,6 @@ function toResponse(row: CustomHostnameRow) {
     },
     verification_errors: row.verificationErrors,
   }
-}
-
-function auditActorId(auth: OrgScopedAuth): string {
-  return auth.kind === 'org_console' ? auth.session.userId : auth.apiKeyId
 }
 
 async function restoreReservation(

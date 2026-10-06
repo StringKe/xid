@@ -444,7 +444,10 @@ app.get('/', async (c) => {
         permissions: permissionsByOrg.get(organization.id) ?? [],
         parentOrgId: organization.parentOrgId,
         allowOrgSelfService: organization.allowOrgSelfService,
-        canManageOwners: membership.role === 'owner' || managedOrgIds.has(membership.orgId),
+        // 与 requireOrgManager 同序:admin / owner membership 先定角色,只有普通成员才按 org_manager 计。
+        canManageOwners:
+          membership.role === 'owner' ||
+          (membership.role === 'member' && managedOrgIds.has(membership.orgId)),
       },
     ]
   })

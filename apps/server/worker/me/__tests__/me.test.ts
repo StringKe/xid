@@ -776,6 +776,27 @@ describe('GET /v1/me', () => {
     ])
   })
 
+  it('keeps canManageOwners false for an admin member who also holds an org_manager assignment', async () => {
+    const db = makeFakeD1({
+      users: [userRow()],
+      user_emails: [emailRow()],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [membershipRow({ role: 'admin' })],
+      manager_assignments: [orgManagerRow()],
+      organizations: [organizationRow()],
+      projects: [],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession({ userId: 'u_1' }) })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { organizations: Record<string, unknown>[] }
+    expect(body.organizations[0]).toMatchObject({ role: 'admin', canManageOwners: false })
+  })
+
   it('includes org without membership when an org_manager assignment exists', async () => {
     const db = makeFakeD1({
       users: [userRow()],
