@@ -531,7 +531,8 @@ pagination) and `GET /v1/organizations/:orgId/access-requests/:id`, guarded by
 `access-requests:read` or an org manager cookie session. Approve/deny never run through `/v1` --
 they MUST bind to the resolved approver's real identity for audit, and the org manager fallback is
 direct `user_grants` management. `PATCH /v1/projects/:projectId` accepts the `access_policy` field
-(`open`/`restricted`/`approval_required`, `projects:write`). The scope lexicon gains the
+(`open`/`restricted`, `projects:write`); `approval_required` is refused until its request and
+approval UIs ship (chapter 02 section 7.5). The scope lexicon gains the
 `org-units` and `access-requests` resource names.
 
 The requester and approver flows are cookie-session endpoints under `/auth/`, same pattern as

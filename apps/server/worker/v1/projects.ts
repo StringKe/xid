@@ -35,8 +35,8 @@ const createProjectBodySchema = v.object({
 const patchProjectBodySchema = v.object({
   name: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(256))),
   description: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(2000)))),
-  // 访问策略三模式(设计 design-access-request.md 3.3):open / restricted / approval_required。
-  access_policy: v.optional(v.picklist(['open', 'restricted', 'approval_required'])),
+  // approval_required 的申请与审批入口尚无 UI,暂不允许设置;存量行行为不变(design-access-request 4)。
+  access_policy: v.optional(v.picklist(['open', 'restricted'])),
 })
 
 function toResponse(row: typeof schema.projects.$inferSelect) {

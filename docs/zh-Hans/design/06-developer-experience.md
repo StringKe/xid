@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=cc0378882426d2a2dc0805e7ed8157894dd5e31c -->
+<!-- xid-translation source=docs/design/06-developer-experience.md source-commit=5d55b0c source-blob=5c9c828fc029fe2bdccaab588cd59753abbcedb3 -->
 
 > Translation of `docs/design/06-developer-experience.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/06-developer-experience.md`](../../design/06-developer-experience.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -451,7 +451,8 @@ Project 访问申请在 Management API 上只读:`GET /v1/organizations/:orgId/a
 `GET /v1/organizations/:orgId/access-requests/:id`,由 `access-requests:read` 或 org manager
 cookie session 鉴权。approve/deny 不走 `/v1`——审批行为必须绑定解析出的真实负责人身份进审计,
 org manager 的退化路径是直接管理 `user_grants`。`PATCH /v1/projects/:projectId` 接受
-`access_policy` 字段(`open`/`restricted`/`approval_required`,`projects:write`)。scope 词法
+`access_policy` 字段(`open`/`restricted`,`projects:write`);申请与审批界面上线前拒绝
+`approval_required`(见 02 章 7.5)。scope 词法
 白名单新增 `org-units` 与 `access-requests` 两个资源名。
 
 申请人与审批人流程是 `/auth/` 下的 cookie-session 端点,与 consent 同模式:

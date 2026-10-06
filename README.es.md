@@ -88,10 +88,9 @@ multi-tenant, según la configuración y no según un flag de build.
   principales y secundarias, profundidad máxima de 8, movimiento y archivo de subárboles y
   resolución del manager a lo largo de la línea de reporte. Una OrgUnit nunca es frontera de tenant
   ni token claim.
-- Cada Project puede ser `open`, `restricted` o `approval_required`. La autorización dentro de la
-  misma Organization aplica esa policy; los usuarios pueden solicitar acceso, los approvers se
-  resuelven por la línea de reporte OrgUnit y fallbacks de management, y una aprobación puede crear
-  un `user_grant` con caducidad.
+- Cada Project puede ser `open` o `restricted`, y la autorización dentro de la misma Organization
+  aplica esa policy. Las solicitudes de acceso de autoservicio (`approval_required`) aún no se
+  ofrecen porque no existe interfaz de solicitud ni de aprobación.
 
 **Operaciones y entrega**
 

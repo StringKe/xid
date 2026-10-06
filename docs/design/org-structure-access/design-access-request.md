@@ -133,11 +133,11 @@ else:
 
 ### 3.3 管理端（`/v1`，API key 或 org manager）
 
-| 方法  | 路径                                           | 说明                                                               |
-| ----- | ---------------------------------------------- | ------------------------------------------------------------------ |
-| GET   | `/v1/organizations/:orgId/access-requests`     | `?status=&project_id=` 过滤，cursor 分页                           |
-| GET   | `/v1/organizations/:orgId/access-requests/:id` | 详情                                                               |
-| PATCH | `/v1/projects/:projectId`                      | 现有 project 更新端点扩展 `access_policy` 字段（`projects:write`） |
+| 方法  | 路径                                           | 说明                                                                                                            |
+| ----- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| GET   | `/v1/organizations/:orgId/access-requests`     | `?status=&project_id=` 过滤，cursor 分页                                                                        |
+| GET   | `/v1/organizations/:orgId/access-requests/:id` | 详情                                                                                                            |
+| PATCH | `/v1/projects/:projectId`                      | 现有 project 更新端点扩展 `access_policy` 字段（`projects:write`），当前只接受 `open` / `restricted`，见第 4 节 |
 
 管理端 v1 不做代审批（approve/deny 只走 3.2 本人路径）——审批行为必须绑定到真实负责人身份进审计，org_manager 的退化路径是直接操作 user_grants（现有 `/v1` user-grants API）。
 
@@ -161,6 +161,8 @@ else:
 - RP 拿到 `access_request_required` 后可自行引导；xid 后续单独迭代 account UI 的「我的应用/申请中心」。
 
 v1 交付 = 完整 API + 状态机 + 审计 + 测试。UI 列为后续迭代项写入 implementation-plan 风险节。
+
+没有 UI 时 `approval_required` 对终端用户是死路：`/authorize` 只能回 `access_denied`，Hosted UI 与 SDK 都无法提交申请，审批人在 Console 也看不到待审批。因此在申请页、「我的申请」和 Console 待审批列表上线前，`PATCH /v1/projects/:projectId` 拒绝把 `access_policy` 设为 `approval_required`（422 `validation_failed`）。存量 `approval_required` 行行为不变：`/authorize` 与 token 签发照常执行该策略，`/auth/access-requests` 与 `/auth/access-approvals` 端点保留。
 
 ## 5. 测试点
 

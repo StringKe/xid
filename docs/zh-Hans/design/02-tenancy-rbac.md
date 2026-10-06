@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=ea60840b2fb80010f42f6516baf6821274f58c4d -->
+<!-- xid-translation source=docs/design/02-tenancy-rbac.md source-commit=5d55b0c source-blob=dd9542cc5c0d31e07617f430e6ad8da5c89faba6 -->
 
 > Translation of `docs/design/02-tenancy-rbac.md` at commit `5d55b0c`. The English version is authoritative.
 > 本文是 [`docs/design/02-tenancy-rbac.md`](../../design/02-tenancy-rbac.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -528,6 +528,10 @@ WHERE ug.user_id = :user_id
 | `open`              | 放行(既有行为)                 | 不需要                      |
 | `restricted`        | 拒绝(`access_denied`)          | 无,只能管理端直接创建 grant |
 | `approval_required` | 拒绝且错误可识别               | 自助 AccessRequest          |
+
+`approval_required` 需要申请页、「我的申请」和审批人待办列表,终端用户才能使用。这些界面上线前,
+Management API 拒绝设置该值(`422 validation_failed`);存量 `approval_required` Project 保持上表
+行为。
 
 「有效 UserGrant」指同 org grant 行(`granted_via_grant_id IS NULL`)、未 revoked、未过
 `expires_at`;过期 grant 在每个检查点(`/authorize` 与 token 签发)都视同无 grant,这正是

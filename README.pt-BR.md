@@ -88,10 +88,9 @@ por configuração e não por flag de build.
   primário e secundário, profundidade máxima 8, movimentação e arquivamento de subárvores e resolução
   do manager ao longo da linha hierárquica. Uma OrgUnit nunca é uma fronteira de tenant nem um token
   claim.
-- Cada Project pode ser `open`, `restricted` ou `approval_required`. A autorização dentro da mesma
-  Organization aplica essa policy; usuários podem solicitar acesso, approvers são resolvidos pela
-  linha hierárquica OrgUnit e fallbacks de management, e uma aprovação pode criar um `user_grant`
-  com expiração.
+- Cada Project pode ser `open` ou `restricted`, e a autorização dentro da mesma Organization aplica
+  essa policy. Solicitações de acesso self-service (`approval_required`) ainda não são oferecidas,
+  pois não existe interface de solicitação nem de aprovação.
 
 **Operações e entrega**
 

@@ -81,10 +81,9 @@ Durable Object가 직렬화하며, JWKS는 KV에 캐시되어 Relying Party가 �
 - OrgUnit tree는 Organization 내부의 부서와 팀을 표현하며 primary/secondary placement, 최대 깊이 8,
   subtree move와 archive, reporting line 기반 manager resolution을 지원합니다. OrgUnit은 tenant
   boundary나 token claim이 되지 않습니다.
-- 각 Project는 `open`, `restricted`, `approval_required` 중 하나로 설정할 수 있습니다. 동일
-  Organization의 authorization은 이 policy를 강제하고, 사용자는 access를 요청할 수 있습니다.
-  Approver는 OrgUnit reporting line과 management fallback으로 결정되며 승인 시 만료되는
-  `user_grant`를 만들 수 있습니다.
+- 각 Project는 `open` 또는 `restricted`로 설정할 수 있으며, 동일 Organization의 authorization은
+  이 policy를 강제합니다. 요청과 승인 UI가 아직 없으므로 셀프서비스 access 요청
+  (`approval_required`)은 제공하지 않습니다.
 
 **운영 및 전송**
 

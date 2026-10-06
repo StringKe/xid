@@ -661,14 +661,49 @@ describe('v1 projects PATCH access_policy', () => {
       {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_policy: 'approval_required' }),
+        body: JSON.stringify({ access_policy: 'restricted' }),
+      },
+      envOf(db, makeAuditSend()),
+    )
+    expect(res.status).toBe(200)
+
+    const repeat = await app.request(
+      'https://acme.xid.dev/v1/projects/proj_1',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_policy: 'restricted' }),
       },
       envOf(db, auditSend),
     )
-    expect(res.status).toBe(200)
+    expect(repeat.status).toBe(200)
     const policyEvents = auditSend.mock.calls.filter(
       (call) => (call[0] as { action: string }).action === 'project.access_policy_changed',
     )
     expect(policyEvents).toEqual([])
+  })
+
+  it('拒绝设置 approval_required(申请与审批入口未上线),存量值不变', async () => {
+    const db = makeDb()
+    seedBase(db)
+    const token = await seedApiKey(db, { id: 'ak_1', scopes: ['*'] })
+    const app = buildApp()
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/projects/proj_1',
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_policy: 'approval_required' }),
+      },
+      envOf(db, makeAuditSend()),
+    )
+
+    expect(res.status).toBe(422)
+    expect(((await res.json()) as { code: string }).code).toBe('validation_failed')
+    const stored = db.database
+      .prepare(`SELECT access_policy FROM projects WHERE id = 'proj_1'`)
+      .get() as { access_policy: string }
+    expect(stored.access_policy).toBe('approval_required')
   })
 })

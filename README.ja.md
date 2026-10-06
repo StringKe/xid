@@ -81,9 +81,9 @@ Durable Object が直列化し、JWKS は KV にキャッシュされるので r
 - OrgUnit tree は Organization 内の部門と team を表し、primary/secondary placement、最大深度 8、
   subtree move と archive、reporting line に沿った manager resolution を提供する。OrgUnit は tenant
   boundary にも token claim にもならない。
-- 各 Project は `open`、`restricted`、`approval_required` のいずれかに設定できる。同じ Organization
-  からの authorization はその policy を強制し、user は access を申請できる。Approver は OrgUnit
-  reporting line と management fallback から解決され、承認時に期限付き `user_grant` を作成できる。
+- 各 Project は `open` または `restricted` に設定でき、同じ Organization からの authorization は
+  その policy を強制する。申請と承認の UI がまだないため、セルフサービスの access 申請
+  (`approval_required`)は提供していない。
 
 **運用と配信**
 

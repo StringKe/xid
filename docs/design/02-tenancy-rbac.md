@@ -653,6 +653,10 @@ ProjectGrant path in 7.4 is unaffected):
 | `restricted`        | Denied (`access_denied`)                     | None; an admin creates the grant directly |
 | `approval_required` | Denied with an identifiable error            | Self-service AccessRequest                |
 
+`approval_required` needs a request page, a "my requests" view, and an approver queue before end
+users can act on it. Until those UIs ship, the Management API refuses to set it (`422
+validation_failed`); existing `approval_required` Projects keep the behavior in the table above.
+
 An "effective UserGrant" is a same-org grant row (`granted_via_grant_id IS NULL`) that is not
 revoked and not past `expires_at`; an expired grant is treated as no grant at every check point
 (`/authorize` and token issuance alike), which is what makes the JIT window enforceable. Changing

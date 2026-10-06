@@ -84,9 +84,9 @@ single-tenant deployment or a multi-tenant instance, by configuration rather tha
 - OrgUnit trees model departments and teams inside an Organization with primary and secondary
   placements, a maximum depth of 8, subtree moves and archival, and manager resolution along the
   reporting line. OrgUnits never become tenant boundaries or token claims.
-- Each Project can be `open`, `restricted`, or `approval_required`. Same-Organization authorization
-  enforces that policy; users can request access, approvers resolve through the OrgUnit reporting
-  line and management fallbacks, and approval can create an expiring `user_grant`.
+- Each Project can be `open` or `restricted`, and same-Organization authorization enforces that
+  policy. Self-service access requests (`approval_required`) are not offered yet because no request
+  or approval UI exists.
 
 **Operations and delivery**
 

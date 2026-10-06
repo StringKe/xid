@@ -72,9 +72,8 @@ WebAuthn RP ID 和策略全部从单一 `TenantContext` 解析,因此同一份�
   跨 Organization grant、邀请及域名验证。
 - OrgUnit 树用于表达 Organization 内部的部门和团队,支持主岗与兼岗、最大深度 8、子树移动与归档,
   并沿汇报线解析 manager。OrgUnit 永远不会成为 tenant boundary 或 token claim。
-- 每个 Project 可配置为 `open`、`restricted` 或 `approval_required`。同 Organization 的授权流程会强制
-  执行该策略;用户可以申请访问,审批人按 OrgUnit 汇报线和管理角色 fallback 解析,批准后可创建带过期时间的
-  `user_grant`。
+- 每个 Project 可配置为 `open` 或 `restricted`,同 Organization 的授权流程会强制执行该策略。
+  由于还没有申请与审批界面,自助访问申请(`approval_required`)暂不开放。
 
 **运营与投递**
 

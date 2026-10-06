@@ -89,10 +89,9 @@ Konfiguration statt per Build-Flag.
   sekundären Zuordnungen, maximaler Tiefe 8, Verschieben und Archivieren von Teilbäumen sowie
   Manager-Auflösung entlang der Berichtslinie. OrgUnits werden weder Tenant-Grenzen noch Token
   Claims.
-- Jedes Project kann `open`, `restricted` oder `approval_required` sein. Die Autorisierung innerhalb
-  derselben Organization erzwingt diese Policy; Benutzer können Zugriff anfordern, Approver werden
-  über die OrgUnit-Berichtslinie und Management-Fallbacks aufgelöst, und eine Genehmigung kann einen
-  ablaufenden `user_grant` erstellen.
+- Jedes Project kann `open` oder `restricted` sein, und die Autorisierung innerhalb derselben
+  Organization erzwingt diese Policy. Self-Service-Zugriffsanfragen (`approval_required`) werden
+  noch nicht angeboten, weil es keine Oberfläche für Anfrage und Genehmigung gibt.
 
 **Betrieb und Zustellung**
 
