@@ -1,4 +1,4 @@
-// 区头与 DataTable 表头同 mono 签名;SectionRow 四 variant 捆绑列模板。
+// 区头是 sentence case 标题;SectionRow 四 variant 捆绑列模板。
 // control 经 cloneElement 注入 id/aria-describedby;split 元信息列仅宽屏可见。
 
 import { cloneElement, isValidElement, useId } from 'react'
@@ -40,16 +40,15 @@ const styles = stylex.create({
     paddingBottom: '1.25rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border-strong'],
+    borderBottomColor: tokens['--xid-border'],
   },
   headLabel: {
     margin: 0,
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: tokens['--xid-muted-foreground'],
+    fontFamily: tokens['--xid-font'],
+    fontSize: '1rem',
+    fontWeight: 560,
+    lineHeight: '1.375rem',
+    color: tokens['--xid-fg'],
   },
   headActions: {
     display: 'flex',

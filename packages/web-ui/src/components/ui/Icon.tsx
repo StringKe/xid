@@ -3,6 +3,7 @@
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { INTERFACE_ICON_NAMES, interfaceGlyphs } from './icon-interface-glyphs'
 
 export const ICON_NAMES = [
   'gauge',
@@ -35,21 +36,7 @@ export const ICON_NAMES = [
   'arrow-right',
   'arrow-left',
   'arrow-up-right',
-  'chevrons-up-down',
-  'chevron-left',
-  'chevron-right',
-  'x',
-  'plus',
-  'copy',
-  'eye',
-  'eye-off',
-  'search',
-  'menu',
-  'more-horizontal',
-  'info-circle',
-  'check-circle',
-  'alert-circle',
-  'alert-triangle',
+  ...INTERFACE_ICON_NAMES,
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]
@@ -247,72 +234,7 @@ const glyphs: Record<IconName, ReactNode> = {
       <path d="M8.25 6.75h9v9" />
     </>
   ),
-  'chevrons-up-down': <path d="M8 10l4-4 4 4M8 14l4 4 4-4" />,
-  'chevron-left': <path d="m14.5 6-6 6 6 6" />,
-  'chevron-right': <path d="m9.5 6 6 6-6 6" />,
-  x: <path d="M6 6l12 12M18 6 6 18" />,
-  plus: <path d="M12 5v14M5 12h14" />,
-  copy: (
-    <>
-      <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
-      <path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
-    </>
-  ),
-  eye: (
-    <>
-      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
-      <circle cx="12" cy="12" r="3" />
-    </>
-  ),
-  'eye-off': (
-    <>
-      <path d="M9.9 5.75A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4" />
-      <path d="M6.3 7.3A16.6 16.6 0 0 0 2.5 12s3.5 6.5 9.5 6.5a9.3 9.3 0 0 0 4.9-1.4" />
-      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
-      <path d="M3.5 3.5l17 17" />
-    </>
-  ),
-  search: (
-    <>
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16 16 4 4" />
-    </>
-  ),
-  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
-  'more-horizontal': (
-    <>
-      <circle cx="5" cy="12" r="0.9" />
-      <circle cx="12" cy="12" r="0.9" />
-      <circle cx="19" cy="12" r="0.9" />
-    </>
-  ),
-  'info-circle': (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 11v5.5" />
-      <path d="M12 7.8h.01" />
-    </>
-  ),
-  'check-circle': (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="m8.5 12.2 2.4 2.4 4.6-4.8" />
-    </>
-  ),
-  'alert-circle': (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7.5V13" />
-      <path d="M12 16.3h.01" />
-    </>
-  ),
-  'alert-triangle': (
-    <>
-      <path d="M12 4 21 19.5H3Z" />
-      <path d="M12 10v4" />
-      <path d="M12 16.8h.01" />
-    </>
-  ),
+  ...interfaceGlyphs,
 }
 
 const styles = stylex.create({

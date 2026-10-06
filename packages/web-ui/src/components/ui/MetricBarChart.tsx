@@ -25,14 +25,12 @@ const styles = stylex.create({
     gap: '0.875rem',
     fontFamily: tokens['--xid-font'],
   },
-  // 与表头/指标带 label 同一 mono 签名。
   title: {
     margin: 0,
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
+    fontFamily: tokens['--xid-font'],
+    fontSize: '0.75rem',
     fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
+    letterSpacing: tokens['--xid-tracking-small'],
     color: tokens['--xid-muted-foreground'],
   },
   list: {
