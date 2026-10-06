@@ -20,6 +20,10 @@ vi.mock('../../oidc/shared', async (importOriginal) => {
   }
 })
 
+vi.mock('../../lib/organization-access', () => ({
+  memberActiveOrgId: vi.fn(),
+}))
+
 vi.mock('../../lib/session', () => ({
   readSession: vi.fn(),
   ACTIVE_SESSION_STATUS: 'active',
@@ -29,6 +33,7 @@ vi.mock('../../lib/session', () => ({
 
 import { buildAccessTokenClaims } from '@xid-kit/protocol'
 import { loadActiveSigner } from '../../oidc/shared'
+import { memberActiveOrgId } from '../../lib/organization-access'
 import { readSession } from '../../lib/session'
 import type { TenantVar } from '../../lib/types'
 import { registerSessionAuthRoutes } from '../index'
@@ -39,7 +44,27 @@ function post(app: ReturnType<typeof makeApp>, env: Env) {
 }
 
 describe('POST /v1/sessions/token', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(memberActiveOrgId).mockImplementation(async (_db, input) => input.activeOrgId)
+  })
+
+  it('omits the active org when the session reached it only through an org_manager assignment', async () => {
+    vi.mocked(memberActiveOrgId).mockResolvedValue(null)
+    const app = makeApp(registerSessionAuthRoutes, {
+      session: { ...makeSession('user-manager', 'sess-manager'), activeOrgId: 'org-managed' },
+    })
+
+    await post(app, makeEnv())
+
+    expect(memberActiveOrgId).toHaveBeenCalledWith(undefined, {
+      userId: 'user-manager',
+      activeOrgId: 'org-managed',
+    })
+    expect(buildAccessTokenClaims).toHaveBeenCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ activeOrgId: null }) }),
+    )
+  })
 
   it('有 session -> { token }(short-lived JWT)', async () => {
     const app = makeApp(registerSessionAuthRoutes, { session: makeSession() })

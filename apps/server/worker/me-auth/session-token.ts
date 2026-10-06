@@ -4,11 +4,13 @@
 // claims:sub=userId,aud/azp/client_id=issuer(first-party self),scope='openid',sid=sessionId,
 // ttl=租户 token 策略 sessionTokenTtlSec(默认 60s,见 api-sdk-conventions:getToken 返回 short-lived JWT)。
 
+import { createTenantDb } from '@xid-kit/db'
 import { buildAccessTokenClaims, signAccessTokenClaims } from '@xid-kit/protocol'
 import type { SessionTokenResponse } from '@xid-kit/types'
 import type { Context } from 'hono'
 import type { XidHonoEnv } from '../lib/types'
 import { normalizeIssuedAcr } from '../lib/auth-context'
+import { memberActiveOrgId } from '../lib/organization-access'
 import { loadActiveSigner, tokenPolicyOf } from '../oidc/shared'
 import { requireSession } from './shared'
 
@@ -17,7 +19,13 @@ export async function handleSessionToken(c: Context<XidHonoEnv>): Promise<Respon
   const session = await requireSession(c)
   const acr = normalizeIssuedAcr(session.acr)
 
-  const signer = await loadActiveSigner(tenant, c.env.KEK)
+  const [signer, activeOrgId] = await Promise.all([
+    loadActiveSigner(tenant, c.env.KEK),
+    memberActiveOrgId(createTenantDb(c.env.DB, tenant), {
+      userId: session.userId,
+      activeOrgId: session.activeOrgId,
+    }),
+  ])
   const now = Math.floor(Date.now() / 1000)
   const claims = buildAccessTokenClaims({
     ctx: tenant,
@@ -29,7 +37,7 @@ export async function handleSessionToken(c: Context<XidHonoEnv>): Promise<Respon
     ttlSec: tokenPolicyOf(tenant).sessionTokenTtlSec,
     options: {
       sid: session.sessionId,
-      activeOrgId: session.activeOrgId,
+      activeOrgId,
       authContext: {
         authTime: Math.floor(session.authenticatedAt.getTime() / 1000),
         ...(acr ? { acr } : {}),

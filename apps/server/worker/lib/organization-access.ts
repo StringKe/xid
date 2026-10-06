@@ -45,6 +45,19 @@ export async function findOrganizationAccessGrant(
   return { isMember, membershipRole, isOrgManager: Boolean(assignment) }
 }
 
+// token 的 org 上下文只认 Membership:仅凭 org_manager 指派切到的 active org 不写入 token(与 /authorize 一致)。
+export async function memberActiveOrgId(
+  db: TenantDb,
+  input: { userId: string; activeOrgId: string | null },
+): Promise<string | null> {
+  if (!input.activeOrgId) return null
+  const grant = await findOrganizationAccessGrant(db, {
+    userId: input.userId,
+    orgId: input.activeOrgId,
+  })
+  return grant?.isMember ? input.activeOrgId : null
+}
+
 export async function resolveOrganizationAccess(
   db: TenantDb,
   input: { userId: string; orgId: string },
