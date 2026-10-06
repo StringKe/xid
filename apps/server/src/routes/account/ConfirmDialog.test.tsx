@@ -38,6 +38,13 @@ function buttonByText(label: string): HTMLButtonElement | undefined {
   )
 }
 
+async function pressEscape(): Promise<void> {
+  const target = document.activeElement ?? document.body
+  await act(async () => {
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+}
+
 async function waitFor(assertion: () => void): Promise<void> {
   const deadline = Date.now() + 2000
   for (;;) {
@@ -88,6 +95,28 @@ describe('ConfirmDialog', () => {
 
     await act(async () => {
       buttonByText('Cancel')?.click()
+    })
+
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+  })
+
+  it('notifies the parent after Escape closes an idle dialog', async () => {
+    const onCancel = vi.fn()
+    await render({ onConfirm: vi.fn(), onCancel })
+
+    await pressEscape()
+
+    await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1))
+  })
+
+  it('keeps the dialog open when Escape is pressed while the confirmation is running', async () => {
+    const onCancel = vi.fn()
+    await render({ onConfirm: vi.fn(), onCancel, isLoading: true })
+
+    await pressEscape()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100))
     })
 
     expect(onCancel).not.toHaveBeenCalled()
