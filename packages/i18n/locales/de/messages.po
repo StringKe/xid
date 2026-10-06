@@ -380,11 +380,11 @@ msgstr "Ein möglicher Klon des Authenticators wurde erkannt. Bitte kontaktieren
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "A project grant must target another organization."
-msgstr "Ein Projektzuschuss muss an eine andere Organisation gerichtet sein."
+msgstr "Ein Projekt-Grant muss eine andere Organisation als Ziel haben."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "A project is the namespace for role keys, permission keys, and user grants."
-msgstr "Ein Projekt ist der Namespace für Rollenschlüssel, Berechtigungsschlüssel und Benutzerberechtigungen."
+msgstr "Ein Projekt ist der Namespace für Rollenschlüssel, Berechtigungsschlüssel und Benutzer-Grants."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "A real IdP round-trip on production infrastructure is still pending manual verification. This page documents implemented behavior; it is not a readiness claim."
@@ -461,7 +461,7 @@ msgstr "Akzeptierte öffentliche Schlüsselformate: PublicJwk, Jwks oder {JWT_KE
 #. placeholder {0}: pendingGrantRevoke.granted_to_org_id
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Access for organization {0} and user grants issued through this grant will be revoked."
-msgstr "Der Zugriff für die Organisation {0} und die durch diese Bewilligung erteilten Benutzergenehmigungen werden widerrufen."
+msgstr "Der Zugriff für die Organisation {0} und die über diesen Grant erteilten Benutzer-Grants werden widerrufen."
 
 #: apps/server/src/routes/consent/ScopeList.tsx
 msgid "Access protected resources"
@@ -1148,7 +1148,7 @@ msgstr "ASP.NET Core-Einrichtung (empfohlen)"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assertion grants"
-msgstr "Assertion Grant Flows"
+msgstr "Assertion Grants"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assertions are validated for issuer, audience, recipient, time window, InResponseTo, and replay."
@@ -1156,15 +1156,15 @@ msgstr "Assertions werden auf Aussteller, Zielgruppe, Empfänger, Zeitfenster, I
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Assign one active role to a user who is an active member of the grant target organization. Enter an exact user ID; the server verifies membership and the exact grant."
-msgstr "Weisen Sie einem Benutzer, der ein aktives Mitglied der Förderzielorganisation ist, eine aktive Rolle zu. Geben Sie einen genauen Benutzer ein: ID. Der Server überprüft die Mitgliedschaft und die genaue Bewilligung."
+msgstr "Weisen Sie einem Benutzer, der aktives Mitglied der Zielorganisation des Grants ist, eine aktive Rolle zu. Geben Sie eine exakte Benutzer-ID ein; der Server prüft die Mitgliedschaft und den exakten Grant."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Assign one exact management role to the matching organization, project, or grant scope. A manager cannot delegate or revoke their own assignment."
-msgstr "Weisen Sie der entsprechenden Organisation, dem entsprechenden Projekt oder dem entsprechenden Zuschussumfang eine genaue Verwaltungsrolle zu. Ein Manager kann seine eigene Aufgabe nicht delegieren oder widerrufen."
+msgstr "Weisen Sie der entsprechenden Organisation, dem entsprechenden Projekt oder dem entsprechenden Grant-Bereich eine genaue Verwaltungsrolle zu. Ein Manager kann seine eigene Aufgabe nicht delegieren oder widerrufen."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assign, list, get, revoke, and delete scoped user grants."
-msgstr "Weisen Sie bereichsbezogene Benutzerberechtigungen zu, listen Sie sie auf, rufen Sie sie ab, widerrufen Sie sie und löschen Sie sie."
+msgstr "Bereichsbezogene Benutzer-Grants zuweisen, auflisten, abrufen, widerrufen und löschen."
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Assignment"
@@ -2401,7 +2401,7 @@ msgstr "Verzeichnis erstellen"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Create grant"
-msgstr "Fördermittel erstellen"
+msgstr "Grant erstellen"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Create key"
@@ -2484,7 +2484,7 @@ msgstr "Organisations-API-Schlüssel erstellen, auflisten und widerrufen."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, list, get, revoke, and delete project grants."
-msgstr "Projektberechtigungen erstellen, auflisten, abrufen, widerrufen und löschen."
+msgstr "Projekt-Grants erstellen, auflisten, abrufen, widerrufen und löschen."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, list, update, and delete webhook endpoints."
@@ -2570,7 +2570,7 @@ msgstr "Organisationsübergreifender Zugriff ist nicht erlaubt."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Cross-organization grants"
-msgstr "Organisationsübergreifende Zuschüsse"
+msgstr "Organisationsübergreifende Grants"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "CSS length, e.g. 8px or 0.5rem"
@@ -2866,7 +2866,7 @@ msgstr "Gelöschte Berechtigungen"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Deleted projects remain recoverable. Their roles, permissions, and grants are unavailable until the project is restored."
-msgstr "Gelöschte Projekte bleiben wiederherstellbar. Ihre Rollen, Berechtigungen und Berechtigungen sind nicht verfügbar, bis das Projekt wiederhergestellt ist."
+msgstr "Gelöschte Projekte bleiben wiederherstellbar. Ihre Rollen, Berechtigungen und Grants sind nicht verfügbar, bis das Projekt wiederhergestellt ist."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Deleted roles"
@@ -3283,7 +3283,7 @@ msgstr "Electron-SDK mit PKCE-Flow im Hauptprozess, contextBridge-Preload,OS-Key
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Eleven SQLite-backed Durable Objects serialize sessions, challenges, OAuth, PAR, device and CIBA state, rate limits, audit order, metering, guests, and impersonation grants."
-msgstr "Elf SQLite-gestützte Durable Objects serialisieren Sitzungen, Challenges, OAuth, PAR, Geräte- und CIBA-Status, Ratenlimits, Audit-Reihenfolge, Metering, Gäste und Impersonationsberechtigungen."
+msgstr "Elf SQLite-gestützte Durable Objects serialisieren Sitzungen, Challenges, OAuth, PAR, Geräte- und CIBA-Status, Ratenlimits, Audit-Reihenfolge, Metering, Gäste und Impersonation-Grants."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
@@ -3889,7 +3889,7 @@ msgstr "Profil konnte nicht geladen werden"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Failed to load project grants."
-msgstr "Projektzuschüsse konnten nicht geladen werden."
+msgstr "Projekt-Grants konnten nicht geladen werden."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -3926,7 +3926,7 @@ msgstr "Statusvorfälle konnten nicht geladen werden."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
-msgstr "Benutzerberechtigungen konnten nicht geladen werden."
+msgstr "Benutzer-Grants konnten nicht geladen werden."
 
 #: apps/server/src/routes/mfa/index.tsx
 msgid "Failed to load verification methods. Please try again."
@@ -4010,7 +4010,7 @@ msgstr "Passwort konnte nicht aktualisiert werden."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
-msgstr "Benutzerberechtigungen konnten nicht aktualisiert werden. Versuchen Sie es erneut."
+msgstr "Benutzer-Grants konnten nicht aktualisiert werden. Versuchen Sie es erneut."
 
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Failed to verify authenticator code."
@@ -4303,7 +4303,7 @@ msgstr "Grant {0} richtet sich an die Organisation {1}"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant ID"
-msgstr "Gewähren Sie ID"
+msgstr "Grant-ID"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance access"
@@ -4311,25 +4311,25 @@ msgstr "Instanzzugriff gewähren"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance manager"
-msgstr "Grant-Instanzmanager"
+msgstr "Instanzmanager-Rolle gewähren"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant manager role"
-msgstr "Erteilen Sie die Rolle des Managers"
+msgstr "Managerrolle gewähren"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Grant role to user"
-msgstr "Gewähren Sie dem Benutzer eine Rolle"
+msgstr "Benutzer eine Rolle gewähren"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant the selected project to another organization in this tenant. Revoking a project grant also revokes user grants issued through it."
-msgstr "Gewähren Sie das ausgewählte Projekt einer anderen Organisation in diesem Mandanten. Durch den Widerruf eines Projektzuschusses werden auch die damit gewährten Benutzerzuschüsse widerrufen."
+msgstr "Gewähren Sie das ausgewählte Projekt einer anderen Organisation in diesem Mandanten. Durch den Widerruf eines Projekt-Grants werden auch die darüber erteilten Benutzer-Grants widerrufen."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Granted"
-msgstr "Gewährt"
+msgstr "Gewährt am"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Group"
@@ -5331,7 +5331,7 @@ msgstr "Weitere Berechtigungen laden"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Load more project grants"
-msgstr "Weitere Projektzuschüsse laden"
+msgstr "Weitere Projekt-Grants laden"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -5348,7 +5348,7 @@ msgstr "Weitere Rollen laden"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Load more user grants"
-msgstr "Laden Sie weitere Benutzerzuschüsse"
+msgstr "Weitere Benutzer-Grants laden"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Load more users"
@@ -5481,7 +5481,7 @@ msgstr "Niedrigstufige Access-Token-Prüfung. <0>jwtKey</0> aus JWKS übergeben,
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Low-level POST to the token endpoint with grant_type authorization_code and the PKCE verifier; returns a TokenSet"
-msgstr "Direkter POST an den Token-Endpunkt mit grant_type authorization_code undPKCE-Verifier; gibt ein TokenSet zurück"
+msgstr "Direkter POST an den Token-Endpunkt mit grant_type authorization_code und PKCE-Verifier; gibt ein TokenSet zurück"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Low-level token helpers for custom session handling"
@@ -5816,7 +5816,7 @@ msgstr "Modellorganisation, Organisationseinheit, Projekt und Zugriffsgenehmigun
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Model organizations, OrgUnits, projects, roles, grants, approval policies, and access requests without creating a separate admin tenant."
-msgstr "Modellieren Sie Organisationen, OrgUnits, Projekte, Rollen, Zuschüsse, Genehmigungsrichtlinien und Zugriffsanfragen, ohne einen separaten Admin-Mandanten zu erstellen."
+msgstr "Modellieren Sie Organisationen, OrgUnits, Projekte, Rollen, Grants, Genehmigungsrichtlinien und Zugriffsanfragen, ohne einen separaten Admin-Mandanten zu erstellen."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Module"
@@ -5980,7 +5980,7 @@ msgstr "Keine aktiven API-Schlüssel."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No active grants for this project."
-msgstr "Für dieses Projekt gibt es keine aktiven Zuschüsse."
+msgstr "Für dieses Projekt gibt es keine aktiven Grants."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active permissions."
@@ -6008,7 +6008,7 @@ msgstr "Keine aktiven Sitzungen gefunden"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "No active user grants."
-msgstr "Keine aktiven Benutzerzuteilungen."
+msgstr "Keine aktiven Benutzer-Grants."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "No announcements found."
@@ -7482,7 +7482,7 @@ msgstr "Projekt"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project grant manager"
-msgstr "Projektzuschussmanager"
+msgstr "Projekt-Grant-Manager"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project identity remains stable while its name and description change."
@@ -7499,7 +7499,7 @@ msgstr "Projektmanager"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project managers can change definitions. Project grant managers can read definitions and manage user grants for one exact grant."
-msgstr "Projektmanager können Definitionen ändern. Projektzuschussmanager können Definitionen lesen und Benutzerzuschüsse für einen genauen Zuschuss verwalten."
+msgstr "Projektmanager können Definitionen ändern. Projekt-Grant-Manager können Definitionen lesen und Benutzer-Grants für einen exakten Grant verwalten."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
@@ -7540,7 +7540,7 @@ msgstr "Projekte gruppieren Anwendungen und Berechtigungsrollen. Die projektspez
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Projects isolate business roles and permissions. Select one project to manage its cross-organization grants and delegated managers."
-msgstr "Projekte isolieren Geschäftsrollen und Berechtigungen. Wählen Sie ein Projekt aus, um seine organisationsübergreifenden Zuschüsse und delegierten Manager zu verwalten."
+msgstr "Projekte isolieren Geschäftsrollen und Berechtigungen. Wählen Sie ein Projekt aus, um seine organisationsübergreifenden Grants und delegierten Manager zu verwalten."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Property"
@@ -8104,7 +8104,7 @@ msgstr "Registrieren Sie OAuth-2.0-Clients und verwalten Sie deren Anmeldedaten.
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Register OAuth clients, redirect URIs, grants, token policy, and secrets."
-msgstr "OAuth-Klienten, Weiterleitungs-URIs, Berechtigungen, Tokenrichtlinie und Geheimnisse registrieren."
+msgstr "OAuth-Clients, Weiterleitungs-URIs, Grant-Typen, Tokenrichtlinie und Geheimnisse registrieren."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Register OAuth clients, view client IDs, rotate client secrets, and manage redirect URIs."
@@ -8614,7 +8614,7 @@ msgstr "Zuordnung widerrufen"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Revoke grant"
-msgstr "Fördermittel widerrufen"
+msgstr "Grant widerrufen"
 
 #. placeholder {0}: managerLabel(row.original)
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
@@ -8649,15 +8649,15 @@ msgstr "Managerzuordnung widerrufen?"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Revoke project grant?"
-msgstr "Projektförderung widerrufen?"
+msgstr "Projekt-Grant widerrufen?"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Revoke user grant"
-msgstr "Benutzererteilung widerrufen"
+msgstr "Benutzer-Grant widerrufen"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Revoke user grant?"
-msgstr "Benutzererteilung widerrufen?"
+msgstr "Benutzer-Grant widerrufen?"
 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Revoked"
@@ -9091,7 +9091,7 @@ msgstr "Wählen Sie einen Plan aus"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Select a project with an active grant first."
-msgstr "Wählen Sie zunächst ein Projekt mit einem aktiven Zuschuss aus."
+msgstr "Wählen Sie zunächst ein Projekt mit einem aktiven Grant aus."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
@@ -9164,7 +9164,7 @@ msgstr "Ausgewähltes Projekt"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Selected project grant"
-msgstr "Ausgewähltes Projektstipendium"
+msgstr "Ausgewählter Projekt-Grant"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Selector xid-sign-in-button; inputs signInUrl, redirectUrl, ariaLabel"
@@ -10624,7 +10624,7 @@ msgstr "Dieser E-Mail-Link ist ungültig oder abgelaufen. Öffnen Sie die neuest
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "This grant manager scope is read-only for project definitions. User grants for the exact project grant remain writable below."
-msgstr "Dieser Grant-Manager-Bereich ist für Projektdefinitionen schreibgeschützt. Benutzerzuschüsse für den genauen Projektzuschuss bleiben im Folgenden beschreibbar."
+msgstr "Dieser Grant-Manager-Bereich ist für Projektdefinitionen schreibgeschützt. Benutzer-Grants für den exakten Projekt-Grant bleiben unten bearbeitbar."
 
 #: packages/i18n/src/messages.ts
 msgid "This invitation has already been accepted."
@@ -11197,7 +11197,7 @@ msgstr "Der Benutzer {0} verliert den Verwaltungszugriff auf genau diesen Bereic
 #. placeholder {0}: pendingUserGrantRevoke.user_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "User {0} will lose the selected role for this exact project grant."
-msgstr "Der Benutzer {0} verliert die ausgewählte Rolle für genau diesen Projektzuschuss."
+msgstr "Der Benutzer {0} verliert die ausgewählte Rolle für genau diesen Projekt-Grant."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "User and Group schema metadata."
@@ -11222,7 +11222,7 @@ msgstr "Benutzereinwilligung ist erforderlich."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "User grants"
-msgstr "Benutzerzuschüsse"
+msgstr "Benutzer-Grants"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
@@ -11749,7 +11749,7 @@ msgstr "Geschäftliche E-Mail"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Work only inside the project or project grant scopes delegated to your user. These assignments do not grant organization administrator access."
-msgstr "Arbeiten Sie nur innerhalb der Projekt- oder Projektzuschussbereiche, die an Ihren Benutzer delegiert wurden. Diese Zuweisungen gewähren keinen Organisationsadministratorzugriff."
+msgstr "Arbeiten Sie nur innerhalb der Projekt- oder Projekt-Grant-Bereiche, die an Ihren Benutzer delegiert wurden. Diese Zuweisungen gewähren keinen Organisationsadministratorzugriff."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."

@@ -380,7 +380,7 @@ msgstr "检测到认证器存在克隆风险。请联系支持。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "A project grant must target another organization."
-msgstr "项目拨款必须针对另一个组织。"
+msgstr "项目授权必须指向另一个组织。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "A project is the namespace for role keys, permission keys, and user grants."
@@ -1156,11 +1156,11 @@ msgstr "会校验断言的签发方、受众、接收方、时间窗口、InResp
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Assign one active role to a user who is an active member of the grant target organization. Enter an exact user ID; the server verifies membership and the exact grant."
-msgstr "将一个活动角色分配给作为授予目标组织的活动成员的用户。输入准确的用户ID；服务器验证成员资格和确切的授权。"
+msgstr "将一个活动角色分配给作为授权目标组织的活动成员的用户。输入准确的用户ID；服务器验证成员资格和确切的授权。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Assign one exact management role to the matching organization, project, or grant scope. A manager cannot delegate or revoke their own assignment."
-msgstr "将一个确切的管理角色分配给匹配的组织、项目或资助范围。经理不能委派或撤销自己的任务。"
+msgstr "将一个确切的管理角色分配给匹配的组织、项目或授权范围。经理不能委派或撤销自己的任务。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assign, list, get, revoke, and delete scoped user grants."
@@ -2401,7 +2401,7 @@ msgstr "创建目录"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Create grant"
-msgstr "创建补助金"
+msgstr "创建授权"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Create key"
@@ -2570,7 +2570,7 @@ msgstr "不允许跨组织访问。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Cross-organization grants"
-msgstr "跨组织补助金"
+msgstr "跨组织授权"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "CSS length, e.g. 8px or 0.5rem"
@@ -3889,7 +3889,7 @@ msgstr "加载资料失败"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Failed to load project grants."
-msgstr "无法加载项目补助金。"
+msgstr "无法加载项目授权。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -4299,11 +4299,11 @@ msgstr "GOOGLE_CLIENT_SECRET"
 #. placeholder {1}: grant.data.granted_to_org_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Grant {0} targets organization {1}"
-msgstr "授予 {0} 目标组织 {1}"
+msgstr "授权 {0} 的目标组织为 {1}"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant ID"
-msgstr "授予 ID"
+msgstr "授权 ID"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance access"
@@ -4329,7 +4329,7 @@ msgstr "将选定的项目授予此租户中的另一个组织。撤销项目授
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Granted"
-msgstr "的确"
+msgstr "授予日期"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Group"
@@ -5331,7 +5331,7 @@ msgstr "加载更多权限"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Load more project grants"
-msgstr "加载更多项目补助金"
+msgstr "加载更多项目授权"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -5980,7 +5980,7 @@ msgstr "没有活跃的 API 密钥。"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No active grants for this project."
-msgstr "该项目没有有效的赠款。"
+msgstr "该项目没有有效的授权。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active permissions."
@@ -7482,7 +7482,7 @@ msgstr "项目"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project grant manager"
-msgstr "项目资助经理"
+msgstr "项目授权经理"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project identity remains stable while its name and description change."
@@ -7499,7 +7499,7 @@ msgstr "专案经理"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project managers can change definitions. Project grant managers can read definitions and manage user grants for one exact grant."
-msgstr "项目经理可以更改定义。项目拨款经理可以读取定义并管理一笔确切拨款的用户拨款。"
+msgstr "项目经理可以更改定义。项目授权经理可以读取定义，并管理某一项目授权下的用户授权。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
@@ -7540,7 +7540,7 @@ msgstr "项目组应用程序和授权角色。每个项目的<0>access_policy</
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Projects isolate business roles and permissions. Select one project to manage its cross-organization grants and delegated managers."
-msgstr "项目隔离业务角色和权限。选择一个项目来管理其跨组织拨款和委派经理。"
+msgstr "项目隔离业务角色和权限。选择一个项目来管理其跨组织授权和委派经理。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Property"
@@ -8614,7 +8614,7 @@ msgstr "撤销分配"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Revoke grant"
-msgstr "撤销补助金"
+msgstr "撤销授权"
 
 #. placeholder {0}: managerLabel(row.original)
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
@@ -8649,7 +8649,7 @@ msgstr "撤销经理任命？"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Revoke project grant?"
-msgstr "撤销项目资助？"
+msgstr "撤销项目授权？"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Revoke user grant"
@@ -9091,7 +9091,7 @@ msgstr "选择方案"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Select a project with an active grant first."
-msgstr "首先选择一个具有有效资助的项目。"
+msgstr "请先选择一个具有有效授权的项目。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
@@ -9164,7 +9164,7 @@ msgstr "选定项目"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Selected project grant"
-msgstr "选定的项目资助"
+msgstr "选定的项目授权"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Selector xid-sign-in-button; inputs signInUrl, redirectUrl, ariaLabel"
@@ -10188,7 +10188,7 @@ msgstr "授权请求仍在等待处理。"
 
 #: packages/i18n/src/messages.ts
 msgid "The authorization server does not support this grant type."
-msgstr "授权服务器不支持此许可类型。"
+msgstr "授权服务器不支持此授权类型。"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
 msgid "The backchannel request was denied. You can close this page."
@@ -10204,7 +10204,7 @@ msgstr "品牌 schema 仅接受上面列出的七个字段，不接受自定义 
 
 #: packages/i18n/src/messages.ts
 msgid "The client is not authorized to use this grant type."
-msgstr "客户端未被授权使用此许可类型。"
+msgstr "客户端未被授权使用此授权类型。"
 
 #. placeholder {0}: pendingDelete.title
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
@@ -10624,7 +10624,7 @@ msgstr "此邮件链接无效或已过期。请打开最新的邀请邮件后重
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "This grant manager scope is read-only for project definitions. User grants for the exact project grant remain writable below."
-msgstr "此拨款经理​​范围对于项目定义是只读的。确切的项目补助金的用户补助金仍然可写在下面。"
+msgstr "此项目授权经理范围对项目定义只读。该项目授权下的用户授权仍可在下方修改。"
 
 #: packages/i18n/src/messages.ts
 msgid "This invitation has already been accepted."
@@ -11197,7 +11197,7 @@ msgstr "用户 {0} 将失去对此范围的管理访问权限。"
 #. placeholder {0}: pendingUserGrantRevoke.user_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "User {0} will lose the selected role for this exact project grant."
-msgstr "用户 {0} 将失去为此项目拨款选择的角色。"
+msgstr "用户 {0} 将失去在此项目授权中选定的角色。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "User and Group schema metadata."
@@ -11222,7 +11222,7 @@ msgstr "需要用户同意。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "User grants"
-msgstr "用户补助金"
+msgstr "用户授权"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx

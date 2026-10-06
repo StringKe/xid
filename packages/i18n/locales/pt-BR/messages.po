@@ -380,7 +380,7 @@ msgstr "Um possível clone do autenticador foi detectado. Entre em contato com o
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "A project grant must target another organization."
-msgstr "Uma subvenção de projeto deve ser direcionada a outra organização."
+msgstr "Uma concessão de projeto deve ser direcionada a outra organização."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "A project is the namespace for role keys, permission keys, and user grants."
@@ -1148,7 +1148,7 @@ msgstr "Configuração ASP.NET Core (recomendado)"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assertion grants"
-msgstr "Grants de assercao"
+msgstr "Concessões por asserção"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assertions are validated for issuer, audience, recipient, time window, InResponseTo, and replay."
@@ -1160,7 +1160,7 @@ msgstr "Atribua uma função ativa a um usuário que seja membro ativo da organi
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Assign one exact management role to the matching organization, project, or grant scope. A manager cannot delegate or revoke their own assignment."
-msgstr "Atribua uma função de gerenciamento exata à organização, projeto ou escopo do subsídio correspondente. Um gerente não pode delegar ou revogar sua própria atribuição."
+msgstr "Atribua uma função de gerenciamento exata à organização, projeto ou escopo da concessão correspondente. Um gerente não pode delegar ou revogar sua própria atribuição."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Assign, list, get, revoke, and delete scoped user grants."
@@ -2484,7 +2484,7 @@ msgstr "Crie, liste e revogue chaves de API da organização."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, list, get, revoke, and delete project grants."
-msgstr "Criar, listar, consultar, revogar e excluir permissões de projeto."
+msgstr "Criar, listar, consultar, revogar e excluir concessões de projeto."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, list, update, and delete webhook endpoints."
@@ -2570,7 +2570,7 @@ msgstr "O acesso entre organizações não é permitido."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Cross-organization grants"
-msgstr "Subsídios entre organizações"
+msgstr "Concessões entre organizações"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "CSS length, e.g. 8px or 0.5rem"
@@ -3889,7 +3889,7 @@ msgstr "Falha ao carregar perfil"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Failed to load project grants."
-msgstr "Falha ao carregar concessões do projeto."
+msgstr "Falha ao carregar concessões de projeto."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -4299,11 +4299,11 @@ msgstr "GOOGLE_CLIENT_SECRET"
 #. placeholder {1}: grant.data.granted_to_org_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Grant {0} targets organization {1}"
-msgstr "Conceder {0} segmenta a organização {1}"
+msgstr "A concessão {0} é destinada à organização {1}"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant ID"
-msgstr "Conceder ID"
+msgstr "ID da concessão"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance access"
@@ -4311,11 +4311,11 @@ msgstr "Conceder acesso à instância"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Grant instance manager"
-msgstr "Conceder gerenciador de instâncias"
+msgstr "Conceder função de gerente de instância"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant manager role"
-msgstr "Função de gerente de concessões"
+msgstr "Conceder função de gerente"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Grant role to user"
@@ -4323,13 +4323,13 @@ msgstr "Conceder função ao usuário"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Grant the selected project to another organization in this tenant. Revoking a project grant also revokes user grants issued through it."
-msgstr "Conceda o projeto selecionado a outra organização neste locatário. A revogação de uma concessão de projeto também revoga as concessões de usuários emitidas por meio dele."
+msgstr "Conceda o projeto selecionado a outra organização neste locatário. A revogação de uma concessão de projeto também revoga as concessões de usuário emitidas por meio dela."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Granted"
-msgstr "Garantido"
+msgstr "Concedido em"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Group"
@@ -5065,7 +5065,7 @@ msgstr "A verificação de token de ID com suporte de JWKS, a validação de non
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JWT bearer and SAML bearer assertion grants are not enabled. Registration rejects assertion grant metadata until a trust root exists."
-msgstr "Assertion grants JWT bearer e SAML bearer nao estao habilitados. O registro rejeita metadados de assertion grant ate existir uma raiz de confianca."
+msgstr "Concessões por asserção JWT bearer e SAML bearer não estão habilitadas. O registro rejeita metadados de concessão por asserção até existir uma raiz de confiança."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JWT clock skew tolerance in seconds"
@@ -5331,7 +5331,7 @@ msgstr "Carregar mais permissões"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Load more project grants"
-msgstr "Carregar mais concessões de projetos"
+msgstr "Carregar mais concessões de projeto"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -5481,7 +5481,7 @@ msgstr "Verificação de access token de baixo nível. Passe <0>jwtKey</0> do JW
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Low-level POST to the token endpoint with grant_type authorization_code and the PKCE verifier; returns a TokenSet"
-msgstr "POST de baixo nível para o endpoint de token com grant_typeauthorization_code e o verificador PKCE; retorna um TokenSet"
+msgstr "POST de baixo nível para o endpoint de token com grant_type authorization_code e o verificador PKCE; retorna um TokenSet"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Low-level token helpers for custom session handling"
@@ -5980,7 +5980,7 @@ msgstr "Nenhuma chave de API ativa."
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No active grants for this project."
-msgstr "Não há subsídios ativos para este projeto."
+msgstr "Não há concessões ativas para este projeto."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No active permissions."
@@ -6008,7 +6008,7 @@ msgstr "Nenhuma sessão ativa encontrada"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "No active user grants."
-msgstr "Nenhuma concessão de usuário ativo."
+msgstr "Nenhuma concessão de usuário ativa."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "No announcements found."
@@ -7482,7 +7482,7 @@ msgstr "Projeto"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Project grant manager"
-msgstr "Gerente de subvenção do projeto"
+msgstr "Gerente de concessão de projeto"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project identity remains stable while its name and description change."
@@ -7499,7 +7499,7 @@ msgstr "Gestor de projeto"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Project managers can change definitions. Project grant managers can read definitions and manage user grants for one exact grant."
-msgstr "Os gerentes de projeto podem alterar as definições. Os gerentes de subvenções do projeto podem ler definições e gerenciar concessões de usuários para uma concessão exata."
+msgstr "Os gerentes de projeto podem alterar as definições. Os gerentes de concessão de projeto podem ler definições e gerenciar concessões de usuário de uma concessão exata."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgProjects.tsx
@@ -8649,15 +8649,15 @@ msgstr "Revogar atribuição de gerente?"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Revoke project grant?"
-msgstr "Revogar a concessão do projeto?"
+msgstr "Revogar a concessão de projeto?"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Revoke user grant"
-msgstr "Revogar concessão do usuário"
+msgstr "Revogar concessão de usuário"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Revoke user grant?"
-msgstr "Revogar concessão do usuário?"
+msgstr "Revogar concessão de usuário?"
 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Revoked"
@@ -9091,7 +9091,7 @@ msgstr "Selecione um plano"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Select a project with an active grant first."
-msgstr "Selecione primeiro um projeto com uma subvenção ativa."
+msgstr "Selecione primeiro um projeto com uma concessão ativa."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
@@ -9164,7 +9164,7 @@ msgstr "Projeto selecionado"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Selected project grant"
-msgstr "Subvenção do projeto selecionado"
+msgstr "Concessão de projeto selecionada"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Selector xid-sign-in-button; inputs signInUrl, redirectUrl, ariaLabel"
@@ -10624,7 +10624,7 @@ msgstr "Este link de e-mail é inválido ou expirou. Abra o e-mail de convite ma
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "This grant manager scope is read-only for project definitions. User grants for the exact project grant remain writable below."
-msgstr "Este escopo do gerenciador de concessões é somente leitura para definições de projeto. As concessões de usuário para a concessão exata do projeto permanecem graváveis ​​abaixo."
+msgstr "Este escopo de gerente de concessão é somente leitura para definições de projeto. As concessões de usuário da concessão de projeto exata continuam editáveis abaixo."
 
 #: packages/i18n/src/messages.ts
 msgid "This invitation has already been accepted."
@@ -11197,7 +11197,7 @@ msgstr "O usuário {0} perderá o acesso de gerenciamento exatamente a este esco
 #. placeholder {0}: pendingUserGrantRevoke.user_id
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "User {0} will lose the selected role for this exact project grant."
-msgstr "O usuário {0} perderá a função selecionada para esta concessão exata do projeto."
+msgstr "O usuário {0} perderá a função selecionada para esta concessão de projeto exata."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "User and Group schema metadata."
@@ -11749,7 +11749,7 @@ msgstr "E-mail profissional"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Work only inside the project or project grant scopes delegated to your user. These assignments do not grant organization administrator access."
-msgstr "Trabalhe apenas dentro do projeto ou escopos de concessão do projeto delegados ao seu usuário. Essas atribuições não concedem acesso de administrador da organização."
+msgstr "Trabalhe apenas dentro dos escopos de projeto ou de concessão de projeto delegados ao seu usuário. Essas atribuições não concedem acesso de administrador da organização."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
