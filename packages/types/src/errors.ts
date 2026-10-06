@@ -73,6 +73,7 @@ export const TENANCY_ERROR_CODES = [
   'grant_already_exists',
   'request_already_decided',
   'no_available_approver',
+  'organization_selection_required',
 ] as const
 
 export const SSO_ERROR_CODES = [

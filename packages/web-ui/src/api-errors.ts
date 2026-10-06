@@ -30,6 +30,7 @@ const CREDENTIAL_DISCLOSABLE_CODES: ReadonlySet<XidErrorCode> = new Set<XidError
   'otp_expired',
   'magic_link_expired',
   'token_expired',
+  'organization_selection_required',
   'server_error',
   'service_unavailable',
   'temporarily_unavailable',

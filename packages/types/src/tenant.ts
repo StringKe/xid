@@ -486,6 +486,8 @@ export type TenantContext = {
     kind: 'tenant' | 'instance_entry'
     primaryDomain?: string
     unresolvedRoot?: boolean
+    // 实例根域上由 session cookie 推出的租户;一次性 token 与显式 organization_id 仍可改选同实例的其他租户。
+    sessionDerivedRoot?: boolean
   }
   hostedAuthOrigin?: string
   signingKeys: ActiveSigningKeySet

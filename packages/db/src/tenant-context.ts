@@ -14,6 +14,7 @@ import type {
 import {
   normalizeDeliveryChannelsPolicy,
   normalizeHostedAuthPolicy,
+  normalizePhoneNumber,
   normalizeSessionPolicy,
   normalizeSocialProviders,
   normalizeTokenPolicy,
@@ -580,6 +581,7 @@ async function instanceForRequest(
 
 function normalizeIdentifier(input: LoginIdentifier): LoginIdentifier {
   if (input.kind === 'email') return { ...input, value: input.value.trim().toLowerCase() }
+  if (input.kind === 'phone') return { ...input, value: normalizePhoneNumber(input.value) ?? '' }
   return { ...input, value: input.value.trim() }
 }
 
@@ -946,12 +948,11 @@ export async function resolveTenantContextBySessionHash(
   const session = rows[0]
   if (!session) return err('tenant_not_found', 'Session tenant not found', 404)
 
-  const context = await resolveOrgById(
-    db,
-    instance,
-    session.tenantId,
-    rootResolvedContextOptions(instance, origin),
-  )
+  const rootOptions = rootResolvedContextOptions(instance, origin)
+  const context = await resolveOrgById(db, instance, session.tenantId, {
+    ...rootOptions,
+    resolution: { ...rootOptions.resolution, kind: 'tenant', sessionDerivedRoot: true },
+  })
   if (!context.ok) return context
   return { ok: true, value: { status: 'resolved', tenant: context.value, session } }
 }

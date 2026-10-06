@@ -73,6 +73,7 @@ export const errorMessages: ErrorMessages = {
   grant_already_exists: msg`You already have access to this project.`,
   request_already_decided: msg`This access request has already been decided.`,
   no_available_approver: msg`No approver is available for this access request.`,
+  organization_selection_required: msg`This account belongs to more than one organization. Choose an organization to continue.`,
 
   malformed_request: msg`The request is malformed.`,
   malformed_xml: msg`The SAML XML document is malformed.`,
