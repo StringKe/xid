@@ -1,25 +1,32 @@
-// @tanstack/react-table v9 将 useReactTable 迁到 /legacy;本组件走 legacy。cursor 分页在外部。
+// 细线表格:表头 sticky、行高三档(默认 40)、窄屏两种形态:priority 隐藏次要列,scroll 横向滚动并固定首列。
+// 不把 <table> 改成 block/grid,保留表格语义。
 
+import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { flexRender } from '@tanstack/react-table'
 import {
-  getCoreRowModel,
-  useLegacyTable,
-  type LegacyColumnDef,
-  type LegacyRow,
-} from '@tanstack/react-table/legacy'
+  flexRender,
+  useTable,
+  type Header,
+  type Row,
+  type SortingState,
+} from '@tanstack/react-table'
 import * as stylex from '@stylexjs/stylex'
-import { tokens } from '../../styles/tokens.stylex'
-import { Spinner } from './Spinner'
+import { mergeClassNames } from '../../class-name'
+import { Icon } from './Icon'
+import { responsiveHiddenClassName } from './responsive-hidden'
+import { Skeleton } from './Skeleton'
+import { tableStyles as styles } from './data-table-styles'
+import {
+  dataTableFeatures,
+  type DataTableColumnDef,
+  type DataTableColumnMeta,
+  type DataTableDensity,
+  type DataTableFeatures,
+  type DataTableRow,
+} from './data-table-model'
 
-// v9 RowData 可含 array;业务行一律对象。
-export type DataTableRow = Record<string, unknown>
-
-export type DataTableColumnDef<T extends DataTableRow> = LegacyColumnDef<T>
-
-type ColumnWidthMeta = {
-  width?: string
-}
+export type { DataTableColumnDef, DataTableColumnMeta, DataTableDensity, DataTableRow }
+export { DATA_TABLE_DENSITIES, dataTableFeatures, identityColumn } from './data-table-model'
 
 export type DataTableProps<T extends DataTableRow> = {
   columns: ReadonlyArray<DataTableColumnDef<T>>
@@ -30,97 +37,31 @@ export type DataTableProps<T extends DataTableRow> = {
   onRowClick?: (row: T) => void
   isRowSelected?: (row: T) => boolean
   caption?: string
+  density?: DataTableDensity
+  narrowMode?: 'priority' | 'scroll'
+  columnVisibility?: Record<string, boolean>
 }
 
 const SKELETON_ROWS = 5
 
-const styles = stylex.create({
-  // 不做卡片包裹,避免外框与行间边框重复层级。
-  scroll: {
-    overflowX: 'auto',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: '0.875rem',
-    fontVariantNumeric: 'tabular-nums',
-    fontFamily: tokens['--xid-font'],
-  },
-  caption: {
-    captionSide: 'top',
-    textAlign: 'left',
-    paddingBlock: '0.5rem',
-    paddingInline: '0.75rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    color: tokens['--xid-fg'],
-  },
-  // mono microlabel + border-strong;hairline 邻接文本 >= 1.25rem。
-  th: {
-    paddingBlockStart: '0.875rem',
-    paddingBlockEnd: '1.25rem',
-    paddingInline: '0.75rem',
-    textAlign: 'left',
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: tokens['--xid-muted-foreground'],
-    backgroundColor: 'transparent',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border-strong'],
-    whiteSpace: 'nowrap',
-  },
-  cell: {
-    paddingBlock: '1.25rem',
-    paddingInline: '0.75rem',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-    color: tokens['--xid-fg'],
-  },
-  // 与 cell 文字等高,防 CLS。
-  skeletonBar: {
-    display: 'block',
-    height: '1.3125rem',
-    borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-border'],
-    width: '60%',
-  },
-  emptyCell: {
-    paddingBlock: '2rem',
-    paddingInline: '0.75rem',
-    textAlign: 'center',
-    color: tokens['--xid-muted-foreground'],
-  },
-  clickableRow: {
-    cursor: 'pointer',
-    transform: { default: 'none', ':active': 'scale(0.97)' },
-    transitionProperty: 'background-color, transform',
-    transitionDuration: '120ms',
-    transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': tokens['--xid-muted'],
-      ':focus-visible': tokens['--xid-muted'],
-    },
-  },
-  // 常驻选中态,与 hover 瞬态区分。
-  selectedRow: {
-    backgroundColor: tokens['--xid-muted'],
-    boxShadow: `inset 2px 0 0 ${tokens['--xid-primary']}`,
-  },
-  loadingFooter: {
-    display: 'flex',
-    justifyContent: 'center',
-    padding: '0.875rem',
-  },
-})
-
 function defaultRowId<T>(_row: T, index: number): string {
   return String(index)
+}
+
+const DENSITY_STYLES = {
+  compact: styles.rowCompact,
+  default: styles.rowDefault,
+  comfortable: styles.rowComfortable,
+} as const
+
+function cellClassName(
+  meta: DataTableColumnMeta | undefined,
+  narrowMode: 'priority' | 'scroll',
+): string | undefined {
+  const hidden =
+    meta?.hidden ??
+    (narrowMode === 'priority' && meta?.priority === 'secondary' ? { narrow: true } : undefined)
+  return responsiveHiddenClassName(hidden)
 }
 
 export function DataTable<T extends DataTableRow>({
@@ -132,47 +73,52 @@ export function DataTable<T extends DataTableRow>({
   onRowClick,
   isRowSelected,
   caption,
+  density = 'default',
+  narrowMode = 'scroll',
+  columnVisibility,
 }: DataTableProps<T>): ReactNode {
-  const table = useLegacyTable<T>({
+  const [sorting, setSorting] = useState<SortingState>([])
+  const table = useTable<DataTableFeatures, T>({
+    features: dataTableFeatures,
     data: data as T[],
     columns: columns as DataTableColumnDef<T>[],
     getRowId,
-    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    state: { sorting, ...(columnVisibility ? { columnVisibility } : {}) },
+    onSortingChange: setSorting,
   })
 
   const headerGroups = table.getHeaderGroups()
-  const colCount = table.getAllLeafColumns().length
+  const colCount = table.getVisibleLeafColumns().length
   const rows = table.getRowModel().rows
+  const isScroll = narrowMode === 'scroll'
 
   return (
-    <div {...stylex.props(styles.scroll)}>
-      <table {...stylex.props(styles.table)}>
+    <div
+      {...stylex.props(styles.frame, isScroll && styles.scroll)}
+      role={isScroll && caption ? 'region' : undefined}
+      aria-label={isScroll ? caption : undefined}
+      tabIndex={isScroll ? 0 : undefined}
+    >
+      <table {...stylex.props(styles.table)} aria-busy={isLoading || undefined}>
         {caption ? <caption {...stylex.props(styles.caption)}>{caption}</caption> : null}
         <thead>
           {headerGroups.map((group) => (
             <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th
+              {group.headers.map((header, index) => (
+                <HeaderCell
                   key={header.id}
-                  scope="col"
-                  {...stylex.props(styles.th)}
-                  style={(() => {
-                    const width = (header.column.columnDef.meta as ColumnWidthMeta | undefined)
-                      ?.width
-                    return width ? { width } : undefined
-                  })()}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
+                  header={header}
+                  isStickyFirst={isScroll && index === 0}
+                  narrowMode={narrowMode}
+                />
               ))}
             </tr>
           ))}
         </thead>
         <tbody>
           {isLoading ? (
-            <SkeletonRows colCount={colCount} />
+            <SkeletonRows colCount={colCount} density={density} />
           ) : rows.length === 0 ? (
             <tr>
               <td colSpan={colCount} {...stylex.props(styles.emptyCell)}>
@@ -184,6 +130,8 @@ export function DataTable<T extends DataTableRow>({
               <DataRow
                 key={row.id}
                 row={row}
+                density={density}
+                narrowMode={narrowMode}
                 onRowClick={onRowClick}
                 isRowSelected={isRowSelected}
               />
@@ -191,68 +139,131 @@ export function DataTable<T extends DataTableRow>({
           )}
         </tbody>
       </table>
-      {isLoading ? (
-        <div role="status" aria-live="polite" {...stylex.props(styles.loadingFooter)}>
-          <Spinner size={20} />
-        </div>
-      ) : null}
     </div>
   )
 }
 
-function SkeletonRows({ colCount }: { colCount: number }): ReactNode {
+type HeaderCellProps<T extends DataTableRow> = {
+  header: Header<DataTableFeatures, T, unknown>
+  isStickyFirst: boolean
+  narrowMode: 'priority' | 'scroll'
+}
+
+function HeaderCell<T extends DataTableRow>({
+  header,
+  isStickyFirst,
+  narrowMode,
+}: HeaderCellProps<T>): ReactNode {
+  const meta = header.column.columnDef.meta
+  const canSort = header.column.getCanSort()
+  const sorted = header.column.getIsSorted()
+  const props = stylex.props(
+    styles.th,
+    meta?.align === 'end' && styles.alignEnd,
+    isStickyFirst && styles.stickyFirst,
+  )
+  const content = header.isPlaceholder
+    ? null
+    : flexRender(header.column.columnDef.header, header.getContext())
   return (
-    <>
-      {Array.from({ length: SKELETON_ROWS }).map((_unused, rowIdx) => (
-        <tr key={`skeleton-${rowIdx}`} aria-hidden="true">
-          {Array.from({ length: colCount }).map((_cell, cellIdx) => (
-            <td key={`skeleton-${rowIdx}-${cellIdx}`} {...stylex.props(styles.cell)}>
-              <span {...stylex.props(styles.skeletonBar)} style={{ opacity: 1 - rowIdx * 0.15 }} />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
+    <th
+      scope="col"
+      aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
+      className={mergeClassNames(props.className, cellClassName(meta, narrowMode))}
+      style={{ ...props.style, ...(meta?.width ? { width: meta.width } : {}) }}
+    >
+      {canSort ? (
+        <button
+          type="button"
+          onClick={header.column.getToggleSortingHandler()}
+          {...stylex.props(styles.sortButton)}
+        >
+          {content}
+          {sorted ? <Icon name={sorted === 'asc' ? 'caret-up' : 'caret-down'} size={12} /> : null}
+        </button>
+      ) : (
+        content
+      )}
+    </th>
   )
 }
 
+function SkeletonRows({
+  colCount,
+  density,
+}: {
+  colCount: number
+  density: DataTableDensity
+}): ReactNode {
+  return Array.from({ length: SKELETON_ROWS }).map((_unused, rowIdx) => (
+    <tr key={`skeleton-${rowIdx}`} aria-hidden="true" {...stylex.props(DENSITY_STYLES[density])}>
+      {Array.from({ length: colCount }).map((_cell, cellIdx) => (
+        <td key={`skeleton-${rowIdx}-${cellIdx}`} {...stylex.props(styles.cell)}>
+          <Skeleton width={cellIdx === 0 ? '60%' : '40%'} height="0.625rem" />
+        </td>
+      ))}
+    </tr>
+  ))
+}
+
 type DataRowProps<T extends DataTableRow> = {
-  row: LegacyRow<T>
+  row: Row<DataTableFeatures, T>
+  density: DataTableDensity
+  narrowMode: 'priority' | 'scroll'
   onRowClick?: (row: T) => void
   isRowSelected?: (row: T) => boolean
 }
 
 function DataRow<T extends DataTableRow>({
   row,
+  density,
+  narrowMode,
   onRowClick,
   isRowSelected,
 }: DataRowProps<T>): ReactNode {
   const clickable = Boolean(onRowClick)
   const selected = isRowSelected?.(row.original) ?? false
+  const isScroll = narrowMode === 'scroll'
 
   return (
     <tr
       onClick={onRowClick ? () => onRowClick(row.original) : undefined}
       tabIndex={clickable ? 0 : undefined}
-      role={clickable ? 'button' : undefined}
       aria-selected={clickable ? selected : undefined}
       onKeyDown={
         onRowClick
           ? (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                onRowClick(row.original)
-              }
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              if (event.target !== event.currentTarget) return
+              event.preventDefault()
+              onRowClick(row.original)
             }
           : undefined
       }
-      {...stylex.props(clickable && styles.clickableRow, selected && styles.selectedRow)}
+      {...stylex.props(
+        styles.row,
+        DENSITY_STYLES[density],
+        clickable && styles.clickableRow,
+        selected && styles.selectedRow,
+      )}
     >
-      {row.getVisibleCells().map((cell) => (
-        <td key={cell.id} {...stylex.props(styles.cell)}>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </td>
-      ))}
+      {row.getVisibleCells().map((cell, index) => {
+        const meta = cell.column.columnDef.meta
+        const props = stylex.props(
+          styles.cell,
+          meta?.align === 'end' && styles.alignEnd,
+          isScroll && index === 0 && styles.stickyFirst,
+        )
+        return (
+          <td
+            key={cell.id}
+            className={mergeClassNames(props.className, cellClassName(meta, narrowMode))}
+            style={props.style}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        )
+      })}
     </tr>
   )
 }

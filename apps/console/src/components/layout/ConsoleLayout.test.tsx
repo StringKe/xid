@@ -351,21 +351,21 @@ describe('ConsoleLayout', () => {
       accountTrigger.click()
     })
 
-    const menu = container.querySelector('[role="menu"]')
+    const menu = document.body.querySelector('[role="menu"]')
     if (!menu) throw new Error('Account menu did not open')
     expect(menu.textContent).toContain('owner@example.com')
     const accountLink = menu.querySelector('a[href="/account"]')
     expect(accountLink?.textContent).toContain('Account settings')
 
-    const signOutItem = Array.from(menu.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Sign out'),
+    const signOutItem = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+      (item) => item.textContent?.includes('Sign out'),
     )
     if (!signOutItem) throw new Error('Sign out menu item was not rendered')
     await act(async () => {
       signOutItem.click()
     })
     expect(authState.signOut).toHaveBeenCalledOnce()
-    expect(container.querySelector('[role="menu"]')).toBeNull()
+    expect(accountTrigger.getAttribute('aria-expanded')).toBe('false')
 
     await act(async () => root.unmount())
     container.remove()
@@ -507,11 +507,11 @@ describe('ConsoleLayout', () => {
     await act(async () => {
       accountTrigger.click()
     })
-    const menu = container.querySelector('[role="menu"]')
+    const menu = document.body.querySelector('[role="menu"]')
     if (!menu) throw new Error('Account menu did not open')
     expect(menu.textContent).not.toContain('Sign out')
-    const endItem = Array.from(menu.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('End impersonation'),
+    const endItem = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+      (item) => item.textContent?.includes('End impersonation'),
     )
     if (!endItem) throw new Error('End impersonation menu item was not rendered')
 

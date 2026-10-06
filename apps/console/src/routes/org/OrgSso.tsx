@@ -13,7 +13,7 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   useCreateSsoConnection,

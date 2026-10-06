@@ -1,37 +1,46 @@
-import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
-
-// SSR 无 enter 标记,捕获 motion props 断言动画契约。
-const captured = vi.hoisted(() => ({ motionDivProps: [] as Record<string, unknown>[] }))
-
-vi.mock('motion/react', () => ({
-  motion: {
-    div: (props: Record<string, unknown>): ReactNode => {
-      captured.motionDivProps.push(props)
-      return (
-        <div className={props.className as string} role={props.role as string}>
-          {props.children as ReactNode}
-        </div>
-      )
-    },
-  },
-  AnimatePresence: ({ children }: { children?: ReactNode }): ReactNode => <>{children}</>,
-  MotionConfig: ({ children }: { children?: ReactNode }): ReactNode => <>{children}</>,
-}))
-
+import { describe, expect, it } from 'vitest'
 import { EmptyState } from './EmptyState'
 
 describe('EmptyState', () => {
-  it('enters with a spring opacity fade on first mount', () => {
-    const html = renderToStaticMarkup(<EmptyState title="Nothing here" />)
+  it('renders an empty list as a polite status with its explanation', () => {
+    const html = renderToStaticMarkup(
+      <EmptyState
+        title="No users match Suspended"
+        description="Remove a filter or search by email instead."
+      />,
+    )
 
     expect(html).toContain('role="status"')
-    expect(html).toContain('Nothing here')
+    expect(html).toContain('No users match Suspended')
+    expect(html).toContain('Remove a filter or search by email instead.')
+  })
 
-    const motionProps = captured.motionDivProps[captured.motionDivProps.length - 1]
-    expect(motionProps.initial).toEqual({ opacity: 0 })
-    expect(motionProps.animate).toEqual({ opacity: 1 })
-    expect(motionProps.transition).toMatchObject({ type: 'spring', bounce: 0, duration: 0.4 })
+  it('renders first use with its single primary action', () => {
+    const html = renderToStaticMarkup(
+      <EmptyState
+        variant="first-use"
+        title="Send Northwind events to your own systems"
+        action={<button type="button">Add endpoint…</button>}
+      />,
+    )
+
+    expect(html).toContain('Send Northwind events to your own systems')
+    expect(html).toContain('Add endpoint…')
+  })
+
+  it('renders a load failure as a warning notice instead of an empty state', () => {
+    const html = renderToStaticMarkup(
+      <EmptyState
+        variant="load-failure"
+        title="Audit events did not load"
+        description="Your filters are kept."
+        action={<button type="button">Try again</button>}
+      />,
+    )
+
+    expect(html).toContain('Audit events did not load')
+    expect(html).toContain('Try again')
+    expect(html).not.toContain('role="alert"')
   })
 })

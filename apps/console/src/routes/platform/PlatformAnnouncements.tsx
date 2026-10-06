@@ -19,7 +19,7 @@ import {
   ConsolePageSection,
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
@@ -407,7 +407,7 @@ export default function PlatformAnnouncements(): ReactNode {
                 </article>
               ))}
             </div>
-            <Pagination query={announcements} loadMoreLabel={<Trans>Load more</Trans>} />
+            <LoadMore query={announcements} loadMoreLabel={<Trans>Load more</Trans>} />
           </>
         ) : null}
       </ConsolePageSection>

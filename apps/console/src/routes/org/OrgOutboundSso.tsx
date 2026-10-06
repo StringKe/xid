@@ -3,7 +3,7 @@ import { OUTBOUND_CONSOLE_PRESETS } from '@xid-kit/protocol'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Button, Field, Input, Select, Textarea } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,

@@ -2,7 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -11,7 +11,7 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { CopyValue } from './CopyValue'
@@ -167,7 +167,7 @@ export default function OrgDomains(): ReactNode {
           isLoading={domains.isLoading}
           emptyMessage={<Trans>No domains added yet.</Trans>}
         />
-        <Pagination query={domains} loadMoreLabel={<Trans>Load more domains</Trans>} />
+        <LoadMore query={domains} loadMoreLabel={<Trans>Load more domains</Trans>} />
       </ConsolePageSection>
 
       <ConsolePageSplitSection

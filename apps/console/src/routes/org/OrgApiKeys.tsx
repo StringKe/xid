@@ -4,7 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { API_KEY_SCOPE_RESOURCES, type ApiKeyEnvironment } from '@xid-kit/types'
 import { Alert, Badge, Button, Checkbox, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
@@ -15,7 +15,7 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
@@ -272,7 +272,7 @@ function ApiKeysPage(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No active API keys.</Trans>}
         />
-        <Pagination query={apiKeys} loadMoreLabel={<Trans>Load more keys</Trans>} />
+        <LoadMore query={apiKeys} loadMoreLabel={<Trans>Load more keys</Trans>} />
       </ConsolePageSection>
 
       <ConsolePageSplitSection

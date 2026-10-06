@@ -4,7 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Field, Input } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -13,7 +13,7 @@ import {
   ConsolePageToolbar,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
@@ -259,7 +259,7 @@ export default function OrgAuditEvents(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No audit events match the current filters.</Trans>}
         />
-        <Pagination query={events} loadMoreLabel={<Trans>Load more events</Trans>} />
+        <LoadMore query={events} loadMoreLabel={<Trans>Load more events</Trans>} />
       </ConsolePageSection>
     </ConsolePage>
   )

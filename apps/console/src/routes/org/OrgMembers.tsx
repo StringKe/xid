@@ -2,7 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -11,7 +11,7 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   statusToneFor,
@@ -249,7 +249,7 @@ export default function OrgMembers(): ReactNode {
               isLoading={membersLoading}
               emptyMessage={<Trans>No members found.</Trans>}
             />
-            <Pagination query={members} loadMoreLabel={<Trans>Load more members</Trans>} />
+            <LoadMore query={members} loadMoreLabel={<Trans>Load more members</Trans>} />
           </>
         )}
       </ConsolePageSection>
@@ -268,7 +268,7 @@ export default function OrgMembers(): ReactNode {
               isLoading={invitationsLoading}
               emptyMessage={<Trans>No pending invitations.</Trans>}
             />
-            <Pagination query={invitations} loadMoreLabel={<Trans>Load more invitations</Trans>} />
+            <LoadMore query={invitations} loadMoreLabel={<Trans>Load more invitations</Trans>} />
           </>
         )}
       </ConsolePageSection>

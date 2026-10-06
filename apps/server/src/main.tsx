@@ -10,10 +10,12 @@ import { AppMotionConfig } from '@xid-kit/web-ui/motion'
 import { queryClient } from '@xid-kit/web-ui/query'
 import { NavigationRuntimeProvider } from '@xid-kit/web-ui/tanstack-router'
 import { ThemeProvider } from '@xid-kit/web-ui/theme'
+import { ToastProvider } from '@xid-kit/web-ui/ui/Toast'
+import { TooltipProvider } from '@xid-kit/web-ui/ui/Tooltip'
 import { AuthProvider } from './lib/auth-context'
 import { prefetchAuthConfig } from './routes/sign-in/auth-config-query'
 import { router } from './router'
-import './fonts/inter-latin.css'
+import '@xid-kit/web-ui/foundation.css'
 import './styles.css'
 
 // /sign-in 游客入口依赖 /auth/config:主 chunk 预热,与 catalog 和懒 chunk 并行。
@@ -33,11 +35,15 @@ function mountApp(locale: SupportedLocale): void {
         <AppMotionConfig>
           <QueryClientProvider client={queryClient}>
             <ThemeProvider>
-              <AuthProvider>
-                <NavigationRuntimeProvider runtime="core">
-                  <RouterProvider router={router} />
-                </NavigationRuntimeProvider>
-              </AuthProvider>
+              <ToastProvider>
+                <TooltipProvider>
+                  <AuthProvider>
+                    <NavigationRuntimeProvider runtime="core">
+                      <RouterProvider router={router} />
+                    </NavigationRuntimeProvider>
+                  </AuthProvider>
+                </TooltipProvider>
+              </ToastProvider>
             </ThemeProvider>
           </QueryClientProvider>
         </AppMotionConfig>

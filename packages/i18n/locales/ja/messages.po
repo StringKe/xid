@@ -1567,6 +1567,7 @@ msgid "Branding saved successfully."
 msgstr "ブランド設定を保存しました。"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Breadcrumb.tsx
 msgid "Breadcrumb"
 msgstr "パンくずリスト"
 
@@ -1888,6 +1889,8 @@ msgid "Clock skew tolerance in seconds"
 msgstr "クロックスキュー許容値（秒）"
 
 #: apps/console/src/routes/org/ApplicationEditor.tsx
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+#: packages/web-ui/src/components/ui/Dialog.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Close"
 msgstr "閉じる"
@@ -1931,6 +1934,10 @@ msgstr "この組織の Hosted UI の色、タイポグラフィ、ロゴのオ�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Combine logical and comparison operators."
 msgstr "論理演算子と比較演算子を組み合わせます。"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Command menu"
+msgstr "コマンドメニュー"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
@@ -2084,6 +2091,10 @@ msgstr "サインインを確認"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Confirm sign in | XID"
 msgstr "サインインを確認 | XID"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Confirm that you saved it. It cannot be shown again."
+msgstr "保存したことを確認してください。閉じると再表示できません。"
 
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Confirm your email"
@@ -2242,17 +2253,23 @@ msgstr "JwtKey（JWK、JWKS、または CryptoKey）を検証用の VerifyKeySet
 #: apps/console/src/routes/org/CopyValue.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copied"
 msgstr "コピーしました"
 
 #: apps/console/src/routes/org/CopyableValue.tsx
 #: apps/console/src/routes/org/CopyValue.tsx
+#: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copy"
 msgstr "コピー"
 
 #: apps/console/src/routes/org/CopyValue.tsx
 msgid "Copy {label}"
 msgstr "{label}をコピー"
+
+#: packages/web-ui/src/components/ui/CopyButton.tsx
+msgid "Copy {subject}"
+msgstr "{subject}をコピー"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Copy <0>templates/xid-keychain-plugin.rs</0> into <1>src-tauri/src/xid_keychain.rs</1> and register it following <2>templates/tauri-app-setup.rs</2>. Add <3>keyring = \"2\"</3>, <4>tauri-plugin-deep-link = \"2\"</4>, and <5>tauri-plugin-shell = \"2\"</5> to <6>src-tauri/Cargo.toml</6>."
@@ -3081,6 +3098,7 @@ msgid "Discriminated XidClient constructor options: same-origin accepts apiUrl, 
 msgstr "判別可能な XidClient constructor options です。same-origin は apiUrl、secretKey、fetcher、now を受け取り、oidc には issuer、clientId、redirectUri が必要です。"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
+#: packages/web-ui/src/components/ui/Toast.tsx
 msgid "Dismiss"
 msgstr "閉じる"
 
@@ -3148,6 +3166,10 @@ msgstr "ドメイン | コンソール | XID"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.dontHaveAccountSignUp"
 msgstr "アカウントをお持ちでないですか？<0>登録</0>"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Done"
+msgstr "完了"
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Download"
@@ -3471,6 +3493,10 @@ msgstr "ID プロバイダーに、以下の XID サービスプロバイダー�
 msgid "Enter this URL as the SCIM connector base URL in your identity provider, together with the directory bearer token."
 msgstr "ID プロバイダーで、この URL を SCIM コネクターのベース URL として、ディレクトリのベアラートークンと一緒に入力してください。"
 
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Enter to open"
+msgstr "Enter で開く"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Enter to select"
 msgstr "Enter キーで選択"
@@ -3524,6 +3550,10 @@ msgstr "ES256 が主要アルゴリズムです。RS256 は互換性のために
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ES256 is the primary algorithm; RS256 is supported. PS256 support is planned. ES384/ES512 are not yet implemented."
 msgstr "ES256 が主要アルゴリズムです。RS256 はサポートされています。PS256 のサポートは計画中です。ES384/ES512 はまだ実装されていません。"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Esc to close"
+msgstr "Esc で閉じる"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Escape to close"
@@ -4416,6 +4446,14 @@ msgstr "16 進カラー。例: #6366f1"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hidden"
 msgstr "非表示"
+
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Hide"
+msgstr "非表示"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Hide {subject}"
+msgstr "{subject}を非表示"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "hook"
@@ -5955,6 +5993,7 @@ msgid "New to XID? Create an account"
 msgstr "XID は初めてですか？アカウントを作成"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
 msgstr "次へ"
 
@@ -6291,6 +6330,10 @@ msgstr "別の方ですか？別のアカウントでサインイン"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Notes"
 msgstr "メモ"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Nothing matches. Try a name, email or ID."
+msgstr "一致する項目がありません。名前、メールアドレス、ID で検索してください。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Nuxt"
@@ -6927,6 +6970,7 @@ msgid "Paginated response envelope"
 msgstr "ページネーション対応のレスポンスエンベロープ"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Pagination"
 msgstr "ページネーション"
 
@@ -7360,6 +7404,7 @@ msgid "Preview"
 msgstr "プレビュー"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Previous"
 msgstr "前へ"
 
@@ -9109,6 +9154,10 @@ msgstr "まずアクティブなプロジェクトを選択します。"
 msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
 msgstr "プランとクォータを表示・編集する組織を選択してください。<0>プラットフォームの組織を参照</0>"
 
+#: packages/web-ui/src/components/ui/CopyButton.tsx
+msgid "Select and copy"
+msgstr "選択してコピーしてください"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Select at least one scope."
 msgstr "スコープを 1 つ以上選択してください。"
@@ -9424,9 +9473,21 @@ msgstr "OIDC および OAuth フロー、管理 API、Webhook、フレームワ�
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
 msgstr "短期 JWT キャッシュとスケジュール更新（高度な使用およびテスト向け）"
 
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Show"
+msgstr "表示"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Show {count} more path segments"
 msgstr "さらに {count} 個のパスセグメントを表示"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Show {subject}"
+msgstr "{subject}を表示"
+
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Show password"
+msgstr "パスワードを表示"
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Shown in UI instead of email when set."
@@ -9862,10 +9923,6 @@ msgstr "ステータスの凡例"
 #: packages/web-ui/src/components/ui/Stepper.tsx
 msgid "Step {current} of {total}"
 msgstr "ステップ {current} / {total}"
-
-#: packages/web-ui/src/components/ui/Stepper.tsx
-msgid "Step {current} of {total} · {label}"
-msgstr "ステップ {current} / {total} · {label}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Step-up authentication hook"
@@ -11054,6 +11111,10 @@ msgstr "クリック時にサインイン URL へ移動するスタイルなし�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Unstyled button that navigates to the sign-up URL on click"
 msgstr "クリック時に登録 URL へ移動するスタイルなしのボタン"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Up and Down to move"
+msgstr "上下キーで移動"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Update organization branding with a PATCH request using camelCase field names. Omitted fields and <0>null</0> currently retain the stored value; send a replacement string to change a field."

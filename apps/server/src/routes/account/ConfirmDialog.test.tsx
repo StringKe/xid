@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// 取消须等 exit 动画完成再 onCancel;jsdom 缺 showModal/close 时补 stub。
 
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -15,37 +14,30 @@ vi.mock('@lingui/react/macro', () => ({
 const actEnvironment = globalThis as Record<string, unknown>
 actEnvironment['IS_REACT_ACT_ENVIRONMENT'] = true
 
-const dialogProto = HTMLDialogElement.prototype as unknown as Record<string, unknown>
-dialogProto['showModal'] ??= function showModal(this: HTMLDialogElement): void {
-  this.open = true
-}
-dialogProto['close'] ??= function close(this: HTMLDialogElement): void {
-  this.open = false
-}
-
-const containers: HTMLElement[] = []
+const roots: Array<ReturnType<typeof createRoot>> = []
 
 async function render(props: {
   onConfirm: () => void
   onCancel: () => void
-}): Promise<{ container: HTMLElement; root: ReturnType<typeof createRoot> }> {
+  isLoading?: boolean
+}): Promise<void> {
   const container = document.createElement('div')
   document.body.appendChild(container)
-  containers.push(container)
   const root = createRoot(container)
+  roots.push(root)
   await act(async () => {
     root.render(
       <ConfirmDialog title="Delete item?" description="This cannot be undone." {...props} />,
     )
   })
-  return { container, root }
 }
 
-afterEach(() => {
-  for (const container of containers.splice(0)) container.remove()
-})
+function buttonByText(label: string): HTMLButtonElement | undefined {
+  return Array.from(document.body.querySelectorAll('button')).find(
+    (button) => button.textContent === label,
+  )
+}
 
-// 轮询等 exit,避免定长 sleep 在慢环境 flaky。
 async function waitFor(assertion: () => void): Promise<void> {
   const deadline = Date.now() + 2000
   for (;;) {
@@ -55,58 +47,61 @@ async function waitFor(assertion: () => void): Promise<void> {
     } catch (error) {
       if (Date.now() > deadline) throw error
       await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        await new Promise((resolve) => setTimeout(resolve, 20))
       })
     }
   }
 }
 
-describe('ConfirmDialog motion contract', () => {
-  it('renders as a motion-driven dialog starting from the enter pose', async () => {
-    const { container } = await render({ onConfirm: vi.fn(), onCancel: vi.fn() })
-    const dialog = container.querySelector('dialog')
+afterEach(async () => {
+  for (const root of roots.splice(0)) await act(async () => root.unmount())
+  document.body.innerHTML = ''
+})
+
+describe('ConfirmDialog', () => {
+  it('opens as a labelled modal dialog on mount', async () => {
+    await render({ onConfirm: vi.fn(), onCancel: vi.fn() })
+
+    const dialog = document.body.querySelector('[role="dialog"]')
 
     expect(dialog).not.toBeNull()
-    expect(dialog.style.opacity).toBeDefined()
-    expect(dialog.style.transform).toContain('scale')
+    expect(dialog?.getAttribute('aria-labelledby')).toBeTruthy()
+    expect(
+      document.getElementById(dialog?.getAttribute('aria-labelledby') ?? '')?.textContent,
+    ).toBe('Delete item?')
   })
 
-  it('defers onCancel until the exit animation completes when Cancel is clicked', async () => {
+  it('notifies the parent only after the dialog has closed when Cancel is clicked', async () => {
     const onCancel = vi.fn()
-    const { container } = await render({ onConfirm: vi.fn(), onCancel })
-    const dialog = container.querySelector('dialog')
-    const cancelButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Cancel',
-    )
-    expect(cancelButton).toBeDefined()
+    await render({ onConfirm: vi.fn(), onCancel })
 
     await act(async () => {
-      cancelButton.click()
-      // 须在 act 内 click 紧后断言:act 退出会 flush 动画帧,慢机上 exit 一帧跳完。
-      expect(onCancel).not.toHaveBeenCalled()
-      expect(dialog.open).toBe(true)
+      buttonByText('Cancel')?.click()
     })
 
-    await waitFor(() => {
-      expect(onCancel).toHaveBeenCalledTimes(1)
-      expect(dialog.open).toBe(false)
-    })
+    await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1))
   })
 
-  it('plays the same deferred exit on Escape (cancel event)', async () => {
+  it('keeps the dialog open and ignores Cancel while the confirmation is running', async () => {
     const onCancel = vi.fn()
-    const { container } = await render({ onConfirm: vi.fn(), onCancel })
-    const dialog = container.querySelector('dialog')
+    await render({ onConfirm: vi.fn(), onCancel, isLoading: true })
 
     await act(async () => {
-      dialog.dispatchEvent(new Event('cancel', { cancelable: true }))
-      expect(onCancel).not.toHaveBeenCalled()
-      expect(dialog.open).toBe(true)
+      buttonByText('Cancel')?.click()
     })
 
-    await waitFor(() => {
-      expect(onCancel).toHaveBeenCalledTimes(1)
-      expect(dialog.open).toBe(false)
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+  })
+
+  it('calls onConfirm from the confirm button', async () => {
+    const onConfirm = vi.fn()
+    await render({ onConfirm, onCancel: vi.fn() })
+
+    await act(async () => {
+      buttonByText('Confirm')?.click()
     })
+
+    expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 })

@@ -2,7 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import type { GlobalUser, InstanceManagerAssignment, XidError } from '@xid-kit/types'
 import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
 import {
@@ -13,7 +13,7 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { useAuth } from '@xid-kit/web-ui/session'
 import { statusToneFor, useGlobalUserStatusLabel } from '@xid-kit/web-ui/enum-labels'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
@@ -226,7 +226,7 @@ export default function PlatformInstanceManagers(): ReactNode {
               isLoading={assignments.isLoading}
               emptyMessage={<Trans>No instance managers found.</Trans>}
             />
-            <Pagination
+            <LoadMore
               query={assignments}
               loadMoreLabel={<Trans>Load more instance managers</Trans>}
             />
@@ -273,7 +273,7 @@ export default function PlatformInstanceManagers(): ReactNode {
                 isLoading={users.isLoading}
                 emptyMessage={<Trans>No users found.</Trans>}
               />
-              <Pagination query={users} loadMoreLabel={<Trans>Load more users</Trans>} />
+              <LoadMore query={users} loadMoreLabel={<Trans>Load more users</Trans>} />
             </>
           )
         ) : null}

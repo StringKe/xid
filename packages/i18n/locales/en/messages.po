@@ -1567,6 +1567,7 @@ msgid "Branding saved successfully."
 msgstr "Branding saved successfully."
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Breadcrumb.tsx
 msgid "Breadcrumb"
 msgstr "Breadcrumb"
 
@@ -1888,6 +1889,8 @@ msgid "Clock skew tolerance in seconds"
 msgstr "Clock skew tolerance in seconds"
 
 #: apps/console/src/routes/org/ApplicationEditor.tsx
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+#: packages/web-ui/src/components/ui/Dialog.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Close"
 msgstr "Close"
@@ -1931,6 +1934,10 @@ msgstr "Colors, typography, and logo overrides for this organization's Hosted UI
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Combine logical and comparison operators."
 msgstr "Combine logical and comparison operators."
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Command menu"
+msgstr "Command menu"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
@@ -2084,6 +2091,10 @@ msgstr "Confirm sign in"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Confirm sign in | XID"
 msgstr "Confirm sign in | XID"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Confirm that you saved it. It cannot be shown again."
+msgstr "Confirm that you saved it. It cannot be shown again."
 
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Confirm your email"
@@ -2242,17 +2253,23 @@ msgstr "Convert JwtKey (JWK, JWKS, or CryptoKey) to VerifyKeySet for verificatio
 #: apps/console/src/routes/org/CopyValue.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copied"
 msgstr "Copied"
 
 #: apps/console/src/routes/org/CopyableValue.tsx
 #: apps/console/src/routes/org/CopyValue.tsx
+#: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copy"
 msgstr "Copy"
 
 #: apps/console/src/routes/org/CopyValue.tsx
 msgid "Copy {label}"
 msgstr "Copy {label}"
+
+#: packages/web-ui/src/components/ui/CopyButton.tsx
+msgid "Copy {subject}"
+msgstr "Copy {subject}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Copy <0>templates/xid-keychain-plugin.rs</0> into <1>src-tauri/src/xid_keychain.rs</1> and register it following <2>templates/tauri-app-setup.rs</2>. Add <3>keyring = \"2\"</3>, <4>tauri-plugin-deep-link = \"2\"</4>, and <5>tauri-plugin-shell = \"2\"</5> to <6>src-tauri/Cargo.toml</6>."
@@ -3081,6 +3098,7 @@ msgid "Discriminated XidClient constructor options: same-origin accepts apiUrl, 
 msgstr "Discriminated XidClient constructor options: same-origin accepts apiUrl, secretKey, fetcher, and now; oidc requires issuer, clientId, and redirectUri."
 
 #: apps/server/src/routes/account/PasskeySection.tsx
+#: packages/web-ui/src/components/ui/Toast.tsx
 msgid "Dismiss"
 msgstr "Dismiss"
 
@@ -3148,6 +3166,10 @@ msgstr "Domains | Console | XID"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.dontHaveAccountSignUp"
 msgstr "Don't have an account? <0>Sign up</0>"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Done"
+msgstr "Done"
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Download"
@@ -3471,6 +3493,10 @@ msgstr "Enter these XID service provider values in your identity provider."
 msgid "Enter this URL as the SCIM connector base URL in your identity provider, together with the directory bearer token."
 msgstr "Enter this URL as the SCIM connector base URL in your identity provider, together with the directory bearer token."
 
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Enter to open"
+msgstr "Enter to open"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Enter to select"
 msgstr "Enter to select"
@@ -3524,6 +3550,10 @@ msgstr "ES256 is the primary algorithm; RS256 is supported for compatibility. ES
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ES256 is the primary algorithm; RS256 is supported. PS256 support is planned. ES384/ES512 are not yet implemented."
 msgstr "ES256 is the primary algorithm; RS256 is supported. PS256 support is planned. ES384/ES512 are not yet implemented."
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Esc to close"
+msgstr "Esc to close"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Escape to close"
@@ -4416,6 +4446,14 @@ msgstr "Hex color, e.g. #6366f1"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hidden"
 msgstr "Hidden"
+
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Hide"
+msgstr "Hide"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Hide {subject}"
+msgstr "Hide {subject}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "hook"
@@ -5955,6 +5993,7 @@ msgid "New to XID? Create an account"
 msgstr "New to XID? Create an account"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
 msgstr "Next"
 
@@ -6291,6 +6330,10 @@ msgstr "Not you? Sign in with a different account"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Notes"
 msgstr "Notes"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Nothing matches. Try a name, email or ID."
+msgstr "Nothing matches. Try a name, email or ID."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Nuxt"
@@ -6927,6 +6970,7 @@ msgid "Paginated response envelope"
 msgstr "Paginated response envelope"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Pagination"
 msgstr "Pagination"
 
@@ -7360,6 +7404,7 @@ msgid "Preview"
 msgstr "Preview"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Previous"
 msgstr "Previous"
 
@@ -9109,6 +9154,10 @@ msgstr "Select an active project first."
 msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
 msgstr "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
 
+#: packages/web-ui/src/components/ui/CopyButton.tsx
+msgid "Select and copy"
+msgstr "Select and copy"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Select at least one scope."
 msgstr "Select at least one scope."
@@ -9424,9 +9473,21 @@ msgstr "Ship OIDC and OAuth flows, Management APIs, webhooks, framework SDKs, lo
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
 msgstr "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
 
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Show"
+msgstr "Show"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Show {count} more path segments"
 msgstr "Show {count} more path segments"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Show {subject}"
+msgstr "Show {subject}"
+
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Show password"
+msgstr "Show password"
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Shown in UI instead of email when set."
@@ -9862,10 +9923,6 @@ msgstr "Status legend"
 #: packages/web-ui/src/components/ui/Stepper.tsx
 msgid "Step {current} of {total}"
 msgstr "Step {current} of {total}"
-
-#: packages/web-ui/src/components/ui/Stepper.tsx
-msgid "Step {current} of {total} · {label}"
-msgstr "Step {current} of {total} · {label}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Step-up authentication hook"
@@ -11054,6 +11111,10 @@ msgstr "Unstyled button that navigates to the sign-in URL on click"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Unstyled button that navigates to the sign-up URL on click"
 msgstr "Unstyled button that navigates to the sign-up URL on click"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Up and Down to move"
+msgstr "Up and Down to move"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Update organization branding with a PATCH request using camelCase field names. Omitted fields and <0>null</0> currently retain the stored value; send a replacement string to change a field."

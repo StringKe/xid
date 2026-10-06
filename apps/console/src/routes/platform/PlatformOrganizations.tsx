@@ -2,7 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, Input } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
 import {
@@ -12,7 +12,7 @@ import {
   ConsolePageToolbar,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
@@ -245,7 +245,7 @@ export default function PlatformOrganizations(): ReactNode {
           isLoading={organizations.isLoading}
           emptyMessage={<Trans>No organizations found.</Trans>}
         />
-        <Pagination query={organizations} loadMoreLabel={<Trans>Load more organizations</Trans>} />
+        <LoadMore query={organizations} loadMoreLabel={<Trans>Load more organizations</Trans>} />
       </ConsolePageSection>
 
       {pendingStatus ? (

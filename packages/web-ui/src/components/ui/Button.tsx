@@ -1,135 +1,145 @@
-// focus-visible 走全局 outline(styles.css),组件不自带焦点样式。
+// 禁用与加载用 aria-disabled 而非 disabled 属性:按钮保持可聚焦,读屏能读到原因;点击在此吞掉。
+// focus-visible 走全局 outline(styles.css)。
 
 import { forwardRef } from 'react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { media, size, text, weight } from '../../styles/scale.stylex'
 import { mergeClassNames } from '../../class-name'
+import type { Responsive } from '../../responsive'
+import { responsiveHiddenClassName } from './responsive-hidden'
 import { Spinner } from './Spinner'
 
-export const BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'danger'] as const
+export const BUTTON_VARIANTS = ['primary', 'accent', 'secondary', 'ghost', 'danger'] as const
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number]
+
+export const BUTTON_SIZES = ['md', 'lg'] as const
+export type ButtonSize = (typeof BUTTON_SIZES)[number]
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant
+  size?: ButtonSize
   isLoading?: boolean
   fullWidth?: boolean
+  hidden?: Responsive<boolean>
 }
-
-const transition = {
-  transitionProperty: {
-    default: 'background-color, border-color, color, opacity, transform',
-    '@media (prefers-reduced-motion: reduce)': 'none',
-  },
-  transitionDuration: '0.12s',
-  transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
-} as const
 
 const styles = stylex.create({
   base: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '0.5rem',
-    // 触屏抬到 44px 触控目标,不影响鼠标端密度。
-    minHeight: {
-      default: '2.375rem',
-      '@media (pointer: coarse)': '2.75rem',
-    },
+    gap: '0.375rem',
+    minHeight: { default: size.control, [media.coarse]: size.touch },
     paddingBlock: 0,
     paddingInline: '0.875rem',
     borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'transparent',
+    borderWidth: 0,
+    borderStyle: 'none',
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
-    fontWeight: 560,
-    // 窄列两字折成竖排会破坏触控目标形状。
+    fontSize: text.base,
+    lineHeight: '1.125rem',
+    fontWeight: weight.medium,
     whiteSpace: 'nowrap',
-    // disabled/loading 的 button 不触发 :active,天然豁免。
+    textDecoration: 'none',
+    cursor: 'pointer',
     transform: { default: 'none', ':active': 'scale(0.97)' },
-    ...transition,
+    transitionProperty: {
+      default: 'background-color, box-shadow, color, transform',
+      [media.reducedMotion]: 'none',
+    },
+    transitionDuration: '120ms',
+    transitionTimingFunction: 'ease-out',
   },
-  // color-mix 向 black 暗化,避免引入脱离主题 token 的字面量。
+  large: {
+    minHeight: size.touch,
+    paddingInline: '1rem',
+  },
   primary: {
     backgroundColor: {
       default: tokens['--xid-primary'],
-      ':hover': `color-mix(in oklch, ${tokens['--xid-primary']} 92%, black)`,
-      ':active': `color-mix(in oklch, ${tokens['--xid-primary']} 82%, black)`,
+      ':hover': `color-mix(in srgb, ${tokens['--xid-primary']} 84%, transparent)`,
     },
     color: tokens['--xid-primary-foreground'],
-    borderColor: `color-mix(in oklch, ${tokens['--xid-primary']} 84%, black)`,
-    boxShadow: tokens['--xid-shadow-sm'],
+  },
+  accent: {
+    backgroundColor: { default: tokens['--xid-accent'], ':hover': tokens['--xid-accent-strong'] },
+    color: tokens['--xid-accent-foreground'],
   },
   secondary: {
-    backgroundColor: {
-      default: tokens['--xid-surface'],
-      ':hover': tokens['--xid-muted'],
-      ':active': tokens['--xid-muted'],
-    },
+    backgroundColor: { default: tokens['--xid-surface'], ':hover': tokens['--xid-muted'] },
+    boxShadow: `inset 0 0 0 1px ${tokens['--xid-border-strong']}`,
     color: tokens['--xid-fg'],
-    borderColor: tokens['--xid-border-strong'],
   },
   ghost: {
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': tokens['--xid-muted'],
-      ':active': tokens['--xid-muted'],
-    },
+    backgroundColor: { default: 'transparent', ':hover': tokens['--xid-muted'] },
     color: tokens['--xid-fg'],
+    paddingInline: '0.75rem',
   },
   danger: {
     backgroundColor: {
       default: tokens['--xid-danger'],
-      ':hover': `color-mix(in oklch, ${tokens['--xid-danger']} 92%, black)`,
-      ':active': `color-mix(in oklch, ${tokens['--xid-danger']} 82%, black)`,
+      ':hover': `color-mix(in srgb, ${tokens['--xid-danger']} 86%, transparent)`,
     },
     color: tokens['--xid-danger-foreground'],
-    borderColor: `color-mix(in oklch, ${tokens['--xid-danger']} 84%, black)`,
   },
   fullWidth: {
     width: '100%',
   },
-  enabled: {
-    cursor: 'pointer',
-    opacity: 1,
-  },
-  disabled: {
+  unavailable: {
     cursor: 'not-allowed',
     opacity: 0.55,
+  },
+  busy: {
+    cursor: 'progress',
   },
 })
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     variant = 'primary',
+    size: buttonSize = 'md',
     isLoading = false,
     fullWidth = false,
-    disabled,
+    disabled = false,
+    hidden,
     className,
     style,
     children,
+    onClick,
+    type = 'button',
     ...rest
   },
   ref,
 ): ReactNode {
-  const isDisabled = disabled || isLoading
+  const isBlocked = disabled || isLoading
   const base = stylex.props(
     styles.base,
+    buttonSize === 'lg' && styles.large,
     styles[variant],
     fullWidth && styles.fullWidth,
-    isDisabled ? styles.disabled : styles.enabled,
+    disabled && styles.unavailable,
+    isLoading && styles.busy,
   )
+
+  function handleClick(event: MouseEvent<HTMLButtonElement>): void {
+    if (isBlocked) {
+      event.preventDefault()
+      return
+    }
+    onClick?.(event)
+  }
 
   return (
     <button
       ref={ref}
-      type={rest.type ?? 'button'}
-      disabled={isDisabled}
+      type={type}
+      aria-disabled={isBlocked || undefined}
       aria-busy={isLoading || undefined}
-      className={mergeClassNames(base.className, className)}
+      className={mergeClassNames(base.className, responsiveHiddenClassName(hidden), className)}
       style={{ ...base.style, ...style }}
+      onClick={handleClick}
       {...rest}
     >
       {isLoading ? <Spinner size={16} /> : null}

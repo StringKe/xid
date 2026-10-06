@@ -37,7 +37,11 @@ describe('SignInSocialButtons', () => {
       />,
     )
 
-    expect(blocked).toMatch(/<button[^>]*disabled=""[^>]*>.*Continue with GitHub.*<\/button>/)
-    expect(ready).not.toMatch(/<button[^>]*disabled=""[^>]*>.*Continue with GitHub.*<\/button>/)
+    expect(blocked).toMatch(
+      /<button[^>]*aria-disabled="true"[^>]*>.*Continue with GitHub.*<\/button>/,
+    )
+    expect(ready).not.toMatch(
+      /<button[^>]*aria-disabled="true"[^>]*>.*Continue with GitHub.*<\/button>/,
+    )
   })
 })

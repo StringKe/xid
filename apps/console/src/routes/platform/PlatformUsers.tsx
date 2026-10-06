@@ -4,7 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, EmptyState, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -14,7 +14,7 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { useAuth } from '@xid-kit/web-ui/session'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
@@ -226,7 +226,7 @@ export default function PlatformUsers(): ReactNode {
             isLoading={users.isLoading}
             emptyMessage={<Trans>No users found matching your query.</Trans>}
           />
-          <Pagination query={users} loadMoreLabel={<Trans>Load more</Trans>} />
+          <LoadMore query={users} loadMoreLabel={<Trans>Load more</Trans>} />
         </ConsolePageSection>
       )}
 

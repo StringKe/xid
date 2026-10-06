@@ -12,7 +12,7 @@ import {
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import type { XidError } from '@xid-kit/types'
 import { CopyableValue } from './CopyableValue'

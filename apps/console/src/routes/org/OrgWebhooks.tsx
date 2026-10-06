@@ -4,7 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { WEBHOOK_EVENT_TYPES } from '@xid-kit/types'
 import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
 import {
@@ -14,7 +14,7 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { errorTargetsField, useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
@@ -184,7 +184,7 @@ function WebhooksPage(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No webhook endpoints configured.</Trans>}
         />
-        <Pagination query={webhooks} loadMoreLabel={<Trans>Load more webhooks</Trans>} />
+        <LoadMore query={webhooks} loadMoreLabel={<Trans>Load more webhooks</Trans>} />
       </ConsolePageSection>
 
       <ConsolePageSplitSection

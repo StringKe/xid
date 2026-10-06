@@ -2,7 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { tenantManagerRoleForScope } from '@xid-kit/types'
 import { Alert, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import {
@@ -13,7 +13,7 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { useAuth } from '@xid-kit/web-ui/session'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
@@ -350,10 +350,7 @@ export default function OrgProjects(): ReactNode {
               isRowSelected={(project) => project.id === projectId}
             />
             {activeProjects.data ? (
-              <Pagination
-                query={activeProjects}
-                loadMoreLabel={<Trans>Load more projects</Trans>}
-              />
+              <LoadMore query={activeProjects} loadMoreLabel={<Trans>Load more projects</Trans>} />
             ) : null}
           </>
         )}
@@ -477,7 +474,7 @@ export default function OrgProjects(): ReactNode {
               isRowSelected={(grant) => grant.id === grantId}
             />
             {projectGrants.data ? (
-              <Pagination
+              <LoadMore
                 query={projectGrants}
                 loadMoreLabel={<Trans>Load more project grants</Trans>}
               />
@@ -586,7 +583,7 @@ export default function OrgProjects(): ReactNode {
               emptyMessage={<Trans>No managers assigned to this scope.</Trans>}
             />
             {assignments.data ? (
-              <Pagination
+              <LoadMore
                 query={assignments}
                 loadMoreLabel={<Trans>Load more manager assignments</Trans>}
               />
@@ -660,7 +657,7 @@ export default function OrgProjects(): ReactNode {
               emptyMessage={<Trans>No deleted projects.</Trans>}
             />
             {deletedProjects.data ? (
-              <Pagination
+              <LoadMore
                 query={deletedProjects}
                 loadMoreLabel={<Trans>Load more deleted projects</Trans>}
               />

@@ -4,7 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, Field, Select, Textarea } from '@xid-kit/web-ui/ui'
 import type { BadgeTone } from '@xid-kit/web-ui/ui'
 import {
@@ -14,7 +14,7 @@ import {
   ConsolePageSplitSection,
 } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
@@ -233,7 +233,7 @@ function ApplicationsPage(): ReactNode {
           isLoading={isLoading}
           emptyMessage={<Trans>No applications registered.</Trans>}
         />
-        <Pagination query={applications} loadMoreLabel={<Trans>Load more applications</Trans>} />
+        <LoadMore query={applications} loadMoreLabel={<Trans>Load more applications</Trans>} />
       </ConsolePageSection>
 
       {editing ? (

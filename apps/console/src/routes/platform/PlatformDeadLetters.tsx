@@ -1,13 +1,13 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { QueueDeadLetter, QueueDeadLetterReplay } from '@xid-kit/types'
 import { Alert, Badge, Button } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
@@ -241,7 +241,7 @@ export default function PlatformDeadLetters(): ReactNode {
           isLoading={deadLetters.isLoading}
           emptyMessage={<Trans>No dead letters found.</Trans>}
         />
-        <Pagination query={deadLetters} loadMoreLabel={<Trans>Load more dead letters</Trans>} />
+        <LoadMore query={deadLetters} loadMoreLabel={<Trans>Load more dead letters</Trans>} />
       </ConsolePageSection>
 
       {pendingReplay ? (

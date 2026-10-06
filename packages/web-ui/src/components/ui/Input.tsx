@@ -1,64 +1,34 @@
-// 不自带 label(由 Field 组合);focus 本地压掉全局 outline 避免双描边。
+// 不自带 label(由 Field / TextField 组合);聚焦环由 controlStyles 绘制,本地不叠全局 outline。
 
 import { forwardRef } from 'react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { tokens } from '../../styles/tokens.stylex'
+import { mergeClassNames } from '../../class-name'
+import { controlStyles, isAriaInvalid } from './control-styles'
 
 export type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   isInvalid?: boolean
+  inputSize?: 'md' | 'lg'
 }
 
-const styles = stylex.create({
-  base: {
-    width: '100%',
-    minHeight: {
-      default: '2.5rem',
-      '@media (pointer: coarse)': '2.75rem',
-    },
-    paddingBlock: 0,
-    paddingInline: '0.75rem',
-    borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
-    boxSizing: 'border-box',
-    transitionProperty: {
-      default: 'border-color',
-      '@media (prefers-reduced-motion: reduce)': 'none',
-    },
-    transitionDuration: '0.12s',
-    transitionTimingFunction: 'ease-out',
-    outline: 'none',
-    '::placeholder': {
-      color: tokens['--xid-muted-foreground'],
-    },
-  },
-  valid: {
-    borderColor: {
-      default: tokens['--xid-border'],
-      ':focus': tokens['--xid-accent'],
-    },
-  },
-  invalid: {
-    borderColor: tokens['--xid-danger'],
-  },
-})
-
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { isInvalid = false, ...rest },
+  { isInvalid = false, inputSize = 'md', className, style, ...rest },
   ref,
 ): ReactNode {
-  const invalid = isInvalid || rest['aria-invalid'] === true || rest['aria-invalid'] === 'true'
+  const invalid = isInvalid || isAriaInvalid(rest['aria-invalid'])
+  const base = stylex.props(
+    controlStyles.base,
+    inputSize === 'lg' && controlStyles.large,
+    invalid ? controlStyles.invalid : controlStyles.valid,
+    rest.disabled && controlStyles.disabled,
+  )
 
   return (
     <input
       ref={ref}
-      {...stylex.props(styles.base, invalid ? styles.invalid : styles.valid)}
       {...rest}
+      className={mergeClassNames(base.className, className)}
+      style={{ ...base.style, ...style }}
       aria-invalid={invalid || undefined}
     />
   )

@@ -75,7 +75,7 @@ describe('SignInOtpPanel', () => {
       isTurnstileReady: true,
     })
 
-    expect(blocked).toMatch(/<button[^>]*disabled=""[^>]*>Send code via email<\/button>/)
-    expect(ready).not.toMatch(/<button[^>]*disabled=""[^>]*>Send code via email<\/button>/)
+    expect(blocked).toMatch(/<button[^>]*aria-disabled="true"[^>]*>Send code via email<\/button>/)
+    expect(ready).not.toMatch(/<button[^>]*aria-disabled="true"[^>]*>Send code via email<\/button>/)
   })
 })

@@ -32,7 +32,7 @@ describe('SignInGuestButton', () => {
       root.render(<SignInGuestButton onContinue={onContinue} isLoading={false} />)
     })
     const button = container.querySelector('button')
-    expect(button?.disabled).toBe(false)
+    expect(button?.getAttribute('aria-disabled')).toBeNull()
 
     await act(async () => {
       button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -43,7 +43,7 @@ describe('SignInGuestButton', () => {
       root.render(<SignInGuestButton onContinue={onContinue} isLoading={true} />)
     })
     const loadingButton = container.querySelector('button')
-    expect(loadingButton?.disabled).toBe(true)
+    expect(loadingButton?.getAttribute('aria-disabled')).toBe('true')
     expect(loadingButton?.getAttribute('aria-busy')).toBe('true')
 
     await act(async () => {
@@ -55,7 +55,7 @@ describe('SignInGuestButton', () => {
       root.render(<SignInGuestButton onContinue={onContinue} isLoading={false} disabled={true} />)
     })
     const turnstileBlockedButton = container.querySelector('button')
-    expect(turnstileBlockedButton?.disabled).toBe(true)
+    expect(turnstileBlockedButton?.getAttribute('aria-disabled')).toBe('true')
 
     await act(async () => {
       turnstileBlockedButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))

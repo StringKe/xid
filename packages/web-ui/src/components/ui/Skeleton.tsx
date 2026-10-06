@@ -1,14 +1,23 @@
+// 占位与最终内容同尺寸;200ms 内完成的加载不闪骨架(外层延迟淡入,内层呼吸)。
+
 import type { HTMLAttributes, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { motion, springDefault } from '../../motion'
 import { tokens } from '../../styles/tokens.stylex'
+import { media } from '../../styles/scale.stylex'
 import { mergeClassNames } from '../../class-name'
 
-export type SkeletonProps = HTMLAttributes<HTMLDivElement> & {
+export type SkeletonProps = HTMLAttributes<HTMLSpanElement> & {
   width?: string | number
   height?: string | number
   radius?: string
 }
+
+export const SKELETON_DELAY_MS = 200
+
+const appear = stylex.keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
+})
 
 const pulse = stylex.keyframes({
   from: { opacity: 1 },
@@ -17,14 +26,20 @@ const pulse = stylex.keyframes({
 })
 
 const styles = stylex.create({
+  delay: {
+    display: 'block',
+    opacity: 0,
+    animationName: appear,
+    animationDuration: '150ms',
+    animationDelay: `${SKELETON_DELAY_MS}ms`,
+    animationFillMode: 'forwards',
+    animationTimingFunction: 'ease-out',
+  },
   base: {
     display: 'block',
     backgroundColor: tokens['--xid-muted'],
     borderRadius: tokens['--xid-radius-sm'],
-    animationName: {
-      default: pulse,
-      '@media (prefers-reduced-motion: reduce)': 'none',
-    },
+    animationName: { default: pulse, [media.reducedMotion]: 'none' },
     animationDuration: '1.4s',
     animationTimingFunction: 'ease-in-out',
     animationIterationCount: 'infinite',
@@ -40,21 +55,13 @@ export function Skeleton({
   ...rest
 }: SkeletonProps): ReactNode {
   const base = stylex.props(styles.base)
-  // pulse 是 CSS animation,会盖掉同元素 motion opacity;enter 挂外层,父子 opacity 相乘互不干扰。
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={springDefault}>
-      <div
-        aria-hidden="true"
+    <span aria-hidden="true" {...stylex.props(styles.delay)}>
+      <span
         className={mergeClassNames(base.className, className)}
-        style={{
-          ...base.style,
-          width,
-          height,
-          borderRadius: radius,
-          ...style,
-        }}
+        style={{ ...base.style, display: 'block', width, height, borderRadius: radius, ...style }}
         {...rest}
       />
-    </motion.div>
+    </span>
   )
 }

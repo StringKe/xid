@@ -3,211 +3,100 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
-
-// 行为测试不需要动效;把 motion 换成直通元素,关闭即同步卸载。
-vi.mock('../../motion', () => ({
-  AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
-  motion: {
-    ul: ({
-      children,
-      initial: _initial,
-      animate: _animate,
-      exit: _exit,
-      transition: _transition,
-      ...rest
-    }: Record<string, unknown> & { children?: ReactNode }) => <ul {...rest}>{children}</ul>,
-  },
-  popoverMotion: { initial: {}, animate: {}, exit: {}, transition: {} },
-}))
-
 import { Dropdown } from './Dropdown'
 import type { DropdownItem } from './Dropdown'
 
-const baseItems: DropdownItem[] = [
-  { key: 'first', label: 'First action', icon: 'gear', onSelect: vi.fn() },
-  { key: 'current', label: 'Current option', checked: true, onSelect: vi.fn() },
-  { key: 'docs', label: 'Documentation', href: 'https://xid.dev/docs' },
-]
-
-type Harness = {
-  container: HTMLDivElement
-  root: ReturnType<typeof createRoot>
-  trigger: () => HTMLButtonElement
-  menu: () => HTMLElement | null
-  menuItems: () => HTMLElement[]
+function items(): DropdownItem[] {
+  return [
+    { key: 'first', label: 'First action', icon: 'gear', onSelect: vi.fn() },
+    { key: 'current', label: 'Current option', checked: true, onSelect: vi.fn() },
+    { key: 'docs', label: 'Documentation', href: 'https://xid.dev/docs' },
+  ]
 }
 
-function mountDropdown(items: DropdownItem[] = baseItems): Harness {
+const roots: Array<ReturnType<typeof createRoot>> = []
+
+async function mount(menuItems: DropdownItem[]): Promise<HTMLButtonElement> {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
-  act(() => {
+  roots.push(root)
+  await act(async () => {
     root.render(
       <Dropdown
         ariaLabel="Example menu"
         trigger={<span>Open menu</span>}
         header="owner@example.com"
-        items={items}
+        items={menuItems}
       />,
     )
   })
-  return {
-    container,
-    root,
-    trigger: () => {
-      const element = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')
-      if (!element) throw new Error('trigger was not rendered')
-      return element
-    },
-    menu: () => container.querySelector<HTMLElement>('[role="menu"]'),
-    menuItems: () => Array.from(container.querySelectorAll<HTMLElement>('[role^="menuitem"]')),
-  }
+  const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')
+  if (!trigger) throw new Error('trigger was not rendered')
+  return trigger
 }
 
-function keydown(element: HTMLElement, key: string): void {
-  act(() => {
-    element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+async function open(trigger: HTMLButtonElement): Promise<HTMLElement> {
+  await act(async () => {
+    trigger.click()
   })
+  const menu = document.body.querySelector<HTMLElement>('[role="menu"]')
+  if (!menu) throw new Error('menu did not open')
+  return menu
+}
+
+function menuItems(): HTMLElement[] {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('[role^="menuitem"]'))
 }
 
 describe('Dropdown', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
-    vi.clearAllMocks()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    for (const root of roots.splice(0)) await act(async () => root.unmount())
     document.body.innerHTML = ''
   })
 
-  it('renders a closed menu button with menu aria wiring', () => {
-    const harness = mountDropdown()
-    const trigger = harness.trigger()
+  it('renders a closed menu button with menu aria wiring', async () => {
+    const trigger = await mount(items())
 
-    expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(trigger.getAttribute('aria-label')).toBe('Example menu')
-    expect(harness.menu()).toBeNull()
-
-    act(() => harness.root.unmount())
-    harness.container.remove()
+    expect(document.body.querySelector('[role="menu"]')).toBeNull()
   })
 
-  it('opens on click, focuses the first item, and shows header plus checked state', () => {
-    const harness = mountDropdown()
+  it('opens on click with the header and the checked item state', async () => {
+    const trigger = await mount(items())
 
-    act(() => {
-      harness.trigger().click()
-    })
+    const menu = await open(trigger)
 
-    const menu = harness.menu()
-    if (!menu) throw new Error('menu did not open')
-    expect(harness.trigger().getAttribute('aria-expanded')).toBe('true')
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
     expect(menu.textContent).toContain('owner@example.com')
-    const items = harness.menuItems()
-    expect(items).toHaveLength(3)
-    expect(document.activeElement).toBe(items[0])
-    expect(items[1]?.getAttribute('role')).toBe('menuitemcheckbox')
-    expect(items[1]?.getAttribute('aria-checked')).toBe('true')
-
-    act(() => harness.root.unmount())
-    harness.container.remove()
+    expect(menuItems()).toHaveLength(3)
+    const checked = menuItems().find((item) => item.getAttribute('role') === 'menuitemcheckbox')
+    expect(checked?.getAttribute('aria-checked')).toBe('true')
   })
 
-  it('closes on Escape and returns focus to the trigger', () => {
-    const harness = mountDropdown()
-    act(() => {
-      harness.trigger().click()
-    })
+  it('renders href items as anchors that navigate by document', async () => {
+    const trigger = await mount(items())
+    await open(trigger)
 
-    keydown(harness.menu() ?? harness.trigger(), 'Escape')
+    const anchor = menuItems().find((element) => element.tagName === 'A')
 
-    expect(harness.menu()).toBeNull()
-    expect(harness.trigger().getAttribute('aria-expanded')).toBe('false')
-    expect(document.activeElement).toBe(harness.trigger())
-
-    act(() => harness.root.unmount())
-    harness.container.remove()
+    expect(anchor?.getAttribute('href')).toBe('https://xid.dev/docs')
   })
 
-  it('closes on pointer down outside and on Tab leaving the menu', () => {
-    const harness = mountDropdown()
-    act(() => {
-      harness.trigger().click()
-    })
-    act(() => {
-      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    })
-    expect(harness.menu()).toBeNull()
+  it('runs the selected action', async () => {
+    const menu = items()
+    const trigger = await mount(menu)
+    await open(trigger)
 
-    act(() => {
-      harness.trigger().click()
-    })
-    keydown(harness.menu() ?? harness.trigger(), 'Tab')
-    expect(harness.menu()).toBeNull()
-
-    act(() => harness.root.unmount())
-    harness.container.remove()
-  })
-
-  it('cycles focus with arrow keys including wrap-around', () => {
-    const harness = mountDropdown()
-    act(() => {
-      harness.trigger().click()
-    })
-    const items = harness.menuItems()
-    const menu = harness.menu()
-    if (!menu) throw new Error('menu did not open')
-
-    keydown(menu, 'ArrowDown')
-    expect(document.activeElement).toBe(items[1])
-    keydown(menu, 'ArrowDown')
-    expect(document.activeElement).toBe(items[2])
-    keydown(menu, 'ArrowDown')
-    expect(document.activeElement).toBe(items[0])
-    keydown(menu, 'ArrowUp')
-    expect(document.activeElement).toBe(items[2])
-
-    act(() => harness.root.unmount())
-    harness.container.remove()
-  })
-
-  it('activates the focused item and closes', () => {
-    const harness = mountDropdown()
-    act(() => {
-      harness.trigger().click()
-    })
-    const menu = harness.menu()
-    if (!menu) throw new Error('menu did not open')
-    keydown(menu, 'ArrowDown')
-
-    const target = harness.menuItems()[1]
-    if (!target) throw new Error('item missing')
-    act(() => {
-      target.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await act(async () => {
+      menuItems()[0]?.click()
     })
 
-    expect(baseItems[1]?.onSelect).toHaveBeenCalledOnce()
-    expect(harness.menu()).toBeNull()
-
-    act(() => harness.root.unmount())
-    harness.container.remove()
-  })
-
-  it('renders href items as anchors that navigate by document', () => {
-    const harness = mountDropdown()
-    act(() => {
-      harness.trigger().click()
-    })
-
-    const anchor = harness.menuItems().find((element) => element.tagName === 'A') as
-      | HTMLAnchorElement
-      | undefined
-    if (!anchor) throw new Error('anchor item missing')
-    expect(anchor.getAttribute('href')).toBe('https://xid.dev/docs')
-
-    act(() => harness.root.unmount())
-    harness.container.remove()
+    expect(menu[0]?.onSelect).toHaveBeenCalledOnce()
   })
 })

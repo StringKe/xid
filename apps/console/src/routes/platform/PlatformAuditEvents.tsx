@@ -1,12 +1,12 @@
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import type { PlatformAuditEvent } from '@xid-kit/types'
 import { Alert } from '@xid-kit/web-ui/ui'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { AuditChainVerifyPanel } from './AuditChainVerifyPanel'
@@ -174,7 +174,7 @@ export default function PlatformAuditEvents(): ReactNode {
           isLoading={events.isLoading}
           emptyMessage={<Trans>No audit events found.</Trans>}
         />
-        <Pagination query={events} loadMoreLabel={<Trans>Load more events</Trans>} />
+        <LoadMore query={events} loadMoreLabel={<Trans>Load more events</Trans>} />
       </ConsolePageSection>
     </ConsolePage>
   )

@@ -1,13 +1,13 @@
 import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import type { BillingOverview } from '@xid-kit/types'
 import { Alert, Badge } from '@xid-kit/web-ui/ui'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { ConsolePage, ConsolePageNotice, ConsolePageSection } from '@xid-kit/web-ui/ui'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
@@ -142,7 +142,7 @@ export default function PlatformBilling(): ReactNode {
           isLoading={billing.isLoading}
           emptyMessage={<Trans>No billing data available.</Trans>}
         />
-        <Pagination query={billing} loadMoreLabel={<Trans>Load more</Trans>} />
+        <LoadMore query={billing} loadMoreLabel={<Trans>Load more</Trans>} />
       </ConsolePageSection>
     </ConsolePage>
   )

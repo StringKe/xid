@@ -4,7 +4,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import type { GlobalUser } from '@xid-kit/types'
 import PlatformUsers from './PlatformUsers'
 
@@ -120,8 +120,8 @@ vi.mock('@xid-kit/web-ui/ui/DataTable', () => ({
   },
 }))
 
-vi.mock('@xid-kit/web-ui/ui/Pagination', () => ({
-  Pagination: ({
+vi.mock('@xid-kit/web-ui/ui/LoadMore', () => ({
+  LoadMore: ({
     query,
   }: {
     query: { hasNextPage: boolean; fetchNextPage: () => Promise<unknown> }

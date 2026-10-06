@@ -9,7 +9,7 @@ describe('Icon', () => {
 
       expect(html).toContain('<svg')
       expect(html).toContain('stroke="currentColor"')
-      expect(html).toContain('stroke-width="1.5"')
+      expect(html).toContain('stroke-width="1.6"')
       expect(html).toContain('viewBox="0 0 24 24"')
       // 图标不许写字面色值,颜色只能继承 currentColor。
       expect(html).not.toContain('oklch')

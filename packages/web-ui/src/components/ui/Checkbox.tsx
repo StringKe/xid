@@ -1,4 +1,4 @@
-// 不吃 aria-invalid:checkbox 无 invalid 语义场景。
+// 原生复选框,选中色为墨色;需要说明文字的选项用 CheckboxField。
 
 import { forwardRef } from 'react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
@@ -13,7 +13,8 @@ const styles = stylex.create({
     height: '1rem',
     margin: 0,
     flexShrink: 0,
-    accentColor: tokens['--xid-accent'],
+    accentColor: tokens['--xid-primary'],
+    cursor: 'pointer',
   },
 })
 

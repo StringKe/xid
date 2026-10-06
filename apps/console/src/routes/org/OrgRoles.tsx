@@ -4,7 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Button, Field, Input, Select, Textarea } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -15,7 +15,7 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import {
   formatConditionExpression,
@@ -495,7 +495,7 @@ export default function OrgRoles({
             </Field>
           </div>
           {projects.data ? (
-            <Pagination query={projects} loadMoreLabel={<Trans>Load more projects</Trans>} />
+            <LoadMore query={projects} loadMoreLabel={<Trans>Load more projects</Trans>} />
           ) : null}
         </ConsolePageToolbar>
       ) : null}
@@ -554,7 +554,7 @@ export default function OrgRoles({
                       isRowSelected={(role) => role.id === roleId}
                     />
                     {roles.data ? (
-                      <Pagination query={roles} loadMoreLabel={<Trans>Load more roles</Trans>} />
+                      <LoadMore query={roles} loadMoreLabel={<Trans>Load more roles</Trans>} />
                     ) : null}
                   </>
                 )}
@@ -625,7 +625,7 @@ export default function OrgRoles({
                       emptyMessage={<Trans>No active permissions.</Trans>}
                     />
                     {permissions.data ? (
-                      <Pagination
+                      <LoadMore
                         query={permissions}
                         loadMoreLabel={<Trans>Load more permissions</Trans>}
                       />
@@ -790,7 +790,7 @@ export default function OrgRoles({
                   emptyMessage={<Trans>No permissions mapped to this role.</Trans>}
                 />
                 {mappings.data ? (
-                  <Pagination
+                  <LoadMore
                     query={mappings}
                     loadMoreLabel={<Trans>Load more role mappings</Trans>}
                   />
@@ -915,7 +915,7 @@ export default function OrgRoles({
                         emptyMessage={<Trans>No deleted roles.</Trans>}
                       />
                       {deletedRoles.data ? (
-                        <Pagination
+                        <LoadMore
                           query={deletedRoles}
                           loadMoreLabel={<Trans>Load more deleted roles</Trans>}
                         />
@@ -941,7 +941,7 @@ export default function OrgRoles({
                         emptyMessage={<Trans>No deleted permissions.</Trans>}
                       />
                       {deletedPermissions.data ? (
-                        <Pagination
+                        <LoadMore
                           query={deletedPermissions}
                           loadMoreLabel={<Trans>Load more deleted permissions</Trans>}
                         />

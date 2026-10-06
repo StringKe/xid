@@ -10,10 +10,12 @@ import { SessionProvider } from '@xid-kit/web-ui/session'
 import type { SessionCallbacks } from '@xid-kit/web-ui/session'
 import { NavigationRuntimeProvider } from '@xid-kit/web-ui/tanstack-router'
 import { ThemeProvider } from '@xid-kit/web-ui/theme'
+import { ToastProvider } from '@xid-kit/web-ui/ui/Toast'
+import { TooltipProvider } from '@xid-kit/web-ui/ui/Tooltip'
 import { setAnalyticsUserId } from './lib/google-analytics'
 import { trackLogout } from './lib/google-analytics-funnel'
 import { router } from './router'
-import './fonts/inter-latin.css'
+import '@xid-kit/web-ui/foundation.css'
 import './styles.css'
 
 const CONSOLE_SESSION_CALLBACKS: SessionCallbacks = {
@@ -33,11 +35,15 @@ function mountConsole(locale: SupportedLocale): void {
         <AppMotionConfig>
           <QueryClientProvider client={queryClient}>
             <ThemeProvider>
-              <SessionProvider callbacks={CONSOLE_SESSION_CALLBACKS}>
-                <NavigationRuntimeProvider runtime="console">
-                  <RouterProvider router={router} />
-                </NavigationRuntimeProvider>
-              </SessionProvider>
+              <ToastProvider>
+                <TooltipProvider>
+                  <SessionProvider callbacks={CONSOLE_SESSION_CALLBACKS}>
+                    <NavigationRuntimeProvider runtime="console">
+                      <RouterProvider router={router} />
+                    </NavigationRuntimeProvider>
+                  </SessionProvider>
+                </TooltipProvider>
+              </ToastProvider>
             </ThemeProvider>
           </QueryClientProvider>
         </AppMotionConfig>

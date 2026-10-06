@@ -1567,6 +1567,7 @@ msgid "Branding saved successfully."
 msgstr "브랜딩이 저장되었습니다."
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Breadcrumb.tsx
 msgid "Breadcrumb"
 msgstr "이동 경로"
 
@@ -1888,6 +1889,8 @@ msgid "Clock skew tolerance in seconds"
 msgstr "초 단위 클럭 편차 허용 범위"
 
 #: apps/console/src/routes/org/ApplicationEditor.tsx
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+#: packages/web-ui/src/components/ui/Dialog.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Close"
 msgstr "닫기"
@@ -1931,6 +1934,10 @@ msgstr "이 조직 Hosted UI의 색상, 타이포그래피 및 로고 재정의�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Combine logical and comparison operators."
 msgstr "논리 연산자와 비교 연산자를 결합합니다."
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Command menu"
+msgstr "명령 메뉴"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Complete edition"
@@ -2084,6 +2091,10 @@ msgstr "로그인 확인"
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Confirm sign in | XID"
 msgstr "로그인 확인 | XID"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Confirm that you saved it. It cannot be shown again."
+msgstr "저장했는지 확인하세요. 닫으면 다시 표시되지 않습니다."
 
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Confirm your email"
@@ -2242,17 +2253,23 @@ msgstr "JwtKey (JWK, JWKS 또는 CryptoKey)를 검증용 VerifyKeySet으로 변�
 #: apps/console/src/routes/org/CopyValue.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copied"
 msgstr "복사됨"
 
 #: apps/console/src/routes/org/CopyableValue.tsx
 #: apps/console/src/routes/org/CopyValue.tsx
+#: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copy"
 msgstr "복사"
 
 #: apps/console/src/routes/org/CopyValue.tsx
 msgid "Copy {label}"
 msgstr "{label} 복사"
+
+#: packages/web-ui/src/components/ui/CopyButton.tsx
+msgid "Copy {subject}"
+msgstr "{subject} 복사"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Copy <0>templates/xid-keychain-plugin.rs</0> into <1>src-tauri/src/xid_keychain.rs</1> and register it following <2>templates/tauri-app-setup.rs</2>. Add <3>keyring = \"2\"</3>, <4>tauri-plugin-deep-link = \"2\"</4>, and <5>tauri-plugin-shell = \"2\"</5> to <6>src-tauri/Cargo.toml</6>."
@@ -3081,6 +3098,7 @@ msgid "Discriminated XidClient constructor options: same-origin accepts apiUrl, 
 msgstr "판별 가능한 XidClient constructor options입니다. same-origin은 apiUrl, secretKey, fetcher, now를 허용하고 oidc에는 issuer, clientId, redirectUri가 필요합니다."
 
 #: apps/server/src/routes/account/PasskeySection.tsx
+#: packages/web-ui/src/components/ui/Toast.tsx
 msgid "Dismiss"
 msgstr "닫기"
 
@@ -3148,6 +3166,10 @@ msgstr "도메인 | 콘솔 | XID"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.dontHaveAccountSignUp"
 msgstr "계정이 없으신가요? <0>가입</0>"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Done"
+msgstr "완료"
 
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Download"
@@ -3471,6 +3493,10 @@ msgstr "ID 공급자에 다음 XID 서비스 공급자 값을 입력하세요."
 msgid "Enter this URL as the SCIM connector base URL in your identity provider, together with the directory bearer token."
 msgstr "ID 공급자에서 이 URL을 SCIM 커넥터의 기본 URL로 입력하고, 디렉터리 bearer 토큰도 함께 입력하세요."
 
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Enter to open"
+msgstr "Enter로 열기"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Enter to select"
 msgstr "Enter 키로 선택"
@@ -3524,6 +3550,10 @@ msgstr "ES256이 기본 알고리즘입니다. RS256은 호환성을 위해 지�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ES256 is the primary algorithm; RS256 is supported. PS256 support is planned. ES384/ES512 are not yet implemented."
 msgstr "ES256이 기본 알고리즘입니다. RS256이 지원됩니다. PS256 지원이 계획되어 있습니다. ES384/ES512는 아직 구현되지 않았습니다."
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Esc to close"
+msgstr "Esc로 닫기"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Escape to close"
@@ -4416,6 +4446,14 @@ msgstr "16진수 색상입니다. 예: #6366f1"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Hidden"
 msgstr "숨김"
+
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Hide"
+msgstr "숨기기"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Hide {subject}"
+msgstr "{subject} 숨기기"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "hook"
@@ -5955,6 +5993,7 @@ msgid "New to XID? Create an account"
 msgstr "XID가 처음이신가요? 계정 만들기"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Next"
 msgstr "다음"
 
@@ -6291,6 +6330,10 @@ msgstr "본인이 아니신가요? 다른 계정으로 로그인"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Notes"
 msgstr "참고"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Nothing matches. Try a name, email or ID."
+msgstr "일치하는 항목이 없습니다. 이름, 이메일 또는 ID로 검색하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Nuxt"
@@ -6927,6 +6970,7 @@ msgid "Paginated response envelope"
 msgstr "페이지네이션 응답 envelope"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Pagination"
 msgstr "페이지 매김"
 
@@ -7360,6 +7404,7 @@ msgid "Preview"
 msgstr "미리보기"
 
 #: apps/site/src/lib/site-shell-messages.ts
+#: packages/web-ui/src/components/ui/Pagination.tsx
 msgid "Previous"
 msgstr "이전"
 
@@ -9109,6 +9154,10 @@ msgstr "먼저 활성 프로젝트를 선택하세요."
 msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
 msgstr "플랜 및 할당량을 보고 편집할 조직을 선택하세요. <0>플랫폼 조직 찾아보기</0>"
 
+#: packages/web-ui/src/components/ui/CopyButton.tsx
+msgid "Select and copy"
+msgstr "직접 선택해서 복사하세요"
+
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 msgid "Select at least one scope."
 msgstr "범위를 하나 이상 선택하세요."
@@ -9424,9 +9473,21 @@ msgstr "하나의 저장소에서 OIDC 및 OAuth 흐름, 관리 API, 웹후크, 
 msgid "Short-lived JWT cache and scheduled refresh (advanced use and testing)"
 msgstr "단기 JWT 캐시 및 예약 갱신 (고급 사용 및 테스트)"
 
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Show"
+msgstr "표시"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Show {count} more path segments"
 msgstr "경로 세그먼트 {count}개 더 표시"
+
+#: packages/web-ui/src/components/ui/OneTimeSecret.tsx
+msgid "Show {subject}"
+msgstr "{subject} 표시"
+
+#: packages/web-ui/src/components/ui/PasswordField.tsx
+msgid "Show password"
+msgstr "비밀번호 표시"
 
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Shown in UI instead of email when set."
@@ -9862,10 +9923,6 @@ msgstr "상태 범례"
 #: packages/web-ui/src/components/ui/Stepper.tsx
 msgid "Step {current} of {total}"
 msgstr "{total}단계 중 {current}단계"
-
-#: packages/web-ui/src/components/ui/Stepper.tsx
-msgid "Step {current} of {total} · {label}"
-msgstr "{total}단계 중 {current}단계 · {label}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Step-up authentication hook"
@@ -11054,6 +11111,10 @@ msgstr "클릭 시 로그인 URL로 이동하는 스타일 없는 버튼"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Unstyled button that navigates to the sign-up URL on click"
 msgstr "클릭 시 가입 URL로 이동하는 스타일 없는 버튼"
+
+#: packages/web-ui/src/components/ui/CommandMenu.tsx
+msgid "Up and Down to move"
+msgstr "위아래 키로 이동"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Update organization branding with a PATCH request using camelCase field names. Omitted fields and <0>null</0> currently retain the stored value; send a replacement string to change a field."

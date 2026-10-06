@@ -2,7 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
@@ -13,7 +13,7 @@ import {
 } from '@xid-kit/web-ui/ui'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
-import { Pagination } from '@xid-kit/web-ui/ui/Pagination'
+import { LoadMore } from '@xid-kit/web-ui/ui/LoadMore'
 import { useAuth } from '@xid-kit/web-ui/session'
 import { consoleShell } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import OrgRoles from '../org/OrgRoles'
@@ -377,7 +377,7 @@ export default function ManagedProjects(): ReactNode {
                           isLoading={userGrants.isLoading}
                           emptyMessage={<Trans>No active user grants.</Trans>}
                         />
-                        <Pagination
+                        <LoadMore
                           query={userGrants}
                           loadMoreLabel={<Trans>Load more user grants</Trans>}
                         />

@@ -1,59 +1,46 @@
-// mono 小字号适配配置/JSON;不自带 label(由 Field 组合)。
+// mono 适配配置/JSON;不自带 label(由 Field 组合)。
 
 import { forwardRef } from 'react'
 import type { ReactNode, TextareaHTMLAttributes } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { text } from '../../styles/scale.stylex'
+import { mergeClassNames } from '../../class-name'
+import { controlStyles, isAriaInvalid } from './control-styles'
 
 export type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   isInvalid?: boolean
 }
 
 const styles = stylex.create({
-  base: {
-    width: '100%',
+  area: {
     minHeight: '7rem',
     resize: 'vertical',
-    boxSizing: 'border-box',
-    padding: '0.75rem',
-    borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
+    paddingBlock: '0.625rem',
     fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.8125rem',
-    lineHeight: 1.5,
-    transitionProperty: {
-      default: 'border-color',
-      '@media (prefers-reduced-motion: reduce)': 'none',
-    },
-    transitionDuration: '0.12s',
-    transitionTimingFunction: 'ease-out',
-    outline: 'none',
-  },
-  valid: {
-    borderColor: {
-      default: tokens['--xid-border'],
-      ':focus': tokens['--xid-accent'],
-    },
-  },
-  invalid: {
-    borderColor: tokens['--xid-danger'],
+    fontSize: text.sm,
+    lineHeight: '1.25rem',
   },
 })
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
-  { isInvalid = false, ...rest },
+  { isInvalid = false, className, style, ...rest },
   ref,
 ): ReactNode {
-  const invalid = isInvalid || rest['aria-invalid'] === true || rest['aria-invalid'] === 'true'
+  const invalid = isInvalid || isAriaInvalid(rest['aria-invalid'])
+  const base = stylex.props(
+    controlStyles.base,
+    styles.area,
+    invalid ? controlStyles.invalid : controlStyles.valid,
+    rest.disabled && controlStyles.disabled,
+  )
 
   return (
     <textarea
       ref={ref}
-      {...stylex.props(styles.base, invalid ? styles.invalid : styles.valid)}
       {...rest}
+      className={mergeClassNames(base.className, className)}
+      style={{ ...base.style, ...style }}
       aria-invalid={invalid || undefined}
     />
   )

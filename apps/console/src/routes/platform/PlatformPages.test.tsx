@@ -409,7 +409,7 @@ describe('platform pages', () => {
     expect(html).toContain(globalUser.id)
     expect(html).toContain(organization.name)
     expect(html).toContain('Current user')
-    expect(html).toContain('disabled=""')
+    expect(html).toContain('aria-disabled="true"')
   })
 
   it('renders the global audit event stream with an organization picker for verification', () => {

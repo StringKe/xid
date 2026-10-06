@@ -1,5 +1,5 @@
 import { Trans, useLingui } from '@lingui/react/macro'
-import type { LegacyColumnDef as ColumnDef } from '@tanstack/react-table/legacy'
+import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'

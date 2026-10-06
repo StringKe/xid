@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { text } from '../../styles/scale.stylex'
+import { Icon } from './Icon'
 
 export type FormErrorProps = {
   children?: ReactNode
@@ -10,13 +12,20 @@ export type FormErrorProps = {
 }
 
 const styles = stylex.create({
-  // 间距由 Field 列 gap 承担,自身不带 margin。
   message: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.375rem',
     margin: 0,
     color: tokens['--xid-danger'],
-    fontSize: '0.8125rem',
-    lineHeight: 1.5,
+    fontSize: text.sm,
+    lineHeight: '1.125rem',
     fontFamily: tokens['--xid-font'],
+  },
+  icon: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    paddingBlockStart: '0.0625rem',
   },
 })
 
@@ -25,7 +34,10 @@ export function FormError({ children, id }: FormErrorProps): ReactNode {
 
   return (
     <p id={id} role="alert" aria-live="polite" {...stylex.props(styles.message)}>
-      {children}
+      <span aria-hidden="true" {...stylex.props(styles.icon)}>
+        <Icon name="alert-circle" size={16} />
+      </span>
+      <span>{children}</span>
     </p>
   )
 }
