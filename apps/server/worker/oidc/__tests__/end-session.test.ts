@@ -121,6 +121,15 @@ function sessionNoop(): DurableObjectNamespace {
   return makeFakeDoNs(() => Response.json({ active: false }))
 }
 
+async function expectSignedOutPage(res: Response): Promise<string> {
+  expect(res.status).toBe(200)
+  expect(res.headers.get('content-type')).toContain('text/html')
+  expect(res.headers.get('cache-control')).toBe('no-store')
+  const html = await res.text()
+  expect(html).toContain('You have signed out')
+  return html
+}
+
 describe('/end_session', () => {
   it('id_token_hint 有效 + post_logout_redirect_uri 已注册 -> 302 回跳带 state', async () => {
     const { ctx, kekB64 } = await buildTestTenant()
@@ -143,7 +152,7 @@ describe('/end_session', () => {
     expect(location.searchParams.get('state')).toBe('st_x')
   })
 
-  it('post_logout_redirect_uri 未注册 -> 不回跳,返回 logged_out', async () => {
+  it('post_logout_redirect_uri 未注册 -> 不回跳,渲染已登出页并提供重新登录入口', async () => {
     const { ctx, kekB64 } = await buildTestTenant()
     const idToken = await mintIdToken(ctx, kekB64)
     const env = makeEnv({
@@ -157,8 +166,9 @@ describe('/end_session', () => {
       post_logout_redirect_uri: 'https://evil.example/x',
     }).toString()}`
     const res = await app.request(url, {}, env)
-    expect(res.status).toBe(200)
-    expect(((await res.json()) as Record<string, boolean>)['logged_out']).toBe(true)
+    const html = await expectSignedOutPage(res)
+    expect(html).toContain('href="https://acme.xid.dev/sign-in"')
+    expect(html).not.toContain('evil.example')
   })
 
   it('explicit client_id must match a string or array id_token_hint audience', async () => {
@@ -210,8 +220,7 @@ describe('/end_session', () => {
       {},
       env,
     )
-    expect(res.status).toBe(200)
-    expect((await res.json<Record<string, unknown>>())['logged_out']).toBe(true)
+    await expectSignedOutPage(res)
   })
 
   it('已注册 backchannel_logout_uri -> POST logout_token', async () => {
@@ -301,8 +310,7 @@ describe('/end_session', () => {
       {},
       env,
     )
-    expect(res.status).toBe(200)
-    expect((await res.json<Record<string, unknown>>())['logged_out']).toBe(true)
+    await expectSignedOutPage(res)
     expect(auditSend).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'oidc.backchannel_logout_failed' }),
     )
@@ -314,7 +322,32 @@ describe('/end_session 无 id_token_hint 的确认门', () => {
   const SESSION_ID = 'sess_1'
   const RT_TOKEN = 'rt_token_1'
 
-  async function makeSessionApp(): Promise<{
+  type SessionClient = {
+    clientId: string
+    backchannelLogoutUri?: string
+    frontchannelLogoutUri?: string
+    postLogoutRedirectUris?: string[]
+  }
+
+  function sessionClientRow(client: SessionClient): Record<string, unknown> {
+    const row = appTables({
+      backchannelLogoutUri: client.backchannelLogoutUri ?? null,
+      postLogoutRedirectUris: client.postLogoutRedirectUris ?? [],
+    }).applications?.[0]
+    return {
+      ...row,
+      id: `app_${client.clientId}`,
+      client_id: client.clientId,
+      frontchannel_logout_uri: client.frontchannelLogoutUri ?? null,
+    }
+  }
+
+  async function makeSessionApp(
+    options: {
+      clients?: SessionClient[]
+      refreshTokens?: { client_id: string; session_id: string }[]
+    } = {},
+  ): Promise<{
     app: Hono<XidHonoEnv>
     env: Env
     revokeCalls: string[]
@@ -332,6 +365,12 @@ describe('/end_session 无 id_token_hint 的确认门', () => {
     const env = makeEnv({
       DB: makeFakeD1({
         users: [{ id: 'u_1', tenant_id: 't_1', status: 'active', deleted_at: null }],
+        applications: (options.clients ?? []).map(sessionClientRow),
+        refresh_tokens: (options.refreshTokens ?? []).map((row, index) => ({
+          id: `rt_${index}`,
+          tenant_id: 't_1',
+          ...row,
+        })),
       }),
       KEK: kekB64,
       SESSION_REVOCATION: ns,
@@ -392,7 +431,7 @@ describe('/end_session 无 id_token_hint 的确认门', () => {
     expect(revokeCalls).toEqual([])
   })
 
-  it('POST confirm=true -> 撤销 session 返回 logged_out', async () => {
+  it('POST confirm=true -> 撤销 session 并渲染已登出页', async () => {
     const { app, env, revokeCalls, cookie } = await makeSessionApp()
 
     const res = await app.request(
@@ -405,9 +444,80 @@ describe('/end_session 无 id_token_hint 的确认门', () => {
       env,
     )
 
-    expect(res.status).toBe(200)
-    expect(((await res.json()) as Record<string, boolean>)['logged_out']).toBe(true)
+    await expectSignedOutPage(res)
     expect(revokeCalls).toEqual([SESSION_ID])
+  })
+
+  it('确认页路径用当前 session 的 sid/sub 通知该 session 下所有 RP 的 back-channel', async () => {
+    const { app, env, cookie } = await makeSessionApp({
+      clients: [
+        { clientId: 'cli_a', backchannelLogoutUri: 'https://a.example/logout' },
+        { clientId: 'cli_b', backchannelLogoutUri: 'https://b.example/logout' },
+      ],
+      refreshTokens: [
+        { client_id: 'cli_a', session_id: SESSION_ID },
+        { client_id: 'cli_b', session_id: SESSION_ID },
+      ],
+    })
+    const calls: { url: string; body: string }[] = []
+    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: url.toString(), body: String(init?.body) })
+      return new Response(null, { status: 200 })
+    })
+
+    await app.request(
+      'https://acme.xid.dev/end_session',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+        body: new URLSearchParams({ confirm: 'true' }).toString(),
+      },
+      env,
+    )
+
+    expect(calls.map((call) => call.url).sort()).toEqual([
+      'https://a.example/logout',
+      'https://b.example/logout',
+    ])
+    const token = new URLSearchParams(calls[0]?.body).get('logout_token') ?? ''
+    const payload = JSON.parse(atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')))
+    expect(payload).toMatchObject({ sub: 'u_1', sid: SESSION_ID })
+  })
+
+  it('有 front-channel URI 且回跳已注册 -> 先渲染 iframe 页再自动回跳', async () => {
+    const { app, env, cookie } = await makeSessionApp({
+      clients: [
+        {
+          clientId: CLIENT_ID,
+          frontchannelLogoutUri: 'https://rp.example/front-logout',
+          postLogoutRedirectUris: [POST_LOGOUT],
+        },
+      ],
+      refreshTokens: [],
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/end_session',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+        body: new URLSearchParams({
+          confirm: 'true',
+          client_id: CLIENT_ID,
+          post_logout_redirect_uri: POST_LOGOUT,
+          state: 'st_front',
+        }).toString(),
+      },
+      env,
+    )
+
+    expect(res.status).toBe(200)
+    const html = await res.text()
+    expect(html).toContain('<iframe src="https://rp.example/front-logout?iss=')
+    expect(html).toContain(`sid=${SESSION_ID}`)
+    expect(html).toContain(
+      `<meta http-equiv="refresh" content="2;url=${POST_LOGOUT}?state=st_front">`,
+    )
   })
 
   it('过期 id_token_hint 仍接受(allowExpired),未来 iat 拒绝', async () => {
@@ -446,8 +556,7 @@ describe('/end_session 无 id_token_hint 的确认门', () => {
       {},
       env,
     )
-    expect(withExpired.status).toBe(200)
-    expect(withExpired.headers.get('content-type')).not.toContain('text/html')
+    expect(await expectSignedOutPage(withExpired)).not.toContain('name="confirm"')
 
     // 未来 iat 的 hint 无效 -> 确认页。
     const withFuture = await app.request(
@@ -456,6 +565,6 @@ describe('/end_session 无 id_token_hint 的确认门', () => {
       env,
     )
     expect(withFuture.status).toBe(200)
-    expect(withFuture.headers.get('content-type')).toContain('text/html')
+    expect(await withFuture.text()).toContain('name="confirm"')
   })
 })

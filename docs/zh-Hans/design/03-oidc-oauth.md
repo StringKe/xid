@@ -149,11 +149,13 @@ server-side session,tenant 维度隔离,含 auth_time/acr/设备信息。SSO:同
 
 ### Logout
 
-| 机制                 | 规范                | 决策                                                                                                                                                                          |
-| -------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| RP-initiated logout  | OIDC RP-Init Logout | end_session 端点,验证 id_token_hint                                                                                                                                           |
-| Front-channel logout | OIDC Front-Channel  | end_session 在 post_logout_redirect_uri 未命中(不发生 302)时渲染单页 HTML,内嵌一个 hidden iframe,src 为本次登出解析到的单个 client 的 frontchannel_logout_uri(带 iss/sid/sub) |
-| Back-channel logout  | OIDC Back-Channel   | 服务端 POST logout_token(JWT)到各 RP,首选,更可靠                                                                                                                              |
+| 机制                 | 规范                | 决策                                                                                                                                                                            |
+| -------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RP-initiated logout  | OIDC RP-Init Logout | end_session 端点,验证 id_token_hint。无有效 hint 时渲染本地化确认页,确认 POST 后才登出。结果是带登录入口的本地化已登出页,不返回 JSON                                            |
+| Front-channel logout | OIDC Front-Channel  | 已登出页为每个配置了 frontchannel_logout_uri 的被通知 client 嵌入一个 hidden iframe(带 iss/sid/sub)。请求了已注册的 post_logout_redirect_uri 时,页面短暂停留后再回跳,不直接 302 |
+| Back-channel logout  | OIDC Back-Channel   | 服务端 POST logout_token(JWT)到每个被通知的 RP,首选,更可靠                                                                                                                      |
+
+被通知的 client 包括:由 `client_id` 或 id_token_hint audience 解析出的 client,以及为被登出 session 持有 refresh token 或取得仍保留的授权码的所有 client。过期授权码由 hourly 清理删除,所以从未取得 refresh token 的 RP 只在其授权码仍保留时收到通知。没有 id_token_hint 时,sid 和 sub 取自被登出的 session。
 
 logout_token 恒含 sid(另含 sub),签名用与 ID token 相同密钥。ID token 也携带 sid:授权码与 refresh 记录经 `session_id` 列关联 hosted session(08 章 15.1/15.4),sid 随 code 兑换与 refresh 轮换写入;check_session 另用独立 session_state 机制(见 1.2)。
 

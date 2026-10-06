@@ -3,18 +3,21 @@
 // 铁律:id_token_hint 验签用 TenantContext 公钥集;redirect 精确匹配注册的 post_logout_redirect_uris。
 
 import { signJwt, verifyJwt } from '@xid-kit/crypto'
+import { createTenantDb, schema } from '@xid-kit/db'
+import { eq } from 'drizzle-orm'
 import type { Context, Hono } from 'hono'
 import { readSession, revokeSession } from '../lib/session'
-import { escapeHtml } from '../lib/error-page'
 import { AppError } from '../lib/errors'
 import { logWorkerError } from '../lib/safe-log'
 import type { XidHonoEnv } from '../lib/types'
 import { isPublicHttpsUrl, isValidPostLogoutRedirectUri } from '../lib/validate'
 import { buildVerifyKeySet, findClient, loadActiveSigner } from './shared'
 import { BACKCHANNEL_LOGOUT_TOKEN_TTL_SEC } from '../lib/ttl'
+import { renderLogoutConfirmPage, renderSignedOutPage } from './logout-pages'
 
 const LOGOUT_EVENT = 'http://schemas.openid.net/event/backchannel-logout'
 const BACKCHANNEL_LOGOUT_TIMEOUT_MS = 5_000
+const SESSION_CLIENT_LOOKUP_LIMIT = 100
 
 type RawParams = Record<string, string>
 
@@ -129,57 +132,9 @@ async function scheduleBackchannelLogout(
 }
 
 type HintPayload = Awaited<ReturnType<typeof verifyIdTokenHint>>
+type LogoutClient = NonNullable<Awaited<ReturnType<typeof findClient>>>
 
-// 无有效 id_token_hint 时的登出确认页:GET 直撤是 CSRF logout 面(第三方页可 <img> 触发强制登出),
-// OIDC RP-Init 要求无 hint 时先确认。表单 POST confirm=true 才真正撤销;post_logout_redirect_uri /
-// client_id / state 经 hidden input 透传,确认后仍能回跳。
-function renderLogoutConfirmPage(c: Context<XidHonoEnv>, params: RawParams): Response {
-  const hidden = (['post_logout_redirect_uri', 'client_id', 'state'] as const)
-    .map((key) => {
-      const value = params[key]
-      return value === undefined
-        ? ''
-        : `<input type="hidden" name="${key}" value="${escapeHtml(value)}">`
-    })
-    .join('')
-  const html = [
-    '<!doctype html>',
-    '<html lang="en">',
-    '<head>',
-    '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<title>Log out - xid</title>',
-    '<style>',
-    'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fafafa;color:#171717;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}',
-    '.card{max-width:26rem;padding:2rem;text-align:center}',
-    '.brand{margin:0 0 1.5rem;font-size:.875rem;font-weight:600;color:#737373}',
-    'h1{margin:0 0 .75rem;font-size:1.25rem}',
-    '.desc{margin:0 0 1.25rem;color:#404040}',
-    'button{padding:.5rem 1.25rem;border:0;border-radius:6px;background:#171717;color:#fafafa;font-size:.875rem;cursor:pointer}',
-    '</style>',
-    '</head>',
-    '<body>',
-    '<main class="card">',
-    '<p class="brand">xid</p>',
-    '<h1>Log out</h1>',
-    '<p class="desc">Are you sure you want to log out?</p>',
-    '<form method="post" action="/end_session">',
-    hidden,
-    '<input type="hidden" name="confirm" value="true">',
-    '<button type="submit">Log out</button>',
-    '</form>',
-    '</main>',
-    '</body>',
-    '</html>',
-  ].join('')
-  return c.body(html, 200, {
-    'content-type': 'text/html; charset=utf-8',
-    'cache-control': 'no-store',
-    pragma: 'no-cache',
-  })
-}
-
-// 解析目标 client(client_id 参数优先,回退 id_token_hint aud),并发 back-channel logout。
+// 解析发起登出的 client(client_id 参数优先,回退 id_token_hint aud)。
 async function resolveLogoutClient(
   c: Context<XidHonoEnv>,
   params: RawParams,
@@ -206,6 +161,49 @@ async function resolveLogoutClient(
   return null
 }
 
+// 同一 session 签发过授权码或 refresh token 的其他 client 也要收到登出通知。
+// 授权码过期后由 hourly cron 删除,所以只覆盖仍持有该 session refresh token 或近期取得授权码的 RP。
+async function sessionClients(
+  c: Context<XidHonoEnv>,
+  sessionId: string | undefined,
+): Promise<LogoutClient[]> {
+  if (!sessionId) return []
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  const [codes, refreshTokens] = await Promise.all([
+    db.authorizationCodes.findMany(eq(schema.authorizationCodes.sessionId, sessionId), {
+      limit: SESSION_CLIENT_LOOKUP_LIMIT,
+    }),
+    db.refreshTokens.findMany(eq(schema.refreshTokens.sessionId, sessionId), {
+      limit: SESSION_CLIENT_LOOKUP_LIMIT,
+    }),
+  ])
+  const clientIds = new Set([...codes, ...refreshTokens].map((row) => row.clientId))
+  const clients = await Promise.all([...clientIds].map((clientId) => findClient(c, clientId)))
+  return clients.filter((client): client is LogoutClient => client !== null)
+}
+
+function uniqueClients(clients: readonly (LogoutClient | null)[]): LogoutClient[] {
+  const byId = new Map<string, LogoutClient>()
+  for (const client of clients) {
+    if (client && !byId.has(client.clientId)) byId.set(client.clientId, client)
+  }
+  return [...byId.values()]
+}
+
+function frontChannelLogoutUri(
+  c: Context<XidHonoEnv>,
+  client: LogoutClient,
+  subject: { sub?: string; sid?: string },
+): string | null {
+  const uri = client.frontchannelLogoutUri
+  if (!uri) return null
+  const url = new URL(uri)
+  url.searchParams.set('iss', c.get('tenant').issuer)
+  if (subject.sid) url.searchParams.set('sid', subject.sid)
+  if (subject.sub) url.searchParams.set('sub', subject.sub)
+  return url.toString()
+}
+
 async function handleEndSession(c: Context<XidHonoEnv>): Promise<Response> {
   const params = await parseParams(c)
   const hintPayload = await verifyIdTokenHint(c, params['id_token_hint'])
@@ -215,50 +213,29 @@ async function handleEndSession(c: Context<XidHonoEnv>): Promise<Response> {
     return renderLogoutConfirmPage(c, params)
   }
 
-  const client = await resolveLogoutClient(c, params, hintPayload)
+  const initiator = await resolveLogoutClient(c, params, hintPayload)
   const session = await readSession(c)
+  const subject = {
+    sub: hintPayload?.sub ?? session?.userId,
+    sid: hintPayload?.sid ?? session?.sessionId,
+  }
+  const clients = uniqueClients([initiator, ...(await sessionClients(c, subject.sid))])
   if (session) await revokeSession(c, session)
-  if (client) {
-    await scheduleBackchannelLogout(c, { client, sub: hintPayload?.sub, sid: hintPayload?.sid })
-  }
-  const redirect = resolveRedirect(client, params['post_logout_redirect_uri'])
-  if (redirect) {
-    const url = new URL(redirect)
-    if (params['state']) url.searchParams.set('state', params['state'])
-    return c.redirect(url.toString(), 302)
-  }
-  const frontChannelHtml = buildFrontChannelLogoutPage(c, client, hintPayload)
-  if (frontChannelHtml) {
-    return c.html(frontChannelHtml, 200, { 'cache-control': 'no-store' })
-  }
-  return c.json({ logged_out: true }, 200, { 'cache-control': 'no-store' })
+  await Promise.all(clients.map((client) => scheduleBackchannelLogout(c, { client, ...subject })))
+
+  const redirect = resolveRedirect(initiator, params['post_logout_redirect_uri'])
+  const continueUrl = redirect ? withState(redirect, params['state']) : null
+  const frontChannelUris = clients
+    .map((client) => frontChannelLogoutUri(c, client, subject))
+    .filter((uri): uri is string => uri !== null)
+  if (continueUrl && frontChannelUris.length === 0) return c.redirect(continueUrl, 302)
+  return renderSignedOutPage(c, { frontChannelUris, continueUrl })
 }
 
-function buildFrontChannelLogoutUri(
-  c: Context<XidHonoEnv>,
-  client: NonNullable<Awaited<ReturnType<typeof findClient>>>,
-  hint: HintPayload,
-): string | null {
-  const uri = client.frontchannelLogoutUri
-  if (!uri) return null
-  const ctx = c.get('tenant')
-  const url = new URL(uri)
-  url.searchParams.set('iss', ctx.issuer)
-  if (hint?.sid) url.searchParams.set('sid', hint.sid)
-  if (hint?.sub) url.searchParams.set('sub', hint.sub)
+function withState(redirect: string, state: string | undefined): string {
+  const url = new URL(redirect)
+  if (state) url.searchParams.set('state', state)
   return url.toString()
-}
-
-function buildFrontChannelLogoutPage(
-  c: Context<XidHonoEnv>,
-  client: Awaited<ReturnType<typeof findClient>>,
-  hint: HintPayload,
-): string | null {
-  if (!client) return null
-  const target = buildFrontChannelLogoutUri(c, client, hint)
-  if (!target) return null
-  const escaped = target.replace(/"/g, '&quot;')
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Logged out</title></head><body><p>Logged out.</p><iframe src="${escaped}" width="0" height="0" style="display:none"></iframe></body></html>`
 }
 
 // 注册 /end_session 路由(GET + POST,OIDC RP-Init Logout)。

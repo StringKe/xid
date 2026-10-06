@@ -114,3 +114,14 @@ export const errorMessages: ErrorMessages = {
 export const protocolErrorPageMessages = {
   title: msg`Authorization error`,
 } as const
+
+// /end_session 确认页与登出结果页(Worker 直接渲染的 HTML)。
+export const logoutPageMessages = {
+  signOut: msg`Sign out`,
+  confirmDescription: msg`Do you want to sign out of this account?`,
+  signedOutTitle: msg`You have signed out`,
+  signedOutDescription: msg`You can close this page or sign in again.`,
+  returningDescription: msg`Returning you to the application.`,
+  continue: msg`Continue`,
+  signInAgain: msg`Sign in again`,
+} as const

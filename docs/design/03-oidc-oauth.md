@@ -222,11 +222,17 @@ triggers re-authentication.
 
 ### Logout
 
-| Mechanism            | Specification       | Decision                                                                                                                                                                                                                                               |
-| -------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| RP-initiated logout  | OIDC RP-Init Logout | The end_session endpoint, validating id_token_hint                                                                                                                                                                                                     |
-| Front-channel logout | OIDC Front-Channel  | When end_session does not match a post_logout_redirect_uri (so no 302 occurs), it renders a single HTML page containing one hidden iframe whose src is the frontchannel_logout_uri of the single client resolved for this logout, carrying iss/sid/sub |
-| Back-channel logout  | OIDC Back-Channel   | The server POSTs a logout_token (JWT) to each RP; preferred, because it is more reliable                                                                                                                                                               |
+| Mechanism            | Specification       | Decision                                                                                                                                                                                                                                                    |
+| -------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RP-initiated logout  | OIDC RP-Init Logout | The end_session endpoint, validating id_token_hint. Without a valid hint it renders a localized confirmation page and signs out only after the confirming POST. The result is a localized signed-out page with a sign-in link, never a JSON body            |
+| Front-channel logout | OIDC Front-Channel  | The signed-out page embeds one hidden iframe per notified client that has a frontchannel_logout_uri, carrying iss/sid/sub. When a registered post_logout_redirect_uri was requested, the page returns to it after a short delay instead of an immediate 302 |
+| Back-channel logout  | OIDC Back-Channel   | The server POSTs a logout_token (JWT) to each notified RP; preferred, because it is more reliable                                                                                                                                                           |
+
+Notified clients are the client resolved from `client_id` or the id_token_hint audience, plus every
+client that holds a refresh token for the signed-out session or received a still-retained
+authorization code for it. Expired authorization codes are deleted by the hourly cleanup, so an RP
+that never obtained a refresh token is notified only while its code is retained. Without an
+id_token_hint, sid and sub come from the signed-out session.
 
 The logout_token always contains sid (and also sub) and is signed with the same key as the ID token.
 The ID token also carries sid: authorization code and refresh records are linked to the hosted session

@@ -23,5 +23,5 @@ export function renderErrorMessage(code: XidErrorCode): string {
   return i18n._(descriptor)
 }
 
-export { errorMessages, protocolErrorPageMessages } from './messages'
+export { errorMessages, logoutPageMessages, protocolErrorPageMessages } from './messages'
 export type { ErrorMessages } from './messages'

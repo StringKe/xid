@@ -42,20 +42,20 @@ async function localizeErrorPage(
   }
 }
 
-function buildErrorPageHtml(input: {
+// Worker 直接渲染的品牌页骨架;bodyHtml / headHtml 由调用方负责转义。
+export function buildWorkerPageHtml(input: {
   lang: string
   title: string
-  error: string
-  description: string
-  detail: string | null
+  bodyHtml: string
+  headHtml?: string
 }): string {
-  const detail = input.detail === null ? '' : `<p class="detail">${escapeHtml(input.detail)}</p>`
   return [
     '<!doctype html>',
     `<html lang="${escapeHtml(input.lang)}">`,
     '<head>',
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    input.headHtml ?? '',
     `<title>${escapeHtml(input.title)} - xid</title>`,
     '<style>',
     'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fafafa;color:#171717;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}',
@@ -65,19 +65,41 @@ function buildErrorPageHtml(input: {
     '.desc{margin:0 0 1.25rem;color:#404040}',
     '.code{display:inline-block;padding:.125rem .5rem;border-radius:4px;background:#e5e5e5;color:#525252;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8125rem}',
     '.detail{margin:1rem 0 0;color:#737373;font-size:.8125rem;word-break:break-word}',
+    'button,.action{display:inline-block;padding:.5rem 1.25rem;border:0;border-radius:6px;background:#171717;color:#fafafa;font-size:.875rem;text-decoration:none;cursor:pointer}',
     '</style>',
     '</head>',
     '<body>',
     '<main class="card">',
     '<p class="brand">xid</p>',
     `<h1>${escapeHtml(input.title)}</h1>`,
-    `<p class="desc">${escapeHtml(input.description)}</p>`,
-    `<p><span class="code">${escapeHtml(input.error)}</span></p>`,
-    detail,
+    input.bodyHtml,
     '</main>',
     '</body>',
     '</html>',
   ].join('')
+}
+
+export function workerPageLang(c: Context<XidHonoEnv>): string {
+  return (c.get('locale') as string | undefined) ?? 'en'
+}
+
+function buildErrorPageHtml(input: {
+  lang: string
+  title: string
+  error: string
+  description: string
+  detail: string | null
+}): string {
+  const detail = input.detail === null ? '' : `<p class="detail">${escapeHtml(input.detail)}</p>`
+  return buildWorkerPageHtml({
+    lang: input.lang,
+    title: input.title,
+    bodyHtml: [
+      `<p class="desc">${escapeHtml(input.description)}</p>`,
+      `<p><span class="code">${escapeHtml(input.error)}</span></p>`,
+      detail,
+    ].join(''),
+  })
 }
 
 // 渲染协议错误页:text/html; charset=utf-8 + no-store。本地化描述与原始 description 不同时
@@ -87,11 +109,10 @@ export async function renderProtocolErrorPage(
   input: ProtocolErrorPageInput,
 ): Promise<Response> {
   const localized = await localizeErrorPage(c, input)
-  const locale = c.get('locale') as string | undefined
   const showDetail =
     localized.description !== input.description && input.description !== input.error
   const html = buildErrorPageHtml({
-    lang: locale ?? 'en',
+    lang: workerPageLang(c),
     title: localized.title,
     error: input.error,
     description: localized.description,
