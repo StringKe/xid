@@ -4,7 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, text } from '../../styles/scale.stylex'
+import { text } from '../../styles/scale.stylex'
 import { Button } from './Button'
 
 export type PaginationProps = {
@@ -36,10 +36,10 @@ const styles = stylex.create({
   buttons: {
     display: 'flex',
     gap: '0.5rem',
-    flexGrow: { default: 0, [media.narrow]: 1 },
+    flexGrow: { default: 0, '@media (max-width: 47.99rem)': 1 },
   },
   button: {
-    flexGrow: { default: 0, [media.narrow]: 1 },
+    flexGrow: { default: 0, '@media (max-width: 47.99rem)': 1 },
   },
 })
 

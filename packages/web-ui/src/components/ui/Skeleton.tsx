@@ -3,7 +3,6 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media } from '../../styles/scale.stylex'
 import { mergeClassNames } from '../../class-name'
 
 export type SkeletonProps = HTMLAttributes<HTMLSpanElement> & {
@@ -39,7 +38,7 @@ const styles = stylex.create({
     display: 'block',
     backgroundColor: tokens['--xid-muted'],
     borderRadius: tokens['--xid-radius-sm'],
-    animationName: { default: pulse, [media.reducedMotion]: 'none' },
+    animationName: { default: pulse, '@media (prefers-reduced-motion: reduce)': 'none' },
     animationDuration: '1.4s',
     animationTimingFunction: 'ease-in-out',
     animationIterationCount: 'infinite',

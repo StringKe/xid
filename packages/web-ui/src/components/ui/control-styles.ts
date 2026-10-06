@@ -2,12 +2,12 @@
 
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text } from '../../styles/scale.stylex'
+import { size, text } from '../../styles/scale.stylex'
 
 export const controlStyles = stylex.create({
   base: {
     width: '100%',
-    minHeight: { default: size.control, [media.coarse]: size.touch },
+    minHeight: { default: size.control, '@media (pointer: coarse)': size.touch },
     margin: 0,
     paddingBlock: 0,
     paddingInline: '0.625rem',
@@ -17,11 +17,14 @@ export const controlStyles = stylex.create({
     backgroundColor: tokens['--xid-surface'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
-    fontSize: { default: text.base, [media.coarse]: text.md },
+    fontSize: { default: text.base, '@media (pointer: coarse)': text.md },
     lineHeight: '1.125rem',
     boxSizing: 'border-box',
     outline: 'none',
-    transitionProperty: { default: 'box-shadow', [media.reducedMotion]: 'none' },
+    transitionProperty: {
+      default: 'box-shadow',
+      '@media (prefers-reduced-motion: reduce)': 'none',
+    },
     transitionDuration: '120ms',
     transitionTimingFunction: 'ease-out',
     '::placeholder': {

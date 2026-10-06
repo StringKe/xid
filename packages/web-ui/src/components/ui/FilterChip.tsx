@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 import { Icon } from './Icon'
 
 export type FilterChipProps = {
@@ -18,7 +18,7 @@ const styles = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.25rem',
-    minHeight: { default: '1.625rem', [media.coarse]: '2rem' },
+    minHeight: { default: '1.625rem', '@media (pointer: coarse)': '2rem' },
     paddingInlineStart: '0.625rem',
     paddingInlineEnd: '0.25rem',
     borderRadius: tokens['--xid-radius-full'],
@@ -39,9 +39,9 @@ const styles = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: { default: '1.5rem', [media.coarse]: size.touch },
-    height: { default: '1.5rem', [media.coarse]: size.touch },
-    marginBlock: { default: 0, [media.coarse]: '-0.375rem' },
+    width: { default: '1.5rem', '@media (pointer: coarse)': size.touch },
+    height: { default: '1.5rem', '@media (pointer: coarse)': size.touch },
+    marginBlock: { default: 0, '@media (pointer: coarse)': '-0.375rem' },
     padding: 0,
     borderWidth: 0,
     borderRadius: tokens['--xid-radius-full'],

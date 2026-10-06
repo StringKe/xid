@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 
 export type TabItem = {
   value: string
@@ -38,7 +38,7 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.375rem',
     flexShrink: 0,
-    height: { default: size.rowDefault, [media.coarse]: size.touch },
+    height: { default: size.rowDefault, '@media (pointer: coarse)': size.touch },
     marginBlockEnd: '-1px',
     padding: 0,
     borderWidth: 0,

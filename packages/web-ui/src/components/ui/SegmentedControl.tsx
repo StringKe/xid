@@ -5,7 +5,7 @@ import { RadioGroup } from '@base-ui/react/radio-group'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 
 export type SegmentedOption = {
   value: string
@@ -35,7 +35,7 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    minHeight: { default: '1.75rem', [media.coarse]: size.touch },
+    minHeight: { default: '1.75rem', '@media (pointer: coarse)': size.touch },
     paddingInline: '0.75rem',
     borderRadius: tokens['--xid-radius-sm'],
     color: { default: tokens['--xid-muted-foreground'], ':hover': tokens['--xid-fg'] },

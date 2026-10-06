@@ -1,24 +1,9 @@
-// 编译期常量:字号、行高、字重、间距、控件尺寸与断点。断点用 rem,放大字号时布局一起切换。
+// 字号、行高、字重、间距与控件尺寸。用 defineVars:开发服务器按模块收集 CSS,defineConsts 在那里解析不到。
+// 断点与容器查询不能用变量,组件里直接写 '@media (max-width: 47.99rem)' 等字面键,档位见 responsive.ts。
 
 import * as stylex from '@stylexjs/stylex'
 
-export const media = stylex.defineConsts({
-  narrow: '@media (max-width: 47.99rem)',
-  regular: '@media (min-width: 48rem)',
-  sidebar: '@media (min-width: 64rem)',
-  wide: '@media (min-width: 90rem)',
-  coarse: '@media (pointer: coarse)',
-  hover: '@media (hover: hover)',
-  reducedMotion: '@media (prefers-reduced-motion: reduce)',
-})
-
-export const container = stylex.defineConsts({
-  keyValueSideBySide: '@container (min-width: 32rem)',
-  settingsSideBySide: '@container (min-width: 48rem)',
-  tableComfortable: '@container (min-width: 40rem)',
-})
-
-export const text = stylex.defineConsts({
+export const text = stylex.defineVars({
   xs: '0.75rem',
   sm: '0.8125rem',
   base: '0.875rem',
@@ -29,7 +14,7 @@ export const text = stylex.defineConsts({
   xxxl: '3.5rem',
 })
 
-export const leading = stylex.defineConsts({
+export const leading = stylex.defineVars({
   xs: '1rem',
   sm: '1.125rem',
   base: '1.25rem',
@@ -41,13 +26,13 @@ export const leading = stylex.defineConsts({
   body: '1.55',
 })
 
-export const weight = stylex.defineConsts({
+export const weight = stylex.defineVars({
   regular: '400',
   medium: '500',
   display: '560',
 })
 
-export const space = stylex.defineConsts({
+export const space = stylex.defineVars({
   s1: '0.25rem',
   s2: '0.5rem',
   s3: '0.75rem',
@@ -60,7 +45,7 @@ export const space = stylex.defineConsts({
   s16: '4rem',
 })
 
-export const size = stylex.defineConsts({
+export const size = stylex.defineVars({
   control: '2.25rem',
   touch: '2.75rem',
   rowCompact: '2rem',

@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 
 export const commandStyles = stylex.create({
   popup: {
@@ -45,8 +45,8 @@ export const commandStyles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    width: { default: '1.75rem', [media.coarse]: size.touch },
-    height: { default: '1.75rem', [media.coarse]: size.touch },
+    width: { default: '1.75rem', '@media (pointer: coarse)': size.touch },
+    height: { default: '1.75rem', '@media (pointer: coarse)': size.touch },
     padding: 0,
     borderWidth: 0,
     borderRadius: tokens['--xid-radius-sm'],
@@ -56,7 +56,7 @@ export const commandStyles = stylex.create({
   },
   list: {
     flexGrow: 1,
-    maxHeight: { default: '22rem', [media.narrow]: 'none' },
+    maxHeight: { default: '22rem', '@media (max-width: 47.99rem)': 'none' },
     overflowY: 'auto',
     padding: '0.375rem',
   },
@@ -80,7 +80,7 @@ export const commandStyles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
-    minHeight: { default: '2.25rem', [media.coarse]: size.touch },
+    minHeight: { default: '2.25rem', '@media (pointer: coarse)': size.touch },
     paddingBlock: '0.375rem',
     paddingInline: '0.625rem',
     borderRadius: tokens['--xid-radius'],
@@ -107,7 +107,7 @@ export const commandStyles = stylex.create({
     color: tokens['--xid-muted-foreground'],
   },
   footer: {
-    display: { default: 'flex', [media.coarse]: 'none' },
+    display: { default: 'flex', '@media (pointer: coarse)': 'none' },
     alignItems: 'center',
     gap: '1rem',
     height: '2.25rem',

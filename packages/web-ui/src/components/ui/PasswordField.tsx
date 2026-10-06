@@ -3,7 +3,7 @@ import { forwardRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 import { Field } from './Field'
 import { Icon } from './Icon'
 import { Input, type InputProps } from './Input'
@@ -30,7 +30,7 @@ const styles = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.375rem',
-    minHeight: { default: '1.75rem', [media.coarse]: size.touch },
+    minHeight: { default: '1.75rem', '@media (pointer: coarse)': size.touch },
     paddingInline: '0.625rem',
     borderWidth: 0,
     borderRadius: tokens['--xid-radius-sm'],

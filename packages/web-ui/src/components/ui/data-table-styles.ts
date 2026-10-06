@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 
 export const tableStyles = stylex.create({
   frame: {
@@ -64,9 +64,11 @@ export const tableStyles = stylex.create({
   row: {
     backgroundColor: tokens['--xid-bg'],
   },
-  rowCompact: { height: { default: size.rowCompact, [media.coarse]: size.touch } },
-  rowDefault: { height: { default: size.rowDefault, [media.coarse]: size.touch } },
-  rowComfortable: { height: { default: size.rowComfortable, [media.coarse]: size.touch } },
+  rowCompact: { height: { default: size.rowCompact, '@media (pointer: coarse)': size.touch } },
+  rowDefault: { height: { default: size.rowDefault, '@media (pointer: coarse)': size.touch } },
+  rowComfortable: {
+    height: { default: size.rowComfortable, '@media (pointer: coarse)': size.touch },
+  },
   cell: {
     paddingBlock: '0.375rem',
     paddingInline: '0.5rem',

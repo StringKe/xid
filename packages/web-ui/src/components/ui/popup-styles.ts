@@ -2,7 +2,7 @@
 
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text } from '../../styles/scale.stylex'
+import { size, text } from '../../styles/scale.stylex'
 
 export const popupStyles = stylex.create({
   positioner: {
@@ -36,7 +36,7 @@ export const popupStyles = stylex.create({
     gap: '0.5rem',
     width: '100%',
     boxSizing: 'border-box',
-    minHeight: { default: size.rowCompact, [media.coarse]: size.touch },
+    minHeight: { default: size.rowCompact, '@media (pointer: coarse)': size.touch },
     paddingInline: '0.625rem',
     borderWidth: 0,
     borderRadius: tokens['--xid-radius'],

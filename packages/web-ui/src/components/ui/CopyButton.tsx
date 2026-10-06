@@ -2,7 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 import { Icon } from './Icon'
 import { useCopyToClipboard } from './use-copy'
 
@@ -20,8 +20,8 @@ const styles = stylex.create({
     justifyContent: 'center',
     gap: '0.375rem',
     flexShrink: 0,
-    minHeight: { default: '2rem', [media.coarse]: size.touch },
-    minWidth: { default: 'auto', [media.coarse]: size.touch },
+    minHeight: { default: '2rem', '@media (pointer: coarse)': size.touch },
+    minWidth: { default: 'auto', '@media (pointer: coarse)': size.touch },
     paddingInline: '0.625rem',
     borderWidth: 0,
     borderRadius: tokens['--xid-radius-sm'],

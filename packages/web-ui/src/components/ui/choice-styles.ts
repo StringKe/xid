@@ -2,7 +2,7 @@
 
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, text } from '../../styles/scale.stylex'
+import { text } from '../../styles/scale.stylex'
 
 export const choiceStyles = stylex.create({
   row: {
@@ -11,7 +11,7 @@ export const choiceStyles = stylex.create({
     gap: '0.625rem',
     cursor: 'pointer',
     fontFamily: tokens['--xid-font'],
-    minHeight: { default: 'auto', [media.coarse]: '2.75rem' },
+    minHeight: { default: 'auto', '@media (pointer: coarse)': '2.75rem' },
   },
   text: {
     display: 'flex',
@@ -70,7 +70,10 @@ export const choiceStyles = stylex.create({
     borderRadius: tokens['--xid-radius-full'],
     backgroundColor: tokens['--xid-faint-foreground'],
     cursor: 'pointer',
-    transitionProperty: { default: 'background-color', [media.reducedMotion]: 'none' },
+    transitionProperty: {
+      default: 'background-color',
+      '@media (prefers-reduced-motion: reduce)': 'none',
+    },
     transitionDuration: '120ms',
   },
   trackChecked: {
@@ -83,7 +86,7 @@ export const choiceStyles = stylex.create({
     borderRadius: tokens['--xid-radius-full'],
     backgroundColor: tokens['--xid-surface'],
     transform: 'translateX(0)',
-    transitionProperty: { default: 'transform', [media.reducedMotion]: 'none' },
+    transitionProperty: { default: 'transform', '@media (prefers-reduced-motion: reduce)': 'none' },
     transitionDuration: '120ms',
   },
   thumbChecked: {

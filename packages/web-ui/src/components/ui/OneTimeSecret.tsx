@@ -5,7 +5,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 import { Button } from './Button'
 import { CheckboxField } from './CheckboxField'
 import { CopyButton } from './CopyButton'
@@ -66,8 +66,8 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    width: { default: '2rem', [media.coarse]: size.touch },
-    height: { default: '2rem', [media.coarse]: size.touch },
+    width: { default: '2rem', '@media (pointer: coarse)': size.touch },
+    height: { default: '2rem', '@media (pointer: coarse)': size.touch },
     padding: 0,
     borderWidth: 0,
     borderRadius: tokens['--xid-radius-sm'],

@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { container, text, weight } from '../../styles/scale.stylex'
+import { text, weight } from '../../styles/scale.stylex'
 import { Icon, type IconName } from './Icon'
 
 export const NOTICE_TONES = ['info', 'success', 'warning', 'danger'] as const
@@ -30,7 +30,7 @@ const styles = stylex.create({
   },
   root: {
     display: 'flex',
-    flexWrap: { default: 'wrap', [container.tableComfortable]: 'nowrap' },
+    flexWrap: { default: 'wrap', '@container (min-width: 40rem)': 'nowrap' },
     alignItems: 'flex-start',
     columnGap: '0.75rem',
     rowGap: '0.625rem',
@@ -79,7 +79,7 @@ const styles = stylex.create({
   action: {
     display: 'flex',
     flexShrink: 0,
-    marginInlineStart: { default: '1.75rem', [container.tableComfortable]: 0 },
+    marginInlineStart: { default: '1.75rem', '@container (min-width: 40rem)': 0 },
   },
 })
 

@@ -5,7 +5,7 @@ import { forwardRef } from 'react'
 import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, size, text, weight } from '../../styles/scale.stylex'
+import { size, text, weight } from '../../styles/scale.stylex'
 import { mergeClassNames } from '../../class-name'
 import type { Responsive } from '../../responsive'
 import { responsiveHiddenClassName } from './responsive-hidden'
@@ -31,7 +31,7 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.375rem',
-    minHeight: { default: size.control, [media.coarse]: size.touch },
+    minHeight: { default: size.control, '@media (pointer: coarse)': size.touch },
     paddingBlock: 0,
     paddingInline: '0.875rem',
     borderRadius: tokens['--xid-radius'],
@@ -47,7 +47,7 @@ const styles = stylex.create({
     transform: { default: 'none', ':active': 'scale(0.97)' },
     transitionProperty: {
       default: 'background-color, box-shadow, color, transform',
-      [media.reducedMotion]: 'none',
+      '@media (prefers-reduced-motion: reduce)': 'none',
     },
     transitionDuration: '120ms',
     transitionTimingFunction: 'ease-out',

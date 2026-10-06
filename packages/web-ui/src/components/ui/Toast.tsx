@@ -6,7 +6,7 @@ import { useCallback } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, text, weight } from '../../styles/scale.stylex'
+import { text, weight } from '../../styles/scale.stylex'
 import { mergeClassNames } from '../../class-name'
 import { Icon } from './Icon'
 
@@ -24,14 +24,17 @@ const styles = stylex.create({
   viewport: {
     position: 'fixed',
     zIndex: 60,
-    insetInlineEnd: { default: '1.5rem', [media.narrow]: '1rem' },
-    insetInlineStart: { default: 'auto', [media.narrow]: '1rem' },
-    bottom: { default: '1.5rem', [media.narrow]: 'max(1rem, env(safe-area-inset-bottom))' },
+    insetInlineEnd: { default: '1.5rem', '@media (max-width: 47.99rem)': '1rem' },
+    insetInlineStart: { default: 'auto', '@media (max-width: 47.99rem)': '1rem' },
+    bottom: {
+      default: '1.5rem',
+      '@media (max-width: 47.99rem)': 'max(1rem, env(safe-area-inset-bottom))',
+    },
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-end',
     gap: '0.5rem',
-    width: { default: '26rem', [media.narrow]: 'auto' },
+    width: { default: '26rem', '@media (max-width: 47.99rem)': 'auto' },
     maxWidth: 'calc(100vw - 2rem)',
     outline: 'none',
   },
@@ -74,8 +77,8 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    width: { default: '2rem', [media.coarse]: '2.75rem' },
-    height: { default: '2rem', [media.coarse]: '2.75rem' },
+    width: { default: '2rem', '@media (pointer: coarse)': '2.75rem' },
+    height: { default: '2rem', '@media (pointer: coarse)': '2.75rem' },
     padding: 0,
     borderWidth: 0,
     borderRadius: tokens['--xid-radius'],

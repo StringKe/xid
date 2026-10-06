@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { container, text } from '../../styles/scale.stylex'
+import { text } from '../../styles/scale.stylex'
 
 export type KeyValueItem = {
   key: string
@@ -31,13 +31,13 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: {
       default: 'minmax(0, 1fr)',
-      [container.keyValueSideBySide]: '10rem minmax(0, 1fr)',
+      '@container (min-width: 32rem)': '10rem minmax(0, 1fr)',
     },
-    alignItems: { default: 'start', [container.keyValueSideBySide]: 'center' },
+    alignItems: { default: 'start', '@container (min-width: 32rem)': 'center' },
     columnGap: '1rem',
     rowGap: '0.125rem',
-    minHeight: { default: 'auto', [container.keyValueSideBySide]: '2.5rem' },
-    paddingBlock: { default: '0.625rem', [container.keyValueSideBySide]: '0.375rem' },
+    minHeight: { default: 'auto', '@container (min-width: 32rem)': '2.5rem' },
+    paddingBlock: { default: '0.625rem', '@container (min-width: 32rem)': '0.375rem' },
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
     borderTopColor: tokens['--xid-border'],

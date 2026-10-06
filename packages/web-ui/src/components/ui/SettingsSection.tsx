@@ -4,7 +4,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { useId } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { container, text, weight } from '../../styles/scale.stylex'
+import { text, weight } from '../../styles/scale.stylex'
 import { Button } from './Button'
 
 export type SettingsSectionProps = {
@@ -28,7 +28,7 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: {
       default: 'minmax(0, 1fr)',
-      [container.settingsSideBySide]: 'minmax(0, 2fr) minmax(0, 3fr)',
+      '@container (min-width: 48rem)': 'minmax(0, 2fr) minmax(0, 3fr)',
     },
     columnGap: '2.5rem',
     rowGap: '1.25rem',

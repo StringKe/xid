@@ -6,7 +6,7 @@ import { useLingui } from '@lingui/react/macro'
 import type { ReactNode, RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { media, text, weight } from '../../styles/scale.stylex'
+import { text, weight } from '../../styles/scale.stylex'
 import { mergeClassNames } from '../../class-name'
 import { resolveResponsive, type Responsive } from '../../responsive'
 import { Icon } from './Icon'
@@ -47,7 +47,7 @@ const styles = stylex.create({
     fontFamily: tokens['--xid-font'],
     boxShadow: tokens['--xid-shadow-lg'],
     gap: '1.25rem',
-    padding: { default: '1.5rem', [media.narrow]: '1rem' },
+    padding: { default: '1.5rem', '@media (max-width: 47.99rem)': '1rem' },
     overflowY: 'auto',
     overscrollBehavior: 'contain',
   },
@@ -74,16 +74,16 @@ const styles = stylex.create({
   description: {
     margin: 0,
     color: tokens['--xid-muted-foreground'],
-    fontSize: { default: text.base, [media.narrow]: text.md },
-    lineHeight: { default: '1.375rem', [media.narrow]: '1.5rem' },
+    fontSize: { default: text.base, '@media (max-width: 47.99rem)': text.md },
+    lineHeight: { default: '1.375rem', '@media (max-width: 47.99rem)': '1.5rem' },
   },
   close: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    width: { default: '2rem', [media.coarse]: '2.75rem' },
-    height: { default: '2rem', [media.coarse]: '2.75rem' },
+    width: { default: '2rem', '@media (pointer: coarse)': '2.75rem' },
+    height: { default: '2rem', '@media (pointer: coarse)': '2.75rem' },
     marginBlockStart: '-0.25rem',
     marginInlineEnd: '-0.5rem',
     padding: 0,
@@ -107,8 +107,8 @@ const styles = stylex.create({
     gap: '0.75rem',
   },
   footerStackedOnNarrow: {
-    flexDirection: { default: 'row', [media.narrow]: 'column-reverse' },
-    alignItems: { default: 'center', [media.narrow]: 'stretch' },
+    flexDirection: { default: 'row', '@media (max-width: 47.99rem)': 'column-reverse' },
+    alignItems: { default: 'center', '@media (max-width: 47.99rem)': 'stretch' },
   },
 })
 
