@@ -1,4 +1,5 @@
-// Core 收到 /console 时:自定义域名落 /account,自托管实例域名交给 Console Worker,未知主机 404。
+// Core 收到 /console 时:规则已归 Console 的主机 404,自定义域名落 /account,自托管实例域名交给
+// Console Worker,未知主机 404。
 
 import { Hono } from 'hono'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -57,6 +58,32 @@ describe('Core /console fallback', () => {
     resolveTenantContext.mockResolvedValue({ ok: true, value: { tenantId: 'org_1' } })
 
     const res = await makeApp().request('https://id.example.com/console', { method: 'POST' }, env)
+
+    expect(res.status).toBe(404)
+    expect(resolveTenantContext).not.toHaveBeenCalled()
+  })
+
+  it.each(['https://xid.dev/console', 'https://acme.xid.dev/console/org'])(
+    'fails closed for %s, whose /console route belongs to the Console Worker',
+    async (url) => {
+      resolveTenantContext.mockResolvedValue({ ok: true, value: { tenantId: 'org_1' } })
+
+      const res = await makeApp().request(url, {}, env)
+
+      expect(res.status).toBe(404)
+      expect(res.headers.get('x-xid-core-route-status')).toBe('owned-by-console')
+      expect(resolveTenantContext).not.toHaveBeenCalled()
+    },
+  )
+
+  it('uses the Host header when the request URL is a loopback address', async () => {
+    resolveTenantContext.mockResolvedValue({ ok: true, value: { tenantId: 'org_1' } })
+
+    const res = await makeApp().request(
+      'http://127.0.0.1:8787/console',
+      { headers: { host: 'xid.dev' } },
+      env,
+    )
 
     expect(res.status).toBe(404)
     expect(resolveTenantContext).not.toHaveBeenCalled()

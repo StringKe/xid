@@ -51,10 +51,20 @@ function movedSurfaceNotFound(owner: 'site' | 'console'): Response {
   })
 }
 
-// 落到 Core 的 /console 只来自归属规则未覆盖的主机:自定义域名只承载 Hosted Auth 与账户门户,改落
-// /account;实例主域名不是 xid.dev 的自托管部署(及其租户子域)交给 Console Worker;无法解析的主机仍 404。
+// 归属规则按 Host 判定;本地与 Service Binding 场景下请求 URL 可能是回环地址,Host 才是真实主机。
+function isRuleOwnedConsoleHost(c: Context<XidHonoEnv>): boolean {
+  const url = new URL(c.req.url)
+  const host = c.req.header('host')
+  if (host) url.host = host
+  return resolveWebRouteOwnership(url).owner === 'console'
+}
+
+// 归属规则已把 /console 划给 Console Worker 的主机(xid.dev 及其租户子域)落到 Core 说明 route 缺失或
+// 回滚,fail closed 返回 404。其余主机:自定义域名只承载 Hosted Auth 与账户门户,改落 /account;
+// 实例主域名不是 xid.dev 的自托管部署(及其租户子域)交给 Console Worker;无法解析的主机仍 404。
 async function serveUnroutedConsole(c: Context<XidHonoEnv>): Promise<Response> {
   if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return movedSurfaceNotFound('console')
+  if (isRuleOwnedConsoleHost(c)) return movedSurfaceNotFound('console')
   const tenant = await resolveTenantContext(c.req.raw, c.env)
   if (!tenant.ok) return movedSurfaceNotFound('console')
   if (defaultLandingPathFor(tenant.value) === ACCOUNT_EXACT_PATH) {

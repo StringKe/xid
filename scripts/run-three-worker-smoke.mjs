@@ -746,11 +746,19 @@ async function runChecks(baseUrl, ports) {
     location: '/llms.txt?source=smoke',
   })
 
+  // Vite dev 下 Core 看到的是回环主机,等同自托管实例:GET /console 会经 CONSOLE_WORKER 委派,而 smoke
+  // 配置删掉了 Service Bindings(委派由 public-assets-console 进程内测试覆盖)。这里只验证 Core 自身
+  // 从不处理 Console 路径:写请求固定 fail closed。
   const coreConsole = await fetchWithTimeout(`http://127.0.0.1:${ports.core}/console`, {
+    method: 'POST',
     headers: { host: 'xid.dev', accept: 'text/html' },
   })
   const coreConsoleBody = await coreConsole.text()
-  if (coreConsole.status !== 404 || coreConsoleBody.includes('<div id="root">')) {
+  if (
+    coreConsole.status !== 404 ||
+    coreConsole.headers.get('x-xid-core-route-status') !== 'owned-by-console' ||
+    coreConsoleBody.includes('<div id="root">')
+  ) {
     throw new Error(
       `Core direct Console boundary failed http=${coreConsole.status} body=${coreConsoleBody.slice(0, 200)}`,
     )
