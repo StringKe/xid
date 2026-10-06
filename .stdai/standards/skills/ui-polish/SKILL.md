@@ -43,16 +43,17 @@ Typography:
 
 - Display `clamp` upper bound <= 6rem; display
   letter-spacing floor >= -0.04em, tighter than that and characters collide
-- Tracking is size-dependent -- never one global value. Display and headings take negative tracking
-  on a gradient by size (-0.01em to -0.04em, tighter as the size grows), body takes 0, sizes below
-  1rem take no negative tracking. Positive tracking on mono microlabels is the deliberate brand
-  exception (0.06-0.08em)
+- Tracking comes from the token table, never a literal: `--xid-tracking-display` (-0.025em, 40 and
+  56px), `--xid-tracking-heading` (-0.015em, 28px), `--xid-tracking-title` (-0.01em, 20px), 0 for
+  14-16px body, `--xid-tracking-small` (+0.01em, 12px). Chinese, Japanese and Korean reset the
+  table to 0 in `foundation.css`
 - `text-wrap: balance` on headings, `text-wrap: pretty` on long paragraphs. Body line-height
   1.5-1.65, headings 1.04-1.2
-- ALL CAPS only for labels of four words or fewer (XID's mono microlabel is exactly this case).
-  Never ALL CAPS body text
-- Two families only: `--xid-font` (Inter Variable) for everything, `--xid-font-mono` for microlabels,
-  code, and inline identifiers. Never introduce a third
+- No ALL CAPS labels and no eyebrow labels above section titles: sections use sentence case titles
+  and weight. Never ALL CAPS body text
+- Two families only: `--xid-font` (Geist, with CJK fallbacks) for everything people read,
+  `--xid-font-mono` (Geist Mono) only for IDs, keys, endpoints and code. Counts and times use
+  `font-variant-numeric: tabular-nums`, not mono. Never introduce a third family
 - Light text on a dark background gets +0.05-0.1 line-height: light type reads lighter and needs
   more air
 
