@@ -8,6 +8,7 @@ vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(),
   schema: {
     meteringOutbox: { userId: 'userId', day: 'day' },
+    users: { id: 'id' },
     USER_PROVISIONED_BY_ANONYMOUS: 'anonymous',
   },
 }))
@@ -181,8 +182,34 @@ describe('recordAuthenticatedSession', () => {
     expect(writeDataPoint).not.toHaveBeenCalled()
   })
 
+  it('records the sign-in time on the tenant-scoped user row', async () => {
+    const { env } = makeEnv()
+    const update = vi.fn().mockResolvedValue([{ id: 'user_1' }])
+    vi.mocked(createTenantDb).mockReturnValue({
+      users: { update },
+    } as unknown as ReturnType<typeof createTenantDb>)
+
+    await recordAuthenticatedSession({
+      env,
+      tenant: tenant(),
+      userId: 'user_1',
+      status: 'active',
+      timestamp: Date.UTC(2025, 0, 15),
+    })
+
+    expect(createTenantDb).toHaveBeenCalledWith(env.DB, tenant())
+    expect(update).toHaveBeenCalledWith(
+      { lastLoginAt: new Date(Date.UTC(2025, 0, 15)) },
+      expect.anything(),
+    )
+  })
+
   it('excludes guest (provisioned_by anonymous) sessions from MAU metering but keeps analytics', async () => {
-    vi.mocked(createTenantDb).mockClear()
+    const insert = vi.fn()
+    vi.mocked(createTenantDb).mockReturnValue({
+      meteringOutbox: { insert },
+      users: { update: vi.fn().mockResolvedValue([]) },
+    } as unknown as ReturnType<typeof createTenantDb>)
     const { env, queueSend, writeDataPoint } = makeEnv({ queueRejects: true })
     await recordAuthenticatedSession({
       env,
@@ -192,9 +219,9 @@ describe('recordAuthenticatedSession', () => {
       timestamp: 1_700_000_000_000,
       provisionedBy: 'anonymous',
     })
-    // 计量排除:queue 与 outbox 兜底同路径跳过(createTenantDb 不应被触达)。
+    // 计量排除:queue 与 outbox 兜底同路径跳过。
     expect(queueSend).not.toHaveBeenCalled()
-    expect(createTenantDb).not.toHaveBeenCalled()
+    expect(insert).not.toHaveBeenCalled()
     expect(writeDataPoint).toHaveBeenCalledWith({
       indexes: ['tenant_1'],
       blobs: ['auth.login_success'],

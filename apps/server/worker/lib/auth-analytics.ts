@@ -68,6 +68,17 @@ export async function recordAuthenticatedSession(input: AuthAnalyticsInput): Pro
   }
 
   try {
+    await createTenantDb(input.env.DB, input.tenant).users.update(
+      { lastLoginAt: new Date(input.timestamp) },
+      eq(schema.users.id, input.userId),
+    )
+  } catch (error) {
+    logWorkerError('auth_analytics.last_login.update_failed', error, {
+      component: 'auth-analytics',
+    })
+  }
+
+  try {
     await sendLoginSucceededAudit(input)
   } catch (error) {
     logWorkerError('auth_analytics.login_audit.enqueue_failed', error, {
