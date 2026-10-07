@@ -314,7 +314,7 @@ msgstr "{orgName} 中的 {memberName}"
 
 #: apps/console/src/routes/members/ChangeRoleDialog.tsx
 msgid "{memberName} is now {newRole}"
-msgstr "{memberName} 现在是{newRole}"
+msgstr "{memberName} 现在是 {newRole}"
 
 #: apps/console/src/routes/members/ChangeRoleDialog.tsx
 msgid "{memberName} is the only owner"
@@ -485,7 +485,7 @@ msgstr "{subject} 登录了。"
 
 #: apps/console/src/routes/applications/ApplicationDetail.tsx
 msgid "{summary} in the {projectName} project"
-msgstr "{projectName} 项目中的{summary}"
+msgstr "{projectName} 项目中的 {summary}"
 
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 msgid "{value} is invited once"
@@ -3446,7 +3446,7 @@ msgstr "创建于 {created}"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 msgid "Created by {source}"
-msgstr "由{source}创建"
+msgstr "创建方式：{source}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "created, accepted, revoked"
@@ -11847,7 +11847,7 @@ msgstr "{when} 登录。"
 
 #: apps/console/src/routes/users/tabs/SessionsTab.tsx
 msgid "Signed in with {method} on {when}."
-msgstr "{when} 使用{method}登录。"
+msgstr "{when} 使用 {method} 登录。"
 
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "Signed JWT with a registered key (private_key_jwt)"
