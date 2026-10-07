@@ -53,6 +53,7 @@ import { requestIp, verifyTurnstile } from '../me-auth/shared'
 import { shouldSkipDefaultMembership } from '../me-auth/passwordless-users'
 import { resolveHostedAuthFlow } from '../../shared/hosted-auth-continuation'
 import { linkOrCreateUser } from './social-linking'
+import { completeSocialLink, redirectToSocialLinkResult, type SocialLinkFlow } from './social-link'
 
 // callback 输入形状:code/state/error 均为可选字符串(Apple form_post 的 File 值视为缺失,见 readCallbackParams)。
 const callbackParamsSchema = v.object({
@@ -82,6 +83,7 @@ type OAuthFlowPayload = {
   intent?: string
   applicationClientId?: string
   skipDefaultMembership?: boolean
+  link?: SocialLinkFlow
 }
 
 const FLOW_PREFIX = 'state'
@@ -90,6 +92,8 @@ function parseOAuthFlow(record: FederatedFlowRecord): OAuthFlowPayload {
   const intent = optionalFlowString(record, 'intent')
   const applicationClientId = optionalFlowString(record, 'applicationClientId')
   const skipDefaultMembership = optionalFlowBoolean(record, 'skipDefaultMembership')
+  const linkUserId = optionalFlowString(record, 'linkUserId')
+  const linkSessionId = optionalFlowString(record, 'linkSessionId')
   const flow: OAuthFlowPayload = {
     tenantId: requiredFlowString(record, 'tenantId'),
     provider: requiredFlowString(record, 'provider'),
@@ -101,6 +105,7 @@ function parseOAuthFlow(record: FederatedFlowRecord): OAuthFlowPayload {
     ...(intent === undefined ? {} : { intent }),
     ...(applicationClientId === undefined ? {} : { applicationClientId }),
     ...(skipDefaultMembership === undefined ? {} : { skipDefaultMembership }),
+    ...(linkUserId && linkSessionId ? { link: { linkUserId, linkSessionId } } : {}),
   }
   assertNoInvitationInFlow(record, flow.redirectAfterLogin)
   return flow
@@ -308,6 +313,12 @@ async function handleProviderError(
 ): Promise<Response> {
   const { provider, params } = input
   const flow = params.state ? await consumeOAuthFlow(c.env, params.state) : null
+  if (flow?.link && flow.provider === provider) {
+    return redirectToSocialLinkResult(c, {
+      provider,
+      error: params.error === 'access_denied' ? 'cancelled' : 'failed',
+    })
+  }
   const error = params.error === 'access_denied' ? 'cancelled' : 'sign_in_failed'
   return redirectToSignInWithError(
     c,
@@ -372,6 +383,18 @@ async function handleCallback(
   onFlow(flow)
   const tenant = await socialCallbackTenant(c, flow)
   if (flow.tenantId !== tenant.tenantId) throw new AppError('cross_tenant_access_denied')
+
+  const link = flow.link
+  if (link) {
+    return withTenant(c, tenant, () =>
+      completeSocialLink(c, {
+        tenant,
+        provider,
+        flow: link,
+        exchange: () => exchangeAndResolveProfile({ c, tenant, provider, flow, code }),
+      }),
+    )
+  }
 
   return withTenant(c, tenant, async () => {
     const { tokens, profile, scopes } = await exchangeAndResolveProfile({

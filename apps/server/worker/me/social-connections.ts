@@ -5,6 +5,8 @@
 import { createTenantDb, schema } from '@xid-kit/db'
 import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
+import * as v from 'valibot'
+import { startSocialLink } from '../auth/social-link'
 import { AppError } from '../lib/errors'
 import { requireStepUp } from '../lib/step-up'
 import type { XidHonoEnv } from '../lib/types'
@@ -35,6 +37,9 @@ function toSocialConnection(row: typeof schema.userIdentities.$inferSelect): Soc
   }
 }
 
+// 与 /auth/:provider/authorize 同一形状收窄;是否已配置由 startSocialLink 判断。
+const providerParamSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(128))
+
 const app = new Hono<XidHonoEnv>()
 
 // GET /v1/me/social-connections
@@ -53,6 +58,18 @@ app.get('/', async (c) => {
     )
   })
   return c.json(rows.map(toSocialConnection))
+})
+
+// POST /v1/me/social-connections/:provider/link:返回 provider 授权地址,SPA 整页跳转;
+// 新增登录方式属于敏感改动,有强因子的用户先 step-up。
+app.post('/:provider/link', async (c) => {
+  const session = await requireSession(c)
+  const tenant = c.get('tenant')
+  const parsed = v.safeParse(providerParamSchema, c.req.param('provider'))
+  if (!parsed.success) throw new AppError('invalid_request')
+  await requireStepUp(c, tenant, session)
+  const url = await startSocialLink(c, { provider: parsed.output, session })
+  return c.json({ url })
 })
 
 app.delete('/:id', async (c) => {
