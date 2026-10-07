@@ -20,6 +20,7 @@ import {
   makeApp as makeOidcApp,
   makeEnv as makeOidcEnv,
 } from '../oidc/__tests__/helpers'
+import { makeFakeD1 } from '../oauth/__tests__/mock-helpers'
 import { tenantMiddleware } from '../middleware/tenant'
 import { sessionMiddleware } from '../middleware/session'
 import { TENANT_ROUTE_PATTERNS } from '../tenant-routes'
@@ -370,6 +371,10 @@ function routeTables(material: SigningKeyMaterial): RouteTable {
   }
 }
 
+function configEnv(values: Record<string, unknown>): Env {
+  return asUnknown<Env>({ DB: makeFakeD1({}), ...values })
+}
+
 describe('GET /auth/config', () => {
   it('returns only enabled and configured social providers', async () => {
     const { ctx } = await buildTestTenant()
@@ -453,7 +458,7 @@ describe('GET /auth/config', () => {
     const res = await app.request(
       'https://xid.dev/auth/config',
       {},
-      asUnknown<Env>({ GOOGLE_CLIENT_SECRET: 'google-secret' }),
+      configEnv({ GOOGLE_CLIENT_SECRET: 'google-secret' }),
     )
 
     expect(res.status).toBe(200)
@@ -534,7 +539,7 @@ describe('GET /auth/config', () => {
       registerHostedAuthConfigRoutes,
     )
 
-    const res = await app.request('https://xid.dev/auth/config', {}, asUnknown<Env>({}))
+    const res = await app.request('https://xid.dev/auth/config', {}, configEnv({}))
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { socialProviders: unknown[] }
@@ -595,7 +600,7 @@ describe('GET /auth/config', () => {
     const res = await app.request(
       'https://xid.dev/auth/config',
       {},
-      asUnknown<Env>({ GOOGLE_CLIENT_SECRET: 'google-secret' }),
+      configEnv({ GOOGLE_CLIENT_SECRET: 'google-secret' }),
     )
 
     expect(res.status).toBe(200)
@@ -654,7 +659,7 @@ describe('GET /auth/config', () => {
       registerHostedAuthConfigRoutes,
     )
 
-    const res = await app.request('https://xid.dev/auth/config', {}, asUnknown<Env>({}))
+    const res = await app.request('https://xid.dev/auth/config', {}, configEnv({}))
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
@@ -714,7 +719,7 @@ describe('GET /auth/config', () => {
     const res = await app.request(
       'https://xid.dev/auth/config',
       {},
-      asUnknown<Env>({
+      configEnv({
         WHATSAPP_META_PHONE_NUMBER_ID: '1234567890',
         WHATSAPP_META_ACCESS_TOKEN: 'meta-token',
         TWILIO_ACCOUNT_SID: 'AC123',
@@ -776,7 +781,7 @@ describe('GET /auth/config', () => {
     const res = await app.request(
       'https://xid.dev/auth/config',
       {},
-      asUnknown<Env>({
+      configEnv({
         TWILIO_ACCOUNT_SID: 'AC123',
         TWILIO_AUTH_TOKEN: 'token',
       }),

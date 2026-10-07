@@ -78,8 +78,16 @@ export async function findClient(
   c: Context<XidHonoEnv>,
   clientId: string,
 ): Promise<ClientRow | null> {
-  const ctx = c.get('tenant')
-  const db = createTenantDb(c.env.DB, ctx)
+  return findTenantClient(c.env.DB, c.get('tenant'), clientId)
+}
+
+// 显式租户版本:Hosted Auth 入口解析出的租户可能不同于请求 Host 的租户。
+export async function findTenantClient(
+  d1: D1Database,
+  ctx: TenantContext,
+  clientId: string,
+): Promise<ClientRow | null> {
+  const db = createTenantDb(d1, ctx)
   const row = await db.applications.findOne(
     and(eq(schema.applications.clientId, clientId), eq(schema.applications.status, 'active')),
   )

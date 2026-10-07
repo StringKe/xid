@@ -6,6 +6,7 @@ import type { Context } from 'hono'
 import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { SessionData, XidHonoEnv } from '../lib/types'
+import { resolveClientDisplay } from '../oidc/client-display'
 import { findClient } from '../oidc/shared'
 import { firstIssuePath, readJsonBody } from '../lib/validate'
 import { enforceVerifyRateLimit } from '../lib/verify-rate-limit'
@@ -104,10 +105,13 @@ export async function handleDeviceActivationParams(c: Context<XidHonoEnv>): Prom
   const grant = await lookupGrant(c, userCode)
   const client = await findClient(c, grant.clientId)
   if (!client) throw new AppError('invalid_client', { httpStatus: 400 })
+  const display = await resolveClientDisplay(c.env.DB, c.get('tenant'), client)
 
   return c.json({
     userCode: grant.userCode,
     clientId: client.clientId,
+    clientName: display.clientName,
+    clientLogoUrl: display.clientLogoUrl,
     scopes: grant.scopes,
     expiresAt: new Date(grant.expiresAt).toISOString(),
     firstParty: client.firstParty,

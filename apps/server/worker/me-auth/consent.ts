@@ -13,6 +13,7 @@ import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import type { TenantVar, XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateCredentialBody } from '../lib/validate'
+import { resolveClientDisplay } from '../oidc/client-display'
 import { findClient } from '../oidc/shared'
 import {
   authorizationDetailsScopes,
@@ -46,7 +47,7 @@ const consentParamsQuerySchema = v.object({ prompt_id: v.pipe(v.string(), v.minL
 // GET /auth/consent-params?prompt_id= -- 返回 client 展示数据 + 请求的 scope 名(本地化由 SPA 负责)。
 export async function handleConsentParams(c: Context<XidHonoEnv>): Promise<Response> {
   const tenant = c.get('tenant')
-  await requireSession(c)
+  const session = await requireSession(c)
   // prompt_id 是 OAuth state handle(凭证):缺失/形状失败与失效同 invalid_request。
   const query = v.safeParse(consentParamsQuerySchema, { prompt_id: c.req.query('prompt_id') })
   if (!query.success) throw new AppError('invalid_request')
@@ -58,37 +59,49 @@ export async function handleConsentParams(c: Context<XidHonoEnv>): Promise<Respo
   const client = await findClient(c, pending['client_id'] ?? '')
   if (!client) throw new AppError('invalid_client', { httpStatus: 400 })
 
-  // applications 无 name/logo 列(08 章 10.4):展示名走 project.name,logo 走 org.logoUrl,缺失回退。
-  const display = await resolveClientDisplay(c, tenant, client.projectId)
-  const authorizationDetails = await resolvePendingAuthorizationDetails(c, pending)
+  const [display, authorizationDetails, previouslyGrantedScopes] = await Promise.all([
+    resolveClientDisplay(c.env.DB, tenant, client),
+    resolvePendingAuthorizationDetails(c, pending),
+    loadGrantedScopes(c, tenant, { userId: session.userId, clientId: client.clientId }),
+  ])
 
   return c.json({
     clientId: client.clientId,
-    clientName: display.name ?? client.clientId,
-    clientLogoUrl: display.logoUrl,
+    clientName: display.clientName,
+    clientLogoUrl: display.clientLogoUrl,
+    ownerOrganizationName: display.ownerOrganizationName,
+    redirectOrigin: redirectOriginOf(pending['redirect_uri'] ?? ''),
     scopes: (pending['scope'] ?? '')
       .split(' ')
       .filter(Boolean)
       .map((name) => ({ name })),
+    previouslyGrantedScopes,
     authorizationDetails,
     firstParty: client.firstParty,
   })
 }
 
-// 解析 client 展示名 + logo:application -> project(name)-> org(logoUrl)。任一缺失回退 null。
-async function resolveClientDisplay(
+// https 与回环 http 返回 origin;自定义 scheme(RFC 8252 原生回调)没有 origin,返回 scheme 加 host 前缀。
+export function redirectOriginOf(redirectUri: string): string | null {
+  if (!URL.canParse(redirectUri)) return null
+  const url = new URL(redirectUri)
+  if (url.protocol === 'https:' || url.protocol === 'http:') return url.origin
+  return url.host ? `${url.protocol}//${url.host}` : url.protocol
+}
+
+async function loadGrantedScopes(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
-  projectId: string | null,
-): Promise<{ name: string | null; logoUrl: string | null }> {
-  if (!projectId) return { name: null, logoUrl: null }
+  input: { userId: string; clientId: string },
+): Promise<readonly string[]> {
   const db = createTenantDb(c.env.DB, tenant)
-  const project = await db.projects.findOne(
-    and(eq(schema.projects.id, projectId), eq(schema.projects.status, 'active')),
+  const row = await db.oauthConsents.findOne(
+    and(
+      eq(schema.oauthConsents.userId, input.userId),
+      eq(schema.oauthConsents.clientId, input.clientId),
+    ),
   )
-  if (!project) return { name: null, logoUrl: null }
-  const org = await db.organizations.findOne(eq(schema.organizations.id, project.orgId))
-  return { name: project.name, logoUrl: org?.logoUrl ?? null }
+  return row?.grantedScopes ?? []
 }
 
 const consentBodySchema = v.object({

@@ -30,8 +30,8 @@ const CLIENT_QUERY_PATHS = new Set([
   '/auth/config',
   '/consent',
   '/mfa',
+  '/mfa/setup',
   '/select-organization',
-  '/account/security',
   '/activate',
   '/auth/device-activation',
 ])

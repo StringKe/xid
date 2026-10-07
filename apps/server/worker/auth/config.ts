@@ -15,6 +15,7 @@ import {
   loginHintCandidates,
   resolveEntryTenant,
 } from '../me-auth/instance-login'
+import { resolveHostedAuthContext, type HostedAuthContext } from './hosted-context'
 import { hasProviderSecret } from './social-providers'
 import { publicTurnstileSiteKey } from '../me-auth/shared'
 import {
@@ -60,7 +61,11 @@ async function withRuntimeCapabilities(input: {
   resolvedTenant: XidHonoEnv['Variables']['tenant']
   flow: HostedEntryFlow
 }): Promise<
-  PublicHostedAuthConfig & { defaultLandingPath: DefaultLandingPath; branding: OrgBranding | null }
+  PublicHostedAuthConfig & {
+    defaultLandingPath: DefaultLandingPath
+    branding: OrgBranding | null
+    context: HostedAuthContext
+  }
 > {
   const { config, env, requestUrl, currentTenant, resolvedTenant, flow } = input
   const guestAllowed =
@@ -86,6 +91,7 @@ async function withRuntimeCapabilities(input: {
     guest,
     defaultLandingPath: defaultLandingPathFor(currentTenant),
     branding: brandingFor(resolvedTenant),
+    context: await resolveHostedAuthContext(env.DB, resolvedTenant, flow.applicationClientId),
   }
 }
 

@@ -134,6 +134,13 @@
       "when": 1791319674407,
       "tag": "0018_scim_target_encrypted_token_mfa_otp",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791331488645,
+      "tag": "0019_sso_connection_display_name",
+      "breakpoints": true
     }
   ]
 }

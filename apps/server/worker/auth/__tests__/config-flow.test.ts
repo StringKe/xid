@@ -38,6 +38,16 @@ vi.mock('../hosted-policy', () => ({
   }),
 }))
 
+const resolveHostedAuthContext = vi.hoisted(() =>
+  vi.fn(async () => ({
+    organizationName: 'Northwind Logistics',
+    applicationName: null,
+    applicationLogoUrl: null,
+  })),
+)
+
+vi.mock('../hosted-context', () => ({ resolveHostedAuthContext }))
+
 vi.mock('../delivery-channels', () => ({
   smsDeliveryReady: vi.fn(() => true),
   whatsappDeliveryReady: vi.fn(() => true),
@@ -152,6 +162,21 @@ describe('GET /auth/config flow resolution', () => {
     const res = await app.request('https://org-brand.xid.dev/auth/config', {}, {} as Env)
 
     expect(await res.json()).toMatchObject({ branding: BRANDING })
+  })
+
+  it('returns the context panel names resolved for the application client', async () => {
+    const current = tenant('org_ctx')
+    resolveEntryTenant.mockResolvedValue(current)
+    const app = appWithTenant(current)
+
+    const res = await app.request('https://org-ctx.xid.dev/auth/config?client_id=fleet', {}, {
+      DB: {},
+    } as Env)
+
+    expect(await res.json()).toMatchObject({
+      context: { organizationName: 'Northwind Logistics', applicationName: null },
+    })
+    expect(resolveHostedAuthContext).toHaveBeenCalledWith({}, current, 'fleet')
   })
 
   it('never shows organization branding on the unresolved instance root', async () => {

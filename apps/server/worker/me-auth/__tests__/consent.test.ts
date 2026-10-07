@@ -29,6 +29,7 @@ vi.mock('../../lib/session', () => ({
 import { createTenantDb } from '@xid-kit/db'
 import { findClient } from '../../oidc/shared'
 import { readSession } from '../../lib/session'
+import { redirectOriginOf } from '../consent'
 import { registerSessionAuthRoutes } from '../index'
 import { execCtx, makeApp, makeEnv, makeSession } from './helpers'
 
@@ -108,7 +109,10 @@ const RAR_PENDING = {
 function clientDb() {
   return {
     projects: { findOne: vi.fn().mockResolvedValue({ name: 'Acme App', orgId: 'org-1' }) },
-    organizations: { findOne: vi.fn().mockResolvedValue({ logoUrl: 'https://logo' }) },
+    organizations: {
+      findOne: vi.fn().mockResolvedValue({ logoUrl: 'https://logo', name: 'Acme Corp' }),
+    },
+    oauthConsents: { findOne: vi.fn().mockResolvedValue({ grantedScopes: ['openid'] }) },
     resourceServers: {
       findOne: vi.fn().mockResolvedValue({
         audience: 'https://api.example/v1',
@@ -134,6 +138,22 @@ function envWith(pending: Record<string, string> | null): {
   const env = { ...makeEnv({ oauthStateNs: state.ns }), DB: db }
   return { env, stored: state.stored, calls }
 }
+
+describe('redirectOriginOf', () => {
+  it('returns the origin for https and loopback redirect URIs', () => {
+    expect(redirectOriginOf('https://rp.example.com/cb?x=1')).toBe('https://rp.example.com')
+    expect(redirectOriginOf('http://127.0.0.1:8080/cb')).toBe('http://127.0.0.1:8080')
+  })
+
+  it('returns the scheme and host prefix for native custom schemes', () => {
+    expect(redirectOriginOf('com.example.fleet://oauth/callback')).toBe('com.example.fleet://oauth')
+    expect(redirectOriginOf('com.example.fleet:/callback')).toBe('com.example.fleet:')
+  })
+
+  it('returns null for an unparsable value', () => {
+    expect(redirectOriginOf('')).toBeNull()
+  })
+})
 
 describe('GET /auth/consent-params', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -171,11 +191,17 @@ describe('GET /auth/consent-params', () => {
     const body = (await res.json()) as {
       clientId: string
       clientName: string
+      ownerOrganizationName: string
+      redirectOrigin: string
+      previouslyGrantedScopes: string[]
       scopes: { name: string }[]
       authorizationDetails: typeof RAR_DETAILS
     }
     expect(body.clientId).toBe('client-1')
     expect(body.clientName).toBe('Acme App')
+    expect(body.ownerOrganizationName).toBe('Acme Corp')
+    expect(body.redirectOrigin).toBe('https://rp.example.com')
+    expect(body.previouslyGrantedScopes).toEqual(['openid'])
     expect(body.scopes).toEqual([{ name: 'openid' }, { name: 'email' }])
     expect(body.authorizationDetails).toEqual([])
     expect(stored[0]).toMatchObject({ interactionStartedAt: 1_000, viaPar: true })

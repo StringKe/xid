@@ -232,6 +232,7 @@ describe('CIBA', () => {
       (a) => {
         registerCibaRoutes(a)
         registerTokenRoutes(a)
+        a.get('/auth/ciba-activation', handleCibaActivationParams)
         a.post('/auth/ciba-activation', handleCibaActivation)
       },
       session,
@@ -255,6 +256,18 @@ describe('CIBA', () => {
     const body = (await backchannel.json()) as { auth_req_id: string }
     expect(body.auth_req_id).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(base64UrlDecode(body.auth_req_id)).toHaveLength(32)
+
+    const view = await app.request(
+      `https://acme.xid.dev/auth/ciba-activation?auth_req_id=${body.auth_req_id}`,
+      {},
+      env,
+    )
+    expect(view.status).toBe(200)
+    expect(await view.json()).toMatchObject({
+      clientId: 'ciba_client',
+      clientName: 'ciba_client',
+      clientLogoUrl: null,
+    })
 
     const activation = await app.request(
       'https://acme.xid.dev/auth/ciba-activation',

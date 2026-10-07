@@ -79,9 +79,26 @@ describe('/auth/device-activation', () => {
     }>()
     expect(body.userCode).toBe('ABCD1234')
     expect(body.clientId).toBe('client_abc')
+    expect(body).toMatchObject({ clientName: 'client_abc', clientLogoUrl: null })
     expect(body.scopes).toEqual(['openid', 'profile'])
     expect(body.firstParty).toBe(true)
     expect(requests[0]).toEqual({ path: '/lookup', body: { userCode: 'ABCD1234' } })
+  })
+
+  it('GET returns invalid_client when the requesting client was disabled', async () => {
+    const env = {
+      ...makeDeviceEnv([]),
+      DB: makeFakeD1({ apps: [makeAppRow({ status: 'disabled' })] }),
+    } as unknown as Env
+    const app = makeApp(registerSessionAuthRoutes, {
+      tenant: makeOauthTenant(),
+      session: makeSession('user-1'),
+    })
+
+    const res = await app.request('/auth/device-activation?user_code=ABCD1234', {}, env)
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_client' })
   })
 
   it('GET 无 session 返回 401', async () => {

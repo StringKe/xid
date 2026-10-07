@@ -6,6 +6,7 @@ import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
 import { approveCibaRequest, denyCibaRequest, lookupOwnedPendingCibaRequest } from '../oidc/ciba'
+import { resolveClientDisplay } from '../oidc/client-display'
 import { findClient } from '../oidc/shared'
 import { firstIssuePath, readJsonBody } from '../lib/validate'
 import { requireSession } from './shared'
@@ -41,9 +42,12 @@ export async function handleCibaActivationParams(c: Context<XidHonoEnv>): Promis
   if (!record) throw new AppError('invalid_request')
   const client = await findClient(c, record.clientId)
   if (!client) throw new AppError('invalid_client', { httpStatus: 400 })
+  const display = await resolveClientDisplay(c.env.DB, c.get('tenant'), client)
   return c.json({
     authReqId,
     clientId: client.clientId,
+    clientName: display.clientName,
+    clientLogoUrl: display.clientLogoUrl,
     scope: record.scope,
     expiresAt: new Date(record.expiresAt * 1000).toISOString(),
     firstParty: client.firstParty,

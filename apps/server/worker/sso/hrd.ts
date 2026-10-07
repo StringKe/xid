@@ -34,6 +34,9 @@ export type HrdResult = {
   connectionId: string
   orgId: string
   protocol: 'saml' | 'oidc'
+  // 过渡页「正在跳转到 Okta」用;HRD 只对已验证域名生效,返回名称不扩大枚举面。
+  displayName: string | null
+  organizationName: string | null
 }
 
 // 按邮箱域名查询 verified OrganizationDomain -> SsoConnection(active)。
@@ -106,6 +109,7 @@ export async function resolveHrd(
     ),
   )
   if (!connection) return null
+  const org = await db.organizations.findOne(eq(schema.organizations.id, domainRow.orgId))
 
   const protocol = connection.protocol === 'saml' ? 'saml' : 'oidc'
   return {
@@ -113,6 +117,8 @@ export async function resolveHrd(
     connectionId: connection.id,
     orgId: domainRow.orgId,
     protocol,
+    displayName: connection.displayName?.trim() || null,
+    organizationName: org?.name ?? null,
   }
 }
 

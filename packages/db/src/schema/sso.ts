@@ -11,6 +11,7 @@ export const ssoConnections = sqliteTable(
     tenantId: tenantId(),
     orgId: text('org_id').notNull(),
     protocol: text('protocol').notNull(),
+    displayName: text('display_name'),
     idpEntityId: text('idp_entity_id'),
     idpSsoUrl: text('idp_sso_url'),
     idpSloUrl: text('idp_slo_url'),

@@ -21,8 +21,13 @@ vi.mock('../session', async (importOriginal) => ({
   recordSessionActivated: vi.fn(),
 }))
 
+vi.mock('../step-up', () => ({
+  issueStepUpCookie: vi.fn(),
+}))
+
 import { createTenantDb } from '@xid-kit/db'
 import { recordSessionActivated } from '../session'
+import { issueStepUpCookie } from '../step-up'
 import {
   activateSessionAfterMfaSetup,
   mfaSetupRedirectPath,
@@ -226,6 +231,23 @@ describe('activateSessionAfterMfaSetup', () => {
     )
   })
 
+  it('issues a step-up cookie bound to the session so backup codes can follow immediately', async () => {
+    mockFactors({ totp: true })
+
+    await activateSessionAfterMfaSetup(context(), tenant(), {
+      session: setupSession(),
+      method: 'totp',
+    })
+
+    expect(issueStepUpCookie).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        method: 'totp',
+        session: expect.objectContaining({ sessionId: 'sess_1', userId: 'u_1' }),
+      }),
+    )
+  })
+
   it('leaves an already active session untouched', async () => {
     const sessionUpdate = mockFactors({ totp: true })
 
@@ -235,6 +257,7 @@ describe('activateSessionAfterMfaSetup', () => {
     })
 
     expect(sessionUpdate).not.toHaveBeenCalled()
+    expect(issueStepUpCookie).not.toHaveBeenCalled()
   })
 
   it('keeps the session pending while the enrolled factor does not satisfy the policy', async () => {
@@ -247,6 +270,13 @@ describe('activateSessionAfterMfaSetup', () => {
 
     expect(sessionUpdate).not.toHaveBeenCalled()
     expect(recordSessionActivated).not.toHaveBeenCalled()
+    expect(issueStepUpCookie).not.toHaveBeenCalled()
+  })
+
+  it('points forced enrollment at the Hosted Auth setup route', () => {
+    expect(mfaSetupRedirectPath('/authorize?authz_request_id=a')).toBe(
+      '/mfa/setup?redirect_to=%2Fauthorize%3Fauthz_request_id%3Da',
+    )
   })
 })
 

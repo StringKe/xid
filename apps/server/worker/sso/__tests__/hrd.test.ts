@@ -9,10 +9,12 @@ import { isAppError } from '../../lib/errors'
 
 // 租户查询层 mock。
 const mockFindOne = vi.fn()
+const mockOrgFindOne = vi.fn()
 vi.mock('@xid-kit/db', () => ({
   createTenantDb: vi.fn(() => ({
     organizationDomains: { findOne: mockFindOne },
     ssoConnections: { findOne: mockFindOne },
+    organizations: { findOne: mockOrgFindOne },
   })),
   resolveInstanceLogin: vi.fn(),
   resolveTenantContextById: vi.fn(),
@@ -28,10 +30,11 @@ vi.mock('@xid-kit/db', () => ({
       orgId: 'org_id',
       status: 'status',
     },
+    organizations: { id: 'id' },
   },
 }))
 
-import { resolveInstanceLogin, resolveTenantContextById } from '@xid-kit/db'
+import { createTenantDb, resolveInstanceLogin, resolveTenantContextById } from '@xid-kit/db'
 import { registerHrdRoutes, resolveHrd } from '../hrd'
 
 const fakeEnv = { DB: {} } as unknown as Env
@@ -110,9 +113,13 @@ function makeConnectionRow(overrides: Partial<Record<string, unknown>> = {}) {
   }
 }
 
+const HRD_DISPLAY = { displayName: null, organizationName: 'Northwind Logistics' }
+
 describe('resolveHrd', () => {
   beforeEach(() => {
     mockFindOne.mockReset()
+    mockOrgFindOne.mockReset()
+    mockOrgFindOne.mockResolvedValue({ id: 'org-1', name: 'Northwind Logistics' })
   })
 
   it('email 无 @ 返回 null', async () => {
@@ -192,7 +199,38 @@ describe('resolveHrd', () => {
       connectionId: 'conn-1',
       orgId: 'org-1',
       protocol: 'oidc',
+      ...HRD_DISPLAY,
     })
+  })
+
+  it('returns the connection display name for the redirect transition', async () => {
+    mockFindOne
+      .mockResolvedValueOnce(makeDomainRow())
+      .mockResolvedValueOnce(makeConnectionRow({ displayName: 'Okta' }))
+
+    const result = await resolveHrd(fakeEnv, makeTenant(), 'user@corp.example.com')
+
+    expect(result).toMatchObject({ displayName: 'Okta', organizationName: 'Northwind Logistics' })
+  })
+
+  it('returns a null display name when the connection name is blank', async () => {
+    mockFindOne
+      .mockResolvedValueOnce(makeDomainRow())
+      .mockResolvedValueOnce(makeConnectionRow({ displayName: '   ' }))
+
+    const result = await resolveHrd(fakeEnv, makeTenant(), 'user@corp.example.com')
+
+    expect(result?.displayName).toBeNull()
+  })
+
+  it('looks up domains, connections and organization names only inside the given tenant', async () => {
+    mockFindOne.mockResolvedValueOnce(makeDomainRow()).mockResolvedValueOnce(makeConnectionRow())
+    vi.mocked(createTenantDb).mockClear()
+    const tenant = makeTenant()
+
+    await resolveHrd(fakeEnv, tenant, 'user@corp.example.com')
+
+    expect(vi.mocked(createTenantDb).mock.calls.every(([, ctx]) => ctx === tenant)).toBe(true)
   })
 
   it('精确匹配无 verified 域名 -> 尝试 wildcard(父域)', async () => {
@@ -210,6 +248,7 @@ describe('resolveHrd', () => {
       connectionId: 'conn-1',
       orgId: 'org-1',
       protocol: 'oidc',
+      ...HRD_DISPLAY,
     })
   })
 
@@ -255,6 +294,7 @@ describe('POST /sso/hrd', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFindOne.mockReset()
+    mockOrgFindOne.mockReset()
   })
 
   it('requires Turnstile before tenant discovery when configured', async () => {
@@ -408,6 +448,8 @@ describe('POST /sso/hrd', () => {
       connectionId: 'conn-1',
       orgId: 'org-1',
       protocol: 'oidc',
+      displayName: null,
+      organizationName: null,
     })
     expect(resolveInstanceLogin).toHaveBeenCalledWith(expect.any(Request), expect.anything(), {
       kind: 'email',
@@ -489,6 +531,8 @@ describe('POST /sso/hrd', () => {
       connectionId: 'conn-1',
       orgId: 'org-1',
       protocol: 'oidc',
+      displayName: null,
+      organizationName: null,
     })
     expect(resolveTenantContextById).toHaveBeenCalledWith(
       expect.any(Request),

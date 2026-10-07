@@ -420,7 +420,7 @@ describe('/authorize', () => {
     expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)
   })
 
-  it('pending_mfa_setup session -> 302 /account/security?setup=mfa 绑定后再续跑', async () => {
+  it('pending_mfa_setup session -> 302 Hosted Auth /mfa/setup 绑定后再续跑', async () => {
     const { ctx } = await buildTestTenant()
     const { app, env, capture, stored } = setup({ applications: [appRow()] }, ctx, {
       ...session(),
@@ -430,8 +430,8 @@ describe('/authorize', () => {
 
     expect(res.status).toBe(302)
     const location = new URL(res.headers.get('location') ?? '')
-    expect(location.pathname).toBe('/account/security')
-    expect(location.searchParams.get('setup')).toBe('mfa')
+    expect(location.pathname).toBe('/mfa/setup')
+    expect(location.searchParams.get('step_up')).toBeNull()
     expect(location.searchParams.get('redirect_to')).toMatch(/^\/authorize\?authz_request_id=/)
     expect(stored).toHaveLength(1)
     expect(capture.inserts.some((i) => i.table === 'authorization_codes')).toBe(false)

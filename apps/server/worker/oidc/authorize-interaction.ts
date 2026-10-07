@@ -14,7 +14,7 @@ export type InteractionPath =
   | '/consent'
   | '/mfa'
   | '/select-organization'
-  | '/account/security'
+  | '/mfa/setup'
 
 // 本地错误页(client_id/redirect_uri 不可信,不可重定向,10.2/10.7)。
 export function localErrorPage(
@@ -132,7 +132,6 @@ export async function stashAndRedirect(
   if (input.path !== '/consent') {
     url.searchParams.set('redirect_to', authorizeResumePath(authzRequestId, clientId))
   }
-  if (input.path === '/account/security') url.searchParams.set('setup', 'mfa')
   if (input.path === '/mfa') {
     if (input.stepUp) url.searchParams.set('step_up', '1')
     const method = input.params['method']

@@ -20,6 +20,7 @@ import {
   recordSessionActivated,
   type ReadSessionStatus,
 } from './session'
+import { issueStepUpCookie } from './step-up'
 import type { SessionData, TenantVar, XidHonoEnv } from './types'
 
 export { PENDING_MFA_SESSION_STATUS, PENDING_MFA_SETUP_SESSION_STATUS }
@@ -76,8 +77,8 @@ export function mfaRedirectPath(returnTo: string): string {
 }
 
 export function mfaSetupRedirectPath(returnTo: string): string {
-  const params = new URLSearchParams({ setup: 'mfa', redirect_to: returnTo })
-  return `/account/security?${params.toString()}`
+  const params = new URLSearchParams({ redirect_to: returnTo })
+  return `/mfa/setup?${params.toString()}`
 }
 
 // MFA 挑战与 step-up 端点:只接受 active(step-up)与 pending_mfa(登录第二因子)。
@@ -121,6 +122,7 @@ export async function completeMfaOnSession(
 }
 
 // 强制绑定期间登记因子后,仅在租户 MFA 要求已满足时把 session 升为 active;绑定时的验证即一次第二因子。
+// 同时签发 step-up:绑定流程紧接着生成备用码,不能让刚完成的验证再被 step_up_required 拦下。
 export async function activateSessionAfterMfaSetup(
   c: Context<XidHonoEnv>,
   tenant: TenantVar,
@@ -131,6 +133,7 @@ export async function activateSessionAfterMfaSetup(
   const requirement = { userId: session.userId, sessionAmr: session.amr ?? null }
   if (await shouldRequireMfaSetup(c, tenant, requirement)) return
   await completeMfaOnSession(c, tenant, input)
+  await issueStepUpCookie(c, input)
 }
 
 export type PostAuthMfaGate = {

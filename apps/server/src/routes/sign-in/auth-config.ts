@@ -60,6 +60,13 @@ export type PublicHostedAuthConfig = {
   }
   defaultLandingPath: DefaultLandingPath
   branding: OrgBranding | null
+  context: HostedAuthContext
+}
+
+export type HostedAuthContext = {
+  organizationName: string | null
+  applicationName: string | null
+  applicationLogoUrl: string | null
 }
 
 const METHOD_DISABLED: HostedAuthMethodPolicy = {
@@ -107,6 +114,7 @@ export const DEFAULT_PUBLIC_AUTH_CONFIG: PublicHostedAuthConfig = {
   passkeyEntry: { identifierRequired: false, reregistrationRequired: false },
   defaultLandingPath: ACCOUNT_EXACT_PATH,
   branding: null,
+  context: { organizationName: null, applicationName: null, applicationLogoUrl: null },
 }
 
 export function methodEnabled(

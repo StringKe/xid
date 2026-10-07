@@ -120,6 +120,7 @@ export const CORE_SPA_ROUTE_PATHS = [
   '/create-organization',
   '/select-organization',
   '/mfa',
+  '/mfa/setup',
   '/consent',
   '/activate',
   '/ciba-activation',

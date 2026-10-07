@@ -526,7 +526,7 @@ async function evaluateWithSession(
   if (session && session.status !== ACTIVE_SESSION_STATUS && !promptIncludesNone(req)) {
     return stashAndRedirect(c, {
       params: effective,
-      path: session.status === PENDING_MFA_SETUP_SESSION_STATUS ? '/account/security' : '/mfa',
+      path: session.status === PENDING_MFA_SETUP_SESSION_STATUS ? '/mfa/setup' : '/mfa',
       viaPar: flow.viaPar,
       selectAccount: false,
       stepUp: false,

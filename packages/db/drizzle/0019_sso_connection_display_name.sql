@@ -1,0 +1,1 @@
+ALTER TABLE `sso_connections` ADD `display_name` text;
