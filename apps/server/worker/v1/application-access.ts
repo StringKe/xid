@@ -66,7 +66,8 @@ export function assertFirstPartyChangeAllowed(
   access: ApplicationAccess,
   input: { requested: boolean | undefined; current: boolean },
 ): void {
-  if (access.tenantWide || input.requested === undefined || input.requested === input.current) return
+  if (access.tenantWide || input.requested === undefined || input.requested === input.current)
+    return
   throw new AppError('forbidden', { httpStatus: 403 })
 }
 
