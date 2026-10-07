@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { text } from '@xid-kit/web-ui/styles/scale.stylex'
+import { backupCodesFile, groupBackupCode } from '../../components/hosted/BackupCodesSheet'
 import { Button, CheckboxField, Dialog, Icon } from '../../components/ui'
 import { useTheme } from '../../lib/theme'
 import { tokens } from '../../styles/tokens.stylex'
@@ -58,7 +59,7 @@ export function BackupCodesDialog({
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
   const appName = brand.appName ?? 'XID'
-  const plainText = `${t`${appName} backup codes`}\n\n${codes.join('\n')}\n`
+  const plainText = backupCodesFile({ codes, heading: t`${appName} backup codes` })
 
   const download = (): void => {
     const url = URL.createObjectURL(new Blob([plainText], { type: 'text/plain;charset=utf-8' }))
@@ -136,7 +137,7 @@ export function BackupCodesDialog({
     >
       <ul aria-label={t`Backup codes`} {...stylex.props(styles.codes)}>
         {codes.map((code) => (
-          <li key={code}>{code}</li>
+          <li key={code}>{groupBackupCode(code)}</li>
         ))}
       </ul>
       <div {...stylex.props(styles.actions)}>
