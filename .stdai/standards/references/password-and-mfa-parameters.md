@@ -36,7 +36,7 @@ Design source: `docs/design/01-authentication.md` sections 2 and 5. Implementati
 ## Password policy
 
 - The client-side strength meter is a local heuristic scoring 0-4 (length, case mix, digits,
-  symbols) in `apps/server/src/routes/forgot-password/index.tsx`. There is no zxcvbn dependency --
+  symbols) in `apps/server/src/routes/sign-up/PasswordStrength.tsx`. There is no zxcvbn dependency --
   do not add one just to render a meter. Strength display is advisory; the enforced gates are
   length, HIBP, and history.
 - Breach detection: HIBP k-anonymity (`https://api.pwnedpasswords.com/range/<first 5 SHA-1 hex
