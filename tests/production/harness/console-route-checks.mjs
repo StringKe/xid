@@ -58,10 +58,10 @@ export const PLATFORM_CONSOLE_ROUTE_CHECKS = [
   { path: '/console/platform/users', expectedText: 'Global user search' },
   { path: '/console/platform/managers', expectedText: 'Instance managers' },
   { path: '/console/platform/events', expectedText: 'Global event stream' },
-  { path: '/console/platform/billing', expectedText: 'Billing overview' },
+  { path: '/console/platform/usage', expectedText: 'Metered usage' },
   {
-    path: '/console/platform/plans',
-    expectedText: 'Plans and quotas',
+    path: '/console/platform/quotas',
+    expectedText: 'Quotas never disable authentication',
     organizationQuery: true,
   },
   { path: '/console/platform/announcements', expectedText: 'Announcements' },
