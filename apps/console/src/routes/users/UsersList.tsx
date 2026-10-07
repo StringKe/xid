@@ -137,6 +137,7 @@ export default function UsersList(): ReactNode {
             density="comfortable"
             narrowMode="priority"
             caption={t`Users`}
+            captionDisplay="hidden"
             emptyMessage={
               <span {...stylex.props(list.footnote)}>
                 <Trans>No users match these filters.</Trans>{' '}

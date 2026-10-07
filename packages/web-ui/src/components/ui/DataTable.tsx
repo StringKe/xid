@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table'
 import * as stylex from '@stylexjs/stylex'
 import { mergeClassNames } from '../../class-name'
+import { page } from '../../styles/product-surface.stylex'
 import { Icon } from './Icon'
 import { responsiveHiddenClassName } from './responsive-hidden'
 import { Skeleton } from './Skeleton'
@@ -37,6 +38,7 @@ export type DataTableProps<T extends DataTableRow> = {
   onRowClick?: (row: T) => void
   isRowSelected?: (row: T) => boolean
   caption?: string
+  captionDisplay?: 'visible' | 'hidden'
   density?: DataTableDensity
   narrowMode?: 'priority' | 'scroll'
   columnVisibility?: Record<string, boolean>
@@ -73,6 +75,7 @@ export function DataTable<T extends DataTableRow>({
   onRowClick,
   isRowSelected,
   caption,
+  captionDisplay = 'visible',
   density = 'default',
   narrowMode = 'scroll',
   columnVisibility,
@@ -101,7 +104,13 @@ export function DataTable<T extends DataTableRow>({
       tabIndex={isScroll && caption ? 0 : undefined}
     >
       <table {...stylex.props(styles.table)} aria-busy={isLoading || undefined}>
-        {caption ? <caption {...stylex.props(styles.caption)}>{caption}</caption> : null}
+        {caption ? (
+          <caption
+            {...stylex.props(captionDisplay === 'hidden' ? page.visuallyHidden : styles.caption)}
+          >
+            {caption}
+          </caption>
+        ) : null}
         <thead>
           {headerGroups.map((group) => (
             <tr key={group.id}>

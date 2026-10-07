@@ -224,6 +224,7 @@ export function MembersTab({
             density="comfortable"
             narrowMode="priority"
             caption={t`Members`}
+            captionDisplay="hidden"
             emptyMessage={<Trans>No members match.</Trans>}
           />
           {pageData ? (

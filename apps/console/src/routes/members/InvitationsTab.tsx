@@ -211,6 +211,7 @@ export function InvitationsTab({
           density="comfortable"
           narrowMode="priority"
           caption={t`Invitations`}
+          captionDisplay="hidden"
           emptyMessage={<Trans>No pending invitations.</Trans>}
         />
       )}

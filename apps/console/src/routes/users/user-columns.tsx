@@ -14,6 +14,7 @@ import {
   formatDate,
   formatRelative,
   isGuestUser,
+  organizationNameText,
   signInMethodsText,
   statusBadge,
   userDisplayName,
@@ -30,7 +31,7 @@ function Organizations({ row }: { row: UserListRow }): ReactNode {
     return <span {...stylex.props(list.muted)}>{i18n._(msg`No organization`)}</span>
   }
   const names = new Intl.ListFormat(i18n.locale, { type: 'unit' }).format(
-    row.organizations.slice(0, 2).map((org) => org.name),
+    row.organizations.slice(0, 2).map((org) => organizationNameText(i18n, org.name)),
   )
   const more = row.organizations.length - 2
   return <>{more > 0 ? i18n._(msg`${names} and ${more} more`) : names}</>

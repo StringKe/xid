@@ -40,6 +40,12 @@ const PROVIDER_NAMES: Record<string, string> = {
   x: 'X',
 }
 
+// 引导时写入的默认组织名按界面语言显示,与作用域切换器的 organizationDisplayName 一致。
+export function organizationNameText(i18n: I18n, name: string | null | undefined): string {
+  if (name === 'Default Organization') return i18n._(msg`Default organization`)
+  return name ?? '-'
+}
+
 export function providerName(provider: string | null | undefined): string | null {
   if (!provider) return null
   return PROVIDER_NAMES[provider.toLowerCase()] ?? provider

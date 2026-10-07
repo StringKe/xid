@@ -28,7 +28,7 @@ import { list } from '../../../components/page/list-styles'
 import { ChangeRoleDialog } from '../../members/ChangeRoleDialog'
 import type { UserDetail, UserMembership } from '../user-api'
 import { useRevokeUserGrant, useUserGrants, useUserMemberships } from '../user-api'
-import { formatDate } from '../user-format'
+import { formatDate, organizationNameText } from '../user-format'
 
 function AddToOrganizationDialog({
   user,
@@ -41,7 +41,7 @@ function AddToOrganizationDialog({
   memberOf: ReadonlySet<string>
   onClose: () => void
 }): ReactNode {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const { notify } = useToast()
   const roleLabel = useRoleLabel()
   const errorMessage = useManagementErrorMessage()
@@ -98,7 +98,7 @@ function AddToOrganizationDialog({
             <Select value={orgId} onChange={(event) => setOrgId(event.currentTarget.value)}>
               {choices.map((org) => (
                 <option key={org.id} value={org.id}>
-                  {org.name}
+                  {organizationNameText(i18n, org.name)}
                 </option>
               ))}
             </Select>
@@ -171,7 +171,9 @@ export function OrganizationsTab({ user, name }: { user: UserDetail; name: strin
               return (
                 <li key={row.id} {...stylex.props(detail.itemRow)}>
                   <div {...stylex.props(detail.itemMain)}>
-                    <span {...stylex.props(detail.itemTitle)}>{row.organizationName}</span>
+                    <span {...stylex.props(detail.itemTitle)}>
+                      {organizationNameText(i18n, row.organizationName)}
+                    </span>
                     <span {...stylex.props(detail.itemSub)}>
                       {row.parentOrgId === null ? (
                         <Trans>Top-level organization. Joined {joined}.</Trans>
@@ -267,7 +269,7 @@ export function OrganizationsTab({ user, name }: { user: UserDetail; name: strin
       {changing ? (
         <ChangeRoleDialog
           orgId={changing.orgId}
-          orgName={changing.organizationName ?? ''}
+          orgName={organizationNameText(i18n, changing.organizationName)}
           membershipId={changing.id}
           memberName={name}
           currentRole={changing.role}

@@ -297,6 +297,7 @@ export default function ProjectsList(): ReactNode {
           density="comfortable"
           narrowMode="priority"
           caption={t`Projects`}
+          captionDisplay="hidden"
           emptyMessage={<Trans>No projects match.</Trans>}
         />
       )}

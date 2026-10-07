@@ -89,6 +89,7 @@ export function AppsTable({
       density="comfortable"
       narrowMode="priority"
       caption={t`Applications`}
+      captionDisplay="hidden"
       emptyMessage={emptyMessage}
     />
   )
