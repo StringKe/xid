@@ -312,6 +312,26 @@ function waitUntilBestEffort(c: Context<XidHonoEnv>, promise: Promise<unknown>):
   }
 }
 
+// Cloudflare 按 IP 估算的城市与国家代码,存成 "City, CC";本地开发与测试没有 cf 属性时为 null。
+function requestLocation(c: Context<XidHonoEnv>): string | null {
+  const cf = (c.req.raw as Request & { cf?: { city?: unknown; country?: unknown } }).cf
+  const city = typeof cf?.city === 'string' && cf.city !== '' ? cf.city : null
+  const country = typeof cf?.country === 'string' && cf.country !== '' ? cf.country : null
+  if (city && country) return `${city}, ${country}`
+  return country ?? city
+}
+
+// 只记真实用户的登录:模拟会话不算,pending MFA 会话等转为 active 时再记。
+function recordLastLogin(c: Context<XidHonoEnv>, userId: string): void {
+  const db = createTenantDb(c.env.DB, c.get('tenant'))
+  waitUntilBestEffort(
+    c,
+    (async () => {
+      await db.users.update({ lastLoginAt: new Date() }, eq(schema.users.id, userId))
+    })(),
+  )
+}
+
 // lastActiveAt 为 null(历史行)按 authenticatedAt 兜底,避免老会话被误判无限 idle。
 function lastActiveMs(session: { authenticatedAt: Date; lastActiveAt?: Date | null }): number {
   return (session.lastActiveAt ?? session.authenticatedAt).getTime()
@@ -493,8 +513,13 @@ export async function issueSession(
   if (!sessionUser) throw new AppError('invalid_credentials')
   const activeOrgId = await resolveIssueSessionActiveOrgId(db, input)
   const expectedGeneration = await doSessionGeneration(env, input.userId)
+  const location = input.location ?? requestLocation(c)
   const row = await db.sessions.insert(
-    buildSessionInsert({ ...input, activeOrgId, expiresAt }, ctx.tenantId, refreshTokenHash),
+    buildSessionInsert(
+      { ...input, activeOrgId, expiresAt, location },
+      ctx.tenantId,
+      refreshTokenHash,
+    ),
   )
 
   const accepted = await doAddSession(env, input.userId, {
@@ -523,6 +548,9 @@ export async function issueSession(
     isImpersonation: input.isImpersonation === true,
   })
   waitUntilBestEffort(c, telemetry)
+  if (row.status === ACTIVE_SESSION_STATUS && input.isImpersonation !== true) {
+    recordLastLogin(c, input.userId)
+  }
 
   return { session: toSessionData(row), refreshToken }
 }
@@ -530,6 +558,7 @@ export async function issueSession(
 // issueSession 对 pending_mfa / pending_mfa_setup 会话不记登录;MFA 完成、会话转为 active 时补记一次。
 export function recordSessionActivated(c: Context<XidHonoEnv>, session: SessionData): void {
   if (session.status === ACTIVE_SESSION_STATUS) return
+  if (!session.isImpersonation) recordLastLogin(c, session.userId)
   waitUntilBestEffort(
     c,
     recordAuthenticatedSession({
