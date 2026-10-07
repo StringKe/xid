@@ -57,7 +57,7 @@ function DestinationNote({ origin }: { origin: string | null }): ReactNode {
 
 function ConsentForm(props: {
   params: ConsentParams
-  above: ReactNode
+  account: ReactNode
   isSubmitting: boolean
   submitError: string | null
   onDecide: (approved: boolean) => void
@@ -85,7 +85,7 @@ function ConsentForm(props: {
         }}
       />
       <AuthHeading
-        below={props.above}
+        below={props.account}
         title={
           hasResources ? (
             <Trans>{app} wants to work with your data</Trans>
@@ -230,7 +230,7 @@ function ConsentPage(): ReactNode {
       ) : (
         <ConsentForm
           params={paramsQuery.data}
-          above={above}
+          account={above}
           isSubmitting={decision.isPending}
           submitError={submitError}
           onDecide={(approved) => decision.mutate(approved)}

@@ -60,9 +60,18 @@ type TenantDb = ReturnType<typeof createTenantDb>
 
 const app = new Hono<XidHonoEnv>()
 
-// Key URI 格式:label 的 issuer 前缀必须与 issuer 参数一致,认证器按第一个冒号拆分,所以前缀里不能带端口。
-function totpUri(issuer: string, label: string, secret: string): string {
-  const issuerName = `XID (${new URL(issuer).hostname})`
+// 认证器里按组织名区分条目;组织名缺失时退回实例域名。认证器按第一个冒号拆分 label,issuer 里不能有冒号。
+async function totpIssuerName(
+  db: TenantDb,
+  tenant: { tenantId: string; issuer: string },
+): Promise<string> {
+  const org = await db.organizations.findOne(eq(schema.organizations.id, tenant.tenantId))
+  const name = org?.name.replace(/[\s:]+/g, ' ').trim()
+  return name || `XID (${new URL(tenant.issuer).hostname})`
+}
+
+// Key URI 格式:label 的 issuer 前缀必须与 issuer 参数一致。
+function totpUri(issuerName: string, label: string, secret: string): string {
   const accountName = `${issuerName}:${label}`
   const params = new URLSearchParams({
     secret,
@@ -179,11 +188,14 @@ app.post('/totp/setup', async (c) => {
     userId: session.userId,
     factorId: createPersistedId('mfaFactor'),
   })
-  const label = await loadUserCredentialLabel(db, session.userId)
+  const [label, issuerName] = await Promise.all([
+    loadUserCredentialLabel(db, session.userId),
+    totpIssuerName(db, tenant),
+  ])
   const body: TotpSetupResponse = {
     factorId: result.factorId,
     secret: result.secretB32,
-    otpauthUri: totpUri(tenant.issuer, label.name, result.secretB32),
+    otpauthUri: totpUri(issuerName, label.name, result.secretB32),
   }
   return c.json(body)
 })

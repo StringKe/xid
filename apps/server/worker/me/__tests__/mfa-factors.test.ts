@@ -513,8 +513,11 @@ describe('POST /v1/me/mfa-factors/totp/setup', () => {
     expect(body).not.toHaveProperty('secretCiphertext')
   })
 
-  it('prefixes the otpauth label with the same issuer the issuer parameter names', async () => {
+  async function requestTotpSetupUri(
+    organizations: Record<string, unknown>[],
+  ): Promise<{ label: string; issuer: string }> {
     const db = makeFakeD1({
+      organizations,
       users: [
         {
           id: 'u_1',
@@ -560,10 +563,31 @@ describe('POST /v1/me/mfa-factors/totp/setup', () => {
     )
 
     const uri = new URL(String(((await res.json()) as Record<string, unknown>)['otpauthUri']))
-    const label = decodeURIComponent(uri.pathname.replace(/^\/+/, ''))
-    const issuer = uri.searchParams.get('issuer') ?? ''
-    expect(issuer).toMatch(/^XID \([^:]+\)$/)
-    expect(label).toBe(`${issuer}:user@example.test`)
+    return {
+      label: decodeURIComponent(uri.pathname.replace(/^\/+/, '')),
+      issuer: uri.searchParams.get('issuer') ?? '',
+    }
+  }
+
+  it('names the authenticator entry after the organization with a matching label prefix', async () => {
+    const { label, issuer } = await requestTotpSetupUri([
+      {
+        id: TENANT.tenantId,
+        tenant_id: TENANT.tenantId,
+        name: 'Northwind: Ops',
+        slug: 'northwind',
+      },
+    ])
+
+    expect(issuer).toBe('Northwind Ops')
+    expect(label).toBe('Northwind Ops:user@example.test')
+  })
+
+  it('falls back to the instance host when the organization name is unavailable', async () => {
+    const { label, issuer } = await requestTotpSetupUri([])
+
+    expect(issuer).toBe('XID (acme.xid.dev)')
+    expect(label).toBe('XID (acme.xid.dev):user@example.test')
   })
 
   it('rejects setup when active TOTP already exists', async () => {
