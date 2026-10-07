@@ -2,7 +2,7 @@
 
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
 const routerState = vi.hoisted(() => ({
@@ -141,15 +141,34 @@ function buttonNamed(container: HTMLElement, text: string): HTMLButtonElement | 
   )
 }
 
+// Node 开启 webstorage 时会用自己的 localStorage 覆盖 jsdom 的实现,这里固定成内存存储。
+function memoryStorage(): Storage {
+  const items = new Map<string, string>()
+  return {
+    get length() {
+      return items.size
+    },
+    clear: () => items.clear(),
+    getItem: (key) => items.get(key) ?? null,
+    key: (index) => [...items.keys()][index] ?? null,
+    removeItem: (key) => void items.delete(key),
+    setItem: (key, value) => void items.set(key, String(value)),
+  }
+}
+
 describe('MfaPage', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => {
+    vi.stubGlobal('localStorage', memoryStorage())
     routerState.navigate.mockClear()
     authState.signOut.mockClear()
     authState.refresh.mockClear()
     mutationState.captured.length = 0
     routerState.search = {}
     factorsState.factors = []
-    globalThis.localStorage.clear()
   })
 
   it('opens the authenticator challenge by default and lets the user switch accounts', async () => {

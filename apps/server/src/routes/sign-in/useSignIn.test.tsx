@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { Result } from '@xid-kit/types'
 import type { ApiClient } from '../../lib/api'
@@ -609,7 +609,30 @@ describe('useSignIn Turnstile action gate', () => {
   })
 })
 
+// Node 开启 webstorage 时会用自己的 localStorage 覆盖 jsdom 的实现,这里固定成内存存储。
+function memoryStorage(): Storage {
+  const items = new Map<string, string>()
+  return {
+    get length() {
+      return items.size
+    },
+    clear: () => items.clear(),
+    getItem: (key) => items.get(key) ?? null,
+    key: (index) => [...items.keys()][index] ?? null,
+    removeItem: (key) => void items.delete(key),
+    setItem: (key, value) => void items.set(key, String(value)),
+  }
+}
+
 describe('useSignIn second step', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', memoryStorage())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   async function renderSecondStep(input: {
     search: Record<string, string | undefined>
     config: PublicHostedAuthConfig
@@ -642,7 +665,6 @@ describe('useSignIn second step', () => {
       container.remove()
       routerState.search = {}
       authConfigState.config = null
-      globalThis.localStorage.clear()
     }
     return { captured, cleanup }
   }
