@@ -82,11 +82,6 @@ msgstr "{0} 已连接。现在你也可以用 {1} 登录。"
 msgid "{0} organizations found"
 msgstr "找到 {0} 个组织"
 
-#. placeholder {0}: pendingDelete.name
-#: apps/console/src/routes/org/OrgScim.tsx
-msgid "{0} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
-msgstr "{0} 会立即停止接受 SCIM 请求，包括之前的 token。它已经开通的用户会保留账号。"
-
 #. placeholder {0}: day(from)
 #. placeholder {1}: day(to)
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -391,7 +386,7 @@ msgstr "{name} 已在所有设备上登出"
 
 #: apps/console/src/routes/users/user-columns.tsx
 msgid "{names} and {more} more"
-msgstr "{names} 等，另有 {more} 个"
+msgstr "{names} 及另外 {more} 个"
 
 #: apps/server/src/routes/mfa/index.tsx
 msgid "{org} asks for a second step every time you sign in."
@@ -427,6 +422,10 @@ msgstr "{orgNames}。之后需要管理员重新邀请你。"
 msgid "{others, plural, one {You stay signed in here. # other device has to sign in again, and apps you use on it stop syncing until it does.} other {You stay signed in here. # other devices have to sign in again, and apps you use on them stop syncing until they do.}}"
 msgstr "{others, plural, other {你在此设备上保持登录。其他 # 台设备需要重新登录，在那之前，你在这些设备上使用的应用会停止同步。}}"
 
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "{pendingDeleteName} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
+msgstr "{pendingDeleteName} 会立即停止接受 SCIM 请求，包括之前的 token。它已经开通的用户会保留账号。"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "{pendingRemoveProvider} will be removed from the social sign-in configuration. Save changes to apply."
 msgstr "{pendingRemoveProvider} 将从社交登录配置中移除。保存更改后生效。"
@@ -460,6 +459,7 @@ msgid "{removingName} was removed"
 msgstr "已移除 {removingName}"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "{role}, sub-organization of {parentName}"
 msgstr "{role}，{parentName} 的子组织"
 
@@ -732,7 +732,7 @@ msgstr "8.0.0"
 msgid "8px"
 msgstr "8px"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "A client secret is configured. Leave blank to keep it."
 msgstr "已配置客户端密钥。留空则保留现有值。"
 
@@ -864,7 +864,7 @@ msgstr "使用此账号接受"
 msgid "Accepted"
 msgstr "已接受"
 
-#. placeholder {0}: new Date(document.acceptedAt).toLocaleString()
+#. placeholder {0}: formatDateTime(i18n, document.acceptedAt)
 #: apps/console/src/routes/org/OrgCompliance.tsx
 msgid "Accepted on {0}."
 msgstr "已于 {0} 接受。"
@@ -914,6 +914,7 @@ msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>
 msgstr "AccessRequest 从<0>待处理</0>变为<1>已批准</1>、<2>已拒绝</2>、<3>已取消</3>或<4>已过期</4>。每个结果都是最终结果，待处理的请求会在 14 天后延迟过期。"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/AccountSegmentedNav.tsx
 msgid "Account"
 msgstr "账户"
 
@@ -1078,7 +1079,7 @@ msgstr "useXidRnContext 返回的适配器上下文结构"
 #. placeholder {0}: i18n._(preset.label)
 #. placeholder {0}: preset.label
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Add {0} template"
 msgstr "添加 {0} 模板"
 
@@ -1130,6 +1131,11 @@ msgstr "请先添加其他登录方式，再移除这一种。"
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
 msgid "Add another way to sign in first. Then you can remove this one from this page."
 msgstr "请先添加其他登录方式，然后才能在此页面移除这个。"
+
+#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+msgid "Add connection"
+msgstr "添加连接"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Add domain"
@@ -1367,7 +1373,7 @@ msgstr "允许通过托管认证创建用户"
 msgid "Allow JIT user creation"
 msgstr "允许 JIT 创建用户"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Allow JIT user creation for this connection"
 msgstr "允许此连接进行 JIT 用户创建"
 
@@ -1839,7 +1845,7 @@ msgstr "证明模式"
 msgid "Attribute mapping and role mapping must be JSON objects."
 msgstr "属性映射和角色映射必须是 JSON 对象。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Attribute mapping JSON"
 msgstr "属性映射 JSON"
 
@@ -2339,6 +2345,7 @@ msgstr "CanActivateFn 工厂"
 #: apps/console/src/routes/members/ChangeRoleDialog.tsx
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
@@ -2634,7 +2641,7 @@ msgstr "客户端配置"
 msgid "Client types"
 msgstr "客户端类型"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "client-id"
 msgstr "client-id"
 
@@ -2807,7 +2814,7 @@ msgstr "使用 Slack、GitHub、Microsoft 等预设配置下游 SaaS SAML 应用
 msgid "Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets also show a reference OIDC redirect URI for manual SaaS admin setup."
 msgstr "使用预设模板配置下游 SaaS SAML 服务提供商。SAML/OIDC 预设还会显示一个参考 OIDC 重定向 URI，供在 SaaS 管理后台手动配置。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Configure protocol-specific fields under <0>_legacy</0> in attribute mapping. SWA vaulted credentials are stored via the authenticated <1>/sso/swa/:connectionId/vault</1> API."
 msgstr "在 attribute mapping 的 <0>_legacy</0> 下配置协议专属字段。SWA 保管凭据通过已认证的 <1>/sso/swa/:connectionId/vault</1> API 存储。"
 
@@ -3300,7 +3307,7 @@ msgstr "使用自定义 StorageAdapter（例如 InMemoryStorage）创建客户�
 msgid "Create client with default SecretServiceStorage."
 msgstr "使用默认 SecretServiceStorage 创建客户端。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Create connection"
 msgstr "创建连接"
 
@@ -3430,8 +3437,8 @@ msgstr "创建、更新、移动、存档和管理单位成员。"
 msgid "Create, update, sync, and remove outbound SCIM targets."
 msgstr "创建、更新、同步和删除出站 SCIM 目标。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/user-columns.tsx
@@ -3589,7 +3596,7 @@ msgstr "危险操作"
 msgid "Dart / Flutter SDK for iOS, Android, and desktop using flutter_web_auth_2, PKCE S256 authorization code flow, and flutter_secure_storage token persistence."
 msgstr "适用于 iOS、Android 和桌面端的 Dart / Flutter SDK，使用 flutter_web_auth_2、PKCE S256 授权码流程和 flutter_secure_storage 进行 token 持久化。"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Data & privacy"
@@ -4000,7 +4007,7 @@ msgstr "设备码"
 msgid "Device connected"
 msgstr "设备已连接"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Devices"
 msgstr "设备"
@@ -4066,7 +4073,7 @@ msgstr "目录同步 | 控制台 | XID"
 msgid "Directory token rotation keeps the previous token valid for a short grace window."
 msgstr "目录令牌轮换会让旧令牌在短暂宽限期内继续有效。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Disabled"
 msgstr "已禁用"
@@ -4087,7 +4094,7 @@ msgstr "断开 {name}？"
 msgid "Disconnect…"
 msgstr "断开…"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Discovery URL"
 msgstr "发现 URL"
 
@@ -4117,6 +4124,7 @@ msgid "Dismiss banner"
 msgstr "关闭横幅"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Display name"
 msgstr "显示名称"
@@ -4150,7 +4158,6 @@ msgid "Does {app} show this exact code?"
 msgstr "{app} 显示的是这个代码吗？"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
 msgstr "域名"
 
@@ -4241,6 +4248,10 @@ msgstr "除 GitHub 外，每个已启用的提供商都需要同时配置 issuer
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "每个成员可以有一个主要组织单元和其他展示位置。"
+
+#: apps/console/src/routes/org/OrgSso.tsx
+msgid "Each organization has one inbound connection. Delete it before adding another."
+msgstr "每个组织只能有一个入站连接。添加新连接前请先删除现有连接。"
 
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 msgid "Each person gets an email link that works for 7 days."
@@ -4413,7 +4424,7 @@ msgstr "启用域名发现"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "Enabled"
 msgstr "已启用"
 
@@ -5324,6 +5335,10 @@ msgstr "生成新备用码…"
 msgid "Generic OIDC baseline is available locally. SaaS-specific app templates and real SaaS L4 are still required before production support claims."
 msgstr "通用 OIDC 基线已在本地可用。在生产支持声明之前，仍需 SaaS 专项应用模板和真实 SaaS L4。"
 
+#: apps/console/src/routes/org/scim-provider-label.ts
+msgid "Generic SCIM"
+msgstr "通用 SCIM"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "GET /.well-known/openid-configuration"
 msgstr "GET /.well-known/openid-configuration"
@@ -5535,7 +5550,7 @@ msgstr "访客会话"
 msgid "H3 event handler factory: verifies JWT, writes event.context.xidAuth, protects routes"
 msgstr "H3 事件处理器工厂：验证 JWT，写入 event.context.xidAuth，保护路由"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Header"
 msgstr "请求头"
@@ -5544,7 +5559,7 @@ msgstr "请求头"
 msgid "Header name for auth state between middleware and server components"
 msgstr "middleware 和服务端组件之间传递认证状态的请求头名称"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "基于请求头的 SSO"
 
@@ -5720,27 +5735,27 @@ msgstr "https://example.com/scim/v2"
 msgid "https://example.com/webhooks/xid"
 msgstr "https://example.com/webhooks/xid"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/.well-known/openid-configuration"
 msgstr "https://idp.example.com/.well-known/openid-configuration"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/entity"
 msgstr "https://idp.example.com/entity"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/login"
 msgstr "https://idp.example.com/login"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/metadata.xml"
 msgstr "https://idp.example.com/metadata.xml"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/slo"
 msgstr "https://idp.example.com/slo"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/sso"
 msgstr "https://idp.example.com/sso"
 
@@ -5790,6 +5805,10 @@ msgstr "Cloudflare 的身份基础架构"
 msgid "Identity protocols"
 msgstr "身份协议"
 
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
+msgid "Identity provider"
+msgstr "身份提供商"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Identity rules"
 msgstr "身份规则"
@@ -5799,7 +5818,7 @@ msgid "IdP certificates are stored on the connection. Browser-supplied KeyInfo i
 msgstr "IdP 证书存储在连接上。浏览器提供的 KeyInfo 会被忽略。"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP entity ID"
 msgstr "IdP 实体 ID"
 
@@ -5808,12 +5827,12 @@ msgid "IdP metadata URL"
 msgstr "IdP 元数据 URL"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP SLO URL"
 msgstr "IdP 单点登出 URL"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP SSO URL"
 msgstr "IdP 单点登录 URL"
 
@@ -6246,7 +6265,7 @@ msgstr "需要 Java 17+ 和 Maven。"
 msgid "Java 17+ server SDK for networkless JWT verification, HTTP request authentication, and webhook signature validation."
 msgstr "Java 17+ 服务端 SDK，提供 networkless JWT 验证、HTTP 请求认证和 webhook 签名校验。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "JIT"
 msgstr "JIT"
 
@@ -6516,7 +6535,7 @@ msgstr "最后使用于 {used}。"
 msgid "Launch ASWebAuthenticationSession, complete PKCE S256 authorization code flow, persist tokens to Keychain, and return a session."
 msgstr "启动 ASWebAuthenticationSession，完成 PKCE S256 授权码流程，将 token 持久化到 Keychain，并返回会话。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "LDAP direct bind"
 msgstr "LDAP 直接绑定"
 
@@ -7126,7 +7145,7 @@ msgstr "消息 ID"
 msgid "Messaging"
 msgstr "消息通道"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Metadata URL"
 msgstr "元数据 URL"
 
@@ -7173,7 +7192,7 @@ msgid "Middleware, App Router helpers, Pages Router helpers, and React re-export
 msgstr "Middleware、App Router 辅助工具、Pages Router 辅助工具和 React 重新导出。"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "MIIC..."
 msgstr "MIIC..."
 
@@ -7303,8 +7322,7 @@ msgstr "使用固定证书的双向 TLS（self_signed_tls_client_auth）"
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgScim.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
@@ -8056,11 +8074,11 @@ msgstr "OIDC 和 OAuth 2.0、令牌签发、发现、JWKS、组织、项目、�
 msgid "OIDC authorization code"
 msgstr "OIDC 授权码"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "OIDC client ID"
 msgstr "OIDC 客户端 ID"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "OIDC client secret"
 msgstr "OIDC 客户端密钥"
 
@@ -8466,7 +8484,7 @@ msgstr "组织设置"
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 #: apps/server/src/routes/select-organization/index.tsx
@@ -9224,7 +9242,7 @@ msgstr "已验证处为 production，其余为本地"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Profile"
 msgstr "资料"
@@ -9946,7 +9964,7 @@ msgstr "注册 OAuth 客户端、重定向 URI、授权类型、令牌策略和�
 msgid "Register OAuth clients, view client IDs, rotate client secrets, and manage redirect URIs."
 msgstr "注册 OAuth 客户端、查看客户端 ID、轮换客户端密钥和管理重定向 URI。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Register SAML, OIDC, or legacy enterprise protocol connections for this organization. Legacy protocols use the <0>_legacy</0> JSON helper in attribute mapping."
 msgstr "为此组织注册 SAML、OIDC 或传统企业协议连接。传统协议在 attribute mapping 中使用 <0>_legacy</0> JSON 辅助字段。"
 
@@ -10213,11 +10231,11 @@ msgstr "重新申请导出"
 msgid "Require email verification"
 msgstr "要求邮箱验证"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Require signed SAML assertions"
 msgstr "要求签名的 SAML 断言"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Require signed SAML response"
 msgstr "要求签名的 SAML 响应"
 
@@ -10251,7 +10269,7 @@ msgstr "POST、PUT 和 PATCH 请求必需。"
 msgid "Required scope"
 msgstr "所需范围"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Required when the identity provider registers XID as a confidential client."
 msgstr "当身份提供商把 XID 注册为机密客户端时必填。"
 
@@ -10628,7 +10646,7 @@ msgstr "无法加载角色授权"
 msgid "Role key"
 msgstr "角色关键"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Role mapping JSON"
 msgstr "角色映射 JSON"
 
@@ -10767,7 +10785,7 @@ msgstr "同一组织行为"
 msgid "SAML apps"
 msgstr "SAML 应用"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "SAML clock tolerance in milliseconds"
 msgstr "SAML 时钟容差（以毫秒为单位）"
 
@@ -11070,7 +11088,7 @@ msgstr "由 XID 提供安全保护"
 msgid "SecureStore key namespacing"
 msgstr "SecureStore 密钥命名空间"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/SecurityPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
@@ -11560,6 +11578,10 @@ msgstr "设置后将代替你的全名显示。"
 msgid "Shown to admins of organizations you share {current} with."
 msgstr "向你共享 {current} 的组织的管理员显示。"
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Shown to people on the sign-in page, for example Okta."
+msgstr "显示在登录页上，例如 Okta。"
+
 #: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Shown to users on the consent screen."
@@ -11858,7 +11880,7 @@ msgstr "使用已注册密钥签名的 JWT（private_key_jwt）"
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 msgstr "signIn(options?) 运行完整重定向流程；handleRedirect(url) 处理 deep-link callback；signInState 报告 idle、pending、complete、cancelled 或 error 状态"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Signing certificates"
 msgstr "签名证书"
 
@@ -12109,7 +12131,7 @@ msgstr "状态变更监听器 callback 类型"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
@@ -12344,7 +12366,7 @@ msgstr "SvelteKit 服务端 hook"
 msgid "Svix-style HMAC-SHA256 webhook signature validation with 5-minute replay window"
 msgstr "Svix 风格 HMAC-SHA256 webhook 签名校验，5 分钟重放窗口"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "SWA password vaulting"
 msgstr "SWA 密码保管"
 
@@ -13578,7 +13600,7 @@ msgstr "type"
 
 #: apps/console/src/routes/applications/ApplicationsList.tsx
 #: apps/console/src/routes/applications/AppsTable.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Type"
 msgstr "类型"
@@ -13744,7 +13766,7 @@ msgstr "上游企业 IdP 状态"
 msgid "Upstream enterprise OIDC relying party"
 msgstr "上游企业 OIDC 依赖方"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Upstream SSO URL"
 msgstr "上游 SSO URL"
 
@@ -14782,11 +14804,11 @@ msgstr "仅在 {0} 上可用"
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
 msgstr "使用 <0>XidProvider</0> 包裹你的应用。它会创建 <1>XidClient</1>，在挂载时调用 <2>client.load()</2> 获取当前会话，并通过 <3>onCleanup</3> 进行清理。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "WS-Fed"
 msgstr "WS-Fed"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "WS-Federation"
 msgstr "WS-Federation"
 

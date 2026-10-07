@@ -82,11 +82,6 @@ msgstr "{0} を接続しました。これからは {1} でもサインインで
 msgid "{0} organizations found"
 msgstr "{0} 件の組織が見つかりました"
 
-#. placeholder {0}: pendingDelete.name
-#: apps/console/src/routes/org/OrgScim.tsx
-msgid "{0} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
-msgstr "{0} は以前のトークンを含め、SCIM リクエストの受け付けを直ちに停止します。すでにプロビジョニングされたユーザーのアカウントは残ります。"
-
 #. placeholder {0}: day(from)
 #. placeholder {1}: day(to)
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -427,6 +422,10 @@ msgstr "{orgNames}。再び参加するには管理者からの招待が必要�
 msgid "{others, plural, one {You stay signed in here. # other device has to sign in again, and apps you use on it stop syncing until it does.} other {You stay signed in here. # other devices have to sign in again, and apps you use on them stop syncing until they do.}}"
 msgstr "{others, plural, other {このデバイスではサインインしたままです。ほかの # 台のデバイスは再度サインインが必要で、それまでそのデバイスのアプリは同期を停止します。}}"
 
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "{pendingDeleteName} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
+msgstr "{pendingDeleteName} は以前のトークンを含め、SCIM リクエストの受け付けを直ちに停止します。すでにプロビジョニングされたユーザーのアカウントは残ります。"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "{pendingRemoveProvider} will be removed from the social sign-in configuration. Save changes to apply."
 msgstr "{pendingRemoveProvider} はソーシャルサインイン設定から削除されます。変更を保存すると適用されます。"
@@ -460,6 +459,7 @@ msgid "{removingName} was removed"
 msgstr "{removingName} を削除しました"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "{role}, sub-organization of {parentName}"
 msgstr "{role}、{parentName} のサブ組織"
 
@@ -732,7 +732,7 @@ msgstr "8.0.0"
 msgid "8px"
 msgstr "8px"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "A client secret is configured. Leave blank to keep it."
 msgstr "クライアントシークレットは設定済みです。変更しない場合は空欄のままにしてください。"
 
@@ -864,7 +864,7 @@ msgstr "このアカウントで承諾"
 msgid "Accepted"
 msgstr "承認済み"
 
-#. placeholder {0}: new Date(document.acceptedAt).toLocaleString()
+#. placeholder {0}: formatDateTime(i18n, document.acceptedAt)
 #: apps/console/src/routes/org/OrgCompliance.tsx
 msgid "Accepted on {0}."
 msgstr "{0} に同意しました。"
@@ -914,6 +914,7 @@ msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>
 msgstr "AccessRequest は、<0>保留中</0>から<1>承認</1>、<2>拒否</2>、<3>キャンセル</3>、または<4>期限切れ</4>に移行します。すべての結果は最終的なものであり、保留中のリクエストは 14 日後に期限切れになります。"
 
 #: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/AccountSegmentedNav.tsx
 msgid "Account"
 msgstr "アカウント"
 
@@ -1078,7 +1079,7 @@ msgstr "useXidRnContext が返すアダプターコンテキストの形状"
 #. placeholder {0}: i18n._(preset.label)
 #. placeholder {0}: preset.label
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Add {0} template"
 msgstr "{0} テンプレートを追加"
 
@@ -1130,6 +1131,11 @@ msgstr "この方法を削除する前に、別のサインイン方法を追加
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
 msgid "Add another way to sign in first. Then you can remove this one from this page."
 msgstr "先にほかのサインイン方法を追加してください。そのあと、このページから削除できます。"
+
+#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+msgid "Add connection"
+msgstr "接続を追加"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Add domain"
@@ -1367,7 +1373,7 @@ msgstr "Hosted Auth でのユーザー作成を許可"
 msgid "Allow JIT user creation"
 msgstr "JIT ユーザー作成を許可"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Allow JIT user creation for this connection"
 msgstr "この接続で JIT ユーザー作成を許可"
 
@@ -1839,7 +1845,7 @@ msgstr "アテステーションモード"
 msgid "Attribute mapping and role mapping must be JSON objects."
 msgstr "属性マッピングとロールマッピングは JSON オブジェクトである必要があります。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Attribute mapping JSON"
 msgstr "属性マッピング JSON"
 
@@ -2339,6 +2345,7 @@ msgstr "CanActivateFn ファクトリー"
 #: apps/console/src/routes/members/ChangeRoleDialog.tsx
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
@@ -2634,7 +2641,7 @@ msgstr "クライアントセットアップ"
 msgid "Client types"
 msgstr "クライアント種別"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "client-id"
 msgstr "client-id"
 
@@ -2807,7 +2814,7 @@ msgstr "Slack、GitHub、Microsoft などのプリセットからダウンスト
 msgid "Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets also show a reference OIDC redirect URI for manual SaaS admin setup."
 msgstr "プリセットテンプレートから下流 SaaS の SAML サービスプロバイダーを設定します。SAML/OIDC プリセットでは、SaaS 管理画面で手動設定するための参考用 OIDC リダイレクト URI も表示されます。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Configure protocol-specific fields under <0>_legacy</0> in attribute mapping. SWA vaulted credentials are stored via the authenticated <1>/sso/swa/:connectionId/vault</1> API."
 msgstr "属性マッピングの <0>_legacy</0> 配下でプロトコル固有フィールドを設定します。SWA の保管済み認証情報は認証済み <1>/sso/swa/:connectionId/vault</1> API 経由で保存されます。"
 
@@ -3300,7 +3307,7 @@ msgstr "カスタム StorageAdapter（InMemoryStorage など）でクライア�
 msgid "Create client with default SecretServiceStorage."
 msgstr "デフォルト SecretServiceStorage でクライアントを作成します。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Create connection"
 msgstr "接続を作成"
 
@@ -3430,8 +3437,8 @@ msgstr "ユニットのメンバーを作成、更新、移動、アーカイブ
 msgid "Create, update, sync, and remove outbound SCIM targets."
 msgstr "アウトバウンド SCIM ターゲットを作成、更新、同期、および削除します。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/user-columns.tsx
@@ -3589,7 +3596,7 @@ msgstr "危険な操作"
 msgid "Dart / Flutter SDK for iOS, Android, and desktop using flutter_web_auth_2, PKCE S256 authorization code flow, and flutter_secure_storage token persistence."
 msgstr "flutter_web_auth_2、PKCE S256 認可コードフロー、flutter_secure_storage トークン永続化を使用した iOS、Android、デスクトップ向け Dart / Flutter SDK。"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Data & privacy"
@@ -4000,7 +4007,7 @@ msgstr "デバイスコード"
 msgid "Device connected"
 msgstr "デバイスを接続しました"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Devices"
 msgstr "デバイス"
@@ -4066,7 +4073,7 @@ msgstr "ディレクトリ同期 | コンソール | XID"
 msgid "Directory token rotation keeps the previous token valid for a short grace window."
 msgstr "ディレクトリトークンのローテーションでは、以前のトークンが短い猶予期間だけ有効なままになります。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Disabled"
 msgstr "無効"
@@ -4087,7 +4094,7 @@ msgstr "{name} の接続を解除しますか？"
 msgid "Disconnect…"
 msgstr "接続を解除…"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Discovery URL"
 msgstr "ディスカバリー URL"
 
@@ -4117,6 +4124,7 @@ msgid "Dismiss banner"
 msgstr "バナーを閉じる"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Display name"
 msgstr "表示名"
@@ -4150,7 +4158,6 @@ msgid "Does {app} show this exact code?"
 msgstr "{app} にこのコードがそのまま表示されていますか？"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
 msgstr "ドメイン"
 
@@ -4241,6 +4248,10 @@ msgstr "GitHub 以外の有効なプロバイダーには、issuer と JWKS URI 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "各メンバーは 1 つのプライマリ OrgUnit と追加の配置を持つことができます。"
+
+#: apps/console/src/routes/org/OrgSso.tsx
+msgid "Each organization has one inbound connection. Delete it before adding another."
+msgstr "各組織のインバウンド接続は 1 つだけです。別の接続を追加する前に削除してください。"
 
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 msgid "Each person gets an email link that works for 7 days."
@@ -4413,7 +4424,7 @@ msgstr "ドメイン検出を有効化"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "Enabled"
 msgstr "有効"
 
@@ -5324,6 +5335,10 @@ msgstr "新しいコードを作成…"
 msgid "Generic OIDC baseline is available locally. SaaS-specific app templates and real SaaS L4 are still required before production support claims."
 msgstr "汎用 OIDC ベースラインはローカルで使用できます。本番サポートの主張には、SaaS 固有のアプリテンプレートと実際の SaaS L4 が引き続き必要です。"
 
+#: apps/console/src/routes/org/scim-provider-label.ts
+msgid "Generic SCIM"
+msgstr "汎用 SCIM"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "GET /.well-known/openid-configuration"
 msgstr "GET /.well-known/openid-configuration"
@@ -5535,7 +5550,7 @@ msgstr "ゲストセッション"
 msgid "H3 event handler factory: verifies JWT, writes event.context.xidAuth, protects routes"
 msgstr "H3 イベントハンドラーファクトリー：JWT を検証し、event.context.xidAuth に書き込み、ルートを保護します"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Header"
 msgstr "ヘッダー"
@@ -5544,7 +5559,7 @@ msgstr "ヘッダー"
 msgid "Header name for auth state between middleware and server components"
 msgstr "middleware とサーバーコンポーネント間の認証状態を表すヘッダー名"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "ヘッダーベース SSO"
 
@@ -5720,27 +5735,27 @@ msgstr "https://example.com/scim/v2"
 msgid "https://example.com/webhooks/xid"
 msgstr "https://example.com/webhooks/xid"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/.well-known/openid-configuration"
 msgstr "https://idp.example.com/.well-known/openid-configuration"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/entity"
 msgstr "https://idp.example.com/entity"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/login"
 msgstr "https://idp.example.com/login"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/metadata.xml"
 msgstr "https://idp.example.com/metadata.xml"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/slo"
 msgstr "https://idp.example.com/slo"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/sso"
 msgstr "https://idp.example.com/sso"
 
@@ -5790,6 +5805,10 @@ msgstr "Cloudflareのアイデンティティインフラストラクチャ"
 msgid "Identity protocols"
 msgstr "アイデンティティプロトコル"
 
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
+msgid "Identity provider"
+msgstr "ID プロバイダー"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Identity rules"
 msgstr "ID ルール"
@@ -5799,7 +5818,7 @@ msgid "IdP certificates are stored on the connection. Browser-supplied KeyInfo i
 msgstr "IdP 証明書は接続に保存されます。ブラウザーが提供する KeyInfo は無視されます。"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP entity ID"
 msgstr "IdP エンティティ ID"
 
@@ -5808,12 +5827,12 @@ msgid "IdP metadata URL"
 msgstr "IdP メタデータ URL"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP SLO URL"
 msgstr "IdP シングルログアウト URL"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP SSO URL"
 msgstr "IdP SSO URL"
 
@@ -6246,7 +6265,7 @@ msgstr "Java 17+ と Maven が必要です。"
 msgid "Java 17+ server SDK for networkless JWT verification, HTTP request authentication, and webhook signature validation."
 msgstr "ネットワークレス JWT 検証、HTTP リクエスト認証、webhook 署名検証用の Java 17+ サーバー SDK。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "JIT"
 msgstr "JIT"
 
@@ -6516,7 +6535,7 @@ msgstr "最終使用 {used}。"
 msgid "Launch ASWebAuthenticationSession, complete PKCE S256 authorization code flow, persist tokens to Keychain, and return a session."
 msgstr "ASWebAuthenticationSession を起動し、PKCE S256 認可コードフローを完了し、トークンを Keychain に永続化してセッションを返します。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "LDAP direct bind"
 msgstr "LDAP ダイレクトバインド"
 
@@ -7126,7 +7145,7 @@ msgstr "メッセージID"
 msgid "Messaging"
 msgstr "メッセージ配信"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Metadata URL"
 msgstr "メタデータ URL"
 
@@ -7173,7 +7192,7 @@ msgid "Middleware, App Router helpers, Pages Router helpers, and React re-export
 msgstr "ミドルウェア、App Router ヘルパー、Pages Router ヘルパー、React 再エクスポート。"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "MIIC..."
 msgstr "MIIC..."
 
@@ -7303,8 +7322,7 @@ msgstr "固定した証明書による相互 TLS（self_signed_tls_client_auth�
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgScim.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
@@ -8056,11 +8074,11 @@ msgstr "OIDC と OAuth 2.0、トークン発行、ディスカバリー、JWKS�
 msgid "OIDC authorization code"
 msgstr "OIDC 認可コード"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "OIDC client ID"
 msgstr "OIDC クライアント ID"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "OIDC client secret"
 msgstr "OIDC クライアントシークレット"
 
@@ -8466,7 +8484,7 @@ msgstr "組織の設定"
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 #: apps/server/src/routes/select-organization/index.tsx
@@ -9224,7 +9242,7 @@ msgstr "検証済みは production、未検証はローカル"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Profile"
 msgstr "プロフィール"
@@ -9946,7 +9964,7 @@ msgstr "OAuth クライアント、リダイレクト URI、グラント、ト�
 msgid "Register OAuth clients, view client IDs, rotate client secrets, and manage redirect URIs."
 msgstr "OAuth クライアントの登録、クライアント ID の表示、クライアントシークレットのローテーション、リダイレクト URI の管理を行います。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Register SAML, OIDC, or legacy enterprise protocol connections for this organization. Legacy protocols use the <0>_legacy</0> JSON helper in attribute mapping."
 msgstr "この組織の SAML、OIDC、またはレガシー企業プロトコル接続を登録します。レガシープロトコルは attribute mapping の <0>_legacy</0> JSON ヘルパーを使用します。"
 
@@ -10213,11 +10231,11 @@ msgstr "新しいエクスポートを依頼"
 msgid "Require email verification"
 msgstr "メール確認を必須にする"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Require signed SAML assertions"
 msgstr "署名済み SAML アサーションを必須にする"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Require signed SAML response"
 msgstr "署名済み SAML レスポンスを必須にする"
 
@@ -10251,7 +10269,7 @@ msgstr "POST、PUT、PATCH リクエストで必須です。"
 msgid "Required scope"
 msgstr "必要な範囲"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Required when the identity provider registers XID as a confidential client."
 msgstr "ID プロバイダーが XID をコンフィデンシャルクライアントとして登録する場合は必須です。"
 
@@ -10628,7 +10646,7 @@ msgstr "ロールの付与を読み込めませんでした"
 msgid "Role key"
 msgstr "ロールキー"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Role mapping JSON"
 msgstr "ロールマッピング JSON"
 
@@ -10767,7 +10785,7 @@ msgstr "同一組織の行動"
 msgid "SAML apps"
 msgstr "SAML アプリ"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "SAML clock tolerance in milliseconds"
 msgstr "SAML クロック許容値 (ミリ秒)"
 
@@ -11070,7 +11088,7 @@ msgstr "XID で保護"
 msgid "SecureStore key namespacing"
 msgstr "SecureStore キーの名前空間"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/SecurityPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
@@ -11560,6 +11578,10 @@ msgstr "設定すると、フルネームの代わりに表示されます。"
 msgid "Shown to admins of organizations you share {current} with."
 msgstr "{current} の共有先組織の管理者に表示されます。"
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Shown to people on the sign-in page, for example Okta."
+msgstr "サインインページに表示されます（例: Okta）。"
+
 #: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Shown to users on the consent screen."
@@ -11858,7 +11880,7 @@ msgstr "登録済みの鍵で署名した JWT（private_key_jwt）"
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 msgstr "signIn(options?) はリダイレクトフロー全体を実行します。handleRedirect(url) はディープリンクコールバックを処理し、signInState は idle、pending、complete、cancelled、error を返します"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Signing certificates"
 msgstr "署名証明書"
 
@@ -12109,7 +12131,7 @@ msgstr "状態変化リスナーコールバック型"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
@@ -12344,7 +12366,7 @@ msgstr "SvelteKit サーバーフック"
 msgid "Svix-style HMAC-SHA256 webhook signature validation with 5-minute replay window"
 msgstr "5 分間のリプレイウィンドウ付きの Svix スタイル HMAC-SHA256 webhook 署名検証"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "SWA password vaulting"
 msgstr "SWA パスワードボールティング"
 
@@ -13578,7 +13600,7 @@ msgstr "type"
 
 #: apps/console/src/routes/applications/ApplicationsList.tsx
 #: apps/console/src/routes/applications/AppsTable.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Type"
 msgstr "種別"
@@ -13744,7 +13766,7 @@ msgstr "上流エンタープライズ IdP ステータス"
 msgid "Upstream enterprise OIDC relying party"
 msgstr "上流エンタープライズ OIDC リライングパーティ"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Upstream SSO URL"
 msgstr "上流 SSO URL"
 
@@ -14782,11 +14804,11 @@ msgstr "{0} でのみ使えます"
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
 msgstr "アプリを <0>XidProvider</0> でラップします。マウント時に <1>XidClient</1> を作成して <2>client.load()</2> を呼び出して現在のセッションを取得し、<3>onCleanup</3> でクリーンアップします。"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "WS-Fed"
 msgstr "WS-Fed"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "WS-Federation"
 msgstr "WS-Federation"
 

@@ -82,11 +82,6 @@ msgstr "{0}이(가) 연결되었습니다. 이제 {1}(으)로도 로그인할 �
 msgid "{0} organizations found"
 msgstr "{0}개 조직을 찾았습니다"
 
-#. placeholder {0}: pendingDelete.name
-#: apps/console/src/routes/org/OrgScim.tsx
-msgid "{0} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
-msgstr "{0}은(는) 이전 토큰을 포함해 SCIM 요청을 즉시 받지 않습니다. 이미 프로비저닝된 사용자는 계정이 유지됩니다."
-
 #. placeholder {0}: day(from)
 #. placeholder {1}: day(to)
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -427,6 +422,10 @@ msgstr "{orgNames}. 관리자가 다시 초대해야 합니다."
 msgid "{others, plural, one {You stay signed in here. # other device has to sign in again, and apps you use on it stop syncing until it does.} other {You stay signed in here. # other devices have to sign in again, and apps you use on them stop syncing until they do.}}"
 msgstr "{others, plural, other {이 기기에서는 로그인 상태가 유지됩니다. 다른 기기 #대는 다시 로그인해야 하며, 그때까지 해당 기기의 앱은 동기화를 멈춥니다.}}"
 
+#: apps/console/src/routes/org/OrgScim.tsx
+msgid "{pendingDeleteName} stops accepting SCIM requests immediately, including the previous token. Users it already provisioned keep their accounts."
+msgstr "{pendingDeleteName}은(는) 이전 토큰을 포함해 SCIM 요청을 즉시 받지 않습니다. 이미 프로비저닝된 사용자는 계정이 유지됩니다."
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "{pendingRemoveProvider} will be removed from the social sign-in configuration. Save changes to apply."
 msgstr "{pendingRemoveProvider}이(가) 소셜 로그인 구성에서 제거됩니다. 변경 사항을 저장해야 적용됩니다."
@@ -460,6 +459,7 @@ msgid "{removingName} was removed"
 msgstr "{removingName}님이 제거되었습니다"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
+#: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "{role}, sub-organization of {parentName}"
 msgstr "{role}, {parentName}의 하위 조직"
 
@@ -732,7 +732,7 @@ msgstr "8.0.0"
 msgid "8px"
 msgstr "8px"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "A client secret is configured. Leave blank to keep it."
 msgstr "클라이언트 시크릿이 설정되어 있습니다. 유지하려면 비워 두세요."
 
@@ -864,7 +864,7 @@ msgstr "이 계정으로 수락"
 msgid "Accepted"
 msgstr "수락됨"
 
-#. placeholder {0}: new Date(document.acceptedAt).toLocaleString()
+#. placeholder {0}: formatDateTime(i18n, document.acceptedAt)
 #: apps/console/src/routes/org/OrgCompliance.tsx
 msgid "Accepted on {0}."
 msgstr "{0}에 동의했습니다."
@@ -914,6 +914,7 @@ msgid "AccessRequest moves from <0>pending</0> to <1>approved</1>, <2>denied</2>
 msgstr "AccessRequest가 <0>보류 중</0>에서 <1>승인됨</1>, <2>거부됨</2>, <3>취소됨</3> 또는 <4>만료됨</4>으로 변경됩니다. 모든 결과는 최종적이며 보류 중인 요청은 14일 후에 서서히 만료됩니다."
 
 #: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/AccountSegmentedNav.tsx
 msgid "Account"
 msgstr "계정"
 
@@ -1078,7 +1079,7 @@ msgstr "useXidRnContext가 반환하는 어댑터 컨텍스트 형태"
 #. placeholder {0}: i18n._(preset.label)
 #. placeholder {0}: preset.label
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Add {0} template"
 msgstr "{0} 템플릿 추가"
 
@@ -1130,6 +1131,11 @@ msgstr "이 방법을 제거하기 전에 다른 로그인 방법을 추가하�
 #: apps/server/src/routes/account/OnlySignInMethodDialog.tsx
 msgid "Add another way to sign in first. Then you can remove this one from this page."
 msgstr "먼저 다른 로그인 방법을 추가하세요. 그런 다음 이 페이지에서 이것을 제거할 수 있습니다."
+
+#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
+msgid "Add connection"
+msgstr "연결 추가"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "Add domain"
@@ -1367,7 +1373,7 @@ msgstr "Hosted Auth 사용자 생성 허용"
 msgid "Allow JIT user creation"
 msgstr "JIT 사용자 생성 허용"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Allow JIT user creation for this connection"
 msgstr "이 연결에서 JIT 사용자 생성 허용"
 
@@ -1839,7 +1845,7 @@ msgstr "증명 모드"
 msgid "Attribute mapping and role mapping must be JSON objects."
 msgstr "속성 매핑과 역할 매핑은 JSON 객체여야 합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Attribute mapping JSON"
 msgstr "속성 매핑 JSON"
 
@@ -2339,6 +2345,7 @@ msgstr "CanActivateFn 팩토리"
 #: apps/console/src/routes/members/ChangeRoleDialog.tsx
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
@@ -2634,7 +2641,7 @@ msgstr "클라이언트 설정"
 msgid "Client types"
 msgstr "클라이언트 유형"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "client-id"
 msgstr "client-id"
 
@@ -2807,7 +2814,7 @@ msgstr "Slack, GitHub, Microsoft 등 프리셋으로 다운스트림 SaaS SAML �
 msgid "Configure downstream SaaS SAML service providers from preset templates. SAML/OIDC presets also show a reference OIDC redirect URI for manual SaaS admin setup."
 msgstr "사전 설정 템플릿으로 다운스트림 SaaS SAML 서비스 공급자를 구성합니다. SAML/OIDC 사전 설정에는 SaaS 관리 화면에서 직접 설정할 때 참고할 OIDC 리디렉션 URI도 표시됩니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Configure protocol-specific fields under <0>_legacy</0> in attribute mapping. SWA vaulted credentials are stored via the authenticated <1>/sso/swa/:connectionId/vault</1> API."
 msgstr "attribute mapping의 <0>_legacy</0> 아래에서 프로토콜별 필드를 구성합니다. SWA 보관 자격 증명은 인증된 <1>/sso/swa/:connectionId/vault</1> API를 통해 저장됩니다."
 
@@ -3300,7 +3307,7 @@ msgstr "사용자 정의 StorageAdapter(예: InMemoryStorage)로 클라이언트
 msgid "Create client with default SecretServiceStorage."
 msgstr "기본 SecretServiceStorage로 클라이언트를 생성합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Create connection"
 msgstr "연결 만들기"
 
@@ -3430,8 +3437,8 @@ msgstr "장치 구성원을 생성, 업데이트, 이동, 보관 및 관리합�
 msgid "Create, update, sync, and remove outbound SCIM targets."
 msgstr "아웃바운드 SCIM 대상을 생성, 업데이트, 동기화 및 제거합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/user-columns.tsx
@@ -3589,7 +3596,7 @@ msgstr "위험 구역"
 msgid "Dart / Flutter SDK for iOS, Android, and desktop using flutter_web_auth_2, PKCE S256 authorization code flow, and flutter_secure_storage token persistence."
 msgstr "flutter_web_auth_2, PKCE S256 인증 코드 흐름, flutter_secure_storage 토큰 영속성을 사용하는 iOS, Android, 데스크톱용 Dart / Flutter SDK."
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/PrivacyPage.tsx
 msgid "Data & privacy"
@@ -4000,7 +4007,7 @@ msgstr "디바이스 코드"
 msgid "Device connected"
 msgstr "기기 연결됨"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DevicesPage.tsx
 msgid "Devices"
 msgstr "기기"
@@ -4066,7 +4073,7 @@ msgstr "디렉터리 동기화 | 콘솔 | XID"
 msgid "Directory token rotation keeps the previous token valid for a short grace window."
 msgstr "디렉터리 토큰 순환은 짧은 유예 기간 동안 이전 토큰을 계속 유효하게 유지합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Disabled"
 msgstr "비활성화됨"
@@ -4087,7 +4094,7 @@ msgstr "{name} 연결을 해제할까요?"
 msgid "Disconnect…"
 msgstr "연결 해제…"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Discovery URL"
 msgstr "디스커버리 URL"
 
@@ -4117,6 +4124,7 @@ msgid "Dismiss banner"
 msgstr "배너 닫기"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Display name"
 msgstr "표시 이름"
@@ -4150,7 +4158,6 @@ msgid "Does {app} show this exact code?"
 msgstr "{app}에 이 코드가 똑같이 표시되나요?"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
 msgstr "도메인"
 
@@ -4241,6 +4248,10 @@ msgstr "GitHub를 제외한 활성화된 공급자에는 issuer와 JWKS URI가 �
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Each member can have one primary OrgUnit and additional placements."
 msgstr "각 구성원은 하나의 기본 OrgUnit과 추가 배치를 가질 수 있습니다."
+
+#: apps/console/src/routes/org/OrgSso.tsx
+msgid "Each organization has one inbound connection. Delete it before adding another."
+msgstr "조직마다 인바운드 연결은 하나만 둘 수 있습니다. 다른 연결을 추가하려면 먼저 삭제하세요."
 
 #: apps/console/src/routes/members/InviteMembersDialog.tsx
 msgid "Each person gets an email link that works for 7 days."
@@ -4413,7 +4424,7 @@ msgstr "도메인 디스커버리 활성화"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "Enabled"
 msgstr "활성화됨"
 
@@ -5324,6 +5335,10 @@ msgstr "새 코드 생성…"
 msgid "Generic OIDC baseline is available locally. SaaS-specific app templates and real SaaS L4 are still required before production support claims."
 msgstr "일반 OIDC 기준선은 로컬에서 사용 가능합니다. 프로덕션 지원 주장을 하기 전에 SaaS별 앱 템플릿과 실제 SaaS L4가 여전히 필요합니다."
 
+#: apps/console/src/routes/org/scim-provider-label.ts
+msgid "Generic SCIM"
+msgstr "일반 SCIM"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "GET /.well-known/openid-configuration"
 msgstr "GET /.well-known/openid-configuration"
@@ -5535,7 +5550,7 @@ msgstr "게스트 세션"
 msgid "H3 event handler factory: verifies JWT, writes event.context.xidAuth, protects routes"
 msgstr "H3 이벤트 핸들러 팩토리: JWT를 검증하고 event.context.xidAuth에 기록하며 라우트를 보호합니다"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Header"
 msgstr "헤더"
@@ -5544,7 +5559,7 @@ msgstr "헤더"
 msgid "Header name for auth state between middleware and server components"
 msgstr "middleware와 서버 컴포넌트 간 인증 상태를 위한 헤더 이름"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "Header-based SSO"
 msgstr "헤더 기반 SSO"
 
@@ -5720,27 +5735,27 @@ msgstr "https://example.com/scim/v2"
 msgid "https://example.com/webhooks/xid"
 msgstr "https://example.com/webhooks/xid"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/.well-known/openid-configuration"
 msgstr "https://idp.example.com/.well-known/openid-configuration"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/entity"
 msgstr "https://idp.example.com/entity"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/login"
 msgstr "https://idp.example.com/login"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/metadata.xml"
 msgstr "https://idp.example.com/metadata.xml"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/slo"
 msgstr "https://idp.example.com/slo"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "https://idp.example.com/sso"
 msgstr "https://idp.example.com/sso"
 
@@ -5790,6 +5805,10 @@ msgstr "Cloudflare용 ID 인프라"
 msgid "Identity protocols"
 msgstr "아이덴티티 프로토콜"
 
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
+msgid "Identity provider"
+msgstr "ID 공급자"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Identity rules"
 msgstr "아이덴티티 규칙"
@@ -5799,7 +5818,7 @@ msgid "IdP certificates are stored on the connection. Browser-supplied KeyInfo i
 msgstr "IdP 인증서는 연결에 저장됩니다. 브라우저가 제공한 KeyInfo는 무시됩니다."
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP entity ID"
 msgstr "IdP 엔티티 ID"
 
@@ -5808,12 +5827,12 @@ msgid "IdP metadata URL"
 msgstr "IdP 메타데이터 URL"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP SLO URL"
 msgstr "IdP 단일 로그아웃 URL"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "IdP SSO URL"
 msgstr "IdP SSO URL"
 
@@ -6246,7 +6265,7 @@ msgstr "Java 17 이상과 Maven이 필요합니다."
 msgid "Java 17+ server SDK for networkless JWT verification, HTTP request authentication, and webhook signature validation."
 msgstr "네트워크 호출 없는 JWT 검증, HTTP 요청 인증, webhook 서명 검증을 위한 Java 17+ 서버 SDK."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 msgid "JIT"
 msgstr "JIT"
 
@@ -6516,7 +6535,7 @@ msgstr "마지막 사용 {used}."
 msgid "Launch ASWebAuthenticationSession, complete PKCE S256 authorization code flow, persist tokens to Keychain, and return a session."
 msgstr "ASWebAuthenticationSession을 시작하고, PKCE S256 인증 코드 흐름을 완료하고, 토큰을 Keychain에 저장한 후 세션을 반환합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "LDAP direct bind"
 msgstr "LDAP 직접 바인드"
 
@@ -7126,7 +7145,7 @@ msgstr "메시지 ID"
 msgid "Messaging"
 msgstr "메시징"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Metadata URL"
 msgstr "메타데이터 URL"
 
@@ -7173,7 +7192,7 @@ msgid "Middleware, App Router helpers, Pages Router helpers, and React re-export
 msgstr "Middleware, App Router 헬퍼, Pages Router 헬퍼, React 재내보내기입니다."
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "MIIC..."
 msgstr "MIIC..."
 
@@ -7303,8 +7322,7 @@ msgstr "고정된 인증서를 사용하는 상호 TLS(self_signed_tls_client_au
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgDomains.tsx
-#: apps/console/src/routes/org/OrgScim.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/projects/ProjectsList.tsx
 #: apps/console/src/routes/projects/ProjectTabs.tsx
@@ -8056,11 +8074,11 @@ msgstr "OIDC 및 OAuth 2.0, 토큰 발급, 디스커버리, JWKS, 조직, 프로
 msgid "OIDC authorization code"
 msgstr "OIDC authorization code"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "OIDC client ID"
 msgstr "OIDC 클라이언트 ID"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "OIDC client secret"
 msgstr "OIDC 클라이언트 시크릿"
 
@@ -8466,7 +8484,7 @@ msgstr "조직 설정"
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/DeleteAccountPage.tsx
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 #: apps/server/src/routes/select-organization/index.tsx
@@ -9224,7 +9242,7 @@ msgstr "검증된 곳은 production, 그 외는 로컬"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "Profile"
 msgstr "프로필"
@@ -9946,7 +9964,7 @@ msgstr "OAuth 클라이언트, 리디렉션 URI, 권한 부여, 토큰 정책, �
 msgid "Register OAuth clients, view client IDs, rotate client secrets, and manage redirect URIs."
 msgstr "OAuth 클라이언트를 등록하고, 클라이언트 ID를 확인하고, 클라이언트 비밀값을 순환하고, 리디렉션 URI를 관리합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionCreate.tsx
 msgid "Register SAML, OIDC, or legacy enterprise protocol connections for this organization. Legacy protocols use the <0>_legacy</0> JSON helper in attribute mapping."
 msgstr "이 조직의 SAML, OIDC 또는 레거시 엔터프라이즈 프로토콜 연결을 등록합니다. 레거시 프로토콜은 attribute mapping에서 <0>_legacy</0> JSON 헬퍼를 사용합니다."
 
@@ -10213,11 +10231,11 @@ msgstr "새 내보내기 요청"
 msgid "Require email verification"
 msgstr "이메일 인증 필요"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Require signed SAML assertions"
 msgstr "서명된 SAML 어설션 필요"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Require signed SAML response"
 msgstr "서명된 SAML 응답 필요"
 
@@ -10251,7 +10269,7 @@ msgstr "POST, PUT, PATCH 요청에 필요합니다."
 msgid "Required scope"
 msgstr "필수 범위"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Required when the identity provider registers XID as a confidential client."
 msgstr "ID 공급자가 XID를 기밀 클라이언트로 등록하는 경우 필수입니다."
 
@@ -10628,7 +10646,7 @@ msgstr "역할 부여를 불러올 수 없습니다"
 msgid "Role key"
 msgstr "역할 키"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Role mapping JSON"
 msgstr "역할 매핑 JSON"
 
@@ -10767,7 +10785,7 @@ msgstr "동일 조직 행동"
 msgid "SAML apps"
 msgstr "SAML 앱"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "SAML clock tolerance in milliseconds"
 msgstr "SAML 클록 허용 오차(밀리초)"
 
@@ -11070,7 +11088,7 @@ msgstr "XID로 보호됨"
 msgid "SecureStore key namespacing"
 msgstr "SecureStore 키 네임스페이싱"
 
-#: apps/server/src/routes/account/AccountLayout.tsx
+#: apps/server/src/routes/account/account-nav-items.tsx
 #: apps/server/src/routes/account/SecurityPage.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
@@ -11560,6 +11578,10 @@ msgstr "설정하면 전체 이름 대신 표시됩니다."
 msgid "Shown to admins of organizations you share {current} with."
 msgstr "{current}을(를) 공유한 조직의 관리자에게 표시됩니다."
 
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
+msgid "Shown to people on the sign-in page, for example Okta."
+msgstr "로그인 페이지에 표시됩니다(예: Okta)."
+
 #: apps/console/src/routes/applications/app-sections.tsx
 #: apps/console/src/routes/applications/CreateApplicationDialog.tsx
 msgid "Shown to users on the consent screen."
@@ -11858,7 +11880,7 @@ msgstr "등록된 키로 서명한 JWT(private_key_jwt)"
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
 msgstr "signIn(options?)은 전체 리디렉션 흐름을 실행합니다. handleRedirect(url)는 딥 링크 콜백을 처리합니다. signInState는 idle, pending, complete, cancelled, error를 보고합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Signing certificates"
 msgstr "서명 인증서"
 
@@ -12109,7 +12131,7 @@ msgstr "상태 변경 리스너 callback 타입"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
@@ -12344,7 +12366,7 @@ msgstr "SvelteKit 서버 hook"
 msgid "Svix-style HMAC-SHA256 webhook signature validation with 5-minute replay window"
 msgstr "5분 재사용 방지 창을 갖춘 Svix 스타일 HMAC-SHA256 webhook 서명 검증"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "SWA password vaulting"
 msgstr "SWA 비밀번호 보관"
 
@@ -13578,7 +13600,7 @@ msgstr "type"
 
 #: apps/console/src/routes/applications/ApplicationsList.tsx
 #: apps/console/src/routes/applications/AppsTable.tsx
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/useSsoConnectionColumns.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Type"
 msgstr "유형"
@@ -13744,7 +13766,7 @@ msgstr "Upstream 엔터프라이즈 IdP 상태"
 msgid "Upstream enterprise OIDC relying party"
 msgstr "Upstream 엔터프라이즈 OIDC relying party"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Upstream SSO URL"
 msgstr "업스트림 SSO URL"
 
@@ -14782,11 +14804,11 @@ msgstr "{0}에서만 작동"
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
 msgstr "<0>XidProvider</0>로 앱을 감싸세요. <1>XidClient</1>를 생성하고, 마운트 시 <2>client.load()</2>를 호출하여 현재 세션을 가져오며, <3>onCleanup</3>을 통해 정리합니다."
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "WS-Fed"
 msgstr "WS-Fed"
 
-#: apps/console/src/routes/org/OrgSso.tsx
+#: apps/console/src/routes/org/sso-connection-form.ts
 msgid "WS-Federation"
 msgstr "WS-Federation"
 
