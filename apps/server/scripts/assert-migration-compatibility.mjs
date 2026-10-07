@@ -268,6 +268,31 @@ function isSafeLegacyInvitationCutover(statement) {
   )
 }
 
+// Seats became observe-only. Only the two 0005 seat triggers may be dropped, always with IF EXISTS,
+// so this exception can never retire the resource quota or hierarchy triggers.
+function isSafeSeatTriggerRetirement(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized === 'DROP TRIGGER IF EXISTS `memberships_seat_limit_before_insert`' ||
+    normalized === 'DROP TRIGGER IF EXISTS `memberships_seat_limit_before_update`'
+  )
+}
+
+// Rewrites only the enforcement mode of seat quota rows; `limit` and `updated_by` stay untouched.
+function isSafeSeatQuotaObserveCutover(statement) {
+  const normalized = statement.replace(/\s+/gu, ' ').trim()
+  return (
+    normalized ===
+    [
+      'UPDATE `organization_quotas`',
+      "SET `enforcement` = 'observe',",
+      "`updated_at` = CAST(strftime('%s', 'now') AS integer) * 1000",
+      "WHERE `quota_key` = 'seats'",
+      "AND `enforcement` = 'block_creation'",
+    ].join(' ')
+  )
+}
+
 // These exact rewrites normalize only active invitation targets and revoke deterministic duplicate
 // losers before the tenant/org/email partial UNIQUE index is installed.
 function isSafeInvitationEmailClaimCutover(statement) {
@@ -427,6 +452,8 @@ function isApprovedAdditiveStatement(statement) {
     isSafeCreateTrigger(statement) ||
     isSafeOrganizationSeatQuotaBackfill(statement) ||
     isSafeLegacyInvitationCutover(statement) ||
+    isSafeSeatTriggerRetirement(statement) ||
+    isSafeSeatQuotaObserveCutover(statement) ||
     isSafeInvitationEmailClaimCutover(statement) ||
     isSafeInstanceManagerDeduplication(statement) ||
     isSafeSamlCertificateUniquenessCutover(statement)

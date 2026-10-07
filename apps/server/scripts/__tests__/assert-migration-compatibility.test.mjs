@@ -67,6 +67,10 @@ WHERE \`duplicate\`.\`status\` IN ('pending', 'claim_verified')
       )
   );`
 
+const seatQuotaObserveOnlySql = `DROP TRIGGER IF EXISTS \`memberships_seat_limit_before_insert\`;--> statement-breakpoint
+DROP TRIGGER IF EXISTS \`memberships_seat_limit_before_update\`;--> statement-breakpoint
+UPDATE \`organization_quotas\` SET \`enforcement\` = 'observe', \`updated_at\` = CAST(strftime('%s', 'now') AS integer) * 1000 WHERE \`quota_key\` = 'seats' AND \`enforcement\` = 'block_creation';`
+
 // 守卫出厂时白名单为空,drop 通道的用例必须自带批准清单,顺带证明"批准"是一次显式动作。
 const approvedTableDrops = new Map([
   ['legacy_table', 'test fixture: 生产 0 行且无读写路径'],
@@ -369,6 +373,57 @@ WHERE \`manager_role\` = 'instance_manager'
   ])('rejects SAML certificate cutover with %s', (_case, sql) => {
     expect(() =>
       assertMigrationCompatibility(migrationSet('0009_saml_idp_certificate_uniqueness.sql', sql)),
+    ).toThrow('migration compatibility requires approved additive DDL only')
+  })
+
+  it('accepts only the exact seat trigger retirement and observe-only cutover', () => {
+    expect(() =>
+      assertMigrationCompatibility(
+        migrationSet('0021_seat_quota_observe_only.sql', seatQuotaObserveOnlySql),
+      ),
+    ).not.toThrow()
+  })
+
+  it.each([
+    [
+      'a trigger outside the seat pair',
+      seatQuotaObserveOnlySql.replace(
+        'memberships_seat_limit_before_insert',
+        'sso_connections_quota_before_insert',
+      ),
+    ],
+    [
+      'a missing IF EXISTS guard',
+      seatQuotaObserveOnlySql.replace(
+        'DROP TRIGGER IF EXISTS `memberships_seat_limit_before_update`',
+        'DROP TRIGGER `memberships_seat_limit_before_update`',
+      ),
+    ],
+    [
+      'a widened WHERE clause',
+      seatQuotaObserveOnlySql.replace(" AND `enforcement` = 'block_creation'", ''),
+    ],
+    [
+      'a different quota key',
+      seatQuotaObserveOnlySql.replace("`quota_key` = 'seats'", "`quota_key` = 'organizations'"),
+    ],
+    [
+      'an extra limit rewrite',
+      seatQuotaObserveOnlySql.replace(
+        "SET `enforcement` = 'observe',",
+        "SET `enforcement` = 'observe', `limit` = NULL,",
+      ),
+    ],
+    [
+      'the same UPDATE on another table',
+      seatQuotaObserveOnlySql.replace(
+        'UPDATE `organization_quotas`',
+        'UPDATE `organization_plans`',
+      ),
+    ],
+  ])('rejects seat quota observe-only cutover with %s', (_case, sql) => {
+    expect(() =>
+      assertMigrationCompatibility(migrationSet('0021_seat_quota_observe_only.sql', sql)),
     ).toThrow('migration compatibility requires approved additive DDL only')
   })
 
