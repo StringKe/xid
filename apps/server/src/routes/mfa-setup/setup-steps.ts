@@ -30,8 +30,3 @@ export function otpauthDisplayName(uri: string): { issuer: string; account: stri
   const issuer = new URLSearchParams(match[2] ?? '').get('issuer')?.trim() || prefix
   return account && issuer ? { issuer, account } : null
 }
-
-// otpauth 密钥按 4 位分组,手动输入时更容易对照。
-export function groupSecret(secret: string): string {
-  return secret.replace(/\s+/g, '').replace(/(.{4})(?=.)/g, '$1 ')
-}

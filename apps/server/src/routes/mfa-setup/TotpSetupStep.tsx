@@ -10,16 +10,16 @@ import { Button } from '@xid-kit/web-ui/ui/Button'
 import { CopyButton } from '@xid-kit/web-ui/ui/CopyButton'
 import { Notice } from '@xid-kit/web-ui/ui/Notice'
 import { Spinner } from '@xid-kit/web-ui/ui/Spinner'
-import { text } from '@xid-kit/web-ui/styles/scale.stylex'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { AuthHeading } from '../../components/hosted/AuthHeading'
 import { CodeField, useCodeFormatMessage } from '../../components/hosted/CodeField'
 import { codeFormatIssue, normalizeCode } from '../../components/hosted/code-input'
+import { GroupedSecret } from '../../components/hosted/GroupedSecret'
 import { hosted } from '../../components/hosted/hosted-styles'
 import { tokens } from '../../styles/tokens.stylex'
 import { useStartTotpSetup, useVerifyTotpSetup } from '../account/queries'
 import type { TotpSetupResponse } from '../account/types'
-import { groupSecret, otpauthDisplayName } from './setup-steps'
+import { otpauthDisplayName } from './setup-steps'
 
 const styles = stylex.create({
   pairing: {
@@ -50,14 +50,6 @@ const styles = stylex.create({
     flexGrow: 1,
     flexBasis: '10rem',
     minWidth: 0,
-  },
-  secret: {
-    margin: 0,
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: text.sm,
-    lineHeight: '1.25rem',
-    color: tokens['--xid-fg'],
-    overflowWrap: 'anywhere',
   },
   center: {
     display: 'flex',
@@ -90,7 +82,7 @@ function PairingPanel({ setup }: { setup: TotpSetupResponse }): ReactNode {
         <p {...stylex.props(hosted.note)}>
           <Trans>Can't scan? Enter this key instead.</Trans>
         </p>
-        <code {...stylex.props(styles.secret)}>{groupSecret(setup.secret)}</code>
+        <GroupedSecret value={setup.secret} />
         <CopyButton value={setup.secret} subject={t`setup key`} />
       </div>
     </div>

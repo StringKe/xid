@@ -4,6 +4,7 @@ import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { renderSVG } from 'uqr'
 import { tokens } from '../../styles/tokens.stylex'
+import { GroupedSecret } from '../../components/hosted/GroupedSecret'
 import { Button, Field, Input } from '../../components/ui'
 import type { BackupCodesResponse, TotpSetupResponse } from './types'
 
@@ -32,9 +33,7 @@ const styles = stylex.create({
     borderColor: tokens['--xid-border'],
     backgroundColor: tokens['--xid-muted'],
     color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font-mono'],
     fontSize: '0.8125rem',
-    overflowWrap: 'anywhere',
     maxWidth: '28rem',
   },
   // 扫码需要白底黑码,深色主题下同样保持白底。
@@ -107,10 +106,6 @@ function qrCodeDataUrl(otpauthUri: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-function groupSecret(secret: string): string {
-  return secret.match(/.{1,4}/gu)?.join(' ') ?? secret
-}
-
 function CopySecretButton({ secret }: { secret: string }): ReactNode {
   const [copied, setCopied] = useState(false)
   const handleCopy = async (): Promise<void> => {
@@ -155,7 +150,7 @@ export function TotpSetupPanel({
         <Trans>Can't scan the code? Enter this key manually instead.</Trans>
       </p>
       <div {...stylex.props(styles.secretRow)}>
-        <code {...stylex.props(styles.secretBox)}>{groupSecret(setup.secret)}</code>
+        <GroupedSecret value={setup.secret} style={styles.secretBox} />
         <CopySecretButton secret={setup.secret} />
       </div>
       <a href={setup.otpauthUri}>
