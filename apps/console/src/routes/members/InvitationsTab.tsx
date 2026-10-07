@@ -15,7 +15,7 @@ import { Alert, Badge, Button, Dropdown, EmptyState, Icon, useToast } from '@xid
 import type { DataTableColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { list } from '../../components/page/list-styles'
-import { formatDate } from '../users/user-format'
+import { formatDate } from '../../lib/date-format'
 import type { InvitationRow, InvitationsPage } from './member-api'
 import { useResendInvitation, useRevokeInvitation } from './member-api'
 

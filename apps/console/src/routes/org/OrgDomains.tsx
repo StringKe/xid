@@ -2,6 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
 import {
@@ -68,7 +69,7 @@ function TxtRecord({ row }: { row: OrgDomain }): ReactNode {
   if (isVerified(row)) {
     return row.verified_at ? (
       <span {...stylex.props(styles.mutedSmall)}>
-        {new Date(row.verified_at).toLocaleDateString()}
+        <FormattedDate value={row.verified_at} />
       </span>
     ) : null
   }

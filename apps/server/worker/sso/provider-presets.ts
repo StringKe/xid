@@ -408,6 +408,17 @@ export function presetKeyFromAttributeMapping(
   return typeof value === 'string' ? value : undefined
 }
 
+export function inboundPresetDisplayName(presetKey: string | undefined): string | undefined {
+  if (!presetKey) return undefined
+  if (Object.hasOwn(INBOUND_IDP_PRESETS, presetKey)) {
+    return INBOUND_IDP_PRESETS[presetKey as InboundIdpPresetKey].displayName
+  }
+  if (Object.hasOwn(LEGACY_INBOUND_PRESETS, presetKey)) {
+    return LEGACY_INBOUND_PRESETS[presetKey as LegacyInboundPresetKey].displayName
+  }
+  return undefined
+}
+
 export function withPresetAttributeMapping(
   presetKey: string,
   mapping: Record<string, string>,

@@ -7,7 +7,8 @@ import { Button, EmptyState, Skeleton } from '@xid-kit/web-ui/ui'
 import { detail } from '../../../components/page/detail-styles'
 import type { UserAction, UserDetail, UserSignInMethods } from '../user-api'
 import { useUserSignInMethods } from '../user-api'
-import { formatDate, providerName } from '../user-format'
+import { providerName } from '../user-format'
+import { formatDate } from '../../../lib/date-format'
 
 export function useTwoStepSummary(methods: UserSignInMethods | undefined): ReactNode {
   const { t, i18n } = useLingui()

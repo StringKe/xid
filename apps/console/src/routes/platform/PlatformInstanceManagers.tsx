@@ -2,6 +2,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import type { GlobalUser, InstanceManagerAssignment, XidError } from '@xid-kit/types'
 import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
@@ -95,7 +96,7 @@ export default function PlatformInstanceManagers(): ReactNode {
     {
       id: 'granted',
       header: () => <Trans>Granted</Trans>,
-      cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+      cell: ({ row }) => <FormattedDate value={row.original.createdAt} />,
       meta: { width: '120px' },
     },
     {

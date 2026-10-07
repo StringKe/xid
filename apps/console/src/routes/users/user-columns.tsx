@@ -11,7 +11,6 @@ import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { list } from '../../components/page/list-styles'
 import type { UserAction, UserListRow } from './user-api'
 import {
-  formatDate,
   formatRelative,
   isGuestUser,
   organizationNameText,
@@ -20,6 +19,7 @@ import {
   userDisplayName,
 } from './user-format'
 import { UserRowMenu } from './UserActions'
+import { formatDate } from '../../lib/date-format'
 
 function stop(event: { stopPropagation: () => void }): void {
   event.stopPropagation()
@@ -30,11 +30,14 @@ function Organizations({ row }: { row: UserListRow }): ReactNode {
   if (row.organizations.length === 0) {
     return <span {...stylex.props(list.muted)}>{i18n._(msg`No organization`)}</span>
   }
-  const names = new Intl.ListFormat(i18n.locale, { type: 'conjunction', style: 'narrow' }).format(
-    row.organizations.slice(0, 2).map((org) => organizationNameText(i18n, org.name)),
-  )
-  const more = row.organizations.length - 2
-  return <>{more > 0 ? i18n._(msg`${names} and ${more} more`) : names}</>
+  const labels = row.organizations.map((org) => organizationNameText(i18n, org.name))
+  const [names, ...rest] = labels
+  if (names !== undefined && rest.length > 1) {
+    // 多于两个时只列第一个:连词列表再接「and N more」会在 de/es/ko 等语言里出现两次连词。
+    const more = rest.length
+    return <>{i18n._(msg`${names} and ${more} more`)}</>
+  }
+  return <>{new Intl.ListFormat(i18n.locale, { type: 'conjunction' }).format(labels)}</>
 }
 
 export function useUserColumns(

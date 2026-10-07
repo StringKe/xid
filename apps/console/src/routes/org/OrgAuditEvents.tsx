@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Field, Input } from '@xid-kit/web-ui/ui'
 import {
@@ -96,7 +97,7 @@ const columns: ColumnDef<AuditEvent>[] = [
     header: () => <Trans>Time</Trans>,
     cell: ({ row }) => (
       <span {...stylex.props(styles.timeText)}>
-        {new Date(row.original.occurredAt).toLocaleString()}
+        <FormattedDate value={row.original.occurredAt} time />
       </span>
     ),
     meta: { width: '170px' },

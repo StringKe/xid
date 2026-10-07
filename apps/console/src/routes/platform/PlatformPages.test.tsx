@@ -55,6 +55,10 @@ vi.mock('@lingui/react/macro', () => ({
       strings.reduce(
         (message, part, index) => `${message}${String(values[index - 1] ?? '')}${part}`,
       ),
+    i18n: {
+      date: (value: Date, options: Intl.DateTimeFormatOptions) =>
+        new Intl.DateTimeFormat('en', options).format(value),
+    },
   }),
 }))
 

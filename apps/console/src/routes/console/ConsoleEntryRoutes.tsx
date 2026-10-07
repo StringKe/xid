@@ -16,12 +16,14 @@ import { useAuth } from '@xid-kit/web-ui/session'
 import type { AuthOrg } from '@xid-kit/web-ui/session'
 import { organizationDisplayName } from '@xid-kit/web-ui/display-names'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
+import { useRoleLabel } from '@xid-kit/web-ui/enum-labels'
 import { consoleShell, page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import { msg } from '@lingui/core/macro'
 import { MANAGED_PROJECTS_NAV_ITEM, ORG_NAV, ORG_USERS_PATH } from '../../nav'
 import type { ConsoleNavItem, NavLabel } from '../../nav'
 import { navLabelText } from '../../components/layout/nav-model'
+import { orderByHierarchy } from '../../components/layout/organization-order'
 
 const styles = stylex.create({
   primaryLink: {
@@ -83,6 +85,9 @@ const styles = stylex.create({
       boxShadow: tokens['--xid-shadow-sm'],
       borderColor: tokens['--xid-border-strong'],
     },
+  },
+  orgRowNested: {
+    marginInlineStart: '1.5rem',
   },
   orgAvatar: {
     display: 'inline-flex',
@@ -236,6 +241,9 @@ function OrganizationSelection({
   const navigate = useNavigate()
   const [openingOrgId, setOpeningOrgId] = useState<string | null>(null)
   const [failedOrgId, setFailedOrgId] = useState<string | null>(null)
+  const roleLabel = useRoleLabel()
+  const ordered = orderByHierarchy(organizations)
+  const byId = new Map(organizations.map((org) => [org.id, org]))
 
   async function openOrganization(org: AuthOrg): Promise<void> {
     const destination = orgTargetPath(target, org)
@@ -269,36 +277,48 @@ function OrganizationSelection({
           </Alert>
         ) : null}
         <ul {...stylex.props(styles.orgList)}>
-          {organizations.map((org) => (
-            <li key={org.id} {...stylex.props(styles.orgRow)}>
-              <span aria-hidden="true" {...stylex.props(styles.orgAvatar)}>
-                {orgInitial(org)}
-              </span>
-              <span {...stylex.props(styles.orgText)}>
-                <span {...stylex.props(styles.orgName)}>{organizationDisplayName(org)}</span>
-                <span {...stylex.props(styles.orgSlug)}>{org.slug}</span>
-                {org.id === activeOrgId ? (
-                  <span {...stylex.props(styles.orgSlug)}>
-                    <Trans>Current organization</Trans>
-                  </span>
-                ) : null}
-                {failedOrgId === org.id ? (
-                  <span role="alert" {...stylex.props(styles.orgError)}>
-                    <Trans>Could not open this organization. Try again.</Trans>
-                  </span>
-                ) : null}
-              </span>
-              <Button
-                type="button"
-                variant="secondary"
-                isLoading={openingOrgId === org.id}
-                disabled={openingOrgId !== null}
-                onClick={() => void openOrganization(org)}
-              >
-                <Trans>Open</Trans>
-              </Button>
-            </li>
-          ))}
+          {ordered.map((org) => {
+            const parent = org.parentOrgId ? byId.get(org.parentOrgId) : undefined
+            const role = roleLabel(org.role)
+            const parentName = parent ? organizationDisplayName(parent) : null
+            return (
+              <li key={org.id} {...stylex.props(styles.orgRow, parent && styles.orgRowNested)}>
+                <span aria-hidden="true" {...stylex.props(styles.orgAvatar)}>
+                  {orgInitial(org)}
+                </span>
+                <span {...stylex.props(styles.orgText)}>
+                  <span {...stylex.props(styles.orgName)}>{organizationDisplayName(org)}</span>
+                  <span {...stylex.props(styles.orgSlug)}>{org.slug}</span>
+                  {parentName ? (
+                    <span {...stylex.props(styles.orgSlug)}>
+                      <Trans>
+                        {role}, sub-organization of {parentName}
+                      </Trans>
+                    </span>
+                  ) : null}
+                  {org.id === activeOrgId ? (
+                    <span {...stylex.props(styles.orgSlug)}>
+                      <Trans>Current organization</Trans>
+                    </span>
+                  ) : null}
+                  {failedOrgId === org.id ? (
+                    <span role="alert" {...stylex.props(styles.orgError)}>
+                      <Trans>Could not open this organization. Try again.</Trans>
+                    </span>
+                  ) : null}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  isLoading={openingOrgId === org.id}
+                  disabled={openingOrgId !== null}
+                  onClick={() => void openOrganization(org)}
+                >
+                  <Trans>Open</Trans>
+                </Button>
+              </li>
+            )
+          })}
         </ul>
       </ConsolePageSection>
     </ConsolePage>

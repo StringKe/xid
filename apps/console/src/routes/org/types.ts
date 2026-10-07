@@ -169,6 +169,7 @@ export type InboundSsoProtocol = 'saml' | 'oidc' | 'ldap' | 'wsfed' | 'swa' | 'h
 export type SsoConnection = {
   id: string
   name: string
+  display_name: string | null
   type: InboundSsoProtocol
   domain: string
   idp_entity_id?: string | null
@@ -197,6 +198,7 @@ export type SsoConnection = {
 export type CreateSsoConnectionInput = {
   preset?: string
   protocol: InboundSsoProtocol
+  display_name?: string
   idp_entity_id?: string
   idp_sso_url?: string
   idp_slo_url?: string | null
@@ -213,7 +215,12 @@ export type CreateSsoConnectionInput = {
   saml_clock_skew_ms?: number
 }
 
-export type UpdateSsoConnectionInput = Omit<CreateSsoConnectionInput, 'protocol'>
+export type UpdateSsoConnectionInput = Omit<
+  CreateSsoConnectionInput,
+  'protocol' | 'display_name'
+> & {
+  display_name?: string | null
+}
 
 export type AssignmentGate = {
   mode: 'all' | 'restricted'

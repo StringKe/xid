@@ -28,7 +28,8 @@ import { list } from '../../../components/page/list-styles'
 import { ChangeRoleDialog } from '../../members/ChangeRoleDialog'
 import type { UserDetail, UserMembership } from '../user-api'
 import { useRevokeUserGrant, useUserGrants, useUserMemberships } from '../user-api'
-import { formatDate, organizationNameText } from '../user-format'
+import { organizationNameText } from '../user-format'
+import { formatDate } from '../../../lib/date-format'
 
 function AddToOrganizationDialog({
   user,

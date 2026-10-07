@@ -47,7 +47,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
-  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
+  useLingui: () => ({
+    t: (strings: TemplateStringsArray) => strings[0],
+    i18n: {
+      date: (value: Date, options: Intl.DateTimeFormatOptions) =>
+        new Intl.DateTimeFormat('en', options).format(value),
+    },
+  }),
 }))
 
 vi.mock('@xid-kit/web-ui/session', () => ({

@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { API_KEY_SCOPE_RESOURCES, type ApiKeyEnvironment } from '@xid-kit/types'
 import { Alert, Badge, Button, Checkbox, Field, Input, Select } from '@xid-kit/web-ui/ui'
@@ -86,7 +87,11 @@ function EnvBadge({ environment }: { environment: string }): ReactNode {
 
 function LastUsed({ lastUsedAt }: { lastUsedAt: string | null }): ReactNode {
   if (lastUsedAt) {
-    return <span {...stylex.props(styles.timeText)}>{new Date(lastUsedAt).toLocaleString()}</span>
+    return (
+      <span {...stylex.props(styles.timeText)}>
+        <FormattedDate value={lastUsedAt} time />
+      </span>
+    )
   }
   return (
     <span {...stylex.props(styles.mutedText)}>
@@ -169,7 +174,7 @@ function ApiKeysPage(): ReactNode {
       cell: ({ row }) =>
         row.original.expires_at ? (
           <span {...stylex.props(styles.timeText)}>
-            {new Date(row.original.expires_at).toLocaleDateString()}
+            <FormattedDate value={row.original.expires_at} />
           </span>
         ) : (
           <span {...stylex.props(styles.mutedText)}>

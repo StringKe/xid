@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { WEBHOOK_EVENT_TYPES } from '@xid-kit/types'
 import { Alert, Badge, Button, Field, Input } from '@xid-kit/web-ui/ui'
@@ -99,7 +100,7 @@ function WebhooksPage(): ReactNode {
     {
       id: 'created',
       header: () => <Trans>Created</Trans>,
-      cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
+      cell: ({ row }) => <FormattedDate value={row.original.created_at} />,
       meta: { width: '120px' },
     },
     {

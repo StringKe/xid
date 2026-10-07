@@ -1,5 +1,6 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { FormEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import {
@@ -176,7 +177,7 @@ function IncidentItem({ incident, isAppending, onAppend, onDelete }: IncidentIte
             {impactLabel(incident.impact)}
           </Badge>
           <span {...stylex.props(styles.time)}>
-            {new Date(incident.startedAt).toLocaleString()}
+            <FormattedDate value={incident.startedAt} time />
           </span>
         </div>
         {incident.updates.length ? (
@@ -184,7 +185,7 @@ function IncidentItem({ incident, isAppending, onAppend, onDelete }: IncidentIte
             {incident.updates.map((update) => (
               <li key={update.id} {...stylex.props(styles.timelineItem)}>
                 <time dateTime={update.createdAt}>
-                  {new Date(update.createdAt).toLocaleString()}
+                  <FormattedDate value={update.createdAt} time />
                 </time>
                 <span>
                   {statusLabel(update.status)}: {update.message}

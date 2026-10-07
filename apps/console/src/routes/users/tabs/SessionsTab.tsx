@@ -13,7 +13,8 @@ import { detail } from '../../../components/page/detail-styles'
 import type { UserDetail, UserSession } from '../user-api'
 import { useRevokeSession } from '../user-api'
 import { describeUserAgent } from '../user-agent'
-import { formatDateTime, formatRelative } from '../user-format'
+import { formatRelative } from '../user-format'
+import { formatDateTime } from '../../../lib/date-format'
 
 function deviceLabel(i18n: I18n, session: UserSession): string {
   const { browser, os } = describeUserAgent(session.userAgent)

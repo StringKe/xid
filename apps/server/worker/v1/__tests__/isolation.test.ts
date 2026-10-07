@@ -5709,6 +5709,126 @@ describe('org console members 契约:cookie session + org manager 门控', () =>
     })
   })
 
+  it('SSO connection 显示名默认取预设名并可通过 PATCH 修改', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_1',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+        memberships: [
+          {
+            id: 'mem_admin',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      CACHE: makeFakeKv(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+    const headers = { Cookie: `${cookieName}=${token}`, 'Content-Type': 'application/json' }
+
+    const created = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/sso-connections',
+      { method: 'POST', headers, body: JSON.stringify({ preset: 'okta' }) },
+      env,
+    )
+    const createdBody = (await created.json()) as Record<string, unknown>
+    const renamed = await app.request(
+      `https://acme.xid.dev/v1/organizations/org_1/sso-connections/${String(createdBody['id'])}`,
+      { method: 'PATCH', headers, body: JSON.stringify({ display_name: '  Northwind Okta  ' }) },
+      env,
+    )
+    const list = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/sso-connections',
+      { headers: { Cookie: `${cookieName}=${token}` } },
+      env,
+    )
+
+    expect(created.status).toBe(201)
+    expect(createdBody).toMatchObject({ name: 'Okta', display_name: 'Okta' })
+    expect(renamed.status).toBe(200)
+    await expect(list.json()).resolves.toMatchObject([
+      { name: 'Northwind Okta', display_name: 'Northwind Okta' },
+    ])
+  })
+
+  it('SSO connection 没有显示名时按预设标记回退到预设名', async () => {
+    const {
+      token,
+      cookieName,
+      row: session,
+    } = await makeSessionRow({
+      tenantId: 't_1',
+      userId: 'user_admin',
+      activeOrgId: 'org_1',
+    })
+    const env = asUnknown<Env>({
+      DB: makeFakeD1({
+        sessions: [session],
+        users: [activeUserRow('user_admin')],
+        organizations: [{ id: 'org_1', tenant_id: 't_1', status: 'active' }],
+        memberships: [
+          {
+            id: 'mem_admin',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            user_id: 'user_admin',
+            role: 'admin',
+            status: 'active',
+          },
+        ],
+        sso_connections: [
+          {
+            id: 'conn_1',
+            tenant_id: 't_1',
+            org_id: 'org_1',
+            protocol: 'saml',
+            display_name: null,
+            idp_entity_id: 'http://www.okta.com/exk123',
+            idp_sso_url: 'https://northwind.okta.com/app/exk123/sso/saml',
+            idp_certificates: [],
+            attribute_mapping: { email: 'email', _xidPreset: 'okta' },
+            role_mapping: {},
+            jit_enabled: 1,
+            status: 'active',
+            created_at: Date.now(),
+            updated_at: Date.now(),
+          },
+        ],
+      }),
+      SESSION_REVOCATION: makeFakeSessionNs([]),
+      CACHE: makeFakeKv(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+    })
+    const app = buildApp(registerOrganizationsRoutes)
+
+    const list = await app.request(
+      'https://acme.xid.dev/v1/organizations/org_1/sso-connections',
+      { headers: { Cookie: `${cookieName}=${token}` } },
+      env,
+    )
+
+    expect(list.status).toBe(200)
+    await expect(list.json()).resolves.toMatchObject([
+      { id: 'conn_1', name: 'Okta', display_name: null },
+    ])
+  })
+
   it('admin 创建 SSO connection 时拒绝非公网 IdP URL', async () => {
     const {
       token,

@@ -14,6 +14,7 @@ import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { Icon, Popover } from '@xid-kit/web-ui/ui'
 import { useManagedProjectQuery } from '../../routes/org/queries'
 import { firstLetter } from './nav-model'
+import { orderByHierarchy } from './organization-order'
 import { scope as styles } from './scope-styles'
 
 function ProjectEntry({
@@ -47,11 +48,13 @@ function ProjectEntry({
 function OrganizationRow({
   org,
   parentName,
+  nested,
   current,
   onSelect,
 }: {
   org: AuthOrg
   parentName: ReactNode | null
+  nested: boolean
   current: boolean
   onSelect: () => void
 }): ReactNode {
@@ -61,7 +64,7 @@ function OrganizationRow({
       type="button"
       aria-current={current ? 'true' : undefined}
       onClick={onSelect}
-      {...stylex.props(styles.row, current && styles.rowCurrent)}
+      {...stylex.props(styles.row, nested && styles.rowNested, current && styles.rowCurrent)}
     >
       <span aria-hidden="true" {...stylex.props(styles.rowMark, current && styles.rowMarkCurrent)}>
         {firstLetter(org.name ?? org.slug)}
@@ -105,12 +108,15 @@ export function ScopeSwitcher({
   const [query, setQuery] = useState('')
   const manageable = organizations.filter((org) => isOrgManagerRole(org.role))
   const needle = query.trim().toLowerCase()
-  const matches = manageable.filter(
-    (org) =>
-      needle === '' ||
-      org.name.toLowerCase().includes(needle) ||
-      org.slug.toLowerCase().includes(needle),
+  const matches = orderByHierarchy(
+    manageable.filter(
+      (org) =>
+        needle === '' ||
+        org.name.toLowerCase().includes(needle) ||
+        org.slug.toLowerCase().includes(needle),
+    ),
   )
+  const matchIds = new Set(matches.map((org) => org.id))
   const delegatedProjects = managerAssignments.filter(
     (assignment) =>
       assignment.managerRole === 'project_manager' && assignment.scopeStatus === 'active',
@@ -175,6 +181,7 @@ export function ScopeSwitcher({
                 <OrganizationRow
                   key={org.id}
                   org={org}
+                  nested={org.parentOrgId !== null && matchIds.has(org.parentOrgId)}
                   current={org.id === activeOrg?.id}
                   parentName={parent ? organizationDisplayName(parent) : null}
                   onSelect={() => {

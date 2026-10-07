@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, EmptyState, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import {
@@ -110,7 +111,7 @@ export default function PlatformUsers(): ReactNode {
     {
       id: 'created',
       header: () => <Trans>Created</Trans>,
-      cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+      cell: ({ row }) => <FormattedDate value={row.original.createdAt} />,
       meta: { width: '120px' },
     },
     {

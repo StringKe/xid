@@ -142,6 +142,9 @@ export const scope = stylex.create({
   rowCurrent: {
     backgroundColor: tokens['--xid-muted'],
   },
+  rowNested: {
+    paddingInlineStart: '1.75rem',
+  },
   rowMark: {
     display: 'inline-flex',
     alignItems: 'center',

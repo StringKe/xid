@@ -100,16 +100,6 @@ export function userDisplayName(
   return user.primaryEmail ?? user.primaryPhone ?? user.id
 }
 
-export function formatDate(i18n: I18n, value: string | null | undefined): string | null {
-  if (!value) return null
-  return i18n.date(new Date(value), { dateStyle: 'medium' })
-}
-
-export function formatDateTime(i18n: I18n, value: string | null | undefined): string | null {
-  if (!value) return null
-  return i18n.date(new Date(value), { dateStyle: 'medium', timeStyle: 'short' })
-}
-
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR

@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Button, Field, Input, Select, Textarea } from '@xid-kit/web-ui/ui'
 import {
@@ -302,7 +303,7 @@ export default function OrgRoles({
       id: 'deleted',
       header: () => <Trans>Deleted</Trans>,
       cell: ({ row }) =>
-        row.original.deleted_at ? new Date(row.original.deleted_at).toLocaleDateString() : '-',
+        row.original.deleted_at ? <FormattedDate value={row.original.deleted_at} /> : '-',
       meta: { width: '120px' },
     },
     {
@@ -332,7 +333,7 @@ export default function OrgRoles({
       id: 'deleted',
       header: () => <Trans>Deleted</Trans>,
       cell: ({ row }) =>
-        row.original.deleted_at ? new Date(row.original.deleted_at).toLocaleDateString() : '-',
+        row.original.deleted_at ? <FormattedDate value={row.original.deleted_at} /> : '-',
       meta: { width: '120px' },
     },
     {

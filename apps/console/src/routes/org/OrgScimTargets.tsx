@@ -3,6 +3,7 @@ import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTab
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { XidError } from '@xid-kit/types'
 import { Alert, Badge, Button, Field, Input, Select } from '@xid-kit/web-ui/ui'
 import {
@@ -126,7 +127,7 @@ const columns: ColumnDef<ScimTarget>[] = [
     id: 'sync',
     header: () => <Trans>Last successful sync</Trans>,
     cell: ({ row }) =>
-      row.original.lastSyncAt ? new Date(row.original.lastSyncAt).toLocaleString() : '—',
+      row.original.lastSyncAt ? <FormattedDate value={row.original.lastSyncAt} time /> : '-',
   },
   {
     id: 'gate',

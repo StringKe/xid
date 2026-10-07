@@ -7,7 +7,7 @@ import { IdentityCell } from '@xid-kit/web-ui/ui'
 import type { DataTableColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { list } from '../../components/page/list-styles'
-import { formatDate } from '../users/user-format'
+import { formatDate } from '../../lib/date-format'
 import type { AppRecord } from './app-api'
 import { clientSummary, consentSummary, kindLabel } from './app-format'
 

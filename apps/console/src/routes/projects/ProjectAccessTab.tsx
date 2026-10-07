@@ -25,7 +25,7 @@ import {
   useProjectRolesQuery,
   useRevokeProjectGrant,
 } from '../org/queries'
-import { formatDate } from '../users/user-format'
+import { formatDate } from '../../lib/date-format'
 import type { ProjectRecord } from './project-api'
 import {
   useGiveRole,

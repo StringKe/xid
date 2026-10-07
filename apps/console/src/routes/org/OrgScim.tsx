@@ -12,6 +12,7 @@ import {
 import { DataTable } from '@xid-kit/web-ui/ui/DataTable'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { statusToneFor, useDirectoryStatusLabel } from '@xid-kit/web-ui/enum-labels'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import type { XidError } from '@xid-kit/types'
@@ -24,6 +25,8 @@ import {
 } from './queries'
 import type { ScimDirectory } from './types'
 import { useOrgTarget } from './useOrgTarget'
+import { scimProviderLabel } from './scim-provider-label'
+import { formatDateTime } from '../../lib/date-format'
 
 const styles = stylex.create({
   formRow: {
@@ -61,12 +64,14 @@ type IssuedToken = {
 }
 
 function ScimStatus({ status }: { status: ScimDirectory['status'] }): ReactNode {
-  return <Badge tone={status === 'active' ? 'success' : 'neutral'}>{status}</Badge>
+  const label = useDirectoryStatusLabel()
+  return <Badge tone={statusToneFor(status)}>{label(status)}</Badge>
 }
 
 function LastSync({ lastSyncAt }: { lastSyncAt: string | null }): ReactNode {
+  const { i18n } = useLingui()
   if (lastSyncAt) {
-    return <>{new Date(lastSyncAt).toLocaleString()}</>
+    return <>{formatDateTime(i18n, lastSyncAt)}</>
   }
   return (
     <span {...stylex.props(styles.mutedText)}>
@@ -76,9 +81,8 @@ function LastSync({ lastSyncAt }: { lastSyncAt: string | null }): ReactNode {
 }
 
 function IssuedTokenNotice({ issued }: { issued: IssuedToken }): ReactNode {
-  const expiresAt = issued.previousTokenExpiresAt
-    ? new Date(issued.previousTokenExpiresAt).toLocaleString()
-    : null
+  const { i18n } = useLingui()
+  const expiresAt = formatDateTime(i18n, issued.previousTokenExpiresAt)
   return (
     <div {...stylex.props(styles.tokenSection)}>
       <Alert tone="success">
@@ -98,7 +102,7 @@ function IssuedTokenNotice({ issued }: { issued: IssuedToken }): ReactNode {
 }
 
 export default function OrgScim(): ReactNode {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const errorMessage = useApiErrorMessage()
   const { orgId } = useOrgTarget()
   const { data, isLoading, isError } = useOrgScimDirectoriesQuery(orgId)
@@ -112,12 +116,10 @@ export default function OrgScim(): ReactNode {
   const baseUrl = directories[0]?.scimBaseUrl ?? null
 
   const columns: ColumnDef<ScimDirectory>[] = [
-    { id: 'name', header: () => <Trans>Name</Trans>, cell: ({ row }) => row.original.name },
     {
       id: 'provider',
       header: () => <Trans>Provider</Trans>,
-      cell: ({ row }) => row.original.provider,
-      meta: { width: '140px' },
+      cell: ({ row }) => scimProviderLabel(i18n, row.original.provider),
     },
     {
       id: 'status',
@@ -155,7 +157,7 @@ export default function OrgScim(): ReactNode {
           >
             <Trans>Rotate token</Trans>
           </Button>
-          <Button variant="danger" onClick={() => setPendingDelete(row.original)}>
+          <Button variant="ghost" onClick={() => setPendingDelete(row.original)}>
             <Trans>Delete</Trans>
           </Button>
         </div>
@@ -194,6 +196,7 @@ export default function OrgScim(): ReactNode {
     )
   }
 
+  const pendingDeleteName = pendingDelete ? scimProviderLabel(i18n, pendingDelete.name) : ''
   const actionError: XidError | null =
     createDirectory.error ?? rotateToken.error ?? deleteDirectory.error ?? null
 
@@ -280,7 +283,7 @@ export default function OrgScim(): ReactNode {
           title={<Trans>Delete SCIM directory?</Trans>}
           description={
             <Trans>
-              {pendingDelete.name} stops accepting SCIM requests immediately, including the previous
+              {pendingDeleteName} stops accepting SCIM requests immediately, including the previous
               token. Users it already provisioned keep their accounts.
             </Trans>
           }

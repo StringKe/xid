@@ -1,5 +1,6 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { FormEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import {
@@ -368,7 +369,7 @@ export default function PlatformAnnouncements(): ReactNode {
                         {severityLabel(announcement.severity)}
                       </Badge>
                       <span {...stylex.props(styles.time)}>
-                        {new Date(announcement.startsAt).toLocaleString()}
+                        <FormattedDate value={announcement.startsAt} time />
                       </span>
                     </div>
                   </div>

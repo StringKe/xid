@@ -86,6 +86,7 @@ import {
   INBOUND_IDP_PRESETS,
   LEGACY_INBOUND_PRESETS,
   OUTBOUND_SAAS_PRESETS,
+  inboundPresetDisplayName,
   presetKeyFromAttributeMapping,
   withPresetAttributeMapping,
   type InboundIdpPresetKey,
@@ -160,9 +161,17 @@ const patchOrgBodySchema = v.object({
 // 字段级语义由 domain normalize 处理,schema 不做字段约束。
 const policyPatchBodySchema = v.record(v.string(), v.unknown())
 
+const ssoConnectionDisplayNameSchema = v.pipe(
+  v.string(),
+  v.trim(),
+  v.minLength(1),
+  v.maxLength(100),
+)
+
 const createSsoConnectionBodySchema = v.object({
   preset: v.optional(v.string()),
   protocol: v.optional(v.string()),
+  display_name: v.optional(ssoConnectionDisplayNameSchema),
   idp_entity_id: v.optional(v.string()),
   idp_sso_url: v.optional(publicHttpsUrlSchema),
   idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
@@ -182,6 +191,7 @@ const createSsoConnectionBodySchema = v.object({
 })
 
 const patchSsoConnectionBodySchema = v.object({
+  display_name: v.optional(v.nullable(ssoConnectionDisplayNameSchema)),
   idp_entity_id: v.optional(v.string()),
   idp_sso_url: v.optional(publicHttpsUrlSchema),
   idp_slo_url: v.optional(v.nullable(publicHttpsUrlSchema)),
@@ -989,9 +999,16 @@ function toConsoleSsoConnection(
   const attributeMapping = Object.fromEntries(
     Object.entries(row.attributeMapping).filter(([key]) => !key.startsWith('_')),
   )
+  const presetName = inboundPresetDisplayName(presetKeyFromAttributeMapping(row.attributeMapping))
   return {
     id: row.id,
-    name: row.idpEntityId ?? row.oidcDiscoveryUrl ?? row.protocol.toUpperCase(),
+    name:
+      row.displayName ??
+      presetName ??
+      row.idpEntityId ??
+      row.oidcDiscoveryUrl ??
+      row.protocol.toUpperCase(),
+    display_name: row.displayName,
     type: isInboundSsoProtocol(row.protocol) ? row.protocol : 'saml',
     domain: row.idpSsoUrl ?? row.oidcDiscoveryUrl ?? '',
     idp_entity_id: row.idpEntityId,
@@ -1123,6 +1140,7 @@ app.post('/:id/sso-connections', async (c) => {
   assertOptionalPublicHttpsUrl(oidcDiscoveryUrl, 'oidc_discovery_url')
   const patch = {
     protocol,
+    displayName: body.display_name ?? preset?.displayName ?? legacyPreset?.displayName ?? null,
     idpEntityId: body.idp_entity_id ?? preset?.idpEntityId,
     idpSsoUrl,
     idpSloUrl,
@@ -1184,6 +1202,7 @@ app.patch('/:id/sso-connections/:connectionId', async (c) => {
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
 
   const patch: Partial<typeof schema.ssoConnections.$inferInsert> = {}
+  if (body.display_name !== undefined) patch.displayName = body.display_name
   if (body.idp_entity_id !== undefined) patch.idpEntityId = body.idp_entity_id
   if (body.idp_sso_url !== undefined) patch.idpSsoUrl = body.idp_sso_url
   if (body.idp_slo_url !== undefined) patch.idpSloUrl = body.idp_slo_url

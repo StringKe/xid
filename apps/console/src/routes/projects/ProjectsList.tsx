@@ -31,7 +31,7 @@ import type { Project } from '../org/types'
 import { useOrgTarget } from '../org/useOrgTarget'
 import { useApplications } from '../applications/app-api'
 import { kindLabel } from '../applications/app-format'
-import { formatDate } from '../users/user-format'
+import { formatDate } from '../../lib/date-format'
 import { withOrgId } from '../users/UsersList'
 
 function CreateProjectDialog({

@@ -1,5 +1,6 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import * as stylex from '@stylexjs/stylex'
+import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -94,7 +95,7 @@ export default function PlatformDeadLetters(): ReactNode {
         header: () => <Trans>Failed at</Trans>,
         cell: ({ row }) => (
           <span {...stylex.props(styles.time)}>
-            {new Date(row.original.failedAt).toLocaleString()}
+            <FormattedDate value={row.original.failedAt} time />
           </span>
         ),
         meta: { width: '160px' },

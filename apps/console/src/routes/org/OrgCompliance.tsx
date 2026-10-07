@@ -10,6 +10,7 @@ import { useAcceptDpa, useOrgComplianceDocumentsQuery } from './queries'
 import { TenantScopeGate } from './TenantScopeGate'
 import type { OrgComplianceDocument } from './types'
 import { useOrgTarget } from './useOrgTarget'
+import { formatDateTime } from '../../lib/date-format'
 
 const styles = stylex.create({
   list: {
@@ -90,6 +91,7 @@ function EvidenceRow({
   document: OrgComplianceDocument
   accept: ReturnType<typeof useAcceptDpa>
 }): ReactNode {
+  const { i18n } = useLingui()
   const isDpa = document.documentType === 'dpa'
   return (
     <article {...stylex.props(styles.row)}>
@@ -109,7 +111,7 @@ function EvidenceRow({
         </div>
         {document.acceptedAt ? (
           <p {...stylex.props(styles.detail)}>
-            <Trans>Accepted on {new Date(document.acceptedAt).toLocaleString()}.</Trans>
+            <Trans>Accepted on {formatDateTime(i18n, document.acceptedAt)}.</Trans>
           </p>
         ) : null}
         {document.checksum ? (

@@ -6,6 +6,7 @@ import * as stylex from '@stylexjs/stylex'
 import { Badge } from '@xid-kit/web-ui/ui'
 import { tokens } from '@xid-kit/web-ui/styles/tokens.stylex'
 import type { ScimTarget } from './types'
+import { formatDateTime } from '../../lib/date-format'
 
 const styles = stylex.create({
   stack: {
@@ -69,7 +70,8 @@ function RunBadge({ status }: { status: ScimTarget['lastRunStatus'] }): ReactNod
 }
 
 export function ScimTargetRunState({ target }: { target: ScimTarget }): ReactNode {
-  const runAt = target.lastRunAt ? new Date(target.lastRunAt).toLocaleString() : null
+  const { i18n } = useLingui()
+  const runAt = formatDateTime(i18n, target.lastRunAt)
   return (
     <div {...stylex.props(styles.stack)}>
       <RunBadge status={target.lastRunStatus} />
