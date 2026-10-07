@@ -35,7 +35,7 @@ function ctx(overrides: Partial<PreAccessTokenContext> = {}): PreAccessTokenCont
   return {
     user: {
       id: 'u_1',
-      public_metadata: { plan: 'enterprise', tier: 'gold' },
+      public_metadata: { department: 'finance', tier: 'gold' },
       unsafe_metadata: {},
     },
     org: { id: 'org_b', slug: 'acme', public_metadata: { status: 'active' } },
@@ -54,10 +54,10 @@ describe('evalCondition (ABAC 7.3)', () => {
 
   it('eq matches and mismatches', () => {
     expect(
-      evalCondition({ op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise' }, ctx()),
+      evalCondition({ op: 'eq', var: 'user.public_metadata.department', value: 'finance' }, ctx()),
     ).toBe(true)
     expect(
-      evalCondition({ op: 'eq', var: 'user.public_metadata.plan', value: 'free' }, ctx()),
+      evalCondition({ op: 'eq', var: 'user.public_metadata.department', value: 'support' }, ctx()),
     ).toBe(false)
   })
 
@@ -110,7 +110,7 @@ describe('evalCondition (ABAC 7.3)', () => {
   it('AND requires all true', () => {
     const expr = {
       and: [
-        { op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise' },
+        { op: 'eq', var: 'user.public_metadata.department', value: 'finance' },
         { op: 'not_in', var: 'org.public_metadata.status', value: ['suspended'] },
       ],
     }
@@ -120,7 +120,7 @@ describe('evalCondition (ABAC 7.3)', () => {
   it('AND false when one child false', () => {
     const expr = {
       and: [
-        { op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise' },
+        { op: 'eq', var: 'user.public_metadata.department', value: 'finance' },
         { op: 'eq', var: 'org.public_metadata.status', value: 'suspended' },
       ],
     }
@@ -129,7 +129,7 @@ describe('evalCondition (ABAC 7.3)', () => {
 
   it('unknown operator -> null (配置错误)', () => {
     expect(
-      evalCondition({ op: 'gt', var: 'user.public_metadata.plan', value: 1 }, ctx()),
+      evalCondition({ op: 'gt', var: 'user.public_metadata.department', value: 1 }, ctx()),
     ).toBeNull()
   })
 
@@ -146,14 +146,14 @@ describe('evalCondition (ABAC 7.3)', () => {
     expect(evalCondition({ and: [] }, ctx())).toBeNull()
     expect(
       evalCondition(
-        { op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise', allow: true },
+        { op: 'eq', var: 'user.public_metadata.department', value: 'finance', allow: true },
         ctx(),
       ),
     ).toBeNull()
     expect(
       evalCondition(
         {
-          and: [{ op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise' }],
+          and: [{ op: 'eq', var: 'user.public_metadata.department', value: 'finance' }],
           allow: true,
         },
         ctx(),
@@ -163,10 +163,13 @@ describe('evalCondition (ABAC 7.3)', () => {
 
   it('in and not_in require array operands', () => {
     expect(
-      evalCondition({ op: 'in', var: 'user.public_metadata.plan', value: 'enterprise' }, ctx()),
+      evalCondition({ op: 'in', var: 'user.public_metadata.department', value: 'finance' }, ctx()),
     ).toBeNull()
     expect(
-      evalCondition({ op: 'not_in', var: 'user.public_metadata.plan', value: 'free' }, ctx()),
+      evalCondition(
+        { op: 'not_in', var: 'user.public_metadata.department', value: 'support' },
+        ctx(),
+      ),
     ).toBeNull()
   })
 })
@@ -177,11 +180,11 @@ describe('applyConditions (7.2)', () => {
       { key: 'document:read', condition: null },
       {
         key: 'document:read',
-        condition: { op: 'eq', var: 'user.public_metadata.plan', value: 'free' },
+        condition: { op: 'eq', var: 'user.public_metadata.department', value: 'support' },
       },
       {
         key: 'billing:manage',
-        condition: { op: 'eq', var: 'user.public_metadata.plan', value: 'enterprise' },
+        condition: { op: 'eq', var: 'user.public_metadata.department', value: 'finance' },
       },
       { key: 'admin:all', condition: { op: 'bogus', var: 'x', value: 1 } },
       { key: 'legacy:broken', condition: null, invalidCondition: true },
@@ -194,9 +197,9 @@ describe('applyConditions (7.2)', () => {
 
 describe('mergeExtraClaims (7.1 step 3)', () => {
   it('merges non-reserved keys', () => {
-    const r = mergeExtraClaims({ permissions: [] }, { foo: 'bar', tenant_tier: 'gold' })
+    const r = mergeExtraClaims({ permissions: [] }, { foo: 'bar', tenant_region: 'eu' })
     expect(r.ok).toBe(true)
-    if (r.ok) expect(r.value).toEqual({ permissions: [], foo: 'bar', tenant_tier: 'gold' })
+    if (r.ok) expect(r.value).toEqual({ permissions: [], foo: 'bar', tenant_region: 'eu' })
   })
 
   it('rejects reserved IANA claim key', () => {
@@ -344,7 +347,7 @@ describe('buildRbacClaims soft delete gate', () => {
                 avatar_url: null,
                 locale: null,
                 timezone: null,
-                public_metadata: JSON.stringify({ plan: 'deleted-user-plan' }),
+                public_metadata: JSON.stringify({ department: 'deleted-user-department' }),
                 private_metadata: JSON.stringify({}),
                 unsafe_metadata: JSON.stringify({ internal: 'deleted-user-secret' }),
                 custom_attributes: JSON.stringify({}),
@@ -387,11 +390,11 @@ describe('buildRbacClaims soft delete gate', () => {
         activeOrg: null,
       },
       hook: async (hookCtx) => ({
-        extra_claims: { seen_plan: hookCtx.user.public_metadata['plan'] ?? null },
+        extra_claims: { seen_department: hookCtx.user.public_metadata['department'] ?? null },
       }),
     })
 
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.value['seen_plan']).toBeNull()
+    if (result.ok) expect(result.value['seen_department']).toBeNull()
   })
 })

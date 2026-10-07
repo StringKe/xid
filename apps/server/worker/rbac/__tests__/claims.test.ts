@@ -25,7 +25,9 @@ const TENANT: TenantContext = {
   policy: {},
 }
 
-function activeUserD1(publicMetadata: Record<string, unknown> = { plan: 'pro' }): D1Database {
+function activeUserD1(
+  publicMetadata: Record<string, unknown> = { department: 'finance' },
+): D1Database {
   const now = Date.now()
   const userRow = {
     id: 'u_1',
@@ -181,7 +183,7 @@ describe('buildRbacClaims hook merge safety', () => {
 
   it('passes user public_metadata into hook context for ABAC', async () => {
     const result = await buildRbacClaims({
-      d1: activeUserD1({ tier: 'gold', plan: 'enterprise' }),
+      d1: activeUserD1({ tier: 'gold', department: 'finance' }),
       ctx: TENANT,
       env: asUnknown<Env>({}),
       input: {
