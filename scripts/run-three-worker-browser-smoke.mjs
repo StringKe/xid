@@ -591,12 +591,40 @@ async function assertAuthenticatedConsole(page, options) {
 }
 
 async function switchLocales(page, origin) {
-  const options = await page.evaluate(`(() => {
-    const select = Array.from(document.querySelectorAll('select')).find((candidate) =>
-      Array.from(candidate.options).some((option) => option.value === 'pt-BR')
-    );
-    return select ? Array.from(select.options).map((option) => option.value) : [];
+  const visibleLocaleTrigger = `Array.from(document.querySelectorAll('[data-locale-menu-trigger]'))
+    .map((label) => label.closest('button'))
+    .find((button) => button && button.offsetParent !== null)`
+  // Below the desktop breakpoint the language menu lives in the navigation drawer.
+  const hasVisibleTrigger = await page.evaluate(`Boolean(${visibleLocaleTrigger})`)
+  if (!hasVisibleTrigger) {
+    await page.evaluate(`(() => {
+      const menu = Array.from(document.querySelectorAll('[data-console-menu-trigger]')).find(
+        (button) => button.offsetParent !== null
+      );
+      menu?.click();
+      return Boolean(menu);
+    })()`)
+    await page.waitFor(
+      () =>
+        Array.from(document.querySelectorAll('[data-locale-menu-trigger]')).some(
+          (label) => label.closest('button')?.offsetParent !== null,
+        ),
+      'Console navigation drawer locale menu',
+    )
+  }
+  const opened = await page.evaluate(`(() => {
+    const trigger = ${visibleLocaleTrigger};
+    trigger?.click();
+    return Boolean(trigger);
   })()`)
+  if (!opened) throw new Error('Console locale menu trigger missing')
+  await page.waitFor(
+    () => document.querySelector('[role="menu"] [data-locale]') !== null,
+    'Console locale menu',
+  )
+  const options = await page.evaluate(
+    `Array.from(document.querySelectorAll('[role="menu"] [data-locale]')).map((item) => item.dataset.locale)`,
+  )
   if (JSON.stringify(options) !== JSON.stringify(SUPPORTED_LOCALES)) {
     throw new Error(`Console locale options mismatch: ${JSON.stringify(options)}`)
   }

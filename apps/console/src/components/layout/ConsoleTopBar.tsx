@@ -33,12 +33,18 @@ function LanguageMenu(): ReactNode {
           <span aria-hidden="true" {...stylex.props(styles.icon)}>
             <Icon name="globe" size={16} />
           </span>
-          <span {...stylex.props(styles.ghostLabel)}>{LOCALE_LABELS[locale]}</span>
+          <span data-locale-menu-trigger="" {...stylex.props(styles.ghostLabel)}>
+            {LOCALE_LABELS[locale]}
+          </span>
         </>
       }
       items={SUPPORTED_LOCALES.map((candidate) => ({
         key: candidate,
-        label: LOCALE_LABELS[candidate],
+        label: (
+          <span lang={candidate} data-locale={candidate}>
+            {LOCALE_LABELS[candidate]}
+          </span>
+        ),
         checked: candidate === locale,
         onSelect: () => {
           if (candidate === locale) return
@@ -127,6 +133,7 @@ export function ConsoleTopBar(props: ConsoleTopBarProps): ReactNode {
         <button
           type="button"
           onClick={props.onOpenMenu}
+          data-console-menu-trigger=""
           {...stylex.props(styles.menuButton, styles.menuButtonRegular)}
         >
           <Icon name="menu" size={16} />
@@ -204,6 +211,7 @@ export function ConsoleTopBar(props: ConsoleTopBarProps): ReactNode {
         <button
           type="button"
           onClick={props.onOpenMenu}
+          data-console-menu-trigger=""
           {...stylex.props(styles.menuButton, styles.narrowOnly)}
         >
           <Icon name="menu" size={18} />
