@@ -30,6 +30,16 @@ import { registerUsersRoutes } from '../users'
 import { isAppError } from '../../lib/errors'
 import { rtCookieName } from '../../lib/cookies'
 import { checkInvitationRateLimit, emitWebhookAsync } from '../shared'
+import { registerAccountRoutes } from '../../me'
+import { makeSession as makeAccountSession } from '../../me/__tests__/harness'
+import {
+  seedEmail,
+  seedMembership,
+  seedOrganization,
+  seedUser,
+  SqliteD1,
+} from '../../me/__tests__/sqlite-d1'
+import { makeRateLimitNs } from '../../me-auth/__tests__/helpers'
 
 const TENANT: TenantContext = {
   tenantId: 't_1',
@@ -9225,5 +9235,138 @@ describe('Console 组织页契约:webhook 订阅、API key、品牌、域名、�
     } finally {
       sqlite.close()
     }
+  })
+})
+
+describe('account portal /v1/me 资源跨租户隔离', () => {
+  // 组织 A(t_1)用户的会话去操作组织 B(t_2)的资源:一律 404,租户 B 的数据不变。
+  function seedTwoTenants(): SqliteD1 {
+    const db = new SqliteD1()
+    seedOrganization(db, { id: 't_1', tenantId: 't_1' })
+    seedOrganization(db, { id: 't_2', tenantId: 't_2' })
+    seedUser(db, { id: 'user_a', tenantId: 't_1', primaryEmail: 'a@tenant-a.test' })
+    seedUser(db, { id: 'user_b', tenantId: 't_2', primaryEmail: 'b@tenant-b.test' })
+    seedEmail(db, {
+      id: 'em_b2',
+      tenantId: 't_2',
+      userId: 'user_b',
+      email: 'b2@tenant-b.test',
+      verified: false,
+    })
+    seedMembership(db, { id: 'mem_b', tenantId: 't_2', orgId: 't_2', userId: 'user_b' })
+    db.insert('user_phones', {
+      id: 'ph_b',
+      tenant_id: 't_2',
+      user_id: 'user_b',
+      phone: '+14155550199',
+      verified: 1,
+      verification_status: 'verified',
+      is_primary: 1,
+      created_at: 1,
+      updated_at: 1,
+    })
+    db.insert('oauth_consents', {
+      id: 'consent_b',
+      tenant_id: 't_2',
+      user_id: 'user_b',
+      client_id: 'client_b',
+      granted_scopes: '["openid"]',
+      created_at: 1,
+      updated_at: 1,
+    })
+    db.insert('passkey_credentials', {
+      id: 'pk_b',
+      tenant_id: 't_2',
+      user_id: 'user_b',
+      credential_id: 'cred_b',
+      public_key: new Uint8Array([1]),
+      cose_alg: -7,
+      aaguid: new Uint8Array(16),
+      credential_device_type: 'multiDevice',
+      created_at: 1,
+      updated_at: 1,
+    })
+    return db
+  }
+
+  function accountApp(): Hono<XidHonoEnv> {
+    const app = new Hono<XidHonoEnv>()
+    app.onError((err, c) =>
+      isAppError(err)
+        ? c.json({ code: err.code }, err.httpStatus as 400)
+        : c.json({ code: 'server_error' }, 500),
+    )
+    app.use('*', async (c, next) => {
+      c.set('tenant', TENANT)
+      c.set('session', makeAccountSession({ userId: 'user_a' }))
+      await next()
+    })
+    registerAccountRoutes(app)
+    return app
+  }
+
+  function accountEnv(db: SqliteD1): Env {
+    return asUnknown<Env>({
+      DB: db.asD1(),
+      PEPPER: 'v1:3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d',
+      AUDIT_QUEUE: makeFakeQueue(),
+      WEBHOOK_QUEUE: makeFakeQueue(),
+      RATE_LIMITER: makeRateLimitNs(),
+    })
+  }
+
+  it.each([
+    ['POST', '/v1/me/emails/em_b2/primary'],
+    ['POST', '/v1/me/emails/em_b2/send-code'],
+    ['DELETE', '/v1/me/emails/em_b2'],
+    ['DELETE', '/v1/me/phones/ph_b'],
+    ['DELETE', '/v1/me/authorized-apps/client_b'],
+    ['POST', '/v1/me/organizations/t_2/leave'],
+  ])('%s %s against tenant B returns 404 and leaves it unchanged', async (method, path) => {
+    const db = seedTwoTenants()
+
+    const res = await accountApp().request(
+      `https://acme.xid.dev${path}`,
+      { method },
+      accountEnv(db),
+    )
+
+    expect(res.status).toBe(404)
+    expect(db.rows('SELECT id FROM user_emails WHERE tenant_id = ? ORDER BY id', 't_2')).toEqual([
+      { id: 'em_b2' },
+      { id: 'em_user_b' },
+    ])
+    expect(db.rows('SELECT id FROM user_phones')).toEqual([{ id: 'ph_b' }])
+    expect(db.rows('SELECT id FROM oauth_consents')).toEqual([{ id: 'consent_b' }])
+    expect(db.rows('SELECT status FROM memberships')).toEqual([{ status: 'active' }])
+    expect(db.rows('SELECT primary_email_id FROM users WHERE id = ?', 'user_b')).toEqual([
+      { primary_email_id: 'em_user_b' },
+    ])
+  })
+
+  it.each([
+    ['/v1/me/emails', { data: [{ email: 'a@tenant-a.test' }] }],
+    ['/v1/me/phones', { data: [] }],
+    ['/v1/me/authorized-apps', []],
+  ])('GET %s lists only tenant A records', async (path, expected) => {
+    const db = seedTwoTenants()
+
+    const res = await accountApp().request(`https://acme.xid.dev${path}`, {}, accountEnv(db))
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject(expected)
+  })
+
+  it('GET /v1/me/passkeys/signal never returns tenant B credential ids', async () => {
+    const db = seedTwoTenants()
+
+    const res = await accountApp().request(
+      'https://acme.xid.dev/v1/me/passkeys/signal',
+      {},
+      accountEnv(db),
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ allAcceptedCredentialIds: [] })
   })
 })
