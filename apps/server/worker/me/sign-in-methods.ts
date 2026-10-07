@@ -1,4 +1,4 @@
-// 删除 passkey 或断开社交身份前确认用户仍能登录,避免把自己锁在账号外。
+// 删除 passkey、断开社交身份、移除邮箱或手机号前确认用户仍能登录,避免把自己锁在账号外。
 // 已验证邮箱或手机只在租户当前允许对应登录方式(手机还要求发送渠道就绪)时才算作可用的登录方式。
 
 import { createTenantDb, schema } from '@xid-kit/db'
@@ -14,7 +14,10 @@ import type { TenantVar, XidHonoEnv } from '../lib/types'
 
 type TenantDb = ReturnType<typeof createTenantDb>
 
-export type RemovedSignInMethod = { kind: 'passkey'; id: string } | { kind: 'identity'; id: string }
+export type RemovedSignInMethod = {
+  kind: 'passkey' | 'identity' | 'email' | 'phone'
+  id: string
+}
 
 function methodAllowsLogin(tenant: TenantVar, method: HostedAuthMethod): boolean {
   try {
@@ -30,24 +33,27 @@ function methodAllowsLogin(tenant: TenantVar, method: HostedAuthMethod): boolean
 async function hasEmailOrPhoneSignIn(
   c: Context<XidHonoEnv>,
   db: TenantDb,
-  userId: string,
+  input: { userId: string; removed: RemovedSignInMethod },
 ): Promise<boolean> {
+  const { userId, removed } = input
   const tenant = c.get('tenant')
   const emailMethods: HostedAuthMethod[] = ['magicLink', 'emailOtp', 'password']
   if (emailMethods.some((method) => methodAllowsLogin(tenant, method))) {
-    const email = await db.userEmails.findOne(
+    const emails = await db.userEmails.findMany(
       and(eq(schema.userEmails.userId, userId), eq(schema.userEmails.verified, true)),
+      { limit: 2 },
     )
-    if (email) return true
+    if (emails.some((row) => removed.kind !== 'email' || row.id !== removed.id)) return true
   }
   const phoneLogin =
     (smsDeliveryReady(tenant, c.env) && methodAllowsLogin(tenant, 'smsOtp')) ||
     (whatsappDeliveryReady(tenant, c.env) && methodAllowsLogin(tenant, 'whatsappOtp'))
   if (!phoneLogin) return false
-  const phone = await db.userPhones.findOne(
+  const phones = await db.userPhones.findMany(
     and(eq(schema.userPhones.userId, userId), eq(schema.userPhones.verified, true)),
+    { limit: 2 },
   )
-  return Boolean(phone)
+  return phones.some((row) => removed.kind !== 'phone' || row.id !== removed.id)
 }
 
 export async function hasOtherSignInMethod(
@@ -76,5 +82,5 @@ export async function hasOtherSignInMethod(
   if (passwords > 0) return true
   if (passkeys.some(isRemaining('passkey'))) return true
   if (identities.some(isRemaining('identity'))) return true
-  return hasEmailOrPhoneSignIn(c, db, userId)
+  return hasEmailOrPhoneSignIn(c, db, { userId, removed })
 }

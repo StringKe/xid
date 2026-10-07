@@ -16,10 +16,14 @@ import { registerPasswordRoutes } from './password'
 import { registerPrivacyRoutes } from './privacy'
 import { registerAuthorizedAppsRoutes } from './authorized-apps'
 import { registerMeOrganizationsRoutes } from './organizations'
+import { registerEmailsRoutes } from './emails'
+import { registerPhonesRoutes } from './phones'
 
 export function registerAccountRoutes(app: Hono<XidHonoEnv>): void {
   // 先挂更具体的 /v1/me/* 前缀,再挂 /v1/me(GET /),避免聚合端点遮挡子资源路径。
   registerProfileRoutes(app)
+  registerEmailsRoutes(app)
+  registerPhonesRoutes(app)
   registerAuthorizedAppsRoutes(app)
   registerMeOrganizationsRoutes(app)
   registerPasskeysRoutes(app)
