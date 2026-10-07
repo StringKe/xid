@@ -5,14 +5,11 @@ import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout, type AuthContextCopy } from '../../components/layout'
-import { Button, Notice, Spinner } from '../../components/ui'
-import { AuthHeading } from '../../components/hosted/AuthHeading'
-import { AccountChip } from '../../components/hosted/IdentityChip'
+import { Spinner } from '../../components/ui'
 import { hosted } from '../../components/hosted/hosted-styles'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useAuth } from '../../lib/auth-context'
 import { trackInvitationAccepted } from '../../lib/google-analytics-funnel'
-import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { page } from '../../styles/product-surface.stylex'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
@@ -29,10 +26,10 @@ import {
 import {
   CheckEmailView,
   ClaimConfirmView,
-  InvitationDetails,
   InvitationProblem,
   type InvitationPreview,
 } from './InvitationViews'
+import { InvitationPreviewView } from './InvitationPreviewView'
 
 type InvitationPageStatus =
   | 'loading'
@@ -221,16 +218,6 @@ export function AcceptInvitationPage(): ReactNode {
                 ? 'check-email'
                 : 'preview'
 
-  const signedInAsInvitee =
-    user !== null &&
-    user.emailVerified &&
-    data?.email !== null &&
-    data?.email !== undefined &&
-    user.email.trim().toLowerCase() === data.email.trim().toLowerCase()
-  // 普通登录后回到本页由现有账号接受;invitation_token 会把登录页切到邮件认领(新账号)流程。
-  const signInToAcceptPath = `/sign-in?${new URLSearchParams({
-    continue: `/accept-invitation?${new URLSearchParams({ token: rawToken ?? '' }).toString()}`,
-  }).toString()}`
   const turnstileRequired = authConfig.turnstileSiteKey !== null
   const waitingForAuthConfig = authConfigEnabled && authConfigQuery.isPending
   const claimStartDisabled =
@@ -242,68 +229,6 @@ export function AcceptInvitationPage(): ReactNode {
       <Trans>Sign out and use a different account</Trans>
     </button>
   ) : undefined
-
-  function previewView(invite: InvitationPreview): ReactNode {
-    const org = invite.orgName
-    return (
-      <div {...stylex.props(hosted.screen)}>
-        <AuthHeading
-          above={user ? <AccountChip label={user.email} /> : undefined}
-          title={org ? <Trans>Join {org}</Trans> : <Trans>Join organization</Trans>}
-          lead={
-            signedInAsInvitee ? (
-              <Trans>Check the details, then accept with the account you're signed in to.</Trans>
-            ) : user ? (
-              <Trans>
-                This invitation is for a different account. Switch to the invited account, or we can
-                email it a secure link.
-              </Trans>
-            ) : (
-              <Trans>
-                We'll email a secure link to the invited address. If it already has an account, sign
-                in to it instead.
-              </Trans>
-            )
-          }
-        />
-        <InvitationDetails data={invite} />
-        {user?.emailVerified ? (
-          <div {...stylex.props(hosted.group)}>
-            {acceptError ? <Notice tone="danger">{acceptError}</Notice> : null}
-            <Button
-              variant={signedInAsInvitee ? 'accent' : 'secondary'}
-              size="lg"
-              fullWidth
-              isLoading={acceptPending}
-              onClick={() => void handleAcceptAsSignedInUser()}
-            >
-              <Trans>Accept with this account</Trans>
-            </Button>
-          </div>
-        ) : null}
-        {signedInAsInvitee ? null : (
-          <div {...stylex.props(hosted.group)}>
-            {claimStartError ? <Notice tone="danger">{claimStartError}</Notice> : null}
-            <Button
-              variant="accent"
-              size="lg"
-              fullWidth
-              isLoading={claimStartPending}
-              disabled={claimStartDisabled}
-              onClick={() => void handleClaimStart()}
-            >
-              <Trans>Email me a secure link</Trans>
-            </Button>
-            {user ? null : (
-              <Link to={signInToAcceptPath} {...stylex.props(hosted.textLink)}>
-                <Trans>Already have an account? Sign in to accept</Trans>
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
 
   function renderStatus(): ReactNode {
     if (status === 'claim-confirm') {
@@ -330,7 +255,19 @@ export function AcceptInvitationPage(): ReactNode {
         />
       )
     }
-    return data ? previewView(data) : null
+    return data ? (
+      <InvitationPreviewView
+        invite={data}
+        rawToken={rawToken}
+        acceptError={acceptError}
+        acceptPending={acceptPending}
+        onAccept={() => void handleAcceptAsSignedInUser()}
+        claimStartError={claimStartError}
+        claimStartPending={claimStartPending}
+        claimStartDisabled={claimStartDisabled}
+        onClaimStart={() => void handleClaimStart()}
+      />
+    ) : null
   }
 
   return (
