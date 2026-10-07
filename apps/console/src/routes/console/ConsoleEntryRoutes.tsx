@@ -142,6 +142,11 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  orgMeta: {
+    fontSize: '0.75rem',
+    color: tokens['--xid-muted-foreground'],
+    textWrap: 'pretty',
+  },
   settingsList: {
     listStyle: 'none',
     margin: 0,
@@ -290,14 +295,14 @@ function OrganizationSelection({
                   <span {...stylex.props(styles.orgName)}>{organizationDisplayName(org)}</span>
                   <span {...stylex.props(styles.orgSlug)}>{org.slug}</span>
                   {parentName ? (
-                    <span {...stylex.props(styles.orgSlug)}>
+                    <span {...stylex.props(styles.orgMeta)}>
                       <Trans>
                         {role}, sub-organization of {parentName}
                       </Trans>
                     </span>
                   ) : null}
                   {org.id === activeOrgId ? (
-                    <span {...stylex.props(styles.orgSlug)}>
+                    <span {...stylex.props(styles.orgMeta)}>
                       <Trans>Current organization</Trans>
                     </span>
                   ) : null}
