@@ -6,6 +6,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { BrowserAuthOrganization } from '@xid-kit/types'
+import { useOrganizationLabel } from '@xid-kit/web-ui/display-names'
 import { useRoleLabel } from '@xid-kit/web-ui/enum-labels'
 import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
@@ -177,8 +178,10 @@ export default function OrganizationsPage(): ReactNode {
   const [error, setError] = useState<string | null>(null)
   const [left, setLeft] = useState<string | null>(null)
   const appName = brand.appName ?? 'XID'
+  const organizationLabel = useOrganizationLabel()
 
-  const sorted = [...organizations].sort((a, b) => {
+  const labeled = organizations.map((org) => ({ ...org, name: organizationLabel(org) }))
+  const sorted = labeled.sort((a, b) => {
     if (a.id === activeOrg?.id) return -1
     if (b.id === activeOrg?.id) return 1
     return a.name.localeCompare(b.name)

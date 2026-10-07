@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { useOrganizationLabel } from '@xid-kit/web-ui/display-names'
 import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { Alert, Breadcrumb, Button, TextField } from '../../components/ui'
@@ -122,7 +123,8 @@ export default function DeleteAccountPage(): ReactNode {
   const [error, setError] = useState<string | null>(null)
   const appName = brand.appName ?? 'XID'
   const list = new Intl.ListFormat(i18n.locale, { type: 'conjunction' })
-  const orgNames = list.format(organizations.map((org) => org.name))
+  const organizationLabel = useOrganizationLabel()
+  const orgNames = list.format(organizations.map(organizationLabel))
   const appNames = list.format((apps.data ?? []).map((app) => app.name))
   const deletionDate = dates.date(new Date(Date.now() + GRACE_DAYS * 86_400_000).toISOString())
   const alreadyScheduled = scheduledDeletion(requests.data)

@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { useOrganizationLabel } from '@xid-kit/web-ui/display-names'
 import { Button, Notice } from '../../components/ui'
 import { AuthHeading } from '../../components/hosted/AuthHeading'
 import { hosted } from '../../components/hosted/hosted-styles'
@@ -120,6 +121,7 @@ export function OrganizationStep(props: {
   onSelect: (organizationId: string) => void
 }): ReactNode {
   const { t } = useLingui()
+  const organizationLabel = useOrganizationLabel()
   const count = props.matches.length
   const app = props.applicationName
   return (
@@ -141,9 +143,9 @@ export function OrganizationStep(props: {
         label={t`Organizations`}
         items={props.matches.map((match) => ({
           key: match.organizationId,
-          title: match.name,
+          title: organizationLabel(match),
           description: match.slug,
-          monogram: initialsOf(match.name),
+          monogram: initialsOf(organizationLabel(match)),
           onSelect: () => props.onSelect(match.organizationId),
         }))}
       />

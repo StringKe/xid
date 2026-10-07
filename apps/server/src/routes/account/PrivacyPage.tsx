@@ -4,6 +4,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { useOrganizationLabel } from '@xid-kit/web-ui/display-names'
 import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { Alert, Button, Skeleton } from '../../components/ui'
@@ -221,9 +222,10 @@ function DeleteAccountCard(): ReactNode {
   const requests = usePrivacyRequestsQuery()
   const cancel = useCancelPrivacyRequest()
   const actionError = useActionError()
+  const organizationLabel = useOrganizationLabel()
   const [error, setError] = useState<string | null>(null)
   const orgNames = new Intl.ListFormat(i18n.locale, { type: 'conjunction' }).format(
-    organizations.map((org) => org.name),
+    organizations.map(organizationLabel),
   )
   const pending = scheduledDeletion(requests.data)
 
