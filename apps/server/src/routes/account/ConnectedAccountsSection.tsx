@@ -10,7 +10,7 @@ import { useSearch } from '@tanstack/react-router'
 import { Alert, Button, Skeleton } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
 import { trackSocialDisconnected } from '../../lib/google-analytics-funnel'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { authConfigQueryOptions } from '../sign-in/auth-config-query'
 import { AccountRow, AccountSection, RowMeta } from './AccountPage'
 import { surface } from './account-surface'
@@ -35,8 +35,7 @@ function ProviderTile({ provider }: { provider: string }): ReactNode {
 }
 
 function LinkResultNotice({ result }: { result: LinkResult }): ReactNode {
-  const { brand } = useTheme()
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const provider = providerName(result.provider ?? '')
   if (result.connect_error === 'already_linked') {
     return (
@@ -74,7 +73,6 @@ function LinkResultNotice({ result }: { result: LinkResult }): ReactNode {
 
 function ConnectedRow({ connection }: { connection: SocialConnection }): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const disconnect = useDisconnectSocial()
   const guard = useStepUpGuard()
   const actionError = useActionError()
@@ -83,7 +81,7 @@ function ConnectedRow({ connection }: { connection: SocialConnection }): ReactNo
   const [error, setError] = useState<string | null>(null)
   const name = providerName(connection.provider)
   const account = connection.email ?? connection.providerAccountId
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
 
   const handleDisconnect = async (): Promise<void> => {
     setError(null)
@@ -205,11 +203,10 @@ function ConnectRow({ provider, isGuest }: { provider: string; isGuest: boolean 
 
 export function ConnectedAccountsSection(): ReactNode {
   const { api, user } = useAuth()
-  const { brand } = useTheme()
   const search = useSearch({ strict: false }) as LinkResult
   const connections = useSocialConnectionsQuery()
   const authConfig = useQuery(authConfigQueryOptions({}, api))
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const isGuest = isGuestUser(user)
 
   const connected = connections.data ?? []

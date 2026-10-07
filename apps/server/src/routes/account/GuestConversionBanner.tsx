@@ -8,7 +8,7 @@ import * as stylex from '@stylexjs/stylex'
 import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Badge, Button } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { tokens } from '../../styles/tokens.stylex'
 import { surface } from './account-surface'
 import { GuestAddEmailDialog } from './GuestEmailConversionSection'
@@ -58,12 +58,11 @@ export function GuestConversionBanner(): ReactNode {
 
 function GuestConversionCard(): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const { refresh } = useAuth()
   const registerPasskey = useRegisterPasskey()
   const [showEmail, setShowEmail] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
 
   const createPasskey = async (): Promise<void> => {
     setError(null)
@@ -92,7 +91,11 @@ function GuestConversionCard(): ReactNode {
       </p>
       {error ? <p {...stylex.props(styles.error)}>{error}</p> : null}
       <div {...stylex.props(styles.actions)}>
-        <Button isLoading={registerPasskey.isPending} onClick={() => void createPasskey()}>
+        <Button
+          variant="accent"
+          isLoading={registerPasskey.isPending}
+          onClick={() => void createPasskey()}
+        >
           <Trans>Create a passkey</Trans>
         </Button>
         <Button variant="secondary" onClick={() => setShowEmail(true)}>

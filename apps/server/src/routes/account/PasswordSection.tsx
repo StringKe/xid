@@ -8,7 +8,7 @@ import * as stylex from '@stylexjs/stylex'
 import { Alert, Button, Dialog, PasswordField, Skeleton } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { trackPasswordChanged } from '../../lib/google-analytics-funnel'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { AccountSection } from './AccountPage'
 import { useAccountDates } from './account-format'
 import { surface } from './account-surface'
@@ -34,7 +34,6 @@ export function PasswordDialog({
   onClose: () => void
 }): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const { user } = useAuth()
   const setPassword = useSetPassword()
   const guard = useStepUpGuard()
@@ -44,7 +43,7 @@ export function PasswordDialog({
   const [newPassword, setNewPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [error, setError] = useState<string | null>(null)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const email = user?.email ?? ''
   const minLength = PASSWORD_MIN_LENGTH
 
@@ -108,7 +107,12 @@ export function PasswordDialog({
           >
             <Trans>Cancel</Trans>
           </Button>
-          <Button type="submit" form="password-form" isLoading={setPassword.isPending}>
+          <Button
+            variant="accent"
+            type="submit"
+            form="password-form"
+            isLoading={setPassword.isPending}
+          >
             {hasPassword ? <Trans>Update password</Trans> : <Trans>Set password</Trans>}
           </Button>
         </>

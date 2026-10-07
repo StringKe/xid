@@ -38,12 +38,8 @@ vi.mock('../../lib/default-landing', () => ({
   useDefaultLandingPath: () => '/console',
 }))
 
-vi.mock('../../lib/theme', () => ({
-  useTheme: () => ({
-    brand: { appName: 'XID', logoUrl: null },
-    scheme: 'light',
-  }),
-  brandLogoUrl: (brand: { logoUrl: string | null }) => brand.logoUrl ?? undefined,
+vi.mock('./use-account-brand', () => ({
+  useAccountBrand: () => ({ name: 'XID', logoUrl: null }),
 }))
 
 type TestOrganization = { id: string; slug: string; name: string; role: 'owner' | 'member' }

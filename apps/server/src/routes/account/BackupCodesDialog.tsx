@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex'
 import { text } from '@xid-kit/web-ui/styles/scale.stylex'
 import { backupCodesFile, groupBackupCode } from '../../components/hosted/BackupCodesSheet'
 import { Button, CheckboxField, Dialog, Icon } from '../../components/ui'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { tokens } from '../../styles/tokens.stylex'
 import { AccountIcon } from './account-icons'
 
@@ -54,11 +54,10 @@ export function BackupCodesDialog({
   onClose: () => void
 }): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const [open, setOpen] = useState(true)
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const plainText = backupCodesFile({ codes, heading: t`${appName} backup codes` })
 
   const download = (): void => {
@@ -129,7 +128,7 @@ export function BackupCodesDialog({
               <Trans>Check the box to close</Trans>
             </span>
           )}
-          <Button disabled={!saved} onClick={() => setOpen(false)}>
+          <Button variant="accent" disabled={!saved} onClick={() => setOpen(false)}>
             <Trans>Done</Trans>
           </Button>
         </div>

@@ -13,7 +13,7 @@ import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { Alert, Badge, Button } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { tokens } from '../../styles/tokens.stylex'
 import { AccountPage, AccountRow, RowMeta } from './AccountPage'
 import { useAccountDates } from './account-format'
@@ -41,8 +41,8 @@ const styles = stylex.create({
     overflow: 'hidden',
   },
   logoCurrent: {
-    backgroundColor: tokens['--xid-primary'],
-    color: tokens['--xid-primary-foreground'],
+    backgroundColor: tokens['--xid-accent'],
+    color: tokens['--xid-accent-foreground'],
     boxShadow: 'none',
   },
   logoImage: {
@@ -170,14 +170,13 @@ function OrgRow({
 
 export default function OrganizationsPage(): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const { organizations, activeOrg, user, refresh } = useAuth()
   const leave = useLeaveOrganization()
   const actionError = useActionError()
   const [leaving, setLeaving] = useState<BrowserAuthOrganization | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [left, setLeft] = useState<string | null>(null)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const organizationLabel = useOrganizationLabel()
 
   const labeled = organizations.map((org) => ({ ...org, name: organizationLabel(org) }))

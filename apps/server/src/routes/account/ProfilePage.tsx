@@ -229,7 +229,7 @@ function EditProfileDialog({
           >
             <Trans>Cancel</Trans>
           </Button>
-          <Button type="submit" form={formId} isLoading={updateProfile.isPending}>
+          <Button variant="accent" type="submit" form={formId} isLoading={updateProfile.isPending}>
             <Trans>Save profile</Trans>
           </Button>
         </>

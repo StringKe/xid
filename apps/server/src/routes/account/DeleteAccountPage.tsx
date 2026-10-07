@@ -9,7 +9,7 @@ import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { Alert, Breadcrumb, Button, TextField } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { tokens } from '../../styles/tokens.stylex'
 import { AccountPage, AccountSection, KeyRow } from './AccountPage'
 import { useAccountDates } from './account-format'
@@ -109,7 +109,6 @@ function useSignInMethodsSummary(): string {
 
 export default function DeleteAccountPage(): ReactNode {
   const { t, i18n } = useLingui()
-  const { brand } = useTheme()
   const { organizations } = useAuth()
   const navigate = useNavigate()
   const dates = useAccountDates()
@@ -121,7 +120,7 @@ export default function DeleteAccountPage(): ReactNode {
   const methods = useSignInMethodsSummary()
   const [confirmation, setConfirmation] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const list = new Intl.ListFormat(i18n.locale, { type: 'conjunction' })
   const organizationLabel = useOrganizationLabel()
   const orgNames = list.format(organizations.map(organizationLabel))

@@ -6,7 +6,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Alert, Badge, Button, Skeleton } from '../../components/ui'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { AccountPage, AccountRow, AccountSection, RowMeta } from './AccountPage'
 import { AccountIcon } from './account-icons'
 import { useAccountDates, useLocationLabel } from './account-format'
@@ -129,7 +129,6 @@ function SessionRow({
 
 export default function DevicesPage(): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const sessions = useSessionsQuery()
   const revoke = useRevokeSession()
   const revokeAll = useRevokeAllSessions()
@@ -138,7 +137,7 @@ export default function DevicesPage(): ReactNode {
   const [signingOut, setSigningOut] = useState<ActiveSession | null>(null)
   const [signingOutAll, setSigningOutAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
 
   const list = [...(sessions.data ?? [])].sort((a, b) => {
     if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1

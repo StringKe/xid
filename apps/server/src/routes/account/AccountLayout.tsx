@@ -1,8 +1,7 @@
 // 账户门户外壳:≥48rem 左侧导航(租户、身份、5 个入口),工作区顶栏放控制台入口、语言与退出;
-// <48rem 顶部一行租户与账户菜单,下方横向分段导航,5 项全部露出,当前项滚入视口。
+// <48rem 顶部一行租户与账户菜单,下方横向分段导航(AccountSegmentedNav)。
 
 import { Trans, useLingui } from '@lingui/react/macro'
-import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { CONSOLE_EXACT_PATH } from '@xid-kit/types'
@@ -13,30 +12,17 @@ import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { Avatar, Button, Dropdown, Icon } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
 import { useDefaultLandingPath } from '../../lib/default-landing'
-import { brandLogoUrl, useTheme } from '../../lib/theme'
 import { tokens } from '../../styles/tokens.stylex'
-import { AccountIcon, type AccountIconName } from './account-icons'
-import { ACCOUNT_PATHS } from './account-paths'
+import { AccountIcon } from './account-icons'
+import { ACCOUNT_NAV_ITEMS, isActiveAccountPath } from './account-nav-items'
+import { AccountSegmentedNav } from './AccountSegmentedNav'
 import { PendingDeletionBanner } from './PendingDeletionBanner'
 import { StepUpProvider } from './step-up'
+import { useAccountBrand } from './use-account-brand'
 
 export type AccountLayoutProps = {
   children: ReactNode
 }
-
-type NavItem = {
-  to: string
-  icon: AccountIconName
-  label: ReactNode
-}
-
-const NAV_ITEMS: readonly NavItem[] = [
-  { to: ACCOUNT_PATHS.profile, icon: 'profile', label: <Trans>Profile</Trans> },
-  { to: ACCOUNT_PATHS.security, icon: 'security', label: <Trans>Security</Trans> },
-  { to: ACCOUNT_PATHS.devices, icon: 'devices', label: <Trans>Devices</Trans> },
-  { to: ACCOUNT_PATHS.organizations, icon: 'organizations', label: <Trans>Organizations</Trans> },
-  { to: ACCOUNT_PATHS.privacy, icon: 'privacy', label: <Trans>Data & privacy</Trans> },
-]
 
 const styles = stylex.create({
   root: {
@@ -79,8 +65,8 @@ const styles = stylex.create({
     width: '1.5rem',
     height: '1.5rem',
     borderRadius: tokens['--xid-radius-sm'],
-    backgroundColor: tokens['--xid-primary'],
-    color: tokens['--xid-primary-foreground'],
+    backgroundColor: tokens['--xid-accent'],
+    color: tokens['--xid-accent-foreground'],
     fontSize: text.xs,
     fontWeight: 600,
     overflow: 'hidden',
@@ -228,33 +214,6 @@ const styles = stylex.create({
     borderRadius: tokens['--xid-radius-full'],
     cursor: 'pointer',
   },
-  segmented: {
-    display: 'flex',
-    alignItems: 'flex-end',
-    gap: '1.25rem',
-    paddingInline: '1rem',
-    overflowX: 'auto',
-    scrollbarWidth: 'none',
-  },
-  segment: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    flexShrink: 0,
-    minHeight: '2.75rem',
-    borderBottomWidth: '2px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'transparent',
-    color: tokens['--xid-muted-foreground'],
-    fontSize: text.base,
-    lineHeight: '1.125rem',
-    whiteSpace: 'nowrap',
-    textDecoration: 'none',
-  },
-  segmentActive: {
-    borderBottomColor: tokens['--xid-fg'],
-    color: tokens['--xid-fg'],
-    fontWeight: weight.medium,
-  },
   main: {
     display: 'flex',
     flexDirection: 'column',
@@ -268,22 +227,16 @@ const styles = stylex.create({
   },
 })
 
-function isActivePath(pathname: string, to: string): boolean {
-  return pathname === to || pathname.startsWith(`${to}/`)
-}
-
 function TenantBlock(): ReactNode {
   const { t } = useLingui()
-  const { brand, scheme } = useTheme()
-  const appName = brand.appName ?? 'XID'
-  const logoUrl = brandLogoUrl(brand, scheme)
+  const { name: appName, logoUrl } = useAccountBrand()
   return (
     <div {...stylex.props(styles.tenant)}>
       {logoUrl ? (
         <img src={logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.tenantLogo)} />
       ) : (
         <span aria-hidden="true" {...stylex.props(styles.tenantMark)}>
-          {appName.slice(0, 1).toUpperCase()}
+          {Array.from(appName.trim())[0]?.toUpperCase()}
         </span>
       )}
       <span {...stylex.props(styles.tenantText)}>
@@ -322,8 +275,8 @@ function SidebarNav(): ReactNode {
   const location = useLocation()
   return (
     <nav aria-label={t`Account`} {...stylex.props(styles.nav)}>
-      {NAV_ITEMS.map((item) => {
-        const active = isActivePath(location.pathname, item.to)
+      {ACCOUNT_NAV_ITEMS.map((item) => {
+        const active = isActiveAccountPath(location.pathname, item.to)
         return (
           <Link
             key={item.to}
@@ -332,33 +285,6 @@ function SidebarNav(): ReactNode {
             {...stylex.props(styles.navLink, active && styles.navLinkActive)}
           >
             <AccountIcon name={item.icon} />
-            {item.label}
-          </Link>
-        )
-      })}
-    </nav>
-  )
-}
-
-function SegmentedNav(): ReactNode {
-  const { t } = useLingui()
-  const location = useLocation()
-  const navRef = useRef<HTMLElement | null>(null)
-  useEffect(() => {
-    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
-    active?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-  }, [location.pathname])
-  return (
-    <nav ref={navRef} aria-label={t`Account`} {...stylex.props(styles.segmented)}>
-      {NAV_ITEMS.map((item) => {
-        const active = isActivePath(location.pathname, item.to)
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            aria-current={active ? 'page' : undefined}
-            {...stylex.props(styles.segment, active && styles.segmentActive)}
-          >
             {item.label}
           </Link>
         )
@@ -422,7 +348,7 @@ export function AccountLayout({ children }: AccountLayoutProps): ReactNode {
               <TenantBlock />
               <AccountMenu />
             </div>
-            <SegmentedNav />
+            <AccountSegmentedNav />
           </header>
 
           <div {...stylex.props(styles.topbar)}>

@@ -9,7 +9,7 @@ import * as stylex from '@stylexjs/stylex'
 import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { Badge, Button } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { tokens } from '../../styles/tokens.stylex'
 import { AccountPage } from './AccountPage'
 import { surface } from './account-surface'
@@ -122,7 +122,10 @@ function VerifyEmailTask({ email }: { email: EmailAddress }): ReactNode {
       <div {...stylex.props(styles.taskActions)}>
         {email.pending ? (
           <>
-            <Button onClick={() => setPending({ id: email.id, target: email.email })}>
+            <Button
+              variant="accent"
+              onClick={() => setPending({ id: email.id, target: email.email })}
+            >
               <Trans>Enter code…</Trans>
             </Button>
             <Button
@@ -134,7 +137,11 @@ function VerifyEmailTask({ email }: { email: EmailAddress }): ReactNode {
             </Button>
           </>
         ) : (
-          <Button isLoading={sendCode.isPending} onClick={() => void handleSend(true)}>
+          <Button
+            variant="accent"
+            isLoading={sendCode.isPending}
+            onClick={() => void handleSend(true)}
+          >
             <Trans>Send code…</Trans>
           </Button>
         )}
@@ -169,9 +176,8 @@ function PendingTasks(): ReactNode {
 }
 
 export default function SecurityPage(): ReactNode {
-  const { brand } = useTheme()
   const { user } = useAuth()
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const isGuest = isGuestUser(user)
 
   return (

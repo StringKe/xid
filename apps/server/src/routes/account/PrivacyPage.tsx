@@ -9,7 +9,7 @@ import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { Alert, Button, Skeleton } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { tokens } from '../../styles/tokens.stylex'
 import { AccountPage, AccountRow, AccountSection, RowMeta } from './AccountPage'
 import { useAccountDates } from './account-format'
@@ -98,7 +98,6 @@ function AppLogo({ app }: { app: AuthorizedApp }): ReactNode {
 
 function AuthorizedAppsSection(): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const apps = useAuthorizedAppsQuery()
   const revoke = useRevokeAuthorizedApp()
   const guard = useStepUpGuard()
@@ -107,7 +106,7 @@ function AuthorizedAppsSection(): ReactNode {
   const dates = useAccountDates()
   const [revoking, setRevoking] = useState<AuthorizedApp | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const list = apps.data ?? []
 
   const handleRevoke = async (app: AuthorizedApp): Promise<void> => {

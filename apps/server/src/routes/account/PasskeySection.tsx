@@ -20,7 +20,7 @@ import {
 } from '../../components/ui'
 import { useAuth } from '../../lib/auth-context'
 import { trackPasskeyRegistered } from '../../lib/google-analytics-funnel'
-import { useTheme } from '../../lib/theme'
+import { useAccountBrand } from './use-account-brand'
 import { tokens } from '../../styles/tokens.stylex'
 import { authConfigQueryOptions } from '../sign-in/auth-config-query'
 import { useDefaultPasskeyName } from '../../components/hosted/passkey-name'
@@ -335,7 +335,7 @@ function RenamePasskeyDialog({
           <Button variant="secondary" disabled={rename.isPending} onClick={() => setOpen(false)}>
             <Trans>Cancel</Trans>
           </Button>
-          <Button type="submit" form="rename-passkey" isLoading={rename.isPending}>
+          <Button variant="accent" type="submit" form="rename-passkey" isLoading={rename.isPending}>
             <Trans>Save name</Trans>
           </Button>
         </>
@@ -359,8 +359,7 @@ function useRemainingSignInDescription(): ReactNode {
   const { user } = useAuth()
   const factors = useMfaFactorsQuery()
   const social = useSocialConnectionsQuery()
-  const { brand } = useTheme()
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
   const hasTotp = factors.data?.some((factor) => factor.type === 'totp') ?? false
   const provider = social.data?.[0]?.provider
   if (user?.hasPassword && hasTotp) {
@@ -398,7 +397,6 @@ function RemovePasskeyDialog({
   onOnlyMethod: () => void
 }): ReactNode {
   const { t } = useLingui()
-  const { brand } = useTheme()
   const remove = useRemovePasskey()
   const guard = useStepUpGuard()
   const actionError = useActionError()
@@ -406,7 +404,7 @@ function RemovePasskeyDialog({
   const [open, setOpen] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const name = passkeyName(passkey, t`Passkey`)
-  const appName = brand.appName ?? 'XID'
+  const appName = useAccountBrand().name
 
   const handleRemove = async (): Promise<void> => {
     setError(null)
@@ -536,6 +534,7 @@ export function PasskeySection(): ReactNode {
   const createButton =
     count > 0 && canCreate ? (
       <Button
+        variant="accent"
         disabled={atLimit}
         isLoading={registerPasskey.isPending}
         onClick={() => void handleRegister(false)}
@@ -629,6 +628,7 @@ export function PasskeySection(): ReactNode {
           </p>
           <div {...stylex.props(styles.heroActions)}>
             <Button
+              variant="accent"
               isLoading={registerPasskey.isPending && !registerPasskey.variables?.securityKey}
               onClick={() => void handleRegister(false)}
             >

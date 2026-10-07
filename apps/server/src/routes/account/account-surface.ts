@@ -106,9 +106,10 @@ export const surface = stylex.create({
     color: tokens['--xid-muted-foreground'],
     textWrap: 'pretty',
   },
-  // 手机上主操作占满一行(grid 子项默认拉伸),宽屏回到行尾。
+  // 窄屏上分节操作与行操作统一:另起一行、靠起始边、按文字宽度;宽屏回到行尾。
   sectionAction: {
-    display: { default: 'grid', '@media (min-width: 30rem)': 'flex' },
+    display: 'flex',
+    flexWrap: 'wrap',
     flexShrink: 0,
     gap: '0.5rem',
   },
@@ -164,7 +165,8 @@ export const surface = stylex.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: '0.25rem',
-    marginInlineStart: 'auto',
+    flexBasis: { default: '100%', '@media (min-width: 30rem)': 'auto' },
+    marginInlineStart: { default: 0, '@media (min-width: 30rem)': 'auto' },
   },
   keyRow: {
     display: 'flex',

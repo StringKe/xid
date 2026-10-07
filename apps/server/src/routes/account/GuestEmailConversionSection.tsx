@@ -122,6 +122,7 @@ export function GuestAddEmailDialog({ onClose }: { onClose: () => void }): React
             <Trans>Cancel</Trans>
           </Button>
           <Button
+            variant="accent"
             type="submit"
             form={formId}
             isLoading={busy}

@@ -87,7 +87,11 @@ export function OnlySignInMethodDialog({
                   <Trans>Set a password…</Trans>
                 </Button>
               )}
-              <Button isLoading={registerPasskey.isPending} onClick={() => void createPasskey()}>
+              <Button
+                variant="accent"
+                isLoading={registerPasskey.isPending}
+                onClick={() => void createPasskey()}
+              >
                 <Trans>Create a passkey</Trans>
               </Button>
             </div>

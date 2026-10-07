@@ -111,7 +111,10 @@ export function DataExportRow(): ReactNode {
               >
                 <Trans>Request new export</Trans>
               </button>
-              <Button onClick={() => globalThis.location.assign(ready.downloadUrl ?? '')}>
+              <Button
+                variant="accent"
+                onClick={() => globalThis.location.assign(ready.downloadUrl ?? '')}
+              >
                 <Trans>Download</Trans>
               </Button>
             </>

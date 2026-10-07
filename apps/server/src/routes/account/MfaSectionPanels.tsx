@@ -154,7 +154,7 @@ export function TotpSetupPanel({
         <Button variant="secondary" disabled={isPending} onClick={onCancel}>
           <Trans>Cancel</Trans>
         </Button>
-        <Button type="submit" variant="primary" isLoading={isPending}>
+        <Button type="submit" variant="accent" isLoading={isPending}>
           <Trans>Turn on</Trans>
         </Button>
       </div>

@@ -292,7 +292,7 @@ function StepUpDialog({ reason, onVerified, onCancel }: StepUpDialogProps): Reac
             autoFocus
             required
           />
-          <Button type="submit" isLoading={isBusy} fullWidth>
+          <Button variant="accent" type="submit" isLoading={isBusy} fullWidth>
             <Trans>Confirm</Trans>
           </Button>
           <button
@@ -312,6 +312,7 @@ function StepUpDialog({ reason, onVerified, onCancel }: StepUpDialogProps): Reac
         <>
           {hasPasskey ? (
             <Button
+              variant="accent"
               size="lg"
               fullWidth
               isLoading={isBusy}

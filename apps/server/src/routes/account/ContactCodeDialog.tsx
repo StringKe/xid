@@ -164,7 +164,7 @@ export function ContactCodeDialog({
           <Button variant="secondary" disabled={busy} onClick={() => setOpen(false)}>
             <Trans>Cancel</Trans>
           </Button>
-          <Button type="submit" form={formId} isLoading={busy}>
+          <Button variant="accent" type="submit" form={formId} isLoading={busy}>
             {submitLabel}
           </Button>
         </>

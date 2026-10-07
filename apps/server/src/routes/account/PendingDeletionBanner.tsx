@@ -108,7 +108,7 @@ function PendingDeletionNotice(): ReactNode {
         </p>
         {error ? <p {...stylex.props(styles.error)}>{error}</p> : null}
       </div>
-      <Button isLoading={cancel.isPending} onClick={() => void handleCancel()}>
+      <Button variant="accent" isLoading={cancel.isPending} onClick={() => void handleCancel()}>
         <Trans>Cancel deletion</Trans>
       </Button>
     </section>
