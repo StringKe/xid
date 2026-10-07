@@ -283,6 +283,33 @@ describe('SessionProvider session state', () => {
     expect(queryClient.getQueryData<MeResponse | null>(['me'])?.activeOrg?.id).toBe('org_1')
   })
 
+  it('reloads /v1/me when a mutation invalidates the session query', async () => {
+    const queryClient = new QueryClient()
+    const { client, get } = makeApiClient()
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider
+            client={client}
+            initialSession={makeMeResponse('org_1')}
+            loadOnMount={false}
+          >
+            <span />
+          </SessionProvider>
+        </QueryClientProvider>,
+      )
+    })
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['me'] })
+    })
+
+    expect(get).toHaveBeenCalledWith('/v1/me', undefined)
+    await act(async () => root.unmount())
+  })
+
   it('posts the active session change and refreshes /v1/me', async () => {
     const queryClient = new QueryClient()
     const { client, get, post } = makeApiClient()

@@ -153,6 +153,18 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
     }
   }, [applyProbe, deferLoadMs, fetchSession, loadOnMount])
 
+  // 会话没有 useQuery 观察者:['me'] 常驻缓存,mutation 失效它时由这里重新拉取 /v1/me。
+  useEffect(() => {
+    queryClient.setQueryDefaults(ME_QUERY_KEY, { gcTime: Infinity })
+    const cache = queryClient.getQueryCache()
+    const meQueryHash = cache.build(queryClient, { queryKey: ME_QUERY_KEY }).queryHash
+    return cache.subscribe((event) => {
+      if (event.type !== 'updated' || event.action.type !== 'invalidate') return
+      if (event.query.queryHash !== meQueryHash) return
+      void loadSession()
+    })
+  }, [loadSession, queryClient])
+
   // focus 与 visibilitychange 在切回标签页时成对触发,合并为一次并限制最小间隔。
   const lastVisibleRefreshRef = useRef(0)
   useEffect(() => {
