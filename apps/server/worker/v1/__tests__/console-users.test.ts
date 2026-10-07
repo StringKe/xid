@@ -464,6 +464,35 @@ describe('管理员动作', () => {
     expect(keyDelete.status).toBe(204)
     expect(env.sessionRevocations).toContain('session:user_ravi')
   })
+
+  it('admin 不能暂停、删除或重置 owner;任何管理员不能暂停或删除自己', async () => {
+    const { d1 } = await seedDirectory()
+    await seedUser(d1, { id: 'user_lena', email: 'lena.muller@northwind.com' })
+    await seedMembership(d1, { id: 'mem_lena', userId: 'user_lena', orgId: 't_a', role: 'admin' })
+    const as = (userId: string, method: string, path: string) =>
+      buildApp(registerUsersRoutes, { session: sessionFor(userId) }).request(
+        `${BASE}${path}`,
+        { method },
+        envOf(d1),
+      )
+
+    const banOwner = await as('user_lena', 'POST', '/users/user_admin/ban')
+    const deleteOwner = await as('user_lena', 'DELETE', '/users/user_admin')
+    const resetOwnerMfa = await as('user_lena', 'POST', '/users/user_admin/mfa/reset')
+    const banMember = await as('user_lena', 'POST', '/users/user_ravi/ban')
+    const banSelf = await as('user_admin', 'POST', '/users/user_admin/ban')
+    const ownerBansAdmin = await as('user_admin', 'POST', '/users/user_lena/ban')
+
+    expect(banOwner.status).toBe(403)
+    expect(deleteOwner.status).toBe(403)
+    expect(resetOwnerMfa.status).toBe(403)
+    expect(banMember.status).toBe(200)
+    expect(banSelf.status).toBe(403)
+    expect(ownerBansAdmin.status).toBe(200)
+    const owner = await tenantDb(d1).users.findOne(eq(schema.users.id, 'user_admin'))
+    expect(owner?.status).toBe('active')
+    expect(owner?.deletedAt).toBeNull()
+  })
 })
 
 describe('/v1/sessions', () => {

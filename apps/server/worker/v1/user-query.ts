@@ -6,7 +6,9 @@ import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, or, sql } f
 import type { SQL } from 'drizzle-orm'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import * as v from 'valibot'
+import { AppError } from '../lib/errors'
 import { ORG_LIST_BATCH_SIZE, readAllByIds, toIso } from './org-shared'
+import { canManageOwners, type OrgScopedAuth } from './shared'
 
 type TenantDb = ReturnType<typeof createTenantDb>
 type UserRow = typeof schema.users.$inferSelect
@@ -44,6 +46,36 @@ export function readUserListQuery(query: Record<string, string>): Record<string,
     if (value !== undefined && value !== '') picked[key] = value
   }
   return picked
+}
+
+// 与 memberships.ts 的 owner 保护对等:admin 不能暂停、删除或重置 owner 级用户(任一组织 active owner,
+// 或 instance_manager / org_manager);cookie 调用方也不能对自己执行这些操作,避免把自己锁在外面。
+export async function assertUserActionAllowed(
+  db: TenantDb,
+  auth: OrgScopedAuth,
+  userId: string,
+): Promise<void> {
+  if (auth.kind !== 'org_console') return
+  if (auth.session.userId === userId) throw new AppError('forbidden', { httpStatus: 403 })
+  if (canManageOwners(auth)) return
+  const [ownerMembership, ownerLevelAssignment] = await Promise.all([
+    db.memberships.findOne(
+      and(
+        eq(schema.memberships.userId, userId),
+        eq(schema.memberships.role, 'owner'),
+        eq(schema.memberships.status, 'active'),
+      ),
+    ),
+    db.managerAssignments.findOne(
+      and(
+        eq(schema.managerAssignments.userId, userId),
+        inArray(schema.managerAssignments.managerRole, ['instance_manager', 'org_manager']),
+      ),
+    ),
+  ])
+  if (ownerMembership || ownerLevelAssignment) {
+    throw new AppError('forbidden', { httpStatus: 403 })
+  }
 }
 
 export function notDeletedUser(): SQL {

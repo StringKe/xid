@@ -12,6 +12,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import * as v from 'valibot'
 import type { XidHonoEnv } from '../lib/types'
+import { isUniqueConstraintError } from '../lib/d1-errors'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { resolveLocale } from '../lib/locale'
@@ -40,6 +41,7 @@ import {
   type OrgScopedAuth,
 } from './shared'
 import {
+  assertUserActionAllowed,
   countUsersByStatus,
   csvHeader,
   csvRow,
@@ -449,12 +451,15 @@ app.post('/', async (c) => {
       })
     }
   } catch (error) {
-    // 并发写入同一联系方式时唯一索引兜底;回滚刚建的用户,避免留下无联系方式的孤儿。
+    // 回滚刚建的用户,避免留下无联系方式的孤儿;只有唯一索引冲突(并发写入同一联系方式)映射为 409。
     await db.userEmails.hardDelete(eq(schema.userEmails.userId, id))
+    await db.userPhones.hardDelete(eq(schema.userPhones.userId, id))
     await db.users.hardDelete(eq(schema.users.id, id))
+    if (!isUniqueConstraintError(error)) throw error
+    const message = error instanceof Error ? error.message : ''
     throw new AppError('already_exists', {
       httpStatus: 409,
-      meta: { paramName: email ? 'email' : 'phone' },
+      meta: { paramName: message.includes('user_phones') ? 'phone' : 'email' },
       cause: error,
     })
   }
@@ -525,6 +530,7 @@ app.delete('/:id', async (c) => {
   const id = c.req.param('id')
   const existing = await db.users.findOne(and(eq(schema.users.id, id), notDeletedUser()))
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
+  await assertUserActionAllowed(db, auth, id)
 
   await db.users.update({ deletedAt: new Date(), status: 'deleted' }, eq(schema.users.id, id))
   await revokeUserCredentials(c.env, tenant, id)
@@ -573,6 +579,7 @@ async function setBanned(c: Context<XidHonoEnv>, banned: boolean): Promise<Respo
   const existing = await db.users.findOne(and(eq(schema.users.id, id), notDeletedUser()))
   if (!existing) throw new AppError('not_found', { httpStatus: 404 })
   if ((existing.status === 'banned') === banned) return c.json(toUserResponse(existing))
+  if (banned) await assertUserActionAllowed(db, auth, id)
 
   const updated = await db.users.update(
     { status: banned ? 'banned' : 'active' },

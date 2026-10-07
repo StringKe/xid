@@ -23,7 +23,7 @@ import {
   encodeCursor,
   requireApiKeyOrTopLevelOrgManager,
 } from './shared'
-import { notDeletedUser, userDisplayName } from './user-query'
+import { assertUserActionAllowed, notDeletedUser, userDisplayName } from './user-query'
 
 const app = new Hono<XidHonoEnv>()
 
@@ -278,6 +278,7 @@ app.post('/:id/mfa/reset', async (c) => {
   const tenant = c.get('tenant')
   const db = createTenantDb(c.env.DB, tenant)
   const user = await findTenantUser(db, c.req.param('id'), { includeDeleted: false })
+  await assertUserActionAllowed(db, auth, user.id)
   await db.mfaFactors.hardDelete(
     and(eq(schema.mfaFactors.userId, user.id), ne(schema.mfaFactors.factorType, 'passkey')),
   )
