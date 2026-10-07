@@ -322,12 +322,17 @@ function requestLocation(c: Context<XidHonoEnv>): string | null {
 }
 
 // 只记真实用户的登录:模拟会话不算,pending MFA 会话等转为 active 时再记。
+// 与计量一样不能拖垮登录:写失败记错误日志,会话照常签发。
 function recordLastLogin(c: Context<XidHonoEnv>, userId: string): void {
-  const db = createTenantDb(c.env.DB, c.get('tenant'))
   waitUntilBestEffort(
     c,
     (async () => {
-      await db.users.update({ lastLoginAt: new Date() }, eq(schema.users.id, userId))
+      try {
+        const db = createTenantDb(c.env.DB, c.get('tenant'))
+        await db.users.update({ lastLoginAt: new Date() }, eq(schema.users.id, userId))
+      } catch (error) {
+        logWorkerError('session.last_login.write_failed', error, { component: 'session' })
+      }
     })(),
   )
 }
