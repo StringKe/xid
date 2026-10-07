@@ -95,7 +95,7 @@ function CibaActivationPage(): ReactNode {
   const outcome = decision.data?.ok === true ? decision.data.value.approved : null
   const context = useCibaContext(params?.clientName ?? null, outcome)
   const secondsLeft = useSecondsLeft(params?.expiresAt)
-  const above = user?.email ? <AccountChip label={user.email} /> : undefined
+  const above = user?.email ? <AccountChip label={user.email} name={user.name} /> : undefined
   const describe = (error: ApiErrorInput): string =>
     error.code === 'invalid_request'
       ? t`This request expired or was already answered. Start again from the app.`

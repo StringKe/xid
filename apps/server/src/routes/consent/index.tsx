@@ -201,7 +201,7 @@ function ConsentPage(): ReactNode {
       ? decision.data.value.redirectUrl
       : null
   const context = useConsentContext(paramsQuery.data, deniedRedirect !== null)
-  const above = user?.email ? <AccountChip label={user.email} /> : undefined
+  const above = user?.email ? <AccountChip label={user.email} name={user.name} /> : undefined
   const submitError =
     decision.data && !decision.data.ok
       ? apiErrorMessage(decision.data.error, { surface: 'general' })

@@ -167,7 +167,7 @@ function MfaPage(): ReactNode {
   const choosing = search.method === MFA_CHOOSER && methods.length > 1
   const activeMethod = selected ?? (choosing ? null : defaultMfaMethod(methods, lastUsed))
   const context = useMfaContext(isStepUp)
-  const above = user?.email ? <AccountChip label={user.email} /> : undefined
+  const above = user?.email ? <AccountChip label={user.email} name={user.name} /> : undefined
 
   return (
     <AuthLayout context={context}>

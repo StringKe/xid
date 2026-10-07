@@ -49,7 +49,7 @@ export function InvitationPreviewView({
   return (
     <div {...stylex.props(hosted.screen)}>
       <AuthHeading
-        above={user ? <AccountChip label={user.email} /> : undefined}
+        above={user ? <AccountChip label={user.email} name={user.name} /> : undefined}
         title={org ? <Trans>Join {org}</Trans> : <Trans>Join organization</Trans>}
         lead={
           signedInAsInvitee ? (

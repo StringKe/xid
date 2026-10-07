@@ -22,6 +22,7 @@ const signInState = vi.hoisted(() => ({
   error: null as string | null,
   guestCapability: false,
   isSignUpFlow: false,
+  allowUserCreation: true,
   organizationName: 'Northwind' as string | null,
   tenantSelection: {
     continueParam: null as string | null,
@@ -140,9 +141,13 @@ vi.mock('./useSignIn', () => ({
           givenName: 'hidden',
           familyName: 'hidden',
         },
-        allowUserCreation: true,
+        allowUserCreation: signInState.allowUserCreation,
         methods: {
           password: { enabled: true, allowLogin: true, allowUserCreation: true },
+          magicLink: { enabled: false, allowLogin: false, allowUserCreation: false },
+          emailOtp: { enabled: false, allowLogin: false, allowUserCreation: false },
+          whatsappOtp: { enabled: false, allowLogin: false, allowUserCreation: false },
+          smsOtp: { enabled: false, allowLogin: false, allowUserCreation: false },
         },
         context: {
           organizationName: signInState.organizationName,
@@ -236,6 +241,7 @@ describe('SignInPage', () => {
     signInState.error = null
     signInState.guestCapability = false
     signInState.isSignUpFlow = false
+    signInState.allowUserCreation = true
     signInState.organizationName = 'Northwind'
     signInState.tenantSelection = { continueParam: null, redirect: null, authzRequestId: null }
   })
@@ -398,6 +404,17 @@ describe('SignInPage', () => {
     const decoded = (switchHref ?? '').replaceAll('&amp;', '&')
     expect(decoded).toContain('intent=sign-up')
     expect(decoded).not.toContain('client_id=')
+  })
+
+  it('hides the account creation link when the tenant disables self sign-up', async () => {
+    authState.status = 'unauthenticated'
+    signInState.allowUserCreation = false
+    routerState.search = { continue: '/console' }
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).not.toContain('New to Northwind?')
+    expect(rendered.html).not.toContain('intent=sign-up')
   })
 
   it('links sign-up back to sign-in without an intent param', async () => {

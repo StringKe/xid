@@ -37,7 +37,7 @@ export function SelectOrganizationPage(): ReactNode {
   const [loadingOrgId, setLoadingOrgId] = useState<string | null>(null)
   const visible = useMemo(() => filterOrganizations(organizations, query), [organizations, query])
   const searchable = organizations.length > VISIBLE_ORGANIZATION_LIMIT || query !== ''
-  const above = user?.email ? <AccountChip label={user.email} /> : undefined
+  const above = user?.email ? <AccountChip label={user.email} name={user.name} /> : undefined
   const count = organizations.length
 
   async function handleSelect(organizationId: string): Promise<void> {

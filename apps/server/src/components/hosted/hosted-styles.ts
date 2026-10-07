@@ -61,7 +61,6 @@ export const hosted = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     columnGap: '1rem',
-    paddingTop: '0.25rem',
   },
   rule: {
     height: '1px',
@@ -88,7 +87,7 @@ export const hosted = stylex.create({
   quietLink: {
     display: 'inline-flex',
     alignItems: 'center',
-    minHeight: { default: '2.75rem' },
+    minHeight: { default: '1.5rem', '@media (pointer: coarse)': size.touch },
     padding: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',

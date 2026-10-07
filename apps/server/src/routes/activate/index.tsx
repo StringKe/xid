@@ -121,7 +121,7 @@ function ActivatePage(): ReactNode {
     decision.data?.ok === true ? (decision.data.value.approved ? 'allowed' : 'denied') : null
   const app = paramsQuery.data?.clientName ?? null
   const context = useDeviceContext(app, outcome)
-  const above = user?.email ? <AccountChip label={user.email} /> : undefined
+  const above = user?.email ? <AccountChip label={user.email} name={user.name} /> : undefined
   const queryError = paramsQuery.isError ? queryErrorInput(paramsQuery.error) : null
   const submitError =
     decision.data && !decision.data.ok ? deviceErrorMessage(decision.data.error) : null

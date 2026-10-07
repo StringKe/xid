@@ -18,6 +18,7 @@ import { IdentifierStep } from './IdentifierStep'
 import { MethodStep } from './MethodStep'
 import { AccountLockedStep, OrganizationStep, SsoRedirectStep } from './RoutingSteps'
 import { SignInGuestButton } from './SignInGuestButton'
+import { selfSignUpAvailable } from './auth-config'
 import { isOtpMethod } from './shared'
 import { resolveHostedReturn } from './sign-in-flow'
 import { useSignInErrorMessage } from './sign-in-messages'
@@ -128,7 +129,7 @@ function SignInPage(): ReactNode {
         <Trans>Sign in</Trans>
       </Link>
     </>
-  ) : (
+  ) : state.configSettled && selfSignUpAvailable(state.authConfig) ? (
     <>
       {org ? <Trans>New to {org}?</Trans> : <Trans>New here?</Trans>}{' '}
       <Link
@@ -138,7 +139,7 @@ function SignInPage(): ReactNode {
         <Trans>Create account</Trans>
       </Link>
     </>
-  )
+  ) : null
   const error = inlineHandled(state) ? null : errorMessage(state.error)
   const success =
     state.error === 'verify_email_sent'

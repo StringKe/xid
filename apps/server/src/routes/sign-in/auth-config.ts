@@ -130,6 +130,15 @@ export function methodEnabled(
   )
 }
 
+export function selfSignUpAvailable(config: PublicHostedAuthConfig): boolean {
+  if (!config.allowUserCreation || config.forceSso) return false
+  const { password, magicLink, emailOtp, whatsappOtp, smsOtp } = config.methods
+  const methodAllows = [password, magicLink, emailOtp, whatsappOtp, smsOtp].some(
+    (method) => method.enabled && method.allowUserCreation,
+  )
+  return methodAllows || config.socialProviders.some((provider) => provider.allowUserCreation)
+}
+
 export function enterpriseSsoEnabled(config: PublicHostedAuthConfig): boolean {
   const methodConfig = config.methods.enterpriseSso
   return methodConfig.enabled && methodConfig.allowLogin && methodConfig.domainDiscovery

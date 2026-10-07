@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { size, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
+import { initialsFor } from '../ui'
 
 const styles = stylex.create({
   identifier: {
@@ -105,11 +106,13 @@ export function initialsOf(label: string): string {
   return letters.join('').toUpperCase()
 }
 
-export function AccountChip({ label }: { label: string }): ReactNode {
+// 有姓名时与账户页、Console 的 Avatar 同一套首字母规则,否则退回按邮箱拆分。
+export function AccountChip({ label, name }: { label: string; name?: string | null }): ReactNode {
+  const displayName = name?.trim()
   return (
     <span {...stylex.props(styles.account)}>
       <span aria-hidden="true" {...stylex.props(styles.initials)}>
-        {initialsOf(label)}
+        {displayName ? initialsFor(displayName) : initialsOf(label)}
       </span>
       <span {...stylex.props(styles.value)}>{label}</span>
     </span>
