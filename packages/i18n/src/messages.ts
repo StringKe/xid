@@ -78,6 +78,7 @@ export const errorMessages: ErrorMessages = {
   request_already_decided: msg`This access request has already been decided.`,
   no_available_approver: msg`No approver is available for this access request.`,
   organization_selection_required: msg`This account belongs to more than one organization. Choose an organization to continue.`,
+  last_owner: msg`This organization needs at least one owner. Make someone else an owner first.`,
 
   malformed_request: msg`The request is malformed.`,
   malformed_xml: msg`The SAML XML document is malformed.`,

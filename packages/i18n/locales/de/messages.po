@@ -11452,6 +11452,10 @@ msgstr "Dieser Organisationskontext wurde gesperrt."
 msgid "This organization has been suspended."
 msgstr "Diese Organisation wurde gesperrt."
 
+#: packages/i18n/src/messages.ts
+msgid "This organization needs at least one owner. Make someone else an owner first."
+msgstr "Diese Organisation braucht mindestens einen Eigentümer. Machen Sie zuerst eine andere Person zum Eigentümer."
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "This organization's status changed or cannot be changed. The list was refreshed."
 msgstr "Der Status dieser Organisation hat sich geändert oder kann nicht geändert werden. Die Liste wurde neu geladen."

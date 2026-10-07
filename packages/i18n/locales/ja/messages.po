@@ -11452,6 +11452,10 @@ msgstr "この組織コンテキストは停止されています。"
 msgid "This organization has been suspended."
 msgstr "この組織は停止されています。"
 
+#: packages/i18n/src/messages.ts
+msgid "This organization needs at least one owner. Make someone else an owner first."
+msgstr "この組織には組織所有者が 1 人以上必要です。先に別のメンバーを組織所有者にしてください。"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "This organization's status changed or cannot be changed. The list was refreshed."
 msgstr "この組織のステータスは変更されたか、変更できません。一覧を更新しました。"

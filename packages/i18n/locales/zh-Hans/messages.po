@@ -11452,6 +11452,10 @@ msgstr "此组织上下文已暂停。"
 msgid "This organization has been suspended."
 msgstr "此组织已被暂停。"
 
+#: packages/i18n/src/messages.ts
+msgid "This organization needs at least one owner. Make someone else an owner first."
+msgstr "这个组织至少需要一位所有者。请先把其他成员设为所有者。"
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "This organization's status changed or cannot be changed. The list was refreshed."
 msgstr "此组织的状态已变化或无法变更。列表已刷新。"

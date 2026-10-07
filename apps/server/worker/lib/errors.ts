@@ -68,6 +68,7 @@ const STATUS_BY_CODE: Partial<Record<XidErrorCode, number>> = {
   request_already_decided: 409,
   no_available_approver: 409,
   organization_selection_required: 409,
+  last_owner: 409,
   // 会话
   session_not_found: 404,
   session_revoked: 401,

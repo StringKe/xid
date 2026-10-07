@@ -11452,6 +11452,10 @@ msgstr "이 조직 컨텍스트는 일시 중지되었습니다."
 msgid "This organization has been suspended."
 msgstr "이 조직은 정지되었습니다."
 
+#: packages/i18n/src/messages.ts
+msgid "This organization needs at least one owner. Make someone else an owner first."
+msgstr "이 조직에는 조직 소유자가 한 명 이상 있어야 합니다. 먼저 다른 구성원을 조직 소유자로 지정하세요."
+
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "This organization's status changed or cannot be changed. The list was refreshed."
 msgstr "이 조직의 상태가 바뀌었거나 변경할 수 없습니다. 목록을 새로 고쳤습니다."

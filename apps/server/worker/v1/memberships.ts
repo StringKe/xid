@@ -99,7 +99,7 @@ function prepareMembershipMutation(env: Env, input: MembershipMutation): D1Prepa
   ).bind(...bindings, input.tenantId, input.orgId, input.membershipId)
 }
 
-async function mutateMembership(env: Env, input: MembershipMutation): Promise<boolean> {
+export async function mutateMembership(env: Env, input: MembershipMutation): Promise<boolean> {
   const [result] = await env.DB.batch([prepareMembershipMutation(env, input)])
   const changes = (result?.meta as { changes?: number } | undefined)?.changes
   return changes === 1
