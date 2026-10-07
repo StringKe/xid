@@ -416,9 +416,7 @@ export function TwoStepSection(): ReactNode {
           {!strong ? null : <BackupCodesRow factor={backup} />}
         </>
       )}
-      {settingUpTotp ? (
-        <TotpDialog onClose={() => setSettingUpTotp(false)} />
-      ) : null}
+      {settingUpTotp ? <TotpDialog onClose={() => setSettingUpTotp(false)} /> : null}
     </AccountSection>
   )
 }
