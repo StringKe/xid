@@ -60,6 +60,41 @@ describe('GET /v1/me/sessions', () => {
     expect(current?.['deviceFingerprint']).toBe('fingerpr...')
   })
 
+  it('returns browser, location, sign-in method and impersonation details', async () => {
+    const db = makeFakeD1({
+      sessions: [
+        sessionRow({
+          id: 's_current',
+          user_agent: 'Mozilla/5.0 (Macintosh) Chrome/130.0',
+          location: 'Lisbon, PT',
+          amr: JSON.stringify(['phr']),
+        }),
+        sessionRow({ id: 's_imp', is_impersonation: 1, impersonator_user_id: 'u_admin' }),
+      ],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({
+      register: registerMeSessionsRoutes,
+      session: makeSession({ sessionId: 's_current', userId: 'u_1' }),
+    })
+
+    const res = await app.request('https://acme.xid.dev/v1/me/sessions', { method: 'GET' }, env)
+
+    const body = (await res.json()) as Record<string, unknown>[]
+    expect(body.find((s) => s['id'] === 's_current')).toMatchObject({
+      userAgent: 'Mozilla/5.0 (Macintosh) Chrome/130.0',
+      location: 'Lisbon, PT',
+      amr: ['phr'],
+      signedInAt: new Date(now).toISOString(),
+      isImpersonation: false,
+      impersonator: null,
+    })
+    expect(body.find((s) => s['id'] === 's_imp')).toMatchObject({
+      isImpersonation: true,
+      impersonator: { userId: 'u_admin', displayName: null, email: null },
+    })
+  })
+
   it('returns 401 when no session cookie present', async () => {
     const db = makeFakeD1({ sessions: [sessionRow()] })
     const env = { DB: db } as unknown as Env

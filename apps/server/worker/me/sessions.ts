@@ -5,11 +5,13 @@
 // refresh_token_hash 绝不外泄(对照 v1/sessions.ts safeSession,但转 camelCase + 脱敏指纹)。
 
 import { createTenantDb, schema } from '@xid-kit/db'
+import type { BrowserImpersonator } from '@xid-kit/types'
 import { and, asc, eq, gt, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { sessionDoRevoke, sessionDoRevokeAllExcept } from '../lib/session'
 import { AppError } from '../lib/errors'
 import type { XidHonoEnv } from '../lib/types'
+import { loadImpersonators } from './impersonator'
 import { maskFingerprint, readAllById, requireSession, toIso } from './shared'
 
 type ActiveSession = {
@@ -17,23 +19,43 @@ type ActiveSession = {
   deviceName: string | null
   deviceFingerprint: string | null
   ipAddress: string | null
+  // 浏览器与系统名由前端解析 userAgent;location 是签发时按 IP 估算的 "City, CC",旧会话为 null。
+  userAgent: string | null
+  location: string | null
+  amr: readonly string[]
+  signedInAt: string
   lastActiveAt: string
   expiresAt: string
   isCurrent: boolean
+  isImpersonation: boolean
+  impersonator: BrowserImpersonator | null
 }
 
 function toActiveSession(
   row: typeof schema.sessions.$inferSelect,
-  currentSessionId: string,
+  context: {
+    currentSessionId: string
+    impersonators: ReadonlyMap<string, BrowserImpersonator>
+  },
 ): ActiveSession {
+  const impersonator =
+    row.isImpersonation && row.impersonatorUserId
+      ? (context.impersonators.get(row.impersonatorUserId) ?? null)
+      : null
   return {
     id: row.id,
     deviceName: row.deviceName ?? null,
     deviceFingerprint: maskFingerprint(row.deviceFingerprintHash),
     ipAddress: row.ip ?? null,
+    userAgent: row.userAgent ?? null,
+    location: row.location ?? null,
+    amr: row.amr ?? [],
+    signedInAt: row.authenticatedAt.toISOString(),
     lastActiveAt: toIso(row.lastActiveAt) ?? row.createdAt.toISOString(),
     expiresAt: row.expiresAt.toISOString(),
-    isCurrent: row.id === currentSessionId,
+    isCurrent: row.id === context.currentSessionId,
+    isImpersonation: row.isImpersonation,
+    impersonator,
   }
 }
 
@@ -54,7 +76,15 @@ app.get('/', async (c) => {
       limit,
     })
   })
-  return c.json(rows.map((r) => toActiveSession(r, session.sessionId)))
+  const impersonators = await loadImpersonators(
+    c.env,
+    c.get('tenant').instanceId,
+    rows.flatMap((row) =>
+      row.isImpersonation && row.impersonatorUserId ? [row.impersonatorUserId] : [],
+    ),
+  )
+  const context = { currentSessionId: session.sessionId, impersonators }
+  return c.json(rows.map((row) => toActiveSession(row, context)))
 })
 
 // POST /v1/me/sessions/revoke-all -- 撤销除当前会话外所有会话
