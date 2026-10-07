@@ -35,6 +35,15 @@ jobs:
           test "$GITHUB_REF_NAME" = "v$package_version"
           grep -F "## [$package_version]" CHANGELOG.md
 
+      # git-cliff --current sorts tags lexically, so v0.0.10 resolved to the whole history.
+      - name: Resolve release range
+        id: range
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$GITHUB_REF_NAME^")"
+          echo "range=$previous..$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+
       # orhun/git-cliff-action v4.9.0, running git-cliff v2.13.1
       - name: Generate release notes
         id: git-cliff
@@ -42,7 +51,7 @@ jobs:
         with:
           version: v2.13.1
           config: cliff.toml
-          args: --current --strip all --verbose
+          args: --strip all --verbose ${{ steps.range.outputs.range }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
         env:
           OUTPUT: RELEASE_NOTES.md
@@ -54,6 +63,7 @@ jobs:
           set -euo pipefail
           test -s RELEASE_NOTES.md
           grep -F "## [${GITHUB_REF_NAME#v}]" RELEASE_NOTES.md
+          test "$(grep -c '^## \[' RELEASE_NOTES.md)" = "1"
 
       - name: Create GitHub Release
         env:
