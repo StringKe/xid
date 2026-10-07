@@ -156,7 +156,7 @@ export function DeleteUserDialog({
       </p>
       <ul {...stylex.props(styles.list)}>
         <li>
-          {sessions === undefined ? (
+          {sessions === undefined || sessions === 0 ? (
             <Trans>End every active session right away</Trans>
           ) : (
             <Plural

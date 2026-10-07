@@ -15,9 +15,10 @@ import { InviteMembersDialog } from './InviteMembersDialog'
 import { InvitationsTab } from './InvitationsTab'
 import { MembersTab } from './MembersTab'
 import { useInvitations, useMembers } from './member-api'
+import { organizationNameText } from '../users/user-format'
 
 export default function MembersPage(): ReactNode {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   const { orgId } = useOrgTarget()
   const { activeOrg } = useAuth()
   const canManageOwners = useCanManageOwners()
@@ -84,14 +85,18 @@ export default function MembersPage(): ReactNode {
         ]}
       />
       {tab === 'members' ? (
-        <MembersTab orgId={orgId} orgName={activeOrg?.name ?? ''} action={inviteButton} />
+        <MembersTab
+          orgId={orgId}
+          orgName={organizationNameText(i18n, activeOrg?.name)}
+          action={inviteButton}
+        />
       ) : (
         <InvitationsTab orgId={orgId} invitations={invitations} action={inviteButton} />
       )}
       {inviting ? (
         <InviteMembersDialog
           orgId={orgId}
-          orgName={activeOrg?.name ?? ''}
+          orgName={organizationNameText(i18n, activeOrg?.name)}
           canInviteOwners={canManageOwners}
           onClose={() => setInviting(false)}
         />
