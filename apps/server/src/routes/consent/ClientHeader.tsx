@@ -1,130 +1,96 @@
-import { Trans, useLingui } from '@lingui/react/macro'
+// 同意页顶部:应用标识、应用归属组织、第一方 / 第三方标签。
+
+import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { Badge } from '../../components/ui'
+import { initialsOf } from '../../components/hosted/IdentityChip'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import type { ConsentParams } from './index'
-
-export type ClientHeaderProps = {
-  params: ConsentParams
-  titleId: string
-}
 
 const styles = stylex.create({
-  clientRow: {
+  row: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
+    minWidth: 0,
   },
-  clientLogo: {
+  logo: {
     flexShrink: 0,
     width: '2.5rem',
     height: '2.5rem',
+    borderRadius: tokens['--xid-radius-lg'],
     objectFit: 'contain',
-    borderRadius: tokens['--xid-radius'],
   },
-  clientLogoPlaceholder: {
-    flexShrink: 0,
-    width: '2.5rem',
-    height: '2.5rem',
-    borderRadius: tokens['--xid-radius'],
-    backgroundColor: tokens['--xid-muted'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    display: 'flex',
+  monogram: {
+    display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
+    flexShrink: 0,
+    width: '2.5rem',
+    height: '2.5rem',
+    borderRadius: tokens['--xid-radius-lg'],
+    backgroundColor: tokens['--xid-primary'],
+    color: tokens['--xid-primary-foreground'],
+    fontSize: text.sm,
+    fontWeight: 600,
   },
-  clientMeta: {
+  names: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.125rem',
+    flexGrow: 1,
     minWidth: 0,
   },
-  clientName: {
-    margin: 0,
-    fontSize: '0.9375rem',
-    fontWeight: 600,
+  name: {
+    fontSize: text.base,
+    fontWeight: weight.medium,
+    lineHeight: '1.125rem',
     color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    textOverflow: 'ellipsis',
-    overflow: 'hidden',
-    whiteSpace: 'nowrap',
+    overflowWrap: 'anywhere',
   },
-  clientNature: {
-    margin: 0,
-    fontSize: '0.75rem',
+  owner: {
+    fontSize: text.sm,
+    lineHeight: '1rem',
     color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font-mono'],
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-  },
-  titleSpacing: {
-    marginTop: '0.875rem',
-  },
-  titleBlock: {
-    minWidth: 0,
-  },
-  title: {
-    margin: 0,
-    fontSize: '1.375rem',
-    fontWeight: 650,
-    lineHeight: 1.1,
-    letterSpacing: '-0.022em',
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    textWrap: 'balance',
-  },
-  lead: {
-    margin: '0.375rem 0 0',
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    textWrap: 'pretty',
+    overflowWrap: 'anywhere',
   },
 })
 
-export function ClientHeader({ params, titleId }: ClientHeaderProps): ReactNode {
-  const { t } = useLingui()
+export type ClientIdentity = {
+  name: string
+  logoUrl: string | null
+  ownerName: string | null
+  firstParty: boolean
+}
 
+export function ClientHeader({ client }: { client: ClientIdentity }): ReactNode {
   return (
-    <div {...stylex.props(styles.titleBlock)}>
-      <div {...stylex.props(styles.clientRow)}>
-        {params.clientLogoUrl ? (
-          <img
-            src={params.clientLogoUrl}
-            alt={t`${params.clientName} logo`}
-            {...stylex.props(styles.clientLogo)}
-          />
-        ) : (
-          <div aria-hidden="true" {...stylex.props(styles.clientLogoPlaceholder)}>
-            {params.clientName.charAt(0).toUpperCase()}
-          </div>
-        )}
-        <div {...stylex.props(styles.clientMeta)}>
-          <p {...stylex.props(styles.clientName)}>{params.clientName}</p>
-          <p {...stylex.props(styles.clientNature)}>
-            {params.firstParty ? <Trans>first-party</Trans> : <Trans>third-party app</Trans>}
-          </p>
-        </div>
-      </div>
-
-      <h1 id={titleId} {...stylex.props(styles.title, styles.titleSpacing)}>
-        <Trans>Requesting access to your account</Trans>
-      </h1>
-
-      <p {...stylex.props(styles.lead)}>
-        {params.firstParty ? (
-          <Trans>This is a first-party application by the same provider.</Trans>
-        ) : (
-          <Trans>This application will be able to access the following information.</Trans>
-        )}
-      </p>
+    <div {...stylex.props(styles.row)}>
+      {client.logoUrl ? (
+        <img src={client.logoUrl} alt="" {...stylex.props(styles.logo)} />
+      ) : (
+        <span aria-hidden="true" {...stylex.props(styles.monogram)}>
+          {initialsOf(client.name)}
+        </span>
+      )}
+      <span {...stylex.props(styles.names)}>
+        <span {...stylex.props(styles.name)}>{client.name}</span>
+        {client.ownerName ? (
+          <span {...stylex.props(styles.owner)}>
+            <Trans>by {client.ownerName}</Trans>
+          </span>
+        ) : null}
+      </span>
+      {client.firstParty ? (
+        <Badge variant="outline">
+          <Trans>First-party</Trans>
+        </Badge>
+      ) : (
+        <Badge tone="warning">
+          <Trans>Third-party</Trans>
+        </Badge>
+      )}
     </div>
   )
 }

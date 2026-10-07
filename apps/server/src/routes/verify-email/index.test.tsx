@@ -31,7 +31,7 @@ vi.mock('../../components/layout', () => ({
 }))
 
 vi.mock('../../components/ui', () => ({
-  Alert: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
     isLoading: _loading,
@@ -161,10 +161,8 @@ describe('VerifyEmailPage explicit confirmation', () => {
     await act(async () => button.click())
     await flush()
 
-    expect(container.textContent).toContain(
-      'Your email has been verified. Next, set your password.',
-    )
-    expect(container.textContent).not.toContain('Redirecting you to sign in')
+    expect(container.textContent).toContain('Next, set your password.')
+    expect(container.textContent).not.toContain('Taking you back to sign in')
     await act(async () => vi.advanceTimersByTime(2000))
     expect(routerState.navigate).toHaveBeenCalledWith('/reset-password?setup=1#token=setup-token', {
       replace: true,
@@ -198,10 +196,8 @@ describe('VerifyEmailPage explicit confirmation', () => {
     await flush()
 
     expect(globalThis.sessionStorage.getItem('xid.verify-email.token')).toBeNull()
-    expect(container.textContent).toContain(
-      'This verification link is invalid or has already been used.',
-    )
-    expect(container.textContent).not.toContain('No verification token found')
+    expect(container.textContent).toContain('This link has expired or was already used')
+    expect(container.textContent).not.toContain('Open the link from your verification email')
 
     await act(async () => root.unmount())
     queryClient.clear()
@@ -233,7 +229,7 @@ describe('VerifyEmailPage explicit confirmation', () => {
     await flush()
 
     expect(globalThis.sessionStorage.getItem('xid.verify-email.token')).toBe('signed-token')
-    expect(container.textContent).toContain('Something went wrong. Please try again.')
+    expect(container.textContent).toContain('Something went wrong. Try again.')
     expect(
       Array.from(container.querySelectorAll('button')).map((button) => button.textContent),
     ).toEqual(['Try again'])

@@ -2,12 +2,13 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Alert, Button, PageHeader } from '../../components/ui'
+import { Button, Icon, Notice } from '../../components/ui'
+import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { hosted } from '../../components/hosted/hosted-styles'
 import { useAuth } from '../../lib/auth-context'
 import { b64urlToBytes, bufferToB64url } from '../sign-in/passkey'
 import type { ChallengeProps } from './CodeChallenges'
 import { ChallengeExits } from './MfaExits'
-import { styles } from './styles'
 import { useMfaVerify } from './use-mfa-verify'
 
 type PasskeyMfaOptions = {
@@ -42,7 +43,7 @@ async function requestAssertion(options: PasskeyMfaOptions): Promise<PublicKeyCr
   }
 }
 
-export function PasskeyMfaChallenge({ isStepUp, methods }: ChallengeProps): ReactNode {
+export function PasskeyMfaChallenge({ isStepUp, methods, above }: ChallengeProps): ReactNode {
   const { t } = useLingui()
   const { api } = useAuth()
   const failedMessage = t`Passkey verification failed. Try another method or try again.`
@@ -79,25 +80,33 @@ export function PasskeyMfaChallenge({ isStepUp, methods }: ChallengeProps): Reac
   }
 
   return (
-    <div {...stylex.props(styles.stack)}>
-      <PageHeader
-        title={<Trans>Passkey verification</Trans>}
+    <div {...stylex.props(hosted.screen)}>
+      <AuthHeading
+        above={above}
+        title={isStepUp ? <Trans>Confirm it's you</Trans> : <Trans>Verify with your passkey</Trans>}
         lead={
           <Trans>
-            Use a registered passkey with device verification to complete two-factor authentication.
+            Use your fingerprint, face or screen lock, the same way you unlock your device.
           </Trans>
         }
       />
-      {verify.error ? <Alert tone="error">{verify.error}</Alert> : null}
+      {verify.error ? <Notice tone="danger">{verify.error}</Notice> : null}
       <Button
         variant="accent"
+        size="lg"
         fullWidth
         isLoading={isRequesting || verify.isPending}
         onClick={() => void handleVerify()}
       >
+        <Icon name="passkey" size={18} />
         <Trans>Use passkey</Trans>
       </Button>
-      <ChallengeExits methods={methods} />
+      {isStepUp ? (
+        <p {...stylex.props(hosted.note)}>
+          <Trans>Text message codes can't be used to confirm changes like this.</Trans>
+        </p>
+      ) : null}
+      <ChallengeExits methods={methods} isStepUp={isStepUp} />
     </div>
   )
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../styles/tokens.stylex'
 import { Button } from '../../components/ui'
-import { styles } from './styles'
+import { hosted } from '../../components/hosted/hosted-styles'
 
 const guestStyles = stylex.create({
   stack: {
@@ -36,13 +36,14 @@ export function SignInGuestButton({
   const { t } = useLingui()
   return (
     <div {...stylex.props(guestStyles.stack)}>
-      <div role="separator" aria-hidden="true" {...stylex.props(styles.separator)}>
-        <span {...stylex.props(styles.separatorRule)} />
+      <div role="separator" aria-hidden="true" {...stylex.props(hosted.separator)}>
+        <span {...stylex.props(hosted.separatorRule)} />
         <Trans>or</Trans>
-        <span {...stylex.props(styles.separatorRule)} />
+        <span {...stylex.props(hosted.separatorRule)} />
       </div>
       <Button
         variant="secondary"
+        size="lg"
         fullWidth
         isLoading={isLoading}
         disabled={disabled}

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseD1Json } from './d1-json.mjs'
 import { closeChromeAndRemoveProfile } from './chrome-cleanup.mjs'
+import { continuePastPasskeyPrompt, signInWithPasswordUi } from './smoke-l3-password-browser.mjs'
 import { trimTrailingSlashes } from '../../../../../tests/helpers/url.mjs'
 
 const DEFAULT_BASE_URL = 'http://localhost:5173'
@@ -655,38 +656,18 @@ function assertNoConsoleErrors(page, name) {
 async function verifyPasswordLogin(page) {
   await page.navigate('/sign-in?locale=en&continue=/account/security')
   try {
-    await page.waitFor(
-      () =>
-        document.body.innerText.includes('Password') && document.body.innerText.includes('Sign in'),
-      15_000,
-      'password sign-in UI',
-    )
+    await signInWithPasswordUi(page, {
+      identifier: adminEmail,
+      password: adminPassword,
+      label: 'password sign-in UI',
+    })
+    await continuePastPasskeyPrompt(page, 'password sign-in')
   } catch (error) {
     const snapshot = await page.snapshot()
     throw new Error(
       `${error.message}; snapshot=${JSON.stringify(snapshot)}; console=${JSON.stringify(page.events)}`,
     )
   }
-  const passwordVisible = await page.evaluate(`(() => {
-    const isVisible = (node) => {
-      if (node.closest('[aria-hidden="true"],[inert]')) return false;
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number(style.opacity || '1') > 0.1 &&
-        rect.width > 0 &&
-        rect.height > 0;
-    };
-    return Array.from(document.querySelectorAll('input[type="password"]')).some(isVisible);
-  })()`)
-  if (passwordVisible !== true) await page.clickVisibleButton('Password')
-  await page.setVisibleInputValue(
-    'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
-    adminEmail,
-  )
-  await page.setVisibleInputValue('input[type="password"]', adminPassword)
-  await page.clickVisibleButton('Sign in')
   try {
     await page.waitFor(
       () => location.pathname === '/account/security',
@@ -759,18 +740,19 @@ async function verifyPasskeySignIn(page) {
   await page.disableConditionalMediation()
   await page.navigate('/sign-in?locale=en&continue=/console')
   await page.installFetchLog()
+  // 条件式 UI 被关掉后,标识页显示显式的 passkey 按钮;实例入口需要先填标识才能解析组织。
   await page.waitFor(
     () =>
-      document.body.innerText.includes('Passkey') && document.body.innerText.includes('Sign in'),
+      document.querySelector('input[name="identifier"]') !== null &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) =>
+          String(item.textContent || '').trim() === 'Continue with a passkey' && !item.disabled,
+      ),
     15_000,
     'passkey sign-in UI',
   )
-  await page.clickVisibleButton('Passkey')
-  await page.setVisibleInputValue(
-    'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
-    adminEmail,
-  )
-  await page.clickVisibleButton('Sign in with passkey')
+  await page.setVisibleInputValue('input[name="identifier"]', adminEmail)
+  await page.clickVisibleButton('Continue with a passkey')
   let consoleHandoff
   try {
     consoleHandoff = await page.waitForDocumentResponse(

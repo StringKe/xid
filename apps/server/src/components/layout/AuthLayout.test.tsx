@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const configState = vi.hoisted(() => ({
+  context: {
+    organizationName: 'Northwind Logistics' as string | null,
+    applicationName: 'Fleet Planner' as string | null,
+    applicationLogoUrl: null,
+  },
+}))
 
 // vitest 不走 lingui 编译,Trans 直出 children,t 还原模板拼接。
 vi.mock('@lingui/react/macro', () => ({
@@ -14,36 +22,29 @@ vi.mock('@lingui/react/macro', () => ({
   }),
 }))
 
-vi.mock('../../lib/theme', () => ({
-  useTheme: () => ({
-    brand: {
-      appName: 'XID',
-      logoUrl: null,
-    },
-    scheme: 'light',
-  }),
-  brandLogoUrl: (brand: { logoUrl: string | null }) => brand.logoUrl ?? undefined,
+vi.mock('../hosted/use-hosted-auth-config', () => ({
+  useHostedAuthConfig: () => ({ config: { context: configState.context }, isPending: false }),
 }))
 
-vi.mock('../LanguageSwitcher', () => ({
-  LanguageSwitcher: () => <select aria-label="Language" />,
+vi.mock('../hosted/LanguageMenu', () => ({
+  LanguageMenu: () => <select aria-label="Language" />,
+}))
+
+vi.mock('../hosted/BrandMark', () => ({
+  BrandMark: ({ organizationName }: { organizationName: string | null }) => (
+    <span data-brand="">{organizationName ?? 'XID'}</span>
+  ),
 }))
 
 import { AuthLayout } from './AuthLayout'
 
 describe('AuthLayout', () => {
-  it('renders the language switcher above the auth card', () => {
-    const html = renderToStaticMarkup(
-      <AuthLayout>
-        <h1>Sign in</h1>
-      </AuthLayout>,
-    )
-
-    expect(html.indexOf('aria-label="Language"')).toBeGreaterThan(-1)
-    expect(html.indexOf('aria-label="Language"')).toBeLessThan(html.indexOf('<section'))
+  beforeEach(() => {
+    configState.context.organizationName = 'Northwind Logistics'
+    configState.context.applicationName = 'Fleet Planner'
   })
 
-  it('renders the brand panel tagline', () => {
+  it('names the application the user continues to in the context panel', () => {
     const html = renderToStaticMarkup(
       <AuthLayout>
         <h1>Sign in</h1>
@@ -51,27 +52,63 @@ describe('AuthLayout', () => {
     )
 
     expect(html).toContain('<aside')
-    expect(html).toContain('One XID account. Every application.')
+    expect(html).toContain('You are signing in to continue to')
+    expect(html).toContain('Fleet Planner')
   })
 
-  it('does not render an empty footer without footer content', () => {
+  it('collapses the context into one line for narrow layouts', () => {
     const html = renderToStaticMarkup(
       <AuthLayout>
         <h1>Sign in</h1>
       </AuthLayout>,
     )
 
-    expect(html).not.toContain('<footer')
+    expect(html).toContain('Continue to Fleet Planner by Northwind Logistics')
   })
 
-  it('renders footer content when provided', () => {
+  it('shows no application line at the instance root without a client', () => {
+    configState.context.organizationName = null
+    configState.context.applicationName = null
+
     const html = renderToStaticMarkup(
-      <AuthLayout footer={<p>Policy text</p>}>
+      <AuthLayout>
         <h1>Sign in</h1>
       </AuthLayout>,
     )
 
-    expect(html).toContain('<footer')
-    expect(html).toContain('Policy text')
+    expect(html).not.toContain('Continue to')
+    expect(html).toContain('your XID account')
+  })
+
+  it('uses the page-specific context when one is given', () => {
+    const html = renderToStaticMarkup(
+      <AuthLayout context={{ lead: 'Connecting a device', title: 'Driver App' }}>
+        <h1>Activate</h1>
+      </AuthLayout>,
+    )
+
+    expect(html).toContain('Connecting a device')
+    expect(html).toContain('Driver App')
+    expect(html).not.toContain('Fleet Planner')
+  })
+
+  it('offers the language menu in both the panel and the narrow top bar', () => {
+    const html = renderToStaticMarkup(
+      <AuthLayout>
+        <h1>Sign in</h1>
+      </AuthLayout>,
+    )
+
+    expect(html.match(/aria-label="Language"/g)).toHaveLength(2)
+  })
+
+  it('renders footer content only when provided', () => {
+    const withFooter = renderToStaticMarkup(
+      <AuthLayout footer={<p>Back to sign in</p>}>
+        <h1>Sign in</h1>
+      </AuthLayout>,
+    )
+
+    expect(withFooter).toContain('Back to sign in')
   })
 })

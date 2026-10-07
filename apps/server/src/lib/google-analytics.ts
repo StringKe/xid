@@ -58,6 +58,7 @@ export function resolveAnalyticsPageGroup(pathname: string): AnalyticsPageGroup 
     pathname.startsWith('/verify-email') ||
     pathname.startsWith('/magic-link') ||
     pathname.startsWith('/mfa') ||
+    pathname.startsWith('/create-passkey') ||
     pathname.startsWith('/consent') ||
     pathname.startsWith('/accept-invitation') ||
     pathname.startsWith('/create-organization') ||

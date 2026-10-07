@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
 const routerState = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -15,8 +15,14 @@ const authState = vi.hoisted(() => ({
 }))
 
 const signInState = vi.hoisted(() => ({
+  step: 'identifier' as 'identifier' | 'methods' | 'sso' | 'organization',
+  method: 'password',
+  methods: [] as string[],
   enabledMethods: [] as string[],
+  error: null as string | null,
   guestCapability: false,
+  isSignUpFlow: false,
+  organizationName: 'Northwind' as string | null,
   tenantSelection: {
     continueParam: null as string | null,
     redirect: null as string | null,
@@ -26,7 +32,11 @@ const signInState = vi.hoisted(() => ({
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
-  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings[0] }),
+  useLingui: () => ({
+    t: (strings: TemplateStringsArray, ...values: unknown[]) =>
+      strings.reduce((copy, part, index) => copy + part + String(values[index] ?? ''), ''),
+    i18n: { date: () => '9:26 AM' },
+  }),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -38,12 +48,47 @@ vi.mock('../../components/layout', () => ({
   AuthLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
+vi.mock('../../components/hosted/context-copy', () => ({
+  useContinueLine: () => undefined,
+}))
+
 vi.mock('../../components/ui', () => ({
-  Alert: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-  Field: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  PageHeader: ({ title }: { title: ReactNode }) => <h1>{title}</h1>,
+  Notice: ({ children }: { children: ReactNode }) => <div role="status">{children}</div>,
+  Icon: () => null,
+  Button: ({
+    children,
+    type,
+    onClick,
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
+    <button type={type === 'submit' ? 'submit' : 'button'} onClick={onClick}>
+      {children}
+    </button>
+  ),
+  Field: ({ label, children }: { label?: ReactNode; children: ReactNode }) => (
+    <label>
+      {label}
+      {children}
+    </label>
+  ),
+  Input: ({
+    inputSize: _inputSize,
+    ...props
+  }: InputHTMLAttributes<HTMLInputElement> & { inputSize?: string }) => <input {...props} />,
+  PasswordField: ({
+    label,
+    labelAction,
+    autoComplete,
+  }: {
+    label: ReactNode
+    labelAction?: ReactNode
+    autoComplete?: string
+  }) => (
+    <label>
+      {label}
+      {labelAction}
+      <input type="password" autoComplete={autoComplete} />
+    </label>
+  ),
 }))
 
 vi.mock('../../lib/auth-context', () => ({
@@ -52,36 +97,9 @@ vi.mock('../../lib/auth-context', () => ({
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: unknown; children: ReactNode }) => (
-    <a
-      href={
-        typeof to === 'string'
-          ? to
-          : `${(to as { pathname?: string }).pathname ?? ''}${(to as { search?: string }).search ?? ''}`
-      }
-    >
-      {children}
-    </a>
+    <a href={typeof to === 'string' ? to : ''}>{children}</a>
   ),
   useNavigate: () => routerState.navigate,
-}))
-
-vi.mock('./shared', () => ({
-  getEnabledOtpMethods: () => [],
-  identifierPrompt: () => ({ mode: 'email', type: 'email', autoComplete: 'email' }),
-  isSignInCorrectableErrorKey: () => false,
-  requiredProfileFields: () => [],
-  resolveOtpMethod: () => 'otp-email',
-  visibleProfileFields: () => [],
-}))
-
-vi.mock('./sign-in-flow', () => ({
-  resolveHostedReturn: (
-    search: { continue?: string; authz_request_id?: string },
-    fallback: string,
-  ) =>
-    search.authz_request_id
-      ? `/authorize?authz_request_id=${encodeURIComponent(search.authz_request_id)}`
-      : (search.continue ?? fallback),
 }))
 
 vi.mock('@xid-kit/web-ui/api-error-message', () => ({
@@ -92,17 +110,8 @@ vi.mock('./SignInGuestButton', () => ({
   SignInGuestButton: () => <div>Guest entry</div>,
 }))
 
-vi.mock('./SignInOtpPanel', () => ({
-  SignInOtpPanel: () => null,
-}))
-
 vi.mock('./SignInSocialButtons', () => ({
   SignInSocialButtons: () => null,
-}))
-
-vi.mock('./SignInTabs', () => ({
-  SignInPanel: ({ children }: { children: ReactNode }) => <>{children}</>,
-  SignInTabs: () => null,
 }))
 
 vi.mock('./useTurnstile', () => ({
@@ -112,17 +121,40 @@ vi.mock('./useTurnstile', () => ({
 vi.mock('./useSignIn', () => ({
   useSignIn: () => [
     {
-      method: 'password',
+      step: signInState.step,
+      method: signInState.method,
+      methods: signInState.methods,
       authConfig: {
+        identifierMode: 'email',
         forceSso: false,
         socialProviders: [],
-        resolution: { status: 'resolved' },
+        resolution: { status: 'ready' },
         guest: signInState.guestCapability ? { capabilityToken: 'guest-capability-token' } : null,
         passkeyEntry: { identifierRequired: false, reregistrationRequired: false },
         defaultLandingPath: '/console',
+        profileFields: {
+          email: 'required',
+          username: 'hidden',
+          phone: 'hidden',
+          name: 'hidden',
+          givenName: 'hidden',
+          familyName: 'hidden',
+        },
+        allowUserCreation: true,
+        methods: {
+          password: { enabled: true, allowLogin: true, allowUserCreation: true },
+        },
+        context: {
+          organizationName: signInState.organizationName,
+          applicationName: null,
+          applicationLogoUrl: null,
+        },
       },
+      configSettled: true,
       enabledMethods: signInState.enabledMethods,
-      identifier: '',
+      identifier: 'dana@northwind.com',
+      identifierKind: 'email',
+      isSignUpFlow: signInState.isSignUpFlow,
       profileValues: {
         email: '',
         username: '',
@@ -134,30 +166,40 @@ vi.mock('./useSignIn', () => ({
       password: '',
       rememberMe: false,
       otpCode: '',
+      otpSentAt: null,
+      otpResent: false,
+      isSendingOtp: false,
+      isVerifyingOtp: false,
+      magicLinkSent: false,
+      ssoTarget: null,
       isLoading: false,
-      passkeySupport: 'no',
+      passkeySupport: 'yes',
+      passkeyConditionalAvailable: true,
       conditionalUiRunning: false,
-      error: null,
-      otpStep: 'input',
+      error: signInState.error,
       turnstileToken: null,
       turnstileReady: true,
+      excludesFederatedEntry: false,
+      hostedReturn: '/console',
+      guestEntryPending: false,
       tenantSelection: signInState.tenantSelection,
     },
     {
-      setMethod: vi.fn(),
       setIdentifier: vi.fn(),
       setProfileValue: vi.fn(),
       setPassword: vi.fn(),
       setRememberMe: vi.fn(),
       setOtpCode: vi.fn(),
       setTurnstileToken: vi.fn(),
+      submitIdentifier: vi.fn(),
+      changeIdentifier: vi.fn(),
+      chooseMethod: vi.fn(),
       submitPassword: vi.fn(),
       submitMagicLink: vi.fn(),
-      submitOtpRequest: vi.fn(),
-      submitOtpVerify: vi.fn(),
-      submitEnterpriseSso: vi.fn(),
-      submitGuest: vi.fn(),
+      requestOtp: vi.fn(),
+      verifyOtp: vi.fn(),
       triggerPasskeyButton: vi.fn(),
+      submitGuest: vi.fn(),
       handleSocial: vi.fn(),
       selectOrganizationContext: vi.fn(),
     },
@@ -166,11 +208,7 @@ vi.mock('./useSignIn', () => ({
 
 import { Route } from './SignInPage'
 
-const SignInPage = (
-  Route as unknown as {
-    component: () => ReactNode
-  }
-).component
+const SignInPage = (Route as unknown as { component: () => ReactNode }).component
 
 async function renderPage(): Promise<{ html: string; text: string }> {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -186,55 +224,75 @@ async function renderPage(): Promise<{ html: string; text: string }> {
   return rendered
 }
 
-describe('SignInPage authenticated redirect', () => {
+describe('SignInPage', () => {
   beforeEach(() => {
     authState.status = 'authenticated'
     routerState.navigate.mockClear()
     routerState.search = {}
+    signInState.step = 'identifier'
+    signInState.method = 'password'
+    signInState.methods = []
     signInState.enabledMethods = []
+    signInState.error = null
     signInState.guestCapability = false
-    signInState.tenantSelection = {
-      continueParam: null,
-      redirect: null,
-      authzRequestId: null,
-    }
+    signInState.isSignUpFlow = false
+    signInState.organizationName = 'Northwind'
+    signInState.tenantSelection = { continueParam: null, redirect: null, authzRequestId: null }
   })
 
-  it('uses account-creation copy and password semantics for sign-up intent', async () => {
+  it('starts with one identifier field that offers passkeys through autofill', async () => {
     authState.status = 'unauthenticated'
-    routerState.search = { intent: 'sign-up' }
-    signInState.enabledMethods = ['password']
-
-    const rendered = await renderPage()
-
-    expect(rendered.text).toContain('Create your account')
-    expect(rendered.text).toContain('Sign up')
-    expect(rendered.text).not.toContain('Forgot password?')
-    expect(rendered.html).toContain('autocomplete="new-password"')
-    expect(rendered.html).toContain('placeholder="Minimum 12 characters"')
-  })
-
-  it('does not expose the sign-in passkey action during sign-up', async () => {
-    authState.status = 'unauthenticated'
-    routerState.search = { intent: 'sign-up' }
     signInState.enabledMethods = ['passkey', 'password']
 
     const rendered = await renderPage()
 
-    expect(rendered.text).not.toContain('Sign in with passkey')
-    expect(rendered.text).toContain('Sign up')
+    expect(rendered.text).toContain('Sign in to Northwind')
+    expect(rendered.html).toContain('autocomplete="email webauthn"')
+    expect(rendered.html.match(/<input/g)).toHaveLength(1)
+    expect(rendered.text).not.toContain('Continue with a passkey')
   })
 
-  it('keeps recovery and current-password semantics for sign-in intent', async () => {
+  it('names the organization in the create-account title for sign-up intent', async () => {
     authState.status = 'unauthenticated'
+    routerState.search = { intent: 'sign-up' }
+    signInState.isSignUpFlow = true
     signInState.enabledMethods = ['password']
 
     const rendered = await renderPage()
 
-    expect(rendered.text).toContain('Sign in')
+    expect(rendered.text).toContain('Create your Northwind account')
+    expect(rendered.text).toContain('Already have an account?')
+    expect(rendered.text).not.toContain("Can't sign in?")
+  })
+
+  it('uses create-password semantics in the new-account second step', async () => {
+    authState.status = 'unauthenticated'
+    signInState.isSignUpFlow = true
+    signInState.step = 'methods'
+    signInState.methods = ['password']
+    signInState.enabledMethods = ['password']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain('Create a password')
+    expect(rendered.html).toContain('autocomplete="new-password"')
+    expect(rendered.text).not.toContain('Forgot password?')
+  })
+
+  it('echoes the typed identifier with a Change action and offers recovery on the password step', async () => {
+    authState.status = 'unauthenticated'
+    signInState.step = 'methods'
+    signInState.methods = ['otp-email', 'password']
+    signInState.enabledMethods = ['otp-email', 'password']
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain('dana@northwind.com')
+    expect(rendered.text).toContain('Change')
+    expect(rendered.text).toContain('Enter your password')
     expect(rendered.text).toContain('Forgot password?')
-    expect(rendered.html).toContain('href="/forgot-password"')
     expect(rendered.html).toContain('autocomplete="current-password"')
+    expect(rendered.text).toContain('Try another way')
   })
 
   it('keeps organization and locale context in password recovery navigation', async () => {
@@ -244,7 +302,19 @@ describe('SignInPage authenticated redirect', () => {
 
     const rendered = await renderPage()
 
-    expect(rendered.html).toContain('href="/forgot-password?organization_id=org-1&amp;locale=en"')
+    expect(rendered.html).toContain(
+      'href="/forgot-password?organization_id=org-1&amp;locale=en&amp;login_hint=dana%40northwind.com"',
+    )
+  })
+
+  it('shows the locked screen without naming why the account cannot sign in', async () => {
+    authState.status = 'unauthenticated'
+    signInState.error = 'account_locked'
+
+    const rendered = await renderPage()
+
+    expect(rendered.text).toContain("You can't sign in right now")
+    expect(rendered.text).toContain('Use a different account')
   })
 
   it('renders guest entry only when the server config includes the capability', async () => {
@@ -257,15 +327,13 @@ describe('SignInPage authenticated redirect', () => {
     expect((await renderPage()).text).not.toContain('Guest entry')
   })
 
-  it('shows the verified success alert and keeps the sign-in form for verified=1', async () => {
+  it('confirms a verified email above the sign-in form for verified=1', async () => {
     authState.status = 'unauthenticated'
     routerState.search = { verified: '1' }
-    signInState.enabledMethods = ['password']
 
     const rendered = await renderPage()
 
-    expect(rendered.text).toContain('Your email has been verified. Sign in to continue.')
-    expect(rendered.text).toContain('Sign in')
+    expect(rendered.text).toContain('Your email address is confirmed. Sign in to continue.')
   })
 
   it('routes an authenticated sign-up session to organization onboarding', async () => {
@@ -307,15 +375,12 @@ describe('SignInPage authenticated redirect', () => {
 
     const rendered = await renderPage()
 
-    expect(rendered.text).toContain('New here? Create an account')
+    expect(rendered.text).toContain('New to Northwind?')
     const switchHref = /href="(\/sign-in\?[^"]*)"/.exec(rendered.html)?.[1]
-    expect(switchHref).toBeDefined()
     const decoded = (switchHref ?? '').replaceAll('&amp;', '&')
     expect(decoded).toContain('intent=application-sign-up')
-    expect(decoded).not.toContain('intent=sign-up')
     expect(decoded).toContain('continue=%2Fconsole')
     expect(decoded).toContain('client_id=client-1')
-    expect(decoded).toContain('organization_id=org-1')
     expect(decoded).toContain('authz_request_id=authz-1')
     expect(decoded).toContain('login_hint=owner%40example.com')
     expect(decoded).not.toContain('verified=')
@@ -337,6 +402,7 @@ describe('SignInPage authenticated redirect', () => {
 
   it('links sign-up back to sign-in without an intent param', async () => {
     authState.status = 'unauthenticated'
+    signInState.isSignUpFlow = true
     routerState.search = {
       intent: 'sign-up',
       continue: '/console',
@@ -346,9 +412,7 @@ describe('SignInPage authenticated redirect', () => {
 
     const rendered = await renderPage()
 
-    expect(rendered.text).toContain('Already have an account? Sign in')
     const switchHref = /href="(\/sign-in\?[^"]*)"/.exec(rendered.html)?.[1]
-    expect(switchHref).toBeDefined()
     const decoded = (switchHref ?? '').replaceAll('&amp;', '&')
     expect(decoded).not.toContain('intent=')
     expect(decoded).toContain('continue=%2Fconsole')

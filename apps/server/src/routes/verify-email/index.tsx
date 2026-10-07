@@ -1,15 +1,17 @@
 // 邮箱验证确认页;GET/页面加载永不消费 token,仅显式按钮触发 POST。
 
-import { Trans } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { useMutation } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
-import { tokens } from '../../styles/tokens.stylex'
-import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
+import { page } from '../../styles/product-surface.stylex'
+import { Badge, Button, Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
+import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { hosted } from '../../components/hosted/hosted-styles'
 import { useAuth } from '../../lib/auth-context'
 import { trackEmailVerified } from '../../lib/google-analytics-funnel'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
@@ -37,29 +39,8 @@ function withVerifiedHint(target: string, email: string | undefined): string {
   return `${path}?${params.toString()}`
 }
 
-const styles = stylex.create({
-  stack: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.25rem',
-    minWidth: 0,
-  },
-  pendingRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  pendingLabel: {
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: tokens['--xid-muted-foreground'],
-  },
-})
-
 function VerifyEmailPage(): ReactNode {
+  const { t } = useLingui()
   const search = useSearch({ strict: false }) as { token?: string }
   const { token, ready, clearToken } = useOneTimeLinkToken({
     storageKey: 'xid.verify-email.token',
@@ -100,103 +81,113 @@ function VerifyEmailPage(): ReactNode {
     ? classifyOneTimeLinkError(verification.error, VERIFY_EMAIL_TERMINAL_CODES)
     : null
 
-  return (
-    <AuthLayout>
-      <div {...stylex.props(styles.stack)}>
-        <PageHeader
-          title={
-            ready && token !== null && verification.isIdle ? (
-              <Trans>Confirm your email</Trans>
-            ) : (
-              <Trans>Verify your email</Trans>
-            )
-          }
-          lead={
-            ready && token !== null && verification.isIdle ? (
+  function content(): ReactNode {
+    if (!ready || verification.isPending) {
+      return (
+        <div {...stylex.props(page.loadingCenter)} aria-live="polite">
+          <Spinner
+            label={
+              verification.isPending ? t`Confirming your email address` : t`Preparing verification`
+            }
+          />
+        </div>
+      )
+    }
+    if (verification.isSuccess) {
+      const email = verification.data.email
+      return (
+        <div {...stylex.props(hosted.screen)} aria-live="polite">
+          <AuthHeading
+            above={
+              <Badge tone="success">
+                <Trans>Verified</Trans>
+              </Badge>
+            }
+            title={
+              email ? <Trans>{email} is verified</Trans> : <Trans>Your email is verified</Trans>
+            }
+            lead={
+              continuesToPasswordSetup(verification.data.redirectUrl) ? (
+                <Trans>Next, set your password.</Trans>
+              ) : (
+                <Trans>Taking you back to sign in.</Trans>
+              )
+            }
+          />
+        </div>
+      )
+    }
+    if (errorKind && errorKind !== 'retryable') {
+      return (
+        <div {...stylex.props(hosted.screen)}>
+          <AuthHeading
+            above={
+              <Badge tone="warning">
+                <Trans>Link expired</Trans>
+              </Badge>
+            }
+            title={<Trans>This link has expired or was already used</Trans>}
+            lead={
               <Trans>
-                Continue only if you opened this link from the verification email sent to you.
+                Verification links work once, for 15 minutes. Send a new one and open the newest
+                email.
               </Trans>
-            ) : undefined
+            }
+          />
+          <ResendVerification />
+        </div>
+      )
+    }
+    if (token === null) {
+      return (
+        <div {...stylex.props(hosted.screen)}>
+          <AuthHeading
+            title={<Trans>Verify your email</Trans>}
+            lead={
+              <Trans>
+                Open the link from your verification email on this device, or send a new one.
+              </Trans>
+            }
+          />
+          <ResendVerification />
+        </div>
+      )
+    }
+    return (
+      <div {...stylex.props(hosted.screen)}>
+        <AuthHeading
+          title={<Trans>Confirm your email</Trans>}
+          lead={
+            <Trans>
+              Continue only if you opened this link from the verification email sent to you.
+            </Trans>
           }
         />
-
-        {!ready ? (
-          <div {...stylex.props(styles.pendingRow)} aria-live="polite">
-            <Spinner size={16} />
-            <span {...stylex.props(styles.pendingLabel)}>
-              <Trans>Preparing verification...</Trans>
-            </span>
-          </div>
-        ) : null}
-
-        {ready && token === null && !verification.isSuccess && !verification.error ? (
-          <>
-            <Alert tone="error">
-              <Trans>No verification token found. Please use the link from your email.</Trans>
-            </Alert>
-            <ResendVerification />
-          </>
-        ) : null}
-
-        {ready && token !== null && verification.isIdle ? (
-          <Button type="button" variant="accent" fullWidth onClick={() => verification.mutate()}>
-            <Trans>Confirm email address</Trans>
-          </Button>
-        ) : null}
-
-        {verification.isPending ? (
-          <div {...stylex.props(styles.pendingRow)} aria-live="polite">
-            <Spinner size={16} />
-            <span {...stylex.props(styles.pendingLabel)}>
-              <Trans>Verifying your email address...</Trans>
-            </span>
-          </div>
-        ) : null}
-
-        {verification.isSuccess ? (
-          <Alert tone="success">
-            {continuesToPasswordSetup(verification.data.redirectUrl) ? (
-              <Trans>Your email has been verified. Next, set your password.</Trans>
-            ) : (
-              <Trans>Your email has been verified. Redirecting you to sign in...</Trans>
-            )}
-          </Alert>
-        ) : null}
-
-        {errorKind === 'expired' ? (
-          <>
-            <Alert tone="error">
-              <Trans>This verification link has expired. Please request a new one.</Trans>
-            </Alert>
-            <ResendVerification />
-          </>
-        ) : null}
-
-        {errorKind === 'invalid' || errorKind === 'unavailable' ? (
-          <>
-            <Alert tone="error">
-              <Trans>This verification link is invalid or has already been used.</Trans>
-            </Alert>
-            <ResendVerification />
-          </>
-        ) : null}
-
         {errorKind === 'retryable' ? (
-          <>
-            <Alert tone="error">
-              <Trans>Something went wrong. Please try again.</Trans>
-            </Alert>
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth
-              onClick={() => verification.mutate()}
-            >
-              <Trans>Try again</Trans>
-            </Button>
-          </>
+          <p {...stylex.props(hosted.note)}>
+            <Trans>Something went wrong. Try again.</Trans>
+          </p>
         ) : null}
+        <Button variant="accent" size="lg" fullWidth onClick={() => verification.mutate()}>
+          {errorKind === 'retryable' ? (
+            <Trans>Try again</Trans>
+          ) : (
+            <Trans>Confirm email address</Trans>
+          )}
+        </Button>
       </div>
+    )
+  }
+
+  return (
+    <AuthLayout
+      context={{
+        lead: t`Your account`,
+        title: t`Verify your email`,
+        description: t`Verification links are single-use and short-lived so nobody else can confirm an address that isn't theirs.`,
+      }}
+    >
+      {content()}
     </AuthLayout>
   )
 }

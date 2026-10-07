@@ -86,7 +86,7 @@ describe('pendingMfaCompletionPath', () => {
       `/mfa?redirect_to=${encodeURIComponent(resume)}`,
     )
     expect(pendingMfaCompletionPath('pending_mfa_setup', resume)).toBe(
-      `/account/security?setup=mfa&redirect_to=${encodeURIComponent(resume)}`,
+      `/mfa/setup?redirect_to=${encodeURIComponent(resume)}`,
     )
   })
 })

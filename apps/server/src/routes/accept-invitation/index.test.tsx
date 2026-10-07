@@ -34,6 +34,7 @@ vi.mock('@lingui/react/macro', () => ({
   useLingui: () => ({
     t: (strings: TemplateStringsArray, ...values: unknown[]) =>
       strings.reduce((copy, part, index) => copy + part + String(values[index] ?? ''), ''),
+    i18n: { date: (value: Date) => value.toISOString().slice(0, 10) },
   }),
 }))
 
@@ -60,7 +61,8 @@ vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
 }))
 
 vi.mock('../../components/ui', () => ({
-  Alert: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+  Notice: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
     isLoading: _isLoading,
@@ -417,7 +419,7 @@ describe('AcceptInvitationPage proof-first flow', () => {
       candidate.textContent?.includes('Back to sign in'),
     )
 
-    expect(page.container.textContent).toContain('Invitation unavailable')
+    expect(page.container.textContent).toContain("This invitation link doesn't work")
     expect(exit?.getAttribute('href')).toBe('/sign-in')
 
     await disposePage(page)
@@ -442,7 +444,7 @@ describe('AcceptInvitationPage proof-first flow', () => {
       candidate.textContent?.includes('Back to sign in'),
     )
 
-    expect(page.container.textContent).toContain('Invitation expired')
+    expect(page.container.textContent).toContain('This invitation has expired')
     expect(exit?.getAttribute('href')).toBe('/sign-in')
 
     await disposePage(page)
@@ -487,7 +489,7 @@ describe('AcceptInvitationPage proof-first flow', () => {
     await disposePage(page)
   })
 
-  it('shows the signed-in identity on preview and signs out via Not you', async () => {
+  it('shows the signed-in identity on preview and lets the user switch accounts', async () => {
     authState.user = { id: 'user_1', email: 'someone-else@example.com' }
     routerState.search = { token: 'raw-invitation-token' }
     authState.get.mockResolvedValue({
@@ -504,10 +506,11 @@ describe('AcceptInvitationPage proof-first flow', () => {
 
     const page = await renderPage()
 
-    expect(page.container.textContent).toContain('Signed in as someone-else@example.com')
+    expect(page.container.textContent).toContain('someone-else@example.com')
+    expect(page.container.textContent).toContain('This invitation is for a different account')
 
     await act(async () => {
-      buttonWithText(page.container, 'Not you? Sign in with a different account').dispatchEvent(
+      buttonWithText(page.container, 'Sign out and use a different account').dispatchEvent(
         new MouseEvent('click', { bubbles: true }),
       )
     })

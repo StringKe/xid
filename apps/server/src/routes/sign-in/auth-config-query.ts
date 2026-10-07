@@ -58,6 +58,30 @@ export function authConfigQueryOptions(search: AuthConfigSearch, client: ApiClie
     },
     retry: false,
     staleTime: AUTH_CONFIG_STALE_TIME_MS,
+    // 标识符提交后 login_hint 变化会换 key;沿用上一份配置,避免上下文栏与方法列表闪回默认值。
+    placeholderData: (previous: PublicHostedAuthConfig | undefined) => previous,
+  }
+}
+
+// MFA 与 passkey 插页只带 redirect_to;从待续跑的 /authorize 取 client_id,上下文栏才能显示应用名。
+function resumedClientId(redirectTo: unknown): string | undefined {
+  if (typeof redirectTo !== 'string' || !redirectTo.startsWith('/authorize?')) return undefined
+  const clientId = new URLSearchParams(redirectTo.slice('/authorize?'.length)).get('client_id')
+  return clientId && clientId.length > 0 ? clientId : undefined
+}
+
+export function authConfigSearchFrom(search: Record<string, unknown>): AuthConfigSearch {
+  const pick = (key: keyof AuthConfigSearch): string | undefined => {
+    const value = search[key]
+    return typeof value === 'string' && value.length > 0 ? value : undefined
+  }
+  return {
+    login_hint: pick('login_hint'),
+    organization_id: pick('organization_id'),
+    client_id: pick('client_id') ?? resumedClientId(search['redirect_to']),
+    intent: pick('intent'),
+    invitation_token: pick('invitation_token'),
+    authz_request_id: pick('authz_request_id'),
   }
 }
 

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import type { ApiClient } from '../../lib/api'
 import { apiErrorToKey, type SignInErrorKey } from './shared'
-import { b64urlToBytes, serializeAssertion } from './passkey'
+import { b64urlToBytes, browserSupportsWebAuthn, serializeAssertion } from './passkey'
 import type { SignInFlowFields } from './sign-in-flow'
 
 type ChallengeResponse = { challenge: string; sessionId: string; organizationId?: string }
@@ -22,6 +22,8 @@ export type PasskeySupport = 'pending' | 'yes' | 'no'
 
 export type PasskeySignIn = {
   support: PasskeySupport
+  // 浏览器支持 Conditional UI 时 passkey 从标识符输入框的 autofill 出现,不再显示单独按钮。
+  conditionalAvailable: boolean
   conditionalRunning: boolean
   isVerifying: boolean
   error: SignInErrorKey | null
@@ -31,6 +33,8 @@ export type PasskeySignIn = {
 type PasskeySignInOptions = {
   api: ApiClient
   enabled: boolean
+  // Conditional UI 只挂在标识符输入框上;离开第一步后只保留显式按钮。
+  conditionalEnabled: boolean
   // 根入口尚未定位到组织时,challenge 需要先用标识符解析 RPID。
   identifierRequired: boolean
   identifier: string
@@ -48,15 +52,6 @@ type ChallengeOutcome = ChallengeResponse | 'organization_selection_required' | 
 // 服务端 challenge 有效期 7 分钟,提前换新以免用户久等后选择的凭据对应已过期的 challenge。
 const CONDITIONAL_REFRESH_MS = 5 * 60 * 1000
 const IDENTIFIER_DEBOUNCE_MS = 500
-
-function browserSupportsWebAuthn(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    'PublicKeyCredential' in window &&
-    typeof navigator !== 'undefined' &&
-    'credentials' in navigator
-  )
-}
 
 async function conditionalMediationAvailable(): Promise<boolean> {
   const probe = (
@@ -176,7 +171,12 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
   }, [])
 
   const identifierReady = !identifierRequired || identifier.length > 0
-  const canRunConditional = enabled && conditionalAvailable && identifierReady && turnstileReady
+  const canRunConditional =
+    enabled &&
+    options.conditionalEnabled &&
+    conditionalAvailable &&
+    identifierReady &&
+    turnstileReady
 
   useEffect(() => {
     if (!canRunConditional) return
@@ -267,6 +267,7 @@ export function usePasskeySignIn(options: PasskeySignInOptions): PasskeySignIn {
 
   return {
     support,
+    conditionalAvailable,
     conditionalRunning,
     isVerifying: verifyMutation.isPending,
     error,

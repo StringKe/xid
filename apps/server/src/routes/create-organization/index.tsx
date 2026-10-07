@@ -5,7 +5,9 @@ import { createLazyRoute } from '@tanstack/react-router'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
 import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
-import { Alert, Button, Field, Input, PageHeader } from '../../components/ui'
+import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { hosted } from '../../components/hosted/hosted-styles'
+import { Alert, Button, Field, Input } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
 import { trackOrganizationCreated } from '../../lib/google-analytics-funnel'
 import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
@@ -58,7 +60,7 @@ function CreateOrganizationUnavailable({ onSignOut }: { onSignOut: () => void })
       }
     >
       <div {...stylex.props(styles.stack)}>
-        <PageHeader
+        <AuthHeading
           title={<Trans>Organization creation unavailable</Trans>}
           lead={
             <Trans>
@@ -141,9 +143,14 @@ export function CreateOrganizationPage(): ReactNode {
     return <CreateOrganizationUnavailable onSignOut={() => void signOut()} />
   }
 
+  const signedInAs = user?.name?.trim() || existingEmail
   return (
     <AuthLayout
-      steps={{ current: 2, total: 2, label: <Trans>Organization</Trans> }}
+      context={{
+        lead: signedInAs ? t`Signed in as ${signedInAs}` : undefined,
+        title: t`New organization`,
+        description: t`An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after.`,
+      }}
       footer={
         <button
           type="button"
@@ -155,12 +162,10 @@ export function CreateOrganizationPage(): ReactNode {
       }
     >
       <form onSubmit={(event) => void handleSubmit(event)} {...stylex.props(styles.stack)}>
-        <PageHeader
-          title={<Trans>Create your organization</Trans>}
+        <AuthHeading
+          title={<Trans>Create an organization</Trans>}
           lead={
-            <Trans>
-              Set up an organization to manage members, authentication, and applications.
-            </Trans>
+            <Trans>You can change the name later. The sign-in address is harder to change.</Trans>
           }
         />
         <Field
@@ -204,10 +209,13 @@ export function CreateOrganizationPage(): ReactNode {
           />
         </Field>
         <Field
-          label={<Trans>URL slug</Trans>}
+          label={<Trans>Sign-in address</Trans>}
           error={errors.slug}
           hint={
-            <Trans>Used in URLs and subdomains. Lowercase letters, numbers, and hyphens.</Trans>
+            <Trans>
+              Lowercase letters, numbers and dashes. Passkeys are tied to this address, so changing
+              it later means members create new ones.
+            </Trans>
           }
         >
           <Input
@@ -225,10 +233,16 @@ export function CreateOrganizationPage(): ReactNode {
         <Button
           type="submit"
           variant="accent"
-          disabled={loading || email.trim() === '' || name.trim() === ''}
+          size="lg"
+          fullWidth
+          isLoading={loading}
+          disabled={email.trim() === '' || name.trim() === ''}
         >
-          {loading ? <Trans>Creating…</Trans> : <Trans>Create organization</Trans>}
+          <Trans>Create organization</Trans>
         </Button>
+        <p {...stylex.props(hosted.note)}>
+          <Trans>You'll be the owner and can invite members right after.</Trans>
+        </p>
       </form>
     </AuthLayout>
   )

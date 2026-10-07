@@ -26,6 +26,7 @@ const routerState = vi.hoisted(() => ({
   navigate: vi.fn(),
 }))
 const postErrorState = vi.hoisted(() => ({ code: 'unauthorized' as string }))
+const postResponses = vi.hoisted(() => new Map<string, unknown>())
 
 function failure<T>(): Result<T> {
   return {
@@ -51,6 +52,7 @@ vi.mock('../../lib/auth-context', () => ({
           : failure<T>(),
       post: async <T,>(path: string, body?: unknown) => {
         postCalls.push({ path, body })
+        if (postResponses.has(path)) return { ok: true, value: postResponses.get(path) as T }
         if (postErrorState.code === 'unauthorized') return failure<T>()
         return {
           ok: false,
@@ -80,6 +82,7 @@ vi.mock('./usePasskeySignIn', () => ({
     })
     return {
       support: 'no',
+      conditionalAvailable: false,
       conditionalRunning: false,
       isVerifying: false,
       error: null,
@@ -332,15 +335,19 @@ describe('useSignIn federated entry', () => {
     return { captured, cleanup }
   }
 
-  it('keeps enterprise SSO and social entries out of an invitation flow', async () => {
+  it('keeps enterprise SSO discovery out of an invitation flow', async () => {
     const { captured, cleanup } = await renderSignIn({
       continue: '/accept-invitation?token=tenant-bound-token',
+      login_hint: 'dana@corp.example.com',
     })
     try {
       expect(captured.value?.[0].enabledMethods).not.toContain('enterprise-sso')
 
       await act(async () => {
-        captured.value?.[1].submitEnterpriseSso()
+        captured.value?.[1].submitIdentifier()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].step).toBe('methods'))
       })
 
       expect(postCalls.map((call) => call.path)).not.toContain('/sso/hrd')
@@ -349,10 +356,49 @@ describe('useSignIn federated entry', () => {
     }
   })
 
-  it('offers enterprise SSO outside an invitation flow', async () => {
-    const { captured, cleanup } = await renderSignIn({})
+  it('discovers the enterprise connection for an email and shows the redirect transition', async () => {
+    postResponses.set('/sso/hrd', {
+      connectionId: 'conn_1',
+      protocol: 'oidc',
+      organizationId: 'tenant-1',
+      displayName: 'Okta',
+      organizationName: 'Northwind',
+    })
+    const { captured, cleanup } = await renderSignIn({ login_hint: 'dana@northwind.com' })
     try {
       expect(captured.value?.[0].enabledMethods).toContain('enterprise-sso')
+
+      await act(async () => {
+        captured.value?.[1].submitIdentifier()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].step).toBe('sso'))
+      })
+
+      expect(postCalls.find((call) => call.path === '/sso/hrd')?.body).toMatchObject({
+        email: 'dana@northwind.com',
+      })
+      expect(captured.value?.[0].ssoTarget).toMatchObject({
+        connectionName: 'Okta',
+        organizationName: 'Northwind',
+        domain: 'northwind.com',
+      })
+      expect(captured.value?.[0].ssoTarget?.url).toContain('/sso/oidc/conn_1/authorize')
+    } finally {
+      postResponses.clear()
+      await cleanup()
+    }
+  })
+
+  it('asks for an identifier before leaving the first step', async () => {
+    const { captured, cleanup } = await renderSignIn({})
+    try {
+      await act(async () => {
+        captured.value?.[1].submitIdentifier()
+      })
+
+      expect(captured.value?.[0].error).toBe('identifier_required')
+      expect(captured.value?.[0].step).toBe('identifier')
     } finally {
       await cleanup()
     }
@@ -418,11 +464,11 @@ describe('useSignIn application continuation', () => {
         captured?.[1].submitMagicLink()
       })
       await act(async () => {
-        captured?.[1].setMethod('otp-email')
+        captured?.[1].chooseMethod('otp-email')
       })
       await act(async () => {
-        captured?.[1].submitOtpRequest()
-        captured?.[1].submitOtpVerify()
+        captured?.[1].requestOtp()
+        captured?.[1].verifyOtp('123456')
       })
 
       expect(postCalls.map((call) => call.path)).toEqual([
@@ -534,8 +580,7 @@ describe('useSignIn Turnstile action gate', () => {
       await act(async () => {
         captured?.[1].submitMagicLink()
         captured?.[1].submitPassword()
-        captured?.[1].submitOtpRequest()
-        captured?.[1].submitEnterpriseSso()
+        captured?.[1].requestOtp()
         captured?.[1].triggerPasskeyButton()
       })
       expect(postCalls).toEqual([])
@@ -560,6 +605,175 @@ describe('useSignIn Turnstile action gate', () => {
       await act(async () => root.unmount())
       container.remove()
       authConfigState.config = null
+    }
+  })
+})
+
+describe('useSignIn second step', () => {
+  async function renderSecondStep(input: {
+    search: Record<string, string | undefined>
+    config: PublicHostedAuthConfig
+  }) {
+    authConfigState.config = input.config
+    postCalls.length = 0
+    routerState.search = input.search
+    ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+    const queryClient = new QueryClient()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const captured: { value: ReturnType<typeof useSignIn> | null } = { value: null }
+    function Host(): ReactNode {
+      captured.value = useSignIn()
+      return null
+    }
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Host />
+        </QueryClientProvider>,
+      )
+    })
+    await act(async () => {
+      await vi.waitFor(() => expect(captured.value?.[0].configSettled).toBe(true))
+    })
+    const cleanup = async (): Promise<void> => {
+      await act(async () => root.unmount())
+      container.remove()
+      routerState.search = {}
+      authConfigState.config = null
+      globalThis.localStorage.clear()
+    }
+    return { captured, cleanup }
+  }
+
+  const otpAndPassword: PublicHostedAuthConfig = {
+    ...DEFAULT_PUBLIC_AUTH_CONFIG,
+    methods: {
+      ...DEFAULT_PUBLIC_AUTH_CONFIG.methods,
+      password: { enabled: true, allowLogin: true, allowUserCreation: false },
+    },
+  }
+
+  it('defaults to an emailed code and sends it as soon as the second step opens', async () => {
+    postResponses.set('/auth/otp/email/send', { ok: true })
+    const { captured, cleanup } = await renderSecondStep({
+      search: { login_hint: 'dana@northwind.com' },
+      config: otpAndPassword,
+    })
+    try {
+      await act(async () => {
+        captured.value?.[1].submitIdentifier()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].otpSentAt).not.toBeNull())
+      })
+
+      expect(captured.value?.[0].method).toBe('otp-email')
+      expect(captured.value?.[0].methods).toEqual(['otp-email', 'magic-link', 'password'])
+      expect(postCalls.at(-1)).toMatchObject({
+        path: '/auth/otp/email/send',
+        body: { email: 'dana@northwind.com' },
+      })
+    } finally {
+      postResponses.clear()
+      await cleanup()
+    }
+  })
+
+  it('opens the method this browser used last without sending a code', async () => {
+    globalThis.localStorage.setItem('xid.lastAuthMethod', 'password')
+    const { captured, cleanup } = await renderSecondStep({
+      search: { login_hint: 'dana@northwind.com' },
+      config: otpAndPassword,
+    })
+    try {
+      await act(async () => {
+        captured.value?.[1].submitIdentifier()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].step).toBe('methods'))
+      })
+
+      expect(captured.value?.[0].method).toBe('password')
+      expect(postCalls.map((call) => call.path)).not.toContain('/auth/otp/email/send')
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it('marks a resent code so the page can say the previous one stopped working', async () => {
+    postResponses.set('/auth/otp/email/send', { ok: true })
+    const { captured, cleanup } = await renderSecondStep({
+      search: { login_hint: 'dana@northwind.com' },
+      config: otpAndPassword,
+    })
+    try {
+      await act(async () => {
+        captured.value?.[1].submitIdentifier()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].otpSentAt).not.toBeNull())
+      })
+      expect(captured.value?.[0].otpResent).toBe(false)
+
+      await act(async () => {
+        captured.value?.[1].requestOtp()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].otpResent).toBe(true))
+      })
+    } finally {
+      postResponses.clear()
+      await cleanup()
+    }
+  })
+
+  it('returns to the first step and forgets the sent code when the identifier changes', async () => {
+    postResponses.set('/auth/otp/email/send', { ok: true })
+    const { captured, cleanup } = await renderSecondStep({
+      search: { login_hint: 'dana@northwind.com' },
+      config: otpAndPassword,
+    })
+    try {
+      await act(async () => {
+        captured.value?.[1].submitIdentifier()
+      })
+      await act(async () => {
+        await vi.waitFor(() => expect(captured.value?.[0].otpSentAt).not.toBeNull())
+      })
+      await act(async () => {
+        captured.value?.[1].changeIdentifier()
+      })
+
+      expect(captured.value?.[0].step).toBe('identifier')
+      expect(captured.value?.[0].otpSentAt).toBeNull()
+      expect(routerState.navigate).toHaveBeenCalledWith('/sign-in', { replace: true })
+    } finally {
+      postResponses.clear()
+      await cleanup()
+    }
+  })
+
+  it('shows the organization picker when the root entry finds several organizations', async () => {
+    const { captured, cleanup } = await renderSecondStep({
+      search: { login_hint: 'dana@northwind.com' },
+      config: {
+        ...DEFAULT_PUBLIC_AUTH_CONFIG,
+        resolution: {
+          status: 'ambiguous',
+          matchedBy: 'email',
+          matches: [
+            { organizationId: 'o1', slug: 'ops', name: 'Operations', issuer: 'https://xid.dev' },
+            { organizationId: 'o2', slug: 'fin', name: 'Finance', issuer: 'https://xid.dev' },
+          ],
+        },
+      },
+    })
+    try {
+      expect(captured.value?.[0].step).toBe('organization')
+    } finally {
+      await cleanup()
     }
   })
 })

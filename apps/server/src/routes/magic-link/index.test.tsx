@@ -14,6 +14,11 @@ const authState = vi.hoisted(() => ({
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings.join('') }),
+}))
+
+vi.mock('../../components/hosted/use-hosted-auth-config', () => ({
+  useHostedAuthConfig: () => ({ config: { context: { applicationName: null } } }),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -26,7 +31,7 @@ vi.mock('../../components/layout', () => ({
 }))
 
 vi.mock('../../components/ui', () => ({
-  Alert: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
     fullWidth: _fullWidth,
@@ -122,7 +127,7 @@ describe('MagicLinkPage explicit confirmation', () => {
     })
 
     expect(authState.post).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('No magic-link token found')
+    expect(container.textContent).toContain('This page needs the link from your email')
     expect(container.querySelector('a')?.getAttribute('href')).toBe('/sign-in')
     expect(container.textContent).not.toContain('{"code"')
 
@@ -147,7 +152,7 @@ describe('MagicLinkPage explicit confirmation', () => {
       )
     })
 
-    expect(container.textContent).toContain('No magic-link token found')
+    expect(container.textContent).toContain('This page needs the link from your email')
     expect(container.textContent).not.toContain('Confirm sign in')
     expect(authState.post).not.toHaveBeenCalled()
 
@@ -189,7 +194,7 @@ describe('MagicLinkPage explicit confirmation', () => {
     })
 
     expect(reloadedContainer.textContent).toContain('Confirm sign in')
-    expect(reloadedContainer.textContent).not.toContain('No magic-link token found')
+    expect(reloadedContainer.textContent).not.toContain('This page needs the link from your email')
 
     await act(async () => reloadedRoot.unmount())
     reloadedQueryClient.clear()
@@ -219,8 +224,8 @@ describe('MagicLinkPage explicit confirmation', () => {
     await flush()
 
     expect(globalThis.sessionStorage.getItem('xid.magic-link.token')).toBeNull()
-    expect(container.textContent).toContain('This magic link is invalid or has already been used.')
-    expect(container.textContent).not.toContain('No magic-link token found')
+    expect(container.textContent).toContain('This link has expired or was already used')
+    expect(container.textContent).not.toContain('This page needs the link from your email')
 
     await act(async () => root.unmount())
     queryClient.clear()
@@ -253,8 +258,8 @@ describe('MagicLinkPage explicit confirmation', () => {
     await flush()
 
     expect(globalThis.sessionStorage.getItem('xid.magic-link.token')).toBeNull()
-    expect(container.textContent).toContain('This magic link is invalid or has already been used.')
-    expect(container.textContent).not.toContain('No magic-link token found')
+    expect(container.textContent).toContain('This link has expired or was already used')
+    expect(container.textContent).not.toContain('This page needs the link from your email')
 
     replaceState.mockRestore()
     await act(async () => root.unmount())
@@ -285,7 +290,7 @@ describe('MagicLinkPage explicit confirmation', () => {
     await flush()
 
     expect(globalThis.sessionStorage.getItem('xid.magic-link.token')).toBeNull()
-    expect(container.textContent).toContain('This sign-in link cannot be used for this account.')
+    expect(container.textContent).toContain("This link can't sign in this account")
     expect(container.querySelectorAll('button')).toHaveLength(0)
     expect(container.textContent).toContain('Back to sign in')
 
@@ -320,7 +325,7 @@ describe('MagicLinkPage explicit confirmation', () => {
     await flush()
 
     expect(globalThis.sessionStorage.getItem('xid.magic-link.token')).toBe('signed-magic-link')
-    expect(container.textContent).toContain('Something went wrong. Please try again.')
+    expect(container.textContent).toContain('Something went wrong. Try again.')
     expect(
       Array.from(container.querySelectorAll('button')).map((button) => button.textContent),
     ).toEqual(['Try again'])

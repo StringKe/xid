@@ -60,11 +60,6 @@ msgstr "{0}({1})은(는) 더 이상 사용자 및 그룹 업데이트를 받지 
 msgid "{0} instance managers"
 msgstr "{0} 인스턴스 관리자"
 
-#. placeholder {0}: params.clientName
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "{0} logo"
-msgstr "{0} 로고"
-
 #. placeholder {0}: organizations.data.total
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "{0} organizations found"
@@ -110,12 +105,51 @@ msgstr "{0}은(는) 휴지통으로 이동하고 복원될 때까지 액세스 �
 msgid "{0} will stop authorizing access. Your assignment remains discoverable so you can restore the project."
 msgstr "{0}이(가) 액세스 승인을 중지합니다. 프로젝트를 복원할 수 있도록 과제는 검색 가능한 상태로 유지됩니다."
 
-#: apps/server/src/components/layout/AuthLayout.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "{app} did not receive any of your details."
+msgstr "{app}은(는) 내 정보를 전혀 받지 않았습니다."
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} is asking for more access"
+msgstr "{app}이(가) 추가 액세스를 요청합니다"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "{app} is signed in"
+msgstr "{app}에 로그인되었습니다"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "{app} started a sign-in for your account from another device. Approve only if you asked for this."
+msgstr "{app}이(가) 다른 기기에서 내 계정 로그인을 시작했습니다. 직접 요청한 경우에만 승인하세요."
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} wants access to your account"
+msgstr "{app}이(가) 내 계정에 액세스하려고 합니다"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} wants to work with your data"
+msgstr "{app}이(가) 내 데이터를 사용하려고 합니다"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "{app} wasn't connected"
+msgstr "{app}이(가) 연결되지 않았습니다"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} will be able to"
+msgstr "{app}이(가) 할 수 있는 작업"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} will be told you said no. You can try again from {app} whenever you're ready."
+msgstr "{app}에 거부했다는 사실이 전달됩니다. 준비되면 언제든 {app}에서 다시 시도할 수 있습니다."
+
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "{appName} logo"
 msgstr "{appName} 로고"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "{backupCodeCount, plural, one {# code saved} other {# codes saved}}"
+msgstr "{backupCodeCount, plural, other {#개 저장됨}}"
+
+#: apps/server/src/components/hosted/passkey-name.ts
 msgid "{browser} on {platform}"
 msgstr "{platform}의 {browser}"
 
@@ -124,9 +158,35 @@ msgstr "{platform}의 {browser}"
 msgid "sdk.members"
 msgstr "{count}명의 멤버"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "{email} is verified"
+msgstr "{email} 인증 완료"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "{org} asks for a second step every time you sign in."
+msgstr "{org}은(는) 로그인할 때마다 2단계 확인을 요구합니다."
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "{org} requires a second step"
+msgstr "{org}에서 2단계 확인을 요구합니다"
+
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "{org} signs in people with {0} addresses through {idp}."
+msgstr "{org}은(는) {0} 주소를 쓰는 사용자를 {idp}(으)로 로그인시킵니다."
+
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "{org} signs in people with {0} addresses through {idp}. After {idp}, you come straight back to {app}."
+msgstr "{org}은(는) {0} 주소를 쓰는 사용자를 {idp}(으)로 로그인시킵니다. {idp} 이후 바로 {app}(으)로 돌아옵니다."
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "{pendingRemoveProvider} will be removed from the social sign-in configuration. Save changes to apply."
 msgstr "{pendingRemoveProvider}이(가) 소셜 로그인 구성에서 제거됩니다. 변경 사항을 저장해야 적용됩니다."
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "{remaining} codes left"
+msgstr "{remaining}개 남음"
 
 #: apps/server/src/routes/account/SessionsPage.tsx
 msgid "{sessionCount, plural, one {# session} other {# sessions}}"
@@ -166,7 +226,6 @@ msgid "sdk.createOrganizationWithPrefix"
 msgstr "+ 조직 만들기"
 
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "+1 555 000 0000"
 msgstr "+1 555 000 0000"
 
@@ -298,10 +357,6 @@ msgstr "<0>XidError</0>는 <1>thiserror</1>를 사용하며 <2>JwtValidation</2>
 msgid "<0>xidMiddleware()</0> verifies a Bearer or explicit application JWT on the Edge Runtime. For a same-origin Core session, it exchanges the opaque cookie through <1>/v1/sessions/token</1>, verifies the returned JWT, and injects auth state into downstream server request headers."
 msgstr "<0>xidMiddleware()</0>는 Edge Runtime에서 Bearer 또는 명시적인 애플리케이션 JWT를 검증합니다. 동일 출처 Core 세션에서는 opaque cookie를 <1>/v1/sessions/token</1>에서 교환하고 반환된 JWT를 검증한 뒤 인증 상태를 다운스트림 서버 요청 헤더에 주입합니다."
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "000000"
-msgstr "000000"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "1 hour"
 msgstr "1시간"
@@ -338,9 +393,25 @@ msgstr "5분"
 msgid "5 seconds"
 msgstr "5초"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "6 digits. Spaces and dashes are fine."
+msgstr "숫자 6자리입니다. 공백과 하이픈을 써도 됩니다."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "6-digit code"
 msgstr "6자리 코드"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "6-digit code from your app"
+msgstr "앱의 6자리 코드"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "8 letters and numbers. Spaces are ignored."
+msgstr "영문자와 숫자 8자입니다. 공백은 무시됩니다."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "8 letters, never vowels. Upper or lower case, spaces and dashes are all fine."
+msgstr "모음이 없는 영문자 8자입니다. 대소문자, 공백, 하이픈을 써도 됩니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "8.0.0"
@@ -350,10 +421,6 @@ msgstr "8.0.0"
 msgid "8px"
 msgstr "8px"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "A 6-digit code has been sent to your phone."
-msgstr "휴대폰으로 6자리 코드를 보냈습니다."
-
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "A client secret is configured. Leave blank to keep it."
 msgstr "클라이언트 시크릿이 설정되어 있습니다. 유지하려면 비워 두세요."
@@ -362,13 +429,17 @@ msgstr "클라이언트 시크릿이 설정되어 있습니다. 유지하려면 
 msgid "A custom hostname changes the WebAuthn RP ID. Existing passkeys will not work on the new hostname, so users must register passkeys again there before you rely on it for sign-in."
 msgstr "사용자 지정 호스트 이름을 사용하면 WebAuthn RP ID가 변경됩니다. 기존 패스키는 새 호스트 이름에서 작동하지 않으므로, 로그인에 사용하기 전에 해당 호스트 이름에서 패스키를 다시 등록해야 합니다."
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "A device"
+msgstr "기기"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "A device is asking to sign in as you. Only continue if you started this on a device you can see right now."
+msgstr "어떤 기기가 내 계정으로 로그인하려고 합니다. 지금 눈앞에 있는 기기에서 직접 시작한 경우에만 계속하세요."
+
 #: packages/i18n/src/messages.ts
 msgid "A digital signature is required."
 msgstr "디지털 서명이 필요합니다."
-
-#: apps/server/src/routes/verify-email/ResendVerification.tsx
-msgid "A new verification email has been sent if your account exists."
-msgstr "계정이 존재하면 새 인증 이메일을 보냈습니다."
 
 #: apps/console/src/routes/org/SelfServiceLock.tsx
 msgid "A platform administrator manages this setting for your organization. You can review it, but changes are disabled."
@@ -463,10 +534,6 @@ msgstr "허용되는 공개 키 형식: PublicJwk, Jwks, 또는 {JWT_KEY_SHAPE}"
 msgid "Access for organization {0} and user grants issued through this grant will be revoked."
 msgstr "{0} 조직에 대한 액세스 권한과 이 권한 부여를 통해 발급된 사용자 권한 부여가 취소됩니다."
 
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access protected resources"
-msgstr "보호된 리소스에 접근"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Access request lifecycle"
 msgstr "액세스 요청 수명주기"
@@ -482,22 +549,6 @@ msgstr "액세스 토큰은 <0>HttpOnly</0> 세션 cookie에 저장되며 <1>loc
 #: packages/i18n/src/messages.ts
 msgid "Access was denied."
 msgstr "접근이 거부되었습니다."
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your basic profile information"
-msgstr "기본 프로필 정보에 액세스"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your email address"
-msgstr "이메일 주소에 액세스"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your organization membership"
-msgstr "조직 멤버십 접근"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your phone number"
-msgstr "전화번호에 액세스"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Accessor returning organization, membership, and setActive for the active org"
@@ -585,15 +636,6 @@ msgstr "조치 필요"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Actions"
 msgstr "작업"
-
-#. placeholder {0}: detail.actions.join(', ')
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Actions: {0}"
-msgstr "작업: {0}"
-
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
-msgid "Activate a device"
-msgstr "디바이스 활성화"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Activate device | XID"
@@ -786,9 +828,22 @@ msgstr "Package.swift에서 Swift Package Manager를 통해 추가하세요:"
 msgid "Add xid-linux to Cargo.toml:"
 msgstr "Cargo.toml에 xid-linux를 추가하세요:"
 
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Add your details and a password to create your account."
+msgstr "정보와 비밀번호를 입력해 계정을 만드세요."
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Add your details, and we'll send you a code to confirm it's you."
+msgstr "정보를 입력하면 본인 확인용 코드를 보내 드립니다."
+
 #: apps/server/src/routes/account/MfaSection.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Added"
 msgstr "추가됨"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Adding a passkey changes how you sign in, so we need a fresh check before saving it."
+msgstr "패스키를 추가하면 로그인 방식이 바뀌므로 저장하기 전에 다시 본인 확인이 필요합니다."
 
 #: packages/i18n/src/messages.ts
 msgid "Additional verification is required to perform this action."
@@ -803,9 +858,17 @@ msgstr "관리자"
 msgid "admin, owner"
 msgstr "admin, owner"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "After signing in, open the original invitation link again to join with that account."
 msgstr "로그인한 후 원래 초대 링크를 다시 열어 해당 계정으로 참여하세요."
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "After this you'll save 10 backup codes, in case you lose your device."
+msgstr "다음 단계에서 기기를 잃어버릴 경우를 대비해 백업 코드 10개를 저장합니다."
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "After you choose, you'll go to"
+msgstr "선택 후 이동할 곳"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "All BackendErrorCode values: missing_jwt_key, jwks_fetch_failed, invalid_options, session_token_exchange_failed"
@@ -840,18 +903,22 @@ msgstr "모든 SDK 오류는 봉인 클래스 XidException의 하위 타입입�
 msgid "All sessions except your current one will be signed out immediately. Devices using those sessions will need to sign in again."
 msgstr "현재 세션을 제외한 모든 세션이 즉시 종료됩니다. 해당 세션을 사용하던 디바이스는 다시 로그인해야 합니다."
 
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "All set"
+msgstr "모두 완료"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "All tenants"
 msgstr "모든 테넌트"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Allow"
+msgstr "허용"
+
 #: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "Allow access"
 msgstr "접근 허용"
-
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Allow device"
-msgstr "디바이스 허용"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Allow existing users to sign in"
@@ -873,10 +940,6 @@ msgstr "이 연결에서 JIT 사용자 생성 허용"
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Allow login"
 msgstr "로그인 허용"
-
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Allow this device to sign in?"
-msgstr "이 디바이스의 로그인을 허용할까요？"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -913,14 +976,18 @@ msgstr "허용된 사용자 ID(쉼표로 구분)"
 msgid "Allowed without a UserGrant."
 msgstr "UserGrant 없이 허용됩니다."
 
+#: apps/server/src/routes/consent/ScopeList.tsx
+msgid "Already allowed"
+msgstr "이미 허용됨"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Already have an account?"
+msgstr "이미 계정이 있나요?"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.alreadyHaveAccountSignIn"
 msgstr "이미 계정이 있으신가요? <0>로그인</0>"
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Already have an account? Sign in"
-msgstr "이미 계정이 있으신가요? 로그인"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Already have an account? Sign in to accept"
@@ -934,6 +1001,22 @@ msgstr "문자 메시지 코드도 허용"
 msgid "An account already uses this email address. Sign in to that account to accept the invitation."
 msgstr "이 이메일 주소를 이미 사용하는 계정이 있습니다. 해당 계정에 로그인하여 초대를 수락하세요."
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "An app"
+msgstr "앱"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "An app asking for access"
+msgstr "액세스를 요청하는 앱"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "An app from your organization"
+msgstr "내 조직의 앱"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "An app is asking you to approve a sign-in it started. Nothing happens until you choose."
+msgstr "앱이 시작한 로그인을 승인해 달라고 요청합니다. 선택하기 전에는 아무 일도 일어나지 않습니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
 msgstr "인스턴스에는 최상위 조직이 포함됩니다. 조직은 한 수준의 하위 조직을 포함할 수 있습니다. 각 조직은 정책, 멤버십, 브랜딩, RBAC 및 격리 경계로 유지됩니다."
@@ -941,6 +1024,10 @@ msgstr "인스턴스에는 최상위 조직이 포함됩니다. 조직은 한 �
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "내부 오류가 발생했습니다. 다시 시도하세요."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
+msgstr "조직에는 자체 멤버, 로그인 규칙, 앱이 있습니다. 내가 소유자가 되며 만든 직후 다른 사람을 초대할 수 있습니다."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
@@ -1072,11 +1159,6 @@ msgstr "외관"
 msgid "Apple"
 msgstr "Apple"
 
-#. placeholder {0}: paramsQuery.data.clientId
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Application <0>{0}</0> is requesting sign-in approval."
-msgstr "애플리케이션 <0>{0}</0>이(가) 로그인 승인을 요청합니다."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application must set <UseWinUI>true</UseWinUI> in the project file"
 msgstr "프로젝트 파일에 <UseWinUI>true</UseWinUI>를 설정해야 합니다"
@@ -1110,6 +1192,10 @@ msgstr "승인"
 msgid "Approve or deny a pending request assigned to the current user."
 msgstr "현재 사용자에게 할당된 보류 중인 요청을 승인하거나 거부합니다."
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Approve sign-in for {app}?"
+msgstr "{app}의 로그인을 승인할까요?"
+
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Approve sign-in request | XID"
 msgstr "로그인 요청 승인 | XID"
@@ -1134,11 +1220,19 @@ msgstr "as const 객체"
 msgid "as const tuple"
 msgstr "as const 튜플"
 
-#: apps/server/src/routes/select-organization/index.tsx
-msgid "Ask an organization admin to invite you."
-msgstr "조직 관리자에게 초대를 요청하세요."
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Ask a {org} admin to reset your two-step verification. They will need to confirm who you are."
+msgstr "{org} 관리자에게 2단계 인증 재설정을 요청하세요. 관리자가 본인 확인을 해야 합니다."
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "Ask an organization admin to invite you, then sign in again."
+msgstr "조직 관리자에게 초대를 요청한 뒤 다시 로그인하세요."
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Ask your admin to reset your two-step verification. They will need to confirm who you are."
+msgstr "관리자에게 2단계 인증 재설정을 요청하세요. 관리자가 본인 확인을 해야 합니다."
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Ask your organization admin to send a new invitation."
 msgstr "조직 관리자에게 새 초대 전송을 요청하세요."
 
@@ -1321,8 +1415,13 @@ msgstr "인증 정책"
 msgid "Authentication policy saved."
 msgstr "인증 정책이 저장되었습니다."
 
-#: apps/server/src/routes/account/MfaSection.tsx
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 #: apps/server/src/routes/mfa/index.tsx
+msgid "Authenticator app"
+msgstr "인증 앱"
+
+#: apps/server/src/routes/account/MfaSection.tsx
 msgid "Authenticator app (TOTP)"
 msgstr "인증 앱 (TOTP)"
 
@@ -1331,7 +1430,6 @@ msgid "Authenticator app added."
 msgstr "인증 앱이 추가되었습니다."
 
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Authenticator code"
 msgstr "인증 앱 코드"
 
@@ -1379,17 +1477,9 @@ msgstr "PKCE, state, nonce, PAR, Hosted Auth 전달을 지원하는 인가 엔�
 msgid "Authorization error"
 msgstr "인가 오류"
 
-#: apps/server/src/routes/consent/index.tsx
-msgid "Authorization failed"
-msgstr "인가 실패"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization request"
 msgstr "인가 요청"
-
-#: apps/server/src/routes/consent/index.tsx
-msgid "Authorization request is missing or has expired."
-msgstr "인가 요청이 없거나 만료되었습니다."
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Authorize application | XID"
@@ -1412,6 +1502,10 @@ msgstr "세션 전환 및 로그아웃 기능이 있는 아바타 메뉴"
 msgid "Back home"
 msgstr "홈으로 돌아가기"
 
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Back to {app}"
+msgstr "{app}(으)로 돌아가기"
+
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Back to console"
 msgstr "콘솔로 돌아가기"
@@ -1420,18 +1514,12 @@ msgstr "콘솔로 돌아가기"
 msgid "Back to Console"
 msgstr "콘솔로 돌아가기"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: apps/server/src/routes/consent/index.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/magic-link/index.tsx
-#: apps/server/src/routes/mfa/index.tsx
-#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Back to sign in"
 msgstr "로그인으로 돌아가기"
-
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Backchannel request not found or expired."
-msgstr "백채널 요청을 찾을 수 없거나 만료되었습니다."
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Background"
@@ -1451,10 +1539,23 @@ msgstr "배경 색상(라이트 테마)"
 msgid "Backup code"
 msgstr "백업 코드"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Backup codes"
+msgstr "백업 코드"
+
 #. placeholder {0}: factor.remaining
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Backup codes ({0} remaining)"
 msgstr "백업 코드 ({0}개 남음)"
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Backup codes for {organizationName}"
+msgstr "{organizationName} 백업 코드"
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Backup codes for your account"
+msgstr "내 계정 백업 코드"
 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Banned"
@@ -1480,6 +1581,15 @@ msgstr "Bearer 또는 DPoP 액세스 토큰의 사용자 클레임입니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Before declaring production ready, reconcile all 24 Queues, apply D1 migrations, build all three Workers, and verify apex, www, wildcard DNS, health, discovery, JWKS, and Hosted Auth. Then record live evidence for Email, DLQ replay, privacy export and 30-day erasure, hourly and daily Cron, Analytics, Turnstile, and custom hostnames. Local L0-L3 evidence is not L4; every unrun live check is UNKNOWN. The full operator runbook is maintained at https://github.com/StringKe/xid/blob/main/docs/deployment.md."
 msgstr "production ready를 선언하기 전에 24개 Queues를 모두 대조하고 D1 migrations를 적용하고 3개 Workers를 모두 빌드한 다음 apex, www, wildcard DNS, health, discovery, JWKS, Hosted Auth를 검증해야 합니다. 그런 다음 Email, DLQ replay, privacy export 및 30-day erasure, 매시간 및 매일 실행되는 Cron, Analytics, Turnstile, custom hostnames의 실제 증거를 기록합니다. 로컬 L0-L3 증거는 L4가 아니며 실행하지 않은 모든 실제 검사는 UNKNOWN입니다. 전체 운영자 runbook은 https://github.com/StringKe/xid/blob/main/docs/deployment.md 에서 관리됩니다."
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Before you continue"
+msgstr "계속하기 전에"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Before you continue to {app}"
+msgstr "{app}(으)로 계속하기 전에"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -1632,6 +1742,11 @@ msgstr "일괄 작업"
 msgid "Bun"
 msgstr "Bun"
 
+#. placeholder {0}: client.ownerName
+#: apps/server/src/routes/consent/ClientHeader.tsx
+msgid "by {0}"
+msgstr "제공: {0}"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "C# / .NET SDK for WinUI 3 applications using WebView2 for authorization, PKCE S256, and DPAPI-protected IsolatedStorage for token persistence."
 msgstr "WebView2 인증, PKCE S256, 토큰 영속성을 위한 DPAPI 보호 IsolatedStorage를 사용하는 WinUI 3 애플리케이션용 C# / .NET SDK."
@@ -1652,6 +1767,18 @@ msgstr "callback은 사용자 생성 또는 연결 전에 state, nonce, issuer, 
 msgid "Can't scan the code? Enter this key manually instead."
 msgstr "코드를 스캔할 수 없나요? 대신 이 키를 직접 입력하세요."
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Can't scan? Enter this key instead."
+msgstr "스캔할 수 없나요? 대신 이 키를 입력하세요."
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Can't sign in?"
+msgstr "로그인할 수 없나요?"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Can't use any of these?"
+msgstr "이 중 사용할 수 있는 방법이 없나요?"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "CanActivateFn factory"
 msgstr "CanActivateFn 팩토리"
@@ -1662,14 +1789,11 @@ msgstr "CanActivateFn 팩토리"
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
+#: apps/server/src/routes/mfa/MfaExits.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Cancel"
 msgstr "취소"
-
-#: apps/server/src/routes/mfa/MfaExits.tsx
-msgid "Cancel and sign out"
-msgstr "취소하고 로그아웃"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Cancel the current user's pending request."
@@ -1704,30 +1828,49 @@ msgstr "체인 손상됨"
 msgid "Chain valid"
 msgstr "체인 유효함"
 
+#: apps/server/src/components/hosted/IdentityChip.tsx
+msgid "Change"
+msgstr "변경"
+
+#: apps/server/src/components/hosted/IdentityChip.tsx
+msgid "Change {value}"
+msgstr "{value} 변경"
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Change password"
 msgstr "비밀번호 변경"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Changing how you sign in needs a fresh check. Once you verify, you won't be asked again for 5 minutes."
+msgstr "로그인 방식을 바꾸려면 다시 확인해야 합니다. 확인 후 5분 동안은 다시 묻지 않습니다."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Check the code on your device"
+msgstr "기기의 코드를 확인하세요"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "Check the details, then accept with the account you're signed in to."
+msgstr "세부 정보를 확인한 뒤 현재 로그인한 계정으로 수락하세요."
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Check the sequence range. It must exist in the chain and stay within the per-request limit."
 msgstr "시퀀스 범위를 확인하세요. 범위는 체인에 존재해야 하며 요청당 한도를 넘을 수 없습니다."
 
+#: apps/server/src/routes/mfa/index.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Check your connection and try again."
 msgstr "연결 상태를 확인하고 다시 시도하세요."
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Check your email"
 msgstr "이메일을 확인하세요"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Check your email for a sign-in link. It expires in 15 minutes."
-msgstr "이메일에서 매직 링크를 확인하세요. 15분 후 만료됩니다."
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Check your email to verify your account before signing in."
-msgstr "로그인하기 전에 이메일을 확인하여 계정을 인증하세요."
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Check your email to confirm your address, then sign in."
+msgstr "이메일을 확인해 주소를 인증한 뒤 로그인하세요."
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Checkout Enterprise"
@@ -1745,6 +1888,10 @@ msgstr "Starter 구매"
 msgid "Choose a current member or enter an exact active user ID. The server verifies the user and scope."
 msgstr "현재 회원을 선택하거나 정확한 활성 사용자 ID을(를) 입력하세요. 서버는 사용자와 범위를 확인합니다."
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Choose a different password."
+msgstr "다른 비밀번호를 선택하세요."
+
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Choose a known organization or enter an exact organization ID."
 msgstr "알려진 조직을 선택하거나 정확한 조직(ID)을 입력하세요."
@@ -1753,21 +1900,22 @@ msgstr "알려진 조직을 선택하거나 정확한 조직(ID)을 입력하세
 msgid "Choose a new password"
 msgstr "새 비밀번호 선택"
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Choose a verification method."
-msgstr "인증 방법을 선택하세요."
+#: apps/server/src/routes/select-organization/index.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Choose an organization"
+msgstr "조직 선택"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Choose an organization to continue in the console."
 msgstr "콘솔에서 계속할 조직을 선택하세요."
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Choose an organization to continue."
-msgstr "계속하려면 조직을 선택하세요."
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Choose another way to verify"
+msgstr "다른 확인 방법 선택"
 
-#: apps/server/src/routes/select-organization/index.tsx
-msgid "Choose which organization to use for this sign-in before continuing."
-msgstr "계속하기 전에 이 로그인에 사용할 조직을 선택하세요."
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Choose your second step"
+msgstr "2단계 방법 선택"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Chromium-based embedded authorization window"
@@ -1805,7 +1953,6 @@ msgstr "secure storage를 지우고 필요하면 시스템 브라우저에서 en
 msgid "Clears local tokens"
 msgstr "로컬 토큰 삭제"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client"
 msgstr "클라이언트"
@@ -1915,9 +2062,21 @@ msgstr "Cloudflare Workers"
 msgid "Cloudflare Workers (primary target)"
 msgstr "Cloudflare Workers (기본 대상)"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Code {code} matched. Here's what this device will get."
+msgstr "코드 {code}이(가) 일치합니다. 이 기기가 받게 될 권한은 다음과 같습니다."
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Codes expire after 10 minutes and work only once. Get a new code on your device, then enter it here."
+msgstr "코드는 10분 후 만료되며 한 번만 사용할 수 있습니다. 기기에서 새 코드를 받아 여기에 입력하세요."
+
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Codes will be sent to the phone number ending in {smsPhoneLast4}."
 msgstr "끝자리가 {smsPhoneLast4}인 전화번호로 코드가 전송됩니다."
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Codes work for {minutes} minutes. Send a new one and enter it here."
+msgstr "코드는 {minutes}분 동안 유효합니다. 새 코드를 보내 여기에 입력하세요."
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "colleague@example.com"
@@ -2068,13 +2227,22 @@ msgstr "설정됨"
 msgid "Confirm"
 msgstr "확인"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Confirm and join"
 msgstr "확인하고 참여"
 
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Confirm email address"
 msgstr "이메일 주소 확인"
+
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Confirm it's you"
+msgstr "본인 확인"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Confirm it's you first"
+msgstr "먼저 본인 확인을 하세요"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Confirm new password"
@@ -2096,13 +2264,21 @@ msgstr "로그인 확인 | XID"
 msgid "Confirm that you saved it. It cannot be shown again."
 msgstr "저장했는지 확인하세요. 닫으면 다시 표시되지 않습니다."
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Confirm with Face ID, your fingerprint or a security key. Nothing to type."
+msgstr "Face ID, 지문 또는 보안 키로 확인합니다. 입력할 필요가 없습니다."
+
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Confirm your email"
 msgstr "이메일 확인"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Confirm your invitation"
 msgstr "초대 확인"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirming your email address"
+msgstr "이메일 주소를 확인하는 중"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Connect an application to XID with OIDC discovery and Hosted Auth."
@@ -2124,6 +2300,10 @@ msgstr "연결됨"
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Connected accounts"
 msgstr "연결된 계정"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Connecting a device"
+msgstr "기기를 연결하는 중"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Connections"
@@ -2174,6 +2354,12 @@ msgstr "인증 결과를 저장하는 데 사용되는 컨텍스트 키('xidAuth
 msgid "sdk.continue"
 msgstr "계속"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
 #: apps/site/src/lib/home-surface.ts
 #: packages/i18n/src/messages.ts
 msgid "Continue"
@@ -2183,7 +2369,11 @@ msgstr "계속"
 msgid "Continue as guest"
 msgstr "게스트로 계속"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue only if you asked for this sign-in link."
+msgstr "이 로그인 링크를 직접 요청한 경우에만 계속하세요."
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Continue only if you opened this link from the invitation email sent to you."
 msgstr "본인에게 전송된 초대 이메일에서 이 링크를 연 경우에만 계속하세요."
 
@@ -2191,9 +2381,27 @@ msgstr "본인에게 전송된 초대 이메일에서 이 링크를 연 경우�
 msgid "Continue only if you opened this link from the verification email sent to you."
 msgstr "본인에게 전송된 인증 이메일에서 이 링크를 연 경우에만 계속하세요."
 
+#. placeholder {0}: props.appName
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Continue to {0}"
+msgstr "{0}(으)로 계속"
+
 #: apps/server/src/routes/magic-link/index.tsx
-msgid "Continue only if you requested this sign-in link."
-msgstr "본인이 이 로그인 링크를 요청한 경우에만 계속하세요."
+msgid "Continue to {app}"
+msgstr "{app}(으)로 계속"
+
+#: apps/server/src/components/hosted/context-copy.ts
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Continue to {applicationName}"
+msgstr "{applicationName}(으)로 계속"
+
+#: apps/server/src/components/hosted/context-copy.ts
+msgid "Continue to {applicationName} by {organizationName}"
+msgstr "{organizationName}의 {applicationName}(으)로 계속"
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Continue to {idp}"
+msgstr "{idp}(으)로 계속"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -2208,6 +2416,10 @@ msgstr "로그인 계속"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.continueToSignUp"
 msgstr "가입으로 계속"
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Continue with a passkey"
+msgstr "패스키로 계속"
 
 #: apps/server/src/routes/sign-in/SignInSocialButtons.tsx
 msgid "Continue with Apple"
@@ -2225,9 +2437,9 @@ msgstr "Google로 계속"
 msgid "Continue with Microsoft"
 msgstr "Microsoft로 계속"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Continue with SSO"
-msgstr "SSO로 계속"
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "Continuing"
+msgstr "계속하는 중"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Contributing"
@@ -2251,6 +2463,7 @@ msgstr "JwtKey (JWK, JWKS 또는 CryptoKey)를 검증용 VerifyKeySet으로 변�
 
 #: apps/console/src/routes/org/CopyableValue.tsx
 #: apps/console/src/routes/org/CopyValue.tsx
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/CopyButton.tsx
@@ -2259,6 +2472,7 @@ msgstr "복사됨"
 
 #: apps/console/src/routes/org/CopyableValue.tsx
 #: apps/console/src/routes/org/CopyValue.tsx
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copy"
 msgstr "복사"
@@ -2346,6 +2560,14 @@ msgstr "조직을 전환할 수 없습니다. 다시 시도하거나 다른 조�
 msgid "Could not switch organization. Try again."
 msgstr "조직을 전환할 수 없습니다. 다시 시도하세요."
 
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Couldn't create backup codes"
+msgstr "백업 코드를 만들 수 없습니다"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Couldn't start setup"
+msgstr "설정을 시작할 수 없습니다"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create (with bulk limit), revoke, and list invitations."
 msgstr "초대를 생성(bulk 제한 있음), 폐기, 조회합니다."
@@ -2354,6 +2576,25 @@ msgstr "초대를 생성(bulk 제한 있음), 폐기, 조회합니다."
 msgid "Create a confidential OAuth 2.0 client. Its secret is shown once; store it immediately."
 msgstr "기밀 OAuth 2.0 클라이언트를 만듭니다. 그 비밀은 한 번만 표시됩니다. 즉시 보관하세요."
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "Create a passkey"
+msgstr "패스키 만들기"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Create a passkey | XID"
+msgstr "패스키 만들기 | XID"
+
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Create a password"
+msgstr "비밀번호 만들기"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Create account"
+msgstr "계정 만들기"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create an active project on the Projects page first."
 msgstr "먼저 프로젝트 페이지에서 활성 프로젝트를 만듭니다."
@@ -2361,6 +2602,10 @@ msgstr "먼저 프로젝트 페이지에서 활성 프로젝트를 만듭니다.
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create an OIDC application and register exact redirect URI values."
 msgstr "OIDC 애플리케이션을 만들고 정확한 리디렉션 URI 값을 등록합니다."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Create an organization"
+msgstr "조직 만들기"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create and list directory groups."
@@ -2428,6 +2673,10 @@ msgstr "키 만들기"
 msgid "Create one <0>Client</0> at application startup and reuse it across requests. The client caches JWKS internally with a configurable TTL."
 msgstr "애플리케이션 시작 시 <0>Client</0>를 하나 생성하여 요청 전반에 재사용하세요. 클라이언트는 구성 가능한 TTL로 JWKS를 내부적으로 캐시합니다."
 
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "Create one to continue, or ask an admin to invite you."
+msgstr "계속하려면 조직을 만들거나 관리자에게 초대를 요청하세요."
+
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Create or select an active project first."
 msgstr "먼저 활성 프로젝트를 생성하거나 선택하세요."
@@ -2475,21 +2724,18 @@ msgstr "루트 레이아웃에서 <0>createXidStores</0>와 <1>setXidContext</1>
 msgid "Create webhook"
 msgstr "Webhook 만들기"
 
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Create your {org} account"
+msgstr "{org} 계정 만들기"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.createYourAccount"
 msgstr "계정 만들기"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
 msgid "Create your account"
 msgstr "계정 만들기"
-
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Create your organization"
-msgstr "조직 만들기"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, inspect, refresh, and remove custom hostnames."
@@ -2568,9 +2814,9 @@ msgstr "XidClient를 생성하고, 마운트 시 load()를 호출하며, onClean
 msgid "createXidTauriClient options"
 msgstr "createXidTauriClient 옵션"
 
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Creating…"
-msgstr "만드는 중…"
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Creating your backup codes"
+msgstr "백업 코드를 만드는 중"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
@@ -2943,9 +3189,8 @@ msgstr "거부됨; 관리자가 직접 액세스 권한을 부여합니다."
 msgid "Deno"
 msgstr "Deno"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
+#: apps/server/src/routes/activate/DeviceSteps.tsx
 #: apps/server/src/routes/ciba-activation/index.tsx
-#: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "Deny"
 msgstr "거부"
 
@@ -3008,21 +3253,17 @@ msgstr "데스크톱 SDK"
 msgid "Dev/test without Tauri runtime"
 msgstr "Tauri 런타임 없이 개발/테스트"
 
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
+#: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Device code"
 msgstr "디바이스 코드"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Device connected"
+msgstr "기기 연결됨"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Device name"
 msgstr "디바이스 이름"
-
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Device request failed"
-msgstr "디바이스 요청 실패"
-
-#: apps/server/src/routes/activate/index.tsx
-msgid "Device request handled"
-msgstr "디바이스 요청 처리됨"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Diagram failed to render"
@@ -3136,6 +3377,10 @@ msgstr "문서 유형"
 msgid "Documentation"
 msgstr "선적 서류 비치"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Does {app} show this exact code?"
+msgstr "{app}에 이 코드가 똑같이 표시되나요?"
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
@@ -3162,6 +3407,10 @@ msgstr "도메인"
 msgid "Domains | Console | XID"
 msgstr "도메인 | 콘솔 | XID"
 
+#: apps/server/src/routes/consent/ConsentActions.tsx
+msgid "Don't allow"
+msgstr "허용 안 함"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.dontHaveAccountSignUp"
@@ -3171,6 +3420,7 @@ msgstr "계정이 없으신가요? <0>가입</0>"
 msgid "Done"
 msgstr "완료"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Download"
 msgstr "다운로드"
@@ -3314,17 +3564,27 @@ msgstr "SQLite 기반 Durable Objects 11개가 sessions, challenges, OAuth, PAR,
 msgid "Email"
 msgstr "이메일"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Email a code"
+msgstr "이메일로 코드 받기"
+
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Email a sign-in link"
+msgstr "이메일로 로그인 링크 받기"
+
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Email address"
 msgstr "이메일 주소"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Email me a link"
+msgstr "링크 보내기"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Email me a secure link"
@@ -3339,7 +3599,6 @@ msgid "Email or username"
 msgstr "이메일 또는 사용자 이름"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Email OTP"
 msgstr "이메일 OTP"
@@ -3424,19 +3683,22 @@ msgstr "시행"
 msgid "English"
 msgstr "영어"
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Enter a 6-digit code from an app like 1Password or Google Authenticator."
+msgstr "1Password나 Google Authenticator 같은 앱의 6자리 코드를 입력합니다."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Enter a backup code"
+msgstr "백업 코드 입력"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Enter a new code"
+msgstr "새 코드 입력"
+
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Enter a search query to find users."
 msgstr "사용자를 찾을 검색어를 입력하세요."
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Enter a strong password to secure your account."
-msgstr "계정을 보호할 강력한 비밀번호를 입력하세요."
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter a valid 8-character backup code"
-msgstr "유효한 8자 백업 코드를 입력하세요"
-
-#: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Enter a valid email address"
 msgstr "유효한 이메일 주소를 입력하세요"
@@ -3444,6 +3706,14 @@ msgstr "유효한 이메일 주소를 입력하세요"
 #: apps/console/src/routes/org/ApplicationEditor.tsx
 msgid "Enter absolute HTTPS URLs without a fragment, one per line."
 msgstr "프래그먼트가 없는 절대 HTTPS URL을 한 줄에 하나씩 입력하세요."
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Enter all {length} characters. {count, plural, one {This has # character.} other {This has # characters.}}"
+msgstr "{length}자를 모두 입력하세요. {count, plural, other {현재 #자입니다.}}"
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Enter all {length} digits. {count, plural, one {This has # digit.} other {This has # digits.}}"
+msgstr "{length}자리를 모두 입력하세요. {count, plural, other {현재 #자리입니다.}}"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Enter an organization name and a URL slug made of lowercase letters, numbers, and hyphens."
@@ -3453,29 +3723,46 @@ msgstr "조직 이름과 영문 소문자, 숫자, 하이픈으로 된 URL 슬�
 msgid "Enter at least one absolute HTTPS URL without a fragment, one per line."
 msgstr "프래그먼트가 없는 절대 HTTPS URL을 한 줄에 하나씩 하나 이상 입력하세요."
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter one of your 8-character backup codes. Each code can only be used once."
-msgstr "8자 백업 코드 중 하나를 입력하세요. 각 코드는 한 번만 사용할 수 있습니다."
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Enter the 6-digit code the app shows"
+msgstr "앱에 표시된 6자리 코드를 입력하세요"
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Enter the code first."
+msgstr "먼저 코드를 입력하세요."
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter the 6-digit code from your authenticator app"
-msgstr "인증 앱의 6자리 코드를 입력하세요"
+msgid "Enter the code from your authenticator app"
+msgstr "인증 앱의 코드를 입력하세요"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Enter the code shown on your device"
+msgstr "기기에 표시된 코드를 입력하세요"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Enter the code we emailed you"
+msgstr "이메일로 받은 코드를 입력하세요"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Enter the code we sent on WhatsApp"
+msgstr "WhatsApp으로 받은 코드를 입력하세요"
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter the 6-digit code sent to your phone"
-msgstr "휴대폰으로 보낸 6자리 코드를 입력하세요"
-
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
-msgid "Enter the code shown on your device."
-msgstr "디바이스에 표시된 코드를 입력하세요。"
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Enter the code we texted you"
+msgstr "문자로 받은 코드를 입력하세요"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Enter the downstream API token. Sync needs it, and changing the base URL host requires it again."
 msgstr "다운스트림 API 토큰을 입력하세요. 동기화에 필요하며, 기본 URL의 호스트를 바꾸면 다시 입력해야 합니다."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Enter the email, username, or phone number for your account first."
-msgstr "먼저 계정의 이메일, 사용자 이름 또는 전화번호를 입력하세요."
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Enter the email address you sign in with."
+msgstr "로그인에 사용하는 이메일 주소를 입력하세요."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Enter the email you sign in with. We'll send a link to choose a new password."
+msgstr "로그인에 사용하는 이메일을 입력하세요. 새 비밀번호를 설정할 링크를 보내 드립니다."
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Enter the exact issuer of your identity provider tenant. Only the Microsoft template may keep its multi-tenant issuer placeholder."
@@ -3505,9 +3792,18 @@ msgstr "Enter 키로 선택"
 msgid "Enter valid JSON."
 msgstr "유효한 JSON을(를) 입력하세요."
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Enter your email and we will send a reset link."
-msgstr "이메일을 입력하면 재설정 링크를 보내드립니다."
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Enter your email, username or phone number to continue."
+msgstr "계속하려면 이메일, 사용자 이름 또는 전화번호를 입력하세요."
+
+#: apps/server/src/routes/sign-in/method-copy.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Enter your password"
+msgstr "비밀번호 입력"
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Enter your work email. We'll send you to your company's sign-in page."
+msgstr "회사 이메일을 입력하세요. 회사 로그인 페이지로 이동합니다."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
@@ -3534,6 +3830,14 @@ msgstr "진입점"
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Error"
 msgstr "오류"
+
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "Error 404 on {host}"
+msgstr "{host}에서 404 오류"
+
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "Error on {host}"
+msgstr "{host}에서 오류 발생"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Error responses"
@@ -3682,6 +3986,7 @@ msgstr "예상된 실패는 Result 타입을 반환하고, 예상치 못한 오�
 msgid "Expected JWT aud claim"
 msgstr "예상 JWT aud 클레임"
 
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Expired"
@@ -3689,7 +3994,6 @@ msgstr "만료됨"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
-#: apps/server/src/routes/activate/ActivationDetails.tsx
 msgid "Expires"
 msgstr "만료"
 
@@ -3768,6 +4072,11 @@ msgstr "미들웨어가 주입한 클레임을 추출합니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Extract svix headers automatically and validate HMAC-SHA256 signature."
 msgstr "svix 헤더를 자동으로 추출하고 HMAC-SHA256 서명을 검증합니다."
+
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Face ID, fingerprint or a security key"
+msgstr "Face ID, 지문 또는 보안 키"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Factory that returns a standalone XidClient instance"
@@ -3958,10 +4267,6 @@ msgstr "상태 사건을 로드하지 못했습니다."
 msgid "Failed to load user grants."
 msgstr "사용자 권한 부여를 로드하지 못했습니다."
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Failed to load verification methods. Please try again."
-msgstr "인증 방법을 불러오지 못했습니다. 다시 시도하세요."
-
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Failed to remove factor."
 msgstr "인증 요소 제거에 실패했습니다."
@@ -4058,6 +4363,10 @@ msgstr "대체 언어"
 msgid "FastAPI integration"
 msgstr "FastAPI 통합"
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Fastest"
+msgstr "가장 빠름"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Federation and provisioning"
 msgstr "페더레이션 및 프로비저닝"
@@ -4094,6 +4403,10 @@ msgstr "이름 또는 슬러그로 조직 필터링"
 msgid "Filtering, sorting, and pagination"
 msgstr "필터링, 정렬 및 페이지네이션"
 
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "Find an organization"
+msgstr "조직 찾기"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Find one group by displayName."
 msgstr "displayName으로 그룹 하나를 찾습니다."
@@ -4102,10 +4415,6 @@ msgstr "displayName으로 그룹 하나를 찾습니다."
 msgid "Find one user by userName."
 msgstr "userName으로 사용자 하나를 찾습니다."
 
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
-msgid "Find request"
-msgstr "요청 찾기"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Find the enterprise connection for a verified email domain."
 msgstr "인증된 이메일 도메인의 엔터프라이즈 연결을 찾습니다."
@@ -4113,13 +4422,13 @@ msgstr "인증된 이메일 도메인의 엔터프라이즈 연결을 찾습니�
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "First name"
 msgstr "이름"
 
+#: apps/server/src/components/hosted/RequestCard.tsx
 #: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "first-party"
-msgstr "퍼스트파티"
+msgid "First-party"
+msgstr "자사 앱"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
@@ -4137,6 +4446,11 @@ msgstr "글꼴 패밀리"
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Font names separated by commas"
 msgstr "쉼표로 구분한 글꼴 이름"
+
+#. placeholder {0}: props.account
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "For {0} on this device."
+msgstr "이 기기의 {0} 계정용입니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "For a developer app on another origin, configure <0>mode: 'oidc'</0> with issuer, clientId, and an exact redirectUri. Use same-origin mode only when the application routes Core auth endpoints on its exact origin. XID has no publishable-key credential."
@@ -4158,7 +4472,7 @@ msgstr "엔터프라이즈 연결이 필요할 때 SSO 강제 적용은 로컬 �
 msgid "Force-refresh the JWKS cache"
 msgstr "JWKS 캐시 강제 갱신"
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Forgot password?"
 msgstr "비밀번호를 잊으셨나요?"
@@ -4248,6 +4562,14 @@ msgstr "GET /jwks"
 msgid "GET /userinfo"
 msgstr "GET /userinfo"
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Get a code by text message"
+msgstr "문자로 코드 받기"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Get a sign-in link"
+msgstr "로그인 링크 받기"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Get started"
 msgstr "시작하기"
@@ -4290,18 +4612,32 @@ msgstr "GNAP, UMA, HEART, OpenID4VP, OpenID4VCI"
 msgid "Go"
 msgstr "Go"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Go back to sign in and choose another way to continue."
+msgstr "로그인으로 돌아가 다른 방법으로 계속하세요."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Go back to your device. It will finish on its own. You can close this tab."
+msgstr "기기로 돌아가세요. 자동으로 완료됩니다. 이 탭은 닫아도 됩니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Go server SDK for networkless JWT verification, request authentication, and webhook signature validation."
 msgstr "네트워크 호출 없는 JWT 검증, 요청 인증, webhook 서명 검증을 위한 Go 서버 SDK."
 
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "Go to {org} sign-in"
+msgstr "{org} 로그인으로 이동"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/create-organization/index.tsx
-#: apps/server/src/routes/not-found/NotFoundPage.tsx
 msgid "Go to account"
 msgstr "계정으로 이동"
 
-#: apps/server/src/routes/activate/index.tsx
-#: apps/server/src/routes/ciba-activation/index.tsx
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "Go to sign-in"
+msgstr "로그인으로 이동"
+
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
 msgid "Go to your account"
 msgstr "내 계정으로 이동"
 
@@ -4615,6 +4951,10 @@ msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 msgid "https://xid.dev/sign-in"
 msgstr "https://xid.dev/sign-in"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
+msgid "I saved these codes somewhere safe"
+msgstr "이 코드를 안전한 곳에 저장했습니다"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "IANA timezone, e.g. Asia/Shanghai."
 msgstr "IANA 시간대입니다. 예: Asia/Shanghai."
@@ -4675,17 +5015,49 @@ msgstr "IdP 단일 로그아웃 URL"
 msgid "IdP SSO URL"
 msgstr "IdP SSO URL"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "If {masked} has an account, a reset link is on its way. It works once, for 15 minutes."
+msgstr "{masked}에 계정이 있다면 재설정 링크를 보내는 중입니다. 링크는 한 번만, 15분 동안 사용할 수 있습니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "If <0>safeStorage.isEncryptionAvailable()</0> returns <1>false</1> (headless Linux without a keyring), <2>setItem()</2> throws <3>ElectronStorageError</3> with code <4>encryption_unavailable</4> rather than writing plaintext silently."
 msgstr "<0>safeStorage.isEncryptionAvailable()</0>이 <1>false</1>(키링이 없는 헤드리스 Linux)를 반환하면, <2>setItem()</2>은 평문을 조용히 쓰는 대신 코드 <4>encryption_unavailable</4>로 <3>ElectronStorageError</3>를 발생시킵니다."
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "If an account with that email exists, you will receive a password reset link shortly."
-msgstr "해당 이메일의 계정이 있으면 곧 비밀번호 재설정 링크를 받게 됩니다."
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "If it keeps happening, tell your administrator what you were doing and when."
+msgstr "계속 발생하면 무엇을 하던 중이었는지와 발생 시각을 관리자에게 알려 주세요."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "If no prompt appeared"
+msgstr "확인 창이 나타나지 않았다면"
+
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
+msgid "If this address has an account, a new link is on its way. Open the newest email."
+msgstr "이 주소에 계정이 있다면 새 링크를 보내는 중입니다. 가장 최근 이메일을 여세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "If using a custom URI scheme redirect rather than the WebView2 embedded window, forward the protocol activation URI to <0>HandleRedirectAsync</0>:"
 msgstr "WebView2 임베드 창 대신 사용자 정의 URI 스킴 리디렉션을 사용하는 경우 프로토콜 활성화 URI를 <0>HandleRedirectAsync</0>로 전달하세요:"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "If you approve, {app} gets"
+msgstr "승인하면 {app}이(가) 받는 정보"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "If you didn't expect this request, let your {org} admin know."
+msgstr "예상하지 못한 요청이라면 {org} 관리자에게 알려 주세요."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "If you didn't expect this request, let your admin know."
+msgstr "예상하지 못한 요청이라면 관리자에게 알려 주세요."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "If you didn't start this on a device in front of you, choose No. Someone may have sent you this link."
+msgstr "눈앞의 기기에서 직접 시작하지 않았다면 '아니요'를 선택하세요. 누군가 이 링크를 보냈을 수 있습니다."
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "If you lose your phone, each code lets you sign in once. Keep them somewhere only you can reach, like a password manager."
+msgstr "휴대폰을 잃어버리면 각 코드로 한 번씩 로그인할 수 있습니다. 비밀번호 관리자처럼 나만 접근할 수 있는 곳에 보관하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Iframe preview and separate draft and published states are not implemented."
@@ -4735,6 +5107,14 @@ msgstr "로컬에서 구현됨. 실제 AD FS WS-Fed L4는 아직 없습니다."
 msgid "Implicit flow, password grant, plain PKCE, and wildcard redirects."
 msgstr "암시적 흐름, password grant, plain PKCE, 와일드카드 리디렉트."
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "In the app, add an account and point your camera at the code."
+msgstr "앱에서 계정을 추가하고 카메라를 코드에 맞추세요."
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "In the app, add an account and point your camera at the code. It will appear as {issuerName} ({accountName})."
+msgstr "앱에서 계정을 추가하고 카메라를 코드에 맞추세요. {issuerName}({accountName})(으)로 표시됩니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "In-process memory only. Tokens are lost on process exit. Use for testing or CI environments without a Secret Service."
 msgstr "프로세스 메모리만 사용합니다. 프로세스 종료 시 토큰이 사라집니다. Secret Service가 없는 테스트 또는 CI 환경에 사용하세요."
@@ -4783,14 +5163,6 @@ msgstr "인시던트가 시작되었습니다."
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Incident title"
 msgstr "인시던트 제목"
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Incorrect code. Check your authenticator app and try again."
-msgstr "코드가 올바르지 않습니다. 인증 앱을 확인하고 다시 시도하세요."
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Incorrect or expired code. Request a new one."
-msgstr "코드가 올바르지 않거나 만료되었습니다. 새 코드를 요청하세요."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Indirect"
@@ -4905,34 +5277,14 @@ msgstr "통합 설정"
 msgid "Inter, system-ui, sans-serif"
 msgstr "Inter, system-ui, sans-serif"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Invalid or already-used backup code."
-msgstr "유효하지 않거나 이미 사용된 백업 코드입니다."
-
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Invalid password"
-msgstr "유효하지 않은 비밀번호"
-
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Investigating"
 msgstr "조사 중"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invitation expired"
-msgstr "초대 만료"
-
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invitation link is invalid."
-msgstr "초대 링크가 유효하지 않습니다."
-
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Invitation sent successfully."
 msgstr "초대를 보냈습니다."
-
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invitation unavailable"
-msgstr "초대를 사용할 수 없음"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOverview.tsx
@@ -4942,11 +5294,6 @@ msgstr "멤버 초대"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Invite members, manage roles, and review membership status."
 msgstr "멤버를 초대하고 역할을 관리하며 멤버십 상태를 검토합니다."
-
-#. placeholder {0}: data?.email
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invited email: {0}"
-msgstr "초대 이메일: {0}"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "invoice:read"
@@ -5000,6 +5347,30 @@ msgstr "isLoaded, 조직 전환기 UI용 userMemberships"
 msgid "Issuer"
 msgstr "발급자"
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "It can sync to your other devices through your password manager."
+msgstr "비밀번호 관리자를 통해 다른 기기와 동기화할 수 있습니다."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "It can't be guessed, and look-alike sites can't use it."
+msgstr "추측할 수 없고, 사칭 사이트에서는 사용할 수 없습니다."
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "It may have been used already. Ask your organization admin for a new one."
+msgstr "이미 사용되었을 수 있습니다. 조직 관리자에게 새 초대를 요청하세요."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "It works for 5 minutes."
+msgstr "5분 동안 유효합니다."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "It's on a public list of leaked passwords, so attackers try it first. Choose a different one."
+msgstr "유출된 비밀번호 공개 목록에 있어 공격자가 가장 먼저 시도합니다. 다른 비밀번호를 선택하세요."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "It's on the sign-in screen of the device you're setting up."
+msgstr "설정 중인 기기의 로그인 화면에 표시됩니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Java"
 msgstr "Java"
@@ -5020,18 +5391,13 @@ msgstr "JIT"
 msgid "JIT provisioning can create or update users when the connection policy allows it."
 msgstr "연결 정책이 허용하면 JIT 프로비저닝이 사용자를 생성하거나 업데이트할 수 있습니다."
 
-#. placeholder {0}: data.orgName
 #: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Join {0}"
-msgstr "{0} 참여"
+msgid "Join {org}"
+msgstr "{org} 참여"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Join organization"
 msgstr "조직 참여"
-
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Join this organization with the account you are signed in to."
-msgstr "로그인한 계정으로 이 조직에 참여합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JS and TS native SDKs (React Native, Expo) use a React provider plus hooks model: XidProvider, useSignIn, and useSignOut."
@@ -5121,6 +5487,10 @@ msgstr "JWT exp/nbf 클럭 편차 허용 범위"
 msgid "JWT payload claims returned by decodeTokenClaims"
 msgstr "decodeTokenClaims가 반환하는 JWT 페이로드 클레임"
 
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "Keep access when you're not using it"
+msgstr "사용하지 않을 때도 액세스 유지"
+
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Keep the public status page current with incident impact, state, and timestamped updates."
 msgstr "사고 영향, 상태, 타임스탬프 업데이트를 통해 공개 상태 페이지를 최신 상태로 유지하세요."
@@ -5149,6 +5519,10 @@ msgstr "Keycloak"
 msgid "Kind"
 msgstr "종류"
 
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "Know who you are"
+msgstr "내가 누구인지 확인"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Known limitations"
 msgstr "알려진 제한 사항"
@@ -5165,6 +5539,7 @@ msgstr "Chrome Custom Tabs, PKCE S256 인증 코드 흐름, Keystore 기반 Encr
 msgid "Label"
 msgstr "레이블"
 
+#: apps/server/src/components/hosted/LanguageMenu.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/LanguageSwitcher.tsx
 msgid "Language"
@@ -5181,7 +5556,6 @@ msgstr "마지막 활성: {lastActive}"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Last name"
 msgstr "성"
 
@@ -5207,6 +5581,8 @@ msgid "Last updated"
 msgstr "마지막 업데이트"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/sign-in/TryAnotherWay.tsx
 msgid "Last used"
 msgstr "마지막 사용"
 
@@ -5242,6 +5618,10 @@ msgstr "이 매핑을 무조건적으로 만들려면 비워 두세요."
 msgid "Legacy protocol boundaries"
 msgstr "레거시 프로토콜 경계"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Let {app} sign in as you?"
+msgstr "{app}이(가) 내 계정으로 로그인하도록 허용할까요?"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Level"
 msgstr "수준"
@@ -5257,6 +5637,11 @@ msgstr "getAuth와 유사하지만 미인증 시 리디렉션 응답을 발생�
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Limit"
 msgstr "한도"
+
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Link expired"
+msgstr "링크 만료됨"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Linked sign-on, native IWA, and Kerberos termination are not supported."
@@ -5409,14 +5794,6 @@ msgstr "불러오는 중"
 msgid "Loading authentication policy"
 msgstr "인증 정책을 불러오는 중"
 
-#: apps/server/src/routes/consent/index.tsx
-msgid "Loading authorization details"
-msgstr "인가 세부 정보를 불러오는 중"
-
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Loading backchannel request"
-msgstr "백채널 요청 로드 중"
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Loading branding settings"
 msgstr "브랜딩 설정을 불러오는 중"
@@ -5428,10 +5805,6 @@ msgstr "규정 준수 증거를 불러오는 중"
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Loading delivery channels"
 msgstr "전송 채널을 불러오는 중"
-
-#: apps/server/src/routes/activate/index.tsx
-msgid "Loading device request"
-msgstr "디바이스 요청 로드 중"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Loading invitation"
@@ -5457,9 +5830,21 @@ msgstr "프로필을 불러오는 중"
 msgid "Loading social providers"
 msgstr "소셜 공급자를 불러오는 중"
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "Loading the device request"
+msgstr "기기 요청을 불러오는 중"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Loading the request"
+msgstr "요청을 불러오는 중"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Loading the sign-in request"
+msgstr "로그인 요청을 불러오는 중"
+
 #: apps/server/src/routes/mfa/index.tsx
-msgid "Loading verification methods."
-msgstr "인증 방법을 불러오는 중입니다."
+msgid "Loading verification methods"
+msgstr "확인 방법을 불러오는 중"
 
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Loading your session"
@@ -5529,6 +5914,10 @@ msgstr "grant_type authorization_code와 PKCE 검증자를 사용해 token 엔�
 msgid "Low-level token helpers for custom session handling"
 msgstr "사용자 정의 세션 처리를 위한 저수준 토큰 헬퍼"
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Lowercase letters, numbers and dashes. Passkeys are tied to this address, so changing it later means members create new ones."
+msgstr "소문자, 숫자, 하이픈을 사용할 수 있습니다. 패스키는 이 주소에 연결되므로 나중에 바꾸면 멤버가 패스키를 새로 만들어야 합니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Machine to machine"
 msgstr "머신 간 통신"
@@ -5545,7 +5934,6 @@ msgstr "macOS"
 msgid "macOS 13+"
 msgstr "macOS 13 이상"
 
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
 msgid "Magic link"
@@ -5554,10 +5942,6 @@ msgstr "매직 링크"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Magic Link"
 msgstr "매직 링크"
-
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "Magic link sign in"
-msgstr "매직 링크 로그인"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main and renderer bridge, safeStorage, and loopback or custom scheme callbacks."
@@ -5570,10 +5954,6 @@ msgstr "메인 프로세스 전용: XidElectronApp"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main process setup"
 msgstr "메인 프로세스 설정"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Maintain access while you are offline"
-msgstr "오프라인 상태에서도 액세스 유지"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Major"
@@ -5599,6 +5979,10 @@ msgstr "이벤트 구독, 엔드포인트 URL, 아웃바운드 전송용 서명 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage hosted sign-in methods, identifiers, profile fields, and email domain rules."
 msgstr "Hosted Auth 로그인 방법, 식별자, 프로필 필드, 이메일 도메인 규칙을 관리합니다."
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Manage methods any time in your account under Security."
+msgstr "확인 방법은 계정의 보안에서 언제든 관리할 수 있습니다."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage OAuth and OIDC provider connections, client IDs, secret references, scopes, and provider readiness."
@@ -5653,6 +6037,10 @@ msgstr "Upstream SAML 및 OIDC 엔터프라이즈 IdP 연결을 관리합니다.
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage verified domains for discovery, hosted authentication, and organization routing."
 msgstr "디스커버리, Hosted Auth, 조직 라우팅에 사용할 인증된 도메인을 관리합니다."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Manage your passkeys any time in your account under Security."
+msgstr "패스키는 계정의 보안에서 언제든 관리할 수 있습니다."
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Managed billing"
@@ -5778,10 +6166,6 @@ msgstr "방법"
 msgid "MFA adoption"
 msgstr "MFA 도입률"
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "MFA methods"
-msgstr "MFA 방법"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Microsoft account"
 msgstr "Microsoft 계정"
@@ -5823,11 +6207,6 @@ msgstr "최소 생성자. 선택적 설정을 위해 빌더 메서드를 체이�
 msgid "Minimal implementation"
 msgstr "최소한의 구현"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Minimum 12 characters"
-msgstr "최소 12자"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Minimum integration"
 msgstr "최소 연동"
@@ -5843,10 +6222,6 @@ msgstr "경미한 영향"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Missing"
 msgstr "없음"
-
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Missing request"
-msgstr "요청이 없습니다"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mobile SDKs"
@@ -5904,10 +6279,6 @@ msgstr "마운트 즉시 사용자 프로필 페이지로 리디렉션합니다"
 msgid "Multi-factor authentication is required."
 msgstr "다중 인증이 필요합니다."
 
-#: apps/server/src/routes/account/SecurityPage.tsx
-msgid "Multi-factor authentication required"
-msgstr "다단계 인증이 필요합니다"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Multi-issuer setup"
 msgstr "다중 issuer 설정"
@@ -5929,7 +6300,6 @@ msgstr "공개 HTTPS URL이어야 합니다."
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Name"
 msgstr "이름"
 
@@ -5975,9 +6345,21 @@ msgstr "없음"
 msgid "New announcement"
 msgstr "새 공지"
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "New code sent"
+msgstr "새 코드를 보냈습니다"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "New code sent at {sentTime}"
+msgstr "{sentTime}에 새 코드를 보냈습니다"
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "New here? Create an account"
-msgstr "처음이신가요? 계정 만들기"
+msgid "New here?"
+msgstr "처음이신가요?"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "New organization"
+msgstr "새 조직"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
@@ -5992,6 +6374,14 @@ msgstr "새 공급자 키"
 msgid "New sessions store access and ID tokens in platform secure storage. The refreshToken compatibility field remains null, and offline_access is rejected until DPoP is implemented."
 msgstr "새 session은 access token과 ID token을 플랫폼 secure storage에 저장합니다. refreshToken compatibility field는 null로 유지되며 DPoP가 구현될 때까지 offline_access를 거부합니다."
 
+#: apps/server/src/routes/consent/index.tsx
+msgid "New since you last allowed {app}"
+msgstr "지난번 {app} 허용 이후 추가된 항목"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "New to {org}?"
+msgstr "{org}이(가) 처음이신가요?"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "New to XID? Create an account"
 msgstr "XID가 처음이신가요? 계정 만들기"
@@ -6004,6 +6394,22 @@ msgstr "다음"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Next status"
 msgstr "다음 상태"
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Next time you sign in to {organizationName}, you'll confirm with one of these."
+msgstr "다음에 {organizationName}에 로그인할 때 이 중 하나로 확인합니다."
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Next time you sign in, you'll confirm with one of these."
+msgstr "다음에 로그인할 때 이 중 하나로 확인합니다."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Next time, pick your passkey when you sign in. You won't need to type anything."
+msgstr "다음에는 로그인할 때 패스키를 선택하기만 하면 됩니다. 입력할 필요가 없습니다."
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Next, set your password."
+msgstr "이제 비밀번호를 설정하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Next.js"
@@ -6117,6 +6523,10 @@ msgstr "삭제된 역할이 없습니다."
 msgid "No description"
 msgstr "설명 없음"
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "No device was signed in. You can start again from the device at any time."
+msgstr "로그인한 기기가 없습니다. 언제든 기기에서 다시 시작할 수 있습니다."
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "No domains added yet."
 msgstr "아직 추가된 도메인이 없습니다."
@@ -6128,6 +6538,18 @@ msgstr "다운스트림 API 토큰이 설정되지 않았습니다."
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "No email address"
 msgstr "이메일 주소 없음"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "No email after a few minutes? Check spam, or try again with the address you sign in with."
+msgstr "몇 분이 지나도 이메일이 오지 않나요? 스팸함을 확인하거나 로그인에 쓰는 주소로 다시 시도하세요."
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "No email after a minute? Check spam, or send the link again."
+msgstr "1분이 지나도 이메일이 오지 않나요? 스팸함을 확인하거나 링크를 다시 보내세요."
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "No email yet?"
+msgstr "아직 이메일이 없나요?"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No group"
@@ -6150,10 +6572,6 @@ msgstr "보고된 사건은 없습니다."
 msgid "No instance managers found."
 msgstr "인스턴스 관리자를 찾을 수 없습니다."
 
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "No magic-link token found. Please use the link from your email."
-msgstr "매직 링크 토큰을 찾을 수 없습니다. 이메일의 링크를 사용하세요."
-
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No managers assigned to this scope."
 msgstr "이 범위에 할당된 관리자가 없습니다."
@@ -6170,9 +6588,17 @@ msgstr "멤버가 없습니다."
 msgid "No membership record was found."
 msgstr "멤버십 레코드를 찾을 수 없습니다."
 
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "No message yet?"
+msgstr "아직 메시지가 없나요?"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "No organization access"
 msgstr "조직 접근 권한 없음"
+
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "No organization matches \"{query}\"."
+msgstr "'{query}'와(과) 일치하는 조직이 없습니다."
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "No organization selected"
@@ -6253,10 +6679,6 @@ msgstr "구성된 SCIM 대상이 없습니다."
 msgid "No self-service request is available."
 msgstr "셀프 서비스 요청은 불가능합니다."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "No sign-in methods are available for this organization."
-msgstr "이 조직에서 사용할 수 있는 로그인 방법이 없습니다."
-
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "No social accounts connected"
 msgstr "연결된 소셜 계정이 없습니다"
@@ -6294,16 +6716,16 @@ msgid "No valid token present; reason field indicates cause"
 msgstr "유효한 token이 없습니다; reason 필드에 원인이 표시됩니다"
 
 #: apps/server/src/routes/mfa/index.tsx
-msgid "No verification method is available for this account. Sign out and sign in with another method."
-msgstr "이 계정에서 사용할 수 있는 인증 방법이 없습니다. 로그아웃한 후 다른 방법으로 로그인하세요."
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "No verification token found. Please use the link from your email."
-msgstr "인증 토큰을 찾을 수 없습니다. 이메일의 링크를 사용하세요."
+msgid "No way to verify on this account"
+msgstr "이 계정에는 확인 방법이 없습니다"
 
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "No webhook endpoints configured."
 msgstr "설정된 webhook 엔드포인트가 없습니다."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "No, it's different"
+msgstr "아니요, 다릅니다"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Node.js"
@@ -6313,6 +6735,10 @@ msgstr "Node.js"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "None"
 msgstr "없음"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Not now"
+msgstr "나중에"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -6327,17 +6753,33 @@ msgstr "아직 실행 안 됨"
 msgid "Not yet implemented"
 msgstr "아직 구현되지 않음"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Not you? Sign in with a different account"
-msgstr "본인이 아니신가요? 다른 계정으로 로그인"
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Not your work account?"
+msgstr "회사 계정이 아닌가요?"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Notes"
 msgstr "참고"
 
+#: apps/server/src/routes/consent/index.tsx
+msgid "Nothing from your account was shared. {app} will show its own message about what to do next."
+msgstr "내 계정 정보는 공유되지 않았습니다. 다음에 할 일은 {app}에서 안내합니다."
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Nothing happening?"
+msgstr "아무 반응이 없나요?"
+
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 msgid "Nothing matches. Try a name, email or ID."
 msgstr "일치하는 항목이 없습니다. 이름, 이메일 또는 ID로 검색하세요."
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Nothing was shared with"
+msgstr "정보를 공유하지 않은 앱"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Nothing was shared. The app will be told you said no."
+msgstr "아무것도 공유되지 않았습니다. 앱에 거부했다는 사실이 전달됩니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Nuxt"
@@ -6483,13 +6925,13 @@ msgstr "Okta"
 msgid "On"
 msgstr "켬"
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "On a different computer, your browser can show a QR code to scan with your phone."
+msgstr "다른 컴퓨터에서는 브라우저가 QR 코드를 표시하며 휴대폰으로 스캔할 수 있습니다."
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "이 페이지에서"
-
-#: apps/server/src/components/layout/AuthLayout.tsx
-msgid "One {appName} account. Every application."
-msgstr "하나의 {appName} 계정으로 모든 애플리케이션을 이용하세요."
 
 #: apps/site/src/lib/home-surface.ts
 msgid "One control plane from sign-in to enterprise access"
@@ -6498,6 +6940,14 @@ msgstr "로그인부터 엔터프라이즈 액세스까지 하나의 제어 평�
 #: apps/site/src/lib/home-surface.ts
 msgid "One deployment model"
 msgstr "단일 배포 모델"
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "One optional step before {appName} opens."
+msgstr "{appName}이(가) 열리기 전의 선택 단계입니다."
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "One optional step before you continue."
+msgstr "계속하기 전의 선택 단계입니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One platform for identity"
@@ -6515,17 +6965,13 @@ msgstr "한 줄에 URI 하나씩 입력합니다."
 msgid "One-tap sign-in embed"
 msgstr "원탭 로그인 임베드"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "One-time code"
-msgstr "일회용 코드"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OneLogin"
 msgstr "OneLogin"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Only approve this request if the code matches your device."
-msgstr "코드가 디바이스와 일치할 때만 이 요청을 승인하세요。"
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Only allow it if you're holding that device right now."
+msgstr "지금 그 기기를 들고 있을 때만 허용하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
@@ -6539,6 +6985,10 @@ msgstr "이번 요청에서는 체인의 일부만 확인했습니다. 최신 �
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 msgid "Only the first matches are listed. Refine the search to narrow them."
 msgstr "처음 일치하는 항목만 표시합니다. 검색어를 구체적으로 입력해 범위를 좁히세요."
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Only you decide what {app} can see."
+msgstr "{app}이(가) 볼 수 있는 정보는 내가 정합니다."
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -6599,21 +7049,41 @@ msgstr "Stripe에서 호스팅하는 Checkout을 열어 관리형 구독을 시�
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
 msgstr "PKCE S256 인증 URL로 시스템 브라우저를 엽니다. 코드를 교환하고 XidSession을 반환합니다."
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Open the app you set up for {org} and enter the 6-digit code it shows now."
+msgstr "{org}용으로 설정한 앱을 열고 지금 표시된 6자리 코드를 입력하세요."
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "Open the link from your invitation email."
+msgstr "초대 이메일의 링크를 여세요."
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Open the link from your verification email on this device, or send a new one."
+msgstr "이 기기에서 인증 이메일의 링크를 열거나 새 링크를 보내세요."
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Open the link in your inbox, then sign in again."
 msgstr "받은편지함의 링크를 연 다음 다시 로그인하세요."
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Open the sign-in link from your newest email on this device."
+msgstr "이 기기에서 가장 최근 이메일의 로그인 링크를 여세요."
+
 #: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Open this page from the CIBA authorization link that includes auth_req_id."
-msgstr "auth_req_id가 포함된 CIBA 승인 링크에서 이 페이지를 여세요."
+msgid "Open this page from the link the app gave you."
+msgstr "앱에서 받은 링크로 이 페이지를 여세요."
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "Open until"
+msgstr "유효 기한"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open xdg-open browser, start loopback TCP listener on redirect_port, wait for the authorization code callback, exchange it, store tokens, and return a Session."
 msgstr "xdg-open 브라우저를 열고 redirect_port에서 loopback TCP 리스너를 시작한 후 인증 코드 콜백을 기다려 교환하고, 토큰을 저장한 후 Session을 반환합니다."
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Open your authenticator app and enter the 6-digit code."
-msgstr "인증 앱을 열고 6자리 코드를 입력하세요."
+msgid "Open your authenticator app and enter the 6-digit code it shows now."
+msgstr "인증 앱을 열고 지금 표시된 6자리 코드를 입력하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "openAuthSession(url, redirectUri) resolving to a BrowserResult"
@@ -6698,8 +7168,8 @@ msgstr "xidClient 옵션"
 msgid "Options for xidMiddleware: jwtKey, issuer, jwtCookieName, sessionTokenExchange, protectedRoutes, publicRoutes"
 msgstr "xidMiddleware 옵션: jwtKey, issuer, jwtCookieName, sessionTokenExchange, protectedRoutes, publicRoutes"
 
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
 #: apps/server/src/routes/sign-in/SignInGuestButton.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "or"
 msgstr "또는"
 
@@ -6716,7 +7186,7 @@ msgstr "org_..."
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-#: apps/server/src/routes/create-organization/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Organization"
 msgstr "조직"
 
@@ -6771,15 +7241,12 @@ msgstr "조직 정책 <0>attestationMode</0>는 패스키 등록 시 none, indir
 msgid "sdk.organizationProfile"
 msgstr "조직 프로필"
 
-#. placeholder {0}: data.role
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Organization role: {0}"
-msgstr "조직 역할: {0}"
-
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/server/src/routes/select-organization/index.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations"
 msgstr "조직"
@@ -6803,10 +7270,6 @@ msgstr "OrgUnit 트리는 최대 8개의 깊이를 지원합니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Other native SDKs (iOS, Android, Flutter, desktop) use a functional configure, signIn, and handleRedirect API surface."
 msgstr "다른 네이티브 SDK(iOS, Android, Flutter, 데스크톱)는 함수형 configure, signIn, handleRedirect API를 사용합니다."
-
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
-msgid "OTP"
-msgstr "OTP"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Outbound enterprise SSO"
@@ -7000,8 +7463,8 @@ msgstr "<0>appearance</0>는 <4>XidProvider</4>가 아니라 <1>SignIn</1>, <2>U
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/MfaSection.tsx
-#: apps/server/src/routes/mfa/index.tsx
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 #: apps/site/src/lib/home-surface.ts
 msgid "Passkey"
 msgstr "패스키"
@@ -7009,6 +7472,11 @@ msgstr "패스키"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Passkey attestation"
 msgstr "패스키 증명"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "Passkey not created"
+msgstr "패스키가 생성되지 않았습니다"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Passkey re-registration required"
@@ -7019,10 +7487,6 @@ msgid "Passkey sign-in is primary AAL2 authentication. Password or OTP sessions 
 msgstr "패스키 로그인은 기본 AAL2 인증입니다. 비밀번호 또는 OTP 세션은 사용자 검증이 필요한 <0>/auth/mfa/passkey/*</0>를 통해 MFA를 완료할 수 있습니다."
 
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
-msgid "Passkey verification"
-msgstr "패스키 검증"
-
-#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 msgid "Passkey verification failed. Try another method or try again."
 msgstr "패스키 검증에 실패했습니다. 다른 방법을 시도하거나 다시 시도하세요."
 
@@ -7030,40 +7494,27 @@ msgstr "패스키 검증에 실패했습니다. 다른 방법을 시도하거나
 msgid "Passkeys"
 msgstr "패스키"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Passkeys are not supported in this browser. Please use another sign-in method."
-msgstr "이 브라우저는 패스키를 지원하지 않습니다. 다른 로그인 방법을 사용하세요."
-
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys created on a different address do not work here. Add a passkey for this address to keep signing in with a passkey."
 msgstr "다른 주소에서 만든 패스키는 여기에서 작동하지 않습니다. 계속 패스키로 로그인하려면 이 주소용 패스키를 추가하세요."
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Passkeys created on a different address do not work here. Sign in another way, then add a passkey for this address from your account security page."
-msgstr "다른 주소에서 만든 패스키는 여기에서 작동하지 않습니다. 다른 방법으로 로그인한 후 계정 보안 페이지에서 이 주소용 패스키를 추가하세요."
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password"
 msgstr "비밀번호"
-
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Password must be at least 12 characters"
-msgstr "비밀번호는 12자 이상이어야 합니다"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Password must be at least 12 characters."
 msgstr "비밀번호는 12자 이상이어야 합니다."
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Password must be at most 128 characters"
-msgstr "비밀번호는 128자 이하여야 합니다"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password policy enables login or user creation."
 msgstr "비밀번호 정책은 로그인 또는 사용자 생성을 활성화합니다."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Password reset"
+msgstr "비밀번호 재설정"
 
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Password strength"
@@ -7080,10 +7531,6 @@ msgstr "비밀번호가 업데이트되었습니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "비밀번호 없는 이메일 매직 링크 및 OTP 요청은 챌린지를 만들 때 가입 의도, 서버가 관리하는 계속 경로, 애플리케이션 클라이언트, 초대 행 ID를 고정합니다. Social OAuth 초대 승인도 외부 공급자로 리디렉션하기 전에 원본 capability를 검증하고 일회성 상태에는 초대 행 ID만 저장하며 callback에서는 클라이언트가 관리하는 토큰 경로를 무시합니다. 검증 단계에서는 이러한 필드를 변경할 수 없습니다. 원본 초대 capability는 이러한 흐름 컨텍스트에 저장되지 않습니다. MFA로 수락이 중단되면 XID는 Tenant, 사용자, 세션, 초대에 바인딩된 단기 서명 continuation을 사용합니다."
-
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Passwords do not match"
-msgstr "비밀번호가 일치하지 않습니다"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Passwords do not match."
@@ -7136,6 +7583,11 @@ msgstr "인증 대기 중"
 msgid "People"
 msgstr "구성원"
 
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "People with {0} addresses sign in through {idp}."
+msgstr "{0} 주소를 쓰는 사용자는 {idp}(으)로 로그인합니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Per-call overrides for signIn: redirectUri, scopes"
 msgstr "signIn 호출별 오버라이드: redirectUri, scopes"
@@ -7172,11 +7624,6 @@ msgstr "권한 키는 invoice:read 또는 invoice:write과 같은 원자적 작�
 msgid "Permissions"
 msgstr "권한"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Permissions requested"
-msgstr "요청된 권한"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Persist or remove the token set in the TokenCache adapter"
 msgstr "TokenCache 어댑터에서 토큰 세트를 저장하거나 제거합니다"
@@ -7188,7 +7635,6 @@ msgstr "개인 계정"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Phone number"
 msgstr "전화번호"
 
@@ -7388,16 +7834,20 @@ msgid "Preparing"
 msgstr "준비 중"
 
 #: apps/server/src/routes/forgot-password/index.tsx
-msgid "Preparing password reset..."
-msgstr "비밀번호 재설정을 준비하는 중..."
+msgid "Preparing password reset"
+msgstr "비밀번호 재설정 준비 중"
 
 #: apps/server/src/routes/magic-link/index.tsx
-msgid "Preparing sign in..."
-msgstr "로그인을 준비하는 중..."
+msgid "Preparing sign in"
+msgstr "로그인 준비 중"
 
 #: apps/server/src/routes/verify-email/index.tsx
-msgid "Preparing verification..."
-msgstr "인증을 준비하는 중..."
+msgid "Preparing verification"
+msgstr "확인 준비 중"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Preparing your setup key"
+msgstr "설정 키 준비 중"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Preset"
@@ -7437,6 +7887,10 @@ msgstr "기본 탐색"
 msgid "primitive"
 msgstr "프리미티브"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
+msgid "Print"
+msgstr "인쇄"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Privacy controls"
 msgstr "개인 정보 보호 제어"
@@ -7444,6 +7898,10 @@ msgstr "개인 정보 보호 제어"
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Privacy request canceled."
 msgstr "개인정보 보호 요청이 취소되었습니다."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Private windows in some browsers can't save passkeys. Use a regular window."
+msgstr "일부 브라우저의 시크릿 창에서는 패스키를 저장할 수 없습니다. 일반 창을 사용하세요."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
@@ -7598,6 +8056,10 @@ msgstr "속성"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Props type"
 msgstr "Props 타입"
+
+#: apps/server/src/routes/consent/ScopeList.tsx
+msgid "Protected resource"
+msgstr "보호된 리소스"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protected routes redirect via <0>Response.redirect</0> in middleware before any page handler runs; no client-side JS is required."
@@ -7831,6 +8293,10 @@ msgstr "Python"
 msgid "QR code for adding this account to an authenticator app"
 msgstr "이 계정을 인증 앱에 추가하기 위한 QR 코드"
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "QR code to add this account to your authenticator app"
+msgstr "이 계정을 인증 앱에 추가하는 QR 코드"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
 msgstr "쿼리"
@@ -8062,9 +8528,14 @@ msgstr "리디렉션 URI는 정확히 일치해야 합니다. 인가 코드 흐�
 msgid "Redirect users to the unified Hosted Auth flow."
 msgstr "사용자를 통합 Hosted Auth 흐름으로 리디렉션합니다."
 
-#: apps/server/src/routes/consent/index.tsx
-msgid "Redirecting..."
-msgstr "리디렉션 중..."
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Redirecting"
+msgstr "리디렉션하는 중"
+
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Redirecting to {idp} for {0}"
+msgstr "{0} 계정을 위해 {idp}(으)로 리디렉션하는 중"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirects to /sign-in when user is not signed in"
@@ -8187,10 +8658,6 @@ msgstr "sdk/ios와의 관계"
 msgid "Release underlying HTTP client resources."
 msgstr "기반 HTTP 클라이언트 리소스를 해제합니다."
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Remember me"
-msgstr "로그인 상태 유지"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Remix"
 msgstr "Remix"
@@ -8292,10 +8759,6 @@ msgstr "SDK 로드가 복구 불가능한 오류로 실패할 때 자식 컴포�
 msgid "Renders children while SDK is still loading (isLoaded false)"
 msgstr "SDK가 아직 로딩 중일 때 자식 컴포넌트를 렌더링합니다 (isLoaded false)"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Repeat your password"
-msgstr "비밀번호 다시 입력"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Replace the default DpapiTokenStorage with a custom ITokenStorage implementation."
 msgstr "기본 DpapiTokenStorage를 사용자 정의 ITokenStorage 구현으로 교체합니다."
@@ -8346,29 +8809,17 @@ msgstr "새 재설정 링크 요청"
 msgid "Request authentication is Bearer-only by default. An application-owned JWT cookie is read only when its exact name is configured. The opaque __Host-xid.rt.* Core cookie is never scanned or verified locally; exchange it by forwarding the complete Cookie header to exact same-origin POST /v1/sessions/token with redirects disabled, and accept only a response containing the token field."
 msgstr "요청 인증은 기본적으로 Bearer만 허용합니다. 애플리케이션 소유 JWT cookie는 정확한 이름을 설정한 경우에만 읽습니다. 불투명한 __Host-xid.rt.* Core cookie는 스캔하거나 로컬에서 검증하지 않습니다. 전체 Cookie header를 redirect가 비활성화된 exact same-origin POST /v1/sessions/token으로 전달해 교환하고 token 필드만 포함한 응답만 허용하세요."
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "Request denied"
+msgstr "요청이 거부됨"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Request export"
 msgstr "내보내기 요청"
 
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Request handled"
-msgstr "요청이 처리되었습니다"
-
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Requested {requestedAt}"
 msgstr "요청 시간: {requestedAt}"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Requested permissions"
-msgstr "요청된 권한"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Requested resource access"
-msgstr "요청된 리소스 접근"
-
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "Requesting access to your account"
-msgstr "계정 접근을 요청합니다"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Require email verification"
@@ -8433,23 +8884,26 @@ msgid "Requires a PSR-7 request object for <0>authenticateRequest</0> and <1>ver
 msgstr "<0>authenticateRequest</0>와 <1>verifyWebhook</1>에는 PSR-7 요청 객체가 필요합니다. 필요한 경우 PSR-7 브리지를 사용하여 프레임워크 네이티브 요청을 변환하세요."
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Resend code"
 msgstr "코드 다시 보내기"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Resend invitation email"
 msgstr "초대 이메일 다시 보내기"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
-#: apps/server/src/routes/verify-email/ResendVerification.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "인증 이메일 다시 보내기"
 
 #: apps/server/src/routes/forgot-password/index.tsx
-msgid "Reset link unavailable"
-msgstr "재설정 링크를 사용할 수 없음"
+msgid "Reset links are single-use and expire after 15 minutes so nobody else can use an old email."
+msgstr "재설정 링크는 한 번만 사용할 수 있고 15분 후 만료되므로 다른 사람이 오래된 이메일을 사용할 수 없습니다."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Reset links work once, for 15 minutes. Request a new one and open the newest email."
+msgstr "재설정 링크는 한 번만, 15분 동안 사용할 수 있습니다. 새 링크를 요청하고 가장 최근 이메일을 여세요."
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
@@ -8472,10 +8926,6 @@ msgstr "선택한 프로젝트를 해결하는 중입니다."
 msgid "Resource"
 msgstr "리소스"
 
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Resource access requested"
-msgstr "리소스 접근 요청됨"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
 msgstr "리소스 GET 응답에는 <1>meta.version</1>에서 가져온 <0>ETag: W/\"<meta.version>\"</0>가 포함됩니다. <2>If-Match</2>는 <3>PUT</3>, <4>PATCH</4>, <5>DELETE</5>에서 선택 사항입니다. 지정하면 현재 버전과 일치해야 하며, 일치하지 않거나 동시 쓰기가 발생하면 <6>412</6>를 반환합니다."
@@ -8488,11 +8938,6 @@ msgstr "리소스 할당량"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
 msgstr "리소스"
-
-#. placeholder {0}: detail.locations.join(', ')
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Resources: {0}"
-msgstr "리소스: {0}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Responsibility"
@@ -8588,6 +9033,10 @@ msgstr "현재 만료되지 않은 XidSession을 반환합니다. 만료된 로�
 msgid "Return the default resource without the excluded SCIM attributes."
 msgstr "제외된 SCIM 속성이 없는 기본 리소스를 반환합니다."
 
+#: apps/server/src/routes/consent/index.tsx
+msgid "Return to {app}"
+msgstr "{app}(으)로 돌아가기"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Return type of XidStore.subscribe"
 msgstr "XidStore.subscribe의 반환 타입"
@@ -8595,6 +9044,10 @@ msgstr "XidStore.subscribe의 반환 타입"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Return up to 100 resources from the first result."
 msgstr "첫 결과부터 최대 100개 리소스를 반환합니다."
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Returning to the app"
+msgstr "앱으로 돌아가는 중"
 
 #: packages/i18n/src/messages.ts
 msgid "Returning you to the application."
@@ -8715,6 +9168,7 @@ msgstr "폐기됨"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Role"
 msgstr "역할"
 
@@ -8903,6 +9357,18 @@ msgstr "저장"
 msgid "Save changes"
 msgstr "변경 사항 저장"
 
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Save your backup codes"
+msgstr "백업 코드 저장"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Saved in your password manager"
+msgstr "비밀번호 관리자에 저장됨"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Scan this code with your authenticator app"
+msgstr "인증 앱으로 이 코드를 스캔하세요"
+
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 msgid "Scan this QR code with your authenticator app, then enter the 6-digit code."
 msgstr "인증 앱으로 이 QR 코드를 스캔한 다음 6자리 코드를 입력하세요."
@@ -9001,11 +9467,6 @@ msgstr "범위 유형"
 msgid "Scopes"
 msgstr "범위"
 
-#. placeholder {0}: paramsQuery.data.scope
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Scopes: {0}"
-msgstr "범위: {0}"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SDK overview"
 msgstr "SDK 개요"
@@ -9074,6 +9535,10 @@ msgstr "사용자 좌석 한도"
 msgid "Seats"
 msgstr "시트"
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Second step"
+msgstr "2단계"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Secret"
 msgstr "비밀값 이름"
@@ -9089,6 +9554,10 @@ msgstr "Secret Service는 데스크톱 키링 데몬을 통해 저장된 토큰�
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sections"
 msgstr "섹션"
+
+#: apps/server/src/components/layout/AuthLayout.tsx
+msgid "Secured by XID"
+msgstr "XID로 보호됨"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SecureStore key namespacing"
@@ -9121,14 +9590,25 @@ msgstr "보안 참고 사항"
 msgid "Security rates"
 msgstr "보안 지표"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Security verification failed. Please refresh and try again."
-msgstr "보안 인증에 실패했습니다. 새로고침 후 다시 시도하세요."
-
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "See"
 msgstr "참고"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your email address"
+msgstr "이메일 주소 보기"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your name and profile photo"
+msgstr "이름과 프로필 사진 보기"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your organization and role"
+msgstr "조직과 역할 보기"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your phone number"
+msgstr "전화번호 보기"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Select"
@@ -9183,7 +9663,6 @@ msgstr "조직 선택"
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-#: apps/server/src/routes/select-organization/index.tsx
 msgid "Select organization"
 msgstr "조직 선택"
 
@@ -9236,6 +9715,22 @@ msgstr "셀프 호스팅"
 msgid "Self-service path"
 msgstr "셀프 서비스 경로"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Send a code on WhatsApp"
+msgstr "WhatsApp으로 코드 받기"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Send a code to your phone"
+msgstr "휴대폰으로 코드 받기"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Send a new code"
+msgstr "새 코드 보내기"
+
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
+msgid "Send a new link"
+msgstr "새 링크 보내기"
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send a verification link to {email}. The Console stays read-only until you use it."
 msgstr "{email}(으)로 인증 링크를 보냅니다. 링크를 사용할 때까지 콘솔은 읽기 전용으로 유지됩니다."
@@ -9244,30 +9739,17 @@ msgstr "{email}(으)로 인증 링크를 보냅니다. 링크를 사용할 때�
 msgid "Send a verification link to your email. The Console stays read-only until you use it."
 msgstr "이메일로 인증 링크를 보냅니다. 링크를 사용할 때까지 콘솔은 읽기 전용으로 유지됩니다."
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Send again"
+msgstr "다시 보내기"
+
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "Send code"
 msgstr "코드 보내기"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "Send code via email"
-msgstr "이메일로 코드 보내기"
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "Send code via SMS"
-msgstr "SMS로 코드 보내기"
-
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "Send code via WhatsApp"
-msgstr "WhatsApp으로 코드 보내기"
-
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Send invitation"
 msgstr "초대 보내기"
-
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Send magic link"
-msgstr "매직 링크 보내기"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Send reset link"
@@ -9280,6 +9762,14 @@ msgstr "인증 이메일 보내기"
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Sender"
 msgstr "발신자"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Sending a 6-digit code to {target}."
+msgstr "{target}(으)로 6자리 코드를 보내는 중입니다."
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "Sent to"
+msgstr "보낸 곳"
 
 #: apps/console/src/routes/org/ApplicationEditor.tsx
 msgid "Separate scopes with spaces."
@@ -9398,13 +9888,25 @@ msgstr "새 비밀번호 설정"
 msgid "Set the non-secret sender identity explicitly. XID validates the address and fails closed. Arbitrary-recipient Email Sending requires Workers Paid; D1, SQLite-backed Durable Objects, and Queues are available on Workers Free within their limits."
 msgstr "non-secret 발신자 identity를 명시적으로 설정합니다. XID는 address를 검증하고 fail closed 방식으로 동작합니다. 임의의 수신자에게 Email을 보내려면 Workers Paid가 필요합니다. D1, SQLite 기반 Durable Objects, Queues는 각 제한 범위에서 Workers Free로 사용할 수 있습니다."
 
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Set up a passkey instead"
+msgstr "대신 패스키 설정"
+
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 msgid "Set up a sign-in method"
 msgstr "로그인 방법 설정"
 
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Set up an organization to manage members, authentication, and applications."
-msgstr "멤버, 인증, 애플리케이션을 관리할 조직을 만드세요."
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Set up an authenticator app instead"
+msgstr "대신 인증 앱 설정"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Set up authenticator app"
+msgstr "인증 앱 설정"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Set up passkey"
+msgstr "패스키 설정"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -9414,6 +9916,10 @@ msgstr "로그인 방법 설정"
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Set up sign-in method"
 msgstr "로그인 방법 설정"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Set up two-step verification | XID"
+msgstr "2단계 인증 설정 | XID"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Set your password"
@@ -9436,6 +9942,14 @@ msgstr "설정 | 콘솔 | XID"
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Settings saved."
 msgstr "설정이 저장되었습니다."
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Setup complete"
+msgstr "설정 완료"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "setup key"
+msgstr "설정 키"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Setup link sent. Check your inbox to finish setting a password."
@@ -9503,11 +10017,9 @@ msgstr "설정하면 이메일 대신 UI에 표시됩니다."
 msgid "sdk.signIn"
 msgstr "로그인"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
-#: apps/server/src/routes/activate/index.tsx
-#: apps/server/src/routes/not-found/NotFoundPage.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
@@ -9526,38 +10038,54 @@ msgstr "다시 로그인"
 msgid "Sign in and sign out"
 msgstr "로그인 및 로그아웃"
 
+#: apps/server/src/routes/mfa/MfaExits.tsx
+msgid "Sign in as someone else"
+msgstr "다른 사용자로 로그인"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Sign in faster next time with a passkey"
+msgstr "다음에는 패스키로 더 빠르게 로그인하세요"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signInForm"
 msgstr "로그인 양식"
 
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
+msgid "Sign in instead"
+msgstr "로그인하기"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Sign in to {org}"
+msgstr "{org}에 로그인"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Sign in with a passkey for a faster, more secure experience."
 msgstr "더 빠르고 안전한 경험을 위해 패스키로 로그인하세요."
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Sign in with another account"
+msgstr "다른 계정으로 로그인"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Sign in with Apple"
 msgstr "Apple로 로그인"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Sign in with magic link"
-msgstr "매직 링크로 로그인"
-
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Sign in with passkey"
-msgstr "패스키로 로그인"
-
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Sign in with password"
-msgstr "비밀번호로 로그인"
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Sign in with single sign-on"
+msgstr "싱글 사인온으로 로그인"
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "Sign in with the account that this application belongs to."
-msgstr "이 애플리케이션이 속한 계정으로 로그인하세요."
+msgid "Sign in with the account this device belongs to."
+msgstr "이 기기가 속한 계정으로 로그인하세요."
 
 #: packages/i18n/src/messages.ts
 msgid "Sign in with the email address that received this invitation."
 msgstr "이 초대를 받은 이메일 주소로 로그인하세요."
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Sign in with your passkey"
+msgstr "패스키로 로그인"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -9598,12 +10126,15 @@ msgstr "로그아웃하고 다른 계정 사용"
 msgid "Sign out this session?"
 msgstr "이 세션에서 로그아웃할까요?"
 
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Sign out, then sign in another way or ask your admin to reset two-step verification."
+msgstr "로그아웃한 뒤 다른 방법으로 로그인하거나 관리자에게 2단계 인증 재설정을 요청하세요."
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signUp"
 msgstr "가입"
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign up"
 msgstr "가입"
@@ -9621,6 +10152,10 @@ msgstr "가입 양식"
 msgid "Sign-in activity, organizations, and usage across this instance."
 msgstr "이 인스턴스 전체의 로그인 활동, 조직 및 사용량입니다."
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Sign-in address"
+msgstr "로그인 주소"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sign-in and registration flow options — whether new accounts can be created, email verification requirements, and SSO enforcement."
 msgstr "로그인 및 가입 흐름 옵션입니다. 새 계정 생성 허용 여부, 이메일 확인 요구 사항, SSO 강제 적용을 설정합니다."
@@ -9629,25 +10164,29 @@ msgstr "로그인 및 가입 흐름 옵션입니다. 새 계정 생성 허용 �
 msgid "Sign-in and sign-out"
 msgstr "로그인 및 로그아웃"
 
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "Sign-in confirmed. Redirecting..."
-msgstr "로그인이 확인되었습니다. 이동하는 중..."
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Sign-in approved"
+msgstr "로그인 승인됨"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Sign-in failed. Please check your credentials and try again."
-msgstr "로그인에 실패했습니다. 자격 증명을 확인하고 다시 시도하세요."
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Sign-in denied"
+msgstr "로그인 거부됨"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sign-in identifiers, hosted flow, methods, and session/token lifetime overrides for this organization."
 msgstr "이 조직의 로그인 식별자, Hosted 흐름, 방법 및 세션/토큰 수명 재정의입니다."
 
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
-msgid "Sign-in method"
-msgstr "로그인 방법"
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Sign-in links work once, for 15 minutes. Go back to sign in and send a new one."
+msgstr "로그인 링크는 한 번만, 15분 동안 사용할 수 있습니다. 로그인으로 돌아가 새 링크를 보내세요."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Sign-in was cancelled. Choose a sign-in method to try again."
-msgstr "로그인이 취소되었습니다. 로그인 방법을 선택해 다시 시도하세요."
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Sign-in request from"
+msgstr "로그인 요청 앱"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Sign-in was cancelled. Choose a way to sign in to try again."
+msgstr "로그인이 취소되었습니다. 다시 시도하려면 로그인 방법을 선택하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Signature"
@@ -9657,10 +10196,18 @@ msgstr "서명"
 msgid "Signature verification"
 msgstr "서명 검증"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signed in"
+msgstr "로그인됨"
+
 #. placeholder {0}: user.email
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Signed in as {0}"
-msgstr "{0}(으)로 로그인됨"
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signed in as {0} on this browser. The link can't be used again."
+msgstr "이 브라우저에서 {0}(으)로 로그인했습니다. 이 링크는 다시 사용할 수 없습니다."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Signed in as {signedInAs}"
+msgstr "{signedInAs}(으)로 로그인됨"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
@@ -9675,8 +10222,8 @@ msgid "Signing secret generated. Store it now; it will not be shown again."
 msgstr "서명 비밀값이 생성되었습니다. 지금 저장하세요. 다시 표시되지 않습니다."
 
 #: apps/server/src/routes/magic-link/index.tsx
-msgid "Signing you in..."
-msgstr "로그인하는 중..."
+msgid "Signing you in"
+msgstr "로그인하는 중"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signOut clears the local session and legacy credentials without a refresh or revoke request; storage failures surface in signOutState."
@@ -9718,10 +10265,6 @@ msgstr "SLO URL(선택)"
 msgid "Slot-based role and permission gate with default and fallback slots"
 msgstr "기본 및 폴백 슬롯이 있는 슬롯 기반 역할 및 권한 게이트"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "SMS code"
-msgstr "SMS 코드"
-
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "SMS delivery is ready for Hosted UI."
 msgstr "SMS 전송이 Hosted UI에서 사용할 준비가 되었습니다."
@@ -9731,7 +10274,6 @@ msgid "SMS delivery stays hidden until the provider is enabled, a sender is set,
 msgstr "공급자가 활성화되고 발신자가 설정되며 참조된 Workers Secrets가 모두 존재할 때까지 SMS 전송은 숨겨집니다."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "SMS OTP"
 msgstr "SMS OTP"
 
@@ -9740,8 +10282,6 @@ msgid "SMS provider"
 msgstr "SMS 공급자"
 
 #: apps/server/src/routes/account/MfaSection.tsx
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-#: apps/server/src/routes/mfa/index.tsx
 msgid "SMS verification"
 msgstr "SMS 인증"
 
@@ -9790,10 +10330,18 @@ msgstr "SolidJS"
 msgid "SolidJS context provider, signal-based auth primitives, and headless components on top of @xid-kit/core."
 msgstr "@xid-kit/core 기반의 SolidJS 컨텍스트 provider, 신호 기반 인증 프리미티브, 헤드리스 컴포넌트."
 
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "Something went wrong"
+msgstr "문제가 발생했습니다"
+
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "Something went wrong on our side"
+msgstr "서버에서 문제가 발생했습니다"
+
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
-msgid "Something went wrong. Please try again."
+msgid "Something went wrong. Try again."
 msgstr "문제가 발생했습니다. 다시 시도하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -9832,10 +10380,6 @@ msgstr "SP가 시작하는 AuthnRequest를 IdP로 리디렉션합니다."
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SPA"
 msgstr "SPA"
-
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
-msgid "SSO"
-msgstr "SSO"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SSO connection created from template."
@@ -9885,6 +10429,10 @@ msgstr "사용자 가장 세션을 시작하시겠습니까?"
 msgid "Started at"
 msgstr "시작 시간"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Started this on a TV or tablet? Open {host} on your phone and enter the code there."
+msgstr "TV나 태블릿에서 시작했나요? 휴대폰에서 {host}을(를) 열고 거기에 코드를 입력하세요."
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Starter"
@@ -9927,6 +10475,19 @@ msgstr "상태 범례"
 #: packages/web-ui/src/components/ui/Stepper.tsx
 msgid "Step {current} of {total}"
 msgstr "{total}단계 중 {current}단계"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Step 1 of 3"
+msgstr "1/3단계"
+
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Step 2 of 3"
+msgstr "2/3단계"
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Step 3 of 3"
+msgstr "3/3단계"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Step-up authentication hook"
@@ -10174,6 +10735,10 @@ msgstr "시스템 브라우저 리디렉션, Secret Service 저장소, PKCE S256
 msgid "Table of contents"
 msgstr "목차"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Taking you back to sign in."
+msgstr "로그인으로 돌아가는 중입니다."
+
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Target"
@@ -10222,14 +10787,57 @@ msgstr "test"
 msgid "Test capture (dev)"
 msgstr "테스트 캡처 (dev)"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Text a code"
+msgstr "문자로 코드 받기"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Text me a code"
+msgstr "문자로 코드 보내기"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Text message"
+msgstr "문자 메시지"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Text message codes can't be used to confirm changes like this."
+msgstr "문자 메시지 코드로는 이런 변경을 확인할 수 없습니다."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "That code didn't work. Check it against your saved list, or try another way."
+msgstr "코드가 맞지 않습니다. 저장한 목록과 비교하거나 다른 방법을 시도하세요."
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "That code didn't work. Check the newest email and enter it again."
+msgstr "코드가 맞지 않습니다. 가장 최근 이메일을 확인하고 다시 입력하세요."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "That code didn't work. Check the newest message and enter it again."
+msgstr "코드가 맞지 않습니다. 가장 최근 메시지를 확인하고 다시 입력하세요."
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "That code didn't work. Enter the code your app shows now."
+msgstr "코드가 맞지 않습니다. 앱에 지금 표시된 코드를 입력하세요."
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "That code has a character it can't contain. Check it and try again."
+msgstr "코드에 사용할 수 없는 문자가 있습니다. 확인 후 다시 시도하세요."
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "That didn't work. Check what you entered and try again, or try another way."
+msgstr "확인하지 못했습니다. 입력한 내용을 확인해 다시 시도하거나 다른 방법을 시도하세요."
+
 #. placeholder {0}: pendingDelete.title
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "The announcement {0} will be permanently deleted."
 msgstr "공지사항 {0}이(가) 영구적으로 삭제됩니다."
 
 #: apps/server/src/routes/ciba-activation/index.tsx
-msgid "The application can continue sign-in. You can close this page."
-msgstr "애플리케이션이 로그인을 계속할 수 있습니다. 이 페이지를 닫아도 됩니다."
+msgid "The app can finish signing you in on the other device."
+msgstr "앱이 다른 기기에서 로그인을 완료할 수 있습니다."
 
 #: packages/i18n/src/messages.ts
 msgid "The assertion recipient does not match."
@@ -10251,10 +10859,6 @@ msgstr "인가 요청이 아직 대기 중입니다."
 msgid "The authorization server does not support this grant type."
 msgstr "인가 서버가 이 권한 부여 유형을 지원하지 않습니다."
 
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "The backchannel request was denied. You can close this page."
-msgstr "백채널 요청이 거부되었습니다. 이 페이지를 닫아도 됩니다."
-
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "The bearer token issued by the downstream app. It is stored encrypted and never shown again."
 msgstr "다운스트림 앱이 발급한 bearer 토큰입니다. 암호화되어 저장되며 다시 표시되지 않습니다."
@@ -10266,6 +10870,10 @@ msgstr "브랜딩 스키마는 위에 나열된 7개 필드만 허용합니다. 
 #: packages/i18n/src/messages.ts
 msgid "The client is not authorized to use this grant type."
 msgstr "이 클라이언트는 이 권한 부여 유형을 사용할 권한이 없습니다."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "The code expires in {minutes} minutes."
+msgstr "코드는 {minutes}분 후 만료됩니다."
 
 #. placeholder {0}: pendingDelete.title
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
@@ -10288,17 +10896,17 @@ msgstr "기본 저장소는 DPAPI(CurrentUser 범위)로 토큰을 암호화하�
 msgid "The default storage uses Keychain with <0>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</0> — tokens are not synced to iCloud Keychain. Implement the <1>TokenStorageAdapter</1> protocol to use an enterprise Keychain policy:"
 msgstr "기본 저장소는 <0>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</0>가 있는 Keychain을 사용합니다. 토큰은 iCloud Keychain에 동기화되지 않습니다. 엔터프라이즈 Keychain 정책을 사용하려면 <1>TokenStorageAdapter</1> 프로토콜을 구현하세요:"
 
-#: apps/server/src/routes/activate/index.tsx
-msgid "The device can continue sign-in. You can close this page and return to your device."
-msgstr "기기가 로그인을 계속할 수 있습니다. 이 페이지를 닫고 기기로 돌아가세요."
-
 #: packages/i18n/src/messages.ts
 msgid "The device code or token has expired."
 msgstr "디바이스 코드 또는 토큰이 만료되었습니다."
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "The device request was denied. You can close this page."
-msgstr "기기 요청이 거부되었습니다. 이 페이지를 닫아도 됩니다."
+msgid "The device is now signed in to your account."
+msgstr "이제 기기가 내 계정에 로그인되었습니다."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "The device will show that you said no. Nothing from your account was shared."
+msgstr "기기에 거부했다고 표시됩니다. 내 계정 정보는 공유되지 않았습니다."
 
 #: packages/i18n/src/messages.ts
 msgid "The document schema is invalid."
@@ -10383,6 +10991,10 @@ msgstr "{0}에게 보낸 초대가 폐기되며 더 이상 수락할 수 없습�
 msgid "The key {0} ({1}) will stop working immediately and cannot be restored."
 msgstr "키 {0} ({1})은 즉시 동작을 중단하며 복구할 수 없습니다."
 
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "The link may be old or mistyped. If someone sent it to you, ask them for a fresh one."
+msgstr "링크가 오래되었거나 잘못 입력되었을 수 있습니다. 다른 사람이 보낸 링크라면 새 링크를 요청하세요."
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "The link points to an organization you cannot manage. Choose one of your organizations instead."
 msgstr "이 링크는 관리할 수 없는 조직을 가리킵니다. 대신 내 조직 중 하나를 선택하세요."
@@ -10419,6 +11031,10 @@ msgstr "MIT 라이선스 저장소에는 전체 기능이 포함됩니다. 보�
 msgid "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
 msgstr "OrgUnit 상위 체인에서 가장 가까운 활성 관리자가 첫 번째 액세스 요청 승인자 후보입니다."
 
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "the number ending in {last}"
+msgstr "끝자리가 {last}인 번호"
+
 #: packages/i18n/src/messages.ts
 msgid "The one-time code has expired. Please request a new one."
 msgstr "일회용 코드가 만료되었습니다. 새 코드를 요청하세요."
@@ -10447,6 +11063,11 @@ msgstr "찾는 페이지가 없거나 이동되었습니다"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "비밀번호가 최소 강도 요구사항을 충족하지 않습니다."
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "The previous code no longer works. Use the code in the newest message."
+msgstr "이전 코드는 더 이상 사용할 수 없습니다. 가장 최근 메시지의 코드를 사용하세요."
+
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "The previous token keeps working until {expiresAt}. Update your identity provider before then."
 msgstr "이전 토큰은 {expiresAt}까지 계속 작동합니다. 그 전에 ID 공급자를 업데이트하세요."
@@ -10458,6 +11079,14 @@ msgstr "제품 표면"
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "프로젝트를 찾을 수 없습니다."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "The prompt closed before it finished, so nothing was saved on this device."
+msgstr "완료되기 전에 확인 창이 닫혀 이 기기에는 아무것도 저장되지 않았습니다."
+
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "The prompt closed before it finished, so nothing was saved. Try again, or set up an authenticator app instead."
+msgstr "완료되기 전에 확인 창이 닫혀 아무것도 저장되지 않았습니다. 다시 시도하거나 대신 인증 앱을 설정하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
@@ -10531,6 +11160,10 @@ msgstr "응답 유형이 지원되지 않습니다."
 msgid "The role will no longer include this permission."
 msgstr "역할에는 더 이상 이 권한이 포함되지 않습니다."
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "The same way you unlock this device. No code to type."
+msgstr "이 기기의 잠금을 해제하는 방식과 같습니다. 코드를 입력할 필요가 없습니다."
+
 #: packages/i18n/src/messages.ts
 msgid "The SAML assertion has expired."
 msgstr "SAML 어설션이 만료되었습니다."
@@ -10558,6 +11191,11 @@ msgstr "SDK에는 DPoP sender binding이 없고 offline_access를 거부하며 a
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refresh_token response fields are not persisted."
 msgstr "DPoP가 구현될 때까지 SDK는 offline_access를 거부합니다. 예기치 않은 refresh_token response fields는 영속화하지 않습니다."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "The security check didn't finish. Reload the page and try again."
+msgstr "보안 확인이 완료되지 않았습니다. 페이지를 새로고침한 뒤 다시 시도하세요."
 
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "The server could not be reached. Check your connection and try again."
@@ -10607,6 +11245,10 @@ msgstr "대상을 더 이상 사용할 수 없습니다."
 msgid "The target settings are invalid."
 msgstr "대상 설정이 올바르지 않습니다."
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "The two passwords don't match."
+msgstr "두 비밀번호가 일치하지 않습니다."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The user submits an access request."
 msgstr "사용자가 액세스 요청을 제출합니다."
@@ -10615,21 +11257,38 @@ msgstr "사용자가 액세스 요청을 제출합니다."
 msgid "The XID Worker keeps an opaque refresh credential in an <0>HttpOnly</0> cookie. It is not a JWT, and the SDK never reads it from JavaScript or stores it in <1>localStorage</1>."
 msgstr "XID Worker는 불투명한 갱신 자격 증명을 <0>HttpOnly</0> 쿠키에 보관합니다. 이는 JWT가 아니며 SDK는 JavaScript에서 이를 읽거나 <1>localStorage</1>에 저장하지 않습니다."
 
+#: apps/server/src/routes/mfa/index.tsx
+msgid "These are the methods on your account that {org} accepts."
+msgstr "내 계정의 방법 중 {org}에서 허용하는 방법입니다."
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "These are the methods on your account."
+msgstr "내 계정의 방법입니다."
+
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "These defaults apply to every organization unless it overrides them."
 msgstr "조직이 재정의하지 않는 한 이 기본값은 모든 조직에 적용됩니다."
 
+#: apps/server/src/components/hosted/RequestCard.tsx
 #: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "third-party app"
-msgstr "서드파티 앱"
+msgid "Third-party"
+msgstr "타사"
 
 #: packages/i18n/src/messages.ts
 msgid "This access request has already been decided."
 msgstr "이 액세스 요청은 이미 처리되었습니다."
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "this account"
+msgstr "이 계정"
+
 #: packages/i18n/src/messages.ts
 msgid "This account belongs to more than one organization. Choose an organization to continue."
 msgstr "이 계정은 둘 이상의 조직에 속해 있습니다. 계속하려면 조직을 선택하세요."
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "This account can't sign in right now. Try again later, or ask your administrator to unlock it."
+msgstr "이 계정은 지금 로그인할 수 없습니다. 나중에 다시 시도하거나 관리자에게 잠금 해제를 요청하세요."
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "This account cannot create a new organization here. Ask an organization admin to invite you, or sign up with a new account to create your own organization."
@@ -10643,15 +11302,35 @@ msgstr "이 계정으로는 새 조직을 만들 수 없습니다. 조직 관리
 msgid "This account has no email address yet. Add a passkey below to secure it and keep access after you sign out."
 msgstr "이 계정에는 아직 이메일 주소가 없습니다. 아래에서 패스키를 추가하여 계정을 보호하고 로그아웃 후에도 액세스를 유지하세요."
 
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "This application will be able to access the following information."
-msgstr "이 애플리케이션은 다음 정보에 접근할 수 있습니다."
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "This account is locked"
+msgstr "이 계정은 잠겼습니다"
 
-#: apps/server/src/routes/activate/index.tsx
-msgid "This code is invalid or has expired. Check the code on your device and try again."
-msgstr "이 코드가 올바르지 않거나 만료되었습니다. 기기의 코드를 확인한 후 다시 시도하세요."
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "This address is used in {count} organizations. {app} opens in the one you choose."
+msgstr "이 주소는 {count}개 조직에서 사용됩니다. {app}은(는) 선택한 조직에서 열립니다."
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "This address is used in {count} organizations. Choose where to sign in."
+msgstr "이 주소는 {count}개 조직에서 사용됩니다. 로그인할 곳을 선택하세요."
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "This authorization request is missing or has expired. Start again from the app."
+msgstr "이 인증 요청이 없거나 만료되었습니다. 앱에서 다시 시작하세요."
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "This browser can't use passkeys. Try another way to sign in."
+msgstr "이 브라우저는 패스키를 사용할 수 없습니다. 다른 방법으로 로그인하세요."
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "This code has expired"
+msgstr "이 코드는 만료되었습니다"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "This code no longer works"
+msgstr "이 코드는 더 이상 사용할 수 없습니다"
+
+#: apps/server/src/components/hosted/passkey-name.ts
 msgid "This device"
 msgstr "이 디바이스"
 
@@ -10660,8 +11339,12 @@ msgid "This device already has a passkey for your account."
 msgstr "이 기기에는 이미 계정의 패스키가 있습니다."
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "This device request has already been handled."
-msgstr "이 기기 요청은 이미 처리되었습니다."
+msgid "This device request was already answered."
+msgstr "이 기기 요청에는 이미 응답했습니다."
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "This device will be able to"
+msgstr "이 기기가 할 수 있는 작업"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "This documentation version is no longer maintained"
@@ -10671,13 +11354,13 @@ msgstr "이 문서 버전은 더 이상 유지 관리되지 않습니다"
 msgid "This email address already belongs to another account. Sign out of the guest account, then sign in with that email."
 msgstr "이 이메일 주소는 이미 다른 계정에 속해 있습니다. 게스트 계정에서 로그아웃한 후 해당 이메일로 로그인하세요."
 
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "This email address doesn't use single sign-on here. Sign in another way."
+msgstr "이 이메일 주소는 여기서 싱글 사인온을 사용하지 않습니다. 다른 방법으로 로그인하세요."
+
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "This email belongs to your signed-in account."
 msgstr "이 이메일은 현재 로그인한 계정에 등록되어 있습니다."
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "This email domain does not use enterprise SSO. Please use another sign-in method."
-msgstr "이 이메일 도메인은 엔터프라이즈 SSO를 사용하지 않습니다. 다른 로그인 방법을 사용하세요."
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "This email link is invalid or expired. Open the latest invitation email and try again."
@@ -10691,23 +11374,43 @@ msgstr "이 권한 부여 관리자 범위는 프로젝트 정의에 대해 읽�
 msgid "This invitation has already been accepted."
 msgstr "이 초대는 이미 수락되었습니다."
 
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "This invitation has expired"
+msgstr "이 초대는 만료되었습니다"
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation has expired. Ask your organization admin to send a new one."
 msgstr "이 초대가 만료되었습니다. 조직 관리자에게 새 초대 전송을 요청하세요."
 
 #: apps/server/src/routes/accept-invitation/index.tsx
+msgid "This invitation is for a different account. Switch to the invited account, or we can email it a secure link."
+msgstr "이 초대는 다른 계정용입니다. 초대받은 계정으로 전환하거나 해당 계정으로 보안 링크를 보낼 수 있습니다."
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "This invitation link doesn't work"
+msgstr "이 초대 링크는 작동하지 않습니다"
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation link is invalid or has already been used."
 msgstr "이 초대 링크가 유효하지 않거나 이미 사용되었습니다."
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "This is a first-party application by the same provider."
-msgstr "같은 공급자의 자사 애플리케이션입니다."
+#. placeholder {0}: data.email
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "This invitation was sent to {0}. Only that account can accept it."
+msgstr "이 초대는 {0}(으)로 보냈습니다. 해당 계정만 수락할 수 있습니다."
 
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "This is your only way to sign in. Add a password or passkey before disconnecting it."
 msgstr "유일한 로그인 방법입니다. 연결을 해제하기 전에 비밀번호나 패스키를 추가하세요."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This link can't sign in this account"
+msgstr "이 링크로는 이 계정에 로그인할 수 없습니다"
+
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "This link has expired or was already used"
+msgstr "이 링크는 만료되었거나 이미 사용되었습니다"
 
 #: packages/i18n/src/messages.ts
 msgid "This link has expired. Please request a new one."
@@ -10724,14 +11427,6 @@ msgstr "이 링크는 다른 조직을 엽니다. 콘솔을 해당 조직으로 
 #: packages/i18n/src/messages.ts
 msgid "This magic link has expired. Please request a new one."
 msgstr "이 매직 링크는 만료되었습니다. 새 링크를 요청하세요."
-
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "This magic link has expired. Request a new link to continue."
-msgstr "이 매직 링크는 만료되었습니다. 계속하려면 새 링크를 요청하세요."
-
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "This magic link is invalid or has already been used."
-msgstr "이 매직 링크는 유효하지 않거나 이미 사용되었습니다."
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."
@@ -10769,7 +11464,14 @@ msgstr "이 페이지"
 msgid "This page is available in Markdown format"
 msgstr "이 페이지는 Markdown 형식으로 제공됩니다"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This page needs the link from your email"
+msgstr "이 페이지에는 이메일의 링크가 필요합니다"
+
 #: apps/server/src/routes/forgot-password/index.tsx
+msgid "This password appeared in a data breach"
+msgstr "이 비밀번호는 데이터 유출에서 발견되었습니다"
+
 #: packages/i18n/src/messages.ts
 msgid "This password has appeared in a data breach. Please choose a different password."
 msgstr "이 비밀번호는 데이터 유출에 노출된 적이 있습니다. 다른 비밀번호를 선택하세요."
@@ -10778,17 +11480,29 @@ msgstr "이 비밀번호는 데이터 유출에 노출된 적이 있습니다. �
 msgid "This password has been used recently. Please choose a different password."
 msgstr "최근에 사용한 비밀번호입니다. 다른 비밀번호를 선택하세요."
 
-#: apps/server/src/routes/not-found/NotFoundPage.tsx
-msgid "This path does not exist on this instance. Check the URL or return to a known page."
-msgstr "이 경로는 이 인스턴스에 존재하지 않습니다. URL을 확인하거나 알려진 페이지로 돌아가세요."
-
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "This removes the link between your account and {label}. Signing in with the same {label} account again can link it back to your account."
 msgstr "계정과 {label} 간의 연결을 제거합니다. 같은 {label} 계정으로 다시 로그인하면 계정에 다시 연결될 수 있습니다."
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "This request can't be approved"
+msgstr "이 요청은 승인할 수 없습니다"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "This request can't continue"
+msgstr "이 요청은 계속할 수 없습니다"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "This request expired or was already answered. Start again from the app."
+msgstr "이 요청이 만료되었거나 이미 응답했습니다. 앱에서 다시 시작하세요."
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "This request expires in {countdown}. If you didn't start it, choose Deny. Nothing is shared."
+msgstr "이 요청은 {countdown} 후 만료됩니다. 직접 시작하지 않았다면 '거부'를 선택하세요. 아무것도 공유되지 않습니다."
+
 #: apps/server/src/routes/forgot-password/index.tsx
-msgid "This reset link is invalid or has expired. Please request a new one."
-msgstr "이 재설정 링크는 유효하지 않거나 만료되었습니다. 새 링크를 요청하세요."
+msgid "This reset link no longer works"
+msgstr "이 재설정 링크는 더 이상 작동하지 않습니다"
 
 #: apps/console/src/routes/org/TenantScopeGate.tsx
 msgid "This resource is shared by every organization in the tenant. Switch to the top-level organization to manage it."
@@ -10802,9 +11516,9 @@ msgstr "이 리소스는 액세스 승인을 중지하고 프로젝트 휴지통
 msgid "This session has been revoked."
 msgstr "이 세션은 폐기되었습니다."
 
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "This sign-in link cannot be used for this account. Return to sign in to choose another way to continue."
-msgstr "이 로그인 링크는 이 계정에 사용할 수 없습니다. 로그인으로 돌아가 다른 방법을 선택하세요."
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "This sign-in address changed. If your passkey isn't offered, sign in another way and create a new one."
+msgstr "로그인 주소가 변경되었습니다. 패스키가 표시되지 않으면 다른 방법으로 로그인한 뒤 새 패스키를 만드세요."
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "This tenant has no audit records yet. There is nothing to verify."
@@ -10814,13 +11528,9 @@ msgstr "이 테넌트에는 아직 감사 기록이 없습니다. 확인할 내�
 msgid "This URL slug is already taken. Choose another one."
 msgstr "이 URL 슬러그는 이미 사용 중입니다. 다른 슬러그를 선택하세요."
 
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "This verification link has expired. Please request a new one."
-msgstr "이 인증 링크는 만료되었습니다. 새 링크를 요청하세요."
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "This verification link is invalid or has already been used."
-msgstr "이 인증 링크는 유효하지 않거나 이미 사용되었습니다."
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "This wasn't caused by anything you did. Try again in a moment."
+msgstr "내가 한 작업 때문이 아닙니다. 잠시 후 다시 시도하세요."
 
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "This will remove \"{factorLabel}\" from your account. You may lose access if it is your only 2FA method."
@@ -10856,6 +11566,10 @@ msgstr "제목"
 msgid "To"
 msgstr "종료"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "To {masked}"
+msgstr "{masked}(으)로"
+
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "To resolve the incident, choose Resolved and describe the fix. Every status change is published on the status page timeline."
 msgstr "인시던트를 해결하려면 해결됨을 선택하고 수정 내용을 설명하세요. 모든 상태 변경은 상태 페이지 타임라인에 게시됩니다."
@@ -10863,6 +11577,10 @@ msgstr "인시던트를 해결하려면 해결됨을 선택하고 수정 내용�
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "To seq"
 msgstr "종료 시퀀스"
+
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "To the number ending in {last}"
+msgstr "끝자리가 {last}인 번호로"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Toggle dark mode"
@@ -10916,21 +11634,25 @@ msgstr "디바이스 전용 접근으로 Keychain에 저장된 토큰; iCloud Ke
 msgid "tokio async runtime"
 msgstr "tokio 비동기 런타임"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Too many attempts. Please wait a moment and try again."
-msgstr "시도 횟수가 너무 많습니다. 잠시 기다린 후 다시 시도하세요."
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Too many attempts"
+msgstr "시도 횟수 초과"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Too many attempts. Wait a few minutes, then try again. You can also sign in another way."
+msgstr "시도 횟수가 너무 많습니다. 몇 분 후 다시 시도하거나 다른 방법으로 로그인하세요."
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Too many requests"
 msgstr "요청이 너무 많습니다"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Too many requests. Please wait a minute before trying again."
-msgstr "요청이 너무 많습니다. 1분 후 다시 시도하세요."
-
 #: packages/i18n/src/messages.ts
 msgid "Too many requests. Please wait and try again."
 msgstr "요청이 너무 많습니다. 기다린 후 다시 시도하세요."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Too many requests. Wait a minute, then try again."
+msgstr "요청이 너무 많습니다. 1분 후 다시 시도하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
@@ -10970,16 +11692,33 @@ msgid "Trigger"
 msgstr "트리거"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
 #: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
 #: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/not-found/ErrorPage.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Try again"
 msgstr "다시 시도"
 
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Try again later. If you need access sooner, ask your {org} administrator to unlock it."
+msgstr "나중에 다시 시도하세요. 더 빨리 액세스해야 한다면 {org} 관리자에게 잠금 해제를 요청하세요."
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Try again later. If you need access sooner, ask your administrator to unlock it."
+msgstr "나중에 다시 시도하세요. 더 빨리 액세스해야 한다면 관리자에게 잠금 해제를 요청하세요."
+
 #: apps/server/src/routes/mfa/MfaExits.tsx
-msgid "Try another method"
+#: apps/server/src/routes/sign-in/TryAnotherWay.tsx
+msgid "Try another way"
 msgstr "다른 방법 시도"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
+msgstr "기기 설정에서 화면 잠금이나 지문을 켠 뒤 다시 시도하세요."
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN"
@@ -10990,13 +11729,16 @@ msgid "Two directions"
 msgstr "두 방향"
 
 #: apps/server/src/routes/account/MfaSection.tsx
-#: apps/server/src/routes/mfa/index.tsx
 msgid "Two-factor authentication"
 msgstr "2단계 인증"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Two-factor authentication | XID"
 msgstr "이중 인증 | XID"
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Two-step verification is on"
+msgstr "2단계 인증이 켜졌습니다"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "TXT record name"
@@ -11043,10 +11785,6 @@ msgstr "타이포그래피 및 형태"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "UI components"
 msgstr "UI 컴포넌트"
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Unable to connect. Please check your connection and try again."
-msgstr "연결할 수 없습니다. 연결 상태를 확인하고 다시 시도하세요."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Unauthenticated state with null fields"
@@ -11153,10 +11891,6 @@ msgstr "Upstream 엔터프라이즈 OIDC relying party"
 msgid "Upstream SSO URL"
 msgstr "업스트림 SSO URL"
 
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "URL slug"
-msgstr "URL 슬러그"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
 msgstr "OAuth state를 위한 URL 안전 무작위 문자열; base64url 인코딩 헬퍼"
@@ -11189,23 +11923,62 @@ msgstr "템플릿 읽기를 위해 옵저버블을 신호로 변환하려면 <1>
 msgid "Use a customer-owned hostname for Hosted Auth. XID provisions the hostname and certificate through Cloudflare for SaaS, then activates routing only after both are ready."
 msgstr "호스팅 인증에는 고객 소유의 호스트 이름을 사용하십시오. XID는 SaaS용 Cloudflare를 통해 호스트 이름과 인증서를 프로비저닝한 다음 둘 다 준비된 후에만 라우팅을 활성화합니다."
 
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Use a different account"
+msgstr "다른 계정 사용"
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Use a different email"
+msgstr "다른 이메일 사용"
+
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Use a passkey"
+msgstr "패스키 사용"
+
 #: packages/web-ui/src/api-error-message.ts
 msgid "Use a password with 12 to 128 characters."
 msgstr "12~128자의 비밀번호를 사용하세요."
 
-#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
-msgid "Use a registered passkey with device verification to complete two-factor authentication."
-msgstr "등록된 패스키와 기기 검증으로 이중 인증을 완료합니다."
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Use another way to sign in"
+msgstr "다른 방법으로 로그인"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Use arrow keys to navigate"
 msgstr "화살표 키로 이동"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Use at least {MIN_PASSWORD_LENGTH} characters."
+msgstr "{MIN_PASSWORD_LENGTH}자 이상 사용하세요."
+
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Use at least {MIN_PASSWORD_LENGTH} characters. {length} so far."
+msgstr "{MIN_PASSWORD_LENGTH}자 이상 사용하세요. 현재 {length}자입니다."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Use at least {MIN_PASSWORD_LENGTH} characters. A longer phrase is easier to remember and harder to guess."
+msgstr "{MIN_PASSWORD_LENGTH}자 이상 사용하세요. 긴 문구가 기억하기 쉽고 추측하기 어렵습니다."
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Use at most {MAX_PASSWORD_LENGTH} characters."
+msgstr "{MAX_PASSWORD_LENGTH}자 이하로 사용하세요."
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use authorization code flow with PKCE S256 for browser and native clients."
 msgstr "브라우저 및 네이티브 클라이언트에는 PKCE S256을 사용하는 인가 코드 흐름을 사용하세요."
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Use one of the codes you saved when you set up two-step verification. Each code works once."
+msgstr "2단계 인증을 설정할 때 저장한 코드 중 하나를 사용하세요. 각 코드는 한 번만 사용할 수 있습니다."
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Use only numbers. Spaces and dashes are fine."
+msgstr "숫자만 입력하세요. 공백과 하이픈을 써도 됩니다."
+
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Use passkey"
 msgstr "패스키 사용"
 
@@ -11216,6 +11989,11 @@ msgstr "PKCE 사용"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use scoped API keys to manage organization resources from your backend."
 msgstr "범위가 지정된 API 키로 백엔드에서 조직 리소스를 관리합니다."
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Use single sign-on"
+msgstr "싱글 사인온 사용"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Retries carry the same <1>svix-id</1> as the original attempt."
@@ -11229,9 +12007,14 @@ msgstr "전체 플랫폼을 사용하거나 아키텍처에 맞는 프로토콜,
 msgid "Use the email address of the account you are signed in with."
 msgstr "로그인한 계정의 이메일 주소를 사용하세요."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Use the same entry for sign-in and account creation. Organization policy decides which actions are allowed."
-msgstr "로그인과 계정 생성에 같은 진입점을 사용합니다. 허용되는 작업은 조직 정책이 결정합니다."
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Use your face, fingerprint or screen lock"
+msgstr "얼굴, 지문 또는 화면 잠금 사용"
+
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Use your fingerprint, face or screen lock, the same way you unlock your device."
+msgstr "기기 잠금을 해제할 때처럼 지문, 얼굴 또는 화면 잠금을 사용합니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "useAuth().isSignedIn reflects a locally stored session only after ID token verification; it does not read a web cookie session."
@@ -11240,10 +12023,6 @@ msgstr "useAuth().isSignedIn은 ID token 검증이 완료된 뒤에만 로컬에
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Used for API error messages and one-time sign-in code email when the visitor's browser language is not supported. The sign-in pages, Console and other email do not use it."
 msgstr "방문자의 브라우저 언어가 지원되지 않을 때 API 오류 메시지와 일회용 로그인 코드 이메일에 사용됩니다. 로그인 페이지, Console, 기타 이메일에는 사용되지 않습니다."
-
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Used in URLs and subdomains. Lowercase letters, numbers, and hyphens."
-msgstr "URL 및 하위 도메인에 사용됩니다. 소문자, 숫자, 하이픈만 허용됩니다."
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -11350,7 +12129,6 @@ msgstr "사용자 이름"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Username"
 msgstr "사용자 이름"
 
@@ -11447,7 +12225,7 @@ msgid "Verification"
 msgstr "인증"
 
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Verification code"
 msgstr "인증 코드"
 
@@ -11463,11 +12241,24 @@ msgstr "인증 이메일을 보냈습니다"
 msgid "Verification email sent. After verifying your email, return here to set a password."
 msgstr "인증 이메일을 보냈습니다. 이메일을 인증한 후 여기로 돌아와 비밀번호를 설정하세요."
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Verification links are single-use and short-lived so nobody else can confirm an address that isn't theirs."
+msgstr "인증 링크는 한 번만 사용할 수 있고 유효 시간이 짧아 다른 사람이 자신의 것이 아닌 주소를 인증할 수 없습니다."
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Verification links work once, for 15 minutes. Send a new one and open the newest email."
+msgstr "인증 링크는 한 번만, 15분 동안 사용할 수 있습니다. 새 링크를 보내고 가장 최근 이메일을 여세요."
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Verification methods"
+msgstr "확인 방법"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verification uses Web Crypto via @xid-kit/crypto."
 msgstr "@xid-kit/crypto를 통해 Web Crypto로 검증합니다."
 
 #: apps/console/src/routes/org/OrgDomains.tsx
+#: apps/server/src/routes/verify-email/index.tsx
 msgid "Verified"
 msgstr "인증됨"
 
@@ -11507,6 +12298,11 @@ msgstr "JWT 문자열을 검증하고 <0>*Claims</0> 또는 오류를 반환합�
 msgid "Verify an email address to keep this account and its data after you sign out."
 msgstr "로그아웃한 후에도 이 계정과 데이터를 유지하려면 이메일 주소를 인증하세요."
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Verify and continue"
+msgstr "확인하고 계속"
+
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Verify audit chain"
 msgstr "감사 체인 검증"
@@ -11515,7 +12311,7 @@ msgstr "감사 체인 검증"
 msgid "Verify Bearer or explicit app JWT credentials, with optional same-origin Core session exchange"
 msgstr "Bearer 또는 명시적인 애플리케이션 JWT credential을 검증하고 선택적으로 동일 출처 Core 세션을 교환합니다"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Verify code"
 msgstr "코드 인증"
 
@@ -11573,6 +12369,10 @@ msgstr "webhook 검증"
 msgid "Verify webhook request signature. Returns <0>*WebhookEvent</0> with raw body on success."
 msgstr "webhook 요청 서명을 검증합니다. 성공 시 원시 body가 포함된 <0>*WebhookEvent</0>를 반환합니다."
 
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Verify with your passkey"
+msgstr "패스키로 확인"
+
 #: apps/server/src/routes/verify-email/index.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Verify your email"
@@ -11589,14 +12389,6 @@ msgstr "리소스를 만들거나 변경하기 전에 이메일을 인증하세�
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Verify your email first"
 msgstr "먼저 이메일을 인증하세요"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Verify your identity"
-msgstr "신원을 확인합니다"
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "Verifying your email address..."
-msgstr "이메일 주소를 인증하는 중..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "verifyToken"
@@ -11639,6 +12431,10 @@ msgstr "@xid-kit/core 기반의 Vue 3 플러그인, composable, 헤드리스 컴
 msgid "Vue plugin"
 msgstr "Vue 플러그인"
 
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Wait a few minutes, then try again. You can also sign in another way."
+msgstr "몇 분 후 다시 시도하거나 다른 방법으로 로그인하세요."
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Wait a minute before requesting another verification email."
 msgstr "1분 후에 인증 이메일을 다시 요청하세요."
@@ -11646,10 +12442,6 @@ msgstr "1분 후에 인증 이메일을 다시 요청하세요."
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Waiting"
 msgstr "대기 중"
-
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Waiting for passkey selection..."
-msgstr "패스키 선택을 기다리는 중..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Waitlist sign-up gate component"
@@ -11659,35 +12451,50 @@ msgstr "대기자 명단 가입 게이트 컴포넌트"
 msgid "Warning"
 msgstr "경고"
 
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "We can't find that page"
+msgstr "페이지를 찾을 수 없습니다"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "We couldn't load your verification methods"
+msgstr "확인 방법을 불러올 수 없습니다"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "We couldn't reach the server. Check your connection and try again."
+msgstr "서버에 연결할 수 없습니다. 연결 상태를 확인한 뒤 다시 시도하세요."
+
 #: apps/server/src/routes/accept-invitation/index.tsx
-msgid "We could not send the invitation email. Please try again."
-msgstr "초대 이메일을 보내지 못했습니다. 다시 시도하세요."
+msgid "We couldn't send the invitation email. Try again."
+msgstr "초대 이메일을 보낼 수 없습니다. 다시 시도하세요."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "We couldn't sign you in with that account. Please try again or use another sign-in method."
-msgstr "해당 계정으로 로그인할 수 없습니다. 다시 시도하거나 다른 로그인 방법을 사용하세요."
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "We couldn't sign you in with that account. Try again or sign in another way."
+msgstr "해당 계정으로 로그인할 수 없습니다. 다시 시도하거나 다른 방법으로 로그인하세요."
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "We sent a 6-digit code to {identifier}. It expires in 10 minutes."
-msgstr "{identifier}(으)로 6자리 코드를 보냈습니다. 10분 후 만료됩니다."
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "We sent a 6-digit code to {target}. It works for {minutes} minutes."
+msgstr "{target}(으)로 6자리 코드를 보냈습니다. {minutes}분 동안 유효합니다."
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "We sent a 6-digit code to {identifier}. It expires in 5 minutes."
-msgstr "{identifier}(으)로 6자리 코드를 보냈습니다. 5분 후 만료됩니다."
-
-#. placeholder {0}: data?.email
-#: apps/server/src/routes/accept-invitation/index.tsx
+#. placeholder {0}: props.email
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "We sent a one-time invitation link to {0}. Open it in this browser to continue."
 msgstr "{0}에 일회용 초대 링크를 보냈습니다. 계속하려면 이 브라우저에서 링크를 여세요."
 
-#. placeholder {0}: data?.email
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "We sent a sign-in link to {target}. It works once and expires in 15 minutes. Open it on this device to continue."
+msgstr "{target}(으)로 로그인 링크를 보냈습니다. 한 번만 사용할 수 있고 15분 후 만료됩니다. 계속하려면 이 기기에서 여세요."
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "We'll email a link to {target}. Open it to sign in, no password needed."
+msgstr "{target}(으)로 링크를 보냅니다. 열면 비밀번호 없이 로그인됩니다."
+
 #: apps/server/src/routes/accept-invitation/index.tsx
-msgid "We will email a secure link to {0}. If you already have an account with this email, sign in to it instead so the invitation joins that account."
-msgstr "{0}(으)로 보안 링크를 이메일로 보냅니다. 이 이메일을 사용하는 계정이 이미 있다면 대신 그 계정에 로그인하세요. 초대가 해당 계정에 연결됩니다."
+msgid "We'll email a secure link to the invited address. If it already has an account, sign in to it instead."
+msgstr "초대받은 주소로 보안 링크를 보냅니다. 이미 계정이 있다면 해당 계정으로 로그인하세요."
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "We will send a 6-digit code to your registered phone number."
-msgstr "등록된 전화번호로 6자리 코드를 보내드립니다."
+msgid "We'll text a 6-digit code to the phone number on your account."
+msgstr "계정에 등록된 전화번호로 6자리 코드를 문자로 보냅니다."
 
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Weak"
@@ -11776,7 +12583,6 @@ msgid "WhatsApp or SMS provider is configured, enabled, and allowed for login or
 msgstr "WhatsApp 또는 SMS 공급자가 설정, 활성화되어 있고 로그인 또는 사용자 생성에 허용됩니다."
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "WhatsApp OTP"
 msgstr "WhatsApp OTP"
 
@@ -11808,13 +12614,18 @@ msgstr "Windows"
 msgid "WinUI 3 host and WebView2 embedding"
 msgstr "WinUI 3 호스트 및 WebView2 임베딩"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
 msgid "Work email"
 msgstr "업무 이메일"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Work only inside the project or project grant scopes delegated to your user. These assignments do not grant organization administrator access."
 msgstr "사용자에게 위임된 프로젝트 또는 프로젝트 권한 부여 범위 내에서만 작업하세요. 이러한 할당은 조직 관리자 액세스 권한을 부여하지 않습니다."
+
+#. placeholder {0}: props.host
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Works only on {0}"
+msgstr "{0}에서만 작동"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
@@ -11948,18 +12759,26 @@ msgstr "XidTauriClient 메서드"
 msgid "XML security prechecks, a recursive structural schema allowlist, and the signature/reference structure allowlist are implemented and verified locally. The structural allowlist validates the SAML Response before signature verification and each decrypted Assertion again; it is a closed grammar for the consumed SAML profile, not a general XSD engine. Inbound and outbound SAML Single Logout is covered locally at L1/L2. The Slack profile is excluded because Slack does not support SLO, and real provider L4 evidence remains UNKNOWN."
 msgstr "XML 보안 사전 검사, 재귀 구조 schema allowlist, 서명/참조 구조 allowlist가 로컬에서 구현되고 검증되었습니다. 구조 allowlist는 서명 검증 전에 SAML Response를 검사하고, 복호화된 각 Assertion을 다시 검사합니다. 이는 사용 중인 SAML profile을 위한 폐쇄형 문법이며 범용 XSD 엔진이 아닙니다. 인바운드 및 아웃바운드 SAML Single Logout은 로컬 L1/L2에서 다룹니다. Slack은 SLO를 지원하지 않으므로 Slack profile은 제외되며, 실제 공급자의 L4 증거는 계속 UNKNOWN입니다."
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "xxxxxxxx"
-msgstr "xxxxxxxx"
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Yes, it matches"
+msgstr "예, 일치합니다"
 
 #: packages/i18n/src/messages.ts
 msgid "You already have access to this project."
 msgstr "이미 이 프로젝트에 대한 액세스 권한이 있습니다."
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "You approved {app}"
+msgstr "{app}을(를) 승인했습니다"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.guestUpgradeMessage"
 msgstr "게스트로 이용 중입니다. 데이터를 유지하려면 로그인 방법을 설정하세요."
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "You are creating an account to continue to"
+msgstr "계정 생성 후 이동할 곳"
 
 #: packages/i18n/src/messages.ts
 msgid "You are not permitted to access this resource."
@@ -11973,6 +12792,16 @@ msgstr "게스트로 로그인되어 있습니다. 이 계정과 데이터를 �
 msgid "You are signed in as a guest. Sign out and this account and its data cannot be recovered."
 msgstr "게스트로 로그인되어 있습니다. 로그아웃하면 이 계정과 데이터를 복구할 수 없습니다."
 
+#: apps/server/src/components/hosted/context-copy.ts
+#: apps/server/src/routes/mfa/index.tsx
+msgid "You are signing in to"
+msgstr "로그인할 곳"
+
+#: apps/server/src/components/hosted/context-copy.ts
+#: apps/server/src/routes/mfa/index.tsx
+msgid "You are signing in to continue to"
+msgstr "로그인 후 이동할 곳"
+
 #: packages/i18n/src/messages.ts
 msgid "You are the only owner or administrator of an organization or of this instance. Transfer ownership or add another administrator before deleting your account."
 msgstr "조직 또는 이 인스턴스의 유일한 소유자 또는 관리자입니다. 계정을 삭제하기 전에 소유권을 이전하거나 다른 관리자를 추가하세요."
@@ -11981,17 +12810,37 @@ msgstr "조직 또는 이 인스턴스의 유일한 소유자 또는 관리자�
 msgid "You are viewing this organization as another user. Management changes are disabled."
 msgstr "다른 사용자로 이 조직을 보고 있습니다. 관리 변경은 비활성화됩니다."
 
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "You belong to {count} organizations. You'll continue in the one you choose."
+msgstr "{count}개 조직에 속해 있습니다. 선택한 조직에서 계속합니다."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You can change the name later. The sign-in address is harder to change."
+msgstr "이름은 나중에 바꿀 수 있습니다. 로그인 주소는 바꾸기 어렵습니다."
+
 #: packages/i18n/src/messages.ts
 msgid "You can close this page or sign in again."
 msgstr "이 페이지를 닫거나 다시 로그인할 수 있습니다."
 
-#: apps/server/src/routes/consent/ConsentActions.tsx
-msgid "You can revoke these permissions at any time from your account settings."
-msgstr "계정 설정에서 언제든지 이 권한을 취소할 수 있습니다."
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "You can close this tab."
+msgstr "이 탭은 닫아도 됩니다."
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "You can paste the code. Spaces are ignored."
+msgstr "코드를 붙여 넣을 수 있습니다. 공백은 무시됩니다."
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "You can resend in {countdown}"
+msgstr "{countdown} 후 다시 보낼 수 있습니다"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "You can verify this address from the Console."
 msgstr "이 주소는 콘솔에서 인증할 수 있습니다."
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "You can't sign in right now"
+msgstr "지금은 로그인할 수 없습니다"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "You cannot grant a manager assignment to yourself."
@@ -12001,9 +12850,13 @@ msgstr "자신에게 관리자 할당을 부여할 수 없습니다."
 msgid "You cannot grant instance access to yourself."
 msgstr "자신에게 인스턴스 액세스 권한을 부여할 수 없습니다."
 
-#: apps/server/src/routes/select-organization/index.tsx
-msgid "You do not belong to any organizations yet."
-msgstr "아직 어떤 조직에도 속해 있지 않습니다."
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "You denied {app}"
+msgstr "{app}을(를) 거부했습니다"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "You didn't allow {app}"
+msgstr "{app}을(를) 허용하지 않았습니다"
 
 #: packages/i18n/src/messages.ts
 msgid "You do not have permission to perform this action."
@@ -12021,14 +12874,78 @@ msgstr "로그아웃되었습니다"
 msgid "You must set up multi-factor authentication before continuing."
 msgstr "계속하기 전에 다중 인증을 설정해야 합니다."
 
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "You won't see these codes again. You can make a new set in your account, which turns these off."
+msgstr "이 코드는 다시 표시되지 않습니다. 계정에서 새 코드를 만들면 이 코드는 사용할 수 없게 됩니다."
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You'll be the owner and can invite members right after."
+msgstr "내가 소유자가 되며 만든 직후 멤버를 초대할 수 있습니다."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "You'll continue either way. You can create a passkey later in your account."
+msgstr "어느 쪽을 선택해도 계속 진행됩니다. 패스키는 나중에 계정에서 만들 수 있습니다."
+
+#. placeholder {0}: props.appName
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "You'll continue to {0} either way. You can create a passkey later in your account."
+msgstr "어느 쪽을 선택해도 {0}(으)로 계속 진행됩니다. 패스키는 나중에 계정에서 만들 수 있습니다."
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "You'll use it each time you sign in to {organizationName}. You can add more methods later in your account."
+msgstr "{organizationName}에 로그인할 때마다 사용합니다. 다른 방법은 나중에 계정에서 추가할 수 있습니다."
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "You'll use it each time you sign in. You can add more methods later in your account."
+msgstr "로그인할 때마다 사용합니다. 다른 방법은 나중에 계정에서 추가할 수 있습니다."
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "You're all set"
+msgstr "모두 완료되었습니다"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "You're invited to join"
+msgstr "초대받은 조직"
+
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "You're not in an organization yet"
+msgstr "아직 속한 조직이 없습니다"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "You're signed in and your account now meets the {org} policy."
+msgstr "로그인되었으며 이제 계정이 {org} 정책을 충족합니다."
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "You're signed in and your account now meets your organization's policy."
+msgstr "로그인되었으며 이제 계정이 조직 정책을 충족합니다."
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "You're signed in on this browser. The link can't be used again."
+msgstr "이 브라우저에서 로그인되었습니다. 이 링크는 다시 사용할 수 없습니다."
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "You're signed in to"
+msgstr "로그인됨"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "You're signed in with your email link"
+msgstr "이메일 링크로 로그인되었습니다"
+
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 #: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "your account"
+msgstr "내 계정"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Your account"
+msgstr "내 계정"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Your account does not manage any organization. Ask an organization admin to invite you or grant you a management role."
@@ -12046,7 +12963,6 @@ msgstr "계정이 차단되었습니다."
 msgid "Your account has been suspended. Contact support for assistance."
 msgstr "계정이 정지되었습니다. 도움이 필요하면 지원팀에 문의하세요."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 #: packages/i18n/src/messages.ts
 msgid "Your account has been temporarily locked. Please try again later."
 msgstr "계정이 일시적으로 잠겼습니다. 나중에 다시 시도하세요."
@@ -12055,25 +12971,33 @@ msgstr "계정이 일시적으로 잠겼습니다. 나중에 다시 시도하세
 msgid "Your account remains available for 30 days. After that, credentials and personal data are permanently erased while required audit history is retained."
 msgstr "귀하의 계정은 30일 동안 사용할 수 있습니다. 그 이후에는 필수 감사 기록이 유지되는 동안 자격 증명과 개인 데이터는 영구적으로 삭제됩니다."
 
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Your admin turned this on for everyone. Setup takes about two minutes, then you'll go straight back."
+msgstr "관리자가 모든 사용자에게 이 설정을 켰습니다. 설정은 약 2분이면 끝나며 완료 후 바로 돌아갑니다."
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Your current sign-in method keeps working. You can remove the passkey any time in your account."
+msgstr "현재 로그인 방법은 계속 사용할 수 있습니다. 패스키는 언제든 계정에서 삭제할 수 있습니다."
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Your data export is being prepared."
 msgstr "데이터 내보내기를 준비 중입니다."
+
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "Your device will ask for your face, fingerprint or screen lock. The passkey stays on this device or in your password manager."
+msgstr "기기가 얼굴, 지문 또는 화면 잠금을 요청합니다. 패스키는 이 기기나 비밀번호 관리자에 보관됩니다."
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Your email address is confirmed. Sign in to continue."
+msgstr "이메일 주소가 확인되었습니다. 계속하려면 로그인하세요."
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Your email address is not verified yet. We will send a verification email; after verifying, return here to set a password."
 msgstr "이메일 주소가 아직 인증되지 않았습니다. 인증 이메일을 보내드립니다. 인증 후 여기로 돌아와 비밀번호를 설정하세요."
 
 #: apps/server/src/routes/verify-email/index.tsx
-msgid "Your email has been verified. Next, set your password."
-msgstr "이메일이 인증되었습니다. 이제 비밀번호를 설정하세요."
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "Your email has been verified. Redirecting you to sign in..."
-msgstr "이메일이 인증되었습니다. 로그인으로 이동합니다..."
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Your email has been verified. Sign in to continue."
-msgstr "이메일이 인증되었습니다. 계속하려면 로그인하세요."
+msgid "Your email is verified"
+msgstr "이메일 인증 완료"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Your email is verified. Set a password to finish creating your account."
@@ -12083,21 +13007,41 @@ msgstr "이메일이 인증되었습니다. 비밀번호를 설정하면 계정 
 msgid "Your export and deletion requests will appear here."
 msgstr "내보내기 및 삭제 요청이 여기에 표시됩니다."
 
-#: apps/server/src/routes/account/SecurityPage.tsx
-msgid "Your organization requires MFA. Set up an authenticator app or a passkey below before continuing."
-msgstr "조직에서 다단계 인증을 요구합니다. 계속하기 전에 아래에서 인증 앱 또는 패스키를 설정하세요."
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "your identity provider"
+msgstr "ID 공급자"
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Your password"
-msgstr "비밀번호"
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Your main second step"
+msgstr "기본 2단계 방법"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Your organization asks for a second step every time you sign in."
+msgstr "조직에서 로그인할 때마다 2단계 확인을 요구합니다."
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Your organization requires a second step"
+msgstr "조직에서 2단계 확인을 요구합니다"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Your passkey is ready"
+msgstr "패스키가 준비되었습니다"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Your passkey may need to be created again"
+msgstr "패스키를 다시 만들어야 할 수 있습니다"
 
 #: packages/i18n/src/messages.ts
 msgid "Your session has expired. Please sign in again."
 msgstr "세션이 만료되었습니다. 다시 로그인하세요."
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Your sign-in attempt expired. Please start again."
-msgstr "로그인 시도가 만료되었습니다. 다시 시작하세요."
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Your sign-in took too long and expired. Start again."
+msgstr "로그인 시간이 너무 오래 걸려 만료되었습니다. 다시 시작하세요."
+
+#: apps/server/src/components/hosted/context-copy.ts
+msgid "your XID account"
+msgstr "내 XID 계정"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Zoom"

@@ -60,11 +60,6 @@ msgstr "{0}（{1}）将停止接收用户和组更新。此操作无法撤销。
 msgid "{0} instance managers"
 msgstr "{0} 位实例管理员"
 
-#. placeholder {0}: params.clientName
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "{0} logo"
-msgstr "{0} 徽标"
-
 #. placeholder {0}: organizations.data.total
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 msgid "{0} organizations found"
@@ -110,12 +105,51 @@ msgstr "{0} 将移至回收站并停止授权访问，直至恢复。"
 msgid "{0} will stop authorizing access. Your assignment remains discoverable so you can restore the project."
 msgstr "{0} 将停止授权访问。您的任务仍然可见，因此您可以恢复项目。"
 
-#: apps/server/src/components/layout/AuthLayout.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "{app} did not receive any of your details."
+msgstr "{app} 没有收到你的任何信息。"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} is asking for more access"
+msgstr "{app} 正在请求更多权限"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "{app} is signed in"
+msgstr "{app} 已登录"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "{app} started a sign-in for your account from another device. Approve only if you asked for this."
+msgstr "{app} 从另一台设备为你的账户发起了登录。只有你本人发起时才批准。"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} wants access to your account"
+msgstr "{app} 想要访问你的账户"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} wants to work with your data"
+msgstr "{app} 想要使用你的数据"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "{app} wasn't connected"
+msgstr "{app} 未连接"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} will be able to"
+msgstr "{app} 将可以"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "{app} will be told you said no. You can try again from {app} whenever you're ready."
+msgstr "{app} 会收到你拒绝的结果。准备好后可以随时从 {app} 重试。"
+
 #: apps/server/src/routes/account/AccountLayout.tsx
 msgid "{appName} logo"
 msgstr "{appName} 徽标"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "{backupCodeCount, plural, one {# code saved} other {# codes saved}}"
+msgstr "{backupCodeCount, plural, other {已保存 # 个}}"
+
+#: apps/server/src/components/hosted/passkey-name.ts
 msgid "{browser} on {platform}"
 msgstr "{platform} 上的 {browser}"
 
@@ -124,9 +158,35 @@ msgstr "{platform} 上的 {browser}"
 msgid "sdk.members"
 msgstr "{count} 位成员"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "{email} is verified"
+msgstr "{email} 已验证"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "{org} asks for a second step every time you sign in."
+msgstr "{org} 要求每次登录时都完成第二步验证。"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "{org} requires a second step"
+msgstr "{org} 要求第二步验证"
+
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "{org} signs in people with {0} addresses through {idp}."
+msgstr "{org} 的 {0} 邮箱用户通过 {idp} 登录。"
+
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "{org} signs in people with {0} addresses through {idp}. After {idp}, you come straight back to {app}."
+msgstr "{org} 的 {0} 邮箱用户通过 {idp} 登录。完成 {idp} 验证后会直接回到 {app}。"
+
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "{pendingRemoveProvider} will be removed from the social sign-in configuration. Save changes to apply."
 msgstr "{pendingRemoveProvider} 将从社交登录配置中移除。保存更改后生效。"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "{remaining} codes left"
+msgstr "剩余 {remaining} 个"
 
 #: apps/server/src/routes/account/SessionsPage.tsx
 msgid "{sessionCount, plural, one {# session} other {# sessions}}"
@@ -166,7 +226,6 @@ msgid "sdk.createOrganizationWithPrefix"
 msgstr "+ 创建组织"
 
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "+1 555 000 0000"
 msgstr "+1 555 000 0000"
 
@@ -298,10 +357,6 @@ msgstr "<0>XidError</0> 使用 <1>thiserror</1> 提供结构化错误变体，�
 msgid "<0>xidMiddleware()</0> verifies a Bearer or explicit application JWT on the Edge Runtime. For a same-origin Core session, it exchanges the opaque cookie through <1>/v1/sessions/token</1>, verifies the returned JWT, and injects auth state into downstream server request headers."
 msgstr "<0>xidMiddleware()</0> 在 Edge Runtime 上验证 Bearer 或显式应用 JWT。对于同源 Core session，它通过 <1>/v1/sessions/token</1> exchange opaque cookie，验证返回的 JWT，并将认证状态注入下游服务端请求头。"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "000000"
-msgstr "000000"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "1 hour"
 msgstr "1 小时"
@@ -338,9 +393,25 @@ msgstr "5 分钟"
 msgid "5 seconds"
 msgstr "5 秒"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "6 digits. Spaces and dashes are fine."
+msgstr "6 位数字。可以包含空格和短横线。"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "6-digit code"
 msgstr "6 位验证码"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "6-digit code from your app"
+msgstr "应用中的 6 位验证码"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "8 letters and numbers. Spaces are ignored."
+msgstr "8 位字母和数字。空格会被忽略。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "8 letters, never vowels. Upper or lower case, spaces and dashes are all fine."
+msgstr "8 个字符，不含元音字母。不区分大小写，可以包含空格和短横线。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "8.0.0"
@@ -350,10 +421,6 @@ msgstr "8.0.0"
 msgid "8px"
 msgstr "8px"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "A 6-digit code has been sent to your phone."
-msgstr "6 位验证码已发送到你的手机。"
-
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "A client secret is configured. Leave blank to keep it."
 msgstr "已配置客户端密钥。留空则保留现有值。"
@@ -362,13 +429,17 @@ msgstr "已配置客户端密钥。留空则保留现有值。"
 msgid "A custom hostname changes the WebAuthn RP ID. Existing passkeys will not work on the new hostname, so users must register passkeys again there before you rely on it for sign-in."
 msgstr "自定义主机名会更改 WebAuthn RP ID。现有通行密钥无法在新主机名上使用，因此在依赖该主机名登录前，用户必须重新注册通行密钥。"
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "A device"
+msgstr "一台设备"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "A device is asking to sign in as you. Only continue if you started this on a device you can see right now."
+msgstr "有设备正在请求以你的身份登录。只有你眼前的设备是你本人发起时才继续。"
+
 #: packages/i18n/src/messages.ts
 msgid "A digital signature is required."
 msgstr "需要数字签名。"
-
-#: apps/server/src/routes/verify-email/ResendVerification.tsx
-msgid "A new verification email has been sent if your account exists."
-msgstr "如果账户存在，新的验证邮件已发送。"
 
 #: apps/console/src/routes/org/SelfServiceLock.tsx
 msgid "A platform administrator manages this setting for your organization. You can review it, but changes are disabled."
@@ -463,10 +534,6 @@ msgstr "接受的公钥格式：PublicJwk、Jwks 或 {JWT_KEY_SHAPE}"
 msgid "Access for organization {0} and user grants issued through this grant will be revoked."
 msgstr "组织 {0} 的访问权限以及通过此授权颁发的用户授权将被撤销。"
 
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access protected resources"
-msgstr "访问受保护资源"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Access request lifecycle"
 msgstr "访问请求生命周期"
@@ -482,22 +549,6 @@ msgstr "访问令牌存储在 <0>HttpOnly</0> 会话 cookie 中，不会写入 <
 #: packages/i18n/src/messages.ts
 msgid "Access was denied."
 msgstr "访问被拒绝。"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your basic profile information"
-msgstr "访问你的基本资料信息"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your email address"
-msgstr "访问你的邮箱地址"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your organization membership"
-msgstr "访问你的组织成员身份"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Access your phone number"
-msgstr "访问你的手机号码"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Accessor returning organization, membership, and setActive for the active org"
@@ -585,15 +636,6 @@ msgstr "需要采取行动"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Actions"
 msgstr "操作"
-
-#. placeholder {0}: detail.actions.join(', ')
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Actions: {0}"
-msgstr "操作：{0}"
-
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
-msgid "Activate a device"
-msgstr "激活设备"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Activate device | XID"
@@ -786,9 +828,22 @@ msgstr "通过 Package.swift 中的 Swift Package Manager 添加："
 msgid "Add xid-linux to Cargo.toml:"
 msgstr "将 xid-linux 添加到 Cargo.toml："
 
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Add your details and a password to create your account."
+msgstr "填写你的信息并设置密码来创建账户。"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Add your details, and we'll send you a code to confirm it's you."
+msgstr "填写你的信息，我们会发送验证码确认是你本人。"
+
 #: apps/server/src/routes/account/MfaSection.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 msgid "Added"
 msgstr "已添加"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Adding a passkey changes how you sign in, so we need a fresh check before saving it."
+msgstr "添加通行密钥会改变你的登录方式，保存前需要重新验证身份。"
 
 #: packages/i18n/src/messages.ts
 msgid "Additional verification is required to perform this action."
@@ -803,9 +858,17 @@ msgstr "管理员"
 msgid "admin, owner"
 msgstr "admin, owner"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "After signing in, open the original invitation link again to join with that account."
 msgstr "登录后，请重新打开原始邀请链接，用该账号加入。"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "After this you'll save 10 backup codes, in case you lose your device."
+msgstr "接下来你会保存 10 个备用码，以防设备丢失。"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "After you choose, you'll go to"
+msgstr "选择后将前往"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "All BackendErrorCode values: missing_jwt_key, jwks_fetch_failed, invalid_options, session_token_exchange_failed"
@@ -840,18 +903,22 @@ msgstr "所有 SDK 错误均为 sealed class XidException 的子类型："
 msgid "All sessions except your current one will be signed out immediately. Devices using those sessions will need to sign in again."
 msgstr "除当前会话外，所有会话都会立即登出。使用这些会话的设备需要重新登录。"
 
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "All set"
+msgstr "全部完成"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "All tenants"
 msgstr "所有租户"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Allow"
+msgstr "允许"
+
 #: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "Allow access"
 msgstr "允许访问"
-
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Allow device"
-msgstr "允许设备"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Allow existing users to sign in"
@@ -873,10 +940,6 @@ msgstr "允许此连接进行 JIT 用户创建"
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Allow login"
 msgstr "允许登录"
-
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Allow this device to sign in?"
-msgstr "允许此设备登录吗？"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -913,14 +976,18 @@ msgstr "允许的用户 ID（逗号分隔）"
 msgid "Allowed without a UserGrant."
 msgstr "无需 UserGrant 即可允许。"
 
+#: apps/server/src/routes/consent/ScopeList.tsx
+msgid "Already allowed"
+msgstr "已允许"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Already have an account?"
+msgstr "已有账户？"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.alreadyHaveAccountSignIn"
 msgstr "已有账户？<0>登录</0>"
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Already have an account? Sign in"
-msgstr "已有账户？登录"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Already have an account? Sign in to accept"
@@ -934,6 +1001,22 @@ msgstr "同时接受短信验证码"
 msgid "An account already uses this email address. Sign in to that account to accept the invitation."
 msgstr "此邮箱地址已被某个账号使用。请登录该账号以接受邀请。"
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "An app"
+msgstr "一个应用"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "An app asking for access"
+msgstr "请求访问的应用"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "An app from your organization"
+msgstr "你所在组织的应用"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "An app is asking you to approve a sign-in it started. Nothing happens until you choose."
+msgstr "有应用请求你批准它发起的登录。在你做出选择之前不会发生任何事。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "An Instance contains top-level Organizations. An Organization can contain one level of SubOrg; each organization remains a policy, membership, branding, RBAC, and isolation boundary."
 msgstr "实例包含顶级组织。一个组织可以包含一级子组织；每个组织都保留策略、成员资格、品牌、RBAC 和隔离边界。"
@@ -941,6 +1024,10 @@ msgstr "实例包含顶级组织。一个组织可以包含一级子组织；每
 #: packages/i18n/src/messages.ts
 msgid "An internal error occurred. Please try again."
 msgstr "发生内部错误。请重试。"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "An organization has its own members, sign-in rules and apps. You'll be its owner and can invite others right after."
+msgstr "组织拥有自己的成员、登录规则和应用。你将成为所有者，创建后即可邀请他人。"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "An organization is where you register OAuth applications, invite members, and turn on enterprise SSO or directory sync. Create one to get your first issuer and managed sign-in pages."
@@ -1072,11 +1159,6 @@ msgstr "外观"
 msgid "Apple"
 msgstr "Apple"
 
-#. placeholder {0}: paramsQuery.data.clientId
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Application <0>{0}</0> is requesting sign-in approval."
-msgstr "应用 <0>{0}</0> 请求登录批准。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Application must set <UseWinUI>true</UseWinUI> in the project file"
 msgstr "应用必须在项目文件中设置 <UseWinUI>true</UseWinUI>"
@@ -1110,6 +1192,10 @@ msgstr "批准"
 msgid "Approve or deny a pending request assigned to the current user."
 msgstr "批准或拒绝分配给当前用户的待处理请求。"
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Approve sign-in for {app}?"
+msgstr "批准 {app} 的登录？"
+
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Approve sign-in request | XID"
 msgstr "批准登录请求 | XID"
@@ -1134,11 +1220,19 @@ msgstr "as const 对象"
 msgid "as const tuple"
 msgstr "as const 元组"
 
-#: apps/server/src/routes/select-organization/index.tsx
-msgid "Ask an organization admin to invite you."
-msgstr "请联系组织管理员邀请你。"
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Ask a {org} admin to reset your two-step verification. They will need to confirm who you are."
+msgstr "请 {org} 管理员重置你的两步验证。他们需要确认你的身份。"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "Ask an organization admin to invite you, then sign in again."
+msgstr "请组织管理员邀请你，然后重新登录。"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Ask your admin to reset your two-step verification. They will need to confirm who you are."
+msgstr "请管理员重置你的两步验证。他们需要确认你的身份。"
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Ask your organization admin to send a new invitation."
 msgstr "请联系组织管理员重新发送邀请。"
 
@@ -1321,8 +1415,13 @@ msgstr "认证策略"
 msgid "Authentication policy saved."
 msgstr "认证策略已保存。"
 
-#: apps/server/src/routes/account/MfaSection.tsx
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 #: apps/server/src/routes/mfa/index.tsx
+msgid "Authenticator app"
+msgstr "认证器应用"
+
+#: apps/server/src/routes/account/MfaSection.tsx
 msgid "Authenticator app (TOTP)"
 msgstr "认证器应用（TOTP）"
 
@@ -1331,7 +1430,6 @@ msgid "Authenticator app added."
 msgstr "认证器应用已添加。"
 
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
 msgid "Authenticator code"
 msgstr "认证器验证码"
 
@@ -1379,17 +1477,9 @@ msgstr "授权端点支持 PKCE、state、nonce、PAR 和 Hosted Auth 交接。"
 msgid "Authorization error"
 msgstr "授权错误"
 
-#: apps/server/src/routes/consent/index.tsx
-msgid "Authorization failed"
-msgstr "授权失败"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Authorization request"
 msgstr "授权请求"
-
-#: apps/server/src/routes/consent/index.tsx
-msgid "Authorization request is missing or has expired."
-msgstr "授权请求缺失或已过期。"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Authorize application | XID"
@@ -1412,6 +1502,10 @@ msgstr "带会话切换和登出功能的头像菜单"
 msgid "Back home"
 msgstr "返回首页"
 
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Back to {app}"
+msgstr "返回 {app}"
+
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Back to console"
 msgstr "返回控制台"
@@ -1420,18 +1514,12 @@ msgstr "返回控制台"
 msgid "Back to Console"
 msgstr "返回控制台"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: apps/server/src/routes/consent/index.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/magic-link/index.tsx
-#: apps/server/src/routes/mfa/index.tsx
-#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Back to sign in"
 msgstr "返回登录"
-
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Backchannel request not found or expired."
-msgstr "后台通道请求未找到或已过期。"
 
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Background"
@@ -1451,10 +1539,23 @@ msgstr "背景色（浅色主题）"
 msgid "Backup code"
 msgstr "备用码"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Backup codes"
+msgstr "备用码"
+
 #. placeholder {0}: factor.remaining
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Backup codes ({0} remaining)"
 msgstr "备用码（剩余 {0} 个）"
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Backup codes for {organizationName}"
+msgstr "{organizationName} 的备用码"
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Backup codes for your account"
+msgstr "你的账户备用码"
 
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Banned"
@@ -1480,6 +1581,15 @@ msgstr "Bearer 或 DPoP 访问令牌中的用户声明。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Before declaring production ready, reconcile all 24 Queues, apply D1 migrations, build all three Workers, and verify apex, www, wildcard DNS, health, discovery, JWKS, and Hosted Auth. Then record live evidence for Email, DLQ replay, privacy export and 30-day erasure, hourly and daily Cron, Analytics, Turnstile, and custom hostnames. Local L0-L3 evidence is not L4; every unrun live check is UNKNOWN. The full operator runbook is maintained at https://github.com/StringKe/xid/blob/main/docs/deployment.md."
 msgstr "在宣告 production ready 之前，请核对全部 24 个 Queues，应用 D1 migrations，构建全部 3 个 Workers，并验证 apex、www、wildcard DNS、health、discovery、JWKS 和 Hosted Auth。然后记录 Email、DLQ replay、privacy export 和 30-day erasure、每小时和每日 Cron、Analytics、Turnstile 及 custom hostnames 的在线证据。本地 L0-L3 证据不等于 L4；所有未执行的在线检查均为 UNKNOWN。完整的运维 runbook 位于 https://github.com/StringKe/xid/blob/main/docs/deployment.md。"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Before you continue"
+msgstr "继续之前"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Before you continue to {app}"
+msgstr "继续前往 {app} 之前"
 
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
@@ -1632,6 +1742,11 @@ msgstr "批量操作"
 msgid "Bun"
 msgstr "Bun"
 
+#. placeholder {0}: client.ownerName
+#: apps/server/src/routes/consent/ClientHeader.tsx
+msgid "by {0}"
+msgstr "由 {0} 提供"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "C# / .NET SDK for WinUI 3 applications using WebView2 for authorization, PKCE S256, and DPAPI-protected IsolatedStorage for token persistence."
 msgstr "适用于 WinUI 3 应用的 C# / .NET SDK，使用 WebView2 进行授权、PKCE S256 和 DPAPI 保护的 IsolatedStorage 进行 token 持久化。"
@@ -1652,6 +1767,18 @@ msgstr "Callback 在创建或关联用户前会验证 state、nonce、issuer、a
 msgid "Can't scan the code? Enter this key manually instead."
 msgstr "无法扫描二维码？请改为手动输入此密钥。"
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Can't scan? Enter this key instead."
+msgstr "无法扫描？改为输入此密钥。"
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Can't sign in?"
+msgstr "无法登录？"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Can't use any of these?"
+msgstr "这些方式都用不了？"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "CanActivateFn factory"
 msgstr "CanActivateFn 工厂"
@@ -1662,14 +1789,11 @@ msgstr "CanActivateFn 工厂"
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/server/src/routes/account/PasskeySection.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
+#: apps/server/src/routes/mfa/MfaExits.tsx
 #: packages/web-ui/src/components/ConfirmDialog.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Cancel"
 msgstr "取消"
-
-#: apps/server/src/routes/mfa/MfaExits.tsx
-msgid "Cancel and sign out"
-msgstr "取消并退出登录"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Cancel the current user's pending request."
@@ -1704,30 +1828,49 @@ msgstr "链已断裂"
 msgid "Chain valid"
 msgstr "链有效"
 
+#: apps/server/src/components/hosted/IdentityChip.tsx
+msgid "Change"
+msgstr "更改"
+
+#: apps/server/src/components/hosted/IdentityChip.tsx
+msgid "Change {value}"
+msgstr "更改 {value}"
+
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Change password"
 msgstr "修改密码"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Changing how you sign in needs a fresh check. Once you verify, you won't be asked again for 5 minutes."
+msgstr "更改登录方式需要重新验证身份。验证后 5 分钟内不会再次询问。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Check the code on your device"
+msgstr "核对设备上的代码"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "Check the details, then accept with the account you're signed in to."
+msgstr "核对详情，然后用当前登录的账户接受邀请。"
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Check the sequence range. It must exist in the chain and stay within the per-request limit."
 msgstr "请检查序号范围。范围必须存在于链中，且不超过单次请求的上限。"
 
+#: apps/server/src/routes/mfa/index.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Check your connection and try again."
 msgstr "检查网络连接后重试。"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Check your email"
 msgstr "检查邮箱"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Check your email for a sign-in link. It expires in 15 minutes."
-msgstr "检查邮箱中的登录链接。链接将在 15 分钟后过期。"
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Check your email to verify your account before signing in."
-msgstr "请先检查邮箱并验证账户，然后再登录。"
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Check your email to confirm your address, then sign in."
+msgstr "请查收邮件确认你的邮箱地址，然后登录。"
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Checkout Enterprise"
@@ -1745,6 +1888,10 @@ msgstr "购买 Starter"
 msgid "Choose a current member or enter an exact active user ID. The server verifies the user and scope."
 msgstr "选择当前成员或输入确切的活动用户 ID。服务器验证用户和范围。"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Choose a different password."
+msgstr "请换一个密码。"
+
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Choose a known organization or enter an exact organization ID."
 msgstr "选择已知组织或输入确切的组织 ID。"
@@ -1753,21 +1900,22 @@ msgstr "选择已知组织或输入确切的组织 ID。"
 msgid "Choose a new password"
 msgstr "选择新密码"
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Choose a verification method."
-msgstr "选择验证方式。"
+#: apps/server/src/routes/select-organization/index.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Choose an organization"
+msgstr "选择组织"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Choose an organization to continue in the console."
 msgstr "选择一个组织继续进入控制台。"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Choose an organization to continue."
-msgstr "选择组织后继续。"
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Choose another way to verify"
+msgstr "选择其他验证方式"
 
-#: apps/server/src/routes/select-organization/index.tsx
-msgid "Choose which organization to use for this sign-in before continuing."
-msgstr "继续之前，请选择本次登录要使用的组织。"
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Choose your second step"
+msgstr "选择你的第二步验证方式"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Chromium-based embedded authorization window"
@@ -1805,7 +1953,6 @@ msgstr "清除 secure storage，并可选择在系统浏览器中打开 end_sess
 msgid "Clears local tokens"
 msgstr "清除本地 token"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Client"
 msgstr "客户端"
@@ -1915,9 +2062,21 @@ msgstr "Cloudflare Workers"
 msgid "Cloudflare Workers (primary target)"
 msgstr "Cloudflare Workers（主要目标平台）"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Code {code} matched. Here's what this device will get."
+msgstr "代码 {code} 匹配。以下是此设备将获得的权限。"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Codes expire after 10 minutes and work only once. Get a new code on your device, then enter it here."
+msgstr "代码 10 分钟后过期，且只能使用一次。请在设备上获取新代码，然后在这里输入。"
+
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Codes will be sent to the phone number ending in {smsPhoneLast4}."
 msgstr "验证码将发送到尾号为 {smsPhoneLast4} 的手机号。"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Codes work for {minutes} minutes. Send a new one and enter it here."
+msgstr "验证码 {minutes} 分钟内有效。请重新发送并在这里输入。"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "colleague@example.com"
@@ -2068,13 +2227,22 @@ msgstr "已配置"
 msgid "Confirm"
 msgstr "确认"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Confirm and join"
 msgstr "确认并加入"
 
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Confirm email address"
 msgstr "确认邮箱地址"
+
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Confirm it's you"
+msgstr "确认是你本人"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Confirm it's you first"
+msgstr "请先确认是你本人"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Confirm new password"
@@ -2096,13 +2264,21 @@ msgstr "确认登录 | XID"
 msgid "Confirm that you saved it. It cannot be shown again."
 msgstr "请确认你已保存。关闭后无法再次显示。"
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Confirm with Face ID, your fingerprint or a security key. Nothing to type."
+msgstr "使用面容 ID、指纹或安全密钥确认，无需输入任何内容。"
+
 #: apps/server/src/routes/verify-email/index.tsx
 msgid "Confirm your email"
 msgstr "确认你的邮箱"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Confirm your invitation"
 msgstr "确认你的邀请"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Confirming your email address"
+msgstr "正在确认你的邮箱地址"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Connect an application to XID with OIDC discovery and Hosted Auth."
@@ -2124,6 +2300,10 @@ msgstr "已连接"
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Connected accounts"
 msgstr "已连接账户"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Connecting a device"
+msgstr "正在连接设备"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Connections"
@@ -2174,6 +2354,12 @@ msgstr "用于存储认证结果的上下文 key（'xidAuth'）"
 msgid "sdk.continue"
 msgstr "继续"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
 #: apps/site/src/lib/home-surface.ts
 #: packages/i18n/src/messages.ts
 msgid "Continue"
@@ -2183,7 +2369,11 @@ msgstr "继续"
 msgid "Continue as guest"
 msgstr "以访客身份继续"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Continue only if you asked for this sign-in link."
+msgstr "只有你本人申请了这个登录链接时才继续。"
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Continue only if you opened this link from the invitation email sent to you."
 msgstr "仅当你从发送给你的邀请邮件中打开此链接时才继续。"
 
@@ -2191,9 +2381,27 @@ msgstr "仅当你从发送给你的邀请邮件中打开此链接时才继续。
 msgid "Continue only if you opened this link from the verification email sent to you."
 msgstr "仅当你从发送给你的验证邮件中打开此链接时才继续。"
 
+#. placeholder {0}: props.appName
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Continue to {0}"
+msgstr "继续前往 {0}"
+
 #: apps/server/src/routes/magic-link/index.tsx
-msgid "Continue only if you requested this sign-in link."
-msgstr "仅当此登录链接由你本人请求时才继续。"
+msgid "Continue to {app}"
+msgstr "继续前往 {app}"
+
+#: apps/server/src/components/hosted/context-copy.ts
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Continue to {applicationName}"
+msgstr "继续前往 {applicationName}"
+
+#: apps/server/src/components/hosted/context-copy.ts
+msgid "Continue to {applicationName} by {organizationName}"
+msgstr "继续前往 {organizationName} 的 {applicationName}"
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Continue to {idp}"
+msgstr "继续前往 {idp}"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -2208,6 +2416,10 @@ msgstr "继续登录"
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.continueToSignUp"
 msgstr "继续创建账户"
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Continue with a passkey"
+msgstr "使用通行密钥继续"
 
 #: apps/server/src/routes/sign-in/SignInSocialButtons.tsx
 msgid "Continue with Apple"
@@ -2225,9 +2437,9 @@ msgstr "使用 Google 继续"
 msgid "Continue with Microsoft"
 msgstr "使用 Microsoft 继续"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Continue with SSO"
-msgstr "使用 SSO 继续"
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "Continuing"
+msgstr "正在继续"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "Contributing"
@@ -2251,6 +2463,7 @@ msgstr "将 JwtKey（JWK、JWKS 或 CryptoKey）转换为用于验证的 VerifyK
 
 #: apps/console/src/routes/org/CopyableValue.tsx
 #: apps/console/src/routes/org/CopyValue.tsx
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/ui/CopyButton.tsx
@@ -2259,6 +2472,7 @@ msgstr "已复制"
 
 #: apps/console/src/routes/org/CopyableValue.tsx
 #: apps/console/src/routes/org/CopyValue.tsx
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Copy"
 msgstr "复制"
@@ -2346,6 +2560,14 @@ msgstr "无法切换组织。请重试或选择其他组织。"
 msgid "Could not switch organization. Try again."
 msgstr "无法切换组织。请重试。"
 
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Couldn't create backup codes"
+msgstr "无法创建备用码"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Couldn't start setup"
+msgstr "无法开始设置"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create (with bulk limit), revoke, and list invitations."
 msgstr "创建（有批量上限）、吊销和列出邀请。"
@@ -2354,6 +2576,25 @@ msgstr "创建（有批量上限）、吊销和列出邀请。"
 msgid "Create a confidential OAuth 2.0 client. Its secret is shown once; store it immediately."
 msgstr "创建机密 OAuth 2.0 客户端。它的秘密一旦显露出来；立即储存。"
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "Create a passkey"
+msgstr "创建通行密钥"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Create a passkey | XID"
+msgstr "创建通行密钥 | XID"
+
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Create a password"
+msgstr "设置密码"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Create account"
+msgstr "创建账户"
+
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Create an active project on the Projects page first."
 msgstr "首先在“项目”页面上创建一个活动项目。"
@@ -2361,6 +2602,10 @@ msgstr "首先在“项目”页面上创建一个活动项目。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create an OIDC application and register exact redirect URI values."
 msgstr "创建 OIDC 应用并注册精确匹配的重定向 URI。"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Create an organization"
+msgstr "创建组织"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create and list directory groups."
@@ -2428,6 +2673,10 @@ msgstr "创建密钥"
 msgid "Create one <0>Client</0> at application startup and reuse it across requests. The client caches JWKS internally with a configurable TTL."
 msgstr "在应用启动时创建一个 <0>Client</0> 并在请求间复用。客户端以可配置 TTL 在内部缓存 JWKS。"
 
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "Create one to continue, or ask an admin to invite you."
+msgstr "创建一个组织以继续，或请管理员邀请你。"
+
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "Create or select an active project first."
 msgstr "首先创建或选择一个活动项目。"
@@ -2475,21 +2724,18 @@ msgstr "在根布局中使用 <0>createXidStores</0> 和 <1>setXidContext</1> �
 msgid "Create webhook"
 msgstr "创建 webhook"
 
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Create your {org} account"
+msgstr "创建你的 {org} 账户"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.createYourAccount"
 msgstr "创建账户"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
 msgid "Create your account"
 msgstr "创建你的账户"
-
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Create your organization"
-msgstr "创建你的组织"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Create, inspect, refresh, and remove custom hostnames."
@@ -2568,9 +2814,9 @@ msgstr "创建 XidClient，挂载时调用 load()，通过 onCleanup 清理"
 msgid "createXidTauriClient options"
 msgstr "createXidTauriClient 选项"
 
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Creating…"
-msgstr "正在创建…"
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Creating your backup codes"
+msgstr "正在创建备用码"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
@@ -2943,9 +3189,8 @@ msgstr "被拒绝；管理员直接授予访问权限。"
 msgid "Deno"
 msgstr "Deno"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
+#: apps/server/src/routes/activate/DeviceSteps.tsx
 #: apps/server/src/routes/ciba-activation/index.tsx
-#: apps/server/src/routes/consent/ConsentActions.tsx
 msgid "Deny"
 msgstr "拒绝"
 
@@ -3008,21 +3253,17 @@ msgstr "桌面端 SDK"
 msgid "Dev/test without Tauri runtime"
 msgstr "不依赖 Tauri 运行时的开发/测试"
 
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
+#: apps/server/src/routes/activate/DeviceSteps.tsx
 msgid "Device code"
 msgstr "设备码"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Device connected"
+msgstr "设备已连接"
 
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Device name"
 msgstr "设备名称"
-
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Device request failed"
-msgstr "设备请求失败"
-
-#: apps/server/src/routes/activate/index.tsx
-msgid "Device request handled"
-msgstr "设备请求已处理"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Diagram failed to render"
@@ -3136,6 +3377,10 @@ msgstr "文件类型"
 msgid "Documentation"
 msgstr "文档"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Does {app} show this exact code?"
+msgstr "{app} 显示的是这个代码吗？"
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "Domain"
@@ -3162,6 +3407,10 @@ msgstr "域名"
 msgid "Domains | Console | XID"
 msgstr "域名 | 控制台 | XID"
 
+#: apps/server/src/routes/consent/ConsentActions.tsx
+msgid "Don't allow"
+msgstr "不允许"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.dontHaveAccountSignUp"
@@ -3171,6 +3420,7 @@ msgstr "还没有账户？<0>创建账户</0>"
 msgid "Done"
 msgstr "完成"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Download"
 msgstr "下载"
@@ -3314,17 +3564,27 @@ msgstr "11 个基于 SQLite 的 Durable Objects 对 sessions、challenges、OAut
 msgid "Email"
 msgstr "邮箱"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Email a code"
+msgstr "通过邮件发送验证码"
+
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Email a sign-in link"
+msgstr "通过邮件发送登录链接"
+
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Email address"
 msgstr "邮箱地址"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Email me a link"
+msgstr "给我发送链接"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Email me a secure link"
@@ -3339,7 +3599,6 @@ msgid "Email or username"
 msgstr "邮箱或用户名"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Email OTP"
 msgstr "邮箱验证码"
@@ -3424,19 +3683,22 @@ msgstr "强制执行"
 msgid "English"
 msgstr "英语"
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Enter a 6-digit code from an app like 1Password or Google Authenticator."
+msgstr "输入 1Password 或 Google Authenticator 等应用中的 6 位验证码。"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Enter a backup code"
+msgstr "输入备用码"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Enter a new code"
+msgstr "输入新代码"
+
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Enter a search query to find users."
 msgstr "输入搜索条件以查找用户。"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Enter a strong password to secure your account."
-msgstr "输入强密码以保护账户。"
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter a valid 8-character backup code"
-msgstr "输入有效的 8 字符备用码"
-
-#: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Enter a valid email address"
 msgstr "输入有效邮箱地址"
@@ -3444,6 +3706,14 @@ msgstr "输入有效邮箱地址"
 #: apps/console/src/routes/org/ApplicationEditor.tsx
 msgid "Enter absolute HTTPS URLs without a fragment, one per line."
 msgstr "输入不带片段的绝对 HTTPS URL，每行一个。"
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Enter all {length} characters. {count, plural, one {This has # character.} other {This has # characters.}}"
+msgstr "请输入全部 {length} 个字符。{count, plural, other {当前为 # 个字符。}}"
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Enter all {length} digits. {count, plural, one {This has # digit.} other {This has # digits.}}"
+msgstr "请输入全部 {length} 位数字。{count, plural, other {当前为 # 位。}}"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "Enter an organization name and a URL slug made of lowercase letters, numbers, and hyphens."
@@ -3453,29 +3723,46 @@ msgstr "输入组织名称和 URL 标识。URL 标识只能包含小写字母、
 msgid "Enter at least one absolute HTTPS URL without a fragment, one per line."
 msgstr "至少输入一个不带片段的绝对 HTTPS URL，每行一个。"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter one of your 8-character backup codes. Each code can only be used once."
-msgstr "输入一个 8 字符备用码。每个备用码只能使用一次。"
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Enter the 6-digit code the app shows"
+msgstr "输入应用显示的 6 位验证码"
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Enter the code first."
+msgstr "请先输入代码。"
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter the 6-digit code from your authenticator app"
-msgstr "输入认证器应用中的 6 位验证码"
+msgid "Enter the code from your authenticator app"
+msgstr "输入认证器应用中的验证码"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Enter the code shown on your device"
+msgstr "输入设备上显示的代码"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Enter the code we emailed you"
+msgstr "输入我们通过邮件发送的验证码"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Enter the code we sent on WhatsApp"
+msgstr "输入我们通过 WhatsApp 发送的验证码"
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Enter the 6-digit code sent to your phone"
-msgstr "输入发送到手机的 6 位验证码"
-
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
-msgid "Enter the code shown on your device."
-msgstr "输入设备上显示的代码。"
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Enter the code we texted you"
+msgstr "输入我们通过短信发送的验证码"
 
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Enter the downstream API token. Sync needs it, and changing the base URL host requires it again."
 msgstr "输入下游 API token。同步需要它，修改基础 URL 的主机后也需要重新输入。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Enter the email, username, or phone number for your account first."
-msgstr "请先输入你账号的邮箱、用户名或手机号。"
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Enter the email address you sign in with."
+msgstr "输入你登录时使用的邮箱地址。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Enter the email you sign in with. We'll send a link to choose a new password."
+msgstr "输入你登录时使用的邮箱。我们会发送一个用于设置新密码的链接。"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Enter the exact issuer of your identity provider tenant. Only the Microsoft template may keep its multi-tenant issuer placeholder."
@@ -3505,9 +3792,18 @@ msgstr "按 Enter 键选择"
 msgid "Enter valid JSON."
 msgstr "输入有效的 JSON。"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Enter your email and we will send a reset link."
-msgstr "输入邮箱，我们会发送重置链接。"
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Enter your email, username or phone number to continue."
+msgstr "输入邮箱、用户名或手机号以继续。"
+
+#: apps/server/src/routes/sign-in/method-copy.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Enter your password"
+msgstr "输入密码"
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Enter your work email. We'll send you to your company's sign-in page."
+msgstr "输入你的工作邮箱。我们会把你带到公司的登录页面。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
@@ -3534,6 +3830,14 @@ msgstr "入口点"
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Error"
 msgstr "错误"
+
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "Error 404 on {host}"
+msgstr "{host} 上的 404 错误"
+
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "Error on {host}"
+msgstr "{host} 上出现错误"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Error responses"
@@ -3682,6 +3986,7 @@ msgstr "预期失败返回 Result 类型；意外错误抛出 AppError。"
 msgid "Expected JWT aud claim"
 msgstr "期望的 JWT aud claim"
 
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 #: apps/server/src/routes/account/PrivacySection.tsx
 #: packages/web-ui/src/enum-labels.tsx
 msgid "Expired"
@@ -3689,7 +3994,6 @@ msgstr "已过期"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
-#: apps/server/src/routes/activate/ActivationDetails.tsx
 msgid "Expires"
 msgstr "过期时间"
 
@@ -3768,6 +4072,11 @@ msgstr "提取由 Middleware 注入的 claims。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Extract svix headers automatically and validate HMAC-SHA256 signature."
 msgstr "自动提取 svix 请求头并验证 HMAC-SHA256 签名。"
+
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Face ID, fingerprint or a security key"
+msgstr "面容 ID、指纹或安全密钥"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Factory that returns a standalone XidClient instance"
@@ -3958,10 +4267,6 @@ msgstr "无法加载状态事件。"
 msgid "Failed to load user grants."
 msgstr "无法加载用户授权。"
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "Failed to load verification methods. Please try again."
-msgstr "验证方式加载失败。请重试。"
-
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "Failed to remove factor."
 msgstr "移除验证因素失败。"
@@ -4058,6 +4363,10 @@ msgstr "回退语言"
 msgid "FastAPI integration"
 msgstr "FastAPI 集成"
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Fastest"
+msgstr "最快"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Federation and provisioning"
 msgstr "联合与预配"
@@ -4094,6 +4403,10 @@ msgstr "按名称或 slug 筛选组织"
 msgid "Filtering, sorting, and pagination"
 msgstr "过滤、排序和分页"
 
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "Find an organization"
+msgstr "查找组织"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Find one group by displayName."
 msgstr "按 displayName 查找一个组。"
@@ -4102,10 +4415,6 @@ msgstr "按 displayName 查找一个组。"
 msgid "Find one user by userName."
 msgstr "按 userName 查找一个用户。"
 
-#: apps/server/src/routes/activate/CodeEntryForm.tsx
-msgid "Find request"
-msgstr "查找请求"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Find the enterprise connection for a verified email domain."
 msgstr "查找已验证邮箱域名对应的企业连接。"
@@ -4113,13 +4422,13 @@ msgstr "查找已验证邮箱域名对应的企业连接。"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "First name"
 msgstr "名"
 
+#: apps/server/src/components/hosted/RequestCard.tsx
 #: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "first-party"
-msgstr "第一方"
+msgid "First-party"
+msgstr "内部应用"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "First-party Hosted Auth, Console, and Management API paths have production evidence on xid.dev. Enterprise IdP, downstream SaaS, social OAuth, and SMS or WhatsApp claims stay non-production-supported until a real L4 row exists for that path."
@@ -4137,6 +4446,11 @@ msgstr "字体"
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Font names separated by commas"
 msgstr "字体名称，用逗号分隔"
+
+#. placeholder {0}: props.account
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "For {0} on this device."
+msgstr "用于此设备上的 {0}。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "For a developer app on another origin, configure <0>mode: 'oidc'</0> with issuer, clientId, and an exact redirectUri. Use same-origin mode only when the application routes Core auth endpoints on its exact origin. XID has no publishable-key credential."
@@ -4158,7 +4472,7 @@ msgstr "需要企业连接时，强制 SSO 会隐藏本地登录方式。"
 msgid "Force-refresh the JWKS cache"
 msgstr "强制刷新 JWKS 缓存"
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 msgid "Forgot password?"
 msgstr "忘记密码？"
@@ -4248,6 +4562,14 @@ msgstr "GET /jwks"
 msgid "GET /userinfo"
 msgstr "GET /userinfo"
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Get a code by text message"
+msgstr "通过短信获取验证码"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Get a sign-in link"
+msgstr "获取登录链接"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "Get started"
 msgstr "开始使用"
@@ -4290,18 +4612,32 @@ msgstr "GNAP, UMA, HEART, OpenID4VP, OpenID4VCI"
 msgid "Go"
 msgstr "Go"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Go back to sign in and choose another way to continue."
+msgstr "返回登录页，选择其他方式继续。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Go back to your device. It will finish on its own. You can close this tab."
+msgstr "回到你的设备，它会自动完成。你可以关闭此标签页。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Go server SDK for networkless JWT verification, request authentication, and webhook signature validation."
 msgstr "Go 服务端 SDK，提供 networkless JWT 验证、请求认证和 webhook 签名校验。"
 
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "Go to {org} sign-in"
+msgstr "前往 {org} 登录"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/server/src/routes/create-organization/index.tsx
-#: apps/server/src/routes/not-found/NotFoundPage.tsx
 msgid "Go to account"
 msgstr "前往账户"
 
-#: apps/server/src/routes/activate/index.tsx
-#: apps/server/src/routes/ciba-activation/index.tsx
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "Go to sign-in"
+msgstr "前往登录"
+
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
 msgid "Go to your account"
 msgstr "前往你的账户"
 
@@ -4615,6 +4951,10 @@ msgstr "https://openidconnect.googleapis.com/v1/userinfo"
 msgid "https://xid.dev/sign-in"
 msgstr "https://xid.dev/sign-in"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
+msgid "I saved these codes somewhere safe"
+msgstr "我已将这些代码保存在安全的地方"
+
 #: apps/server/src/routes/account/ProfilePage.tsx
 msgid "IANA timezone, e.g. Asia/Shanghai."
 msgstr "IANA 时区，例如 Asia/Shanghai。"
@@ -4675,17 +5015,49 @@ msgstr "IdP 单点登出 URL"
 msgid "IdP SSO URL"
 msgstr "IdP 单点登录 URL"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "If {masked} has an account, a reset link is on its way. It works once, for 15 minutes."
+msgstr "如果 {masked} 有账户，重置链接已在发送途中。链接只能使用一次，15 分钟内有效。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "If <0>safeStorage.isEncryptionAvailable()</0> returns <1>false</1> (headless Linux without a keyring), <2>setItem()</2> throws <3>ElectronStorageError</3> with code <4>encryption_unavailable</4> rather than writing plaintext silently."
 msgstr "如果 <0>safeStorage.isEncryptionAvailable()</0> 返回 <1>false</1>（无 keyring 的无界面 Linux），<2>setItem()</2> 会抛出带 code <4>encryption_unavailable</4> 的 <3>ElectronStorageError</3>，而不是静默写入明文。"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "If an account with that email exists, you will receive a password reset link shortly."
-msgstr "如果该邮箱对应账户存在，你很快会收到密码重置链接。"
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "If it keeps happening, tell your administrator what you were doing and when."
+msgstr "如果问题持续出现，请告诉管理员你当时在做什么以及发生时间。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "If no prompt appeared"
+msgstr "如果没有出现提示"
+
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
+msgid "If this address has an account, a new link is on its way. Open the newest email."
+msgstr "如果此地址有账户，新链接已在发送途中。请打开最新的邮件。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "If using a custom URI scheme redirect rather than the WebView2 embedded window, forward the protocol activation URI to <0>HandleRedirectAsync</0>:"
 msgstr "如果使用自定义 URI scheme 重定向而非 WebView2 嵌入窗口，请将协议激活 URI 转发给 <0>HandleRedirectAsync</0>："
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "If you approve, {app} gets"
+msgstr "如果批准，{app} 将获得"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "If you didn't expect this request, let your {org} admin know."
+msgstr "如果你没有预期到这个请求，请告知 {org} 管理员。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "If you didn't expect this request, let your admin know."
+msgstr "如果你没有预期到这个请求，请告知管理员。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "If you didn't start this on a device in front of you, choose No. Someone may have sent you this link."
+msgstr "如果不是你在眼前的设备上发起的，请选择“否”。可能有人把这个链接发给了你。"
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "If you lose your phone, each code lets you sign in once. Keep them somewhere only you can reach, like a password manager."
+msgstr "如果手机丢失，每个代码可以让你登录一次。请把它们存放在只有你能访问的地方，比如密码管理器。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Iframe preview and separate draft and published states are not implemented."
@@ -4735,6 +5107,14 @@ msgstr "已在本地实现；真实 AD FS WS-Fed L4 仍缺失。"
 msgid "Implicit flow, password grant, plain PKCE, and wildcard redirects."
 msgstr "隐式流、密码授权、plain PKCE 和通配符重定向。"
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "In the app, add an account and point your camera at the code."
+msgstr "在应用中添加账户，并将摄像头对准此二维码。"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "In the app, add an account and point your camera at the code. It will appear as {issuerName} ({accountName})."
+msgstr "在应用中添加账户，并将摄像头对准此二维码。它会显示为 {issuerName}（{accountName}）。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "In-process memory only. Tokens are lost on process exit. Use for testing or CI environments without a Secret Service."
 msgstr "仅限进程内内存。进程退出时 token 丢失。适用于没有 Secret Service 的测试或 CI 环境。"
@@ -4783,14 +5163,6 @@ msgstr "事件已开启。"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Incident title"
 msgstr "事件标题"
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Incorrect code. Check your authenticator app and try again."
-msgstr "验证码不正确。请检查认证器应用后重试。"
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Incorrect or expired code. Request a new one."
-msgstr "验证码不正确或已过期。请重新获取。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Indirect"
@@ -4905,34 +5277,14 @@ msgstr "集成配置"
 msgid "Inter, system-ui, sans-serif"
 msgstr "Inter, system-ui, sans-serif"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Invalid or already-used backup code."
-msgstr "备用码无效或已使用。"
-
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Invalid password"
-msgstr "密码无效"
-
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Investigating"
 msgstr "调查中"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invitation expired"
-msgstr "邀请已过期"
-
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invitation link is invalid."
-msgstr "邀请链接无效。"
-
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Invitation sent successfully."
 msgstr "邀请已发送。"
-
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invitation unavailable"
-msgstr "邀请不可用"
 
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgOverview.tsx
@@ -4942,11 +5294,6 @@ msgstr "邀请成员"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Invite members, manage roles, and review membership status."
 msgstr "邀请成员、管理角色并查看成员状态。"
-
-#. placeholder {0}: data?.email
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Invited email: {0}"
-msgstr "受邀邮箱：{0}"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "invoice:read"
@@ -5000,6 +5347,30 @@ msgstr "isLoaded、用于组织切换器 UI 的 userMemberships"
 msgid "Issuer"
 msgstr "签发方"
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "It can sync to your other devices through your password manager."
+msgstr "它可以通过密码管理器同步到你的其他设备。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "It can't be guessed, and look-alike sites can't use it."
+msgstr "它无法被猜到，仿冒网站也无法使用它。"
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "It may have been used already. Ask your organization admin for a new one."
+msgstr "它可能已被使用。请向组织管理员索取新的邀请。"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "It works for 5 minutes."
+msgstr "5 分钟内有效。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "It's on a public list of leaked passwords, so attackers try it first. Choose a different one."
+msgstr "这个密码出现在公开的泄露密码列表中，攻击者会优先尝试它。请换一个。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "It's on the sign-in screen of the device you're setting up."
+msgstr "它显示在你正在设置的设备的登录界面上。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Java"
 msgstr "Java"
@@ -5020,18 +5391,13 @@ msgstr "JIT"
 msgid "JIT provisioning can create or update users when the connection policy allows it."
 msgstr "当连接策略允许时，JIT 预配可以创建或更新用户。"
 
-#. placeholder {0}: data.orgName
 #: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Join {0}"
-msgstr "加入 {0}"
+msgid "Join {org}"
+msgstr "加入 {org}"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Join organization"
 msgstr "加入组织"
-
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Join this organization with the account you are signed in to."
-msgstr "使用当前登录的账号加入此组织。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "JS and TS native SDKs (React Native, Expo) use a React provider plus hooks model: XidProvider, useSignIn, and useSignOut."
@@ -5121,6 +5487,10 @@ msgstr "JWT exp/nbf 时钟偏差容忍度"
 msgid "JWT payload claims returned by decodeTokenClaims"
 msgstr "decodeTokenClaims 返回的 JWT payload claims"
 
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "Keep access when you're not using it"
+msgstr "在你不使用时保持访问"
+
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Keep the public status page current with incident impact, state, and timestamped updates."
 msgstr "使公共状态页面保持最新的事件影响、状态和带时间戳的更新。"
@@ -5149,6 +5519,10 @@ msgstr "Keycloak"
 msgid "Kind"
 msgstr "类型"
 
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "Know who you are"
+msgstr "知道你是谁"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Known limitations"
 msgstr "已知限制"
@@ -5165,6 +5539,7 @@ msgstr "适用于 Android 的 Kotlin SDK，使用 Chrome Custom Tabs、PKCE S256
 msgid "Label"
 msgstr "标签"
 
+#: apps/server/src/components/hosted/LanguageMenu.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 #: packages/web-ui/src/components/LanguageSwitcher.tsx
 msgid "Language"
@@ -5181,7 +5556,6 @@ msgstr "最后活跃：{lastActive}"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Last name"
 msgstr "姓"
 
@@ -5207,6 +5581,8 @@ msgid "Last updated"
 msgstr "最后更新"
 
 #: apps/console/src/routes/org/OrgApiKeys.tsx
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/sign-in/TryAnotherWay.tsx
 msgid "Last used"
 msgstr "上次使用"
 
@@ -5242,6 +5618,10 @@ msgstr "留空可使此映射无条件。"
 msgid "Legacy protocol boundaries"
 msgstr "旧版协议边界"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Let {app} sign in as you?"
+msgstr "允许 {app} 以你的身份登录？"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Level"
 msgstr "等级"
@@ -5257,6 +5637,11 @@ msgstr "类似 getAuth，但在未认证时抛出重定向响应"
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Limit"
 msgstr "上限"
+
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Link expired"
+msgstr "链接已过期"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Linked sign-on, native IWA, and Kerberos termination are not supported."
@@ -5409,14 +5794,6 @@ msgstr "加载中"
 msgid "Loading authentication policy"
 msgstr "正在加载认证策略"
 
-#: apps/server/src/routes/consent/index.tsx
-msgid "Loading authorization details"
-msgstr "正在加载授权详情"
-
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Loading backchannel request"
-msgstr "正在加载后台通道请求"
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Loading branding settings"
 msgstr "正在加载品牌设置"
@@ -5428,10 +5805,6 @@ msgstr "正在加载合规证据"
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Loading delivery channels"
 msgstr "正在加载交付通道"
-
-#: apps/server/src/routes/activate/index.tsx
-msgid "Loading device request"
-msgstr "正在加载设备请求"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "Loading invitation"
@@ -5457,9 +5830,21 @@ msgstr "正在加载资料"
 msgid "Loading social providers"
 msgstr "正在加载社交登录提供商"
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "Loading the device request"
+msgstr "正在加载设备请求"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Loading the request"
+msgstr "正在加载请求"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Loading the sign-in request"
+msgstr "正在加载登录请求"
+
 #: apps/server/src/routes/mfa/index.tsx
-msgid "Loading verification methods."
-msgstr "正在加载验证方式。"
+msgid "Loading verification methods"
+msgstr "正在加载验证方式"
 
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Loading your session"
@@ -5529,6 +5914,10 @@ msgstr "使用 grant_type authorization_code 和 PKCE verifier 向 token 端点�
 msgid "Low-level token helpers for custom session handling"
 msgstr "用于自定义会话处理的底层 token 辅助工具"
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Lowercase letters, numbers and dashes. Passkeys are tied to this address, so changing it later means members create new ones."
+msgstr "小写字母、数字和短横线。通行密钥与此地址绑定，之后更改意味着成员需要重新创建通行密钥。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Machine to machine"
 msgstr "机器到机器"
@@ -5545,7 +5934,6 @@ msgstr "macOS"
 msgid "macOS 13+"
 msgstr "macOS 13+"
 
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
 msgid "Magic link"
@@ -5554,10 +5942,6 @@ msgstr "登录链接"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Magic Link"
 msgstr "登录链接"
-
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "Magic link sign in"
-msgstr "登录链接验证"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main and renderer bridge, safeStorage, and loopback or custom scheme callbacks."
@@ -5570,10 +5954,6 @@ msgstr "仅主进程：XidElectronApp"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Main process setup"
 msgstr "主进程配置"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Maintain access while you are offline"
-msgstr "在你离线时保持访问权限"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Major"
@@ -5599,6 +5979,10 @@ msgstr "管理出站投递的事件订阅、端点 URL 和签名密钥。"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage hosted sign-in methods, identifiers, profile fields, and email domain rules."
 msgstr "管理托管登录方式、标识符、资料字段和邮箱域名规则。"
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Manage methods any time in your account under Security."
+msgstr "你可以随时在账户的“安全”中管理验证方式。"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage OAuth and OIDC provider connections, client IDs, secret references, scopes, and provider readiness."
@@ -5653,6 +6037,10 @@ msgstr "管理上游 SAML 和 OIDC 企业身份提供商连接。"
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Manage verified domains for discovery, hosted authentication, and organization routing."
 msgstr "管理用于发现、Hosted Auth 和组织路由的已验证域名。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Manage your passkeys any time in your account under Security."
+msgstr "你可以随时在账户的“安全”中管理通行密钥。"
 
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Managed billing"
@@ -5778,10 +6166,6 @@ msgstr "方式"
 msgid "MFA adoption"
 msgstr "MFA 采用率"
 
-#: apps/server/src/routes/mfa/index.tsx
-msgid "MFA methods"
-msgstr "MFA 方法"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Microsoft account"
 msgstr "Microsoft 账号"
@@ -5823,11 +6207,6 @@ msgstr "最简构造函数。链式调用构建器方法设置可选配置。"
 msgid "Minimal implementation"
 msgstr "最少的实施"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Minimum 12 characters"
-msgstr "至少 12 个字符"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Minimum integration"
 msgstr "最小集成"
@@ -5843,10 +6222,6 @@ msgstr "轻微影响"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "Missing"
 msgstr "未配置"
-
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Missing request"
-msgstr "缺少请求"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Mobile SDKs"
@@ -5904,10 +6279,6 @@ msgstr "挂载后立即重定向到用户资料页面"
 msgid "Multi-factor authentication is required."
 msgstr "需要多因素认证。"
 
-#: apps/server/src/routes/account/SecurityPage.tsx
-msgid "Multi-factor authentication required"
-msgstr "需要多因素认证"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Multi-issuer setup"
 msgstr "多签发方配置"
@@ -5929,7 +6300,6 @@ msgstr "必须是公网 HTTPS URL。"
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
 #: apps/server/src/routes/account/ProfilePage.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Name"
 msgstr "名称"
 
@@ -5975,9 +6345,21 @@ msgstr "从未"
 msgid "New announcement"
 msgstr "新公告"
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "New code sent"
+msgstr "已发送新验证码"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "New code sent at {sentTime}"
+msgstr "已于 {sentTime} 发送新验证码"
+
 #: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "New here? Create an account"
-msgstr "新用户？创建账户"
+msgid "New here?"
+msgstr "第一次来？"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "New organization"
+msgstr "新组织"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 #: apps/server/src/routes/forgot-password/index.tsx
@@ -5992,6 +6374,14 @@ msgstr "新提供商密钥"
 msgid "New sessions store access and ID tokens in platform secure storage. The refreshToken compatibility field remains null, and offline_access is rejected until DPoP is implemented."
 msgstr "新会话将 access token 和 ID token 存入平台 secure storage。refreshToken compatibility field 保持为 null，并且在实现 DPoP 之前会拒绝 offline_access。"
 
+#: apps/server/src/routes/consent/index.tsx
+msgid "New since you last allowed {app}"
+msgstr "自上次允许 {app} 以来新增"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "New to {org}?"
+msgstr "第一次使用 {org}？"
+
 #: apps/site/src/lib/home-surface.ts
 msgid "New to XID? Create an account"
 msgstr "第一次使用 XID？创建账户"
@@ -6004,6 +6394,22 @@ msgstr "下一页"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Next status"
 msgstr "后续状态"
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Next time you sign in to {organizationName}, you'll confirm with one of these."
+msgstr "下次登录 {organizationName} 时，你将使用其中一种方式确认。"
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Next time you sign in, you'll confirm with one of these."
+msgstr "下次登录时，你将使用其中一种方式确认。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Next time, pick your passkey when you sign in. You won't need to type anything."
+msgstr "下次登录时选择你的通行密钥即可，无需输入任何内容。"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Next, set your password."
+msgstr "接下来，设置你的密码。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Next.js"
@@ -6117,6 +6523,10 @@ msgstr "没有删除的角色。"
 msgid "No description"
 msgstr "无描述"
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "No device was signed in. You can start again from the device at any time."
+msgstr "没有设备登录。你可以随时从设备上重新开始。"
+
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "No domains added yet."
 msgstr "尚未添加域名。"
@@ -6128,6 +6538,18 @@ msgstr "未配置下游 API token。"
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "No email address"
 msgstr "没有邮箱地址"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "No email after a few minutes? Check spam, or try again with the address you sign in with."
+msgstr "几分钟后仍未收到邮件？请检查垃圾邮件，或改用你登录时使用的地址重试。"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "No email after a minute? Check spam, or send the link again."
+msgstr "一分钟后仍未收到邮件？请检查垃圾邮件，或重新发送链接。"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "No email yet?"
+msgstr "还没收到邮件？"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "No group"
@@ -6150,10 +6572,6 @@ msgstr "尚未报告任何事件。"
 msgid "No instance managers found."
 msgstr "未找到实例管理员。"
 
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "No magic-link token found. Please use the link from your email."
-msgstr "未找到登录链接 token。请使用邮件中的链接。"
-
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "No managers assigned to this scope."
 msgstr "没有分配给此范围的经理。"
@@ -6170,9 +6588,17 @@ msgstr "没有成员。"
 msgid "No membership record was found."
 msgstr "没有找到成员关系记录。"
 
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "No message yet?"
+msgstr "还没收到消息？"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "No organization access"
 msgstr "无组织访问权限"
+
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "No organization matches \"{query}\"."
+msgstr "没有与“{query}”匹配的组织。"
 
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "No organization selected"
@@ -6253,10 +6679,6 @@ msgstr "未配置 SCIM 目标。"
 msgid "No self-service request is available."
 msgstr "不提供自助服务请求。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "No sign-in methods are available for this organization."
-msgstr "此组织没有可用的登录方式。"
-
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "No social accounts connected"
 msgstr "尚未连接社交账户"
@@ -6294,16 +6716,16 @@ msgid "No valid token present; reason field indicates cause"
 msgstr "没有有效 token；reason 字段说明原因"
 
 #: apps/server/src/routes/mfa/index.tsx
-msgid "No verification method is available for this account. Sign out and sign in with another method."
-msgstr "此账号没有可用的验证方式。请登出后用其他方式登录。"
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "No verification token found. Please use the link from your email."
-msgstr "没有找到验证令牌。请使用邮件中的链接。"
+msgid "No way to verify on this account"
+msgstr "此账户没有可用的验证方式"
 
 #: apps/console/src/routes/org/OrgWebhooks.tsx
 msgid "No webhook endpoints configured."
 msgstr "尚未配置 webhook 端点。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "No, it's different"
+msgstr "不，不一样"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Node.js"
@@ -6313,6 +6735,10 @@ msgstr "Node.js"
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "None"
 msgstr "无"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Not now"
+msgstr "暂不"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
@@ -6327,17 +6753,33 @@ msgstr "尚未运行"
 msgid "Not yet implemented"
 msgstr "尚未实现"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Not you? Sign in with a different account"
-msgstr "不是你？使用其他账户登录"
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Not your work account?"
+msgstr "不是你的工作账户？"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Notes"
 msgstr "备注"
 
+#: apps/server/src/routes/consent/index.tsx
+msgid "Nothing from your account was shared. {app} will show its own message about what to do next."
+msgstr "你的账户信息没有被共享。{app} 会显示后续操作说明。"
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Nothing happening?"
+msgstr "没有反应？"
+
 #: packages/web-ui/src/components/ui/CommandMenu.tsx
 msgid "Nothing matches. Try a name, email or ID."
 msgstr "没有匹配项。试试名称、邮箱或 ID。"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Nothing was shared with"
+msgstr "未共享任何信息给"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Nothing was shared. The app will be told you said no."
+msgstr "没有共享任何信息。应用会收到你拒绝的结果。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Nuxt"
@@ -6483,13 +6925,13 @@ msgstr "Okta"
 msgid "On"
 msgstr "已启用"
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "On a different computer, your browser can show a QR code to scan with your phone."
+msgstr "在其他电脑上，浏览器可以显示二维码，用手机扫描即可。"
+
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "On this page"
 msgstr "本页内容"
-
-#: apps/server/src/components/layout/AuthLayout.tsx
-msgid "One {appName} account. Every application."
-msgstr "一个 {appName} 账户，通行所有应用。"
 
 #: apps/site/src/lib/home-surface.ts
 msgid "One control plane from sign-in to enterprise access"
@@ -6498,6 +6940,14 @@ msgstr "从登录到企业访问的一个控制平面"
 #: apps/site/src/lib/home-surface.ts
 msgid "One deployment model"
 msgstr "一种部署模型"
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "One optional step before {appName} opens."
+msgstr "{appName} 打开前的一个可选步骤。"
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "One optional step before you continue."
+msgstr "继续之前的一个可选步骤。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "One platform for identity"
@@ -6515,17 +6965,13 @@ msgstr "每行一个 URI。"
 msgid "One-tap sign-in embed"
 msgstr "一键登录嵌入组件"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "One-time code"
-msgstr "一次性验证码"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "OneLogin"
 msgstr "OneLogin"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-msgid "Only approve this request if the code matches your device."
-msgstr "仅当代码与设备匹配时批准此请求。"
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Only allow it if you're holding that device right now."
+msgstr "只有你此刻正拿着那台设备时才允许。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Only negative route and metadata stubs are exposed. Unsupported operations return explicit <0>501 unsupported_feature</0>; no functional protocol support is claimed."
@@ -6539,6 +6985,10 @@ msgstr "本次请求只验证了链的一部分。最新序号为 {0}。"
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 msgid "Only the first matches are listed. Refine the search to narrow them."
 msgstr "只列出前几条匹配结果。请细化搜索条件以缩小范围。"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Only you decide what {app} can see."
+msgstr "{app} 能看到什么由你决定。"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
@@ -6599,21 +7049,41 @@ msgstr "打开由 Stripe 托管的 Checkout 以开始托管订阅，或使用 Cu
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
 msgstr "以 PKCE S256 授权 URL 打开系统浏览器；交换 code 并返回 XidSession。"
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Open the app you set up for {org} and enter the 6-digit code it shows now."
+msgstr "打开你为 {org} 设置的应用，输入它当前显示的 6 位验证码。"
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "Open the link from your invitation email."
+msgstr "打开邀请邮件中的链接。"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Open the link from your verification email on this device, or send a new one."
+msgstr "在此设备上打开验证邮件中的链接，或重新发送。"
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Open the link in your inbox, then sign in again."
 msgstr "打开收件箱中的链接，然后重新登录。"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Open the sign-in link from your newest email on this device."
+msgstr "在此设备上打开最新邮件中的登录链接。"
+
 #: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Open this page from the CIBA authorization link that includes auth_req_id."
-msgstr "请从包含 auth_req_id 的 CIBA 授权链接打开此页面。"
+msgid "Open this page from the link the app gave you."
+msgstr "请通过应用提供的链接打开此页面。"
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "Open until"
+msgstr "有效期至"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open xdg-open browser, start loopback TCP listener on redirect_port, wait for the authorization code callback, exchange it, store tokens, and return a Session."
 msgstr "打开 xdg-open 浏览器，在 redirect_port 启动 loopback TCP 监听器，等待授权码 callback，交换它，存储 token，并返回 Session。"
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "Open your authenticator app and enter the 6-digit code."
-msgstr "打开认证器应用并输入 6 位验证码。"
+msgid "Open your authenticator app and enter the 6-digit code it shows now."
+msgstr "打开认证器应用，输入它当前显示的 6 位验证码。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "openAuthSession(url, redirectUri) resolving to a BrowserResult"
@@ -6698,8 +7168,8 @@ msgstr "xidClient 的选项"
 msgid "Options for xidMiddleware: jwtKey, issuer, jwtCookieName, sessionTokenExchange, protectedRoutes, publicRoutes"
 msgstr "xidMiddleware 的选项：jwtKey、issuer、jwtCookieName、sessionTokenExchange、protectedRoutes、publicRoutes"
 
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
 #: apps/server/src/routes/sign-in/SignInGuestButton.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 msgid "or"
 msgstr "或"
 
@@ -6716,7 +7186,7 @@ msgstr "org_..."
 #: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-#: apps/server/src/routes/create-organization/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Organization"
 msgstr "组织"
 
@@ -6771,15 +7241,12 @@ msgstr "组织策略 <0>attestationMode</0> 在通行密钥注册时选择无、
 msgid "sdk.organizationProfile"
 msgstr "组织资料"
 
-#. placeholder {0}: data.role
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Organization role: {0}"
-msgstr "组织角色：{0}"
-
 #: apps/console/src/nav.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/server/src/routes/select-organization/index.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Organizations"
 msgstr "组织"
@@ -6803,10 +7270,6 @@ msgstr "OrgUnit 树支持的最大深度为 8。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Other native SDKs (iOS, Android, Flutter, desktop) use a functional configure, signIn, and handleRedirect API surface."
 msgstr "其他原生 SDK（iOS、Android、Flutter、桌面端）使用函数式 configure、signIn 和 handleRedirect API 接口。"
-
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
-msgid "OTP"
-msgstr "验证码"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Outbound enterprise SSO"
@@ -7000,8 +7463,8 @@ msgstr "请将 <0>appearance</0> 传给 <1>SignIn</1>、<2>UserProfile</2> 或 <
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/account/MfaSection.tsx
-#: apps/server/src/routes/mfa/index.tsx
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
 #: apps/site/src/lib/home-surface.ts
 msgid "Passkey"
 msgstr "通行密钥"
@@ -7009,6 +7472,11 @@ msgstr "通行密钥"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Passkey attestation"
 msgstr "通行密钥证明"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "Passkey not created"
+msgstr "未创建通行密钥"
 
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Passkey re-registration required"
@@ -7019,10 +7487,6 @@ msgid "Passkey sign-in is primary AAL2 authentication. Password or OTP sessions 
 msgstr "通行密钥登录是主要 AAL2 认证。密码或 OTP 会话可通过 <0>/auth/mfa/passkey/*</0> 完成 MFA，且需要用户验证。"
 
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
-msgid "Passkey verification"
-msgstr "通行密钥验证"
-
-#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
 msgid "Passkey verification failed. Try another method or try again."
 msgstr "通行密钥验证失败。请换用其他方式或重试。"
 
@@ -7030,40 +7494,27 @@ msgstr "通行密钥验证失败。请换用其他方式或重试。"
 msgid "Passkeys"
 msgstr "通行密钥"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Passkeys are not supported in this browser. Please use another sign-in method."
-msgstr "此浏览器不支持通行密钥。请使用其他登录方式。"
-
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Passkeys created on a different address do not work here. Add a passkey for this address to keep signing in with a passkey."
 msgstr "在其他地址上创建的通行密钥在这里无法使用。为此地址添加一个通行密钥，即可继续用通行密钥登录。"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Passkeys created on a different address do not work here. Sign in another way, then add a passkey for this address from your account security page."
-msgstr "在其他地址上创建的通行密钥在这里无法使用。请先用其他方式登录，再到账户安全页为此地址添加通行密钥。"
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password"
 msgstr "密码"
-
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Password must be at least 12 characters"
-msgstr "密码至少需要 12 个字符"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Password must be at least 12 characters."
 msgstr "密码至少需要 12 个字符。"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Password must be at most 128 characters"
-msgstr "密码最多 128 个字符"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Password policy enables login or user creation."
 msgstr "密码策略会启用登录或用户创建。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Password reset"
+msgstr "重置密码"
 
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Password strength"
@@ -7080,10 +7531,6 @@ msgstr "密码已更新。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "Passwordless Email Magic Link 和 OTP 请求在创建 challenge 时冻结 sign-up intent、服务端控制的 continuation、application client 和 invitation row ID。Social OAuth 邀请授权同样会在跳转上游 provider 前验证原始 capability,在一次性 state 中只持久化 invitation row ID,并在 callback 时忽略调用方控制的 token route。验证请求不能改写这些字段。原始 invitation capability 不会存入这些流程上下文;当 MFA 中断接受流程时,XID 使用绑定 Tenant、User、Session 和 invitation 的短期 signed continuation。"
-
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Passwords do not match"
-msgstr "两次密码不一致"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Passwords do not match."
@@ -7136,6 +7583,11 @@ msgstr "待验证"
 msgid "People"
 msgstr "人员"
 
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "People with {0} addresses sign in through {idp}."
+msgstr "{0} 邮箱用户通过 {idp} 登录。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Per-call overrides for signIn: redirectUri, scopes"
 msgstr "signIn 的单次调用覆盖选项：redirectUri、scopes"
@@ -7172,11 +7624,6 @@ msgstr "权限键是原子操作，例如 invoice:read 或 invoice:write。"
 msgid "Permissions"
 msgstr "权限"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Permissions requested"
-msgstr "请求的权限"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Persist or remove the token set in the TokenCache adapter"
 msgstr "在 TokenCache 适配器中持久化或删除 token 集"
@@ -7188,7 +7635,6 @@ msgstr "个人账户"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Phone number"
 msgstr "手机号"
 
@@ -7388,16 +7834,20 @@ msgid "Preparing"
 msgstr "准备中"
 
 #: apps/server/src/routes/forgot-password/index.tsx
-msgid "Preparing password reset..."
-msgstr "正在准备重置密码..."
+msgid "Preparing password reset"
+msgstr "正在准备重置密码"
 
 #: apps/server/src/routes/magic-link/index.tsx
-msgid "Preparing sign in..."
-msgstr "正在准备登录..."
+msgid "Preparing sign in"
+msgstr "正在准备登录"
 
 #: apps/server/src/routes/verify-email/index.tsx
-msgid "Preparing verification..."
-msgstr "正在准备验证..."
+msgid "Preparing verification"
+msgstr "正在准备验证"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Preparing your setup key"
+msgstr "正在准备设置密钥"
 
 #: apps/console/src/routes/org/OrgOutboundSso.tsx
 msgid "Preset"
@@ -7437,6 +7887,10 @@ msgstr "主导航"
 msgid "primitive"
 msgstr "原语"
 
+#: apps/server/src/components/hosted/BackupCodesSheet.tsx
+msgid "Print"
+msgstr "打印"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Privacy controls"
 msgstr "隐私控制"
@@ -7444,6 +7898,10 @@ msgstr "隐私控制"
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Privacy request canceled."
 msgstr "隐私请求已取消。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Private windows in some browsers can't save passkeys. Use a regular window."
+msgstr "部分浏览器的无痕窗口无法保存通行密钥。请使用普通窗口。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
@@ -7598,6 +8056,10 @@ msgstr "属性"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Props type"
 msgstr "Props 类型"
+
+#: apps/server/src/routes/consent/ScopeList.tsx
+msgid "Protected resource"
+msgstr "受保护的资源"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Protected routes redirect via <0>Response.redirect</0> in middleware before any page handler runs; no client-side JS is required."
@@ -7831,6 +8293,10 @@ msgstr "Python"
 msgid "QR code for adding this account to an authenticator app"
 msgstr "用于把此账号添加到认证器应用的二维码"
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "QR code to add this account to your authenticator app"
+msgstr "用于将此账户添加到认证器应用的二维码"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Query"
 msgstr "查询"
@@ -8062,9 +8528,14 @@ msgstr "重定向 URI 按精确匹配。授权码流程至少需要一个重定�
 msgid "Redirect users to the unified Hosted Auth flow."
 msgstr "将用户重定向到统一 Hosted Auth 流程。"
 
-#: apps/server/src/routes/consent/index.tsx
-msgid "Redirecting..."
-msgstr "正在重定向..."
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Redirecting"
+msgstr "正在跳转"
+
+#. placeholder {0}: target.domain
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Redirecting to {idp} for {0}"
+msgstr "正在为 {0} 跳转到 {idp}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Redirects to /sign-in when user is not signed in"
@@ -8187,10 +8658,6 @@ msgstr "与 sdk/ios 的关系"
 msgid "Release underlying HTTP client resources."
 msgstr "释放底层 HTTP 客户端资源。"
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Remember me"
-msgstr "记住我"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Remix"
 msgstr "Remix"
@@ -8292,10 +8759,6 @@ msgstr "SDK 加载因不可恢复错误失败时渲染子节点（status 为 err
 msgid "Renders children while SDK is still loading (isLoaded false)"
 msgstr "SDK 仍在加载时渲染子节点（isLoaded 为 false）"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Repeat your password"
-msgstr "再次输入密码"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Replace the default DpapiTokenStorage with a custom ITokenStorage implementation."
 msgstr "用自定义 ITokenStorage 实现替换默认的 DpapiTokenStorage。"
@@ -8346,29 +8809,17 @@ msgstr "请求新的重置链接"
 msgid "Request authentication is Bearer-only by default. An application-owned JWT cookie is read only when its exact name is configured. The opaque __Host-xid.rt.* Core cookie is never scanned or verified locally; exchange it by forwarding the complete Cookie header to exact same-origin POST /v1/sessions/token with redirects disabled, and accept only a response containing the token field."
 msgstr "请求认证默认仅接受 Bearer。只有配置精确名称时才读取应用自有 JWT cookie。SDK 绝不扫描或本地验证 opaque __Host-xid.rt.* Core cookie；应将完整 Cookie header 转发到 exact same-origin POST /v1/sessions/token，并禁用 redirect，且只接受仅包含 token 字段的响应。"
 
+#: apps/server/src/routes/activate/index.tsx
+msgid "Request denied"
+msgstr "请求已拒绝"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Request export"
 msgstr "请求导出"
 
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Request handled"
-msgstr "请求已处理"
-
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Requested {requestedAt}"
 msgstr "请求时间：{requestedAt}"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Requested permissions"
-msgstr "请求的权限"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Requested resource access"
-msgstr "请求的资源访问"
-
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "Requesting access to your account"
-msgstr "请求访问你的账户"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Require email verification"
@@ -8433,23 +8884,26 @@ msgid "Requires a PSR-7 request object for <0>authenticateRequest</0> and <1>ver
 msgstr "<0>authenticateRequest</0> 和 <1>verifyWebhook</1> 需要 PSR-7 请求对象。如需请使用 PSR-7 bridge 转换框架原生请求。"
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Resend code"
 msgstr "重新发送验证码"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Resend invitation email"
 msgstr "重新发送邀请邮件"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
-#: apps/server/src/routes/verify-email/ResendVerification.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Resend verification email"
 msgstr "重新发送验证邮件"
 
 #: apps/server/src/routes/forgot-password/index.tsx
-msgid "Reset link unavailable"
-msgstr "重置链接不可用"
+msgid "Reset links are single-use and expire after 15 minutes so nobody else can use an old email."
+msgstr "重置链接只能使用一次，15 分钟后过期，防止他人使用旧邮件。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Reset links work once, for 15 minutes. Request a new one and open the newest email."
+msgstr "重置链接只能使用一次，15 分钟内有效。请重新申请并打开最新的邮件。"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Reset password | XID"
@@ -8472,10 +8926,6 @@ msgstr "解决选定的项目。"
 msgid "Resource"
 msgstr "资源"
 
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Resource access requested"
-msgstr "请求资源访问"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
 msgstr "资源的 GET 响应包含来自 <1>meta.version</1> 的 <0>ETag: W/\"<meta.version>\"</0>。<2>If-Match</2> 在 <3>PUT</3>、<4>PATCH</4> 和 <5>DELETE</5> 上是可选的；提供时必须与当前版本一致，不一致或发生并发写入时返回 <6>412</6>。"
@@ -8488,11 +8938,6 @@ msgstr "资源配额"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
 msgstr "资源"
-
-#. placeholder {0}: detail.locations.join(', ')
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Resources: {0}"
-msgstr "资源：{0}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Responsibility"
@@ -8588,6 +9033,10 @@ msgstr "返回当前未过期的 XidSession；如果已过期，则清除本地�
 msgid "Return the default resource without the excluded SCIM attributes."
 msgstr "返回默认资源，但不包含被排除的 SCIM 属性。"
 
+#: apps/server/src/routes/consent/index.tsx
+msgid "Return to {app}"
+msgstr "返回 {app}"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Return type of XidStore.subscribe"
 msgstr "XidStore.subscribe 的返回类型"
@@ -8595,6 +9044,10 @@ msgstr "XidStore.subscribe 的返回类型"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Return up to 100 resources from the first result."
 msgstr "从第一条结果开始最多返回 100 个资源。"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "Returning to the app"
+msgstr "正在返回应用"
 
 #: packages/i18n/src/messages.ts
 msgid "Returning you to the application."
@@ -8715,6 +9168,7 @@ msgstr "已吊销"
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgMembers.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "Role"
 msgstr "角色"
 
@@ -8903,6 +9357,18 @@ msgstr "保存"
 msgid "Save changes"
 msgstr "保存更改"
 
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Save your backup codes"
+msgstr "保存你的备用码"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Saved in your password manager"
+msgstr "保存在你的密码管理器中"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Scan this code with your authenticator app"
+msgstr "用认证器应用扫描此二维码"
+
 #: apps/server/src/routes/account/MfaSectionPanels.tsx
 msgid "Scan this QR code with your authenticator app, then enter the 6-digit code."
 msgstr "用认证器应用扫描此二维码，然后输入 6 位验证码。"
@@ -9001,11 +9467,6 @@ msgstr "范围类型"
 msgid "Scopes"
 msgstr "作用域"
 
-#. placeholder {0}: paramsQuery.data.scope
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "Scopes: {0}"
-msgstr "权限范围：{0}"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SDK overview"
 msgstr "SDK 概览"
@@ -9074,6 +9535,10 @@ msgstr "席位上限"
 msgid "Seats"
 msgstr "席位"
 
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Second step"
+msgstr "第二步验证"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Secret"
 msgstr "密钥"
@@ -9089,6 +9554,10 @@ msgstr "Secret Service 通过桌面 keyring 守护进程对静态 token 进行�
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sections"
 msgstr "章节"
+
+#: apps/server/src/components/layout/AuthLayout.tsx
+msgid "Secured by XID"
+msgstr "由 XID 提供安全保护"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SecureStore key namespacing"
@@ -9121,14 +9590,25 @@ msgstr "安全注意事项"
 msgid "Security rates"
 msgstr "安全指标"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Security verification failed. Please refresh and try again."
-msgstr "安全验证失败。请刷新后重试。"
-
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "See"
 msgstr "查看"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your email address"
+msgstr "查看你的邮箱地址"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your name and profile photo"
+msgstr "查看你的姓名和头像"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your organization and role"
+msgstr "查看你的组织和角色"
+
+#: apps/server/src/components/hosted/scope-copy.ts
+msgid "See your phone number"
+msgstr "查看你的手机号"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Select"
@@ -9183,7 +9663,6 @@ msgstr "选择组织"
 #: apps/console/src/components/PlatformOrganizationPicker.tsx
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
-#: apps/server/src/routes/select-organization/index.tsx
 msgid "Select organization"
 msgstr "选择组织"
 
@@ -9236,6 +9715,22 @@ msgstr "自托管"
 msgid "Self-service path"
 msgstr "自助服务路径"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Send a code on WhatsApp"
+msgstr "通过 WhatsApp 发送验证码"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Send a code to your phone"
+msgstr "向你的手机发送验证码"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Send a new code"
+msgstr "发送新验证码"
+
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
+msgid "Send a new link"
+msgstr "发送新链接"
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Send a verification link to {email}. The Console stays read-only until you use it."
 msgstr "向 {email} 发送验证链接。在你使用该链接前，Console 将保持只读。"
@@ -9244,30 +9739,17 @@ msgstr "向 {email} 发送验证链接。在你使用该链接前，Console 将�
 msgid "Send a verification link to your email. The Console stays read-only until you use it."
 msgstr "向你的邮箱发送验证链接。在你使用该链接前，Console 将保持只读。"
 
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Send again"
+msgstr "重新发送"
+
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
 msgid "Send code"
 msgstr "发送验证码"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "Send code via email"
-msgstr "通过邮箱发送验证码"
-
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "Send code via SMS"
-msgstr "通过短信发送验证码"
-
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "Send code via WhatsApp"
-msgstr "通过 WhatsApp 发送验证码"
-
 #: apps/console/src/routes/org/OrgMembers.tsx
 msgid "Send invitation"
 msgstr "发送邀请"
-
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Send magic link"
-msgstr "发送登录链接"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Send reset link"
@@ -9280,6 +9762,14 @@ msgstr "发送验证邮件"
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "Sender"
 msgstr "发送方"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Sending a 6-digit code to {target}."
+msgstr "正在向 {target} 发送 6 位验证码。"
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "Sent to"
+msgstr "发送至"
 
 #: apps/console/src/routes/org/ApplicationEditor.tsx
 msgid "Separate scopes with spaces."
@@ -9398,13 +9888,25 @@ msgstr "设置新密码"
 msgid "Set the non-secret sender identity explicitly. XID validates the address and fails closed. Arbitrary-recipient Email Sending requires Workers Paid; D1, SQLite-backed Durable Objects, and Queues are available on Workers Free within their limits."
 msgstr "明确设置非 secret 发件人身份。XID 会验证地址并 fail closed。向任意收件人发送 Email 需要 Workers Paid；D1、基于 SQLite 的 Durable Objects 和 Queues 在各自限制内可用于 Workers Free。"
 
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Set up a passkey instead"
+msgstr "改为设置通行密钥"
+
 #: apps/server/src/routes/account/GuestConversionBanner.tsx
 msgid "Set up a sign-in method"
 msgstr "设置登录方式"
 
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Set up an organization to manage members, authentication, and applications."
-msgstr "创建组织以管理成员、认证和应用。"
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Set up an authenticator app instead"
+msgstr "改为设置认证器应用"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Set up authenticator app"
+msgstr "设置认证器应用"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Set up passkey"
+msgstr "设置通行密钥"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -9414,6 +9916,10 @@ msgstr "设置登录方式"
 #: apps/console/src/components/layout/ConsoleLayout.tsx
 msgid "Set up sign-in method"
 msgstr "设置登录方式"
+
+#: apps/server/src/lib/page-seo-messages.ts
+msgid "Set up two-step verification | XID"
+msgstr "设置两步验证 | XID"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Set your password"
@@ -9436,6 +9942,14 @@ msgstr "设置 | 控制台 | XID"
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Settings saved."
 msgstr "设置已保存。"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Setup complete"
+msgstr "设置完成"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "setup key"
+msgstr "设置密钥"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Setup link sent. Check your inbox to finish setting a password."
@@ -9503,11 +10017,9 @@ msgstr "设置后会在 UI 中替代邮箱显示。"
 msgid "sdk.signIn"
 msgstr "登录"
 
-#: apps/server/src/routes/accept-invitation/index.tsx
-#: apps/server/src/routes/activate/index.tsx
-#: apps/server/src/routes/not-found/NotFoundPage.tsx
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
 #: apps/server/src/routes/sign-in/SignInPage.tsx
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/site/src/content-source/docs/message-descriptors.ts
 #: apps/site/src/lib/home-surface.ts
 #: apps/site/src/lib/site-shell-messages.ts
@@ -9526,38 +10038,54 @@ msgstr "重新登录"
 msgid "Sign in and sign out"
 msgstr "登录与登出"
 
+#: apps/server/src/routes/mfa/MfaExits.tsx
+msgid "Sign in as someone else"
+msgstr "以其他身份登录"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Sign in faster next time with a passkey"
+msgstr "下次使用通行密钥更快登录"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signInForm"
 msgstr "登录表单"
 
+#: apps/server/src/routes/verify-email/ResendVerification.tsx
+msgid "Sign in instead"
+msgstr "改为登录"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Sign in to {org}"
+msgstr "登录 {org}"
+
 #: apps/server/src/routes/account/PasskeySection.tsx
 msgid "Sign in with a passkey for a faster, more secure experience."
 msgstr "使用通行密钥登录，体验更快捷、更安全。"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Sign in with another account"
+msgstr "使用其他账户登录"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Sign in with Apple"
 msgstr "使用 Apple 登录"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Sign in with magic link"
-msgstr "使用登录链接登录"
-
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Sign in with passkey"
-msgstr "使用通行密钥登录"
-
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Sign in with password"
-msgstr "使用密码登录"
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Sign in with single sign-on"
+msgstr "使用单点登录"
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "Sign in with the account that this application belongs to."
-msgstr "使用此应用所属的账号登录。"
+msgid "Sign in with the account this device belongs to."
+msgstr "请使用此设备所属的账户登录。"
 
 #: packages/i18n/src/messages.ts
 msgid "Sign in with the email address that received this invitation."
 msgstr "请使用收到此邀请的邮箱地址登录。"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Sign in with your passkey"
+msgstr "使用通行密钥登录"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -9598,12 +10126,15 @@ msgstr "退出登录并使用其他账户"
 msgid "Sign out this session?"
 msgstr "登出此会话？"
 
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Sign out, then sign in another way or ask your admin to reset two-step verification."
+msgstr "请登出，然后用其他方式登录，或请管理员重置两步验证。"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.signUp"
 msgstr "创建账户"
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Sign up"
 msgstr "注册"
@@ -9621,6 +10152,10 @@ msgstr "创建账户表单"
 msgid "Sign-in activity, organizations, and usage across this instance."
 msgstr "此实例的登录活动、组织和使用情况。"
 
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Sign-in address"
+msgstr "登录地址"
+
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sign-in and registration flow options — whether new accounts can be created, email verification requirements, and SSO enforcement."
 msgstr "登录与注册流程选项:是否允许创建新账户、邮箱验证要求,以及 SSO 强制策略。"
@@ -9629,25 +10164,29 @@ msgstr "登录与注册流程选项:是否允许创建新账户、邮箱验证�
 msgid "Sign-in and sign-out"
 msgstr "登录与登出"
 
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "Sign-in confirmed. Redirecting..."
-msgstr "登录已确认。正在跳转..."
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Sign-in approved"
+msgstr "已批准登录"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Sign-in failed. Please check your credentials and try again."
-msgstr "登录失败。请检查凭据后重试。"
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Sign-in denied"
+msgstr "已拒绝登录"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Sign-in identifiers, hosted flow, methods, and session/token lifetime overrides for this organization."
 msgstr "此组织的登录标识符、托管流程、登录方式以及会话/令牌有效期覆盖设置。"
 
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
-msgid "Sign-in method"
-msgstr "登录方式"
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Sign-in links work once, for 15 minutes. Go back to sign in and send a new one."
+msgstr "登录链接只能使用一次，15 分钟内有效。请返回登录页重新发送。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Sign-in was cancelled. Choose a sign-in method to try again."
-msgstr "登录已取消。请选择一种登录方式重试。"
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "Sign-in request from"
+msgstr "登录请求来自"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Sign-in was cancelled. Choose a way to sign in to try again."
+msgstr "登录已取消。选择一种登录方式重试。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Signature"
@@ -9657,10 +10196,18 @@ msgstr "签名"
 msgid "Signature verification"
 msgstr "签名验证"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signed in"
+msgstr "已登录"
+
 #. placeholder {0}: user.email
-#: apps/server/src/routes/accept-invitation/index.tsx
-msgid "Signed in as {0}"
-msgstr "已登录为 {0}"
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "Signed in as {0} on this browser. The link can't be used again."
+msgstr "已在此浏览器以 {0} 身份登录。此链接无法再次使用。"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "Signed in as {signedInAs}"
+msgstr "当前登录身份：{signedInAs}"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signIn(options?) runs the full redirect flow; handleRedirect(url) processes a deep-link callback; signInState reports idle, pending, complete, cancelled, or error"
@@ -9675,8 +10222,8 @@ msgid "Signing secret generated. Store it now; it will not be shown again."
 msgstr "签名密钥已生成。请立即保存，之后不会再次显示。"
 
 #: apps/server/src/routes/magic-link/index.tsx
-msgid "Signing you in..."
-msgstr "正在登录..."
+msgid "Signing you in"
+msgstr "正在登录"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "signOut clears the local session and legacy credentials without a refresh or revoke request; storage failures surface in signOutState."
@@ -9718,10 +10265,6 @@ msgstr "SLO URL（可选）"
 msgid "Slot-based role and permission gate with default and fallback slots"
 msgstr "基于 slot 的角色与权限门控，支持默认 slot 和回退 slot"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "SMS code"
-msgstr "短信验证码"
-
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "SMS delivery is ready for Hosted UI."
 msgstr "SMS 发送已可用于 Hosted UI。"
@@ -9731,7 +10274,6 @@ msgid "SMS delivery stays hidden until the provider is enabled, a sender is set,
 msgstr "在提供商已启用、发送方已设置且所有引用的 Workers Secrets 都存在之前，SMS 发送会保持隐藏。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "SMS OTP"
 msgstr "短信验证码"
 
@@ -9740,8 +10282,6 @@ msgid "SMS provider"
 msgstr "SMS 提供商"
 
 #: apps/server/src/routes/account/MfaSection.tsx
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-#: apps/server/src/routes/mfa/index.tsx
 msgid "SMS verification"
 msgstr "短信验证"
 
@@ -9790,11 +10330,19 @@ msgstr "SolidJS"
 msgid "SolidJS context provider, signal-based auth primitives, and headless components on top of @xid-kit/core."
 msgstr "基于 @xid-kit/core 的 SolidJS context provider、基于 signal 的认证原语和无样式组件。"
 
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "Something went wrong"
+msgstr "出错了"
+
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "Something went wrong on our side"
+msgstr "我们这边出了问题"
+
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/magic-link/index.tsx
 #: apps/server/src/routes/verify-email/index.tsx
-msgid "Something went wrong. Please try again."
-msgstr "出现错误。请重试。"
+msgid "Something went wrong. Try again."
+msgstr "出错了，请重试。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Sort Users or Groups list results."
@@ -9832,10 +10380,6 @@ msgstr "SP 发起 AuthnRequest 并重定向到 IdP。"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "SPA"
 msgstr "SPA"
-
-#: apps/server/src/routes/sign-in/SignInTabs.tsx
-msgid "SSO"
-msgstr "SSO"
 
 #: apps/console/src/routes/org/OrgSso.tsx
 msgid "SSO connection created from template."
@@ -9885,6 +10429,10 @@ msgstr "开始身份模拟会话？"
 msgid "Started at"
 msgstr "开始于"
 
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Started this on a TV or tablet? Open {host} on your phone and enter the code there."
+msgstr "是在电视或平板上开始的？请在手机上打开 {host} 并在那里输入代码。"
+
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 #: apps/console/src/routes/platform/PlatformPlans.tsx
 msgid "Starter"
@@ -9927,6 +10475,19 @@ msgstr "状态说明"
 #: packages/web-ui/src/components/ui/Stepper.tsx
 msgid "Step {current} of {total}"
 msgstr "第 {current} 步，共 {total} 步"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "Step 1 of 3"
+msgstr "第 1 步，共 3 步"
+
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Step 2 of 3"
+msgstr "第 2 步，共 3 步"
+
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "Step 3 of 3"
+msgstr "第 3 步，共 3 步"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Step-up authentication hook"
@@ -10174,6 +10735,10 @@ msgstr "系统浏览器重定向、Secret Service 存储和 PKCE S256。"
 msgid "Table of contents"
 msgstr "目录"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Taking you back to sign in."
+msgstr "正在返回登录页。"
+
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
 msgid "Target"
@@ -10222,14 +10787,57 @@ msgstr "test"
 msgid "Test capture (dev)"
 msgstr "测试捕获（开发）"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Text a code"
+msgstr "通过短信发送验证码"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Text me a code"
+msgstr "给我发短信验证码"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Text message"
+msgstr "短信"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Text message codes can't be used to confirm changes like this."
+msgstr "短信验证码不能用于确认此类更改。"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "That code didn't work. Check it against your saved list, or try another way."
+msgstr "验证码无效。请对照你保存的列表检查，或尝试其他方式。"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "That code didn't work. Check the newest email and enter it again."
+msgstr "验证码无效。请查看最新的邮件后重新输入。"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "That code didn't work. Check the newest message and enter it again."
+msgstr "验证码无效。请查看最新的消息后重新输入。"
+
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "That code didn't work. Enter the code your app shows now."
+msgstr "验证码无效。请输入应用当前显示的验证码。"
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "That code has a character it can't contain. Check it and try again."
+msgstr "代码中有不允许的字符。请检查后重试。"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "That didn't work. Check what you entered and try again, or try another way."
+msgstr "验证失败。请检查输入内容后重试，或尝试其他方式。"
+
 #. placeholder {0}: pendingDelete.title
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "The announcement {0} will be permanently deleted."
 msgstr "公告 {0} 将被永久删除。"
 
 #: apps/server/src/routes/ciba-activation/index.tsx
-msgid "The application can continue sign-in. You can close this page."
-msgstr "应用可以继续登录。你可以关闭此页面。"
+msgid "The app can finish signing you in on the other device."
+msgstr "应用可以在另一台设备上完成登录。"
 
 #: packages/i18n/src/messages.ts
 msgid "The assertion recipient does not match."
@@ -10251,10 +10859,6 @@ msgstr "授权请求仍在等待处理。"
 msgid "The authorization server does not support this grant type."
 msgstr "授权服务器不支持此授权类型。"
 
-#: apps/server/src/routes/ciba-activation/index.tsx
-msgid "The backchannel request was denied. You can close this page."
-msgstr "后台通道请求已被拒绝。你可以关闭此页面。"
-
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 msgid "The bearer token issued by the downstream app. It is stored encrypted and never shown again."
 msgstr "由下游应用签发的 bearer token。它会加密存储，之后不再显示。"
@@ -10266,6 +10870,10 @@ msgstr "品牌 schema 仅接受上面列出的七个字段，不接受自定义 
 #: packages/i18n/src/messages.ts
 msgid "The client is not authorized to use this grant type."
 msgstr "客户端未被授权使用此授权类型。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "The code expires in {minutes} minutes."
+msgstr "验证码 {minutes} 分钟后过期。"
 
 #. placeholder {0}: pendingDelete.title
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
@@ -10288,17 +10896,17 @@ msgstr "默认存储使用 DPAPI（CurrentUser 范围）加密 token，并将其
 msgid "The default storage uses Keychain with <0>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</0> — tokens are not synced to iCloud Keychain. Implement the <1>TokenStorageAdapter</1> protocol to use an enterprise Keychain policy:"
 msgstr "默认存储使用带 <0>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</0> 的 Keychain——token 不会同步到 iCloud Keychain。实现 <1>TokenStorageAdapter</1> 协议以使用企业 Keychain 策略："
 
-#: apps/server/src/routes/activate/index.tsx
-msgid "The device can continue sign-in. You can close this page and return to your device."
-msgstr "设备可以继续登录。你可以关闭此页面并回到设备上。"
-
 #: packages/i18n/src/messages.ts
 msgid "The device code or token has expired."
 msgstr "设备码或令牌已过期。"
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "The device request was denied. You can close this page."
-msgstr "设备请求已被拒绝。你可以关闭此页面。"
+msgid "The device is now signed in to your account."
+msgstr "该设备现已登录你的账户。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "The device will show that you said no. Nothing from your account was shared."
+msgstr "设备会显示你已拒绝。你的账户信息没有被共享。"
 
 #: packages/i18n/src/messages.ts
 msgid "The document schema is invalid."
@@ -10383,6 +10991,10 @@ msgstr "发送给 {0} 的邀请将被吊销，之后无法接受。"
 msgid "The key {0} ({1}) will stop working immediately and cannot be restored."
 msgstr "密钥 {0}（{1}）将立即失效且无法恢复。"
 
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "The link may be old or mistyped. If someone sent it to you, ask them for a fresh one."
+msgstr "链接可能已失效或输入有误。如果是别人发给你的，请向对方索取新链接。"
+
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "The link points to an organization you cannot manage. Choose one of your organizations instead."
 msgstr "该链接指向你无法管理的组织。请改为选择你自己的组织。"
@@ -10419,6 +11031,10 @@ msgstr "采用 MIT 许可证的仓库包含完整功能集。安全态势和项�
 msgid "The nearest active manager in the OrgUnit ancestor chain is the first access-request approver candidate."
 msgstr "OrgUnit 祖先链中最近的活动管理者是第一个访问请求批准者候选者。"
 
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "the number ending in {last}"
+msgstr "尾号为 {last} 的号码"
+
 #: packages/i18n/src/messages.ts
 msgid "The one-time code has expired. Please request a new one."
 msgstr "一次性验证码已过期。请重新获取。"
@@ -10447,6 +11063,11 @@ msgstr "您查找的页面不存在或已移动"
 msgid "The password does not meet the minimum strength requirements."
 msgstr "密码未达到最低强度要求。"
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "The previous code no longer works. Use the code in the newest message."
+msgstr "之前的验证码已失效。请使用最新消息中的验证码。"
+
 #: apps/console/src/routes/org/OrgScim.tsx
 msgid "The previous token keeps working until {expiresAt}. Update your identity provider before then."
 msgstr "之前的 token 在 {expiresAt} 前仍然有效。请在此之前更新你的身份提供商。"
@@ -10458,6 +11079,14 @@ msgstr "产品能力"
 #: packages/i18n/src/messages.ts
 msgid "The project could not be found."
 msgstr "未找到该项目。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "The prompt closed before it finished, so nothing was saved on this device."
+msgstr "提示在完成前关闭了，此设备上没有保存任何内容。"
+
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "The prompt closed before it finished, so nothing was saved. Try again, or set up an authenticator app instead."
+msgstr "提示在完成前关闭了，没有保存任何内容。请重试，或改为设置认证器应用。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The raw XidClient instance; prefer XidAuthService for most use cases"
@@ -10531,6 +11160,10 @@ msgstr "不支持该响应类型。"
 msgid "The role will no longer include this permission."
 msgstr "该角色将不再包含此权限。"
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "The same way you unlock this device. No code to type."
+msgstr "和解锁此设备的方式一样，无需输入代码。"
+
 #: packages/i18n/src/messages.ts
 msgid "The SAML assertion has expired."
 msgstr "SAML 断言已过期。"
@@ -10558,6 +11191,11 @@ msgstr "SDK 没有 DPoP sender binding，会拒绝 offline_access，并在 acces
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The SDK rejects offline_access until DPoP is implemented; unexpected refresh_token response fields are not persisted."
 msgstr "在实现 DPoP 之前，SDK 会拒绝 offline_access；不会持久化意外返回的 refresh_token response fields。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "The security check didn't finish. Reload the page and try again."
+msgstr "安全检查未完成。请刷新页面后重试。"
 
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "The server could not be reached. Check your connection and try again."
@@ -10607,6 +11245,10 @@ msgstr "该目标已不可用。"
 msgid "The target settings are invalid."
 msgstr "该目标的设置无效。"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "The two passwords don't match."
+msgstr "两次输入的密码不一致。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "The user submits an access request."
 msgstr "用户提交访问请求。"
@@ -10615,21 +11257,38 @@ msgstr "用户提交访问请求。"
 msgid "The XID Worker keeps an opaque refresh credential in an <0>HttpOnly</0> cookie. It is not a JWT, and the SDK never reads it from JavaScript or stores it in <1>localStorage</1>."
 msgstr "XID Worker 在 <0>HttpOnly</0> cookie 中保留不透明的刷新凭据。它不是 JWT，SDK 永远不会从 JavaScript 读取它或将其存储在 <1>localStorage</1> 中。"
 
+#: apps/server/src/routes/mfa/index.tsx
+msgid "These are the methods on your account that {org} accepts."
+msgstr "以下是你账户中 {org} 接受的验证方式。"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "These are the methods on your account."
+msgstr "以下是你账户中的验证方式。"
+
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "These defaults apply to every organization unless it overrides them."
 msgstr "除非组织自行覆盖，否则这些默认值应用于每个组织。"
 
+#: apps/server/src/components/hosted/RequestCard.tsx
 #: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "third-party app"
-msgstr "第三方应用"
+msgid "Third-party"
+msgstr "第三方"
 
 #: packages/i18n/src/messages.ts
 msgid "This access request has already been decided."
 msgstr "该访问申请已被处理。"
 
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "this account"
+msgstr "此账户"
+
 #: packages/i18n/src/messages.ts
 msgid "This account belongs to more than one organization. Choose an organization to continue."
 msgstr "此账号属于多个组织。请选择一个组织以继续。"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "This account can't sign in right now. Try again later, or ask your administrator to unlock it."
+msgstr "此账户目前无法登录。请稍后重试，或请管理员解锁。"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "This account cannot create a new organization here. Ask an organization admin to invite you, or sign up with a new account to create your own organization."
@@ -10643,15 +11302,35 @@ msgstr "此账号不能创建新组织。请联系组织管理员邀请你；如
 msgid "This account has no email address yet. Add a passkey below to secure it and keep access after you sign out."
 msgstr "此账户尚未绑定邮箱地址。请在下方添加通行密钥以保护账户，确保退出登录后仍能访问。"
 
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "This application will be able to access the following information."
-msgstr "此应用将能够访问以下信息。"
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "This account is locked"
+msgstr "此账户已被锁定"
 
-#: apps/server/src/routes/activate/index.tsx
-msgid "This code is invalid or has expired. Check the code on your device and try again."
-msgstr "此代码无效或已过期。请核对设备上的代码后重试。"
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "This address is used in {count} organizations. {app} opens in the one you choose."
+msgstr "此地址在 {count} 个组织中使用。{app} 会在你选择的组织中打开。"
 
-#: apps/server/src/routes/account/PasskeySection.tsx
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "This address is used in {count} organizations. Choose where to sign in."
+msgstr "此地址在 {count} 个组织中使用。请选择要登录的组织。"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "This authorization request is missing or has expired. Start again from the app."
+msgstr "此授权请求不存在或已过期。请从应用重新开始。"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "This browser can't use passkeys. Try another way to sign in."
+msgstr "此浏览器无法使用通行密钥。请尝试其他登录方式。"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "This code has expired"
+msgstr "此代码已过期"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "This code no longer works"
+msgstr "此代码已失效"
+
+#: apps/server/src/components/hosted/passkey-name.ts
 msgid "This device"
 msgstr "此设备"
 
@@ -10660,8 +11339,12 @@ msgid "This device already has a passkey for your account."
 msgstr "此设备上已有你账号的通行密钥。"
 
 #: apps/server/src/routes/activate/index.tsx
-msgid "This device request has already been handled."
-msgstr "此设备请求已经处理过。"
+msgid "This device request was already answered."
+msgstr "此设备请求已处理。"
+
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "This device will be able to"
+msgstr "此设备将可以"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "This documentation version is no longer maintained"
@@ -10671,13 +11354,13 @@ msgstr "此文档版本已停止维护"
 msgid "This email address already belongs to another account. Sign out of the guest account, then sign in with that email."
 msgstr "此邮箱地址已属于另一个账号。请先登出访客账号，再用该邮箱登录。"
 
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "This email address doesn't use single sign-on here. Sign in another way."
+msgstr "此邮箱地址在这里不使用单点登录。请用其他方式登录。"
+
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "This email belongs to your signed-in account."
 msgstr "此邮箱属于你当前登录的账户。"
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "This email domain does not use enterprise SSO. Please use another sign-in method."
-msgstr "此邮箱域名未使用企业 SSO。请使用其他登录方式。"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
 msgid "This email link is invalid or expired. Open the latest invitation email and try again."
@@ -10691,23 +11374,43 @@ msgstr "此项目授权经理范围对项目定义只读。该项目授权下的
 msgid "This invitation has already been accepted."
 msgstr "此邀请已被接受。"
 
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "This invitation has expired"
+msgstr "此邀请已过期"
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation has expired. Ask your organization admin to send a new one."
 msgstr "此邀请已过期。请联系组织管理员重新发送。"
 
 #: apps/server/src/routes/accept-invitation/index.tsx
+msgid "This invitation is for a different account. Switch to the invited account, or we can email it a secure link."
+msgstr "此邀请发给的是另一个账户。请切换到受邀账户，或者我们可以向该账户发送安全链接。"
+
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
+msgid "This invitation link doesn't work"
+msgstr "此邀请链接无效"
+
 #: packages/i18n/src/messages.ts
 msgid "This invitation link is invalid or has already been used."
 msgstr "此邀请链接无效或已被使用。"
 
-#: apps/server/src/routes/activate/ActivationDetails.tsx
-#: apps/server/src/routes/consent/ClientHeader.tsx
-msgid "This is a first-party application by the same provider."
-msgstr "这是同一提供商的第一方应用。"
+#. placeholder {0}: data.email
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "This invitation was sent to {0}. Only that account can accept it."
+msgstr "此邀请发送给 {0}。只有该账户可以接受。"
 
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "This is your only way to sign in. Add a password or passkey before disconnecting it."
 msgstr "这是你唯一的登录方式。断开前请先添加密码或通行密钥。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This link can't sign in this account"
+msgstr "此链接无法登录这个账户"
+
+#: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "This link has expired or was already used"
+msgstr "此链接已过期或已被使用"
 
 #: packages/i18n/src/messages.ts
 msgid "This link has expired. Please request a new one."
@@ -10724,14 +11427,6 @@ msgstr "此链接指向另一个组织。正在把控制台切换到该组织。
 #: packages/i18n/src/messages.ts
 msgid "This magic link has expired. Please request a new one."
 msgstr "此登录链接已过期。请重新获取。"
-
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "This magic link has expired. Request a new link to continue."
-msgstr "此登录链接已过期。请重新获取链接后继续。"
-
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "This magic link is invalid or has already been used."
-msgstr "此登录链接无效或已被使用。"
 
 #: packages/i18n/src/messages.ts
 msgid "This magic link is invalid."
@@ -10769,7 +11464,14 @@ msgstr "此页面"
 msgid "This page is available in Markdown format"
 msgstr "此页面提供 Markdown 格式"
 
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "This page needs the link from your email"
+msgstr "此页面需要通过邮件中的链接打开"
+
 #: apps/server/src/routes/forgot-password/index.tsx
+msgid "This password appeared in a data breach"
+msgstr "此密码出现在数据泄露中"
+
 #: packages/i18n/src/messages.ts
 msgid "This password has appeared in a data breach. Please choose a different password."
 msgstr "此密码曾出现在数据泄露中。请选择其他密码。"
@@ -10778,17 +11480,29 @@ msgstr "此密码曾出现在数据泄露中。请选择其他密码。"
 msgid "This password has been used recently. Please choose a different password."
 msgstr "最近已使用过此密码。请选择其他密码。"
 
-#: apps/server/src/routes/not-found/NotFoundPage.tsx
-msgid "This path does not exist on this instance. Check the URL or return to a known page."
-msgstr "此路径在本实例上不存在。请检查 URL,或返回已知页面。"
-
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "This removes the link between your account and {label}. Signing in with the same {label} account again can link it back to your account."
 msgstr "这会移除你的账号与 {label} 之间的关联。之后再用同一个 {label} 账号登录，可以重新关联到你的账号。"
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "This request can't be approved"
+msgstr "此请求无法批准"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "This request can't continue"
+msgstr "此请求无法继续"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "This request expired or was already answered. Start again from the app."
+msgstr "此请求已过期或已处理。请从应用重新开始。"
+
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "This request expires in {countdown}. If you didn't start it, choose Deny. Nothing is shared."
+msgstr "此请求将在 {countdown} 后过期。如果不是你发起的，请选择“拒绝”，不会共享任何信息。"
+
 #: apps/server/src/routes/forgot-password/index.tsx
-msgid "This reset link is invalid or has expired. Please request a new one."
-msgstr "此重置链接无效或已过期。请重新获取。"
+msgid "This reset link no longer works"
+msgstr "此重置链接已失效"
 
 #: apps/console/src/routes/org/TenantScopeGate.tsx
 msgid "This resource is shared by every organization in the tenant. Switch to the top-level organization to manage it."
@@ -10802,9 +11516,9 @@ msgstr "该资源将停止授权访问并移至项目回收站。"
 msgid "This session has been revoked."
 msgstr "此会话已被吊销。"
 
-#: apps/server/src/routes/magic-link/index.tsx
-msgid "This sign-in link cannot be used for this account. Return to sign in to choose another way to continue."
-msgstr "此登录链接不能用于此账号。请返回登录页，选择其他方式继续。"
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "This sign-in address changed. If your passkey isn't offered, sign in another way and create a new one."
+msgstr "登录地址已更改。如果没有出现你的通行密钥，请用其他方式登录并创建新的通行密钥。"
 
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "This tenant has no audit records yet. There is nothing to verify."
@@ -10814,13 +11528,9 @@ msgstr "此租户还没有审计记录，没有可验证的内容。"
 msgid "This URL slug is already taken. Choose another one."
 msgstr "此 URL 标识已被使用。请换一个。"
 
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "This verification link has expired. Please request a new one."
-msgstr "此验证链接已过期。请重新获取。"
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "This verification link is invalid or has already been used."
-msgstr "此验证链接无效或已被使用。"
+#: apps/server/src/routes/not-found/ErrorPage.tsx
+msgid "This wasn't caused by anything you did. Try again in a moment."
+msgstr "这不是你造成的。请稍后重试。"
 
 #: apps/server/src/routes/account/MfaSection.tsx
 msgid "This will remove \"{factorLabel}\" from your account. You may lose access if it is your only 2FA method."
@@ -10856,6 +11566,10 @@ msgstr "标题"
 msgid "To"
 msgstr "截止"
 
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "To {masked}"
+msgstr "发送至 {masked}"
+
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "To resolve the incident, choose Resolved and describe the fix. Every status change is published on the status page timeline."
 msgstr "要解决此事件，请选择已解决并说明修复内容。每次状态变更都会发布到状态页的时间线上。"
@@ -10863,6 +11577,10 @@ msgstr "要解决此事件，请选择已解决并说明修复内容。每次状
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "To seq"
 msgstr "结束序号"
+
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "To the number ending in {last}"
+msgstr "发送至尾号为 {last} 的号码"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Toggle dark mode"
@@ -10916,21 +11634,25 @@ msgstr "Token 存储在仅限设备访问的 Keychain 中，不同步到 iCloud 
 msgid "tokio async runtime"
 msgstr "tokio 异步运行时"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Too many attempts. Please wait a moment and try again."
-msgstr "尝试次数过多。请稍后重试。"
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Too many attempts"
+msgstr "尝试次数过多"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Too many attempts. Wait a few minutes, then try again. You can also sign in another way."
+msgstr "尝试次数过多。请等待几分钟后重试，也可以用其他方式登录。"
 
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Too many requests"
 msgstr "请求过多"
 
-#: apps/server/src/routes/forgot-password/index.tsx
-msgid "Too many requests. Please wait a minute before trying again."
-msgstr "请求过多。请等待一分钟后重试。"
-
 #: packages/i18n/src/messages.ts
 msgid "Too many requests. Please wait and try again."
 msgstr "请求过多。请稍后重试。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Too many requests. Wait a minute, then try again."
+msgstr "请求过多。请等待一分钟后重试。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Top-level browser client: load, signIn, getToken, setActiveOrganization, signOut, and Management API helpers"
@@ -10970,16 +11692,33 @@ msgid "Trigger"
 msgstr "触发"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
 #: apps/server/src/routes/magic-link/index.tsx
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
 #: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/not-found/ErrorPage.tsx
 #: apps/server/src/routes/verify-email/index.tsx
 #: packages/web-ui/src/components/RequireAuth.tsx
 msgid "Try again"
 msgstr "重试"
 
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Try again later. If you need access sooner, ask your {org} administrator to unlock it."
+msgstr "请稍后重试。如需尽快访问，请让 {org} 管理员解锁。"
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Try again later. If you need access sooner, ask your administrator to unlock it."
+msgstr "请稍后重试。如需尽快访问，请让管理员解锁。"
+
 #: apps/server/src/routes/mfa/MfaExits.tsx
-msgid "Try another method"
+#: apps/server/src/routes/sign-in/TryAnotherWay.tsx
+msgid "Try another way"
 msgstr "尝试其他方式"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Turn on a screen lock or fingerprint in your device settings, then try again."
+msgstr "请在设备设置中开启屏幕锁定或指纹，然后重试。"
 
 #: apps/console/src/routes/org/OrgDeliveryChannels.tsx
 msgid "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN"
@@ -10990,13 +11729,16 @@ msgid "Two directions"
 msgstr "两个方向"
 
 #: apps/server/src/routes/account/MfaSection.tsx
-#: apps/server/src/routes/mfa/index.tsx
 msgid "Two-factor authentication"
 msgstr "双因素认证"
 
 #: apps/server/src/lib/page-seo-messages.ts
 msgid "Two-factor authentication | XID"
 msgstr "双因素认证 | XID"
+
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Two-step verification is on"
+msgstr "两步验证已开启"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
 msgid "TXT record name"
@@ -11043,10 +11785,6 @@ msgstr "排版和形状"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "UI components"
 msgstr "UI 组件"
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Unable to connect. Please check your connection and try again."
-msgstr "无法连接。请检查网络后重试。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Unauthenticated state with null fields"
@@ -11153,10 +11891,6 @@ msgstr "上游企业 OIDC 依赖方"
 msgid "Upstream SSO URL"
 msgstr "上游 SSO URL"
 
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "URL slug"
-msgstr "URL 标识"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
 msgstr "OAuth state 的 URL 安全随机字符串；base64url 编码辅助工具"
@@ -11189,23 +11923,62 @@ msgstr "使用来自 <1>@angular/core/rxjs-interop</1> 的 <0>toSignal()</0> 将
 msgid "Use a customer-owned hostname for Hosted Auth. XID provisions the hostname and certificate through Cloudflare for SaaS, then activates routing only after both are ready."
 msgstr "为 Hosted Auth 使用客户自有的主机名。XID 通过 Cloudflare for SaaS 配置主机名和证书，并且仅在两者都准备就绪后激活路由。"
 
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Use a different account"
+msgstr "使用其他账户"
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "Use a different email"
+msgstr "使用其他邮箱"
+
+#: apps/server/src/routes/mfa/index.tsx
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Use a passkey"
+msgstr "使用通行密钥"
+
 #: packages/web-ui/src/api-error-message.ts
 msgid "Use a password with 12 to 128 characters."
 msgstr "请使用 12 到 128 个字符的密码。"
 
-#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
-msgid "Use a registered passkey with device verification to complete two-factor authentication."
-msgstr "使用已注册且完成设备验证的通行密钥完成双因素认证。"
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+msgid "Use another way to sign in"
+msgstr "使用其他方式登录"
 
 #: apps/site/src/lib/site-shell-messages.ts
 msgid "Use arrow keys to navigate"
 msgstr "使用方向键导航"
 
+#: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Use at least {MIN_PASSWORD_LENGTH} characters."
+msgstr "至少使用 {MIN_PASSWORD_LENGTH} 个字符。"
+
+#: apps/server/src/routes/sign-in/PasswordPanel.tsx
+msgid "Use at least {MIN_PASSWORD_LENGTH} characters. {length} so far."
+msgstr "至少使用 {MIN_PASSWORD_LENGTH} 个字符。当前 {length} 个。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Use at least {MIN_PASSWORD_LENGTH} characters. A longer phrase is easier to remember and harder to guess."
+msgstr "至少使用 {MIN_PASSWORD_LENGTH} 个字符。较长的短语更容易记住，也更难被猜到。"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+msgid "Use at most {MAX_PASSWORD_LENGTH} characters."
+msgstr "最多使用 {MAX_PASSWORD_LENGTH} 个字符。"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use authorization code flow with PKCE S256 for browser and native clients."
 msgstr "浏览器和原生客户端使用带 PKCE S256 的授权码流程。"
 
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "Use one of the codes you saved when you set up two-step verification. Each code works once."
+msgstr "使用你设置两步验证时保存的代码之一。每个代码只能使用一次。"
+
+#: apps/server/src/components/hosted/CodeField.tsx
+msgid "Use only numbers. Spaces and dashes are fine."
+msgstr "只能输入数字。可以包含空格和短横线。"
+
 #: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
 msgid "Use passkey"
 msgstr "使用通行密钥"
 
@@ -11216,6 +11989,11 @@ msgstr "使用 PKCE"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use scoped API keys to manage organization resources from your backend."
 msgstr "使用带 scope 的 API 密钥在后端管理组织资源。"
+
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
+#: apps/server/src/routes/sign-in/method-copy.tsx
+msgid "Use single sign-on"
+msgstr "使用单点登录"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use the <0>svix-id</0> header to deduplicate deliveries on your end. Retries carry the same <1>svix-id</1> as the original attempt."
@@ -11229,9 +12007,14 @@ msgstr "使用完整的平台或采用适合您的架构的协议、UI 和 SDK �
 msgid "Use the email address of the account you are signed in with."
 msgstr "使用当前登录账号的邮箱地址。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Use the same entry for sign-in and account creation. Organization policy decides which actions are allowed."
-msgstr "登录和账号创建使用同一个入口。组织策略决定允许哪些操作。"
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Use your face, fingerprint or screen lock"
+msgstr "使用面容、指纹或屏幕锁定"
+
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Use your fingerprint, face or screen lock, the same way you unlock your device."
+msgstr "使用指纹、面容或屏幕锁定，和解锁设备的方式一样。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "useAuth().isSignedIn reflects a locally stored session only after ID token verification; it does not read a web cookie session."
@@ -11240,10 +12023,6 @@ msgstr "useAuth().isSignedIn 仅在 ID token 验证后才反映本地存储的�
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Used for API error messages and one-time sign-in code email when the visitor's browser language is not supported. The sign-in pages, Console and other email do not use it."
 msgstr "当访问者的浏览器语言不受支持时，用于 API 错误信息和一次性登录验证码邮件。登录页、Console 和其他邮件不使用此设置。"
-
-#: apps/server/src/routes/create-organization/index.tsx
-msgid "Used in URLs and subdomains. Lowercase letters, numbers, and hyphens."
-msgstr "用于 URL 和子域名。仅限小写字母、数字和连字符。"
 
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
@@ -11350,7 +12129,6 @@ msgstr "用户名"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "Username"
 msgstr "用户名"
 
@@ -11447,7 +12225,7 @@ msgid "Verification"
 msgstr "验证"
 
 #: apps/server/src/routes/account/GuestEmailConversionSection.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Verification code"
 msgstr "验证码"
 
@@ -11463,11 +12241,24 @@ msgstr "验证邮件已发送"
 msgid "Verification email sent. After verifying your email, return here to set a password."
 msgstr "验证邮件已发送。验证邮箱后，请返回此处设置密码。"
 
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Verification links are single-use and short-lived so nobody else can confirm an address that isn't theirs."
+msgstr "验证链接只能使用一次且有效期很短，防止他人确认不属于自己的地址。"
+
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Verification links work once, for 15 minutes. Send a new one and open the newest email."
+msgstr "验证链接只能使用一次，15 分钟内有效。请重新发送并打开最新的邮件。"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Verification methods"
+msgstr "验证方式"
+
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Verification uses Web Crypto via @xid-kit/crypto."
 msgstr "验证通过 @xid-kit/crypto 使用 Web Crypto 完成。"
 
 #: apps/console/src/routes/org/OrgDomains.tsx
+#: apps/server/src/routes/verify-email/index.tsx
 msgid "Verified"
 msgstr "已验证"
 
@@ -11507,6 +12298,11 @@ msgstr "验证 JWT 字符串，返回 <0>*Claims</0> 或错误。"
 msgid "Verify an email address to keep this account and its data after you sign out."
 msgstr "验证一个邮箱地址，登出后即可保留此账号及其数据。"
 
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
+msgid "Verify and continue"
+msgstr "验证并继续"
+
 #: apps/console/src/routes/platform/AuditChainVerifyPanel.tsx
 msgid "Verify audit chain"
 msgstr "验证审计链"
@@ -11515,7 +12311,7 @@ msgstr "验证审计链"
 msgid "Verify Bearer or explicit app JWT credentials, with optional same-origin Core session exchange"
 msgstr "验证 Bearer 或显式应用 JWT credential，并可选执行同源 Core session exchange"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
 msgid "Verify code"
 msgstr "验证验证码"
 
@@ -11573,6 +12369,10 @@ msgstr "验证 webhook"
 msgid "Verify webhook request signature. Returns <0>*WebhookEvent</0> with raw body on success."
 msgstr "验证 webhook 请求签名。成功时返回带原始请求体的 <0>*WebhookEvent</0>。"
 
+#: apps/server/src/routes/mfa/PasskeyMfaChallenge.tsx
+msgid "Verify with your passkey"
+msgstr "使用通行密钥验证"
+
 #: apps/server/src/routes/verify-email/index.tsx
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Verify your email"
@@ -11589,14 +12389,6 @@ msgstr "创建或更改资源前，请先验证你的邮箱。"
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Verify your email first"
 msgstr "请先验证你的邮箱"
-
-#: apps/server/src/routes/consent/ScopeList.tsx
-msgid "Verify your identity"
-msgstr "验证你的身份"
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "Verifying your email address..."
-msgstr "正在验证邮箱地址..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "verifyToken"
@@ -11639,6 +12431,10 @@ msgstr "基于 @xid-kit/core 的 Vue 3 插件、composable 和无样式组件。
 msgid "Vue plugin"
 msgstr "Vue 插件"
 
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "Wait a few minutes, then try again. You can also sign in another way."
+msgstr "请等待几分钟后重试，也可以用其他方式登录。"
+
 #: packages/web-ui/src/session/EmailVerificationPanel.tsx
 msgid "Wait a minute before requesting another verification email."
 msgstr "请等待一分钟后再请求另一封验证邮件。"
@@ -11646,10 +12442,6 @@ msgstr "请等待一分钟后再请求另一封验证邮件。"
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
 msgid "Waiting"
 msgstr "等待"
-
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-msgid "Waiting for passkey selection..."
-msgstr "正在等待选择通行密钥..."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Waitlist sign-up gate component"
@@ -11659,35 +12451,50 @@ msgstr "候补名单注册门控组件"
 msgid "Warning"
 msgstr "警告"
 
+#: apps/server/src/routes/not-found/NotFoundPage.tsx
+msgid "We can't find that page"
+msgstr "找不到该页面"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "We couldn't load your verification methods"
+msgstr "无法加载你的验证方式"
+
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "We couldn't reach the server. Check your connection and try again."
+msgstr "无法连接服务器。请检查网络连接后重试。"
+
 #: apps/server/src/routes/accept-invitation/index.tsx
-msgid "We could not send the invitation email. Please try again."
-msgstr "无法发送邀请邮件，请重试。"
+msgid "We couldn't send the invitation email. Try again."
+msgstr "无法发送邀请邮件。请重试。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "We couldn't sign you in with that account. Please try again or use another sign-in method."
-msgstr "无法使用该账号登录。请重试或使用其他登录方式。"
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "We couldn't sign you in with that account. Try again or sign in another way."
+msgstr "无法用该账户登录。请重试或用其他方式登录。"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "We sent a 6-digit code to {identifier}. It expires in 10 minutes."
-msgstr "我们已向 {identifier} 发送 6 位验证码。验证码将在 10 分钟后过期。"
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "We sent a 6-digit code to {target}. It works for {minutes} minutes."
+msgstr "我们已向 {target} 发送 6 位验证码，{minutes} 分钟内有效。"
 
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
-msgid "We sent a 6-digit code to {identifier}. It expires in 5 minutes."
-msgstr "我们已向 {identifier} 发送 6 位验证码。验证码将在 5 分钟后过期。"
-
-#. placeholder {0}: data?.email
-#: apps/server/src/routes/accept-invitation/index.tsx
+#. placeholder {0}: props.email
+#: apps/server/src/routes/accept-invitation/InvitationViews.tsx
 msgid "We sent a one-time invitation link to {0}. Open it in this browser to continue."
 msgstr "我们已向 {0} 发送一次性邀请链接。请在此浏览器中打开以继续。"
 
-#. placeholder {0}: data?.email
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "We sent a sign-in link to {target}. It works once and expires in 15 minutes. Open it on this device to continue."
+msgstr "我们已向 {target} 发送登录链接。链接只能使用一次，15 分钟后过期。请在此设备上打开以继续。"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "We'll email a link to {target}. Open it to sign in, no password needed."
+msgstr "我们会向 {target} 发送链接。打开即可登录，无需密码。"
+
 #: apps/server/src/routes/accept-invitation/index.tsx
-msgid "We will email a secure link to {0}. If you already have an account with this email, sign in to it instead so the invitation joins that account."
-msgstr "我们会向 {0} 发送一封含安全链接的邮件。如果你已有使用此邮箱的账号，请改为登录该账号，邀请会加入到该账号。"
+msgid "We'll email a secure link to the invited address. If it already has an account, sign in to it instead."
+msgstr "我们会向受邀地址发送安全链接。如果该地址已有账户，请直接登录该账户。"
 
 #: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "We will send a 6-digit code to your registered phone number."
-msgstr "我们会向你注册的手机号发送 6 位验证码。"
+msgid "We'll text a 6-digit code to the phone number on your account."
+msgstr "我们会向你账户中的手机号发送 6 位验证码。"
 
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Weak"
@@ -11776,7 +12583,6 @@ msgid "WhatsApp or SMS provider is configured, enabled, and allowed for login or
 msgstr "WhatsApp 或短信提供商已配置、已启用，且允许登录或创建用户。"
 
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 msgid "WhatsApp OTP"
 msgstr "WhatsApp 验证码"
 
@@ -11808,13 +12614,18 @@ msgstr "Windows"
 msgid "WinUI 3 host and WebView2 embedding"
 msgstr "WinUI 3 宿主和 WebView2 嵌入"
 
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
+#: apps/server/src/routes/sign-in/IdentifierStep.tsx
 msgid "Work email"
 msgstr "工作邮箱"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Work only inside the project or project grant scopes delegated to your user. These assignments do not grant organization administrator access."
 msgstr "仅在委托给您的用户的项目或项目授权范围内工作。这些分配不授予组织管理员访问权限。"
+
+#. placeholder {0}: props.host
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Works only on {0}"
+msgstr "仅在 {0} 上可用"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Wrap your app with <0>XidProvider</0>. It creates an <1>XidClient</1>, calls <2>client.load()</2> on mount to fetch the current session, and tears down via <3>onCleanup</3>."
@@ -11948,18 +12759,26 @@ msgstr "XidTauriClient 方法"
 msgid "XML security prechecks, a recursive structural schema allowlist, and the signature/reference structure allowlist are implemented and verified locally. The structural allowlist validates the SAML Response before signature verification and each decrypted Assertion again; it is a closed grammar for the consumed SAML profile, not a general XSD engine. Inbound and outbound SAML Single Logout is covered locally at L1/L2. The Slack profile is excluded because Slack does not support SLO, and real provider L4 evidence remains UNKNOWN."
 msgstr "XML 安全预检查、递归结构 schema 允许列表和签名/引用结构允许列表均已在本地实现并验证。结构允许列表会在签名验证前检查 SAML Response，并再次检查每个已解密的 Assertion；这是针对所用 SAML profile 的封闭语法，而不是通用 XSD 引擎。入站和出站 SAML Single Logout 已在本地通过 L1/L2 覆盖。由于 Slack 不支持 SLO，因此不包含 Slack profile，真实提供商的 L4 证据仍为 UNKNOWN。"
 
-#: apps/server/src/routes/mfa/CodeChallenges.tsx
-msgid "xxxxxxxx"
-msgstr "xxxxxxxx"
+#: apps/server/src/routes/activate/DeviceSteps.tsx
+msgid "Yes, it matches"
+msgstr "是，一致"
 
 #: packages/i18n/src/messages.ts
 msgid "You already have access to this project."
 msgstr "你已拥有该项目的访问权限。"
 
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "You approved {app}"
+msgstr "你已批准 {app}"
+
 #. js-lingui-explicit-id
 #: packages/react/src/i18n-runtime.tsx
 msgid "sdk.guestUpgradeMessage"
 msgstr "你正在以访客身份浏览。设置登录方式以保留你的数据。"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "You are creating an account to continue to"
+msgstr "创建账户以继续前往"
 
 #: packages/i18n/src/messages.ts
 msgid "You are not permitted to access this resource."
@@ -11973,6 +12792,16 @@ msgstr "你当前以访客身份登录。设置登录方式以保留此账户及
 msgid "You are signed in as a guest. Sign out and this account and its data cannot be recovered."
 msgstr "你当前以访客身份登录。一旦登出，该账号及其数据将无法找回。"
 
+#: apps/server/src/components/hosted/context-copy.ts
+#: apps/server/src/routes/mfa/index.tsx
+msgid "You are signing in to"
+msgstr "你正在登录"
+
+#: apps/server/src/components/hosted/context-copy.ts
+#: apps/server/src/routes/mfa/index.tsx
+msgid "You are signing in to continue to"
+msgstr "登录以继续前往"
+
 #: packages/i18n/src/messages.ts
 msgid "You are the only owner or administrator of an organization or of this instance. Transfer ownership or add another administrator before deleting your account."
 msgstr "你是某个组织或此实例唯一的所有者或管理员。删除账号前，请先转让所有权或添加另一位管理员。"
@@ -11981,17 +12810,37 @@ msgstr "你是某个组织或此实例唯一的所有者或管理员。删除账
 msgid "You are viewing this organization as another user. Management changes are disabled."
 msgstr "您正在以其他用户的身份查看该组织。管理变更被禁用。"
 
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "You belong to {count} organizations. You'll continue in the one you choose."
+msgstr "你属于 {count} 个组织。你会在选择的组织中继续。"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You can change the name later. The sign-in address is harder to change."
+msgstr "名称之后可以修改，登录地址较难更改。"
+
 #: packages/i18n/src/messages.ts
 msgid "You can close this page or sign in again."
 msgstr "你可以关闭此页面，或重新登录。"
 
-#: apps/server/src/routes/consent/ConsentActions.tsx
-msgid "You can revoke these permissions at any time from your account settings."
-msgstr "你可以随时在账户设置中吊销这些权限。"
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "You can close this tab."
+msgstr "你可以关闭此标签页。"
+
+#: apps/server/src/routes/mfa/CodeChallenges.tsx
+msgid "You can paste the code. Spaces are ignored."
+msgstr "可以粘贴验证码，空格会被忽略。"
+
+#: apps/server/src/routes/sign-in/OtpPanel.tsx
+msgid "You can resend in {countdown}"
+msgstr "{countdown} 后可重新发送"
 
 #: apps/server/src/routes/create-organization/index.tsx
 msgid "You can verify this address from the Console."
 msgstr "你可以在 Console 中验证此邮箱地址。"
+
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "You can't sign in right now"
+msgstr "你目前无法登录"
 
 #: apps/console/src/routes/org/OrgProjects.tsx
 msgid "You cannot grant a manager assignment to yourself."
@@ -12001,9 +12850,13 @@ msgstr "您不能将经理分配给自己。"
 msgid "You cannot grant instance access to yourself."
 msgstr "您无法向自己授予实例访问权限。"
 
-#: apps/server/src/routes/select-organization/index.tsx
-msgid "You do not belong to any organizations yet."
-msgstr "你尚未加入任何组织。"
+#: apps/server/src/routes/ciba-activation/index.tsx
+msgid "You denied {app}"
+msgstr "你已拒绝 {app}"
+
+#: apps/server/src/routes/consent/index.tsx
+msgid "You didn't allow {app}"
+msgstr "你没有允许 {app}"
 
 #: packages/i18n/src/messages.ts
 msgid "You do not have permission to perform this action."
@@ -12021,14 +12874,78 @@ msgstr "你已登出"
 msgid "You must set up multi-factor authentication before continuing."
 msgstr "继续前必须设置多因素认证。"
 
+#: apps/server/src/routes/mfa-setup/BackupCodesStep.tsx
+msgid "You won't see these codes again. You can make a new set in your account, which turns these off."
+msgstr "这些代码不会再次显示。你可以在账户中生成一组新代码，这些代码随即失效。"
+
+#: apps/server/src/routes/create-organization/index.tsx
+msgid "You'll be the owner and can invite members right after."
+msgstr "你将成为所有者，创建后即可邀请成员。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "You'll continue either way. You can create a passkey later in your account."
+msgstr "无论如何你都会继续。之后可以在账户中创建通行密钥。"
+
+#. placeholder {0}: props.appName
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "You'll continue to {0} either way. You can create a passkey later in your account."
+msgstr "无论如何你都会继续前往 {0}。之后可以在账户中创建通行密钥。"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "You'll use it each time you sign in to {organizationName}. You can add more methods later in your account."
+msgstr "每次登录 {organizationName} 时都会用到它。之后可以在账户中添加更多方式。"
+
+#: apps/server/src/routes/mfa-setup/ChooseMethodStep.tsx
+msgid "You'll use it each time you sign in. You can add more methods later in your account."
+msgstr "每次登录时都会用到它。之后可以在账户中添加更多方式。"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "You're all set"
+msgstr "全部完成"
+
+#: apps/server/src/routes/accept-invitation/index.tsx
+msgid "You're invited to join"
+msgstr "你受邀加入"
+
+#: apps/server/src/routes/select-organization/index.tsx
+msgid "You're not in an organization yet"
+msgstr "你还没有加入任何组织"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "You're signed in and your account now meets the {org} policy."
+msgstr "你已登录，账户现在符合 {org} 的策略。"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "You're signed in and your account now meets your organization's policy."
+msgstr "你已登录，账户现在符合组织的策略。"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "You're signed in on this browser. The link can't be used again."
+msgstr "你已在此浏览器登录。此链接无法再次使用。"
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "You're signed in to"
+msgstr "你已登录"
+
+#: apps/server/src/routes/magic-link/index.tsx
+msgid "You're signed in with your email link"
+msgstr "你已通过邮件链接登录"
+
 #: apps/server/src/routes/forgot-password/index.tsx
 #: apps/server/src/routes/sign-in/SignInFields.tsx
-#: apps/server/src/routes/sign-in/SignInMethodPanels.tsx
-#: apps/server/src/routes/sign-in/SignInOtpPanel.tsx
 #: apps/server/src/routes/verify-email/ResendVerification.tsx
 #: apps/site/src/lib/home-surface.ts
 msgid "you@example.com"
 msgstr "you@example.com"
+
+#: apps/server/src/routes/create-passkey/index.tsx
+msgid "your account"
+msgstr "你的账户"
+
+#: apps/server/src/routes/forgot-password/index.tsx
+#: apps/server/src/routes/verify-email/index.tsx
+msgid "Your account"
+msgstr "你的账户"
 
 #: apps/console/src/routes/console/ConsoleEntryRoutes.tsx
 msgid "Your account does not manage any organization. Ask an organization admin to invite you or grant you a management role."
@@ -12046,7 +12963,6 @@ msgstr "你的账户已被封禁。"
 msgid "Your account has been suspended. Contact support for assistance."
 msgstr "你的账户已被暂停。请联系支持获取帮助。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
 #: packages/i18n/src/messages.ts
 msgid "Your account has been temporarily locked. Please try again later."
 msgstr "你的账户已被临时锁定。请稍后重试。"
@@ -12055,25 +12971,33 @@ msgstr "你的账户已被临时锁定。请稍后重试。"
 msgid "Your account remains available for 30 days. After that, credentials and personal data are permanently erased while required audit history is retained."
 msgstr "您的账户将在 30 天内保持可用。此后，凭据和个人数据将被永久清除，同时保留必要的审计历史。"
 
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Your admin turned this on for everyone. Setup takes about two minutes, then you'll go straight back."
+msgstr "管理员为所有人开启了此要求。设置大约需要两分钟，完成后会直接返回。"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Your current sign-in method keeps working. You can remove the passkey any time in your account."
+msgstr "你当前的登录方式仍然可用。你可以随时在账户中移除通行密钥。"
+
 #: apps/server/src/routes/account/PrivacySection.tsx
 msgid "Your data export is being prepared."
 msgstr "正在准备您的数据导出。"
+
+#: apps/server/src/routes/mfa-setup/PasskeySetupStep.tsx
+msgid "Your device will ask for your face, fingerprint or screen lock. The passkey stays on this device or in your password manager."
+msgstr "设备会要求验证面容、指纹或屏幕锁定。通行密钥保存在此设备或你的密码管理器中。"
+
+#: apps/server/src/routes/sign-in/SignInPage.tsx
+msgid "Your email address is confirmed. Sign in to continue."
+msgstr "你的邮箱地址已确认。请登录以继续。"
 
 #: apps/server/src/routes/account/ChangePasswordSection.tsx
 msgid "Your email address is not verified yet. We will send a verification email; after verifying, return here to set a password."
 msgstr "你的邮箱地址尚未验证。我们将发送验证邮件；验证后请返回此处设置密码。"
 
 #: apps/server/src/routes/verify-email/index.tsx
-msgid "Your email has been verified. Next, set your password."
-msgstr "你的邮箱已验证。下一步，设置密码。"
-
-#: apps/server/src/routes/verify-email/index.tsx
-msgid "Your email has been verified. Redirecting you to sign in..."
-msgstr "你的邮箱已验证。正在跳转到登录..."
-
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Your email has been verified. Sign in to continue."
-msgstr "你的邮箱已验证。请登录以继续。"
+msgid "Your email is verified"
+msgstr "你的邮箱已验证"
 
 #: apps/server/src/routes/forgot-password/index.tsx
 msgid "Your email is verified. Set a password to finish creating your account."
@@ -12083,21 +13007,41 @@ msgstr "你的邮箱已验证。设置密码即可完成账号创建。"
 msgid "Your export and deletion requests will appear here."
 msgstr "您的导出和删除请求将显示在此处。"
 
-#: apps/server/src/routes/account/SecurityPage.tsx
-msgid "Your organization requires MFA. Set up an authenticator app or a passkey below before continuing."
-msgstr "你的组织要求开启多因素认证。请先在下方设置身份验证器应用或通行密钥，然后继续。"
+#: apps/server/src/routes/sign-in/RoutingSteps.tsx
+msgid "your identity provider"
+msgstr "你的身份提供方"
 
-#: apps/server/src/routes/sign-in/SignInPasswordPanel.tsx
-msgid "Your password"
-msgstr "你的密码"
+#: apps/server/src/routes/mfa-setup/SetupSummaryStep.tsx
+msgid "Your main second step"
+msgstr "你的主要第二步验证方式"
+
+#: apps/server/src/routes/mfa/index.tsx
+msgid "Your organization asks for a second step every time you sign in."
+msgstr "你的组织要求每次登录时都完成第二步验证。"
+
+#: apps/server/src/routes/mfa-setup/index.tsx
+msgid "Your organization requires a second step"
+msgstr "你的组织要求第二步验证"
+
+#: apps/server/src/routes/create-passkey/PromptViews.tsx
+msgid "Your passkey is ready"
+msgstr "你的通行密钥已就绪"
+
+#: apps/server/src/routes/sign-in/DeliveryPanels.tsx
+msgid "Your passkey may need to be created again"
+msgstr "你的通行密钥可能需要重新创建"
 
 #: packages/i18n/src/messages.ts
 msgid "Your session has expired. Please sign in again."
 msgstr "你的会话已过期。请重新登录。"
 
-#: apps/server/src/routes/sign-in/SignInPage.tsx
-msgid "Your sign-in attempt expired. Please start again."
-msgstr "你的登录尝试已过期。请重新开始。"
+#: apps/server/src/routes/sign-in/sign-in-messages.ts
+msgid "Your sign-in took too long and expired. Start again."
+msgstr "登录耗时过长已过期。请重新开始。"
+
+#: apps/server/src/components/hosted/context-copy.ts
+msgid "your XID account"
+msgstr "你的 XID 账户"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Zoom"

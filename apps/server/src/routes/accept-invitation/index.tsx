@@ -1,34 +1,38 @@
-import { sha256Hex } from '@xid-kit/crypto'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
-import { AuthLayout } from '../../components/layout'
-import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
+import { AuthLayout, type AuthContextCopy } from '../../components/layout'
+import { Button, Notice, Spinner } from '../../components/ui'
+import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { AccountChip } from '../../components/hosted/IdentityChip'
+import { hosted } from '../../components/hosted/hosted-styles'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import { useAuth } from '../../lib/auth-context'
 import { trackInvitationAccepted } from '../../lib/google-analytics-funnel'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
 import { page } from '../../styles/product-surface.stylex'
-import { tokens } from '../../styles/tokens.stylex'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
-
-type InvitationPreview = {
-  status: 'pending' | 'expired' | 'invalid'
-  email: string | null
-  orgId: string | null
-  orgName: string | null
-  role: string | null
-  expiresAt: string | null
-}
-
-type ClaimRecovery = {
-  identifier: string
-  recoveryKey: string
-}
+import {
+  claimTokenFromFragment,
+  clearClaimStorage,
+  clearCurrentClaimStorage,
+  getOrCreateRecovery,
+  readStoredClaimToken,
+  rememberClaimToken,
+  scrubFragment,
+  type ClaimRecovery,
+} from './claim-storage'
+import {
+  CheckEmailView,
+  ClaimConfirmView,
+  InvitationDetails,
+  InvitationProblem,
+  type InvitationPreview,
+} from './InvitationViews'
 
 type InvitationPageStatus =
   | 'loading'
@@ -39,167 +43,30 @@ type InvitationPageStatus =
   | 'check-email'
   | 'preview'
 
-const CLAIM_STORAGE_PREFIX = 'xid.invitation-claim'
-const CURRENT_CLAIM_IDENTIFIER_KEY = `${CLAIM_STORAGE_PREFIX}.current`
-
 const styles = stylex.create({
-  stack: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.25rem',
-    minWidth: 0,
-  },
-  details: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  meta: {
-    margin: 0,
-    color: tokens['--xid-muted-foreground'],
-    fontSize: '0.875rem',
-    lineHeight: 1.55,
-  },
   turnstile: {
     display: 'flex',
     justifyContent: 'center',
     width: '100%',
   },
-  textButton: {
-    alignSelf: 'flex-start',
-    padding: 0,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    cursor: 'pointer',
-  },
 })
-
-function claimTokenStorageKey(identifier: string): string {
-  return `${CLAIM_STORAGE_PREFIX}.${identifier}.token`
-}
-
-function recoveryStorageKey(identifier: string): string {
-  return `${CLAIM_STORAGE_PREFIX}.${identifier}.recovery`
-}
-
-function getSessionStorage(): Storage | null {
-  try {
-    return globalThis.sessionStorage ?? null
-  } catch {
-    return null
-  }
-}
-
-function readStoredClaimToken(): string | null {
-  const storage = getSessionStorage()
-  if (!storage) return null
-  try {
-    const identifier = storage.getItem(CURRENT_CLAIM_IDENTIFIER_KEY)
-    if (!identifier || !/^[0-9a-f]{64}$/.test(identifier)) return null
-    return storage.getItem(claimTokenStorageKey(identifier))
-  } catch {
-    return null
-  }
-}
-
-async function rememberClaimToken(token: string): Promise<string> {
-  const identifier = await sha256Hex(token)
-  const storage = getSessionStorage()
-  if (!storage) return identifier
-  try {
-    storage.setItem(claimTokenStorageKey(identifier), token)
-    storage.setItem(CURRENT_CLAIM_IDENTIFIER_KEY, identifier)
-  } catch {
-    // 存储不可用时 claim 仍可从组件内存使用。
-  }
-  return identifier
-}
-
-function randomRecoveryKey(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32))
-  let result = ''
-  for (const byte of bytes) result += byte.toString(16).padStart(2, '0')
-  return result
-}
-
-async function getOrCreateRecovery(
-  token: string,
-  current: ClaimRecovery | null,
-): Promise<ClaimRecovery> {
-  const identifier = await sha256Hex(token)
-  if (current?.identifier === identifier) return current
-
-  const storage = getSessionStorage()
-  if (storage) {
-    try {
-      const stored = storage.getItem(recoveryStorageKey(identifier))
-      if (stored && stored.length >= 32 && stored.length <= 256) {
-        return { identifier, recoveryKey: stored }
-      }
-    } catch {
-      // 内存 recovery key 仍保证本页实例内重试幂等。
-    }
-  }
-
-  const recovery = { identifier, recoveryKey: randomRecoveryKey() }
-  if (storage) {
-    try {
-      storage.setItem(recoveryStorageKey(identifier), recovery.recoveryKey)
-    } catch {
-      // 关页前内存 recovery key 足够。
-    }
-  }
-  return recovery
-}
-
-function clearClaimStorage(identifier: string): void {
-  const storage = getSessionStorage()
-  if (!storage) return
-  try {
-    storage.removeItem(claimTokenStorageKey(identifier))
-    storage.removeItem(recoveryStorageKey(identifier))
-    if (storage.getItem(CURRENT_CLAIM_IDENTIFIER_KEY) === identifier) {
-      storage.removeItem(CURRENT_CLAIM_IDENTIFIER_KEY)
-    }
-  } catch {
-    // 成功响应已消费一次性 server proof。
-  }
-}
-
-function clearCurrentClaimStorage(): void {
-  const storage = getSessionStorage()
-  if (!storage) return
-  try {
-    const identifier = storage.getItem(CURRENT_CLAIM_IDENTIFIER_KEY)
-    if (identifier && /^[0-9a-f]{64}$/.test(identifier)) {
-      clearClaimStorage(identifier)
-      return
-    }
-    storage.removeItem(CURRENT_CLAIM_IDENTIFIER_KEY)
-  } catch {
-    // 清理 session storage 失败时原始邀请仍可用。
-  }
-}
-
-function claimTokenFromFragment(): string | null {
-  const hash = globalThis.location.hash
-  if (!hash.startsWith('#')) return null
-  const token = new URLSearchParams(hash.slice(1)).get('claim_token')?.trim()
-  return token || null
-}
-
-function scrubFragment(): void {
-  globalThis.history.replaceState(
-    globalThis.history.state,
-    '',
-    `${globalThis.location.pathname}${globalThis.location.search}`,
-  )
-}
 
 export const invitationNavigation = {
   assign(redirectUrl: string): void {
     globalThis.location.assign(redirectUrl)
   },
+}
+
+function useInvitationContext(data: InvitationPreview | undefined): AuthContextCopy | undefined {
+  const { t } = useLingui()
+  if (!data?.orgName) return undefined
+  return {
+    lead: t`You're invited to join`,
+    title: data.orgName,
+    description: data.email
+      ? t`This invitation was sent to ${data.email}. Only that account can accept it.`
+      : undefined,
+  }
 }
 
 export function AcceptInvitationPage(): ReactNode {
@@ -253,19 +120,16 @@ export function AcceptInvitationPage(): ReactNode {
     },
   })
 
-  const previewData = preview.data
+  const data = preview.data
   const authConfigEnabled =
-    claimToken === null &&
-    rawToken !== null &&
-    previewData?.status === 'pending' &&
-    previewData.orgId !== null
+    claimToken === null && rawToken !== null && data?.status === 'pending' && data.orgId !== null
   const authConfigQuery = useQuery<PublicHostedAuthConfig, never>({
-    queryKey: ['auth-config', 'invitation-claim', previewData?.orgId ?? null],
+    queryKey: ['auth-config', 'invitation-claim', data?.orgId ?? null],
     enabled: authConfigEnabled,
     retry: false,
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (previewData?.orgId) params.set('organization_id', previewData.orgId)
+      if (data?.orgId) params.set('organization_id', data.orgId)
       const path = params.size > 0 ? `/auth/config?${params.toString()}` : '/auth/config'
       const result = await api.get<PublicHostedAuthConfig>(path)
       return result.ok ? result.value : DEFAULT_PUBLIC_AUTH_CONFIG
@@ -277,6 +141,7 @@ export function AcceptInvitationPage(): ReactNode {
     turnstileToken,
     setTurnstileToken,
   )
+  const context = useInvitationContext(data)
 
   async function handleClaimStart(): Promise<void> {
     if (!rawToken || claimStartPending) return
@@ -289,7 +154,7 @@ export function AcceptInvitationPage(): ReactNode {
     setClaimStartPending(false)
     setTurnstileToken(null)
     if (!result.ok) {
-      setClaimStartError(t`We could not send the invitation email. Please try again.`)
+      setClaimStartError(t`We couldn't send the invitation email. Try again.`)
       return
     }
     setClaimStartComplete(true)
@@ -348,15 +213,14 @@ export function AcceptInvitationPage(): ReactNode {
         ? 'missing-token'
         : preview.isPending
           ? 'loading'
-          : !preview.data || preview.data.status === 'invalid'
+          : !data || data.status === 'invalid'
             ? 'invalid'
-            : preview.data.status === 'expired'
+            : data.status === 'expired'
               ? 'expired'
               : claimStartComplete
                 ? 'check-email'
                 : 'preview'
 
-  const data = preview.data
   const signedInAsInvitee =
     user !== null &&
     user.emailVerified &&
@@ -374,210 +238,109 @@ export function AcceptInvitationPage(): ReactNode {
 
   // Sign out 仅有会话时渲染;匿名 claim 流无会话,preview 身份切换走 "Not you?"。
   const footer = user ? (
-    <button
-      type="button"
-      {...stylex.props(page.textLink, styles.textButton)}
-      onClick={() => void signOut()}
-    >
+    <button type="button" onClick={() => void signOut()} {...stylex.props(hosted.textLink)}>
       <Trans>Sign out and use a different account</Trans>
     </button>
   ) : undefined
 
-  function renderStatus(): ReactNode {
-    switch (status) {
-      case 'claim-confirm':
-        return (
-          <>
-            <PageHeader
-              title={<Trans>Confirm your invitation</Trans>}
-              lead={
-                <Trans>
-                  Continue only if you opened this link from the invitation email sent to you.
-                </Trans>
-              }
-            />
-            {claimVerifyError ? <Alert tone="error">{claimVerifyError}</Alert> : null}
-            {claimNeedsSignIn ? (
-              <>
-                <p {...stylex.props(styles.meta)}>
-                  <Trans>
-                    After signing in, open the original invitation link again to join with that
-                    account.
-                  </Trans>
-                </p>
-                <Link to="/sign-in" {...stylex.props(page.textLink)}>
-                  <Trans>Sign in</Trans>
-                </Link>
-              </>
+  function previewView(invite: InvitationPreview): ReactNode {
+    const org = invite.orgName
+    return (
+      <div {...stylex.props(hosted.screen)}>
+        <AuthHeading
+          above={user ? <AccountChip label={user.email} /> : undefined}
+          title={org ? <Trans>Join {org}</Trans> : <Trans>Join organization</Trans>}
+          lead={
+            signedInAsInvitee ? (
+              <Trans>Check the details, then accept with the account you're signed in to.</Trans>
+            ) : user ? (
+              <Trans>
+                This invitation is for a different account. Switch to the invited account, or we can
+                email it a secure link.
+              </Trans>
             ) : (
-              <Button
-                type="button"
-                variant="accent"
-                fullWidth
-                isLoading={claimVerifyPending}
-                onClick={() => void handleClaimVerify()}
-              >
-                <Trans>Confirm and join</Trans>
-              </Button>
-            )}
-          </>
-        )
-      case 'missing-token':
-        return (
-          <>
-            <PageHeader title={<Trans>Invitation unavailable</Trans>} />
-            <Alert tone="error">
-              <Trans>Invitation link is invalid.</Trans>
-            </Alert>
-            <Link to="/sign-in" {...stylex.props(page.textLink)}>
-              <Trans>Back to sign in</Trans>
-            </Link>
-          </>
-        )
-      case 'invalid':
-        return (
-          <>
-            <PageHeader title={<Trans>Invitation unavailable</Trans>} />
-            <Alert tone="error">
-              <Trans>This invitation link is invalid or has already been used.</Trans>
-            </Alert>
-            <Link to="/sign-in" {...stylex.props(page.textLink)}>
-              <Trans>Back to sign in</Trans>
-            </Link>
-          </>
-        )
-      case 'expired':
-        return (
-          <>
-            <PageHeader title={<Trans>Invitation expired</Trans>} />
-            <Alert tone="warning">
-              <Trans>Ask your organization admin to send a new invitation.</Trans>
-            </Alert>
-            <Link to="/sign-in" {...stylex.props(page.textLink)}>
-              <Trans>Back to sign in</Trans>
-            </Link>
-          </>
-        )
-      case 'check-email':
-        return (
-          <>
-            <PageHeader
-              title={<Trans>Check your email</Trans>}
-              lead={
-                <Trans>
-                  We sent a one-time invitation link to {data?.email}. Open it in this browser to
-                  continue.
-                </Trans>
-              }
-            />
-            {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
+              <Trans>
+                We'll email a secure link to the invited address. If it already has an account, sign
+                in to it instead.
+              </Trans>
+            )
+          }
+        />
+        <InvitationDetails data={invite} />
+        {user?.emailVerified ? (
+          <div {...stylex.props(hosted.group)}>
+            {acceptError ? <Notice tone="danger">{acceptError}</Notice> : null}
             <Button
-              type="button"
-              variant="secondary"
+              variant={signedInAsInvitee ? 'accent' : 'secondary'}
+              size="lg"
+              fullWidth
+              isLoading={acceptPending}
+              onClick={() => void handleAcceptAsSignedInUser()}
+            >
+              <Trans>Accept with this account</Trans>
+            </Button>
+          </div>
+        ) : null}
+        {signedInAsInvitee ? null : (
+          <div {...stylex.props(hosted.group)}>
+            {claimStartError ? <Notice tone="danger">{claimStartError}</Notice> : null}
+            <Button
+              variant="accent"
+              size="lg"
               fullWidth
               isLoading={claimStartPending}
               disabled={claimStartDisabled}
               onClick={() => void handleClaimStart()}
             >
-              <Trans>Resend invitation email</Trans>
+              <Trans>Email me a secure link</Trans>
             </Button>
-          </>
-        )
-      case 'preview':
-        return (
-          <>
-            <PageHeader
-              title={
-                data?.orgName ? (
-                  <Trans>Join {data.orgName}</Trans>
-                ) : (
-                  <Trans>Join organization</Trans>
-                )
-              }
-              lead={
-                signedInAsInvitee ? (
-                  <Trans>Join this organization with the account you are signed in to.</Trans>
-                ) : (
-                  <Trans>
-                    We will email a secure link to {data?.email}. If you already have an account
-                    with this email, sign in to it instead so the invitation joins that account.
-                  </Trans>
-                )
-              }
-            />
-            <div {...stylex.props(styles.details)}>
-              <p {...stylex.props(styles.meta)}>
-                <Trans>Invited email: {data?.email}</Trans>
-              </p>
-              {data?.role ? (
-                <p {...stylex.props(styles.meta)}>
-                  <Trans>Organization role: {data.role}</Trans>
-                </p>
-              ) : null}
-            </div>
-            {user ? (
-              <div {...stylex.props(styles.details)}>
-                <p {...stylex.props(styles.meta)}>
-                  <Trans>Signed in as {user.email}</Trans>
-                </p>
-                <button
-                  type="button"
-                  {...stylex.props(page.textLink, styles.textButton)}
-                  onClick={() => void signOut()}
-                >
-                  <Trans>Not you? Sign in with a different account</Trans>
-                </button>
-              </div>
-            ) : null}
-            {user?.emailVerified ? (
-              <>
-                {acceptError ? <Alert tone="error">{acceptError}</Alert> : null}
-                <Button
-                  type="button"
-                  variant={signedInAsInvitee ? 'accent' : 'secondary'}
-                  fullWidth
-                  isLoading={acceptPending}
-                  onClick={() => void handleAcceptAsSignedInUser()}
-                >
-                  <Trans>Accept with this account</Trans>
-                </Button>
-              </>
-            ) : null}
-            {signedInAsInvitee ? null : (
-              <>
-                {claimStartError ? <Alert tone="error">{claimStartError}</Alert> : null}
-                <Button
-                  type="button"
-                  variant="accent"
-                  fullWidth
-                  isLoading={claimStartPending}
-                  disabled={claimStartDisabled}
-                  onClick={() => void handleClaimStart()}
-                >
-                  <Trans>Email me a secure link</Trans>
-                </Button>
-                {user ? null : (
-                  <Link to={signInToAcceptPath} {...stylex.props(page.textLink)}>
-                    <Trans>Already have an account? Sign in to accept</Trans>
-                  </Link>
-                )}
-              </>
+            {user ? null : (
+              <Link to={signInToAcceptPath} {...stylex.props(hosted.textLink)}>
+                <Trans>Already have an account? Sign in to accept</Trans>
+              </Link>
             )}
-          </>
-        )
-      default:
-        return null
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderStatus(): ReactNode {
+    if (status === 'claim-confirm') {
+      return (
+        <ClaimConfirmView
+          error={claimVerifyError}
+          needsSignIn={claimNeedsSignIn}
+          isPending={claimVerifyPending}
+          onConfirm={() => void handleClaimVerify()}
+        />
+      )
     }
+    if (status === 'missing-token' || status === 'invalid' || status === 'expired') {
+      return <InvitationProblem kind={status} />
+    }
+    if (status === 'check-email') {
+      return (
+        <CheckEmailView
+          email={data?.email ?? null}
+          error={claimStartError}
+          isPending={claimStartPending}
+          disabled={claimStartDisabled}
+          onResend={() => void handleClaimStart()}
+        />
+      )
+    }
+    return data ? previewView(data) : null
   }
 
   return (
-    <AuthLayout footer={footer}>
+    <AuthLayout context={context} footer={footer}>
       {status === 'loading' ? (
         <div {...stylex.props(page.loadingCenter)}>
           <Spinner label={t`Loading invitation`} />
         </div>
       ) : (
-        <div {...stylex.props(styles.stack)}>
+        <div {...stylex.props(hosted.screen)}>
           {renderStatus()}
           {/* 同挂载点切换,Turnstile 不重建以便 resend 拿新 challenge。 */}
           {status === 'preview' || status === 'check-email' ? (

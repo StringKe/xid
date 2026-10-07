@@ -54,6 +54,15 @@ export function useIdentifierAriaLabel(prompt: IdentifierPrompt): string {
   }
 }
 
+const PROFILE_AUTOCOMPLETE: Readonly<Record<ProfileFieldKey, string>> = {
+  email: 'email',
+  username: 'username',
+  phone: 'tel',
+  name: 'name',
+  givenName: 'given-name',
+  familyName: 'family-name',
+}
+
 function ProfileFieldInput({
   field,
   value,
@@ -85,8 +94,9 @@ function ProfileFieldInput({
   return (
     <Field label={label} required={required}>
       <Input
+        inputSize="lg"
         type={field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'text'}
-        autoComplete={field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'name'}
+        autoComplete={PROFILE_AUTOCOMPLETE[field]}
         placeholder={field === 'email' ? t`you@example.com` : ''}
         value={value}
         onChange={(event) => onChange(field, event.target.value)}

@@ -7,7 +7,8 @@ import { classifyApiError } from '@xid-kit/web-ui/api-errors'
 import { useState } from 'react'
 import { useAuth } from '../../lib/auth-context'
 import { trackMfaComplete } from '../../lib/google-analytics-funnel'
-import type { MfaMethod } from './mfa-search'
+import { browserStorage } from '../sign-in/method-order'
+import { writeLastMfaMethod, type MfaMethod } from './mfa-search'
 import { useMfaResume } from './use-mfa-resume'
 
 const ANALYTICS_METHOD = {
@@ -49,6 +50,7 @@ export function useMfaVerify(options: { method: MfaMethod; invalidMessage: strin
         return
       }
       trackMfaComplete(ANALYTICS_METHOD[options.method])
+      writeLastMfaMethod(browserStorage(), options.method)
       await refresh()
       resume()
     },

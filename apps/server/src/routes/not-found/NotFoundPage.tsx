@@ -1,115 +1,49 @@
 // 未知路径 404,不静默重定向登录(公开 typo 不应被当成未认证)。
 
-import { Trans } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Link } from '@xid-kit/web-ui/tanstack-router'
-import { LanguageSwitcher } from '../../components/LanguageSwitcher'
 import { ACCOUNT_EXACT_PATH } from '@xid-kit/types'
-import { BrandLogo } from '../../components/BrandLogo'
-import { tokens } from '../../styles/tokens.stylex'
-import { page } from '../../styles/product-surface.stylex'
-
-const styles = stylex.create({
-  main: {
-    minHeight: '100dvh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '1.5rem',
-    paddingBlock: '2rem',
-    paddingInline: '1.25rem',
-    backgroundColor: tokens['--xid-bg'],
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-    textAlign: 'center',
-  },
-  topBar: {
-    position: 'absolute',
-    top: '1rem',
-    right: '1rem',
-  },
-  code: {
-    fontSize: 'clamp(3rem, 12vw, 5rem)',
-    fontWeight: 700,
-    lineHeight: 1,
-    letterSpacing: '-0.03em',
-    color: tokens['--xid-muted-foreground'],
-    margin: 0,
-    fontFamily: tokens['--xid-font-mono'],
-  },
-  centeredTitle: {
-    maxWidth: '28ch',
-    textAlign: 'center',
-  },
-  centeredLead: {
-    textAlign: 'center',
-    maxWidth: '42ch',
-  },
-  actions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.75rem',
-    justifyContent: 'center',
-    marginTop: '0.5rem',
-  },
-  actionLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '2.5rem',
-    paddingBlock: 0,
-    paddingInline: '1rem',
-    borderRadius: tokens['--xid-radius'],
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    textDecoration: 'none',
-    outlineOffset: '2px',
-    outlineColor: tokens['--xid-primary'],
-  },
-  primaryAction: {
-    backgroundColor: tokens['--xid-primary'],
-    color: tokens['--xid-primary-foreground'],
-  },
-  secondaryAction: {
-    color: tokens['--xid-fg'],
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': tokens['--xid-muted'],
-    },
-  },
-})
+import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
+import { AuthLayout } from '../../components/layout'
+import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { hosted } from '../../components/hosted/hosted-styles'
+import { useHostedAuthConfig } from '../../components/hosted/use-hosted-auth-config'
+import { Button } from '../../components/ui'
 
 export default function NotFoundPage(): ReactNode {
+  const { t } = useLingui()
+  const navigate = useNavigate()
+  const { config } = useHostedAuthConfig()
+  const org = config.context.organizationName
+  const host = typeof window === 'undefined' ? '' : window.location.host
   return (
-    <main {...stylex.props(styles.main)}>
-      <div {...stylex.props(styles.topBar)}>
-        <LanguageSwitcher />
+    <AuthLayout
+      context={{
+        lead: org ?? undefined,
+        title: t`Page not found`,
+        description: t`Error 404 on ${host}`,
+      }}
+    >
+      <div {...stylex.props(hosted.screen)}>
+        <AuthHeading
+          eyebrow="404"
+          title={<Trans>We can't find that page</Trans>}
+          lead={
+            <Trans>
+              The link may be old or mistyped. If someone sent it to you, ask them for a fresh one.
+            </Trans>
+          }
+        />
+        <div {...stylex.props(hosted.group)}>
+          <Button variant="accent" size="lg" fullWidth onClick={() => navigate('/sign-in')}>
+            {org ? <Trans>Go to {org} sign-in</Trans> : <Trans>Go to sign-in</Trans>}
+          </Button>
+          <Link to={ACCOUNT_EXACT_PATH} {...stylex.props(hosted.textLink)}>
+            <Trans>Go to your account</Trans>
+          </Link>
+        </div>
       </div>
-
-      <BrandLogo variant="mark" height={32} />
-
-      <p {...stylex.props(styles.code)} aria-hidden="true">
-        404
-      </p>
-      <h1 {...stylex.props(page.title, styles.centeredTitle)}>
-        <Trans>Page not found</Trans>
-      </h1>
-      <p {...stylex.props(page.lead, styles.centeredLead)}>
-        <Trans>
-          This path does not exist on this instance. Check the URL or return to a known page.
-        </Trans>
-      </p>
-
-      <div {...stylex.props(styles.actions)}>
-        <Link to={ACCOUNT_EXACT_PATH} {...stylex.props(styles.actionLink, styles.primaryAction)}>
-          <Trans>Go to account</Trans>
-        </Link>
-        <Link to="/sign-in" {...stylex.props(styles.actionLink, styles.secondaryAction)}>
-          <Trans>Sign in</Trans>
-        </Link>
-      </div>
-    </main>
+    </AuthLayout>
   )
 }

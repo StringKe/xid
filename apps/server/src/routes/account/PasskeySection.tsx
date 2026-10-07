@@ -18,7 +18,7 @@ import { useAuth } from '../../lib/auth-context'
 import { trackPasskeyRegistered } from '../../lib/google-analytics-funnel'
 import { authConfigQueryOptions } from '../sign-in/auth-config-query'
 import { ConfirmDialog } from './ConfirmDialog'
-import { detectDeviceParts } from './device-label'
+import { useDefaultPasskeyName } from '../../components/hosted/passkey-name'
 import { usePasskeyReregistrationNotice } from './passkey-reregistration'
 import { usePasskeysQuery, useRegisterPasskey, useRemovePasskey, useRenamePasskey } from './queries'
 import type { PasskeyCredential } from './types'
@@ -231,14 +231,6 @@ export type PasskeySectionProps = {
   onRegistered?: () => void | Promise<void>
 }
 
-function useDefaultDeviceName(): string {
-  const { t } = useLingui()
-  const parts = detectDeviceParts()
-  if (!parts) return t`This device`
-  const { browser, platform } = parts
-  return t`${browser} on ${platform}`
-}
-
 // 浏览器取消或超时(NotAllowedError)静默;已在本设备注册过时给出具体提示。
 function registrationErrorMessage(
   err: unknown,
@@ -259,7 +251,7 @@ export function PasskeySection({ onRegistered }: PasskeySectionProps): ReactNode
   const renamePasskey = useRenamePasskey()
   const removePasskey = useRemovePasskey()
   const securityError = useSecurityActionError()
-  const defaultDeviceName = useDefaultDeviceName()
+  const defaultDeviceName = useDefaultPasskeyName()
   const reregistration = usePasskeyReregistrationNotice(
     authConfig.data?.passkeyEntry.reregistrationRequired ?? false,
   )

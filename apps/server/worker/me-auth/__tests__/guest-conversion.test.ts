@@ -301,7 +301,7 @@ describe('guest 转正 -- OTP email', () => {
     } as never)
     vi.mocked(resolvePostAuthMfaGate).mockResolvedValue({
       sessionStatus: 'pending_mfa_setup',
-      redirectUrl: '/account/security?setup=mfa&redirect_to=%2Fconsole',
+      redirectUrl: '/mfa/setup?redirect_to=%2Fconsole',
     })
     const db = makeDb()
     vi.mocked(createTenantDb).mockReturnValue(db)
@@ -313,7 +313,7 @@ describe('guest 转正 -- OTP email', () => {
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { redirectUrl?: string }
-    expect(body.redirectUrl).toContain('/account/security')
+    expect(body.redirectUrl).toContain('/mfa/setup')
     expect(db.sessions.insert).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'pending_mfa_setup' }),
     )

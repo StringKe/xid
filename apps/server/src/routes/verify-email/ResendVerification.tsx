@@ -6,26 +6,15 @@ import type { FormEvent, ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
-import { Alert, Button, Field, Input } from '../../components/ui'
+import { Button, Field, Input, Notice } from '../../components/ui'
+import { hosted } from '../../components/hosted/hosted-styles'
 import { useAuth } from '../../lib/auth-context'
 import { Link } from '@xid-kit/web-ui/tanstack-router'
-import { styles as signInStyles } from '../sign-in/styles'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
 import { forgotPasswordHref } from '../forgot-password/navigation'
 
 const styles = stylex.create({
-  panel: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  actions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-    alignItems: 'flex-start',
-  },
   turnstile: {
     display: 'flex',
     justifyContent: 'center',
@@ -93,20 +82,23 @@ export function ResendVerification(): ReactNode {
 
   if (sent) {
     return (
-      <Alert tone="success">
-        <Trans>A new verification email has been sent if your account exists.</Trans>
-      </Alert>
+      <Notice tone="success" title={<Trans>Check your email</Trans>}>
+        <Trans>
+          If this address has an account, a new link is on its way. Open the newest email.
+        </Trans>
+      </Notice>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate {...stylex.props(styles.panel)}>
-      {requestError ? <Alert tone="error">{requestError}</Alert> : null}
+    <form onSubmit={handleSubmit} noValidate {...stylex.props(hosted.form)}>
+      {requestError ? <Notice tone="danger">{requestError}</Notice> : null}
       {needsEmail ? (
         <>
           <Field label={<Trans>Email address</Trans>} error={emailError ?? undefined} required>
             <Input
               type="email"
+              inputSize="lg"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -117,20 +109,22 @@ export function ResendVerification(): ReactNode {
           <div ref={turnstile.containerRef} {...stylex.props(styles.turnstile)} />
         </>
       ) : null}
-      <div {...stylex.props(styles.actions)}>
-        <Button
-          type="submit"
-          variant="secondary"
-          isLoading={resendMutation.isPending}
-          disabled={status === 'loading' || !turnstile.ready}
-        >
-          <Trans>Resend verification email</Trans>
-        </Button>
-        <a href={forgotPasswordHref({})} {...stylex.props(signInStyles.textLink)}>
+      <Button
+        type="submit"
+        variant="accent"
+        size="lg"
+        fullWidth
+        isLoading={resendMutation.isPending}
+        disabled={status === 'loading' || !turnstile.ready}
+      >
+        <Trans>Send a new link</Trans>
+      </Button>
+      <div {...stylex.props(hosted.linkRow)}>
+        <Link to="/sign-in" {...stylex.props(hosted.textLink)}>
+          <Trans>Sign in instead</Trans>
+        </Link>
+        <Link to={forgotPasswordHref({})} {...stylex.props(hosted.quietLink)}>
           <Trans>Forgot password?</Trans>
-        </a>
-        <Link to="/sign-in" {...stylex.props(signInStyles.textLink)}>
-          <Trans>Back to sign in</Trans>
         </Link>
       </div>
     </form>

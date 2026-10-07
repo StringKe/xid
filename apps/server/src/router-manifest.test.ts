@@ -8,6 +8,7 @@ vi.mock('@xid-kit/web-ui/RequireAuth', () => ({
   RequireAuth: ({ children }: { children: unknown }) => children,
 }))
 vi.mock('./components/ui', () => ({ Spinner: () => null }))
+vi.mock('./routes/not-found/ErrorPage', () => ({ ErrorPage: () => null }))
 
 describe('Core SPA route manifest', () => {
   it('matches every concrete TanStack Router path', async () => {

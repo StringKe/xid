@@ -1,149 +1,183 @@
-import { msg } from '@lingui/core/macro'
-import { Trans, useLingui } from '@lingui/react/macro'
-import type { MessageDescriptor } from '@lingui/core'
+// 权限清单:每项写成「能做什么 + 具体数据」;再次授权只列新增项,已同意的合成一行。RAR 资源单独成框。
+
+import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { Icon } from '../../components/ui'
+import { SCOPE_COPY, useScopeLabel } from '../../components/hosted/scope-copy'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import type { ConsentParams } from './index'
-
-// 与 discovery 公布的标准 scope 一致;自定义 scope 只显示 scope 名。
-const SCOPE_DESCRIPTION_LABELS: Record<string, MessageDescriptor> = {
-  openid: msg`Verify your identity`,
-  profile: msg`Access your basic profile information`,
-  email: msg`Access your email address`,
-  phone: msg`Access your phone number`,
-  offline_access: msg`Maintain access while you are offline`,
-  organization: msg`Access your organization membership`,
-}
+import type { AuthorizationDetail } from './consent-model'
 
 const styles = stylex.create({
-  permissionSection: {
+  heading: {
+    margin: 0,
+    paddingBottom: '0.625rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+    fontSize: text.sm,
+    fontWeight: weight.medium,
+    color: tokens['--xid-fg'],
+  },
+  list: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0',
-  },
-  sectionLabel: {
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: tokens['--xid-muted-foreground'],
-    marginBottom: '1.25rem',
-  },
-  rowList: {
     margin: 0,
     padding: 0,
     listStyle: 'none',
-    display: 'flex',
-    flexDirection: 'column',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: tokens['--xid-border'],
   },
-  rowItem: {
+  item: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.125rem',
-    paddingBlock: '1.25rem',
+    alignItems: 'flex-start',
+    gap: '0.75rem',
+    paddingBlock: '0.75rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
     borderBottomColor: tokens['--xid-border'],
   },
-  rowItemText: {
-    fontSize: '0.875rem',
-    lineHeight: 1.45,
-    color: tokens['--xid-fg'],
-    fontFamily: tokens['--xid-font'],
-  },
-  rowItemMeta: {
-    fontSize: '0.75rem',
+  icon: {
+    flexShrink: 0,
+    marginTop: '0.0625rem',
     color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    wordBreak: 'break-word',
+  },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    minWidth: 0,
+  },
+  label: {
+    fontSize: text.base,
+    lineHeight: '1.125rem',
+    color: tokens['--xid-fg'],
+  },
+  detail: {
+    fontSize: text.sm,
+    lineHeight: '1.125rem',
+    color: tokens['--xid-muted-foreground'],
+    overflowWrap: 'anywhere',
+  },
+  allowed: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    paddingBlock: '0.75rem',
+    paddingInline: '0.875rem',
+    borderRadius: tokens['--xid-radius'],
+    backgroundColor: tokens['--xid-sidebar'],
+  },
+  resources: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
+    borderRadius: tokens['--xid-radius-lg'],
+    overflow: 'hidden',
+  },
+  resourceHead: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    paddingBlock: '0.75rem',
+    paddingInline: '0.875rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens['--xid-border'],
+  },
+  mono: {
+    fontFamily: tokens['--xid-font-mono'],
+    fontSize: text.xs,
+    color: tokens['--xid-muted-foreground'],
+    overflowWrap: 'anywhere',
+  },
+  action: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    paddingBlock: '0.625rem',
+    paddingInline: '0.875rem',
+    borderTopWidth: { default: '1px', ':first-child': 0 },
+    borderTopStyle: 'solid',
+    borderTopColor: tokens['--xid-border'],
+    fontSize: text.base,
   },
 })
 
-type ScopeListProps = {
-  scopes: ConsentParams['scopes']
-}
-
-type ScopeItemProps = {
-  scope: ConsentParams['scopes'][number]
-}
-
-function ScopeItem({ scope }: ScopeItemProps): ReactNode {
-  const { i18n } = useLingui()
-  const descriptor = SCOPE_DESCRIPTION_LABELS[scope.name]
+export function ScopeList(props: {
+  heading: ReactNode
+  scopes: readonly string[]
+  details: Readonly<Record<string, ReactNode>>
+}): ReactNode {
+  const label = useScopeLabel()
+  if (props.scopes.length === 0) return null
   return (
-    <li {...stylex.props(styles.rowItem)}>
-      <span {...stylex.props(styles.rowItemText)}>
-        {descriptor ? i18n._(descriptor) : scope.name}
-      </span>
-      {descriptor ? <span {...stylex.props(styles.rowItemMeta)}>{scope.name}</span> : null}
-    </li>
+    <section>
+      <h2 {...stylex.props(styles.heading)}>{props.heading}</h2>
+      <ul {...stylex.props(styles.list)}>
+        {props.scopes.map((scope) => (
+          <li key={scope} {...stylex.props(styles.item)}>
+            <span aria-hidden="true" {...stylex.props(styles.icon)}>
+              <Icon name={SCOPE_COPY[scope]?.icon ?? 'key'} size={16} />
+            </span>
+            <span {...stylex.props(styles.body)}>
+              <span {...stylex.props(styles.label)}>{label(scope)}</span>
+              {props.details[scope] ? (
+                <span {...stylex.props(styles.detail)}>{props.details[scope]}</span>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
-export function ScopeList({ scopes }: ScopeListProps): ReactNode {
-  const { t } = useLingui()
+export function AlreadyAllowed({ scopes }: { scopes: readonly string[] }): ReactNode {
+  const label = useScopeLabel()
   if (scopes.length === 0) return null
-
   return (
-    <section aria-label={t`Requested permissions`} {...stylex.props(styles.permissionSection)}>
-      <p {...stylex.props(styles.sectionLabel)}>
-        <Trans>Permissions requested</Trans>
-      </p>
-      <ul {...stylex.props(styles.rowList)}>
-        {scopes.map((scope) => (
-          <ScopeItem key={scope.name} scope={scope} />
-        ))}
-      </ul>
-    </section>
+    <div {...stylex.props(styles.allowed)}>
+      <span {...stylex.props(styles.label)}>
+        <Trans>Already allowed</Trans>
+      </span>
+      <span {...stylex.props(styles.detail)}>{scopes.map(label).join(', ')}</span>
+    </div>
   )
 }
 
-type AuthorizationDetailsListProps = {
-  details: ConsentParams['authorizationDetails']
-}
-
-type AuthorizationDetailsItemProps = {
-  detail: ConsentParams['authorizationDetails'][number]
-}
-
-function AuthorizationDetailsItem({ detail }: AuthorizationDetailsItemProps): ReactNode {
-  return (
-    <li {...stylex.props(styles.rowItem)}>
-      <span {...stylex.props(styles.rowItemText)}>
-        <Trans>Access protected resources</Trans>
-      </span>
-      <span {...stylex.props(styles.rowItemMeta)}>
-        <Trans>Resources: {detail.locations.join(', ')}</Trans>
-      </span>
-      <span {...stylex.props(styles.rowItemMeta)}>
-        <Trans>Actions: {detail.actions.join(', ')}</Trans>
-      </span>
-    </li>
-  )
-}
-
-export function AuthorizationDetailsList({ details }: AuthorizationDetailsListProps): ReactNode {
-  const { t } = useLingui()
+export function AuthorizationDetailsList({
+  details,
+}: {
+  details: readonly AuthorizationDetail[]
+}): ReactNode {
   if (details.length === 0) return null
-
   return (
-    <section aria-label={t`Requested resource access`} {...stylex.props(styles.permissionSection)}>
-      <p {...stylex.props(styles.sectionLabel)}>
-        <Trans>Resource access requested</Trans>
-      </p>
-      <ul {...stylex.props(styles.rowList)}>
-        {details.map((detail) => (
-          <AuthorizationDetailsItem
-            key={`${detail.type}:${detail.locations.join(',')}:${detail.actions.join(',')}`}
-            detail={detail}
-          />
-        ))}
-      </ul>
-    </section>
+    <>
+      {details.map((detail) => (
+        <section
+          key={`${detail.type}:${detail.locations.join(',')}`}
+          {...stylex.props(styles.resources)}
+        >
+          <div {...stylex.props(styles.resourceHead)}>
+            <span {...stylex.props(styles.label)}>
+              <Trans>Protected resource</Trans>
+            </span>
+            {detail.locations.map((location) => (
+              <span key={location} {...stylex.props(styles.mono)}>
+                {location}
+              </span>
+            ))}
+          </div>
+          <ul {...stylex.props(styles.list)}>
+            {detail.actions.map((action) => (
+              <li key={action} {...stylex.props(styles.action)}>
+                {action}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </>
   )
 }

@@ -143,24 +143,44 @@ describe('useSignIn guest entry', () => {
   })
 
   it('passes Turnstile to enterprise discovery and rotates it after the check', async () => {
+    const previousGet = authState.getImpl
+    authState.getImpl = () => ({
+      ok: true,
+      value: {
+        ...DEFAULT_PUBLIC_AUTH_CONFIG,
+        turnstileSiteKey: 'site-key',
+        methods: {
+          ...DEFAULT_PUBLIC_AUTH_CONFIG.methods,
+          enterpriseSso: {
+            ...DEFAULT_PUBLIC_AUTH_CONFIG.methods.enterpriseSso,
+            enabled: true,
+            allowLogin: true,
+            domainDiscovery: true,
+          },
+        },
+      },
+    })
+    routerState.search = { login_hint: 'owner@example.com' }
     const { captured, cleanup } = await mountHook()
 
     await act(async () => {
-      captured()[1].setIdentifier('owner@example.com')
       captured()[1].setTurnstileToken('turnstile-token-sso')
     })
     await act(async () => {
-      captured()[1].submitEnterpriseSso()
+      captured()[1].submitIdentifier()
+    })
+    await act(async () => {
+      await vi.waitFor(() => expect(postCalls.at(-1)?.path).toBe('/sso/hrd'))
     })
 
-    const lastCall = postCalls[postCalls.length - 1]
-    expect(lastCall?.path).toBe('/sso/hrd')
-    expect(lastCall?.body).toMatchObject({
+    expect(postCalls.at(-1)?.body).toMatchObject({
       email: 'owner@example.com',
       turnstileToken: 'turnstile-token-sso',
     })
     expect(captured()[0].turnstileToken).toBeNull()
     await cleanup()
+    authState.getImpl = previousGet
+    routerState.search = {}
   })
 
   it('on success refreshes the session and uses the endpoint-owned redirectUrl', async () => {

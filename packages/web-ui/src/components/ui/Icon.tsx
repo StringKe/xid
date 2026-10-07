@@ -3,6 +3,7 @@
 
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { AUTH_ICON_NAMES, authGlyphs } from './icon-auth-glyphs'
 import { INTERFACE_ICON_NAMES, interfaceGlyphs } from './icon-interface-glyphs'
 
 export const ICON_NAMES = [
@@ -37,6 +38,7 @@ export const ICON_NAMES = [
   'arrow-left',
   'arrow-up-right',
   ...INTERFACE_ICON_NAMES,
+  ...AUTH_ICON_NAMES,
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]
@@ -235,6 +237,7 @@ const glyphs: Record<IconName, ReactNode> = {
     </>
   ),
   ...interfaceGlyphs,
+  ...authGlyphs,
 }
 
 const styles = stylex.create({

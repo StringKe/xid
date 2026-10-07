@@ -1,4 +1,4 @@
-<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=95eee31a6192013e095142e19420a414f54f0a12 -->
+<!-- xid-translation source=docs/design/08-data-model.md source-commit=working-tree source-blob=aadd458632b770d0d94a7d718fec8aaa65ea03d6 -->
 
 > Translation of the current `docs/design/08-data-model.md`. The English version is authoritative.
 > 本文是 [`docs/design/08-data-model.md`](../../design/08-data-model.md) 的中文翻译,英文版为准。两版不一致时以英文版为准。
@@ -1189,30 +1189,31 @@ access token 明文不入库,只保存本 issuer 已验签 JWT 的 `jti`。`/rev
 
 ### 16.1 sso_connections(per-org 上游 IdP 连接,1:1 org,见 04 章 1)
 
-| 字段                          | 类型            | 约束                                               | 默认           | 说明                                                                   |
-| ----------------------------- | --------------- | -------------------------------------------------- | -------------- | ---------------------------------------------------------------------- |
-| id                            | text            | PK                                                 | `conn_`+nanoid |                                                                        |
-| tenant_id                     | text            | NOT NULL, FK -> organizations.id                   | --             |                                                                        |
-| org_id                        | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | connection 与 org 1:1,不跨租户复用(见 04 章 1)                         |
-| protocol                      | text            | NOT NULL                                           | --             | `saml`/`oidc`                                                          |
-| idp_entity_id                 | text            | null                                               | null           | SAML IdP EntityID(Issuer 精确匹配,见 04 章 9.7 step 1)                 |
-| idp_sso_url                   | text            | null                                               | null           | SAML SSO / OIDC authorization_endpoint                                 |
-| idp_slo_url                   | text            | null                                               | null           | SAML IdP SingleLogoutService URL,必须 public HTTPS 且不从 SSO URL 推导 |
-| idp_metadata_url              | text            | null                                               | null           | 每 24h 后台轮询刷新(见 04 章 1)                                        |
-| idp_certificates              | text json       | NOT NULL                                           | `[]`           | IdP X.509 验签证书(base64 DER 数组,轮换期新旧并存,见 04 章 9.5 step 1) |
-| oidc_client_id                | text            | null                                               | null           | OIDC RP client_id                                                      |
-| oidc_client_secret_ciphertext | blob buffer     | null                                               | null           | AES-256-GCM 加密(`version\|\|iv\|\|ciphertext\|\|tag`)                 |
-| oidc_discovery_url            | text            | null                                               | null           | OIDC Discovery                                                         |
-| sp_cert_id                    | text            | FK -> cert_store.id ON DELETE set null, null       | null           | SP 签名/解密证书(见 16.2 + 04 章 1)                                    |
-| want_authn_response_signed    | integer boolean | NOT NULL                                           | `1`            | 要求 Response 被签(见 04 章 9.3)                                       |
-| want_assertions_signed        | integer boolean | NOT NULL                                           | `1`            | 要求 Assertion 被签                                                    |
-| saml_clock_skew_ms            | integer         | NOT NULL,`0..300000`                               | `180000`       | IdP 证书和 Assertion 有效期校验的 connection 容忍值                    |
-| attribute_mapping             | text json       | NOT NULL                                           | `{}`           | IdP 属性 -> XID 字段(email/firstName/lastName/groups,见 04 章 1)       |
-| role_mapping                  | text json       | NOT NULL                                           | `{}`           | IdP groups -> org_role(见 04 章 4)                                     |
-| jit_enabled                   | integer boolean | NOT NULL                                           | `1`            | JIT provisioning 开关(部分企业仅 SCIM,见 04 章 4)                      |
-| relay_state_url               | text            | null                                               | null           | IdP-initiated 跳转(见 04 章 1)                                         |
-| status                        | text            | NOT NULL                                           | `'active'`     | `active`/`inactive`                                                    |
-| created_at / updated_at       | integer ts_ms   | NOT NULL                                           | 见 9.3         |                                                                        |
+| 字段                          | 类型            | 约束                                               | 默认           | 说明                                                                                |
+| ----------------------------- | --------------- | -------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
+| id                            | text            | PK                                                 | `conn_`+nanoid |                                                                                     |
+| tenant_id                     | text            | NOT NULL, FK -> organizations.id                   | --             |                                                                                     |
+| org_id                        | text            | NOT NULL, FK -> organizations.id ON DELETE cascade | --             | connection 与 org 1:1,不跨租户复用(见 04 章 1)                                      |
+| protocol                      | text            | NOT NULL                                           | --             | `saml`/`oidc`                                                                       |
+| display_name                  | text            | null                                               | null           | Hosted Auth 跳转过渡页显示的 IdP 名称(如 "Okta");为 null 时显示通用的身份提供方文案 |
+| idp_entity_id                 | text            | null                                               | null           | SAML IdP EntityID(Issuer 精确匹配,见 04 章 9.7 step 1)                              |
+| idp_sso_url                   | text            | null                                               | null           | SAML SSO / OIDC authorization_endpoint                                              |
+| idp_slo_url                   | text            | null                                               | null           | SAML IdP SingleLogoutService URL,必须 public HTTPS 且不从 SSO URL 推导              |
+| idp_metadata_url              | text            | null                                               | null           | 每 24h 后台轮询刷新(见 04 章 1)                                                     |
+| idp_certificates              | text json       | NOT NULL                                           | `[]`           | IdP X.509 验签证书(base64 DER 数组,轮换期新旧并存,见 04 章 9.5 step 1)              |
+| oidc_client_id                | text            | null                                               | null           | OIDC RP client_id                                                                   |
+| oidc_client_secret_ciphertext | blob buffer     | null                                               | null           | AES-256-GCM 加密(`version\|\|iv\|\|ciphertext\|\|tag`)                              |
+| oidc_discovery_url            | text            | null                                               | null           | OIDC Discovery                                                                      |
+| sp_cert_id                    | text            | FK -> cert_store.id ON DELETE set null, null       | null           | SP 签名/解密证书(见 16.2 + 04 章 1)                                                 |
+| want_authn_response_signed    | integer boolean | NOT NULL                                           | `1`            | 要求 Response 被签(见 04 章 9.3)                                                    |
+| want_assertions_signed        | integer boolean | NOT NULL                                           | `1`            | 要求 Assertion 被签                                                                 |
+| saml_clock_skew_ms            | integer         | NOT NULL,`0..300000`                               | `180000`       | IdP 证书和 Assertion 有效期校验的 connection 容忍值                                 |
+| attribute_mapping             | text json       | NOT NULL                                           | `{}`           | IdP 属性 -> XID 字段(email/firstName/lastName/groups,见 04 章 1)                    |
+| role_mapping                  | text json       | NOT NULL                                           | `{}`           | IdP groups -> org_role(见 04 章 4)                                                  |
+| jit_enabled                   | integer boolean | NOT NULL                                           | `1`            | JIT provisioning 开关(部分企业仅 SCIM,见 04 章 4)                                   |
+| relay_state_url               | text            | null                                               | null           | IdP-initiated 跳转(见 04 章 1)                                                      |
+| status                        | text            | NOT NULL                                           | `'active'`     | `active`/`inactive`                                                                 |
+| created_at / updated_at       | integer ts_ms   | NOT NULL                                           | 见 9.3         |                                                                                     |
 
 索引:`UNIQUE(org_id)`、`INDEX(tenant_id)`、`INDEX(tenant_id, status)`。SsoProfile(单次认证结果 idp_id/claims)不持久化(瞬时),如需审计走 audit_events;DirectoryUser 双向绑定见 16.6。
 

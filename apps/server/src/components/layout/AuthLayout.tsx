@@ -1,228 +1,222 @@
-// Hosted UI 是一个克制的双栏工作面:品牌上下文在左,当前认证任务在右。
-// <64rem 退化为单列,不保留没有任务价值的装饰面板。
+// Hosted Auth 外壳:≥64rem 左侧上下文栏(租户 accent 浅底)+ 右侧任务;48–64rem 顶栏 + 一行上下文 + 卡片;
+// <48rem 去掉卡片外框,16px 边距铺满。页面高度用 100svh,主按钮跟在表单后面,不固定在底部。
 
-import { useLingui } from '@lingui/react/macro'
+import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Stepper } from '@xid-kit/web-ui/ui/Stepper'
+import { text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
 import { tokens } from '../../styles/tokens.stylex'
-import { brandLogoUrl, useTheme } from '../../lib/theme'
-import { LanguageSwitcher } from '../LanguageSwitcher'
+import { BrandMark } from '../hosted/BrandMark'
+import { LanguageMenu } from '../hosted/LanguageMenu'
+import { useHostedContextCopy, type AuthContextCopy } from '../hosted/context-copy'
+import { useHostedAuthConfig } from '../hosted/use-hosted-auth-config'
+
+export type { AuthContextCopy } from '../hosted/context-copy'
 
 export type AuthLayoutProps = {
   children: ReactNode
   footer?: ReactNode
-  steps?: {
-    current: number
-    total: number
-    label?: ReactNode
-  }
+  context?: AuthContextCopy
 }
 
-const DESKTOP = '@media (min-width: 64rem)'
+const REGULAR = '@media (min-width: 48rem)'
+const SIDEBAR = '@media (min-width: 64rem)'
 
 const styles = stylex.create({
-  main: {
-    minHeight: '100dvh',
-    display: 'grid',
-    placeItems: 'center',
-    padding: {
-      default: '1.25rem',
-      [DESKTOP]: '2rem',
-    },
-    backgroundColor: tokens['--xid-bg'],
-    fontFamily: tokens['--xid-font'],
-  },
-  // 桌面是一个连续工作面,边界只出现一次。
-  panel: {
-    width: '100%',
-    maxWidth: {
-      default: '26rem',
-      [DESKTOP]: '60rem',
-    },
-    marginInline: 'auto',
+  root: {
+    minHeight: '100svh',
     display: 'grid',
     gridTemplateColumns: {
-      default: '1fr',
-      [DESKTOP]: 'minmax(0, 5fr) minmax(0, 7fr)',
+      default: 'minmax(0, 1fr)',
+      [SIDEBAR]: 'clamp(22.5rem, 40%, 35rem) minmax(0, 1fr)',
     },
-    backgroundColor: tokens['--xid-surface'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    borderRadius: tokens['--xid-radius-lg'],
-    overflow: 'hidden',
+    backgroundColor: {
+      default: tokens['--xid-surface'],
+      [REGULAR]: tokens['--xid-sidebar'],
+      [SIDEBAR]: tokens['--xid-surface'],
+    },
+    color: tokens['--xid-fg'],
+    fontFamily: tokens['--xid-font'],
   },
-  brandPanel: {
-    display: {
-      default: 'none',
-      [DESKTOP]: 'flex',
-    },
+  panel: {
+    display: { default: 'none', [SIDEBAR]: 'flex' },
+    position: 'sticky',
+    top: 0,
+    height: '100svh',
     flexDirection: 'column',
     justifyContent: 'space-between',
     gap: '2.5rem',
-    padding: 'clamp(2rem, 3vw, 2.75rem)',
-    borderRightWidth: '1px',
-    borderRightStyle: 'solid',
-    borderRightColor: tokens['--xid-border'],
-    backgroundColor: tokens['--xid-sidebar'],
+    paddingBlock: '3rem',
+    paddingInline: 'clamp(2rem, 4vw, 3.5rem)',
+    boxSizing: 'border-box',
+    backgroundColor: tokens['--xid-accent-wash'],
+    overflowY: 'auto',
   },
-  brandHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.625rem',
-    minWidth: 0,
-  },
-  brandBody: {
+  contextBlock: {
     display: 'flex',
     flexDirection: 'column',
+    gap: '1.25rem',
+    paddingBottom: '1.5rem',
+    maxWidth: '28.75rem',
+  },
+  contextLead: {
+    margin: 0,
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.base,
+    lineHeight: '1.125rem',
+  },
+  contextTitle: {
+    margin: 0,
+    fontSize: text.xxl,
+    fontWeight: weight.display,
+    letterSpacing: tokens['--xid-tracking-display'],
+    lineHeight: 1.1,
+    overflowWrap: 'anywhere',
+    textWrap: 'balance',
+  },
+  contextDescription: {
+    margin: 0,
+    maxWidth: '26.25rem',
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.md,
+    lineHeight: 1.55,
+  },
+  panelFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: '1rem',
-    paddingTop: '1.5rem',
+    paddingTop: '0.5rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
     borderTopColor: tokens['--xid-border'],
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
   },
-  brandStatement: {
-    margin: 0,
-    fontSize: 'clamp(1.5rem, 2vw, 1.875rem)',
-    fontWeight: 620,
-    letterSpacing: '-0.03em',
-    lineHeight: 1.18,
-    color: tokens['--xid-fg'],
-    textWrap: 'balance',
-  },
-  formPane: {
+  pane: {
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
-    padding: {
-      default: '1.25rem',
-      [DESKTOP]: 'clamp(1.75rem, 3vw, 2.75rem)',
-    },
-    minHeight: { default: 'auto', [DESKTOP]: '38rem' },
+    minHeight: '100svh',
+    boxSizing: 'border-box',
+    paddingInline: { default: '1rem', [REGULAR]: '1.5rem', [SIDEBAR]: 'clamp(1.5rem, 6vw, 6rem)' },
+    paddingBlock: { default: 0, [REGULAR]: '2rem', [SIDEBAR]: '3rem' },
+    borderInlineStartWidth: { default: 0, [SIDEBAR]: '1px' },
+    borderInlineStartStyle: 'solid',
+    borderInlineStartColor: tokens['--xid-border'],
+    backgroundColor: { default: 'transparent', [SIDEBAR]: tokens['--xid-surface'] },
   },
-  // 桌面端顶行:Stepper 靠左,LanguageSwitcher 右对齐,贴着表单窗格边缘。
-  desktopBar: {
-    display: {
-      default: 'none',
-      [DESKTOP]: 'flex',
-    },
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: '0.75rem',
-    minHeight: '2rem',
-    paddingBlockEnd: '0.5rem',
-  },
-  desktopBarSteps: {
-    marginRight: 'auto',
-  },
-  column: {
-    width: '100%',
-    maxWidth: {
-      default: 'none',
-      [DESKTOP]: '26rem',
-    },
-    // 占据表单窗格剩余空间并居中,内容超高时 margin 折叠回归正常滚动。
-    marginBlock: 'auto',
-    marginInline: {
-      default: 0,
-      [DESKTOP]: 'auto',
-    },
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.875rem',
-  },
-  // 移动端顶行沿用原 topBar 行为:logo 左、Stepper 中、LanguageSwitcher 右。
-  mobileBar: {
-    display: {
-      default: 'flex',
-      [DESKTOP]: 'none',
-    },
+  topBar: {
+    display: { default: 'flex', [SIDEBAR]: 'none' },
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: '0.75rem',
-    minHeight: '2rem',
-    paddingInline: '0.25rem',
+    gap: '1rem',
+    minHeight: '2.75rem',
+    paddingBlock: { default: '0.75rem', [REGULAR]: 0 },
   },
-  logo: {
-    height: '1.75rem',
-    objectFit: 'contain',
+  center: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: { default: 'stretch', [REGULAR]: 'center' },
+    justifyContent: { default: 'flex-start', [REGULAR]: 'center' },
+    flexGrow: 1,
+    paddingBlock: { default: '0.75rem 1.5rem', [REGULAR]: '2rem' },
   },
-  wordmark: {
-    fontSize: '1.0625rem',
-    fontWeight: 650,
-    letterSpacing: '-0.02em',
-    color: tokens['--xid-fg'],
-  },
-  // panel 已提供唯一容器边界,表单本身不再叠一层卡片。
-  card: {
+  column: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
     width: '100%',
-    boxSizing: 'border-box',
-    backgroundColor: 'transparent',
-    padding: { default: '1rem 0.25rem', [DESKTOP]: '0.5rem' },
+    maxWidth: { default: 'none', [REGULAR]: '30rem', [SIDEBAR]: '25rem' },
+  },
+  contextLine: {
+    display: { default: 'block', [SIDEBAR]: 'none' },
+    margin: 0,
+    paddingBlock: '0.625rem',
+    paddingInline: '0.875rem',
+    borderRadius: tokens['--xid-radius'],
+    backgroundColor: tokens['--xid-accent-wash'],
     color: tokens['--xid-fg'],
+    fontSize: text.sm,
+    lineHeight: '1.125rem',
+    overflowWrap: 'anywhere',
+  },
+  card: {
+    minWidth: 0,
+    boxSizing: 'border-box',
+    padding: { default: 0, [REGULAR]: '2.5rem', [SIDEBAR]: 0 },
+    borderWidth: { default: 0, [REGULAR]: '1px', [SIDEBAR]: 0 },
+    borderStyle: 'solid',
+    borderColor: tokens['--xid-border'],
+    borderRadius: tokens['--xid-radius-lg'],
+    backgroundColor: {
+      default: 'transparent',
+      [REGULAR]: tokens['--xid-surface'],
+      [SIDEBAR]: 'transparent',
+    },
   },
   footer: {
-    marginTop: '0.375rem',
-    paddingInline: '0.25rem',
-    textAlign: 'center',
-    display: 'grid',
-    gap: '0.75rem',
-    justifyItems: 'center',
-    fontSize: '0.8125rem',
     color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
+    lineHeight: '1.25rem',
+  },
+  bottomBar: {
+    display: { default: 'flex', [SIDEBAR]: 'none' },
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: '2.75rem',
+    paddingBottom: { default: 'max(0.5rem, env(safe-area-inset-bottom))', [REGULAR]: 0 },
+    borderTopWidth: { default: '1px', [REGULAR]: 0 },
+    borderTopStyle: 'solid',
+    borderTopColor: tokens['--xid-border'],
+    color: tokens['--xid-muted-foreground'],
+    fontSize: text.sm,
   },
 })
 
-export function AuthLayout({ children, footer, steps }: AuthLayoutProps): ReactNode {
-  const { brand, scheme } = useTheme()
-  const { t } = useLingui()
-  const appName = brand.appName ?? 'XID'
-  const logoUrl = brandLogoUrl(brand, scheme)
-  const logo = logoUrl ? (
-    <img src={logoUrl} alt={t`${appName} logo`} {...stylex.props(styles.logo)} />
-  ) : (
-    <span {...stylex.props(styles.wordmark)}>{appName}</span>
-  )
+function SecuredBy(): ReactNode {
+  return <Trans>Secured by XID</Trans>
+}
+
+export function AuthLayout({ children, footer, context }: AuthLayoutProps): ReactNode {
+  const { config } = useHostedAuthConfig()
+  const copy = useHostedContextCopy(context)
+  const organizationName = config.context.organizationName
+  const host = typeof window === 'undefined' ? undefined : window.location.host
 
   return (
-    <main {...stylex.props(styles.main)}>
-      <div {...stylex.props(styles.panel)}>
-        <aside {...stylex.props(styles.brandPanel)}>
-          <div {...stylex.props(styles.brandHeader)}>{logo}</div>
+    <div {...stylex.props(styles.root)}>
+      <aside {...stylex.props(styles.panel)}>
+        <BrandMark organizationName={organizationName} host={host} />
+        <div {...stylex.props(styles.contextBlock)}>
+          {copy.lead ? <p {...stylex.props(styles.contextLead)}>{copy.lead}</p> : null}
+          <p {...stylex.props(styles.contextTitle)}>{copy.title}</p>
+          {copy.description ? (
+            <p {...stylex.props(styles.contextDescription)}>{copy.description}</p>
+          ) : null}
+        </div>
+        <div {...stylex.props(styles.panelFooter)}>
+          <SecuredBy />
+          <LanguageMenu />
+        </div>
+      </aside>
 
-          <div {...stylex.props(styles.brandBody)}>
-            <p {...stylex.props(styles.brandStatement)}>
-              {t`One ${appName} account. Every application.`}
-            </p>
-          </div>
-        </aside>
-
-        <div {...stylex.props(styles.formPane)}>
-          <div {...stylex.props(styles.desktopBar)}>
-            {steps ? (
-              <div {...stylex.props(styles.desktopBarSteps)}>
-                <Stepper current={steps.current} total={steps.total} label={steps.label} />
-              </div>
-            ) : null}
-            <LanguageSwitcher />
-          </div>
-
+      <main {...stylex.props(styles.pane)}>
+        <header {...stylex.props(styles.topBar)}>
+          <BrandMark organizationName={organizationName} compact />
+          <LanguageMenu />
+        </header>
+        <div {...stylex.props(styles.center)}>
           <div {...stylex.props(styles.column)}>
-            <div {...stylex.props(styles.mobileBar)}>
-              <div {...stylex.props(styles.brandHeader)}>{logo}</div>
-              {steps ? (
-                <Stepper current={steps.current} total={steps.total} label={steps.label} />
-              ) : null}
-              <LanguageSwitcher />
-            </div>
-
+            {copy.line ? <p {...stylex.props(styles.contextLine)}>{copy.line}</p> : null}
             <section {...stylex.props(styles.card)}>{children}</section>
-
-            {footer ? <footer {...stylex.props(styles.footer)}>{footer}</footer> : null}
+            {footer ? <div {...stylex.props(styles.footer)}>{footer}</div> : null}
           </div>
         </div>
-      </div>
-    </main>
+        <footer {...stylex.props(styles.bottomBar)}>
+          <SecuredBy />
+        </footer>
+      </main>
+    </div>
   )
 }

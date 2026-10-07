@@ -1415,6 +1415,84 @@ export async function withChrome(fn) {
   }
 }
 
+// Hosted Auth 是标识优先:先填标识并 Continue,再在第二步用密码(默认方法不是密码时经 Try another way 切换)。
+export async function signInWithPasswordUi(page, { identifier, password, label }) {
+  await page.waitFor(
+    () =>
+      location.pathname === '/sign-in' &&
+      document.querySelector('input[name="identifier"]') !== null &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Continue' && !item.disabled,
+      ),
+    15_000,
+    `${label} identifier step`,
+  )
+  await page.setVisibleInputValue('input[name="identifier"]', identifier)
+  await page.clickVisibleButton('Continue')
+  await page.waitFor(
+    () =>
+      document.querySelector('input[type="password"]') !== null ||
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Try another way',
+      ),
+    15_000,
+    `${label} second step`,
+  )
+  const hasPassword = await page.evaluate(
+    `document.querySelector('input[type="password"]') !== null`,
+  )
+  if (hasPassword !== true) {
+    await page.clickVisibleButton('Try another way')
+    await page.clickVisibleButton('Enter your password')
+    await page.waitFor(
+      () => document.querySelector('input[type="password"]') !== null,
+      15_000,
+      `${label} password step`,
+    )
+  }
+  await page.setVisibleInputValue('input[type="password"]', password)
+  await page.clickVisibleButton('Sign in')
+}
+
+// 企业 SSO 入口:「Use single sign-on」切到工作邮箱表单,Continue 后经 HRD 跳到 IdP。
+export async function startEnterpriseSsoUi(page, { email, label }) {
+  await page.waitFor(
+    () =>
+      location.pathname === '/sign-in' &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Use single sign-on',
+      ),
+    15_000,
+    `${label} single sign-on entry`,
+  )
+  await page.clickVisibleButton('Use single sign-on')
+  await page.waitFor(
+    () => document.body.innerText.includes('Sign in with single sign-on'),
+    10_000,
+    `${label} work email form`,
+  )
+  await page.setVisibleInputValue('input[name="identifier"]', email)
+  await page.clickVisibleButton('Continue')
+}
+
+// 密码登录后没有 passkey 的用户会看到可跳过的创建插页;smoke 选择「Not now」后续跑原落点。
+export async function continuePastPasskeyPrompt(page, label) {
+  await page.waitFor(() => location.pathname !== '/sign-in', 20_000, `${label} leaves sign-in`)
+  if ((await page.evaluate('location.pathname')) !== '/create-passkey') return
+  await page.waitFor(
+    () =>
+      location.pathname !== '/create-passkey' ||
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Not now',
+      ),
+    15_000,
+    `${label} passkey prompt`,
+  )
+  if ((await page.evaluate('location.pathname')) === '/create-passkey') {
+    await page.clickVisibleButton('Not now')
+  }
+}
+
 function assertNoConsoleErrors(page, name) {
   const failures = page.events.filter((event) => {
     if (event.method === 'Runtime.exceptionThrown') return true
@@ -1448,32 +1526,12 @@ function assertNoConsoleDeadState(snapshot, name) {
 async function verifyBrowserPasswordSignIn(page) {
   await page.navigate(SIGN_IN_PATH)
   await page.setPreferredLocale('en')
-  await page.waitFor(
-    () =>
-      document.body.innerText.includes('Password') && document.body.innerText.includes('Sign in'),
-    15_000,
-    'password sign-in UI',
-  )
-  const passwordVisible = await page.evaluate(`(() => {
-    const isVisible = (node) => {
-      if (node.closest('[aria-hidden="true"],[inert]')) return false;
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number(style.opacity || '1') > 0.1 &&
-        rect.width > 0 &&
-        rect.height > 0;
-    };
-    return Array.from(document.querySelectorAll('input[type="password"]')).some(isVisible);
-  })()`)
-  if (passwordVisible !== true) await page.clickVisibleButton('Password')
-  await page.setVisibleInputValue(
-    'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
-    adminEmail,
-  )
-  await page.setVisibleInputValue('input[type="password"]', adminPassword)
-  await page.clickVisibleButton('Sign in')
+  await signInWithPasswordUi(page, {
+    identifier: adminEmail,
+    password: adminPassword,
+    label: 'password sign-in UI',
+  })
+  await continuePastPasskeyPrompt(page, 'password sign-in')
   await page.waitFor(() => location.pathname.startsWith('/console'), 15_000, 'console redirect')
   await page.waitFor(
     () => document.querySelector('[data-smoke-authenticated-console]') !== null,
@@ -1720,12 +1778,11 @@ async function verifyBrowserMfaSelfService(page, fixture) {
     15_000,
     'backup codes step-up challenge',
   )
-  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口。
+  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口;填满 6 位即自动提交。
   await page.setVisibleInputValue(
     'input[autocomplete="one-time-code"]',
     await currentTotpCode(secret, 1),
   )
-  await page.submitVisibleFormContaining('One-time code')
   await page.waitFor(
     () =>
       location.pathname === '/account/security' &&
@@ -1876,34 +1933,7 @@ async function verifyBrowserEnterpriseOidcSso(page, tenantId, providerState) {
   await page.clearSessionCookies()
   await page.navigate(SIGN_IN_PATH)
   await page.setPreferredLocale('en')
-  await page.waitFor(
-    () =>
-      document.body.innerText.includes('Continue with SSO') &&
-      Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Continue with SSO',
-      ),
-    15_000,
-    'enterprise sso UI',
-  )
-  const ssoVisible = await page.evaluate(`(() => {
-    const isVisible = (node) => {
-      if (node.closest('[aria-hidden="true"],[inert]')) return false;
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number(style.opacity || '1') > 0.1 &&
-        rect.width > 0 &&
-        rect.height > 0;
-    };
-    return Array.from(document.querySelectorAll('form[aria-label="Sign in with SSO"]')).some(isVisible);
-  })()`)
-  if (ssoVisible !== true) await page.clickVisibleButton('SSO')
-  await page.setVisibleInputValue(
-    'input[type="email"], input[autocomplete="email"]',
-    enterpriseEmail,
-  )
-  await page.clickVisibleButton('Continue with SSO')
+  await startEnterpriseSsoUi(page, { email: enterpriseEmail, label: 'enterprise sso UI' })
   try {
     await page.waitFor(
       () => location.pathname.startsWith('/console'),
@@ -2016,31 +2046,7 @@ async function verifyBrowserEnterpriseSamlSso(page, tenantId, providerState) {
   await page.clearSessionCookies()
   await page.navigate(SIGN_IN_PATH)
   await page.setPreferredLocale('en')
-  await page.waitFor(
-    () =>
-      document.body.innerText.includes('Continue with SSO') &&
-      Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Continue with SSO',
-      ),
-    15_000,
-    'enterprise saml UI',
-  )
-  const ssoVisible = await page.evaluate(`(() => {
-    const isVisible = (node) => {
-      if (node.closest('[aria-hidden="true"],[inert]')) return false;
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number(style.opacity || '1') > 0.1 &&
-        rect.width > 0 &&
-        rect.height > 0;
-    };
-    return Array.from(document.querySelectorAll('form[aria-label="Sign in with SSO"]')).some(isVisible);
-  })()`)
-  if (ssoVisible !== true) await page.clickVisibleButton('SSO')
-  await page.setVisibleInputValue('input[type="email"], input[autocomplete="email"]', samlEmail)
-  await page.clickVisibleButton('Continue with SSO')
+  await startEnterpriseSsoUi(page, { email: samlEmail, label: 'enterprise saml UI' })
   try {
     await page.waitFor(
       () => location.pathname.startsWith('/console'),

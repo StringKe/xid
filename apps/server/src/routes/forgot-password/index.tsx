@@ -7,11 +7,13 @@ import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { Link, useLocation, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
-import { tokens } from '../../styles/tokens.stylex'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
-import { Alert, Button, Field, Input, PageHeader, Spinner } from '../../components/ui'
+import { Button, Field, Input, Notice, PasswordField, Spinner } from '../../components/ui'
 import { AuthLayout } from '../../components/layout'
+import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { hosted } from '../../components/hosted/hosted-styles'
 import { useAuth } from '../../lib/auth-context'
+import { page } from '../../styles/product-surface.stylex'
 import { PasswordStrength, scorePassword, type PasswordScore } from '../sign-up/PasswordStrength'
 import { trackPasswordResetRequest } from '../../lib/google-analytics-funnel'
 import { handleResetPasswordSuccess } from './reset-success'
@@ -19,6 +21,7 @@ import { useDefaultLandingPath } from '../../lib/default-landing'
 import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from '../sign-in/auth-config'
 import { useTurnstile } from '../sign-in/useTurnstile'
 import { buildSignInFlowFields } from '../sign-in/sign-in-flow'
+import { maskEmail } from '../sign-in/identifier-mask'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
 import {
   forgotPasswordHref,
@@ -28,7 +31,7 @@ import {
 
 type RequestStepProps = {
   search: PasswordRecoverySearch
-  onDone: () => void
+  onDone: (email: string) => void
 }
 
 type ResetStepProps = {
@@ -38,48 +41,10 @@ type ResetStepProps = {
   isAccountSetup: boolean
 }
 
+const MIN_PASSWORD_LENGTH = 12
+const MAX_PASSWORD_LENGTH = 128
+
 const styles = stylex.create({
-  stack: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.25rem',
-    minWidth: 0,
-  },
-  formFields: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  passwordGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  textLink: {
-    fontSize: '0.8125rem',
-    color: tokens['--xid-accent'],
-    textDecorationLine: 'underline',
-    textDecorationColor: {
-      default: `color-mix(in oklch, ${tokens['--xid-accent']} 35%, transparent)`,
-      ':hover': tokens['--xid-accent'],
-    },
-    textUnderlineOffset: '0.1875rem',
-    transitionProperty: {
-      default: 'text-decoration-color',
-      '@media (prefers-reduced-motion: reduce)': 'none',
-    },
-    transitionDuration: '0.12s',
-    transitionTimingFunction: 'ease-out',
-    fontFamily: tokens['--xid-font'],
-  },
-  footerText: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-    fontFamily: tokens['--xid-font'],
-    textWrap: 'pretty',
-  },
   turnstile: {
     display: 'flex',
     justifyContent: 'center',
@@ -128,20 +93,20 @@ function RequestStep({ search, onDone }: RequestStepProps): ReactNode {
         turnstileToken,
       })
     },
-    onSuccess: (result) => {
+    onSuccess: (result, emailValue) => {
       if (!result.ok) {
         const { code } = result.error
         if (code === 'rate_limited') {
-          setGlobalError(t`Too many requests. Please wait a minute before trying again.`)
+          setGlobalError(t`Too many requests. Wait a minute, then try again.`)
         } else if (code === 'captcha_required' || code === 'captcha_failed') {
-          setGlobalError(t`Security verification failed. Please refresh and try again.`)
+          setGlobalError(t`The security check didn't finish. Reload the page and try again.`)
         } else {
           setGlobalError(apiErrorMessage(result.error, { surface: 'general' }))
         }
         return
       }
       trackPasswordResetRequest()
-      onDone()
+      onDone(emailValue)
     },
     onSettled: () => setTurnstileToken(null),
   })
@@ -151,42 +116,43 @@ function RequestStep({ search, onDone }: RequestStepProps): ReactNode {
     setEmailError(null)
     setGlobalError(null)
     if (!email.includes('@')) {
-      setEmailError(t`Enter a valid email address`)
+      setEmailError(t`Enter the email address you sign in with.`)
       return
     }
     if (!turnstileReady) return
     await requestMutation.mutateAsync(email)
   }
 
-  const isSubmitting = requestMutation.isPending
-
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} noValidate {...stylex.props(styles.stack)}>
-      <PageHeader
+    <form onSubmit={(e) => void handleSubmit(e)} noValidate {...stylex.props(hosted.screen)}>
+      <AuthHeading
         title={<Trans>Reset your password</Trans>}
-        lead={<Trans>Enter your email and we will send a reset link.</Trans>}
+        lead={
+          <Trans>
+            Enter the email you sign in with. We'll send a link to choose a new password.
+          </Trans>
+        }
       />
-
-      {globalError ? <Alert tone="error">{globalError}</Alert> : null}
-
-      <div {...stylex.props(styles.formFields)}>
-        <Field label={<Trans>Email address</Trans>} error={emailError ?? undefined} required>
+      {globalError ? <Notice tone="danger">{globalError}</Notice> : null}
+      <div {...stylex.props(hosted.form)}>
+        <Field label={<Trans>Email address</Trans>} error={emailError ?? undefined}>
           <Input
             type="email"
+            inputSize="lg"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t`you@example.com`}
-            disabled={isSubmitting}
+            disabled={requestMutation.isPending}
           />
         </Field>
-
         <div ref={containerRef} {...stylex.props(styles.turnstile)} />
         <Button
           type="submit"
           variant="accent"
+          size="lg"
           fullWidth
-          isLoading={isSubmitting}
+          isLoading={requestMutation.isPending}
           disabled={!turnstileReady}
         >
           <Trans>Send reset link</Trans>
@@ -205,11 +171,13 @@ function ResetStep({ token, clearToken, isAccountSetup }: ResetStepProps): React
   const [confirm, setConfirm] = useState('')
   const [passwordScore, setPasswordScore] = useState<PasswordScore>(0)
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [breached, setBreached] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [globalError, setGlobalError] = useState<string | null>(null)
 
   const handlePasswordChange = useCallback((value: string): void => {
     setPassword(value)
+    setBreached(false)
     setPasswordScore(scorePassword(value))
   }, [])
 
@@ -222,13 +190,11 @@ function ResetStep({ token, clearToken, isAccountSetup }: ResetStepProps): React
         if (error.code === 'token_expired' || error.code === 'token_invalid') {
           clearToken()
         } else if (error.code === 'password_breached') {
-          setPasswordError(
-            t`This password has appeared in a data breach. Please choose a different password.`,
-          )
+          setBreached(true)
         } else if (error.meta?.paramName === 'password') {
-          setPasswordError(error.message || t`Invalid password`)
+          setPasswordError(error.message || t`Choose a different password.`)
         } else {
-          setGlobalError(error.message || t`Something went wrong. Please try again.`)
+          setGlobalError(error.message || t`Something went wrong. Try again.`)
         }
         return
       }
@@ -247,71 +213,75 @@ function ResetStep({ token, clearToken, isAccountSetup }: ResetStepProps): React
     setPasswordError(null)
     setConfirmError(null)
     setGlobalError(null)
-
     let hasError = false
-    if (password.length < 12) {
-      setPasswordError(t`Password must be at least 12 characters`)
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setPasswordError(t`Use at least ${MIN_PASSWORD_LENGTH} characters.`)
       hasError = true
-    } else if (password.length > 128) {
-      setPasswordError(t`Password must be at most 128 characters`)
+    } else if (password.length > MAX_PASSWORD_LENGTH) {
+      setPasswordError(t`Use at most ${MAX_PASSWORD_LENGTH} characters.`)
       hasError = true
     }
     if (password !== confirm) {
-      setConfirmError(t`Passwords do not match`)
+      setConfirmError(t`The two passwords don't match.`)
       hasError = true
     }
     if (hasError) return
-
     await resetMutation.mutateAsync({ token, password })
   }
 
-  const isSubmitting = resetMutation.isPending
-
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} noValidate {...stylex.props(styles.stack)}>
-      {isAccountSetup ? (
-        <PageHeader
-          title={<Trans>Set your password</Trans>}
-          lead={
+    <form onSubmit={(e) => void handleSubmit(e)} noValidate {...stylex.props(hosted.screen)}>
+      <AuthHeading
+        title={
+          isAccountSetup ? <Trans>Set your password</Trans> : <Trans>Choose a new password</Trans>
+        }
+        lead={
+          isAccountSetup ? (
             <Trans>Your email is verified. Set a password to finish creating your account.</Trans>
-          }
-        />
-      ) : (
-        <PageHeader
-          title={<Trans>Choose a new password</Trans>}
-          lead={<Trans>Enter a strong password to secure your account.</Trans>}
-        />
-      )}
-
-      {globalError ? <Alert tone="error">{globalError}</Alert> : null}
-
-      <div {...stylex.props(styles.formFields)}>
-        <div {...stylex.props(styles.passwordGroup)}>
-          <Field label={<Trans>New password</Trans>} error={passwordError ?? undefined} required>
-            <Input
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => handlePasswordChange(e.target.value)}
-              placeholder={t`Minimum 12 characters`}
-              disabled={isSubmitting}
-            />
-          </Field>
+          ) : (
+            <Trans>
+              Use at least {MIN_PASSWORD_LENGTH} characters. A longer phrase is easier to remember
+              and harder to guess.
+            </Trans>
+          )
+        }
+      />
+      {globalError ? <Notice tone="danger">{globalError}</Notice> : null}
+      {breached ? (
+        <Notice tone="warning" title={<Trans>This password appeared in a data breach</Trans>}>
+          <Trans>
+            It's on a public list of leaked passwords, so attackers try it first. Choose a different
+            one.
+          </Trans>
+        </Notice>
+      ) : null}
+      <div {...stylex.props(hosted.form)}>
+        <div {...stylex.props(hosted.group)}>
+          <PasswordField
+            label={<Trans>New password</Trans>}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => handlePasswordChange(e.target.value)}
+            error={passwordError ?? undefined}
+            disabled={resetMutation.isPending}
+          />
           {password.length > 0 ? <PasswordStrength score={passwordScore} /> : null}
         </div>
-
-        <Field label={<Trans>Confirm password</Trans>} error={confirmError ?? undefined} required>
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            placeholder={t`Repeat your password`}
-            disabled={isSubmitting}
-          />
-        </Field>
-
-        <Button type="submit" variant="accent" fullWidth isLoading={isSubmitting}>
+        <PasswordField
+          label={<Trans>Confirm password</Trans>}
+          autoComplete="new-password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          error={confirmError ?? undefined}
+          disabled={resetMutation.isPending}
+        />
+        <Button
+          type="submit"
+          variant="accent"
+          size="lg"
+          fullWidth
+          isLoading={resetMutation.isPending}
+        >
           <Trans>Set new password</Trans>
         </Button>
       </div>
@@ -319,32 +289,37 @@ function ResetStep({ token, clearToken, isAccountSetup }: ResetStepProps): React
   )
 }
 
-function RequestDoneView(): ReactNode {
+function RequestDoneView({ email }: { email: string }): ReactNode {
+  const masked = maskEmail(email)
   return (
-    <div {...stylex.props(styles.stack)}>
-      <PageHeader
+    <div {...stylex.props(hosted.screen)}>
+      <AuthHeading
         title={<Trans>Check your email</Trans>}
         lead={
           <Trans>
-            If an account with that email exists, you will receive a password reset link shortly.
+            If {masked} has an account, a reset link is on its way. It works once, for 15 minutes.
           </Trans>
         }
       />
+      <p {...stylex.props(hosted.note)}>
+        <Trans>
+          No email after a few minutes? Check spam, or try again with the address you sign in with.
+        </Trans>
+      </p>
     </div>
   )
 }
 
 function BackToSignIn({ search }: { search: PasswordRecoverySearch }): ReactNode {
   return (
-    <p {...stylex.props(styles.footerText)}>
-      <Link to={passwordRecoverySignInHref(search)} {...stylex.props(styles.textLink)}>
-        <Trans>Back to sign in</Trans>
-      </Link>
-    </p>
+    <Link to={passwordRecoverySignInHref(search)} {...stylex.props(hosted.textLink)}>
+      <Trans>Back to sign in</Trans>
+    </Link>
   )
 }
 
 function ForgotPasswordPage(): ReactNode {
+  const { t } = useLingui()
   // 挂两条路径,strict:false 不绑单一 route id。
   const search = useSearch({ strict: false }) as PasswordRecoverySearch & {
     token?: string
@@ -357,55 +332,54 @@ function ForgotPasswordPage(): ReactNode {
     legacyQueryToken: isResetRoute ? (search.token ?? null) : null,
   })
   const backToSignIn = <BackToSignIn search={search} />
-  const requestNewLinkHref = forgotPasswordHref(search)
-  const [requestDone, setRequestDone] = useState(false)
-
-  if (isResetRoute && !ready) {
-    return (
-      <AuthLayout footer={backToSignIn}>
-        <div {...stylex.props(styles.stack)} aria-live="polite">
-          <Spinner size={24} />
-          <Trans>Preparing password reset...</Trans>
-        </div>
-      </AuthLayout>
-    )
+  const [requestedEmail, setRequestedEmail] = useState<string | null>(null)
+  const context = {
+    lead: t`Your account`,
+    title: t`Password reset`,
+    description: t`Reset links are single-use and expire after 15 minutes so nobody else can use an old email.`,
   }
 
-  if (isResetRoute && token === null) {
-    return (
-      <AuthLayout footer={backToSignIn}>
-        <div {...stylex.props(styles.stack)}>
-          <PageHeader title={<Trans>Reset link unavailable</Trans>} />
-          <Alert tone="error">
-            <Trans>This reset link is invalid or has expired. Please request a new one.</Trans>
-          </Alert>
-          <Link to={requestNewLinkHref} {...stylex.props(styles.textLink)}>
+  function content(): ReactNode {
+    if (isResetRoute && !ready) {
+      return (
+        <div {...stylex.props(page.loadingCenter)} aria-live="polite">
+          <Spinner label={t`Preparing password reset`} />
+        </div>
+      )
+    }
+    if (isResetRoute && token === null) {
+      return (
+        <div {...stylex.props(hosted.screen)}>
+          <AuthHeading
+            title={<Trans>This reset link no longer works</Trans>}
+            lead={
+              <Trans>
+                Reset links work once, for 15 minutes. Request a new one and open the newest email.
+              </Trans>
+            }
+          />
+          <Link to={forgotPasswordHref(search)} {...stylex.props(hosted.textLink)}>
             <Trans>Request a new reset link</Trans>
           </Link>
         </div>
-      </AuthLayout>
-    )
-  }
-
-  if (requestDone) {
-    return (
-      <AuthLayout footer={backToSignIn}>
-        <RequestDoneView />
-      </AuthLayout>
-    )
-  }
-
-  return (
-    <AuthLayout footer={backToSignIn}>
-      {isResetRoute ? (
+      )
+    }
+    if (requestedEmail !== null) return <RequestDoneView email={requestedEmail} />
+    if (isResetRoute) {
+      return (
         <ResetStep
           token={token as string}
           clearToken={clearToken}
           isAccountSetup={String(search.setup) === '1'}
         />
-      ) : (
-        <RequestStep search={search} onDone={() => setRequestDone(true)} />
-      )}
+      )
+    }
+    return <RequestStep search={search} onDone={setRequestedEmail} />
+  }
+
+  return (
+    <AuthLayout context={context} footer={backToSignIn}>
+      {content()}
     </AuthLayout>
   )
 }

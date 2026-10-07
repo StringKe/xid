@@ -855,7 +855,7 @@ class CdpPage {
   }
 
   // 虚拟认证器开启 automaticPresenceSimulation 后会立即应答 Conditional UI,页面在点击前就完成登录;
-  // 关闭它才能覆盖显式「Sign in with passkey」按钮路径。
+  // 关闭它才能覆盖显式「Continue with a passkey」按钮路径。
   async disableConditionalMediation() {
     await this.send('Page.addScriptToEvaluateOnNewDocument', {
       source: `if (window.PublicKeyCredential) Object.defineProperty(window.PublicKeyCredential, 'isConditionalMediationAvailable', { value: async () => false, configurable: true })`,
@@ -1234,28 +1234,44 @@ async function waitForLatestBrowserOtpHash(afterMs) {
   throw lastError ?? new Error('browser email otp token was not written to production D1')
 }
 
+// 没有 passkey 的用户登录后会看到可跳过的创建插页;smoke 选择「Not now」后续跑原落点。
+async function continuePastPasskeyPrompt(page, label) {
+  await page.waitFor(() => location.pathname !== '/sign-in', 30_000, `${label} leaves sign-in`)
+  if ((await page.evaluate('location.pathname')) !== '/create-passkey') return
+  await page.waitFor(
+    () =>
+      location.pathname !== '/create-passkey' ||
+      Array.from(document.querySelectorAll('button')).some((item) =>
+        ['Not now', '暂不'].includes(String(item.textContent || '').trim()),
+      ),
+    15_000,
+    `${label} passkey prompt`,
+  )
+  if ((await page.evaluate('location.pathname')) !== '/create-passkey') return
+  await page.clickVisibleButton((await page.hasVisibleButton('Not now')) ? 'Not now' : '暂不')
+}
+
 async function checkSignInEmailOtpFlow(page) {
   await page.navigate('/sign-in?locale=en')
   await page.forceEnglishLocale()
   const entry = await page.snapshot()
   if (entry.pathname !== '/sign-in') throw new Error(`sign-in pathname mismatch: ${entry.href}`)
-  if ((await page.hasVisibleButton('OTP')) === true) await page.clickVisibleButton('OTP')
   await page.waitFor(
     () =>
-      Array.from(
-        document.querySelectorAll('input[type="email"], input[autocomplete="email"]'),
-      ).some((node) => {
-        if (node.closest('[aria-hidden="true"],[inert]')) return false
-        const style = getComputedStyle(node)
-        const rect = node.getBoundingClientRect()
-        return (
-          style.display !== 'none' &&
-          style.visibility !== 'hidden' &&
-          Number(style.opacity || '1') > 0.1 &&
-          rect.width > 0 &&
-          rect.height > 0
-        )
-      }),
+      Array.from(document.querySelectorAll('input[name="identifier"][type="email"]')).some(
+        (node) => {
+          if (node.closest('[aria-hidden="true"],[inert]')) return false
+          const style = getComputedStyle(node)
+          const rect = node.getBoundingClientRect()
+          return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            Number(style.opacity || '1') > 0.1 &&
+            rect.width > 0 &&
+            rect.height > 0
+          )
+        },
+      ),
     15_000,
     'email otp input',
   )
@@ -1276,8 +1292,8 @@ async function checkSignInEmailOtpFlow(page) {
   if (hasHostedAuthInput !== true) throw new Error('sign-in page missing email input')
   if (
     containsAny(entry.text, [
-      'SMS OTP',
-      'WhatsApp OTP',
+      'Text a code',
+      'Send a code on WhatsApp',
       '通过短信发送验证码',
       '通过 WhatsApp 发送验证码',
     ])
@@ -1286,50 +1302,11 @@ async function checkSignInEmailOtpFlow(page) {
   }
   await checkDefaultProfileFields(page)
 
-  const sendVisible = await page.evaluate(`(() => {
-    const isVisible = (node) => {
-      if (node.closest('[aria-hidden="true"],[inert]')) return false;
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number(style.opacity || '1') > 0.1 &&
-        rect.width > 0 &&
-        rect.height > 0;
-    };
-    return Array.from(document.querySelectorAll('button'))
-      .some((node) => isVisible(node) && (
-        node.textContent.trim() === 'Send code via email' ||
-        node.textContent.trim() === '通过邮箱发送验证码'
-      ));
-  })()`)
-  if (sendVisible !== true) await page.clickVisibleButton('OTP')
-
-  await page.waitFor(
-    () =>
-      Array.from(document.querySelectorAll('button')).some((node) => {
-        if (node.closest('[aria-hidden="true"],[inert]')) return false
-        const style = getComputedStyle(node)
-        const rect = node.getBoundingClientRect()
-        return (
-          style.display !== 'none' &&
-          style.visibility !== 'hidden' &&
-          Number(style.opacity || '1') > 0.1 &&
-          rect.width > 0 &&
-          rect.height > 0 &&
-          (node.textContent.trim() === 'Send code via email' ||
-            node.textContent.trim() === '通过邮箱发送验证码')
-        )
-      }),
-    15_000,
-    'email otp send button',
-  )
-  await page.setVisibleInputValue('input[type="email"], input[autocomplete="email"]', smokeEmail)
-  const emailOtpSendLabel = (await page.hasVisibleText('Send code via email'))
-    ? 'Send code via email'
-    : '通过邮箱发送验证码'
+  // 标识优先:邮箱 -> Continue;邮件验证码是第二步的默认方法,进入即发码。
+  await page.setVisibleInputValue('input[name="identifier"]', smokeEmail)
+  const continueLabel = (await page.hasVisibleText('Continue')) ? 'Continue' : '继续'
   try {
-    await page.waitForVisibleButton(emailOtpSendLabel, 45_000)
+    await page.waitForVisibleButton(continueLabel, 45_000)
   } catch (error) {
     const failedSnapshot = await page.snapshot()
     const turnstileState = await page.evaluate(`({
@@ -1347,12 +1324,12 @@ async function checkSignInEmailOtpFlow(page) {
     )
   }
   const afterMs = Date.now()
-  await page.clickVisibleButton(emailOtpSendLabel)
+  await page.clickVisibleButton(continueLabel)
   try {
     await page.waitFor(
       () =>
-        document.body.innerText.includes('Verification code') ||
-        document.body.innerText.includes('验证码'),
+        document.body.innerText.includes('Enter the code we emailed you') ||
+        document.body.innerText.includes('输入我们通过邮件发送的验证码'),
       15_000,
       'email otp code input',
     )
@@ -1397,14 +1374,10 @@ LIMIT 1;
     target: smokeEmail,
     afterMs,
   })
-  await page.setVisibleInputValue(
-    'input[autocomplete="one-time-code"], input[inputmode="numeric"], input[maxlength="6"]',
-    code,
-  )
-  if ((await page.hasVisibleButton('Verify code')) === true)
-    await page.clickVisibleButton('Verify code')
-  else await page.clickVisibleButton('验证验证码')
+  // 填满 6 位即自动提交,与粘贴验证码一致。
+  await page.setVisibleInputValue('input[autocomplete="one-time-code"]', code)
   try {
+    await continuePastPasskeyPrompt(page, 'email otp')
     await page.waitFor(
       () => location.pathname.startsWith('/console'),
       15_000,
@@ -1492,33 +1465,35 @@ async function submitPasswordSignIn(page, organizationId, allowTurnstileRetry = 
     `/sign-in?organization_id=${encodeURIComponent(organizationId)}&continue=${encodeURIComponent('/console')}&locale=en`,
   )
   await page.waitFor(
+    () => document.querySelector('input[name="identifier"]') !== null,
+    15_000,
+    'password smoke identifier step',
+  )
+  await page.setVisibleInputValue('input[name="identifier"]', passwordSmokeEmail)
+  await page.waitForVisibleButton('Continue', 45_000)
+  await page.clickVisibleButton('Continue')
+  // 租户只开放密码与 passkey 时,第二步默认是密码。
+  await page.waitFor(
     () => document.querySelector('input[type="password"]') !== null,
     15_000,
-    'password smoke sign-in UI',
+    'password smoke password step',
   )
   const snapshotBefore = await page.snapshot()
   if (
     containsAny(snapshotBefore.text, [
-      'Send code via email',
-      '通过邮箱发送验证码',
-      'OTP',
-      '验证码登录',
+      'Enter the code we emailed you',
+      'Email a code',
+      '通过邮件发送验证码',
     ])
   ) {
     throw new Error('password smoke sign-in exposed Email OTP')
   }
-  if (containsAny(snapshotBefore.text, ['Send magic link', '发送登录链接'])) {
+  if (containsAny(snapshotBefore.text, ['Email a sign-in link', '通过邮件发送登录链接'])) {
     throw new Error('password smoke sign-in exposed Magic Link')
   }
-  const passwordVisible = await page.hasVisiblePasswordInput()
-  if (passwordVisible !== true) await page.clickVisibleButton('Password')
-  await page.setVisibleInputValue(
-    'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
-    passwordSmokeEmail,
-  )
   await page.setVisibleInputValue('input[type="password"]', passwordSmokePassword)
   try {
-    await page.waitForVisibleSubmitButton('form[aria-label]', 45_000)
+    await page.waitForVisibleSubmitButton('form', 45_000)
   } catch (error) {
     const failedSnapshot = await page.snapshot()
     const turnstileState = await page.evaluate(`({
@@ -1538,13 +1513,14 @@ async function submitPasswordSignIn(page, organizationId, allowTurnstileRetry = 
       { cause: error },
     )
   }
-  await page.clickVisibleSubmitButton('form[aria-label]')
+  await page.clickVisibleButton('Sign in')
 }
 
 async function checkPasswordSignInFlow(page, organizationId) {
   await checkPasswordSmokeAuthConfig(organizationId)
   await submitPasswordSignIn(page, organizationId)
   try {
+    await continuePastPasskeyPrompt(page, 'password smoke')
     await page.waitFor(
       () => location.pathname.startsWith('/account'),
       30_000,
@@ -1651,7 +1627,7 @@ async function checkMfaLoginChallengeFlow(page, organizationId, userId, secret) 
   await page.waitFor(
     () =>
       location.pathname.startsWith('/mfa') &&
-      document.body.innerText.includes('Authenticator code') &&
+      document.body.innerText.includes('Enter the code from your authenticator app') &&
       document.body.innerText.includes('Verify'),
     30_000,
     'password smoke mfa challenge',
@@ -1674,10 +1650,10 @@ async function checkMfaLoginChallengeFlow(page, organizationId, userId, secret) 
     )
   }
   const pendingSnapshot = await page.snapshot()
-  if (pendingSnapshot.text.includes('MFA methods')) {
+  if (pendingSnapshot.text.includes('Choose another way to verify')) {
     throw new Error('single TOTP MFA challenge showed method selector')
   }
-  if (pendingSnapshot.text.includes('SMS verification')) {
+  if (pendingSnapshot.text.includes('Text me a code')) {
     throw new Error('TOTP MFA challenge exposed SMS')
   }
   if (pendingSnapshot.hasPlaceholderHref) throw new Error('/mfa challenge has placeholder href')
@@ -1687,11 +1663,8 @@ async function checkMfaLoginChallengeFlow(page, organizationId, userId, secret) 
 
   const previousCode = await currentTotpCode(secret)
   const code = await waitForFreshTotpCode(secret, previousCode)
-  await page.setVisibleInputValue(
-    'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
-    code,
-  )
-  await page.clickVisibleButton('Verify')
+  // 填满 6 位即自动提交。
+  await page.setVisibleInputValue('input[autocomplete="one-time-code"]', code)
   try {
     await page.waitFor(
       () => location.pathname.startsWith('/account'),
@@ -1936,12 +1909,11 @@ async function checkMfaSelfServiceFlow(page, organizationId, userId) {
     15_000,
     'production backup codes step-up challenge',
   )
-  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口。
+  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口;填满 6 位即自动提交。
   await page.setVisibleInputValue(
     'input[autocomplete="one-time-code"]',
     await currentTotpCode(secret, 1),
   )
-  await page.submitVisibleFormContaining('One-time code')
   await page.waitFor(
     () =>
       location.pathname === '/account/security' &&
@@ -2108,25 +2080,15 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
     `/sign-in?organization_id=${encodeURIComponent(organizationId)}&continue=${encodeURIComponent('/console')}&locale=en`,
   )
   await page.waitFor(
-    () =>
-      document.querySelector(
-        'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
-      ) !== null,
+    () => document.querySelector('input[name="identifier"]') !== null,
     15_000,
     'passkey sign-in UI',
   )
-  const hasPasskeyPanel = await page.hasVisibleText(['Sign in with passkey', '使用通行密钥登录'])
-  if (hasPasskeyPanel !== true) {
-    await page.waitForVisibleButton('Passkey', 15_000)
-    await page.clickVisibleButton('Passkey')
-  }
-  await page.setVisibleInputValue(
-    'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
-    passwordSmokeEmail,
-  )
-  const passkeySignInLabel = (await page.hasVisibleText('Sign in with passkey'))
-    ? 'Sign in with passkey'
-    : '使用通行密钥登录'
+  // 条件式 UI 关闭后,标识页显示显式的「Continue with a passkey」按钮。
+  await page.setVisibleInputValue('input[name="identifier"]', passwordSmokeEmail)
+  const passkeySignInLabel = (await page.hasVisibleText('Continue with a passkey'))
+    ? 'Continue with a passkey'
+    : '使用通行密钥继续'
   try {
     await page.waitForVisibleButton(passkeySignInLabel, 45_000)
   } catch (error) {

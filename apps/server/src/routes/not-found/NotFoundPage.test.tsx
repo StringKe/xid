@@ -5,29 +5,30 @@ import NotFoundPage from './NotFoundPage'
 
 vi.mock('@lingui/react/macro', () => ({
   Trans: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useLingui: () => ({ t: (strings: TemplateStringsArray) => strings.join('') }),
 }))
 
 vi.mock('@xid-kit/web-ui/tanstack-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
+  useNavigate: () => vi.fn(),
 }))
 
-vi.mock('../../components/LanguageSwitcher', () => ({
-  LanguageSwitcher: () => <span>Language</span>,
+vi.mock('../../components/layout', () => ({
+  AuthLayout: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }))
 
-vi.mock('../../components/BrandLogo', () => ({
-  BrandLogo: () => <span>XID</span>,
+vi.mock('../../components/hosted/use-hosted-auth-config', () => ({
+  useHostedAuthConfig: () => ({ config: { context: { organizationName: 'Northwind' } } }),
 }))
 
 describe('NotFoundPage', () => {
-  it('renders 404 copy and navigation exits without redirecting to sign-in only', () => {
+  it('explains the missing page and offers sign-in and account exits', () => {
     const html = renderToStaticMarkup(<NotFoundPage />)
 
     expect(html).toContain('404')
-    expect(html).toContain('Page not found')
+    expect(html).toContain('We can&#x27;t find that page')
+    expect(html).toContain('Go to Northwind sign-in')
     expect(html).toContain('href="/account"')
-    expect(html).toContain('href="/sign-in"')
     expect(html).not.toContain('href="/"')
-    expect(html).not.toContain('<button')
   })
 })

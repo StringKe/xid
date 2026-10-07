@@ -1,4 +1,14 @@
-// 四验证在 server;此处仅 base64url 与 assertion 序列化。
+// 四验证在 server;此处仅浏览器能力探测、base64url 与 assertion 序列化。
+
+export function browserSupportsWebAuthn(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    'PublicKeyCredential' in window &&
+    typeof navigator !== 'undefined' &&
+    'credentials' in navigator
+  )
+}
+
 export function b64urlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
   const binary = atob(base64)

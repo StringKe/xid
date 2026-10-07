@@ -57,6 +57,7 @@ function Harness(props: HookProps): null {
   latest = usePasskeySignIn({
     api,
     enabled: true,
+    conditionalEnabled: true,
     identifierRequired: props.identifierRequired ?? false,
     identifier: props.identifier ?? '',
     organizationId: null,

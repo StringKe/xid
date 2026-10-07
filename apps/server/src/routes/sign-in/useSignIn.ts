@@ -1,204 +1,88 @@
-// 登录业务逻辑;枚举防护:失败统一模糊 key,magic-link/OTP 成功不泄露联系方式是否存在。
-// Turnstile 每次服务端校验后清空,由 widget 签发新单次 token。
+// 标识符优先的登录:第一步只收标识符(passkey 从 autofill 出现),提交后按已验证域名直跳企业 SSO、
+// 按根入口歧义选组织,否则进入第二步。失败统一模糊 key;发码与发链接成功不泄露联系方式是否存在。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import type { Result, XidError } from '@xid-kit/types'
 import { useAuth } from '../../lib/auth-context'
 import { useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import {
   apiErrorToKey,
-  enabledSignInMethods,
   emptyProfileValues,
   federatedSignInErrorKey,
-  initialSignInMethod,
   isOtpMethod,
-  profilePayload,
   organizationSignInUrl,
-  type ProfileFieldKey,
-  type ProfileValues,
-  type SignInErrorKey,
-  type SignInMethod,
 } from './shared'
+import type { ProfileFieldKey, ProfileValues, SignInErrorKey, SignInMethod } from './shared'
 import { trackEvent } from '../../lib/google-analytics'
 import {
   trackAuthMethodSelected,
   trackAuthSuccess,
   trackMagicLinkSent,
   trackOtpSent,
-  type AuthMethod,
 } from '../../lib/google-analytics-funnel'
 import {
   clearPendingAuthCompletion,
   setPendingAuthCompletion,
 } from '../../lib/google-analytics-pending-auth'
 import { buildSignInFlowFields, resolveHostedReturn } from './sign-in-flow'
-import {
-  buildFlowPayload,
-  organizationSelectionPath,
-  otpEndpoint,
-  otpTarget,
-} from './sign-in-requests'
+import { buildFlowPayload, organizationSelectionPath, otpTarget } from './sign-in-requests'
 import { usePasskeySignIn } from './usePasskeySignIn'
-import type { PasskeySupport } from './usePasskeySignIn'
-import { DEFAULT_PUBLIC_AUTH_CONFIG, type PublicHostedAuthConfig } from './auth-config'
+import { DEFAULT_PUBLIC_AUTH_CONFIG, enterpriseSsoEnabled } from './auth-config'
 import { authConfigQueryOptions } from './auth-config-query'
+import { isSignUpIntent } from '../../../shared/hosted-auth-intent'
 import {
-  isProductSignUpIntent,
-  isSignUpIntent,
-  type HostedAuthIntent,
-} from '../../../shared/hosted-auth-intent'
+  browserStorage,
+  defaultSecondStepMethod,
+  identifierKindOf,
+  readLastAuthMethod,
+  secondStepMethods,
+  writeLastAuthMethod,
+} from './method-order'
+import {
+  AUTH_METHOD_BY_SIGN_IN_METHOD,
+  type SignInActions,
+  type SignInSearch,
+  type SignInState,
+  type SignInStep,
+} from './sign-in-types'
+import {
+  buildSocialAuthorizeUrl,
+  enabledSignInMethodsForIntent,
+  passkeyPromptPath,
+  signInPathWithLoginHint,
+  signInPathWithoutLoginHint,
+} from './sign-in-entry'
+import { useCredentialMutations, type AuthResponse } from './useCredentialMutations'
+import { ssoTargetFrom, useSsoDiscovery, type SsoTarget } from './useSsoDiscovery'
 
+export type { SignInActions, SignInState, SignInStep } from './sign-in-types'
 export type { SignInMethod, SignInErrorKey } from './shared'
 export { buildAuthConfigPath } from './auth-config-query'
+export { buildSocialAuthorizeUrl, enabledSignInMethodsForIntent } from './sign-in-entry'
 
-type AuthResponse = { redirectUrl?: string; nextStep?: 'verify_email' | 'complete' }
-type AuthResult = Result<AuthResponse>
-type HrdResult = {
-  organizationId?: string
-  connectionId: string | null
-  orgId?: string
-  protocol?: 'saml' | 'oidc'
-}
-
-const AUTH_METHOD_BY_SIGN_IN_METHOD: Readonly<Record<SignInMethod, AuthMethod>> = {
-  'magic-link': 'magic_link',
-  'otp-email': 'otp_email',
-  'otp-whatsapp': 'otp_whatsapp',
-  'otp-sms': 'otp_sms',
-  'enterprise-sso': 'enterprise_sso',
-  passkey: 'passkey',
-  password: 'password',
-}
-
-export function buildSocialAuthorizeUrl(input: {
-  origin: string
-  provider: string
-  hostedReturn: string
-  intent?: HostedAuthIntent | null
-  applicationClientId?: string | null
-  identifier: string
-  organizationId?: string
-  turnstileToken: string | null
-}): URL {
-  const url = new URL(`/auth/${input.provider}/authorize`, input.origin)
-  url.searchParams.set(
-    'continue',
-    isProductSignUpIntent(input.intent) ? '/create-organization' : input.hostedReturn,
-  )
-  if (input.intent) url.searchParams.set('intent', input.intent)
-  if (input.applicationClientId) url.searchParams.set('client_id', input.applicationClientId)
-  if (input.identifier.trim()) url.searchParams.set('login_hint', input.identifier.trim())
-  if (input.organizationId) url.searchParams.set('organization_id', input.organizationId)
-  if (input.turnstileToken) url.searchParams.set('turnstile', input.turnstileToken)
-  return url
-}
-
-export function enabledSignInMethodsForIntent(
-  config: PublicHostedAuthConfig,
-  intent: string | null | undefined,
-): readonly SignInMethod[] {
-  const methods = enabledSignInMethods(config)
-  // sign-up 尚无独立 passkey 注册流,禁止跑登录 ceremony。
-  return isSignUpIntent(intent) ? methods.filter((method) => method !== 'passkey') : methods
-}
-
-export type SignInState = {
-  method: SignInMethod
-  authConfig: PublicHostedAuthConfig
-  enabledMethods: readonly SignInMethod[]
-  identifier: string
-  profileValues: ProfileValues
-  password: string
-  rememberMe: boolean
-  otpCode: string
-  isLoading: boolean
-  passkeySupport: PasskeySupport
-  conditionalUiRunning: boolean
-  error: SignInErrorKey | null
-  otpStep: 'input' | 'sent'
-  turnstileToken: string | null
-  turnstileReady: boolean
-  // config 未返回且 URL 不排除 guest 时为 true,页面固定高度占位防 CLS。
-  guestEntryPending: boolean
-  tenantSelection: {
-    loginHint: string | null
-    continueParam: string | null
-    redirect: string | null
-    authzRequestId: string | null
-  }
-}
-
-export type SignInActions = {
-  setMethod: (method: SignInMethod) => void
-  setIdentifier: (value: string) => void
-  setProfileValue: (field: ProfileFieldKey, value: string) => void
-  setPassword: (value: string) => void
-  setRememberMe: (value: boolean) => void
-  setOtpCode: (value: string) => void
-  setTurnstileToken: (token: string) => void
-  submitPassword: () => void
-  submitMagicLink: () => void
-  submitOtpRequest: () => void
-  submitOtpVerify: () => void
-  submitEnterpriseSso: () => void
-  submitGuest: () => void
-  triggerPasskeyButton: () => void
-  handleSocial: (provider: string) => void
-  selectOrganizationContext: (organizationId: string) => void
-}
-
-type SignInSearch = {
-  authz_request_id?: string
-  continue?: string
-  login_hint?: string
-  redirect?: string
-  organization_id?: string
-  client_id?: string
-  intent?: string
-  invitation_token?: string
-  error?: string
-}
+type PendingDiscovery = { identifier: string; ssoOnly: boolean }
 
 export function useSignIn(): [SignInState, SignInActions] {
   const { api, refresh } = useAuth()
   const navigate = useNavigate()
-  // strict:false:兼容工厂挂载,不绑单一 route id。
   const search = useSearch({ strict: false }) as SignInSearch
-  const redirectParam = search.redirect ?? null
-  const authzRequestId = search.authz_request_id ?? null
   const selectedOrganizationId = search.organization_id ?? null
-  const signInFlowExtras = useMemo(
-    () =>
-      buildSignInFlowFields({
-        authz_request_id: search.authz_request_id,
-        continue: search.continue,
-        redirect: search.redirect,
-        client_id: search.client_id,
-        intent: search.intent,
-        invitation_token: search.invitation_token,
-      }),
-    [
-      search.authz_request_id,
-      search.continue,
-      search.redirect,
-      search.client_id,
-      search.intent,
-      search.invitation_token,
-    ],
-  )
-
-  // deny-by-default 首屏 magic-link;passkey 探测只揭示 tab,绝不自动切面板。
-  const [method, setMethodState] = useState<SignInMethod>(() =>
-    initialSignInMethod(DEFAULT_PUBLIC_AUTH_CONFIG),
-  )
+  const flowFields = useMemo(() => buildSignInFlowFields(search), [search])
+  const [step, setStep] = useState<SignInStep>('identifier')
+  const [method, setMethodState] = useState<SignInMethod>('password')
   const [identifier, setIdentifier] = useState(search.login_hint ?? '')
   const [profileValues, setProfileValues] = useState<ProfileValues>(() => emptyProfileValues())
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
-  const [otpCode, setOtpCode] = useState('')
-  const [otpStep, setOtpStep] = useState<'input' | 'sent'>('input')
+  const [otpCode, setOtpCodeState] = useState('')
+  const [otpSentAt, setOtpSentAt] = useState<number | null>(null)
+  const [otpResent, setOtpResent] = useState(false)
+  const [pendingOtpSend, setPendingOtpSend] = useState(false)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [pendingDiscovery, setPendingDiscovery] = useState<PendingDiscovery | null>(null)
+  const [ssoTarget, setSsoTarget] = useState<SsoTarget | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const [error, setError] = useState<SignInErrorKey | null>(() =>
     federatedSignInErrorKey(search.error),
@@ -207,39 +91,43 @@ export function useSignIn(): [SignInState, SignInActions] {
 
   const authConfigQuery = useQuery(authConfigQueryOptions(search, api))
   const authConfig = authConfigQuery.data ?? DEFAULT_PUBLIC_AUTH_CONFIG
+  const configSettled = !authConfigQuery.isPending && !authConfigQuery.isPlaceholderData
   const hostedReturn = resolveHostedReturn(search, authConfig.defaultLandingPath)
   const turnstileReady =
-    !authConfigQuery.isPending && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
-  // 邀请只走 Email claim:企业 SSO 不接受邀请 capability(01 章 3)。
+    configSettled && (authConfig.turnstileSiteKey === null || Boolean(turnstileToken))
+  const isSignUpFlow = Boolean(search.invitation_token) || isSignUpIntent(search.intent)
+  // 邀请只走 Email claim:社交与企业 SSO 不接受邀请 capability(01 章 3)。
   const excludesFederatedEntry =
     Boolean(search.invitation_token) || hostedReturn.startsWith('/accept-invitation?')
   const enabledMethods = useMemo<readonly SignInMethod[]>(() => {
     const methods = enabledSignInMethodsForIntent(
       authConfig,
-      search.invitation_token ? 'sign-up' : search.intent,
+      isSignUpFlow ? 'sign-up' : search.intent,
     )
-    return excludesFederatedEntry
-      ? methods.filter((method) => method !== 'enterprise-sso')
-      : methods
-  }, [authConfig, excludesFederatedEntry, search.intent, search.invitation_token])
-
-  useEffect(() => {
-    if (!enabledMethods.includes(method)) setMethodState(enabledMethods[0] ?? 'enterprise-sso')
-  }, [enabledMethods, method])
-
-  const analyticsAuthIntent =
-    search.invitation_token || isSignUpIntent(search.intent) ? 'sign_up' : 'sign_in'
+    return excludesFederatedEntry ? methods.filter((item) => item !== 'enterprise-sso') : methods
+  }, [authConfig, excludesFederatedEntry, isSignUpFlow, search.intent])
+  const identifierKind = identifierKindOf(identifier, authConfig.identifierMode)
+  const methods = useMemo(
+    () => secondStepMethods(enabledMethods, identifierKind),
+    [enabledMethods, identifierKind],
+  )
+  const analyticsIntent = isSignUpFlow ? 'sign_up' : 'sign_in'
   const flowPayload = useCallback(
     (options: { withTurnstile: boolean }) =>
       buildFlowPayload({
         organizationId: selectedOrganizationId,
-        flowFields: signInFlowExtras,
+        flowFields,
         ...(options.withTurnstile ? { turnstileToken } : {}),
       }),
-    [selectedOrganizationId, signInFlowExtras, turnstileToken],
+    [flowFields, selectedOrganizationId, turnstileToken],
   )
+  const credentials = useCredentialMutations({
+    api,
+    flowPayload,
+    onTurnstileConsumed: resetTurnstile,
+  })
+  const discovery = useSsoDiscovery(api, resetTurnstile)
 
-  // 多组织 identifier 由 Worker 返回 organization_selection_required:改走组织选择,不显示凭证错误。
   const showApiError = useCallback(
     (apiError: Pick<XidError, 'code' | 'meta'>): void => {
       if (apiError.code === 'organization_selection_required' && identifier.trim()) {
@@ -253,174 +141,269 @@ export function useSignIn(): [SignInState, SignInActions] {
   )
 
   const finishSignIn = useCallback(
-    async (redirectUrl: string | undefined, authMethod: AuthMethod): Promise<void> => {
+    async (
+      redirectUrl: string | undefined,
+      signedInWith: SignInMethod | 'guest',
+    ): Promise<void> => {
       clearPendingAuthCompletion()
-      trackAuthSuccess({ method: authMethod, intent: analyticsAuthIntent })
+      trackAuthSuccess({
+        method: signedInWith === 'guest' ? 'guest' : AUTH_METHOD_BY_SIGN_IN_METHOD[signedInWith],
+        intent: analyticsIntent,
+      })
+      if (signedInWith !== 'guest') writeLastAuthMethod(browserStorage(), signedInWith)
       await refresh()
-      navigate(redirectUrl ?? hostedReturn, { replace: true })
+      const target = redirectUrl ?? hostedReturn
+      const prompt =
+        signedInWith !== 'guest' &&
+        signedInWith !== 'passkey' &&
+        enabledMethods.includes('passkey') &&
+        !target.startsWith('/mfa') &&
+        !isSignUpFlow
+          ? passkeyPromptPath(target)
+          : null
+      navigate(prompt ?? target, { replace: true })
     },
-    [analyticsAuthIntent, hostedReturn, navigate, refresh],
+    [analyticsIntent, enabledMethods, hostedReturn, isSignUpFlow, navigate, refresh],
   )
 
   const handleAuthResult = useCallback(
-    async (result: AuthResult, authMethod: AuthMethod): Promise<void> => {
-      if (!result.ok) {
-        showApiError(result.error)
-        return
-      }
-      if (result.value.nextStep === 'verify_email') {
-        setError('verify_email_sent')
-        return
-      }
-      await finishSignIn(result.value.redirectUrl, authMethod)
+    async (result: Result<AuthResponse>, signedInWith: SignInMethod): Promise<void> => {
+      if (!result.ok) return showApiError(result.error)
+      if (result.value.nextStep === 'verify_email') return setError('verify_email_sent')
+      await finishSignIn(result.value.redirectUrl, signedInWith)
     },
     [finishSignIn, showApiError],
   )
 
   const passkey = usePasskeySignIn({
     api,
-    enabled: enabledMethods.includes('passkey') && !authConfigQuery.isPending,
+    enabled: enabledMethods.includes('passkey') && configSettled,
+    conditionalEnabled: step === 'identifier',
     identifierRequired:
-      authConfig.passkeyEntry.identifierRequired &&
-      !selectedOrganizationId &&
-      !signInFlowExtras.clientId,
+      authConfig.passkeyEntry.identifierRequired && !selectedOrganizationId && !flowFields.clientId,
     identifier,
     organizationId: selectedOrganizationId,
-    flowFields: signInFlowExtras,
+    flowFields,
     turnstileRequired: authConfig.turnstileSiteKey !== null,
     turnstileToken,
     onTurnstileConsumed: resetTurnstile,
     onOrganizationSelectionRequired: () =>
       navigate(organizationSelectionPath(search, identifier), { replace: true }),
-    onSuccess: async (redirectUrl) => {
-      await finishSignIn(redirectUrl, 'passkey')
+    onSuccess: (redirectUrl) => finishSignIn(redirectUrl, 'passkey'),
+  })
+
+  const sendOtp = useCallback(
+    (otpMethod: SignInMethod): void => {
+      if (!isOtpMethod(otpMethod)) return
+      const resend = otpSentAt !== null
+      credentials.otpSend.mutate(
+        {
+          method: otpMethod,
+          target: identifier.trim(),
+          profile: isSignUpFlow ? profileValues : null,
+        },
+        {
+          onSuccess: (result) => {
+            if (!result.ok) return showApiError(result.error)
+            trackOtpSent(otpTarget(otpMethod).channel, analyticsIntent)
+            setError(null)
+            setOtpCodeState('')
+            setOtpSentAt(Date.now())
+            setOtpResent(resend)
+          },
+        },
+      )
     },
-  })
+    [
+      analyticsIntent,
+      credentials.otpSend,
+      identifier,
+      isSignUpFlow,
+      otpSentAt,
+      profileValues,
+      showApiError,
+    ],
+  )
 
-  const passwordMutation = useMutation({
-    mutationFn: () =>
-      api.post<AuthResponse>('/auth/password/sign-in', {
-        identifier,
-        ...profilePayload(profileValues),
-        password,
-        rememberMe,
-        ...flowPayload({ withTurnstile: true }),
-      }),
-    onSuccess: (result) => handleAuthResult(result, 'password'),
-    onSettled: resetTurnstile,
-  })
+  const enterMethodsStep = useCallback((): void => {
+    const preferred = defaultSecondStepMethod(methods, readLastAuthMethod(browserStorage()))
+    if (!preferred) {
+      setError(authConfig.forceSso ? 'sso_not_available' : 'auth_failed')
+      return
+    }
+    setMethodState(preferred)
+    setStep('methods')
+    if (isOtpMethod(preferred) && !isSignUpFlow) setPendingOtpSend(true)
+  }, [authConfig.forceSso, isSignUpFlow, methods])
 
-  const magicLinkMutation = useMutation({
-    mutationFn: () =>
-      api.post('/auth/magic-link/send', {
-        email: identifier,
-        ...profilePayload(profileValues),
-        ...flowPayload({ withTurnstile: true }),
-      }),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        showApiError(result.error)
-        return
-      }
-      trackMagicLinkSent(analyticsAuthIntent)
-      setPendingAuthCompletion({ method: 'magic_link', intent: analyticsAuthIntent })
-      // 枚举防护:不区分邮箱是否存在,统一"已发送"。
-      setError('magic_link_sent')
-    },
-    onSettled: resetTurnstile,
-  })
-
-  const otpMethod = isOtpMethod(method) ? method : 'otp-email'
-  const otpRequestMutation = useMutation({
-    mutationFn: () =>
-      api.post(otpEndpoint(otpMethod, 'send'), {
-        [otpTarget(otpMethod).field]: identifier,
-        ...profilePayload(profileValues),
-        ...flowPayload({ withTurnstile: true }),
-      }),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        showApiError(result.error)
-        return
-      }
-      trackOtpSent(otpTarget(otpMethod).channel, analyticsAuthIntent)
-      setOtpStep('sent')
-      setError('otp_sent')
-    },
-    onSettled: resetTurnstile,
-  })
-
-  const otpVerifyMutation = useMutation({
-    mutationFn: () =>
-      api.post<AuthResponse>(otpEndpoint(otpMethod, 'verify'), {
-        [otpTarget(otpMethod).field]: identifier,
-        code: otpCode,
-        ...flowPayload({ withTurnstile: false }),
-      }),
-    onSuccess: (result) => handleAuthResult(result, AUTH_METHOD_BY_SIGN_IN_METHOD[otpMethod]),
-  })
-
-  const enterpriseSsoMutation = useMutation({
-    mutationFn: () =>
-      api.post<HrdResult>('/sso/hrd', {
-        email: identifier,
-        ...(selectedOrganizationId ? { organizationId: selectedOrganizationId } : {}),
-        ...(search.intent ? { intent: search.intent } : {}),
-        ...(search.client_id ? { clientId: search.client_id } : {}),
+  // login_hint 写回 URL 后等 /auth/config 按该标识符解析完,再决定 SSO、组织选择或第二步。
+  useEffect(() => {
+    if (!pendingDiscovery || !configSettled) return
+    if ((search.login_hint ?? '') !== pendingDiscovery.identifier) return
+    if (authConfig.resolution.status === 'ambiguous') {
+      setPendingDiscovery(null)
+      setStep('organization')
+      return
+    }
+    const canDiscover =
+      identifierKindOf(pendingDiscovery.identifier, authConfig.identifierMode) === 'email' &&
+      enterpriseSsoEnabled(authConfig) &&
+      !excludesFederatedEntry
+    if (!canDiscover) {
+      setPendingDiscovery(null)
+      if (pendingDiscovery.ssoOnly) setError('sso_not_available')
+      else enterMethodsStep()
+      return
+    }
+    if (!turnstileReady || discovery.isPending) return
+    const request = pendingDiscovery
+    setPendingDiscovery(null)
+    discovery.mutate(
+      {
+        email: request.identifier,
+        organizationId: selectedOrganizationId,
+        intent: search.intent,
+        clientId: search.client_id,
         turnstileToken,
-      }),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        showApiError(result.error)
-        return
-      }
-      if (!result.value.connectionId || !result.value.protocol) {
-        setError('sso_not_available')
-        return
-      }
-      const path =
-        result.value.protocol === 'saml'
-          ? `/sso/saml/${result.value.connectionId}/login`
-          : `/sso/oidc/${result.value.connectionId}/authorize`
-      trackEvent('enterprise_sso_start', { protocol: result.value.protocol })
-      setPendingAuthCompletion({ method: 'enterprise_sso', intent: analyticsAuthIntent })
-      const url = new URL(path, globalThis.location.origin)
-      url.searchParams.set('continue', hostedReturn)
-      if (search.intent) url.searchParams.set('intent', search.intent)
-      if (search.client_id) url.searchParams.set('client_id', search.client_id)
-      if (result.value.organizationId) {
-        url.searchParams.set('organization_id', result.value.organizationId)
-      }
-      globalThis.location.href = url.toString()
-    },
-    onSettled: resetTurnstile,
-  })
+      },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) return showApiError(result.error)
+          const target = ssoTargetFrom(result.value, {
+            email: request.identifier,
+            origin: globalThis.location.origin,
+            hostedReturn,
+            intent: search.intent,
+            clientId: search.client_id,
+          })
+          if (target) {
+            trackEvent('enterprise_sso_start', { protocol: target.protocol })
+            setPendingAuthCompletion({ method: 'enterprise_sso', intent: analyticsIntent })
+            setSsoTarget(target)
+            setStep('sso')
+          } else if (request.ssoOnly || authConfig.forceSso) setError('sso_not_available')
+          else enterMethodsStep()
+        },
+      },
+    )
+  }, [
+    analyticsIntent,
+    authConfig,
+    configSettled,
+    discovery,
+    enterMethodsStep,
+    excludesFederatedEntry,
+    hostedReturn,
+    pendingDiscovery,
+    search.client_id,
+    search.intent,
+    search.login_hint,
+    selectedOrganizationId,
+    showApiError,
+    turnstileReady,
+    turnstileToken,
+  ])
 
-  const guestMutation = useMutation({
-    mutationFn: (capabilityToken: string) =>
-      api.post<{ redirectUrl: string }>('/auth/guest', {
-        capabilityToken,
-        turnstileToken,
-      }),
-    onSuccess: async (result) => {
-      if (!result.ok) {
-        setError(apiErrorToKey(result.error))
-        return
-      }
-      await finishSignIn(result.value.redirectUrl, 'guest')
-    },
-    onSettled: async () => {
-      resetTurnstile()
-      await authConfigQuery.refetch()
-    },
-  })
+  useEffect(() => {
+    if (!pendingOtpSend || step !== 'methods' || !turnstileReady || credentials.otpSend.isPending)
+      return
+    setPendingOtpSend(false)
+    sendOtp(method)
+  }, [credentials.otpSend.isPending, method, pendingOtpSend, sendOtp, step, turnstileReady])
 
-  const handleSocial = useCallback(
-    (provider: string): void => {
+  const whenTurnstileReady = (action: () => void) => () => {
+    if (turnstileReady) action()
+  }
+
+  const actions: SignInActions = {
+    setIdentifier,
+    setProfileValue: (field: ProfileFieldKey, value: string) =>
+      setProfileValues((prev) => ({ ...prev, [field]: value })),
+    setPassword,
+    setRememberMe,
+    setOtpCode: setOtpCodeState,
+    setTurnstileToken,
+    submitIdentifier: (options = {}) => {
+      const trimmed = identifier.trim()
+      if (!trimmed) return setError('identifier_required')
+      setError(null)
+      if (trimmed !== (search.login_hint ?? ''))
+        navigate(signInPathWithLoginHint(search, trimmed), { replace: true })
+      setPendingDiscovery({ identifier: trimmed, ssoOnly: options.ssoOnly === true })
+    },
+    changeIdentifier: () => {
+      if (search.login_hint) navigate(signInPathWithoutLoginHint(search), { replace: true })
+      setStep('identifier')
+      setSsoTarget(null)
+      setOtpSentAt(null)
+      setOtpResent(false)
+      setMagicLinkSent(false)
+      setPassword('')
+      setOtpCodeState('')
+      setError(null)
+    },
+    chooseMethod: (next) => {
+      trackAuthMethodSelected(AUTH_METHOD_BY_SIGN_IN_METHOD[next])
+      setMethodState(next)
+      setError(null)
+      setOtpCodeState('')
+      setOtpSentAt(null)
+      setOtpResent(false)
+      setMagicLinkSent(false)
+      if (next === 'passkey') passkey.triggerButton()
+      else if (isOtpMethod(next) && !isSignUpFlow) setPendingOtpSend(true)
+    },
+    submitPassword: whenTurnstileReady(() =>
+      credentials.password.mutate(
+        {
+          identifier: identifier.trim(),
+          password,
+          rememberMe,
+          profile: isSignUpFlow ? profileValues : null,
+        },
+        { onSuccess: (result) => void handleAuthResult(result, 'password') },
+      ),
+    ),
+    submitMagicLink: whenTurnstileReady(() =>
+      credentials.magicLink.mutate(
+        { email: identifier.trim(), profile: isSignUpFlow ? profileValues : null },
+        {
+          onSuccess: (result) => {
+            if (!result.ok) return showApiError(result.error)
+            trackMagicLinkSent(analyticsIntent)
+            setPendingAuthCompletion({ method: 'magic_link', intent: analyticsIntent })
+            setMagicLinkSent(true)
+          },
+        },
+      ),
+    ),
+    requestOtp: whenTurnstileReady(() => sendOtp(method)),
+    verifyOtp: (code) => {
+      if (!isOtpMethod(method)) return
+      credentials.otpVerify.mutate(
+        { method, target: identifier.trim(), code },
+        { onSuccess: (result) => void handleAuthResult(result, method) },
+      )
+    },
+    triggerPasskeyButton: whenTurnstileReady(() => passkey.triggerButton()),
+    submitGuest: () => {
+      if (!authConfig.guest || !turnstileReady) return
+      credentials.guest.mutate(
+        { capabilityToken: authConfig.guest.capabilityToken, turnstileToken },
+        {
+          onSuccess: async (result) => {
+            if (!result.ok) return setError(apiErrorToKey(result.error))
+            await finishSignIn(result.value.redirectUrl, 'guest')
+          },
+          onSettled: () => void authConfigQuery.refetch(),
+        },
+      )
+    },
+    handleSocial: (provider) => {
       if (!turnstileReady || excludesFederatedEntry) return
       trackEvent('social_login_start', { provider })
-      setPendingAuthCompletion({ method: 'social', intent: analyticsAuthIntent })
-      const url = buildSocialAuthorizeUrl({
+      setPendingAuthCompletion({ method: 'social', intent: analyticsIntent })
+      globalThis.location.href = buildSocialAuthorizeUrl({
         origin: globalThis.location.origin,
         provider,
         hostedReturn,
@@ -433,24 +416,9 @@ export function useSignIn(): [SignInState, SignInActions] {
         identifier,
         organizationId: search.organization_id,
         turnstileToken,
-      })
-      globalThis.location.href = url.toString()
+      }).toString()
     },
-    [
-      analyticsAuthIntent,
-      excludesFederatedEntry,
-      hostedReturn,
-      identifier,
-      search.intent,
-      search.organization_id,
-      search.client_id,
-      turnstileToken,
-      turnstileReady,
-    ],
-  )
-
-  const selectOrganizationContext = useCallback(
-    (organizationId: string): void => {
+    selectOrganizationContext: (organizationId) => {
       const match =
         authConfig.resolution.status === 'ambiguous'
           ? authConfig.resolution.matches.find((item) => item.organizationId === organizationId)
@@ -459,106 +427,66 @@ export function useSignIn(): [SignInState, SignInActions] {
       globalThis.location.href = organizationSignInUrl(match, {
         loginHint: identifier || search.login_hint || null,
         continueParam: search.continue ?? null,
-        redirect: redirectParam,
-        authzRequestId,
+        redirect: search.redirect ?? null,
+        authzRequestId: search.authz_request_id ?? null,
         intent: search.intent ?? null,
         invitationToken: search.invitation_token ?? null,
       })
     },
-    [
-      authConfig.resolution,
-      authzRequestId,
-      identifier,
-      redirectParam,
-      search.continue,
-      search.login_hint,
-      search.intent,
-      search.invitation_token,
-    ],
-  )
-
-  const setMethod = useCallback((next: SignInMethod): void => {
-    trackAuthMethodSelected(AUTH_METHOD_BY_SIGN_IN_METHOD[next])
-    setMethodState(next)
-    setError(null)
-    setOtpStep('input')
-  }, [])
-
-  const setProfileValue = useCallback((field: ProfileFieldKey, value: string): void => {
-    setProfileValues((prev) => ({ ...prev, [field]: value }))
-  }, [])
+  }
 
   const isLoading =
     passkey.isVerifying ||
-    passwordMutation.isPending ||
-    magicLinkMutation.isPending ||
-    otpRequestMutation.isPending ||
-    otpVerifyMutation.isPending ||
-    enterpriseSsoMutation.isPending ||
-    guestMutation.isPending
+    discovery.isPending ||
+    pendingDiscovery !== null ||
+    credentials.password.isPending ||
+    credentials.magicLink.isPending ||
+    credentials.otpSend.isPending ||
+    credentials.otpVerify.isPending ||
+    credentials.guest.isPending
 
   const state: SignInState = {
+    step: authConfig.resolution.status === 'ambiguous' ? 'organization' : step,
     method,
+    methods,
     authConfig,
+    configSettled,
     enabledMethods,
     identifier,
+    identifierKind,
+    isSignUpFlow,
     profileValues,
     password,
     rememberMe,
     otpCode,
+    otpSentAt,
+    otpResent,
+    isSendingOtp: credentials.otpSend.isPending || pendingOtpSend,
+    isVerifyingOtp: credentials.otpVerify.isPending,
+    magicLinkSent,
+    ssoTarget,
     isLoading,
     passkeySupport: passkey.support,
+    passkeyConditionalAvailable: passkey.conditionalAvailable,
     conditionalUiRunning: passkey.conditionalRunning,
-
     error: passkey.error ?? error,
-    otpStep,
     turnstileToken,
     turnstileReady,
-    // org/client/invitation/authz 任一存在则无 guest 入口;租户维度须等 config。
+    excludesFederatedEntry,
+    hostedReturn,
     guestEntryPending:
       authConfigQuery.isPending &&
       !search.organization_id &&
       !search.client_id &&
       !search.invitation_token &&
-      !authzRequestId &&
+      !search.authz_request_id &&
       (search.intent === undefined || search.intent === 'sign-up'),
     tenantSelection: {
       loginHint: search.login_hint ?? null,
       continueParam: search.continue ?? null,
-      redirect: redirectParam,
-      authzRequestId,
+      redirect: search.redirect ?? null,
+      authzRequestId: search.authz_request_id ?? null,
     },
-  }
-
-  const whenTurnstileReady =
-    (action: () => void): (() => void) =>
-    () => {
-      if (turnstileReady) action()
-    }
-
-  const actions: SignInActions = {
-    setMethod,
-    setIdentifier,
-    setProfileValue,
-    setPassword,
-    setRememberMe,
-    setOtpCode: (value) => setOtpCode(value.replace(/\D/g, '')),
-    setTurnstileToken,
-    submitPassword: whenTurnstileReady(() => passwordMutation.mutate()),
-    submitMagicLink: whenTurnstileReady(() => magicLinkMutation.mutate()),
-    submitOtpRequest: whenTurnstileReady(() => otpRequestMutation.mutate()),
-    submitOtpVerify: () => otpVerifyMutation.mutate(),
-    submitEnterpriseSso: whenTurnstileReady(() => {
-      if (!excludesFederatedEntry) enterpriseSsoMutation.mutate()
-    }),
-    submitGuest: () => {
-      if (authConfig.guest && turnstileReady) {
-        guestMutation.mutate(authConfig.guest.capabilityToken)
-      }
-    },
-    triggerPasskeyButton: whenTurnstileReady(() => passkey.triggerButton()),
-    handleSocial,
-    selectOrganizationContext,
   }
 
   return [state, actions]

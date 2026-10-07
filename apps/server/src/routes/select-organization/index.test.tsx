@@ -64,8 +64,14 @@ vi.mock('@xid-kit/web-ui/RequireAuth', () => ({
   RequireAuth: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
+vi.mock('../../lib/enum-labels', () => ({
+  useRoleLabel: () => (role: string) => role,
+}))
+
 vi.mock('../../components/ui', () => ({
-  Alert: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+  Notice: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+  Field: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Input: () => <input />,
   Button: ({
     children,
     isLoading: _isLoading,
@@ -126,7 +132,7 @@ describe('SelectOrganizationPage', () => {
   it('offers a Create organization CTA when the user belongs to no organization', async () => {
     const { container, root } = await renderPage()
 
-    expect(container.textContent).toContain('You do not belong to any organizations yet.')
+    expect(container.textContent).toContain("You're not in an organization yet")
 
     await act(async () => {
       buttonWithText(container, 'Create organization').dispatchEvent(
@@ -145,7 +151,7 @@ describe('SelectOrganizationPage', () => {
 
     const { container, root } = await renderPage()
 
-    expect(container.textContent).toContain('Ask an organization admin to invite you.')
+    expect(container.textContent).toContain('Ask an organization admin to invite you')
     expect(container.textContent).not.toContain('Create organization')
 
     await act(async () => root.unmount())

@@ -58,5 +58,5 @@ export function pendingMfaCompletionPath(status: PendingMfaAuthStatus, returnTo:
   if (status === 'pending_mfa') {
     return `/mfa?${new URLSearchParams({ redirect_to: returnTo }).toString()}`
   }
-  return `/account/security?${new URLSearchParams({ setup: 'mfa', redirect_to: returnTo }).toString()}`
+  return `/mfa/setup?${new URLSearchParams({ redirect_to: returnTo }).toString()}`
 }

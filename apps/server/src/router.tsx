@@ -15,6 +15,7 @@ import { HostedBranding } from './components/HostedBranding'
 import { RouteAnalytics } from './components/RouteAnalytics'
 
 import { RoutePageSeo } from './components/RoutePageSeo'
+import { ErrorPage } from './routes/not-found/ErrorPage'
 
 import { Spinner } from './components/ui'
 import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
@@ -42,13 +43,18 @@ function CenterLoader(): ReactNode {
   )
 }
 
-function protectedRoute(id: string, path: string, load: PageLoader) {
+function protectedRoute(
+  id: string,
+  path: string,
+  load: PageLoader,
+  options: { completesPendingMfa?: PendingMfaAuthStatus } = {},
+) {
   return createRoute({ getParentRoute: () => rootRoute, path }).lazy(() =>
     load().then((m) => {
       const Page = m.default
       return createLazyRoute(id)({
         component: () => (
-          <RequireAuth>
+          <RequireAuth completesPendingMfa={options.completesPendingMfa}>
             <Page />
           </RequireAuth>
         ),
@@ -57,19 +63,14 @@ function protectedRoute(id: string, path: string, load: PageLoader) {
   )
 }
 
-function accountRoute(
-  id: string,
-  path: string,
-  load: PageLoader,
-  options: { completesPendingMfa?: PendingMfaAuthStatus } = {},
-) {
+function accountRoute(id: string, path: string, load: PageLoader) {
   return createRoute({ getParentRoute: () => rootRoute, path }).lazy(() =>
     Promise.all([import('./routes/account/AccountLayout'), load()]).then(([layout, m]) => {
       const Page = m.default
       const { AccountLayout } = layout
       return createLazyRoute(id)({
         component: () => (
-          <RequireAuth completesPendingMfa={options.completesPendingMfa}>
+          <RequireAuth>
             <AccountLayout>
               <Page />
             </AccountLayout>
@@ -144,6 +145,17 @@ const selectOrganizationRoute = createRoute({
   path: '/select-organization',
 }).lazy(() => import('./routes/select-organization/index').then((m) => m.Route))
 
+const mfaSetupRoute = protectedRoute(
+  '/mfa/setup',
+  '/mfa/setup',
+  () => import('./routes/mfa-setup/index'),
+  { completesPendingMfa: 'pending_mfa_setup' },
+)
+const createPasskeyRoute = protectedRoute(
+  '/create-passkey',
+  '/create-passkey',
+  () => import('./routes/create-passkey/index'),
+)
 const consentRoute = protectedRoute('/consent', '/consent', () => import('./routes/consent/index'))
 const activateRoute = protectedRoute(
   '/activate',
@@ -165,7 +177,6 @@ const accountSecurityRoute = accountRoute(
   '/account/security',
   '/account/security',
   () => import('./routes/account/SecurityPage'),
-  { completesPendingMfa: 'pending_mfa_setup' },
 )
 const accountConnectionsRoute = accountRoute(
   '/account/connections',
@@ -207,6 +218,8 @@ const routeTree = rootRoute.addChildren([
   createOrganizationRoute,
   selectOrganizationRoute,
   mfaRoute,
+  mfaSetupRoute,
+  createPasskeyRoute,
   consentRoute,
   activateRoute,
   cibaActivationRoute,
@@ -220,6 +233,7 @@ const routeTree = rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   defaultPendingComponent: CenterLoader,
+  defaultErrorComponent: ({ error }) => <ErrorPage error={error} />,
 })
 
 declare module '@tanstack/react-router' {

@@ -1,17 +1,21 @@
-import { Trans } from '@lingui/react/macro'
+// 邮件登录链接:GET 只打开本页,点按钮后才 POST 消费令牌,邮件扫描器不会把链接用掉。
+
+import { Trans, useLingui } from '@lingui/react/macro'
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { createLazyRoute, useSearch } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
 import * as stylex from '@stylexjs/stylex'
 import { AuthLayout } from '../../components/layout'
-import { Alert, Button, PageHeader, Spinner } from '../../components/ui'
+import { Badge, Button, Spinner } from '../../components/ui'
+import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { hosted } from '../../components/hosted/hosted-styles'
+import { useHostedAuthConfig } from '../../components/hosted/use-hosted-auth-config'
 import { useAuth } from '../../lib/auth-context'
+import { page } from '../../styles/product-surface.stylex'
 import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { useOneTimeLinkToken } from '../../lib/use-one-time-link-token'
 import { classifyOneTimeLinkError, type OneTimeLinkErrorKind } from '../../lib/one-time-link-error'
-import { styles as signInStyles } from '../sign-in/styles'
-import { tokens } from '../../styles/tokens.stylex'
 
 type MagicLinkResult = { redirectUrl: string }
 
@@ -20,27 +24,51 @@ const MAGIC_LINK_TERMINAL_CODES = {
   invalid: 'magic_link_invalid',
 } as const
 
-const styles = stylex.create({
-  stack: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.25rem',
-    minWidth: 0,
-  },
-  pendingRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  pendingLabel: {
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: tokens['--xid-muted-foreground'],
-  },
-})
+// 成功后留一点时间读到结果,再续跑原落点。
+const REDIRECT_DELAY_MS = 1200
+
+function BackToSignIn(): ReactNode {
+  return (
+    <Link to="/sign-in" {...stylex.props(hosted.textLink)}>
+      <Trans>Back to sign in</Trans>
+    </Link>
+  )
+}
+
+function LinkProblem({ kind }: { kind: OneTimeLinkErrorKind | 'missing' }): ReactNode {
+  const title =
+    kind === 'unavailable' ? (
+      <Trans>This link can't sign in this account</Trans>
+    ) : kind === 'missing' ? (
+      <Trans>This page needs the link from your email</Trans>
+    ) : (
+      <Trans>This link has expired or was already used</Trans>
+    )
+  const lead =
+    kind === 'unavailable' ? (
+      <Trans>Go back to sign in and choose another way to continue.</Trans>
+    ) : kind === 'missing' ? (
+      <Trans>Open the sign-in link from your newest email on this device.</Trans>
+    ) : (
+      <Trans>Sign-in links work once, for 15 minutes. Go back to sign in and send a new one.</Trans>
+    )
+  return (
+    <div {...stylex.props(hosted.screen)}>
+      <AuthHeading
+        above={
+          kind === 'expired' || kind === 'invalid' ? (
+            <Badge tone="warning">
+              <Trans>Link expired</Trans>
+            </Badge>
+          ) : undefined
+        }
+        title={title}
+        lead={lead}
+      />
+      <BackToSignIn />
+    </div>
+  )
+}
 
 export function MagicLinkPage(): ReactNode {
   const search = useSearch({ strict: false }) as { token?: string }
@@ -48,8 +76,11 @@ export function MagicLinkPage(): ReactNode {
     storageKey: 'xid.magic-link.token',
     legacyQueryToken: search.token ?? null,
   })
-  const { api, refresh } = useAuth()
+  const { t } = useLingui()
+  const { api, refresh, user } = useAuth()
   const navigate = useNavigate()
+  const { config } = useHostedAuthConfig()
+  const app = config.context.applicationName
 
   const verification = useMutation({
     mutationFn: async (): Promise<MagicLinkResult> => {
@@ -65,112 +96,85 @@ export function MagicLinkPage(): ReactNode {
     },
   })
 
+  const target = verification.data?.redirectUrl
   useEffect(() => {
-    if (!verification.isSuccess) return
-    const target = verification.data.redirectUrl
-    const timer = globalThis.setTimeout(() => navigate(target, { replace: true }), 1200)
+    if (!target) return
+    const timer = globalThis.setTimeout(
+      () => navigate(target, { replace: true }),
+      REDIRECT_DELAY_MS,
+    )
     return () => globalThis.clearTimeout(timer)
-  }, [navigate, verification.data?.redirectUrl, verification.isSuccess])
+  }, [navigate, target])
 
   const errorKind: OneTimeLinkErrorKind | null = verification.error
     ? classifyOneTimeLinkError(verification.error, MAGIC_LINK_TERMINAL_CODES)
     : null
 
-  const confirmReady = ready && token !== null && verification.isIdle
-
-  return (
-    <AuthLayout>
-      <div {...stylex.props(styles.stack)}>
-        <PageHeader
-          title={confirmReady ? <Trans>Confirm sign in</Trans> : <Trans>Magic link sign in</Trans>}
-          lead={
-            confirmReady ? (
-              <Trans>Continue only if you requested this sign-in link.</Trans>
-            ) : undefined
-          }
-        />
-
-        {!ready ? (
-          <div {...stylex.props(styles.pendingRow)} aria-live="polite">
-            <Spinner size={16} />
-            <span {...stylex.props(styles.pendingLabel)}>
-              <Trans>Preparing sign in...</Trans>
-            </span>
-          </div>
-        ) : null}
-
-        {ready && token === null && !verification.isSuccess && !verification.error ? (
-          <Alert tone="error">
-            <Trans>No magic-link token found. Please use the link from your email.</Trans>
-          </Alert>
-        ) : null}
-
-        {confirmReady ? (
-          <Button type="button" variant="accent" fullWidth onClick={() => verification.mutate()}>
-            <Trans>Continue to sign in</Trans>
+  function content(): ReactNode {
+    if (!ready || verification.isPending) {
+      return (
+        <div {...stylex.props(page.loadingCenter)} aria-live="polite">
+          <Spinner label={verification.isPending ? t`Signing you in` : t`Preparing sign in`} />
+        </div>
+      )
+    }
+    if (target) {
+      return (
+        <div {...stylex.props(hosted.screen)} aria-live="polite">
+          <AuthHeading
+            above={
+              <Badge tone="success">
+                <Trans>Signed in</Trans>
+              </Badge>
+            }
+            title={<Trans>You're signed in with your email link</Trans>}
+            lead={
+              user?.email ? (
+                <Trans>
+                  Signed in as {user.email} on this browser. The link can't be used again.
+                </Trans>
+              ) : (
+                <Trans>You're signed in on this browser. The link can't be used again.</Trans>
+              )
+            }
+          />
+          <Button
+            variant="accent"
+            size="lg"
+            fullWidth
+            onClick={() => navigate(target, { replace: true })}
+          >
+            {app ? <Trans>Continue to {app}</Trans> : <Trans>Continue</Trans>}
           </Button>
-        ) : null}
-
-        {verification.isPending ? (
-          <div {...stylex.props(styles.pendingRow)} aria-live="polite">
-            <Spinner size={16} />
-            <span {...stylex.props(styles.pendingLabel)}>
-              <Trans>Signing you in...</Trans>
-            </span>
-          </div>
-        ) : null}
-
-        {verification.isSuccess ? (
-          <Alert tone="success">
-            <Trans>Sign-in confirmed. Redirecting...</Trans>
-          </Alert>
-        ) : null}
-
-        {errorKind === 'expired' ? (
-          <Alert tone="error">
-            <Trans>This magic link has expired. Request a new link to continue.</Trans>
-          </Alert>
-        ) : null}
-
-        {errorKind === 'invalid' ? (
-          <Alert tone="error">
-            <Trans>This magic link is invalid or has already been used.</Trans>
-          </Alert>
-        ) : null}
-
-        {errorKind === 'unavailable' ? (
-          <Alert tone="error">
-            <Trans>
-              This sign-in link cannot be used for this account. Return to sign in to choose another
-              way to continue.
-            </Trans>
-          </Alert>
-        ) : null}
-
+        </div>
+      )
+    }
+    if (errorKind && errorKind !== 'retryable') return <LinkProblem kind={errorKind} />
+    if (token === null) return <LinkProblem kind="missing" />
+    return (
+      <div {...stylex.props(hosted.screen)}>
+        <AuthHeading
+          title={<Trans>Confirm sign in</Trans>}
+          lead={<Trans>Continue only if you asked for this sign-in link.</Trans>}
+        />
         {errorKind === 'retryable' ? (
-          <>
-            <Alert tone="error">
-              <Trans>Something went wrong. Please try again.</Trans>
-            </Alert>
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth
-              onClick={() => verification.mutate()}
-            >
-              <Trans>Try again</Trans>
-            </Button>
-          </>
+          <p {...stylex.props(hosted.note)}>
+            <Trans>Something went wrong. Try again.</Trans>
+          </p>
         ) : null}
-
-        {ready && !verification.isPending && !verification.isSuccess ? (
-          <Link to="/sign-in" {...stylex.props(signInStyles.textLink)}>
-            <Trans>Back to sign in</Trans>
-          </Link>
-        ) : null}
+        <Button variant="accent" size="lg" fullWidth onClick={() => verification.mutate()}>
+          {errorKind === 'retryable' ? (
+            <Trans>Try again</Trans>
+          ) : (
+            <Trans>Continue to sign in</Trans>
+          )}
+        </Button>
+        <BackToSignIn />
       </div>
-    </AuthLayout>
-  )
+    )
+  }
+
+  return <AuthLayout>{content()}</AuthLayout>
 }
 
 export const Route = createLazyRoute('/magic-link')({

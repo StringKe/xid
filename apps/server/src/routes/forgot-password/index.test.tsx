@@ -69,8 +69,23 @@ vi.mock('../../components/ui', () => ({
     </button>
   ),
   Field: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  PageHeader: ({ title }: { title: ReactNode }) => <h1>{title}</h1>,
+  Input: ({
+    inputSize: _size,
+    ...props
+  }: InputHTMLAttributes<HTMLInputElement> & { inputSize?: string }) => <input {...props} />,
+  Notice: ({ title, children }: { title?: ReactNode; children?: ReactNode }) => (
+    <div role="alert">
+      {title}
+      {children}
+    </div>
+  ),
+  PasswordField: ({ label, error }: { label: ReactNode; error?: ReactNode }) => (
+    <label>
+      {label}
+      <input type="password" />
+      {error}
+    </label>
+  ),
   Spinner: () => <span>Loading</span>,
 }))
 
@@ -254,7 +269,7 @@ describe('ForgotPasswordPage navigation links', () => {
     await unmount(container, root)
   })
 
-  it('shows Security verification failed only for captcha errors', async () => {
+  it('shows the security check message only for captcha errors', async () => {
     const { container, root } = await renderPage()
 
     await act(async () => {
@@ -264,7 +279,7 @@ describe('ForgotPasswordPage navigation links', () => {
       })
     })
     expect(container.textContent).toContain('api-error:server_error')
-    expect(container.textContent).not.toContain('Security verification failed')
+    expect(container.textContent).not.toContain("The security check didn't finish")
 
     await act(async () => {
       await mutationState.captured[0]?.onSuccess?.({
@@ -272,7 +287,7 @@ describe('ForgotPasswordPage navigation links', () => {
         error: { code: 'captcha_failed', message: 'captcha' },
       })
     })
-    expect(container.textContent).toContain('Security verification failed')
+    expect(container.textContent).toContain("The security check didn't finish")
     await unmount(container, root)
   })
 
@@ -302,6 +317,7 @@ describe('ForgotPasswordPage navigation links', () => {
     })
 
     expect(container.textContent).not.toContain('Request a new reset link')
+    expect(container.textContent).toContain('This password appeared in a data breach')
     await unmount(container, root)
   })
 })

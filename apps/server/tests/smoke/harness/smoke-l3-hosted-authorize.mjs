@@ -21,7 +21,12 @@ import {
 } from './smoke-l3-shared.mjs'
 import { createServer } from 'node:http'
 import { pollUntil } from './poll-until.mjs'
-import { currentTotpCode, withChrome } from './smoke-l3-password-browser.mjs'
+import {
+  continuePastPasskeyPrompt,
+  currentTotpCode,
+  signInWithPasswordUi,
+  withChrome,
+} from './smoke-l3-password-browser.mjs'
 
 const clientId = 'client_l3_hosted_authz'
 const applicationId = 'app_l3_hosted_authz'
@@ -386,40 +391,13 @@ async function verifyApiWhatsappOtpAuthorization(fixture) {
 
 async function signInWithPasswordInBrowser(page, label) {
   try {
-    await page.waitFor(
-      () =>
-        location.pathname === '/sign-in' &&
-        document.body.innerText.includes('Password') &&
-        document.body.innerText.includes('Sign in'),
-      15_000,
-      `${label} sign-in UI`,
-    )
+    await signInWithPasswordUi(page, { identifier: userEmail, password: userPassword, label })
   } catch (error) {
     const snapshot = await page.snapshot()
     throw new Error(`${error.message} at ${snapshot.href}: ${snapshot.text.slice(0, 400)}`, {
       cause: error,
     })
   }
-  const passwordVisible = await page.evaluate(`(() => {
-    const isVisible = (node) => {
-      if (node.closest('[aria-hidden="true"],[inert]')) return false;
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number(style.opacity || '1') > 0.1 &&
-        rect.width > 0 &&
-        rect.height > 0;
-    };
-    return Array.from(document.querySelectorAll('input[type="password"]')).some(isVisible);
-  })()`)
-  if (passwordVisible !== true) await page.clickVisibleButton('Password')
-  await page.setVisibleInputValue(
-    'input[type="email"], input[autocomplete="email"], input[autocomplete="username"]',
-    userEmail,
-  )
-  await page.setVisibleInputValue('input[type="password"]', userPassword)
-  await page.clickVisibleButton('Sign in')
 }
 
 async function waitForApplicationCallback(page, label) {
@@ -442,6 +420,7 @@ async function verifyBrowserPasswordAuthorization(page) {
   await page.clearSessionCookies()
   await page.navigate(authorization.path)
   await signInWithPasswordInBrowser(page, 'browser password')
+  await continuePastPasskeyPrompt(page, 'browser password')
   const callback = await waitForApplicationCallback(page, 'browser password')
   printResult('PASS', 'browser password resumes /authorize with a document navigation')
   await exchangeCode(callback, authorization, 'browser password')
@@ -455,11 +434,9 @@ async function verifyBrowserForcedMfaSetup(page, fixture) {
   await signInWithPasswordInBrowser(page, 'browser mfa setup')
   await page.waitFor(
     () =>
-      location.pathname === '/account/security' &&
-      document.body.innerText.includes('Multi-factor authentication required') &&
-      Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Add authenticator app',
-      ),
+      location.pathname === '/mfa/setup' &&
+      document.body.innerText.includes('Choose your second step') &&
+      document.querySelector('input[type="radio"][value="totp"]') !== null,
     20_000,
     'forced mfa enrollment page',
   )
@@ -467,14 +444,13 @@ async function verifyBrowserForcedMfaSetup(page, fixture) {
   if (parseJson(me.body, '/v1/me pending').session?.status !== 'pending_mfa_setup') {
     throw new Error(`/v1/me did not report pending_mfa_setup: ${me.body}`)
   }
-  printResult('PASS', 'pending_mfa_setup session reaches /account/security')
+  printResult('PASS', 'pending_mfa_setup session reaches /mfa/setup')
 
-  await page.clickVisibleButton('Add authenticator app')
+  await page.evaluate(`document.querySelector('input[type="radio"][value="totp"]').click()`)
+  await page.clickVisibleButton('Set up authenticator app')
   await page.waitFor(
     () =>
-      document.body.innerText
-        .toLowerCase()
-        .includes('scan this qr code with your authenticator app') &&
+      document.body.innerText.includes('Scan this code with your authenticator app') &&
       document.querySelector('code')?.textContent?.trim().length > 0,
     15_000,
     'forced mfa totp setup panel',
@@ -482,11 +458,45 @@ async function verifyBrowserForcedMfaSetup(page, fixture) {
   const secret = await page.evaluate(
     `document.querySelector('code')?.textContent?.replace(/\\s+/g, '') || ''`,
   )
+  // 填满 6 位即自动提交,与粘贴验证码的行为一致。
   await page.setVisibleInputValue(
-    'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
+    'input[autocomplete="one-time-code"]',
     await currentTotpCode(secret),
   )
-  await page.submitVisibleFormContaining('Authenticator code')
+  await page.waitFor(
+    () =>
+      document.body.innerText.includes('Save your backup codes') &&
+      document.body.innerText.includes('I saved these codes somewhere safe'),
+    15_000,
+    'forced mfa backup codes step',
+  )
+  await page.evaluate(`(() => {
+    const label = Array.from(document.querySelectorAll('label'))
+      .find((item) => String(item.textContent || '').includes('I saved these codes somewhere safe'));
+    label?.click();
+    return label !== undefined;
+  })()`)
+  await page.waitFor(
+    () =>
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Continue' && !item.disabled,
+      ),
+    10_000,
+    'forced mfa backup codes acknowledged',
+  )
+  await page.clickVisibleButton('Continue')
+  await page.waitFor(
+    () => document.body.innerText.includes('Two-step verification is on'),
+    15_000,
+    'forced mfa summary',
+  )
+  const summaryContinue = await page.evaluate(`(() => {
+    const button = Array.from(document.querySelectorAll('button'))
+      .find((item) => /^Continue( to .+)?$/.test(String(item.textContent || '').trim()));
+    button?.click();
+    return button !== undefined;
+  })()`)
+  if (summaryContinue !== true) throw new Error('forced mfa summary has no Continue action')
   const callback = await waitForApplicationCallback(page, 'browser mfa setup')
   printResult('PASS', 'forced TOTP enrollment resumes /authorize')
   await exchangeCode(callback, authorization, 'browser mfa setup')

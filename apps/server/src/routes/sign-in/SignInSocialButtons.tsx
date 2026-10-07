@@ -2,7 +2,7 @@ import { Trans } from '@lingui/react/macro'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Button } from '../../components/ui'
-import { styles } from './styles'
+import { hosted } from '../../components/hosted/hosted-styles'
 import type { PublicSocialProvider } from './auth-config'
 
 export type SocialProvider = 'google' | 'github' | 'microsoft' | 'apple'
@@ -119,15 +119,15 @@ export function SignInSocialButtons({
   if (visibleProviders.length === 0) return null
 
   return (
-    <div {...stylex.props(styles.socialStack)}>
+    <div {...stylex.props(hosted.group)}>
       {visibleProviders.map((p) => (
         <Button
           key={p.id}
           variant="secondary"
+          size="lg"
           fullWidth
           disabled={isLoading || disabled}
           onClick={() => onSelect(p.id)}
-          {...stylex.props(styles.socialButton)}
         >
           {p.icon}
           {p.label}
