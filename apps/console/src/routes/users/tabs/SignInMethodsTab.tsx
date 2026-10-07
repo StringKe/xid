@@ -18,7 +18,7 @@ export function useTwoStepSummary(methods: UserSignInMethods | undefined): React
     active.some((factor) => factor.type === 'sms') ? t`Text message` : null,
   ].filter((label): label is string => label !== null)
   return labels.length > 0 ? (
-    new Intl.ListFormat(i18n.locale, { type: 'unit' }).format(labels)
+    new Intl.ListFormat(i18n.locale, { type: 'conjunction', style: 'narrow' }).format(labels)
   ) : (
     <span {...stylex.props(detail.muted)}>{t`Off`}</span>
   )
@@ -142,7 +142,7 @@ export function SignInMethodsTab({
           sub={
             factors.length > 0 ? (
               <>
-                {new Intl.ListFormat(i18n.locale, { type: 'unit' }).format(
+                {new Intl.ListFormat(i18n.locale, { type: 'conjunction', style: 'narrow' }).format(
                   factors.map((factor) =>
                     factor.type === 'totp'
                       ? t`Authenticator app`

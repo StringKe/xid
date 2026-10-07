@@ -116,7 +116,7 @@ export default function ProjectsList(): ReactNode {
   const restore = useRestoreProject(orgId)
   const tenantAdmin = activeOrg?.parentOrgId === null
   const apps = useApplications({ enabled: tenantAdmin })
-  const listFormat = new Intl.ListFormat(i18n.locale, { type: 'unit' })
+  const listFormat = new Intl.ListFormat(i18n.locale, { type: 'conjunction', style: 'narrow' })
   const appsByProject = new Map<string, string[]>()
   const kindsByProject = new Map<string, Set<string>>()
   if (tenantAdmin) {

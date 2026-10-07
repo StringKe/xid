@@ -30,7 +30,7 @@ function Organizations({ row }: { row: UserListRow }): ReactNode {
   if (row.organizations.length === 0) {
     return <span {...stylex.props(list.muted)}>{i18n._(msg`No organization`)}</span>
   }
-  const names = new Intl.ListFormat(i18n.locale, { type: 'unit' }).format(
+  const names = new Intl.ListFormat(i18n.locale, { type: 'conjunction', style: 'narrow' }).format(
     row.organizations.slice(0, 2).map((org) => organizationNameText(i18n, org.name)),
   )
   const more = row.organizations.length - 2
