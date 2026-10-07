@@ -36,7 +36,13 @@ app.post('/:orgId/leave', async (c) => {
     protectActiveOwner: true,
   })
   if (!changed) {
-    throw new AppError(membership.role === 'owner' ? 'last_owner' : 'conflict')
+    // 条件更新失败可能是并发改了成员状态,只有本人确实是剩下的唯一 owner 时才返回 last_owner。
+    const activeOwners = await orgDb.memberships.findMany(
+      and(eq(schema.memberships.role, 'owner'), eq(schema.memberships.status, 'active')),
+      { limit: 2 },
+    )
+    const isLastOwner = activeOwners.length === 1 && activeOwners[0]?.userId === session.userId
+    throw new AppError(isLastOwner ? 'last_owner' : 'conflict')
   }
 
   if (session.activeOrgId === orgId) {
