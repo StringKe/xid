@@ -172,7 +172,9 @@ async function waitFor(name, url, processState, init = {}) {
     }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`${name} did not become ready within ${READINESS_TIMEOUT_MS}ms`)
+  throw new Error(
+    `${name} did not become ready within ${READINESS_TIMEOUT_MS}ms\n${processState.output()}`,
+  )
 }
 
 function ownerPort(owner, ports) {
