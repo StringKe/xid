@@ -194,6 +194,19 @@ describe('linking a social account from the account portal', () => {
     expect(db.rows('SELECT id FROM user_identities')).toEqual([])
   })
 
+  it('refuses to link for a guest, whose conversion goes through social sign-in', async () => {
+    const db = seed()
+    db.database.prepare("UPDATE users SET provisioned_by = 'anonymous' WHERE id = 'u_1'").run()
+
+    const res = await makeApp(makeSession({ userId: 'u_1' })).request(
+      'https://northwind.xid.dev/v1/me/social-connections/github/link',
+      { method: 'POST' },
+      makeEnv(db),
+    )
+
+    expect(res.status).toBe(409)
+  })
+
   it('requires a signed-in session to start linking', async () => {
     const db = seed()
 

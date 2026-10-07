@@ -2,7 +2,7 @@
 // 映射 user_identities(identity_type='oauth'):id/provider/providerAccountId/email/connectedAt。
 // 认证:cookie session;租户隔离:createTenantDb。token 密文(access/refresh)绝不外泄。
 
-import { createTenantDb, schema } from '@xid-kit/db'
+import { createTenantDb, schema, USER_PROVISIONED_BY_ANONYMOUS } from '@xid-kit/db'
 import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
@@ -67,6 +67,13 @@ app.post('/:provider/link', async (c) => {
   const tenant = c.get('tenant')
   const parsed = v.safeParse(providerParamSchema, c.req.param('provider'))
   if (!parsed.success) throw new AppError('invalid_request')
+  // 访客转正走社交登录本身(会同时完成转正);这里只关联,不能替访客转正。
+  const user = await createTenantDb(c.env.DB, tenant).users.findOne(
+    eq(schema.users.id, session.userId),
+  )
+  if (!user || user.provisionedBy === USER_PROVISIONED_BY_ANONYMOUS) {
+    throw new AppError('conflict', { httpStatus: 409 })
+  }
   await requireStepUp(c, tenant, session)
   const url = await startSocialLink(c, { provider: parsed.output, session })
   return c.json({ url })
