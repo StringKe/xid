@@ -13,11 +13,9 @@
 - Primary identifier election: primary_email_id and primary_phone_id, where a change requires
   re-verification
 - external_id: a foreign key into an external system, unique per tenant, and queryable
-- Three metadata tiers (following Clerk):
-  - public_metadata: written by the backend, read-only for the frontend (subscription tier, role
-    labels)
-  - private_metadata: read and written by the backend, invisible to the frontend (a Stripe customer
-    ID)
+- Three metadata levels (following Clerk):
+  - public_metadata: written by the backend, read-only for the frontend (department, role labels)
+  - private_metadata: read and written by the backend, invisible to the frontend (a CRM record ID)
   - unsafe_metadata: readable and writable by both, the only tier a client may write at sign-up, so
     business logic MUST validate it
 - Total metadata size cap of 8 KB, with a recommended cap of 1.2 KB for anything placed in JWT claims

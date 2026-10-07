@@ -9,7 +9,7 @@
 - Global tenant list: cursor-paginated search by name or slug and one-at-a-time status changes are
   implemented. Each row shows the Organization ID, and the default Organization offers no suspend
   action because Core rejects it. Platform lists append the next page on "Load more" instead of
-  replacing the loaded rows. Plan/status/creation-time filters and bulk suspend/resume/delete remain
+  replacing the loaded rows. Status/creation-time filters and bulk suspend/resume/delete remain
   design targets
 - Impersonate any active user through one of their active Organization Memberships (recorded in the
   platform audit log)
@@ -18,25 +18,22 @@
   Tenant/event_type/user filters remain design targets
 - Queue dead-letter operations: redacted metadata for every business Queue, encrypted replay, and an
   auditable operator action inside the global event page
-- System announcement banner: targeted globally, by explicit tenant, or by accounting plan label.
-  The tenant target is chosen with an Organization picker, and the start time defaults to the
+- System announcement banner: targeted globally or to one explicit tenant. The tenant target is chosen with an Organization picker, and the start time defaults to the
   operator's local wall-clock time
 - Global feature flags are not implemented. Passkey autofill, magic link, social sign-in, SCIM, and
   Organization self-service are controlled by tenant policy, delivery channels, social provider
   configuration, directories, and `organizations.allow_org_self_service`; there is no parallel
-  KV flag switch. A plan label is never an authentication feature gate
-- Resource quota management: view and manually adjust a single tenant's quota
+  KV flag switch
+- Resource quota management: view and manually adjust a single tenant's quotas, one key at a time
+  (section 7)
 - Instance default policy (`/v1/platform/settings`): every sessionPolicy field (idleTimeoutMin,
   default 4320 minutes, bounds 5-43200; absoluteTimeoutDays, default 30 days, bounds 1-365;
   rememberMeDefault) plus every tokenPolicy field (accessTokenTtlSec, default 3600s, bounds 60-86400;
   sessionTokenTtlSec, default 60s, bounds 30-300; refreshIdleTimeoutDays, default 30 days, bounds
   1-365; refreshAbsoluteTimeoutDays, default 7 days, bounds 1-90). The org side overrides field by
   field through `/v1/organizations/:id/auth-policy` (null means inherit)
-- Billing overview: current-month DAU/MAU for every tenant, overdue and overage status, and a direct
-  link to Stripe
-- Plan accounting: change a billing label, trial dates, default quotas, and support label. It never
-  generates a license or unlocks an authentication capability. A quota-only change keeps the plan's
-  billing source and effective time, so a Stripe-managed plan stays attributed to Stripe
+- Usage overview: current-month MAU, DAU, and active seats for every top-level tenant. When usage
+  billing is enabled, the same view adds the overdue status and a Customer Portal link
 - Global alert rules are a design target. There is no current alert-rule API or PagerDuty/Slack
   delivery path; live notification destinations remain deployment state and are `UNKNOWN` until
   verified
@@ -64,7 +61,7 @@ valid, and the response never echoes the failure reason.
 
 Dashboard (DAU/MAU trends, sign-in success rate, MFA adoption, active orgs), user management,
 application management (OAuth2 clients), SSO connections, organization management, team members
-(Owner/Admin/Member roles), branding, notification settings, audit log, billing usage, and
+(Owner/Admin/Member roles), branding, notification settings, audit log, usage, and
 compliance tooling.
 
 Design decisions: the tenant admin pages and platform admin pages belong to the same unified React
@@ -116,7 +113,7 @@ and the sandboxed preview editor remain design targets.
 Implementation status: the email Queue currently produces and renders five transactional types:
 email verification, magic link, OTP, password reset, and organization invitation. Email-change
 confirmation, new-device sign-in alerts, account-lockout notifications, administrator invitations,
-and subscription/billing alerts remain design targets. SMS supports OTP and magic-link short links.
+and usage-billing alerts remain design targets. SMS supports OTP and magic-link short links.
 
 The only implemented email provider is **Cloudflare Email Service**, through the `send_email`
 binding. Resend, SendGrid, bring-your-own SMTP, tenant-level provider selection, and per-email-type
@@ -394,9 +391,11 @@ Grouped by domain, with the string format `<domain>.<action>`:
   security.account_locked / security.account_unlocked
 - Platform management: platform.tenant_suspended / platform.tenant_activated /
   platform.tenant_deleted / platform.impersonate_start / platform.impersonate_end /
-  platform.plan_changed / platform.settings_changed
-- Billing: billing.subscription_created / billing.subscription_updated / billing.payment_failed /
-  billing.quota_exceeded
+  platform.quota_changed / platform.settings_changed
+- Billing (only while usage billing is enabled): billing.subscription_created /
+  billing.subscription_updated record the status of the operator-created Stripe metered
+  subscription. A Stripe `invoice.payment_failed` event is reconciled into that status; a separate
+  billing.payment_failed action remains a design target
 
 Implemented login outcome events: `auth.login_succeeded` is queued once when a session becomes
 `active`, either at issuance or when a pending MFA session completes MFA; impersonation sessions are
@@ -497,9 +496,10 @@ Implemented baseline:
   automatic request traces are disabled in every environment because both persist the request URL,
   and automatic Fetch spans include `url.full`. Core URLs can carry OAuth codes, invitation tokens,
   verification tokens, and other one-time secrets.
-- Cloudflare Workers Logs retention is 3 days on Free and 7 days on Paid, with an overall maximum
-  of 7 days. Current read-only evidence identifies the hosted account as Free, so its expected
-  retention is 3 days; the active account plan and deployed retention remain `EXTERNAL` until
+- Cloudflare Workers Logs retention is 3 days on a Cloudflare Workers Free account and 7 days on a
+  Workers Paid account, with an overall maximum of 7 days. Current read-only evidence identifies the
+  hosted Cloudflare account as Workers Free, so its expected retention is 3 days; the active
+  Cloudflare account type and deployed retention remain `EXTERNAL` until
   reconciled there. XID configures no Logpush destination and therefore makes no longer-retention
   claim. Dashboard/query access must be restricted to the deployer's incident-response role and
   audited in the Cloudflare account. See
@@ -515,10 +515,23 @@ GeoIP MMDB, and historical Analytics Engine SQL aggregation are not implemented.
 protection currently uses Turnstile plus `RateLimitStore`; account-enumeration work is normalized by
 constant-time comparison and jitter.
 
-## 7. Billing and quotas
+## 7. Usage billing and quotas
 
-Metering dimensions: MAU (unique users with an authentication event in a calendar month), DAU, org
-count, API calls, email count, and SSO connection count.
+Business rule (binding for code, design, docs, Console copy, and AI rules):
+
+- XID has no plans, tiers, or packages. There is no free, starter, pro, or enterprise edition, no
+  trial, and no support label derived from what a customer pays.
+- XID Cloud (`https://xid.dev`) is free today.
+- If XID Cloud ever charges, it charges by usage only: metered MAU, at a unit price the operator
+  publishes. No capability is ever reserved for a paying customer.
+- Self-hosted XID has exactly the same features as XID Cloud. An operator can switch billing off
+  completely, and nothing else changes.
+
+Metering dimensions: MAU (unique users with an authentication event in a calendar month) and DAU are
+counted exactly and are the only billing signal. MAU is the only dimension ever reported to a payment
+provider. Organization and SSO connection counts are read from D1 for quotas. API-call and email
+counters are not metered today (the `usage_daily` columns stay 0), so they are neither quota keys nor
+Console usage columns.
 
 Aggregation architecture:
 
@@ -527,45 +540,54 @@ Aggregation architecture:
 - The metering consumer deduplicates and writes daily rows into the D1 `usage_daily` table
 - The daily `0 2 * * *` Cron snapshots the current month's MAU into `usage_monthly`. On the first
   UTC day of a month, the same daily path also archives and evicts the previous month's
-  `MeteringDO` keys. The optional Stripe metering phase runs daily
+  `MeteringDO` keys. The Stripe MAU reporting phase runs daily only while usage billing is enabled
 
-Example managed-service accounting labels:
+Resource quotas are operator safety caps, never a product boundary. They have no defaults, no
+presets, and no relation to billing; each key is set explicitly per top-level tenant by an Instance
+Manager through `/v1/platform/quotas/:tenantId`, and every change writes a `platform.quota_changed`
+platform audit record.
 
-| Label      | Monthly | Default seat quota | Default API quota | Support label |
-| ---------- | ------- | ------------------ | ----------------- | ------------- |
-| Free       | $0      | 10                 | 100,000           | Community     |
-| Starter    | $25     | 50                 | 1,000,000         | Standard      |
-| Pro        | $99     | 250                | 10,000,000        | Priority      |
-| Enterprise | Custom  | Custom             | Custom            | Contracted    |
+| Quota key         | Enforcement                   | What it can reject                                             |
+| ----------------- | ----------------------------- | -------------------------------------------------------------- |
+| `seats`           | `observe` only                | Nothing. Seat usage is displayed, never enforced               |
+| `organizations`   | `observe` or `block_creation` | Creating or restoring a child organization (management writes) |
+| `sso_connections` | `observe` or `block_creation` | Creating or restoring an SSO connection (management writes)    |
 
-Plan labels select accounting metadata, default quotas, and support labels only. They never control
-OIDC, OAuth, SAML, SSO, SCIM, WebAuthn, MFA, or any other authentication capability. A hard resource
-quota may reject a new quota-consuming management write, such as adding another seat, but it MUST NOT
-suspend an existing user, block sign-in, stop token issuance or refresh, or disable an already
-configured protocol integration. Usage-alert rules, thresholds, delivery, and deduplication remain
-design targets; the current repository does not emit them. Changing the accounting label or an
-explicit quota is an administrative billing operation, not a feature unlock.
+New tenants get no quota rows and no `seat_limit`, so nothing is capped until an operator writes a
+row. A `block_creation` quota rejects only the matching management write with
+`resource_quota_exceeded`. No quota may suspend an existing user, block sign-up, sign-in, SSO JIT
+provisioning, SCIM provisioning, invitation acceptance, email verification, or password reset, stop
+token issuance or refresh, or disable an already configured protocol integration. Usage-alert rules,
+thresholds, delivery, and deduplication remain design targets; the current repository does not emit
+them.
 
 The seat definition is tenant-wide: `COUNT(DISTINCT memberships.user_id)` over active memberships
 for the complete tenant, including every child organization. The same user in multiple organizations
-therefore consumes one seat. The billing overview uses this exact definition for `seatUsed`.
-Membership INSERT and UPDATE triggers apply the hard quota atomically when an active user would
-consume a new seat. An UPDATE excludes the old row before evaluating the destination tenant, so an
-organization move within one tenant does not consume a second seat and a cross-tenant move cannot
-bypass the destination quota.
+therefore consumes one seat. The usage overview uses this exact definition for `seatUsed`.
+`organization_quotas(tenant_id, 'seats')` and the root `organizations.seat_limit` mirror hold an
+observation threshold only: no membership trigger reads them, and the Management API `seat_limit`
+field writes an `observe` row. Child Organizations do not own a seat limit, and their create/patch
+API rejects `seat_limit`.
 
-`organization_quotas(tenant_id, 'seats')` is the authoritative hard seat-creation quota.
-`organizations.seat_limit` on the root organization is a compatibility mirror only. A plan or
-seat-limit mutation updates both values in the same D1 batch, and the Console presents one seat
-control. `seats`, `organizations`, and `sso_connections` may use `block_creation`; `api_calls`,
-`emails`, and `mau` are observational only, and the management API rejects hard enforcement for
-those keys. Creating a top-level tenant initializes the Free seat quota and root mirror in the same
-batch. Child Organizations do not own a seat limit, and their create/patch API rejects `seat_limit`.
+Usage billing is one switch with no extra variable. It follows the Turnstile precedent of a
+configuration group:
 
-Stripe is an optional managed-service adapter for Checkout Sessions, the Customer Portal, invoices,
-payments, and accounting-label updates. `invoice.payment_failed` records billing state; operator
-alert delivery remains a design target. It does not downgrade authentication behavior or lock users
-out.
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_METER_EVENT_NAME` all set: billing is
+  enabled.
+- None of the three set: billing is disabled. This is the self-hosted default and the current
+  `https://xid.dev` state. Every feature works unchanged; the Console shows a usage overview and no
+  billing wording.
+- Only some set: billing fails closed. The usage overview, billing configuration, and Portal
+  endpoints answer `server_error`, and the daily Stripe MAU phase is skipped and logged without
+  affecting the other daily phases.
+
+When billing is enabled, Stripe is the usage-billing adapter only: daily MAU meter reporting,
+invoices, payments, and the Customer Portal. XID never creates a Checkout Session and never sells a
+plan. The operator creates the Stripe customer and metered subscription in Stripe and sets the
+subscription metadata `xid_tenant_id` to the top-level tenant id; the signed webhook then binds that
+customer to the tenant and records the subscription status. `invoice.payment_failed` marks the
+tenant overdue in the usage overview; operator alert delivery remains a design target. Billing state
+never downgrades authentication behavior or locks users out.
 
 Meter reporting persists a `billing_meter_reports` cursor before each provider call. The pending
 identifier is globally unique, and every retry reuses the complete first payload, including customer,
@@ -575,14 +597,14 @@ Stripe webhook processing similarly claims each provider `event_id` in `stripe_w
 before applying it, making event retries idempotent.
 
 XID is MIT licensed. Self-hosting always includes the full feature set, with no tiering, license key,
-license generation, or local/network validation check. The labels and Stripe adapter above are
-optional for deployers who operate a paid service on top of XID. The kernel does not depend on them,
-and turning billing off does not affect any authentication capability.
+license generation, or local/network validation check. The usage-billing adapter above is optional
+for deployers who charge for a service built on XID, and it can only bill metered usage. The kernel
+does not depend on it, and turning billing off does not affect any capability.
 
 Design decisions: MAU and DAU use exact counting in a per-tenant sharded MeteringDO. Each membership
 is stored as its own Durable Object storage key, and each day and month bucket stores a count, so the
 full user set is never held in the isolate. HyperLogLog's 0.8% error is unacceptable for billing.
-Stripe metered billing reports a delta rather than the full total. Deduplicating future overage
+Stripe metered billing reports a delta rather than the full total. Deduplicating future usage
 alerts to at most 3 per tenant per type per month is a design target, not a shipped path.
 
 ### 7.1 Exact membership counting implementation spec

@@ -131,11 +131,13 @@ pending -> expired
 - External collaborators (guests) are users whose email domain does not belong to the org's verified
   domains. They are flagged separately and can be capped (mirroring WorkOS's domain-managed versus
   domain-guest distinction)
-- Seat management: one seat is one distinct user with any active membership across the complete
+- Seat counting: one seat is one distinct user with any active membership across the complete
   Tenant, including child Organizations. Multiple memberships for the same user consume one seat.
-  `organization_quotas(seats)` is authoritative; the root `organizations.seat_limit` is a
-  compatibility mirror and `seat_used` is legacy only. Deprovisioning the user's last active
-  membership frees a seat, and re-provisioning restores the historical roles
+  Seats are observed, never enforced: `organization_quotas(seats)` and its root
+  `organizations.seat_limit` mirror hold an optional observation threshold, `seat_used` is legacy
+  only, and no seat value ever blocks sign-up, JIT, SCIM, or invitation acceptance (chapter 07
+  section 7). Deprovisioning the user's last active membership frees a seat, and re-provisioning
+  restores the historical roles
 - SCIM deprovisioning is a soft delete (inactive) rather than a physical delete, which preserves the
   audit trail
 
@@ -293,7 +295,7 @@ overrides, branding, metadata, and connection configuration.
 ### Instance Manager (platform operations)
 
 View users, audit records, and usage across every org; suspend, resume, or delete an org; view (but
-not modify) org-level configuration; billing seat statistics and quotas; create orgs on a customer's
+not modify) org-level configuration; usage statistics and resource quotas; create orgs on a customer's
 behalf.
 
 ### Org Admin (tenant self-management)
@@ -528,7 +530,7 @@ v1 supports simple comparisons only, with no nested logic and no resource attrib
 
 | Operator | Semantics                              | Example                                                                             |
 | -------- | -------------------------------------- | ----------------------------------------------------------------------------------- |
-| `eq`     | Strict equality (===)                  | `{ "op": "eq", "var": "user.public_metadata.plan", "value": "enterprise" }`         |
+| `eq`     | Strict equality (===)                  | `{ "op": "eq", "var": "user.public_metadata.department", "value": "finance" }`      |
 | `in`     | Value is in the array (Array.includes) | `{ "op": "in", "var": "user.public_metadata.tier", "value": ["gold", "platinum"] }` |
 | `not_eq` | Not equal                              | `{ "op": "not_eq", "var": "org.public_metadata.status", "value": "suspended" }`     |
 | `not_in` | Not in the array                       | `{ "op": "not_in", "var": "user.public_metadata.region", "value": ["CN", "RU"] }`   |
@@ -539,14 +541,14 @@ v1 supports simple comparisons only, with no nested logic and no resource attrib
 // Single condition
 {
   "op": "eq",
-  "var": "user.public_metadata.plan",
-  "value": "enterprise"
+  "var": "user.public_metadata.department",
+  "value": "finance"
 }
 
 // Multiple conditions ANDed (granted only when every sub-condition is true)
 {
   "and": [
-    { "op": "eq",  "var": "user.public_metadata.plan", "value": "enterprise" },
+    { "op": "eq",  "var": "user.public_metadata.department", "value": "finance" },
     { "op": "not_in", "var": "org.public_metadata.status", "value": ["suspended"] }
   ]
 }

@@ -62,6 +62,10 @@ repository is gated behind payment.
 
 There is no "community edition versus enterprise edition" split. Self-hosting gives you everything.
 
+XID has no plans, tiers, or packages anywhere. XID Cloud (`https://xid.dev`) is free today; if it
+ever charges, it charges by metered MAU only. A self-hosted operator can run the same optional
+usage-billing adapter or leave it switched off (chapter 07 section 7).
+
 ## 3. Technology stack
 
 workers-rs was dropped in favor of **TypeScript**. The reasoning: an identity product is dominated by
@@ -362,7 +366,7 @@ defense: uniform error messages plus constant-time responses. See chapters 01 an
 The versioned expected edge policy is
 `docs/deployment/cloudflare-security-rules.v1.json`. The hosted `xid.dev` zone uses the Cloudflare
 Free WAF plan, so the baseline deliberately fits its limits: no more than five custom rules, one
-rate-limiting rule, and only Free-plan fields and actions. The manifest remains `EXTERNAL` until a
+rate-limiting rule, and only fields and actions that Cloudflare offers on that Free zone. The manifest remains `EXTERNAL` until a
 read-only zone reconciliation proves that live phase entry points match it. Edge limiting is a
 coarse shield only; `RateLimitStore` remains the fail-closed, strongly consistent authority for
 identity-flow and per-tenant business limits.
@@ -416,7 +420,7 @@ sub-service-organization evidence, but application-layer controls remain our res
 | 7   | Passkey isolation        | Per-tenant RPID; subdomains isolate naturally                                                       |
 | 8   | Signing keys             | Instance ES256 by default plus envelope encryption (KEK in Workers Secrets)                         |
 | 9   | Build-vs-buy boundary    | Platform cryptography, in-house protocol and business logic, library-based SAML XML                 |
-| 10  | Usage metering           | Exact DAU/MAU deduplication, so self-hosters can wire up their own billing or quotas                |
+| 10  | Usage metering           | Exact DAU/MAU deduplication; MAU is the only signal for optional usage-based billing                |
 | 11  | Hierarchy model          | Instance -> Org -> Project -> App, with one level of sub-org                                        |
 | 12  | Scope                    | Full target capability coverage; support level governed by the protocol matrices and L4 evidence    |
 | 13  | Frontend architecture    | Nimbus Site plus a separate static Console Worker; Core retains the React Hosted UI and account SPA |

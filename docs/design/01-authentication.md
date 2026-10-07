@@ -981,8 +981,8 @@ credential. This section is the design contract. It is implemented in
 
 ### Metering, Management API, and audit
 
-- MeteringDO MAU deduplication excludes guests; otherwise free trials would inflate the customer's
-  MAU bill.
+- MeteringDO MAU deduplication excludes guests; otherwise anonymous guest sessions would inflate the
+  customer's MAU.
 - The Management API `/v1/users` list supports the `?provisioned_by=anonymous` filter; no new
   endpoint is added.
 - New audit event names: `guest.created`, `guest.converted`, and `guest.gc_deleted` (the webhook and

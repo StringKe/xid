@@ -75,7 +75,7 @@ User -> Session -> Token
 | OrgPolicy     | Per-org policy override (SSO/MFA/session/password)                        | Belongs to an Organization                             |
 | OrgBranding   | Per-org branding (logo/colors/CSS)                                        | Belongs to an Organization                             |
 | OrgMetadata   | Public and private metadata                                               | Belongs to an Organization                             |
-| OrgQuota      | Quotas (seats, API, and so on)                                            | Belongs to an Organization                             |
+| OrgQuota      | Operator resource quotas (seats observed; child orgs, SSO connections)    | Belongs to an Organization                             |
 
 ### Users and identities
 
@@ -160,8 +160,7 @@ User -> Session -> Token
 | Webhook / WebhookDelivery | Subscriptions and delivery records (retries and dead letters) |
 | ApiKey                    | API keys (scoped, hashed storage)                             |
 | PlatformAdmin             | Platform administrator (platform-level)                       |
-| OrganizationPlan / Quota  | Optional accounting labels and resource-creation limits       |
-| StripeCheckoutReservation | Durable guard against duplicate hosted subscription Checkout  |
+| BillingAccount / Quota    | Optional usage-billing account link and operator quotas       |
 | PlatformAnnouncement      | Scheduled, explicitly targeted operator announcements         |
 | StatusIncident / Update   | Public service-status incidents and their timeline            |
 | PrivacyRequest            | User export and delayed-erasure workflow state                |
@@ -361,8 +360,8 @@ Indexes: `UNIQUE(primary_domain)`. No foreign keys (this is the platform root).
 | logo_url                | text            | nullable                                           | null                | R2 logo URL (branding lives in OrgBranding)                                                          |
 | public_metadata         | text json       | NOT NULL                                           | `{}`                | Readable by the frontend (see chapter 02 section 5)                                                  |
 | private_metadata        | text json       | NOT NULL                                           | `{}`                | Server and admin only                                                                                |
-| seat_limit              | integer number  | nullable                                           | null                | Compatibility mirror of the root tenant's `organization_quotas(seats)` limit; null means unlimited   |
-| seat_used               | integer number  | NOT NULL                                           | `0`                 | Legacy compatibility counter; billing derives tenant-wide distinct active users from memberships     |
+| seat_limit              | integer number  | nullable                                           | null                | Mirror of the root tenant's observe-only `organization_quotas(seats)` threshold; never enforced      |
+| seat_used               | integer number  | NOT NULL                                           | `0`                 | Legacy compatibility counter; usage derives tenant-wide distinct active users from memberships       |
 | enrollment_mode         | text            | NOT NULL                                           | `'invite_required'` | `automatic`/`invite_required` (automatic domain assignment, see chapter 02 section 2)                |
 | allow_org_self_service  | integer boolean | NOT NULL                                           | `1`                 | When off, an org admin cannot change SSO, MFA, sign-in policy, or SCIM (scope: chapter 02 section 6) |
 | status                  | text            | NOT NULL                                           | `'active'`          | `active`/`suspended`/`deleted`                                                                       |
@@ -609,7 +608,7 @@ Guest lifecycle (see chapter 01 section 8): a daily GC cron soft-deletes users w
 user has no session, otherwise the newest session's `last_active_at`); they enter the same 30-day
 hard-delete PII pipeline as any other soft-deleted user (see chapter 05 section 7), with the audit
 event `guest.gc_deleted`. Guest rows are excluded from MeteringDO MAU deduplication (see 17.3), so
-free trials do not inflate MAU billing.
+anonymous guest sessions do not inflate a customer's MAU.
 
 An unused anonymous provisional user enters the same 30-day lifecycle when it has no Membership, or
 only the owner Membership of its safe empty onboarding top-level Tenant. If it never verified
@@ -1690,8 +1689,8 @@ section 7.1.2):
 Primary key: `PRIMARY KEY (tenant_id, year_month)`.
 
 MeteringDO MAU deduplication excludes guest users (`users.provisioned_by = 'anonymous'`, see chapter
-01 section 8): guests are real user rows, but counting them as MAU would let free trials inflate the
-customer's MAU bill.
+01 section 8): guests are real user rows, but counting them as MAU would let anonymous guest sessions
+inflate the customer's MAU.
 
 ### 17.3b metering_outbox (a durable recovery queue for authentication-success metering)
 
@@ -1714,57 +1713,58 @@ the DAU figure.
 Indexes: `UNIQUE(tenant_id, user_id, day)`, `INDEX(delivered_at, created_at)` (for scanning pending
 recoveries).
 
-### 17.3c organization_plans / organization_quotas (optional service accounting)
+### 17.3c Billing accounts and organization_quotas (optional usage billing, operator quotas)
 
-These tables are operator accounting metadata, not a license system. Authentication and configured
-protocols never read them as feature gates. A missing plan row resolves to the `free` label without
-creating data. Applying a label can apply its default seat/API quotas; explicit quota values remain
-operator-controlled.
+These tables are operator metadata, not a license system. XID has no plans or tiers (chapter 07
+section 7). Authentication and configured protocols never read these tables as feature gates, and
+creating a tenant writes no row to either table.
 
-organization_plans:
+organization_plans (the SQL table name is kept; the Drizzle export is `organizationBillingAccounts`)
+holds the optional link between a top-level tenant and the operator's usage-billing customer. Only
+the Stripe webhook writes it, and only while usage billing is enabled.
 
-| Field                   | Type          | Constraints                    | Default  | Notes                                      |
-| ----------------------- | ------------- | ------------------------------ | -------- | ------------------------------------------ |
-| tenant_id               | text          | PK                             | --       | Top-level organization id                  |
-| plan                    | text          | NOT NULL                       | `free`   | free / starter / pro / enterprise          |
-| status                  | text          | NOT NULL                       | `active` | active / trialing / past_due / canceled    |
-| source                  | text          | NOT NULL                       | `manual` | Accounting adapter source                  |
-| external_customer_id    | text          | nullable, UNIQUE when non-null | null     | Optional deployer billing-customer id      |
-| trial_ends_at           | integer ts_ms | nullable                       | null     |                                            |
-| effective_at            | integer ts_ms | NOT NULL                       | --       | When the accounting label became effective |
-| updated_by              | text          | nullable                       | null     | Instance Manager user id                   |
-| created_at / updated_at | integer ts_ms | NOT NULL                       | See 9.3  |                                            |
+| Field                   | Type          | Constraints                    | Default  | Notes                                                               |
+| ----------------------- | ------------- | ------------------------------ | -------- | ------------------------------------------------------------------- |
+| tenant_id               | text          | PK                             | --       | Top-level organization id                                           |
+| plan                    | text          | NOT NULL                       | `free`   | Retired column: never read or written; inserts omit it              |
+| status                  | text          | NOT NULL                       | `active` | Stripe subscription status: active / trialing / past_due / canceled |
+| source                  | text          | NOT NULL                       | `manual` | Billing adapter source                                              |
+| external_customer_id    | text          | nullable, UNIQUE when non-null | null     | Usage-billing customer id bound by the webhook                      |
+| trial_ends_at           | integer ts_ms | nullable                       | null     | Retired column: never read or written                               |
+| effective_at            | integer ts_ms | NOT NULL                       | --       | When the current billing status became effective                    |
+| updated_by              | text          | nullable                       | null     | Instance Manager user id                                            |
+| created_at / updated_at | integer ts_ms | NOT NULL                       | See 9.3  |                                                                     |
 
 Indexes: partial `UNIQUE(external_customer_id)` when non-null,
-`INDEX(plan, status, tenant_id)`.
+`INDEX(plan, status, tenant_id)`. The daily MAU reporter selects rows whose `status` is `active` or
+`trialing` and that carry an `external_customer_id`. The Console treats `past_due` as overdue and
+every other status as OK.
 
 organization_quotas:
 
-| Field                   | Type           | Constraints  | Default   | Notes                                                              |
-| ----------------------- | -------------- | ------------ | --------- | ------------------------------------------------------------------ |
-| tenant_id               | text           | composite PK | --        |                                                                    |
-| quota_key               | text           | composite PK | --        | seats / organizations / sso_connections / api_calls / emails / mau |
-| limit                   | integer number | nullable     | null      | null means unlimited                                               |
-| enforcement             | text           | NOT NULL     | `observe` | observe / block_creation                                           |
-| updated_by              | text           | nullable     | null      | Instance Manager user id                                           |
-| created_at / updated_at | integer ts_ms  | NOT NULL     | See 9.3   |                                                                    |
+| Field                   | Type           | Constraints  | Default   | Notes                                   |
+| ----------------------- | -------------- | ------------ | --------- | --------------------------------------- |
+| tenant_id               | text           | composite PK | --        |                                         |
+| quota_key               | text           | composite PK | --        | seats / organizations / sso_connections |
+| limit                   | integer number | nullable     | null      | null means unlimited                    |
+| enforcement             | text           | NOT NULL     | `observe` | observe / block_creation                |
+| updated_by              | text           | nullable     | null      | Instance Manager user id                |
+| created_at / updated_at | integer ts_ms  | NOT NULL     | See 9.3   |                                         |
 
 Primary key: `PRIMARY KEY(tenant_id, quota_key)`. Index:
-`INDEX(quota_key, tenant_id)`. The `seats` row is the authoritative hard seat-creation quota;
-`organizations.seat_limit` on the root organization is updated in the same plan mutation as a
-compatibility mirror. Seats are distinct active `memberships.user_id` values across the complete
-tenant, including child organizations. Migration-owned BEFORE triggers atomically enforce new
-distinct active seats, child-organization creation/restoration, and SSO-connection
-creation/restoration. The membership UPDATE trigger excludes `OLD.id` and evaluates the destination
-tenant, preserving moves while preventing cross-tenant bypasses. Only `seats`, `organizations`, and
-`sso_connections` may use `block_creation`; `api_calls`, `emails`, and `mau` are observational
-because they must not interrupt authentication, token issuance, refresh, transactional
-authentication delivery, or an already configured protocol.
+`INDEX(quota_key, tenant_id)`. Seats are distinct active `memberships.user_id` values across the
+complete tenant, including child organizations. The `seats` row is an observation threshold only:
+its enforcement is always `observe`, no membership trigger exists, and `organizations.seat_limit` on
+the root organization is written in the same D1 batch as its mirror. Migration-owned BEFORE triggers
+atomically enforce only child-organization creation/restoration and SSO-connection
+creation/restoration when the matching row is `block_creation`. Rows with other keys that earlier
+writers left behind (`api_calls`, `emails`, `mau`) are ignored on read, because those dimensions are
+not metered.
 
-Top-level tenant creation inserts its Free `seats` quota and root compatibility mirror in the same
-D1 batch. A child organization never owns a seat quota: Management API create and patch requests
-that try to set its `seat_limit` are rejected. Migration 0005 backfills one hard `seats` row from
-each existing root mirror, preserving null as unlimited rather than silently imposing a new limit.
+Tenant creation writes no quota row and no `seat_limit`, so nothing is capped until an Instance
+Manager writes a row. A child organization never owns a seat quota: Management API create and patch
+requests that try to set its `seat_limit` are rejected. Migration 0021 drops the membership seat
+triggers and sets every `seats` row to `observe` without changing its `limit`.
 
 billing_meter_reports:
 
@@ -1795,29 +1795,9 @@ local finalization and never calls the provider again. When acceptance could not
 provider retries are allowed only inside the 24-hour provider deduplication window. Crossing that
 boundary sets `reconciliation_required_at` and fails closed instead of risking a duplicate charge.
 
-stripe_checkout_reservations:
-
-| Field                    | Type          | Constraints      | Default    | Notes                                                            |
-| ------------------------ | ------------- | ---------------- | ---------- | ---------------------------------------------------------------- |
-| tenant_id                | text          | PK               | --         | One active Checkout reservation per top-level organization       |
-| request_id               | text          | NOT NULL         | --         | Caller attempt identifier retained for operational tracing       |
-| plan                     | text          | NOT NULL         | --         | Frozen starter / pro / enterprise selection                      |
-| customer_id              | text          | nullable         | null       | Frozen existing Stripe customer binding                          |
-| provider_idempotency_key | text          | NOT NULL, UNIQUE | --         | Server-generated key persisted before the provider call          |
-| session_id               | text          | nullable         | null       | Stripe Checkout Session id                                       |
-| session_url              | text          | nullable         | null       | Validated Stripe-hosted redirect URL                             |
-| expires_at               | integer ts_ms | nullable         | null       | Provider session expiry                                          |
-| status                   | text          | NOT NULL         | `reserved` | reserved / ready / completed / expired / reconciliation_required |
-| created_at / updated_at  | integer ts_ms | NOT NULL         | See 9.3    |                                                                  |
-
-Indexes: `UNIQUE(provider_idempotency_key)`,
-`INDEX(status, expires_at, tenant_id)`. Core persists the server-generated provider key before
-creating a Checkout Session, so concurrent caller retries reuse the same provider operation. A live
-`ready` session is returned rather than replaced. Once its local expiry passes, Core retrieves the
-authoritative Stripe Session: `complete` fails closed, and only an explicit provider `expired`
-status permits a replacement reservation. An unresolved `reserved` row that outlives Stripe's
-idempotency retention becomes `reconciliation_required`, and an active customer subscription blocks
-new Checkout creation.
+`stripe_checkout_reservations` remains in the schema with its existing rows, but no code reads or
+writes it: XID creates no Checkout Session. Operators bind customers through Stripe subscription
+metadata `xid_tenant_id` (chapter 07 section 7).
 
 stripe_webhook_events:
 
@@ -1838,16 +1818,16 @@ transition, so provider retries cannot apply the same transition twice.
 
 ### 17.3d platform_announcements
 
-| Field                    | Type          | Constraints         | Default       | Notes                                      |
-| ------------------------ | ------------- | ------------------- | ------------- | ------------------------------------------ |
-| id                       | text          | PK                  | `ann_` id     |                                            |
-| scope_type / scope_value | text / text   | NOT NULL / nullable | global / null | Explicit global, tenant, or plan targeting |
-| title / body             | text / text   | NOT NULL            | --            | Localizable operator-authored content      |
-| severity                 | text          | NOT NULL            | `info`        | info / success / warning / critical        |
-| status                   | text          | NOT NULL            | `draft`       | draft / published / archived               |
-| starts_at / ends_at      | integer ts_ms | NOT NULL / nullable | -- / null     | Active window                              |
-| created_by / updated_by  | text          | NOT NULL            | --            | Instance Manager user ids                  |
-| created_at / updated_at  | integer ts_ms | NOT NULL            | See 9.3       |                                            |
+| Field                    | Type          | Constraints         | Default       | Notes                                 |
+| ------------------------ | ------------- | ------------------- | ------------- | ------------------------------------- |
+| id                       | text          | PK                  | `ann_` id     |                                       |
+| scope_type / scope_value | text / text   | NOT NULL / nullable | global / null | Explicit global or tenant targeting   |
+| title / body             | text / text   | NOT NULL            | --            | Localizable operator-authored content |
+| severity                 | text          | NOT NULL            | `info`        | info / success / warning / critical   |
+| status                   | text          | NOT NULL            | `draft`       | draft / published / archived          |
+| starts_at / ends_at      | integer ts_ms | NOT NULL / nullable | -- / null     | Active window                         |
+| created_by / updated_by  | text          | NOT NULL            | --            | Instance Manager user ids             |
+| created_at / updated_at  | integer ts_ms | NOT NULL            | See 9.3       |                                       |
 
 Indexes: `INDEX(status, starts_at, ends_at)`,
 `INDEX(scope_type, scope_value, status)`.
@@ -2124,9 +2104,9 @@ Indexes: `UNIQUE(source_queue, message_id)`, `INDEX(status, failed_at, id)`,
 > the light logo URL mirrored to `organizations.logo_url`; it has no table of its own. OrgMetadata
 > has likewise been folded into organizations.public/private_metadata (section 11 does not give it
 > its own table). OrganizationQuota has its own `organization_quotas` table for
-> operator-configured resource limits. Its `seats` row is authoritative; the root
-> `organizations.seat_limit` is a compatibility mirror, while billing computes seat usage from
-> tenant-wide distinct active membership users.
+> operator-configured resource limits. Its `seats` row is an observe-only threshold mirrored to the
+> root `organizations.seat_limit`, while the usage overview computes seat usage from tenant-wide
+> distinct active membership users.
 
 ## 18. Field decision summary (settled items affecting security and interoperability)
 

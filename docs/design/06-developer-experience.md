@@ -120,9 +120,10 @@ management: email, phone, security, connected accounts), `<UserAvatar />`
 `<OrganizationSwitcher />` `<OrganizationProfile />` (members, roles, SSO, domains)
 `<CreateOrganization />` `<OrganizationList />`
 
-### Billing components (not started, planned)
+### No billing components
 
-`<PricingTable />` `<CheckoutButton />` `<PlanDetailsButton />` `<SubscriptionDetailsButton />`
+XID has no plans or tiers (chapter 07 section 7), so the SDKs ship no pricing table, checkout, or
+subscription components, and none are planned.
 
 ### Control components
 
@@ -146,8 +147,7 @@ Organization: `useOrganization()`, `useOrganizationList()`, `useOrganizationCrea
 Advanced (not started, planned): `useReverification()` (re-verification for sensitive operations),
 `useWaitlist()`
 
-Billing/API key: `useCheckout`, `usePlans`, `useSubscription`, `usePaymentMethods`, `useAPIKeys`, and
-others (iterative)
+API key: `useAPIKeys` (iterative)
 
 ## 4. Next.js SDK specifics
 
@@ -543,11 +543,11 @@ semantics (state machine, approver resolution, JIT grants) are defined in chapte
 
 The following remain explicit design targets and do not have tenant-scoped Management API
 resources: `emailAddresses`, `phoneNumbers`, `allowlistIdentifiers`, `oauthApplications`,
-`redirectUrls`, and billing CRUD. User impersonation is intentionally not a tenant-scoped
+`redirectUrls`, and invoice or payment-method CRUD. User impersonation is intentionally not a tenant-scoped
 Management API resource; it is an implemented Instance Manager platform operation using
 `POST /v1/platform/impersonation/start` and the cookie handoff lifecycle at
-`POST /auth/impersonation/{handoff,consume,end}`. The read-only platform billing overview is a
-separate `/v1/platform/*` console surface, not billing CRUD.
+`POST /auth/impersonation/{handoff,consume,end}`. The read-only platform usage overview
+(`/v1/platform/usage`) is a separate `/v1/platform/*` console surface, not a billing resource.
 
 ## 8. Webhooks and the event system
 
@@ -573,7 +573,6 @@ names are maintained in `webhook-event-contract`; the Nimbus public page lists o
 - project: access_policy_changed
 - org_unit: created/updated/moved/archived/member_added/member_removed/primary_changed
 - email/sms: created (when the developer takes over sending)
-- billing: subscription._, paymentAttempt._
 
 ### Delivery
 
