@@ -54,7 +54,7 @@ export default function CreatePasskeyPage(): ReactNode {
     ? 'unknown'
     : shouldOfferPasskey({
         serverEligible: serverEligibility(user),
-        passkeyCount: passkeys.data?.length ?? (passkeys.isError ? 1 : undefined),
+        passkeyCount: passkeys.data?.data.length ?? (passkeys.isError ? 1 : undefined),
         passkeyMethodEnabled: config.methods.passkey.enabled,
         browserSupportsPasskeys: browserSupportsWebAuthn(),
         dismissed: readPromptDismissed(browserStorage()),
