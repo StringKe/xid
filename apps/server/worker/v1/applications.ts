@@ -27,6 +27,7 @@ import { validateBackchannelLogoutUri, validateFrontchannelLogoutUri } from '../
 import { emitManagementAuditAsync, idAfterCursor, paginate, parsePagination } from './shared'
 import {
   assertApplicationVisible,
+  assertFirstPartyChangeAllowed,
   assertProjectAssignable,
   assertProjectListable,
   resolveApplicationAccess,
@@ -338,6 +339,7 @@ app.post('/', async (c) => {
   const body = validateBody(createApplicationBodySchema, json.value)
   if (body.project_id) await assertProjectAssignable(c, access, body.project_id)
   else if (!access.tenantWide) throw new AppError('forbidden', { httpStatus: 403 })
+  assertFirstPartyChangeAllowed(access, { requested: body.first_party, current: false })
   assertLogoutUris({
     backchannel: body.backchannel_logout_uri,
     frontchannel: body.frontchannel_logout_uri,
@@ -476,6 +478,10 @@ app.patch('/:id', async (c) => {
   if (body.project_id === null && !access.tenantWide) {
     throw new AppError('validation_failed', { httpStatus: 422, meta: { paramName: 'project_id' } })
   }
+  assertFirstPartyChangeAllowed(access, {
+    requested: body.first_party,
+    current: existing.firstParty,
+  })
   assertLogoutUris({
     backchannel: body.backchannel_logout_uri,
     frontchannel: body.frontchannel_logout_uri,

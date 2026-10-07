@@ -61,6 +61,15 @@ export async function assertProjectAssignable(
   }
 }
 
+// first_party 跳过同意页并开放 introspection 与 token exchange,是租户级信任决定,项目范围调用方不能改。
+export function assertFirstPartyChangeAllowed(
+  access: ApplicationAccess,
+  input: { requested: boolean | undefined; current: boolean },
+): void {
+  if (access.tenantWide || input.requested === undefined || input.requested === input.current) return
+  throw new AppError('forbidden', { httpStatus: 403 })
+}
+
 export async function assertProjectListable(
   c: Context<XidHonoEnv>,
   access: ApplicationAccess,

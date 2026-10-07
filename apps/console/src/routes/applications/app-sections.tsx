@@ -58,9 +58,11 @@ const DETAIL_FIELDS = ['name', 'logo_uri', 'project_id'] as const
 export function DetailsSection({
   app,
   projects,
+  canSetFirstParty,
 }: {
   app: AppRecord
   projects: readonly { id: string; name: string }[]
+  canSetFirstParty: boolean
 }): ReactNode {
   const { t } = useLingui()
   const errorMessage = useManagementErrorMessage()
@@ -79,7 +81,7 @@ export function DetailsSection({
       name: name.trim(),
       logo_uri: logo.trim() || null,
       ...(projectId !== (app.project_id ?? '') ? { project_id: projectId || null } : {}),
-      first_party: firstParty,
+      ...(firstParty !== app.first_party ? { first_party: firstParty } : {}),
     })
   }
 
@@ -118,7 +120,7 @@ export function DetailsSection({
             ))}
           </Select>
         </Field>
-        {machine ? null : (
+        {machine || !canSetFirstParty ? null : (
           <CheckboxField
             checked={firstParty}
             onCheckedChange={setFirstParty}

@@ -342,6 +342,43 @@ describe('applications 项目归属与项目管理者授权', () => {
     )
     expect(res.status).toBe(422)
   })
+
+  it('项目管理者不能开启 first_party;原值提交与顶层组织管理员修改不受影响', async () => {
+    const { d1 } = await seedProjects()
+    const request = (userId: string, method: string, path: string, body: unknown) =>
+      buildApp(registerApplications, { session: sessionFor(userId) }).request(
+        `${BASE}${path}`,
+        {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        envOf(d1),
+      )
+
+    const pmCreate = await request('user_pm', 'POST', '/applications', {
+      name: 'Shadow App',
+      project_id: 'proj_fleet',
+      redirect_uris: ['https://shadow.northwind.com/cb'],
+      first_party: true,
+    })
+    const pmPatch = await request('user_pm', 'PATCH', '/applications/app_fleet', {
+      first_party: true,
+    })
+    const pmSameValue = await request('user_pm', 'PATCH', '/applications/app_fleet', {
+      name: 'Fleet Planner 2',
+      first_party: false,
+    })
+    const ownerPatch = await request('user_owner', 'PATCH', '/applications/app_fleet', {
+      first_party: true,
+    })
+
+    expect(pmCreate.status).toBe(403)
+    expect(pmPatch.status).toBe(403)
+    expect(pmSameValue.status).toBe(200)
+    expect(ownerPatch.status).toBe(200)
+    expect(await json(ownerPatch)).toMatchObject({ first_party: true })
+  })
 })
 
 describe('user-grants 按用户查询', () => {

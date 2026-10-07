@@ -5,6 +5,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { isOrgManagerRole } from '@xid-kit/web-ui/org-route-access'
 import { useAuth } from '@xid-kit/web-ui/session'
 import { ConfirmDialog } from '@xid-kit/web-ui/ConfirmDialog'
 import { useManagementErrorMessage } from '@xid-kit/web-ui/api-error-message'
@@ -214,6 +215,7 @@ export default function ApplicationDetail({ applicationId }: { applicationId: st
             key={`details-${record.updated_at}`}
             app={record}
             projects={projectOptions}
+            canSetFirstParty={activeOrg?.parentOrgId === null && isOrgManagerRole(activeOrg.role)}
           />
           <CredentialsSection app={record} onRotate={() => setRotating(true)} />
           {kind === 'machine' ? null : (
