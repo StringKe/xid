@@ -60,9 +60,10 @@ export const commandStyles = stylex.create({
     overflowY: 'auto',
     padding: '0.375rem',
   },
+  // Empty 作为常驻 live region 一直挂载,有结果时内容为空,不能留出内边距。
   empty: {
-    paddingBlock: '1.5rem',
-    paddingInline: '0.625rem',
+    paddingBlock: { default: '1.5rem', ':empty': 0 },
+    paddingInline: { default: '0.625rem', ':empty': 0 },
     color: tokens['--xid-muted-foreground'],
     fontSize: text.sm,
   },
