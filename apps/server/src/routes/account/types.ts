@@ -5,6 +5,7 @@ export type UserProfile = {
   firstName: string | null
   lastName: string | null
   displayName: string | null
+  username: string | null
   email: string
   emailVerified: boolean
   imageUrl: string | null
@@ -95,14 +96,67 @@ export type SocialConnection = {
   connectedAt: string
 }
 
+export type Impersonator = {
+  userId: string
+  displayName: string | null
+  email: string | null
+}
+
 export type ActiveSession = {
   id: string
   deviceName: string | null
   deviceFingerprint: string | null
   ipAddress: string | null
+  userAgent: string | null
+  location: string | null
+  amr: readonly string[]
+  signedInAt: string
   lastActiveAt: string
   expiresAt: string
   isCurrent: boolean
+  isImpersonation: boolean
+  impersonator: Impersonator | null
+}
+
+export type EmailAddress = {
+  id: string
+  email: string
+  verified: boolean
+  isPrimary: boolean
+  pending: boolean
+  expiresAt: string | null
+  createdAt: string | null
+}
+
+export type PhoneNumber = {
+  id: string
+  phone: string
+  verified: boolean
+  isPrimary: boolean
+  pending: boolean
+  expiresAt: string | null
+  createdAt: string | null
+}
+
+export type PhoneList = {
+  data: PhoneNumber[]
+  canAdd: boolean
+}
+
+export type PasswordStatus = {
+  hasPassword: boolean
+  updatedAt: string | null
+  breached: boolean
+}
+
+export type AuthorizedApp = {
+  clientId: string
+  name: string
+  logoUrl: string | null
+  redirectOrigin: string | null
+  grantedScopes: string[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type PrivacyRequest = {

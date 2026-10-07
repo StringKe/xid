@@ -19,6 +19,8 @@ type UserProfile = {
   firstName: string | null
   lastName: string | null
   displayName: string | null
+  // 只读:用户名由管理员或目录同步设置,不在账户门户修改。
+  username: string | null
   email: string
   emailVerified: boolean
   imageUrl: string | null
@@ -37,6 +39,7 @@ async function toUserProfile(
     firstName: row.firstName ?? null,
     lastName: row.lastName ?? null,
     displayName: row.displayName ?? null,
+    username: row.username ?? null,
     email: primaryEmail?.email ?? '',
     emailVerified: primaryEmail?.verified ?? false,
     imageUrl: row.avatarUrl ?? null,

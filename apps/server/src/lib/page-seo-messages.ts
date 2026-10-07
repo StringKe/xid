@@ -19,5 +19,7 @@ export const seoCibaActivationTitle = msg`Approve sign-in request | XID`
 
 export const seoAccountProfileTitle = msg`Profile | Account | XID`
 export const seoAccountSecurityTitle = msg`Security | Account | XID`
-export const seoAccountConnectionsTitle = msg`Connections | Account | XID`
-export const seoAccountSessionsTitle = msg`Sessions | Account | XID`
+export const seoAccountDevicesTitle = msg`Devices | Account | XID`
+export const seoAccountOrganizationsTitle = msg`Organizations | Account | XID`
+export const seoAccountPrivacyTitle = msg`Data & privacy | Account | XID`
+export const seoAccountDeleteTitle = msg`Delete account | Account | XID`

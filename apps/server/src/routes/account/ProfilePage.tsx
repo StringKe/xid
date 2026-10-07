@@ -1,17 +1,23 @@
+// 资料页:个人信息(弹窗编辑)、邮箱地址、手机号。头像只读,由身份提供方带入。
+
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { tokens } from '../../styles/tokens.stylex'
-import { account, consoleShell, page } from '../../styles/product-surface.stylex'
-import { Alert, Button, Input, Section, SectionRow, Spinner } from '../../components/ui'
 import type { XidError } from '@xid-kit/types'
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
+import { Alert, Button, Dialog, Field, Skeleton, TextField } from '../../components/ui'
 import { isSupportedLocale } from '../../lib/locale'
 import { useLocale } from '../../lib/locale-context'
+import { tokens } from '../../styles/tokens.stylex'
+import { AccountPage, AccountSection, KeyRow } from './AccountPage'
+import { surface } from './account-surface'
+import { EmailSection } from './EmailSection'
+import { GuestConversionBanner } from './GuestConversionBanner'
+import { PhoneSection } from './PhoneSection'
 import { useProfileQuery, useUpdateProfile } from './queries'
 import type { UserProfile } from './types'
-import { PrivacySection } from './PrivacySection'
 
 const LOCALE_OPTIONS = [
   { value: 'en', label: 'English' },
@@ -24,344 +30,137 @@ const LOCALE_OPTIONS = [
   { value: 'pt-BR', label: 'Português' },
 ] as const
 
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
-const SECTION_PAD = 'clamp(1.5rem, 1.6vw, 2.5rem)'
-const CROSS_GAP = 'clamp(1.75rem, 2vw, 3.5rem)'
-
 const styles = stylex.create({
-  formSection: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-  },
-  formGrid: {
-    display: 'grid',
-    gridTemplateColumns: {
-      default: '1fr',
-      '@media (min-width: 56rem)': 'minmax(0, 5fr) minmax(0, 7fr)',
-    },
-    gap: {
-      default: '1.25rem',
-      '@media (min-width: 56rem)': `0 ${CROSS_GAP}`,
-    },
-    alignItems: 'start',
-  },
-  formLeft: {
-    minWidth: 0,
-    paddingInlineEnd: {
-      default: '0',
-      '@media (min-width: 56rem)': '0',
-    },
-  },
-  formSectionTitle: {
-    margin: 0,
-    fontSize: '0.9375rem',
-    fontWeight: 600,
-    lineHeight: 1.3,
-    color: tokens['--xid-fg'],
-  },
-  formSectionDesc: {
-    margin: '0.375rem 0 0',
-    fontSize: '0.8125rem',
-    lineHeight: 1.55,
-    color: tokens['--xid-muted-foreground'],
-  },
-  formRight: {
-    minWidth: 0,
-    maxWidth: '36rem',
-    borderInlineStartWidth: {
-      default: '0',
-      '@media (min-width: 56rem)': '1px',
-    },
-    borderInlineStartStyle: 'solid',
-    borderInlineStartColor: tokens['--xid-border'],
-    paddingInlineStart: {
-      default: '0',
-      '@media (min-width: 56rem)': CROSS_GAP,
-    },
-  },
-  staticValue: {
-    fontSize: '0.875rem',
-    lineHeight: 1.5,
-    color: tokens['--xid-fg'],
-    overflowWrap: 'anywhere',
-  },
-  avatarRow: {
+  hero: {
     display: 'flex',
     alignItems: 'center',
-    gap: '1rem',
-    paddingBottom: '1.25rem',
-    marginBottom: '0',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
+    gap: '1.25rem',
   },
-  avatarImg: {
-    width: '3rem',
-    height: '3rem',
-    borderRadius: tokens['--xid-radius-full'],
-    objectFit: 'cover',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-  },
-  avatarPlaceholder: {
-    width: '3rem',
-    height: '3rem',
-    borderRadius: tokens['--xid-radius-full'],
-    backgroundColor: tokens['--xid-primary'],
-    color: tokens['--xid-primary-foreground'],
-    display: 'flex',
+  heroAvatar: {
+    display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '1.125rem',
-    fontWeight: 600,
+    flexShrink: 0,
+    width: '4rem',
+    height: '4rem',
+    borderRadius: tokens['--xid-radius-full'],
+    backgroundColor: tokens['--xid-muted'],
+    boxShadow: `inset 0 0 0 1px ${tokens['--xid-border']}`,
+    color: tokens['--xid-fg'],
+    fontSize: text.lg,
+    fontWeight: weight.medium,
+    lineHeight: leading.lg,
+    overflow: 'hidden',
   },
-  avatarHint: {
-    margin: 0,
-    fontSize: '0.8125rem',
-    lineHeight: 1.5,
-    color: tokens['--xid-muted-foreground'],
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
   },
-  // outline:none 防 focus 双描边(边框已切 accent)。
   select: {
     width: '100%',
     minHeight: '2.5rem',
     boxSizing: 'border-box',
     borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: tokens['--xid-border'],
-      ':focus': tokens['--xid-accent'],
-    },
-    backgroundColor: tokens['--xid-bg'],
+    borderWidth: 0,
+    boxShadow: `inset 0 0 0 1px ${tokens['--xid-border-strong']}`,
+    backgroundColor: tokens['--xid-surface'],
     color: tokens['--xid-fg'],
     fontFamily: tokens['--xid-font'],
-    fontSize: '0.875rem',
+    fontSize: `max(16px, ${text.base})`,
     paddingInline: '0.75rem',
-    transitionProperty: 'border-color',
-    transitionDuration: '0.12s',
-    transitionTimingFunction: 'ease-out',
-    outline: 'none',
-  },
-  submitZone: {
-    paddingInline: GUTTER,
-    paddingBlock: SECTION_PAD,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-    alignItems: 'flex-start',
-  },
-  messageZone: {
-    paddingInline: GUTTER,
-    paddingBlock: '1.5rem',
   },
 })
 
+function localeLabel(locale: string | null): string | null {
+  return LOCALE_OPTIONS.find((option) => option.value === locale)?.label ?? null
+}
+
+function fullName(profile: UserProfile): string | null {
+  const parts = [profile.firstName, profile.lastName].filter(Boolean)
+  return profile.displayName || (parts.length > 0 ? parts.join(' ') : null)
+}
+
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/u).filter(Boolean)
+  const letters = words.length > 1 ? [words[0], words.at(-1)] : [name]
+  return letters
+    .map((word) => (word ?? '').charAt(0).toUpperCase())
+    .join('')
+    .slice(0, 2)
+}
+
 export default function ProfilePage(): ReactNode {
   const { t } = useLingui()
-  const { data: profile, isPending, error } = useProfileQuery()
+  const profile = useProfileQuery()
+  const [editing, setEditing] = useState(false)
 
-  if (isPending) {
+  if (profile.error) {
     return (
-      <div {...stylex.props(page.loadingCenter)}>
-        <Spinner label={t`Loading profile`} />
-      </div>
+      <AccountPage title={<Trans>Profile</Trans>}>
+        <div {...stylex.props(surface.column)}>
+          <Alert tone="error" title={<Trans>We couldn't load your profile</Trans>}>
+            <Trans>Refresh the page to try again.</Trans>
+          </Alert>
+        </div>
+      </AccountPage>
     )
   }
 
-  if (error) {
-    return (
-      <div {...stylex.props(styles.messageZone)}>
-        <Alert tone="error" title={<Trans>Failed to load profile</Trans>}>
-          {error.longMessage || error.message || t`Failed to load profile`}
-        </Alert>
-      </div>
-    )
-  }
+  const data = profile.data
+  const name = data ? (fullName(data) ?? data.email) : ''
+  const notSet = t`Not set`
 
   return (
-    <div {...stylex.props(account.root)}>
-      <div {...stylex.props(consoleShell.headerZone)}>
-        <h1 {...stylex.props(consoleShell.displayTitle)}>
-          <Trans>Profile</Trans>
-        </h1>
-      </div>
-      <ProfileForm initialData={profile} />
-      <PrivacySection />
-    </div>
-  )
-}
-
-type ProfileFormProps = {
-  initialData: UserProfile
-}
-
-function ProfileForm({ initialData }: ProfileFormProps): ReactNode {
-  const { t } = useLingui()
-  const updateProfile = useUpdateProfile()
-  const uiLocale = useLocale()
-  const apiErrorMessage = useApiErrorMessage()
-
-  const [firstName, setFirstName] = useState(initialData.firstName ?? '')
-  const [lastName, setLastName] = useState(initialData.lastName ?? '')
-  const [displayName, setDisplayName] = useState(initialData.displayName ?? '')
-  const [locale, setLocale] = useState(normalizeProfileLocale(initialData.locale))
-  const [timezone, setTimezone] = useState(initialData.timezone ?? '')
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
-    setErrorMsg(null)
-    setSuccessMsg(null)
-
-    try {
-      await updateProfile.mutateAsync({
-        firstName: firstName.trim() || null,
-        lastName: lastName.trim() || null,
-        displayName: displayName.trim() || null,
-        locale: locale.trim() || null,
-        timezone: timezone.trim() || null,
-      })
-      setSuccessMsg(t`Profile updated successfully.`)
-      if (isSupportedLocale(locale) && locale !== uiLocale.locale) {
-        await uiLocale.setLocale(locale)
+    <AccountPage
+      before={<GuestConversionBanner />}
+      leading={
+        data ? (
+          <div {...stylex.props(styles.hero)}>
+            <span aria-hidden="true" {...stylex.props(styles.heroAvatar)}>
+              {data.imageUrl ? (
+                <img src={data.imageUrl} alt="" {...stylex.props(styles.heroImage)} />
+              ) : (
+                initials(name || '?')
+              )}
+            </span>
+          </div>
+        ) : (
+          <Skeleton width="4rem" height="4rem" radius="999px" />
+        )
       }
-    } catch (err) {
-      setErrorMsg(apiErrorMessage(err as XidError, { surface: 'general' }))
-    }
-  }
-
-  return (
-    <form onSubmit={(e) => void handleSubmit(e)} noValidate>
-      <div {...stylex.props(styles.formSection)}>
-        <div {...stylex.props(styles.formGrid)}>
-          <div {...stylex.props(styles.formLeft)}>
-            <p {...stylex.props(styles.formSectionTitle)}>
-              <Trans>Identity</Trans>
-            </p>
-            <p {...stylex.props(styles.formSectionDesc)}>
-              <Trans>Your account email and profile picture.</Trans>
-            </p>
+      title={data ? name || <Trans>Profile</Trans> : <Trans>Profile</Trans>}
+      description={<Trans>What the apps you sign in to and your teammates see about you.</Trans>}
+    >
+      <AccountSection
+        title={<Trans>Personal info</Trans>}
+        action={
+          <Button variant="secondary" disabled={!data} onClick={() => setEditing(true)}>
+            <Trans>Edit profile…</Trans>
+          </Button>
+        }
+      >
+        {data ? (
+          <>
+            <KeyRow label={<Trans>Name</Trans>}>{fullName(data) ?? notSet}</KeyRow>
+            <KeyRow label={<Trans>Username</Trans>}>{data.username ?? notSet}</KeyRow>
+            <KeyRow label={<Trans>Language</Trans>}>{localeLabel(data.locale) ?? notSet}</KeyRow>
+            <KeyRow label={<Trans>Time zone</Trans>}>{data.timezone ?? notSet}</KeyRow>
+          </>
+        ) : (
+          <div {...stylex.props(surface.skeletonStack)}>
+            <Skeleton height="1.25rem" />
+            <Skeleton height="1.25rem" />
+            <Skeleton height="1.25rem" />
           </div>
-          <div {...stylex.props(styles.formRight)}>
-            <AvatarSection imageUrl={initialData.imageUrl} email={initialData.email} />
-            <SectionRow variant="static" label={<Trans>Email address</Trans>}>
-              <span {...stylex.props(styles.staticValue)}>{initialData.email}</span>
-            </SectionRow>
-          </div>
-        </div>
-      </div>
-
-      <div {...stylex.props(styles.formSection)}>
-        <div {...stylex.props(styles.formGrid)}>
-          <div {...stylex.props(styles.formLeft)}>
-            <p {...stylex.props(styles.formSectionTitle)}>
-              <Trans>Name</Trans>
-            </p>
-            <p {...stylex.props(styles.formSectionDesc)}>
-              <Trans>How you appear to others in this workspace.</Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.formRight)}>
-            <Section label={<Trans>Name</Trans>}>
-              <SectionRow variant="control" label={<Trans>First name</Trans>}>
-                <Input
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  autoComplete="given-name"
-                  placeholder={t`First name`}
-                />
-              </SectionRow>
-              <SectionRow variant="control" label={<Trans>Last name</Trans>}>
-                <Input
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  autoComplete="family-name"
-                  placeholder={t`Last name`}
-                />
-              </SectionRow>
-              <SectionRow
-                variant="control"
-                label={<Trans>Display name</Trans>}
-                hint={<Trans>Shown in UI instead of email when set.</Trans>}
-              >
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  autoComplete="nickname"
-                  placeholder={t`Display name`}
-                />
-              </SectionRow>
-            </Section>
-          </div>
-        </div>
-      </div>
-
-      <div {...stylex.props(styles.formSection)}>
-        <div {...stylex.props(styles.formGrid)}>
-          <div {...stylex.props(styles.formLeft)}>
-            <p {...stylex.props(styles.formSectionTitle)}>
-              <Trans>Preferences</Trans>
-            </p>
-            <p {...stylex.props(styles.formSectionDesc)}>
-              <Trans>Language and regional settings for your account.</Trans>
-            </p>
-          </div>
-          <div {...stylex.props(styles.formRight)}>
-            <Section label={<Trans>Preferences</Trans>}>
-              <SectionRow
-                variant="control"
-                label={<Trans>Locale</Trans>}
-                hint={
-                  <Trans>
-                    Sets the language of this account portal and the locale shared with apps you
-                    sign in to.
-                  </Trans>
-                }
-              >
-                <select
-                  value={locale}
-                  onChange={(e) => setLocale(e.target.value)}
-                  autoComplete="language"
-                  {...stylex.props(styles.select)}
-                >
-                  <option value="">{t`Browser default`}</option>
-                  {LOCALE_OPTIONS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.value === 'en' ? t`English` : item.label}
-                    </option>
-                  ))}
-                </select>
-              </SectionRow>
-              <SectionRow
-                variant="control"
-                label={<Trans>Timezone</Trans>}
-                hint={<Trans>IANA timezone, e.g. Asia/Shanghai.</Trans>}
-              >
-                <Input
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  placeholder="UTC"
-                />
-              </SectionRow>
-            </Section>
-          </div>
-        </div>
-      </div>
-
-      <div {...stylex.props(styles.submitZone)}>
-        {errorMsg ? <Alert tone="error">{errorMsg}</Alert> : null}
-        {successMsg ? <Alert tone="success">{successMsg}</Alert> : null}
-        <Button type="submit" variant="primary" isLoading={updateProfile.isPending}>
-          <Trans>Save changes</Trans>
-        </Button>
-      </div>
-    </form>
+        )}
+      </AccountSection>
+      <EmailSection />
+      <PhoneSection />
+      {editing && data ? (
+        <EditProfileDialog profile={data} onClose={() => setEditing(false)} />
+      ) : null}
+    </AccountPage>
   )
 }
 
@@ -369,28 +168,121 @@ function normalizeProfileLocale(locale: string | null): string {
   return locale && isSupportedLocale(locale) ? locale : ''
 }
 
-type AvatarSectionProps = {
-  imageUrl: string | null
-  email: string
-}
-
-function AvatarSection({ imageUrl, email }: AvatarSectionProps): ReactNode {
+function EditProfileDialog({
+  profile,
+  onClose,
+}: {
+  profile: UserProfile
+  onClose: () => void
+}): ReactNode {
   const { t } = useLingui()
-  const initials = email.charAt(0).toUpperCase()
+  const updateProfile = useUpdateProfile()
+  const uiLocale = useLocale()
+  const apiErrorMessage = useApiErrorMessage()
+  const [open, setOpen] = useState(true)
+  const [firstName, setFirstName] = useState(profile.firstName ?? '')
+  const [lastName, setLastName] = useState(profile.lastName ?? '')
+  const [displayName, setDisplayName] = useState(profile.displayName ?? '')
+  const [locale, setLocale] = useState(normalizeProfileLocale(profile.locale))
+  const [timezone, setTimezone] = useState(profile.timezone ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const formId = 'edit-profile'
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault()
+    setError(null)
+    try {
+      await updateProfile.mutateAsync({
+        firstName: firstName.trim() || null,
+        lastName: lastName.trim() || null,
+        displayName: displayName.trim() || null,
+        locale: locale || null,
+        timezone: timezone.trim() || null,
+      })
+      if (isSupportedLocale(locale) && locale !== uiLocale.locale) {
+        await uiLocale.setLocale(locale)
+      }
+      setOpen(false)
+    } catch (err) {
+      setError(apiErrorMessage(err as XidError, { surface: 'general' }))
+    }
+  }
 
   return (
-    <div {...stylex.props(styles.avatarRow)}>
-      {imageUrl ? (
-        <img src={imageUrl} alt={t`Profile picture`} {...stylex.props(styles.avatarImg)} />
-      ) : (
-        <div aria-hidden="true" {...stylex.props(styles.avatarPlaceholder)}>
-          {initials}
-        </div>
-      )}
-
-      <p {...stylex.props(styles.avatarHint)}>
-        <Trans>Profile picture is managed by your connected identity provider.</Trans>
-      </p>
-    </div>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !updateProfile.isPending) setOpen(false)
+      }}
+      onOpenChangeComplete={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+      title={<Trans>Edit profile</Trans>}
+      size="md"
+      position={{ narrow: 'fullscreen', regular: 'center' }}
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            disabled={updateProfile.isPending}
+            onClick={() => setOpen(false)}
+          >
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button type="submit" form={formId} isLoading={updateProfile.isPending}>
+            <Trans>Save profile</Trans>
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        onSubmit={(event) => void handleSubmit(event)}
+        noValidate
+        {...stylex.props(surface.formStack)}
+      >
+        <TextField
+          label={<Trans>First name</Trans>}
+          value={firstName}
+          onChange={(event) => setFirstName(event.target.value)}
+          autoComplete="given-name"
+        />
+        <TextField
+          label={<Trans>Last name</Trans>}
+          value={lastName}
+          onChange={(event) => setLastName(event.target.value)}
+          autoComplete="family-name"
+        />
+        <TextField
+          label={<Trans>Display name</Trans>}
+          hint={<Trans>Shown instead of your full name when set.</Trans>}
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          autoComplete="nickname"
+        />
+        <Field label={<Trans>Language</Trans>}>
+          <select
+            value={locale}
+            onChange={(event) => setLocale(event.target.value)}
+            autoComplete="language"
+            {...stylex.props(styles.select)}
+          >
+            <option value="">{t`Browser default`}</option>
+            {LOCALE_OPTIONS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <TextField
+          label={<Trans>Time zone</Trans>}
+          hint={<Trans>An IANA time zone, for example Europe/Lisbon.</Trans>}
+          value={timezone}
+          onChange={(event) => setTimezone(event.target.value)}
+        />
+      </form>
+      {error ? <Alert tone="error">{error}</Alert> : null}
+    </Dialog>
   )
 }

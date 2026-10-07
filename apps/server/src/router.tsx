@@ -168,9 +168,19 @@ const cibaActivationRoute = protectedRoute(
   () => import('./routes/ciba-activation/index'),
 )
 
+// 账户门户默认落在 Security;旧的 /account/connections 与 /account/sessions 地址保留为跳转。
+function accountRedirectRoute(path: string, to: string) {
+  return createRoute({
+    getParentRoute: () => rootRoute,
+    path,
+    component: () => <Navigate to={`${to}${globalThis.location?.search ?? ''}`} replace />,
+  })
+}
+
+const accountIndexRoute = accountRedirectRoute(ACCOUNT_EXACT_PATH, '/account/security')
 const accountProfileRoute = accountRoute(
-  '/account',
-  '/account',
+  '/account/profile',
+  '/account/profile',
   () => import('./routes/account/ProfilePage'),
 )
 const accountSecurityRoute = accountRoute(
@@ -178,16 +188,28 @@ const accountSecurityRoute = accountRoute(
   '/account/security',
   () => import('./routes/account/SecurityPage'),
 )
-const accountConnectionsRoute = accountRoute(
-  '/account/connections',
-  '/account/connections',
-  () => import('./routes/account/ConnectionsPage'),
+const accountDevicesRoute = accountRoute(
+  '/account/devices',
+  '/account/devices',
+  () => import('./routes/account/DevicesPage'),
 )
-const accountSessionsRoute = accountRoute(
-  '/account/sessions',
-  '/account/sessions',
-  () => import('./routes/account/SessionsPage'),
+const accountOrganizationsRoute = accountRoute(
+  '/account/organizations',
+  '/account/organizations',
+  () => import('./routes/account/OrganizationsPage'),
 )
+const accountPrivacyRoute = accountRoute(
+  '/account/privacy',
+  '/account/privacy',
+  () => import('./routes/account/PrivacyPage'),
+)
+const accountDeleteRoute = accountRoute(
+  '/account/privacy/delete',
+  '/account/privacy/delete',
+  () => import('./routes/account/DeleteAccountPage'),
+)
+const accountConnectionsRoute = accountRedirectRoute('/account/connections', '/account/security')
+const accountSessionsRoute = accountRedirectRoute('/account/sessions', '/account/devices')
 
 // 租户子域与自定义域名的 / 由 Core 承载:落账户门户,未登录由 RequireAuth 送去 /sign-in。
 const indexRoute = createRoute({
@@ -223,8 +245,13 @@ const routeTree = rootRoute.addChildren([
   consentRoute,
   activateRoute,
   cibaActivationRoute,
+  accountIndexRoute,
   accountProfileRoute,
   accountSecurityRoute,
+  accountDevicesRoute,
+  accountOrganizationsRoute,
+  accountPrivacyRoute,
+  accountDeleteRoute,
   accountConnectionsRoute,
   accountSessionsRoute,
   notFoundRoute,

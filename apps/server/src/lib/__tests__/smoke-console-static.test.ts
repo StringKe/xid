@@ -116,7 +116,7 @@ describe('smoke Console static Vite plugin', () => {
       redirect: 'manual',
     })
     expect(response.status).toBe(302)
-    expect(response.headers.get('location')).toBe('/account/sessions?source=smoke')
+    expect(response.headers.get('location')).toBe('/account/devices?source=smoke')
     expect(response.headers.get('x-xid-route-owner')).toBe('console')
   })
 })

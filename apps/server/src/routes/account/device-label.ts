@@ -23,6 +23,23 @@ function match(source: string, table: ReadonlyArray<[RegExp, string]>): string |
   return table.find(([pattern]) => pattern.test(source))?.[1] ?? null
 }
 
+export type DeviceKind = 'desktop' | 'phone' | 'tablet'
+
+// 会话列表:浏览器与系统名从签发时记录的 user agent 解析,识别不出的部分为 null。
+export function parseUserAgent(userAgent: string | null): {
+  browser: string | null
+  platform: string | null
+  kind: DeviceKind
+} {
+  const source = userAgent ?? ''
+  const kind: DeviceKind = /iPad|Tablet/u.test(source)
+    ? 'tablet'
+    : /iPhone|Android.+Mobile|Mobile/u.test(source)
+      ? 'phone'
+      : 'desktop'
+  return { browser: match(source, BROWSERS), platform: match(source, PLATFORMS), kind }
+}
+
 export function detectDeviceParts(): { browser: string; platform: string } | null {
   if (typeof navigator === 'undefined') return null
   const userAgent = navigator.userAgent

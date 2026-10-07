@@ -3,10 +3,12 @@ import type { MessageDescriptor } from '@lingui/core'
 import { buildPublicCanonicalUrl } from './google-analytics'
 import {
   seoAcceptInvitationTitle,
-  seoAccountConnectionsTitle,
+  seoAccountDeleteTitle,
+  seoAccountDevicesTitle,
+  seoAccountOrganizationsTitle,
+  seoAccountPrivacyTitle,
   seoAccountProfileTitle,
   seoAccountSecurityTitle,
-  seoAccountSessionsTitle,
   seoActivateDeviceTitle,
   seoCibaActivationTitle,
   seoConsentTitle,
@@ -58,10 +60,15 @@ export function resolvePageSeo(pathname: string): PageSeoConfig {
     ['/consent', { title: seoConsentTitle, indexable: false }],
     ['/activate', { title: seoActivateDeviceTitle, indexable: false }],
     ['/ciba-activation', { title: seoCibaActivationTitle, indexable: false }],
-    ['/account', { title: seoAccountProfileTitle, indexable: false }],
+    ['/account', { title: seoAccountSecurityTitle, indexable: false }],
+    ['/account/profile', { title: seoAccountProfileTitle, indexable: false }],
     ['/account/security', { title: seoAccountSecurityTitle, indexable: false }],
-    ['/account/connections', { title: seoAccountConnectionsTitle, indexable: false }],
-    ['/account/sessions', { title: seoAccountSessionsTitle, indexable: false }],
+    ['/account/connections', { title: seoAccountSecurityTitle, indexable: false }],
+    ['/account/devices', { title: seoAccountDevicesTitle, indexable: false }],
+    ['/account/sessions', { title: seoAccountDevicesTitle, indexable: false }],
+    ['/account/organizations', { title: seoAccountOrganizationsTitle, indexable: false }],
+    ['/account/privacy', { title: seoAccountPrivacyTitle, indexable: false }],
+    ['/account/privacy/delete', { title: seoAccountDeleteTitle, indexable: false }],
   ]
 
   for (const [path, config] of privateRoutes) {
@@ -70,7 +77,7 @@ export function resolvePageSeo(pathname: string): PageSeoConfig {
   }
 
   for (const [prefix, config] of [
-    ['/account', { title: seoAccountProfileTitle, indexable: false }],
+    ['/account', { title: seoAccountSecurityTitle, indexable: false }],
   ] as const) {
     const match = prefixRoute(pathname, prefix, config)
     if (match) return match

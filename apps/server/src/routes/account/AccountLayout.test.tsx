@@ -30,6 +30,10 @@ vi.mock('../../components/LanguageSwitcher', () => ({
   LanguageSwitcher: () => <span>Language</span>,
 }))
 
+vi.mock('./PendingDeletionBanner', () => ({
+  PendingDeletionBanner: () => null,
+}))
+
 vi.mock('../../lib/default-landing', () => ({
   useDefaultLandingPath: () => '/console',
 }))
@@ -109,10 +113,18 @@ describe('AccountLayout', () => {
     expect(html).not.toContain('Switch organization')
   })
 
-  it('offers organization switching when the user belongs to several organizations', () => {
-    const html = renderSignedIn([memberOrg, ownerOrg])
+  it('links every account entry from the navigation', () => {
+    const html = renderSignedIn([memberOrg])
 
-    expect(html).toContain('href="/select-organization?redirect_to=%2Faccount"')
+    for (const path of [
+      '/account/profile',
+      '/account/security',
+      '/account/devices',
+      '/account/organizations',
+      '/account/privacy',
+    ]) {
+      expect(html).toContain(`href="${path}"`)
+    }
   })
 
   it('hides identity actions when signed out', () => {

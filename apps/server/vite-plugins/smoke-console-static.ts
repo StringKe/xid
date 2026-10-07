@@ -34,7 +34,7 @@ function isStaticAssetPath(pathname: string): boolean {
 
 function redirectAccountAlias(pathname: string): string | null {
   const normalized = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
-  if (normalized === '/console/sessions') return '/account/sessions'
+  if (normalized === '/console/sessions') return '/account/devices'
   if (normalized === '/console/security') return '/account/security'
   return null
 }

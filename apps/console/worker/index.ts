@@ -65,7 +65,7 @@ function resolveRequestHostname(request: Request, url: URL): string {
 function redirectAccountAlias(url: URL): Response | null {
   const pathname = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname
   if (pathname === '/console/sessions') {
-    url.pathname = '/account/sessions'
+    url.pathname = '/account/devices'
     return redirect(url, 302)
   }
   if (pathname === '/console/security') {

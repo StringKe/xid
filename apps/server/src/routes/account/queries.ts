@@ -6,9 +6,15 @@ import { queryKeys, useApiMutation, useApiQuery } from '../../lib/queries'
 import type { PasskeyRegistrationOptions, PasskeyRegistrationVerifyBody } from '../sign-in/passkey'
 import type {
   ActiveSession,
+  AuthorizedApp,
   BackupCodesResponse,
+  EmailAddress,
   MfaFactor,
   PasskeyList,
+  PasskeySignalData,
+  PasswordStatus,
+  PhoneList,
+  PhoneNumber,
   PrivacyRequest,
   SmsFactorOption,
   SocialConnection,
@@ -20,6 +26,7 @@ import type {
 // conditional:密码登录刚完成时由浏览器静默提议保存 passkey(Conditional Create),不弹窗打断。
 export type PasskeyRegistrationRequest = {
   deviceName?: string
+  securityKey?: boolean
   mediation?: 'conditional'
   signal?: AbortSignal
 }
@@ -93,7 +100,7 @@ export function useRegisterPasskey(): UseMutationResult<
   PasskeyRegistrationRequest
 > {
   return useApiMutation<unknown, PasskeyRegistrationRequest>(
-    async (api, { deviceName, mediation, signal }) => {
+    async (api, { deviceName, securityKey, mediation, signal }) => {
       const options = await api.post<PasskeyRegistrationOptions>('/auth/passkey/register/options')
       if (!options.ok) return options
 
@@ -109,10 +116,15 @@ export function useRegisterPasskey(): UseMutationResult<
           },
         }
       }
+      const publicKey = registrationOptionsToPublicKey(options.value)
+      // WebAuthn hints:「Use a security key」让浏览器优先提示插入或轻触安全密钥。
+      const hinted: PublicKeyCredentialCreationOptions = securityKey
+        ? Object.assign({}, publicKey, { hints: ['security-key'] })
+        : publicKey
       const credential = await navigator.credentials.create({
         ...(mediation ? { mediation } : {}),
         ...(signal ? { signal } : {}),
-        publicKey: registrationOptionsToPublicKey(options.value),
+        publicKey: hinted,
       } as CredentialCreationOptions)
       if (!(credential instanceof PublicKeyCredential)) {
         return {
@@ -203,24 +215,125 @@ export function useCancelPrivacyRequest(): UseMutationResult<PrivacyRequest, Xid
   )
 }
 
-export function useChangePassword(): UseMutationResult<
+const accountKeys = {
+  emails: ['me', 'emails'] as const,
+  phones: ['me', 'phones'] as const,
+  password: ['me', 'password'] as const,
+  authorizedApps: ['me', 'authorized-apps'] as const,
+}
+
+export function usePasswordStatusQuery(): UseQueryResult<PasswordStatus, XidError> {
+  return useApiQuery<PasswordStatus>(accountKeys.password, '/v1/me/password')
+}
+
+// 没有密码时省略 currentPassword,服务端在 step-up 后直接设置。
+export function useSetPassword(): UseMutationResult<
   unknown,
   XidError,
-  { currentPassword: string; newPassword: string }
+  { currentPassword?: string; newPassword: string }
 > {
-  return useApiMutation<unknown, { currentPassword: string; newPassword: string }>((api, payload) =>
-    api.post<unknown>('/v1/me/password', payload),
+  return useApiMutation<unknown, { currentPassword?: string; newPassword: string }>(
+    (api, payload) => api.post<unknown>('/v1/me/password', payload),
+    { invalidate: [accountKeys.password, queryKeys.me] },
   )
 }
 
-// passwordless 设密:向已验证 primary email 发 reset token 链接。
-export function useSendPasswordSetupLink(): UseMutationResult<unknown, XidError, void> {
-  return useApiMutation<unknown, void>((api) => api.post<unknown>('/v1/me/password/setup-link'))
+export function useEmailsQuery(): UseQueryResult<{ data: EmailAddress[] }, XidError> {
+  return useApiQuery<{ data: EmailAddress[] }>(accountKeys.emails, '/v1/me/emails')
 }
 
-// 未验证邮箱先走验证;验证后回 /account/security 再发设密链接。
-export function useResendVerificationEmail(): UseMutationResult<unknown, XidError, void> {
-  return useApiMutation<unknown, void>((api) => api.post<unknown>('/auth/resend-verification'), {
-    invalidate: [queryKeys.me],
+export function useAddEmail(): UseMutationResult<EmailAddress, XidError, string> {
+  return useApiMutation<EmailAddress, string>(
+    (api, email) => api.post<EmailAddress>('/v1/me/emails', { email }),
+    { invalidate: [accountKeys.emails] },
+  )
+}
+
+export function useSendEmailCode(): UseMutationResult<EmailAddress, XidError, string> {
+  return useApiMutation<EmailAddress, string>(
+    (api, id) => api.post<EmailAddress>(`/v1/me/emails/${id}/send-code`),
+    { invalidate: [accountKeys.emails] },
+  )
+}
+
+export function useVerifyEmail(): UseMutationResult<
+  unknown,
+  XidError,
+  { id: string; code: string }
+> {
+  return useApiMutation<unknown, { id: string; code: string }>(
+    (api, { id, code }) => api.post<unknown>(`/v1/me/emails/${id}/verify`, { code }),
+    { invalidate: [accountKeys.emails, queryKeys.me, queryKeys.meProfile] },
+  )
+}
+
+export function useMakeEmailPrimary(): UseMutationResult<unknown, XidError, string> {
+  return useApiMutation<unknown, string>(
+    (api, id) => api.post<unknown>(`/v1/me/emails/${id}/primary`),
+    { invalidate: [accountKeys.emails, queryKeys.me, queryKeys.meProfile] },
+  )
+}
+
+export function useRemoveEmail(): UseMutationResult<unknown, XidError, string> {
+  return useApiMutation<unknown, string>((api, id) => api.del<unknown>(`/v1/me/emails/${id}`), {
+    invalidate: [accountKeys.emails],
   })
+}
+
+export function usePhonesQuery(): UseQueryResult<PhoneList, XidError> {
+  return useApiQuery<PhoneList>(accountKeys.phones, '/v1/me/phones')
+}
+
+export function useAddPhone(): UseMutationResult<PhoneNumber, XidError, string> {
+  return useApiMutation<PhoneNumber, string>(
+    (api, phone) => api.post<PhoneNumber>('/v1/me/phones', { phone }),
+    { invalidate: [accountKeys.phones] },
+  )
+}
+
+export function useVerifyPhone(): UseMutationResult<
+  unknown,
+  XidError,
+  { id: string; code: string }
+> {
+  return useApiMutation<unknown, { id: string; code: string }>(
+    (api, { id, code }) => api.post<unknown>(`/v1/me/phones/${id}/verify`, { code }),
+    { invalidate: [accountKeys.phones, queryKeys.meMfaFactors] },
+  )
+}
+
+export function useRemovePhone(): UseMutationResult<unknown, XidError, string> {
+  return useApiMutation<unknown, string>((api, id) => api.del<unknown>(`/v1/me/phones/${id}`), {
+    invalidate: [accountKeys.phones, queryKeys.meMfaFactors],
+  })
+}
+
+export function useStartSocialLink(): UseMutationResult<{ url: string }, XidError, string> {
+  return useApiMutation<{ url: string }, string>((api, provider) =>
+    api.post<{ url: string }>(`/v1/me/social-connections/${encodeURIComponent(provider)}/link`),
+  )
+}
+
+export function useAuthorizedAppsQuery(): UseQueryResult<AuthorizedApp[], XidError> {
+  return useApiQuery<AuthorizedApp[]>(accountKeys.authorizedApps, '/v1/me/authorized-apps')
+}
+
+export function useRevokeAuthorizedApp(): UseMutationResult<unknown, XidError, string> {
+  return useApiMutation<unknown, string>(
+    (api, clientId) => api.del<unknown>(`/v1/me/authorized-apps/${encodeURIComponent(clientId)}`),
+    { invalidate: [accountKeys.authorizedApps] },
+  )
+}
+
+export function useLeaveOrganization(): UseMutationResult<unknown, XidError, string> {
+  return useApiMutation<unknown, string>(
+    (api, orgId) => api.post<unknown>(`/v1/me/organizations/${orgId}/leave`),
+    { invalidate: [queryKeys.me] },
+  )
+}
+
+export function usePasskeySignalData(): UseMutationResult<PasskeySignalData, XidError, void> {
+  return useApiMutation<PasskeySignalData, void>((api) =>
+    api.get<PasskeySignalData>('/v1/me/passkeys/signal'),
+  )
 }

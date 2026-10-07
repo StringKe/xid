@@ -71,10 +71,10 @@ describe('console worker', () => {
   })
 
   it.each([
-    ['https://xid.dev/console/sessions?tab=active', 'https://xid.dev/account/sessions?tab=active'],
+    ['https://xid.dev/console/sessions?tab=active', 'https://xid.dev/account/devices?tab=active'],
     [
       'https://tenant.xid.dev/console/sessions/?tab=active',
-      'https://tenant.xid.dev/account/sessions?tab=active',
+      'https://tenant.xid.dev/account/devices?tab=active',
     ],
     ['https://xid.dev/console/security?tab=mfa', 'https://xid.dev/account/security?tab=mfa'],
     [

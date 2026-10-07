@@ -1,151 +1,105 @@
-// guest 转正引导:关闭仅 sessionStorage;转正走 /account/security 既有凭证仪式(sub 不变)。
+// 访客转正横幅:写清退出后的后果,给出两种留住账户的方式。创建 passkey 与 Hosted Auth 一样
+// 原地转正(sub 不变);添加邮箱走与 Hosted Auth 相同的邮箱验证码接口。
 
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { tokens } from '../../styles/tokens.stylex'
-import { Alert } from '../../components/ui/Alert'
+import { leading, text, weight } from '@xid-kit/web-ui/styles/scale.stylex'
+import { Badge, Button } from '../../components/ui'
 import { isGuestUser, useAuth } from '../../lib/auth-context'
-import { Link } from '@xid-kit/web-ui/tanstack-router'
-
-const DISMISS_KEY = 'xid.guest-banner.dismissed'
-
-function readDismissed(): boolean {
-  try {
-    return globalThis.sessionStorage?.getItem(DISMISS_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function writeDismissed(): void {
-  try {
-    globalThis.sessionStorage?.setItem(DISMISS_KEY, '1')
-  } catch {
-    // 隐私模式下 sessionStorage 不可用,仅 React state 关闭。
-  }
-}
-
-const GUTTER = 'clamp(1rem, 2.5vw, 4rem)'
+import { useTheme } from '../../lib/theme'
+import { tokens } from '../../styles/tokens.stylex'
+import { surface } from './account-surface'
+import { GuestAddEmailDialog } from './GuestEmailConversionSection'
+import { useRegisterPasskey } from './queries'
 
 const styles = stylex.create({
-  band: {
-    paddingBlock: '0.75rem',
-    paddingInline: GUTTER,
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
-    backgroundColor: tokens['--xid-bg'],
-  },
-  notice: {
+  card: {
     display: 'flex',
-    flexDirection: { default: 'column', '@media (min-width: 48rem)': 'row' },
-    alignItems: { default: 'stretch', '@media (min-width: 48rem)': 'center' },
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     gap: '0.75rem',
+    padding: { default: '1rem', '@media (min-width: 48rem)': '1.25rem' },
+    borderRadius: tokens['--xid-radius-lg'],
+    backgroundColor: tokens['--xid-warning-bg'],
   },
-  message: {
-    flexGrow: 1,
-    minWidth: 0,
+  title: {
+    margin: 0,
+    fontSize: text.lg,
+    lineHeight: leading.lg,
+    fontWeight: weight.display,
+    letterSpacing: tokens['--xid-tracking-title'],
+    color: tokens['--xid-fg'],
+  },
+  body: {
+    margin: 0,
+    fontSize: text.base,
+    lineHeight: '1.375rem',
+    color: tokens['--xid-muted-foreground'],
   },
   actions: {
     display: 'flex',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: '0.5rem',
-    flexShrink: 0,
   },
-  // 导航用 <a>,外观对齐 Button secondary。
-  actionLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: {
-      default: '2.375rem',
-      '@media (pointer: coarse)': '2.75rem',
-    },
-    paddingBlock: 0,
-    paddingInline: '0.875rem',
-    borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border-strong'],
-    backgroundColor: {
-      default: tokens['--xid-surface'],
-      ':hover': tokens['--xid-muted'],
-      ':active': tokens['--xid-muted'],
-    },
-    color: tokens['--xid-fg'],
-    fontSize: '0.875rem',
-    fontWeight: 560,
-    whiteSpace: 'nowrap',
-    textDecoration: 'none',
-    transitionProperty: {
-      default: 'background-color, border-color',
-      '@media (prefers-reduced-motion: reduce)': 'none',
-    },
-    transitionDuration: '0.12s',
-    transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
-  },
-  dismiss: {
-    flexShrink: 0,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: '1.75rem',
-    minHeight: '1.75rem',
-    padding: 0,
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': tokens['--xid-muted'],
-    },
-    borderWidth: 0,
-    borderStyle: 'none',
-    borderRadius: tokens['--xid-radius-sm'],
-    color: tokens['--xid-muted-foreground'],
-    cursor: 'pointer',
-    fontSize: '1rem',
-    lineHeight: 1,
-    fontFamily: tokens['--xid-font'],
+  error: {
+    margin: 0,
+    fontSize: text.sm,
+    color: tokens['--xid-danger'],
   },
 })
 
 export function GuestConversionBanner(): ReactNode {
-  const { t } = useLingui()
   const { user } = useAuth()
-  const [dismissed, setDismissed] = useState(readDismissed)
+  if (!isGuestUser(user)) return null
+  return <GuestConversionCard />
+}
 
-  if (!isGuestUser(user) || dismissed) return null
+function GuestConversionCard(): ReactNode {
+  const { t } = useLingui()
+  const { brand } = useTheme()
+  const { refresh } = useAuth()
+  const registerPasskey = useRegisterPasskey()
+  const [showEmail, setShowEmail] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const appName = brand.appName ?? 'XID'
 
-  function handleDismiss(): void {
-    writeDismissed()
-    setDismissed(true)
+  const createPasskey = async (): Promise<void> => {
+    setError(null)
+    try {
+      await registerPasskey.mutateAsync({})
+      await refresh()
+    } catch {
+      setError(t`The passkey wasn't created. Try again, or add an email instead.`)
+    }
   }
 
   return (
-    <section aria-label={t`Guest account`} {...stylex.props(styles.band)}>
-      <div {...stylex.props(styles.notice)}>
-        <div {...stylex.props(styles.message)}>
-          <Alert tone="warning" title={<Trans>Guest account</Trans>}>
-            <Trans>
-              You are signed in as a guest. Sign out and this account and its data cannot be
-              recovered.
-            </Trans>
-          </Alert>
-        </div>
-        <div {...stylex.props(styles.actions)}>
-          <Link to="/account/security" {...stylex.props(styles.actionLink)}>
-            <Trans>Set up a sign-in method</Trans>
-          </Link>
-          <button
-            type="button"
-            aria-label={t`Dismiss guest notice`}
-            onClick={handleDismiss}
-            {...stylex.props(styles.dismiss)}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
+    <section aria-label={t`Guest account`} {...stylex.props(surface.column, styles.card)}>
+      <Badge tone="warning" variant="outline">
+        <Trans>Guest account</Trans>
+      </Badge>
+      <h2 {...stylex.props(styles.title)}>
+        <Trans>Sign out now and this account is gone</Trans>
+      </h2>
+      <p {...stylex.props(styles.body)}>
+        <Trans>
+          You're using {appName} as a guest, so nothing ties this account to you. Anything you saved
+          disappears if you sign out, clear this browser, or switch devices. Add a way to sign in to
+          keep it.
+        </Trans>
+      </p>
+      {error ? <p {...stylex.props(styles.error)}>{error}</p> : null}
+      <div {...stylex.props(styles.actions)}>
+        <Button isLoading={registerPasskey.isPending} onClick={() => void createPasskey()}>
+          <Trans>Create a passkey</Trans>
+        </Button>
+        <Button variant="secondary" onClick={() => setShowEmail(true)}>
+          <Trans>Add email…</Trans>
+        </Button>
       </div>
+      {showEmail ? <GuestAddEmailDialog onClose={() => setShowEmail(false)} /> : null}
     </section>
   )
 }

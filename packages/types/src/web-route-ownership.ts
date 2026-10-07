@@ -126,7 +126,12 @@ export const CORE_SPA_ROUTE_PATHS = [
   '/activate',
   '/ciba-activation',
   '/account',
+  '/account/profile',
   '/account/security',
+  '/account/devices',
+  '/account/organizations',
+  '/account/privacy',
+  '/account/privacy/delete',
   '/account/connections',
   '/account/sessions',
 ] as const

@@ -6,17 +6,13 @@ import { renderSVG } from 'uqr'
 import { tokens } from '../../styles/tokens.stylex'
 import { GroupedSecret } from '../../components/hosted/GroupedSecret'
 import { Button, Field, Input } from '../../components/ui'
-import type { BackupCodesResponse, TotpSetupResponse } from './types'
+import type { TotpSetupResponse } from './types'
 
 const styles = stylex.create({
   panel: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
-    paddingBlock: '1.25rem',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: tokens['--xid-border'],
   },
   panelText: {
     margin: 0,
@@ -58,35 +54,20 @@ const styles = stylex.create({
     maxWidth: '28rem',
     minWidth: 0,
   },
+  appLink: {
+    alignSelf: 'flex-start',
+    color: tokens['--xid-accent'],
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    textDecoration: { default: 'none', ':hover': 'underline' },
+  },
   actionGroup: {
     display: 'flex',
-    gap: '0.375rem',
+    gap: '0.5rem',
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'flex-end',
     flexShrink: 0,
-  },
-  codeGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(8rem, 1fr))',
-    gap: '0.5rem',
-    margin: 0,
-    padding: 0,
-    listStyle: 'none',
-    maxWidth: '28rem',
-  },
-  codeItem: {
-    paddingBlock: '0.5rem',
-    paddingInline: '0.75rem',
-    borderRadius: tokens['--xid-radius'],
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: tokens['--xid-border'],
-    backgroundColor: tokens['--xid-muted'],
-    fontFamily: tokens['--xid-font-mono'],
-    fontSize: '0.8125rem',
-    fontVariantNumeric: 'tabular-nums',
-    color: tokens['--xid-fg'],
   },
 })
 
@@ -153,7 +134,7 @@ export function TotpSetupPanel({
         <GroupedSecret value={setup.secret} style={styles.secretBox} />
         <CopySecretButton secret={setup.secret} />
       </div>
-      <a href={setup.otpauthUri}>
+      <a href={setup.otpauthUri} {...stylex.props(styles.appLink)}>
         <Trans>Open in authenticator app</Trans>
       </a>
       <div {...stylex.props(styles.fieldWrapper)}>
@@ -170,34 +151,13 @@ export function TotpSetupPanel({
         </Field>
       </div>
       <div {...stylex.props(styles.actionGroup)}>
-        <Button type="submit" variant="primary" isLoading={isPending}>
-          <Trans>Verify</Trans>
-        </Button>
-        <Button variant="ghost" disabled={isPending} onClick={onCancel}>
+        <Button variant="secondary" disabled={isPending} onClick={onCancel}>
           <Trans>Cancel</Trans>
+        </Button>
+        <Button type="submit" variant="primary" isLoading={isPending}>
+          <Trans>Turn on</Trans>
         </Button>
       </div>
     </form>
-  )
-}
-
-export type BackupCodesPanelProps = {
-  backupCodes: BackupCodesResponse
-}
-
-export function BackupCodesPanel({ backupCodes }: BackupCodesPanelProps): ReactNode {
-  return (
-    <div {...stylex.props(styles.panel)}>
-      <p {...stylex.props(styles.panelText)}>
-        <Trans>Store these backup codes now. They will not be shown again.</Trans>
-      </p>
-      <ul {...stylex.props(styles.codeGrid)}>
-        {backupCodes.codes.map((code) => (
-          <li key={code} {...stylex.props(styles.codeItem)}>
-            {code}
-          </li>
-        ))}
-      </ul>
-    </div>
   )
 }
