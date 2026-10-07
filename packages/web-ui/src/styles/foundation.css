@@ -52,6 +52,7 @@
 .xid-dialog-backdrop {
   position: fixed;
   inset: 0;
+  z-index: 40;
   background-color: var(--xid-scrim);
   transition: opacity 180ms ease-out;
 }
@@ -64,6 +65,7 @@
 .xid-dialog-viewport {
   position: fixed;
   inset: 0;
+  z-index: 40;
   display: flex;
   padding: 1rem;
   overflow-y: auto;

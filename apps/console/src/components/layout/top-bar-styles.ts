@@ -124,6 +124,9 @@ export const topBar = stylex.create({
   },
   searchText: {
     flexGrow: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     textAlign: 'start',
     whiteSpace: 'nowrap',
   },
@@ -144,6 +147,7 @@ export const topBar = stylex.create({
     fontFamily: tokens['--xid-font'],
     fontSize: text.xs,
     color: tokens['--xid-muted-foreground'],
+    flexShrink: 0,
   },
   ghost: {
     display: 'inline-flex',

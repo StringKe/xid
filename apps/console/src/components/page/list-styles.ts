@@ -144,6 +144,9 @@ export const list = stylex.create({
     lineHeight: leading.xs,
     color: tokens['--xid-muted-foreground'],
   },
+  breakable: {
+    overflowWrap: 'anywhere',
+  },
   mono: {
     fontFamily: tokens['--xid-font-mono'],
     fontSize: text.xs,

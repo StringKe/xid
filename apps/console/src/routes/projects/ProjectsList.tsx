@@ -116,6 +116,7 @@ export default function ProjectsList(): ReactNode {
   const restore = useRestoreProject(orgId)
   const tenantAdmin = activeOrg?.parentOrgId === null
   const apps = useApplications({ enabled: tenantAdmin })
+  const listFormat = new Intl.ListFormat(i18n.locale, { type: 'unit' })
   const appsByProject = new Map<string, string[]>()
   const kindsByProject = new Map<string, Set<string>>()
   if (tenantAdmin) {
@@ -178,9 +179,9 @@ export default function ProjectsList(): ReactNode {
                 <span {...stylex.props(list.muted)}>{t`No applications`}</span>
               ) : (
                 <span {...stylex.props(list.cellStack)}>
-                  <span>{names.join(', ')}</span>
+                  <span>{listFormat.format(names)}</span>
                   <span {...stylex.props(list.cellSub)}>
-                    {[...(kindsByProject.get(row.original.id) ?? [])].join(', ')}
+                    {listFormat.format([...(kindsByProject.get(row.original.id) ?? [])])}
                   </span>
                 </span>
               )

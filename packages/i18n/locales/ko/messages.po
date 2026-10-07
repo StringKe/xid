@@ -3446,7 +3446,7 @@ msgstr "{created}에 생성"
 
 #: apps/console/src/routes/users/tabs/ProfileTab.tsx
 msgid "Created by {source}"
-msgstr "생성 경로: {source}"
+msgstr "{source}에서 생성"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "created, accepted, revoked"

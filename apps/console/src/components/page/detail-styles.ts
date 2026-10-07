@@ -161,8 +161,8 @@ export const detail = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
-    minWidth: 0,
-    flex: '1 1 18rem',
+    minWidth: 'min(18rem, 100%)',
+    flex: '1 1 auto',
   },
   sectionTitle: {
     margin: 0,

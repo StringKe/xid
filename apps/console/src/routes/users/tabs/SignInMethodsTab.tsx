@@ -10,7 +10,7 @@ import { useUserSignInMethods } from '../user-api'
 import { formatDate, providerName } from '../user-format'
 
 export function useTwoStepSummary(methods: UserSignInMethods | undefined): ReactNode {
-  const { t } = useLingui()
+  const { t, i18n } = useLingui()
   if (!methods) return <Skeleton width="6rem" height="0.75rem" />
   const active = methods.mfaFactors.filter((factor) => factor.status === 'active')
   const labels = [
@@ -18,7 +18,7 @@ export function useTwoStepSummary(methods: UserSignInMethods | undefined): React
     active.some((factor) => factor.type === 'sms') ? t`Text message` : null,
   ].filter((label): label is string => label !== null)
   return labels.length > 0 ? (
-    labels.join(', ')
+    new Intl.ListFormat(i18n.locale, { type: 'unit' }).format(labels)
   ) : (
     <span {...stylex.props(detail.muted)}>{t`Off`}</span>
   )
@@ -142,18 +142,18 @@ export function SignInMethodsTab({
           sub={
             factors.length > 0 ? (
               <>
-                {factors
-                  .map((factor) =>
+                {new Intl.ListFormat(i18n.locale, { type: 'unit' }).format(
+                  factors.map((factor) =>
                     factor.type === 'totp'
                       ? t`Authenticator app`
                       : factor.type === 'sms'
                         ? t`Text message`
                         : factor.type,
-                  )
-                  .join(', ')}
+                  ),
+                )}
                 {data.backupCodesRemaining > 0 ? (
                   <>
-                    {'. '}
+                    {' · '}
                     <Plural
                       value={data.backupCodesRemaining}
                       one="# backup code left"

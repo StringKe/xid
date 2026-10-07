@@ -62,7 +62,7 @@ export function InvitationsTab({
     {
       id: 'email',
       header: () => t`Invited email`,
-      cell: ({ row }) => row.original.email,
+      cell: ({ row }) => <span {...stylex.props(list.breakable)}>{row.original.email}</span>,
       meta: { priority: 'primary' },
     },
     {
