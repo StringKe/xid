@@ -28,4 +28,18 @@ describe('splitConsentScopes', () => {
     expect(result.alreadyAllowed).toEqual(['openid', 'email'])
     expect(result.isReconsent).toBe(true)
   })
+
+  it('lists every scope again when prompt=consent re-asks an already allowed set', () => {
+    const result = splitConsentScopes({
+      scopes: scopes(['openid', 'email']),
+      previouslyGrantedScopes: ['openid', 'email', 'profile'],
+    })
+
+    expect(result).toEqual({
+      requested: ['openid', 'email'],
+      added: ['openid', 'email'],
+      alreadyAllowed: [],
+      isReconsent: false,
+    })
+  })
 })

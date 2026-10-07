@@ -57,6 +57,15 @@ export function PasswordPanel(props: PasswordPanelProps): ReactNode {
         }
       />
       <form noValidate onSubmit={handleSubmit} {...stylex.props(hosted.form)}>
+        {/* 标识符在上一步输入:密码管理器靠这个隐藏字段把密码与账户关联起来。 */}
+        <input
+          type="text"
+          name="username"
+          autoComplete="username"
+          value={state.identifier}
+          readOnly
+          hidden
+        />
         {creating ? (
           <ProfileFields
             fields={props.profileFields}

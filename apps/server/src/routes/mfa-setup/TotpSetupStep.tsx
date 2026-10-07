@@ -19,7 +19,7 @@ import { hosted } from '../../components/hosted/hosted-styles'
 import { tokens } from '../../styles/tokens.stylex'
 import { useStartTotpSetup, useVerifyTotpSetup } from '../account/queries'
 import type { TotpSetupResponse } from '../account/types'
-import { groupSecret, otpauthAccountName } from './setup-steps'
+import { groupSecret, otpauthDisplayName } from './setup-steps'
 
 const styles = stylex.create({
   pairing: {
@@ -98,7 +98,6 @@ function PairingPanel({ setup }: { setup: TotpSetupResponse }): ReactNode {
 }
 
 export type TotpSetupStepProps = {
-  organizationName: string | null
   onActivated: () => void
   alternative: ReactNode
 }
@@ -146,15 +145,16 @@ export function TotpSetupStep(props: TotpSetupStepProps): ReactNode {
     void submit(code)
   }
 
-  const issuerName = props.organizationName ?? t`this account`
-  const accountName = setup ? otpauthAccountName(setup.otpauthUri) : null
+  const display = setup ? otpauthDisplayName(setup.otpauthUri) : null
+  const issuerName = display?.issuer
+  const accountName = display?.account
   return (
     <div {...stylex.props(hosted.screen)}>
       <AuthHeading
         eyebrow={<Trans>Step 2 of 3</Trans>}
         title={<Trans>Scan this code with your authenticator app</Trans>}
         lead={
-          accountName ? (
+          display ? (
             <Trans>
               In the app, add an account and point your camera at the code. It will appear as{' '}
               {issuerName} ({accountName}).

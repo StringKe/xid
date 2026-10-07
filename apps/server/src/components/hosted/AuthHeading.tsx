@@ -41,6 +41,10 @@ const styles = stylex.create({
     marginBottom: '0.25rem',
     maxWidth: '100%',
   },
+  below: {
+    marginTop: '0.5rem',
+    maxWidth: '100%',
+  },
 })
 
 export type AuthHeadingProps = {
@@ -48,9 +52,10 @@ export type AuthHeadingProps = {
   lead?: ReactNode
   eyebrow?: ReactNode
   above?: ReactNode
+  below?: ReactNode
 }
 
-export function AuthHeading({ title, lead, eyebrow, above }: AuthHeadingProps): ReactNode {
+export function AuthHeading({ title, lead, eyebrow, above, below }: AuthHeadingProps): ReactNode {
   return (
     <div {...stylex.props(styles.root)}>
       {above ? <div {...stylex.props(styles.above)}>{above}</div> : null}
@@ -59,6 +64,7 @@ export function AuthHeading({ title, lead, eyebrow, above }: AuthHeadingProps): 
         {title}
       </h1>
       {lead ? <p {...stylex.props(styles.lead)}>{lead}</p> : null}
+      {below ? <div {...stylex.props(styles.below)}>{below}</div> : null}
     </div>
   )
 }

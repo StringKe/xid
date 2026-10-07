@@ -26,12 +26,15 @@ export type ConsentScopes = {
 }
 
 // 再次授权只列这次新增的 scope;之前同意过的合并成一行,不再逐项询问。
+// prompt=consent 重新询问同一组 scope 时没有新增项,按首次授权完整列出。
 export function splitConsentScopes(
   params: Pick<ConsentParams, 'scopes' | 'previouslyGrantedScopes'>,
 ): ConsentScopes {
   const requested = params.scopes.map((scope) => scope.name)
   const granted = new Set(params.previouslyGrantedScopes)
   const added = requested.filter((scope) => !granted.has(scope))
+  if (added.length === 0)
+    return { requested, added: requested, alreadyAllowed: [], isReconsent: false }
   const alreadyAllowed = requested.filter((scope) => granted.has(scope))
   return { requested, added, alreadyAllowed, isReconsent: alreadyAllowed.length > 0 }
 }

@@ -99,7 +99,11 @@ const styles = stylex.create({
     minWidth: 0,
     minHeight: '100svh',
     boxSizing: 'border-box',
-    paddingInline: { default: '1rem', [REGULAR]: '1.5rem', [SIDEBAR]: 'clamp(1.5rem, 6vw, 6rem)' },
+    paddingInline: {
+      default: '1rem',
+      [REGULAR]: '1.5rem',
+      [SIDEBAR]: 'clamp(2.5rem, 6.7vw, 6rem)',
+    },
     paddingBlock: { default: 0, [REGULAR]: '2rem', [SIDEBAR]: '3rem' },
     borderInlineStartWidth: { default: 0, [SIDEBAR]: '1px' },
     borderInlineStartStyle: 'solid',
@@ -117,7 +121,7 @@ const styles = stylex.create({
   center: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: { default: 'stretch', [REGULAR]: 'center' },
+    alignItems: { default: 'stretch', [REGULAR]: 'center', [SIDEBAR]: 'flex-start' },
     justifyContent: { default: 'flex-start', [REGULAR]: 'center' },
     flexGrow: 1,
     paddingBlock: { default: '0.75rem 1.5rem', [REGULAR]: '2rem' },

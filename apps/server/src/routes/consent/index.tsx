@@ -41,6 +41,7 @@ function useConsentContext(
     lead: params.firstParty ? t`An app from your organization` : t`An app asking for access`,
     title: app,
     description: t`Only you decide what ${app} can see.`,
+    line: t`${app} is asking for access`,
   }
 }
 
@@ -70,6 +71,9 @@ function ConsentForm(props: {
     ...(user?.email ? { email: user.email } : {}),
   }
   const hasResources = params.authorizationDetails.length > 0
+  // openid 只是「知道你是谁」,有其他具体权限时不单列一行。
+  const listed =
+    scopes.added.length > 1 ? scopes.added.filter((scope) => scope !== 'openid') : scopes.added
   return (
     <div {...stylex.props(hosted.screen)}>
       <ClientHeader
@@ -81,7 +85,7 @@ function ConsentForm(props: {
         }}
       />
       <AuthHeading
-        above={props.above}
+        below={props.above}
         title={
           hasResources ? (
             <Trans>{app} wants to work with your data</Trans>
@@ -100,7 +104,7 @@ function ConsentForm(props: {
             <Trans>{app} will be able to</Trans>
           )
         }
-        scopes={scopes.added}
+        scopes={listed}
         details={details}
       />
       <AuthorizationDetailsList details={params.authorizationDetails} />

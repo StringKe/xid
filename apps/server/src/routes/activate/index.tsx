@@ -71,6 +71,7 @@ function useDeviceContext(
     lead: t`Connecting a device`,
     title,
     description: t`A device is asking to sign in as you. Only continue if you started this on a device you can see right now.`,
+    line: app ? t`Connecting ${app} to your account` : undefined,
   }
 }
 

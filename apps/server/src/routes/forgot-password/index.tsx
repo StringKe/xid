@@ -46,7 +46,7 @@ const MAX_PASSWORD_LENGTH = 128
 
 const styles = stylex.create({
   turnstile: {
-    display: 'flex',
+    display: { default: 'flex', ':empty': 'none' },
     justifyContent: 'center',
     width: '100%',
   },

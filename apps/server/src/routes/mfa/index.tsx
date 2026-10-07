@@ -8,6 +8,7 @@ import * as stylex from '@stylexjs/stylex'
 import { Button, Notice, Spinner } from '../../components/ui'
 import { AuthLayout, type AuthContextCopy } from '../../components/layout'
 import { AuthHeading } from '../../components/hosted/AuthHeading'
+import { useContinueLine } from '../../components/hosted/context-copy'
 import { AccountChip } from '../../components/hosted/IdentityChip'
 import { hosted } from '../../components/hosted/hosted-styles'
 import { OptionList, type OptionItem } from '../../components/hosted/OptionList'
@@ -36,6 +37,7 @@ function useMfaContext(isStepUp: boolean): AuthContextCopy | undefined {
   const { t } = useLingui()
   const { config } = useHostedAuthConfig()
   const { applicationName: app, organizationName: org } = config.context
+  const line = useContinueLine()
   if (isStepUp) {
     return {
       lead: t`Before you continue`,
@@ -50,6 +52,7 @@ function useMfaContext(isStepUp: boolean): AuthContextCopy | undefined {
     description: org
       ? t`${org} asks for a second step every time you sign in.`
       : t`Your organization asks for a second step every time you sign in.`,
+    line,
   }
 }
 

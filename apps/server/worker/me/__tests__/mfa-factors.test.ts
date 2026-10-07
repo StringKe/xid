@@ -513,6 +513,59 @@ describe('POST /v1/me/mfa-factors/totp/setup', () => {
     expect(body).not.toHaveProperty('secretCiphertext')
   })
 
+  it('prefixes the otpauth label with the same issuer the issuer parameter names', async () => {
+    const db = makeFakeD1({
+      users: [
+        {
+          id: 'u_1',
+          tenant_id: 't_1',
+          username: null,
+          primary_email_id: 'eml_1',
+          status: 'active',
+          created_at: now,
+          updated_at: now,
+        },
+      ],
+      user_emails: [
+        {
+          id: 'eml_1',
+          tenant_id: 't_1',
+          user_id: 'u_1',
+          email: 'user@example.test',
+          verified: 1,
+          verification_status: 'verified',
+          is_primary: 1,
+          verified_at: now,
+          created_at: now,
+          updated_at: now,
+        },
+      ],
+      mfa_factors: [],
+      backup_codes: [],
+    })
+    const env = {
+      DB: db,
+      KEK: 'zMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMw',
+      CACHE: {},
+    } as unknown as Env
+    const app = buildApp({
+      register: registerMfaFactorsRoutes,
+      session: makeSession({ userId: 'u_1' }),
+    })
+
+    const res = await app.request(
+      'https://acme.xid.dev/v1/me/mfa-factors/totp/setup',
+      { method: 'POST' },
+      env,
+    )
+
+    const uri = new URL(String(((await res.json()) as Record<string, unknown>)['otpauthUri']))
+    const label = decodeURIComponent(uri.pathname.replace(/^\/+/, ''))
+    const issuer = uri.searchParams.get('issuer') ?? ''
+    expect(issuer).toMatch(/^XID \([^:]+\)$/)
+    expect(label).toBe(`${issuer}:user@example.test`)
+  })
+
   it('rejects setup when active TOTP already exists', async () => {
     const db = makeFakeD1({ mfa_factors: [totpRow()], backup_codes: [] })
     const env = { DB: db, KEK: 'zMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMw' } as unknown as Env

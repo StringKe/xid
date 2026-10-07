@@ -19,13 +19,16 @@ export function alternativeMethod(
 }
 
 // otpauth://totp/{issuer}:{account}?... 中的账户名,就是验证器里显示的那一行。
-export function otpauthAccountName(uri: string): string | null {
-  const match = /^otpauth:\/\/totp\/([^?]+)/.exec(uri)
+// 认证器显示的名称:issuer 参数加 label 里 issuer 前缀之后的账户名。
+export function otpauthDisplayName(uri: string): { issuer: string; account: string } | null {
+  const match = /^otpauth:\/\/totp\/([^?]+)(?:\?(.*))?$/.exec(uri)
   if (!match?.[1]) return null
   const label = decodeURIComponent(match[1])
   const separator = label.indexOf(':')
-  const account = separator >= 0 ? label.slice(separator + 1) : label
-  return account.trim() || null
+  const prefix = separator >= 0 ? label.slice(0, separator).trim() : ''
+  const account = (separator >= 0 ? label.slice(separator + 1) : label).trim()
+  const issuer = new URLSearchParams(match[2] ?? '').get('issuer')?.trim() || prefix
+  return account && issuer ? { issuer, account } : null
 }
 
 // otpauth 密钥按 4 位分组,手动输入时更容易对照。

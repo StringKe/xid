@@ -94,7 +94,6 @@ export default function MfaSetupPage(): ReactNode {
         />
       ) : step.kind === 'totp' ? (
         <TotpSetupStep
-          organizationName={organizationName}
           onActivated={() => setStep({ kind: 'backup', method: 'totp' })}
           alternative={alternativeFor('totp')}
         />

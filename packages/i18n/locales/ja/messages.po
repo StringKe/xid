@@ -110,6 +110,10 @@ msgid "{app} did not receive any of your details."
 msgstr "{app} にはあなたの情報は一切渡っていません。"
 
 #: apps/server/src/routes/consent/index.tsx
+msgid "{app} is asking for access"
+msgstr "{app} がアクセスを求めています"
+
+#: apps/server/src/routes/consent/index.tsx
 msgid "{app} is asking for more access"
 msgstr "{app} が追加のアクセスを求めています"
 
@@ -2300,6 +2304,10 @@ msgstr "接続済み"
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Connected accounts"
 msgstr "接続済みアカウント"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Connecting {app} to your account"
+msgstr "{app} をアカウントに接続しています"
 
 #: apps/server/src/routes/activate/index.tsx
 msgid "Connecting a device"
@@ -11277,10 +11285,6 @@ msgstr "サードパーティ"
 #: packages/i18n/src/messages.ts
 msgid "This access request has already been decided."
 msgstr "このアクセスリクエストはすでに処理されています。"
-
-#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
-msgid "this account"
-msgstr "このアカウント"
 
 #: packages/i18n/src/messages.ts
 msgid "This account belongs to more than one organization. Choose an organization to continue."

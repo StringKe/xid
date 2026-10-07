@@ -37,6 +37,7 @@ const styles = stylex.create({
     borderBottomColor: tokens['--xid-border'],
   },
   icon: {
+    display: 'flex',
     flexShrink: 0,
     marginTop: '0.0625rem',
     color: tokens['--xid-muted-foreground'],

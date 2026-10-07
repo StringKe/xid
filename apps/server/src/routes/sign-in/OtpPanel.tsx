@@ -91,6 +91,7 @@ export function OtpPanel(props: {
     sentAt === null ? '' : i18n.date(new Date(sentAt), { hour: 'numeric', minute: '2-digit' })
 
   function submit(raw: string): void {
+    if (sentAt === null) return
     const issue = codeFormatIssue(raw, { length: 6, charset: 'numeric' })
     if (issue) {
       setFormatError(formatMessage(issue, { length: 6, actual: raw, charset: 'numeric' }))
@@ -145,7 +146,7 @@ export function OtpPanel(props: {
           length={6}
           hint={<Trans>6 digits. Spaces and dashes are fine.</Trans>}
           error={fieldError}
-          disabled={rateLimited || sentAt === null}
+          disabled={rateLimited}
           autoFocus
         />
         {expired ? (

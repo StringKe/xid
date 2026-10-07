@@ -211,7 +211,7 @@ function SignInPage(): ReactNode {
           />
         )}
 
-        <div ref={containerRef} />
+        <div ref={containerRef} {...stylex.props(hosted.widgetSlot)} />
 
         {state.step === 'identifier' && state.authConfig.guest ? (
           <SignInGuestButton

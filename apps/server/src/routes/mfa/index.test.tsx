@@ -165,6 +165,23 @@ describe('MfaPage', () => {
       )
     })
     expect(authState.signOut).toHaveBeenCalledTimes(1)
+    expect(routerState.navigate).toHaveBeenCalledWith('/sign-in', { replace: true })
+    await unmount(container, root)
+  })
+
+  it('restarts the pending authorization request after switching accounts', async () => {
+    const resume = '/authorize?authz_request_id=req_1&client_id=client_1'
+    routerState.search = { redirect_to: resume }
+    factorsState.factors = [{ type: 'totp' }]
+
+    const { container, root } = await renderPage()
+    await act(async () => {
+      buttonNamed(container, 'Sign in as someone else')?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      )
+    })
+
+    expect(routerState.navigate).toHaveBeenCalledWith(resume, { replace: true })
     await unmount(container, root)
   })
 

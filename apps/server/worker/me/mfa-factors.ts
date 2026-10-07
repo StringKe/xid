@@ -60,13 +60,10 @@ type TenantDb = ReturnType<typeof createTenantDb>
 
 const app = new Hono<XidHonoEnv>()
 
-function encodeOtpAuthLabel(label: string): string {
-  return encodeURIComponent(label).replace(/%20/g, '+')
-}
-
+// Key URI 格式:label 的 issuer 前缀必须与 issuer 参数一致,认证器按第一个冒号拆分,所以前缀里不能带端口。
 function totpUri(issuer: string, label: string, secret: string): string {
-  const issuerName = 'XID'
-  const accountName = `${issuer}:${label}`
+  const issuerName = `XID (${new URL(issuer).hostname})`
+  const accountName = `${issuerName}:${label}`
   const params = new URLSearchParams({
     secret,
     issuer: issuerName,
@@ -74,7 +71,7 @@ function totpUri(issuer: string, label: string, secret: string): string {
     digits: '6',
     period: '30',
   })
-  return `otpauth://totp/${encodeOtpAuthLabel(accountName)}?${params.toString()}`
+  return `otpauth://totp/${encodeURIComponent(accountName)}?${params.toString()}`
 }
 
 async function listTotpFactors(db: TenantDb, userId: string): Promise<MfaFactor[]> {

@@ -51,6 +51,10 @@ export const hosted = stylex.create({
   tabular: {
     fontVariantNumeric: 'tabular-nums',
   },
+  // Turnstile 未配置或尚未挂载时容器为空,不能占掉一段 gap。
+  widgetSlot: {
+    display: { default: 'block', ':empty': 'none' },
+  },
   linkRow: {
     display: 'flex',
     flexWrap: 'wrap',

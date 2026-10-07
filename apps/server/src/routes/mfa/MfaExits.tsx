@@ -11,10 +11,25 @@ import { useDefaultLandingPath } from '../../lib/default-landing'
 import { Link, useNavigate } from '@xid-kit/web-ui/tanstack-router'
 import { mfaMethodSearch, type MfaMethod, type MfaSearch } from './mfa-search'
 
+// 登出后回到登录页;来自 /authorize 时重新进入授权请求,由它带着原参数跳到登录页。
 export function CancelSignOut(): ReactNode {
   const { signOut } = useAuth()
+  const navigate = useNavigate()
+  const search = useSearch({ strict: false }) as MfaSearch
+  const resume = normalizeLocalPath(search.redirect_to)
+  const target = resume?.startsWith('/authorize?') ? resume : '/sign-in'
+
+  async function signOutAndRestart(): Promise<void> {
+    await signOut()
+    navigate(target, { replace: true })
+  }
+
   return (
-    <button type="button" onClick={() => void signOut()} {...stylex.props(hosted.quietLink)}>
+    <button
+      type="button"
+      onClick={() => void signOutAndRestart()}
+      {...stylex.props(hosted.quietLink)}
+    >
       <Trans>Sign in as someone else</Trans>
     </button>
   )

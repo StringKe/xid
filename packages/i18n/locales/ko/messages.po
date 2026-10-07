@@ -110,6 +110,10 @@ msgid "{app} did not receive any of your details."
 msgstr "{app}은(는) 내 정보를 전혀 받지 않았습니다."
 
 #: apps/server/src/routes/consent/index.tsx
+msgid "{app} is asking for access"
+msgstr "{app}에서 액세스를 요청하고 있습니다"
+
+#: apps/server/src/routes/consent/index.tsx
 msgid "{app} is asking for more access"
 msgstr "{app}이(가) 추가 액세스를 요청합니다"
 
@@ -2300,6 +2304,10 @@ msgstr "연결됨"
 #: apps/server/src/routes/account/ConnectionsPage.tsx
 msgid "Connected accounts"
 msgstr "연결된 계정"
+
+#: apps/server/src/routes/activate/index.tsx
+msgid "Connecting {app} to your account"
+msgstr "{app}을(를) 계정에 연결하는 중"
 
 #: apps/server/src/routes/activate/index.tsx
 msgid "Connecting a device"
@@ -11277,10 +11285,6 @@ msgstr "타사"
 #: packages/i18n/src/messages.ts
 msgid "This access request has already been decided."
 msgstr "이 액세스 요청은 이미 처리되었습니다."
-
-#: apps/server/src/routes/mfa-setup/TotpSetupStep.tsx
-msgid "this account"
-msgstr "이 계정"
 
 #: packages/i18n/src/messages.ts
 msgid "This account belongs to more than one organization. Choose an organization to continue."
