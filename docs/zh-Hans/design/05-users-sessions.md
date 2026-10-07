@@ -96,6 +96,14 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
 - 验证 guest pending Email 后,在当前新 Tenant 写入 verified primary `user_emails` 行,吊销全部
   guest session,并要求重新登录。Tenant-local 唯一性允许同一 normalized Email 存在于其他 Tenant;
   后续登录由实例根域 resolver 提供 Tenant 选择
+- 账户门户联系方式管理(`/v1/me/emails`、`/v1/me/phones`):添加地址时发送 6 位验证码(Email
+  10 分钟,短信 5 分钟,最多错 5 次,发送限流与登录 OTP 相同的 1/min + 5/h),使用独立
+  purpose,不会作废正在进行的登录验证码。验证通过后才写入 `user_emails` 或 `user_phones`。
+  地址已属于同一 Tenant 其他用户时响应相同、不发送验证码,验证永远不会通过。设为主邮箱、
+  移除已验证邮箱或手机号需要 step-up;主邮箱不能移除,移除后没有任何登录方式时以
+  `sign_in_method_required` 拒绝。已验证手机号在单独开启短信两步验证之前不是 MFA 因子;
+  移除手机号同时停用以它为目标的短信因子。guest 转正走 Hosted Auth 的 Email OTP 流程,
+  不走这些路由
 - Invitation Email verification 不是普通 sign-up verification。其签名 token 包含
   `purpose = invitation_email_claim`、`tenant_id`、`sub = invitationId`、`jti` 和
   `email_hash`,有效期 15 分钟且单次使用。claim 记录绝不持久化原始 invitation capability。
@@ -152,8 +160,8 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
   安全字段投影流式写入私有 R2 JSON object,排除 password、token、credential 和加密 secret
   material。只有已认证 account API 可在 48h 内下载,到期后 daily Cron 删除 object 并清空
   storage reference。
-- 被遗忘权:Account UI 要求二次确认,API 仅接受带精确 `confirmation: "DELETE"` 的删除请求。
-  请求进入 30 天内可取消的 pending 状态。如果 erasure 会删除任一 Organization 唯一的
+- 被遗忘权:Account UI 要求二次确认,API 仅接受带精确 `confirmation: "DELETE"` 的删除请求;
+  拥有 passkey 或验证器应用的用户还需要刚完成 step-up。请求进入 30 天内可取消的 pending 状态。如果 erasure 会删除任一 Organization 唯一的
   active owner 或同一 Instance scope 最后一个 active `instance_manager`,schedule 以
   `account_deletion_blocked`(409)拒绝。该错误码不区分两种原因,只提示先转交所有权或增加
   另一位管理员。非 null `scope_id` 只匹配相同值;现有 global Instance Manager contract 使用
@@ -176,7 +184,7 @@ guest 转正(见 01 章 8)是原地 link,不是合并:guest session(provisioned_
 - token 类型:短生命周期 JWT(建议 60s)Workers 私钥签发,客户端无需回源验证;配 HttpOnly secure cookie 存 refresh token(opaque)
 - 会话模型:sessions 表持久 D1;Durable Object per-user 持内存 active session set 做实时撤销检查
 - 多设备并发:默认允许,每 session 记 device fingerprint(UA+IP 哈希) + device_name(可自命名)
-- 活动会话列表:账户设置看所有 active sessions(设备/最后活跃/位置),单独撤销
+- 活动会话列表:账户设置看所有 active sessions(设备/最后活跃/位置),单独撤销。`/v1/me/sessions` 返回原始 user agent(浏览器与系统名由 SPA 解析)、签发时按 Cloudflare 请求元数据估算的 `location`(`City, CC`,旧会话为 null)、登录 `amr`,模拟会话另带模拟者姓名与 Email。签发 active 且非模拟的会话时写入 `users.last_login_at`;pending MFA 会话在转为 active 时写入
 - 全局登出:遍历标记 revoked,DO 状态同步,JWT 60s 内生效
 - 时效:session 行过期 = absoluteTimeoutDays(默认 30d,边界 1-365);idle timeout = idleTimeoutMin(默认 4320min=3d,边界 5-43200),滑动过期,二者 org/instance 可配(session policy,org 覆盖 -> instance 默认 -> 内置默认)。idle 强制执行已落地:读 session 时检查 `now - last_active_at > idleTimeoutMin` 即判失效(status 置 expired);`last_active_at` 按 5min 粒度滑动 touch(waitUntil 异步写,不阻塞请求)
 - 记住我:rememberMe 只决定 session cookie 是否带 Max-Age=absoluteTimeoutDays(默认 30d);不带时为浏览器生命周期 session cookie,server 端 session 行过期不受影响。密码登录页有"记住我"勾选(body.rememberMe ?? instance rememberMeDefault ?? false,instance 可设 rememberMeDefault);passkey/社交/SAML 登录恒按 rememberMe:true 处理(设备绑定凭证)。与 OAuth refresh token 的 absolute 硬顶(见 03 章)是两套互不相干的机制

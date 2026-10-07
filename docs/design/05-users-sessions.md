@@ -138,6 +138,16 @@ collision is not a normal branch for a freshly created Tenant.
   Tenant, revokes all guest sessions, and requires a fresh sign-in. Tenant-local uniqueness permits
   the same normalized Email in another Tenant; the Instance root resolver offers Tenant selection
   on later sign-in.
+- Account portal contact management (`/v1/me/emails`, `/v1/me/phones`): adding an address sends a
+  6-digit code (Email 10 minutes, SMS 5 minutes, at most 5 wrong attempts, the same 1/min + 5/h send
+  budget as sign-in OTP) under its own purpose, so it never invalidates a sign-in code. The
+  `user_emails` or `user_phones` row is written only after the code is verified. An address already
+  owned by another user of the same Tenant gets the same response, no code is sent, and verification
+  never succeeds. Making an Email primary and removing a verified Email or phone require step-up;
+  the primary Email cannot be removed, and removal is refused with `sign_in_method_required` when it
+  would leave no way to sign in. A verified phone is not an MFA factor until SMS two-step verification
+  is enabled separately; removing the phone retires the SMS factor that targets it. Guests convert
+  through the Hosted Auth Email OTP flow, not through these routes.
 - Invitation Email verification is not ordinary sign-up verification. Its signed token carries
   `purpose = invitation_email_claim`, `tenant_id`, `sub = invitationId`, `jti`, and `email_hash`;
   it expires after 15 minutes and is single use. The raw invitation capability is never persisted in
@@ -206,7 +216,8 @@ collision is not a normal branch for a freshly created Tenant.
   credential, and encrypted-secret material is excluded. The authenticated account download remains
   available for 48 hours, then daily Cron deletes the object and clears its storage reference.
 - Right to be forgotten: the Account UI requires a second confirmation, and the API accepts deletion
-  only with the exact `confirmation: "DELETE"` contract. The request then remains pending for a
+  only with the exact `confirmation: "DELETE"` contract and, for a user with a passkey or
+  authenticator app, a fresh step-up. The request then remains pending for a
   30-day, cancelable grace period. Scheduling is rejected with `account_deletion_blocked` (409) if
   erasure would remove an Organization's sole active owner or the last active `instance_manager` in
   the same Instance scope. The code does not say which of the two applies; it only asks the user to
@@ -238,7 +249,12 @@ collision is not a normal branch for a freshly created Tenant.
 - Multi-device concurrency: allowed by default. Each session records a device fingerprint (a hash of
   UA plus IP) and a device_name (user-nameable)
 - Active session list: account settings shows every active session (device, last active, location) and
-  allows revoking any of them individually
+  allows revoking any of them individually. `/v1/me/sessions` returns the raw user agent (the SPA
+  derives the browser and system name), the `location` estimated from Cloudflare request metadata
+  when the session was issued (`City, CC`, null for older sessions), the sign-in `amr`, and for an
+  impersonation session the impersonator's name and Email. Issuing an active, non-impersonation
+  session also records `users.last_login_at`; a pending MFA session records it when it becomes
+  active
 - Global sign-out: mark all sessions revoked, sync the Durable Object state, and it takes effect within
   the 60-second JWT window
 - Lifetimes: a session row expires after `absoluteTimeoutDays` (30 days by default, bounds 1-365);
