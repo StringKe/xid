@@ -1,4 +1,4 @@
-// issueSession / recordSessionActivated 记录最后登录时间与按 IP 估算的位置。
+// issueSession / recordSessionActivated 记录按 IP 估算的位置,最后登录时间只由 auth-analytics 写一次。
 // 用户列表的「最后登录」与账户 Devices 页的位置都读这两列。
 
 import { Hono } from 'hono'

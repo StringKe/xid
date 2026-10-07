@@ -321,22 +321,6 @@ function requestLocation(c: Context<XidHonoEnv>): string | null {
   return country ?? city
 }
 
-// 只记真实用户的登录:模拟会话不算,pending MFA 会话等转为 active 时再记。
-// 与计量一样不能拖垮登录:写失败记错误日志,会话照常签发。
-function recordLastLogin(c: Context<XidHonoEnv>, userId: string): void {
-  waitUntilBestEffort(
-    c,
-    (async () => {
-      try {
-        const db = createTenantDb(c.env.DB, c.get('tenant'))
-        await db.users.update({ lastLoginAt: new Date() }, eq(schema.users.id, userId))
-      } catch (error) {
-        logWorkerError('session.last_login.write_failed', error, { component: 'session' })
-      }
-    })(),
-  )
-}
-
 // lastActiveAt 为 null(历史行)按 authenticatedAt 兜底,避免老会话被误判无限 idle。
 function lastActiveMs(session: { authenticatedAt: Date; lastActiveAt?: Date | null }): number {
   return (session.lastActiveAt ?? session.authenticatedAt).getTime()
@@ -553,9 +537,6 @@ export async function issueSession(
     isImpersonation: input.isImpersonation === true,
   })
   waitUntilBestEffort(c, telemetry)
-  if (row.status === ACTIVE_SESSION_STATUS && input.isImpersonation !== true) {
-    recordLastLogin(c, input.userId)
-  }
 
   return { session: toSessionData(row), refreshToken }
 }
@@ -563,7 +544,6 @@ export async function issueSession(
 // issueSession 对 pending_mfa / pending_mfa_setup 会话不记登录;MFA 完成、会话转为 active 时补记一次。
 export function recordSessionActivated(c: Context<XidHonoEnv>, session: SessionData): void {
   if (session.status === ACTIVE_SESSION_STATUS) return
-  if (!session.isImpersonation) recordLastLogin(c, session.userId)
   waitUntilBestEffort(
     c,
     recordAuthenticatedSession({
