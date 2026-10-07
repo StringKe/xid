@@ -8,6 +8,7 @@ import type {
   BrowserAuthOrganization,
   BrowserAuthSession,
   BrowserAuthUser,
+  BrowserImpersonator,
   BrowserManagerAssignment,
   BrowserMeResponse,
 } from '@xid-kit/types'
@@ -22,9 +23,15 @@ import {
   PENDING_MFA_SETUP_SESSION_STATUS,
   readBrowserSessions,
 } from '../lib/session'
-import type { SessionData, XidHonoEnv } from '../lib/types'
+import type { SessionData, TenantVar, XidHonoEnv } from '../lib/types'
 import { hasStrongMfaFactor } from '../lib/mfa-methods'
+import {
+  assertMethodAllowed,
+  assertTenantResolvedForWebAuthn,
+  isHostedAuthPolicyError,
+} from '../auth/hosted-policy'
 import { findSelfOrganizationCreateUser } from '../me-auth/organization-self-eligibility'
+import { loadImpersonators } from './impersonator'
 import { loadPrimaryEmail, readAllById, resolveSession } from './shared'
 
 type AuthOrg = BrowserAuthOrganization
@@ -46,6 +53,30 @@ function resolveName(row: typeof schema.users.$inferSelect): string | null {
 // hasMfa:存在强因子(TOTP 或未吊销 passkey);SMS 因子与备份码只能依附强因子存在。
 async function hasMfaEnabled(c: Context<XidHonoEnv>, userId: string): Promise<boolean> {
   return hasStrongMfaFactor(createTenantDb(c.env.DB, c.get('tenant')), userId)
+}
+
+function passkeyEnrollmentAllowed(tenant: TenantVar): boolean {
+  try {
+    assertTenantResolvedForWebAuthn(tenant)
+    assertMethodAllowed(tenant, 'passkey', 'login')
+    return true
+  } catch (error) {
+    if (isHostedAuthPolicyError(error)) return false
+    throw error
+  }
+}
+
+// 插页只面向还没有任何有效 passkey 的用户,有一个就不再打扰。
+async function isPasskeyEnrollmentEligible(
+  c: Context<XidHonoEnv>,
+  userId: string,
+): Promise<boolean> {
+  const tenant = c.get('tenant')
+  if (!passkeyEnrollmentAllowed(tenant)) return false
+  const count = await createTenantDb(c.env.DB, tenant).passkeyCredentials.count(
+    and(eq(schema.passkeyCredentials.userId, userId), isNull(schema.passkeyCredentials.revokedAt)),
+  )
+  return count === 0
 }
 
 async function isInstanceManager(c: Context<XidHonoEnv>, userId: string): Promise<boolean> {
@@ -307,7 +338,14 @@ async function listActiveMemberships(
   return rows
 }
 
-function toSessionView(session: SessionData): BrowserAuthSession {
+function toSessionView(
+  session: SessionData,
+  impersonators: ReadonlyMap<string, BrowserImpersonator> = new Map(),
+): BrowserAuthSession {
+  const impersonator =
+    session.isImpersonation && session.impersonatorUserId
+      ? (impersonators.get(session.impersonatorUserId) ?? null)
+      : null
   return {
     id: session.sessionId,
     status: session.status,
@@ -316,6 +354,7 @@ function toSessionView(session: SessionData): BrowserAuthSession {
     userId: session.userId,
     activeOrganizationId: session.activeOrgId,
     lastActiveAt: session.lastActiveAt.toISOString(),
+    impersonator,
   }
 }
 
@@ -369,6 +408,7 @@ app.get('/', async (c) => {
     browserSessions,
     passwordRow,
     selfOrganizationCreateUser,
+    passkeyEnrollmentEligible,
   ] = await Promise.all([
     loadPrimaryEmail(c, userRow.id, userRow.primaryEmailId),
     hasMfaEnabled(c, userRow.id),
@@ -379,6 +419,7 @@ app.get('/', async (c) => {
     readBrowserSessions(c),
     db.passwords.findOne(eq(schema.passwords.userId, userRow.id)),
     findSelfOrganizationCreateUser(c.env, { tenant: c.get('tenant'), userId: userRow.id }),
+    isPasskeyEnrollmentEligible(c, userRow.id),
   ])
 
   const user: MeUser = {
@@ -392,6 +433,7 @@ app.get('/', async (c) => {
     instanceManager,
     hasPassword: passwordRow !== null && passwordRow !== undefined,
     canCreateOrganization: selfOrganizationCreateUser !== null,
+    passkeyEnrollmentEligible,
     provisioned_by: userRow.provisionedBy ?? null,
   }
 
@@ -448,6 +490,9 @@ app.get('/', async (c) => {
         canManageOwners:
           membership.role === 'owner' ||
           (membership.role === 'member' && managedOrgIds.has(membership.orgId)),
+        logoUrl: organization.logoUrl ?? null,
+        joinedAt: (membership.joinedAt ?? membership.createdAt).toISOString(),
+        isManaged: membership.isManaged,
       },
     ]
   })
@@ -465,18 +510,26 @@ app.get('/', async (c) => {
       parentOrgId: organization.parentOrgId,
       allowOrgSelfService: organization.allowOrgSelfService,
       canManageOwners: true,
+      logoUrl: organization.logoUrl ?? null,
+      joinedAt: null,
+      isManaged: false,
     })
   }
   const activeOrg = session.activeOrgId
     ? (organizations.find((organization) => organization.id === session.activeOrgId) ?? null)
     : null
 
-  const sessionView = toSessionView(session)
+  const otherSessions = browserSessions.filter(
+    (browserSession) => browserSession.sessionId !== session.sessionId,
+  )
+  const impersonatorIds = [session, ...otherSessions].flatMap((item) =>
+    item.isImpersonation && item.impersonatorUserId ? [item.impersonatorUserId] : [],
+  )
+  const impersonators = await loadImpersonators(c.env, c.get('tenant').instanceId, impersonatorIds)
+  const sessionView = toSessionView(session, impersonators)
   const sessionViews = [
     sessionView,
-    ...browserSessions
-      .filter((browserSession) => browserSession.sessionId !== session.sessionId)
-      .map(toSessionView),
+    ...otherSessions.map((item) => toSessionView(item, impersonators)),
   ]
   const body: MeResponse = {
     user,

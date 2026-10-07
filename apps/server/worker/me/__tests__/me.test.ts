@@ -1,6 +1,7 @@
 // GET /v1/me 测试:happy path(MeResponse 形状)+ org_manager -> admin role 映射 + cookie 缺失 200 匿名壳 + 跨租户隔离(别租户 user 行不可见 -> 401)。
 // permissions 经 RBAC 解析(无 project/grant 时为空数组);activeOrg 由 session.activeOrgId 解析 membership。
 
+import { DEFAULT_HOSTED_AUTH_POLICY, type TenantContext } from '@xid-kit/types'
 import { describe, it, expect } from 'vitest'
 import { registerMeRoute } from '../me'
 import { buildApp, makeFakeD1, makeSession, TENANT } from './harness'
@@ -534,6 +535,9 @@ describe('GET /v1/me', () => {
         parentOrgId: null,
         allowOrgSelfService: true,
         canManageOwners: false,
+        logoUrl: null,
+        joinedAt: new Date(now).toISOString(),
+        isManaged: false,
       },
     ])
     expect(body['activeOrg']).toEqual((body['organizations'] as unknown[])[0])
@@ -772,6 +776,9 @@ describe('GET /v1/me', () => {
         parentOrgId: null,
         allowOrgSelfService: true,
         canManageOwners: true,
+        logoUrl: null,
+        joinedAt: new Date(now).toISOString(),
+        isManaged: false,
       },
     ])
   })
@@ -825,6 +832,9 @@ describe('GET /v1/me', () => {
         parentOrgId: null,
         allowOrgSelfService: true,
         canManageOwners: true,
+        logoUrl: null,
+        joinedAt: null,
+        isManaged: false,
       },
     ])
   })
@@ -862,7 +872,153 @@ describe('GET /v1/me', () => {
         parentOrgId: null,
         allowOrgSelfService: true,
         canManageOwners: false,
+        logoUrl: null,
+        joinedAt: new Date(now).toISOString(),
+        isManaged: false,
       },
     ])
+  })
+
+  it('maps organization logo, join date and directory-managed flag', async () => {
+    const db = makeFakeD1({
+      users: [userRow()],
+      user_emails: [emailRow()],
+      mfa_factors: [],
+      passkey_credentials: [],
+      memberships: [membershipRow({ is_managed: 1 })],
+      manager_assignments: [],
+      organizations: [organizationRow({ logo_url: 'https://cdn.acme.test/logo.png' })],
+      projects: [],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession({ userId: 'u_1' }) })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+
+    const body = (await res.json()) as { organizations: Record<string, unknown>[] }
+    expect(body.organizations[0]).toMatchObject({
+      logoUrl: 'https://cdn.acme.test/logo.png',
+      joinedAt: new Date(now).toISOString(),
+      isManaged: true,
+    })
+  })
+})
+
+describe('GET /v1/me passkeyEnrollmentEligible', () => {
+  const passkeyTenant: TenantContext = {
+    ...TENANT,
+    policy: {
+      hostedAuth: {
+        ...DEFAULT_HOSTED_AUTH_POLICY,
+        passkey: { enabled: true, allowLogin: true, allowUserCreation: true },
+      },
+    },
+  }
+
+  function tables(passkeys: Record<string, unknown>[]): Parameters<typeof makeFakeD1>[0] {
+    return {
+      users: [userRow()],
+      user_emails: [emailRow()],
+      mfa_factors: [],
+      passkey_credentials: passkeys,
+      memberships: [],
+    }
+  }
+
+  async function eligibility(
+    passkeys: Record<string, unknown>[],
+    tenant = passkeyTenant,
+  ): Promise<unknown> {
+    const env = { DB: makeFakeD1(tables(passkeys)) } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession(), tenant })
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+    const body = (await res.json()) as { user: Record<string, unknown> }
+    return body.user['passkeyEnrollmentEligible']
+  }
+
+  it('is true for a resolved tenant user without any passkey', async () => {
+    expect(await eligibility([])).toBe(true)
+  })
+
+  it('is false once the user has an active passkey', async () => {
+    const passkey = {
+      id: 'pk_1',
+      tenant_id: 't_1',
+      user_id: 'u_1',
+      credential_id: 'cred_1',
+      revoked_at: null,
+    }
+
+    expect(await eligibility([passkey])).toBe(false)
+  })
+
+  it('is false at the unresolved instance entry', async () => {
+    const tenant: TenantContext = {
+      ...passkeyTenant,
+      resolution: { kind: 'instance_entry', unresolvedRoot: true },
+    }
+
+    expect(await eligibility([], tenant)).toBe(false)
+  })
+
+  it('is false when the tenant does not allow passkeys', async () => {
+    expect(await eligibility([], TENANT)).toBe(false)
+  })
+})
+
+describe('GET /v1/me impersonator', () => {
+  it('returns null for a normal session', async () => {
+    const env = {
+      DB: makeFakeD1({ users: [userRow()], user_emails: [emailRow()], memberships: [] }),
+    } as unknown as Env
+    const app = buildApp({ register: registerMeRoute, session: makeSession() })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+
+    const body = (await res.json()) as { session: Record<string, unknown> }
+    expect(body.session['impersonator']).toBeNull()
+  })
+
+  it('returns the impersonator resolved within the same instance', async () => {
+    const base = makeFakeD1({ users: [userRow()], user_emails: [emailRow()], memberships: [] })
+    const impersonatorBindings: unknown[][] = []
+    const DB = {
+      ...base,
+      prepare: (sql: string) => {
+        if (!sql.includes('AS displayName')) return base.prepare(sql)
+        return {
+          bind: (...params: unknown[]) => {
+            impersonatorBindings.push(params)
+            return {
+              all: async () => ({
+                results: [
+                  {
+                    id: 'u_admin',
+                    displayName: 'Dana Ortiz',
+                    firstName: null,
+                    lastName: null,
+                    email: 'dana@northwind.test',
+                  },
+                ],
+              }),
+            }
+          },
+        }
+      },
+    }
+    const env = { DB } as unknown as Env
+    const tenant = { ...TENANT, instanceId: 'ins_1' }
+    const session = makeSession({ isImpersonation: true, impersonatorUserId: 'u_admin' })
+    const app = buildApp({ register: registerMeRoute, session, tenant })
+
+    const res = await app.request('https://acme.xid.dev/v1/me', { method: 'GET' }, env)
+
+    const body = (await res.json()) as { session: Record<string, unknown> }
+    expect(body.session['impersonator']).toEqual({
+      userId: 'u_admin',
+      displayName: 'Dana Ortiz',
+      email: 'dana@northwind.test',
+    })
+    expect(impersonatorBindings).toEqual([['u_admin', 'ins_1']])
   })
 })

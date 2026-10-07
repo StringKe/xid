@@ -15,6 +15,8 @@ export type BrowserAuthUser = {
   hasPassword?: boolean
   // 自助创建组织的资格(与 POST /v1/organizations/self 同一判定);缺失时按不可创建处理
   canCreateOrganization?: boolean
+  // 登录后 passkey 创建插页的展示资格:租户已解析、允许 passkey、未达上限且当前没有有效 passkey
+  passkeyEnrollmentEligible?: boolean
   provisioned_by?: 'anonymous' | (string & {}) | null
 }
 
@@ -29,6 +31,17 @@ export type BrowserAuthOrganization = {
   allowOrgSelfService: boolean
   // owner 或该组织的 org_manager 才能授予或移除 owner,与服务端 canManageOwners 一致。
   canManageOwners: boolean
+  logoUrl?: string | null
+  // 只对 membership 来源的组织有值;仅凭 org_manager 行列出的组织为 null。
+  joinedAt?: string | null
+  // 目录同步管理的成员关系,本人不能自行离开。
+  isManaged?: boolean
+}
+
+export type BrowserImpersonator = {
+  userId: string
+  displayName: string | null
+  email: string | null
 }
 
 export type BrowserAuthSession = {
@@ -39,6 +52,8 @@ export type BrowserAuthSession = {
   userId: string
   activeOrganizationId: string | null
   lastActiveAt: string
+  // 只在 isImpersonation 时非空。
+  impersonator?: BrowserImpersonator | null
 }
 
 type BrowserManagerScopeStatus<TScope extends TenantManagerRoleScope['scopeType']> =
