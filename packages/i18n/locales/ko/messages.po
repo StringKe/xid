@@ -3640,6 +3640,7 @@ msgstr "기본값"
 msgid "Default export: renderer surface and types"
 msgstr "기본 내보내기: 렌더러 인터페이스 및 타입"
 
+#: apps/console/src/routes/users/user-format.ts
 #: packages/web-ui/src/display-names.tsx
 msgid "Default organization"
 msgstr "기본 조직"

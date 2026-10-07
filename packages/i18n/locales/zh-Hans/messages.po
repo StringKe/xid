@@ -3640,6 +3640,7 @@ msgstr "默认"
 msgid "Default export: renderer surface and types"
 msgstr "默认导出：渲染器接口和类型"
 
+#: apps/console/src/routes/users/user-format.ts
 #: packages/web-ui/src/display-names.tsx
 msgid "Default organization"
 msgstr "默认组织"

@@ -3640,6 +3640,7 @@ msgstr "Padrão"
 msgid "Default export: renderer surface and types"
 msgstr "Export padrão: superfície de renderer e tipos"
 
+#: apps/console/src/routes/users/user-format.ts
 #: packages/web-ui/src/display-names.tsx
 msgid "Default organization"
 msgstr "Organização padrão"
