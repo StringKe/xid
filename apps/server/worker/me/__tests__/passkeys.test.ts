@@ -1,6 +1,8 @@
 // GET /v1/me/passkeys 测试:happy path(剔除 public_key/aaguid/sign_count)+ 401 + 跨租户隔离。
 
+import { base64UrlEncode } from '@xid-kit/crypto'
 import { describe, it, expect } from 'vitest'
+import { PASSKEY_LIMIT } from '../../auth/passkey-helpers'
 import { registerPasskeysRoutes } from '../passkeys'
 import { buildApp, makeFakeD1, makeSession, stepUpCookieFor, TEST_PEPPER } from './harness'
 
@@ -40,7 +42,7 @@ describe('GET /v1/me/passkeys', () => {
     const res = await app.request('https://acme.xid.dev/v1/me/passkeys', { method: 'GET' }, env)
 
     expect(res.status).toBe(200)
-    const body = (await res.json()) as Record<string, unknown>[]
+    const { data: body } = (await res.json()) as { data: Record<string, unknown>[] }
     expect(body).toHaveLength(1)
     expect(body[0]).toMatchObject({
       id: 'pk_1',
@@ -50,6 +52,31 @@ describe('GET /v1/me/passkeys', () => {
     expect(body[0]).not.toHaveProperty('publicKey')
     expect(body[0]).not.toHaveProperty('aaguid')
     expect(body[0]).not.toHaveProperty('signCount')
+  })
+
+  it('reports sync state, device type and the per-account limit', async () => {
+    const db = makeFakeD1({
+      passkey_credentials: [
+        passkeyRow(),
+        passkeyRow({
+          id: 'pk_key',
+          credential_id: 'cred_key',
+          credential_device_type: 'singleDevice',
+          backed_up: 0,
+        }),
+      ],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerPasskeysRoutes, session: makeSession() })
+
+    const res = await app.request('https://acme.xid.dev/v1/me/passkeys', {}, env)
+
+    const body = (await res.json()) as { data: Record<string, unknown>[]; limit: number }
+    expect(body.limit).toBe(PASSKEY_LIMIT)
+    expect(body.data.map((item) => [item['id'], item['deviceType'], item['backedUp']])).toEqual([
+      ['pk_1', 'multiDevice', true],
+      ['pk_key', 'singleDevice', false],
+    ])
   })
 
   it('lists passkeys for forced MFA enrollment but not for a pending challenge', async () => {
@@ -97,7 +124,42 @@ describe('GET /v1/me/passkeys', () => {
     const res = await app.request('https://acme.xid.dev/v1/me/passkeys', { method: 'GET' }, env)
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual([])
+    expect(await res.json()).toEqual({ data: [], limit: PASSKEY_LIMIT })
+  })
+})
+
+describe('GET /v1/me/passkeys/signal', () => {
+  it('returns the registration user handle and only the current user active credential ids', async () => {
+    const db = makeFakeD1({
+      passkey_credentials: [
+        passkeyRow(),
+        passkeyRow({ id: 'pk_revoked', credential_id: 'cred_revoked', revoked_at: now }),
+        passkeyRow({ id: 'pk_victim', tenant_id: 't_other', credential_id: 'cred_victim' }),
+      ],
+      users: [{ id: 'u_1', tenant_id: 't_1', display_name: 'Ada', primary_email_id: null }],
+    })
+    const env = { DB: db } as unknown as Env
+    const app = buildApp({ register: registerPasskeysRoutes, session: makeSession() })
+
+    const res = await app.request('https://acme.xid.dev/v1/me/passkeys/signal', {}, env)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      rpId: 'acme.xid.dev',
+      userId: base64UrlEncode(new TextEncoder().encode('u_1')),
+      name: 'u_1',
+      displayName: 'Ada',
+      allAcceptedCredentialIds: ['cred_abc'],
+    })
+  })
+
+  it('requires a signed-in session', async () => {
+    const env = { DB: makeFakeD1({ passkey_credentials: [passkeyRow()] }) } as unknown as Env
+    const app = buildApp({ register: registerPasskeysRoutes, session: null })
+
+    const res = await app.request('https://acme.xid.dev/v1/me/passkeys/signal', {}, env)
+
+    expect(res.status).toBe(401)
   })
 })
 

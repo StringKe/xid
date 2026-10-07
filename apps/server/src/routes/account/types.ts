@@ -70,6 +70,21 @@ export type PasskeyCredential = {
   createdAt: string
   lastUsedAt: string | null
   transports: readonly string[]
+  backedUp: boolean
+  deviceType: 'singleDevice' | 'multiDevice'
+}
+
+export type PasskeyList = {
+  data: PasskeyCredential[]
+  limit: number
+}
+
+export type PasskeySignalData = {
+  rpId: string
+  userId: string
+  name: string
+  displayName: string
+  allAcceptedCredentialIds: string[]
 }
 
 export type SocialConnection = {

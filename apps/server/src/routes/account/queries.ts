@@ -8,7 +8,7 @@ import type {
   ActiveSession,
   BackupCodesResponse,
   MfaFactor,
-  PasskeyCredential,
+  PasskeyList,
   PrivacyRequest,
   SmsFactorOption,
   SocialConnection,
@@ -83,8 +83,8 @@ export function useGenerateBackupCodes(): UseMutationResult<BackupCodesResponse,
   )
 }
 
-export function usePasskeysQuery(): UseQueryResult<PasskeyCredential[], XidError> {
-  return useApiQuery<PasskeyCredential[]>(queryKeys.mePasskeys, '/v1/me/passkeys')
+export function usePasskeysQuery(): UseQueryResult<PasskeyList, XidError> {
+  return useApiQuery<PasskeyList>(queryKeys.mePasskeys, '/v1/me/passkeys')
 }
 
 export function useRegisterPasskey(): UseMutationResult<

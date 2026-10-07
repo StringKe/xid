@@ -245,7 +245,8 @@ function registrationErrorMessage(
 export function PasskeySection({ onRegistered }: PasskeySectionProps): ReactNode {
   const { t } = useLingui()
   const { api } = useAuth()
-  const { data: passkeys, isPending, error } = usePasskeysQuery()
+  const { data: passkeyList, isPending, error } = usePasskeysQuery()
+  const passkeys = passkeyList?.data
   const authConfig = useQuery(authConfigQueryOptions({}, api))
   const registerPasskey = useRegisterPasskey()
   const renamePasskey = useRenamePasskey()

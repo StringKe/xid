@@ -1,9 +1,10 @@
-// GET /v1/me/passkeys:当前用户 passkey 列表(account/types.ts PasskeyCredential 契约,camelCase)。
+// GET /v1/me/passkeys:当前用户 passkey 列表 { data, limit }(account/types.ts PasskeyCredential 契约)。
 // 认证:cookie session;租户隔离:createTenantDb。
 // 安全:public_key/aaguid/sign_count/cose_alg 绝不外泄(私钥永不入库,公钥也不回前端,见 webauthn rule)。
 
+import { base64UrlEncode } from '@xid-kit/crypto'
 import { createTenantDb, schema } from '@xid-kit/db'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import * as v from 'valibot'
 import { PASSKEY_DEVICE_NAME_MAX_LENGTH, PASSKEY_LIMIT } from '../auth/passkey-helpers'
@@ -15,7 +16,7 @@ import {
 import { requireStepUp } from '../lib/step-up'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
-import { requireSession, toIso } from './shared'
+import { loadUserCredentialLabel, requireSession, toIso } from './shared'
 import { hasOtherSignInMethod } from './sign-in-methods'
 
 // PATCH body:deviceName 可清空(null/空串);长度上限与注册时一致。
@@ -25,12 +26,27 @@ const renamePasskeyBodySchema = v.object({
   ),
 })
 
+type PasskeyDeviceType = 'singleDevice' | 'multiDevice'
+
 type PasskeyView = {
   id: string
   deviceName: string | null
   createdAt: string
   lastUsedAt: string | null
   transports: readonly string[]
+  backedUp: boolean
+  deviceType: PasskeyDeviceType
+}
+
+type PasskeyListResponse = { data: PasskeyView[]; limit: number }
+
+// WebAuthn Signal API 的输入:userId 与注册时 user.id 同一编码,credential ID 是公开标识。
+type PasskeySignalResponse = {
+  rpId: string
+  userId: string
+  name: string
+  displayName: string
+  allAcceptedCredentialIds: string[]
 }
 
 function toPasskeyView(row: typeof schema.passkeyCredentials.$inferSelect): PasskeyView {
@@ -40,7 +56,19 @@ function toPasskeyView(row: typeof schema.passkeyCredentials.$inferSelect): Pass
     createdAt: row.createdAt.toISOString(),
     lastUsedAt: toIso(row.lastUsedAt),
     transports: row.transports,
+    backedUp: row.backedUp,
+    deviceType: row.credentialDeviceType === 'multiDevice' ? 'multiDevice' : 'singleDevice',
   }
+}
+
+function listActivePasskeys(
+  db: ReturnType<typeof createTenantDb>,
+  userId: string,
+): Promise<(typeof schema.passkeyCredentials.$inferSelect)[]> {
+  return db.passkeyCredentials.findMany(
+    and(eq(schema.passkeyCredentials.userId, userId), isNull(schema.passkeyCredentials.revokedAt)),
+    { orderBy: asc(schema.passkeyCredentials.createdAt), limit: PASSKEY_LIMIT },
+  )
 }
 
 const app = new Hono<XidHonoEnv>()
@@ -49,14 +77,29 @@ const app = new Hono<XidHonoEnv>()
 app.get('/', async (c) => {
   const session = await requireSession(c, { pendingStatuses: ['pending_mfa_setup'] })
   const db = createTenantDb(c.env.DB, c.get('tenant'))
-  const rows = await db.passkeyCredentials.findMany(
-    and(
-      eq(schema.passkeyCredentials.userId, session.userId),
-      isNull(schema.passkeyCredentials.revokedAt),
-    ),
-    { limit: PASSKEY_LIMIT },
-  )
-  return c.json(rows.map(toPasskeyView))
+  const rows = await listActivePasskeys(db, session.userId)
+  const body: PasskeyListResponse = { data: rows.map(toPasskeyView), limit: PASSKEY_LIMIT }
+  return c.json(body)
+})
+
+// GET /v1/me/passkeys/signal:删除或重命名后 SPA 用它调用 PublicKeyCredential.signal*,
+// 让凭据管理器同步隐藏已移除的 passkey 并更新显示名。
+app.get('/signal', async (c) => {
+  const session = await requireSession(c)
+  const tenant = c.get('tenant')
+  const db = createTenantDb(c.env.DB, tenant)
+  const [rows, label] = await Promise.all([
+    listActivePasskeys(db, session.userId),
+    loadUserCredentialLabel(db, session.userId),
+  ])
+  const body: PasskeySignalResponse = {
+    rpId: tenant.rpId,
+    userId: base64UrlEncode(new TextEncoder().encode(session.userId)),
+    name: label.name,
+    displayName: label.displayName,
+    allAcceptedCredentialIds: rows.map((row) => row.credentialId),
+  }
+  return c.json(body)
 })
 
 app.patch('/:id', async (c) => {
