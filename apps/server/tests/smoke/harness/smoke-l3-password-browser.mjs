@@ -1799,7 +1799,7 @@ async function verifyBrowserMfaSelfService(page, fixture) {
   )
   const backupState = await page.evaluate(`(() => {
     const codes = Array.from(document.querySelectorAll('ul[aria-label="Backup codes"] li'))
-      .map((item) => String(item.textContent || '').trim())
+      .map((item) => String(item.textContent || '').replace(/\\s+/g, ''))
       .filter((value) => /^[A-Z2-9]{8}$/.test(value));
     return {
       count: codes.length,
