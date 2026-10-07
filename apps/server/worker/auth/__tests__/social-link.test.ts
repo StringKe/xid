@@ -207,6 +207,19 @@ describe('linking a social account from the account portal', () => {
     expect(res.status).toBe(409)
   })
 
+  it('refuses to link Apple, whose cross-site form_post callback cannot carry the session cookie', async () => {
+    const db = seed()
+
+    const res = await makeApp(makeSession({ userId: 'u_1' })).request(
+      'https://northwind.xid.dev/v1/me/social-connections/apple/link',
+      { method: 'POST' },
+      makeEnv(db),
+    )
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'invalid_request' })
+  })
+
   it('requires a signed-in session to start linking', async () => {
     const db = seed()
 

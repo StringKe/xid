@@ -216,6 +216,8 @@ export function ConnectedAccountsSection(): ReactNode {
   const connectedProviders = new Set(connected.map((item) => item.provider))
   const available = (authConfig.data?.socialProviders ?? [])
     .filter((item) => item.allowLogin && !connectedProviders.has(item.provider))
+    // Apple 的跨站 form_post 回调带不回会话 cookie,无法完成关联;访客走社交登录不受影响。
+    .filter((item) => isGuest || item.provider !== 'apple')
     .map((item) => item.provider)
   const justConnected = search.connected
     ? connected.find((item) => item.provider === search.connected)

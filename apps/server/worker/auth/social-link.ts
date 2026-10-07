@@ -57,6 +57,8 @@ export async function startSocialLink(
   input: { provider: Provider; session: SessionData },
 ): Promise<string> {
   const tenant = c.get('tenant')
+  // Apple 回调是跨站 form_post,SameSite=Lax 的会话 cookie 不会随 POST 送达,回调无法确认发起会话。
+  if (input.provider === 'apple') throw new AppError('invalid_request')
   const config = getProviderConfig(c.env, tenant, input.provider)
   if (!config) throw new AppError('invalid_request')
   assertLinkableProvider(c, tenant, input.provider)
@@ -90,7 +92,6 @@ export async function startSocialLink(
     code_challenge_method: 'S256',
     nonce,
   })
-  if (input.provider === 'apple') params.set('response_mode', 'form_post')
   return `${config.authorizationEndpoint}?${params}`
 }
 
