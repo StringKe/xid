@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PRIVACY_DELETE_GRACE_MS } from '../../privacy/constants'
 import { registerPrivacyRoutes } from '../privacy'
-import { asUnknown, buildApp, makeSession } from './harness'
+import { asUnknown, buildApp, makeSession, stepUpCookieFor, TEST_PEPPER } from './harness'
 
 type StoredRequest = {
   id: string
@@ -29,6 +29,7 @@ function makeEnv(
     blocksOwnerErasure?: boolean
     blocksInstanceManagerErasure?: boolean
     provisionalWithoutMembership?: boolean
+    strongFactorCount?: number
   } = {},
 ): { env: Env; requests: StoredRequest[]; queueSend: ReturnType<typeof vi.fn> } {
   const requests = [...initial]
@@ -120,6 +121,8 @@ function makeEnv(
           ) ?? null
         )
       },
+      // step-up 判定经租户查询层统计 TOTP 与 passkey。
+      raw: async () => (/count\(\*\)/i.test(sql) ? [[options.strongFactorCount ?? 0]] : []),
       all: async () => {
         const [tenantId, userId] = params
         return {
@@ -132,6 +135,7 @@ function makeEnv(
 
   const env = asUnknown<Env>({
     DB: { prepare },
+    PEPPER: TEST_PEPPER,
     PRIVACY_QUEUE: { send: queueSend },
     STORAGE: {
       get: async (key: string) => {
@@ -253,6 +257,51 @@ describe('account privacy request API', () => {
     expect(response.status).toBe(202)
     expect(requests[0]?.scheduledFor).toBe(Date.now() + PRIVACY_DELETE_GRACE_MS)
     expect(queueSend).not.toHaveBeenCalled()
+  })
+
+  it('requires a fresh re-verification before scheduling deletion for a user with a strong factor', async () => {
+    const { env, requests } = makeEnv([], {}, { strongFactorCount: 1 })
+    const session = makeSession()
+    const app = buildApp({ register: registerPrivacyRoutes, session })
+    const request = (cookie?: string) =>
+      app.request(
+        'https://acme.xid.dev/v1/me/privacy/requests',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
+          body: JSON.stringify({ type: 'delete', confirmation: 'DELETE' }),
+        },
+        env,
+      )
+
+    const withoutStepUp = await request()
+
+    expect(withoutStepUp.status).toBe(401)
+    expect(await withoutStepUp.json()).toMatchObject({ code: 'step_up_required' })
+    expect(requests).toHaveLength(0)
+
+    const withStepUp = await request(await stepUpCookieFor(session))
+
+    expect(withStepUp.status).toBe(202)
+    expect(requests).toHaveLength(1)
+  })
+
+  it('does not ask for re-verification before an export', async () => {
+    const { env, requests } = makeEnv([], {}, { strongFactorCount: 1 })
+    const app = buildApp({ register: registerPrivacyRoutes, session: makeSession() })
+
+    const response = await app.request(
+      'https://acme.xid.dev/v1/me/privacy/requests',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'export' }),
+      },
+      env,
+    )
+
+    expect(response.status).toBe(202)
+    expect(requests).toHaveLength(1)
   })
 
   it.each([

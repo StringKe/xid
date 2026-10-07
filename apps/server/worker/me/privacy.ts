@@ -4,6 +4,7 @@ import * as v from 'valibot'
 import { AppError } from '../lib/errors'
 import { createPersistedId } from '../lib/persisted-id'
 import { logWorkerError } from '../lib/safe-log'
+import { requireStepUp } from '../lib/step-up'
 import type { XidHonoEnv } from '../lib/types'
 import { readJsonBody, validateBody } from '../lib/validate'
 import {
@@ -189,6 +190,7 @@ app.post('/requests', async (c) => {
       meta: { paramName: 'confirmation' },
     })
   }
+  if (body.type === 'delete') await requireStepUp(c, c.get('tenant'), session)
   const now = Date.now()
   const id = createPersistedId('privacyRequest')
   const scheduledFor = body.type === 'delete' ? now + PRIVACY_DELETE_GRACE_MS : now
