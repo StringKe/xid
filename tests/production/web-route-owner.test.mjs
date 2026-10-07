@@ -99,7 +99,7 @@ describe('production web route owner contract', () => {
     expect(httpHarness).toContain('xid\\.dev\\/zh-hans"')
     expect(httpHarness).toContain('xid\\.dev\\/pt-br"')
     expect(browserHarness).toContain(
-      "checkAccountCompatibilityRoute(\n        page,\n        '/console/sessions',\n        '/account/sessions',",
+      "checkAccountCompatibilityRoute(\n        page,\n        '/console/sessions',\n        '/account/devices',",
     )
     expect(browserHarness).toContain(
       "checkAccountCompatibilityRoute(\n        page,\n        '/console/security',\n        '/account/security',",

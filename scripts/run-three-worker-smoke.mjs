@@ -668,7 +668,7 @@ async function runChecks(baseUrl, ports) {
     path: '/console/sessions?source=smoke',
     owner: 'console',
     status: 302,
-    location: '/account/sessions?source=smoke',
+    location: '/account/devices?source=smoke',
   })
   await check(baseUrl, {
     name: 'Console asset 404 boundary',

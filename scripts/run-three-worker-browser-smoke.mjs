@@ -616,8 +616,8 @@ async function switchLocales(page, origin) {
 
 async function assertAccountNavigation(page, apexOrigin) {
   await page.navigate(`${apexOrigin}/console/sessions?source=browser-smoke`)
-  await page.waitFor(() => location.pathname === '/account/sessions', 'Console account navigation')
-  if (page.documentOwner('/account/sessions', new URL(apexOrigin).host) !== 'core') {
+  await page.waitFor(() => location.pathname === '/account/devices', 'Console account navigation')
+  if (page.documentOwner('/account/devices', new URL(apexOrigin).host) !== 'core') {
     throw new Error('account document was not served by Core Worker')
   }
   print('PASS', 'Console account navigation', 'owner=core')

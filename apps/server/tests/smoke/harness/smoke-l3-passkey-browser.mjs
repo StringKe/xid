@@ -700,7 +700,7 @@ async function verifyPasswordLogin(page) {
 async function verifyPasskeyRegistration(page, fixture) {
   const authenticatorId = await page.addVirtualAuthenticator()
   await page.installFetchLog()
-  await page.clickVisibleButton('Add passkey')
+  await page.clickVisibleButton('Create a passkey')
   try {
     await page.waitFor(
       () =>

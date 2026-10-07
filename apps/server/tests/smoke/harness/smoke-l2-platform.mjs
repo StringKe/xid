@@ -336,14 +336,14 @@ async function loginAndVerifyMe() {
   const accountAlias = await fetchText('/console/sessions?source=l2-smoke', { cookie })
   if (
     accountAlias.res.status !== 302 ||
-    accountAlias.res.headers.get('location') !== '/account/sessions?source=l2-smoke' ||
+    accountAlias.res.headers.get('location') !== '/account/devices?source=l2-smoke' ||
     accountAlias.res.headers.get('x-xid-route-owner') !== 'console'
   ) {
     throw new Error(
       `/console/sessions alias mismatch http=${accountAlias.res.status} location=${accountAlias.res.headers.get('location')}`,
     )
   }
-  printResult('PASS', 'console account alias', 'target=/account/sessions')
+  printResult('PASS', 'console account alias', 'target=/account/devices')
   return cookie
 }
 

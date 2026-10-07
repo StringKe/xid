@@ -1702,13 +1702,9 @@ async function verifyBrowserMfaSelfService(page, fixture) {
   await page.navigate('/account/security')
   await page.waitFor(
     () =>
-      document.body.innerText.toLowerCase().includes('two-factor authentication') &&
-      document.body.innerText.toLowerCase().includes('add authenticator app') &&
-      document.body.innerText
-        .toLowerCase()
-        .includes('add an authenticator app or a passkey before generating backup codes') &&
-      !Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Generate backup codes',
+      document.body.innerText.toLowerCase().includes('two-step verification') &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Set up authenticator app…',
       ),
     15_000,
     'account security mfa UI',
@@ -1716,23 +1712,19 @@ async function verifyBrowserMfaSelfService(page, fixture) {
 
   const initial = await page.evaluate(`(() => ({
     text: document.body.innerText,
-    hasBackupButton: Array.from(document.querySelectorAll('button')).some(
-      (item) => String(item.textContent || '').trim() === 'Generate backup codes',
+    hasBackupButton: Array.from(document.querySelectorAll('button')).some((item) =>
+      String(item.textContent || '').trim().startsWith('Generate'),
     ),
   }))()`)
-  if (
-    !initial.text
-      .toLowerCase()
-      .includes('add an authenticator app or a passkey before generating backup codes')
-  ) {
-    throw new Error('mfa self-service missing strong-factor backup gate copy')
+  if (initial.text.toLowerCase().includes('backup codes')) {
+    throw new Error('backup codes offered before strong MFA factor')
   }
   if (initial.hasBackupButton) {
     throw new Error('backup code button visible before strong MFA factor')
   }
   printResult('PASS', 'browser mfa backup button hidden without strong factor')
 
-  await page.clickVisibleButton('Add authenticator app')
+  await page.clickVisibleButton('Set up authenticator app…')
   await page.waitFor(
     () =>
       document.body.innerText
@@ -1753,10 +1745,9 @@ async function verifyBrowserMfaSelfService(page, fixture) {
   await page.submitVisibleFormContaining('Authenticator code')
   await page.waitFor(
     () =>
-      document.body.innerText.toLowerCase().includes('authenticator app added.') &&
-      document.body.innerText.toLowerCase().includes('authenticator app (totp)') &&
+      document.body.innerText.toLowerCase().includes('codes change every 30 seconds.') &&
       Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Generate backup codes',
+        (item) => String(item.textContent || '').trim() === 'Generate codes…',
       ),
     15_000,
     'totp activated in UI',
@@ -1769,46 +1760,50 @@ async function verifyBrowserMfaSelfService(page, fixture) {
   if (meBody.user?.hasMfa !== true) throw new Error(`/v1/me hasMfa false after TOTP: ${me.body}`)
   printResult('PASS', 'browser mfa me hasMfa', 'true')
 
-  await page.clickVisibleButton('Generate backup codes')
+  await page.clickVisibleButton('Generate codes…')
   await page.waitFor(
     () =>
-      location.pathname === '/mfa' &&
-      new URLSearchParams(location.search).get('step_up') === '1' &&
-      document.querySelector('input[autocomplete="one-time-code"]') !== null,
+      document.body.innerText.includes("Confirm it's you") &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Code from your authenticator app',
+      ),
     15_000,
     'backup codes step-up challenge',
   )
-  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口;填满 6 位即自动提交。
+  await page.clickVisibleButton('Code from your authenticator app')
+  await page.waitFor(
+    () => document.querySelector('input[autocomplete="one-time-code"]') !== null,
+    15_000,
+    'step-up code input',
+  )
+  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口。
   await page.setVisibleInputValue(
     'input[autocomplete="one-time-code"]',
     await currentTotpCode(secret, 1),
   )
+  await page.submitVisibleFormContaining('Use another way')
   await page.waitFor(
     () =>
       location.pathname === '/account/security' &&
-      Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Generate backup codes',
-      ),
+      document.body.innerText.includes('Save your new backup codes') &&
+      document.querySelectorAll('ul[aria-label="Backup codes"] li').length >= 10,
     15_000,
-    'return to account security after step-up',
+    'backup codes after in-page step-up',
   )
-  printResult('PASS', 'browser backup codes step-up returns to account security')
+  printResult('PASS', 'browser backup codes in-page step-up stays on account security')
 
-  await page.clickVisibleButton('Generate backup codes')
   await page.waitFor(
-    () =>
-      document.body.innerText.toLowerCase().includes('store these backup codes now') &&
-      document.querySelectorAll('ul li').length >= 10,
+    () => document.body.innerText.toLowerCase().includes('10 of 10 unused.'),
     15_000,
-    'backup codes UI',
+    'backup codes factor refreshed',
   )
   const backupState = await page.evaluate(`(() => {
-    const codes = Array.from(document.querySelectorAll('ul li'))
+    const codes = Array.from(document.querySelectorAll('ul[aria-label="Backup codes"] li'))
       .map((item) => String(item.textContent || '').trim())
       .filter((value) => /^[A-Z2-9]{8}$/.test(value));
     return {
       count: codes.length,
-      hasBackupFactor: document.body.innerText.toLowerCase().includes('backup codes (10 remaining)'),
+      hasBackupFactor: document.body.innerText.toLowerCase().includes('10 of 10 unused.'),
       badClass: Array.from(document.querySelectorAll('[class]')).some((node) => {
         const value = node.getAttribute('class') || '';
         return value.includes('=>') || value.includes('isActive') || value.includes('function');
@@ -1840,7 +1835,11 @@ async function verifyBrowserSocialSignIn(page, tenantId, providerState) {
   )
   await page.clickVisibleButton(socialProvider)
   try {
-    await page.waitFor(() => location.pathname === '/account', 20_000, 'social account portal')
+    await page.waitFor(
+      () => location.pathname === '/account/security',
+      20_000,
+      'social account portal',
+    )
   } catch (error) {
     const snapshot = await page.snapshot()
     const providerSnapshot = providerState()
@@ -1856,7 +1855,7 @@ async function verifyBrowserSocialSignIn(page, tenantId, providerState) {
   }
   try {
     await page.waitFor(
-      () => document.body.innerText.includes('Account settings'),
+      () => document.body.innerText.includes('Your account'),
       15_000,
       'social signed in',
     )
@@ -1910,7 +1909,7 @@ async function verifyBrowserSocialSignIn(page, tenantId, providerState) {
   }
 
   const snapshot = await page.snapshot()
-  if (snapshot.pathname !== '/account') {
+  if (snapshot.pathname !== '/account/security') {
     throw new Error(`social default target mismatch: ${snapshot.href}`)
   }
   assertNoConsoleDeadState(snapshot, 'social account portal')

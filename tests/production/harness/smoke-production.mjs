@@ -485,7 +485,7 @@ const checks = [
     path: '/console/sessions?from=smoke',
     expectStatus: 302,
     expectLocation: (location) =>
-      webRedirectLocationMatches(location, consoleBaseUrl, '/account/sessions', '?from=smoke'),
+      webRedirectLocationMatches(location, consoleBaseUrl, '/account/devices', '?from=smoke'),
   },
   {
     name: 'console-security-account-alias',

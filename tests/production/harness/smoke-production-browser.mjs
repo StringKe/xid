@@ -1800,7 +1800,7 @@ async function waitForAccountSecurityMfaUi(page, allowReload = true) {
     if (!locale.found) throw new Error('production account locale selector missing')
     if (locale.previous !== 'en') {
       await page.waitFor(
-        () => document.body.innerText.includes('Two-factor authentication'),
+        () => document.body.innerText.includes('Two-step verification'),
         15_000,
         'production account English locale',
       )
@@ -1808,8 +1808,8 @@ async function waitForAccountSecurityMfaUi(page, allowReload = true) {
     }
     await page.waitFor(
       () =>
-        document.body.innerText.toLowerCase().includes('two-factor authentication') &&
-        document.body.innerText.includes('Add authenticator app'),
+        document.body.innerText.toLowerCase().includes('two-step verification') &&
+        document.body.innerText.includes('Set up authenticator app…'),
       30_000,
       'production account security mfa UI',
     )
@@ -1825,34 +1825,24 @@ async function waitForAccountSecurityMfaUi(page, allowReload = true) {
 }
 
 async function setupTotpSelfService(page, organizationId, userId) {
-  const backupGateCopy =
-    'Add an authenticator app or a passkey before generating backup codes or using text message codes.'
   await cleanupMfaSelfService(organizationId, userId)
   await waitForAccountSecurityMfaUi(page)
-  await page.waitFor(
-    Function(`return document.body.innerText.includes(${JSON.stringify(backupGateCopy)}) ||
-      Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Generate backup codes'
-      )`),
-    15_000,
-    'production mfa backup readiness',
-  )
 
   const initial = await page.evaluate(`(() => ({
     text: document.body.innerText,
-    hasBackupButton: Array.from(document.querySelectorAll('button')).some(
-      (item) => String(item.textContent || '').trim() === 'Generate backup codes',
+    hasBackupButton: Array.from(document.querySelectorAll('button')).some((item) =>
+      String(item.textContent || '').trim().startsWith('Generate'),
     ),
   }))()`)
-  if (!initial.text.includes(backupGateCopy)) {
-    throw new Error('production mfa self-service missing backup gate copy')
+  if (initial.text.includes('Backup codes')) {
+    throw new Error('production backup codes offered before strong MFA factor')
   }
   if (initial.hasBackupButton) {
     throw new Error('production backup code button visible before strong MFA factor')
   }
   printResult('PASS', 'production mfa backup button hidden without strong factor')
 
-  await page.clickVisibleButton('Add authenticator app')
+  await page.clickVisibleButton('Set up authenticator app…')
   await page.waitFor(
     () =>
       document.body.innerText.includes('Scan this QR code with your authenticator app') &&
@@ -1871,10 +1861,9 @@ async function setupTotpSelfService(page, organizationId, userId) {
   await page.submitVisibleFormContaining('Authenticator code')
   await page.waitFor(
     () =>
-      document.body.innerText.includes('Authenticator app added.') &&
-      document.body.innerText.includes('Authenticator app (TOTP)') &&
+      document.body.innerText.includes('Codes change every 30 seconds.') &&
       Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Generate backup codes',
+        (item) => String(item.textContent || '').trim() === 'Generate codes…',
       ),
     15_000,
     'production totp activated in UI',
@@ -1900,49 +1889,48 @@ async function setupTotpSelfService(page, organizationId, userId) {
 
 async function checkMfaSelfServiceFlow(page, organizationId, userId) {
   const { secret } = await setupTotpSelfService(page, organizationId, userId)
-  await page.clickVisibleButton('Generate backup codes')
+  await page.clickVisibleButton('Generate codes…')
   await page.waitFor(
     () =>
-      location.pathname === '/mfa' &&
-      new URLSearchParams(location.search).get('step_up') === '1' &&
-      document.querySelector('input[autocomplete="one-time-code"]') !== null,
+      document.body.innerText.includes("Confirm it's you") &&
+      Array.from(document.querySelectorAll('button')).some(
+        (item) => String(item.textContent || '').trim() === 'Code from your authenticator app',
+      ),
     15_000,
     'production backup codes step-up challenge',
   )
-  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口;填满 6 位即自动提交。
+  await page.clickVisibleButton('Code from your authenticator app')
+  await page.waitFor(
+    () => document.querySelector('input[autocomplete="one-time-code"]') !== null,
+    15_000,
+    'production step-up code input',
+  )
+  // 激活已占用当前窗口的码(防重放),step-up 用服务端容忍的下一个窗口。
   await page.setVisibleInputValue(
     'input[autocomplete="one-time-code"]',
     await currentTotpCode(secret, 1),
   )
+  await page.submitVisibleFormContaining('Use another way')
   await page.waitFor(
     () =>
       location.pathname === '/account/security' &&
-      Array.from(document.querySelectorAll('button')).some(
-        (item) => String(item.textContent || '').trim() === 'Generate backup codes',
-      ),
-    15_000,
-    'production return to account security after step-up',
-  )
-  await page.clickVisibleButton('Generate backup codes')
-  await page.waitFor(
-    () =>
-      document.body.innerText.includes('Store these backup codes now') &&
-      document.querySelectorAll('ul li').length >= 10,
+      document.body.innerText.includes('Save your new backup codes') &&
+      document.querySelectorAll('ul[aria-label="Backup codes"] li').length >= 10,
     15_000,
     'production backup codes UI',
   )
   await page.waitFor(
-    () => document.body.innerText.includes('Backup codes (10 remaining)'),
+    () => document.body.innerText.includes('10 of 10 unused.'),
     15_000,
     'production backup factor visible',
   )
   const backupState = await page.evaluate(`(() => {
-    const codes = Array.from(document.querySelectorAll('ul li'))
+    const codes = Array.from(document.querySelectorAll('ul[aria-label="Backup codes"] li'))
       .map((item) => String(item.textContent || '').trim())
       .filter((value) => /^[A-Z2-9]{8}$/.test(value));
     return {
       count: codes.length,
-      hasBackupFactor: document.body.innerText.includes('Backup codes (10 remaining)'),
+      hasBackupFactor: document.body.innerText.includes('10 of 10 unused.'),
       badClass: Array.from(document.querySelectorAll('[class]')).some((node) => {
         const value = node.getAttribute('class') || '';
         return value.includes('=>') || value.includes('isActive') || value.includes('function');
@@ -2032,11 +2020,11 @@ async function checkPasskeyRegistrationAndSignInFlow(page, organizationId, userI
   }
   const authenticatorId = await page.addVirtualAuthenticator()
   try {
-    await page.clickVisibleButton('Add passkey')
+    await page.clickVisibleButton('Create a passkey')
   } catch (error) {
     const snapshot = await page.snapshot()
-    if (!snapshot.text.includes('w3zmQl')) throw error
-    await page.clickVisibleButton('w3zmQl')
+    if (!snapshot.text.includes('XBMf75')) throw error
+    await page.clickVisibleButton('XBMf75')
   }
   try {
     await page.waitFor(
@@ -3042,8 +3030,8 @@ export async function runProductionBrowserSmoke() {
       await checkAccountCompatibilityRoute(
         page,
         '/console/sessions',
-        '/account/sessions',
-        'Active sessions',
+        '/account/devices',
+        'Signed in',
       )
       await checkAccountCompatibilityRoute(
         page,
