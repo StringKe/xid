@@ -9357,6 +9357,50 @@ describe('account portal /v1/me 资源跨租户隔离', () => {
     expect(await res.json()).toMatchObject(expected)
   })
 
+  // 待验证记录放在租户 B,但 user_id 与租户 A 的会话用户相同:只有租户谓词能挡住它。
+  it.each([
+    ['/v1/me/emails/vt_b/verify', 'contact_email', 'email', '{"target":"taken@tenant-b.test"}'],
+    ['/v1/me/phones/vt_b/verify', 'contact_phone', 'sms', '{"target":"+14155550123"}'],
+  ])(
+    'POST %s with a tenant B pending code is rejected and leaves it unchanged',
+    async (path, purpose, channel, flowContext) => {
+      const db = seedTwoTenants()
+      db.insert('verification_tokens', {
+        id: 'vt_b',
+        tenant_id: 't_2',
+        user_id: 'user_a',
+        token_hash: 'vt_b',
+        code_hash: await sha256Hex('123456'),
+        flow_context: flowContext,
+        channel,
+        purpose,
+        attempt_count: 0,
+        expires_at: Date.now() + 600_000,
+        created_at: 1,
+      })
+
+      const res = await accountApp().request(
+        `https://acme.xid.dev${path}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ code: '123456' }),
+        },
+        accountEnv(db),
+      )
+
+      expect(res.status).toBe(400)
+      expect(await res.json()).toMatchObject({ code: 'otp_invalid' })
+      expect(db.rows('SELECT consumed_at, attempt_count FROM verification_tokens')).toEqual([
+        { consumed_at: null, attempt_count: 0 },
+      ])
+      expect(db.rows('SELECT id FROM user_emails WHERE user_id = ?', 'user_a')).toEqual([
+        { id: 'em_user_a' },
+      ])
+      expect(db.rows('SELECT id FROM user_phones')).toEqual([{ id: 'ph_b' }])
+    },
+  )
+
   it('GET /v1/me/passkeys/signal never returns tenant B credential ids', async () => {
     const db = seedTwoTenants()
 
