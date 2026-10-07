@@ -723,7 +723,8 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
 
   .home-footer nav {
     display: flex;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
   }
 
   .home-footer a {
@@ -786,5 +787,8 @@ const evidenceHref = localizeSitePath("/oidc-oauth", locale);
       padding-left: 2.25rem;
     }
 
+    .home-footer {
+      flex-direction: column;
+    }
   }
 </style>
