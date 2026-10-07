@@ -1211,7 +1211,16 @@ class CdpPage {
     })()`)
   }
 
-  async clickVisibleButton(label) {
+  async clickVisibleButton(label, timeoutMs = 15_000) {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (await this.tryClickVisibleButton(label)) return
+      await delay(250)
+    }
+    throw new Error(`visible enabled button not found: ${label}`)
+  }
+
+  async tryClickVisibleButton(label) {
     const clicked = await this.evaluate(`(() => {
       const label = ${JSON.stringify(label)};
       const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -1231,7 +1240,7 @@ class CdpPage {
       node.click();
       return true;
     })()`)
-    if (clicked !== true) throw new Error(`visible enabled button not found: ${label}`)
+    return clicked === true
   }
 
   async setVisibleInputValue(selector, value) {
