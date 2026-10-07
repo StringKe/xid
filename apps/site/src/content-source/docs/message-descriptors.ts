@@ -1784,7 +1784,6 @@ export const docsMessageDescriptors = [
     id: 'd4arGc',
     message: 'Process a custom URI scheme callback and exchange the authorization code.',
   },
-  /*i18n*/ { id: 'd6xEEc', message: 'Billing components' },
   /*i18n*/ { id: 'dA8-fR', message: '^3.0.3' },
   /*i18n*/ {
     id: 'dDsV7e',
@@ -2422,7 +2421,6 @@ export const docsMessageDescriptors = [
   },
   /*i18n*/ { id: 'rMLaDU', message: 'Constructor options for JwksCache: jwksUri, ttlSec, fetchFn' },
   /*i18n*/ { id: 'rRlcMF', message: 'Provider-ready, separate from Microsoft Entra ID.' },
-  /*i18n*/ { id: 'rV-BNL', message: 'Usage and plan management embeds' },
   /*i18n*/ { id: 'rYO1xO', message: 'Core API' },
   /*i18n*/ { id: 'raAZAf', message: 'Chromium-based embedded authorization window' },
   /*i18n*/ {

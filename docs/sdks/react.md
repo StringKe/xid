@@ -154,12 +154,11 @@ function Layout() {
 
 The following are designed and committed to the public roadmap but are not exported from the current package. Do not assume availability:
 
-| Symbol              | Design commitment                | Current state   |
-| ------------------- | -------------------------------- | --------------- |
-| `GoogleOneTap`      | One-tap sign-in embed            | Not implemented |
-| `Waitlist`          | Waitlist sign-up gate            | Not implemented |
-| Billing components  | Usage and plan management embeds | Not implemented |
-| `useReverification` | Step-up authentication hook      | Not implemented |
+| Symbol              | Design commitment           | Current state   |
+| ------------------- | --------------------------- | --------------- |
+| `GoogleOneTap`      | One-tap sign-in embed       | Not implemented |
+| `Waitlist`          | Waitlist sign-up gate       | Not implemented |
+| `useReverification` | Step-up authentication hook | Not implemented |
 
 ## i18n and appearance
 

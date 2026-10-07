@@ -114,6 +114,7 @@ export const ORG_NAV: readonly ConsoleNavItem[] = [
   },
 ]
 
+const PLATFORM_USAGE_PATH = '/console/platform/usage'
 const platformDirectory = { groupKey: 'directory', groupLabel: msg`Directory` }
 const platformOperations = { groupKey: 'operations', groupLabel: msg`Operations` }
 
@@ -163,17 +164,24 @@ export const PLATFORM_NAV: readonly ConsoleNavItem[] = [
     ...platformOperations,
   },
   {
-    to: '/console/platform/billing',
-    label: msg`Billing`,
-    icon: 'credit-card',
+    to: PLATFORM_USAGE_PATH,
+    label: msg`Usage`,
+    icon: 'gauge',
     ...platformOperations,
   },
   {
-    to: '/console/platform/plans',
-    label: msg`Plans and quotas`,
+    to: '/console/platform/quotas',
+    label: msg`Resource quotas`,
     icon: 'package',
-    groupKey: 'billing',
-    groupLabel: msg`Billing`,
+    ...platformOperations,
   },
   { to: '/console/platform/settings', label: msg`Settings`, icon: 'gear' },
 ]
+
+// 计费关闭时导航不出现「计费」字样;开启时用量入口同时承载欠费状态与 Customer Portal。
+export function platformNav(options: { isBillingEnabled: boolean }): readonly ConsoleNavItem[] {
+  if (!options.isBillingEnabled) return PLATFORM_NAV
+  return PLATFORM_NAV.map((item) =>
+    item.to === PLATFORM_USAGE_PATH ? { ...item, label: msg`Usage and billing` } : item,
+  )
+}

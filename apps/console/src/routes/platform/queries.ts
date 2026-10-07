@@ -7,12 +7,12 @@ import type {
 } from '@tanstack/react-query'
 import type {
   AuditChainVerification,
-  BillingOverview,
+  BillingConfig,
   ComplianceDocument,
   GlobalUser,
   InstanceManagerAssignment,
-  OrganizationPlanDetail,
-  OrganizationPlanPatch,
+  OrganizationQuotaDetail,
+  OrganizationQuotaPatch,
   PlatformAnnouncement,
   PlatformAuditEvent,
   PlatformOrganization,
@@ -22,8 +22,8 @@ import type {
   QueueDeadLetter,
   QueueDeadLetterReplay,
   StatusIncident,
-  StripeBillingConfig,
   StripeHostedSession,
+  UsageOverview,
   XidError,
 } from '@xid-kit/types'
 import {
@@ -133,49 +133,30 @@ export function usePlatformSettingsQuery(): UseQueryResult<PlatformSettings, Xid
   return useApiQuery<PlatformSettings>(queryKeys.platformSettings, '/v1/platform/settings')
 }
 
-export function useBillingOverviewList(): PlatformList<BillingOverview> {
-  return useApiInfiniteQuery<PlatformPage<BillingOverview>>(
-    queryKeys.platformBilling,
-    '/v1/platform/billing',
+export function useUsageOverviewList(): PlatformList<UsageOverview> {
+  return useApiInfiniteQuery<PlatformPage<UsageOverview>>(
+    queryKeys.platformUsage,
+    '/v1/platform/usage',
     { query: { limit: 20 } },
   )
 }
 
-export function useOrganizationPlanQuery(
+export function useOrganizationQuotaQuery(
   tenantId: string,
-  options?: { refetchInterval?: number | false },
-): UseQueryResult<OrganizationPlanDetail, XidError> {
-  return useApiQuery<OrganizationPlanDetail>(
-    queryKeys.platformPlan(tenantId),
-    `/v1/platform/plans/${encodeURIComponent(tenantId)}`,
-    {
-      enabled: tenantId.length > 0,
-      ...(options?.refetchInterval ? { refetchInterval: options.refetchInterval } : {}),
-    },
+): UseQueryResult<OrganizationQuotaDetail, XidError> {
+  return useApiQuery<OrganizationQuotaDetail>(
+    queryKeys.platformQuota(tenantId),
+    `/v1/platform/quotas/${encodeURIComponent(tenantId)}`,
+    { enabled: tenantId.length > 0 },
   )
 }
 
-export function useStripeBillingConfigQuery(
-  tenantId: string,
-): UseQueryResult<StripeBillingConfig, XidError> {
-  return useApiQuery<StripeBillingConfig>(
-    queryKeys.platformStripeBilling(tenantId),
-    '/v1/platform/billing/stripe-config',
-    { enabled: tenantId.length > 0, query: { tenantId } },
-  )
-}
-
-export function useCreateStripeCheckout(): UseMutationResult<
-  StripeHostedSession,
-  XidError,
-  {
-    tenantId: string
-    plan: Exclude<OrganizationPlanDetail['plan'], 'free'>
-    idempotencyKey: string
-  }
-> {
-  return useApiMutation((api, body) =>
-    api.post<StripeHostedSession>('/v1/platform/billing/checkout', body),
+// 不带 tenantId 时只回答实例是否开启计费;带 tenantId 时额外回答该租户能否打开 Customer Portal。
+export function useBillingConfigQuery(tenantId?: string): UseQueryResult<BillingConfig, XidError> {
+  return useApiQuery<BillingConfig>(
+    queryKeys.platformBillingConfig(tenantId),
+    '/v1/platform/billing/config',
+    tenantId ? { query: { tenantId } } : undefined,
   )
 }
 
@@ -189,21 +170,21 @@ export function useCreateStripePortal(): UseMutationResult<
   )
 }
 
-export function useUpdateOrganizationPlan(): UseMutationResult<
-  OrganizationPlanDetail,
+export function useUpdateOrganizationQuotas(): UseMutationResult<
+  OrganizationQuotaDetail,
   XidError,
-  { tenantId: string; body: OrganizationPlanPatch }
+  { tenantId: string; body: OrganizationQuotaPatch }
 > {
-  return useApiMutation<OrganizationPlanDetail, { tenantId: string; body: OrganizationPlanPatch }>(
+  return useApiMutation<
+    OrganizationQuotaDetail,
+    { tenantId: string; body: OrganizationQuotaPatch }
+  >(
     (api, { tenantId, body }) =>
-      api.patch<OrganizationPlanDetail>(`/v1/platform/plans/${encodeURIComponent(tenantId)}`, body),
-    {
-      invalidate: [
-        queryKeyPrefixes.platformPlans,
-        queryKeyPrefixes.platformOrganizations,
-        queryKeyPrefixes.platformBilling,
-      ],
-    },
+      api.patch<OrganizationQuotaDetail>(
+        `/v1/platform/quotas/${encodeURIComponent(tenantId)}`,
+        body,
+      ),
+    { invalidate: [queryKeyPrefixes.platformQuotas, queryKeyPrefixes.platformUsage] },
   )
 }
 

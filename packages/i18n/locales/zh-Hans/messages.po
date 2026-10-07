@@ -935,10 +935,6 @@ msgstr "账户安全与资料管理"
 msgid "Account settings"
 msgstr "账户设置"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Accounting plan"
-msgstr "计费方案"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ACS endpoint for signed or encrypted SAML responses."
 msgstr "用于接收已签名或已加密 SAML 响应的 ACS 端点。"
@@ -964,10 +960,10 @@ msgstr "需要采取行动"
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
@@ -996,7 +992,6 @@ msgstr "激活设备 | XID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -2123,26 +2118,13 @@ msgstr "继续前往 {app} 之前"
 msgid "Between 1 and 1440 minutes."
 msgstr "1 到 1440 分钟。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Billing"
 msgstr "计费"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Billing components"
-msgstr "计费组件"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview"
-msgstr "计费概览"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Billing overview | Console | XID"
-msgstr "计费概览 | 控制台 | XID"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview table"
-msgstr "计费概览表格"
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Billing status"
+msgstr "计费状态"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "billing_admin"
@@ -2158,7 +2140,7 @@ msgstr "绑定"
 msgid "Binding names are fixed by the deployment configuration."
 msgstr "绑定名称由部署配置固定。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Block new resource creation"
 msgstr "阻止新资源创建"
 
@@ -2375,10 +2357,6 @@ msgstr "取消删除"
 msgid "Cancel the current user's pending request."
 msgstr "取消当前用户的待处理请求。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Canceled"
-msgstr "已取消"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Capabilities"
 msgstr "能力"
@@ -2480,18 +2458,6 @@ msgstr "查看你的短信"
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Checked at sign-in for every application in {name}."
 msgstr "登录 {name} 中的任何应用时检查。"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Enterprise"
-msgstr "购买 Enterprise"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Pro"
-msgstr "购买 Pro"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Starter"
-msgstr "购买 Starter"
 
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
@@ -3610,7 +3576,7 @@ msgstr "数据与隐私 | 账户 | XID"
 msgid "Data residency label"
 msgstr "数据驻留标签"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "DAU"
 msgstr "DAU"
 
@@ -4482,7 +4448,7 @@ msgstr "端点"
 msgid "Ends at"
 msgstr "结束于"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Enforcement"
 msgstr "强制执行"
 
@@ -4622,11 +4588,6 @@ msgstr "输入密码"
 msgid "Enter your work email. We'll send you to your company's sign-in page."
 msgstr "输入你的工作邮箱。我们会把你带到公司的登录页面。"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Enterprise"
-msgstr "Enterprise"
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "通行密钥注册的企业证明策略。直接模式要求根据已配置受信任根验证硬件证明链。"
@@ -4732,8 +4693,8 @@ msgid "Every app you sign in to with this account."
 msgstr "你用此账户登录的所有应用。"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-msgid "Every organization on this instance, with plan and lifecycle status."
-msgstr "此实例上的所有组织，包含计划和生命周期状态。"
+msgid "Every organization on this instance, with lifecycle status."
+msgstr "此实例上的所有组织及其生命周期状态。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
@@ -4786,10 +4747,6 @@ msgstr "example.com"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "example.com, company.com"
 msgstr "example.com, company.com"
-
-#: packages/web-ui/src/enum-labels.tsx
-msgid "Exceeded"
-msgstr "已超出"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Exception hierarchy: <0>Xid::Error</0> -> <1>ConfigurationError</1>, <2>JwksError</2>, <3>TokenVerificationError</3>, <4>WebhookVerificationError</4>."
@@ -4972,10 +4929,6 @@ msgstr "加载审计事件失败。请重试。"
 msgid "Failed to load authentication policy."
 msgstr "加载认证策略失败。"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Failed to load billing overview. Please try again."
-msgstr "加载计费概览失败。请重试。"
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Failed to load branding settings."
 msgstr "加载品牌设置失败。"
@@ -5028,10 +4981,6 @@ msgstr "加载出站 SAML 应用失败。"
 msgid "Failed to load permissions."
 msgstr "加载权限失败。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to load plan and quota settings. Please try again."
-msgstr "加载计划与配额设置失败。请重试。"
-
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Failed to load platform settings."
 msgstr "加载平台设置失败。"
@@ -5043,6 +4992,10 @@ msgstr "加载平台统计失败。请重试。"
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "无法加载项目。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to load quota settings. Please try again."
+msgstr "加载配额设置失败。请重试。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5068,21 +5021,29 @@ msgstr "加载社交登录提供商失败。"
 msgid "Failed to load status incidents."
 msgstr "无法加载状态事件。"
 
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Failed to load usage overview. Please try again."
+msgstr "加载用量概览失败。请重试。"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
 msgstr "无法加载用户授权。"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Failed to open the Customer Portal. Try again."
+msgstr "无法打开客户门户。请重试。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to resolve the selected managed scope."
 msgstr "无法解析选定的托管范围。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to save plan and quota settings. Try again."
-msgstr "保存计划与配额设置失败。请重试。"
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to save project changes. Try again."
 msgstr "保存项目更改失败。请重试。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to save quota settings. Try again."
+msgstr "保存配额设置失败。请重试。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to search users."
@@ -5091,10 +5052,6 @@ msgstr "搜索用户失败。"
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Failed to search users. Please try again."
 msgstr "搜索用户失败。请重试。"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to start managed billing. Try again."
-msgstr "启动托管计费失败。请重试。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -5268,11 +5225,6 @@ msgstr "框架集成功能（<0>axum</0>、<1>actix-web</1>）已在计划中，
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Framework-agnostic reactive store; subscribe with useSyncExternalStore in framework bindings"
 msgstr "与框架无关的响应式 store；在框架绑定中使用 useSyncExternalStore 订阅"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Free"
-msgstr "免费"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -6601,7 +6553,7 @@ msgstr "许可证"
 msgid "Like getAuth but throws a redirect response when unauthenticated"
 msgstr "类似 getAuth，但在未认证时抛出重定向响应"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Limit"
 msgstr "上限"
 
@@ -6671,9 +6623,9 @@ msgid "Live status is temporarily unavailable."
 msgstr "实时状态暂时不可用。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Load more"
 msgstr "加载更多"
@@ -6772,13 +6724,13 @@ msgstr "正在加载邀请"
 msgid "Loading organization stats"
 msgstr "正在加载组织统计"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Loading plan and quota settings"
-msgstr "正在加载计划与配额设置"
-
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "Loading platform stats"
 msgstr "正在加载平台统计"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Loading quota settings"
+msgstr "正在加载配额设置"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Loading social providers"
@@ -7017,10 +6969,6 @@ msgstr "管理用于发现、Hosted Auth 和组织路由的已验证域名。"
 msgid "Manage your passkeys any time in your account under Security."
 msgstr "你可以随时在账户的“安全”中管理通行密钥。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Managed billing"
-msgstr "托管计费"
-
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Managed by your directory"
 msgstr "由你的目录管理"
@@ -7090,7 +7038,7 @@ msgstr "建议使用 Markdown 供 AI 读取"
 msgid "Matches names that start with this text."
 msgstr "匹配以此文本开头的名称。"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "MAU"
 msgstr "MAU"
 
@@ -7148,6 +7096,14 @@ msgstr "消息通道"
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Metadata URL"
 msgstr "元数据 URL"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage and billing status for every organization."
+msgstr "每个组织的计量用量和计费状态。"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage for every organization."
+msgstr "每个组织的计量用量。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Method"
@@ -7536,10 +7492,6 @@ msgstr "没有审计事件。"
 msgid "No audit events match the current filters."
 msgstr "没有审计事件符合当前筛选条件。"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "No billing data available."
-msgstr "没有可用计费数据。"
-
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "No client authentication; PKCE protects the code exchange"
 msgstr "不进行客户端认证；由 PKCE 保护授权码换取"
@@ -7775,6 +7727,10 @@ msgstr "无第三方依赖——使用 Apple 系统框架（AuthenticationServic
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No third-party dependencies — uses Apple system frameworks only"
 msgstr "无第三方依赖——仅使用 Apple 系统框架"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "No usage data available."
+msgstr "暂无用量数据。"
 
 #: apps/console/src/routes/applications/app-format.ts
 msgid "No user sign-in"
@@ -8045,7 +8001,7 @@ msgstr "在 loopback callback 上验证 OAuth state 以防 CSRF（RFC 8252 loopb
 msgid "Object"
 msgstr "对象"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Observe only"
 msgstr "仅观察"
 
@@ -8244,7 +8200,7 @@ msgstr "以 PKCE S256 授权 URL 打开 ASWebAuthenticationSession。浏览器�
 msgid "Open console"
 msgstr "打开控制台"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
 msgid "Open Customer Portal"
 msgstr "打开客户门户"
 
@@ -8280,10 +8236,6 @@ msgstr "开源身份平台"
 #: apps/site/src/lib/home-surface.ts
 msgid "Open source, inspectable, and self-hostable"
 msgstr "开源、可审查、可自托管"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Open Stripe-hosted Checkout to start a managed subscription, or use the Customer Portal for an existing billing account. These controls do not license-gate self-hosted features."
-msgstr "打开由 Stripe 托管的 Checkout 以开始托管订阅，或使用 Customer Portal 管理现有计费账户。这些控件不会通过许可证限制自托管功能。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -8418,8 +8370,8 @@ msgid "Org creation flow"
 msgstr "组织创建流程"
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
@@ -8448,7 +8400,7 @@ msgid "Organization hierarchy"
 msgstr "组织层次结构"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Organization ID"
 msgstr "组织 ID"
 
@@ -8802,10 +8754,6 @@ msgstr "密码强度计"
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "Passwordless Email Magic Link 和 OTP 请求在创建 challenge 时冻结 sign-up intent、服务端控制的 continuation、application client 和 invitation row ID。Social OAuth 邀请授权同样会在跳转上游 provider 前验证原始 capability,在一次性 state 中只持久化 invitation row ID,并在 callback 时忽略调用方控制的 token route。验证请求不能改写这些字段。原始 invitation capability 不会存入这些流程上下文;当 MFA 中断接受流程时,XID 使用绑定 Tenant、User、Session 和 invitation 的短期 signed continuation。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Past due"
-msgstr "逾期"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "PATCH operations"
 msgstr "PATCH 操作"
@@ -8821,10 +8769,6 @@ msgstr "路径"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Payload structure"
 msgstr "payload 结构"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Payment completed. The plan updates after Stripe confirms the subscription, which can take a minute. Reload this page if it does not change."
-msgstr "支付已完成。Stripe 确认订阅后方案才会更新，可能需要一分钟。如果没有变化，请刷新此页面。"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -8881,9 +8825,9 @@ msgstr "注册时各字段的收集方式。必填字段未填写前无法完成
 msgid "Per-organization branding"
 msgstr "按组织的品牌配置"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Per-organization plan, quota, and managed billing settings for this instance."
-msgstr "此实例中各组织的计划、配额和托管计费设置。"
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Per-organization resource quotas for this instance."
+msgstr "此实例上各组织的资源配额。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Permission"
@@ -8997,42 +8941,9 @@ msgstr "PKCE verifier 和 OAuth state 存在于注入的安全存储适配器中
 msgid "Place the middleware file in <0>server/middleware/</0> to ensure it covers all routes as a global Nitro middleware."
 msgstr "将 middleware 文件放在 <0>server/middleware/</0> 中，以确保它作为全局 Nitro middleware 覆盖所有路由。"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan"
-msgstr "计划"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan and quota settings saved."
-msgstr "已保存方案和配额设置。"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan status"
-msgstr "方案状态"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan, lifecycle status, trial, and resource quotas for this organization."
-msgstr "此组织的计划、生命周期状态、试用和资源配额。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Planned"
 msgstr "计划中"
-
-#: apps/console/src/nav.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans and quotas"
-msgstr "方案和配额"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Plans and quotas | Console | XID"
-msgstr "方案和配额 | Console | XID"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans are accounting and support labels. They never disable authentication, token issuance, or configured protocols in a self-hosted deployment."
-msgstr "方案仅用于计费和支持标签。在自托管部署中，方案绝不会禁用身份验证、令牌签发或已配置的协议。"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -9190,11 +9101,6 @@ msgstr "私钥 JWT"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Private windows in some browsers can't save passkeys. Use a regular window."
 msgstr "部分浏览器的无痕窗口无法保存通行密钥。请使用普通窗口。"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Pro"
-msgstr "Pro"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Process a custom URI scheme callback and exchange the authorization code."
@@ -9573,8 +9479,8 @@ msgid "Publish"
 msgstr "发布"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Publish time-bounded notices globally, to one tenant, or to an accounting plan."
-msgstr "向所有租户、单个租户或某个计费方案发布有时限的通知。"
+msgid "Publish time-bounded notices globally or to one tenant."
+msgstr "向全部租户或单个租户发布有时限的公告。"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Publish update"
@@ -9631,6 +9537,14 @@ msgstr "快捷操作"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Quick start"
 msgstr "快速开始"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quota settings saved."
+msgstr "配额设置已保存。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quotas never disable authentication, token issuance, or configured protocols."
+msgstr "配额永远不会停用认证、令牌签发或已配置的协议。"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "R2 storage key"
@@ -10365,9 +10279,20 @@ msgstr "资源"
 msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
 msgstr "资源的 GET 响应包含来自 <1>meta.version</1> 的 <0>ETag: W/\"<meta.version>\"</0>。<2>If-Match</2> 在 <3>PUT</3>、<4>PATCH</4> 和 <5>DELETE</5> 上是可选的；提供时必须与当前版本一致，不一致或发生并发写入时返回 <6>412</6>。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Resource quotas"
 msgstr "资源配额"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Resource quotas | Console | XID"
+msgstr "资源配额 | 控制台 | XID"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Resource quotas for this organization."
+msgstr "此组织的资源配额。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
@@ -10834,7 +10759,7 @@ msgstr "先保存一份副本"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Save changes"
 msgstr "保存更改"
@@ -11052,11 +10977,7 @@ msgstr "搜索用户、应用，或跳转到页面"
 msgid "Searching"
 msgstr "正在搜索"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Seat limit"
-msgstr "席位上限"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "席位"
 
@@ -11139,10 +11060,6 @@ msgstr "查看你的手机号"
 msgid "Select"
 msgstr "选择"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Select a plan"
-msgstr "选择方案"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
 msgstr "选择角色、附加权限，并可选择要求 JSON ABAC 条件。服务器验证支持的运算符和变量路径。"
@@ -11151,9 +11068,9 @@ msgstr "选择角色、附加权限，并可选择要求 JSON ABAC 条件。服�
 msgid "Select a search result or enter the exact ID of an active user."
 msgstr "选择搜索结果或输入活动用户的准确 ID。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
-msgstr "选择一个组织以查看和编辑其计划与配额。<0>浏览平台组织</0>"
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Select an organization to view and edit its resource quotas. <0>Browse platform organizations</0>"
+msgstr "选择一个组织以查看和编辑其资源配额。<0>浏览平台组织</0>"
 
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Select and copy"
@@ -12117,11 +12034,6 @@ msgid "Started this on a TV or tablet? Open {host} on your phone and enter the c
 msgstr "是在电视或平板上开始的？请在手机上打开 {host} 并在那里输入代码。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Starter"
-msgstr "Starter"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Starts at"
 msgstr "开始于"
 
@@ -12132,7 +12044,6 @@ msgstr "状态变更监听器 callback 类型"
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/useSsoConnectionColumns.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -12242,10 +12153,6 @@ msgstr "string"
 msgid "string constant"
 msgstr "字符串常量"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Stripe Checkout was canceled. The plan was not changed."
-msgstr "Stripe Checkout 已取消。方案没有变化。"
-
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Strong"
 msgstr "强"
@@ -12298,10 +12205,6 @@ msgstr "成功"
 #: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "支持"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Support label"
-msgstr "支持标签"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Support levels"
@@ -13236,6 +13139,10 @@ msgstr "此组织不允许访客添加邮箱。请改为创建通行密钥。"
 msgid "This organization has been suspended."
 msgstr "此组织已被暂停。"
 
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "This organization has no Stripe customer yet. Create one in Stripe with the metadata key xid_tenant_id set to this organization ID."
+msgstr "此组织还没有 Stripe customer。请在 Stripe 中创建一个，并把 metadata 键 xid_tenant_id 设为此组织 ID。"
+
 #: packages/i18n/src/messages.ts
 msgid "This organization needs at least one owner. Make someone else an owner first."
 msgstr "这个组织至少需要一位所有者。请先把其他成员设为所有者。"
@@ -13493,14 +13400,6 @@ msgstr "事务性电子邮件使用内置 Mustache 模板和全局 R2 语言包�
 msgid "Trends"
 msgstr "趋势"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trial ends at"
-msgstr "试用结束时间"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trialing"
-msgstr "试用"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Trigger"
 msgstr "触发"
@@ -13695,7 +13594,7 @@ msgstr "未知位置"
 msgid "Unlike <0>@xid-kit/react</0>, this package uses its own native token context. It exports <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13>, and <14>clearTokenSet</14>; it does not import or re-export the React web SDK."
 msgstr "与 <0>@xid-kit/react</0> 不同，此 package 使用自己的原生 token context。它导出 <1>useAuth</1>、<2>useUser</2>、<3>useSession</3>、<4>useSignIn</4>、<5>useSignOut</5>、<6>useXidRnContext</6>、<7>SignedIn</7>、<8>SignedOut</8>、<9>XidLoaded</9>、<10>XidLoading</10>、<11>exchangeCodeForTokens</11>、<12>saveTokenSet</12>、<13>readTokenSet</13> 和 <14>clearTokenSet</14>；它不会导入或重新导出 React Web SDK。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Unlimited"
 msgstr "不限"
 
@@ -13774,13 +13673,34 @@ msgstr "上游 SSO URL"
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
 msgstr "OAuth state 的 URL 安全随机字符串；base64url 编码辅助工具"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Usage and plan management embeds"
-msgstr "用量和套餐管理嵌入组件"
+#: apps/console/src/nav.tsx
+msgid "Usage"
+msgstr "用量"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Usage, seats, and billing status for every organization."
-msgstr "每个组织的使用量、席位和计费状态。"
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage and billing"
+msgstr "用量与计费"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage billing"
+msgstr "按量计费"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage is billed by metered MAU. Open the Customer Portal to view invoices and payment methods."
+msgstr "按计量的 MAU 计费。打开客户门户可查看发票和支付方式。"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview"
+msgstr "用量概览"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Usage overview | Console | XID"
+msgstr "用量概览 | 控制台 | XID"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview table"
+msgstr "用量概览表"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use"

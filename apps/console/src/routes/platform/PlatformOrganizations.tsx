@@ -5,7 +5,6 @@ import * as stylex from '@stylexjs/stylex'
 import { FormattedDate } from '../../components/FormattedDate'
 import type { DataTableColumnDef as ColumnDef } from '@xid-kit/web-ui/ui/DataTable'
 import { Alert, Badge, Button, Input } from '@xid-kit/web-ui/ui'
-import type { BadgeTone } from '@xid-kit/web-ui/ui'
 import {
   ConsolePage,
   ConsolePageNotice,
@@ -23,13 +22,6 @@ import { statusToneFor, useOrganizationStatusLabel } from '@xid-kit/web-ui/enum-
 import { useApiErrorMessage } from '@xid-kit/web-ui/api-error-message'
 import type { PlatformOrganization, XidError } from '@xid-kit/types'
 import { usePlatformOrganizationsList, useUpdatePlatformOrganizationStatus } from './queries'
-
-const PLAN_TONE: Record<PlatformOrganization['plan'], BadgeTone> = {
-  free: 'neutral',
-  starter: 'warning',
-  pro: 'info',
-  enterprise: 'success',
-}
 
 const styles = stylex.create({
   searchForm: {
@@ -132,12 +124,6 @@ export default function PlatformOrganizations(): ReactNode {
       ),
     },
     {
-      id: 'plan',
-      header: () => <Trans>Plan</Trans>,
-      cell: ({ row }) => <Badge tone={PLAN_TONE[row.original.plan]}>{row.original.plan}</Badge>,
-      meta: { width: '100px' },
-    },
-    {
       id: 'status',
       header: () => <Trans>Status</Trans>,
       cell: ({ row }) => (
@@ -191,10 +177,10 @@ export default function PlatformOrganizations(): ReactNode {
             </Button>
           ) : null}
           <Link
-            to={`/console/platform/plans?tenantId=${encodeURIComponent(row.original.id)}`}
+            to={`/console/platform/quotas?tenantId=${encodeURIComponent(row.original.id)}`}
             {...stylex.props(styles.actionLink)}
           >
-            <Trans>Plans and quotas</Trans>
+            <Trans>Resource quotas</Trans>
           </Link>
         </div>
       ),
@@ -206,7 +192,7 @@ export default function PlatformOrganizations(): ReactNode {
     <ConsolePage
       wide
       title={<Trans>Organizations</Trans>}
-      lead={<Trans>Every organization on this instance, with plan and lifecycle status.</Trans>}
+      lead={<Trans>Every organization on this instance, with lifecycle status.</Trans>}
     >
       {organizations.isError ? (
         <ConsolePageNotice>

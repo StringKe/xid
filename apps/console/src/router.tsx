@@ -12,7 +12,7 @@ import { Alert, Spinner } from '@xid-kit/web-ui/ui'
 import { page } from '@xid-kit/web-ui/styles/product-surface.stylex'
 import { ConsoleWebMcpTools } from './components/ConsoleWebMcpTools'
 import { ConsoleLayout } from './components/layout/ConsoleLayout'
-import { CONSOLE_NAV, ORG_NAV, PLATFORM_NAV } from './nav'
+import { CONSOLE_NAV, ORG_NAV } from './nav'
 import { RequireAuth } from '@xid-kit/web-ui/RequireAuth'
 import { useAuth } from '@xid-kit/web-ui/session'
 import { Navigate, useSearchParams } from '@xid-kit/web-ui/tanstack-router'
@@ -23,6 +23,7 @@ import {
   ConsoleUsersEntry,
 } from './routes/console/ConsoleEntryRoutes'
 import { RequireActiveOrganization } from './routes/console/RequireActiveOrganization'
+import { PlatformLayout } from './routes/platform/PlatformLayout'
 import { RequirePlatformAdmin } from './routes/platform/RequirePlatformAdmin'
 
 type PageModule = { default: () => ReactNode }
@@ -205,9 +206,9 @@ function platformRoute(id: string, path: string, load: PageLoader) {
         component: () => (
           <RequireAuth>
             <RequirePlatformAdmin>
-              <ConsoleLayout navItems={PLATFORM_NAV}>
+              <PlatformLayout>
                 <Page />
-              </ConsoleLayout>
+              </PlatformLayout>
             </RequirePlatformAdmin>
           </RequireAuth>
         ),
@@ -360,14 +361,14 @@ const platformRoutes = [
     () => import('./routes/platform/PlatformAuditEvents'),
   ),
   platformRoute(
-    '/console/platform/billing',
-    '/console/platform/billing',
-    () => import('./routes/platform/PlatformBilling'),
+    '/console/platform/usage',
+    '/console/platform/usage',
+    () => import('./routes/platform/PlatformUsage'),
   ),
   platformRoute(
-    '/console/platform/plans',
-    '/console/platform/plans',
-    () => import('./routes/platform/PlatformPlans'),
+    '/console/platform/quotas',
+    '/console/platform/quotas',
+    () => import('./routes/platform/PlatformQuotas'),
   ),
   platformRoute(
     '/console/platform/announcements',
@@ -426,8 +427,8 @@ export const CONSOLE_SPA_ROUTE_PATHS = [
   '/console/platform/users',
   '/console/platform/managers',
   '/console/platform/events',
-  '/console/platform/billing',
-  '/console/platform/plans',
+  '/console/platform/usage',
+  '/console/platform/quotas',
   '/console/platform/announcements',
   '/console/platform/status',
   '/console/platform/compliance',

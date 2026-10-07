@@ -195,16 +195,16 @@ export const PLATFORM_CONSOLE_ROUTES: readonly ConsoleRouteEntry[] = [
     description: 'Platform-wide audit event stream.',
   },
   {
-    path: '/console/platform/billing',
-    label: 'Billing',
+    path: '/console/platform/usage',
+    label: 'Usage',
     scope: 'platform',
-    description: 'Usage and billing views.',
+    description: 'Metered usage views.',
   },
   {
-    path: '/console/platform/plans',
-    label: 'Plans and quotas',
+    path: '/console/platform/quotas',
+    label: 'Resource quotas',
     scope: 'platform',
-    description: 'Plan accounting labels and hard resource quotas.',
+    description: 'Per-organization resource quotas.',
   },
   {
     path: '/console/platform/announcements',

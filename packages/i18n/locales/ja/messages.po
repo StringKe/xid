@@ -935,10 +935,6 @@ msgstr "アカウントセキュリティとプロフィール管理"
 msgid "Account settings"
 msgstr "アカウント設定"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Accounting plan"
-msgstr "課金プラン"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ACS endpoint for signed or encrypted SAML responses."
 msgstr "署名済みまたは暗号化された SAML レスポンス用の ACS エンドポイント。"
@@ -964,10 +960,10 @@ msgstr "アクションが必要です"
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
@@ -996,7 +992,6 @@ msgstr "デバイスを有効化 | XID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -2123,26 +2118,13 @@ msgstr "{app} に進む前に"
 msgid "Between 1 and 1440 minutes."
 msgstr "1〜1440 分。"
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Billing"
 msgstr "請求"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Billing components"
-msgstr "請求コンポーネント"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview"
-msgstr "請求概要"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Billing overview | Console | XID"
-msgstr "請求概要 | コンソール | XID"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview table"
-msgstr "請求概要テーブル"
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Billing status"
+msgstr "請求ステータス"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "billing_admin"
@@ -2158,7 +2140,7 @@ msgstr "バインディング"
 msgid "Binding names are fixed by the deployment configuration."
 msgstr "バインディング名はデプロイメント構成によって固定されます。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Block new resource creation"
 msgstr "新しいリソースの作成をブロックする"
 
@@ -2375,10 +2357,6 @@ msgstr "削除を取り消す"
 msgid "Cancel the current user's pending request."
 msgstr "現在のユーザーの保留中のリクエストをキャンセルします。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Canceled"
-msgstr "キャンセル"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Capabilities"
 msgstr "機能"
@@ -2480,18 +2458,6 @@ msgstr "メッセージを確認してください"
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Checked at sign-in for every application in {name}."
 msgstr "{name} のすべてのアプリケーションへのサインイン時に確認されます。"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Enterprise"
-msgstr "Enterprise を購入"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Pro"
-msgstr "Pro を購入"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Starter"
-msgstr "Starter を購入"
 
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
@@ -3610,7 +3576,7 @@ msgstr "データとプライバシー | アカウント | XID"
 msgid "Data residency label"
 msgstr "データ所在地ラベル"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "DAU"
 msgstr "DAU"
 
@@ -4482,7 +4448,7 @@ msgstr "エンドポイント"
 msgid "Ends at"
 msgstr "終了時刻"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Enforcement"
 msgstr "適用"
 
@@ -4622,11 +4588,6 @@ msgstr "パスワードを入力"
 msgid "Enter your work email. We'll send you to your company's sign-in page."
 msgstr "仕事用のメールアドレスを入力してください。会社のサインインページに移動します。"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Enterprise"
-msgstr "Enterprise"
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "パスキー登録のエンタープライズアテステーションポリシー。直接モードでは、設定済みの信頼ルートに対してハードウェアアテステーションチェーンを検証する必要があります。"
@@ -4732,8 +4693,8 @@ msgid "Every app you sign in to with this account."
 msgstr "このアカウントでサインインするすべてのアプリ。"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-msgid "Every organization on this instance, with plan and lifecycle status."
-msgstr "このインスタンス上のすべての組織を、プランとライフサイクルステータス付きで表示します。"
+msgid "Every organization on this instance, with lifecycle status."
+msgstr "このインスタンス上のすべての組織と、そのライフサイクルの状態。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
@@ -4786,10 +4747,6 @@ msgstr "example.com"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "example.com, company.com"
 msgstr "example.com, company.com"
-
-#: packages/web-ui/src/enum-labels.tsx
-msgid "Exceeded"
-msgstr "上限超過"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Exception hierarchy: <0>Xid::Error</0> -> <1>ConfigurationError</1>, <2>JwksError</2>, <3>TokenVerificationError</3>, <4>WebhookVerificationError</4>."
@@ -4972,10 +4929,6 @@ msgstr "監査イベントを読み込めませんでした。もう一度お試
 msgid "Failed to load authentication policy."
 msgstr "認証ポリシーを読み込めませんでした。"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Failed to load billing overview. Please try again."
-msgstr "請求概要を読み込めませんでした。もう一度お試しください。"
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Failed to load branding settings."
 msgstr "ブランド設定を読み込めませんでした。"
@@ -5028,10 +4981,6 @@ msgstr "アウトバウンド SAML アプリの読み込みに失敗しました
 msgid "Failed to load permissions."
 msgstr "権限の読み込みに失敗しました。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to load plan and quota settings. Please try again."
-msgstr "プランとクォータ設定を読み込めませんでした。もう一度お試しください。"
-
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Failed to load platform settings."
 msgstr "プラットフォーム設定を読み込めませんでした。"
@@ -5043,6 +4992,10 @@ msgstr "プラットフォーム統計を読み込めませんでした。もう
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "プロジェクトのロードに失敗しました。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to load quota settings. Please try again."
+msgstr "割り当て設定を読み込めませんでした。もう一度お試しください。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5068,21 +5021,29 @@ msgstr "ソーシャルログインプロバイダーを読み込めませんで
 msgid "Failed to load status incidents."
 msgstr "ステータスインシデントのロードに失敗しました。"
 
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Failed to load usage overview. Please try again."
+msgstr "使用量の概要を読み込めませんでした。もう一度お試しください。"
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
 msgstr "ユーザーグラントの読み込みに失敗しました。"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Failed to open the Customer Portal. Try again."
+msgstr "カスタマーポータルを開けませんでした。もう一度お試しください。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to resolve the selected managed scope."
 msgstr "選択した管理対象スコープを解決できませんでした。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to save plan and quota settings. Try again."
-msgstr "プランとクォータ設定を保存できませんでした。もう一度お試しください。"
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to save project changes. Try again."
 msgstr "プロジェクトの変更を保存できませんでした。もう一度お試しください。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to save quota settings. Try again."
+msgstr "割り当て設定を保存できませんでした。もう一度お試しください。"
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to search users."
@@ -5091,10 +5052,6 @@ msgstr "ユーザーの検索に失敗しました。"
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Failed to search users. Please try again."
 msgstr "ユーザーを検索できませんでした。もう一度お試しください。"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to start managed billing. Try again."
-msgstr "マネージド課金を開始できませんでした。もう一度お試しください。"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -5268,11 +5225,6 @@ msgstr "フレームワーク統合機能（<0>axum</0>、<1>actix-web</1>）は
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Framework-agnostic reactive store; subscribe with useSyncExternalStore in framework bindings"
 msgstr "フレームワーク非依存のリアクティブストア。フレームワークバインディングでは useSyncExternalStore でサブスクライブします"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Free"
-msgstr "無料"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -6601,7 +6553,7 @@ msgstr "ライセンス"
 msgid "Like getAuth but throws a redirect response when unauthenticated"
 msgstr "getAuth に似ていますが、未認証時にリダイレクトレスポンスをスローします"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Limit"
 msgstr "上限"
 
@@ -6671,9 +6623,9 @@ msgid "Live status is temporarily unavailable."
 msgstr "ライブステータスは一時的に利用できません。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Load more"
 msgstr "さらに読み込む"
@@ -6772,13 +6724,13 @@ msgstr "招待を読み込み中"
 msgid "Loading organization stats"
 msgstr "組織統計を読み込み中"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Loading plan and quota settings"
-msgstr "プランとクォータ設定を読み込み中"
-
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "Loading platform stats"
 msgstr "プラットフォーム統計を読み込み中"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Loading quota settings"
+msgstr "割り当て設定を読み込み中"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Loading social providers"
@@ -7017,10 +6969,6 @@ msgstr "ディスカバリー、Hosted Auth、組織ルーティングに使う�
 msgid "Manage your passkeys any time in your account under Security."
 msgstr "パスキーはアカウントの「セキュリティ」でいつでも管理できます。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Managed billing"
-msgstr "マネージド課金"
-
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Managed by your directory"
 msgstr "ディレクトリで管理されています"
@@ -7090,7 +7038,7 @@ msgstr "AI で利用する場合は Markdown を推奨します"
 msgid "Matches names that start with this text."
 msgstr "このテキストで始まる名前に一致します。"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "MAU"
 msgstr "MAU"
 
@@ -7148,6 +7096,14 @@ msgstr "メッセージ配信"
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Metadata URL"
 msgstr "メタデータ URL"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage and billing status for every organization."
+msgstr "すべての組織の計測済み使用量と請求ステータス。"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage for every organization."
+msgstr "すべての組織の計測済み使用量。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Method"
@@ -7536,10 +7492,6 @@ msgstr "監査イベントはありません。"
 msgid "No audit events match the current filters."
 msgstr "現在のフィルターに一致する監査イベントはありません。"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "No billing data available."
-msgstr "利用できる請求データはありません。"
-
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "No client authentication; PKCE protects the code exchange"
 msgstr "クライアント認証なし。PKCE がコード交換を保護します"
@@ -7775,6 +7727,10 @@ msgstr "サードパーティ依存関係なし — Apple システムフレー�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No third-party dependencies — uses Apple system frameworks only"
 msgstr "サードパーティ依存関係なし — Apple システムフレームワークのみ使用"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "No usage data available."
+msgstr "使用量データはありません。"
 
 #: apps/console/src/routes/applications/app-format.ts
 msgid "No user sign-in"
@@ -8045,7 +8001,7 @@ msgstr "CSRF を防ぐため（RFC 8252 ループバックリダイレクト）�
 msgid "Object"
 msgstr "オブジェクト"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Observe only"
 msgstr "閲覧のみ"
 
@@ -8244,7 +8200,7 @@ msgstr "PKCE S256 認可 URL で ASWebAuthenticationSession を開きます。�
 msgid "Open console"
 msgstr "コンソールを開く"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
 msgid "Open Customer Portal"
 msgstr "カスタマーポータルを開く"
 
@@ -8280,10 +8236,6 @@ msgstr "オープンソースのアイデンティティプラットフォーム
 #: apps/site/src/lib/home-surface.ts
 msgid "Open source, inspectable, and self-hostable"
 msgstr "オープンソース、検査可能、自己ホスト可能"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Open Stripe-hosted Checkout to start a managed subscription, or use the Customer Portal for an existing billing account. These controls do not license-gate self-hosted features."
-msgstr "Stripe がホストする Checkout を開いて管理サブスクリプションを開始するか、既存の請求先アカウントのカスタマー ポータルを使用します。これらのコントロールは、セルフホスト機能のライセンスをゲートしません。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -8418,8 +8370,8 @@ msgid "Org creation flow"
 msgstr "組織作成フロー"
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
@@ -8448,7 +8400,7 @@ msgid "Organization hierarchy"
 msgstr "組織階層"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Organization ID"
 msgstr "組織 ID"
 
@@ -8802,10 +8754,6 @@ msgstr "パスワード強度メーター"
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "パスワードレスのメールマジックリンクおよび OTP リクエストでは、チャレンジ作成時にサインアップの意図、サーバー管理の継続先、アプリケーションクライアント、招待行 ID を固定します。Social OAuth の招待認可でも、外部プロバイダーへリダイレクトする前に元のケイパビリティを検証し、1 回限りの状態には招待行 ID だけを保存し、コールバックではクライアント管理のトークンルートを無視します。検証時にこれらのフィールドを書き換えることはできません。元の招待ケイパビリティがこれらのフローコンテキストに保存されることはありません。MFA によって受諾が中断される場合、XID は Tenant、ユーザー、セッション、招待にバインドされた短時間有効な署名付き継続トークンを使用します。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Past due"
-msgstr "期限を過ぎた"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "PATCH operations"
 msgstr "PATCH 操作"
@@ -8821,10 +8769,6 @@ msgstr "パス"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Payload structure"
 msgstr "ペイロード構造"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Payment completed. The plan updates after Stripe confirms the subscription, which can take a minute. Reload this page if it does not change."
-msgstr "支払いが完了しました。Stripe がサブスクリプションを確認した後にプランが更新されます。1 分ほどかかる場合があります。変わらない場合はこのページを再読み込みしてください。"
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -8881,9 +8825,9 @@ msgstr "登録時に表示されるフィールドごとの収集モードです
 msgid "Per-organization branding"
 msgstr "組織ごとのブランド設定"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Per-organization plan, quota, and managed billing settings for this instance."
-msgstr "このインスタンスの組織ごとのプラン、クォータ、マネージド課金設定。"
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Per-organization resource quotas for this instance."
+msgstr "このインスタンスの組織ごとのリソース割り当て。"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Permission"
@@ -8997,42 +8941,9 @@ msgstr "PKCE ベリファイアーと OAuth state は注入されたセキュア
 msgid "Place the middleware file in <0>server/middleware/</0> to ensure it covers all routes as a global Nitro middleware."
 msgstr "すべてのルートをグローバル Nitro ミドルウェアとしてカバーするために、ミドルウェアファイルを <0>server/middleware/</0> に配置します。"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan"
-msgstr "プラン"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan and quota settings saved."
-msgstr "プランとクォータ設定が保存されました。"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan status"
-msgstr "プランの状態"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan, lifecycle status, trial, and resource quotas for this organization."
-msgstr "この組織のプラン、ライフサイクルステータス、トライアル、リソースクォータ。"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Planned"
 msgstr "計画中"
-
-#: apps/console/src/nav.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans and quotas"
-msgstr "プランとクォータ"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Plans and quotas | Console | XID"
-msgstr "プランとクォータ | Console | XID"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans are accounting and support labels. They never disable authentication, token issuance, or configured protocols in a self-hosted deployment."
-msgstr "プランは課金およびサポート用のラベルです。セルフホスト環境で認証、トークン発行、設定済みプロトコルを無効にすることはありません。"
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -9190,11 +9101,6 @@ msgstr "秘密鍵 JWT"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Private windows in some browsers can't save passkeys. Use a regular window."
 msgstr "一部のブラウザのプライベートウィンドウではパスキーを保存できません。通常のウィンドウを使ってください。"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Pro"
-msgstr "プロ"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Process a custom URI scheme callback and exchange the authorization code."
@@ -9573,8 +9479,8 @@ msgid "Publish"
 msgstr "公開"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Publish time-bounded notices globally, to one tenant, or to an accounting plan."
-msgstr "全体、1 つのテナント、または課金プランを対象に、期限付きのお知らせを公開します。"
+msgid "Publish time-bounded notices globally or to one tenant."
+msgstr "期間を限定したお知らせを、全体または 1 つのテナントに公開します。"
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Publish update"
@@ -9631,6 +9537,14 @@ msgstr "クイックアクション"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Quick start"
 msgstr "クイックスタート"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quota settings saved."
+msgstr "割り当て設定を保存しました。"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quotas never disable authentication, token issuance, or configured protocols."
+msgstr "割り当てによって、認証、トークン発行、設定済みのプロトコルが無効になることはありません。"
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "R2 storage key"
@@ -10365,9 +10279,20 @@ msgstr "リソース"
 msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
 msgstr "リソースの GET レスポンスには、<1>meta.version</1> に基づく <0>ETag: W/\"<meta.version>\"</0> が含まれます。<2>If-Match</2> は <3>PUT</3>、<4>PATCH</4>、<5>DELETE</5> で任意です。指定した場合は現在のバージョンと一致する必要があり、不一致または同時書き込みが発生した場合は <6>412</6> を返します。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Resource quotas"
 msgstr "リソース割り当て"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Resource quotas | Console | XID"
+msgstr "リソース割り当て | コンソール | XID"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Resource quotas for this organization."
+msgstr "この組織のリソース割り当て。"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
@@ -10834,7 +10759,7 @@ msgstr "先にコピーを保存"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Save changes"
 msgstr "変更を保存"
@@ -11052,11 +10977,7 @@ msgstr "ユーザーやアプリを検索、またはページに移動"
 msgid "Searching"
 msgstr "検索中"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Seat limit"
-msgstr "シート上限"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "シート"
 
@@ -11139,10 +11060,6 @@ msgstr "電話番号の参照"
 msgid "Select"
 msgstr "選択"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Select a plan"
-msgstr "プランを選択してください"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
 msgstr "ロールを選択し、権限をアタッチし、オプションで JSON ABAC 条件を要求します。サーバーは、サポートされている演算子と変数パスを検証します。"
@@ -11151,9 +11068,9 @@ msgstr "ロールを選択し、権限をアタッチし、オプションで JS
 msgid "Select a search result or enter the exact ID of an active user."
 msgstr "検索結果を選択するか、アクティブ ユーザーの正確な ID を入力します。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
-msgstr "プランとクォータを表示・編集する組織を選択してください。<0>プラットフォームの組織を参照</0>"
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Select an organization to view and edit its resource quotas. <0>Browse platform organizations</0>"
+msgstr "組織を選択すると、そのリソース割り当てを表示・編集できます。<0>プラットフォーム組織を参照</0>"
 
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Select and copy"
@@ -12117,11 +12034,6 @@ msgid "Started this on a TV or tablet? Open {host} on your phone and enter the c
 msgstr "テレビやタブレットで開始しましたか？スマートフォンで {host} を開き、そこでコードを入力してください。"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Starter"
-msgstr "スターター"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Starts at"
 msgstr "開始時刻"
 
@@ -12132,7 +12044,6 @@ msgstr "状態変化リスナーコールバック型"
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/useSsoConnectionColumns.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -12242,10 +12153,6 @@ msgstr "string"
 msgid "string constant"
 msgstr "文字列定数"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Stripe Checkout was canceled. The plan was not changed."
-msgstr "Stripe Checkout がキャンセルされました。プランは変更されていません。"
-
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Strong"
 msgstr "強い"
@@ -12298,10 +12205,6 @@ msgstr "成功"
 #: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "サポート"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Support label"
-msgstr "サポートラベル"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Support levels"
@@ -13236,6 +13139,10 @@ msgstr "この組織ではゲストがメールアドレスを追加できませ
 msgid "This organization has been suspended."
 msgstr "この組織は停止されています。"
 
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "This organization has no Stripe customer yet. Create one in Stripe with the metadata key xid_tenant_id set to this organization ID."
+msgstr "この組織にはまだ Stripe customer がありません。Stripe で customer を作成し、metadata キー xid_tenant_id にこの組織 ID を設定してください。"
+
 #: packages/i18n/src/messages.ts
 msgid "This organization needs at least one owner. Make someone else an owner first."
 msgstr "この組織には組織所有者が 1 人以上必要です。先に別のメンバーを組織所有者にしてください。"
@@ -13493,14 +13400,6 @@ msgstr "トランザクションメールでは、組み込みの Mustache テ�
 msgid "Trends"
 msgstr "傾向"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trial ends at"
-msgstr "トライアルは次の時点で終了します"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trialing"
-msgstr "トライアル中"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Trigger"
 msgstr "トリガー"
@@ -13695,7 +13594,7 @@ msgstr "不明な場所"
 msgid "Unlike <0>@xid-kit/react</0>, this package uses its own native token context. It exports <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13>, and <14>clearTokenSet</14>; it does not import or re-export the React web SDK."
 msgstr "<0>@xid-kit/react</0> とは異なり、このパッケージは独自のネイティブ token context を使用します。<1>useAuth</1>、<2>useUser</2>、<3>useSession</3>、<4>useSignIn</4>、<5>useSignOut</5>、<6>useXidRnContext</6>、<7>SignedIn</7>、<8>SignedOut</8>、<9>XidLoaded</9>、<10>XidLoading</10>、<11>exchangeCodeForTokens</11>、<12>saveTokenSet</12>、<13>readTokenSet</13>、<14>clearTokenSet</14> をエクスポートします。React web SDK の import または re-export は行いません。"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Unlimited"
 msgstr "無制限"
 
@@ -13774,13 +13673,34 @@ msgstr "上流 SSO URL"
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
 msgstr "OAuth state 用の URL セーフなランダム文字列。base64url エンコーディングヘルパー"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Usage and plan management embeds"
-msgstr "使用状況とプラン管理埋め込み"
+#: apps/console/src/nav.tsx
+msgid "Usage"
+msgstr "使用量"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Usage, seats, and billing status for every organization."
-msgstr "すべての組織の使用状況、シート数、請求ステータス。"
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage and billing"
+msgstr "使用量と請求"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage billing"
+msgstr "従量課金"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage is billed by metered MAU. Open the Customer Portal to view invoices and payment methods."
+msgstr "計測された MAU に基づいて課金されます。請求書と支払い方法はカスタマーポータルで確認できます。"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview"
+msgstr "使用量の概要"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Usage overview | Console | XID"
+msgstr "使用量の概要 | コンソール | XID"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview table"
+msgstr "使用量の概要テーブル"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use"

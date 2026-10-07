@@ -3,7 +3,7 @@
 import { msg } from '@lingui/core/macro'
 import { useLingui } from '@lingui/react/macro'
 import type { MessageDescriptor } from '@lingui/core'
-import type { OrganizationMembershipRole } from '@xid-kit/types'
+import type { OrganizationMembershipRole, UsageBillingStatus } from '@xid-kit/types'
 import type { BadgeTone } from './components/ui/Badge'
 
 type MemberStatus = 'active' | 'inactive' | 'pending'
@@ -115,15 +115,12 @@ export function useDirectoryStatusLabel(): (status: DirectoryStatus) => string {
   }
 }
 
-type BillingStatus = 'ok' | 'overdue' | 'exceeded'
-
-const BILLING_STATUS_LABELS: Record<BillingStatus, MessageDescriptor> = {
+const BILLING_STATUS_LABELS: Record<UsageBillingStatus, MessageDescriptor> = {
   ok: msg`OK`,
   overdue: msg`Overdue`,
-  exceeded: msg`Exceeded`,
 }
 
-export function useBillingStatusLabel(): (status: BillingStatus) => string {
+export function useBillingStatusLabel(): (status: UsageBillingStatus) => string {
   const { i18n } = useLingui()
   return (status) => {
     const descriptor = BILLING_STATUS_LABELS[status]
@@ -147,7 +144,6 @@ export function statusToneFor(status: string): BadgeTone {
     case 'identified':
     case 'monitoring':
     case 'processing':
-    case 'exceeded':
       return 'warning'
     case 'suspended':
     case 'revoked':

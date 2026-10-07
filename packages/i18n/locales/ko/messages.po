@@ -935,10 +935,6 @@ msgstr "계정 보안 및 프로필 관리"
 msgid "Account settings"
 msgstr "계정 설정"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Accounting plan"
-msgstr "청구 플랜"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ACS endpoint for signed or encrypted SAML responses."
 msgstr "서명되었거나 암호화된 SAML 응답을 위한 ACS 엔드포인트입니다."
@@ -964,10 +960,10 @@ msgstr "조치 필요"
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
@@ -996,7 +992,6 @@ msgstr "기기 활성화 | XID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -2123,26 +2118,13 @@ msgstr "{app}(으)로 계속하기 전에"
 msgid "Between 1 and 1440 minutes."
 msgstr "1~1440분입니다."
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Billing"
 msgstr "결제"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Billing components"
-msgstr "결제 컴포넌트"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview"
-msgstr "결제 개요"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Billing overview | Console | XID"
-msgstr "청구 개요 | 콘솔 | XID"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview table"
-msgstr "결제 개요 테이블"
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Billing status"
+msgstr "결제 상태"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "billing_admin"
@@ -2158,7 +2140,7 @@ msgstr "바인딩"
 msgid "Binding names are fixed by the deployment configuration."
 msgstr "바인딩 이름은 배포 구성에 의해 수정됩니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Block new resource creation"
 msgstr "새로운 리소스 생성 차단"
 
@@ -2375,10 +2357,6 @@ msgstr "삭제 취소"
 msgid "Cancel the current user's pending request."
 msgstr "현재 사용자의 보류 중인 요청을 취소합니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Canceled"
-msgstr "취소"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Capabilities"
 msgstr "기능"
@@ -2480,18 +2458,6 @@ msgstr "메시지를 확인하세요"
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Checked at sign-in for every application in {name}."
 msgstr "{name}의 모든 애플리케이션에 로그인할 때 확인합니다."
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Enterprise"
-msgstr "Enterprise 구매"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Pro"
-msgstr "Pro 구매"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Starter"
-msgstr "Starter 구매"
 
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
@@ -3610,7 +3576,7 @@ msgstr "데이터 및 개인정보 | 계정 | XID"
 msgid "Data residency label"
 msgstr "데이터 상주 레이블"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "DAU"
 msgstr "DAU"
 
@@ -4482,7 +4448,7 @@ msgstr "엔드포인트"
 msgid "Ends at"
 msgstr "종료 시간:"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Enforcement"
 msgstr "시행"
 
@@ -4622,11 +4588,6 @@ msgstr "비밀번호 입력"
 msgid "Enter your work email. We'll send you to your company's sign-in page."
 msgstr "회사 이메일을 입력하세요. 회사 로그인 페이지로 이동합니다."
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Enterprise"
-msgstr "Enterprise"
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "패스키 등록을 위한 엔터프라이즈 증명 정책입니다. 직접 모드는 구성된 신뢰 루트에 대해 하드웨어 증명 체인을 검증해야 합니다."
@@ -4732,8 +4693,8 @@ msgid "Every app you sign in to with this account."
 msgstr "이 계정으로 로그인하는 모든 앱."
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-msgid "Every organization on this instance, with plan and lifecycle status."
-msgstr "플랜 및 수명 주기 상태를 포함한 이 인스턴스의 모든 조직입니다."
+msgid "Every organization on this instance, with lifecycle status."
+msgstr "이 인스턴스의 모든 조직과 수명주기 상태입니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
@@ -4786,10 +4747,6 @@ msgstr "example.com"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "example.com, company.com"
 msgstr "example.com, company.com"
-
-#: packages/web-ui/src/enum-labels.tsx
-msgid "Exceeded"
-msgstr "초과됨"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Exception hierarchy: <0>Xid::Error</0> -> <1>ConfigurationError</1>, <2>JwksError</2>, <3>TokenVerificationError</3>, <4>WebhookVerificationError</4>."
@@ -4972,10 +4929,6 @@ msgstr "감사 이벤트를 불러오지 못했습니다. 다시 시도하세요
 msgid "Failed to load authentication policy."
 msgstr "인증 정책을 불러오지 못했습니다."
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Failed to load billing overview. Please try again."
-msgstr "결제 개요를 불러오지 못했습니다. 다시 시도하세요."
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Failed to load branding settings."
 msgstr "브랜딩 설정을 불러오지 못했습니다."
@@ -5028,10 +4981,6 @@ msgstr "아웃바운드 SAML 앱을 불러오지 못했습니다."
 msgid "Failed to load permissions."
 msgstr "권한을 로드하지 못했습니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to load plan and quota settings. Please try again."
-msgstr "플랜 및 할당량 설정을 불러오지 못했습니다. 다시 시도하세요."
-
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Failed to load platform settings."
 msgstr "플랫폼 설정을 불러오지 못했습니다."
@@ -5043,6 +4992,10 @@ msgstr "플랫폼 통계를 불러오지 못했습니다. 다시 시도하세요
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "프로젝트를 로드하지 못했습니다."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to load quota settings. Please try again."
+msgstr "할당량 설정을 불러오지 못했습니다. 다시 시도하세요."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5068,21 +5021,29 @@ msgstr "소셜 공급자를 불러오지 못했습니다."
 msgid "Failed to load status incidents."
 msgstr "상태 사건을 로드하지 못했습니다."
 
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Failed to load usage overview. Please try again."
+msgstr "사용량 개요를 불러오지 못했습니다. 다시 시도하세요."
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
 msgstr "사용자 권한 부여를 로드하지 못했습니다."
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Failed to open the Customer Portal. Try again."
+msgstr "고객포털을 열지 못했습니다. 다시 시도하세요."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to resolve the selected managed scope."
 msgstr "선택한 관리 범위를 확인하지 못했습니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to save plan and quota settings. Try again."
-msgstr "플랜 및 할당량 설정을 저장하지 못했습니다. 다시 시도하세요."
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to save project changes. Try again."
 msgstr "프로젝트 변경 사항을 저장하지 못했습니다. 다시 시도하세요."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to save quota settings. Try again."
+msgstr "할당량 설정을 저장하지 못했습니다. 다시 시도하세요."
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to search users."
@@ -5091,10 +5052,6 @@ msgstr "사용자를 검색하지 못했습니다."
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Failed to search users. Please try again."
 msgstr "사용자 검색에 실패했습니다. 다시 시도하세요."
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to start managed billing. Try again."
-msgstr "관리형 결제를 시작하지 못했습니다. 다시 시도하세요."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -5268,11 +5225,6 @@ msgstr "프레임워크 통합 기능(<0>axum</0>, <1>actix-web</1>)은 계획�
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Framework-agnostic reactive store; subscribe with useSyncExternalStore in framework bindings"
 msgstr "프레임워크에 독립적인 반응형 store; 프레임워크 바인딩에서 useSyncExternalStore로 구독합니다"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Free"
-msgstr "무료"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -6601,7 +6553,7 @@ msgstr "라이선스"
 msgid "Like getAuth but throws a redirect response when unauthenticated"
 msgstr "getAuth와 유사하지만 미인증 시 리디렉션 응답을 발생시킵니다"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Limit"
 msgstr "한도"
 
@@ -6671,9 +6623,9 @@ msgid "Live status is temporarily unavailable."
 msgstr "실시간 상태를 일시적으로 사용할 수 없습니다."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Load more"
 msgstr "더 불러오기"
@@ -6772,13 +6724,13 @@ msgstr "초대 불러오는 중"
 msgid "Loading organization stats"
 msgstr "조직 통계를 불러오는 중"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Loading plan and quota settings"
-msgstr "플랜 및 할당량 설정을 불러오는 중"
-
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "Loading platform stats"
 msgstr "플랫폼 통계를 불러오는 중"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Loading quota settings"
+msgstr "할당량 설정을 불러오는 중"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Loading social providers"
@@ -7017,10 +6969,6 @@ msgstr "디스커버리, Hosted Auth, 조직 라우팅에 사용할 인증된 �
 msgid "Manage your passkeys any time in your account under Security."
 msgstr "패스키는 계정의 보안에서 언제든 관리할 수 있습니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Managed billing"
-msgstr "관리형 결제"
-
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Managed by your directory"
 msgstr "디렉터리에서 관리됨"
@@ -7090,7 +7038,7 @@ msgstr "AI에서 사용하려면 Markdown을 권장합니다"
 msgid "Matches names that start with this text."
 msgstr "이 텍스트로 시작하는 이름과 일치합니다."
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "MAU"
 msgstr "MAU"
 
@@ -7148,6 +7096,14 @@ msgstr "메시징"
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Metadata URL"
 msgstr "메타데이터 URL"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage and billing status for every organization."
+msgstr "모든 조직의 측정된 사용량과 결제 상태입니다."
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage for every organization."
+msgstr "모든 조직의 측정된 사용량입니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Method"
@@ -7536,10 +7492,6 @@ msgstr "감사 이벤트가 없습니다."
 msgid "No audit events match the current filters."
 msgstr "현재 필터에 일치하는 감사 이벤트가 없습니다."
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "No billing data available."
-msgstr "사용 가능한 결제 데이터가 없습니다."
-
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "No client authentication; PKCE protects the code exchange"
 msgstr "클라이언트 인증 없음. PKCE가 코드 교환을 보호합니다"
@@ -7775,6 +7727,10 @@ msgstr "서드파티 의존성 없음 — Apple 시스템 프레임워크(Authen
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No third-party dependencies — uses Apple system frameworks only"
 msgstr "서드파티 의존성 없음 — Apple 시스템 프레임워크만 사용합니다"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "No usage data available."
+msgstr "사용량 데이터가 없습니다."
 
 #: apps/console/src/routes/applications/app-format.ts
 msgid "No user sign-in"
@@ -8045,7 +8001,7 @@ msgstr "CSRF를 방지하기 위해 loopback 콜백에서 OAuth state가 검증�
 msgid "Object"
 msgstr "객체"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Observe only"
 msgstr "관찰 전용"
 
@@ -8244,7 +8200,7 @@ msgstr "PKCE S256 인증 URL로 ASWebAuthenticationSession을 엽니다. 브라�
 msgid "Open console"
 msgstr "콘솔 열기"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
 msgid "Open Customer Portal"
 msgstr "고객포털 오픈"
 
@@ -8280,10 +8236,6 @@ msgstr "오픈 소스 아이덴티티 플랫폼"
 #: apps/site/src/lib/home-surface.ts
 msgid "Open source, inspectable, and self-hostable"
 msgstr "오픈 소스, 검사 가능 및 자체 호스팅 가능"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Open Stripe-hosted Checkout to start a managed subscription, or use the Customer Portal for an existing billing account. These controls do not license-gate self-hosted features."
-msgstr "Stripe에서 호스팅하는 Checkout을 열어 관리형 구독을 시작하거나, 기존 청구 계정은 Customer Portal에서 관리하세요. 이러한 컨트롤은 자체 호스팅 기능을 라이선스로 제한하지 않습니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -8418,8 +8370,8 @@ msgid "Org creation flow"
 msgstr "조직 생성 흐름"
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
@@ -8448,7 +8400,7 @@ msgid "Organization hierarchy"
 msgstr "조직 계층"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Organization ID"
 msgstr "조직 ID"
 
@@ -8802,10 +8754,6 @@ msgstr "비밀번호 강도 표시기"
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "비밀번호 없는 이메일 매직 링크 및 OTP 요청은 챌린지를 만들 때 가입 의도, 서버가 관리하는 계속 경로, 애플리케이션 클라이언트, 초대 행 ID를 고정합니다. Social OAuth 초대 승인도 외부 공급자로 리디렉션하기 전에 원본 capability를 검증하고 일회성 상태에는 초대 행 ID만 저장하며 callback에서는 클라이언트가 관리하는 토큰 경로를 무시합니다. 검증 단계에서는 이러한 필드를 변경할 수 없습니다. 원본 초대 capability는 이러한 흐름 컨텍스트에 저장되지 않습니다. MFA로 수락이 중단되면 XID는 Tenant, 사용자, 세션, 초대에 바인딩된 단기 서명 continuation을 사용합니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Past due"
-msgstr "연체"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "PATCH operations"
 msgstr "PATCH 작업"
@@ -8821,10 +8769,6 @@ msgstr "경로"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Payload structure"
 msgstr "페이로드 구조"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Payment completed. The plan updates after Stripe confirms the subscription, which can take a minute. Reload this page if it does not change."
-msgstr "결제가 완료되었습니다. Stripe가 구독을 확인한 후 요금제가 업데이트되며 1분 정도 걸릴 수 있습니다. 바뀌지 않으면 이 페이지를 새로 고치세요."
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -8881,9 +8825,9 @@ msgstr "가입 시 표시되는 필드별 수집 모드입니다. 필수 필드�
 msgid "Per-organization branding"
 msgstr "조직별 브랜딩"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Per-organization plan, quota, and managed billing settings for this instance."
-msgstr "이 인스턴스의 조직별 플랜, 할당량 및 관리형 결제 설정입니다."
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Per-organization resource quotas for this instance."
+msgstr "이 인스턴스의 조직별 리소스 할당량입니다."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Permission"
@@ -8997,42 +8941,9 @@ msgstr "PKCE 검증자와 OAuth state는 주입된 안전 저장소 어댑터에
 msgid "Place the middleware file in <0>server/middleware/</0> to ensure it covers all routes as a global Nitro middleware."
 msgstr "모든 라우트를 전역 Nitro 미들웨어로 커버할 수 있도록 미들웨어 파일을 <0>server/middleware/</0>에 배치하세요."
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan"
-msgstr "플랜"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan and quota settings saved."
-msgstr "계획 및 할당량 설정이 저장되었습니다."
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan status"
-msgstr "플랜 상태"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan, lifecycle status, trial, and resource quotas for this organization."
-msgstr "이 조직의 플랜, 수명 주기 상태, 평가판 및 리소스 할당량입니다."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Planned"
 msgstr "계획됨"
-
-#: apps/console/src/nav.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans and quotas"
-msgstr "플랜 및 할당량"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Plans and quotas | Console | XID"
-msgstr "플랜 및 할당량 | Console | XID"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans are accounting and support labels. They never disable authentication, token issuance, or configured protocols in a self-hosted deployment."
-msgstr "플랜은 청구 및 지원을 위한 레이블입니다. 자체 호스팅 배포에서는 인증, 토큰 발급 또는 구성된 프로토콜을 비활성화하지 않습니다."
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -9190,11 +9101,6 @@ msgstr "개인 키 JWT"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Private windows in some browsers can't save passkeys. Use a regular window."
 msgstr "일부 브라우저의 시크릿 창에서는 패스키를 저장할 수 없습니다. 일반 창을 사용하세요."
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Pro"
-msgstr "Pro"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Process a custom URI scheme callback and exchange the authorization code."
@@ -9573,8 +9479,8 @@ msgid "Publish"
 msgstr "게시"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Publish time-bounded notices globally, to one tenant, or to an accounting plan."
-msgstr "전체, 하나의 테넌트 또는 특정 청구 플랜을 대상으로 기한이 정해진 공지를 게시합니다."
+msgid "Publish time-bounded notices globally or to one tenant."
+msgstr "기간이 정해진 공지를 전체 또는 하나의 테넌트에 게시합니다."
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Publish update"
@@ -9631,6 +9537,14 @@ msgstr "빠른 작업"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Quick start"
 msgstr "빠른 시작"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quota settings saved."
+msgstr "할당량 설정이 저장되었습니다."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quotas never disable authentication, token issuance, or configured protocols."
+msgstr "할당량은 인증, 토큰 발급, 구성된 프로토콜을 비활성화하지 않습니다."
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "R2 storage key"
@@ -10365,9 +10279,20 @@ msgstr "리소스"
 msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
 msgstr "리소스 GET 응답에는 <1>meta.version</1>에서 가져온 <0>ETag: W/\"<meta.version>\"</0>가 포함됩니다. <2>If-Match</2>는 <3>PUT</3>, <4>PATCH</4>, <5>DELETE</5>에서 선택 사항입니다. 지정하면 현재 버전과 일치해야 하며, 일치하지 않거나 동시 쓰기가 발생하면 <6>412</6>를 반환합니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Resource quotas"
 msgstr "리소스 할당량"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Resource quotas | Console | XID"
+msgstr "리소스 할당량 | 콘솔 | XID"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Resource quotas for this organization."
+msgstr "이 조직의 리소스 할당량입니다."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
@@ -10834,7 +10759,7 @@ msgstr "먼저 사본 저장"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Save changes"
 msgstr "변경 사항 저장"
@@ -11052,11 +10977,7 @@ msgstr "사용자와 앱을 검색하거나 페이지로 이동"
 msgid "Searching"
 msgstr "검색 중"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Seat limit"
-msgstr "사용자 좌석 한도"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "시트"
 
@@ -11139,10 +11060,6 @@ msgstr "전화번호 보기"
 msgid "Select"
 msgstr "선택하다"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Select a plan"
-msgstr "요금제 선택"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
 msgstr "역할을 선택하고, 권한을 첨부하고, 선택적으로 JSON ABAC 조건을 요구합니다. 서버는 지원되는 연산자와 변수 경로의 유효성을 검사합니다."
@@ -11151,9 +11068,9 @@ msgstr "역할을 선택하고, 권한을 첨부하고, 선택적으로 JSON ABA
 msgid "Select a search result or enter the exact ID of an active user."
 msgstr "검색 결과를 선택하거나 활성 사용자의 정확한 ID을(를) 입력하세요."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
-msgstr "플랜 및 할당량을 보고 편집할 조직을 선택하세요. <0>플랫폼 조직 찾아보기</0>"
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Select an organization to view and edit its resource quotas. <0>Browse platform organizations</0>"
+msgstr "조직을 선택하면 리소스 할당량을 보고 편집할 수 있습니다. <0>플랫폼 조직 보기</0>"
 
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Select and copy"
@@ -12117,11 +12034,6 @@ msgid "Started this on a TV or tablet? Open {host} on your phone and enter the c
 msgstr "TV나 태블릿에서 시작했나요? 휴대폰에서 {host}을(를) 열고 거기에 코드를 입력하세요."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Starter"
-msgstr "Starter"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Starts at"
 msgstr "시작 시간"
 
@@ -12132,7 +12044,6 @@ msgstr "상태 변경 리스너 callback 타입"
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/useSsoConnectionColumns.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -12242,10 +12153,6 @@ msgstr "string"
 msgid "string constant"
 msgstr "문자열 상수"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Stripe Checkout was canceled. The plan was not changed."
-msgstr "Stripe Checkout이 취소되었습니다. 요금제는 변경되지 않았습니다."
-
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Strong"
 msgstr "강함"
@@ -12298,10 +12205,6 @@ msgstr "성공"
 #: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "지원"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Support label"
-msgstr "지원 라벨"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Support levels"
@@ -13236,6 +13139,10 @@ msgstr "이 조직은 게스트가 이메일을 추가하는 것을 허용하지
 msgid "This organization has been suspended."
 msgstr "이 조직은 정지되었습니다."
 
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "This organization has no Stripe customer yet. Create one in Stripe with the metadata key xid_tenant_id set to this organization ID."
+msgstr "이 조직에는 아직 Stripe customer가 없습니다. Stripe에서 customer를 만들고 metadata 키 xid_tenant_id를 이 조직 ID로 설정하세요."
+
 #: packages/i18n/src/messages.ts
 msgid "This organization needs at least one owner. Make someone else an owner first."
 msgstr "이 조직에는 조직 소유자가 한 명 이상 있어야 합니다. 먼저 다른 구성원을 조직 소유자로 지정하세요."
@@ -13493,14 +13400,6 @@ msgstr "트랜잭션 이메일은 기본 제공 Mustache 템플릿과 전역 R2 
 msgid "Trends"
 msgstr "추세"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trial ends at"
-msgstr "평가판 종료 시간:"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trialing"
-msgstr "평가판 사용 중"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Trigger"
 msgstr "트리거"
@@ -13695,7 +13594,7 @@ msgstr "알 수 없는 위치"
 msgid "Unlike <0>@xid-kit/react</0>, this package uses its own native token context. It exports <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13>, and <14>clearTokenSet</14>; it does not import or re-export the React web SDK."
 msgstr "<0>@xid-kit/react</0>와 달리 이 package는 자체 native token context를 사용합니다. <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13>, <14>clearTokenSet</14>을 export하며 React Web SDK를 import하거나 다시 export하지 않습니다."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Unlimited"
 msgstr "무제한"
 
@@ -13774,13 +13673,34 @@ msgstr "업스트림 SSO URL"
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
 msgstr "OAuth state를 위한 URL 안전 무작위 문자열; base64url 인코딩 헬퍼"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Usage and plan management embeds"
-msgstr "사용량 및 플랜 관리 임베드"
+#: apps/console/src/nav.tsx
+msgid "Usage"
+msgstr "사용량"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Usage, seats, and billing status for every organization."
-msgstr "모든 조직의 사용량, 시트 및 결제 상태입니다."
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage and billing"
+msgstr "사용량 및 결제"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage billing"
+msgstr "사용량 기반 결제"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage is billed by metered MAU. Open the Customer Portal to view invoices and payment methods."
+msgstr "측정된 MAU 기준으로 과금됩니다. 청구서와 결제 수단은 고객포털에서 확인하세요."
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview"
+msgstr "사용량 개요"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Usage overview | Console | XID"
+msgstr "사용량 개요 | 콘솔 | XID"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview table"
+msgstr "사용량 개요 표"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use"

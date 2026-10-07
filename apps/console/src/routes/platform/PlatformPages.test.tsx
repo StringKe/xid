@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type {
   AuditChainVerification,
-  BillingOverview,
   ComplianceDocument,
   GlobalUser,
   InstanceManagerAssignment,
@@ -18,6 +17,7 @@ import type {
   PlatformStats,
   QueueDeadLetter,
   StatusIncident,
+  UsageOverview,
 } from '@xid-kit/types'
 
 type QueryState = {
@@ -103,13 +103,13 @@ vi.mock('@xid-kit/web-ui/session', () => ({
 import PlatformAdminOverview from './PlatformAdminOverview'
 import PlatformAnnouncements from './PlatformAnnouncements'
 import PlatformAuditEvents from './PlatformAuditEvents'
-import PlatformBilling from './PlatformBilling'
 import PlatformCompliance from './PlatformCompliance'
 import PlatformDeadLetters from './PlatformDeadLetters'
 import PlatformInstanceManagers from './PlatformInstanceManagers'
 import PlatformOrganizations from './PlatformOrganizations'
 import PlatformSettingsPage from './PlatformSettings'
 import PlatformStatusIncidents from './PlatformStatusIncidents'
+import PlatformUsage from './PlatformUsage'
 import PlatformUsers from './PlatformUsers'
 
 const stats: PlatformStats = {
@@ -125,7 +125,6 @@ const organization: PlatformOrganization = {
   id: 'org_1',
   slug: 'acme',
   name: 'Acme Platform',
-  plan: 'enterprise',
   status: 'active',
   userCount: 25,
   orgCount: 3,
@@ -262,15 +261,12 @@ const complianceDocument: ComplianceDocument = {
   artifactUrl: '/v1/platform/compliance-documents/compliance_1/artifact',
 }
 
-const billingOverview: BillingOverview = {
+const usageOverview: UsageOverview = {
   organizationId: organization.id,
   organizationName: organization.name,
-  plan: organization.plan,
   mau: 600,
   dau: 120,
   seatUsed: 25,
-  seatLimit: 50,
-  status: 'overdue',
 }
 
 const settings: PlatformSettings = {
@@ -334,7 +330,7 @@ describe('platform pages', () => {
     apiMocks.lists.set('/v1/platform/announcements', listState([announcement], true))
     apiMocks.lists.set('/v1/platform/status-incidents', listState([statusIncident], true))
     apiMocks.lists.set('/v1/platform/compliance-documents', listState([complianceDocument], true))
-    apiMocks.lists.set('/v1/platform/billing', listState([billingOverview]))
+    apiMocks.lists.set('/v1/platform/usage', listState([usageOverview]))
     apiMocks.useApiQuery.mockImplementation((_queryKey: readonly unknown[], path: string) =>
       apiMocks.queries.get(path),
     )
@@ -383,7 +379,8 @@ describe('platform pages', () => {
     expect(html).toContain(organization.id)
     expect(html).toContain('Suspend Acme Platform')
     expect(html).not.toContain('Suspend Default Organization')
-    expect(html).toContain('href="/console/platform/plans?tenantId=org_1"')
+    expect(html).toContain('href="/console/platform/quotas?tenantId=org_1"')
+    expect(html).not.toMatch(/plan/i)
     expect(html).not.toContain('href="/console/org/auth-policy')
   })
 
@@ -558,19 +555,42 @@ describe('platform pages', () => {
     })
   })
 
-  it('requests and renders the billing overview with plan links', () => {
-    const html = renderToStaticMarkup(<PlatformBilling />)
+  it('renders metered usage without any billing wording while billing is off', () => {
+    apiMocks.queries.set(
+      '/v1/platform/billing/config',
+      queryState({ enabled: false, portal: false, metering: false }),
+    )
+
+    const html = renderToStaticMarkup(<PlatformUsage />)
 
     expect(apiMocks.useApiInfiniteQuery).toHaveBeenCalledWith(
       expect.anything(),
-      '/v1/platform/billing',
+      '/v1/platform/usage',
       { query: { limit: 20 } },
     )
-    expect(html).toContain(billingOverview.organizationName)
+    expect(html).toContain('Usage overview')
+    expect(html).toContain(usageOverview.organizationName)
+    expect(html).toContain('600')
     expect(html).toContain('25')
-    expect(html).toContain('50')
-    expect(html).toContain(billingOverview.status)
-    expect(html).toContain('href="/console/platform/plans?tenantId=org_1"')
+    expect(html).not.toMatch(/billing|plan/i)
+    expect(html).toContain('href="/console/platform/quotas?tenantId=org_1"')
+  })
+
+  it('adds the billing status column when usage billing is enabled', () => {
+    apiMocks.queries.set(
+      '/v1/platform/billing/config',
+      queryState({ enabled: true, portal: false, metering: true }),
+    )
+    apiMocks.lists.set(
+      '/v1/platform/usage',
+      listState([{ ...usageOverview, billingStatus: 'overdue' }]),
+    )
+
+    const html = renderToStaticMarkup(<PlatformUsage />)
+
+    expect(html).toContain('Usage and billing')
+    expect(html).toContain('Billing status')
+    expect(html).toContain('overdue')
   })
 
   it('edits the fallback language from supported locales and keeps data residency read-only', async () => {

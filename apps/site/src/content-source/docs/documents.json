@@ -8356,22 +8356,6 @@
                 ],
                 [
                   {
-                    "kind": "message",
-                    "id": "d6xEEc",
-                    "message": "Billing components",
-                    "values": {},
-                    "tags": {}
-                  },
-                  {
-                    "kind": "message",
-                    "id": "rV-BNL",
-                    "message": "Usage and plan management embeds",
-                    "values": {},
-                    "tags": {}
-                  }
-                ],
-                [
-                  {
                     "kind": "inlineCode",
                     "value": "useReverification"
                   },
@@ -21939,10 +21923,6 @@
       "message": "Process a custom URI scheme callback and exchange the authorization code."
     },
     {
-      "id": "d6xEEc",
-      "message": "Billing components"
-    },
-    {
       "id": "dA8-fR",
       "message": "^3.0.3"
     },
@@ -22915,10 +22895,6 @@
       "message": "Provider-ready, separate from Microsoft Entra ID."
     },
     {
-      "id": "rV-BNL",
-      "message": "Usage and plan management embeds"
-    },
-    {
       "id": "rYO1xO",
       "message": "Core API"
     },
@@ -23793,7 +23769,7 @@
     "paragraphs": 152,
     "listItems": 181,
     "tables": 72,
-    "tableRows": 488,
+    "tableRows": 487,
     "codeBlocks": 123,
     "richTags": {
       "inlineCode": 300,
@@ -23802,6 +23778,6 @@
     },
     "staticValues": 2,
     "literalValues": 3,
-    "catalogMessages": 1170
+    "catalogMessages": 1168
   }
 }

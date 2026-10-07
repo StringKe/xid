@@ -935,10 +935,6 @@ msgstr "Seguridad de la cuenta y gestión del perfil"
 msgid "Account settings"
 msgstr "Configuración de la cuenta"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Accounting plan"
-msgstr "Plan de facturación"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "ACS endpoint for signed or encrypted SAML responses."
 msgstr "Punto de conexion ACS para respuestas SAML firmadas o cifradas."
@@ -964,10 +960,10 @@ msgstr "Acción requerida"
 #: apps/console/src/routes/org/OrgRoles.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/OrgWebhooks.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/users/user-columns.tsx
 #: apps/console/src/routes/users/UserDetail.tsx
@@ -996,7 +992,6 @@ msgstr "Activar dispositivo | | XID"
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 #: apps/console/src/routes/org/OrgCustomHostnames.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
 #: apps/console/src/routes/users/tabs/SignInMethodsTab.tsx
 #: apps/console/src/routes/users/user-format.ts
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -2123,26 +2118,13 @@ msgstr "Antes de continuar a {app}"
 msgid "Between 1 and 1440 minutes."
 msgstr "Entre 1 y 1440 minutos."
 
-#: apps/console/src/nav.tsx
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Billing"
 msgstr "Facturación"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Billing components"
-msgstr "Componentes de facturación"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview"
-msgstr "Resumen de facturación"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Billing overview | Console | XID"
-msgstr "Resumen de facturación | Consola | XID"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Billing overview table"
-msgstr "Tabla de resumen de facturación"
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Billing status"
+msgstr "Estado de facturación"
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "billing_admin"
@@ -2158,7 +2140,7 @@ msgstr "Vinculación"
 msgid "Binding names are fixed by the deployment configuration."
 msgstr "Los nombres de enlace los fija la configuración de implementación."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Block new resource creation"
 msgstr "Bloquear la creación de nuevos recursos"
 
@@ -2375,10 +2357,6 @@ msgstr "Cancelar la eliminación"
 msgid "Cancel the current user's pending request."
 msgstr "Cancelar la solicitud pendiente del usuario actual."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Canceled"
-msgstr "Cancelado"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Capabilities"
 msgstr "Capacidades"
@@ -2480,18 +2458,6 @@ msgstr "Revisa tus mensajes"
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 msgid "Checked at sign-in for every application in {name}."
 msgstr "Se comprueba al iniciar sesión en cada aplicación de {name}."
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Enterprise"
-msgstr "Comprar Enterprise"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Pro"
-msgstr "Comprar Pro"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Checkout Starter"
-msgstr "Comprar Starter"
 
 #: apps/server/src/routes/forgot-password/ResetStep.tsx
 msgid "Choose a different password."
@@ -3610,7 +3576,7 @@ msgstr "Datos y privacidad | Cuenta | XID"
 msgid "Data residency label"
 msgstr "Etiqueta de residencia de datos"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "DAU"
 msgstr "DAU"
 
@@ -4482,7 +4448,7 @@ msgstr "Puntos de conexión"
 msgid "Ends at"
 msgstr "Finaliza el"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Enforcement"
 msgstr "Aplicación de límites"
 
@@ -4622,11 +4588,6 @@ msgstr "Escribe tu contraseña"
 msgid "Enter your work email. We'll send you to your company's sign-in page."
 msgstr "Escribe tu correo de trabajo. Te llevaremos a la página de inicio de sesión de tu empresa."
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Enterprise"
-msgstr "Enterprise"
-
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "Enterprise attestation policy for passkey registration. Direct mode requires hardware attestation chains verified against configured trusted roots."
 msgstr "Política de atestación empresarial para el registro de passkeys. El modo directo requiere cadenas de atestación de hardware verificadas contra raíces de confianza configuradas."
@@ -4732,8 +4693,8 @@ msgid "Every app you sign in to with this account."
 msgstr "Todas las apps en las que inicias sesión con esta cuenta."
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-msgid "Every organization on this instance, with plan and lifecycle status."
-msgstr "Todas las organizaciones de esta instancia, con su plan y estado de ciclo de vida."
+msgid "Every organization on this instance, with lifecycle status."
+msgstr "Todas las organizaciones de esta instancia, con su estado de ciclo de vida."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Every OrgUnit and AccessRequest query is scoped by <0>tenant_id</0> and <1>org_id</1>. Cross-organization or cross-tenant identifiers return 404 without revealing existence."
@@ -4786,10 +4747,6 @@ msgstr "example.com"
 #: apps/console/src/routes/org/OrgAuthPolicy.tsx
 msgid "example.com, company.com"
 msgstr "example.com, company.com"
-
-#: packages/web-ui/src/enum-labels.tsx
-msgid "Exceeded"
-msgstr "Excedido"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Exception hierarchy: <0>Xid::Error</0> -> <1>ConfigurationError</1>, <2>JwksError</2>, <3>TokenVerificationError</3>, <4>WebhookVerificationError</4>."
@@ -4972,10 +4929,6 @@ msgstr "No se pudieron cargar los eventos de auditoría. Inténtalo de nuevo."
 msgid "Failed to load authentication policy."
 msgstr "No se pudo cargar la política de autenticación."
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Failed to load billing overview. Please try again."
-msgstr "No se pudo cargar el resumen de facturación. Inténtalo de nuevo."
-
 #: apps/console/src/routes/org/OrgBranding.tsx
 msgid "Failed to load branding settings."
 msgstr "No se pudo cargar la configuración de marca."
@@ -5028,10 +4981,6 @@ msgstr "No se pudieron cargar las aplicaciones SAML salientes."
 msgid "Failed to load permissions."
 msgstr "No se pudieron cargar los permisos."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to load plan and quota settings. Please try again."
-msgstr "No se pudo cargar la configuración de plan y cuotas. Inténtalo de nuevo."
-
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Failed to load platform settings."
 msgstr "No se pudo cargar la configuración de la plataforma."
@@ -5043,6 +4992,10 @@ msgstr "No se pudieron cargar las estadísticas de la plataforma. Inténtalo de 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load projects."
 msgstr "No se pudieron cargar los proyectos."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to load quota settings. Please try again."
+msgstr "No se pudo cargar la configuración de cuotas. Inténtalo de nuevo."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Failed to load role permission mappings."
@@ -5068,21 +5021,29 @@ msgstr "No se pudieron cargar los proveedores sociales."
 msgid "Failed to load status incidents."
 msgstr "No se pudieron cargar los incidentes de estado."
 
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Failed to load usage overview. Please try again."
+msgstr "No se pudo cargar el resumen de uso. Inténtalo de nuevo."
+
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to load user grants."
 msgstr "No se pudieron cargar las concesiones de usuario."
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Failed to open the Customer Portal. Try again."
+msgstr "No se pudo abrir el Customer Portal. Inténtalo de nuevo."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to resolve the selected managed scope."
 msgstr "No se pudo resolver el ámbito administrado seleccionado."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to save plan and quota settings. Try again."
-msgstr "No se pudo guardar la configuración de plan y cuotas. Inténtalo de nuevo."
-
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to save project changes. Try again."
 msgstr "No se pudieron guardar los cambios del proyecto. Inténtalo de nuevo."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Failed to save quota settings. Try again."
+msgstr "No se pudo guardar la configuración de cuotas. Inténtalo de nuevo."
 
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 msgid "Failed to search users."
@@ -5091,10 +5052,6 @@ msgstr "No se pudieron buscar usuarios."
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Failed to search users. Please try again."
 msgstr "No se pudieron buscar usuarios. Inténtalo de nuevo."
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Failed to start managed billing. Try again."
-msgstr "No se pudo iniciar la facturación administrada. Inténtalo de nuevo."
 
 #: apps/console/src/routes/console/ManagedProjects.tsx
 msgid "Failed to update user grants. Try again."
@@ -5268,11 +5225,6 @@ msgstr "Las funciones de integración con frameworks (<0>axum</0>, <1>actix-web<
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Framework-agnostic reactive store; subscribe with useSyncExternalStore in framework bindings"
 msgstr "Store reactivo independiente del framework; suscríbete con useSyncExternalStore en los vínculos del framework"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Free"
-msgstr "Free"
 
 #: apps/console/src/routes/org/OrgAuditEvents.tsx
 #: apps/console/src/routes/users/UserFilterBar.tsx
@@ -6601,7 +6553,7 @@ msgstr "Licencia"
 msgid "Like getAuth but throws a redirect response when unauthenticated"
 msgstr "Como getAuth pero lanza una respuesta de redirección cuando no hay autenticación"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Limit"
 msgstr "Límite"
 
@@ -6671,9 +6623,9 @@ msgid "Live status is temporarily unavailable."
 msgstr "El estado en vivo no está disponible temporalmente."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 msgid "Load more"
 msgstr "Cargar más"
@@ -6772,13 +6724,13 @@ msgstr "Cargando invitación"
 msgid "Loading organization stats"
 msgstr "Cargando estadísticas de la organización"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Loading plan and quota settings"
-msgstr "Cargando configuración de plan y cuotas"
-
 #: apps/console/src/routes/platform/PlatformAdminOverview.tsx
 msgid "Loading platform stats"
 msgstr "Cargando estadísticas de la plataforma"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Loading quota settings"
+msgstr "Cargando configuración de cuotas"
 
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 msgid "Loading social providers"
@@ -7017,10 +6969,6 @@ msgstr "Gestiona dominios verificados para descubrimiento, autenticación alojad
 msgid "Manage your passkeys any time in your account under Security."
 msgstr "Gestiona tus llaves de acceso cuando quieras en tu cuenta, en Seguridad."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Managed billing"
-msgstr "Facturación gestionada"
-
 #: apps/server/src/routes/account/OrganizationsPage.tsx
 msgid "Managed by your directory"
 msgstr "Administrado por tu directorio"
@@ -7090,7 +7038,7 @@ msgstr "Se recomienda Markdown para el consumo por IA"
 msgid "Matches names that start with this text."
 msgstr "Coincide con nombres que empiezan por este texto."
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "MAU"
 msgstr "MAU"
 
@@ -7148,6 +7096,14 @@ msgstr "Mensajería"
 #: apps/console/src/routes/org/SsoConnectionFields.tsx
 msgid "Metadata URL"
 msgstr "URL de metadatos"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage and billing status for every organization."
+msgstr "Uso medido y estado de facturación de cada organización."
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Metered usage for every organization."
+msgstr "Uso medido de cada organización."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Method"
@@ -7536,10 +7492,6 @@ msgstr "No se encontraron eventos de auditoría."
 msgid "No audit events match the current filters."
 msgstr "Ningún evento de auditoría coincide con los filtros actuales."
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "No billing data available."
-msgstr "No hay datos de facturación disponibles."
-
 #: apps/console/src/routes/applications/app-sections.tsx
 msgid "No client authentication; PKCE protects the code exchange"
 msgstr "Sin autenticación de cliente; PKCE protege el canje de código"
@@ -7775,6 +7727,10 @@ msgstr "Sin dependencias de terceros: usa los frameworks del sistema Apple (Auth
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "No third-party dependencies — uses Apple system frameworks only"
 msgstr "Sin dependencias de terceros: solo usa frameworks del sistema Apple"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "No usage data available."
+msgstr "No hay datos de uso disponibles."
 
 #: apps/console/src/routes/applications/app-format.ts
 msgid "No user sign-in"
@@ -8045,7 +8001,7 @@ msgstr "Estado OAuth validado en el callback loopback para prevenir CSRF (redire
 msgid "Object"
 msgstr "Objeto"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Observe only"
 msgstr "observar solo"
 
@@ -8244,7 +8200,7 @@ msgstr "Abre ASWebAuthenticationSession con la URL de autorización PKCE S256. D
 msgid "Open console"
 msgstr "Abrir consola"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
 msgid "Open Customer Portal"
 msgstr "Abrir Customer Portal"
 
@@ -8280,10 +8236,6 @@ msgstr "Plataforma de identidad de código abierto"
 #: apps/site/src/lib/home-surface.ts
 msgid "Open source, inspectable, and self-hostable"
 msgstr "Código abierto, inspeccionable y autohospedable"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Open Stripe-hosted Checkout to start a managed subscription, or use the Customer Portal for an existing billing account. These controls do not license-gate self-hosted features."
-msgstr "Abre el Checkout alojado por Stripe para iniciar una suscripción gestionada o usa el Customer Portal para una cuenta de facturación existente. Estos controles no limitan mediante licencias las funciones autoalojadas."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Open system browser with PKCE S256 authorization URL; exchange code and return XidSession."
@@ -8418,8 +8370,8 @@ msgid "Org creation flow"
 msgstr "Flujo de creación de organización"
 
 #: apps/console/src/routes/platform/PlatformAuditEvents.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 #: apps/console/src/routes/platform/PlatformUsers.tsx
 #: apps/console/src/routes/projects/ProjectAccessTab.tsx
 #: apps/console/src/routes/users/tabs/OrganizationsTab.tsx
@@ -8448,7 +8400,7 @@ msgid "Organization hierarchy"
 msgstr "Jerarquía organizacional"
 
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Organization ID"
 msgstr "ID de organización"
 
@@ -8802,10 +8754,6 @@ msgstr "Medidor de fortaleza de contraseña"
 msgid "Passwordless email magic-link and OTP requests freeze the sign-up intent, server-owned continuation, application client, and invitation row ID when the challenge is created. Social OAuth invitation authorization likewise validates the raw capability before redirecting upstream, persists only the invitation row ID in its one-time state, and ignores caller-owned token routes on callback. Verification cannot rewrite those fields. Raw invitation capabilities are never stored in these flow contexts; when MFA interrupts acceptance, XID uses a short-lived signed continuation bound to the Tenant, User, Session, and invitation."
 msgstr "Las solicitudes sin contraseña mediante enlace mágico de correo electrónico y OTP fijan la intención de registro, la continuación controlada por el servidor, el cliente de aplicación y el ID de la fila de invitación al crear el desafío. La autorización de invitaciones de Social OAuth también valida la capacidad original antes de redirigir al proveedor externo, conserva solo el ID de la fila de invitación en su estado de un solo uso e ignora en el callback las rutas de token controladas por el cliente. La verificación no puede modificar estos campos. Las capacidades de invitación originales nunca se almacenan en estos contextos de flujo. Cuando MFA interrumpe la aceptación, XID usa una continuación firmada de corta duración vinculada al Tenant, usuario, sesión e invitación."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Past due"
-msgstr "Vencido"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "PATCH operations"
 msgstr "Operaciones PATCH"
@@ -8821,10 +8769,6 @@ msgstr "Ruta"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Payload structure"
 msgstr "Estructura del payload"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Payment completed. The plan updates after Stripe confirms the subscription, which can take a minute. Reload this page if it does not change."
-msgstr "Pago completado. El plan se actualiza cuando Stripe confirma la suscripción, lo que puede tardar un minuto. Recarga esta página si no cambia."
 
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -8881,9 +8825,9 @@ msgstr "Modo de recopilación por campo mostrado durante el registro. Los campos
 msgid "Per-organization branding"
 msgstr "Marca por organización"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Per-organization plan, quota, and managed billing settings for this instance."
-msgstr "Configuración de plan, cuota y facturación administrada por organización para esta instancia."
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Per-organization resource quotas for this instance."
+msgstr "Cuotas de recursos por organización en esta instancia."
 
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Permission"
@@ -8997,42 +8941,9 @@ msgstr "El verificador PKCE y el estado OAuth viven en el adaptador de almacenam
 msgid "Place the middleware file in <0>server/middleware/</0> to ensure it covers all routes as a global Nitro middleware."
 msgstr "Coloca el archivo de middleware en <0>server/middleware/</0> para garantizar que cubra todas las rutas como middleware global de Nitro."
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan"
-msgstr "Plan"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan and quota settings saved."
-msgstr "Se guardaron las configuraciones del plan y la cuota."
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan status"
-msgstr "Estado del plan"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plan, lifecycle status, trial, and resource quotas for this organization."
-msgstr "Plan, estado de ciclo de vida, prueba y cuotas de recursos de esta organización."
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Planned"
 msgstr "Planificado"
-
-#: apps/console/src/nav.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-#: apps/console/src/routes/platform/PlatformOrganizations.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans and quotas"
-msgstr "Planes y cuotas"
-
-#: apps/console/src/components/RouteMetadata.tsx
-msgid "Plans and quotas | Console | XID"
-msgstr "Planes y cuotas | Console | XID"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Plans are accounting and support labels. They never disable authentication, token issuance, or configured protocols in a self-hosted deployment."
-msgstr "Los planes son etiquetas contables y de soporte. Nunca deshabilitan la autenticación, la emisión de tokens ni los protocolos configurados en una implementación autohospedada."
 
 #: apps/console/src/components/layout/ScopeSwitcher.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
@@ -9190,11 +9101,6 @@ msgstr "JWT con clave privada"
 #: apps/server/src/routes/create-passkey/PromptViews.tsx
 msgid "Private windows in some browsers can't save passkeys. Use a regular window."
 msgstr "Las ventanas privadas de algunos navegadores no pueden guardar llaves de acceso. Usa una ventana normal."
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Pro"
-msgstr "Pro"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Process a custom URI scheme callback and exchange the authorization code."
@@ -9573,8 +9479,8 @@ msgid "Publish"
 msgstr "Publicar"
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Publish time-bounded notices globally, to one tenant, or to an accounting plan."
-msgstr "Publica avisos con vigencia limitada globalmente, para un tenant o para un plan de facturación."
+msgid "Publish time-bounded notices globally or to one tenant."
+msgstr "Publica avisos con vigencia limitada para toda la instancia o para un solo tenant."
 
 #: apps/console/src/routes/platform/PlatformStatusIncidents.tsx
 msgid "Publish update"
@@ -9631,6 +9537,14 @@ msgstr "Acciones rápidas"
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Quick start"
 msgstr "Inicio rápido"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quota settings saved."
+msgstr "Configuración de cuotas guardada."
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Quotas never disable authentication, token issuance, or configured protocols."
+msgstr "Las cuotas nunca desactivan la autenticación, la emisión de tokens ni los protocolos configurados."
 
 #: apps/console/src/routes/platform/PlatformCompliance.tsx
 msgid "R2 storage key"
@@ -10365,9 +10279,20 @@ msgstr "Recurso"
 msgid "Resource GET responses include <0>ETag: W/\"<meta.version>\"</0> from <1>meta.version</1>. <2>If-Match</2> is optional on <3>PUT</3>, <4>PATCH</4>, and <5>DELETE</5>; when present it must match the current version, and a mismatch or a concurrent write returns <6>412</6>."
 msgstr "Las respuestas GET de recursos incluyen <0>ETag: W/\"<meta.version>\"</0> a partir de <1>meta.version</1>. <2>If-Match</2> es opcional en <3>PUT</3>, <4>PATCH</4> y <5>DELETE</5>; si se envía, debe coincidir con la versión actual, y una discrepancia o una escritura concurrente devuelve <6>412</6>."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformOrganizations.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Resource quotas"
 msgstr "Cuotas de recursos"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Resource quotas | Console | XID"
+msgstr "Cuotas de recursos | Consola | XID"
+
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Resource quotas for this organization."
+msgstr "Cuotas de recursos de esta organización."
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Resources"
@@ -10834,7 +10759,7 @@ msgstr "Guarda primero una copia"
 #: apps/console/src/routes/org/OrgScimTargets.tsx
 #: apps/console/src/routes/org/OrgSocialProviders.tsx
 #: apps/console/src/routes/org/OrgSso.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 #: apps/console/src/routes/platform/PlatformSettings.tsx
 msgid "Save changes"
 msgstr "Guardar cambios"
@@ -11052,11 +10977,7 @@ msgstr "Busca usuarios, aplicaciones o ve a una página"
 msgid "Searching"
 msgstr "Buscando"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Seat limit"
-msgstr "Límite de asientos"
-
-#: apps/console/src/routes/platform/PlatformBilling.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
 msgid "Seats"
 msgstr "Plazas"
 
@@ -11139,10 +11060,6 @@ msgstr "Ver tu número de teléfono"
 msgid "Select"
 msgstr "Seleccionar"
 
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-msgid "Select a plan"
-msgstr "Selecciona un plan"
-
 #: apps/console/src/routes/org/OrgRoles.tsx
 msgid "Select a role, attach a permission, and optionally require a JSON ABAC condition. The server validates supported operators and variable paths."
 msgstr "Seleccione una función, adjunte un permiso y, opcionalmente, solicite una condición JSON ABAC. El servidor valida los operadores admitidos y las rutas de variables."
@@ -11151,9 +11068,9 @@ msgstr "Seleccione una función, adjunte un permiso y, opcionalmente, solicite u
 msgid "Select a search result or enter the exact ID of an active user."
 msgstr "Seleccione un resultado de búsqueda o ingrese el ID exacto de un usuario activo."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Select an organization to view and edit its plan and quotas. <0>Browse platform organizations</0>"
-msgstr "Selecciona una organización para ver y editar su plan y cuotas. <0>Explorar organizaciones de la plataforma</0>"
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
+msgid "Select an organization to view and edit its resource quotas. <0>Browse platform organizations</0>"
+msgstr "Selecciona una organización para ver y editar sus cuotas de recursos. <0>Ver organizaciones de la plataforma</0>"
 
 #: packages/web-ui/src/components/ui/CopyButton.tsx
 msgid "Select and copy"
@@ -12117,11 +12034,6 @@ msgid "Started this on a TV or tablet? Open {host} on your phone and enter the c
 msgstr "¿Empezaste en una TV o tableta? Abre {host} en tu teléfono y escribe ahí el código."
 
 #: apps/console/src/routes/platform/PlatformAnnouncements.tsx
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Starter"
-msgstr "Starter"
-
-#: apps/console/src/routes/platform/PlatformAnnouncements.tsx
 msgid "Starts at"
 msgstr "Comienza el"
 
@@ -12132,7 +12044,6 @@ msgstr "Tipo de callback para escucha de cambios de estado"
 #: apps/console/src/routes/members/InvitationsTab.tsx
 #: apps/console/src/routes/org/OrgScim.tsx
 #: apps/console/src/routes/org/useSsoConnectionColumns.tsx
-#: apps/console/src/routes/platform/PlatformBilling.tsx
 #: apps/console/src/routes/platform/PlatformDeadLetters.tsx
 #: apps/console/src/routes/platform/PlatformInstanceManagers.tsx
 #: apps/console/src/routes/platform/PlatformOrganizations.tsx
@@ -12242,10 +12153,6 @@ msgstr "string"
 msgid "string constant"
 msgstr "constante de cadena"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Stripe Checkout was canceled. The plan was not changed."
-msgstr "Se canceló Stripe Checkout. El plan no se modificó."
-
 #: apps/server/src/routes/sign-up/PasswordStrength.tsx
 msgid "Strong"
 msgstr "Fuerte"
@@ -12298,10 +12205,6 @@ msgstr "Éxito"
 #: apps/site/src/lib/home-surface.ts
 msgid "Support"
 msgstr "Soporte"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Support label"
-msgstr "Etiqueta de soporte"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Support levels"
@@ -13236,6 +13139,10 @@ msgstr "Esta organización no permite que los invitados añadan un correo. Crea 
 msgid "This organization has been suspended."
 msgstr "Esta organización ha sido suspendida."
 
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "This organization has no Stripe customer yet. Create one in Stripe with the metadata key xid_tenant_id set to this organization ID."
+msgstr "Esta organización aún no tiene un customer de Stripe. Crea uno en Stripe con la clave de metadata xid_tenant_id establecida en el ID de esta organización."
+
 #: packages/i18n/src/messages.ts
 msgid "This organization needs at least one owner. Make someone else an owner first."
 msgstr "Esta organización necesita al menos un propietario. Primero convierte a otra persona en propietaria."
@@ -13493,14 +13400,6 @@ msgstr "El correo electrónico transaccional utiliza plantillas Mustache integra
 msgid "Trends"
 msgstr "Tendencias"
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trial ends at"
-msgstr "La prueba finaliza el"
-
-#: apps/console/src/routes/platform/PlatformPlans.tsx
-msgid "Trialing"
-msgstr "En período de prueba"
-
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Trigger"
 msgstr "Disparador"
@@ -13695,7 +13594,7 @@ msgstr "Ubicación desconocida"
 msgid "Unlike <0>@xid-kit/react</0>, this package uses its own native token context. It exports <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13>, and <14>clearTokenSet</14>; it does not import or re-export the React web SDK."
 msgstr "A diferencia de <0>@xid-kit/react</0>, este paquete usa su propio contexto nativo de tokens. Exporta <1>useAuth</1>, <2>useUser</2>, <3>useSession</3>, <4>useSignIn</4>, <5>useSignOut</5>, <6>useXidRnContext</6>, <7>SignedIn</7>, <8>SignedOut</8>, <9>XidLoaded</9>, <10>XidLoading</10>, <11>exchangeCodeForTokens</11>, <12>saveTokenSet</12>, <13>readTokenSet</13> y <14>clearTokenSet</14>; no importa ni vuelve a exportar el SDK web de React."
 
-#: apps/console/src/routes/platform/PlatformPlans.tsx
+#: apps/console/src/routes/platform/PlatformQuotas.tsx
 msgid "Unlimited"
 msgstr "Ilimitado"
 
@@ -13774,13 +13673,34 @@ msgstr "URL SSO ascendente"
 msgid "URL-safe random string for OAuth state; base64url encoding helper"
 msgstr "Cadena aleatoria segura para URLs como estado OAuth; utilidad de codificación base64url"
 
-#: apps/site/src/content-source/docs/message-descriptors.ts
-msgid "Usage and plan management embeds"
-msgstr "Embeds de gestión de uso y plan"
+#: apps/console/src/nav.tsx
+msgid "Usage"
+msgstr "Uso"
 
-#: apps/console/src/routes/platform/PlatformBilling.tsx
-msgid "Usage, seats, and billing status for every organization."
-msgstr "Uso, asientos y estado de facturación de todas las organizaciones."
+#: apps/console/src/nav.tsx
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage and billing"
+msgstr "Uso y facturación"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage billing"
+msgstr "Facturación por uso"
+
+#: apps/console/src/routes/platform/UsageBillingSection.tsx
+msgid "Usage is billed by metered MAU. Open the Customer Portal to view invoices and payment methods."
+msgstr "El uso se factura según los MAU medidos. Abre el Customer Portal para ver facturas y métodos de pago."
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview"
+msgstr "Resumen de uso"
+
+#: apps/console/src/components/RouteMetadata.tsx
+msgid "Usage overview | Console | XID"
+msgstr "Resumen de uso | Consola | XID"
+
+#: apps/console/src/routes/platform/PlatformUsage.tsx
+msgid "Usage overview table"
+msgstr "Tabla de resumen de uso"
 
 #: apps/site/src/content-source/docs/message-descriptors.ts
 msgid "Use"

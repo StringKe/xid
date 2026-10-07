@@ -192,11 +192,7 @@ export default function PlatformAnnouncements(): ReactNode {
   return (
     <ConsolePage
       title={<Trans>Announcements</Trans>}
-      lead={
-        <Trans>
-          Publish time-bounded notices globally, to one tenant, or to an accounting plan.
-        </Trans>
-      }
+      lead={<Trans>Publish time-bounded notices globally or to one tenant.</Trans>}
     >
       {announcements.isError || create.error || create.isSuccess || update.error ? (
         <ConsolePageNotice>
@@ -275,24 +271,8 @@ export default function PlatformAnnouncements(): ReactNode {
             >
               <option value="global">{t`All tenants`}</option>
               <option value="tenant">{t`One tenant`}</option>
-              <option value="plan">{t`Accounting plan`}</option>
             </Select>
           </Field>
-          {form.scopeType === 'plan' ? (
-            <Field label={t`Plan`}>
-              <Select
-                value={form.scopeValue}
-                onChange={(event) => setForm({ ...form, scopeValue: event.target.value })}
-                required
-              >
-                <option value="">{t`Select a plan`}</option>
-                <option value="free">{t`Free`}</option>
-                <option value="starter">{t`Starter`}</option>
-                <option value="pro">{t`Pro`}</option>
-                <option value="enterprise">{t`Enterprise`}</option>
-              </Select>
-            </Field>
-          ) : null}
           {form.scopeType === 'tenant' ? (
             <PlatformOrganizationPicker
               label={t`Tenant`}
