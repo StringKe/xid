@@ -74,6 +74,15 @@ describe('deriveAccentPalette', () => {
     expect(deriveAccentPalette('#2e5fa3', 'light')?.accent).toBe('#2e5fa3')
   })
 
+  it('derives a same-hue dark wash and label that stay readable for the default dark accent', () => {
+    const palette = deriveAccentPalette('#7fa6de', 'dark')
+
+    expect(palette).toMatchObject({ accent: '#7fa6de', accentWash: '#18202a' })
+    expect(
+      contrastRatio(parsed('#7fa6de'), parsed(palette?.accentForeground ?? '')),
+    ).toBeGreaterThanOrEqual(TEXT_CONTRAST)
+  })
+
   it('darkens a bright yellow until it passes on white', () => {
     const palette = deriveAccentPalette('#ffd400', 'light')
 

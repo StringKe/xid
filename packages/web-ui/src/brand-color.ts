@@ -28,6 +28,10 @@ const BLACK: Rgb = { r: 0, g: 0, b: 0 }
 const WHITE: Rgb = { r: 255, g: 255, b: 255 }
 const HEX_PATTERN = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 const MAX_ADJUST_STEPS = 20
+// 深色下浅底与按钮文字取强调色本身的暗调(同色相),而不是灰底或纯黑:#7fa6de -> #18202a / #0f141b。
+// 深色 accent 已对 #181818 达到 4.5:1,按此比例压暗后对 accent 恒大于 4.5:1。
+const DARK_WASH_SHADE = 0.19
+const DARK_LABEL_SHADE = 0.12
 
 export function parseHexColor(value: string): Rgb | null {
   const trimmed = value.trim()
@@ -103,7 +107,10 @@ export function deriveAccentPalette(source: string, scheme: ColorScheme): Accent
     GROUND[scheme],
     TEXT_CONTRAST,
   )
-  const accentWash = roundRgb(mix(surface, onShell, scheme === 'light' ? 0.1 : 0.18))
+  const accentWash =
+    scheme === 'light'
+      ? roundRgb(mix(surface, onShell, 0.1))
+      : roundRgb(mix(BLACK, onShell, DARK_WASH_SHADE))
   const accent = ensureContrast(onShell, accentWash, TEXT_CONTRAST)
   const strongTarget = scheme === 'light' ? BLACK : WHITE
   const accentStrong = roundRgb(mix(accent, strongTarget, scheme === 'light' ? 0.2 : 0.3))
@@ -111,6 +118,8 @@ export function deriveAccentPalette(source: string, scheme: ColorScheme): Accent
     accent: toHex(accent),
     accentStrong: toHex(accentStrong),
     accentWash: toHex(accentWash),
-    accentForeground: toHex(readableLabel(accent)),
+    accentForeground: toHex(
+      scheme === 'light' ? readableLabel(accent) : roundRgb(mix(BLACK, accent, DARK_LABEL_SHADE)),
+    ),
   }
 }
